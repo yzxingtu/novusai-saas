@@ -49,7 +49,18 @@ description: NovusAI 知识库 / RAG 技能。当需要开发、修复、审查�
 - 支持整库重建索引（reindex）
 - 支持分块预览
 
-### 5. 多模态解析层
+### 5. 存储与索引层
+
+- 不使用 Milvus / Qdrant / FAISS 这类外部向量库；当前向量主存储是 PostgreSQL `pgvector`
+- `document_chunks` 同时保存 `content` 原文、`embedding` 向量、`metadata`
+- 向量检索走 `DocumentChunk.embedding.cosine_distance(...)`
+- 关键词检索走 PostgreSQL `content_tsv` + GIN
+- 混合检索在应用层做 per-KB 独立召回 + RRF 融合
+- Redis 仅用于文档处理进度和检索结果缓存，不持久化向量
+- 上传文件走附件系统；原始文件在 `attachments` + 存储驱动，`knowledge_documents.attachment_id` 只保存关联
+- 直接文本 / URL / Q&A 可无附件，原始输入保存在 `metadata_extra`，供解析与 reindex 使用
+
+### 6. 多模态解析层
 
 - 支持：`txt / md / pdf / docx / csv / xlsx / html / pptx`
 - 支持图片：`.jpg .jpeg .png .webp .gif`
@@ -59,7 +70,7 @@ description: NovusAI 知识库 / RAG 技能。当需要开发、修复、审查�
 - 显式上传的图片文件始终走 Vision 描述，不依赖 `extract_images`
 - 音频 / 视频如果最终拿不到文本，会明确进入 `error`，不会假成功
 
-### 6. 检索与 RAG 层
+### 7. 检索与 RAG 层
 
 - 知识库详情页支持检索测试
 - 检索测试接口支持 `query / top_k / score_threshold / search_mode`
@@ -68,7 +79,7 @@ description: NovusAI 知识库 / RAG 技能。当需要开发、修复、审查�
 - 绑定权重 `AgentKnowledgeBaseBinding.weight` 已真实参与融合排序
 - 支持 `rewrite_strategy`、`reranker_enabled`、`context_token_ratio`
 
-### 7. Agent 集成层
+### 8. Agent 集成层
 
 - Agent 详情页有独立 `知识库 (RAG)` tab，维护 `Agent.rag_config`
 - Agent 详情页有 `知识库` 绑定 tab，维护 KB 绑定、权重、启用状态
@@ -81,6 +92,8 @@ description: NovusAI 知识库 / RAG 技能。当需要开发、修复、审查�
 - 运行时 RAG 配置中心是 `Agent.rag_config`，不是 `KnowledgeBase.search_mode/top_k/score_threshold`
 - 企业端对平台下发知识库默认只读，变更操作必须先判断归属企业
 - 知识库文档上传必须复用附件系统，不能自造上传链路
+- 先区分“原始文件存储 / 文档记录 / chunk 原文 / embedding 向量 / Redis 缓存”这 5 层，再分析问题
+- 向量持久化真源是 PostgreSQL `document_chunks.embedding`，不是 Redis，不是附件系统
 - 文档处理失败必须进入明确错误状态，不能出现“无 chunk 但状态成功”
 - 删除文档、重建索引后要记得失效检索缓存
 - 知识库绑定权重不是展示字段，改动时要考虑真实检索融合影响
@@ -146,11 +159,17 @@ description: NovusAI 知识库 / RAG 技能。当需要开发、修复、审查�
 - 真实对话时优先使用 Agent 级 `rag_config`
 - 检索测试接口当前走 `VectorRetriever.search(...)`，更偏 KB 调试，不等同完整 Agent 运行时的多 KB 融合链路
 - 企业端只能上传/删除/重试/重建“自有知识库”的文档；平台下发知识库在企业端是只读
+- ORM 模型写成 `Vector()` 且 KB 表保留 `embedding_dimensions`，但最早迁移实际建列是 `document_chunks.embedding vector(1536)`；在确认后续迁移修正前，不要假设任意维度 embedding 可以直接上线
+- 如果切换非 `1536` 维 embedding 模型，必须先核对 `document_chunks.embedding` 列类型、HNSW 索引和历史数据兼容性
+- chunk 原文与向量同表存储，原始文件仍在附件系统；排查“检索不到”时不要只看 `knowledge_documents`
 
 ## 常见坑
 
 - 不要再用 `scope === 'all_tenants'` 判断是不是企业自有知识库，必须看 `tenant_id / owner_tenant_id`
 - 不要把 KB 表上的检索参数当成最终运行时真源
+- 不要把 Redis 检索缓存误当成向量存储
+- 不要把 `embedding_dimensions` 字段存在误当成数据库已经支持多维度混用
+- 不要只看 `knowledge_documents` 就判断“文档内容在哪”；真正召回的是 `document_chunks`
 - 不要忘记重建索引和删除文档后的缓存失效
 - 不要绕过 `KnowledgeDocumentPicker` 和标准上传 API 自己拼一套录入方式
 - 不要宣称“音频/视频知识库已完全可用”，除非当前部署环境里的描述模型确实能稳定产出文本
@@ -186,8 +205,14 @@ description: NovusAI 知识库 / RAG 技能。当需要开发、修复、审查�
 - `backend/app/services/ai/knowledge_base_service.py`
 - `backend/app/services/ai/agent_kb_binding_service.py`
 - `backend/app/services/ai/tenant_platform_kb_suppression_service.py`
+- `backend/app/models/ai/document_chunk.py`
 - `backend/app/models/ai/knowledge_base.py`
+- `backend/app/models/ai/knowledge_document.py`
+- `backend/app/models/tenant/attachment.py`
 - `backend/app/schemas/ai/knowledge_base.py`
+- `backend/app/services/tenant/attachment_service.py`
+- `backend/app/storage/__init__.py`
+- `backend/migrations/versions/20260211_0010_add_knowledge_base_tables.py`
 
 ### RAG 管线
 

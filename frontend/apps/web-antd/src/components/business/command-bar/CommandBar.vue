@@ -130,6 +130,12 @@ const hasMenuResults = computed(() => menuSearchResults.value.length > 0);
 const showAgentStarter = computed(
   () => !!selectedAgent.value && mode.value !== 'mention' && !hasMenuResults.value,
 );
+const showOverviewContent = computed(
+  () => showAgentStarter.value || !inputText.value.trim(),
+);
+const showRecentConversations = computed(
+  () => !inputText.value.trim() && (recentConversations.value.length > 0 || recentLoading.value),
+);
 
 function handleKeydown(e: KeyboardEvent) {
   if (mode.value === 'mention') {
@@ -484,12 +490,12 @@ defineExpose({
             </div>
           </div>
 
-          <!-- Agent starter content -->
           <div
-            v-else-if="showAgentStarter"
+            v-else-if="showOverviewContent"
             class="max-h-[360px] overflow-y-auto px-4 py-3"
           >
             <div
+              v-if="showAgentStarter"
               class="rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/10 via-accent/20 to-transparent p-4"
             >
               <div class="flex items-start gap-3">
@@ -551,103 +557,13 @@ defineExpose({
             </div>
 
             <div
-              class="mt-3 flex items-center gap-4 text-xs text-muted-foreground/70"
-            >
-              <span class="flex items-center gap-1">
-                <kbd
-                  class="rounded border border-border/50 bg-muted/50 px-1 py-0.5 text-[10px]"
-                  >Enter</kbd
-                >
-                {{ $t('common.commandBar.send') }}
-              </span>
-              <span class="flex items-center gap-1">
-                <kbd
-                  class="rounded border border-border/50 bg-muted/50 px-1 py-0.5 text-[10px]"
-                  >Esc</kbd
-                >
-                {{ $t('common.aiPanel.close') }}
-              </span>
-            </div>
-
-            <div
-              v-if="!inputText.trim() && (recentConversations.length > 0 || recentLoading)"
-              class="mt-3 border-t border-border/30 pt-3"
-            >
-              <div
-                class="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60"
-              >
-                <IconifyIcon icon="lucide:history" class="size-3" />
-                {{ $t('common.commandBar.recentChats') }}
-              </div>
-
-              <div v-if="recentLoading" class="space-y-1">
-                <div
-                  v-for="i in 4"
-                  :key="i"
-                  class="flex items-center gap-2.5 px-2.5 py-1.5"
-                >
-                  <Skeleton.Avatar :active="true" :size="24" shape="square" />
-                  <div class="min-w-0 flex-1">
-                    <Skeleton.Input :active="true" :size="'small'" style="width: 60%; height: 16px;" />
-                  </div>
-                  <Skeleton.Input :active="true" :size="'small'" style="width: 50px; height: 12px;" />
-                </div>
-              </div>
-
-              <div v-else class="space-y-0.5">
-                <div
-                  v-for="conv in recentConversations"
-                  :key="conv.id"
-                  class="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition-colors hover:bg-accent/60"
-                  @click="handleConversationClick(conv)"
-                  @dblclick.stop="startEditTitle(conv)"
-                >
-                  <div
-                    v-if="editingConversationId !== conv.id"
-                    class="flex size-6 shrink-0 items-center justify-center rounded-md bg-muted/60 text-[10px] font-medium text-muted-foreground"
-                  >
-                    <img
-                      v-if="conv.agent_avatar"
-                      :src="toAvatarDisplayUrl(conv.agent_avatar)"
-                      :alt="conv.agent_name || ''"
-                      class="size-full rounded-md object-cover"
-                    />
-                    <span v-else-if="conv.agent_name">{{ conv.agent_name.charAt(0).toUpperCase() }}</span>
-                    <IconifyIcon v-else icon="lucide:message-square" class="size-3" />
-                  </div>
-                  <div class="min-w-0 flex-1">
-                    <template v-if="editingConversationId === conv.id">
-                      <Input
-                        v-model:value="editingTitle"
-                        size="small"
-                        :placeholder="$t('common.globalAiChat.conversationTitlePlaceholder')"
-                        class="!h-6 text-[13px]"
-                        @blur="commitEditTitle"
-                        @keydown.enter="commitEditTitle"
-                        @keydown.esc="cancelEditTitle"
-                        @click.stop
-                      />
-                    </template>
-                    <div v-else class="truncate text-[13px] text-foreground">
-                      {{ conv.title || `#${conv.id}` }}
-                    </div>
-                  </div>
-                  <Tooltip v-if="editingConversationId !== conv.id" :title="formatDate(conv.created_at)" placement="left">
-                    <span class="shrink-0 text-[10px] tabular-nums text-muted-foreground/50">
-                      {{ formatRelativeTime(conv.created_at) }}
-                    </span>
-                  </Tooltip>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Default: Quick Tips + Recent Conversations -->
-          <div v-else-if="!inputText.trim()" class="px-4 py-3">
-            <div
               class="flex items-center gap-4 text-xs text-muted-foreground/70"
+              :class="showAgentStarter ? 'mt-3' : ''"
             >
-              <span class="flex items-center gap-1">
+              <span
+                v-if="!showAgentStarter"
+                class="flex items-center gap-1"
+              >
                 <kbd
                   class="rounded border border-border/50 bg-muted/50 px-1 py-0.5 text-[10px]"
                   >@</kbd
@@ -659,7 +575,11 @@ defineExpose({
                   class="rounded border border-border/50 bg-muted/50 px-1 py-0.5 text-[10px]"
                   >Enter</kbd
                 >
-                {{ $t('common.commandBar.openOrSend') }}
+                {{
+                  showAgentStarter
+                    ? $t('common.commandBar.send')
+                    : $t('common.commandBar.openOrSend')
+                }}
               </span>
               <span class="flex items-center gap-1">
                 <kbd
@@ -670,9 +590,8 @@ defineExpose({
               </span>
             </div>
 
-            <!-- Recent Conversations -->
             <div
-              v-if="recentConversations.length > 0 || recentLoading"
+              v-if="showRecentConversations"
               class="mt-3 border-t border-border/30 pt-3"
             >
               <div
@@ -682,7 +601,6 @@ defineExpose({
                 {{ $t('common.commandBar.recentChats') }}
               </div>
 
-              <!-- Skeleton loading -->
               <div v-if="recentLoading" class="space-y-1">
                 <div
                   v-for="i in 4"

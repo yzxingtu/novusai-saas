@@ -48,14 +48,3 @@ export async function getAdminMenusWithPermissionsApi(
 
   return { menus, permissions };
 }
-
-/**
- * Get current admin menus / 获取当前管理员菜单列表
- * @deprecated Use getAdminMenusWithPermissionsApi to also get permission codes
- */
-export async function getAdminMenusApi(
-  options?: ApiRequestOptions,
-): Promise<RouteRecordStringComponent[]> {
-  const { menus } = await getAdminMenusWithPermissionsApi(options);
-  return menus;
-}

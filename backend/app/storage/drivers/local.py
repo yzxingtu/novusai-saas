@@ -424,8 +424,12 @@ class LocalStorageDriver(StorageDriver):
 
         return data, mime_type
 
-    def supports_native_image_processing(self) -> bool:
+    def supports_native_image_processing(
+        self,
+        visibility: StorageVisibility | None = None,
+    ) -> bool:
         """
         本地存储不支持原生图片处理，需本地 Pillow / Local storage does not support native image processing, requires local Pillow.
         """
+        _ = visibility
         return False

@@ -60,7 +60,7 @@ const breadcrumbs = computed((): IBreadcrumb[] => {
   }
   if (props.showHome) {
     resultBreadcrumb.unshift({
-      icon: 'mdi:home-outline',
+      icon: 'lucide:home',
       isHome: true,
       path: '/',
     });

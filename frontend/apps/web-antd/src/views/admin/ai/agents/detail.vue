@@ -1,6 +1,4 @@
 <script lang="ts" setup>
-import type { SkillOption } from './data';
-
 /**
  * 管理端智能体详情页
  *
@@ -55,6 +53,12 @@ import {
 } from '#/api/admin/ai';
 import { smartUploadFile } from '#/api/admin/attachment';
 import { getAdminKnowledgeBaseListApi } from '#/api/admin/knowledge-bases';
+import {
+  AgentSkillBindingPicker,
+  draftsToBatchPayload,
+  grantsToDrafts,
+  type AgentSkillBindingDraftItem,
+} from '#/components/business/agent-skill-binding-picker';
 import InputVariablesEditor from '#/components/business/input-variables-editor/InputVariablesEditor.vue';
 import {
   createOpenCurrentPageOperation,
@@ -79,7 +83,6 @@ import {
   getExecutionModeText,
   getOwnerTypeColor,
   getOwnerTypeText,
-  getSkillSelectOptions,
   getStatusText,
 } from './data';
 import AccessConfigDrawer from './modules/AccessConfig.vue';
@@ -384,45 +387,43 @@ async function saveChatConfig() {
 // ==================== Skill Bindings Tab ====================
 const bindings = ref<AIAgentSkillGrantInfo[]>([]);
 const bindingsLoading = ref(false);
-const skillOptions = ref<SkillOption[]>([]);
-const selectedNewSkills = ref<number[]>([]);
+const skillPickerOpen = ref(false);
+const skillPickerDrafts = ref<AgentSkillBindingDraftItem[]>([]);
+const bindingPackageCount = computed(() => {
+  const keys = new Set(
+    bindings.value.map((binding) => binding.package_name || `skill:${binding.skill_id}`),
+  );
+  return keys.size;
+});
 
 async function loadBindings() {
   bindingsLoading.value = true;
   try {
     bindings.value = await getAIAgentSkillsApi(agentId.value);
-  } catch {
+  } catch (error) {
+    console.error('[AdminAgentDetail] loadBindings', error);
     bindings.value = [];
+    message.error($t('common.loadFailed'));
   } finally {
     bindingsLoading.value = false;
   }
 }
 
-async function loadSkillOptions() {
-  try {
-    skillOptions.value = await getSkillSelectOptions();
-  } catch {
-    skillOptions.value = [];
-  }
+function openSkillBindingPicker() {
+  skillPickerDrafts.value = grantsToDrafts(bindings.value);
+  skillPickerOpen.value = true;
 }
 
-const unboundSkills = computed(() => {
-  const boundIds = new Set(bindings.value.map((binding) => binding.skill_id));
-  return skillOptions.value.filter((skill) => !boundIds.has(skill.value));
-});
-
-async function bindSkills() {
-  if (selectedNewSkills.value.length === 0) return;
-  const currentIds = bindings.value.map((binding) => binding.skill_id);
-  for (const skillId of selectedNewSkills.value) {
-    if (!currentIds.includes(skillId)) currentIds.push(skillId);
-  }
+async function onSkillBindingPickerConfirm(_drafts: AgentSkillBindingDraftItem[]) {
   try {
-    await batchBindAIAgentSkillsApi(agentId.value, { skill_ids: currentIds });
-    selectedNewSkills.value = [];
-    await loadBindings();
+    await batchBindAIAgentSkillsApi(
+      agentId.value,
+      draftsToBatchPayload(_drafts),
+    );
     message.success($t('admin.ai.agent.detail.saveSuccess'));
-  } catch {
+    await loadBindings();
+  } catch (error) {
+    console.error('[AdminAgentDetail] batchBind skills', error);
     message.error($t('common.saveFailed'));
   }
 }
@@ -717,41 +718,54 @@ async function saveQuota() {
 const routingEnabled = ref(false);
 const routingMaxTier = ref<string | undefined>(undefined);
 const routingVisionModelId = ref<number | undefined>(undefined);
+const routingAudioModelId = ref<number | undefined>(undefined);
+const routingVideoModelId = ref<number | undefined>(undefined);
 const routingLongContextModelId = ref<number | undefined>(undefined);
 const routingLongContextThreshold = ref(32_000);
 const visionModelOptions = ref<{ label: string; value: number }[]>([]);
+const audioModelOptions = ref<{ label: string; value: number }[]>([]);
+const videoModelOptions = ref<{ label: string; value: number }[]>([]);
 const chatModelOptions = ref<{ label: string; value: number }[]>([]);
 
 async function loadAdminRoutingModelOptions() {
   try {
-    const visionRes = await getAIModelListApi({
-      'page[size]': 100,
-      'filter[type][eq]': 'chat',
-      'filter[is_active][eq]': true,
-      'filter[supports_vision][eq]': true,
-    });
-    visionModelOptions.value = (visionRes.items || []).map((m) => ({
-      label: `${m.name} (${m.provider_name || '-'})`,
-      value: m.id,
-    }));
     const chatRes = await getAIModelListApi({
       'page[size]': 200,
       'filter[type][eq]': 'chat',
       'filter[is_active][eq]': true,
     });
+    const chatModels = chatRes.items || [];
+    const toOption = (model: {
+      id: number;
+      name: string;
+      provider_name: null | string;
+    }) => ({
+      label: `${model.name} (${model.provider_name || '-'})`,
+      value: model.id,
+    });
+    visionModelOptions.value = chatModels
+      .filter((m) => m.supports_vision)
+      .map(toOption);
+    audioModelOptions.value = chatModels
+      .filter((m) => m.supports_audio)
+      .map(toOption);
+    videoModelOptions.value = chatModels
+      .filter((m) => m.supports_video)
+      .map(toOption);
     chatModelMaxOutputTokens.value = Object.fromEntries(
-      (chatRes.items || []).map((m) => [
+      chatModels.map((m) => [
         m.id,
         m.max_output_tokens ?? undefined,
       ]),
     );
-    chatModelOptions.value = (chatRes.items || []).map((m) => ({
-      label: `${m.name} (${m.provider_name || '-'})`,
-      value: m.id,
-    }));
+    chatModelOptions.value = chatModels.map(toOption);
   } catch {
     // fallback
     chatModelMaxOutputTokens.value = {};
+    visionModelOptions.value = [];
+    audioModelOptions.value = [];
+    videoModelOptions.value = [];
+    chatModelOptions.value = [];
   }
 }
 
@@ -768,6 +782,10 @@ function initAdminRouting() {
   routingMaxTier.value = (rc.max_tier as string | undefined) ?? undefined;
   routingVisionModelId.value =
     (rc.vision_model_id as number | undefined) ?? undefined;
+  routingAudioModelId.value =
+    (rc.audio_model_id as number | undefined) ?? undefined;
+  routingVideoModelId.value =
+    (rc.video_model_id as number | undefined) ?? undefined;
   routingLongContextModelId.value =
     (rc.long_context_model_id as number | undefined) ?? undefined;
   routingLongContextThreshold.value =
@@ -780,6 +798,8 @@ async function saveAdminRouting() {
       enable_routing: routingEnabled.value,
       max_tier: routingMaxTier.value || null,
       vision_model_id: routingVisionModelId.value ?? null,
+      audio_model_id: routingAudioModelId.value ?? null,
+      video_model_id: routingVideoModelId.value ?? null,
       long_context_model_id: routingLongContextModelId.value ?? null,
       long_context_threshold: routingLongContextThreshold.value,
     },
@@ -855,7 +875,6 @@ function onTabChange(key: number | string) {
     }
     case 'skills': {
       loadBindings();
-      loadSkillOptions();
       break;
     }
   }
@@ -1586,49 +1605,45 @@ useDetailPageAi({
                 </span>
               </template>
               <div class="p-5 pt-3">
+                <AgentSkillBindingPicker
+                  v-model:open="skillPickerOpen"
+                  v-model="skillPickerDrafts"
+                  @confirm="onSkillBindingPickerConfirm"
+                />
                 <Spin :spinning="bindingsLoading">
                   <div class="flex flex-col gap-4">
-                    <div
-                      class="flex items-center gap-3 rounded-xl border bg-accent/30 p-4"
-                    >
-                      <ASelect
-                        v-model:value="selectedNewSkills"
-                        :options="unboundSkills"
-                        :placeholder="$t('admin.ai.agent.placeholder.selectSkills')"
-                        mode="multiple"
-                        show-search
-                        option-filter-prop="label"
-                        allow-clear
-                        class="flex-1"
-                      >
-                        <template #option="{ label: optLabel, value: optValue }">
-                          <div class="flex items-center justify-between gap-2">
-                            <span>{{ optLabel }}</span>
-                            <div class="flex items-center gap-1">
-                              <Tag
-                                v-for="tag in [
-                                  skillOptions.find((p) => p.value === optValue)
-                                    ?.packageName,
-                                  skillOptions.find((p) => p.value === optValue)
-                                    ?.skillType,
-                                ].filter(Boolean)"
-                                :key="String(tag)"
-                                class="mr-0 text-xs"
-                              >
-                                {{ tag }}
-                              </Tag>
-                            </div>
+                    <div class="rounded-2xl border border-border/70 bg-muted/20 p-4">
+                      <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div class="min-w-0 flex-1">
+                          <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-sm font-semibold text-foreground">
+                              {{ $t('admin.ai.agent.detail.skillBindings') }}
+                            </span>
+                            <Tag class="!mr-0 !rounded-full !px-2 !text-[11px]">
+                              {{
+                                $t('admin.ai.agent.skillPicker.selectedCount', {
+                                  count: bindings.length,
+                                })
+                              }}
+                            </Tag>
+                            <Tag class="!mr-0 !rounded-full !px-2 !text-[11px]">
+                              {{
+                                $t('admin.ai.agent.skillPicker.selectionSummary', {
+                                  skills: bindings.length,
+                                  packages: bindingPackageCount,
+                                })
+                              }}
+                            </Tag>
                           </div>
-                        </template>
-                      </ASelect>
-                      <Button
-                        type="primary"
-                        :disabled="selectedNewSkills.length === 0"
-                        @click="bindSkills"
-                      >
-                        <IconifyIcon icon="lucide:plus" class="mr-1" />
-                        {{ $t('common.add') }}
-                      </Button>
+                          <p class="mt-1 text-xs leading-5 text-muted-foreground">
+                            {{ $t('admin.ai.agent.help.skillBindings') }}
+                          </p>
+                        </div>
+                        <Button type="primary" @click="openSkillBindingPicker">
+                          <IconifyIcon icon="lucide:settings-2" class="mr-1 size-4" />
+                          {{ $t('admin.ai.agent.skillPicker.manageBindings') }}
+                        </Button>
+                      </div>
                     </div>
 
                     <div v-if="bindings.length > 0" class="flex flex-col gap-2">
@@ -1720,7 +1735,26 @@ useDetailPageAi({
                       </div>
                     </div>
 
-                    <Empty v-if="bindings.length === 0 && !bindingsLoading" />
+                    <div
+                      v-if="bindings.length === 0 && !bindingsLoading"
+                      class="rounded-2xl border border-dashed border-border/70 bg-background px-6 py-10 text-center"
+                    >
+                      <div
+                        class="mx-auto flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary"
+                      >
+                        <IconifyIcon icon="lucide:puzzle" class="size-6" />
+                      </div>
+                      <div class="mt-4 text-sm font-semibold text-foreground">
+                        {{ $t('admin.ai.agent.skillPicker.emptySelected') }}
+                      </div>
+                      <div class="mx-auto mt-2 max-w-xl text-xs leading-6 text-muted-foreground">
+                        {{ $t('admin.ai.agent.skillPicker.detailEmptyHint') }}
+                      </div>
+                      <Button class="mt-5" type="primary" @click="openSkillBindingPicker">
+                        <IconifyIcon icon="lucide:sparkles" class="mr-1 size-4" />
+                        {{ $t('admin.ai.agent.skillPicker.manageBindings') }}
+                      </Button>
+                    </div>
                   </div>
                 </Spin>
               </div>
@@ -1832,13 +1866,13 @@ useDetailPageAi({
                     />
                   </div>
                   <div
-                    class="flex flex-col justify-between rounded-xl border bg-accent/30 p-4"
+                    class="flex flex-col items-start gap-3 rounded-xl border bg-accent/30 p-4"
                   >
-                    <div>
+                    <div class="min-w-0">
                       <label class="mb-2 block text-xs text-muted-foreground">{{
                         $t('admin.ai.agent.knowledgeBase.rerankerEnabled')
                       }}</label>
-                      <p class="mb-3 text-xs text-muted-foreground">
+                      <p class="text-xs text-muted-foreground">
                         {{
                           $t('admin.ai.agent.knowledgeBase.rerankerEnabledHelp')
                         }}
@@ -1846,6 +1880,7 @@ useDetailPageAi({
                     </div>
                     <Switch
                       v-model:checked="ragRerankerEnabled"
+                      class="!w-auto shrink-0"
                       :aria-label="
                         $t('admin.ai.agent.knowledgeBase.rerankerEnabled')
                       "
@@ -2243,6 +2278,68 @@ useDetailPageAi({
                     <ASelect
                       v-model:value="routingVisionModelId"
                       :options="visionModelOptions"
+                      class="w-full"
+                      :allow-clear="true"
+                      :placeholder="$t('admin.ai.agent.routing.autoSelect')"
+                      show-search
+                      option-filter-prop="label"
+                    />
+                  </div>
+
+                  <!-- Audio Model -->
+                  <div class="rounded-xl border bg-background p-5 shadow-sm">
+                    <div class="mb-4 flex items-center gap-3">
+                      <div
+                        class="flex size-9 items-center justify-center rounded-xl bg-rose-500/10"
+                      >
+                        <IconifyIcon
+                          icon="lucide:audio-lines"
+                          class="size-5 text-rose-500"
+                        />
+                      </div>
+                      <div>
+                        <div class="text-sm font-semibold">
+                          {{ $t('admin.ai.agent.routing.audioModel') }}
+                        </div>
+                        <div class="text-xs text-muted-foreground">
+                          {{ $t('admin.ai.agent.routing.audioModelHelp') }}
+                        </div>
+                      </div>
+                    </div>
+                    <ASelect
+                      v-model:value="routingAudioModelId"
+                      :options="audioModelOptions"
+                      class="w-full"
+                      :allow-clear="true"
+                      :placeholder="$t('admin.ai.agent.routing.autoSelect')"
+                      show-search
+                      option-filter-prop="label"
+                    />
+                  </div>
+
+                  <!-- Video Model -->
+                  <div class="rounded-xl border bg-background p-5 shadow-sm">
+                    <div class="mb-4 flex items-center gap-3">
+                      <div
+                        class="flex size-9 items-center justify-center rounded-xl bg-fuchsia-500/10"
+                      >
+                        <IconifyIcon
+                          icon="lucide:clapperboard"
+                          class="size-5 text-fuchsia-500"
+                        />
+                      </div>
+                      <div>
+                        <div class="text-sm font-semibold">
+                          {{ $t('admin.ai.agent.routing.videoModel') }}
+                        </div>
+                        <div class="text-xs text-muted-foreground">
+                          {{ $t('admin.ai.agent.routing.videoModelHelp') }}
+                        </div>
+                      </div>
+                    </div>
+                    <ASelect
+                      v-model:value="routingVideoModelId"
+                      :options="videoModelOptions"
                       class="w-full"
                       :allow-clear="true"
                       :placeholder="$t('admin.ai.agent.routing.autoSelect')"

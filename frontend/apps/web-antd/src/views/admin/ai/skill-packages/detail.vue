@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import type {
   AdminSkillPackageInfo,
+  SkillPackageResolvedToolInfo,
   SkillPackageValvesInfo,
 } from '#/api/admin/skill-packages';
 import type { AdminSkillInfo } from '#/api/admin/skills';
@@ -28,6 +29,7 @@ import {
 
 import {
   getSkillPackageDetailApi,
+  getSkillPackageResolvedToolsApi,
   getSkillPackageSkillsApi,
   getSkillPackageValvesApi,
   updateSkillPackageValvesApi,
@@ -38,31 +40,19 @@ import { usePageAIContext } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 import { getSkillTypeColor, getSkillTypeIcon } from '#/utils/ai-helpers';
 import { formatRelativeTime } from '#/utils/common';
-import { requestClient } from '#/utils/request';
 
 import { getSkillTypeText } from '../skills/data';
-import { getBindModeColor, getBindModeText } from './data';
+import {
+  getPackageRoleColor,
+  getPackageRoleText,
+  getRuntimeBindingModeColor,
+  getRuntimeBindingModeText,
+  getSourceSummaryText,
+} from './data';
 
 defineOptions({ name: 'AdminSkillPackageDetail' });
 
-type ResolvedToolParameter = {
-  default?: unknown;
-  description: string;
-  name: string;
-  required: boolean;
-  type: string;
-};
-
-interface ResolvedTool {
-  description: string;
-  name: string;
-  parameters: ResolvedToolParameter[];
-  source_plugin?: null | string;
-  source_skill_id: number;
-  source_skill_name: string;
-  tool_type?: string;
-  timeout?: number;
-}
+type ResolvedTool = SkillPackageResolvedToolInfo;
 
 type ValvesSchema = NonNullable<SkillPackageValvesInfo['valves_schema']>;
 type ValvesInputType = 'json' | 'number' | 'string' | 'switch';
@@ -404,10 +394,7 @@ async function loadValves() {
 async function loadResolvedTools() {
   toolsLoading.value = true;
   try {
-    const data = await requestClient.get<{
-      tool_count: number;
-      tools: ResolvedTool[];
-    }>(`/admin/ai/skill-packages/${packageId.value}/resolved-tools`);
+    const data = await getSkillPackageResolvedToolsApi(packageId.value);
     resolvedTools.value = data.tools || [];
   } catch {
     resolvedTools.value = [];
@@ -591,10 +578,10 @@ useDetailPageAi({
 
                 <div class="flex flex-wrap items-center gap-2">
                   <Tag
-                    :color="getBindModeColor(pkg.bind_mode)"
+                    :color="getPackageRoleColor(pkg.package_role_key)"
                     class="!mr-0 !text-xs"
                   >
-                    {{ getBindModeText(pkg.bind_mode) }}
+                    {{ getPackageRoleText(pkg.package_role_key) }}
                   </Tag>
                   <Tag
                     :color="getPackageStatusColor(pkg.is_active)"
@@ -603,11 +590,16 @@ useDetailPageAi({
                     {{ getPackageStatusText(pkg.is_active) }}
                   </Tag>
                   <Tag
-                    v-if="pkg.is_system"
-                    color="purple"
+                    :color="
+                      getRuntimeBindingModeColor(pkg.runtime_binding_mode)
+                    "
                     class="!mr-0 !text-xs"
                   >
-                    {{ $t('admin.ai.skillPackage.system') }}
+                    {{
+                      getRuntimeBindingModeText(
+                        pkg.runtime_binding_mode,
+                      )
+                    }}
                   </Tag>
                   <Tag
                     v-if="pkg.is_recommended"
@@ -629,6 +621,20 @@ useDetailPageAi({
                     {{ pkg.skill_count }} {{ $t('admin.ai.skillPackage.skillCount') }}
                   </div>
                   <div
+                    class="flex items-center gap-1.5 rounded-lg border border-border/50 bg-background px-3 py-1 text-xs text-foreground"
+                  >
+                    <IconifyIcon
+                      icon="lucide:link-2"
+                      class="size-3.5 text-primary/70"
+                    />
+                    {{
+                      getSourceSummaryText(
+                        pkg.source_summary,
+                        pkg.source_plugin,
+                      )
+                    }}
+                  </div>
+                  <div
                     v-if="pkg.source_plugin"
                     class="flex items-center gap-1.5 rounded-lg border border-border/50 bg-background px-3 py-1 text-xs text-foreground"
                   >
@@ -637,20 +643,6 @@ useDetailPageAi({
                       class="size-3.5 text-primary/70"
                     />
                     {{ pkg.source_plugin }}
-                  </div>
-                  <div
-                    v-else
-                    class="flex items-center gap-1.5 rounded-lg border border-border/50 bg-background px-3 py-1 text-xs text-foreground"
-                  >
-                    <IconifyIcon
-                      icon="lucide:shield-check"
-                      class="size-3.5 text-primary/70"
-                    />
-                    {{
-                      pkg.tenant_id === null
-                        ? $t('admin.ai.skillPackage.detail.platformManaged')
-                        : `#${pkg.tenant_id}`
-                    }}
                   </div>
                 </div>
               </div>
@@ -672,6 +664,12 @@ useDetailPageAi({
               </template>
 
               <div class="flex flex-col gap-5 p-5 pt-3">
+                <Alert
+                  :message="$t('admin.ai.skillPackage.detail.runtimeTruthHint')"
+                  type="info"
+                  show-icon
+                />
+
                 <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
                   <div class="rounded-xl border bg-accent/30 p-4">
                     <div class="mb-1.5 flex items-center gap-1.5">
@@ -767,14 +765,36 @@ useDetailPageAi({
 
                       <div class="rounded-lg border bg-background px-4 py-3">
                         <div class="text-xs text-muted-foreground">
-                          {{ $t('common.bindMode.label') }}
+                          {{ $t('admin.ai.skillPackage.packageRole') }}
                         </div>
                         <div class="mt-1">
                           <Tag
-                            :color="getBindModeColor(pkg.bind_mode)"
+                            :color="getPackageRoleColor(pkg.package_role_key)"
                             class="!mr-0 !text-xs"
                           >
-                            {{ getBindModeText(pkg.bind_mode) }}
+                            {{ getPackageRoleText(pkg.package_role_key) }}
+                          </Tag>
+                        </div>
+                      </div>
+
+                      <div class="rounded-lg border bg-background px-4 py-3">
+                        <div class="text-xs text-muted-foreground">
+                          {{ $t('admin.ai.skillPackage.runtimeBinding') }}
+                        </div>
+                        <div class="mt-1">
+                          <Tag
+                            :color="
+                              getRuntimeBindingModeColor(
+                                pkg.runtime_binding_mode,
+                              )
+                            "
+                            class="!mr-0 !text-xs"
+                          >
+                            {{
+                              getRuntimeBindingModeText(
+                                pkg.runtime_binding_mode,
+                              )
+                            }}
                           </Tag>
                         </div>
                       </div>
@@ -817,10 +837,15 @@ useDetailPageAi({
 
                       <div class="rounded-lg border bg-background px-4 py-3">
                         <div class="text-xs text-muted-foreground">
-                          {{ $t('admin.ai.skillPackage.detail.sourcePlugin') }}
+                          {{ $t('admin.ai.skillPackage.sourceSummary') }}
                         </div>
                         <div class="mt-1 text-sm font-medium text-foreground">
-                          {{ pkg.source_plugin || '-' }}
+                          {{
+                            getSourceSummaryText(
+                              pkg.source_summary,
+                              pkg.source_plugin,
+                            )
+                          }}
                         </div>
                       </div>
 

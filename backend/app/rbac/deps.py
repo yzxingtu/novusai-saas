@@ -150,11 +150,6 @@ def require_any_tenant_admin_permission(*permissions: str) -> Callable:
 
     return checker
 
-
-# Alias (compatible with naming in spec docs) / 别名（兼容规范文档中的命名）
-require_permissions = require_tenant_admin_permissions
-
-
 __all__ = [
     # Platform admin / 平台管理员
     "require_admin_permissions",
@@ -162,6 +157,4 @@ __all__ = [
     # Tenant admin / 企业管理员
     "require_tenant_admin_permissions",
     "require_any_tenant_admin_permission",
-    # Alias / 别名
-    "require_permissions",
 ]

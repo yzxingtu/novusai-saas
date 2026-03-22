@@ -31,6 +31,9 @@ export interface CodegenConfigInfo {
   last_error: null | string;
   /** 仓库根目录 codegen_manifest.json 是否有可回滚条目 / Manifest entry exists */
   manifest_present?: boolean;
+  delete_allowed?: boolean;
+  delete_reason_code?: null | string;
+  delete_reason_message?: null | string;
   created_at: string;
   updated_at: string;
 }
@@ -127,6 +130,7 @@ export interface ValidationResult {
   valid: boolean;
   errors: ValidationError[];
   warnings: string[];
+  mode: 'draft' | 'generate';
 }
 
 /** 表信息 / Table info */
@@ -173,6 +177,10 @@ export interface PresetInfo {
   label_en: string;
   description_zh?: string;
   description_en?: string;
+  category?: string;
+  tags?: string[];
+  recommended_for?: string[];
+  sort_order?: number;
 }
 
 // ============================================================
@@ -288,16 +296,15 @@ export async function getCodegenModelsApi(
   return requestClient.get(PREFIX + '/models', options);
 }
 
-/** 获取预设列表（预设名称）/ Get preset list (preset names) */
+/** 获取预设列表（结构化元数据）/ Get preset list (structured metadata) */
 export async function getCodegenPresetsApi(
   options?: ApiRequestOptions,
-): Promise<string[]> {
+): Promise<PresetInfo[]> {
   return requestClient.get(PREFIX + '/presets', options);
 }
 
 /** 预设详情响应 / Preset detail response */
-export interface PresetDetailResponse {
-  name: string;
+export interface PresetDetailResponse extends PresetInfo {
   content: string;
   parsed: Record<string, unknown>;
 }
@@ -393,7 +400,10 @@ export async function postCodegenDbImportApi(
 
 /** 校验配置 / Validate config */
 export async function postCodegenValidateApi(
-  body: { config_json: Record<string, unknown> },
+  body: {
+    config_json: Record<string, unknown>;
+    mode?: 'draft' | 'generate';
+  },
   options?: ApiRequestOptions,
 ): Promise<ValidationResult> {
   return requestClient.post(PREFIX + '/validate', body, options);

@@ -19,7 +19,9 @@ import { defineStore } from 'pinia';
 
 import { getPluginSlotsApi } from '#/api/admin/plugin';
 import { getTenantPluginSlotsApi } from '#/api/tenant/plugin';
-import { loadPluginComponents } from '#/utils/plugin-loader';
+import {
+  loadPluginComponents,
+} from '#/utils/plugin-loader';
 
 export interface PluginSlotAI {
   disabled_capabilities?: string[];
@@ -101,12 +103,17 @@ export const usePluginSlotsStore = defineStore('plugin-slots', () => {
       const pluginModCache: Record<string, Record<string, unknown>> = {};
       async function getPluginMod(
         pluginName: string,
+        frontendRuntime?: {
+          dev_entry?: string;
+          release_manifest?: string;
+        },
       ): Promise<Record<string, unknown>> {
         if (!pluginModCache[pluginName]) {
           try {
-            pluginModCache[pluginName] = await loadPluginComponents(pluginName, {
-              endpoint: side,
-            });
+            pluginModCache[pluginName] = await loadPluginComponents(
+              pluginName,
+              frontendRuntime,
+            );
           } catch {
             pluginModCache[pluginName] = {};
           }
@@ -131,7 +138,10 @@ export const usePluginSlotsStore = defineStore('plugin-slots', () => {
         for (const slot of items) {
           let comp: Component | undefined;
           if (slot.component) {
-            const mod = await getPluginMod(slot.plugin_name);
+            const mod = await getPluginMod(
+              slot.plugin_name,
+              slot.frontend_runtime,
+            );
             comp = mod[slot.component] as Component | undefined;
             if (comp) {
               comp = markRaw(comp);

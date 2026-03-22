@@ -16,6 +16,7 @@ import { h } from 'vue';
 
 import { Button, notification } from 'ant-design-vue';
 
+import { getEndpointByUrl } from './endpoint';
 import type { RequestClient } from './request-client';
 import type { ApiEndpoint, RequestOptions } from './types';
 
@@ -67,31 +68,6 @@ export interface MessageHandler {
 // ============================================================
 // Utility functions / 工具函数
 // ============================================================
-
-/**
- * Determine endpoint type from request URL
- * 根据请求 URL 判断端类型
- */
-export function getEndpointByUrl(url: string): ApiEndpoint {
-  if (url.startsWith('/admin')) return 'admin';
-  if (url.startsWith('/tenant')) return 'tenant';
-  // 双端插件路由：/plugins/{name}/admin/* 或 /plugins/{name}/tenant/*
-  if (url.startsWith('/plugins/')) {
-    if (/^\/plugins\/[^/]+\/admin(?:\/|$)/.test(url)) return 'admin';
-    if (/^\/plugins\/[^/]+\/tenant(?:\/|$)/.test(url)) return 'tenant';
-  }
-  return 'user';
-}
-
-/**
- * Get endpoint type from path
- * 根据路径获取端类型
- */
-export function getEndpointByPath(path: string): ApiEndpoint {
-  if (path.startsWith('/admin')) return 'admin';
-  if (path.startsWith('/tenant')) return 'tenant';
-  return 'user';
-}
 
 /**
  * Format Token

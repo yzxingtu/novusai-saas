@@ -12,15 +12,17 @@ via invoke_page_operation(), frontend executes and returns results via page_oper
 后端通过 invoke_page_operation() 向指定 page_session_id 房间
 下发 page_operation_invoke 事件，前端执行后通过 page_operation_result 回传结果。
 
-Active session tracking: (scope, user_id, page_key) -> page_session_id.
-When frontend reconnects, executor can use get_active_session_id() to find the latest session.
-活跃会话追踪：(scope, user_id, page_key) -> page_session_id。
-前端重连后，执行器可通过 get_active_session_id() 获取最新会话。
+Active session tracking: (scope, user_id, page_key) -> {page_session_id -> last_seen}.
+Fallback recovery only works when there is exactly one active session for the page;
+ambiguous multi-tab sessions return None to avoid cross-tab misrouting.
+活跃会话追踪：(scope, user_id, page_key) -> {page_session_id -> last_seen}。
+只有页面唯一活跃会话时才允许 fallback 恢复；多标签页歧义场景返回 None，避免串页误操作。
 """
 
 from __future__ import annotations
 
 import asyncio
+import time
 import uuid
 from typing import Any
 
@@ -34,9 +36,12 @@ logger = LogManager.get_logger("app")
 # invoke_id → Future mapping, for awaiting frontend result callback / invoke_id → Future 映射，用于等待前端回传结果
 _pending_invocations: dict[str, asyncio.Future[dict[str, Any]]] = {}
 
-# (scope, user_id, page_key) -> page_session_id, for recovering stale session after reconnect
+# (scope, user_id, page_key) -> {page_session_id: last_seen_monotonic}
 # scope: "/admin" | "/tenant" | "/user" (Socket.IO namespace)
-_active_sessions: dict[tuple[str, int, str], str] = {}
+_active_sessions: dict[tuple[str, int, str], dict[str, float]] = {}
+
+# (scope, sid) -> {(active_key, page_session_id)}, for precise cleanup on leave/disconnect
+_sid_active_sessions: dict[tuple[str, str], set[tuple[tuple[str, int, str], str]]] = {}
 
 # Default operation timeout (seconds) / 默认操作超时（秒）
 # 60s to align with frontend CONFIRM_TIMEOUT_MS / 与前端确认超时 60s 对齐

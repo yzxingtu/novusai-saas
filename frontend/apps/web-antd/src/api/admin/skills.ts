@@ -79,6 +79,36 @@ interface AdminSkillPageResponse {
   total: number;
 }
 
+/** Agent skill binding picker option extra / 智能体技能绑定选择器 extra */
+export interface AdminSkillSelectOptionExtra {
+  description: null | string;
+  is_active: boolean;
+  is_system: boolean;
+  package_id: number;
+  package_name: string;
+  skill_key: null | string;
+  skill_type: string;
+  source_plugin: null | string;
+  tenant_id: null | number;
+}
+
+/** Agent skill binding picker option / 智能体技能绑定选择器选项 */
+export interface AdminSkillSelectOption {
+  disabled?: boolean;
+  extra?: AdminSkillSelectOptionExtra;
+  label: string;
+  value: number;
+}
+
+/** Agent skill binding picker response / 智能体技能绑定选择器分页响应 */
+export interface AdminSkillBindingSelectResponse {
+  has_more?: boolean;
+  items: AdminSkillSelectOption[];
+  page?: number;
+  page_size?: number;
+  total?: number;
+}
+
 // ============================================================
 // API functions / API 接口
 // ============================================================
@@ -90,6 +120,17 @@ export async function getSkillTypesApi(
   options?: ApiRequestOptions,
 ): Promise<SkillTypeOption[]> {
   return requestClient.get<SkillTypeOption[]>(`${PREFIX}/skill-types`, options);
+}
+
+/** Paginated skills for admin agent binding picker / 管理端智能体技能绑定选择器 */
+export async function getSkillBindingSelectApi(
+  params?: Record<string, unknown>,
+  options?: ApiRequestOptions,
+): Promise<AdminSkillBindingSelectResponse> {
+  return requestClient.get<AdminSkillBindingSelectResponse>(`${PREFIX}/select`, {
+    params,
+    ...options,
+  });
 }
 
 /** Get skill list (all tenants) / 获取技能列表（全企业） */

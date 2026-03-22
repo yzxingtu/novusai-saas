@@ -7,6 +7,7 @@ Provides pre-login accessible tenant public information endpoints
 
 from fastapi import APIRouter, HTTPException, Request, status
 
+from app.captcha.runtime import resolve_public_captcha_plugin_bundle
 from app.configs.service import ConfigService
 from app.utils.config_html_sanitize import (
     sanitize_config_html,
@@ -131,6 +132,12 @@ async def get_tenant_public_config(request: Request, db: DbSession):
     terms_html = configs.get("user_terms_html") or ""
     privacy_policy_internal = tenant_legal_html_has_meaningful_body(privacy_html)
     terms_internal = tenant_legal_html_has_meaningful_body(terms_html)
+    captcha_plugin = await resolve_public_captcha_plugin_bundle(
+        db,
+        request,
+        configs.get("tenant_captcha_provider"),
+        "tenant",
+    )
 
     return success(
         data=TenantPublicConfig(
@@ -145,6 +152,9 @@ async def get_tenant_public_config(request: Request, db: DbSession):
             footer_copyright=footer_copyright,
             captcha_enabled=configs.get("tenant_captcha_enabled", False),
             captcha_provider=configs.get("tenant_captcha_provider"),
+            captcha_plugin=(
+                captcha_plugin.to_public_payload() if captcha_plugin else None
+            ),
             captcha_difficulty=configs.get("tenant_captcha_difficulty"),
             captcha_enable_threshold=configs.get("tenant_captcha_enable_threshold"),
             login_methods=configs.get("tenant_login_methods", ["password"]),

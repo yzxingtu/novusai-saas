@@ -7,47 +7,11 @@ Common logic extracted from admin/tenant agent chat controllers.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-from app.core.i18n import _
 from app.core.response import success
-from app.enums.agent import ConfirmActionEnum
-from app.schemas.ai.agent_chat import AgentConfirmRequest, AgentRouteResponse
+from app.schemas.ai.agent_chat import AgentRouteResponse
 from app.services.ai.page_context_limits import validate_page_context_size
-
-if TYPE_CHECKING:
-    from app.services.ai.agent_chat_service import AgentChatService
-
-
-async def handle_confirm_or_cancel(
-    service: AgentChatService,
-    data: AgentConfirmRequest,
-    tenant_id: int,
-    user_id: int,
-) -> dict[str, Any]:
-    """
-    处理确认/取消 AI 操作的共享逻辑 / Shared logic for confirm/cancel AI actions
-
-    admin/tenant 两端 confirm 端点共用。
-    Shared by admin/tenant confirm endpoints.
-    """
-    if data.action == ConfirmActionEnum.CANCEL.value:
-        result = await service.cancel_action(data.confirm_id)
-        msg_key = (
-            _("agent_confirm.cancelled")
-            if result["status"] == "cancelled"
-            else _("agent_confirm.cancel_failed")
-        )
-        return success(data=result, message=msg_key)
-
-    # 确认执行 / Confirm execution
-    result = await service.confirm_action(
-        confirm_id=data.confirm_id,
-        tenant_id=tenant_id,
-        user_id=user_id,
-    )
-    return success(data=result)
-
 
 async def handle_route(
     db: Any,
@@ -62,6 +26,9 @@ async def handle_route(
     user_id: int | None = None,
     force_reroute: bool = False,
     has_image_attachments: bool = False,
+    has_audio_attachments: bool = False,
+    has_video_attachments: bool = False,
+    has_file_attachments: bool = False,
 ) -> dict[str, Any]:
     """
     智能路由的共享逻辑 / Shared logic for smart routing
@@ -87,6 +54,9 @@ async def handle_route(
         user_id=user_id,
         force_reroute=force_reroute,
         has_image_attachments=has_image_attachments,
+        has_audio_attachments=has_audio_attachments,
+        has_video_attachments=has_video_attachments,
+        has_file_attachments=has_file_attachments,
     )
     return success(data=AgentRouteResponse(
         agent_id=result.agent_id,
@@ -122,6 +92,5 @@ def enrich_conversations_with_agent(
 
 __all__ = [
     "enrich_conversations_with_agent",
-    "handle_confirm_or_cancel",
     "handle_route",
 ]

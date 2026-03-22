@@ -41,7 +41,6 @@ export {
   type EndpointConfig,
   EndpointType,
   forEachEndpoint,
-  getApiEndpoint,
   getEndpointConfig,
   getEndpointFromPath,
   getHomePath,

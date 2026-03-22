@@ -409,6 +409,10 @@ export function getPluginHealthApi(id: number) {
 
 /** Plugin slot data / 插件插槽数据 */
 export interface PluginSlotData {
+  frontend_runtime?: {
+    dev_entry?: string;
+    release_manifest?: string;
+  };
   slot_type: string;
   plugin_name: string;
   name: string;

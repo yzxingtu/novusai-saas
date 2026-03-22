@@ -7,23 +7,28 @@ import { requestClient } from '#/utils/request';
 
 const BASE_URL = '/admin/ai/skill-packages';
 
+export interface SkillPackageSummaryInfo {
+  package_role_key: string;
+  source_summary: string;
+  runtime_binding_mode: string;
+  valves_field_count: number;
+  configured_valves_count: number;
+}
+
 /** Skill package info / 技能包信息 */
-export interface AdminSkillPackageInfo {
+export interface AdminSkillPackageInfo extends SkillPackageSummaryInfo {
   id: number;
   tenant_id: null | number;
   name: string;
   description: null | string;
   avatar: null | string;
-  target_audience: string;
   is_recommended: boolean;
-  bind_mode: string;
   is_system: boolean;
   is_active: boolean;
   sort_order: number;
   skill_count: number;
   source_plugin: null | string;
   valves_schema: null | Record<string, unknown>;
-  valves_config: null | Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
@@ -33,9 +38,7 @@ export interface SkillPackageCreateParams {
   name: string;
   description?: null | string;
   avatar?: null | string;
-  target_audience?: string;
   is_recommended?: boolean;
-  bind_mode?: string;
   is_active?: boolean;
   sort_order?: number;
 }
@@ -45,16 +48,32 @@ export interface SkillPackageUpdateParams {
   name?: string;
   description?: null | string;
   avatar?: null | string;
+  is_recommended?: boolean;
   is_active?: boolean;
   sort_order?: number;
 }
 
+/** Select API wraps options in `items` (SelectResponse) / 下拉接口使用 SelectResponse.items */
+export interface AdminSkillPackageSelectOption {
+  disabled?: boolean;
+  extra?: null | Record<string, unknown>;
+  label: string;
+  value: number | string;
+}
+
+export interface AdminSkillPackageSelectResponse {
+  has_more?: boolean;
+  items: AdminSkillPackageSelectOption[];
+  page?: number;
+  page_size?: number;
+  total?: number;
+}
+
 /** Get skill package select options / 获取技能包下拉选项 */
 export function getSkillPackageSelectApi(params?: Record<string, unknown>) {
-  return requestClient.get<{ label: string; value: number }[]>(
-    `${BASE_URL}/select`,
-    { params },
-  );
+  return requestClient.get<AdminSkillPackageSelectResponse>(`${BASE_URL}/select`, {
+    params,
+  });
 }
 
 /** Get skill package list / 获取技能包列表 */
@@ -90,9 +109,7 @@ export function deleteSkillPackageApi(id: number) {
 
 /** Get recommended skill packages / 获取推荐技能包列表 */
 export function getRecommendedSkillPackagesApi() {
-  return requestClient.get<(AdminSkillPackageInfo & { skill_count: number })[]>(
-    `${BASE_URL}/recommended`,
-  );
+  return requestClient.get<AdminSkillPackageInfo[]>(`${BASE_URL}/recommended`);
 }
 
 /** Toggle skill package status / 切换技能包状态 */
@@ -179,6 +196,38 @@ export function getSkillPackageSkillsApi(
   return requestClient.get<{ items: AdminSkillInfo[]; total: number }>(
     `${BASE_URL}/${packageId}/skills`,
     { params },
+  );
+}
+
+export interface ResolvedToolParameter {
+  description: string;
+  name: string;
+  required: boolean;
+  type: string;
+}
+
+export interface SkillPackageResolvedToolInfo {
+  description: string;
+  name: string;
+  parameters: ResolvedToolParameter[];
+  source_plugin?: null | string;
+  source_skill_id: number;
+  source_skill_name: string;
+  tool_type?: string;
+}
+
+export interface SkillPackageResolvedToolsInfo {
+  package_id: number;
+  package_name: string;
+  source_plugin: null | string;
+  tool_count: number;
+  tools: SkillPackageResolvedToolInfo[];
+}
+
+/** Get resolved tools in skill package / 获取技能包解析出的工具列表 */
+export function getSkillPackageResolvedToolsApi(packageId: number) {
+  return requestClient.get<SkillPackageResolvedToolsInfo>(
+    `${BASE_URL}/${packageId}/resolved-tools`,
   );
 }
 

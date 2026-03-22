@@ -73,9 +73,29 @@ class CodegenConfigResponse(BaseResponseSchema):
         False,
         description="仓库根目录 codegen_manifest.json 中是否存在可回滚条目 / Manifest entry exists for rollback",
     )
+    delete_allowed: bool = Field(
+        True,
+        description="当前配置是否允许删除 / Whether delete is currently allowed",
+    )
+    delete_reason_code: str | None = Field(
+        None,
+        description="删除被阻止的原因码 / Reason code when delete is blocked",
+    )
+    delete_reason_message: str | None = Field(
+        None,
+        description="删除被阻止的提示文案 / Human-readable delete guard message",
+    )
 
     @classmethod
-    def from_model(cls, obj, *, manifest_present: bool = False) -> "CodegenConfigResponse":
+    def from_model(
+        cls,
+        obj,
+        *,
+        manifest_present: bool = False,
+        delete_allowed: bool = True,
+        delete_reason_code: str | None = None,
+        delete_reason_message: str | None = None,
+    ) -> "CodegenConfigResponse":
         """从模型创建响应 / Build response from model."""
         return cls(
             id=obj.id,
@@ -94,6 +114,9 @@ class CodegenConfigResponse(BaseResponseSchema):
             config_hash=obj.config_hash,
             last_error=obj.last_error,
             manifest_present=manifest_present,
+            delete_allowed=delete_allowed,
+            delete_reason_code=delete_reason_code,
+            delete_reason_message=delete_reason_message,
         )
 
 
@@ -225,6 +248,10 @@ class CodegenValidateBodySchema(BaseModel):
         default_factory=dict,
         description="完整配置 JSON / Full config JSON",
     )
+    mode: Literal["draft", "generate"] = Field(
+        "generate",
+        description="校验模式：draft=草稿保存，generate=生成前严格校验 / Validation mode",
+    )
 
     @field_validator("config_json")
     @classmethod
@@ -288,6 +315,10 @@ class ValidationResultSchema(BaseModel):
     valid: bool = Field(..., description="是否有效 / Valid")
     errors: list[ValidationErrorSchema] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    mode: Literal["draft", "generate"] = Field(
+        "generate",
+        description="本次校验使用的模式 / Validation mode used for this response",
+    )
 
 
 class TableInfoSchema(BaseModel):
@@ -331,6 +362,20 @@ class ComponentInfoSchema(BaseModel):
     category: str = Field(default="", description="input | select | advanced / Category")
 
 
+class PresetInfoSchema(BaseModel):
+    """预设元数据 / Preset metadata."""
+
+    name: str = Field(..., description="预设名 / Preset name")
+    label_zh: str = Field(default="", description="中文名称 / Chinese label")
+    label_en: str = Field(default="", description="英文名称 / English label")
+    description_zh: str = Field(default="", description="中文描述 / Chinese description")
+    description_en: str = Field(default="", description="英文描述 / English description")
+    category: str = Field(default="", description="分类 / Category")
+    tags: list[str] = Field(default_factory=list, description="标签 / Tags")
+    recommended_for: list[str] = Field(default_factory=list, description="推荐场景 / Recommended use cases")
+    sort_order: int = Field(default=999, description="排序 / Sort order")
+
+
 __all__ = [
     "CodegenConfigResponse",
     "CodegenConfigCreate",
@@ -346,4 +391,5 @@ __all__ = [
     "ColumnInfoSchema",
     "TypeInfoSchema",
     "ComponentInfoSchema",
+    "PresetInfoSchema",
 ]

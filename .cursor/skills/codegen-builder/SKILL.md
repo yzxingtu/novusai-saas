@@ -25,7 +25,7 @@ description: NovusAI Codegen 可视化构建器技能。当需要开发或修复
 2. 检查是否触碰 `configJson`、`selectedFieldKey`、`previewCache`、`isDirty`
 3. 检查改动应落在 Palette、WYSIWYG、PropertyPanel、ExpertModal 中哪一层
 4. 检查保存/预览/生成/版本恢复是否仍沿用现有 API 流程
-5. 检查是否继续扩散 `useCodegenWizardStore` 等旧命名
+5. 检查是否继续扩散已删除的 `useCodegenWizardStore` 等历史旧命名
 
 ## 关键禁令
 

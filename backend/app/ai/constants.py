@@ -23,22 +23,6 @@ def action_rate_key(tenant_id: int, action_name: str) -> str:
 
 
 # ============================================
-# Action Confirmation (AsyncConfirm) / Action 确认（AsyncConfirm）
-# ============================================
-
-# Key pattern: ai:action_confirm:{confirm_id}
-# Stores pending operation context, awaiting user confirmation
-# 存储待确认操作的上下文数据，等待用户确认后执行
-CONFIRM_KEY_PREFIX = "ai:action_confirm:"
-ACTION_CONFIRM_TTL = 300            # Action confirm token validity / Action 确认 Token 有效期
-
-
-def action_confirm_key(confirm_id: str) -> str:
-    """构建 Action 确认 Redis key / Build action confirmation Redis key"""
-    return f"{CONFIRM_KEY_PREFIX}{confirm_id}"
-
-
-# ============================================
 # Schema Provider Cache / Schema Provider 缓存
 # ============================================
 
@@ -161,10 +145,6 @@ __all__ = [
     "ACTION_RATE_KEY_PREFIX",
     "ACTION_RATE_LIMIT_TTL",
     "action_rate_key",
-    # Confirmation / 确认
-    "CONFIRM_KEY_PREFIX",
-    "ACTION_CONFIRM_TTL",
-    "action_confirm_key",
     # Schema cache / Schema 缓存
     "SCHEMA_CACHE_KEY_PREFIX",
     "SCHEMA_CACHE_TTL",

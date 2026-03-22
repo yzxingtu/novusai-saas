@@ -1,7 +1,5 @@
 <script lang="ts" setup>
-/**
- * 速率限制表单（管理端）
- */
+/** Rate limit form (Admin) / 速率限制表单（管理端） */
 import type { AIRateLimitInfo } from '#/api/admin/ai';
 
 import { useVbenForm } from '#/adapter/form';
@@ -42,7 +40,21 @@ const { Drawer, openNew, openEdit } = useCrudDrawer<AIRateLimitInfo>({
   },
 });
 
-defineExpose({ openNew, openEdit });
+function openNewWithContext(extraData?: Record<string, unknown>) {
+  openNew(extraData);
+}
+
+function openEditWithContext(
+  row: AIRateLimitInfo,
+  extraData?: Record<string, unknown>,
+) {
+  openEdit(row, extraData);
+}
+
+defineExpose({
+  openNew: openNewWithContext,
+  openEdit: openEditWithContext,
+});
 </script>
 
 <template>

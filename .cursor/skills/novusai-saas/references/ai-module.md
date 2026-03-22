@@ -113,6 +113,80 @@ async for chunk in gateway.chat_stream(messages, model, provider_code, tenant_id
 vectors = await gateway.embedding(texts, model, provider_code, tenant_id=tid)
 ```
 
+### 企业 AI 配额与限速运行时语义 / Tenant AI quota and rate-limit runtime semantics
+
+- **计量入口 / Metering entry**：`AIGateway.chat()` / `stream_chat()` 在企业租户调用时，先经过 `UsageRecorder.check_rate_and_quota()`，再进入实际模型调用。
+- **硬配额 / Hard quota**：
+  - 命中后立即拒绝请求
+  - 返回 `HTTP 429`
+  - 业务码 `4291`
+  - 错误文案来自 `ai.error.quota_exceeded`
+- **软配额 / Soft quota**：
+  - 命中后不拒绝请求
+  - 继续累计真实用量
+  - 允许通知系统发出超额告警
+- **速率限制 / Rate limit**：
+  - 命中 RPM 或 TPM 任一上限即拒绝
+  - 返回 `HTTP 429`
+  - 业务码 `4292`
+  - 错误文案来自 `ai.error.rpm_limit_exceeded` / `ai.error.tpm_limit_exceeded`
+- **全局配额回退 / Global quota fallback**：
+  - 同企业、同周期若存在模型专属启用规则，则优先命中模型专属规则
+  - 只有该周期不存在模型专属规则时，才回退到 `model_id IS NULL` 的全局规则
+- **限速继承 / Rate-limit inheritance**：
+  - 企业级 `rpm_limit` / `tpm_limit = null` 表示继承模型默认值
+  - 不能把 `null` 解释成“无限制”或“清空默认限速”
+- **诊断页要求 / Diagnostics page requirement**：
+  - `GET /admin/ai/quotas/summary`
+  - `GET /admin/ai/quotas`
+  - `GET /admin/ai/quotas/rate-limits`
+  - 上述接口必须返回**真实运行时语义**，包括当前生效值、来源、超限动作、HTTP 状态、业务码与文案预览
+
+### 配额诊断页重构约束 / Quota diagnostics page refactor constraints
+
+- `admin/ai/quotas` 必须被当作**诊断页 / diagnostics page**，不是普通表单列表页。
+- 配额卡片至少要展示：
+  - 当前使用量 / Usage
+  - 剩余额度 / Remaining
+  - 运行状态 `healthy / warning / exceeded / inactive`
+  - 超限动作 `allow / deny`
+  - 若为拒绝，还要展示 `HTTP 429` 与业务码
+- 限速卡片至少要展示：
+  - 企业配置值
+  - 模型默认值
+  - 运行时生效值
+  - 来源 `tenant / model / none`
+  - 当前 RPM / TPM
+  - 拒绝返回 `HTTP 429 / 4292`
+- 页面筛选必须围绕实际可用过滤字段组织：
+  - 配额：`tenant_id` / `model_id` / `period` / `quota_type` / `is_active`
+  - 限速：`tenant_id` / `model_id` / `is_active`
+- 任何“只是把页面文案改对、但运行时没改”的提交都算不合格。
+
+### 配额与限速验证闭环 / Quota and rate-limit validation loop
+
+修改 `quota.py`、`rate_limiter.py`、`usage_recorder.py`、`admin/ai/quotas` 后，至少执行以下验证：
+
+1. 单元测试 / Unit tests
+   - 覆盖硬配额、软配额、全局回退、限速继承、预扣减失败回滚
+2. 真实管理端接口 / Live admin APIs
+   - `GET /admin/ai/quotas/summary`
+   - `GET /admin/ai/quotas`
+   - `GET /admin/ai/quotas/rate-limits`
+   - 验证重复启用规则创建返回 `422`
+3. 真实运行时拦截 / Live runtime blocking
+   - 用企业管理员身份创建临时硬配额或临时限速
+   - 通过 `/tenant/ai/gateway/chat` 触发真实调用
+   - 确认硬配额返回 `4291`，限速返回 `4292`
+   - 软配额不得拦截请求
+4. 页面验证 / UI validation
+   - `http://localhost:5666/admin/ai/quotas` 打开正常
+   - 至少真实提交一次新增表单并观察列表刷新
+   - 无新增 console error
+5. 环境清理 / Cleanup
+   - 删除临时测试规则
+   - 确认 summary 恢复到测试前状态
+
 ### 执行引擎 (`engine/`)
 
 ```python
@@ -127,19 +201,18 @@ result = await dispatcher.execute(agent, message, conversation_id=conv_id)
 - `AgentExecutionModeEnum.TASK` → `TaskEngine`
 - `AgentExecutionModeEnum.BATCH` → `BatchEngine`
 
-### 工具注册 (`tools/registry.py`)
+### 技能解析与工具装配（`ai/skills/resolver.py`）
 
 ```python
-registry = ToolRegistry(db, tenant_id)
-# 加载智能体绑定的工具
-await registry.load_agent_tools(agent_id)
-# 注册平台内置工具
-registry.register_platform_tools(agent)
-# 获取 OpenAI function schema
-tools_schema = registry.get_openai_tools()
-# 执行工具调用
-result = await registry.execute_tool(tool_name, arguments)
+from app.ai.skills.resolver import resolve_for_agent
+
+skill_result = await resolve_for_agent(db, agent, tenant_id)
+tools_schema = skill_result.to_openai_tools()
 ```
+
+- 运行时工具集合来自 `AgentSkillGrant -> Skill -> SkillResolver`
+- `SkillPackage` 仅作为归组 / 来源 / 目录单元参与展示与管理，不再承担运行时 auto-bind 语义
+- `ToolRegistry` 属于历史概念，新增实现不要再依赖它
 
 ### 页面感知与页面操作（Page Awareness & Operations）
 
@@ -162,28 +235,34 @@ result = await registry.execute_tool(tool_name, arguments)
 
 - `AgentChatService.chat()` / `stream_chat()` 接收 `page_context` + `page_session_id`
 - `PageContext.normalize_variables()` 将其收口到 `ExecutionRequest.input_variables["page_context"]`
-- `resolve_for_agent()` 负责加载 auto-bind 的系统级 SkillPackage
+- `resolve_for_agent()` 负责从 `AgentSkillGrant` 直接加载 Agent 当前有效的 Skill 集合
 - `SkillResolver._resolve_builtin()` 从 `config.tools` 生成 `ToolDefinition`（含 `get_page_context` 和 `invoke_page_operation`）
 - `BaseEngine._prepare_execution()` 收集 `skill_result.tools`
+- `page_tool_expander.py` 会在工具优化前，把编辑器操作与高频页面操作展开为专用 `pageop_*` tools
 - `to_openai_tools()` 将工具转为模型可见的 function schema
 - `PageOperationExecutor` 通过 `invoke_page_operation()` 创建 asyncio.Future，经 Socket.IO 下发操作指令到前端
 - `PageSessionMixin` 管理 page_session 房间加入/离开，处理操作结果回调
 
 #### 关键规则
 
-- **仅注册 Executor 不算完成** — 必须同时存在 `SkillPackage + builtin Skill + auto-bind`
+- **仅注册 Executor 不算完成** — 必须同时存在 `SkillPackage + Skill`，并通过 `AgentSkillGrant` 进入运行时工具集合
 - **工具参数 JSON 容错**：`tool_processor.parse_arguments` 在 `json.loads` 失败后需调用 `_try_repair_json` 尝试修复（尾部逗号、缺失括号等常见畸形），避免 LLM 输出小错误导致工具调用直接失败
 - `_PROTECTED_TOOL_NAMES` 白名单保护 `get_page_context`、`invoke_page_operation`、`list_page_operations` 不被工具优化器过滤
+- `pageop_*` 不再只用于富文本编辑器；`search`、`refresh_list`、`read_visible_rows`、`read_row_detail`、`get_form_state`、`fill_form`、`validate_form`、`get_form_options`、分页等高频页面操作也应优先展开
+- **tool-first 原则**：有专用 `pageop_*` 时，模型优先直调专用工具；仅对未展开的剩余操作使用 `invoke_page_operation`
 - `readonly=true` 操作直接执行，`readonly=false` 操作前端弹出确认对话框
-- 操作超时 30s，超时后自动清理 Future
+- 操作确认超时 60s，超时后自动清理 pending 确认卡片与结果等待链路
+- 前端页面操作通道必须按 `invoke_id` 做幂等保护；重复事件应等待首个执行完成后回放缓存结果，禁止重复执行或重复弹确认
+- 页面操作通道必须校验 `event.page_key` 是否等于当前活动页面 key；不匹配时返回 `page_key_mismatch`，禁止误操作错误页面
+- Agent Loop 链式自动确认只允许在当前页面会话内短时复用；页面会话切换、leave 或断线时必须清空链式确认状态
 - 已覆盖 29 页面（Admin 19 + Tenant 10），标准操作类型：`refresh_list`、`refresh_dashboard`、`export_data`、`navigate_to`
 
-#### `_load_auto_bind_packages` 资源作用域规则
+#### SkillPackage 目录与资源作用域规则
 
 - 统一以 **ResourceScopeEnum**（五类）+ **`owner_tenant_id`** + **`resource_tenant_assignments`**（RTA）表达投放面。
 - **企业端上下文**（当前企业 `tenant_id` 有值）：`admin_only` 资源不向企业端暴露；`selected_tenants` / `admin_and_selected_tenants` 必须存在针对该企业的有效 RTA。
 - **平台/管理端上下文**：按资源是否允许管理端消费及绑定关系过滤；系统级包与企业自建包通过 `owner_tenant_id` 区分。
-- 与 `AgentSkillBindingService._validate_scope()` 保持一致。
+- tenant 侧允许只读目录 `/tenant/ai/skill-packages`，可查看包来源、包含技能与解析工具，但不允许 tenant CRUD / valves 编辑 / 包级运行绑定。
 
 #### P0 修复（2026-03 审计后落地）
 
@@ -381,41 +460,39 @@ results = await retriever.search(
 
 ---
 
-## 八、资源作用域 vs 技能包 / 受众（当前模型）
+## 八、SkillPackage 目录 vs 其它资源的 scope（当前模型）
 
-### 资源层（SkillPackage.scope）
+### SkillPackage 表结构（现行）
 
-仅允许 **`ResourceScopeEnum` 五类**：`global_shared` / `admin_only` / `all_tenants` / `admin_and_selected_tenants` / `selected_tenants`。
+- **当前 `SkillPackage` ORM 无 `scope` 列**；目录可见性由 `tenant_id`（`NULL` = 平台级目录项，对所有租户目录可见）、`is_active`、`source_plugin` / `is_system` 等与 `SkillPackageRepository.get_catalog_list` 过滤共同决定。
+- **API 摘要字段**：`package_role_key`、`source_summary`、`runtime_binding_mode`（固定 `direct_agent_skill_grant`）、`valves_*_count` — 与 `bind_mode`、包级运行时绑定无关。
+- **企业端 HTTP**：`/tenant/ai/skill-packages*` 只读；不要在 tenant 侧把 SkillPackage 当作运行绑定入口。
 
-- **投放面**：由 `scope` + `resource_tenant_assignments`（`selected_tenants` / `admin_and_selected_tenants`）决定企业是否可见。
-- **企业是否可编辑**：由 **归属列** 判定（SkillPackage 当前仍为 `tenant_id` 列表示归属；与 Agent/KB 等模型的 `owner_tenant_id` 语义相同）。**禁止**用「`all_tenants` 且 tenant 是否为空」推断归属。
+### 其它资源上的 ResourceScopeEnum（勿与 SkillPackage 混写）
 
-### 前端判断是否企业自有（可编辑）
+- **Agent / KnowledgeBase 等**仍可能使用 **`ResourceScopeEnum` 五类** + `resource_tenant_assignments` 表达投放面；该模型**不**映射为 `skill_packages` 上的列名 `scope`，文档与代码引用时分开表述。
+
+### 前端：判断是否企业自有包（管理端等场景）
 
 ```typescript
-// ✅ 正确：归属企业 = 当前企业（字段名以 API 为准，多为 tenant_id）
+// ✅ 正确：归属企业 = 当前企业（SkillPackage API 使用 tenant_id）
 function isTenantOwned(pkg: { tenant_id?: null | number }, currentTenantId: number): boolean {
   return pkg.tenant_id != null && pkg.tenant_id === currentTenantId;
 }
-
-// ❌ 错误：用 scope 推断归属
-function isTenantOwnedBad(pkg: { scope: string }) {
-  return pkg.scope === 'all_tenants';
-}
 ```
 
-### 后端归属保护
+### 后端：企业侧写操作归属保护（示例）
 
 ```python
-# Service._before_update / _before_delete（示例：SkillPackage 仍用 tenant_id 存归属）
-if pkg.tenant_id is None or pkg.tenant_id != self.tenant_id:
-    raise BusinessException(message=_("skill_package.error.readonly"))
+# SkillPackageService._before_update / _before_delete：非本企业自有包不可改删
+if pkg.tenant_id != self.tenant_id:
+    raise BusinessException(message=_("skill_package.error.system_protected"))
 ```
 
-### 受众 / 发布（非资源五类）
+### 受众 / 发布（非 ResourceScopeEnum）
 
 - **`target_audience`**、智能体 **`TenantAgentPublication`** 等描述「谁在用」，**不属于** `ResourceScopeEnum`，不得与资源 scope 混写进同一套规则。
 
-### Skill 无独立 scope
+### Skill 无独立 scope 列
 
-- **Skill 本身没有 `scope` 字段**，继承所属 **SkillPackage** 的资源作用域与归属列。
+- **Skill ORM 无 `scope` 字段**；可见性与归属语境继承所属 **SkillPackage** 的 `tenant_id` / 目录规则（非「整包绑定到 Agent」语义）。

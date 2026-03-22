@@ -1,38 +1,93 @@
 {
-  "title": "企业管理控制台",
-  "welcome": "欢迎回来",
-  "greeting": "您好，{name}！",
-  "description": "这是企业管理控制台，您可以在这里管理您的企业资源。",
-  "stats": {
-    "users": "用户数",
-    "orders": "订单数",
-    "revenue": "营收",
-    "growth": "增长率",
-    "totalUsers": "用户总数",
-    "activeUsers": "活跃用户",
-    "totalAgents": "智能体",
-    "totalKnowledgeBases": "知识库",
-    "totalKBDocuments": "知识库文档",
-    "monthlyConversations": "本月对话",
-    "apiCalls": "AI 调用",
-    "resourceUsage": "资源使用",
-    "totalTokens": "Token 总量",
-    "totalCost": "费用总计",
-    "storageUsed": "存储使用"
-  },
-  "quickActions": {
-    "title": "快捷操作",
-    "aiChat": "AI 对话",
-    "agents": "智能体",
-    "knowledgeBases": "知识库",
-    "callLogs": "调用日志"
-  },
+  "title": "企业运营驾驶舱",
   "aiTrend": {
-    "title": "AI 使用趋势",
-    "empty": "暂无数据"
+    "empty": "暂无趋势数据"
   },
   "activities": {
     "title": "近期活动",
     "empty": "暂无活动记录"
+  },
+  "realtime": {
+    "onlineAdmins": "{count} 位管理员在线",
+    "onlineUsers": "{count} 位业务用户在线",
+    "unreadNotifications": "{count} 条未读通知"
+  },
+  "cockpit": {
+    "badge": "企业运营驾驶舱",
+    "description": "{name}，这里集中展示企业用户活跃度、AI 使用走势、门户表现和当前最值得优先处理的运营动作。",
+    "primaryCta": "管理智能体",
+    "secondaryCta": "查看 AI 使用分析",
+    "metrics": {
+      "users": "企业用户总量",
+      "activeRate": "活跃用户占比",
+      "conversations": "本月对话量",
+      "calls": "累计 AI 调用"
+    },
+    "signalsTitle": "运营信号",
+    "signalsDesc": "把智能体、知识库、存储和成本几类高频信息放在一个侧栏中集中查看。",
+    "signals": {
+      "agentsTitle": "智能体编排",
+      "agentsDesc": "查看当前企业可以直接运营和发布的智能体数量。",
+      "kbTitle": "知识库资产",
+      "kbDesc": "快速确认企业沉淀了多少知识库可供问答和检索。",
+      "storageTitle": "附件与存储",
+      "storageDesc": "从门户使用角度查看当前已经占用的存储空间。",
+      "costTitle": "AI 成本",
+      "costDesc": "跟踪企业累计成本，及时发现高消耗阶段。"
+    },
+    "actionsTitle": "运营动作",
+    "actionsDesc": "从驾驶舱直接进入最常用的资源、分析和治理页面。",
+    "actions": {
+      "agentsTitle": "维护智能体",
+      "agentsDesc": "查看智能体详情、配置和发布状态。",
+      "kbsTitle": "维护知识库",
+      "kbsDesc": "补充文档、调优知识源并检查可用性。",
+      "usageTitle": "分析 AI 使用",
+      "usageDesc": "查看调用量、成本和趋势变化。",
+      "usersTitle": "管理用户架构",
+      "usersDesc": "进入组织和用户架构页查看成员与角色。",
+      "storageTitle": "检查存储占用",
+      "storageDesc": "确认附件容量与文件结构是否健康。",
+      "logsTitle": "查看操作日志",
+      "logsDesc": "回看企业后台最近行为，便于排查和运营复盘。"
+    },
+    "trendTitle": "AI 使用走势",
+    "trendDesc": "把调用量与 Token 消耗放在一张趋势图里，判断企业当前 AI 使用节奏。",
+    "trendSummary": "本月会话",
+    "trend": {
+      "calls": "调用量",
+      "tokens": "Token"
+    },
+    "spotlights": {
+      "documents": "知识文档量",
+      "files": "附件文件数",
+      "cost": "累计 AI 成本",
+      "storage": "已用存储空间"
+    },
+    "portalTitle": "门户表现",
+    "portalDesc": "把文档沉淀、对话密度、Token 消耗和活跃用户量作为企业门户侧的核心健康指标。",
+    "portal": {
+      "cards": {
+        "documents": "知识文档量",
+        "avgConversation": "每个智能体平均会话",
+        "tokens": "累计 Token",
+        "activeUsers": "活跃用户"
+      }
+    },
+    "widgetsTitle": "插件与扩展能力",
+    "widgetsDesc": "保留现有插件入口，同时把企业侧扩展能力并入驾驶舱信息结构。",
+    "widgetsEmptyTitle": "当前没有插件仪表盘组件",
+    "widgetsEmptyDesc": "当前企业可见插件里，没有任何组件注册到 dashboard_widgets 区域，所以这里不会展示插件卡片。",
+    "summaryTitle": "资源与存储摘要",
+    "summaryDesc": "用真实附件、知识资产和当前存储结构补齐企业侧仪表盘的运营上下文。",
+    "summary": {
+      "assetsTitle": "知识与智能体资产",
+      "files": "附件文件数",
+      "usedSpace": "已用空间",
+      "topType": "主要文件类型"
+    },
+    "activitiesDesc": "最近的租户侧操作记录，适合快速确认运营动作和排查入口问题。",
+    "systemActor": "系统",
+    "unknownModule": "未标记模块"
   }
 }

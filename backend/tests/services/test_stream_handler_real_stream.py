@@ -209,11 +209,52 @@ async def test_stream_handler_done_and_on_complete_when_llm_stream_stops_at_fini
         if raw.strip().startswith("data: {"):
             events.append(_parse_sse_payload(raw))
 
+    await asyncio.sleep(0)
+
     assert any(e.get("event") == "done" for e in events)
     assert "".join(e.get("delta", "") for e in events if e.get("event") == "message") == "part"
     assert len(captured) == 1
     assert captured[0].success is True
     assert captured[0].partial is False
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_disconnect_after_done_still_runs_on_complete():
+    """客户端在 done 后立刻断开时，后台 on_complete 仍应继续执行并持久化。"""
+    from app.ai.engine.types import ExecutionResult
+
+    captured: list[ExecutionResult] = []
+    completed = asyncio.Event()
+
+    async def on_complete(result: ExecutionResult) -> None:
+        await asyncio.sleep(0)
+        captured.append(result)
+        completed.set()
+
+    engine = _FakeEngine(
+        rounds=[[ChatChunk(delta="完成", finish_reason="stop", total_tokens=3)]],
+    )
+    handler = _build_handler(engine)
+    handler.on_complete = on_complete
+
+    agen = handler.generate()
+    done_seen = False
+
+    while True:
+        raw = await agen.__anext__()
+        if raw.strip().startswith("data: {"):
+            payload = _parse_sse_payload(raw)
+            if payload.get("event") == "done":
+                done_seen = True
+                break
+
+    await agen.aclose()
+    await asyncio.wait_for(completed.wait(), timeout=1)
+
+    assert done_seen is True
+    assert len(captured) == 1
+    assert captured[0].success is True
+    assert captured[0].output == "完成"
 
 
 @pytest.mark.asyncio
@@ -342,6 +383,8 @@ async def test_stream_handler_tool_round_persists_reasoning_content():
     async for _ in handler.generate():
         pass
 
+    await asyncio.sleep(0)
+
     assert len(captured) == 1
     assistant_tool_message = next(
         m for m in captured[0].messages if m.get("role") == "assistant" and m.get("tool_calls")
@@ -389,6 +432,8 @@ async def test_stream_handler_consent_round_does_not_append_duplicate_assistant(
     async for raw in handler.generate():
         if raw.strip().startswith("data: {"):
             events.append(_parse_sse_payload(raw))
+
+    await asyncio.sleep(0)
 
     assert "".join(
         e.get("delta", "") for e in events if e.get("event") == "message"
@@ -535,6 +580,12 @@ async def test_interrupted_calls_on_complete_with_partial_result():
     with pytest.raises(asyncio.CancelledError):
         async for _ in handler.generate():
             pass
+
+    if handler._background_tasks:
+        await asyncio.wait_for(
+            asyncio.gather(*list(handler._background_tasks)),
+            timeout=1,
+        )
 
     assert len(captured) == 1
     r = captured[0]

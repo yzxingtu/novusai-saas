@@ -244,4 +244,30 @@ describe('CommandBar', () => {
 
     wrapper.unmount();
   });
+
+  it('renders the recent conversations section only once in starter mode', async () => {
+    mocks.getGlobalConversationsApi.mockResolvedValue({
+      items: [
+        {
+          agent_avatar: null,
+          agent_id: 1,
+          agent_name: 'Cat Agent',
+          created_at: '2026-03-23T10:00:00Z',
+          id: 101,
+          status: 'active',
+          title: '最近的对话',
+        },
+      ],
+    });
+
+    const wrapper = await openCommandBar();
+    const recentChatsCount =
+      document.body.textContent?.match(/common\.commandBar\.recentChats/g)
+        ?.length ?? 0;
+
+    expect(document.body.textContent).toContain('最近的对话');
+    expect(recentChatsCount).toBe(1);
+
+    wrapper.unmount();
+  });
 });

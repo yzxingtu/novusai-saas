@@ -4,8 +4,8 @@ ModelRouter — AI Multi-Model Routing Engine / AI 多模型路由引擎
 Routing priority (high to low) / 路由优先级（从高到低）：
 1. routing_config.enable_routing=False → Directly return agent's original provider+model (backward compatible)
    routing_config.enable_routing=False → 直接返回 agent 原始 provider+model（向后兼容）
-2. Has image attachments → Prioritize vision_model_id, otherwise find vision model by tier (limited by max_tier)
-   有图片附件 → 优先 vision_model_id，否则按 tier 查找 vision 模型（受 max_tier 限制）
+2. Has modality-sensitive attachments → Prioritize capability-matched model, otherwise find a capable tier fallback
+   有能力敏感附件 → 优先匹配能力的模型，否则按 tier 查找可用兜底模型
 3. Has tools and target model doesn't support FC → Upgrade to FC-capable model in same tier
    有工具且目标模型不支持 FC → 升级到同 tier 内支持 FC 的模型
 4. estimated_tokens > long_context_threshold → Prioritize long_context_model_id, otherwise downgrade by tier for larger context_window (limited by max_tier)
@@ -14,7 +14,8 @@ Routing priority (high to low) / 路由优先级（从高到低）：
 6. Query model from DB by tier (same provider first + price ASC)
    按 tier 从 DB 查询模型（同 provider 优先 + 价格 ASC）
 7. Provider health check → Downgrade tier if unhealthy / Provider 健康检查 → 不健康则降 tier
-8. Fallback to agent.model_id (never fails) / 兜底 agent.model_id（永远不失败）
+8. Fallback to agent.model_id when routing has no better option
+   当路由没有更优模型时兜底回 agent.model_id
 
 routing_config fields (effective after T4 migration, accessed safely via getattr here)
 routing_config 字段（T4 迁移后生效，此处通过 getattr 安全访问）：
@@ -33,8 +34,10 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.routing.complexity_classifier import ComplexityClassifier, ComplexityLevel
+from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.ai import ModelTierEnum
+from app.exceptions import BusinessException
 
 if TYPE_CHECKING:
     from app.ai.types import ChatMessage
@@ -84,9 +87,11 @@ class ModelRouter:
     AI Multi-Model Routing Engine / AI 多模型路由引擎。
 
     Selects the most suitable AI model based on request characteristics (complexity, attachments, tools, token count).
-    Automatically falls back to agent.model_id on any exception or if no model is found, without raising errors.
+    Falls back to agent.model_id on internal routing failures or missing tier matches.
+    Raises BusinessException when the request requires capabilities or context window that no model can satisfy.
     根据请求特征（复杂度、附件、工具、Token 数量）选择最合适的 AI 模型。
-    任何异常或找不到模型时自动兜底到 agent.model_id，不抛出异常。
+    内部路由失败或找不到合适 tier 时会自动兜底到 agent.model_id。
+    但当请求明确要求的能力或上下文窗口没有任何模型可满足时，会抛出 BusinessException。
     """
 
     def __init__(self, db: AsyncSession) -> None:
@@ -115,11 +120,16 @@ class ModelRouter:
                    已解析的工具列表（用于 FC 能力路由和复杂度评分）
 
         Returns:
-            RouteResult (never None, returns agent's original model on failure)
-            RouteResult（永远不 None，失败时返回 agent 原始模型）
+            RouteResult（永远不为 None；内部失败时回退到 agent 原始模型）
+
+        Raises:
+            BusinessException: Required modality or context window cannot be satisfied.
+            BusinessException：必需的多模态能力或上下文窗口没有可用模型可满足。
         """
         try:
             return await self._do_route(agent, request, estimated_tokens, tools)
+        except BusinessException:
+            raise
         except Exception as exc:
             logger.warning(
                 "ModelRouter.route failed (agent_id={}): {} — falling back to agent model",
@@ -152,7 +162,10 @@ class ModelRouter:
         # 回退到 request.tools（兼容旧调用路径）
         if tools is None:
             tools = getattr(request, "tools", None)
-        has_attachments: bool = bool(getattr(request, "attachments", None))
+        has_attachments = self._detect_any_attachments(
+            getattr(request, "attachments", None),
+            messages,
+        )
 
         # Detect if request contains image attachments (request-level + message-level)
         # 检测是否包含图片附件（request 级 + message 级）
@@ -170,35 +183,48 @@ class ModelRouter:
 
         model_repo = AIModelRepository(self.db)
 
-        # ── 2. Image attachments → Requires Vision capability ──
-        # ── 2. 图片附件 → 需要 Vision 能力 ──
-        if has_image_attachments:
-            vision_result = await self._route_for_vision(
-                routing_config, agent, agent_provider_id, model_repo
-            )
-            if vision_result:
-                return vision_result
-
-        # ── 2b. Audio/Video attachments → Requires audio/video capability ──
-        # ── 2b. 音频/视频附件 → 需要 audio/video 能力 ──
         has_audio, has_video = self._detect_audio_video_attachments(
             getattr(request, "attachments", None), messages,
         )
-        if has_audio or has_video:
-            audio_video_result = await self._route_for_audio_video(
-                routing_config, agent, agent_provider_id, model_repo, has_audio, has_video
+        needs_fc = bool(tools)
+
+        # ── 2. Multimodal attachments → Requires matching capability set ──
+        # ── 2. 多模态附件 → 需要满足对应能力组合 ──
+        if has_image_attachments or has_audio or has_video:
+            multimodal_result = await self._route_for_multimodal(
+                routing_config=routing_config,
+                agent=agent,
+                agent_provider_id=agent_provider_id,
+                model_repo=model_repo,
+                has_image=has_image_attachments,
+                has_audio=has_audio,
+                has_video=has_video,
+                needs_fc=needs_fc,
             )
-            if audio_video_result:
-                return audio_video_result
+            if multimodal_result:
+                return multimodal_result
+            raise BusinessException(
+                message=_(self._get_multimodal_error_key(
+                    has_image=has_image_attachments,
+                    has_audio=has_audio,
+                    has_video=has_video,
+                )),
+            )
 
         # ── 3. Long context → Requires large context_window ──
         # ── 3. 长上下文 → 需要大 context_window ──
         long_ctx_threshold: int = routing_config.get(
             "long_context_threshold", _DEFAULT_LONG_CONTEXT_THRESHOLD
         )
-        if estimated_tokens > long_ctx_threshold:
+        requires_long_context = estimated_tokens > long_ctx_threshold
+        if requires_long_context:
             long_ctx_result = await self._route_for_long_context(
-                routing_config, agent, agent_provider_id, estimated_tokens, model_repo
+                routing_config,
+                agent,
+                agent_provider_id,
+                estimated_tokens,
+                model_repo,
+                needs_fc=needs_fc,
             )
             if long_ctx_result:
                 return long_ctx_result
@@ -216,13 +242,14 @@ class ModelRouter:
         if max_tier:
             target_tiers = self._filter_tiers_by_max(target_tiers, max_tier)
 
-        needs_fc = bool(tools)
+        min_context_window = estimated_tokens if requires_long_context else None
 
         for tier in target_tiers:
             model = await model_repo.get_by_tier(
                 tier=tier,
                 preferred_provider_id=agent_provider_id,
                 supports_function_calling=needs_fc,
+                min_context_window=min_context_window,
             )
             if not model:
                 continue
@@ -246,28 +273,113 @@ class ModelRouter:
                 is_overridden=True,
             )
 
+        if requires_long_context and not self._model_satisfies_requirements(
+            agent_model,
+            min_context_window=estimated_tokens,
+            needs_fc=needs_fc,
+        ):
+            raise BusinessException(
+                message=_("agent_chat.error.no_long_context_model_available"),
+            )
+
         # ── 6. Fallback ──
         # ── 6. 兜底 ──
         return self._fallback(agent, reason="no_tier_model_found")
 
     # ==================== Sub-Routing Methods / 子路由方法 ====================
 
-    async def _route_for_vision(
+    async def can_handle_attachments(
+        self,
+        agent: Agent,
+        *,
+        has_image: bool = False,
+        has_audio: bool = False,
+        has_video: bool = False,
+        needs_fc: bool = False,
+    ) -> bool:
+        """
+        Check whether the agent can satisfy requested multimodal capabilities.
+        检查智能体是否能满足当前多模态能力要求。
+        """
+        if not (has_image or has_audio or has_video):
+            return True
+
+        from app.repositories.ai.model_repository import AIModelRepository
+
+        routing_config: dict = getattr(agent, "routing_config", None) or {}
+        agent_model: AIModel | None = getattr(agent, "model", None)
+        agent_provider_id: int | None = (
+            agent_model.provider_id if agent_model else None
+        )
+        model_repo = AIModelRepository(self.db)
+        result = await self._route_for_multimodal(
+            routing_config=routing_config,
+            agent=agent,
+            agent_provider_id=agent_provider_id,
+            model_repo=model_repo,
+            has_image=has_image,
+            has_audio=has_audio,
+            has_video=has_video,
+            needs_fc=needs_fc,
+        )
+        return result is not None
+
+    async def _route_for_multimodal(
         self,
         routing_config: dict,
         agent: Agent,
         agent_provider_id: int | None,
         model_repo: AIModelRepository,
+        *,
+        has_image: bool,
+        has_audio: bool,
+        has_video: bool,
+        needs_fc: bool,
     ) -> RouteResult | None:
-        """Image routing: prioritize explicitly configured vision_model_id. / 图片路由：优先显式配置的 vision_model_id。"""
-        _ = agent
+        """
+        Route requests that require one or more multimodal capabilities.
+        为需要一种或多种多模态能力的请求选择模型。
+        """
+        agent_model: AIModel | None = getattr(agent, "model", None)
+        if self._model_satisfies_requirements(
+            agent_model,
+            needs_vision=has_image,
+            needs_audio=has_audio,
+            needs_video=has_video,
+            needs_fc=needs_fc,
+        ) and await self._is_provider_healthy(getattr(agent_model, "provider_id", None)):
+            return self._fallback(
+                agent,
+                reason=self._build_multimodal_reason(
+                    has_image=has_image,
+                    has_audio=has_audio,
+                    has_video=has_video,
+                    suffix="agent_model",
+                ),
+            )
 
+        explicit_ids: list[int] = []
         vision_model_id: int | None = routing_config.get("vision_model_id")
-        if vision_model_id:
-            model = await model_repo.get_active_with_provider(vision_model_id)
+        audio_model_id: int | None = routing_config.get("audio_model_id")
+        video_model_id: int | None = routing_config.get("video_model_id")
+        if has_video and video_model_id:
+            explicit_ids.append(video_model_id)
+        if has_audio and audio_model_id and audio_model_id not in explicit_ids:
+            explicit_ids.append(audio_model_id)
+        if has_image and vision_model_id and vision_model_id not in explicit_ids:
+            explicit_ids.append(vision_model_id)
+
+        for model_id_to_try in explicit_ids:
+            model = await model_repo.get_active_with_provider(model_id_to_try)
             if (
                 model
-                and getattr(model, "supports_vision", False)
+                and self._model_satisfies_requirements(
+                    model,
+                    needs_vision=has_image,
+                    needs_audio=has_audio,
+                    needs_video=has_video,
+                    needs_fc=needs_fc,
+                )
                 and await self._is_provider_healthy(model.provider_id)
             ):
                 return RouteResult(
@@ -275,12 +387,15 @@ class ModelRouter:
                     model_code=model.code,
                     model_id=model.id,
                     tier=model.tier,
-                    reason="vision:explicit_config",
+                    reason=self._build_multimodal_reason(
+                        has_image=has_image,
+                        has_audio=has_audio,
+                        has_video=has_video,
+                        suffix="explicit_config",
+                    ),
                     is_overridden=True,
                 )
 
-        # Fallback: find vision model by tier (limited by max_tier)
-        # 退而求其次：按 tier 找 vision 模型（受 max_tier 限制）
         fallback_tiers = [
             ModelTierEnum.STANDARD.value,
             ModelTierEnum.PREMIUM.value,
@@ -294,99 +409,23 @@ class ModelRouter:
             model = await model_repo.get_by_tier(
                 tier=tier,
                 preferred_provider_id=agent_provider_id,
-                supports_vision=True,
-            )
-            if model and await self._is_provider_healthy(model.provider_id):
-                return RouteResult(
-                    provider_code=model.provider.code,
-                    model_code=model.code,
-                    model_id=model.id,
-                    tier=model.tier,
-                    reason="vision:tier_fallback",
-                    is_overridden=True,
-                )
-
-        return None
-
-    async def _route_for_audio_video(
-        self,
-        routing_config: dict,
-        agent: Agent,
-        agent_provider_id: int | None,
-        model_repo: AIModelRepository,
-        has_audio: bool,
-        has_video: bool,
-    ) -> RouteResult | None:
-        """
-        Audio/Video routing: prioritize audio_model_id / video_model_id, else find by tier.
-        音频/视频路由：优先 audio_model_id / video_model_id，否则按 tier 查找。
-        """
-        _ = agent
-
-        # Prefer explicitly configured model for audio or video
-        # 优先显式配置的音频/视频模型
-        audio_model_id: int | None = routing_config.get("audio_model_id")
-        video_model_id: int | None = routing_config.get("video_model_id")
-        ids_to_try: list[int] = []
-        if has_video and video_model_id:
-            ids_to_try.append(video_model_id)
-        if has_audio and audio_model_id and audio_model_id not in ids_to_try:
-            ids_to_try.append(audio_model_id)
-        for model_id_to_try in ids_to_try:
-            model = await model_repo.get_active_with_provider(model_id_to_try)
-            if model and await self._is_provider_healthy(model.provider_id):
-                supports_audio = getattr(model, "supports_audio", False)
-                supports_video = getattr(model, "supports_video", False)
-                if (not has_audio or supports_audio) and (not has_video or supports_video):
-                    # reason must contain "audio"/"video" so engine keeps both attachment types when both present
-                    # reason 需包含 "audio"/"video" 以便引擎在同时存在时保留两类附件
-                    parts = []
-                    if has_audio and supports_audio:
-                        parts.append("audio")
-                    if has_video and supports_video:
-                        parts.append("video")
-                    reason = (":".join(parts) + ":explicit_config") if parts else "audio:explicit_config"
-                    return RouteResult(
-                        provider_code=model.provider.code,
-                        model_code=model.code,
-                        model_id=model.id,
-                        tier=model.tier,
-                        reason=reason,
-                        is_overridden=True,
-                    )
-
-        # Fallback: find by tier (supports_audio or supports_video)
-        # 退而求其次：按 tier 找支持音频/视频的模型
-        fallback_tiers = [
-            ModelTierEnum.STANDARD.value,
-            ModelTierEnum.PREMIUM.value,
-            ModelTierEnum.FAST.value,
-        ]
-        max_tier = routing_config.get("max_tier")
-        if max_tier:
-            fallback_tiers = self._filter_tiers_by_max(fallback_tiers, max_tier)
-
-        for tier in fallback_tiers:
-            model = await model_repo.get_by_tier(
-                tier=tier,
-                preferred_provider_id=agent_provider_id,
+                supports_vision=has_image,
                 supports_audio=has_audio,
                 supports_video=has_video,
+                supports_function_calling=needs_fc,
             )
             if model and await self._is_provider_healthy(model.provider_id):
-                # reason must contain "audio"/"video" so engine keeps both when both present
-                parts = []
-                if has_audio:
-                    parts.append("audio")
-                if has_video:
-                    parts.append("video")
-                reason = ":".join(parts) + ":tier_fallback" if parts else "audio:tier_fallback"
                 return RouteResult(
                     provider_code=model.provider.code,
                     model_code=model.code,
                     model_id=model.id,
                     tier=model.tier,
-                    reason=reason,
+                    reason=self._build_multimodal_reason(
+                        has_image=has_image,
+                        has_audio=has_audio,
+                        has_video=has_video,
+                        suffix="tier_fallback",
+                    ),
                     is_overridden=True,
                 )
 
@@ -399,14 +438,30 @@ class ModelRouter:
         agent_provider_id: int | None,
         estimated_tokens: int,
         model_repo: AIModelRepository,
+        *,
+        needs_fc: bool,
     ) -> RouteResult | None:
         """Long context routing: prioritize explicitly configured long_context_model_id. / 长上下文路由：优先显式配置的 long_context_model_id。"""
-        _ = agent
+        agent_model: AIModel | None = getattr(agent, "model", None)
+        if self._model_satisfies_requirements(
+            agent_model,
+            min_context_window=estimated_tokens,
+            needs_fc=needs_fc,
+        ) and await self._is_provider_healthy(getattr(agent_model, "provider_id", None)):
+            return self._fallback(agent, reason="long_context:agent_model")
 
         lc_model_id: int | None = routing_config.get("long_context_model_id")
         if lc_model_id:
             model = await model_repo.get_active_with_provider(lc_model_id)
-            if model and await self._is_provider_healthy(model.provider_id):
+            if (
+                model
+                and self._model_satisfies_requirements(
+                    model,
+                    min_context_window=estimated_tokens,
+                    needs_fc=needs_fc,
+                )
+                and await self._is_provider_healthy(model.provider_id)
+            ):
                 return RouteResult(
                     provider_code=model.provider.code,
                     model_code=model.code,
@@ -431,6 +486,7 @@ class ModelRouter:
             model = await model_repo.get_by_tier(
                 tier=tier,
                 preferred_provider_id=agent_provider_id,
+                supports_function_calling=needs_fc,
                 min_context_window=estimated_tokens,
             )
             if model and await self._is_provider_healthy(model.provider_id):
@@ -446,6 +502,69 @@ class ModelRouter:
         return None
 
     # ==================== Helper Methods / 辅助方法 ====================
+
+    @staticmethod
+    def _model_satisfies_requirements(
+        model: AIModel | None,
+        *,
+        needs_vision: bool = False,
+        needs_audio: bool = False,
+        needs_video: bool = False,
+        needs_fc: bool = False,
+        min_context_window: int | None = None,
+    ) -> bool:
+        """Check whether a model satisfies the required capability set. / 检查模型是否满足所需能力组合。"""
+        if model is None:
+            return False
+        if needs_vision and not bool(getattr(model, "supports_vision", False)):
+            return False
+        if needs_audio and not bool(getattr(model, "supports_audio", False)):
+            return False
+        if needs_video and not bool(getattr(model, "supports_video", False)):
+            return False
+        if needs_fc and not bool(getattr(model, "supports_function_calling", False)):
+            return False
+        if min_context_window is not None:
+            context_window = int(getattr(model, "context_window", 0) or 0)
+            if context_window < min_context_window:
+                return False
+        return True
+
+    @staticmethod
+    def _build_multimodal_reason(
+        *,
+        has_image: bool,
+        has_audio: bool,
+        has_video: bool,
+        suffix: str,
+    ) -> str:
+        parts: list[str] = []
+        if has_image:
+            parts.append("vision")
+        if has_audio:
+            parts.append("audio")
+        if has_video:
+            parts.append("video")
+        if not parts:
+            parts.append("multimodal")
+        return ":".join(parts + [suffix])
+
+    @staticmethod
+    def _get_multimodal_error_key(
+        *,
+        has_image: bool,
+        has_audio: bool,
+        has_video: bool,
+    ) -> str:
+        if has_image and not has_audio and not has_video:
+            return "agent_chat.error.no_vision_model_available"
+        if has_audio and has_video and not has_image:
+            return "agent_chat.error.no_audio_video_model_available"
+        if has_audio and not has_image and not has_video:
+            return "agent_chat.error.no_audio_model_available"
+        if has_video and not has_image and not has_audio:
+            return "agent_chat.error.no_video_model_available"
+        return "agent_chat.error.no_multimodal_model_available"
 
     @staticmethod
     def _fallback(agent: Agent, reason: str) -> RouteResult:
@@ -518,6 +637,19 @@ class ModelRouter:
                         return True
 
         return False
+
+    @staticmethod
+    def _detect_any_attachments(
+        request_attachments: list[dict[str, Any]] | None,
+        messages: list[ChatMessage],
+    ) -> bool:
+        """
+        Detect whether the request contains any attachment, including message-level files.
+        检测请求是否包含任意附件，包括消息级文件附件。
+        """
+        if request_attachments:
+            return True
+        return any(bool(getattr(msg, "attachments", None)) for msg in messages)
 
     @staticmethod
     def _detect_audio_video_attachments(

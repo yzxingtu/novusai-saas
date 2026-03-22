@@ -18,6 +18,17 @@ class RuntimeLimitsPublicConfig(BaseSchema):
     page_context_max_bytes: int = Field(..., description="page_context.page_data 最大字节数")
 
 
+class CaptchaPluginFrontendRuntimePublicConfig(BaseSchema):
+    """Captcha plugin frontend runtime / 验证码插件前端运行时信息"""
+
+    plugin_name: str = Field(..., description="插件名称")
+    public_endpoint: str = Field(..., description="公开资源端点")
+    frontend_runtime: dict[str, str] = Field(
+        default_factory=dict,
+        description="插件前端运行时契约",
+    )
+
+
 class PlatformPublicConfig(BaseSchema):
     site_name: str = Field(..., description="站点名称")
     site_description: str | None = Field(None, description="站点描述")
@@ -31,6 +42,10 @@ class PlatformPublicConfig(BaseSchema):
     maintenance_message: str | None = Field(None, description="维护提示信息")
     login_captcha_enabled: bool | None = Field(None, description="登录验证码开关")
     captcha_provider: str | None = Field(None, description="验证码驱动")
+    captcha_plugin: CaptchaPluginFrontendRuntimePublicConfig | None = Field(
+        None,
+        description="验证码插件前端运行时信息",
+    )
     captcha_difficulty: str | None = Field(None, description="验证码难度")
     captcha_enable_threshold_admin: int | None = Field(None, description="验证码启用阈值")
     login_max_attempts: int | None = Field(None, description="登录失败锁定次数")
@@ -50,6 +65,7 @@ class PlatformPublicConfig(BaseSchema):
 
 
 __all__ = [
+    "CaptchaPluginFrontendRuntimePublicConfig",
     "PlatformPublicConfig",
     "RuntimeLimitsPublicConfig",
     "StoragePublicConfig",

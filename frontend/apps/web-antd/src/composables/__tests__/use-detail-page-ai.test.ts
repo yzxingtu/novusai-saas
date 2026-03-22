@@ -53,7 +53,12 @@ describe('useDetailPageAi', () => {
     const names = listPageOperations('tenant.ai.samples.detail').map(
       (op) => op.name,
     );
-    expect(names).toEqual(['refresh_detail', 'navigate_back']);
+    expect(names).toEqual([
+      'read_current_view',
+      'read_current_sections',
+      'refresh_detail',
+      'navigate_back',
+    ]);
 
     await executePageOperation('tenant.ai.samples.detail', 'refresh_detail');
     expect(refreshFn).toHaveBeenCalledTimes(1);
@@ -97,10 +102,12 @@ describe('useDetailPageAi', () => {
 
     const ops = listPageOperations('admin.ai.custom.detail');
     expect(ops.map((op) => op.name)).toEqual([
+      'read_current_view',
+      'read_current_sections',
       'refresh_detail',
       'publish_detail',
     ]);
-    expect(ops[0]?.label).toBe('Custom Refresh');
+    expect(ops[2]?.label).toBe('Custom Refresh');
 
     scope.stop();
   });

@@ -6,6 +6,7 @@ Provides async task query, retry, cancel and other management endpoints (platfor
 """
 
 from datetime import timedelta
+from typing import Literal
 
 from fastapi import Path, Query, Request
 
@@ -66,11 +67,18 @@ class AdminTaskController(GlobalController):
             db: DbSession,
             current_admin: ActiveAdmin,
             query: QueryParams,
+            view: Literal["all", "execution", "internal"] = Query(
+                "all",
+                description="Task log view mode",
+            ),
         ):
             service = self.get_service(db)
-            items, total = await service.query_list(query)
+            items, total = await service.query_list_by_view(query, view=view)
             return paginated(
-                items=[TaskLogResponse.model_validate(item, from_attributes=True) for item in items],
+                items=[
+                    TaskLogResponse.model_validate(item, from_attributes=True)
+                    for item in items
+                ],
                 total=total,
                 page=query.page,
                 page_size=query.size,
@@ -120,10 +128,13 @@ class AdminTaskController(GlobalController):
             task_log = await service.get_by_id(task_log_id)
             if task_log is None:
                 from app.exceptions import NotFoundException
+
                 raise NotFoundException(message=_("task_log.error.not_found"))
 
             return success(
-                data=TaskLogDetailResponse.model_validate(task_log, from_attributes=True).model_dump()
+                data=TaskLogDetailResponse.model_validate(
+                    task_log, from_attributes=True
+                ).model_dump()
             )
 
         @router.post("/{task_log_id}/retry", summary="重试任务")
@@ -139,11 +150,16 @@ class AdminTaskController(GlobalController):
             task_log = await service.get_by_id(task_log_id)
             if task_log is None:
                 from app.exceptions import NotFoundException
+
                 raise NotFoundException(message=_("task_log.error.not_found"))
 
             new_task_id = TaskManagerService.retry_task(
                 task_name=task_log.task_name,
-                args=task_log.args if isinstance(task_log.args, list) else list(task_log.args.values()) if isinstance(task_log.args, dict) else None,
+                args=task_log.args
+                if isinstance(task_log.args, list)
+                else list(task_log.args.values())
+                if isinstance(task_log.args, dict)
+                else None,
                 kwargs=task_log.kwargs,
                 queue=body.queue if body and body.queue else task_log.queue,
             )
@@ -161,6 +177,7 @@ class AdminTaskController(GlobalController):
             task_log = await service.get_by_id(task_log_id)
             if task_log is None:
                 from app.exceptions import NotFoundException
+
                 raise NotFoundException(message=_("task_log.error.not_found"))
 
             TaskManagerService.cancel_task(task_log.task_id)

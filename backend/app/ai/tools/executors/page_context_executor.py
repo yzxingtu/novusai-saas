@@ -29,6 +29,39 @@ logger = LogManager.get_logger("ai.tool.page_context")
 
 # Page context variable key name / 页面上下文变量键名
 PAGE_CONTEXT_KEY = SHARED_PAGE_CONTEXT_KEY
+FALLBACK_PAGE_CONTEXT_SOURCES = {
+    "dom_snapshot": "DOM snapshot fallback (best-effort, may be incomplete)",
+    "minimal_fallback": "Minimal fallback (best-effort, limited structure)",
+}
+
+
+def _summarize_operation_params(params: Any) -> str:
+    """Build a concise parameter summary for available_operations / 为 available_operations 构建精简参数摘要。"""
+    if not isinstance(params, dict) or not params:
+        return ""
+
+    entries: list[str] = []
+    for param_name, schema in list(params.items())[:8]:
+        if not isinstance(schema, dict):
+            entries.append(str(param_name))
+            continue
+
+        param_type = schema.get("type")
+        type_suffix = f":{param_type}" if param_type else ""
+        required_suffix = " required" if schema.get("required") else ""
+        enum_values = schema.get("enum")
+        enum_suffix = ""
+        if isinstance(enum_values, list) and enum_values:
+            preview = ", ".join(str(item) for item in enum_values[:4])
+            if len(enum_values) > 4:
+                preview += f", +{len(enum_values) - 4} more"
+            enum_suffix = f" enum[{preview}]"
+        entries.append(f"{param_name}{type_suffix}{required_suffix}{enum_suffix}")
+
+    if len(params) > 8:
+        entries.append(f"... +{len(params) - 8} more")
+
+    return ", ".join(entries)
 
 
 class PageContextExecutor(BaseToolExecutor):
@@ -98,11 +131,17 @@ class PageContextExecutor(BaseToolExecutor):
             entity_desc = page_data.get("entity_description")
             form_purpose = page_data.get("form_purpose")
             form_is_open = page_data.get("form_is_open")
+            source = str(page_data.get("source") or "").strip()
 
             if entity_name:
                 parts.append(f"Entity: {entity_name}")
             if entity_desc:
                 parts.append(f"Description: {entity_desc}")
+            if source in FALLBACK_PAGE_CONTEXT_SOURCES:
+                parts.append(
+                    "Context Source: "
+                    f"{source} ({FALLBACK_PAGE_CONTEXT_SOURCES[source]})"
+                )
             if form_purpose and isinstance(form_purpose, dict):
                 purpose_parts = []
                 if form_purpose.get("create"):
@@ -178,23 +217,29 @@ class PageContextExecutor(BaseToolExecutor):
                         f"[{comp}:{desc.get('type', 'string')}]{required}{opts_info}{constraints_info}"
                     )
 
-            # Add rich-text editor operations summary when has_editor (for tool-first hint)
-            # 富文本页：显式输出 available_operations 摘要，供 LLM 了解可调用的 pageop_* 工具
             has_editor = page_data.get("has_editor")
             if has_editor and ops and isinstance(ops, list):
                 parts.append("")
                 parts.append("## Available Editor Operations (use dedicated pageop_* tools):")
+            elif ops and isinstance(ops, list):
+                parts.append("")
+                parts.append("## Available Page Operations:")
+
+            if ops and isinstance(ops, list):
                 for o in ops[:20]:
                     if not isinstance(o, dict) or not o.get("name"):
                         continue
-                    op_name = o.get("name", "")
-                    op_desc = o.get("description", "")
-                    params = o.get("params")
-                    param_summary = ""
-                    if params and isinstance(params, dict):
-                        req = [k for k, v in params.items() if isinstance(v, dict) and v.get("description")]
-                        param_summary = f" params: {', '.join(req)}" if req else ""
-                    parts.append(f"  - {op_name}: {op_desc or op_name}{param_summary}")
+                    op_name = str(o.get("name", ""))
+                    op_label = str(o.get("label", "") or op_name)
+                    op_desc = str(o.get("description", "") or op_label)
+                    readonly = bool(o.get("readonly", False))
+                    readonly_tag = "readonly" if readonly else "mutation"
+                    param_summary = _summarize_operation_params(o.get("params"))
+                    summary_suffix = f" params: {param_summary}" if param_summary else ""
+                    parts.append(
+                        f"  - {op_name} [{readonly_tag}] {op_label}: "
+                        f"{op_desc}{summary_suffix}"
+                    )
 
             # Add operation workflow guidance if operations are available
             # 如果有可用操作，添加操作流程指引

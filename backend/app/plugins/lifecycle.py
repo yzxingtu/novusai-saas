@@ -817,9 +817,9 @@ class PluginLifecycle:
         # Alembic migration (ensure plugin tables are created) / Alembic 迁移（确保插件表已创建）
         # fail-close: mark ERROR and abort enable on migration failure / 迁移失败时标记 ERROR 并中止启用
         # / fail-close：迁移失败则标记 ERROR 并中止 enable，防止插件在 DB 表缺失时运行。
-        # Note: startup.restore_enabled_plugins calls run_alembic_upgrade directly / 启动时 restore 直接调用 upgrade，单插件迁移失败不阻塞
-        # / 注意：startup.restore_enabled_plugins 直接调用 run_alembic_upgrade（忽略此分支），
-        #   保持非阻塞 fail-open 行为，避免单个插件迁移失败阻止服务启动。
+        # Note: startup.restore_enabled_plugins also treats migration failure as fail-close per plugin.
+        # / 注意：startup.restore_enabled_plugins 现也按单插件 fail-close 处理迁移失败，
+        #   仅影响当前插件，不阻塞其他插件恢复。
         migrations_dir = self._loader.plugins_dir / plugin_name / "backend" / "migrations" / "versions"
         if migrations_dir.is_dir():
             await emitter.emit_step("alembic", "running", "Running database migrations...")

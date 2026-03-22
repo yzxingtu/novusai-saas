@@ -85,6 +85,17 @@ const mainRoutes: RouteRecordRaw = {
         ai: { pageContextKey: 'tenant.ai.agents.detail' },
       },
     },
+    {
+      name: 'TenantAISkillPackageDetail',
+      path: 'ai/skill-packages/:id',
+      component: () => import('#/views/tenant/ai/skill-packages/detail.vue'),
+      meta: {
+        hideInMenu: true,
+        title: $t('tenant.ai.skillPackage.detail.title'),
+        activePath: '/tenant/ai/skill-packages',
+        ai: { pageContextKey: 'tenant.ai.skill-packages.detail' },
+      },
+    },
     // 个人中心：不在后端菜单中，必须静态注册 / Profile: not in backend menu
     {
       name: 'TenantProfile',

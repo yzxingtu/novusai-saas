@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { ItemType } from 'ant-design-vue/es/menu';
+
 /**
  * AI Chat Slide Panel
  *
@@ -11,7 +13,20 @@
  */
 import type { AIPageMode } from '@vben/types';
 
-import { computed, onMounted, onUnmounted, reactive, ref, toRef, watch, watchEffect } from 'vue';
+import type { PageOperation } from './page-operation-registry';
+
+import type { InputVariable } from '#/components/business/ai-chat-panel/types';
+
+import {
+  computed,
+  onMounted,
+  onUnmounted,
+  reactive,
+  ref,
+  toRef,
+  watch,
+  watchEffect,
+} from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -21,40 +36,37 @@ import {
   Menu,
   message,
   Modal,
-  Popover,
   Spin,
   Tooltip,
 } from 'ant-design-vue';
 
-import {
-  getAgentInputVariables,
-  type InputVariable,
-} from '#/components/business/ai-chat-panel/types';
-
 import ChatMessageItem from '#/components/business/ai-chat-panel/ChatMessageItem.vue';
+import { getAgentInputVariables } from '#/components/business/ai-chat-panel/types';
 import { useAIChat } from '#/components/business/ai-chat-panel/use-ai-chat';
 import { formStateTracker } from '#/composables/use-form-state-tracker';
 import { useModalDetector } from '#/composables/use-modal-detector';
-import { getActivePageSessionId } from '#/composables/use-page-session';
 import { usePageScreenshot } from '#/composables/use-page-screenshot';
+import { getActivePageSessionId } from '#/composables/use-page-session';
 import { $t } from '#/locales';
 import { useAIPanelStore } from '#/store';
 import { usePublicConfigStore } from '#/store/shared/public-config';
-import { normalizeStarterQuestions } from '#/utils/ai-starter-questions';
 import {
   canExposePageOperations,
   filterPageOperationsByPolicy,
   normalizePageAIMode,
   shouldDisablePageContext,
 } from '#/utils/ai-page-capabilities';
+import { normalizeStarterQuestions } from '#/utils/ai-starter-questions';
 import { getFileIcon } from '#/utils/file';
 
+import {
+  pageContextVersion,
+  resolvePageContext,
+} from './page-context-registry';
 import { normalizePageKey } from './page-key-utils';
-import { pageContextVersion, resolvePageContext } from './page-context-registry';
 import {
   listPageOperations,
   pageOperationVersion,
-  type PageOperation,
 } from './page-operation-registry';
 import { useAgentRouter } from './use-agent-router';
 
@@ -62,20 +74,20 @@ defineOptions({ name: 'AIChatSlidePanel' });
 
 const props = withDefaults(
   defineProps<{
-    /** API prefix / API 前缀 */
-    apiPrefix: string;
     /** Effective AI mode for current page / 当前页面生效的 AI 模式 */
     aiMode?: AIPageMode;
+    /** API prefix / API 前缀 */
+    apiPrefix: string;
     /** Disabled capability keys for current page / 当前页面禁用的能力键 */
     disabledCapabilities?: string[];
     /** Disabled operation names for current page / 当前页面禁用的操作名 */
     disabledOperations?: string[];
     /** Page-level pageContextKey (from route.meta.ai) / 页面级 pageContextKey（来自 route.meta.ai） */
     pageContextKey?: string;
-    /** External pending message (from CommandBar) / 外部传入的消息（来自 CommandBar） */
-    pendingMessage?: null | string;
     /** External pending conversation ID to restore (from CommandBar) / 外部传入的待恢复对话 ID（来自 CommandBar） */
     pendingConversationId?: null | number;
+    /** External pending message (from CommandBar) / 外部传入的消息（来自 CommandBar） */
+    pendingMessage?: null | string;
     /** Whether to show attachment button / 是否显示附件按钮 */
     showAttachments?: boolean;
     /** Upload URL / 上传地址 */
@@ -129,17 +141,21 @@ const countdownNow = ref(Date.now());
 const hasUnresolvedPageOps = computed(() =>
   aiPanelStore.pendingPageOps.some((op) => !op.resolved),
 );
-let countdownInterval: ReturnType<typeof setInterval> | null = null;
-watch(hasUnresolvedPageOps, (has) => {
-  if (has && !countdownInterval) {
-    countdownInterval = setInterval(() => {
-      countdownNow.value = Date.now();
-    }, 1000);
-  } else if (!has && countdownInterval) {
-    clearInterval(countdownInterval);
-    countdownInterval = null;
-  }
-}, { immediate: true });
+let countdownInterval: null | ReturnType<typeof setInterval> = null;
+watch(
+  hasUnresolvedPageOps,
+  (has) => {
+    if (has && !countdownInterval) {
+      countdownInterval = setInterval(() => {
+        countdownNow.value = Date.now();
+      }, 1000);
+    } else if (!has && countdownInterval) {
+      clearInterval(countdownInterval);
+      countdownInterval = null;
+    }
+  },
+  { immediate: true },
+);
 onUnmounted(() => {
   if (countdownInterval) {
     clearInterval(countdownInterval);
@@ -279,24 +295,30 @@ const unassociatedPendingOps = computed(() =>
 /** Single-agent prompt modal (when routing detects missing required vars) / 单智能体变量弹窗（路由检测到必填变量缺失时） */
 const varsModalVisible = ref(false);
 const varsFormValues = reactive<Record<string, string>>({});
-const varsModalAgent = ref<null | { id: number; name: string; vars: InputVariable[] }>(null);
+const varsModalAgent = ref<null | {
+  id: number;
+  name: string;
+  vars: InputVariable[];
+}>(null);
 const varsPersist = ref(false);
 /** Pending send context: deferred until vars are filled / 待发送上下文（变量填写后发送） */
-const pendingSendContext = ref<
-  | null
-  | {
-      agentId: number;
-      consumeMention?: boolean;
-      pageContext: ReturnType<typeof resolvePageContext>;
-      routeSource?: string;
-    }
->(null);
+const pendingSendContext = ref<null | {
+  agentId: number;
+  consumeMention?: boolean;
+  pageContext: ReturnType<typeof resolvePageContext>;
+  routeSource?: string;
+}>(null);
 
-function openVarsModal(vars: InputVariable[], agentId: number, agentName: string) {
+function openVarsModal(
+  vars: InputVariable[],
+  agentId: number,
+  agentName: string,
+) {
   varsModalAgent.value = { id: agentId, name: agentName, vars };
   ensureAgentVarsLoaded(agentId);
   vars.forEach((v) => {
-    varsFormValues[v.name] = allAgentsVariables.value[agentId]?.[v.name] ?? v.default ?? '';
+    varsFormValues[v.name] =
+      allAgentsVariables.value[agentId]?.[v.name] ?? v.default ?? '';
   });
   varsPersist.value = false;
   varsModalVisible.value = true;
@@ -339,7 +361,9 @@ function onVarsCancel() {
 
 /** Multi-agent vars editor (edit button in header) / 多智能体变量编辑（头部编辑按钮） */
 const multiVarsModalVisible = ref(false);
-const multiVarsFormValues = reactive<Record<number, Record<string, string>>>({});
+const multiVarsFormValues = reactive<Record<number, Record<string, string>>>(
+  {},
+);
 const multiVarsPersist = ref(false);
 
 function openMultiVarsEditor() {
@@ -347,7 +371,7 @@ function openMultiVarsEditor() {
     ensureAgentVarsLoaded(a.id);
     multiVarsFormValues[a.id] = { ...allAgentsVariables.value[a.id] };
     // Fill defaults for any vars not yet set / 为未设置的变量填充默认值
-    for (const v of (a.input_variables ?? [])) {
+    for (const v of a.input_variables ?? []) {
       if (!multiVarsFormValues[a.id]![v.name]) {
         multiVarsFormValues[a.id]![v.name] = v.default ?? '';
       }
@@ -450,6 +474,25 @@ function onToggleForceReroute() {
 
 // ============ Page AI Capability Indicator ============
 
+const FALLBACK_PAGE_CONTEXT_SOURCES = new Set([
+  'dom_snapshot',
+  'minimal_fallback',
+]);
+
+function getPageContextSource(
+  ctx: ReturnType<typeof resolvePageContext>,
+): null | string {
+  const source = ctx?.page_data?.source;
+  return typeof source === 'string' ? source : null;
+}
+
+function isFallbackOnlyPageContext(
+  ctx: ReturnType<typeof resolvePageContext>,
+): boolean {
+  const source = getPageContextSource(ctx);
+  return !!source && FALLBACK_PAGE_CONTEXT_SOURCES.has(source);
+}
+
 /** Current page context (reactive to route changes AND registry mutations) / 当前页面上下文 */
 const rawPageContext = computed(() => {
   void pageContextVersion.value;
@@ -477,13 +520,159 @@ const currentPageOperations = computed(() => {
 
 /** Current page context with runtime AI policy applied / 应用运行时 AI 策略后的当前页面上下文 */
 const currentPageContext = computed(() =>
-  enrichPageContextWithOperations(rawPageContext.value, currentPageOperations.value),
+  enrichPageContextWithOperations(
+    rawPageContext.value,
+    currentPageOperations.value,
+  ),
+);
+
+const hasFormalPageAIContext = computed(
+  () =>
+    !!rawPageContext.value && !isFallbackOnlyPageContext(rawPageContext.value),
 );
 
 /** Whether the current page has registered AI context / 当前页是否已注册 AI 上下文 */
 const hasPageAI = computed(
-  () => !!currentPageContext.value || currentPageOperations.value.length > 0,
+  () => hasFormalPageAIContext.value || currentPageOperations.value.length > 0,
 );
+
+const writablePageOperations = computed(() =>
+  currentPageOperations.value.filter((operation) => !operation.readonly),
+);
+
+const readonlyPageOperations = computed(() =>
+  currentPageOperations.value.filter((operation) => operation.readonly),
+);
+
+const PAGE_AI_PREVIEW_LIMIT = 4;
+const pageAIDetailsExpanded = ref(false);
+const pageAIShowAllOperations = ref(false);
+
+watch(
+  () => props.pageContextKey,
+  () => {
+    pageAIDetailsExpanded.value = false;
+    pageAIShowAllOperations.value = false;
+  },
+);
+
+watch(
+  () => hasPageAI.value,
+  (hasValue) => {
+    if (!hasValue) {
+      pageAIDetailsExpanded.value = false;
+      pageAIShowAllOperations.value = false;
+    }
+  },
+);
+
+watch(
+  () => currentPageOperations.value.length,
+  (operationCount) => {
+    if (operationCount <= PAGE_AI_PREVIEW_LIMIT) {
+      pageAIShowAllOperations.value = false;
+    }
+  },
+);
+
+const pageAIStatBadges = computed(() => {
+  const badges: Array<{
+    className: string;
+    key: string;
+    label: string;
+  }> = [];
+
+  if (currentPageOperations.value.length > 0) {
+    badges.push({
+      className: 'bg-primary/8 text-primary/80',
+      key: 'total',
+      label: $t('common.aiPanel.pageAiOperationCount', {
+        count: currentPageOperations.value.length,
+      }),
+    });
+  }
+
+  if (writablePageOperations.value.length > 0) {
+    badges.push({
+      className: 'bg-amber-500/10 text-amber-700',
+      key: 'writable',
+      label: $t('common.aiPanel.pageAiWritableCount', {
+        count: writablePageOperations.value.length,
+      }),
+    });
+  }
+
+  if (readonlyPageOperations.value.length > 0) {
+    badges.push({
+      className: 'bg-blue-500/10 text-blue-700',
+      key: 'readonly',
+      label: $t('common.aiPanel.pageAiReadonlyCount', {
+        count: readonlyPageOperations.value.length,
+      }),
+    });
+  }
+
+  return badges;
+});
+
+const hasExpandablePageAIDetails = computed(
+  () => currentPageOperations.value.length > 0,
+);
+
+const pageAIVisibleOperations = computed(() =>
+  pageAIShowAllOperations.value
+    ? currentPageOperations.value
+    : currentPageOperations.value.slice(0, PAGE_AI_PREVIEW_LIMIT),
+);
+
+const pageAIRemainingOperationCount = computed(() =>
+  Math.max(
+    currentPageOperations.value.length - pageAIVisibleOperations.value.length,
+    0,
+  ),
+);
+
+const pageAISummary = computed(() => {
+  if (currentPageOperations.value.length > 0) {
+    return $t('common.aiPanel.pageAiSummary', {
+      count: currentPageOperations.value.length,
+    });
+  }
+  return $t('common.aiPanel.pageAiNoOperations');
+});
+
+const resolvedPageAITitle = computed(() => {
+  const rawTitle = currentPageContext.value?.page_title?.trim();
+  if (!rawTitle) {
+    return $t('common.aiPanel.pageAiCurrentPage');
+  }
+
+  const translatedTitle = $t(rawTitle);
+  if (translatedTitle !== rawTitle) {
+    return translatedTitle;
+  }
+
+  return rawTitle.includes('.') ? translatedTitle : rawTitle;
+});
+
+const pageAIRailTooltip = computed(
+  () => `${resolvedPageAITitle.value} · ${pageAISummary.value}`,
+);
+
+function togglePageAIDetails() {
+  if (pageAIDetailsExpanded.value) {
+    pageAIDetailsExpanded.value = false;
+    pageAIShowAllOperations.value = false;
+    return;
+  }
+
+  pageAIDetailsExpanded.value = true;
+}
+
+function expandAllPageAIOperations() {
+  pageAIDetailsExpanded.value = true;
+  pageAIShowAllOperations.value = true;
+}
 
 // ============ Send message (routing + streaming) / 发送消息（路由 + 流式） ============
 
@@ -493,7 +682,7 @@ const hasPageAI = computed(
  * Uses useModalDetector for structured modal/drawer info.
  */
 function collectVisualState() {
-  const modals = modalState.value;
+  const modals = Array.isArray(modalState.value) ? modalState.value : [];
   return {
     url: window.location.pathname,
     viewport: { w: window.innerWidth, h: window.innerHeight },
@@ -514,19 +703,30 @@ const MAX_FORM_FIELDS = 20;
 const DEFAULT_PAGE_CONTEXT_MAX_BYTES_FALLBACK = 8192;
 const PAGE_CONTEXT_SOFT_RESERVE_BYTES = 1024;
 
-const pageContextHardLimitBytes = computed(() => {
+function getPageContextHardLimitBytes(): number {
   return (
     publicConfigStore.platformConfig?.runtimeLimits?.pageContextMaxBytes ||
     publicConfigStore.tenantConfig?.runtimeLimits?.pageContextMaxBytes ||
     DEFAULT_PAGE_CONTEXT_MAX_BYTES_FALLBACK
   );
-});
+}
 
 function getPageContextSoftLimitBytes(): number {
   return Math.max(
-    pageContextHardLimitBytes.value - PAGE_CONTEXT_SOFT_RESERVE_BYTES,
+    getPageContextHardLimitBytes() - PAGE_CONTEXT_SOFT_RESERVE_BYTES,
     1024,
   );
+}
+
+function getSerializedPageDataBytes(pageData: Record<string, unknown>): number {
+  return new TextEncoder().encode(JSON.stringify(pageData)).length;
+}
+
+function truncateTextByBytes(text: string, maxBytes: number): string {
+  const encoder = new TextEncoder();
+  const encoded = encoder.encode(text);
+  if (encoded.length <= maxBytes) return text;
+  return new TextDecoder().decode(encoded.slice(0, maxBytes));
 }
 
 function truncateFormFields(
@@ -537,70 +737,239 @@ function truncateFormFields(
   const entries = Object.entries(ff as Record<string, unknown>);
   if (entries.length <= MAX_FORM_FIELDS) return pageData;
   const truncated = Object.fromEntries(entries.slice(0, MAX_FORM_FIELDS));
-  (truncated as Record<string, unknown>)._truncated = `Showing ${MAX_FORM_FIELDS} of ${entries.length} fields`;
+  (truncated as Record<string, unknown>)._truncated =
+    `Showing ${MAX_FORM_FIELDS} of ${entries.length} fields`;
   return { ...pageData, form_fields: truncated };
+}
+
+function compactAvailableOperations(
+  operations: unknown[],
+  options: {
+    includeDescriptions: boolean;
+    includeParams: boolean;
+    maxOps: number;
+    maxParamsPerOp: number;
+  },
+): unknown[] {
+  return operations.slice(0, options.maxOps).map((operation) => {
+    if (!operation || typeof operation !== 'object') {
+      return operation;
+    }
+
+    const source = operation as Record<string, unknown>;
+    const compact: Record<string, unknown> = {
+      name: source.name,
+      label: source.label,
+      readonly: source.readonly,
+    };
+
+    if (options.includeDescriptions && typeof source.description === 'string') {
+      compact.description = source.description;
+    }
+
+    if (
+      options.includeParams &&
+      source.params &&
+      typeof source.params === 'object'
+    ) {
+      const paramEntries = Object.entries(
+        source.params as Record<string, unknown>,
+      ).slice(0, options.maxParamsPerOp);
+      compact.params = Object.fromEntries(
+        paramEntries.map(([paramName, rawSchema]) => {
+          if (!rawSchema || typeof rawSchema !== 'object') {
+            return [paramName, rawSchema];
+          }
+          const schema = rawSchema as Record<string, unknown>;
+          return [
+            paramName,
+            {
+              type: schema.type,
+              required: schema.required,
+              ...(Array.isArray(schema.enum) && schema.enum.length > 0
+                ? { enum: schema.enum.slice(0, 5) }
+                : {}),
+            },
+          ];
+        }),
+      );
+    }
+
+    return compact;
+  });
+}
+
+function compactFormFieldsForBudget(
+  formFields: Record<string, unknown>,
+  options: {
+    includeConstraints: boolean;
+    includeOptions: boolean;
+    maxFields: number;
+  },
+): Record<string, unknown> {
+  const entries = Object.entries(formFields).filter(
+    ([fieldName]) => fieldName !== '_truncated',
+  );
+  const compact = Object.fromEntries(
+    entries.slice(0, options.maxFields).map(([fieldName, rawDescriptor]) => {
+      if (!rawDescriptor || typeof rawDescriptor !== 'object') {
+        return [fieldName, rawDescriptor];
+      }
+      const descriptor = rawDescriptor as Record<string, unknown>;
+      const nextDescriptor: Record<string, unknown> = {
+        type: descriptor.type,
+        component: descriptor.component,
+        description: descriptor.description,
+      };
+      if (descriptor.required) {
+        nextDescriptor.required = descriptor.required;
+      }
+      if (descriptor.optionsSource) {
+        nextDescriptor.optionsSource = descriptor.optionsSource;
+      }
+      if (options.includeConstraints && descriptor.constraints) {
+        nextDescriptor.constraints = descriptor.constraints;
+      }
+      if (
+        options.includeOptions &&
+        Array.isArray(descriptor.options) &&
+        descriptor.options.length > 0
+      ) {
+        nextDescriptor.options = descriptor.options.slice(0, 4);
+      }
+      return [fieldName, nextDescriptor];
+    }),
+  );
+  if (entries.length > options.maxFields) {
+    compact._truncated = `Showing ${options.maxFields} of ${entries.length} fields`;
+  }
+  return compact;
 }
 
 /**
  * Ensure total page_data stays under the runtime soft budget.
  * 确保 page_data 总大小不超过运行时软预算。
- * Progressively drops list_summary.sample_rows and form_fields if needed.
+ * Prefer trimming list rows and operation verbosity before dropping form_fields.
+ * 优先裁剪列表样本和操作描述，最后才丢弃 form_fields。
  */
-function guardPageDataSize(pageData: Record<string, unknown>): Record<string, unknown> {
+function guardPageDataSize(
+  pageData: Record<string, unknown>,
+): Record<string, unknown> {
   const maxPageDataBytes = getPageContextSoftLimitBytes();
   let data = { ...pageData };
-  let size = new TextEncoder().encode(JSON.stringify(data)).length;
+  let size = getSerializedPageDataBytes(data);
   if (size <= maxPageDataBytes) return data;
 
   // Step 1: reduce list_summary sample_rows / 步骤 1：精简 list_summary sample_rows
   const ls = data.list_summary as Record<string, unknown> | undefined;
-  if (ls?.sample_rows && Array.isArray(ls.sample_rows) && ls.sample_rows.length > 0) {
-    data = { ...data, list_summary: { ...ls, sample_rows: (ls.sample_rows as unknown[]).slice(0, 2) } };
-    size = new TextEncoder().encode(JSON.stringify(data)).length;
-    if (size <= maxPageDataBytes) return data;
-    data = { ...data, list_summary: { ...ls, sample_rows: [] } };
-    size = new TextEncoder().encode(JSON.stringify(data)).length;
-    if (size <= maxPageDataBytes) return data;
-  }
-
-  // Step 2: drop form_fields entirely / 步骤 2：完全移除 form_fields
-  if (data.form_fields) {
-    const { form_fields: _ff, ...rest } = data;
-    data = rest;
-    size = new TextEncoder().encode(JSON.stringify(data)).length;
-    if (size <= maxPageDataBytes) return data;
-  }
-
-  // Step 3: slim available_operations — strip params first, then drop entirely
-  const aops = data.available_operations;
-  if (Array.isArray(aops) && aops.length > 0) {
+  if (
+    ls?.sample_rows &&
+    Array.isArray(ls.sample_rows) &&
+    ls.sample_rows.length > 0
+  ) {
     data = {
       ...data,
-      available_operations: aops.map(({ params: _p, ...op }: Record<string, unknown>) => op),
+      list_summary: {
+        ...ls,
+        sample_rows: (ls.sample_rows as unknown[]).slice(0, 2),
+      },
     };
-    size = new TextEncoder().encode(JSON.stringify(data)).length;
+    size = getSerializedPageDataBytes(data);
     if (size <= maxPageDataBytes) return data;
-    const { available_operations: _ao, ...rest } = data;
-    data = rest;
-    size = new TextEncoder().encode(JSON.stringify(data)).length;
+    data = { ...data, list_summary: { ...ls, sample_rows: [] } };
+    size = getSerializedPageDataBytes(data);
     if (size <= maxPageDataBytes) return data;
   }
 
-  // Step 4: truncate document_body_text (NovusDoc / DocumentEditor) / 步骤 4：截断 document_body_text
-  const body = data.document_body_text;
-  if (typeof body === 'string' && body.length > 0) {
-    const encoder = new TextEncoder();
-    const truncateToBytes = (s: string, maxBytes: number): string => {
-      const u8 = encoder.encode(s);
-      if (u8.length <= maxBytes) return s;
-      return new TextDecoder().decode(u8.slice(0, maxBytes));
-    };
-    for (const maxBodyBytes of [2400, 1600, 800]) {
-      data = { ...data, document_body_text: truncateToBytes(body, maxBodyBytes) };
-      size = new TextEncoder().encode(JSON.stringify(data)).length;
+  // Step 2: slim available_operations in stages / 步骤 2：分阶段精简 available_operations
+  const aops = data.available_operations;
+  if (Array.isArray(aops) && aops.length > 0) {
+    const operationVariants = [
+      compactAvailableOperations(aops, {
+        includeDescriptions: true,
+        includeParams: true,
+        maxOps: 12,
+        maxParamsPerOp: 4,
+      }),
+      compactAvailableOperations(aops, {
+        includeDescriptions: true,
+        includeParams: false,
+        maxOps: 10,
+        maxParamsPerOp: 0,
+      }),
+      compactAvailableOperations(aops, {
+        includeDescriptions: false,
+        includeParams: false,
+        maxOps: 8,
+        maxParamsPerOp: 0,
+      }),
+    ];
+
+    for (const compactOperations of operationVariants) {
+      data = {
+        ...data,
+        available_operations: compactOperations,
+      };
+      size = getSerializedPageDataBytes(data);
       if (size <= maxPageDataBytes) return data;
     }
-    data = { ...data, document_body_text: truncateToBytes(body, 400) };
+
+    const { available_operations: _ao, ...rest } = data;
+    data = rest;
+    size = getSerializedPageDataBytes(data);
+    if (size <= maxPageDataBytes) return data;
+  }
+
+  // Step 3: truncate document_body_text (NovusDoc / DocumentEditor) / 步骤 3：截断 document_body_text
+  const body = data.document_body_text;
+  if (typeof body === 'string' && body.length > 0) {
+    for (const maxBodyBytes of [2400, 1600, 800]) {
+      data = {
+        ...data,
+        document_body_text: truncateTextByBytes(body, maxBodyBytes),
+      };
+      size = getSerializedPageDataBytes(data);
+      if (size <= maxPageDataBytes) return data;
+    }
+    data = { ...data, document_body_text: truncateTextByBytes(body, 400) };
+    size = getSerializedPageDataBytes(data);
+    if (size <= maxPageDataBytes) return data;
+  }
+
+  // Step 4: compact form_fields progressively, drop only as last resort / 步骤 4：逐步压缩 form_fields，最后才移除
+  const formFields = data.form_fields;
+  if (formFields && typeof formFields === 'object') {
+    const compactVariants = [
+      compactFormFieldsForBudget(formFields as Record<string, unknown>, {
+        includeConstraints: true,
+        includeOptions: true,
+        maxFields: 16,
+      }),
+      compactFormFieldsForBudget(formFields as Record<string, unknown>, {
+        includeConstraints: true,
+        includeOptions: false,
+        maxFields: 12,
+      }),
+      compactFormFieldsForBudget(formFields as Record<string, unknown>, {
+        includeConstraints: false,
+        includeOptions: false,
+        maxFields: 8,
+      }),
+      compactFormFieldsForBudget(formFields as Record<string, unknown>, {
+        includeConstraints: false,
+        includeOptions: false,
+        maxFields: 4,
+      }),
+    ];
+
+    for (const compactFields of compactVariants) {
+      data = { ...data, form_fields: compactFields };
+      size = getSerializedPageDataBytes(data);
+      if (size <= maxPageDataBytes) return data;
+    }
+
+    const { form_fields: _ff, ...rest } = data;
+    data = rest;
   }
 
   return data;
@@ -618,8 +987,8 @@ function enrichPageContextWithOperations(
 ): ReturnType<typeof resolvePageContext> {
   if (!ctx) return ctx;
   if (
-    normalizedPageMode.value === 'disabled'
-    || shouldDisablePageContext(props.disabledCapabilities)
+    normalizedPageMode.value === 'disabled' ||
+    shouldDisablePageContext(props.disabledCapabilities)
   ) {
     return null;
   }
@@ -671,6 +1040,18 @@ async function handleSendMessage() {
   const hasImageAttachments = pendingAttachments.value.some(
     (a) => a.type === 'image',
   );
+  const hasAudioAttachments = pendingAttachments.value.some(
+    (a) => a.type === 'audio',
+  );
+  const hasVideoAttachments = pendingAttachments.value.some(
+    (a) => a.type === 'video',
+  );
+  const hasFileAttachments = pendingAttachments.value.some(
+    (a) => a.type === 'file',
+  );
+  const hasCapabilitySensitiveAttachments =
+    hasImageAttachments || hasAudioAttachments || hasVideoAttachments;
+  const hasAnyAttachments = pendingAttachments.value.length > 0;
 
   const pageContext = currentPageContext.value;
 
@@ -724,7 +1105,9 @@ async function handleSendMessage() {
     if (pinnedRequired.length > 0) {
       ensureAgentVarsLoaded(pinnedId);
       const pinnedVars = allAgentsVariables.value[pinnedId] ?? {};
-      const pinnedMissing = pinnedRequired.filter((v) => !pinnedVars[v.name]?.trim());
+      const pinnedMissing = pinnedRequired.filter(
+        (v) => !pinnedVars[v.name]?.trim(),
+      );
       if (pinnedMissing.length > 0) {
         pendingSendContext.value = { agentId: pinnedId, pageContext };
         openVarsModal(pinnedInputVariables, pinnedId, pinnedAgent!.name);
@@ -758,12 +1141,17 @@ async function handleSendMessage() {
 
   try {
     // /route 要求 message 非空；仅发图时用占位符 / Route API requires non-empty message
-    const routeMessageText = text || (hasImageAttachments ? ' ' : '');
+    const routeMessageText = text || (hasAnyAttachments ? ' ' : '');
     const result = await routeMessage(
       routeMessageText,
       props.pageContextKey,
       pageContext,
-      hasImageAttachments,
+      {
+        hasAudioAttachments,
+        hasFileAttachments,
+        hasImageAttachments,
+        hasVideoAttachments,
+      },
       forceReroute,
     );
 
@@ -813,7 +1201,7 @@ async function handleSendMessage() {
       ...(result.routedBy === 'mention' ? { routeSource: 'mention' } : {}),
     });
   } catch (error: unknown) {
-    if (selectedAgentId.value && !hasImageAttachments) {
+    if (selectedAgentId.value && !hasCapabilitySensitiveAttachments) {
       message.warning($t('common.globalAiChat.routeFailedFallback'));
       sendMessage({ pageContext });
       return;
@@ -838,9 +1226,7 @@ async function handleSendMessage() {
       typeof errorMessage === 'string' && errorMessage
         ? errorMessage
         : $t('common.http.internalServerError');
-    message.error(
-      `${baseMsg} ${$t('common.globalAiChat.routeFailedHint')}`,
-    );
+    message.error(`${baseMsg} ${$t('common.globalAiChat.routeFailedHint')}`);
   }
 }
 
@@ -866,7 +1252,6 @@ function handleKeyDown(e: KeyboardEvent) {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
     e.preventDefault();
     handleSendMessage();
-    return;
   }
 }
 
@@ -947,17 +1332,17 @@ function onDeleteConversation(convId: number) {
   });
 }
 
-const editingConversationId = ref<number | null>(null);
+const editingConversationId = ref<null | number>(null);
 const editingTitle = ref('');
 
-function startEditTitle(conv: { id: number; title?: string | null }) {
+function startEditTitle(conv: { id: number; title?: null | string }) {
   editingConversationId.value = conv.id;
   editingTitle.value = conv.title || '';
 }
 
 function commitEditTitle() {
   const id = editingConversationId.value;
-  if (id == null) return;
+  if (id === null) return;
   const title = editingTitle.value.trim().slice(0, 200);
   editingConversationId.value = null;
   editingTitle.value = '';
@@ -981,10 +1366,7 @@ function onStartNewChatWithAgent(agentId: number) {
   const targetAgent = agents.value.find((agent) => agent.id === agentId);
   if (!targetAgent) return;
 
-  if (
-    aiPanelStore.pinnedAgentId &&
-    aiPanelStore.pinnedAgentId !== agentId
-  ) {
+  if (aiPanelStore.pinnedAgentId && aiPanelStore.pinnedAgentId !== agentId) {
     aiPanelStore.unpinAgent();
   }
 
@@ -1070,6 +1452,63 @@ function onClearMemory() {
     },
   });
 }
+
+const showHeaderVarsButton = computed(() => {
+  return (
+    agentsWithVarsInConversation.value.length > 0 ||
+    getAgentInputVariables(selectedAgent.value).length > 0
+  );
+});
+
+const hasHeaderVariableValues = computed(() =>
+  agentsWithVarsInConversation.value.some(
+    (agent) => Object.keys(allAgentsVariables.value[agent.id] ?? {}).length > 0,
+  ),
+);
+
+const headerConversationSummary = computed(() => {
+  if (activeConversationId.value && currentConversationAgentName.value) {
+    return $t('common.globalAiChat.currentConversationAgent', {
+      agent: currentConversationAgentName.value,
+    });
+  }
+  return selectedAgent.value?.name ?? '';
+});
+
+const headerMoreMenuItems = computed(() => {
+  const items: ItemType[] = [];
+
+  if (switchAgentMenuItems.value.length > 1) {
+    items.push({
+      children: switchAgentMenuItems.value,
+      key: 'switch-agent',
+      label: $t('common.globalAiChat.switchAgentNewConversation'),
+    });
+  }
+
+  if (activeConversationId.value) {
+    items.push({
+      key: 'memory',
+      label: $t('common.aiPanel.memory'),
+      onClick: () => {
+        void onToggleMemory();
+      },
+    });
+  }
+
+  return items;
+});
+
+const showHeaderMoreMenu = computed(() => headerMoreMenuItems.value.length > 0);
+
+const headerMoreHasAttention = computed(
+  () =>
+    forceRerouteNextTurn.value ||
+    !!(
+      activeConversationId.value &&
+      (showMemoryPanel.value || lastMemoryUpdated.value)
+    ),
+);
 
 // ============ Screenshot ============
 
@@ -1274,7 +1713,7 @@ watch(
 // ============ Sync conversation state to store / 同步对话状态到 store ============
 
 watch([activeConversationId, selectedAgentId], ([conversationId, agentId]) => {
-  if (conversationId == null) {
+  if (conversationId === null) {
     aiPanelStore.resetConversation();
     return;
   }
@@ -1291,10 +1730,7 @@ watchEffect(() => {
     aiPanelStore.mode === 'panel' &&
     aiPanelStore.docked;
   const offset = shouldOffset ? `${aiPanelStore.panelWidth}px` : '0px';
-  document.documentElement.style.setProperty(
-    '--ai-panel-right-offset',
-    offset,
-  );
+  document.documentElement.style.setProperty('--ai-panel-right-offset', offset);
 });
 
 onMounted(() => {
@@ -1338,7 +1774,11 @@ onUnmounted(() => {
         <!-- Single-agent Input Variables Modal (triggered on missing vars) -->
         <Modal
           v-model:open="varsModalVisible"
-          :title="$t('user.aiChat.varsModal.title', { name: varsModalAgent?.name ?? '' })"
+          :title="
+            $t('user.aiChat.varsModal.title', {
+              name: varsModalAgent?.name ?? '',
+            })
+          "
           :mask-closable="false"
           :ok-text="$t('user.aiChat.varsModal.confirm')"
           :cancel-text="$t('common.cancel')"
@@ -1364,14 +1804,20 @@ onUnmounted(() => {
                 allow-clear
               />
             </div>
-            <label class="flex cursor-pointer items-center gap-2 pt-1 text-xs text-muted-foreground">
+            <label
+              class="flex cursor-pointer items-center gap-2 pt-1 text-xs text-muted-foreground"
+            >
               <input
                 v-model="varsPersist"
                 type="checkbox"
                 class="size-3.5 cursor-pointer rounded accent-primary"
               />
-              <span class="font-medium text-foreground/70">{{ $t('user.aiChat.varsModal.persistLabel') }}</span>
-              <span class="text-[11px]">{{ $t('user.aiChat.varsModal.persistHint') }}</span>
+              <span class="font-medium text-foreground/70">{{
+                $t('user.aiChat.varsModal.persistLabel')
+              }}</span>
+              <span class="text-[11px]">{{
+                $t('user.aiChat.varsModal.persistHint')
+              }}</span>
             </label>
           </div>
         </Modal>
@@ -1386,10 +1832,7 @@ onUnmounted(() => {
           @cancel="multiVarsModalVisible = false"
         >
           <div class="space-y-6">
-            <div
-              v-for="a in agentsWithVarsInConversation"
-              :key="a.id"
-            >
+            <div v-for="a in agentsWithVarsInConversation" :key="a.id">
               <div class="mb-3 flex items-center gap-2">
                 <IconifyIcon icon="lucide:bot" class="size-4 text-primary" />
                 <span class="text-sm font-semibold">{{ a.name }}</span>
@@ -1402,7 +1845,9 @@ onUnmounted(() => {
                 >
                   <label class="text-sm font-medium">
                     {{ v.label || v.name }}
-                    <span v-if="v.required" class="ml-0.5 text-destructive">*</span>
+                    <span v-if="v.required" class="ml-0.5 text-destructive"
+                      >*</span
+                    >
                   </label>
                   <Input
                     v-if="multiVarsFormValues[a.id]"
@@ -1413,243 +1858,63 @@ onUnmounted(() => {
                 </div>
               </div>
             </div>
-            <label class="flex cursor-pointer items-center gap-2 border-t border-border/40 pt-3 text-xs text-muted-foreground">
+            <label
+              class="flex cursor-pointer items-center gap-2 border-t border-border/40 pt-3 text-xs text-muted-foreground"
+            >
               <input
                 v-model="multiVarsPersist"
                 type="checkbox"
                 class="size-3.5 cursor-pointer rounded accent-primary"
               />
-              <span class="font-medium text-foreground/70">{{ $t('user.aiChat.varsModal.persistLabel') }}</span>
-              <span class="text-[11px]">{{ $t('user.aiChat.varsModal.persistHint') }}</span>
+              <span class="font-medium text-foreground/70">{{
+                $t('user.aiChat.varsModal.persistLabel')
+              }}</span>
+              <span class="text-[11px]">{{
+                $t('user.aiChat.varsModal.persistHint')
+              }}</span>
             </label>
           </div>
         </Modal>
 
         <!-- Header -->
         <div
-          class="flex shrink-0 items-center justify-between border-b border-border/40 px-3 py-1.5"
+          class="flex shrink-0 flex-col gap-2 border-b border-border/40 px-3 py-2"
         >
-          <!-- Left: Panel title + agent/route info -->
-          <div class="flex min-w-0 flex-1 items-center gap-2">
-            <IconifyIcon
-              icon="lucide:sparkles"
-              class="size-4 shrink-0 text-primary"
-            />
-            <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-1.5">
-                <span class="truncate text-sm font-semibold text-foreground">
-                  {{ panelTitle }}
-                </span>
-                <span v-if="routing" class="routing-badge relative inline-flex items-center gap-1 overflow-hidden rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                  <span class="routing-dot size-1.5 rounded-full bg-primary"></span>
-                  {{ $t('common.globalAiChat.routingAgent') }}
-                  <span class="routing-shimmer absolute inset-0"></span>
-                </span>
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex min-w-0 flex-1 items-start gap-2.5">
+              <div
+                class="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"
+              >
+                <IconifyIcon icon="lucide:sparkles" class="size-4 shrink-0" />
               </div>
-              <div class="flex items-center gap-1.5">
-                <!-- Pinned agent indicator -->
-                <Tooltip
-                  v-if="isPinned"
-                  :title="$t('common.aiPanel.unpinAgent')"
-                >
-                  <button
-                    class="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-px text-[10px] font-medium text-primary transition-colors hover:bg-primary/20"
-                    @click="unpinAgent"
-                  >
-                    <IconifyIcon icon="lucide:pin" class="size-2.5" />
-                    {{ aiPanelStore.pinnedAgentName }}
-                    <IconifyIcon icon="lucide:x" class="size-2" />
-                  </button>
-                </Tooltip>
-                <span
-                  v-if="activeConversationId && currentConversationAgentName"
-                  class="inline-flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-px text-[10px] font-medium text-muted-foreground"
-                >
-                  <IconifyIcon icon="lucide:bot" class="size-2.5" />
-                  {{
-                    $t('common.globalAiChat.currentConversationAgent', {
-                      agent: currentConversationAgentName,
-                    })
-                  }}
-                </span>
-                <span
-                  v-if="forceRerouteNextTurn"
-                  class="inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 px-1.5 py-px text-[10px] font-medium text-amber-700"
-                >
-                  <IconifyIcon icon="lucide:compass" class="size-2.5" />
-                  {{ $t('common.globalAiChat.rerouteArmed') }}
-                </span>
-                <!-- Route notice -->
-                <Transition name="fade">
-                  <span
-                    v-if="routeNotice"
-                    class="inline-flex items-center gap-0.5 rounded-full bg-success/10 px-1.5 py-px text-[10px] font-medium text-green-700 dark:text-green-400"
-                  >
-                    <IconifyIcon icon="lucide:route" class="size-2.5" />
-                    {{ routeNotice }}
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <span class="truncate text-sm font-semibold text-foreground">
+                    {{ panelTitle }}
                   </span>
-                </Transition>
-                <!-- Page AI capability indicator -->
-                <Popover
-                  v-if="hasPageAI && !routeNotice"
-                  placement="bottomLeft"
-                  trigger="hover"
-                  overlay-class-name="page-ai-popover"
-                >
-                  <template #content>
-                    <div class="min-w-[180px] max-w-[260px]">
-                      <div class="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-foreground">
-                        <IconifyIcon icon="lucide:cpu" class="size-3.5 text-primary" />
-                        {{ currentPageContext?.page_title || $t('common.aiPanel.pageAiSupported') }}
-                      </div>
-                      <div v-if="currentPageOperations.length > 0" class="space-y-1">
-                        <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
-                          {{ $t('common.aiPanel.pageAiOperations') }}
-                        </div>
-                        <div
-                          v-for="op in currentPageOperations"
-                          :key="op.name"
-                          class="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[11px] hover:bg-accent/50"
-                        >
-                          <IconifyIcon
-                            :icon="op.readonly ? 'lucide:eye' : 'lucide:pencil'"
-                            class="size-3 shrink-0"
-                            :class="op.readonly ? 'text-blue-500' : 'text-amber-500'"
-                          />
-                          <span class="flex-1 text-foreground/80">{{ op.label }}</span>
-                          <span
-                            class="rounded-full px-1 py-px text-[9px]"
-                            :class="op.readonly ? 'bg-blue-500/10 text-blue-600' : 'bg-amber-500/10 text-amber-600'"
-                          >
-                            {{ op.readonly ? $t('common.aiPanel.pageAiReadonly') : $t('common.aiPanel.pageAiWritable') }}
-                          </span>
-                        </div>
-                      </div>
-                      <div v-else class="text-[11px] text-muted-foreground">
-                        {{ $t('common.aiPanel.pageAiNoOperations') }}
-                      </div>
-                    </div>
-                  </template>
                   <span
-                    class="inline-flex cursor-default items-center gap-0.5 rounded-full bg-primary/8 px-1.5 py-px text-[10px] font-medium text-primary/70 transition-colors hover:bg-primary/15 hover:text-primary"
+                    v-if="routing"
+                    class="routing-badge relative inline-flex items-center gap-1 overflow-hidden rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
                   >
-                    <IconifyIcon icon="lucide:cpu" class="size-2.5" />
-                    {{ $t('common.aiPanel.pageAiSupported') }}
                     <span
-                      v-if="currentPageOperations.length > 0"
-                      class="ml-0.5 inline-flex size-3 items-center justify-center rounded-full bg-primary/15 text-[8px] font-bold"
-                    >
-                      {{ currentPageOperations.length }}
-                    </span>
+                      class="routing-dot size-1.5 rounded-full bg-primary"
+                    ></span>
+                    {{ $t('common.globalAiChat.routingAgent') }}
+                    <span class="routing-shimmer absolute inset-0"></span>
                   </span>
-                </Popover>
+                </div>
+                <div
+                  v-if="headerConversationSummary"
+                  class="mt-0.5 truncate text-[11px] text-muted-foreground"
+                >
+                  {{ headerConversationSummary }}
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- Right: Grouped action buttons -->
-          <div class="flex shrink-0 items-center">
-            <!-- Group 1: Chat actions -->
-            <div class="flex items-center gap-0.5">
-              <Tooltip
-                v-if="agentsWithVarsInConversation.length > 0 || getAgentInputVariables(selectedAgent).length"
-                :title="$t('user.aiChat.varsModal.editVars')"
-              >
-                <button
-                  class="flex h-7 items-center gap-1 rounded-lg px-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/8"
-                  @click="agentsWithVarsInConversation.length > 0 ? openMultiVarsEditor() : openVarsModal(getAgentInputVariables(selectedAgent), selectedAgent!.id, selectedAgent!.name)"
-                >
-                  <IconifyIcon icon="lucide:sliders-horizontal" class="size-3.5" />
-                  <span
-                    v-if="agentsWithVarsInConversation.some(a => Object.keys(allAgentsVariables[a.id] ?? {}).length > 0)"
-                    class="size-1.5 rounded-full bg-green-500"
-                  />
-                </button>
-              </Tooltip>
-              <Tooltip
-                v-if="activeConversationId && !isPinned"
-                :title="$t('common.globalAiChat.rerouteThisTurn')"
-              >
-                <button
-                  class="flex size-7 items-center justify-center rounded-lg transition-colors disabled:opacity-40"
-                  :class="
-                    forceRerouteNextTurn
-                      ? 'bg-amber-500/12 text-amber-700'
-                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                  "
-                  :aria-label="$t('common.globalAiChat.rerouteThisTurn')"
-                  :disabled="!canForceReroute"
-                  @click="onToggleForceReroute"
-                >
-                  <IconifyIcon icon="lucide:compass" class="size-3.5" />
-                </button>
-              </Tooltip>
-              <Dropdown
-                v-if="switchAgentMenuItems.length > 0"
-                :trigger="['click']"
-                placement="bottomRight"
-              >
-                <Tooltip :title="$t('common.globalAiChat.switchAgentNewConversation')">
-                  <button
-                    class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    :aria-label="$t('common.globalAiChat.switchAgentNewConversation')"
-                    type="button"
-                  >
-                    <IconifyIcon icon="lucide:bot-message-square" class="size-3.5" />
-                  </button>
-                </Tooltip>
-                <template #overlay>
-                  <Menu :items="switchAgentMenuItems" />
-                </template>
-              </Dropdown>
-              <Tooltip :title="$t('common.aiPanel.newChat')">
-                <button
-                  class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  @click="onStartNewChat"
-                >
-                  <IconifyIcon icon="lucide:plus" class="size-3.5" />
-                </button>
-              </Tooltip>
-              <Tooltip :title="$t('common.aiPanel.history')">
-                <button
-                  class="flex size-7 items-center justify-center rounded-lg transition-colors hover:bg-muted"
-                  :class="
-                    showHistory
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-muted-foreground hover:text-foreground'
-                  "
-                  @click="toggleHistory"
-                >
-                  <IconifyIcon icon="lucide:history" class="size-3.5" />
-                </button>
-              </Tooltip>
-              <Tooltip
-                v-if="activeConversationId"
-                :title="$t('common.globalAiChat.memoryUpdated')"
-              >
-                <button
-                  class="flex size-7 items-center justify-center rounded-lg transition-colors hover:bg-muted disabled:opacity-40"
-                  :class="
-                    showMemoryPanel
-                      ? 'bg-primary/10 text-primary'
-                      : lastMemoryUpdated
-                        ? 'text-primary'
-                        : 'text-muted-foreground hover:text-foreground'
-                  "
-                  :disabled="clearingMemory"
-                  @click="onToggleMemory"
-                >
-                  <Spin v-if="memoryLoading" size="small" />
-                  <IconifyIcon v-else icon="lucide:brain" class="size-3.5" />
-                </button>
-              </Tooltip>
-            </div>
-
-            <!-- Separator -->
-            <div class="mx-1 h-4 w-px bg-border/40" />
-
-            <!-- Group 2: Window controls -->
-            <div class="flex items-center gap-0.5">
+            <div
+              class="flex shrink-0 items-center gap-0.5 rounded-xl border border-border/40 bg-background/80 px-1 py-1"
+            >
               <Tooltip
                 :title="
                   aiPanelStore.docked
@@ -1695,13 +1960,6 @@ onUnmounted(() => {
                   />
                 </button>
               </Tooltip>
-            </div>
-
-            <!-- Separator -->
-            <div class="mx-1 h-4 w-px bg-border/40" />
-
-            <!-- Group 3: Close actions -->
-            <div class="flex items-center gap-0.5">
               <Tooltip :title="$t('common.aiPanel.minimize')">
                 <button
                   class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -1720,6 +1978,354 @@ onUnmounted(() => {
               </Tooltip>
             </div>
           </div>
+
+          <div class="flex flex-wrap items-start justify-between gap-2">
+            <div
+              data-testid="ai-panel-header-status"
+              class="flex min-w-0 flex-1 flex-wrap items-center gap-1"
+            >
+              <Tooltip v-if="isPinned" :title="$t('common.aiPanel.unpinAgent')">
+                <button
+                  class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary transition-colors hover:bg-primary/20"
+                  @click="unpinAgent"
+                >
+                  <IconifyIcon icon="lucide:pin" class="size-2.5" />
+                  {{ aiPanelStore.pinnedAgentName }}
+                  <IconifyIcon icon="lucide:x" class="size-2" />
+                </button>
+              </Tooltip>
+              <span
+                v-if="forceRerouteNextTurn"
+                class="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700"
+              >
+                <IconifyIcon icon="lucide:compass" class="size-2.5" />
+                {{ $t('common.globalAiChat.rerouteArmed') }}
+              </span>
+            </div>
+
+            <div
+              v-if="hasPageAI"
+              data-testid="ai-panel-page-ai-card"
+              class="relative flex h-9 min-w-0 flex-[1_1_260px] items-center overflow-hidden rounded-xl border border-primary/15 bg-gradient-to-r from-primary/[0.08] via-background to-primary/[0.02] px-2 py-1 transition-colors"
+              :class="
+                hasExpandablePageAIDetails
+                  ? 'cursor-pointer hover:border-primary/25 hover:bg-primary/[0.06]'
+                  : ''
+              "
+              :aria-expanded="
+                hasExpandablePageAIDetails ? pageAIDetailsExpanded : undefined
+              "
+              :aria-label="
+                hasExpandablePageAIDetails ? pageAIRailTooltip : undefined
+              "
+              :role="hasExpandablePageAIDetails ? 'button' : undefined"
+              :tabindex="hasExpandablePageAIDetails ? 0 : undefined"
+              @click="
+                hasExpandablePageAIDetails ? togglePageAIDetails() : undefined
+              "
+              @keydown.enter.prevent="
+                hasExpandablePageAIDetails ? togglePageAIDetails() : undefined
+              "
+              @keydown.space.prevent="
+                hasExpandablePageAIDetails ? togglePageAIDetails() : undefined
+              "
+            >
+              <div
+                class="flex min-w-0 flex-1 items-center justify-between gap-2"
+              >
+                <Tooltip :title="pageAIRailTooltip">
+                  <div class="flex min-w-0 flex-1 items-center gap-2">
+                    <div
+                      class="bg-primary/12 flex size-6 shrink-0 items-center justify-center rounded-lg text-primary"
+                    >
+                      <IconifyIcon icon="lucide:cpu" class="size-3" />
+                    </div>
+                    <span
+                      class="shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary/75"
+                    >
+                      {{ $t('common.aiPanel.pageAiSupported') }}
+                    </span>
+                    <span
+                      v-if="currentPageOperations.length > 0"
+                      class="inline-flex shrink-0 items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary"
+                    >
+                      {{ currentPageOperations.length }}
+                    </span>
+                  </div>
+                </Tooltip>
+                <Tooltip
+                  v-if="hasExpandablePageAIDetails"
+                  :title="
+                    pageAIDetailsExpanded
+                      ? $t('common.aiPanel.pageAiCollapse')
+                      : $t('common.aiPanel.pageAiExpand')
+                  "
+                >
+                  <button
+                    data-testid="ai-panel-page-ai-toggle"
+                    class="inline-flex size-7 shrink-0 items-center justify-center rounded-lg border border-border/45 bg-background/85 text-foreground transition-colors hover:border-primary/20 hover:bg-primary/[0.05]"
+                    :aria-expanded="pageAIDetailsExpanded"
+                    :aria-label="
+                      pageAIDetailsExpanded
+                        ? $t('common.aiPanel.pageAiCollapse')
+                        : $t('common.aiPanel.pageAiExpand')
+                    "
+                    type="button"
+                    @click.stop="togglePageAIDetails"
+                  >
+                    <IconifyIcon
+                      icon="lucide:chevron-down"
+                      class="size-3 transition-transform duration-200"
+                      :class="pageAIDetailsExpanded ? 'rotate-180' : ''"
+                    />
+                  </button>
+                </Tooltip>
+              </div>
+            </div>
+
+            <div
+              data-testid="ai-panel-header-actions"
+              class="flex shrink-0 items-center gap-0.5 rounded-xl border border-border/40 bg-muted/15 px-1 py-1"
+            >
+              <Tooltip
+                v-if="showHeaderVarsButton"
+                :title="$t('user.aiChat.varsModal.editVars')"
+              >
+                <button
+                  class="hover:bg-primary/8 relative flex h-7 items-center gap-1 rounded-lg px-1.5 text-xs font-medium text-primary transition-colors"
+                  @click="
+                    agentsWithVarsInConversation.length > 0
+                      ? openMultiVarsEditor()
+                      : openVarsModal(
+                          getAgentInputVariables(selectedAgent),
+                          selectedAgent!.id,
+                          selectedAgent!.name,
+                        )
+                  "
+                >
+                  <IconifyIcon
+                    icon="lucide:sliders-horizontal"
+                    class="size-3.5"
+                  />
+                  <span
+                    v-if="hasHeaderVariableValues"
+                    class="absolute right-1 top-1 size-1.5 rounded-full bg-green-500"
+                  ></span>
+                </button>
+              </Tooltip>
+              <Tooltip
+                v-if="activeConversationId && !isPinned"
+                :title="$t('common.globalAiChat.rerouteThisTurn')"
+              >
+                <button
+                  class="flex size-7 items-center justify-center rounded-lg transition-colors disabled:opacity-40"
+                  :class="
+                    forceRerouteNextTurn
+                      ? 'bg-amber-500/12 text-amber-700'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  "
+                  :aria-label="$t('common.globalAiChat.rerouteThisTurn')"
+                  :disabled="!canForceReroute"
+                  @click="onToggleForceReroute"
+                >
+                  <IconifyIcon icon="lucide:compass" class="size-3.5" />
+                </button>
+              </Tooltip>
+              <Tooltip :title="$t('common.aiPanel.newChat')">
+                <button
+                  class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  @click="onStartNewChat"
+                >
+                  <IconifyIcon icon="lucide:plus" class="size-3.5" />
+                </button>
+              </Tooltip>
+              <Tooltip :title="$t('common.aiPanel.history')">
+                <button
+                  class="flex size-7 items-center justify-center rounded-lg transition-colors hover:bg-muted"
+                  :class="
+                    showHistory
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-muted-foreground hover:text-foreground'
+                  "
+                  @click="toggleHistory"
+                >
+                  <IconifyIcon icon="lucide:history" class="size-3.5" />
+                </button>
+              </Tooltip>
+              <Dropdown
+                v-if="showHeaderMoreMenu"
+                :trigger="['click']"
+                placement="bottomRight"
+              >
+                <Tooltip :title="$t('common.aiPanel.moreActions')">
+                  <button
+                    class="relative flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    :aria-label="$t('common.aiPanel.moreActions')"
+                    type="button"
+                  >
+                    <IconifyIcon icon="lucide:ellipsis" class="size-3.5" />
+                    <span
+                      v-if="headerMoreHasAttention"
+                      class="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-primary"
+                    ></span>
+                  </button>
+                </Tooltip>
+                <template #overlay>
+                  <Menu :items="headerMoreMenuItems" />
+                </template>
+              </Dropdown>
+            </div>
+
+            <Transition name="page-ai-details">
+              <div
+                v-if="pageAIDetailsExpanded && hasExpandablePageAIDetails"
+                data-testid="ai-panel-page-ai-details"
+                class="order-last basis-full rounded-xl border border-primary/15 bg-background/85 px-2.5 py-2"
+              >
+                <div class="flex flex-col gap-2">
+                  <div class="flex min-w-0 items-start justify-between gap-2">
+                    <div class="min-w-0 flex-1">
+                      <div class="flex items-center gap-1.5">
+                        <span
+                          class="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary/75"
+                        >
+                          {{ $t('common.aiPanel.pageAiSupported') }}
+                        </span>
+                        <span
+                          v-if="currentPageOperations.length > 0"
+                          class="inline-flex items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary"
+                        >
+                          {{ currentPageOperations.length }}
+                        </span>
+                      </div>
+                      <Tooltip :title="resolvedPageAITitle">
+                        <div
+                          class="mt-1 truncate text-[11px] font-medium text-foreground"
+                          :title="resolvedPageAITitle"
+                        >
+                          {{ resolvedPageAITitle }}
+                        </div>
+                      </Tooltip>
+                      <Tooltip :title="pageAISummary">
+                        <div
+                          class="mt-0.5 truncate text-[10px] leading-4 text-muted-foreground"
+                          :title="pageAISummary"
+                        >
+                          {{ pageAISummary }}
+                        </div>
+                      </Tooltip>
+                    </div>
+                  </div>
+
+                  <div
+                    v-if="pageAIStatBadges.length > 0"
+                    class="flex flex-wrap gap-1.5"
+                  >
+                    <span
+                      v-for="badge in pageAIStatBadges"
+                      :key="badge.key"
+                      class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
+                      :class="badge.className"
+                    >
+                      {{ badge.label }}
+                    </span>
+                  </div>
+
+                  <div
+                    v-if="pageAIVisibleOperations.length > 0"
+                    class="max-h-[208px] overflow-y-auto pr-1"
+                  >
+                    <div class="grid gap-1.5 sm:grid-cols-2">
+                      <div
+                        v-for="operation in pageAIVisibleOperations"
+                        :key="operation.name"
+                        data-testid="ai-panel-page-ai-preview-item"
+                        class="bg-background/78 rounded-lg border border-border/45 px-2.5 py-2 shadow-sm shadow-black/[0.03]"
+                      >
+                        <div class="flex items-start justify-between gap-2">
+                          <div class="min-w-0 flex-1">
+                            <Tooltip :title="operation.label">
+                              <div
+                                class="truncate text-[11px] font-medium text-foreground"
+                                :title="operation.label"
+                              >
+                                {{ operation.label }}
+                              </div>
+                            </Tooltip>
+                            <Tooltip
+                              :title="operation.description || operation.name"
+                            >
+                              <div
+                                class="mt-0.5 truncate text-[10px] leading-4 text-muted-foreground"
+                                :title="operation.description || operation.name"
+                              >
+                                {{ operation.description || operation.name }}
+                              </div>
+                            </Tooltip>
+                          </div>
+                          <span
+                            class="shrink-0 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em]"
+                            :class="
+                              operation.readonly
+                                ? 'bg-blue-500/10 text-blue-700'
+                                : 'bg-amber-500/10 text-amber-700'
+                            "
+                          >
+                            {{
+                              operation.readonly
+                                ? $t('common.aiPanel.pageAiReadonlyLabel')
+                                : $t('common.aiPanel.pageAiWritableLabel')
+                            }}
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        v-if="pageAIRemainingOperationCount > 0"
+                        data-testid="ai-panel-page-ai-more"
+                        class="flex min-h-[64px] items-center justify-center rounded-lg border border-dashed border-primary/20 bg-primary/[0.04] px-3 py-2 text-center transition-colors hover:border-primary/35 hover:bg-primary/[0.08]"
+                        type="button"
+                        @click.stop="expandAllPageAIOperations"
+                      >
+                        <div>
+                          <div
+                            class="text-sm font-semibold leading-none text-primary"
+                          >
+                            +{{ pageAIRemainingOperationCount }}
+                          </div>
+                          <div
+                            class="mt-1 text-[10px] font-medium uppercase tracking-[0.14em] text-primary/70"
+                          >
+                            {{ $t('common.aiPanel.pageAiPreviewMore') }}
+                          </div>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Transition>
+          </div>
+
+          <Transition name="fade">
+            <div
+              v-if="routeNotice"
+              data-testid="ai-panel-route-banner"
+              class="flex items-start gap-2 rounded-xl border border-primary/15 bg-primary/5 px-3 py-2"
+            >
+              <div
+                class="bg-primary/12 mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-lg text-primary"
+              >
+                <IconifyIcon icon="lucide:route" class="size-3" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <div
+                  class="truncate text-[11px] font-medium text-foreground/85"
+                >
+                  {{ routeNotice }}
+                </div>
+              </div>
+            </div>
+          </Transition>
         </div>
 
         <!-- Streaming progress bar (T5) -->
@@ -1727,7 +2333,7 @@ onUnmounted(() => {
           v-if="streaming"
           class="h-0.5 w-full overflow-hidden bg-primary/10"
         >
-          <div class="streaming-bar h-full bg-primary/60" />
+          <div class="streaming-bar h-full bg-primary/60"></div>
         </div>
 
         <!-- Memory panel (redesigned) -->
@@ -1890,16 +2496,23 @@ onUnmounted(() => {
                     :key="conv.id"
                     class="group relative flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 transition-all duration-150"
                     :class="
-                      activeConversationId === conv.id && editingConversationId !== conv.id
+                      activeConversationId === conv.id &&
+                      editingConversationId !== conv.id
                         ? 'bg-primary/8 text-foreground shadow-sm shadow-primary/5 ring-1 ring-primary/15'
                         : 'text-muted-foreground hover:bg-accent/50'
                     "
-                    @click="editingConversationId !== conv.id && onSelectConversation(conv.id)"
+                    @click="
+                      editingConversationId !== conv.id &&
+                      onSelectConversation(conv.id)
+                    "
                     @dblclick.stop="startEditTitle(conv)"
                   >
                     <!-- Active indicator bar -->
                     <div
-                      v-if="activeConversationId === conv.id && editingConversationId !== conv.id"
+                      v-if="
+                        activeConversationId === conv.id &&
+                        editingConversationId !== conv.id
+                      "
                       class="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r-full bg-primary"
                     ></div>
                     <!-- Agent avatar or icon -->
@@ -1912,15 +2525,25 @@ onUnmounted(() => {
                           : 'bg-muted/60 text-muted-foreground'
                       "
                     >
-                      <span v-if="conv.agent_name">{{ conv.agent_name.charAt(0).toUpperCase() }}</span>
-                      <IconifyIcon v-else icon="lucide:message-square" class="size-3" />
+                      <span v-if="conv.agent_name">{{
+                        conv.agent_name.charAt(0).toUpperCase()
+                      }}</span>
+                      <IconifyIcon
+                        v-else
+                        icon="lucide:message-square"
+                        class="size-3"
+                      />
                     </div>
                     <div class="flex min-w-0 flex-1 flex-col">
                       <template v-if="editingConversationId === conv.id">
                         <Input
                           v-model:value="editingTitle"
                           size="small"
-                          :placeholder="$t('common.globalAiChat.conversationTitlePlaceholder')"
+                          :placeholder="
+                            $t(
+                              'common.globalAiChat.conversationTitlePlaceholder',
+                            )
+                          "
                           class="!h-7 text-[13px]"
                           @blur="commitEditTitle"
                           @keydown.enter="commitEditTitle"
@@ -1929,10 +2552,19 @@ onUnmounted(() => {
                         />
                       </template>
                       <template v-else>
-                        <span class="truncate text-[13px]" :class="activeConversationId === conv.id ? 'font-medium' : ''">
+                        <span
+                          class="truncate text-[13px]"
+                          :class="
+                            activeConversationId === conv.id
+                              ? 'font-medium'
+                              : ''
+                          "
+                        >
                           {{ conv.title || `#${conv.id}` }}
                         </span>
-                        <span class="truncate text-[10px] text-muted-foreground/50">
+                        <span
+                          class="truncate text-[10px] text-muted-foreground/50"
+                        >
                           {{ conv.agent_name || '' }}
                         </span>
                       </template>
@@ -1973,7 +2605,10 @@ onUnmounted(() => {
                   <div
                     class="relative flex size-14 animate-float items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 shadow-lg shadow-primary/10 ring-1 ring-primary/10"
                   >
-                    <IconifyIcon icon="lucide:sparkles" class="size-7 text-primary" />
+                    <IconifyIcon
+                      icon="lucide:sparkles"
+                      class="size-7 text-primary"
+                    />
                   </div>
                 </div>
                 <div class="text-sm font-semibold text-foreground">
@@ -1996,9 +2631,15 @@ onUnmounted(() => {
                     class="group/sq flex items-center gap-2.5 rounded-xl border border-border/30 bg-accent/15 px-3.5 py-2.5 text-left text-xs text-foreground transition-all hover:border-primary/30 hover:bg-accent/40 hover:shadow-sm"
                     @click="askSuggested(q)"
                   >
-                    <IconifyIcon icon="lucide:message-circle" class="size-3.5 shrink-0 text-primary/50 transition-colors group-hover/sq:text-primary" />
+                    <IconifyIcon
+                      icon="lucide:message-circle"
+                      class="size-3.5 shrink-0 text-primary/50 transition-colors group-hover/sq:text-primary"
+                    />
                     <span class="truncate">{{ q }}</span>
-                    <IconifyIcon icon="lucide:arrow-right" class="ml-auto size-3 shrink-0 text-muted-foreground/30 transition-transform group-hover/sq:translate-x-0.5 group-hover/sq:text-primary/60" />
+                    <IconifyIcon
+                      icon="lucide:arrow-right"
+                      class="ml-auto size-3 shrink-0 text-muted-foreground/30 transition-transform group-hover/sq:translate-x-0.5 group-hover/sq:text-primary/60"
+                    />
                   </button>
                 </div>
               </div>
@@ -2036,7 +2677,11 @@ onUnmounted(() => {
               v-for="op in unassociatedPendingOps"
               :key="op.invokeId"
               class="overflow-hidden rounded-lg border"
-              :class="op.resolved ? 'border-border/20 bg-accent/10' : 'border-warning/30 bg-warning/5'"
+              :class="
+                op.resolved
+                  ? 'border-border/20 bg-accent/10'
+                  : 'border-warning/30 bg-warning/5'
+              "
             >
               <!-- Resolved state -->
               <div
@@ -2049,30 +2694,62 @@ onUnmounted(() => {
                   :class="op.allowed ? 'text-green-600' : 'text-red-500'"
                 />
                 <span class="truncate text-muted-foreground">
-                  <span class="font-medium text-foreground/60">{{ op.operationLabel }}</span>
-                  <span v-if="op.operationDescription" class="ml-1 text-muted-foreground/60">{{ op.operationDescription }}</span>
+                  <span class="font-medium text-foreground/60">{{
+                    op.operationLabel
+                  }}</span>
+                  <span
+                    v-if="op.operationDescription"
+                    class="ml-1 text-muted-foreground/60"
+                    >{{ op.operationDescription }}</span
+                  >
                 </span>
                 <span
                   class="ml-auto shrink-0 rounded-full px-1.5 py-px text-[10px] font-medium"
-                  :class="op.allowed ? 'bg-green-50 text-green-600 dark:bg-green-950/30' : 'bg-red-50 text-red-600 dark:bg-red-950/30'"
+                  :class="
+                    op.allowed
+                      ? 'bg-green-50 text-green-600 dark:bg-green-950/30'
+                      : 'bg-red-50 text-red-600 dark:bg-red-950/30'
+                  "
                 >
-                  {{ op.allowed ? $t('shared.pageOperation.confirmOk') : $t('shared.pageOperation.confirmCancel') }}
+                  {{
+                    op.allowed
+                      ? $t('shared.pageOperation.confirmOk')
+                      : $t('shared.pageOperation.confirmCancel')
+                  }}
                 </span>
               </div>
 
               <!-- Pending state -->
               <template v-else>
                 <div class="flex items-center gap-1.5 px-2.5 py-1.5">
-                  <IconifyIcon icon="lucide:shield-alert" class="size-3.5 shrink-0 text-warning" />
+                  <IconifyIcon
+                    icon="lucide:shield-alert"
+                    class="size-3.5 shrink-0 text-warning"
+                  />
                   <div class="min-w-0 flex-1">
-                    <div class="truncate text-[11px] font-medium text-foreground/80">
+                    <div
+                      class="truncate text-[11px] font-medium text-foreground/80"
+                    >
                       {{ op.operationLabel }}
                     </div>
-                    <div v-if="op.operationDescription" class="truncate text-[10px] text-muted-foreground/60">
+                    <div
+                      v-if="op.operationDescription"
+                      class="truncate text-[10px] text-muted-foreground/60"
+                    >
                       {{ op.operationDescription }}
                     </div>
                     <div class="mt-0.5 text-[10px] text-muted-foreground/50">
-                      {{ $t('shared.pageOperation.confirmCountdown', { seconds: Math.max(0, 60 - Math.floor((countdownNow - (op.startedAt || 0)) / 1000)) }) }}
+                      {{
+                        $t('shared.pageOperation.confirmCountdown', {
+                          seconds: Math.max(
+                            0,
+                            60 -
+                              Math.floor(
+                                (countdownNow - (op.startedAt || 0)) / 1000,
+                              ),
+                          ),
+                        })
+                      }}
                     </div>
                   </div>
                   <div class="flex shrink-0 items-center gap-1">
@@ -2098,13 +2775,21 @@ onUnmounted(() => {
                   v-if="op.params && Object.keys(op.params).length > 0"
                   class="[&>summary::-webkit-details-marker]:hidden [&>summary]:list-none"
                 >
-                  <summary class="flex cursor-pointer items-center gap-1 border-t border-border/20 px-2.5 py-0.5 text-[10px] text-muted-foreground/60 hover:text-muted-foreground">
+                  <summary
+                    class="flex cursor-pointer items-center gap-1 border-t border-border/20 px-2.5 py-0.5 text-[10px] text-muted-foreground/60 hover:text-muted-foreground"
+                  >
                     <IconifyIcon icon="lucide:code" class="size-2.5" />
                     {{ $t('common.globalAiChat.args') }}
-                    <IconifyIcon icon="lucide:chevron-down" class="size-2.5 transition-transform duration-200 [details[open]>&]:rotate-180" />
+                    <IconifyIcon
+                      icon="lucide:chevron-down"
+                      class="size-2.5 transition-transform duration-200 [details[open]>&]:rotate-180"
+                    />
                   </summary>
                   <div class="border-t border-border/20 px-2.5 py-1">
-                    <pre class="max-h-24 overflow-y-auto whitespace-pre-wrap rounded bg-accent/40 px-1.5 py-1 font-mono text-[10px] text-muted-foreground">{{ JSON.stringify(op.params, null, 2) }}</pre>
+                    <pre
+                      class="max-h-24 overflow-y-auto whitespace-pre-wrap rounded bg-accent/40 px-1.5 py-1 font-mono text-[10px] text-muted-foreground"
+                      >{{ JSON.stringify(op.params, null, 2) }}</pre
+                    >
                   </div>
                 </details>
               </template>
@@ -2117,18 +2802,33 @@ onUnmounted(() => {
                 class="routing-card relative overflow-hidden rounded-xl border border-border/30 bg-accent/30 px-4 py-3 backdrop-blur-sm"
               >
                 <div class="relative z-[1] flex items-center gap-2.5">
-                  <div class="relative flex size-6 items-center justify-center rounded-lg bg-primary/10">
-                    <IconifyIcon icon="lucide:route" class="size-3.5 text-primary" />
-                    <span class="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-primary routing-dot"></span>
+                  <div
+                    class="relative flex size-6 items-center justify-center rounded-lg bg-primary/10"
+                  >
+                    <IconifyIcon
+                      icon="lucide:route"
+                      class="size-3.5 text-primary"
+                    />
+                    <span
+                      class="routing-dot absolute -right-0.5 -top-0.5 size-2 rounded-full bg-primary"
+                    ></span>
                   </div>
                   <div class="flex flex-col gap-0.5">
                     <span class="text-xs font-medium text-foreground/80">
                       {{ $t('common.globalAiChat.routingAgent') }}
                     </span>
                     <div class="flex items-center gap-1">
-                      <span class="routing-dot size-1 rounded-full bg-primary/60"></span>
-                      <span class="routing-dot size-1 rounded-full bg-primary/60" style="animation-delay: 0.15s"></span>
-                      <span class="routing-dot size-1 rounded-full bg-primary/60" style="animation-delay: 0.3s"></span>
+                      <span
+                        class="routing-dot size-1 rounded-full bg-primary/60"
+                      ></span>
+                      <span
+                        class="routing-dot size-1 rounded-full bg-primary/60"
+                        style="animation-delay: 0.15s"
+                      ></span>
+                      <span
+                        class="routing-dot size-1 rounded-full bg-primary/60"
+                        style="animation-delay: 0.3s"
+                      ></span>
                     </div>
                   </div>
                 </div>
@@ -2178,9 +2878,7 @@ onUnmounted(() => {
                 <IconifyIcon icon="lucide:download" class="size-3" />
               </button>
               <template #overlay>
-                <Menu
-                  :items="exportMenuItems"
-                />
+                <Menu :items="exportMenuItems" />
               </template>
             </Dropdown>
           </div>
@@ -2191,10 +2889,12 @@ onUnmounted(() => {
             @dragover="handleDragOver"
             @drop="handleDrop"
           >
-
             <!-- Pending attachments -->
             <TransitionGroup
-              v-if="mentionedAgent || (showAttachments && pendingAttachments.length > 0)"
+              v-if="
+                mentionedAgent ||
+                (showAttachments && pendingAttachments.length > 0)
+              "
               name="att-pop"
               tag="div"
               class="mb-1.5 flex flex-wrap gap-1.5"
@@ -2202,14 +2902,14 @@ onUnmounted(() => {
               <div
                 v-if="mentionedAgent"
                 :key="`mention-${mentionedAgent.id}`"
-                class="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/8 px-2 py-1 text-[11px] text-primary"
+                class="bg-primary/8 inline-flex items-center gap-1 rounded-full border border-primary/20 px-2 py-1 text-[11px] text-primary"
               >
                 <span class="font-semibold">@</span>
                 <span class="max-w-[140px] truncate font-medium">
                   {{ mentionedAgent.name }}
                 </span>
                 <button
-                  class="flex size-4 items-center justify-center rounded-full text-primary/70 transition-colors hover:bg-primary/12 hover:text-primary"
+                  class="hover:bg-primary/12 flex size-4 items-center justify-center rounded-full text-primary/70 transition-colors hover:text-primary"
                   @click="clearMentionedAgent"
                 >
                   <IconifyIcon icon="lucide:x" class="size-2.5" />
@@ -2267,7 +2967,12 @@ onUnmounted(() => {
               v-if="showAttachments && pendingAttachments.length > 0"
               class="mb-1 text-[10px] text-muted-foreground/70"
             >
-              {{ $t('common.globalAiChat.attachmentCount', { count: pendingAttachments.length, max: 5 }) }}
+              {{
+                $t('common.globalAiChat.attachmentCount', {
+                  count: pendingAttachments.length,
+                  max: 5,
+                })
+              }}
             </div>
 
             <!-- Trust session toggle -->
@@ -2275,14 +2980,18 @@ onUnmounted(() => {
               v-if="chatMessages.length > 0"
               class="mb-1 flex items-center justify-between"
             >
-              <label class="flex cursor-pointer items-center gap-1 text-[10px] text-muted-foreground/60 hover:text-muted-foreground">
+              <label
+                class="flex cursor-pointer items-center gap-1 text-[10px] text-muted-foreground/60 hover:text-muted-foreground"
+              >
                 <input
                   v-model="trustSession"
                   type="checkbox"
                   class="size-3 cursor-pointer rounded accent-primary"
                 />
                 <span>{{ $t('common.globalAiChat.consentTrustSession') }}</span>
-                <Tooltip :title="$t('common.globalAiChat.consentTrustSessionHint')">
+                <Tooltip
+                  :title="$t('common.globalAiChat.consentTrustSessionHint')"
+                >
                   <IconifyIcon icon="lucide:info" class="size-2.5" />
                 </Tooltip>
               </label>
@@ -2303,7 +3012,7 @@ onUnmounted(() => {
               <span
                 v-for="kb in agentKBBindings"
                 :key="kb.knowledge_base_id"
-                class="inline-flex items-center rounded-full bg-primary/8 px-1.5 py-0.5 text-[10px] leading-tight text-primary/70"
+                class="bg-primary/8 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] leading-tight text-primary/70"
               >
                 {{ kb.kb_name || `KB#${kb.knowledge_base_id}` }}
               </span>
@@ -2322,8 +3031,8 @@ onUnmounted(() => {
                 class="inline-flex items-center gap-0.5 rounded-full border border-primary/25 bg-background px-1.5 py-0.5 text-[10px] text-primary"
               >
                 {{
-                  agentKBBindings.find((b) => b.knowledge_base_id === kid)?.kb_name
-                    || `KB#${kid}`
+                  agentKBBindings.find((b) => b.knowledge_base_id === kid)
+                    ?.kb_name || `KB#${kid}`
                 }}
                 <button
                   type="button"
@@ -2349,9 +3058,14 @@ onUnmounted(() => {
                     class="mb-1 flex items-center gap-1 text-[10px] text-muted-foreground/70"
                   >
                     <IconifyIcon icon="lucide:at-sign" class="size-3" />
-                    <span>{{ $t('common.globalAiChat.mentionMixedHint') }}</span>
+                    <span>{{
+                      $t('common.globalAiChat.mentionMixedHint')
+                    }}</span>
                   </div>
-                  <div v-if="agentsLoading" class="flex items-center gap-2 px-1 py-2">
+                  <div
+                    v-if="agentsLoading"
+                    class="flex items-center gap-2 px-1 py-2"
+                  >
                     <Spin size="small" />
                     <span class="text-[11px] text-muted-foreground">
                       {{ $t('common.globalAiChat.mentionAgentLoading') }}
@@ -2370,9 +3084,19 @@ onUnmounted(() => {
                     </p>
                   </div>
                   <div v-else class="max-h-48 space-y-2 overflow-y-auto">
-                    <template v-for="(c, candidateIndex) in mentionCandidates" :key="c.kind === 'agent' ? `a-${c.agent.id}` : `kb-${c.binding.knowledge_base_id}`">
+                    <template
+                      v-for="(c, candidateIndex) in mentionCandidates"
+                      :key="
+                        c.kind === 'agent'
+                          ? `a-${c.agent.id}`
+                          : `kb-${c.binding.knowledge_base_id}`
+                      "
+                    >
                       <div
-                        v-if="candidateIndex === 0 || mentionCandidates[candidateIndex - 1]!.kind !== c.kind"
+                        v-if="
+                          candidateIndex === 0 ||
+                          mentionCandidates[candidateIndex - 1]!.kind !== c.kind
+                        "
                         class="px-0.5 pt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60"
                       >
                         {{
@@ -2401,7 +3125,9 @@ onUnmounted(() => {
                             :alt="c.agent.name"
                             class="size-7 rounded-lg object-cover"
                           />
-                          <span v-else>{{ c.agent.name.charAt(0).toUpperCase() }}</span>
+                          <span v-else>{{
+                            c.agent.name.charAt(0).toUpperCase()
+                          }}</span>
                         </div>
                         <div class="min-w-0 flex-1">
                           <div class="truncate text-[12px] font-medium">
@@ -2433,9 +3159,14 @@ onUnmounted(() => {
                         </div>
                         <div class="min-w-0 flex-1">
                           <div class="truncate text-[12px] font-medium">
-                            {{ c.binding.kb_name || `KB#${c.binding.knowledge_base_id}` }}
+                            {{
+                              c.binding.kb_name ||
+                              `KB#${c.binding.knowledge_base_id}`
+                            }}
                           </div>
-                          <div class="truncate text-[10px] text-muted-foreground/70">
+                          <div
+                            class="truncate text-[10px] text-muted-foreground/70"
+                          >
                             {{ $t('common.globalAiChat.mentionKbPickHint') }}
                           </div>
                         </div>
@@ -2488,33 +3219,41 @@ onUnmounted(() => {
                   :auto-size="{ minRows: 2, maxRows: 6 }"
                   :maxlength="32000"
                   :disabled="agents.length === 0 || sending"
-                  class="ai-chat-textarea flex-1 min-w-0 !border-0 !bg-transparent !text-sm !shadow-none !outline-none !ring-0"
+                  class="ai-chat-textarea min-w-0 flex-1 !border-0 !bg-transparent !text-sm !shadow-none !outline-none !ring-0"
                   @keydown="handleKeyDown"
                   @paste="handlePaste"
                 />
                 <button
-                :class="[
-                  'send-btn flex size-7 shrink-0 items-center justify-center rounded-full shadow-sm transition-all hover:scale-110 hover:shadow-md active:scale-95 disabled:opacity-40 disabled:hover:scale-100',
-                  streaming
-                    ? 'bg-destructive text-destructive-foreground'
-                    : 'bg-primary text-primary-foreground',
-                ]"
-                :aria-label="streaming ? $t('common.globalAiChat.stop') : $t('common.commandBar.send')"
-                :disabled="
-                  !streaming &&
-                  ((!inputMessage.trim() && pendingAttachments.length === 0) ||
-                    agents.length === 0 ||
-                    sending)
-                "
-                @click="streaming ? stopGeneration() : handleSendMessage()"
-              >
-                <Spin v-if="!streaming && (sending || routing)" size="small" />
-                <IconifyIcon
-                  v-else
-                  :icon="streaming ? 'lucide:square' : 'lucide:arrow-up'"
-                  class="size-3.5"
-                />
-              </button>
+                  class="send-btn flex size-7 shrink-0 items-center justify-center rounded-full shadow-sm transition-all hover:scale-110 hover:shadow-md active:scale-95 disabled:opacity-40 disabled:hover:scale-100"
+                  :class="[
+                    streaming
+                      ? 'bg-destructive text-destructive-foreground'
+                      : 'bg-primary text-primary-foreground',
+                  ]"
+                  :aria-label="
+                    streaming
+                      ? $t('common.globalAiChat.stop')
+                      : $t('common.commandBar.send')
+                  "
+                  :disabled="
+                    !streaming &&
+                    ((!inputMessage.trim() &&
+                      pendingAttachments.length === 0) ||
+                      agents.length === 0 ||
+                      sending)
+                  "
+                  @click="streaming ? stopGeneration() : handleSendMessage()"
+                >
+                  <Spin
+                    v-if="!streaming && (sending || routing)"
+                    size="small"
+                  />
+                  <IconifyIcon
+                    v-else
+                    :icon="streaming ? 'lucide:square' : 'lucide:arrow-up'"
+                    class="size-3.5"
+                  />
+                </button>
               </div>
               <!-- 字数统计单独一行，不影响输入框与图标的垂直对齐 -->
               <div class="flex justify-end px-1 pb-0.5">
@@ -2622,6 +3361,29 @@ onUnmounted(() => {
   transform: translateY(0);
 }
 
+.page-ai-details-enter-active,
+.page-ai-details-leave-active {
+  overflow: hidden;
+  transition:
+    opacity 0.2s ease,
+    max-height 0.26s ease,
+    transform 0.26s ease;
+}
+
+.page-ai-details-enter-from,
+.page-ai-details-leave-to {
+  opacity: 0;
+  max-height: 0;
+  transform: translateY(-6px);
+}
+
+.page-ai-details-enter-to,
+.page-ai-details-leave-from {
+  opacity: 1;
+  max-height: 320px;
+  transform: translateY(0);
+}
+
 /* Bubble transition / 气泡过渡 */
 .bubble-enter-active {
   animation: bubble-in 0.3s ease-out;
@@ -2722,7 +3484,14 @@ onUnmounted(() => {
 /* Streaming progress bar animation (T5) / 流式进度条动画 */
 .streaming-bar {
   width: 30%;
-  background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.6), hsl(var(--primary)), hsl(var(--primary) / 0.6), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    hsl(var(--primary) / 0.6),
+    hsl(var(--primary)),
+    hsl(var(--primary) / 0.6),
+    transparent
+  );
   border-radius: 9999px;
   animation: streaming-slide 1.5s ease-in-out infinite;
 }

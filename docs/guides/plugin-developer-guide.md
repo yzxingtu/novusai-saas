@@ -70,6 +70,10 @@ extensions:
   api: { admin_routes: [...], tenant_routes: [...], public_routes: [...] }  # API 路由
 ```
 
+补充约束：
+- `extensions.capabilities[*]` 与 `extensions.skills[*].capabilities[]` 必须形成显式标准映射，禁止只依赖某个样例插件形成隐式约定。
+- 如声明 `extensions.frontend.dashboard_widgets[*]`，插件前端入口必须导出对应组件，宿主 dashboard 只负责插槽挂载。
+
 ### 命名规范
 
 - **DB 表**: `px_{name}_*`（如 `px_my_plugin_customers`）
@@ -168,14 +172,17 @@ async def handle_current(**kwargs):
 return {"data": result, "error": None}  # error key 存在会被误判为错误
 ```
 
-### 技能包自动注册
+### SkillPackage / Skill 目录同步
 
-插件启用时，系统自动：
-1. 创建 `SkillPackage`（scope=global, source_plugin=插件名, is_system=True）
-2. 为每个 skill extension 创建 `Skill` 记录
-3. Agent 可通过绑定该 SkillPackage 使用插件技能
+插件启用或升级时，系统会同步：
+1. 创建或更新 `SkillPackage`（目录、来源、归组单元，`source_plugin=插件名`）
+2. 为每个 `extensions.skills[*]` 创建或更新 `Skill` 记录
+3. 按 `extensions.capabilities[*] -> extensions.skills[*].capabilities[]` 的映射关系生成解析元数据
 
-禁用时 Skill 标记为 `is_active=False`，卸载时删除记录。
+重要边界：
+- 这里同步的是**目录投影**，不是“自动把整包绑定到 Agent 运行时”。
+- Agent 运行时是否获得某个插件技能，真相仍是 `AgentSkillGrant` 驱动的直接 Skill 授权链路，而不是 SkillPackage auto-bind。
+- 禁用时 Skill 会失活；卸载时相关目录投影和插件资产会被清理。
 
 ### 调试指南
 

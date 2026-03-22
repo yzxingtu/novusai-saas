@@ -9,6 +9,7 @@ import { ref } from 'vue';
 
 import { defineStore } from 'pinia';
 
+import { resolveEndpointByPath } from '#/constants/endpoints';
 import { useNotificationToast } from '#/composables/use-notification-toast';
 import { requestClient } from '#/utils/request';
 
@@ -84,8 +85,8 @@ export const useNotificationStore = defineStore('notification', () => {
   const loading = ref(false);
   const initialized = ref(false);
 
-  /** Current endpoint type (determines API prefix) / 当前端类型 */
-  let currentEndpoint: 'admin' | 'tenant' = 'admin';
+  /** Explicit endpoint override (fallback only) / 显式端覆盖（仅作为兜底） */
+  let currentEndpoint: 'admin' | 'tenant' | null = null;
   /** Fixed reference for unregister, avoiding handler leak / 固定引用避免泄漏 */
   const handleSocketNotification = (raw: unknown) => {
     const data = raw as NotificationPushData;
@@ -131,8 +132,25 @@ export const useNotificationStore = defineStore('notification', () => {
   // API prefix / API 前缀
   // ============================================================
 
-  function getApiPrefix(): string {
-    return currentEndpoint === 'tenant' ? '/tenant' : '/admin';
+  function resolveNotificationEndpoint(): 'admin' | 'tenant' | null {
+    if (typeof window !== 'undefined') {
+      const endpoint = resolveEndpointByPath(
+        window.location.pathname,
+        window.location.hostname,
+      );
+      if (endpoint === 'admin' || endpoint === 'tenant') {
+        return endpoint;
+      }
+    }
+    return currentEndpoint;
+  }
+
+  function getApiPrefix(): null | string {
+    const endpoint = resolveNotificationEndpoint();
+    if (!endpoint) {
+      return null;
+    }
+    return endpoint === 'tenant' ? '/tenant' : '/admin';
   }
 
   function setEndpoint(endpoint: 'admin' | 'tenant') {
@@ -144,9 +162,13 @@ export const useNotificationStore = defineStore('notification', () => {
   // ============================================================
 
   async function loadUnreadCount(): Promise<void> {
+    const apiPrefix = getApiPrefix();
+    if (!apiPrefix) {
+      return;
+    }
     try {
       const data = await requestClient.get<{ count: number }>(
-        `${getApiPrefix()}/notifications/unread-count`,
+        `${apiPrefix}/notifications/unread-count`,
       );
       if (data && typeof data.count === 'number') {
         unreadCount.value = data.count;
@@ -161,6 +183,10 @@ export const useNotificationStore = defineStore('notification', () => {
     page: number = 1,
     pageSize: number = 20,
   ): Promise<void> {
+    const apiPrefix = getApiPrefix();
+    if (!apiPrefix) {
+      return;
+    }
     loading.value = true;
     try {
       const params = new URLSearchParams();
@@ -169,7 +195,7 @@ export const useNotificationStore = defineStore('notification', () => {
       params.set('page_size', String(pageSize));
 
       const data = await requestClient.get<NotificationListResponse>(
-        `${getApiPrefix()}/notifications?${params.toString()}`,
+        `${apiPrefix}/notifications?${params.toString()}`,
       );
       if (data?.items) {
         if (page === 1) {
@@ -227,6 +253,7 @@ export const useNotificationStore = defineStore('notification', () => {
   // ============================================================
 
   async function markRead(id: number): Promise<void> {
+    const apiPrefix = getApiPrefix();
     const item = notifications.value.find((n) => n.id === id);
     if (item) {
       item.is_read = true;
@@ -239,19 +266,24 @@ export const useNotificationStore = defineStore('notification', () => {
       _saveLocalNotifications(notifications.value);
       return;
     }
+    if (!apiPrefix) {
+      return;
+    }
     try {
-      await requestClient.put(`${getApiPrefix()}/notifications/${id}/read`);
+      await requestClient.put(`${apiPrefix}/notifications/${id}/read`);
     } catch {
       // Silent / 静默
     }
   }
 
   async function markAllRead(category?: string): Promise<void> {
+    const apiPrefix = getApiPrefix();
+    if (!apiPrefix) {
+      return;
+    }
     try {
       const params = category ? `?category=${category}` : '';
-      await requestClient.put(
-        `${getApiPrefix()}/notifications/read-all${params}`,
-      );
+      await requestClient.put(`${apiPrefix}/notifications/read-all${params}`);
       for (const n of notifications.value) {
         if (!category || n.category === category) {
           n.is_read = true;
@@ -264,6 +296,7 @@ export const useNotificationStore = defineStore('notification', () => {
   }
 
   async function deleteNotification(id: number): Promise<void> {
+    const apiPrefix = getApiPrefix();
     const idx = notifications.value.findIndex((n) => n.id === id);
     if (idx !== -1) {
       const removed = notifications.value[idx];
@@ -277,8 +310,11 @@ export const useNotificationStore = defineStore('notification', () => {
       _saveLocalNotifications(notifications.value);
       return;
     }
+    if (!apiPrefix) {
+      return;
+    }
     try {
-      await requestClient.delete(`${getApiPrefix()}/notifications/${id}`);
+      await requestClient.delete(`${apiPrefix}/notifications/${id}`);
     } catch {
       // Silent / 静默
     }

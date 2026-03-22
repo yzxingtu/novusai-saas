@@ -10,5 +10,5 @@
   },
   "references": [{ "path": "./tsconfig.node.json" }],
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"],
-  "exclude": ["src/utils/vite-plugin-novus-plugins.ts"]
+  "exclude": ["build/vite-plugin-novus-plugins.ts"]
 }

@@ -56,9 +56,9 @@ export {
   createRequestInterceptor,
   createResponseDataInterceptor,
   createSuccessMessageInterceptor,
-  getEndpointByPath,
-  getEndpointByUrl,
 } from './interceptors';
+
+export { getEndpointByUrl } from './endpoint';
 
 export type { AuthHandler, MessageHandler, TokenGetter } from './interceptors';
 

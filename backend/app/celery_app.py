@@ -86,12 +86,14 @@ celery_app.conf.include = [
     "app.ai.rag.processor",
 ]
 
+
 # Force import task modules (ensure registration even in Windows --pool=solo mode)
 # 强制导入任务模块（确保 Windows --pool=solo 模式下也能注册）
 def _import_task_modules():
     for module in celery_app.conf.include:
         with suppress(ImportError):
             __import__(module)
+
 
 _import_task_modules()
 
@@ -111,25 +113,10 @@ celery_app.conf.task_ignore_result = False
 # Beat Scheduling (driven by database periodic_tasks table)
 # Beat 调度（由数据库 periodic_tasks 表驱动）
 # ========================================
-# All scheduled tasks are managed via the periodic_tasks table, no hardcoded schedule entries.
-# 所有定时任务通过 periodic_tasks 表管理，不再硬编码任何调度条目。
-#
-# Important: Schedule must be loaded at module level for the **beat** process only,
-# cannot use beat_init signal (Celery 5.x reads beat_schedule before beat_init).
-# 重要：仅 **celery beat** 进程在模块级加载；Uvicorn/FastAPI 导入本模块时不应查库，
-# 否则会在 init_database()/迁移之前访问 periodic_tasks，列未迁移时会报错且误导排障。
-#
-# Worker 进程不需要 DB 里的 beat_schedule（由 Beat 下发）；空 dict 即可。
-try:
-    import sys
-
-    _argv_lower = [str(a).lower() for a in sys.argv]
-    _is_beat = "beat" in _argv_lower
-    if _is_beat:
-        from app.tasks.scheduler import load_periodic_tasks_from_db
-
-        celery_app.conf.beat_schedule = load_periodic_tasks_from_db()
-    else:
-        celery_app.conf.beat_schedule = {}
-except Exception:
-    celery_app.conf.beat_schedule = {}
+# app.conf.beat_schedule is reserved for static/in-memory entries only.
+# DB-driven periodic tasks are loaded by ReloadingPersistentScheduler so Beat
+# can recover automatically after transient DB outages.
+# app.conf.beat_schedule 仅保留静态/内存型调度项。
+# 数据库定时任务由 ReloadingPersistentScheduler 动态加载，避免 Beat 在数据库短暂不可用时永久空跑。
+celery_app.conf.beat_schedule = {}
+celery_app.conf.beat_scheduler = "app.tasks.scheduler:ReloadingPersistentScheduler"

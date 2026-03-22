@@ -22,9 +22,9 @@ import {
 
 import { forceLogoutAdminApi } from '#/api/admin/admin-user';
 import { forceLogoutTenantAdminApi } from '#/api/admin/tenant';
+import { getTenantAdminInfoApi } from '#/api/tenant/auth';
 import { $t } from '#/locales';
 import { usePresenceStore } from '#/store';
-import { useTenantAuthStore } from '#/store/tenant/auth';
 
 import AdminFormDrawer from './modules/AdminFormDrawer.vue';
 import MemberItem from './modules/MemberItem.vue';
@@ -68,7 +68,7 @@ const emit = defineEmits<{
 }>();
 
 const presenceStore = usePresenceStore();
-const tenantAuthStore = useTenantAuthStore();
+let cachedTenantId: null | number = null;
 
 /** Check if member is online / 判断成员是否在线 */
 function isMemberOnline(memberId: number): boolean {
@@ -160,18 +160,27 @@ function handleResetPassword(member: OrgMember) {
   resetPasswordModalRef.value?.open(toResetPasswordInfo(member));
 }
 
+async function resolveTenantId(): Promise<null | number> {
+  if (typeof cachedTenantId === 'number') {
+    return cachedTenantId;
+  }
+  const info = await getTenantAdminInfoApi();
+  cachedTenantId = typeof info.tenantId === 'number' ? info.tenantId : null;
+  return cachedTenantId;
+}
+
 /** Handle force logout / 处理强制下线 */
 async function handleForceLogout(member: OrgMember) {
   try {
     if (props.apiPrefix === 'admin') {
       await forceLogoutAdminApi(member.id);
     } else {
-      const tenantId = tenantAuthStore.getTenantId();
+      const tenantId = await resolveTenantId();
       if (typeof tenantId !== 'number') {
         message.error($t('common.requestFailed'));
         return;
       }
-      await forceLogoutTenantAdminApi(tenantId as number, member.id);
+      await forceLogoutTenantAdminApi(tenantId, member.id);
     }
     message.success($t('common.auth.forceLogoutSuccess', { name: member.nickname || member.username }));
     await refresh();

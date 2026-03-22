@@ -203,7 +203,10 @@ class StorageDriver(StorageLoggerMixin):
         # Default impl: return None (not supported locally) / 默认实现：返回 None（表示不支持本地处理）
         return None
 
-    def supports_native_image_processing(self) -> bool:
+    def supports_native_image_processing(
+        self,
+        visibility: StorageVisibility | None = None,
+    ) -> bool:
         """
         Whether native image processing is supported / 是否支持原生图片处理
 
@@ -213,6 +216,7 @@ class StorageDriver(StorageLoggerMixin):
         Returns:
             Whether native image processing is supported / 是否支持原生图片处理
         """
+        _ = visibility
         return False
 
     def get_base_url(self) -> str:

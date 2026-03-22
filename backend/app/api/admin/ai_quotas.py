@@ -23,6 +23,11 @@ from app.rbac.decorators import (
     permission_resource,
 )
 from app.repositories.ai.tenant_quota_repository import AdminTenantQuotaRepository
+from app.schemas.ai.quota_diagnostics import (
+    AIQuotaDiagnosticsSummary,
+    AdminQuotaDiagnosticItem,
+    AdminRateLimitDiagnosticItem,
+)
 from app.schemas.ai.tenant_quota import (
     AdminTenantQuotaCreate,
     TenantQuotaResponse,
@@ -30,9 +35,10 @@ from app.schemas.ai.tenant_quota import (
 )
 from app.schemas.ai.tenant_rate_limit import (
     AdminRateLimitCreate,
-    TenantRateLimitResponse,
     TenantRateLimitUpdate,
+    TenantRateLimitResponse,
 )
+from app.services.ai.quota_diagnostics_service import AIQuotaDiagnosticsService
 from app.services.ai.tenant_quota_service import TenantQuotaService
 from app.services.ai.tenant_rate_limit_service import TenantRateLimitService
 
@@ -108,37 +114,44 @@ class AdminAIQuotaController(GlobalController):
         # ========== 速率限制管理 / Rate Limit Management ==========
         # 注意：rate-limits 路由必须在 /{quota_id} 之前注册 / Note: rate-limits routes must be registered before /{quota_id}
 
+        @router.get("/summary", summary=_("action.ai_quota.list"))
+        @action_read("action.ai_quota.list")
+        async def get_quota_summary(
+            request: Request,
+            db: DbSession,
+            admin: ActiveAdmin,
+        ):
+            """
+            获取 AI 配额诊断总览 / Get AI quota diagnostics summary
+
+            权限 / Permission: ai_quota:list
+            """
+            del request, admin
+            service = AIQuotaDiagnosticsService(db)
+            return success(
+                data=AIQuotaDiagnosticsSummary.model_validate(
+                    await service.get_summary()
+                ),
+                message=_("common.success"),
+            )
+
         @router.get("/rate-limits", summary=_("action.ai_quota.list_rate_limits"))
         @action_read("action.ai_quota.list_rate_limits")
         async def list_rate_limits(
             request: Request,
             db: DbSession,
+            spec: QueryParams,
             admin: ActiveAdmin,
-            tenant_id: int | None = None,
-            model_id: int | None = None,
         ):
             """
-            获取速率限制列表（跨企业） / Get rate limit list (cross-tenant)
+            获取速率限制诊断列表（跨企业） / Get rate limit diagnostics list (cross-tenant)
 
             权限 / Permission: ai_quota:list_rate_limits
             """
-            from sqlalchemy import select
-
-            from app.models.ai.tenant_rate_limit import TenantModelRateLimit
-
-            stmt = select(TenantModelRateLimit).where(
-                TenantModelRateLimit.is_deleted.is_(False)
-            )
-            if tenant_id is not None:
-                stmt = stmt.where(TenantModelRateLimit.tenant_id == tenant_id)
-            if model_id is not None:
-                stmt = stmt.where(TenantModelRateLimit.model_id == model_id)
-            stmt = stmt.order_by(TenantModelRateLimit.created_at.desc()).limit(500)
-
-            result = await db.execute(stmt)
-            items = result.scalars().all()
+            del request, admin
+            service = AIQuotaDiagnosticsService(db)
             return success(
-                data=[TenantRateLimitResponse.from_orm_model(item) for item in items],
+                data=await service.list_rate_limit_diagnostics(spec),
                 message=_("common.success"),
             )
 
@@ -251,19 +264,10 @@ class AdminAIQuotaController(GlobalController):
 
             权限 / Permission: ai_quota:list
             """
-            repo = AdminTenantQuotaRepository(db)
-            items, total = await repo.query_list(spec)
-
+            del request, admin
+            service = AIQuotaDiagnosticsService(db)
             return success(
-                data=PageResponse.create(
-                    items=[
-                        TenantQuotaResponse(**_build_quota_response(item))
-                        for item in items
-                    ],
-                    total=total,
-                    page=spec.page,
-                    page_size=spec.size,
-                ),
+                data=await service.list_quota_diagnostics(spec),
                 message=_("common.success"),
             )
 

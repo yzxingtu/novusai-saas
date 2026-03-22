@@ -20,7 +20,7 @@ import { smartUploadFile as adminUploadApi } from '#/api/admin/attachment';
 import { smartUploadFile as tenantUploadApi } from '#/api/tenant/attachment';
 import { smartUploadFile as userUploadApi } from '#/api/user/attachment';
 import { $t as t } from '#/locales';
-import { getProcessedImageUrl } from '#/utils/image';
+import { toAttachmentImageUrl } from '#/utils/image';
 
 const props = withDefaults(
   defineProps<{
@@ -58,12 +58,7 @@ const resolvedEndpoint = computed(() => {
  * 将 modelValue（附件 ID 或旧 URL）转为可显示的图片 URL
  */
 function toDisplayUrl(val: string | undefined): string {
-  if (!val) return '';
-  const id = Number(val);
-  if (Number.isFinite(id) && id > 0) {
-    return getProcessedImageUrl(id, { preset: 'medium' });
-  }
-  return val;
+  return toAttachmentImageUrl(val, { preset: 'medium' });
 }
 
 async function handleCustomRequest(options: {

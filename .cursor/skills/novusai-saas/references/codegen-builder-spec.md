@@ -79,9 +79,9 @@ Builder store 会把配置持久化到 localStorage，但 `configJson` 超过约
 - 不能假设“大配置一定会被本地恢复”
 - 大表导入后应尽快保存到后端配置
 
-### 兼容别名
+### 历史旧名
 
-`useCodegenWizardStore` 只是兼容别名，真实实现已迁移到 `useCodegenBuilderStore`。新增代码不要继续使用旧名。
+`useCodegenWizardStore` 旧别名已删除，当前统一使用 `useCodegenBuilderStore`。新增代码和文档都不要再引用旧名。
 
 ---
 
@@ -214,4 +214,4 @@ Builder 不只是本地编辑器，还连接后端配置版本体系：
 - [ ] 字段变更是否通过 `updateConfig()` / 属性面板流转
 - [ ] 保存/生成前是否调用校验 API
 - [ ] 是否正确区分预览、保存、生成、版本恢复
-- [ ] 是否避免继续使用 `useCodegenWizardStore` 旧名
+- [ ] 是否确认仓内已无 `useCodegenWizardStore` 旧名残留

@@ -1053,7 +1053,8 @@ class AgentChatService:
                     len(result.messages) > system_count + history_count
                 )
                 if result.success or has_new_messages:
-                    # 独立 session：不依赖 DI session 生命周期 / Standalone session for callback
+                    # 先提交消息和统计，再做可能较慢的记忆抽取，避免后半段取消导致历史整笔回滚。
+                    # Commit message persistence first, then run slower memory extraction separately.
                     async with async_session_factory() as cb_db:
                         try:
                             cb_conv_svc = ConversationService(cb_db, self.tenant_id)
@@ -1072,36 +1073,46 @@ class AgentChatService:
                                 result,
                                 current_agent=agent,
                             )
-                            await AgentStatsManager.record_chat(
-                                tenant_id=self.tenant_id,
-                                agent_id=agent_id,
-                                tokens=result.total_tokens,
-                            )
-
-                            # 写入会话记忆（流式完成后）/ Write session memory after stream complete
-                            try:
-                                memory_delta = await self._persist_session_memory(
-                                    request=request,
-                                    message=message,
-                                    response=result.output or "",
-                                    event_id=memory_event_id,
-                                )
-                                if memory_delta:
-                                    extra["memory_updated"] = True
-                                    await cb_conv_svc.mark_memory_updated(
-                                        conversation.id,
-                                    )
-                            except Exception as mem_exc:
-                                logger.warning(
-                                    "Persist stream session memory failed: tenant={} conversation={} err={}",
-                                    self.tenant_id,
-                                    conversation.id,
-                                    str(mem_exc),
-                                )
                             await cb_db.commit()
                         except Exception:
                             await cb_db.rollback()
                             raise
+
+                    await AgentStatsManager.record_chat(
+                        tenant_id=self.tenant_id,
+                        agent_id=agent_id,
+                        tokens=result.total_tokens,
+                    )
+
+                    # 写入会话记忆（流式完成后）/ Write session memory after stream complete
+                    try:
+                        memory_delta = await self._persist_session_memory(
+                            request=request,
+                            message=message,
+                            response=result.output or "",
+                            event_id=memory_event_id,
+                        )
+                        if memory_delta:
+                            extra["memory_updated"] = True
+                            async with async_session_factory() as mem_db:
+                                try:
+                                    mem_conv_svc = ConversationService(
+                                        mem_db, self.tenant_id,
+                                    )
+                                    await mem_conv_svc.mark_memory_updated(
+                                        conversation.id,
+                                    )
+                                    await mem_db.commit()
+                                except Exception:
+                                    await mem_db.rollback()
+                                    raise
+                    except Exception as mem_exc:
+                        logger.warning(
+                            "Persist stream session memory failed: tenant={} conversation={} err={}",
+                            self.tenant_id,
+                            conversation.id,
+                            str(mem_exc),
+                        )
 
                 # 配额调整：从预估调整为实际（与 dispatcher 对等）/ Adjust quota from estimate to actual
                 actual_tokens = result.total_tokens or 0
@@ -1314,71 +1325,5 @@ class AgentChatService:
             request=request,
             on_complete=on_stream_complete,
         )
-
-    # ========================================
-    # 操作确认/取消 / Operation confirm/cancel
-    # ========================================
-
-    @staticmethod
-    async def cancel_action(confirm_id: str) -> dict[str, str]:
-        """
-        取消 AI 操作确认 / Cancel AI action confirmation.
-
-        删除 Redis 中的 confirm_id 记录
-
-        Args:
-            confirm_id: 确认 ID
-
-        Returns:
-            {"status": "cancelled" | "expired"}
-        """
-        from app.ai.constants import action_confirm_key
-        from app.core.redis import get_redis
-
-        redis = await get_redis()
-        key = action_confirm_key(confirm_id)
-        deleted_count = await redis.delete(key)
-
-        if deleted_count:
-            return {"status": "cancelled"}
-        return {"status": "expired"}
-
-    async def confirm_action(
-        self,
-        confirm_id: str,
-        tenant_id: int,
-        user_id: int,
-    ) -> dict[str, Any]:
-        """
-        确认 AI 操作（兼容接口）/ Confirm AI action (legacy compatibility).
-
-        旧版 ActionExecutor 已废弃，新的确认流程为内联文本触发：
-        用户在对话中输入「确认执行」等触发词，引擎自动在消息历史中
-        查找待确认的工具调用并注入 confirmed=True 直接执行，
-        无需调用此 REST 端点。
-
-        此方法保留以避免旧客户端接收 422，返回 deprecated 状态
-        提醒调用方迁移到内联确认流程。
-
-        Args:
-            confirm_id: 确认 ID（不再使用）
-            tenant_id: 企业 ID
-            user_id: 用户 ID
-
-        Returns:
-            {"status": "deprecated", "message": "..."}
-        """
-        logger.warning(
-            "confirm_action called via REST endpoint (deprecated): "
-            "confirm_id=%s tenant=%d user=%d — "
-            "new flow uses inline confirmation text in conversation",
-            confirm_id, tenant_id, user_id,
-        )
-        return {
-            "status": "deprecated",
-            "message": _("data_intelligence.action.use_inline_confirmation"),
-        }
-
-
 
 __all__ = ["AgentChatService"]

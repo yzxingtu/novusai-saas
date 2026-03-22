@@ -50,6 +50,8 @@ export interface ImageProcessOptions {
   sign?: string;
 }
 
+export type AttachmentImageValue = null | number | string | undefined;
+
 /**
  * Generate processed image URL
  * 生成处理后的图片 URL
@@ -78,6 +80,55 @@ export function getProcessedImageUrl(
   return `${base}/api/public/attachments/${attachmentId}/image${query ? `?${query}` : ''}`;
 }
 
+/**
+ * Parse a positive attachment ID from unknown input
+ * 从未知输入中解析正整数附件 ID
+ */
+export function parseAttachmentId(value: unknown): null | number {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  const id =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string'
+        ? Number(value.trim())
+        : Number.NaN;
+
+  if (!Number.isFinite(id) || id <= 0) {
+    return null;
+  }
+
+  return Math.trunc(id);
+}
+
+/**
+ * Resolve an image-ish value (attachment ID or legacy URL) to a displayable URL
+ * 将图片值（附件 ID 或旧 URL）解析为可显示 URL
+ */
+export function toAttachmentImageUrl(
+  value: AttachmentImageValue,
+  options: ImageProcessOptions = {},
+): string {
+  const attachmentId = parseAttachmentId(value);
+  if (attachmentId) {
+    return getProcessedImageUrl(attachmentId, options);
+  }
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  const normalized = value.trim();
+  if (!normalized) {
+    return '';
+  }
+  if (/^-?\d+(\.\d+)?$/.test(normalized)) {
+    return '';
+  }
+  return normalized;
+}
+
 interface AttachmentLike {
   id: number;
   previewUrl?: null | string;
@@ -96,12 +147,7 @@ interface AttachmentLike {
  * - 空值 → 返回空字符串
  */
 export function toAvatarDisplayUrl(val: null | string | undefined): string {
-  if (!val) return '';
-  const id = Number(val);
-  if (Number.isFinite(id) && id > 0) {
-    return getProcessedImageUrl(id, { preset: 'avatar' });
-  }
-  return val;
+  return toAttachmentImageUrl(val, { preset: 'avatar' });
 }
 
 /**

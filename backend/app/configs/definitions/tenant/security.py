@@ -33,6 +33,7 @@ TENANT_CAPTCHA_PROVIDER = ConfigMeta(
     default_value="image",
     options=[
         option("image", "config.tenant.captcha_provider.image"),
+        option("slider", "config.tenant.captcha_provider.slider"),
     ],
     sort_order=12,
     display_rules=[

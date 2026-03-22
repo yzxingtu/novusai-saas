@@ -3,12 +3,41 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig } from '@vben/vite-config';
 
 // @ts-ignore — dual vite versions in monorepo cause Plugin type mismatch
-import { novusPluginsLoader } from './src/utils/vite-plugin-novus-plugins';
+import { novusPluginsLoader } from './build/vite-plugin-novus-plugins';
 
 export default defineConfig(async () => {
   const pluginsDir = fileURLToPath(
     new URL('../../../backend/plugins', import.meta.url),
   );
+  const persistedStateEntry = fileURLToPath(
+    new URL(
+      '../../packages/stores/node_modules/pinia-plugin-persistedstate/dist/index.js',
+      import.meta.url,
+    ),
+  );
+  const sharedSourceAliases = {
+    '@vben-core/shared/cache': fileURLToPath(
+      new URL('../../packages/@core/base/shared/src/cache/index.ts', import.meta.url),
+    ),
+    '@vben-core/shared/color': fileURLToPath(
+      new URL('../../packages/@core/base/shared/src/color/index.ts', import.meta.url),
+    ),
+    '@vben-core/shared/constants': fileURLToPath(
+      new URL(
+        '../../packages/@core/base/shared/src/constants/index.ts',
+        import.meta.url,
+      ),
+    ),
+    '@vben-core/shared/global-state': fileURLToPath(
+      new URL('../../packages/@core/base/shared/src/global-state.ts', import.meta.url),
+    ),
+    '@vben-core/shared/store': fileURLToPath(
+      new URL('../../packages/@core/base/shared/src/store.ts', import.meta.url),
+    ),
+    '@vben-core/shared/utils': fileURLToPath(
+      new URL('../../packages/@core/base/shared/src/utils/index.ts', import.meta.url),
+    ),
+  };
 
   return {
     application: {},
@@ -21,12 +50,19 @@ export default defineConfig(async () => {
       resolve: {
         alias: {
           '#/adapter': '/src/core/adapter',
+          // Keep client builds on the browser runtime entry and avoid Nuxt-only subpath scanning.
+          'pinia-plugin-persistedstate': persistedStateEntry,
+          ...sharedSourceAliases,
         },
       },
       server: {
         allowedHosts: true,
         proxy: {
           '/plugin-assets': {
+            changeOrigin: true,
+            target: 'http://127.0.0.1:8000',
+          },
+          '/plugin-icons': {
             changeOrigin: true,
             target: 'http://127.0.0.1:8000',
           },

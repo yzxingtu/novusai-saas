@@ -14,8 +14,8 @@ import { useAppConfig } from '@vben/hooks';
 
 import { defineStore } from 'pinia';
 
-import { getApiEndpoint } from '#/api';
 import { useSocketIO } from '#/composables/use-socketio';
+import { getEndpointFromPath } from '#/utils';
 
 import { TokenStorage } from './token-storage';
 
@@ -213,7 +213,7 @@ export const useSocketIOStore = defineStore('socketio', () => {
       const path = window.location.hash
         ? window.location.hash.slice(1)
         : window.location.pathname;
-      return getApiEndpoint(path);
+      return getEndpointFromPath(path);
     } catch {
       return 'admin';
     }

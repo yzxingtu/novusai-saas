@@ -193,6 +193,10 @@ const dataModeOptions = computed(() => [
     label: $t('admin.system.codegen.enum.crossTenant'),
     value: 'cross_tenant',
   },
+  {
+    label: $t('admin.system.codegen.enum.tenantIsolated'),
+    value: 'tenant_isolated',
+  },
 ]);
 
 const formColumnsOptions = [

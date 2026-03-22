@@ -141,7 +141,7 @@ const filteredTreeData = computed(() =>
 function getTypeIcon(type: string): string {
   switch (type) {
     case 'api': {
-      return 'mdi:api';
+      return 'lucide:route';
     }
     case 'button': {
       return 'lucide:square';

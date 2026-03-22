@@ -16,7 +16,7 @@ import { getTenantAICallLogListApi } from '#/api/tenant/ai';
 import { createViewDetailPageOperation } from '#/composables';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
-import { getProcessedImageUrl } from '#/utils/image';
+import { toAttachmentImageUrl } from '#/utils/image';
 
 import {
   formatCost,
@@ -28,14 +28,6 @@ import {
 import CallLogDetail from './modules/CallLogDetail.vue';
 
 defineOptions({ name: 'TenantAICallLogList' });
-
-/** provider.icon 可能为数字 ID 字符串 / Attachment id for provider logo */
-function providerIconId(icon: unknown): null | number {
-  if (icon === null || icon === undefined || icon === '') return null;
-  const n = Number(icon);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return Math.trunc(n);
-}
 
 const detailOpen = ref(false);
 const detailLogId = ref<null | number>(null);
@@ -135,7 +127,7 @@ const { Grid, gridApi } = useCrudPage<TenantAICallLogInfo>({
     </div>
 
     <Card
-      class="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col"
+      class="flex min-h-0 w-full min-w-0 max-w-full flex-1 flex-col"
       :body-style="{
         padding: '16px',
         flex: 1,
@@ -146,92 +138,92 @@ const { Grid, gridApi } = useCrudPage<TenantAICallLogInfo>({
         overflow: 'hidden',
       }"
     >
-      <div class="min-h-0 min-w-0 w-full max-w-full flex-1 overflow-hidden">
-        <Grid class="h-full min-w-0 w-full max-w-full">
-        <!-- 调用时间列 -->
-        <template #createdAt_cell="{ row }">
-          <Tooltip :title="formatDate(row.created_at)">
-            <span class="text-muted-foreground">
-              {{ formatRelativeTime(row.created_at) }}
+      <div class="min-h-0 w-full min-w-0 max-w-full flex-1 overflow-hidden">
+        <Grid class="h-full w-full min-w-0 max-w-full">
+          <!-- 调用时间列 -->
+          <template #createdAt_cell="{ row }">
+            <Tooltip :title="formatDate(row.created_at)">
+              <span class="text-muted-foreground">
+                {{ formatRelativeTime(row.created_at) }}
+              </span>
+            </Tooltip>
+          </template>
+
+          <!-- 模型名称列 -->
+          <template #modelName_cell="{ row }">
+            <div
+              v-if="row.model_name && row.model_name !== '-'"
+              class="flex items-center gap-1.5"
+            >
+              <IconifyIcon
+                icon="lucide:brain"
+                class="size-3.5 text-muted-foreground"
+              />
+              <code class="rounded bg-accent px-1 py-0.5 text-xs">
+                {{ row.model_name }}
+              </code>
+            </div>
+            <span v-else class="text-muted-foreground">-</span>
+          </template>
+
+          <!-- 调用人 -->
+          <template #callerName_cell="{ row }">
+            <span
+              v-if="row.caller_name && row.caller_name !== '-'"
+              class="text-foreground"
+            >
+              {{ row.caller_name }}
             </span>
-          </Tooltip>
-        </template>
+            <span v-else class="text-muted-foreground">-</span>
+          </template>
 
-        <!-- 模型名称列 -->
-        <template #modelName_cell="{ row }">
-          <div
-            v-if="row.model_name && row.model_name !== '-'"
-            class="flex items-center gap-1.5"
-          >
-            <IconifyIcon
-              icon="lucide:brain"
-              class="size-3.5 text-muted-foreground"
-            />
-            <code class="rounded bg-accent px-1 py-0.5 text-xs">
-              {{ row.model_name }}
-            </code>
-          </div>
-          <span v-else class="text-muted-foreground">-</span>
-        </template>
+          <!-- Provider column: icon + name / 供应商列：图标 + 名称 -->
+          <template #providerName_cell="{ row }">
+            <div
+              v-if="row.provider_name && row.provider_name !== '-'"
+              class="flex items-center justify-center gap-1.5"
+            >
+              <img
+                v-if="
+                  toAttachmentImageUrl(row.provider_icon, { preset: 'small' })
+                "
+                :src="
+                  toAttachmentImageUrl(row.provider_icon, { preset: 'small' })
+                "
+                class="size-4 shrink-0 rounded object-contain"
+                alt=""
+              />
+              <IconifyIcon
+                v-else
+                icon="lucide:cpu"
+                class="size-3.5 text-muted-foreground"
+              />
+              <span class="text-foreground">{{ row.provider_name }}</span>
+            </div>
+            <span v-else class="text-muted-foreground">-</span>
+          </template>
 
-        <!-- 调用人 -->
-        <template #callerName_cell="{ row }">
-          <span
-            v-if="row.caller_name && row.caller_name !== '-'"
-            class="text-foreground"
-          >
-            {{ row.caller_name }}
-          </span>
-          <span v-else class="text-muted-foreground">-</span>
-        </template>
+          <!-- 状态列 -->
+          <template #status_cell="{ row }">
+            <Tag :color="getStatusColor(row.status)">
+              {{ getStatusText(row.status) }}
+            </Tag>
+          </template>
 
-        <!-- Provider column: icon + name / 供应商列：图标 + 名称 -->
-        <template #providerName_cell="{ row }">
-          <div
-            v-if="row.provider_name && row.provider_name !== '-'"
-            class="flex items-center justify-center gap-1.5"
-          >
-            <img
-              v-if="providerIconId(row.provider_icon)"
-              :src="
-                getProcessedImageUrl(providerIconId(row.provider_icon)!, {
-                  preset: 'small',
-                })
-              "
-              class="size-4 shrink-0 rounded object-contain"
-              alt=""
-            />
-            <IconifyIcon
-              v-else
-              icon="lucide:cpu"
-              class="size-3.5 text-muted-foreground"
-            />
-            <span class="text-foreground">{{ row.provider_name }}</span>
-          </div>
-          <span v-else class="text-muted-foreground">-</span>
-        </template>
+          <!-- 费用列 -->
+          <template #cost_cell="{ row }">
+            <span class="text-muted-foreground">
+              {{ formatCost(row.cost) }}
+            </span>
+          </template>
 
-        <!-- 状态列 -->
-        <template #status_cell="{ row }">
-          <Tag :color="getStatusColor(row.status)">
-            {{ getStatusText(row.status) }}
-          </Tag>
-        </template>
-
-        <!-- 费用列 -->
-        <template #cost_cell="{ row }">
-          <span class="text-muted-foreground">
-            {{ formatCost(row.cost) }}
-          </span>
-        </template>
-
-        <!-- 延迟列 -->
-        <template #latency_cell="{ row }">
-          <span v-if="row.latency_ms" class="text-muted-foreground">
-            {{ row.latency_ms }}ms
-          </span>
-          <span v-else class="text-muted-foreground">-</span>
-        </template>
+          <!-- 延迟列 -->
+          <template #latency_cell="{ row }">
+            <span v-if="row.latency_ms" class="text-muted-foreground">
+              {{ row.latency_ms }}ms
+            </span>
+            <span v-else class="text-muted-foreground">-</span>
+          </template>
         </Grid>
       </div>
     </Card>

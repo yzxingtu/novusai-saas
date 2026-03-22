@@ -11,6 +11,7 @@ Defines the captcha provider protocol and data models:
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol
 
@@ -31,6 +32,15 @@ class CaptchaVerificationResult(BaseModel):
     ok: bool
     reason: str | None = None
     score: float | None = None
+
+
+@dataclass(slots=True)
+class CaptchaProviderMetadata:
+    """Captcha provider runtime metadata / 验证码提供者运行时元数据"""
+
+    plugin_name: str | None = None
+    public_endpoints: list[str] = field(default_factory=list)
+    frontend_runtime: dict[str, str] = field(default_factory=dict)
 
 
 class ICaptchaProvider(Protocol):

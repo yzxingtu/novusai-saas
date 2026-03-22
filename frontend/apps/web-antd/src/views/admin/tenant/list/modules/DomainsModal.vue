@@ -91,6 +91,11 @@ const [Modal, modalApi] = useVbenModal({
   footer: false,
 });
 
+interface DomainCreateDefaults {
+  domain?: string;
+  remark?: string;
+}
+
 /** Load domain list / 加载域名列表 */
 async function loadDomains() {
   if (!currentTenant.value?.tenantId) return;
@@ -124,9 +129,13 @@ async function loadDevHosts() {
 }
 
 /** Open add domain drawer / 打开添加域名抽屉 */
-function onOpenAddDrawer() {
+function openAddDrawer(defaults?: DomainCreateDefaults) {
   if (!currentTenant.value) return;
-  addDrawerRef.value?.open(currentTenant.value.tenantId);
+  addDrawerRef.value?.open(currentTenant.value.tenantId, defaults);
+}
+
+function onOpenAddDrawer() {
+  openAddDrawer();
 }
 
 /** Add success callback / 添加成功回调 */
@@ -455,7 +464,15 @@ function open(data: DomainModalData) {
   modalApi.setData(data).open();
 }
 
-defineExpose({ open });
+function openAddDomain(
+  data: DomainModalData,
+  defaults?: DomainCreateDefaults,
+) {
+  currentTenant.value = data;
+  openAddDrawer(defaults);
+}
+
+defineExpose({ open, openAddDomain });
 </script>
 
 <template>
@@ -463,7 +480,7 @@ defineExpose({ open });
     <div class="min-h-[400px]">
       <Spin :spinning="loading">
         <div class="mb-4 flex flex-wrap items-center gap-2">
-          <Button type="primary" @click="onOpenAddDrawer">
+          <Button type="primary" @click="() => onOpenAddDrawer()">
             <IconifyIcon icon="lucide:plus" class="mr-1 size-4" />
             {{ $t('admin.tenant.domain.addDomain') }}
           </Button>

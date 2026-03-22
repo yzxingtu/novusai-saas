@@ -509,7 +509,7 @@ generateCode({ length: 8 });             // 'A3Km9Xp7'
 | Vue 组件   | PascalCase               | `UserList.vue`      |
 | TS 文件    | kebab-case               | `token-storage.ts`  |
 | API        | `{action}{Resource}Api`  | `adminLoginApi`     |
-| Store      | `use{Endpoint}AuthStore` | `useAdminAuthStore` |
+| Store      | `use{Name}Store`         | `useMultiAuthStore` |
 | Composable | `use{Name}`              | `useCrudPage`       |
 
 ---

@@ -4,7 +4,12 @@
  */
 
 /** Task log list query params / 任务日志列表查询参数 */
-export type TaskLogListParams = Record<string, unknown>;
+export type TaskLogListView = 'all' | 'execution' | 'internal';
+
+/** Task log list query params / 任务日志列表查询参数 */
+export interface TaskLogListParams extends Record<string, unknown> {
+  view?: TaskLogListView;
+}
 
 /** Task log info (frontend camelCase format) / 任务日志信息 */
 export interface TaskLogInfo {

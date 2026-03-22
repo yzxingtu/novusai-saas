@@ -12,6 +12,7 @@ Provides captcha generation and verification:
 
 from app.captcha.provider import (
     CaptchaChallenge,
+    CaptchaProviderMetadata,
     CaptchaVerificationResult,
     ICaptchaProvider,
 )
@@ -21,6 +22,7 @@ from app.captcha.service import CaptchaService
 __all__ = [
     "ICaptchaProvider",
     "CaptchaChallenge",
+    "CaptchaProviderMetadata",
     "CaptchaVerificationResult",
     "registry",
     "CaptchaRegistry",

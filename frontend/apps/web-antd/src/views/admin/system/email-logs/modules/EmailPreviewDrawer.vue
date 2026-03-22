@@ -15,7 +15,7 @@ import { getEmailLogDetailApi } from '#/api/admin/email-log';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
-import { getStatusColor, getTriggerColor } from '../data';
+import { getStatusColor, getTriggerColor, getTriggerLabel } from '../data';
 
 const [Drawer, drawerApi] = useVbenDrawer({
   onOpenChange(isOpen: boolean) {
@@ -81,7 +81,7 @@ async function loadDetail(id: number) {
             :span="1"
           >
             <Tag :color="getTriggerColor(detail.triggeredBy)">
-              {{ $t(`admin.system.emailLog.trigger.${detail.triggeredBy}`) }}
+              {{ getTriggerLabel(detail.triggeredBy) }}
             </Tag>
           </Descriptions.Item>
           <Descriptions.Item

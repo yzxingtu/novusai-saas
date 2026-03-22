@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING
 from fastapi import Request
 from sqlalchemy import select
 
+from app.captcha.runtime import resolve_public_captcha_plugin_bundle
+from app.configs.service import ConfigService
 from app.core.security import (
     TOKEN_SCOPE_ADMIN,
     TOKEN_SCOPE_TENANT_ADMIN,
@@ -15,6 +17,7 @@ from app.core.security import (
     decode_token,
 )
 from app.models.system.plugin import Plugin
+from app.middleware.tenant import get_tenant_context
 from app.plugins.runtime_gate import PluginRuntimeGateResult, evaluate_plugin_runtime_gate
 
 if TYPE_CHECKING:
@@ -166,4 +169,59 @@ async def authorize_plugin_icon_request(
         allowed=True,
         reason_code="allowed",
         token_scope=TOKEN_SCOPE_ADMIN,
+    )
+
+
+async def authorize_public_captcha_asset_request(
+    db: AsyncSession,
+    request: Request,
+    plugin_name: str,
+    public_endpoint: str,
+) -> PluginAssetAccessResult:
+    """
+    Authorize public captcha plugin assets for login pages.
+    / 为登录页公开验证码插件静态资源做鉴权。
+    """
+    endpoint = str(public_endpoint or "").strip().lower()
+    if endpoint not in {"admin", "tenant", "user"}:
+        return PluginAssetAccessResult(
+            allowed=False,
+            reason_code="invalid_public_endpoint",
+        )
+
+    config_service = ConfigService(db)
+    if endpoint == "admin":
+        provider_code = await config_service.get_platform_config(
+            "captcha_provider",
+            default=None,
+        )
+    else:
+        tenant_ctx = get_tenant_context(request)
+        tenant = tenant_ctx.tenant if tenant_ctx and tenant_ctx.is_resolved else None
+        if tenant is None:
+            return PluginAssetAccessResult(
+                allowed=False,
+                reason_code="tenant_not_resolved",
+            )
+        provider_code = await config_service.get_tenant_config(
+            int(tenant.id),
+            "tenant_captcha_provider",
+            default=None,
+        )
+
+    bundle = await resolve_public_captcha_plugin_bundle(
+        db,
+        request,
+        provider_code,
+        endpoint,
+    )
+    if bundle is None or bundle.plugin_name != plugin_name:
+        return PluginAssetAccessResult(
+            allowed=False,
+            reason_code="captcha_plugin_not_active",
+        )
+
+    return PluginAssetAccessResult(
+        allowed=True,
+        reason_code="allowed",
     )

@@ -236,7 +236,6 @@ _COLUMN_DESC_MAP: dict[str, str] = {
     "response_data": "响应数据（JSON）",
     "error_message": "错误信息",
     "is_recommended": "是否推荐",
-    "bind_mode": "绑定模式",
     "source_plugin": "来源插件",
     "valves_schema": "阀门配置 Schema",
     "valves_config": "阀门配置值",

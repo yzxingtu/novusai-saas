@@ -100,7 +100,7 @@ python scripts/scan_comment_compliance.py --ci
 
 - **services/common/**：storage_quota_service（StorageQuotaService、__init__、get_tenant_storage_stats）、role_tree_mixin（RoleTreeMixin、get_tree、_build_tree_structure）首行双语。
 - **services/system/**：tenant_domain_service（TenantDomainService、_get_domain_suffix、_get_verification_prefix、_get_tenant_with_plan）、admin_role_service（AdminRoleService、get_by_code、create_role）、periodic_task_service（PeriodicTaskService）、task_log_service（TaskLogService）、task_manager_service（TaskManagerService）、ssl_certificate_service（SslCertificateService）、acme_client（AcmeClient、provision_certificate）首行双语。
-- **services/tenant/**：tenant_settings_service（TenantSettingsService、__init__、get_tenant）、periodic_task_service（TenantPeriodicTaskService）、task_log_service（TenantTaskLogService）首行双语。
+- **services/tenant/**：periodic_task_service（TenantPeriodicTaskService）、task_log_service（TenantTaskLogService）首行双语。
 - **storage/**：base.py、manager.py、drivers/__init__.py 模块首行双语。
 
 ### 第十四轮续补（本次继续）
@@ -273,7 +273,6 @@ python scripts/scan_comment_compliance.py --ci
   - **attachment_download_service.py**：AttachmentDownloadService 类、validate_access、_get_access_url、_build_direct_cdn_url（en_only 补中文）首行双语。
   - **tenant_admin_service.py**：get_by_username_or_email、create_admin、update_admin、change_password、reset_password、toggle_status、_get_tenant_root_node 首行双语。
   - **tenant_plan_service.py**：get_by_code、_generate_plan_code、create_plan、update_plan、delete_plan、assign_permissions、_get_valid_permissions、get_available_permissions 首行双语。
-  - **tenant_settings_service.py**：get_settings、update_settings（含「更新企业设置」）、get_domain、update_domain、delete_domain、add_domain、verify_domain 首行双语。
   - **tenant_user_service.py**：update_user、reset_password、toggle_status、approve_user、reject_user、batch_approve、批量审批拒绝用户 首行双语。
   - **tenant_user_role_service.py**：TenantUserRoleService 类、get_by_code、create_role、update_role、assign_permissions、toggle_status、_assign_permissions 首行双语。
   - **tenant_plan_service.py**：get_plan_permissions 首行补双语。
@@ -372,7 +371,7 @@ python scripts/scan_comment_compliance.py --ci
   - `components/business/toolkit-editor/ValvesConfigForm.vue`：i18n prefix、schema、value 等 3 处补中文。
   - `components/business/rich-text-editor/ai/AIResultPanel.vue`、`views/admin/ai/agents/detail.vue`、`components/business/ai-chat-panel/types.ts`、`constants/upload.ts`、`composables/use-page-screenshot.ts`：仅英文 JSDoc 补中文。
 - **后端 backend/app（仅中文 docstring → 补英文）**：
-  - **schemas**：`tenant/plan.py`（权限树简要响应、套餐详情、创建/更新/权限请求、验证计费周期）、`tenant/domain.py`（域名/企业设置请求响应、验证函数）、`common/select.py`（SelectOption/SelectResponse 及字段）、`ai/usage_stat.py`、`system/config.py`（ConfigUpdateRequest）。
+  - **schemas**：`tenant/plan.py`（权限树简要响应、套餐详情、创建/更新/权限请求、验证计费周期）、`tenant/domain.py`（域名请求响应、验证函数）、`common/select.py`（SelectOption/SelectResponse 及字段）、`ai/usage_stat.py`、`system/config.py`（ConfigUpdateRequest）。
   - **repositories**：`ai/agent_kb_binding_repository.py`、`ai/agent_skill_binding_repository.py`：类与方法 docstring 补英文。
   - **services**：`system/dns_provider.py`（DnsProvider、Cloudflare/Aliyun/Manual 及 get_dns_provider）、`common/file_validator.py`（_validate_extension）。
   - **core**：`hosts_helper.py`（is_dev_local、add_host_entry、remove_host_entry、list_managed_entries、_cli_main 等）补英文。
@@ -397,7 +396,7 @@ python scripts/scan_comment_compliance.py --ci
   - `views/admin/plugins/data.ts`：模块注释及 getStatusColor、getStatusText、getScopeText、getTierColor、getTierText、derivePluginType、getTypeColor、getTypeIcon、getTypeText、PLUGIN_TYPES、useColumns、useGridFormSchema 等仅中文 JSDoc 补英文。
 - **后端 backend/app**：
   - **schemas**：`ai/agent_skill_binding.py`（3 处）、`tenant/user.py`（10 处）、`common/query.py`（5 处）、`system/periodic_task.py`（4 处）、`tenant/user_role.py`（5 处）仅中文 docstring 补英文。
-  - **services**：`system/operation_log_service.py`（模块日志器）、`tenant/tenant_settings_service.py`（_count_domains、_unset_primary_domain、get_cname_target、list_domains）、`tenant/attachment_download_service.py`（全部仅中文 docstring）补英文。
+  - **services**：`system/operation_log_service.py`（模块日志器）、`tenant/attachment_download_service.py`（全部仅中文 docstring）补英文。
   - **services/common/channels/base.py**：`channel_name` 仅中文 docstring 补英文。
 
 - **backend/app**：此前已全量扫描并修复**仅中文/仅英文** docstring，包括：

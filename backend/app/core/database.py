@@ -6,11 +6,13 @@ Provides async database connections, session management and dependency injection
 """
 
 import asyncio
+import re
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
+from dataclasses import dataclass
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -36,6 +38,28 @@ def _set_db_init_failure(reason: str) -> None:
 def _clear_db_init_failure() -> None:
     global _db_init_failure_reason
     _db_init_failure_reason = None
+
+
+@dataclass(frozen=True)
+class MainSchemaCoverage:
+    """Main app schema coverage snapshot. / 主应用 schema 覆盖率快照。"""
+
+    model_table_count: int
+    total_model_column_count: int
+    missing_tables: tuple[str, ...]
+    missing_columns_by_table: dict[str, tuple[str, ...]]
+
+    @property
+    def missing_column_count(self) -> int:
+        """Total missing model columns. / 缺失模型列总数。"""
+        return sum(len(cols) for cols in self.missing_columns_by_table.values())
+
+    @property
+    def column_coverage(self) -> float:
+        """Column coverage ratio. / 模型列覆盖率。"""
+        if self.total_model_column_count <= 0:
+            return 1.0
+        return 1.0 - (self.missing_column_count / self.total_model_column_count)
 
 
 # ============================================
@@ -294,6 +318,161 @@ def create_database_if_not_exists() -> bool:
         admin_engine.dispose()
 
 
+_ALEMBIC_REVISION_RE = re.compile(
+    r'^revision\s*(?::[^=]*)?=\s*["\']([^"\']+)["\']',
+    re.MULTILINE,
+)
+
+
+def _collect_revision_ids_from_dir(directory: Path) -> set[str]:
+    """Collect revision IDs from one versions dir. / 收集单个 versions 目录的 revision ID。"""
+    revisions: set[str] = set()
+    if not directory.is_dir():
+        return revisions
+
+    for file_path in directory.iterdir():
+        if file_path.suffix != ".py" or file_path.name == "__init__.py":
+            continue
+        try:
+            src = file_path.read_text(encoding="utf-8", errors="replace")
+        except Exception as exc:
+            logger.warning("Cannot read migration file {}: {}", file_path, exc)
+            continue
+        match = _ALEMBIC_REVISION_RE.search(src)
+        if match:
+            revisions.add(match.group(1))
+    return revisions
+
+
+def _read_alembic_version_rows(db_url: str) -> list[str]:
+    """Read current alembic stamps. / 读取当前 alembic_version 版本戳。"""
+    engine = create_engine(db_url, echo=False)
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(text("SELECT version_num FROM alembic_version")).fetchall()
+        return [str(row[0]) for row in rows]
+    except Exception:
+        return []
+    finally:
+        engine.dispose()
+
+
+def _inspect_main_schema_coverage(db_url: str) -> MainSchemaCoverage:
+    """Inspect current DB coverage against main models. / 对照主应用模型检查当前 DB 覆盖率。"""
+    import app.models  # noqa: F401
+    from app.core.base_model import Base
+
+    engine = create_engine(db_url, echo=False)
+    try:
+        inspector = inspect(engine)
+        actual_tables = set(inspector.get_table_names(schema="public"))
+        model_tables = set(Base.metadata.tables.keys())
+        missing_tables = tuple(sorted(model_tables - actual_tables))
+
+        total_model_column_count = 0
+        missing_columns_by_table: dict[str, tuple[str, ...]] = {}
+
+        for table_name in sorted(model_tables):
+            model_cols = tuple(col.name for col in Base.metadata.tables[table_name].columns)
+            total_model_column_count += len(model_cols)
+
+            if table_name in missing_tables:
+                missing_columns_by_table[table_name] = model_cols
+                continue
+
+            actual_cols = {
+                str(column["name"])
+                for column in inspector.get_columns(table_name, schema="public")
+            }
+            missing_cols = tuple(sorted(set(model_cols) - actual_cols))
+            if missing_cols:
+                missing_columns_by_table[table_name] = missing_cols
+
+        return MainSchemaCoverage(
+            model_table_count=len(model_tables),
+            total_model_column_count=total_model_column_count,
+            missing_tables=missing_tables,
+            missing_columns_by_table=missing_columns_by_table,
+        )
+    finally:
+        engine.dispose()
+
+
+def should_auto_recover_missing_main_branch_stamp(
+    *,
+    current_stamps: list[str],
+    main_revision_ids: set[str],
+    coverage: MainSchemaCoverage,
+    max_missing_columns: int = 3,
+) -> tuple[bool, str]:
+    """Decide whether missing main stamp can be auto-recovered. / 判断是否可自动恢复缺失的主分支 stamp。"""
+    if not current_stamps:
+        return False, "no existing alembic_version rows"
+
+    if any(stamp in main_revision_ids for stamp in current_stamps):
+        return False, "main branch stamp already present"
+
+    if coverage.missing_tables:
+        sample = ", ".join(coverage.missing_tables[:5])
+        return False, f"missing main tables: {sample}"
+
+    if coverage.missing_column_count > max_missing_columns:
+        return (
+            False,
+            f"missing too many model columns: {coverage.missing_column_count}",
+        )
+
+    return True, (
+        "main branch stamp missing while schema is already mostly present; "
+        f"column_coverage={coverage.column_coverage:.4f}"
+    )
+
+
+def _resolve_main_head_revision(cfg, main_revision_ids: set[str]) -> str | None:
+    """Resolve the current main-app head revision. / 解析当前主应用 head revision。"""
+    from alembic.script import ScriptDirectory
+
+    main_heads = [
+        revision
+        for revision in ScriptDirectory.from_config(cfg).get_heads()
+        if revision in main_revision_ids
+    ]
+    if len(main_heads) != 1:
+        return None
+    return str(main_heads[0])
+
+
+def maybe_recover_missing_main_branch_stamp(
+    *,
+    cfg,
+    db_url: str,
+    main_versions_dir: str | Path,
+) -> tuple[bool, str]:
+    """Attempt to restore missing main branch stamp. / 尝试恢复缺失的主分支 stamp。"""
+    main_revision_ids = _collect_revision_ids_from_dir(Path(main_versions_dir))
+    current_stamps = _read_alembic_version_rows(db_url)
+    coverage = _inspect_main_schema_coverage(db_url)
+    can_recover, reason = should_auto_recover_missing_main_branch_stamp(
+        current_stamps=current_stamps,
+        main_revision_ids=main_revision_ids,
+        coverage=coverage,
+    )
+    if not can_recover:
+        return False, reason
+
+    main_head = _resolve_main_head_revision(cfg, main_revision_ids)
+    if not main_head:
+        return False, "expected exactly one main-app head revision"
+
+    from alembic import command
+
+    command.stamp(cfg, main_head)
+    return True, (
+        f"Recovered missing main branch stamp by stamping '{main_head}' "
+        f"(existing non-main stamps: {', '.join(current_stamps)})"
+    )
+
+
 def purge_orphaned_alembic_stamps(backend_dir: Path | None = None) -> bool:
     """
     清除 alembic_version 中无法对应到迁移文件的孤立版本戳。
@@ -417,11 +596,17 @@ def run_migrations() -> bool:
         # 将迁移脚本写入临时文件 / Write migration script to temp file to avoid complex one-liner escaping
         import tempfile
         migration_script = f"""
+import sys
 import os
 import re
+from pathlib import Path
 from sqlalchemy import create_engine, text
 from alembic.config import Config
 from alembic import command
+
+backend_dir = {str(backend_dir)!r}
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
 
 # Step 1: 清除 alembic_version 中不存在于迁移文件的孤立 stamp
 # 兼容迁移写法：
@@ -532,11 +717,23 @@ except Exception as e:
             )
             command.stamp(cfg, 'heads')
         else:
-            print(
-                '[migration] DuplicateTable/already exists but alembic_version is nonempty; '
-                'refusing stamp. Fix the DB conflict or run: alembic upgrade heads'
+            from app.core.database import maybe_recover_missing_main_branch_stamp
+
+            recovered, recover_msg = maybe_recover_missing_main_branch_stamp(
+                cfg=cfg,
+                db_url={db_url!r},
+                main_versions_dir=Path(versions_dir),
             )
-            raise
+            if recovered:
+                print('[migration] ' + recover_msg)
+                command.upgrade(cfg, 'heads')
+            else:
+                print(
+                    '[migration] DuplicateTable/already exists but alembic_version is nonempty; '
+                    + recover_msg
+                    + '. Fix the DB conflict or run: alembic upgrade heads'
+                )
+                raise
     else:
         raise
 """

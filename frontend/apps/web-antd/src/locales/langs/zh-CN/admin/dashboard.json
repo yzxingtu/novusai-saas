@@ -1,75 +1,109 @@
 {
   "title": "控制台",
-  "platformConsole": "平台管理控制台",
-  "iconLibrary": "图标库",
-  "welcome": "欢迎回来",
-  "greeting": "您好，{name}！",
+  "platformConsole": "平台控制塔",
   "admin": "管理员",
-  "description": "这是平台管理端控制台，您可以在这里管理平台的各项配置。",
-  "stats": {
-    "totalTenants": "企业总数",
-    "activeTenants": "活跃企业",
-    "totalAdmins": "管理员数",
-    "systemHealth": "系统状态",
-    "totalUsers": "用户总数",
-    "todayLogin": "今日登录",
-    "aiCalls": "AI 调用总量",
-    "aiTokens": "Token 总量",
-    "storageFiles": "文件总数",
-    "pluginsEnabled": "已启用插件"
-  },
-  "health": {
-    "title": "系统健康",
-    "status": "状态",
-    "database": "数据库",
-    "connected": "已连接",
-    "disconnected": "未连接",
-    "memory": "内存使用",
-    "uptime": "运行时间"
-  },
-  "ai": {
-    "title": "AI 使用概览",
-    "totalCalls": "总调用数",
-    "todayCalls": "今日调用",
-    "totalTokens": "总 Token",
-    "successRate": "成功率",
-    "providers": "活跃供应商",
-    "totalCost": "总费用"
-  },
-  "storage": {
-    "title": "存储概览",
-    "totalFiles": "文件总数",
-    "totalSize": "总大小",
-    "drivers": "存储驱动分布",
-    "files": "个文件"
-  },
+  "connected": "已连接",
+  "disconnected": "未连接",
   "tenantGrowth": {
-    "title": "企业增长趋势",
-    "empty": "暂无数据"
+    "empty": "暂无增长数据"
   },
   "activities": {
     "title": "近期活动",
     "empty": "暂无活动记录"
   },
-  "quickActions": {
-    "title": "快捷操作",
-    "tenantManage": "企业管理",
-    "tenantManageDesc": "管理企业信息",
-    "adminManage": "管理员管理",
-    "adminManageDesc": "管理平台管理员",
-    "systemConfig": "系统配置",
-    "systemConfigDesc": "配置系统参数",
-    "aiProviders": "AI 供应商",
-    "aiProvidersDesc": "管理 AI 供应商",
-    "periodicTasks": "定时任务",
-    "periodicTasksDesc": "管理定时任务",
-    "operationLogs": "操作日志",
-    "operationLogsDesc": "查看操作记录"
+  "realtime": {
+    "onlineAdmins": "{count} 位管理员在线",
+    "unreadNotifications": "{count} 条未读通知"
   },
-  "systemOverview": {
-    "title": "系统信息",
-    "version": "版本",
-    "environment": "环境",
-    "currentTime": "当前时间"
+  "spotlights": {
+    "growth": "近 7 天新增企业",
+    "cost": "累计 AI 费用",
+    "plugins": "已启用插件",
+    "runtime": "连续运行时间"
+  },
+  "command": {
+    "badge": "平台控制塔",
+    "description": "{name}，这里集中展示企业增长、AI 基础设施状态与当前需要优先关注的运营信号。",
+    "metrics": {
+      "tenants": "企业总量",
+      "activeRate": "活跃企业占比",
+      "users": "平台用户总量",
+      "callsToday": "今日 AI 调用"
+    }
+  },
+  "controlTower": {
+    "unknown": "未知",
+    "growthTitle": "企业增长航迹",
+    "growthDesc": "用最近 14 天的企业增长走势快速判断平台新增势能和本周波动。",
+    "growthSeries": "新增企业",
+    "recentWindow": "近 7 天新增",
+    "deltaLabel": "较前一周期",
+    "widgetsTitle": "插件与扩展看板",
+    "widgetsDesc": "保留现有插件组件入口，把平台扩展态势并入控制塔。",
+    "widgetsEmptyTitle": "当前没有插件仪表盘组件",
+    "widgetsEmptyDesc": "现有插件仍可通过顶部组件、页面或其他插槽提供能力，但目前没有插件向 dashboard_widgets 区域注册内容。",
+    "signalsTitle": "关键运营信号",
+    "signalsDesc": "系统健康、插件风险、AI 成功率和企业使用密度在这里统一露出。",
+    "activitiesDesc": "最近的系统操作和关键动作，适合快速排查平台异常。",
+    "systemActor": "系统",
+    "unknownModule": "未标记模块",
+    "signals": {
+      "healthTitle": "系统健康",
+      "healthHealthy": "数据库、Redis 与 Celery 当前处于健康状态。",
+      "healthAttention": "存在需要关注的基础设施异常，建议尽快查看操作日志。",
+      "pluginTitle": "插件稳定性",
+      "pluginHealthy": "当前插件运行平稳，没有新增错误信号。",
+      "pluginAttention": "检测到插件错误，请优先检查最近一次变更和日志。",
+      "aiTitle": "AI 成功率",
+      "aiHealthy": "当前 AI 成功率保持在健康区间。",
+      "aiAttention": "AI 成功率下滑，建议检查模型、供应商或限流设置。",
+      "usersTitle": "企业用户密度",
+      "usersDesc": "当前活跃企业平均承载 {count} 位用户。"
+    },
+    "actionsTitle": "控制塔快捷动作",
+    "actionsDesc": "直接进入企业、套餐、AI 与运维页面，减少在多级菜单之间跳转。",
+    "actions": {
+      "tenantsTitle": "管理企业",
+      "tenantsDesc": "查看企业状态、活跃度与租户配置。",
+      "plansTitle": "管理套餐",
+      "plansDesc": "校正商业套餐、配额和续费能力边界。",
+      "providersTitle": "管理 AI 供应商",
+      "providersDesc": "检查模型供应商可用性和接入配置。",
+      "usageTitle": "查看 AI 使用分析",
+      "usageDesc": "进入 AI 使用页查看调用量、成本和分布趋势。",
+      "tasksTitle": "检查定时任务",
+      "tasksDesc": "确认定时任务、后台作业和自动化流程是否稳定。",
+      "logsTitle": "查看操作日志",
+      "logsDesc": "快速回看最近平台行为，适合排查异常和审计。"
+    }
+  },
+  "infrastructure": {
+    "title": "平台基础设施",
+    "description": "把 AI、系统连接、存储与插件状态放在同一块面板里集中查看。",
+    "runtime": "当前连续运行时间",
+    "ai": {
+      "title": "AI 总览",
+      "calls": "总调用数",
+      "tokens": "累计 Token",
+      "cost": "累计费用"
+    },
+    "system": {
+      "title": "系统连接",
+      "database": "数据库",
+      "redis": "Redis",
+      "celery": "Celery"
+    },
+    "storage": {
+      "title": "存储侧",
+      "files": "文件总数",
+      "size": "已用空间",
+      "drivers": "驱动数量"
+    },
+    "plugins": {
+      "title": "插件侧",
+      "enabled": "已启用",
+      "disabled": "未启用",
+      "errors": "异常数量"
+    }
   }
 }

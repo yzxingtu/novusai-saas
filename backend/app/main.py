@@ -737,6 +737,78 @@ def create_application() -> FastAPI:
     PLUGINS_ROOT = _Path(__file__).resolve().parent.parent / "plugins"
 
     @app.api_route(
+        "/plugin-public-assets/{public_endpoint}/{plugin_name}/{file_path:path}",
+        methods=["GET", "HEAD"],
+    )
+    async def serve_public_captcha_plugin_asset(
+        public_endpoint: str,
+        plugin_name: str,
+        file_path: str,
+        request: Request,
+    ):
+        """
+        Public captcha plugin asset service for login pages.
+        / 登录页公开验证码插件静态资源服务。
+
+        URL: /plugin-public-assets/{public_endpoint}/{plugin_name}/{file_path}
+        Filesystem: plugins/{plugin_name}/frontend/dist/{file_path}
+        """
+        import mimetypes as _mimetypes
+
+        from app.core.database import async_session_factory
+        from app.plugins.asset_resolver import resolve_plugin_asset_file
+        from app.plugins.asset_runtime import authorize_public_captcha_asset_request
+
+        _normalized = PurePosixPath(file_path.replace("\\", "/").lstrip("/"))
+        if str(_normalized) in {"", "."}:
+            return JSONResponse(
+                status_code=404,
+                content={"code": 4040, "message": "Plugin asset not found"},
+            )
+
+        async with async_session_factory() as db:
+            access = await authorize_public_captcha_asset_request(
+                db,
+                request,
+                plugin_name,
+                public_endpoint,
+            )
+            if not access.allowed:
+                return JSONResponse(
+                    status_code=404,
+                    content={"code": 4040, "message": "Plugin asset not found"},
+                )
+
+        asset_file = resolve_plugin_asset_file(PLUGINS_ROOT, plugin_name, file_path)
+        if asset_file is None:
+            return JSONResponse(
+                status_code=404,
+                content={"code": 4040, "message": "Plugin asset not found"},
+            )
+
+        content_type = _mimetypes.guess_type(str(asset_file))[0] or "application/octet-stream"
+        headers = {
+            "Cache-Control": "public, max-age=300, must-revalidate",
+            "X-Content-Type-Options": "nosniff",
+        }
+
+        if request.method == "HEAD":
+            return FastAPIResponse(
+                content=b"",
+                media_type=content_type,
+                headers={
+                    **headers,
+                    "Content-Length": str(asset_file.stat().st_size),
+                },
+            )
+
+        return FastAPIResponse(
+            content=asset_file.read_bytes(),
+            media_type=content_type,
+            headers=headers,
+        )
+
+    @app.api_route(
         "/plugin-assets/{plugin_name}/{file_path:path}",
         methods=["GET", "HEAD"],
     )

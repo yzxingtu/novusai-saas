@@ -21,6 +21,18 @@ from app.services.system.dashboard_service import AdminDashboardService
 router = APIRouter(prefix="/dashboard", tags=["Dashboard (Platform)"])
 
 
+@router.get("/overview", summary="平台仪表盘总览")
+@auth_only
+async def get_dashboard_overview(
+    db: DbSession,
+    _current_admin: ActiveAdmin,
+):
+    """聚合平台端 dashboard 所需真实数据 / Aggregate platform dashboard snapshot."""
+    service = AdminDashboardService(db)
+    data = await service.get_overview()
+    return success(data=data)
+
+
 @router.get("/stats", summary="获取仪表盘统计数据")
 @auth_only
 async def get_dashboard_stats(

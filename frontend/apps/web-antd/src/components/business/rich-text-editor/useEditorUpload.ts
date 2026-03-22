@@ -8,16 +8,59 @@ import { message } from 'ant-design-vue';
 
 import { $t } from '@vben/locales';
 
-import { requestClient } from '#/utils/request';
+import { smartUploadFile as adminSmartUploadFile } from '#/api/admin/attachment';
+import { smartUploadFile as tenantSmartUploadFile } from '#/api/tenant/attachment';
+import { smartUploadFile as userSmartUploadFile } from '#/api/user/attachment';
+import { toAttachmentImageUrl } from '#/utils/image';
 
 import type { AttachmentInfo } from './types';
 
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10 MB
 const MAX_ATTACHMENT_SIZE = 50 * 1024 * 1024; // 50 MB
 
-function getUploadEndpoint(): string {
-  const isAdmin = window.location.pathname.startsWith('/admin');
-  return isAdmin ? '/admin/attachments/upload' : '/tenant/attachments/upload';
+interface UploadAttachmentPayload {
+  id?: number | string;
+  mime_type?: null | string;
+  original_name?: null | string;
+  size?: null | number;
+}
+
+interface UploadResponseLike {
+  attachment?: UploadAttachmentPayload;
+  url?: string;
+}
+
+type UploadEndpoint = 'admin' | 'tenant' | 'user';
+
+function getUploadEndpoint(): UploadEndpoint {
+  if (window.location.pathname.startsWith('/admin')) {
+    return 'admin';
+  }
+  if (window.location.pathname.startsWith('/tenant')) {
+    return 'tenant';
+  }
+  return 'user';
+}
+
+async function smartUpload(file: File): Promise<UploadResponseLike> {
+  const endpoint = getUploadEndpoint();
+  if (endpoint === 'admin') {
+    return adminSmartUploadFile({
+      file,
+      tenant_id: 0,
+      visibility: 'public',
+    });
+  }
+  if (endpoint === 'user') {
+    return userSmartUploadFile({
+      file,
+      visibility: 'public',
+    });
+  }
+  return tenantSmartUploadFile({
+    file,
+    visibility: 'public',
+  });
 }
 
 export interface UploadResult {
@@ -33,17 +76,17 @@ export async function uploadImage(file: File): Promise<UploadResult | null> {
   }
 
   try {
-    const res = await requestClient.upload(getUploadEndpoint(), {
-      file,
-      visibility: 'public',
-    });
-    const data = (res as Record<string, unknown>).data as Record<
-      string,
-      unknown
-    >;
+    const data = await smartUpload(file);
+    const attachmentId = data.attachment?.id;
+    const url =
+      toAttachmentImageUrl(attachmentId, { preset: 'large' }) || data.url;
+    if (!attachmentId || !url) {
+      throw new Error('Invalid upload response');
+    }
+
     return {
-      url: data.url as string,
-      id: (data.attachment as Record<string, unknown>)?.id as string,
+      url,
+      id: attachmentId,
     };
   } catch {
     message.error($t('common.uploadValidation.uploadFailed'));
@@ -60,21 +103,18 @@ export async function uploadAttachment(
   }
 
   try {
-    const res = await requestClient.upload(getUploadEndpoint(), {
-      file,
-      visibility: 'public',
-    });
-    const data = (res as Record<string, unknown>).data as Record<
-      string,
-      unknown
-    >;
-    const attachment = data.attachment as Record<string, unknown>;
+    const data = await smartUpload(file);
+    const attachment = data.attachment;
+    if (!attachment?.id || !data.url) {
+      throw new Error('Invalid upload response');
+    }
+
     return {
-      id: attachment?.id as string,
-      name: attachment?.original_filename as string,
-      size: attachment?.file_size as number,
-      mime_type: attachment?.mime_type as string,
-      url: data.url as string,
+      id: attachment.id,
+      name: attachment.original_name || file.name,
+      size: attachment.size || file.size,
+      mime_type: attachment.mime_type || file.type,
+      url: data.url,
     };
   } catch {
     message.error($t('common.uploadValidation.uploadFailed'));
@@ -86,7 +126,11 @@ function removePlaceholderImage(editor: Editor, placeholder: string) {
   const { doc } = editor.state;
   doc.descendants((node, pos) => {
     if (node.type.name === 'image' && node.attrs.alt === placeholder) {
-      editor.chain().focus().deleteRange({ from: pos, to: pos + node.nodeSize }).run();
+      editor
+        .chain()
+        .focus()
+        .deleteRange({ from: pos, to: pos + node.nodeSize })
+        .run();
       return false;
     }
     return true;
@@ -104,11 +148,7 @@ export function handleImagePaste(editor: Editor, event: ClipboardEvent) {
       if (!file) continue;
 
       const placeholder = `uploading-${Date.now()}`;
-      editor
-        .chain()
-        .focus()
-        .setImage({ src: '', alt: placeholder })
-        .run();
+      editor.chain().focus().setImage({ src: '', alt: placeholder }).run();
 
       uploadImage(file).then((result) => {
         if (result) {

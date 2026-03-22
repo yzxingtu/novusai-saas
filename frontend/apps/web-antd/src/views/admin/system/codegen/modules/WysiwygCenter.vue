@@ -1,29 +1,24 @@
 <script lang="ts" setup>
-/**
- * WYSIWYG 中央预览主容器 / WYSIWYG Center Preview
- *
- * 列表页 | 新建表单 | 详情 三视图切换 + 字段管理入口
- */
+import { computed, onMounted, ref } from 'vue';
+import { Segmented } from 'ant-design-vue';
 
-import { computed, ref } from 'vue';
-import { Button, Segmented } from 'ant-design-vue';
-import { IconifyIcon } from '@vben/icons';
 import { $t } from '#/locales';
 import { useCodegenBuilderStore } from '#/store';
-import { createFieldFromPalette, ensureFieldKeys } from './field-utils';
-import type { PaletteItem } from './ComponentPalette.vue';
 
+import type { PaletteItem } from './ComponentPalette.vue';
 import FieldCardList from './FieldCardList.vue';
 import WysiwygDetailView from './WysiwygDetailView.vue';
 import WysiwygFormView from './WysiwygFormView.vue';
 import WysiwygListView from './WysiwygListView.vue';
+import { createFieldFromPalette, ensureFieldKeys } from './field-utils';
 
 defineOptions({ name: 'WysiwygCenter' });
+
+type WorkspaceMode = 'detail' | 'fields' | 'form' | 'list';
 
 const store = useCodegenBuilderStore();
 const fieldCardListRef = ref<InstanceType<typeof FieldCardList> | null>(null);
 const isDragOver = ref(false);
-/** 防误触发：dragleave 在进入子元素时也会触发，用计数仅在完全离开时清除 */
 let dragEnterCount = 0;
 
 const fields = computed(() => {
@@ -31,11 +26,45 @@ const fields = computed(() => {
   return ensureFieldKeys(arr);
 });
 
-function onDrop(e: DragEvent) {
+const selectedFieldName = computed(() => {
+  const selected = fields.value.find(
+    (field) =>
+      field.__key === store.selectedFieldKey ||
+      field.name === store.selectedFieldKey,
+  );
+  return String(selected?.display_name || selected?.name || '').trim();
+});
+
+const workspaceMode = computed<WorkspaceMode>({
+  get: () => (store.showFieldManager ? 'fields' : store.wysiwygViewMode),
+  set: (value) => {
+    if (value === 'fields') {
+      store.showFieldManager = true;
+      return;
+    }
+    store.showFieldManager = false;
+    store.wysiwygViewMode = value;
+  },
+});
+
+const workspaceMeta = computed(() => {
+  const mode = workspaceMode.value;
+  if (mode === 'fields')
+    return { title: $t('admin.system.codegen.wysiwyg.fieldsView') };
+  if (mode === 'form')
+    return { title: $t('admin.system.codegen.wysiwyg.formView') };
+  if (mode === 'detail')
+    return { title: $t('admin.system.codegen.wysiwyg.detailView') };
+  return { title: $t('admin.system.codegen.wysiwyg.listView') };
+});
+
+const showWorkspaceSummary = computed(() => workspaceMode.value !== 'fields');
+
+function onDrop(event: DragEvent) {
   dragEnterCount = 0;
   isDragOver.value = false;
-  e.preventDefault();
-  const raw = e.dataTransfer?.getData('application/json');
+  event.preventDefault();
+  const raw = event.dataTransfer?.getData('application/json');
   if (!raw) return;
   try {
     const item = JSON.parse(raw) as PaletteItem;
@@ -44,30 +73,29 @@ function onDrop(e: DragEvent) {
       return;
     }
     const newField = createFieldFromPalette(item, fields.value);
-    const next = [...fields.value, newField];
-    store.updateConfig({ fields: next });
+    store.updateConfig({ fields: [...fields.value, newField] });
     store.selectedFieldKey = newField.__key as string;
-  } catch (err) {
-    console.warn('[WysiwygCenter] onDrop failed', err);
+  } catch (error) {
+    console.warn('[WysiwygCenter] onDrop failed', error);
   }
 }
 
-function onDragEnter(e: DragEvent) {
-  e.preventDefault();
-  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+function onDragEnter(event: DragEvent) {
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
   dragEnterCount += 1;
   isDragOver.value = true;
 }
 
-function onDragOver(e: DragEvent) {
-  e.preventDefault();
-  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+function onDragOver(event: DragEvent) {
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
 }
 
-function onDragLeave(e: DragEvent) {
-  const el = e.currentTarget as HTMLElement;
-  const next = e.relatedTarget as Node | null;
-  if (next && el.contains(next)) return;
+function onDragLeave(event: DragEvent) {
+  const current = event.currentTarget as HTMLElement;
+  const related = event.relatedTarget as Node | null;
+  if (related && current.contains(related)) return;
   dragEnterCount -= 1;
   if (dragEnterCount <= 0) {
     dragEnterCount = 0;
@@ -75,62 +103,100 @@ function onDragLeave(e: DragEvent) {
   }
 }
 
-function toggleFieldManager() {
-  store.showFieldManager = !store.showFieldManager;
-}
-
 function addFromPalette(item: PaletteItem) {
   if (store.showFieldManager) {
     fieldCardListRef.value?.addFromPalette(item);
-  } else {
-    const newField = createFieldFromPalette(item, fields.value);
-    const next = [...fields.value, newField];
-    store.updateConfig({ fields: next });
-    store.selectedFieldKey = newField.__key as string;
+    return;
   }
+  const newField = createFieldFromPalette(item, fields.value);
+  store.updateConfig({ fields: [...fields.value, newField] });
+  store.selectedFieldKey = newField.__key as string;
 }
 
 defineExpose({ addFromPalette });
+
+onMounted(() => {
+  if (!store.selectedFieldKey) {
+    store.showFieldManager = true;
+  }
+});
 </script>
 
 <template>
   <div
-    :class="['flex min-h-0 min-w-80 flex-1 flex-col overflow-hidden bg-muted/20 transition-all', isDragOver && 'ring-2 ring-primary/50 ring-offset-2']"
+    :class="[
+      'flex min-h-[680px] min-w-80 flex-1 flex-col overflow-hidden rounded-[24px] bg-background transition-all',
+      isDragOver && 'ring-2 ring-primary/50 ring-offset-2',
+    ]"
     @dragenter="onDragEnter"
     @dragover="onDragOver"
     @dragleave="onDragLeave"
     @drop="onDrop"
   >
-    <!-- 顶部：视图切换 + 字段管理 -->
-    <div class="flex items-center justify-between border-b border-border px-3 py-2">
-      <Segmented
-        v-model:value="store.wysiwygViewMode"
-        :options="[
-          { label: $t('admin.system.codegen.wysiwyg.listView'), value: 'list' },
-          { label: $t('admin.system.codegen.wysiwyg.formView'), value: 'form' },
-          { label: $t('admin.system.codegen.wysiwyg.detailView'), value: 'detail' },
-        ]"
-        size="small"
-      />
-      <Button size="small" type="text" @click="toggleFieldManager">
-        <IconifyIcon
-          :icon="store.showFieldManager ? 'lucide:layout-grid' : 'lucide:list'"
-          class="mr-1 size-4"
-        />
-        {{ store.showFieldManager ? $t('admin.system.codegen.wysiwyg.backToPreview') : $t('admin.system.codegen.wysiwyg.fieldManager') }}
-      </Button>
+    <div class="border-b border-border px-4 py-3">
+      <div class="flex flex-col gap-3">
+        <div
+          class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between"
+        >
+          <div v-if="showWorkspaceSummary" class="min-w-0">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-sm font-semibold text-foreground">
+                {{ workspaceMeta.title }}
+              </span>
+              <span
+                class="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground"
+              >
+                {{
+                  $t('admin.system.codegen.fieldConfig.fieldCount', {
+                    count: fields.length,
+                  })
+                }}
+              </span>
+              <span
+                v-if="selectedFieldName"
+                class="max-w-full truncate rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 text-xs text-primary"
+              >
+                {{ selectedFieldName }}
+              </span>
+            </div>
+          </div>
+
+          <div class="w-full xl:w-auto xl:min-w-[320px]">
+            <Segmented
+              v-model:value="workspaceMode"
+              block
+              :options="[
+                {
+                  label: $t('admin.system.codegen.wysiwyg.fieldsView'),
+                  value: 'fields',
+                },
+                {
+                  label: $t('admin.system.codegen.wysiwyg.listView'),
+                  value: 'list',
+                },
+                {
+                  label: $t('admin.system.codegen.wysiwyg.formView'),
+                  value: 'form',
+                },
+                {
+                  label: $t('admin.system.codegen.wysiwyg.detailView'),
+                  value: 'detail',
+                },
+              ]"
+              size="small"
+            />
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- 内容区 -->
-    <div class="min-h-0 flex-1 overflow-y-auto p-4">
-      <!-- 字段管理模式：覆盖展示 FieldCardList -->
+    <div class="min-h-0 flex-1 overflow-y-auto bg-muted/10 p-3">
       <FieldCardList
-        v-if="store.showFieldManager"
+        v-if="workspaceMode === 'fields'"
         ref="fieldCardListRef"
         class="min-h-full"
       />
 
-      <!-- WYSIWYG 预览：v-show 保留表单状态，避免切换时 formValues 丢失 -->
       <div v-else class="min-h-full">
         <WysiwygListView v-show="store.wysiwygViewMode === 'list'" />
         <WysiwygFormView v-show="store.wysiwygViewMode === 'form'" />

@@ -72,12 +72,27 @@ class PageOperationExecutor(BaseToolExecutor):
 
         session_id = None
         if context:
-            fresh_id = get_active_session_id(
-                context.user_id,
-                page_key,
-                context.user_role,
-            )
-            session_id = fresh_id or context.page_session_id
+            session_id = context.page_session_id
+            if not session_id:
+                session_id = get_active_session_id(
+                    context.user_id,
+                    page_key,
+                    context.user_role,
+                )
+            else:
+                fresh_id = get_active_session_id(
+                    context.user_id,
+                    page_key,
+                    context.user_role,
+                )
+                if fresh_id and fresh_id != session_id:
+                    logger.info(
+                        "Page operation keeps explicit session_id over active mapping: "
+                        "page_key={} explicit={} active={}",
+                        page_key,
+                        session_id,
+                        fresh_id,
+                    )
 
         if not session_id:
             return ToolResult(
@@ -105,6 +120,7 @@ class PageOperationExecutor(BaseToolExecutor):
 
         duration_ms = int((time.perf_counter() - start) * 1000)
         success = bool(result.get("success", False))
+        invoke_id = result.get("invoke_id")
         message = result.get("message", "")
         error_type = result.get("error_type", "")
         result_data = result.get("data")
@@ -138,12 +154,14 @@ class PageOperationExecutor(BaseToolExecutor):
                         ),
                     ),
                     request_data={
+                        "page_session_id": session_id,
                         "page_key": page_key,
                         "operation_name": operation_name,
                         "params": params,
                         "requires_confirmation": requires_confirmation,
                     },
                     response_data={
+                        "invoke_id": invoke_id or None,
                         "message": message,
                         "error_type": error_type or None,
                         "data": result_data,

@@ -56,13 +56,14 @@ class RateLimiter:
     """
 
     # Lua script: TPM atomic pre-deduct + check / Lua 脚本：TPM 原子预扣减+检查
-    # Returns -1 on success, >= 0 = current TPM total (exceeded, not deducted) / 返回 -1 表示成功预扣，>= 0 表示当前 TPM 总量（超限未扣减）
+    # Returns -1 on success, >= 0 = would-be TPM total if recorded (exceeded, not deducted)
+    # 返回 -1 表示成功预扣，>= 0 表示若本次写入后将达到的 TPM 总量（超限未扣减）
     _TPM_CHECK_AND_RECORD_LUA = """
     local cur = redis.call('GET', KEYS[1])
     local prev = redis.call('GET', KEYS[2])
     local total = (tonumber(cur) or 0) + (tonumber(prev) or 0)
     if total + tonumber(ARGV[1]) > tonumber(ARGV[2]) then
-        return total
+        return total + tonumber(ARGV[1])
     end
     redis.call('INCRBY', KEYS[1], ARGV[1])
     redis.call('EXPIRE', KEYS[1], tonumber(ARGV[3]))
@@ -88,6 +89,7 @@ class RateLimiter:
         rpm_limit: int | None = None,
         tpm_limit: int | None = None,
         estimated_tokens: int = 0,
+        current_time: int | None = None,
     ) -> bool:
         """
         Atomically check and record rate limit (eliminates TOCTOU race).
@@ -112,7 +114,7 @@ class RateLimiter:
             RateLimitExceeded: Rate limit exceeded / 超出速率限制
         """
         redis = await get_redis()
-        current_time = int(time.time())
+        current_time = current_time or int(time.time())
         expire_seconds = RateLimiter.WINDOW_SIZE + 10
 
         # RPM atomic check + record / RPM 原子检查+记录

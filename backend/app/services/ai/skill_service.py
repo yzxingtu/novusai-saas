@@ -228,6 +228,10 @@ class SkillService(TenantService[Skill, SkillRepository]):
         """按类型获取技能 / Get skills by type."""
         return await self.repo.get_by_type(skill_type)
 
+    async def get_by_package_id(self, package_id: int) -> list[Skill]:
+        """获取企业可见技能包下的全部技能 / Get all skills under a tenant-visible package."""
+        return await self.repo.get_by_package_id(package_id)
+
 
 class AdminSkillService(GlobalService[Skill, AdminSkillRepository]):
     """
@@ -318,6 +322,59 @@ class AdminSkillService(GlobalService[Skill, AdminSkillRepository]):
 
         updated = await self.repo.update(id, {"is_active": is_active})
         return updated
+
+    async def get_binding_select_options(
+        self,
+        *,
+        search: str = "",
+        package_id: int | None = None,
+        page: int = 1,
+        page_size: int = 20,
+        include_system: bool = True,
+        only_active: bool = True,
+    ):
+        """
+        Admin agent skill binding picker: paginated skills + package metadata.
+        管理端智能体技能绑定选择器分页数据。
+        """
+        from app.schemas.common.select import SelectOption, SelectResponse
+
+        rows, total = await self.repo.query_admin_binding_select(
+            search=search or None,
+            package_id=package_id,
+            page=page,
+            page_size=page_size,
+            include_system=include_system,
+            only_active=only_active,
+        )
+        items: list[SelectOption] = []
+        for skill, pack in rows:
+            label = skill.name or (skill.key or str(skill.id))
+            items.append(
+                SelectOption(
+                    label=label,
+                    value=skill.id,
+                    extra={
+                        "package_id": pack.id,
+                        "package_name": pack.name,
+                        "skill_type": skill.type,
+                        "skill_key": skill.key,
+                        "description": skill.description,
+                        "is_system": bool(skill.is_system),
+                        "is_active": bool(skill.is_active),
+                        "source_plugin": pack.source_plugin,
+                        "tenant_id": skill.tenant_id,
+                    },
+                )
+            )
+        has_more = (page * page_size) < total
+        return SelectResponse(
+            items=items,
+            total=total,
+            page=page,
+            page_size=page_size,
+            has_more=has_more,
+        )
 
 
 __all__ = ["SkillService", "AdminSkillService"]

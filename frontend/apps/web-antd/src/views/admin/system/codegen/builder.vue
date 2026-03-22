@@ -4,17 +4,31 @@
  *
  * 三栏布局: 组件面板 | 字段卡片列表 | 属性面板 + 表单预览
  */
-import type { CodegenVersionItem } from '#/api/admin/codegen';
+import type {
+  CodegenConfigInfo,
+  CodegenVersionItem,
+  PreviewResult,
+} from '#/api/admin/codegen';
 
 import { Page } from '@vben/common-ui';
 import yaml from 'js-yaml';
-import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue';
+import {
+  computed,
+  defineAsyncComponent,
+  h,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  ref,
+  watch,
+} from 'vue';
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
 
 import {
   Alert,
   Badge,
   Button,
+  Card,
   Checkbox,
   Collapse,
   CollapsePanel,
@@ -24,8 +38,10 @@ import {
   Menu,
   MenuItem,
   Modal,
+  message,
   Radio,
   Select,
+  Tag,
   Tooltip,
 } from 'ant-design-vue';
 import { IconifyIcon } from '@vben/icons';
@@ -40,10 +56,10 @@ import {
   getCodegenPresetApi,
   postCodegenConfigRestoreVersionApi,
   postCodegenGenerateApi,
+  postCodegenPreviewApi,
   postCodegenValidateApi,
   updateCodegenConfigApi,
 } from '#/api/admin/codegen';
-import { message } from 'ant-design-vue';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 import { useCodegenBuilderStore } from '#/store';
@@ -53,12 +69,27 @@ import type { PaletteItem } from './modules/ComponentPalette.vue';
 import { createFieldFromPalette, ensureFieldKeys } from './modules/field-utils';
 import { inferFieldConfigForMerge, pluralize } from './modules/infer';
 
-const ComponentPalette = defineAsyncComponent(() => import('./modules/ComponentPalette.vue'));
-const FieldPropertyPanel = defineAsyncComponent(() => import('./modules/FieldPropertyPanel.vue'));
-const WysiwygCenter = defineAsyncComponent(() => import('./modules/WysiwygCenter.vue'));
-const CodePreviewModal = defineAsyncComponent(() => import('./modules/CodePreviewModal.vue'));
-const ExpertModal = defineAsyncComponent(() => import('./modules/ExpertModal.vue'));
-const DbTableImportModal = defineAsyncComponent(() => import('./modules/DbTableImportModal.vue'));
+const ComponentPalette = defineAsyncComponent(
+  () => import('./modules/ComponentPalette.vue'),
+);
+const CodegenValidationPanel = defineAsyncComponent(
+  () => import('./modules/CodegenValidationPanel.vue'),
+);
+const FieldPropertyPanel = defineAsyncComponent(
+  () => import('./modules/FieldPropertyPanel.vue'),
+);
+const WysiwygCenter = defineAsyncComponent(
+  () => import('./modules/WysiwygCenter.vue'),
+);
+const CodePreviewModal = defineAsyncComponent(
+  () => import('./modules/CodePreviewModal.vue'),
+);
+const ExpertModal = defineAsyncComponent(
+  () => import('./modules/ExpertModal.vue'),
+);
+const DbTableImportModal = defineAsyncComponent(
+  () => import('./modules/DbTableImportModal.vue'),
+);
 
 defineOptions({ name: 'AdminSystemCodegenBuilder' });
 
@@ -68,13 +99,18 @@ const store = useCodegenBuilderStore();
 
 const wysiwygRef = ref<InstanceType<typeof WysiwygCenter> | null>(null);
 const resourceInputRef = ref<HTMLElement | null>(null);
+const builderTopRef = ref<HTMLElement | null>(null);
 
 const codePreviewOpen = ref(false);
 const expertModalOpen = ref(false);
 const dbImportOpen = ref(false);
 const isSaving = ref(false);
 const isGenerating = ref(false);
-const validationErrors = ref<Array<{ code: string; message: string; path: string; field: string }>>([]);
+const isPreparingGenerate = ref(false);
+const validationErrors = ref<
+  Array<{ code: string; message: string; path: string; field: string }>
+>([]);
+const configMeta = ref<CodegenConfigInfo | null>(null);
 const importYamlVisible = ref(false);
 const importYamlText = ref('');
 const isImporting = ref(false);
@@ -97,7 +133,13 @@ const lastResult = ref<{
   resource?: string | null;
   module?: string | null;
   table_name?: string | null;
-  migration?: { success?: boolean; message?: string; migration_path?: string; phase?: string; error?: string } | null;
+  migration?: {
+    success?: boolean;
+    message?: string;
+    migration_path?: string;
+    phase?: string;
+    error?: string;
+  } | null;
 } | null>(null);
 type GenerateNextStepKey =
   | 'checkMigration'
@@ -108,6 +150,7 @@ type GenerateNextStepKey =
   | 'reviewCode';
 
 const moduleOptions = ref<Array<{ label: string; value: string }>>([]);
+const COMMON_MODULE_KEYS = ['system', 'business', 'tenant', 'ai'] as const;
 
 const resultNextSteps = computed<GenerateNextStepKey[]>(() => {
   const result = lastResult.value;
@@ -139,6 +182,16 @@ const resultNextSteps = computed<GenerateNextStepKey[]>(() => {
   return steps;
 });
 
+const hasPreviewSnapshot = computed(() => {
+  const cache = store.previewCache;
+  return Boolean(
+    cache?.error ||
+    cache?.files?.length ||
+    cache?.conflicts?.length ||
+    cache?.warnings?.length,
+  );
+});
+
 const configId = computed(() => {
   const id = route.params.id;
   if (id == null || id === '' || id === 'new') return null;
@@ -146,6 +199,32 @@ const configId = computed(() => {
   return !isNaN(num) ? num : null;
 });
 const isNewMode = computed(() => !configId.value);
+const currentLifecycleStatus = computed(
+  () => configMeta.value?.status || 'draft',
+);
+const currentManifestPresent = computed(() =>
+  Boolean(configMeta.value?.manifest_present),
+);
+const builderHeadline = computed(() => {
+  const resourceValue = (store.configJson.resource as string) || '';
+  if (resourceValue) return resourceValue;
+  return isNewMode.value
+    ? $t('admin.system.codegen.builder.heroTitleNew')
+    : $t('admin.system.codegen.builder.heroTitleEdit');
+});
+const builderSubline = computed(() => {
+  const moduleValue = (store.configJson.module as string) || 'system';
+  const displayValue = (store.configJson.display_name as string) || '';
+  if (displayValue) {
+    return $t('admin.system.codegen.builder.heroDescNamed', {
+      module: moduleValue,
+      display: displayValue,
+    });
+  }
+  return isNewMode.value
+    ? $t('admin.system.codegen.builder.heroDescNew')
+    : $t('admin.system.codegen.builder.heroDescEdit');
+});
 
 const resource = computed({
   get: () => (store.configJson.resource as string) || '',
@@ -155,6 +234,35 @@ const moduleVal = computed({
   get: () => (store.configJson.module as string) || 'system',
   set: (v) => store.updateConfig({ module: v }),
 });
+const normalizedModuleOptions = computed(() => {
+  const seen = new Set<string>();
+  const merged: Array<{ label: string; value: string }> = [];
+  const candidateCodes = [
+    ...moduleOptions.value.map((item) => item.value),
+    ...COMMON_MODULE_KEYS,
+    moduleVal.value || 'system',
+  ];
+
+  for (const code of candidateCodes) {
+    if (!code || seen.has(code)) continue;
+    seen.add(code);
+    const key = `admin.system.codegen.basic.moduleLabels.${code}`;
+    const translated = $t(key) as string;
+    merged.push({
+      label: translated === key ? code : translated,
+      value: code,
+    });
+  }
+
+  return merged;
+});
+const commonModuleOptions = computed(() =>
+  normalizedModuleOptions.value.filter((item) =>
+    COMMON_MODULE_KEYS.includes(
+      item.value as (typeof COMMON_MODULE_KEYS)[number],
+    ),
+  ),
+);
 const displayName = computed({
   get: () => (store.configJson.display_name as string) || '',
   set: (v) => store.updateConfig({ display_name: v }),
@@ -167,13 +275,26 @@ const resourcePlural = computed({
   get: () => (store.configJson.resource_plural as string) || '',
   set: (v) => store.updateConfig({ resource_plural: v }),
 });
-const model = computed(() => (store.configJson.model as Record<string, unknown>) || {});
-const endpoints = computed(() => (store.configJson.endpoints as Record<string, unknown>[]) || []);
+const model = computed(
+  () => (store.configJson.model as Record<string, unknown>) || {},
+);
+const endpoints = computed(
+  () => (store.configJson.endpoints as Record<string, unknown>[]) || [],
+);
 const firstEndpoint = computed(() => endpoints.value[0] || {});
-const frontend = computed(() => (firstEndpoint.value?.frontend as Record<string, unknown>) || {});
+const frontend = computed(
+  () => (firstEndpoint.value?.frontend as Record<string, unknown>) || {},
+);
 
-const hasAdmin = computed(() => endpoints.value.some((e) => e.scope === 'admin'));
-const hasTenant = computed(() => endpoints.value.some((e) => e.scope === 'tenant'));
+const hasAdmin = computed(() =>
+  endpoints.value.some((e) => e.scope === 'admin'),
+);
+const hasTenant = computed(() =>
+  endpoints.value.some((e) => e.scope === 'tenant'),
+);
+const scopeCount = computed(
+  () => Number(hasAdmin.value) + Number(hasTenant.value),
+);
 const feMode = computed({
   get: () => (frontend.value.mode as string) || 'table',
   set: (v) => {
@@ -181,16 +302,74 @@ const feMode = computed({
     if (list.length > 0) {
       const next = list.map((ep) => ({
         ...ep,
-        frontend: { ...((ep.frontend as Record<string, unknown>) || {}), mode: v },
+        frontend: {
+          ...((ep.frontend as Record<string, unknown>) || {}),
+          mode: v,
+        },
       }));
       store.updateConfig({ endpoints: next });
     }
   },
 });
 
+function getStatusBadgeColor(status: string): string {
+  const map: Record<string, string> = {
+    draft: 'default',
+    generated: 'processing',
+    applied: 'success',
+    rolled_back: 'warning',
+  };
+  return map[status] || 'default';
+}
+
+function getStatusBadgeText(status: string): string {
+  const map: Record<string, string> = {
+    draft: $t('admin.system.codegen.status_options.draft'),
+    generated: $t('admin.system.codegen.status_options.generated'),
+    applied: $t('admin.system.codegen.status_options.applied'),
+    rolled_back: $t('admin.system.codegen.status_options.rolled_back'),
+  };
+  return map[status] || status || '-';
+}
+
+const lifecycleBadges = computed(() => [
+  {
+    key: 'status',
+    color: getStatusBadgeColor(currentLifecycleStatus.value),
+    text: getStatusBadgeText(currentLifecycleStatus.value),
+  },
+  {
+    key: 'manifest',
+    color: currentManifestPresent.value ? 'success' : 'default',
+    text: currentManifestPresent.value
+      ? $t('admin.system.codegen.manifest.present')
+      : $t('admin.system.codegen.manifest.absent'),
+  },
+  {
+    key: 'dirty',
+    color: store.isDirty ? 'warning' : 'default',
+    text: store.isDirty
+      ? $t('admin.system.codegen.builder.unsavedChanges')
+      : $t('admin.system.codegen.builder.savedState'),
+  },
+]);
+
+const previewSummary = computed(() => store.previewCache?.summary ?? null);
+const previewWarningCount = computed(
+  () => store.previewCache?.warnings?.length ?? 0,
+);
+const previewConflictCount = computed(
+  () => store.previewCache?.conflicts?.length ?? 0,
+);
+
 /** 创建默认 endpoint / Create default endpoint for scope */
-function createDefaultEndpoint(scope: 'admin' | 'tenant'): Record<string, unknown> {
-  const r = (store.configJson.resource_plural as string) || (store.configJson.resource as string) || 'items';
+function createDefaultEndpoint(
+  scope: 'admin' | 'tenant',
+): Record<string, unknown> {
+  const r =
+    (store.configJson.resource_plural as string) ||
+    (store.configJson.resource as string) ||
+    'items';
   const plural = r.endsWith('s') ? r : `${r}s`;
   return {
     scope,
@@ -210,7 +389,9 @@ function createDefaultEndpoint(scope: 'admin' | 'tenant'): Record<string, unknow
 
 function onAdminChange(checked: boolean) {
   if (checked) {
-    const hasAdminEp = endpoints.value.some((e) => (e.scope as string) === 'admin');
+    const hasAdminEp = endpoints.value.some(
+      (e) => (e.scope as string) === 'admin',
+    );
     if (!hasAdminEp) {
       const next = [createDefaultEndpoint('admin'), ...endpoints.value];
       store.updateConfig({ endpoints: next });
@@ -229,14 +410,18 @@ function onAdminChange(checked: boolean) {
 
 function onTenantChange(checked: boolean) {
   if (checked) {
-    const hasTenantEp = endpoints.value.some((e) => (e.scope as string) === 'tenant');
+    const hasTenantEp = endpoints.value.some(
+      (e) => (e.scope as string) === 'tenant',
+    );
     if (!hasTenantEp) {
       const next = [...endpoints.value, createDefaultEndpoint('tenant')];
       store.updateConfig({ endpoints: next });
       syncBaseClassFromEndpoints(next);
     }
   } else {
-    const next = endpoints.value.filter((e) => (e.scope as string) !== 'tenant');
+    const next = endpoints.value.filter(
+      (e) => (e.scope as string) !== 'tenant',
+    );
     if (next.length === 0) {
       message.warning($t('admin.system.codegen.builder.atLeastOneScope'));
       return;
@@ -244,6 +429,12 @@ function onTenantChange(checked: boolean) {
     store.updateConfig({ endpoints: next });
     syncBaseClassFromEndpoints(next);
   }
+}
+
+function extractCheckboxChecked(event: unknown): boolean {
+  return Boolean(
+    (event as { target?: { checked?: boolean } })?.target?.checked ?? false,
+  );
 }
 
 function syncBaseClassFromEndpoints(eps: Record<string, unknown>[]) {
@@ -280,6 +471,78 @@ function onPaletteAdd(item: PaletteItem) {
   }
 }
 
+async function refreshConfigMeta(targetId?: number | null) {
+  const id = targetId ?? store.configId ?? configId.value;
+  if (!id) {
+    configMeta.value = null;
+    return;
+  }
+  try {
+    configMeta.value = await getCodegenConfigDetailApi(id);
+  } catch {
+    configMeta.value = null;
+  }
+}
+
+function setPreviewSnapshot(preview: PreviewResult) {
+  store.setPreviewCache({
+    files: preview.files ?? [],
+    summary: preview.summary,
+    warnings: preview.warnings ?? [],
+    conflicts: preview.conflicts ?? [],
+    timestamp: Date.now(),
+    error: preview.error ?? undefined,
+  });
+}
+
+function focusBuilderTop() {
+  builderTopRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  resourceInputRef.value?.focus?.();
+}
+
+function locateValidationIssue(item: { path?: string; field?: string }) {
+  const path = String(item.path || '');
+  const fieldName = String(item.field || '');
+
+  const fieldIndexMatch = path.match(/^fields\[(\d+)\]/);
+  if (fieldIndexMatch) {
+    const index = Number(fieldIndexMatch[1]);
+    const field = fields.value[index];
+    if (field?.__key) {
+      store.selectedFieldKey = String(field.__key);
+      nextTick(() => {
+        document
+          .querySelector(`[data-field-key="${String(field.__key)}"]`)
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+      return;
+    }
+  }
+
+  if (fieldName) {
+    const targetField = fields.value.find((field) => field.name === fieldName);
+    if (targetField?.__key) {
+      store.selectedFieldKey = String(targetField.__key);
+      nextTick(() => {
+        document
+          .querySelector(`[data-field-key="${String(targetField.__key)}"]`)
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+      return;
+    }
+  }
+
+  focusBuilderTop();
+}
+
+async function buildGeneratePreviewSnapshot() {
+  const preview = await postCodegenPreviewApi({
+    config_json: store.configJson,
+  });
+  setPreviewSnapshot(preview);
+  return preview;
+}
+
 async function onSave() {
   const json = store.configJson;
   const r = (json.resource as string) || '';
@@ -294,12 +557,17 @@ async function onSave() {
     return;
   }
   if (!disp?.trim()) {
-    message.warning($t('admin.system.codegen.validation.display_name_required'));
+    message.warning(
+      $t('admin.system.codegen.validation.display_name_required'),
+    );
     return;
   }
   // 保存前校验 / Validate before save
   try {
-    const vResult = await postCodegenValidateApi({ config_json: json });
+    const vResult = await postCodegenValidateApi({
+      config_json: json,
+      mode: 'draft',
+    });
     if (!vResult.valid) {
       validationErrors.value = vResult.errors ?? [];
       message.warning($t('admin.system.codegen.builder.saveValidateFailed'));
@@ -311,10 +579,13 @@ async function onSave() {
   }
   isSaving.value = true;
   try {
-    const name = (json.name as string) || (json.display_name as string) || $t('admin.system.codegen.unnamed');
+    const name =
+      (json.name as string) ||
+      (json.display_name as string) ||
+      $t('admin.system.codegen.unnamed');
     const displayNameEn = (json.display_name_en as string) || r;
     if (store.configId != null) {
-      await updateCodegenConfigApi(store.configId, {
+      const updated = await updateCodegenConfigApi(store.configId, {
         name,
         resource: r,
         module: mod,
@@ -323,6 +594,7 @@ async function onSave() {
         config_json: json,
       });
       store.saveConfig(store.configId, json);
+      configMeta.value = updated;
       validationErrors.value = [];
       message.success($t('admin.system.codegen.messages.saveSuccess'));
       return;
@@ -336,6 +608,7 @@ async function onSave() {
       config_json: json,
     });
     store.saveConfig(res.id, res.config_json || json);
+    configMeta.value = res;
     validationErrors.value = [];
     message.success($t('admin.system.codegen.messages.saveSuccess'));
     router.replace(`/admin/system/codegen/${res.id}/edit`);
@@ -350,7 +623,10 @@ async function onSave() {
 async function doGenerate() {
   validationErrors.value = [];
   try {
-    const vResult = await postCodegenValidateApi({ config_json: store.configJson });
+    const vResult = await postCodegenValidateApi({
+      config_json: store.configJson,
+      mode: 'generate',
+    });
     if (!vResult.valid) {
       validationErrors.value = vResult.errors ?? [];
       message.warning($t('admin.system.codegen.generate.validateFirst'));
@@ -367,6 +643,9 @@ async function doGenerate() {
       store.loadConfig(result.config_id, store.configJson);
       router.replace(`/admin/system/codegen/${result.config_id}/edit`);
     }
+    await refreshConfigMeta(
+      result.config_id ?? store.configId ?? configId.value,
+    );
     if (result.success) {
       message.success($t('admin.system.codegen.messages.generateSuccess'));
     } else if (result.errors?.length) {
@@ -384,16 +663,159 @@ function closeResultModal() {
   lastResult.value = null;
 }
 
+function openPreviewFromResult() {
+  resultModalVisible.value = false;
+  codePreviewOpen.value = true;
+}
+
 async function onGenerate() {
   const r = (store.configJson.resource as string) || '';
-  Modal.confirm({
-    title: $t('admin.system.codegen.builder.generateConfirmTitle'),
-    content: $t('admin.system.codegen.builder.generateConfirmContent', { resource: r }),
-    onOk: async () => {
-      isGenerating.value = true;
-      await doGenerate();
-    },
-  });
+  isPreparingGenerate.value = true;
+  try {
+    const preview = await buildGeneratePreviewSnapshot();
+    const summary = preview.summary ?? {
+      create_count: 0,
+      modify_count: 0,
+      backend_files: 0,
+      frontend_files: 0,
+      total_lines: 0,
+    };
+    const conflicts = preview.conflicts?.length ?? 0;
+    const warnings = preview.warnings?.length ?? 0;
+
+    Modal.confirm({
+      title: $t('admin.system.codegen.builder.generateConfirmTitle'),
+      width: 560,
+      okType: conflicts > 0 ? 'danger' : 'primary',
+      content: h('div', { class: 'flex flex-col gap-3' }, [
+        h(
+          'p',
+          { class: 'm-0 text-sm text-muted-foreground' },
+          $t('admin.system.codegen.builder.generateConfirmContent', {
+            resource: r,
+          }),
+        ),
+        h(
+          'div',
+          {
+            class:
+              'grid grid-cols-2 gap-2 rounded-2xl border border-border bg-muted/20 p-3 text-sm',
+          },
+          [
+            h('div', [
+              h(
+                'div',
+                { class: 'text-xs text-muted-foreground' },
+                $t('admin.system.codegen.resource'),
+              ),
+              h('div', { class: 'font-mono font-medium' }, r || '-'),
+            ]),
+            h('div', [
+              h(
+                'div',
+                { class: 'text-xs text-muted-foreground' },
+                $t('admin.system.codegen.builder.metricFields'),
+              ),
+              h('div', { class: 'font-medium' }, String(store.fieldCount)),
+            ]),
+            h('div', [
+              h(
+                'div',
+                { class: 'text-xs text-muted-foreground' },
+                $t('admin.system.codegen.builder.previewCreateFiles'),
+              ),
+              h(
+                'div',
+                { class: 'font-medium' },
+                String(summary.create_count ?? 0),
+              ),
+            ]),
+            h('div', [
+              h(
+                'div',
+                { class: 'text-xs text-muted-foreground' },
+                $t('admin.system.codegen.builder.previewModifyFiles'),
+              ),
+              h(
+                'div',
+                { class: 'font-medium' },
+                String(summary.modify_count ?? 0),
+              ),
+            ]),
+            h('div', [
+              h(
+                'div',
+                { class: 'text-xs text-muted-foreground' },
+                $t('admin.system.codegen.generate.conflicts'),
+              ),
+              h(
+                'div',
+                {
+                  class:
+                    conflicts > 0
+                      ? 'font-medium text-amber-600'
+                      : 'font-medium',
+                },
+                String(conflicts),
+              ),
+            ]),
+            h('div', [
+              h(
+                'div',
+                { class: 'text-xs text-muted-foreground' },
+                $t('admin.system.codegen.builder.previewWarnings'),
+              ),
+              h(
+                'div',
+                {
+                  class:
+                    warnings > 0 ? 'font-medium text-amber-600' : 'font-medium',
+                },
+                String(warnings),
+              ),
+            ]),
+          ],
+        ),
+        conflicts > 0
+          ? h(
+              'div',
+              {
+                class:
+                  'rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700',
+              },
+              $t('admin.system.codegen.builder.generateConflictWarning'),
+            )
+          : null,
+        warnings > 0
+          ? h(
+              'div',
+              {
+                class:
+                  'rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-700',
+              },
+              $t('admin.system.codegen.builder.generateWarningHint'),
+            )
+          : null,
+      ]),
+      onOk: async () => {
+        isGenerating.value = true;
+        await doGenerate();
+      },
+    });
+  } catch {
+    Modal.confirm({
+      title: $t('admin.system.codegen.builder.generateConfirmTitle'),
+      content: $t('admin.system.codegen.builder.generateConfirmContent', {
+        resource: r,
+      }),
+      onOk: async () => {
+        isGenerating.value = true;
+        await doGenerate();
+      },
+    });
+  } finally {
+    isPreparingGenerate.value = false;
+  }
 }
 
 function onExportYaml() {
@@ -444,12 +866,19 @@ async function onConfirmImportYaml() {
   }
   isImporting.value = true;
   try {
-    const result = await postCodegenValidateApi({ config_json: parsed });
+    const result = await postCodegenValidateApi({
+      config_json: parsed,
+      mode: 'draft',
+    });
     if (!result.valid) {
       const msgs = (result.errors ?? []).map((e) => e.message).filter(Boolean);
-      message.error(msgs.join('; ') || $t('admin.system.codegen.builder.importYamlValidateError'));
+      message.error(
+        msgs.join('; ') ||
+          $t('admin.system.codegen.builder.importYamlValidateError'),
+      );
       return;
     }
+    configMeta.value = null;
     store.loadConfig(null, parsed);
     validationErrors.value = [];
     importYamlVisible.value = false;
@@ -490,8 +919,12 @@ async function onRestoreVersion(v: CodegenVersionItem) {
         store.loadConfig(restored.id, restored.config_json || {});
         validationErrors.value = [];
         versionHistoryVisible.value = false;
-        message.success($t('admin.system.codegen.builder.versionRestoreSuccess'));
-        message.info($t('admin.system.codegen.builder.versionRestoreUndoCleared'));
+        message.success(
+          $t('admin.system.codegen.builder.versionRestoreSuccess'),
+        );
+        message.info(
+          $t('admin.system.codegen.builder.versionRestoreUndoCleared'),
+        );
       } catch (e) {
         console.error(e);
         message.error($t('common.failed'));
@@ -506,12 +939,29 @@ function formatVersionTime(iso: string | null) {
   return formatDate(iso) ?? '-';
 }
 
+function formatConflictItem(conflict: unknown): string {
+  if (
+    conflict &&
+    typeof conflict === 'object' &&
+    'path' in (conflict as Record<string, unknown>)
+  ) {
+    const path = (conflict as Record<string, unknown>).path;
+    if (typeof path === 'string' && path) {
+      return path;
+    }
+  }
+  return JSON.stringify(conflict);
+}
+
 async function onPreviewVersion(v: CodegenVersionItem) {
   const id = configId.value;
   if (!id || !v.id) return;
   versionPreviewVisible.value = true;
   versionPreviewNote.value = v.note || formatVersionTime(v.created_at) || '';
-  versionPreviewLoadingIds.value = new Set([...versionPreviewLoadingIds.value, v.id]);
+  versionPreviewLoadingIds.value = new Set([
+    ...versionPreviewLoadingIds.value,
+    v.id,
+  ]);
   versionPreviewContent.value = '';
   try {
     const res = await getCodegenConfigVersionApi(id, v.id);
@@ -522,7 +972,9 @@ async function onPreviewVersion(v: CodegenVersionItem) {
     message.error($t('common.failed'));
     versionPreviewVisible.value = false;
   } finally {
-    versionPreviewLoadingIds.value = new Set([...versionPreviewLoadingIds.value].filter((x) => x !== v.id));
+    versionPreviewLoadingIds.value = new Set(
+      [...versionPreviewLoadingIds.value].filter((x) => x !== v.id),
+    );
   }
 }
 
@@ -534,7 +986,9 @@ async function onDownloadZip() {
     );
     message.success($t('admin.system.codegen.messages.downloadSuccess'));
   } catch (e) {
-    const err = e as { response?: { data?: { detail?: { error?: string } | string } } };
+    const err = e as {
+      response?: { data?: { detail?: { error?: string } | string } };
+    };
     const detail = err?.response?.data?.detail;
     const msg =
       (typeof detail === 'object' && detail?.error) ||
@@ -550,20 +1004,32 @@ function onDbImported(patch: Record<string, unknown>) {
     const name = (f.name as string) || '';
     if (!name) return f;
     const inferred = inferFieldConfigForMerge(name);
-    return { ...inferred, ...f, __key: f.__key || `f_${Date.now()}_${Math.random().toString(36).slice(2, 9)}` };
+    return {
+      ...inferred,
+      ...f,
+      __key:
+        f.__key || `f_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+    };
   });
   const mode = (patch._importMode as 'merge' | 'replace') || 'replace';
-  const currentFields = (store.configJson.fields as Record<string, unknown>[]) || [];
+  const currentFields =
+    (store.configJson.fields as Record<string, unknown>[]) || [];
   let finalFields: Record<string, unknown>[];
   if (mode === 'merge') {
-    const incomingByName = new Map(withInferred.map((f) => [(f.name as string) || '', f]));
-    const currentNames = new Set(currentFields.map((f) => (f.name as string) || '').filter(Boolean));
+    const incomingByName = new Map(
+      withInferred.map((f) => [(f.name as string) || '', f]),
+    );
+    const currentNames = new Set(
+      currentFields.map((f) => (f.name as string) || '').filter(Boolean),
+    );
     const merged = currentFields.map((f) => {
       const n = (f.name as string) || '';
       const imp = incomingByName.get(n);
       return imp ? { ...f, ...imp } : f;
     });
-    const appended = withInferred.filter((f) => !currentNames.has((f.name as string) || ''));
+    const appended = withInferred.filter(
+      (f) => !currentNames.has((f.name as string) || ''),
+    );
     finalFields = [...merged, ...appended];
   } else {
     finalFields = withInferred;
@@ -579,9 +1045,12 @@ async function loadConfigIfEdit() {
   if (id != null) {
     try {
       const config = await getCodegenConfigDetailApi(id);
+      configMeta.value = config;
       store.loadConfig(config.id, config.config_json || {});
+      store.showFieldManager = true;
     } catch (e) {
-      const status = (e as { response?: { status?: number } })?.response?.status;
+      const status = (e as { response?: { status?: number } })?.response
+        ?.status;
       if (status === 404) {
         message.error($t('admin.system.codegen.builder.configNotFound'));
       } else {
@@ -598,17 +1067,24 @@ async function loadConfigIfEdit() {
       const res = await getCodegenPresetApi(presetQuery);
       const parsed = res?.parsed ?? {};
       if (parsed && typeof parsed === 'object') {
+        configMeta.value = null;
         store.loadConfig(null, parsed);
+        store.showFieldManager = true;
         return;
       }
     } catch {
       message.error($t('admin.system.codegen.builder.presetNotFound'));
     }
   }
+  configMeta.value = null;
   store.resetWizard();
+  store.updateConfig({ module: 'system' });
+  store.showFieldManager = true;
 }
 
-const fields = computed(() => (store.configJson.fields as Record<string, unknown>[]) || []);
+const fields = computed(
+  () => (store.configJson.fields as Record<string, unknown>[]) || [],
+);
 
 function removeSelectedField() {
   const key = store.selectedFieldKey;
@@ -630,16 +1106,18 @@ function selectNextField() {
   const key = store.selectedFieldKey;
   if (!key) return;
   const idx = fields.value.findIndex((f) => f.__key === key);
-  const nextField = idx >= 0 && idx < fields.value.length - 1
-    ? fields.value[idx + 1]
-    : undefined;
+  const nextField =
+    idx >= 0 && idx < fields.value.length - 1
+      ? fields.value[idx + 1]
+      : undefined;
   if (nextField) store.selectedFieldKey = nextField.__key as string;
 }
 
 function handleKeydown(e: KeyboardEvent) {
   const target = e.target as HTMLElement;
   const tag = target?.tagName?.toLowerCase();
-  if (tag === 'input' || tag === 'textarea' || target?.isContentEditable) return;
+  if (tag === 'input' || tag === 'textarea' || target?.isContentEditable)
+    return;
 
   if (e.ctrlKey && e.key === 'z') {
     e.preventDefault();
@@ -689,7 +1167,11 @@ async function loadModules() {
     const opts = await getCodegenOptionsApi();
     const mods = opts?.system_modules ?? [];
     moduleOptions.value = mods.map((m: string) => ({
-      label: $t(`admin.system.codegen.basic.moduleLabels.${m}`) as string,
+      label: (() => {
+        const key = `admin.system.codegen.basic.moduleLabels.${m}`;
+        const translated = $t(key) as string;
+        return translated === key ? m : translated;
+      })(),
       value: m,
     }));
   } catch {
@@ -736,163 +1218,400 @@ watch(
 </script>
 
 <template>
-  <Page
-    auto-content-height
-    content-class="flex flex-col"
-  >
-    <Alert
-      v-if="!isNewMode"
-      :message="$t('admin.system.codegen.builder.editMode')"
-      type="info"
-      show-icon
-      class="mb-3"
-    />
+  <Page auto-content-height content-class="flex flex-col gap-3">
+    <Card ref="builderTopRef" :body-style="{ padding: '12px' }">
+      <div class="flex flex-col gap-3">
+        <div
+          class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between"
+        >
+          <div class="min-w-0">
+            <div class="flex flex-wrap items-center gap-2">
+              <span
+                class="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground"
+              >
+                <IconifyIcon icon="lucide:square-pen" class="size-3.5" />
+                {{
+                  isNewMode
+                    ? $t('admin.system.codegen.builder.heroBadgeNew')
+                    : $t('admin.system.codegen.builder.heroBadgeEdit')
+                }}
+              </span>
+              <span
+                class="text-lg font-semibold tracking-tight text-foreground"
+              >
+                {{ builderHeadline }}
+              </span>
+              <Tag
+                v-for="badge in lifecycleBadges"
+                :key="badge.key"
+                :color="badge.color"
+                class="!mr-0"
+              >
+                {{ badge.text }}
+              </Tag>
+            </div>
+            <div class="mt-1 text-xs text-muted-foreground">
+              {{ builderSubline }}
+            </div>
+          </div>
 
-    <!-- 顶部工具栏 -->
-    <div class="flex shrink-0 items-center gap-3 border-b border-border px-4 py-2">
-      <Button type="text" size="small" @click="router.push('/admin/system/codegen')">
-        <IconifyIcon icon="lucide:arrow-left" class="size-4" />
-      </Button>
-      <Input
-        ref="resourceInputRef"
-        :model-value="resource"
-        :placeholder="$t('admin.system.codegen.basic.resource')"
-        class="!w-40"
-        @update:model-value="onResourceChange"
-      />
-      <Select
-        v-model:value="moduleVal"
-        :options="moduleOptions"
-        class="!w-32"
-        :placeholder="$t('admin.system.codegen.basic.placeholder.module')"
-      />
-      <Input
-        v-model:value="displayName"
-        :placeholder="$t('admin.system.codegen.basic.displayName')"
-        class="!w-36"
-      />
-      <Input
-        v-model:value="displayNameEn"
-        :placeholder="$t('admin.system.codegen.basic.displayNameEn')"
-        class="!w-36"
-      />
-      <Tooltip :title="$t('admin.system.codegen.basic.resourcePluralHint')">
-        <Input
-          v-model:value="resourcePlural"
-          :placeholder="$t('admin.system.codegen.basic.placeholder.resourcePlural')"
-          class="!w-28"
-        />
-      </Tooltip>
-      <div class="mx-2 h-6 w-px bg-border" />
-      <Tooltip :title="$t('admin.system.codegen.toolbar.undo')">
-        <Button :disabled="!store.canUndo" type="text" size="small" @click="store.undo()">
-          <IconifyIcon icon="lucide:undo-2" class="size-4" />
-        </Button>
-      </Tooltip>
-      <Tooltip :title="$t('admin.system.codegen.toolbar.redo')">
-        <Button :disabled="!store.canRedo" type="text" size="small" @click="store.redo()">
-          <IconifyIcon icon="lucide:redo-2" class="size-4" />
-        </Button>
-      </Tooltip>
-      <Tooltip :title="$t('admin.system.codegen.toolbar.preview')">
-        <Button v-access:code="['action.codegen.preview']" type="text" size="small" @click="codePreviewOpen = true">
-          <IconifyIcon icon="lucide:code-2" class="size-4" />
-        </Button>
-      </Tooltip>
-      <div class="flex-1" />
-      <Dropdown :trigger="['click']">
-        <Button>
-          {{ $t('admin.system.codegen.toolbar.more') }}
-          <IconifyIcon icon="lucide:chevron-down" class="ml-1 size-4" />
-        </Button>
-        <template #overlay>
-          <Menu>
-            <MenuItem @click="onImportYaml">
-              <IconifyIcon icon="lucide:upload" class="mr-1 size-4" />
-              {{ $t('admin.system.codegen.toolbar.importYaml') }}
-            </MenuItem>
-            <MenuItem @click="onExportYaml">
-              <IconifyIcon icon="lucide:download" class="mr-1 size-4" />
-              {{ $t('admin.system.codegen.toolbar.exportYaml') }}
-            </MenuItem>
-            <MenuItem v-if="configId" v-access:code="['action.codegen.update']" @click="onOpenVersionHistory">
-              <IconifyIcon icon="lucide:history" class="mr-1 size-4" />
-              {{ $t('admin.system.codegen.toolbar.versionHistory') }}
-            </MenuItem>
-            <MenuItem v-access:code="['action.codegen.preview']" @click="onDownloadZip">
-              <IconifyIcon icon="lucide:archive" class="mr-1 size-4" />
-              {{ $t('admin.system.codegen.toolbar.downloadZip') }}
-            </MenuItem>
-          </Menu>
-        </template>
-      </Dropdown>
-      <Button v-access:code="['action.codegen.update']" :loading="isSaving" @click="onSave">
-        <IconifyIcon icon="lucide:save" class="mr-1 size-4" />
-        {{ $t('admin.system.codegen.toolbar.saveDraft') }}
-      </Button>
-      <Badge :count="validationErrors.length" :offset="[4, -4]" :show-zero="false">
-        <Button v-access:code="['action.codegen.generate']" type="primary" :loading="isGenerating" @click="onGenerate">
-          <IconifyIcon icon="lucide:wand-2" class="mr-1 size-4" />
-          {{ $t('admin.system.codegen.toolbar.generate') }}
-        </Button>
-      </Badge>
+          <div class="flex flex-wrap items-center gap-2 xl:justify-end">
+            <Button
+              type="text"
+              size="small"
+              @click="router.push('/admin/system/codegen')"
+            >
+              <IconifyIcon icon="lucide:arrow-left" class="mr-1 size-4" />
+              {{ $t('common.back') }}
+            </Button>
+            <Tooltip :title="$t('admin.system.codegen.toolbar.undo')">
+              <Button
+                :disabled="!store.canUndo"
+                type="text"
+                size="small"
+                @click="store.undo()"
+              >
+                <IconifyIcon icon="lucide:undo-2" class="size-4" />
+              </Button>
+            </Tooltip>
+            <Tooltip :title="$t('admin.system.codegen.toolbar.redo')">
+              <Button
+                :disabled="!store.canRedo"
+                type="text"
+                size="small"
+                @click="store.redo()"
+              >
+                <IconifyIcon icon="lucide:redo-2" class="size-4" />
+              </Button>
+            </Tooltip>
+            <Tooltip :title="$t('admin.system.codegen.toolbar.preview')">
+              <Button
+                v-access:code="['action.codegen.preview']"
+                type="text"
+                size="small"
+                @click="codePreviewOpen = true"
+              >
+                <IconifyIcon icon="lucide:code-2" class="size-4" />
+              </Button>
+            </Tooltip>
+            <Dropdown :trigger="['click']">
+              <Button>
+                {{ $t('admin.system.codegen.toolbar.more') }}
+                <IconifyIcon icon="lucide:chevron-down" class="ml-1 size-4" />
+              </Button>
+              <template #overlay>
+                <Menu>
+                  <MenuItem @click="onImportYaml">
+                    <IconifyIcon icon="lucide:upload" class="mr-1 size-4" />
+                    {{ $t('admin.system.codegen.toolbar.importYaml') }}
+                  </MenuItem>
+                  <MenuItem @click="onExportYaml">
+                    <IconifyIcon icon="lucide:download" class="mr-1 size-4" />
+                    {{ $t('admin.system.codegen.toolbar.exportYaml') }}
+                  </MenuItem>
+                  <MenuItem
+                    v-if="configId"
+                    v-access:code="['action.codegen.update']"
+                    @click="onOpenVersionHistory"
+                  >
+                    <IconifyIcon icon="lucide:history" class="mr-1 size-4" />
+                    {{ $t('admin.system.codegen.toolbar.versionHistory') }}
+                  </MenuItem>
+                  <MenuItem
+                    v-access:code="['action.codegen.preview']"
+                    @click="onDownloadZip"
+                  >
+                    <IconifyIcon icon="lucide:archive" class="mr-1 size-4" />
+                    {{ $t('admin.system.codegen.toolbar.downloadZip') }}
+                  </MenuItem>
+                  <MenuItem
+                    v-access:code="['action.codegen.db']"
+                    @click="dbImportOpen = true"
+                  >
+                    <IconifyIcon icon="lucide:database" class="mr-1 size-4" />
+                    {{ $t('admin.system.codegen.builder.dbImportBtn') }}
+                  </MenuItem>
+                  <MenuItem @click="expertModalOpen = true">
+                    <IconifyIcon icon="lucide:settings-2" class="mr-1 size-4" />
+                    {{ $t('admin.system.codegen.advanced.button') }}
+                  </MenuItem>
+                </Menu>
+              </template>
+            </Dropdown>
+            <Button
+              v-access:code="['action.codegen.update']"
+              :loading="isSaving"
+              @click="onSave"
+            >
+              <IconifyIcon icon="lucide:save" class="mr-1 size-4" />
+              {{ $t('admin.system.codegen.toolbar.saveDraft') }}
+            </Button>
+            <Badge
+              :count="validationErrors.length"
+              :offset="[4, -4]"
+              :show-zero="false"
+            >
+              <Button
+                v-access:code="['action.codegen.generate']"
+                type="primary"
+                :loading="isGenerating || isPreparingGenerate"
+                @click="onGenerate"
+              >
+                <IconifyIcon icon="lucide:wand-2" class="mr-1 size-4" />
+                {{ $t('admin.system.codegen.toolbar.generate') }}
+              </Button>
+            </Badge>
+          </div>
+        </div>
+
+        <div
+          class="grid gap-3 rounded-2xl border border-border/70 bg-muted/10 px-3 py-3 xl:grid-cols-[minmax(0,1.7fr)_auto]"
+        >
+          <div class="grid gap-2 md:grid-cols-2 2xl:grid-cols-3">
+            <div>
+              <div class="mb-1 text-[11px] font-medium text-muted-foreground">
+                {{ $t('admin.system.codegen.basic.resource') }}
+              </div>
+              <Input
+                ref="resourceInputRef"
+                :model-value="resource"
+                :placeholder="$t('admin.system.codegen.basic.resource')"
+                @update:model-value="onResourceChange"
+              />
+            </div>
+            <div>
+              <div
+                class="mb-1 flex items-center gap-1 text-[11px] font-medium text-muted-foreground"
+              >
+                <span>{{ $t('admin.system.codegen.basic.module') }}</span>
+                <Tooltip>
+                  <template #title>
+                    <div class="max-w-[240px] text-xs leading-5">
+                      <div>
+                        {{ $t('admin.system.codegen.basic.moduleHelpDesc') }}
+                      </div>
+                      <div
+                        v-if="moduleVal === 'business'"
+                        class="mt-1 text-muted-foreground"
+                      >
+                        {{
+                          $t(
+                            'admin.system.codegen.basic.moduleHelpCurrentBusinessShort',
+                          )
+                        }}
+                      </div>
+                    </div>
+                  </template>
+                  <span
+                    class="inline-flex size-4 cursor-help items-center justify-center rounded-full border border-border text-[10px] text-muted-foreground"
+                  >
+                    ?
+                  </span>
+                </Tooltip>
+              </div>
+              <Select
+                v-model:value="moduleVal"
+                class="w-full"
+                :options="normalizedModuleOptions"
+                :placeholder="
+                  $t('admin.system.codegen.basic.placeholder.module')
+                "
+                option-filter-prop="label"
+                show-search
+                style="width: 100%"
+              />
+              <div class="mt-2 flex flex-wrap items-center gap-2">
+                <span class="text-[11px] text-muted-foreground">
+                  {{ $t('admin.system.codegen.basic.moduleCommon') }}
+                </span>
+                <button
+                  v-for="item in commonModuleOptions"
+                  :key="item.value"
+                  type="button"
+                  class="rounded-full border px-2.5 py-1 text-[11px] transition-colors"
+                  :class="
+                    moduleVal === item.value
+                      ? 'border-primary bg-primary/5 text-primary'
+                      : 'border-border bg-background text-muted-foreground hover:border-primary/30 hover:text-foreground'
+                  "
+                  @click="moduleVal = item.value"
+                >
+                  {{ item.label }}
+                </button>
+              </div>
+            </div>
+            <div>
+              <div class="mb-1 text-[11px] font-medium text-muted-foreground">
+                {{ $t('admin.system.codegen.basic.displayName') }}
+              </div>
+              <Input
+                v-model:value="displayName"
+                :placeholder="$t('admin.system.codegen.basic.displayName')"
+              />
+            </div>
+            <div>
+              <div class="mb-1 text-[11px] font-medium text-muted-foreground">
+                {{ $t('admin.system.codegen.basic.displayNameEn') }}
+              </div>
+              <Input
+                v-model:value="displayNameEn"
+                :placeholder="$t('admin.system.codegen.basic.displayNameEn')"
+              />
+            </div>
+            <div>
+              <div class="mb-1 text-[11px] font-medium text-muted-foreground">
+                {{
+                  $t('admin.system.codegen.basic.placeholder.resourcePlural')
+                }}
+              </div>
+              <Input
+                v-model:value="resourcePlural"
+                :placeholder="
+                  $t('admin.system.codegen.basic.placeholder.resourcePlural')
+                "
+              />
+            </div>
+          </div>
+
+          <div
+            class="flex flex-wrap items-center gap-3 rounded-xl border border-border/70 bg-background px-3 py-2"
+          >
+            <div>
+              <div class="mb-1 text-[11px] font-medium text-muted-foreground">
+                {{ $t('admin.system.codegen.builder.basicsEntryTitle') }}
+              </div>
+              <div class="flex flex-wrap gap-3">
+                <Checkbox
+                  :checked="hasAdmin"
+                  @change="
+                    (event) => onAdminChange(extractCheckboxChecked(event))
+                  "
+                >
+                  {{ $t('admin.system.codegen.enum.admin') }}
+                </Checkbox>
+                <Checkbox
+                  :checked="hasTenant"
+                  @change="
+                    (event) => onTenantChange(extractCheckboxChecked(event))
+                  "
+                >
+                  {{ $t('admin.system.codegen.enum.tenant') }}
+                </Checkbox>
+              </div>
+            </div>
+
+            <div class="h-8 w-px bg-border/70" />
+
+            <div>
+              <div class="mb-1 text-[11px] font-medium text-muted-foreground">
+                {{ $t('admin.system.codegen.builder.basicsViewTitle') }}
+              </div>
+              <Radio.Group v-model:value="feMode" size="small">
+                <Radio value="table">
+                  {{ $t('admin.system.codegen.frontend.table') }}
+                </Radio>
+                <Radio value="card">
+                  {{ $t('admin.system.codegen.frontend.card') }}
+                </Radio>
+              </Radio.Group>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Card>
+
+    <div
+      v-if="validationErrors.length > 0"
+      class="rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2"
+    >
+      <div class="mb-2 flex items-start justify-between gap-3">
+        <div>
+          <div
+            class="flex items-center gap-2 text-sm font-semibold text-amber-800"
+          >
+            <IconifyIcon icon="lucide:triangle-alert" class="size-4" />
+            <span>{{
+              $t('admin.system.codegen.generate.validationErrors')
+            }}</span>
+          </div>
+          <div class="mt-1 text-xs leading-5 text-amber-700/90">
+            {{ $t('admin.system.codegen.builder.validationListHint') }}
+          </div>
+        </div>
+        <Tag color="warning" class="!mr-0">
+          {{ validationErrors.length }}
+        </Tag>
+      </div>
+
+      <div class="grid max-h-44 gap-2 overflow-y-auto pr-1">
+        <div
+          v-for="(item, index) in validationErrors"
+          :key="`${item.path}-${item.field}-${index}`"
+          class="flex flex-col gap-2 rounded-lg border border-amber-200/80 bg-background/85 px-3 py-2 md:flex-row md:items-center md:justify-between"
+        >
+          <div class="min-w-0 flex-1">
+            <div class="text-sm font-medium text-foreground">
+              {{ item.message }}
+            </div>
+            <div
+              class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground"
+            >
+              <span v-if="item.path">{{ item.path }}</span>
+              <span v-if="item.field">{{ item.field }}</span>
+            </div>
+          </div>
+          <Button size="small" @click="locateValidationIssue(item)">
+            <IconifyIcon icon="lucide:locate-fixed" class="mr-1 size-4" />
+            {{ $t('admin.system.codegen.builder.locateIssue') }}
+          </Button>
+        </div>
+      </div>
     </div>
 
-    <!-- 三栏主体 -->
-    <div class="flex min-h-0 flex-1 overflow-hidden">
-      <ComponentPalette @add="onPaletteAdd" />
-      <WysiwygCenter ref="wysiwygRef" class="min-w-80 flex-1 overflow-hidden" />
-      <div class="flex w-80 shrink-0 flex-col overflow-hidden border-l border-border">
+    <div class="grid gap-3 xl:grid-cols-[300px_minmax(0,1fr)_320px]">
+      <div class="flex min-w-0 flex-col gap-3">
+        <ComponentPalette @add="onPaletteAdd" />
+      </div>
+
+      <Card class="min-w-0" :body-style="{ padding: '0' }">
+        <WysiwygCenter ref="wysiwygRef" class="min-w-0" />
+      </Card>
+
+      <Card class="min-w-0" :body-style="{ padding: '0' }">
         <template v-if="store.selectedFieldKey">
           <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div class="shrink-0 border-b border-border px-3 py-2 text-xs font-medium text-muted-foreground">
+            <div
+              class="shrink-0 border-b border-border px-3 py-2 text-xs font-medium text-muted-foreground"
+            >
               {{ $t('admin.system.codegen.property.title') }}
             </div>
             <FieldPropertyPanel class="min-h-0 flex-1 overflow-y-auto" />
           </div>
         </template>
-        <div v-else class="flex flex-1 flex-col items-center justify-center px-4 py-8 text-center text-muted-foreground text-sm">
-          <IconifyIcon icon="lucide:mouse-pointer-click" class="mb-2 size-8" />
-          <span>{{ $t('admin.system.codegen.property.selectFieldHint') }}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- 底部设置栏 -->
-    <div class="flex shrink-0 items-center gap-4 border-t border-border px-4 py-2">
-      <Checkbox :checked="hasAdmin" @change="(e) => onAdminChange(Boolean((e as { target?: { checked?: boolean } })?.target?.checked ?? false))">
-        {{ $t('admin.system.codegen.enum.admin') }}
-      </Checkbox>
-      <Checkbox :checked="hasTenant" @change="(e) => onTenantChange(Boolean((e as { target?: { checked?: boolean } })?.target?.checked ?? false))">
-        {{ $t('admin.system.codegen.enum.tenant') }}
-      </Checkbox>
-      <Radio.Group v-model:value="feMode" size="small">
-        <Radio value="table">{{ $t('admin.system.codegen.frontend.table') }}</Radio>
-        <Radio value="card">{{ $t('admin.system.codegen.frontend.card') }}</Radio>
-      </Radio.Group>
-      <span class="text-muted-foreground text-xs">{{ $t('admin.system.codegen.fieldConfig.fieldCount', { count: store.fieldCount }) }}</span>
-      <Tooltip :title="$t('admin.system.codegen.builder.keyboardHint')">
-        <IconifyIcon icon="lucide:keyboard" class="size-4 text-muted-foreground" />
-      </Tooltip>
-      <div class="flex-1" />
-      <Button v-access:code="['action.codegen.db']" @click="dbImportOpen = true">
-        <IconifyIcon icon="lucide:database" class="mr-1 size-4" />
-        {{ $t('admin.system.codegen.builder.dbImportBtn') }}
-      </Button>
-      <Button @click="expertModalOpen = true">
-        <IconifyIcon icon="lucide:settings-2" class="mr-1 size-4" />
-        {{ $t('admin.system.codegen.advanced.button') }}
-        <Badge
-          v-if="store.expertItemCount > 0"
-          :count="store.expertItemCount"
-          :offset="[4, -4]"
-          class="ml-1"
+        <CodegenValidationPanel
+          v-else
+          :display-name="displayName"
+          :expert-item-count="store.expertItemCount"
+          :fe-mode="feMode"
+          :field-count="store.fieldCount"
+          :has-admin="hasAdmin"
+          :has-tenant="hasTenant"
+          :is-dirty="store.isDirty"
+          :module-name="moduleVal"
+          :preview-conflicts="previewConflictCount"
+          :preview-summary="previewSummary"
+          :preview-warnings="previewWarningCount"
+          :resource="resource"
+          :resource-plural="resourcePlural"
+          :scope-count="scopeCount"
+          :validation-error-count="validationErrors.length"
+          @jump-errors="focusBuilderTop"
+          @open-db-import="dbImportOpen = true"
+          @open-expert="expertModalOpen = true"
+          @open-import-yaml="onImportYaml"
+          @open-preview="codePreviewOpen = true"
         />
-      </Button>
-      <Button v-access:code="['action.codegen.preview']" @click="codePreviewOpen = true">
-        <IconifyIcon icon="lucide:eye" class="mr-1 size-4" />
-        {{ $t('admin.system.codegen.toolbar.preview') }}
-      </Button>
+      </Card>
     </div>
 
     <!-- Modals -->
@@ -911,19 +1630,25 @@ watch(
       <div class="flex flex-col gap-2">
         <Input.TextArea
           v-model:value="importYamlText"
-          :placeholder="$t('admin.system.codegen.builder.importYamlPlaceholder')"
+          :placeholder="
+            $t('admin.system.codegen.builder.importYamlPlaceholder')
+          "
           :rows="12"
           class="font-mono text-sm"
         />
-        <label class="inline-flex cursor-pointer items-center gap-1 text-sm text-muted-foreground underline">
+        <label
+          class="inline-flex cursor-pointer items-center gap-1 text-sm text-muted-foreground underline"
+        >
           <input
             type="file"
             accept=".yaml,.yml"
             class="sr-only"
             @change="onImportYamlFile"
-          >
+          />
           <IconifyIcon icon="lucide:upload" class="size-4" />
-          <span>{{ $t('admin.system.codegen.builder.importYamlSelectFile') }}</span>
+          <span>{{
+            $t('admin.system.codegen.builder.importYamlSelectFile')
+          }}</span>
         </label>
       </div>
     </Modal>
@@ -934,7 +1659,10 @@ watch(
       :footer="null"
       width="520"
     >
-      <div v-if="!isVersionLoading && versionList.length === 0" class="py-8 text-center text-muted-foreground">
+      <div
+        v-if="!isVersionLoading && versionList.length === 0"
+        class="py-8 text-center text-muted-foreground"
+      >
         {{ $t('admin.system.codegen.builder.versionEmpty') }}
       </div>
       <List
@@ -947,14 +1675,28 @@ watch(
         <template #renderItem="{ item }">
           <List.Item class="flex items-center justify-between">
             <div class="flex flex-col gap-0.5">
-              <span class="text-sm">{{ formatVersionTime(item.created_at) }}</span>
-              <span v-if="item.note" class="text-xs text-muted-foreground">{{ item.note }}</span>
+              <span class="text-sm">{{
+                formatVersionTime(item.created_at)
+              }}</span>
+              <span v-if="item.note" class="text-xs text-muted-foreground">{{
+                item.note
+              }}</span>
             </div>
             <div class="flex gap-0">
-              <Button type="link" size="small" :loading="versionPreviewLoadingIds.has(item.id)" @click="onPreviewVersion(item)">
+              <Button
+                type="link"
+                size="small"
+                :loading="versionPreviewLoadingIds.has(item.id)"
+                @click="onPreviewVersion(item)"
+              >
                 {{ $t('admin.system.codegen.builder.versionPreview') }}
               </Button>
-              <Button type="link" size="small" :loading="isRestoring" @click="onRestoreVersion(item)">
+              <Button
+                type="link"
+                size="small"
+                :loading="isRestoring"
+                @click="onRestoreVersion(item)"
+              >
                 {{ $t('admin.system.codegen.builder.versionRestore') }}
               </Button>
             </div>
@@ -972,10 +1714,19 @@ watch(
       <div v-if="versionPreviewNote" class="mb-2 text-sm text-muted-foreground">
         {{ versionPreviewNote }}
       </div>
-      <div v-if="versionPreviewLoadingIds.size > 0" class="py-8 text-center text-muted-foreground">
+      <div
+        v-if="versionPreviewLoadingIds.size > 0"
+        class="py-8 text-center text-muted-foreground"
+      >
         {{ $t('common.loading') }}
       </div>
-      <Input.TextArea v-else :value="versionPreviewContent" readonly :rows="18" class="font-mono text-sm" />
+      <Input.TextArea
+        v-else
+        :value="versionPreviewContent"
+        readonly
+        :rows="18"
+        class="font-mono text-sm"
+      />
     </Modal>
 
     <Modal
@@ -985,13 +1736,22 @@ watch(
       width="520"
     >
       <template v-if="lastResult">
-        <div v-if="lastResult.conflicts?.length && !lastResult.success" class="mb-4">
-          <Alert type="warning" show-icon :message="$t('admin.system.codegen.generate.partialWriteTitle')">
+        <div
+          v-if="lastResult.conflicts?.length && !lastResult.success"
+          class="mb-4"
+        >
+          <Alert
+            type="warning"
+            show-icon
+            :message="$t('admin.system.codegen.generate.partialWriteTitle')"
+          >
             <template #description>
-              <p class="mb-2">{{ $t('admin.system.codegen.generate.partialWriteDesc') }}</p>
+              <p class="mb-2">
+                {{ $t('admin.system.codegen.generate.partialWriteDesc') }}
+              </p>
               <ul class="list-inside list-disc text-sm">
                 <li v-for="(c, i) in lastResult.conflicts" :key="i">
-                  {{ (c as Record<string, string>)?.path ?? JSON.stringify(c) }}
+                  {{ formatConflictItem(c) }}
                 </li>
               </ul>
             </template>
@@ -1005,12 +1765,17 @@ watch(
             :type="lastResult.migration.success ? 'success' : 'error'"
             :message="
               lastResult.migration.success
-                ? (lastResult.migration.message || $t('admin.system.codegen.generate.migrationSuccess'))
-                : (lastResult.migration.error || $t('admin.system.codegen.generate.migrationFailed'))
+                ? lastResult.migration.message ||
+                  $t('admin.system.codegen.generate.migrationSuccess')
+                : lastResult.migration.error ||
+                  $t('admin.system.codegen.generate.migrationFailed')
             "
             show-icon
           />
-          <p v-if="lastResult.migration.migration_path" class="mt-1 text-xs text-muted-foreground">
+          <p
+            v-if="lastResult.migration.migration_path"
+            class="mt-1 text-xs text-muted-foreground"
+          >
             {{ lastResult.migration.migration_path }}
           </p>
         </div>
@@ -1031,17 +1796,27 @@ watch(
             "
           >
             <div class="max-h-48 overflow-y-auto text-sm">
-              <div v-for="p in lastResult.files_created" :key="'c-' + p" class="text-green-600">
+              <div
+                v-for="p in lastResult.files_created"
+                :key="'c-' + p"
+                class="text-green-600"
+              >
                 + {{ p }}
               </div>
-              <div v-for="p in lastResult.files_modified" :key="'m-' + p" class="text-amber-600">
+              <div
+                v-for="p in lastResult.files_modified"
+                :key="'m-' + p"
+                class="text-amber-600"
+              >
                 ~ {{ p }}
               </div>
             </div>
           </CollapsePanel>
         </Collapse>
         <div class="mt-4 rounded border border-border p-3">
-          <h5 class="mb-2 font-medium">{{ $t('admin.system.codegen.generate.nextSteps') }}</h5>
+          <h5 class="mb-2 font-medium">
+            {{ $t('admin.system.codegen.generate.nextSteps') }}
+          </h5>
           <ul class="list-inside list-decimal space-y-1 text-sm">
             <li v-for="step in resultNextSteps" :key="step">
               {{ $t(`admin.system.codegen.generate.${step}`) }}
@@ -1049,6 +1824,15 @@ watch(
           </ul>
         </div>
         <div class="mt-4 flex justify-end gap-2">
+          <Button
+            v-if="hasPreviewSnapshot"
+            v-access:code="['action.codegen.preview']"
+            type="primary"
+            ghost
+            @click="openPreviewFromResult"
+          >
+            {{ $t('admin.system.codegen.toolbar.preview') }}
+          </Button>
           <Button @click="closeResultModal">
             {{ $t('common.close') }}
           </Button>

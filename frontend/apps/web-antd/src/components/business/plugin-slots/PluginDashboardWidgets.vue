@@ -5,10 +5,16 @@ import { usePluginSlotsStore } from '#/stores/plugin-slots';
 
 const props = withDefaults(
   defineProps<{
+    /** Empty state description / 空状态描述 */
+    emptyDescription?: string;
+    /** Empty state title / 空状态标题 */
+    emptyTitle?: string;
     /** Filter specific plugin (empty=all) / 过滤特定插件 */
     pluginName?: string;
   }>(),
   {
+    emptyDescription: undefined,
+    emptyTitle: undefined,
     pluginName: undefined,
   },
 );
@@ -50,4 +56,18 @@ const widgets = computed(() => {
       </div>
     </div>
   </template>
+  <div
+    v-else
+    class="rounded-[22px] border border-dashed border-border/70 bg-background/60 px-5 py-8 text-center"
+  >
+    <div class="text-sm font-medium text-foreground">
+      {{ emptyTitle }}
+    </div>
+    <div
+      v-if="emptyDescription"
+      class="mt-2 text-sm leading-6 text-muted-foreground"
+    >
+      {{ emptyDescription }}
+    </div>
+  </div>
 </template>

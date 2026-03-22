@@ -4,8 +4,8 @@ display_name:
   zh-CN: "天气组件"
   en: "Weather Widget"
 description:
-  zh-CN: "顶部导航天气组件：实时天气 + 动画展示 + 城市选择 + AI 技能包"
-  en: "Header weather widget: real-time weather + animations + city selector + AI skill pack"
+  zh-CN: "天气插件：顶部导航天气组件 + 仪表板天气概览 + AI 技能包"
+  en: "Weather plugin: header weather widget + dashboard weather overview + AI skill pack"
 author: "NovusAI"
 icon: "icon.png"
 icon_color: "#0ea5e9"
@@ -16,6 +16,49 @@ capabilities:
   - http:outbound
 
 extensions:
+  capabilities:
+    - key: weather.current
+      tool_name: get_current_weather
+      display_name:
+        zh-CN: "当前天气查询"
+        en: "Current Weather Query"
+      description:
+        zh-CN: "查询单个城市的实时天气，包括温度、湿度、风速和紫外线指数"
+        en: "Fetch real-time weather for one city, including temperature, humidity, wind speed, and UV index"
+      consent_mode: auto
+      timeout: 15
+      input_schema:
+        type: object
+        required: ["city"]
+        properties:
+          city:
+            type: string
+            description: "城市名称 / City name"
+      output_schema:
+        type: string
+    - key: weather.forecast
+      tool_name: get_weather_forecast
+      display_name:
+        zh-CN: "天气预报查询"
+        en: "Weather Forecast Query"
+      description:
+        zh-CN: "查询单个城市的多日天气预报，包括每日最高/最低温和天气状况"
+        en: "Fetch multi-day forecast for one city, including daily high/low temperature and weather condition"
+      consent_mode: auto
+      timeout: 15
+      input_schema:
+        type: object
+        required: ["city"]
+        properties:
+          city:
+            type: string
+            description: "城市名称 / City name"
+          days:
+            type: integer
+            description: "预报天数 / Forecast days"
+      output_schema:
+        type: string
+
   skills:
     - name: weather-realtime
       type: toolkit
@@ -26,6 +69,10 @@ extensions:
         zh-CN: "调用 Open-Meteo API 查询真实天气数据（当前天气 + 多日预报）"
         en: "Query real weather data via Open-Meteo API (current + forecast)"
       entry_point: "skills.weather_resolver"
+      skill_md_path: "backend/skills/weather_realtime/SKILL.md"
+      capabilities:
+        - weather.current
+        - weather.forecast
 
   api:
     tenant_routes:
@@ -96,6 +143,16 @@ extensions:
       - name: weather-widget
         component: "WeatherHeaderWidget"
         sort_order: 90
+    dashboard_widgets:
+      - name: weather-overview
+        component: "WeatherDashboardWidget"
+        title:
+          zh-CN: "天气概览"
+          en: "Weather Overview"
+        grid:
+          w: 4
+          h: 4
+        scope: both
     dev:
       entry: "src/index.ts"
     release:

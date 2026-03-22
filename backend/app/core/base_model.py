@@ -161,10 +161,6 @@ class BaseModel(Base):
         self.promoted_to_global_at = now
         self.updated_at = now
 
-    def escalate_delete(self) -> None:
-        """兼容旧接口：升级删除 → 推进总回收站 / Backward-compatible alias for promote_to_global"""
-        self.promote_to_global()
-
     def update_from_dict(self, data: dict[str, Any]) -> None:
         """
         从字典更新模型字段 / Update model fields from dictionary

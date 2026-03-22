@@ -20,9 +20,9 @@ class Skill(TenantModel):
     """
     技能模型 / Skill model.
 
-    Skill 是更高层的抽象，封装 Agent 可使用的能力。
-    Skill 属于 SkillPackage，作用域和企业归属由所属技能包决定。
-    Agent 通过绑定 SkillPackage 间接获得包内所有 Skill。
+    Skill 封装 Agent 在运行时可用的能力单元，经 SkillResolver 解析为工具定义。
+    Skill 必须归属某个 SkillPackage（目录/归组）；包负责来源与目录语义，不承担运行时绑定。
+    Agent 是否持有某 Skill 仅由 AgentSkillGrant 决定，而非绑定整包。
     """
 
     __tablename__ = "skills"

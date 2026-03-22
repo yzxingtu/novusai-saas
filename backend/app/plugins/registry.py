@@ -1175,6 +1175,17 @@ class ExtensionRegistry:
         """Remove custom extension registration / 移除自定义扩展注册"""
         plugin_name = ext.plugin_name
         key = ext.key
+        if isinstance(ext.ref, dict) and ext.ref.get("type") == "captcha_provider":
+            from app.captcha.registry import registry as captcha_registry
+
+            provider_code = str(
+                (ext.ref.get("data") or {}).get("provider_code")
+                or ext.ref.get("name")
+                or "",
+            ).strip()
+            if provider_code:
+                captcha_registry.unregister(provider_code)
+
         if plugin_name in self._plugin_custom_extensions:
             self._plugin_custom_extensions[plugin_name] = [
                 c for c in self._plugin_custom_extensions[plugin_name]

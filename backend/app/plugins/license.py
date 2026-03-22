@@ -680,8 +680,3 @@ async def check_plugin_license_expirations(db: AsyncSession) -> list[dict[str, A
             })
 
     return actions
-
-
-async def check_trial_expirations(db: AsyncSession) -> list[dict[str, Any]]:
-    """Backward-compatible alias for the unified expiration task. / 统一过期检查任务的兼容别名。"""
-    return await check_plugin_license_expirations(db)

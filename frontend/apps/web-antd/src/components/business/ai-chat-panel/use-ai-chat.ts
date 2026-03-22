@@ -25,6 +25,7 @@ import {
   filterKnowledgeBasesByMentionQuery,
   moveStreamingContentToThinking,
 } from './chat-input-utils';
+import { resolveConversationRequestState } from './conversation-binding';
 
 import { computed, nextTick, ref, unref, watch } from 'vue';
 
@@ -139,6 +140,7 @@ export function useAIChat(options: UseAIChatOptions) {
     conversationsRequestSeq += 1;
     messagesRequestSeq += 1;
     activeConversationId.value = null;
+    activeConversationAgentId.value = null;
     chatMessages.value = [];
     clearPendingAttachments();
     clearMentionedAgent();
@@ -151,6 +153,7 @@ export function useAIChat(options: UseAIChatOptions) {
   const conversations = ref<ConversationItem[]>([]);
   const conversationsLoading = ref(false);
   const activeConversationId = ref<null | number>(null);
+  const activeConversationAgentId = ref<null | number>(null);
   const clearingMemory = ref(false);
   const memoryState = ref<MemoryState | null>(null);
   const memoryLoading = ref(false);
@@ -169,14 +172,18 @@ export function useAIChat(options: UseAIChatOptions) {
       if (reqSeq !== conversationsRequestSeq) {
         return;
       }
-      conversations.value = res.items;
+      conversations.value = res.items.filter(
+        (conversation) =>
+          (conversation.message_count ?? 0) > 0 ||
+          conversation.id === activeConversationId.value,
+      );
 
       // Auto-load initial conversation (only once)
       const initConvId = unref(options.initialConversationId);
       if (
         initConvId &&
         !_initialConvRestored &&
-        res.items.some((c) => c.id === initConvId)
+        conversations.value.some((c) => c.id === initConvId)
       ) {
         _initialConvRestored = true;
         await loadConversationMessages(initConvId);
@@ -204,6 +211,7 @@ export function useAIChat(options: UseAIChatOptions) {
     }
     pendingMessages.value = [];
     activeConversationId.value = null;
+    activeConversationAgentId.value = null;
     chatMessages.value = [];
     clearMentionedAgent();
     memoryState.value = null;
@@ -220,6 +228,7 @@ export function useAIChat(options: UseAIChatOptions) {
       if (activeConversationId.value === convId) {
         messagesRequestSeq += 1;
         activeConversationId.value = null;
+        activeConversationAgentId.value = null;
         chatMessages.value = [];
       }
       await loadConversations();
@@ -252,6 +261,9 @@ export function useAIChat(options: UseAIChatOptions) {
     const currentConversation = conversations.value.find((c) => c.id === convId);
     if (currentConversation?.agent_id) {
       selectedAgentId.value = currentConversation.agent_id;
+      activeConversationAgentId.value = currentConversation.agent_id;
+    } else {
+      activeConversationAgentId.value = null;
     }
     try {
       const prefix = unref(options.apiPrefix) as string;
@@ -265,6 +277,7 @@ export function useAIChat(options: UseAIChatOptions) {
 
       if (res.agent_id) {
         selectedAgentId.value = res.agent_id;
+        activeConversationAgentId.value = res.agent_id;
       }
 
       // Pre-load variables for the agent from localStorage
@@ -1192,6 +1205,19 @@ export function useAIChat(options: UseAIChatOptions) {
       }
     }
 
+    const conversationRequestState = resolveConversationRequestState({
+      activeConversationAgentId: activeConversationAgentId.value,
+      activeConversationId: activeConversationId.value,
+      targetAgentId,
+    });
+    if (conversationRequestState.shouldForkConversation) {
+      messagesRequestSeq += 1;
+      activeConversationId.value = null;
+      activeConversationAgentId.value = null;
+      memoryState.value = null;
+      lastMemoryUpdated.value = false;
+    }
+
     const userMsg = inputMessage.value.trim();
     const msgAttachments = [...pendingAttachments.value];
     /** 气泡展示用附件：去掉 preview，避免 clearPending 撤销 blob 后仍引用失效 URL */
@@ -1495,6 +1521,7 @@ export function useAIChat(options: UseAIChatOptions) {
               event.conversation_id
             ) {
               activeConversationId.value = event.conversation_id as number;
+              activeConversationAgentId.value = targetAgentId;
             } else if (
               event.event === 'action_buttons' &&
               event.buttons
@@ -1519,6 +1546,7 @@ export function useAIChat(options: UseAIChatOptions) {
               msg.durationMs = (event.duration_ms as number) || 0;
               if (event.conversation_id) {
                 activeConversationId.value = event.conversation_id as number;
+                activeConversationAgentId.value = targetAgentId;
               }
               if (event.memory_updated) {
                 lastMemoryUpdated.value = true;
@@ -1540,6 +1568,7 @@ export function useAIChat(options: UseAIChatOptions) {
             } else if (event.error) {
               if (event.conversation_id) {
                 activeConversationId.value = event.conversation_id as number;
+                activeConversationAgentId.value = targetAgentId;
               }
               msg.content = `\u26A0\uFE0F ${
                 (event.message as string) || $t('common.requestFailed')
@@ -1701,6 +1730,7 @@ export function useAIChat(options: UseAIChatOptions) {
 
     // Fork to new conversation: edited message will create new conv, not append to old / 分叉新会话
     activeConversationId.value = null;
+    activeConversationAgentId.value = null;
     messagesRequestSeq += 1;
   }
 
@@ -1795,6 +1825,7 @@ export function useAIChat(options: UseAIChatOptions) {
 
     // Fork to new conversation: regenerate creates new branch, not overwrite in same conv / 分叉新会话
     activeConversationId.value = null;
+    activeConversationAgentId.value = null;
     messagesRequestSeq += 1;
 
     // Re-send the user message

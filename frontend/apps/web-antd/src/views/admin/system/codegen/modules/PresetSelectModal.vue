@@ -2,147 +2,279 @@
 /**
  * 预设模板选择弹窗 / Preset Select Modal
  *
- * 5 张卡片: 空白/基础CRUD/双端CRUD/树形/工作流
+ * 动态读取后端预设元数据，支持搜索与分类展示
+ * Loads preset metadata dynamically from backend, with search and categorized cards.
  */
+import type { PresetInfo } from '#/api/admin/codegen';
+
 import { computed, onMounted, ref, watch } from 'vue';
 
-import { Modal, Spin } from 'ant-design-vue';
+import { Input, Modal, Spin, Tag, message } from 'ant-design-vue';
 import { IconifyIcon } from '@vben/icons';
+import { preferences } from '@vben/preferences';
+
 import { getCodegenPresetsApi } from '#/api/admin/codegen';
-import { message } from 'ant-design-vue';
 import { $t } from '#/locales';
 
 defineOptions({ name: 'PresetSelectModal' });
 
 const props = defineProps<{ open: boolean }>();
-const emit = defineEmits<{ 'update:open': [boolean]; select: [string | null] }>();
+const emit = defineEmits<{
+  'update:open': [boolean];
+  select: [string | null];
+}>();
+
+const currentLocale = computed(() => preferences.app.locale || 'zh-CN');
 
 const modalOpen = computed({
   get: () => props.open,
   set: (v) => emit('update:open', v),
 });
 
-interface PresetCard {
-  id: string | null;
-  label: string;
-  labelEn: string;
-  labelKey: string;
-  icon: string;
-  desc?: string;
-}
-
-const PRESET_CARDS: PresetCard[] = [
-  {
-    id: null,
-    label: '空白',
-    labelEn: 'Blank',
-    labelKey: 'admin.system.codegen.preset.blank',
-    icon: 'lucide:file-plus',
-    desc: 'admin.system.codegen.preset.blankDesc',
-  },
-  {
-    id: 'simple',
-    label: '基础 CRUD',
-    labelEn: 'Basic CRUD',
-    labelKey: 'admin.system.codegen.preset.simple',
-    icon: 'lucide:layers',
-    desc: 'admin.system.codegen.preset.simpleDesc',
-  },
-  {
-    id: 'dual_scope',
-    label: '双端 CRUD',
-    labelEn: 'Dual Scope',
-    labelKey: 'admin.system.codegen.preset.dual',
-    icon: 'lucide:git-branch',
-    desc: 'admin.system.codegen.preset.dualDesc',
-  },
-  {
-    id: 'tree',
-    label: '树形',
-    labelEn: 'Tree',
-    labelKey: 'admin.system.codegen.preset.tree',
-    icon: 'lucide:git-branch-plus',
-    desc: 'admin.system.codegen.preset.treeDesc',
-  },
-  {
-    id: 'workflow',
-    label: '工作流',
-    labelEn: 'Workflow',
-    labelKey: 'admin.system.codegen.preset.workflow',
-    icon: 'lucide:workflow',
-    desc: 'admin.system.codegen.preset.workflowDesc',
-  },
-];
-
-const availablePresets = ref<Set<string>>(new Set());
 const loading = ref(false);
 const loadError = ref<string | null>(null);
+const searchText = ref('');
+const presets = ref<PresetInfo[]>([]);
+
+const isZh = computed(() =>
+  String(currentLocale.value || '')
+    .toLowerCase()
+    .startsWith('zh'),
+);
+
+function getPresetLabel(item: PresetInfo) {
+  return isZh.value
+    ? item.label_zh || item.label_en || item.name
+    : item.label_en || item.label_zh || item.name;
+}
+
+function getPresetDescription(item: PresetInfo) {
+  return isZh.value
+    ? item.description_zh || item.description_en || ''
+    : item.description_en || item.description_zh || '';
+}
+
+function getPresetIcon(item: PresetInfo): string {
+  const category = item.category || '';
+  if (category === 'workflow') return 'lucide:workflow';
+  if (category === 'sub_form') return 'lucide:table';
+  if ((item.tags || []).includes('tree')) return 'lucide:git-branch-plus';
+  if ((item.tags || []).includes('dual_scope')) return 'lucide:git-branch';
+  return 'lucide:layers';
+}
+
+const blankCard = computed(() => ({
+  id: null as null | string,
+  label: $t('admin.system.codegen.preset.blank'),
+  desc: $t('admin.system.codegen.preset.blankDesc'),
+  icon: 'lucide:file-plus',
+  category: 'blank',
+  tags: [] as string[],
+}));
+
+function getCategoryText(category: string) {
+  const map: Record<string, string> = {
+    blank: $t('admin.system.codegen.preset.category.blank'),
+    crud: $t('admin.system.codegen.preset.category.crud'),
+    general: $t('admin.system.codegen.preset.category.general'),
+    sub_form: $t('admin.system.codegen.preset.category.subForm'),
+    workflow: $t('admin.system.codegen.preset.category.workflow'),
+  };
+  return (
+    map[category] ||
+    category ||
+    $t('admin.system.codegen.preset.category.general')
+  );
+}
+
+const displayGroups = computed(() => {
+  const keyword = searchText.value.trim().toLowerCase();
+  const dynamicCards = presets.value
+    .filter((item) => {
+      if (!keyword) return true;
+      const haystack = [
+        item.name,
+        getPresetLabel(item),
+        getPresetDescription(item),
+        item.category,
+        ...(item.tags || []),
+      ]
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(keyword);
+    })
+    .map((item) => ({
+      id: item.name,
+      label: getPresetLabel(item),
+      desc: getPresetDescription(item),
+      icon: getPresetIcon(item),
+      category: item.category || 'general',
+      tags: item.tags || [],
+    }));
+
+  const groups = new Map<
+    string,
+    Array<{
+      category: string;
+      desc: string;
+      icon: string;
+      id: null | string;
+      label: string;
+      tags: string[];
+    }>
+  >();
+
+  for (const card of [blankCard.value, ...dynamicCards]) {
+    const groupKey = card.category || 'general';
+    const current = groups.get(groupKey) || [];
+    current.push(card);
+    groups.set(groupKey, current);
+  }
+
+  const orderedCategories = [
+    'blank',
+    'crud',
+    'workflow',
+    'sub_form',
+    'general',
+  ];
+  return orderedCategories
+    .filter((category) => groups.has(category))
+    .concat(
+      [...groups.keys()].filter(
+        (category) => !orderedCategories.includes(category),
+      ),
+    )
+    .map((category) => ({
+      category,
+      label: getCategoryText(category),
+      items: groups.get(category) || [],
+    }));
+});
 
 async function loadPresets() {
   loading.value = true;
   loadError.value = null;
   try {
-    const names = (await getCodegenPresetsApi()) as string[];
-    availablePresets.value = new Set(names || []);
+    presets.value = await getCodegenPresetsApi();
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : $t('common.failed');
     message.error(loadError.value);
-    availablePresets.value = new Set();
+    presets.value = [];
   } finally {
     loading.value = false;
   }
 }
-
-const displayCards = computed(() =>
-  PRESET_CARDS.map((c) => ({
-    ...c,
-    disabled: c.id !== null && !availablePresets.value.has(c.id),
-  })),
-);
 
 function onSelect(presetId: string | null) {
   modalOpen.value = false;
   emit('select', presetId);
 }
 
-watch(() => props.open, (open) => { if (open) loadPresets(); });
-onMounted(() => { if (props.open) loadPresets(); });
+watch(
+  () => props.open,
+  (open) => {
+    if (open) {
+      searchText.value = '';
+      loadPresets();
+    }
+  },
+);
+
+onMounted(() => {
+  if (props.open) loadPresets();
+});
 </script>
 
 <template>
   <Modal
     v-model:open="modalOpen"
     :title="$t('admin.system.codegen.preset.title')"
-    width="600"
+    width="760"
     destroy-on-close
     :footer="null"
   >
     <Spin :spinning="loading">
-      <div
-        v-if="loadError"
-        class="mb-3 rounded bg-red-50 p-2 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400"
-      >
-        {{ loadError }}
+      <div class="mb-4 flex flex-col gap-3">
+        <Input
+          v-model:value="searchText"
+          :placeholder="$t('admin.system.codegen.preset.searchPlaceholder')"
+          allow-clear
+        >
+          <template #prefix>
+            <IconifyIcon
+              icon="lucide:search"
+              class="size-4 text-muted-foreground"
+            />
+          </template>
+        </Input>
+        <div
+          v-if="loadError"
+          class="rounded bg-red-50 p-2 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400"
+        >
+          {{ loadError }}
+        </div>
       </div>
-    <div class="grid grid-cols-2 gap-4 sm:grid-cols-3">
+
       <div
-        v-for="card in displayCards"
-        :key="card.id ?? 'blank'"
-        class="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border p-6 transition-colors"
-        :class="
-          card.disabled
-            ? 'opacity-50 cursor-not-allowed'
-            : 'cursor-pointer hover:border-primary/50 hover:bg-primary/5'
-        "
-        @click="!card.disabled && onSelect(card.id)"
+        v-if="displayGroups.length === 0"
+        class="py-12 text-center text-sm text-muted-foreground"
       >
-        <IconifyIcon :icon="card.icon" class="mb-2 size-10 text-muted-foreground" />
-        <span class="font-medium">{{ $t(card.labelKey) }}</span>
-        <span v-if="card.desc" class="mt-1 text-center text-xs text-muted-foreground">
-          {{ $t(card.desc) }}
-        </span>
+        {{ $t('admin.system.codegen.preset.empty') }}
       </div>
-    </div>
+
+      <div v-else class="flex max-h-[70vh] flex-col gap-5 overflow-y-auto pr-1">
+        <section
+          v-for="group in displayGroups"
+          :key="group.category"
+          class="flex flex-col gap-3"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <div class="text-sm font-semibold text-foreground">
+              {{ group.label }}
+            </div>
+            <Tag color="processing" class="!mr-0">
+              {{ group.items.length }}
+            </Tag>
+          </div>
+          <div class="grid grid-cols-2 gap-4 xl:grid-cols-3">
+            <button
+              v-for="card in group.items"
+              :key="card.id ?? 'blank'"
+              type="button"
+              class="group flex min-h-44 flex-col items-start rounded-2xl border border-border bg-background px-4 py-4 text-left transition-all hover:-translate-y-0.5 hover:border-primary/45 hover:bg-primary/5"
+              @click="onSelect(card.id)"
+            >
+              <span
+                class="group-hover:bg-primary/12 mb-4 inline-flex size-11 items-center justify-center rounded-xl bg-muted text-muted-foreground transition-colors group-hover:text-primary"
+              >
+                <IconifyIcon :icon="card.icon" class="size-6" />
+              </span>
+              <span class="mb-2 text-base font-semibold leading-5">{{
+                card.label
+              }}</span>
+              <span class="mb-3 line-clamp-3 text-sm text-muted-foreground">
+                {{ card.desc }}
+              </span>
+              <div
+                class="mt-auto flex w-full items-center justify-between gap-2"
+              >
+                <span
+                  class="text-xs uppercase tracking-wide text-muted-foreground/80"
+                >
+                  {{ group.label }}
+                </span>
+                <span
+                  v-if="card.tags.length > 0"
+                  class="truncate text-[11px] text-muted-foreground"
+                >
+                  {{ card.tags.slice(0, 2).join(' · ') }}
+                </span>
+              </div>
+            </button>
+          </div>
+        </section>
+      </div>
     </Spin>
   </Modal>
 </template>

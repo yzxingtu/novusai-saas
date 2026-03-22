@@ -32,7 +32,7 @@ class TenantUserResponse(BaseSchema):
     email: str = Field(..., description="邮箱")
     phone: str | None = Field(None, description="手机号")
     nickname: str | None = Field(None, description="昵称")
-    avatar: str | None = Field(None, description="头像 URL")
+    avatar: str | None = Field(None, description="头像附件 ID（兼容旧 URL 值）")
     gender: int = Field(0, description="性别: 0未知 1男 2女")
     is_active: bool = Field(..., description="是否激活")
     approval_status: str = Field("approved", description="审批状态")
@@ -61,7 +61,7 @@ class TenantUserUpdateRequest(BaseSchema):
     email: str | None = Field(None, description="邮箱")
     phone: str | None = Field(None, description="手机号")
     nickname: str | None = Field(None, description="昵称")
-    avatar: str | None = Field(None, description="头像 URL")
+    avatar: str | None = Field(None, description="头像附件 ID（兼容旧 URL 值）")
     is_active: bool | None = Field(None, description="是否激活")
     role_id: int | None = Field(None, description="角色 ID")
     gender: int | None = Field(None, ge=0, le=2, description="性别: 0未知 1男 2女")
@@ -99,7 +99,7 @@ class TenantUserProfileUpdateRequest(BaseSchema):
     """企业用户资料更新请求 / Tenant user profile update request."""
 
     nickname: str | None = Field(None, max_length=100, description="昵称")
-    avatar: str | None = Field(None, max_length=500, description="头像 URL")
+    avatar: str | None = Field(None, max_length=500, description="头像附件 ID（兼容旧 URL 值）")
     gender: int | None = Field(None, ge=0, le=2, description="性别: 0未知 1男 2女")
     phone: str | None = Field(None, max_length=20, description="手机号")
     email: str | None = Field(None, max_length=255, description="邮箱")

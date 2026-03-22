@@ -22,6 +22,12 @@ import { useAccessStore } from '@vben/stores';
 
 import { message } from 'ant-design-vue';
 
+import {
+  LOGIN_PATHS,
+  resolveEndpointByPath,
+  USER_HOME_ALIAS_PATH,
+  USER_HOME_PATH,
+} from '#/constants/endpoints';
 import { TokenStorage } from '#/store/shared/token-storage';
 
 import {
@@ -32,7 +38,6 @@ import {
   createRequestInterceptor,
   createResponseDataInterceptor,
   createSuccessMessageInterceptor,
-  getEndpointByPath,
 } from './interceptors';
 import { RequestClient } from './request-client';
 
@@ -68,13 +73,6 @@ const REFRESH_TOKEN_URLS: Record<ApiEndpoint, string> = {
   user: '/api/user/auth/refresh',
 };
 
-/** Login page URL mapping (avoid circular dependency from store imports) / 登录页 URL 映射（避免依赖 store 入口造成循环依赖） */
-const LOGIN_PATHS: Record<ApiEndpoint, string> = {
-  admin: '/admin/login',
-  tenant: '/tenant/login',
-  user: '/auth/login',
-};
-
 // ============================================================
 // Token getter / Token 获取器
 // ============================================================
@@ -99,7 +97,9 @@ async function doReAuthenticate() {
 
   // 根据当前路由获取端类型
   const currentPath = window.location.pathname;
-  const endpoint = getEndpointByPath(currentPath);
+  const endpoint = resolveEndpointByPath(currentPath, window.location.hostname);
+  const isPublicRootPath =
+    currentPath === USER_HOME_PATH || currentPath === USER_HOME_ALIAS_PATH;
 
   // 仅清除当前端的 Token
   TokenStorage.clearToken(endpoint);
@@ -115,6 +115,9 @@ async function doReAuthenticate() {
   } else {
     // 重定向模式
     const loginPath = LOGIN_PATHS[endpoint];
+    if (isPublicRootPath) {
+      return;
+    }
     // 仅比较 pathname（忽略 query），避免已在登录页时创建嵌套 redirect 导致死循环
     if (currentPath === loginPath) {
       // 已在登录页，不重定向（保留原有 redirect 参数）
@@ -132,7 +135,7 @@ async function doReAuthenticate() {
 async function doRefreshToken(): Promise<string> {
   const accessStore = useAccessStore();
   const currentPath = window.location.pathname;
-  const endpoint = getEndpointByPath(currentPath);
+  const endpoint = resolveEndpointByPath(currentPath, window.location.hostname);
 
   const refreshToken = TokenStorage.getRefreshToken(endpoint);
   if (!refreshToken) {

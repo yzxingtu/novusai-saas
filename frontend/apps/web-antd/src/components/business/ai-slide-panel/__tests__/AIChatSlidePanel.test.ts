@@ -21,6 +21,20 @@ const selectedAgentIdValue = ref<null | number>(1);
 const activeConversationIdValue = ref<null | number>(null);
 const inputMessageValue = ref('');
 const pendingAttachmentsValue = ref<Array<{ type: string }>>([]);
+const pageContextValue = ref<null | {
+  page_data?: Record<string, unknown>;
+  page_key: string;
+  page_title: string;
+}>(null);
+const pageOperationsValue = ref<
+  Array<{
+    description?: string;
+    label: string;
+    name: string;
+    params?: Record<string, unknown>;
+    readonly: boolean;
+  }>
+>([]);
 const routeMessageMock = vi.fn();
 const sendMessageMock = vi.fn();
 const startNewConversationMock = vi.fn();
@@ -364,16 +378,21 @@ vi.mock('#/composables/use-page-screenshot', () => ({
 }));
 
 vi.mock('#/composables/use-form-state-tracker', () => ({
-  formStateTracker: { track: vi.fn(), untrack: vi.fn() },
+  formStateTracker: {
+    getFieldDescriptors: vi.fn(() => null),
+    isOpenWithFallback: vi.fn(() => false),
+    track: vi.fn(),
+    untrack: vi.fn(),
+  },
 }));
 
 vi.mock('../page-context-registry', () => ({
-  resolvePageContext: () => null,
+  resolvePageContext: () => pageContextValue.value,
   pageContextVersion: ref(0),
 }));
 
 vi.mock('../page-operation-registry', () => ({
-  listPageOperations: () => [],
+  listPageOperations: () => pageOperationsValue.value,
   pageOperationVersion: ref(0),
 }));
 
@@ -390,7 +409,9 @@ describe('AIChatSlidePanel (component mount)', () => {
     activeConversationIdValue.value = null;
     inputMessageValue.value = '';
     pendingAttachmentsValue.value = [];
+    pageContextValue.value = null;
     pendingPageOpsValue.value = [];
+    pageOperationsValue.value = [];
     aiPanelStore = createAIPanelStore();
     aiPanelStore.visible = visible.value;
     aiPanelStore.docked = docked.value;
@@ -477,7 +498,11 @@ describe('AIChatSlidePanel (component mount)', () => {
     aiPanelStore.pendingPageOps = pendingPageOpsValue.value;
 
     const wrapper = mount(AIChatSlidePanel, {
-      props: { apiPrefix: '/tenant', uploadUrl: '/upload' },
+      props: {
+        apiPrefix: '/tenant',
+        pageContextKey: 'tenant.demo.page',
+        uploadUrl: '/upload',
+      },
       attachTo: document.body,
       global: {
         stubs: {
@@ -513,7 +538,11 @@ describe('AIChatSlidePanel (component mount)', () => {
     inputMessageValue.value = 'follow-up';
 
     const wrapper = mount(AIChatSlidePanel, {
-      props: { apiPrefix: '/tenant', uploadUrl: '/upload' },
+      props: {
+        apiPrefix: '/tenant',
+        pageContextKey: 'tenant.demo.page',
+        uploadUrl: '/upload',
+      },
       attachTo: document.body,
       global: {
         stubs: {
@@ -534,12 +563,385 @@ describe('AIChatSlidePanel (component mount)', () => {
     wrapper.unmount();
   });
 
+  it('renders the compact header rail and more-actions trigger', async () => {
+    activeConversationIdValue.value = 10;
+    selectedAgentIdValue.value = 2;
+
+    const wrapper = mount(AIChatSlidePanel, {
+      props: {
+        apiPrefix: '/tenant',
+        pageContextKey: 'tenant.demo.page',
+        uploadUrl: '/upload',
+      },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          ChatMessageItem: true,
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(document.body.querySelector('[data-testid="ai-panel-header-status"]')).toBeTruthy();
+    expect(document.body.querySelector('[data-testid="ai-panel-header-actions"]')).toBeTruthy();
+    expect(
+      document.body.querySelector('button[aria-label="common.aiPanel.moreActions"]'),
+    ).toBeTruthy();
+
+    wrapper.unmount();
+  });
+
+  it('renders route notice as a standalone header banner after routing', async () => {
+    selectedAgentIdValue.value = 1;
+    inputMessageValue.value = 'hello';
+    routeMessageMock.mockResolvedValueOnce({
+      agentId: 1,
+      agentName: 'Agent One',
+      confidence: 1,
+      routedBy: 'router',
+    });
+
+    const wrapper = mount(AIChatSlidePanel, {
+      props: { apiPrefix: '/tenant', uploadUrl: '/upload' },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          ChatMessageItem: true,
+        },
+      },
+    });
+
+    await flushPromises();
+    const sendButton = document.body.querySelector('button.send-btn');
+    expect(sendButton).toBeTruthy();
+    sendButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPromises();
+
+    const routeBanner = document.body.querySelector('[data-testid="ai-panel-route-banner"]');
+    expect(routeBanner).toBeTruthy();
+    expect(routeBanner?.textContent).toContain('common.aiPanel.routedTo');
+
+    wrapper.unmount();
+  });
+
+  it('renders a compact page AI rail that expands on demand', async () => {
+    pageOperationsValue.value = [
+      { name: 'op-1', label: 'Refresh', readonly: true },
+      { name: 'op-2', label: 'Open Drawer', readonly: false },
+      { name: 'op-3', label: 'Save Draft', readonly: false },
+      { name: 'op-4', label: 'Search Records', readonly: true },
+      { name: 'op-5', label: 'Assign Owner', readonly: false },
+      { name: 'op-6', label: 'Export View', readonly: true },
+    ];
+
+    const wrapper = mount(AIChatSlidePanel, {
+      props: {
+        apiPrefix: '/tenant',
+        pageContextKey: 'tenant.demo.page',
+        uploadUrl: '/upload',
+      },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          ChatMessageItem: true,
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(document.body.querySelector('[data-testid="ai-panel-page-ai-card"]')).toBeTruthy();
+    expect(document.body.querySelector('[data-testid="ai-panel-page-ai-details"]')).toBeFalsy();
+    expect(document.body.querySelectorAll('[data-testid="ai-panel-page-ai-preview-item"]')).toHaveLength(0);
+
+    const capabilityRail = document.body.querySelector(
+      '[data-testid="ai-panel-page-ai-card"]',
+    ) as HTMLDivElement | null;
+    expect(capabilityRail).toBeTruthy();
+    capabilityRail?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPromises();
+
+    expect(document.body.querySelector('[data-testid="ai-panel-page-ai-details"]')).toBeTruthy();
+    expect(document.body.querySelectorAll('[data-testid="ai-panel-page-ai-preview-item"]')).toHaveLength(4);
+
+    capabilityRail?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPromises();
+    expect(document.body.querySelector('[data-testid="ai-panel-page-ai-details"]')).toBeFalsy();
+
+    const toggleButton = document.body.querySelector(
+      '[data-testid="ai-panel-page-ai-toggle"]',
+    ) as HTMLButtonElement | null;
+    expect(toggleButton).toBeTruthy();
+    toggleButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPromises();
+
+    expect(document.body.querySelector('[data-testid="ai-panel-page-ai-details"]')).toBeTruthy();
+    expect(document.body.textContent).toContain('common.aiPanel.pageAiOperationCount');
+    expect(document.body.textContent).toContain('common.aiPanel.pageAiWritableCount');
+    expect(document.body.textContent).toContain('common.aiPanel.pageAiReadonlyCount');
+    expect(document.body.querySelectorAll('[data-testid="ai-panel-page-ai-preview-item"]')).toHaveLength(4);
+
+    const moreButton = document.body.querySelector(
+      '[data-testid="ai-panel-page-ai-more"]',
+    ) as HTMLButtonElement | null;
+    expect(moreButton).toBeTruthy();
+    moreButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPromises();
+
+    expect(document.body.querySelectorAll('[data-testid="ai-panel-page-ai-preview-item"]')).toHaveLength(6);
+
+    toggleButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPromises();
+    expect(document.body.querySelector('[data-testid="ai-panel-page-ai-details"]')).toBeFalsy();
+
+    wrapper.unmount();
+  });
+
+  it('mounts safely when page context exists before runtime size guards initialize', async () => {
+    pageContextValue.value = {
+      page_key: 'tenant.demo.page',
+      page_title: 'admin.system.codegen.name',
+      page_data: {
+        list_summary: {
+          columns: ['name'],
+          row_count: 1,
+          sample_rows: [{ name: 'Codegen' }],
+        },
+      },
+    };
+    pageOperationsValue.value = [
+      { name: 'op-1', label: 'Inspect', readonly: true },
+    ];
+
+    const wrapper = mount(AIChatSlidePanel, {
+      props: {
+        apiPrefix: '/tenant',
+        pageContextKey: 'tenant.demo.page',
+        uploadUrl: '/upload',
+      },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          ChatMessageItem: true,
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(document.body.querySelector('[data-testid="ai-panel-page-ai-card"]')).toBeTruthy();
+    expect(antMessageMocks.error).not.toHaveBeenCalled();
+
+    wrapper.unmount();
+  });
+
+  it('does not expose fallback-only context as formal page AI support', async () => {
+    pageContextValue.value = {
+      page_key: 'tenant.demo.fallback',
+      page_title: 'Fallback Only',
+      page_data: {
+        source: 'dom_snapshot',
+        tables: [{ columns: ['name'], row_count: 1 }],
+      },
+    };
+
+    const wrapper = mount(AIChatSlidePanel, {
+      props: {
+        apiPrefix: '/tenant',
+        pageContextKey: 'tenant.demo.fallback',
+        uploadUrl: '/upload',
+      },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          ChatMessageItem: true,
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(document.body.querySelector('[data-testid="ai-panel-page-ai-card"]')).toBeFalsy();
+
+    wrapper.unmount();
+  });
+
+  it('keeps form_fields in routed page context while trimming oversized payloads', async () => {
+    inputMessageValue.value = 'inspect this page';
+    pageContextValue.value = {
+      page_key: 'tenant.demo.large',
+      page_title: 'Large Demo Page',
+      page_data: {
+        document_body_text: 'x'.repeat(6400),
+        form_fields: Object.fromEntries(
+          Array.from({ length: 24 }, (_, index) => [
+            `field_${index}`,
+            {
+              component: 'input',
+              description: `Field ${index} `.repeat(18),
+              options: Array.from({ length: 6 }, (__, optionIndex) => ({
+                label: `Option ${index}-${optionIndex}`,
+                value: `${index}-${optionIndex}`,
+              })),
+              required: index % 2 === 0,
+              type: 'string',
+            },
+          ]),
+        ),
+        list_summary: {
+          sample_rows: Array.from({ length: 5 }, (_, index) => ({
+            description: `Row ${index} `.repeat(32),
+            name: `Record ${index}`,
+          })),
+          total_rows: 50,
+        },
+      },
+    };
+    pageOperationsValue.value = Array.from({ length: 16 }, (_, index) => ({
+      description: `Operation ${index} `.repeat(14),
+      label: `Op ${index}`,
+      name: `op_${index}`,
+      params: {
+        field_name: {
+          description: `Field name ${index}`.repeat(12),
+          required: true,
+          type: 'string',
+        },
+        mode: {
+          enum: ['draft', 'published', 'archived'],
+          type: 'string',
+        },
+      },
+      readonly: index % 2 === 0,
+    }));
+
+    const wrapper = mount(AIChatSlidePanel, {
+      props: {
+        apiPrefix: '/tenant',
+        pageContextKey: 'tenant.demo.large',
+        uploadUrl: '/upload',
+      },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          ChatMessageItem: true,
+        },
+      },
+    });
+
+    await flushPromises();
+    const sendButton = document.body.querySelector('button.send-btn');
+    expect(sendButton).toBeTruthy();
+    sendButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPromises();
+
+    const routedContext = routeMessageMock.mock.calls[0]?.[2] as
+      | null
+      | {
+          page_data?: Record<string, unknown>;
+        };
+    expect(routedContext?.page_data).toBeTruthy();
+    expect(routedContext?.page_data?.form_fields).toBeTruthy();
+    expect(
+      Object.keys(routedContext?.page_data?.form_fields as Record<string, unknown>).length,
+    ).toBeGreaterThan(0);
+    expect(
+      (
+        routedContext?.page_data?.list_summary as { sample_rows?: unknown[] } | undefined
+      )?.sample_rows?.length ?? 0,
+    ).toBeLessThanOrEqual(2);
+    expect(
+      (
+        routedContext?.page_data?.available_operations as unknown[] | undefined
+      )?.length ?? 0,
+    ).toBeLessThanOrEqual(16);
+    expect(
+      String(routedContext?.page_data?.document_body_text ?? '').length,
+    ).toBeLessThan(6400);
+
+    wrapper.unmount();
+  });
+
   it('does not fall back to current agent when image reroute fails', async () => {
     activeConversationIdValue.value = 10;
     selectedAgentIdValue.value = 2;
     inputMessageValue.value = 'look at this';
     pendingAttachmentsValue.value = [{ type: 'image' }];
     routeMessageMock.mockRejectedValueOnce(new Error('no vision agent'));
+
+    const wrapper = mount(AIChatSlidePanel, {
+      props: { apiPrefix: '/tenant', uploadUrl: '/upload' },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          ChatMessageItem: true,
+        },
+      },
+    });
+
+    await flushPromises();
+    const rerouteButton = document.body.querySelector(
+      'button[aria-label="common.globalAiChat.rerouteThisTurn"]',
+    );
+    const sendButton = document.body.querySelector('button.send-btn');
+    expect(rerouteButton).toBeTruthy();
+    expect(sendButton).toBeTruthy();
+    rerouteButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    sendButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPromises();
+
+    expect(routeMessageMock).toHaveBeenCalledOnce();
+    expect(routeMessageMock.mock.calls[0]?.[4]).toBe(true);
+    expect(sendMessageMock).not.toHaveBeenCalled();
+
+    wrapper.unmount();
+  });
+
+  it('routes attachment-only audio messages with placeholder text and attachment flags', async () => {
+    activeConversationIdValue.value = null;
+    selectedAgentIdValue.value = 1;
+    inputMessageValue.value = '';
+    pendingAttachmentsValue.value = [{ type: 'audio' }];
+
+    const wrapper = mount(AIChatSlidePanel, {
+      props: { apiPrefix: '/tenant', uploadUrl: '/upload' },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          ChatMessageItem: true,
+        },
+      },
+    });
+
+    await flushPromises();
+    const sendButton = document.body.querySelector('button.send-btn');
+    expect(sendButton).toBeTruthy();
+    sendButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPromises();
+
+    expect(routeMessageMock).toHaveBeenCalledOnce();
+    expect(routeMessageMock.mock.calls[0]?.[0]).toBe(' ');
+    expect(routeMessageMock.mock.calls[0]?.[3]).toEqual({
+      hasAudioAttachments: true,
+      hasFileAttachments: false,
+      hasImageAttachments: false,
+      hasVideoAttachments: false,
+    });
+    expect(sendMessageMock).toHaveBeenCalledWith({
+      agentId: 1,
+      pageContext: null,
+    });
+
+    wrapper.unmount();
+  });
+
+  it('does not fall back to current agent when audio reroute fails', async () => {
+    activeConversationIdValue.value = 10;
+    selectedAgentIdValue.value = 2;
+    inputMessageValue.value = 'listen to this';
+    pendingAttachmentsValue.value = [{ type: 'audio' }];
+    routeMessageMock.mockRejectedValueOnce(new Error('no audio model'));
 
     const wrapper = mount(AIChatSlidePanel, {
       props: { apiPrefix: '/tenant', uploadUrl: '/upload' },

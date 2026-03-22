@@ -2,10 +2,12 @@
  * Plugin frontend dynamic loader utility
  * 插件前端动态加载工具
  *
- * Load via injection mode only:
- *   - Runtime plugins (prod/dev) → load UMD bundle via <script> tag
- * 仅通过注入模式加载：
- *   - 运行时插件（生产/开发）→ 通过 <script> 标签加载 UMD 包
+ * Runtime loading strategy:
+ *   - Dev → import Vite-transformed source entry from /__plugin_dev__/{plugin}/entry
+ *   - Prod → fetch release manifest first, then inject release JS/CSS assets
+ * 运行时加载策略：
+ *   - 开发态 → 从 /__plugin_dev__/{plugin}/entry 导入 Vite 转译后的源码入口
+ *   - 生产态 → 先读取 release manifest，再注入发布 JS/CSS 产物
  *
  * Design constraints:
  *   - Do not compile backend/plugins source into host frontend bundle
@@ -15,14 +17,36 @@
  *   - 插件必须保持独立构建与独立发布
  */
 
+import {
+  buildPluginAssetUrl,
+  getPluginAssetAuthHeaders,
+} from '#/utils/plugin-asset';
+
+type PluginModule = Record<string, unknown>;
+
+export interface PluginFrontendRuntimeContract {
+  dev_entry?: string;
+  release_manifest?: string;
+}
+
+export interface PluginAssetLoadOptions {
+  publicEndpoint?: 'admin' | 'tenant' | 'user';
+}
+
+export interface PluginReleaseManifest {
+  assets: string[];
+  css: string[];
+  entry: string;
+  format: string;
+  global_var: string;
+}
+
 /** Loaded plugin cache / 已加载的插件缓存 */
-const loadedPlugins: Map<string, Record<string, unknown>> = new Map();
+const loadedPlugins: Map<string, PluginModule> = new Map();
+const loadedPluginGlobals: Map<string, string> = new Map();
 
 /** Loading Promise cache (prevent duplicate loading) / 加载中的 Promise 缓存（防止重复加载） */
-const loadingPromises: Map<
-  string,
-  Promise<Record<string, unknown>>
-> = new Map();
+const loadingPromises: Map<string, Promise<PluginModule>> = new Map();
 /** CSS loading Promise cache (prevent duplicate loading) / CSS 解析中的 Promise 缓存（防止重复加载） */
 const cssLoadingPromises: Map<string, Promise<void>> = new Map();
 
@@ -30,7 +54,40 @@ const cssLoadingPromises: Map<string, Promise<void>> = new Map();
 const unloadedPlugins: Set<string> = new Set();
 
 const SAFE_PLUGIN_NAME_RE = /^[a-z][\da-z]*(?:-[\da-z]+)*$/;
-const SAFE_CSS_FILENAME_RE = /^[\w][\w.-]*\.css$/;
+const SAFE_ASSET_SEGMENT_RE = /^[\w.-]+$/;
+const RELEASE_MANIFEST_FORMAT = 'novus.plugin.release.v1';
+
+export const pluginRuntimeEnv = {
+  isDev(): boolean {
+    return Boolean(import.meta.env.DEV);
+  },
+};
+
+function normalizeRelativeAssetPath(assetPath: string): null | string {
+  const normalized = (assetPath || '')
+    .trim()
+    .replaceAll('\\', '/')
+    .replace(/^\/+/, '');
+
+  if (!normalized || normalized === '.') {
+    return null;
+  }
+
+  const segments = normalized.split('/');
+  if (
+    segments.some(
+      (segment) =>
+        !segment ||
+        segment === '.' ||
+        segment === '..' ||
+        !SAFE_ASSET_SEGMENT_RE.test(segment),
+    )
+  ) {
+    return null;
+  }
+
+  return segments.join('/');
+}
 
 /**
  * Convert plugin name to global variable name: crm-module → NovusPlugin_crm_module
@@ -40,25 +97,160 @@ function toGlobalVarName(pluginName: string): string {
   return `NovusPlugin_${pluginName.replaceAll('-', '_')}`;
 }
 
-function _injectPluginCSS(pluginName: string, cssFileName: string): void {
-  const basename = cssFileName.split('/').pop() || '';
-  if (!SAFE_CSS_FILENAME_RE.test(basename)) {
-    console.warn(
-      `[PluginLoader] Rejected invalid CSS filename: '${cssFileName}' for plugin '${pluginName}'`,
-    );
-    return;
+function getReleaseManifestPath(
+  runtimeContract?: PluginFrontendRuntimeContract,
+): string {
+  const manifestPath = runtimeContract?.release_manifest?.trim();
+  if (!manifestPath) {
+    return 'plugin.manifest.json';
   }
 
-  const normalized = basename.replaceAll(/[^\w-]/g, '_');
-  const cssId = `novus-plugin-css-${pluginName}-${normalized}`;
-  if (document.querySelector(`#${CSS.escape(cssId)}`)) {
+  const normalized = normalizeRelativeAssetPath(manifestPath);
+  if (!normalized) {
+    throw new Error(
+      `Invalid plugin release manifest path: '${runtimeContract?.release_manifest}'`,
+    );
+  }
+  return normalized;
+}
+
+function normalizeManifestAssetList(
+  fieldName: 'assets' | 'css',
+  value: unknown,
+): string[] {
+  if (value === undefined || value === null) {
+    return [];
+  }
+
+  if (!Array.isArray(value)) {
+    throw new Error(`Plugin release manifest field '${fieldName}' must be an array`);
+  }
+
+  const normalizedItems: string[] = [];
+  for (const item of value) {
+    if (typeof item !== 'string') {
+      throw new Error(
+        `Plugin release manifest field '${fieldName}' must only contain strings`,
+      );
+    }
+    const normalized = normalizeRelativeAssetPath(item);
+    if (!normalized) {
+      throw new Error(
+        `Plugin release manifest field '${fieldName}' contains invalid asset path '${item}'`,
+      );
+    }
+    if (!normalizedItems.includes(normalized)) {
+      normalizedItems.push(normalized);
+    }
+  }
+  return normalizedItems;
+}
+
+export function parsePluginReleaseManifest(
+  pluginName: string,
+  payload: unknown,
+): PluginReleaseManifest {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error(`Plugin '${pluginName}' release manifest must be an object`);
+  }
+
+  const raw = payload as Record<string, unknown>;
+  const entry = normalizeRelativeAssetPath(
+    typeof raw.entry === 'string' ? raw.entry : '',
+  );
+  if (!entry) {
+    throw new Error(`Plugin '${pluginName}' release manifest is missing a valid entry`);
+  }
+
+  const format =
+    typeof raw.format === 'string' && raw.format.trim()
+      ? raw.format.trim()
+      : RELEASE_MANIFEST_FORMAT;
+  if (format !== RELEASE_MANIFEST_FORMAT) {
+    throw new Error(
+      `Plugin '${pluginName}' release manifest format must be '${RELEASE_MANIFEST_FORMAT}'`,
+    );
+  }
+
+  const globalVar =
+    typeof raw.global_var === 'string' && raw.global_var.trim()
+      ? raw.global_var.trim()
+      : toGlobalVarName(pluginName);
+
+  return {
+    assets: normalizeManifestAssetList('assets', raw.assets),
+    css: normalizeManifestAssetList('css', raw.css),
+    entry,
+    format,
+    global_var: globalVar,
+  };
+}
+
+export function buildPluginDevEntryUrl(
+  pluginName: string,
+  loadOptions: PluginAssetLoadOptions = {},
+): string {
+  return buildPluginAssetUrl(pluginName, `/__plugin_dev__/${pluginName}/entry`, {
+    cacheBust: true,
+    publicEndpoint: loadOptions.publicEndpoint,
+  });
+}
+
+async function loadPluginReleaseManifest(
+  pluginName: string,
+  runtimeContract?: PluginFrontendRuntimeContract,
+  loadOptions: PluginAssetLoadOptions = {},
+): Promise<PluginReleaseManifest> {
+  const manifestUrl = buildPluginAssetUrl(
+    pluginName,
+    getReleaseManifestPath(runtimeContract),
+    {
+      publicEndpoint: loadOptions.publicEndpoint,
+    },
+  );
+  const response = await fetch(manifestUrl, {
+    headers: getPluginAssetAuthHeaders({
+      publicEndpoint: loadOptions.publicEndpoint,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to load plugin release manifest '${manifestUrl}' (${response.status})`,
+    );
+  }
+
+  return parsePluginReleaseManifest(
+    pluginName,
+    (await response.json()) as unknown,
+  );
+}
+
+function _injectPluginCSS(
+  pluginName: string,
+  cssFileName: string,
+  loadOptions: PluginAssetLoadOptions = {},
+): void {
+  const normalizedPath = normalizeRelativeAssetPath(cssFileName);
+  if (!normalizedPath) {
+    throw new Error(
+      `Rejected invalid CSS asset path '${cssFileName}' for plugin '${pluginName}'`,
+    );
+  }
+
+  const cssId = `novus-plugin-css-${pluginName}-${normalizedPath.replaceAll(/[^\w-]/g, '_')}`;
+  if (document.getElementById(cssId)) {
     return;
   }
 
   const link = document.createElement('link');
   link.id = cssId;
+  link.dataset.novusPlugin = pluginName;
+  link.dataset.novusPluginRole = 'stylesheet';
   link.rel = 'stylesheet';
-  link.href = `/plugin-assets/${pluginName}/${basename}`;
+  link.href = buildPluginAssetUrl(pluginName, normalizedPath, {
+    publicEndpoint: loadOptions.publicEndpoint,
+  });
   document.head.append(link);
 }
 
@@ -71,6 +263,7 @@ function _injectPluginCSS(pluginName: string, cssFileName: string): void {
 async function loadPluginCSS(
   pluginName: string,
   cssFiles: string[] = [],
+  loadOptions: PluginAssetLoadOptions = {},
 ): Promise<void> {
   if (cssFiles.length === 0) {
     return;
@@ -82,18 +275,9 @@ async function loadPluginCSS(
   }
 
   const task = (async () => {
-    const uniqueCss = [
-      ...new Set(cssFiles.map((it) => it.trim()).filter(Boolean)),
-    ];
+    const uniqueCss = normalizeManifestAssetList('css', cssFiles);
     for (const cssFile of uniqueCss) {
-      try {
-        _injectPluginCSS(pluginName, cssFile);
-      } catch (err) {
-        console.warn(
-          `[PluginLoader] CSS injection failed for '${pluginName}/${cssFile}':`,
-          err,
-        );
-      }
+      _injectPluginCSS(pluginName, cssFile, loadOptions);
     }
   })();
 
@@ -114,8 +298,9 @@ async function loadPluginCSS(
  */
 export async function loadPluginComponents(
   pluginName: string,
-  cssFiles: string[] = [],
-): Promise<Record<string, unknown>> {
+  runtimeContract?: PluginFrontendRuntimeContract,
+  loadOptions: PluginAssetLoadOptions = {},
+): Promise<PluginModule> {
   if (!SAFE_PLUGIN_NAME_RE.test(pluginName)) {
     console.warn(
       `[PluginLoader] Rejected invalid plugin name: '${pluginName}'`,
@@ -133,31 +318,44 @@ export async function loadPluginComponents(
 
   unloadedPlugins.delete(pluginName);
 
-  const promise = (async (): Promise<Record<string, unknown>> => {
-    await loadPluginCSS(pluginName, cssFiles);
+  const promise = (async (): Promise<PluginModule> => {
+    let mod: PluginModule;
 
-    let mod: Record<string, unknown>;
-
-    if (import.meta.env.DEV) {
-      const devUrl = `/plugin-assets/${pluginName}/index.js?t=${Date.now()}`;
-      mod = (await import(/* @vite-ignore */ devUrl)) as Record<
-        string,
-        unknown
-      >;
+    if (pluginRuntimeEnv.isDev()) {
+      mod = (await import(
+        /* @vite-ignore */
+        buildPluginDevEntryUrl(pluginName, loadOptions)
+      )) as PluginModule;
     } else {
-      mod = await new Promise<Record<string, unknown>>((resolve, reject) => {
-        const scriptUrl = `/plugin-assets/${pluginName}/index.js`;
+      const releaseManifest = await loadPluginReleaseManifest(
+        pluginName,
+        runtimeContract,
+        loadOptions,
+      );
+      await loadPluginCSS(pluginName, releaseManifest.css, loadOptions);
+
+      mod = await new Promise<PluginModule>((resolve, reject) => {
+        const scriptUrl = buildPluginAssetUrl(
+          pluginName,
+          releaseManifest.entry,
+          {
+            publicEndpoint: loadOptions.publicEndpoint,
+          },
+        );
         const script = document.createElement('script');
+        script.dataset.novusPlugin = pluginName;
+        script.dataset.novusPluginRole = 'script';
         script.src = scriptUrl;
         script.async = true;
 
         script.addEventListener('load', () => {
-          const globalVar = toGlobalVarName(pluginName);
+          const globalVar = releaseManifest.global_var;
           const m = (window as unknown as Record<string, unknown>)[
             globalVar
-          ] as Record<string, unknown> | undefined;
+          ] as PluginModule | undefined;
 
           if (m) {
+            loadedPluginGlobals.set(pluginName, globalVar);
             resolve(m);
             return;
           }
@@ -242,21 +440,22 @@ export function isPluginLoaded(pluginName: string): boolean {
  */
 export function unloadPlugin(pluginName: string): void {
   unloadedPlugins.add(pluginName);
+  const globalVar = loadedPluginGlobals.get(pluginName) ?? toGlobalVarName(pluginName);
   loadedPlugins.delete(pluginName);
+  loadedPluginGlobals.delete(pluginName);
   loadingPromises.delete(pluginName);
   cssLoadingPromises.delete(pluginName);
 
   const scripts = document.querySelectorAll(
-    `script[src*="/plugin-assets/${pluginName}/"]`,
+    `script[data-novus-plugin="${pluginName}"]`,
   );
   for (const s of scripts) {
     s.remove();
   }
-  const globalVar = toGlobalVarName(pluginName);
   (window as unknown as Record<string, unknown>)[globalVar] = undefined;
 
   const cssNodes = document.querySelectorAll(
-    `[id^="novus-plugin-css-${pluginName}-"]`,
+    `link[data-novus-plugin="${pluginName}"]`,
   );
   for (const cssNode of cssNodes) {
     cssNode.remove();

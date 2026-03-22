@@ -26,8 +26,6 @@ from app.schemas.tenant.domain import (
     TenantDomainUpdateRequest,
     TenantDomainVerificationInfo,
     TenantDomainVerifyRequest,
-    TenantSettingsResponse,
-    TenantSettingsUpdateRequest,
 )
 from app.schemas.tenant.plan import (
     FeaturesSchema,
@@ -131,8 +129,6 @@ __all__ = [
     "TenantDomainCreateRequest",
     "TenantDomainUpdateRequest",
     "TenantDomainVerifyRequest",
-    "TenantSettingsResponse",
-    "TenantSettingsUpdateRequest",
     # Plan
     "QuotaSchema",
     "FeaturesSchema",

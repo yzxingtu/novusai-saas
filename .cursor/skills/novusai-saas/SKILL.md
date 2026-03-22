@@ -44,7 +44,7 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 - **禁止裸返回**：后端必须用 `success()` / `created()` / `paginated()` 等统一响应
 - **禁止手写重复 Schema**：前端用 `searchInput()` / `inputField()` 等辅助函数
 - **禁止敏感信息入代码**：密钥、密码、Token 通过环境变量
-- **禁止在主系统中写入插件代码**：插件组件/逻辑/locale 只能在 `backend/plugins/{name}/` 内，前端通过 UMD 动态加载
+- **禁止在主系统中写入插件代码**：插件组件/逻辑/locale 只能在 `backend/plugins/{name}/` 内，宿主只允许保留通用 loader/runtime/permission 桥接
 - **禁止依赖在线图标 API**：平台功能图标统一用本地 `lucide:*` 或自托管 `svg:*`，插件元数据图标只允许 `icon.png`
 
 ---
@@ -201,22 +201,38 @@ show: (row) => row.tenant_id != null && row.tenant_id === currentTenantId
 
 - 技能包（SkillPackage）是一级管理单元，技能必须归属于某个技能包
 - 技能类型：`toolkit` / `knowledge_base` / `data_intelligence` / `builtin` / `http` / `email` / `code_execution`
-- 新增 AI 功能标准流程：定义类型 → 实现 Executor → 注册映射 → 创建 Skill → 绑定 Agent
-- **技能（Skill）无独立 `scope` 字段**，可见性和操作权限完全继承自所属 SkillPackage
+- 新增 AI 功能标准流程：定义类型 → 实现 Executor → 注册映射 → 创建/同步 SkillPackage（目录与来源单元）→ 创建 Skill → 通过 `AgentSkillGrant` 直接授权 Agent
+- **Skill ORM 无 `ResourceScopeEnum` 的 `scope` 列**；目录与归属语境由所属 **SkillPackage**（`tenant_id` / `source_plugin` 等，包表亦无 `scope` 列）与 **Skill.tenant_id**（归属列）及仓储过滤共同表达，详见 [references/ai-module.md](references/ai-module.md) § 八
 - 页面感知与操作遵循三层架构：Layer 1 通过 `page_context -> input_variables -> system prompt` 注入基础感知，Layer 2 通过 builtin skill `get_page_context` 提供深度上下文，Layer 3 通过 builtin skill `invoke_page_operation` 经 WebSocket 双向通信执行前端页面操作
+- `page_tool_expander` 不再只展开富文本编辑器操作；对 `search` / `read_visible_rows` / `read_row_detail` / `get_form_state` / `fill_form` / `validate_form` / `get_form_options` / `refresh_list` / 分页类等高频页面操作，也应优先展开为专用 `pageop_*` tools，模型优先直调专用工具，仅在未展开时回退到 `invoke_page_operation`
 - **RAG 运行时配置中心是 `Agent.rag_config`**：KB 表上的 `search_mode/top_k/score_threshold` 仅作兼容；多 KB 检索默认按 KB 独立召回再融合，绑定权重进入融合层而非摆设字段
-- **仅注册 Executor 不算完成**，必须同时存在 `SkillPackage + builtin Skill + auto-bind`，让工具进入 LLM function calling tools schema
+- **仅注册 Executor 不算完成**，必须同时存在 `SkillPackage + Skill`，并通过 `AgentSkillGrant` 进入运行时工具集合；禁止再引入包级 auto-bind 语义
 - `_PROTECTED_TOOL_NAMES` 白名单保护 `get_page_context`、`invoke_page_operation`、`list_page_operations` 不被工具优化器过滤
 - 页面感知标准接入点：`useCrudList` 的 `ai` 配置自动注册 context + operations；ref 模式页面需传递 `_aiPageKey`
 - 页面感知 `page_context` 字节预算由平台配置 `ai_page_context_max_bytes` 控制；入口在 **管理端 → 系统配置 → AI Toolkit 与页面上下文**，默认 `8192` bytes，**不是**模型输入/输出 token 限制
-- 操作安全：`readonly=true` 直接执行，`readonly=false` 前端弹出确认对话框，超时 30s
+- 操作安全：`readonly=true` 直接执行，`readonly=false` 前端弹出确认对话框，确认超时 `60s`
+- 前端页面操作通道必须按 `invoke_id` 做幂等保护；重复下发同一操作时只能回放缓存结果，禁止重复执行/重复确认
+- 前端页面操作通道必须校验 `event.page_key` 与当前活动页面一致；不一致时返回 `page_key_mismatch`，禁止在错误页面执行操作
+- Agent Loop 链式自动确认仅允许在当前页面会话内短时复用；页面会话切换、离开房间或连接断开时必须清空链式确认状态，禁止跨会话残留
 - **禁止手动 `registerPageContext` 与 `useCrudList` 的 `ai` 配置共存**——会覆盖增强 context，使用 `contextExtras` 合并自定义数据
+- **企业 AI 配额与限速 / Tenant AI quota & rate limit**：
+  - 硬配额超限必须拒绝，返回 `HTTP 429 / 4291`
+  - 软配额超限必须允许继续调用，并继续累计用量
+  - 速率限制超限必须拒绝，返回 `HTTP 429 / 4292`
+  - 全局配额只在同周期没有模型专属规则时生效
+  - 企业级 `rpm_limit` / `tpm_limit = null` 表示继承模型默认值
+  - 管理端 `admin/ai/quotas` 是**运行时诊断页**，不是普通 CRUD 回显页
+- **专项验证 / Specialized validation**：
+  - 改动配额/限速后，除了单元测试，还要真实验证 `GET /admin/ai/quotas/summary`、`GET /admin/ai/quotas`、`GET /admin/ai/quotas/rate-limits`
+  - 至少做一次真实运行时拦截验证，优先使用 `/tenant/ai/gateway/chat`
 
 ### 资源作用域 vs 技能包（摘要）
 
-- **资源作用域**仅五类：`global_shared` / `admin_only` / `all_tenants` / `admin_and_selected_tenants` / `selected_tenants`（`ResourceScopeEnum`）。
-- **投放面**由 `scope` + `resource_tenant_assignments` 表达；**企业是否可编辑**由 **`owner_tenant_id`（或模型仍名为 `tenant_id` 的归属列）** 判定，禁止再用「`all_tenants` + tenant 是否为空」旧双重语义。
-- **Skill 无独立 `scope`**，继承所属 **SkillPackage** 的 scope + 归属列。
+- **ResourceScopeEnum 五类**（`global_shared` / `admin_only` / …）适用于 **Agent / KnowledgeBase 等带 `scope` 列的资源**；**不要**把该模型套用到 **`skill_packages` / `skills` 表**（二者 ORM 均无 `scope` 列）。
+- 对上述带 scope 的资源：**投放面**由 `scope` + `resource_tenant_assignments` 表达；**企业是否可编辑**由 **`owner_tenant_id`（或仍名为 `tenant_id` 的归属列）** 判定，禁止再用「`all_tenants` + tenant 是否为空」旧双重语义。
+- **SkillPackage + Skill**：目录可见性与归属见 **SkillPackage.tenant_id**、**Skill.package_id**、**Skill.tenant_id** 及 `SkillPackageRepository` 规则；与包级运行时绑定无关。
+- **SkillPackage 是归组 / 来源 / 目录单元**，不是运行时绑定真相；运行时是否给 Agent 生效，只看 **`AgentSkillGrant`**
+- **企业端允许只读 SkillPackage 目录路由** `/tenant/ai/skill-packages`，但禁止 tenant 侧 SkillPackage CRUD / valves 编辑 / 包级运行绑定
 - **受众/发布**（`target_audience`、`TenantAgentPublication` 等）不属于上述五类资源作用域。
 
 **模型多模态**：对话适配器根据模型的 `supports_vision` / `supports_audio` / `supports_video` 决定附件转 image_url、input_audio 或文字提示；知识库可配置 vision/audio/video 可选模型，RAG 描述器选型优先级为 KB 显式配置 → 平台首个对应能力模型。
@@ -517,7 +533,7 @@ admin / tenant 端 UI 偏好使用三层模型：`SYSTEM_DEFAULTS -> global pref
 
 ## 十九、插件开发
 
-插件系统采用**零侵入架构**：plugin.yaml 声明式清单 + PluginBase 生命周期钩子 + PluginContext 沙箱 API + UMD 前端动态加载。
+插件系统采用**零侵入架构**：plugin.yaml 声明式清单 + PluginBase 生命周期钩子 + PluginContext 沙箱 API + 前端 manifest-first 动态加载。
 
 **核心原则：插件代码（后端逻辑、前端组件、国际化文件）只能存在于 `backend/plugins/{name}/` 内，严禁写入主系统代码中。**
 
@@ -561,6 +577,7 @@ async for delta in ctx.call_ai_feature_stream("code", messages): ...  # 流式
 - ❌ 禁止操作非 `px_{name}_*` 前缀的表（PluginDbProxy 拦截）
 - ❌ 禁止 `eval/exec/subprocess`（安全扫描检测）
 - ❌ `Alembic 迁移必须声明 `branch_labels = ('plugin_{name_underscored}',)`
+- ❌ 禁止恢复链路在 Alembic 失败后继续注册当前插件扩展
 
 ### CLI 工具
 
@@ -568,9 +585,17 @@ async for delta in ctx.call_ai_feature_stream("code", messages): ...  # 流式
 novusai plugin create my-plugin --template=minimal      # 纯后端
 novusai plugin create my-plugin --template=skill        # + Skill/Executor
 novusai plugin create my-plugin --template=full-module  # + 前端 + API + 迁移
+novusai plugin build backend/plugins/my-plugin          # 生成 release manifest
 novusai plugin validate plugins/my-plugin               # 校验
-novusai plugin pack plugins/my-plugin                   # 打包 zip
+novusai plugin pack plugins/my-plugin --release         # 发布包
+novusai plugin pack plugins/my-plugin --source          # 源码包
 ```
+
+- `create --template minimal` 现在默认生成 `icon: ""`，保证脚手架产物可直接通过 manifest 校验。
+- 前端运行时约束：
+  - 开发态固定入口是 `/__plugin_dev__/{plugin}/entry`
+  - Vite dev loader 从 `extensions.frontend.dev.entry` 解析真实源码入口
+  - 生产态先读取 slots 投影的 `frontend_runtime.release_manifest`，再按 release manifest 加载 JS/CSS
 
 → 完整规范 + 代码示例：[references/plugin-spec.md](references/plugin-spec.md)
 → 插件专题技能：[../plugin-development/SKILL.md](../plugin-development/SKILL.md)

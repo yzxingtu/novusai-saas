@@ -5,6 +5,7 @@ Manages tenant Token quota, monthly budget, and usage tracking.
 管理企业的 Token 配额、月度预算和使用量追踪。
 """
 
+from dataclasses import dataclass
 from datetime import date
 
 from sqlalchemy import select
@@ -27,6 +28,34 @@ class QuotaExceeded(BusinessException):
     code = 4291
     status_code = 429
     default_message = "ai.error.quota_exceeded_default"
+
+
+@dataclass(frozen=True)
+class QuotaMeteringItem:
+    """
+    Quota metering context item / 配额计量上下文项
+
+    Captures which quota rule was applied at request-check time so response-time
+    adjustment can update the same Redis bucket deterministically.
+    捕获请求检查阶段实际命中的配额规则，确保响应阶段回写到同一 Redis bucket。
+    """
+
+    quota_id: int
+    period: str
+    quota_type: str
+    tracking_model_id: int
+
+
+@dataclass(frozen=True)
+class QuotaCheckResult:
+    """
+    Quota check result / 配额检查结果
+
+    Stores all effective quota rules applied to the request.
+    存储本次请求命中的所有生效配额规则。
+    """
+
+    items: tuple[QuotaMeteringItem, ...] = ()
 
 
 class UsageTracker:
@@ -71,6 +100,37 @@ class UsageTracker:
     def _get_key(prefix: str, tenant_id: int, model_id: int, date_key: str) -> str:
         """Generate Redis key / 生成 Redis 键"""
         return f"{prefix}{tenant_id}:{model_id}:{date_key}"
+
+    @staticmethod
+    def _resolve_period_key(
+        tenant_id: int,
+        model_id: int,
+        period: str,
+        stat_date: date | None = None,
+    ) -> tuple[str, int] | None:
+        """Resolve Redis key + TTL by period / 按周期解析 Redis key 与 TTL"""
+        stat_date = stat_date or date.today()
+        if period == QuotaPeriodEnum.DAILY.value:
+            return (
+                UsageTracker._get_key(
+                    UsageTracker.PREFIX_DAILY,
+                    tenant_id,
+                    model_id,
+                    stat_date.isoformat(),
+                ),
+                86400 * 2,
+            )
+        if period == QuotaPeriodEnum.MONTHLY.value:
+            return (
+                UsageTracker._get_key(
+                    UsageTracker.PREFIX_MONTHLY,
+                    tenant_id,
+                    model_id,
+                    f"{stat_date.year}-{stat_date.month:02d}",
+                ),
+                86400 * 35,
+            )
+        return None
 
     @staticmethod
     async def get_daily_usage(
@@ -139,6 +199,7 @@ class UsageTracker:
         estimated_tokens: int,
         limit: int,
         period: str,
+        stat_date: date | None = None,
     ) -> int:
         """
         Atomically check + pre-deduct usage (eliminates TOCTOU race).
@@ -156,21 +217,15 @@ class UsageTracker:
             -1 表示成功（已预扣），>= 0 表示当前用量（超限，已回滚）
         """
         redis = await get_redis()
-        today = date.today()
-
-        if period == QuotaPeriodEnum.DAILY.value:
-            key = UsageTracker._get_key(
-                UsageTracker.PREFIX_DAILY, tenant_id, model_id, today.isoformat()
-            )
-            expire_seconds = 86400 * 2
-        elif period == QuotaPeriodEnum.MONTHLY.value:
-            key = UsageTracker._get_key(
-                UsageTracker.PREFIX_MONTHLY, tenant_id, model_id,
-                f"{today.year}-{today.month:02d}"
-            )
-            expire_seconds = 86400 * 35
-        else:
+        resolved = UsageTracker._resolve_period_key(
+            tenant_id=tenant_id,
+            model_id=model_id,
+            period=period,
+            stat_date=stat_date,
+        )
+        if resolved is None:
             return -1
+        key, expire_seconds = resolved
 
         result = await redis.eval(
             UsageTracker._QUOTA_CHECK_AND_RECORD_LUA,
@@ -199,28 +254,20 @@ class UsageTracker:
             tokens: Token count / Token 数量
             stat_date: Statistics date / 统计日期
         """
-        redis = await get_redis()
-        stat_date = stat_date or date.today()
-
-        # Record daily usage / 记录每日使用量
-        daily_key = UsageTracker._get_key(
-            UsageTracker.PREFIX_DAILY,
-            tenant_id,
-            model_id,
-            stat_date.isoformat()
+        await UsageTracker.record_usage_for_period(
+            tenant_id=tenant_id,
+            model_id=model_id,
+            tokens=tokens,
+            period=QuotaPeriodEnum.DAILY.value,
+            stat_date=stat_date,
         )
-        await redis.incrby(daily_key, tokens)
-        await redis.expire(daily_key, 86400 * 2)  # Keep 2 days / 保留 2 天
-
-        # Record monthly usage / 记录每月使用量
-        monthly_key = UsageTracker._get_key(
-            UsageTracker.PREFIX_MONTHLY,
-            tenant_id,
-            model_id,
-            f"{stat_date.year}-{stat_date.month:02d}"
+        await UsageTracker.record_usage_for_period(
+            tenant_id=tenant_id,
+            model_id=model_id,
+            tokens=tokens,
+            period=QuotaPeriodEnum.MONTHLY.value,
+            stat_date=stat_date,
         )
-        await redis.incrby(monthly_key, tokens)
-        await redis.expire(monthly_key, 86400 * 35)  # Keep 35 days / 保留 35 天
 
     @staticmethod
     async def adjust_usage(
@@ -228,6 +275,7 @@ class UsageTracker:
         model_id: int,
         estimated_tokens: int,
         actual_tokens: int,
+        stat_date: date | None = None,
     ) -> None:
         """
         Adjust usage after response: from estimated to actual.
@@ -239,30 +287,99 @@ class UsageTracker:
             estimated_tokens: Estimated tokens (pre-deducted) / 预估 Token 数量（已预扣）
             actual_tokens: Actual token count / 实际 Token 数量
         """
+        await UsageTracker.adjust_usage_for_period(
+            tenant_id=tenant_id,
+            model_id=model_id,
+            estimated_tokens=estimated_tokens,
+            actual_tokens=actual_tokens,
+            period=QuotaPeriodEnum.DAILY.value,
+            stat_date=stat_date,
+        )
+        await UsageTracker.adjust_usage_for_period(
+            tenant_id=tenant_id,
+            model_id=model_id,
+            estimated_tokens=estimated_tokens,
+            actual_tokens=actual_tokens,
+            period=QuotaPeriodEnum.MONTHLY.value,
+            stat_date=stat_date,
+        )
+
+    @staticmethod
+    async def get_usage(
+        tenant_id: int,
+        model_id: int,
+        period: str,
+        stat_date: date | None = None,
+    ) -> int:
+        """Get usage by period / 按周期获取使用量"""
+        stat_date = stat_date or date.today()
+        if period == QuotaPeriodEnum.DAILY.value:
+            return await UsageTracker.get_daily_usage(tenant_id, model_id, stat_date)
+        if period == QuotaPeriodEnum.MONTHLY.value:
+            return await UsageTracker.get_monthly_usage(
+                tenant_id,
+                model_id,
+                stat_date.year,
+                stat_date.month,
+            )
+        return 0
+
+    @staticmethod
+    async def record_usage_for_period(
+        tenant_id: int,
+        model_id: int,
+        tokens: int,
+        period: str,
+        stat_date: date | None = None,
+    ) -> None:
+        """Record usage for a single period / 记录单一周期使用量"""
+        if tokens == 0:
+            return
+        resolved = UsageTracker._resolve_period_key(
+            tenant_id=tenant_id,
+            model_id=model_id,
+            period=period,
+            stat_date=stat_date,
+        )
+        if resolved is None:
+            return
+
+        key, expire_seconds = resolved
+        redis = await get_redis()
+        await redis.incrby(key, tokens)
+        await redis.expire(key, expire_seconds)
+
+    @staticmethod
+    async def adjust_usage_for_period(
+        tenant_id: int,
+        model_id: int,
+        estimated_tokens: int,
+        actual_tokens: int,
+        period: str,
+        stat_date: date | None = None,
+    ) -> None:
+        """Adjust usage for a single period / 调整单一周期使用量"""
         diff = actual_tokens - estimated_tokens
         if diff == 0:
             return
 
+        resolved = UsageTracker._resolve_period_key(
+            tenant_id=tenant_id,
+            model_id=model_id,
+            period=period,
+            stat_date=stat_date,
+        )
+        if resolved is None:
+            return
+
+        key, _expire_seconds = resolved
         redis = await get_redis()
-        today = date.today()
-
-        daily_key = UsageTracker._get_key(
-            UsageTracker.PREFIX_DAILY, tenant_id, model_id, today.isoformat()
+        await redis.eval(
+            UsageTracker._USAGE_ADJUST_LUA,
+            1,
+            key,
+            str(diff),
         )
-        monthly_key = UsageTracker._get_key(
-            UsageTracker.PREFIX_MONTHLY, tenant_id, model_id,
-            f"{today.year}-{today.month:02d}"
-        )
-
-        # Atomic adjust: INCRBY + floor-at-zero guard (eliminates TOCTOU race)
-        # 原子调整：INCRBY + 不低于 0 保护（消除 TOCTOU 竞态）
-        for key in (daily_key, monthly_key):
-            await redis.eval(
-                UsageTracker._USAGE_ADJUST_LUA,
-                1,
-                key,
-                str(diff),
-            )
 
 
 class QuotaManager:
@@ -287,8 +404,9 @@ class QuotaManager:
         self,
         tenant_id: int,
         model_id: int,
-        estimated_tokens: int = 0
-    ) -> bool:
+        estimated_tokens: int = 0,
+        request_stat_date: date | None = None,
+    ) -> QuotaCheckResult:
         """
         Check quota.
         检查配额。
@@ -298,98 +416,90 @@ class QuotaManager:
             model_id: Model ID / 模型 ID
             estimated_tokens: Estimated token count / 预估 Token 数量
 
-        Returns:
-            True if call is allowed / True 表示允许调用
-
         Raises:
             QuotaExceeded: Quota exceeded / 配额超出
         """
-        # Get tenant quota config / 获取企业配额配置
-        quota = await self._get_tenant_quota(tenant_id, model_id)
+        stat_date = request_stat_date or date.today()
+        quotas = await self._get_effective_quotas(tenant_id, model_id)
+        if not quotas:
+            return QuotaCheckResult()
 
-        if not quota or not quota.is_active:
-            # No quota configured or quota inactive, allow call
-            # 没有配置配额或配额未激活，允许调用
-            return True
-
-        # Check hard limit (atomic pre-deduct, eliminates TOCTOU race)
-        # 检查硬限制（原子预扣减，消除 TOCTOU 竞态）
-        if quota.quota_type == QuotaTypeEnum.HARD.value:
-            result = await UsageTracker.check_and_record_usage(
-                tenant_id=tenant_id,
-                model_id=model_id,
-                estimated_tokens=estimated_tokens,
-                limit=quota.limit,
-                period=quota.period,
-            )
-            if result >= 0:
-                logger.warning(
-                    "Quota exceeded: tenant={} model={} current={} limit={} period={}",
-                    tenant_id, model_id, result, quota.limit, quota.period,
+        metering_items: list[QuotaMeteringItem] = []
+        precharged_items: list[QuotaMeteringItem] = []
+        try:
+            for quota in quotas:
+                tracking_model_id = self._resolve_tracking_model_id(quota)
+                metering_item = QuotaMeteringItem(
+                    quota_id=quota.id,
+                    period=quota.period,
+                    quota_type=quota.quota_type,
+                    tracking_model_id=tracking_model_id,
                 )
-                raise QuotaExceeded(
-                    _("ai.error.quota_exceeded").format(
-                        current=result + estimated_tokens,
+
+                if quota.quota_type == QuotaTypeEnum.HARD.value:
+                    result = await UsageTracker.check_and_record_usage(
+                        tenant_id=tenant_id,
+                        model_id=tracking_model_id,
+                        estimated_tokens=estimated_tokens,
                         limit=quota.limit,
-                        period=quota.period
+                        period=quota.period,
+                        stat_date=stat_date,
                     )
-                )
-
-        # Check soft limit - record but allow overuse / 检查软限制 - 记录但允许超额
-        elif quota.quota_type == QuotaTypeEnum.SOFT.value:
-            current_usage = await self._get_usage(
-                tenant_id,
-                model_id,
-                quota.period
-            )
-
-            if current_usage + estimated_tokens > quota.limit:
-                logger.warning(
-                    "Soft quota exceeded: tenant={} model={} current={} limit={} period={}",
-                    tenant_id, model_id, current_usage, quota.limit, quota.period,
-                )
-                # Soft limit allows overuse, but notify tenant admins (rate-limited: 1/day per tenant+model)
-                # 软限制允许超额，但通知企业管理员（限流：每企业+模型每天最多 1 次）
-                try:
-                    from app.core.redis import cache_get, cache_set
-                    from app.models import TenantAdmin
-                    from app.services.common.notification_service import notify
-
-                    today = date.today().isoformat()
-                    notify_key = f"ai:quota_notified:{tenant_id}:{model_id}:{today}"
-                    if await cache_get(notify_key):
-                        pass  # Already notified today
-                    else:
-                        result = await self.db.execute(
-                            select(TenantAdmin.id).where(
-                                TenantAdmin.tenant_id == tenant_id,
-                                TenantAdmin.is_deleted.is_(False),
-                                TenantAdmin.is_active.is_(True),
+                    if result >= 0:
+                        logger.warning(
+                            "Quota exceeded: tenant={} model={} tracking_model={} current={} limit={} period={}",
+                            tenant_id,
+                            model_id,
+                            tracking_model_id,
+                            result,
+                            quota.limit,
+                            quota.period,
+                        )
+                        raise QuotaExceeded(
+                            _("ai.error.quota_exceeded").format(
+                                current=result + estimated_tokens,
+                                limit=quota.limit,
+                                period=quota.period,
                             )
                         )
-                        admin_ids = [r[0] for r in result.all()]
-                        if admin_ids:
-                            current = current_usage + estimated_tokens
-                            period_display = "daily" if quota.period == "daily" else "monthly"
-                            await notify(
-                                self.db,
-                                template_code="ai.soft_quota_exceeded",
-                                recipients=[("tenant_admin", aid) for aid in admin_ids],
-                                data={
-                                    "current": current,
-                                    "limit": quota.limit,
-                                    "period": period_display,
-                                },
-                                tenant_id=tenant_id,
-                            )
-                            await cache_set(notify_key, True, ttl=86400)
-                except Exception as e:
-                    logger.warning(
-                        "Failed to send soft quota exceeded notification: tenant={} error={}",
-                        tenant_id, str(e),
+                    precharged_items.append(metering_item)
+                elif quota.quota_type == QuotaTypeEnum.SOFT.value:
+                    current_usage = await self._get_usage(
+                        tenant_id=tenant_id,
+                        tracking_model_id=tracking_model_id,
+                        period=quota.period,
+                        stat_date=stat_date,
                     )
+                    if current_usage + estimated_tokens > quota.limit:
+                        logger.warning(
+                            "Soft quota exceeded: tenant={} model={} tracking_model={} current={} limit={} period={}",
+                            tenant_id,
+                            model_id,
+                            tracking_model_id,
+                            current_usage,
+                            quota.limit,
+                            quota.period,
+                        )
+                        await self._notify_soft_quota_exceeded(
+                            tenant_id=tenant_id,
+                            tracking_model_id=tracking_model_id,
+                            quota=quota,
+                            current_usage=current_usage + estimated_tokens,
+                            stat_date=stat_date,
+                        )
 
-        return True
+                metering_items.append(metering_item)
+        except Exception:
+            if precharged_items:
+                await self._rollback_precharged_items(
+                    tenant_id=tenant_id,
+                    estimated_tokens=estimated_tokens,
+                    items=precharged_items,
+                    stat_date=stat_date,
+                )
+            raise
+
+        return QuotaCheckResult(items=tuple(metering_items))
 
     async def record_usage(
         self,
@@ -416,6 +526,8 @@ class QuotaManager:
         model_id: int,
         estimated_tokens: int,
         actual_tokens: int,
+        quota_result: QuotaCheckResult | None = None,
+        stat_date: date | None = None,
     ) -> None:
         """
         Adjust usage after response: from estimated to actual.
@@ -427,63 +539,141 @@ class QuotaManager:
             estimated_tokens: Estimated tokens (pre-deducted) / 预估 Token 数量（已预扣）
             actual_tokens: Actual token count / 实际 Token 数量
         """
-        await UsageTracker.adjust_usage(
-            tenant_id, model_id, estimated_tokens, actual_tokens
-        )
+        quota_result = quota_result or QuotaCheckResult()
+        stat_date = stat_date or date.today()
+        if not quota_result.items:
+            return
 
-    async def _get_tenant_quota(
+        for item in quota_result.items:
+            if item.quota_type == QuotaTypeEnum.HARD.value:
+                await UsageTracker.adjust_usage_for_period(
+                    tenant_id=tenant_id,
+                    model_id=item.tracking_model_id,
+                    estimated_tokens=estimated_tokens,
+                    actual_tokens=actual_tokens,
+                    period=item.period,
+                    stat_date=stat_date,
+                )
+            elif item.quota_type == QuotaTypeEnum.SOFT.value:
+                await UsageTracker.record_usage_for_period(
+                    tenant_id=tenant_id,
+                    model_id=item.tracking_model_id,
+                    tokens=actual_tokens,
+                    period=item.period,
+                    stat_date=stat_date,
+                )
+
+    async def _get_effective_quotas(
         self,
         tenant_id: int,
-        model_id: int
-    ) -> TenantQuota | None:
-        """
-        Get tenant quota config.
-        获取企业配额配置。
-
-        Args:
-            tenant_id: Tenant ID / 企业 ID
-            model_id: Model ID / 模型 ID
-
-        Returns:
-            TenantQuota instance / TenantQuota 实例
-        """
+        model_id: int,
+    ) -> list[TenantQuota]:
+        """Get runtime effective quotas / 获取运行时生效配额"""
         repo = TenantQuotaRepository(self.db, tenant_id)
-        return await repo.get_active_quota(tenant_id, model_id)
+        return await repo.get_effective_quotas(tenant_id, model_id)
 
     async def _get_usage(
         self,
         tenant_id: int,
-        model_id: int,
-        period: str
+        tracking_model_id: int,
+        period: str,
+        stat_date: date | None = None,
     ) -> int:
         """
         Get usage.
         获取使用量。
 
-        Args:
-            tenant_id: Tenant ID / 企业 ID
-            model_id: Model ID / 模型 ID
-            period: Period (daily/monthly) / 周期
-
         Returns:
             Token usage / Token 使用量
         """
-        today = date.today()
+        return await UsageTracker.get_usage(
+            tenant_id=tenant_id,
+            model_id=tracking_model_id,
+            period=period,
+            stat_date=stat_date,
+        )
 
-        if period == QuotaPeriodEnum.DAILY.value:
-            return await UsageTracker.get_daily_usage(tenant_id, model_id, today)
-        elif period == QuotaPeriodEnum.MONTHLY.value:
-            return await UsageTracker.get_monthly_usage(
-                tenant_id,
-                model_id,
-                today.year,
-                today.month
+    @staticmethod
+    def _resolve_tracking_model_id(quota: TenantQuota) -> int:
+        """Global quotas use model bucket 0 / 全局配额统一使用模型桶 0"""
+        return quota.model_id if quota.model_id is not None else 0
+
+    async def _notify_soft_quota_exceeded(
+        self,
+        tenant_id: int,
+        tracking_model_id: int,
+        quota: TenantQuota,
+        current_usage: int,
+        stat_date: date,
+    ) -> None:
+        """Send at most one soft-quota notification per day / 每天最多发送一次软配额通知"""
+        try:
+            from app.core.redis import cache_get, cache_set
+            from app.models import TenantAdmin
+            from app.services.common.notification_service import notify
+
+            notify_key = (
+                f"ai:quota_notified:{tenant_id}:{tracking_model_id}:"
+                f"{quota.period}:{stat_date.isoformat()}"
             )
-        else:
-            return 0
+            if await cache_get(notify_key):
+                return
+
+            result = await self.db.execute(
+                select(TenantAdmin.id).where(
+                    TenantAdmin.tenant_id == tenant_id,
+                    TenantAdmin.is_deleted.is_(False),
+                    TenantAdmin.is_active.is_(True),
+                )
+            )
+            admin_ids = [row[0] for row in result.all()]
+            if not admin_ids:
+                return
+
+            await notify(
+                self.db,
+                template_code="ai.soft_quota_exceeded",
+                recipients=[("tenant_admin", admin_id) for admin_id in admin_ids],
+                data={
+                    "current": current_usage,
+                    "limit": quota.limit,
+                    "period": quota.period,
+                },
+                tenant_id=tenant_id,
+            )
+            await cache_set(notify_key, True, ttl=86400)
+        except Exception as exc:
+            logger.warning(
+                "Failed to send soft quota exceeded notification: tenant={} error={}",
+                tenant_id,
+                str(exc),
+            )
+
+    async def _rollback_precharged_items(
+        self,
+        tenant_id: int,
+        estimated_tokens: int,
+        items: list[QuotaMeteringItem],
+        stat_date: date,
+    ) -> None:
+        """Rollback previously precharged hard-quota buckets / 回滚已预扣的硬配额桶"""
+        if estimated_tokens <= 0:
+            return
+
+        for item in items:
+            await UsageTracker.adjust_usage_for_period(
+                tenant_id=tenant_id,
+                model_id=item.tracking_model_id,
+                estimated_tokens=estimated_tokens,
+                actual_tokens=0,
+                period=item.period,
+                stat_date=stat_date,
+            )
 
 
 __all__ = [
+    "QuotaCheckResult",
+    "QuotaMeteringItem",
     "UsageTracker",
     "QuotaManager",
     "QuotaExceeded",

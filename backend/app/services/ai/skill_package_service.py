@@ -13,16 +13,66 @@ from app.repositories.ai.skill_package_repository import (
     AdminSkillPackageRepository,
     SkillPackageRepository,
 )
+from app.schemas.common.query import QuerySpec
 from app.schemas.common.select import SelectResponse
 
 logger = LogManager.get_logger("ai")
+
+
+async def _build_resolved_tools_payload(
+    db,
+    pkg: SkillPackage,
+    skills,
+) -> dict[str, Any]:
+    """Resolve package tools through SkillResolver. / 统一解析技能包工具定义。"""
+    from app.ai.skills.resolver import SkillResolver
+
+    resolver = SkillResolver(db=db)
+    resolve_result = await resolver.resolve(skills)
+
+    if resolve_result.warnings:
+        logger.warning(
+            "Resolved tools for package {} with {} warnings: {}",
+            pkg.id,
+            len(resolve_result.warnings),
+            "; ".join(resolve_result.warnings),
+        )
+
+    tools = [
+        {
+            "name": td.name,
+            "description": td.description,
+            "tool_type": td.tool_type,
+            "parameters": [
+                {
+                    "name": p.name,
+                    "type": p.type,
+                    "description": p.description,
+                    "required": p.required,
+                }
+                for p in (td.parameters or [])
+            ],
+            "source_skill_id": td.source_skill_id,
+            "source_skill_name": td.source_skill_name,
+            "source_plugin": td.source_plugin or pkg.source_plugin,
+        }
+        for td in resolve_result.tools
+    ]
+
+    return {
+        "package_id": pkg.id,
+        "package_name": pkg.name,
+        "source_plugin": pkg.source_plugin,
+        "tool_count": len(tools),
+        "tools": tools,
+    }
 
 
 class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
     """
     企业端技能包 Service / Tenant skill package service.
 
-    提供技能包的创建、更新、删除等业务逻辑
+    企业 HTTP 仅暴露只读目录（列表/详情/技能/解析工具）；写操作由管理端或其它内部路径负责。
     """
 
     model = SkillPackage
@@ -38,9 +88,6 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
             if existing:
                 raise BusinessException(message=_("skill_package.error.name_exists"))
 
-        from app.enums.common import SkillBindModeEnum
-        data["bind_mode"] = SkillBindModeEnum.MANUAL.value
-
     async def _before_update(self, id: int, data: dict[str, Any]) -> None:
         """更新前校验：名称唯一性、系统技能包保护 / Before update: name uniqueness, system package protection."""
         await super()._before_update(id, data)
@@ -53,7 +100,7 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
             raise BusinessException(message=_("skill_package.error.system_protected"))
 
         if pkg.is_system:
-            protected = {"is_system", "is_active", "bind_mode"}
+            protected = {"is_system", "is_active"}
             if protected & set(data.keys()):
                 raise BusinessException(message=_("skill_package.error.system_protected"))
 
@@ -93,10 +140,6 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
         await self.repo.cascade_promote_skills(id)
         return instance
 
-    async def escalate_delete(self, id: int) -> SkillPackage | None:
-        """兼容旧接口：升级删除 → 推进总回收站 / Backward-compatible alias for promote_to_global."""
-        return await self.promote_to_global(id)
-
     async def _after_restore(self, instance: SkillPackage) -> None:
         """恢复后：级联恢复技能包下的技能 / After restore: cascade restore skills."""
         await self.repo.cascade_restore_skills(instance.id)
@@ -119,6 +162,33 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
         """获取当前企业所有已激活的技能包 / Get all active packages for current tenant."""
         return await self.repo.get_active_packages()
 
+    async def get_catalog_list(
+        self,
+        spec: QuerySpec,
+    ) -> tuple[list[SkillPackage], int]:
+        """获取企业端只读技能包目录 / Get tenant read-only skill package catalog."""
+        return await self.repo.query_list(spec, include_system=True)
+
+    async def get_catalog_detail(self, package_id: int) -> dict | None:
+        """获取企业端技能包详情 / Get tenant catalog package detail."""
+        data = await self.repo.get_with_skill_count(package_id)
+        if not data:
+            return None
+        data.pop("valves_config", None)
+        return data
+
+    async def get_resolved_tools(self, package_id: int) -> dict[str, Any]:
+        """获取企业可见技能包解析后的工具列表 / Get resolved tools for a tenant-visible package."""
+        pkg = await self.repo.get_by_id(package_id)
+        if not pkg:
+            raise NotFoundException(message=_("skill_package.error.not_found"))
+
+        from app.services.ai.skill_service import SkillService
+
+        skill_service = SkillService(self.db, self.tenant_id)
+        skills = await skill_service.get_by_package_id(package_id)
+        return await _build_resolved_tools_payload(self.db, pkg, skills)
+
 
 class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepository]):
     """
@@ -135,11 +205,6 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
 
         data["tenant_id"] = None
 
-        from app.enums.common import SkillBindModeEnum
-        bind_mode = data.get("bind_mode", SkillBindModeEnum.MANUAL.value)
-        if bind_mode not in SkillBindModeEnum.values():
-            raise BusinessException(message=_("skill_package.error.invalid_bind_mode"))
-
         name = data.get("name")
         if name:
             existing = await self.repo.get_by_name_global(name=name)
@@ -155,7 +220,7 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
             raise NotFoundException(message=_("skill_package.error.not_found"))
 
         if pkg.is_system:
-            protected = {"is_system", "is_active", "bind_mode"}
+            protected = {"is_system", "is_active"}
             if protected & set(data.keys()):
                 raise BusinessException(message=_("skill_package.error.system_protected"))
 
@@ -201,10 +266,6 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
         await self.repo.cascade_promote_skills(id)
         return instance
 
-    async def escalate_delete(self, id: int) -> SkillPackage | None:
-        """兼容旧接口：升级删除 → 推进总回收站 / Backward-compatible alias for promote_to_global."""
-        return await self.promote_to_global(id)
-
     async def _after_restore(self, instance: SkillPackage) -> None:
         """恢复后：级联恢复技能包下的技能 / After restore: cascade restore skills."""
         await self.repo.cascade_restore_skills(instance.id)
@@ -235,51 +296,11 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
         if not pkg:
             raise NotFoundException(message=_("skill_package.error.not_found"))
 
-        from app.ai.skills.resolver import SkillResolver
         from app.services.ai.skill_service import AdminSkillService
 
         skill_service = AdminSkillService(self.db)
         skills = await skill_service.get_by_package_id(package_id)
-
-        resolver = SkillResolver(db=self.db)
-        resolve_result = await resolver.resolve(skills)
-
-        if resolve_result.warnings:
-            logger.warning(
-                "Resolved tools for package {} with {} warnings: {}",
-                package_id,
-                len(resolve_result.warnings),
-                "; ".join(resolve_result.warnings),
-            )
-
-        tools = [
-            {
-                "name": td.name,
-                "description": td.description,
-                "tool_type": td.tool_type,
-                "parameters": [
-                    {
-                        "name": p.name,
-                        "type": p.type,
-                        "description": p.description,
-                        "required": p.required,
-                    }
-                    for p in (td.parameters or [])
-                ],
-                "source_skill_id": td.source_skill_id,
-                "source_skill_name": td.source_skill_name,
-                "source_plugin": td.source_plugin or pkg.source_plugin,
-            }
-            for td in resolve_result.tools
-        ]
-
-        return {
-            "package_id": package_id,
-            "package_name": pkg.name,
-            "source_plugin": pkg.source_plugin,
-            "tool_count": len(tools),
-            "tools": tools,
-        }
+        return await _build_resolved_tools_payload(self.db, pkg, skills)
 
 
     async def get_select_options(

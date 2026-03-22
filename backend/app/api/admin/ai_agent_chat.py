@@ -30,12 +30,10 @@ from app.rbac.decorators import (
 from app.rbac.services.permission_service import PermissionService
 from app.api.shared._agent_chat_helpers import (
     enrich_conversations_with_agent,
-    handle_confirm_or_cancel,
     handle_route,
 )
 from app.schemas.ai.agent_chat import (
     AgentChatRequest,
-    AgentConfirmRequest,
     AgentRouteRequest,
     UpdateConversationTitleRequest,
 )
@@ -212,35 +210,9 @@ class AdminAgentChatController(GlobalController):
                 user_id=admin.id,
                 force_reroute=data.force_reroute,
                 has_image_attachments=data.has_image_attachments,
-            )
-
-        # ========================================
-        # 操作确认 / Action Confirmation
-        # ========================================
-
-        @router.post("/confirm", summary="Confirm/cancel AI action")
-        @action_create("action.admin_agent_chat.confirm")
-        async def confirm_action(
-            request: Request,
-            db: DbSession,
-            data: AgentConfirmRequest,
-            admin: ActiveAdmin,
-        ):
-            """
-            处理 AI 操作确认或取消 / Handle AI action confirmation or cancellation.
-
-            - action="confirm": 验证 confirm_id 并执行 / validate confirm_id and execute
-            - action="cancel": 移除 confirm_id，取消操作 / remove confirm_id, cancel operation
-
-            权限 / Permission: admin_agent_chat:confirm
-            """
-            # 该接口与具体智能体无关，使用平台租户哨兵值 / Agent-agnostic endpoint uses platform tenant sentinel
-            service = AgentChatService(db, PLATFORM_TENANT_ID)
-            return await handle_confirm_or_cancel(
-                service,
-                data,
-                tenant_id=PLATFORM_TENANT_ID,
-                user_id=admin.id,
+                has_audio_attachments=data.has_audio_attachments,
+                has_video_attachments=data.has_video_attachments,
+                has_file_attachments=data.has_file_attachments,
             )
 
         # ========================================

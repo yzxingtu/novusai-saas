@@ -26,9 +26,9 @@ from app.rbac.decorators import (
     action_update,
     permission_resource,
 )
+from app.api.shared._skill_package_summary import build_skill_package_payload
 from app.schemas.ai.skill_package import (
     SkillPackageCreate,
-    SkillPackageResponse,
     SkillPackageUpdate,
 )
 from app.services.ai.skill_package_service import AdminSkillPackageService
@@ -37,22 +37,8 @@ logger = LogManager.get_logger("ai")
 
 
 def _build_admin_package_item(pkg: SkillPackage, skill_count: int = 0) -> dict[str, Any]:
-    """从 ORM 对象构建管理端列表项字典（不含 valves_config 敏感值） / Build admin list item dict from ORM object (excluding valves_config sensitive values)"""
-    return {
-        "id": pkg.id,
-        "tenant_id": pkg.tenant_id,
-        "name": pkg.name,
-        "description": pkg.description,
-        "avatar": pkg.avatar,
-        "is_system": pkg.is_system,
-        "is_active": pkg.is_active,
-        "sort_order": pkg.sort_order,
-        "skill_count": skill_count,
-        "source_plugin": pkg.source_plugin,
-        "valves_schema": pkg.valves_schema,
-        "created_at": pkg.created_at,
-        "updated_at": pkg.updated_at,
-    }
+    """Build normalized admin payload without exposing raw valves_config. / 构建不暴露原始 valves_config 的管理端载荷。"""
+    return build_skill_package_payload(pkg, skill_count=skill_count)
 
 
 @permission_resource(
@@ -99,14 +85,18 @@ class AdminSkillPackageController(GlobalController):
             admin: ActiveAdmin,
             search: str = Query("", description=_("api.param.search")),
             include_system: bool = Query(False, description=_("api.param.include_system")),
+            page: int = Query(0, ge=0, description="0=legacy single page (limit), >=1=paginated"),
+            page_size: int = Query(20, ge=1, le=100, description="Page size when page>=1"),
         ):
             """
-            获取技能包下拉选项（用于 Skill 创建时选择所属包）/ Get skill package select options (for Skill create).
+            获取技能包下拉选项（Skill 创建 / 技能绑定筛选器等）/ Skill package select options.
             """
             service = AdminSkillPackageService(db)
             response = await service.get_select_options(
                 search=search,
                 limit=100,
+                page=page,
+                page_size=page_size,
                 is_system=None if include_system else False,
             )
             return success(data=response)
@@ -203,7 +193,7 @@ class AdminSkillPackageController(GlobalController):
             if not data:
                 raise NotFoundException(message=_("skill_package.error.not_found"))
 
-            return success(data=data)
+            return success(data=build_skill_package_payload(data))
 
         @router.post("", summary="创建技能包")
         @action_create("action.ai_skill_package.create")
@@ -224,7 +214,7 @@ class AdminSkillPackageController(GlobalController):
             await db.commit()
 
             return created(
-                data=SkillPackageResponse.model_validate(pkg, from_attributes=True),
+                data=_build_admin_package_item(pkg),
                 message=_("skill_package.created"),
             )
 
@@ -252,7 +242,7 @@ class AdminSkillPackageController(GlobalController):
             await db.commit()
 
             return success(
-                data=SkillPackageResponse.model_validate(updated, from_attributes=True),
+                data=_build_admin_package_item(updated),
                 message=_("skill_package.updated"),
             )
 
@@ -347,7 +337,7 @@ class AdminSkillPackageController(GlobalController):
             )
 
             return created(
-                data=SkillPackageResponse.model_validate(pkg, from_attributes=True),
+                data=_build_admin_package_item(pkg),
                 message=_("skill_package.created"),
             )
 

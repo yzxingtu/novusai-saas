@@ -10,6 +10,7 @@ from app.core.base_service import TenantService
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.ai import QuotaPeriodEnum, QuotaTypeEnum
+from app.exceptions import BusinessException, NotFoundException
 from app.models.ai import TenantQuota
 from app.repositories.ai.tenant_quota_repository import TenantQuotaRepository
 
@@ -63,22 +64,19 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
         if not quota:
             return None
 
-        # 获取当前使用量
-        if period == "daily":
-            usage = await UsageTracker.get_daily_usage(self.tenant_id, model_id or 0)
-        else:
-            today = date.today()
-            usage = await UsageTracker.get_monthly_usage(
-                self.tenant_id, model_id or 0, today.year, today.month
-            )
+        usage = await UsageTracker.get_usage(
+            tenant_id=self.tenant_id,
+            model_id=model_id or 0,
+            period=period,
+        )
 
         # 计算使用百分比
         usage_percent = (usage / quota.limit * 100) if quota.limit > 0 else 0
 
         # 判断是否达到预警阈值
         warning_threshold = quota.warning_threshold or 80
-        is_warning = usage_percent >= warning_threshold
         is_exceeded = usage_percent >= 100
+        is_warning = usage_percent >= warning_threshold and not is_exceeded
 
         return {
             "quota": quota,
@@ -201,6 +199,43 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
         )
 
         return quota
+
+    async def _before_create(self, data: dict[str, Any]) -> None:
+        await super()._before_create(data)
+        is_active = data.get("is_active", True)
+        if not is_active:
+            return
+
+        model_id = data.get("model_id")
+        period = str(data.get("period", QuotaPeriodEnum.MONTHLY.value))
+        has_conflict = await self.repo.has_active_conflict(
+            tenant_id=self.tenant_id,
+            model_id=model_id,
+            period=period,
+        )
+        if has_conflict:
+            raise BusinessException(message=_("ai.error.quota_duplicate_active"))
+
+    async def _before_update(self, id: int, data: dict[str, Any]) -> None:
+        await super()._before_update(id, data)
+        current = await self.repo.get_by_id(id)
+        if current is None:
+            raise NotFoundException(message=_("ai.error.quota_not_found"))
+
+        next_active = bool(data.get("is_active", current.is_active))
+        if not next_active:
+            return
+
+        next_model_id = data.get("model_id", current.model_id)
+        next_period = str(data.get("period", current.period))
+        has_conflict = await self.repo.has_active_conflict(
+            tenant_id=self.tenant_id,
+            model_id=next_model_id,
+            period=next_period,
+            exclude_id=id,
+        )
+        if has_conflict:
+            raise BusinessException(message=_("ai.error.quota_duplicate_active"))
 
 
 __all__ = ["TenantQuotaService"]

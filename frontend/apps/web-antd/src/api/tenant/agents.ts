@@ -85,8 +85,6 @@ export interface AgentInfo extends AgentListItem {
   max_tokens: null | number;
   top_p: null | number;
   published_version: null | number;
-  /** @deprecated replaced by AgentSkillBinding / 已废弃，由 AgentSkillBinding 替代 */
-  tool_bindings: null | unknown[];
   input_variables: null | unknown[];
   welcome_message: null | string;
   suggested_questions: null | unknown[];
@@ -110,8 +108,6 @@ export interface AgentCreateRequest {
   max_tokens?: null | number;
   top_p?: null | number;
   execution_mode?: string;
-  /** @deprecated replaced by AgentSkillBinding / 已废弃，由 AgentSkillBinding 替代 */
-  tool_bindings?: null | unknown[];
   input_variables?: null | unknown[];
   welcome_message?: null | string;
   suggested_questions?: null | unknown[];
@@ -135,8 +131,6 @@ export interface AgentUpdateRequest {
   top_p?: null | number;
   status?: null | string;
   execution_mode?: null | string;
-  /** @deprecated replaced by AgentSkillBinding / 已废弃，由 AgentSkillBinding 替代 */
-  tool_bindings?: null | unknown[];
   input_variables?: null | unknown[];
   welcome_message?: null | string;
   suggested_questions?: null | unknown[];
@@ -190,7 +184,6 @@ export interface AgentVersionDetail extends AgentVersionListItem {
   temperature: number;
   max_tokens: null | number;
   top_p: null | number;
-  tool_bindings: null | unknown[];
   input_variables: null | unknown[];
   welcome_message: null | string;
   suggested_questions: null | unknown[];

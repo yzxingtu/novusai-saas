@@ -30,7 +30,7 @@ def default_plugin_global_var(plugin_name: str) -> str:
 def has_frontend_extensions(manifest: Any) -> bool:
     """Whether plugin declares any frontend capability. / 插件是否声明了任何前端能力。"""
     frontend = _get_frontend_decl(manifest)
-    return any(
+    has_standard_frontend = any(
         (
             frontend.get("pages"),
             frontend.get("header_widgets"),
@@ -39,6 +39,14 @@ def has_frontend_extensions(manifest: Any) -> bool:
             frontend.get("dashboard_widgets"),
             frontend.get("settings_tabs"),
         )
+    )
+    if has_standard_frontend:
+        return True
+
+    custom_extensions = _get_custom_ext_decl(manifest)
+    return any(
+        str(ext.get("type") or "").strip() == "captcha_provider"
+        for ext in custom_extensions
     )
 
 
@@ -147,6 +155,25 @@ def _get_frontend_decl(manifest: Any) -> dict[str, Any]:
             if isinstance(frontend, dict):
                 return frontend
     return {}
+
+
+def _get_custom_ext_decl(manifest: Any) -> list[dict[str, Any]]:
+    if hasattr(manifest, "extensions") and getattr(manifest.extensions, "custom", None):
+        custom = manifest.extensions.custom
+        if isinstance(custom, list):
+            result: list[dict[str, Any]] = []
+            for item in custom:
+                if hasattr(item, "model_dump"):
+                    result.append(item.model_dump(exclude_none=True))
+                elif isinstance(item, dict):
+                    result.append(item)
+            return result
+    if isinstance(manifest, dict):
+        extensions = manifest.get("extensions") or {}
+        custom = extensions.get("custom") if isinstance(extensions, dict) else None
+        if isinstance(custom, list):
+            return [item for item in custom if isinstance(item, dict)]
+    return []
 
 
 def _resolve_frontend_relative_file(

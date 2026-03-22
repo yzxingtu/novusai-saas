@@ -464,11 +464,17 @@ IMPORTANT: Do NOT stop after step 1. Continue all steps in this single turn.
 - `form_opened` → `[Agent Loop] Form opened. Next: call get_form_state then fill_form`
 - `form_closed` → `[Agent Loop] Form closed. Call refresh_list to see updated data.`
 
-### 11.8 富文本专用 Tools（pageop_*）
+### 11.8 专用 Page Tools（pageop_*）
 
 **文件**: `backend/app/ai/tools/page_tool_expander.py`、`useEditorPageOps.ts`、`page-context-registry.ts`、`page-operation-registry.ts`
 
-当 `page_context.available_operations` 含编辑类操作（如 `get_editor_html`、`replace_section`）时，后端自动展开专用动态 tools：`pageop_get_editor_html`、`pageop_replace_section`、`pageop_replace_content` 等。
+当 `page_context.available_operations` 含可展开页面操作时，后端自动展开专用动态 tools。范围不再只限富文本编辑器，也包含高频通用页面操作。
+
+**当前展开范围**：
+- 编辑器 / 文档类：`get_editor_html`、`get_editor_text`、`replace_section`、`replace_content`、`insert_content`、`append_content`、`update_title`、`insert_table`、`manage_link`
+- 通用页面类：`search`、`clear_search`、`read_visible_rows`、`read_row_detail`、`refresh_list`、`get_form_state`、`fill_form`、`validate_form`、`get_form_options`、`create_record`、`edit_record`、`submit_form`、`go_to_page`、`next_page`、`prev_page`、`set_page_size`
+
+对应展开结果示例：`pageop_search`、`pageop_read_visible_rows`、`pageop_fill_form`、`pageop_get_editor_html`、`pageop_replace_section` 等。
 
 **tool-first 原则**：有 pageop_* 时，模型应**优先直调专用 tools**，不要用 `invoke_page_operation` 猜测参数；仅在 pageop_* 不可用时才回退到 `invoke_page_operation`。
 
@@ -478,6 +484,8 @@ IMPORTANT: Do NOT stop after step 1. Continue all steps in this single turn.
 - 禁止向用户展示 HTML、JSON、tool 参数或调用示例；工具仅用于内部执行，完成后只返回自然语言结果
 - `replace_section` 失败时返回细粒度 `error_type`：`target_not_found`、`non_unique_match`、`invalid_html`
 - `get_editor_html` 输出提示：优先使用短且唯一的 HTML 片段作为 `old_html`
+- 前端页面操作通道必须按 `invoke_id` 做幂等保护；重复事件应复用首个执行结果，禁止重复执行或重复弹确认
+- 前端页面操作通道必须校验 `event.page_key === 当前活动页面 page_key`；不匹配时返回 `page_key_mismatch`，禁止在错误页面执行操作
 - 连续 3 次 pageop_*/invoke 失败（含 JSON parse error）后中止 tool loop，避免道歉循环
 - NovusDoc DocumentEditor 使用 `registerPageContextExtras` 合并上下文，`appendPageOperations` 追加文档操作（save_document、update_title 等），不覆盖平台 editor ops
 
@@ -485,10 +493,10 @@ IMPORTANT: Do NOT stop after step 1. Continue all steps in this single turn.
 
 **文件**: `composables/use-page-operation-channel.ts`
 
-用户确认 `create_record` / `edit_record` 后，30 秒内同一 page_key 的 `fill_form` 操作自动批准：
+用户确认 `create_record` / `edit_record` 后，60 秒内同一 `page_key` 的 `fill_form` 操作可自动批准；仅限当前页面会话，切页/离房/断线必须清空状态：
 
 ```typescript
-const CHAIN_CONFIRM_TTL_MS = 30_000;
+const CHAIN_CONFIRM_TTL_MS = 60_000;
 const CHAIN_TRIGGER_OPS = new Set(['create_record', 'edit_record']);
 const CHAIN_AUTO_OPS = new Set(['fill_form']);
 ```
@@ -501,9 +509,12 @@ const CHAIN_AUTO_OPS = new Set(['fill_form']);
 5. AI 返回预填结果，用户检查并提交
 
 **安全约束**：
-- 确认有效期 30 秒（`CHAIN_CONFIRM_TTL_MS`）
+- 确认有效期 60 秒（`CHAIN_CONFIRM_TTL_MS`）
 - 仅 `fill_form` 可自动批准，其他写操作仍需确认
 - readonly 操作（如 `get_form_state`、`validate_form`）始终自动执行
+- 同一个 `invoke_id` 的重复下发必须直接回放缓存结果，不能重复打开确认卡片或重复执行页面动作
+- 页面会话切换、`leavePageSessionRoom()`、Socket 断开连接时必须执行 `clearChainConfirmed()`，禁止跨会话残留自动批准状态
+- 若操作事件携带的 `page_key` 与当前活动页不一致，前端返回 `page_key_mismatch`，不执行任何页面动作
 - 既有的 `MAX_TOOL_CALL_ROUNDS = 10`（后端）限制了最大循环次数
 
 ### 11.9 page_data 大小保护
@@ -516,8 +527,9 @@ const CHAIN_AUTO_OPS = new Set(['fill_form']);
 2. **总大小保护**（7KB 前端预算，后端限制 8KB）：
    - 第一步：减少 `list_summary.sample_rows` 到 2 行
    - 第二步：清空 `sample_rows`
-   - 第三步：移除整个 `form_fields`
-   - 第四步：截断 `document_body_text`（NovusDoc/富文本）至 2400→800 bytes，确保不超限
+   - 第三步：分阶段精简 `available_operations`，先保留描述与参数，再逐步去掉参数、描述，最后整块移除
+   - 第四步：截断 `document_body_text`（NovusDoc / DocumentEditor）到 `2400 → 1600 → 800 → 400` bytes
+   - 第五步：分阶段压缩 `form_fields`（保留约束/选项 → 去掉选项 → 去掉约束），只有最后才整块移除
 3. **document_body_text 源头限制**：`useEditorPageOps` 与 `DocumentEditor` 中 `DOCUMENT_BODY_EXCERPT_LEN = 800`（≈2.4KB UTF-8），避免超 8KB
 
 ---
@@ -588,6 +600,7 @@ const CHAIN_AUTO_OPS = new Set(['fill_form']);
 | `composables/use-modal-detector.ts` | MutationObserver 弹窗/抽屉检测 |
 | `composables/use-form-state-tracker.ts` | 表单状态追踪 + pageKey fallback |
 | `components/business/ai-slide-panel/dom-semantic-scanner.ts` | DOM 语义快照（降级机制） |
-| `composables/use-page-operation-channel.ts` | WebSocket 操作通道 + Agent Loop 链式确认 + 超时保护 |
+| `composables/use-page-operation-channel.ts` | WebSocket 操作通道 + page_key 校验 + Agent Loop 链式确认 + 超时保护 |
+| `backend/app/ai/tools/page_tool_expander.py` | 将编辑器与高频通用页面操作展开为专用 `pageop_*` tools |
 | `backend/app/ai/tools/executors/page_context_executor.py` | 后端 page_context 展示（含 visual_state / list_summary / Agent Loop 指引） |
 | `backend/app/ai/tools/executors/page_operation_executor.py` | 后端操作执行（含 Agent Loop 下一步指引） |

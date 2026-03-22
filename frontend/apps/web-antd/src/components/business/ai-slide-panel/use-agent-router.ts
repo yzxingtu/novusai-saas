@@ -58,6 +58,13 @@ export interface RouteResult {
   cleanedMessage?: string;
 }
 
+export interface RouteAttachmentFlags {
+  hasAudioAttachments?: boolean;
+  hasFileAttachments?: boolean;
+  hasImageAttachments?: boolean;
+  hasVideoAttachments?: boolean;
+}
+
 export interface UseAgentRouterOptions {
   /** API prefix / API 前缀 */
   apiPrefix: Ref<string> | string;
@@ -100,7 +107,7 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
     message: string,
     pageContextKey?: string,
     pageContext?: null | PageContext,
-    hasImageAttachments?: boolean,
+    attachmentFlags?: RouteAttachmentFlags,
     forceReroute = false,
   ): Promise<RouteResult> {
     routing.value = true;
@@ -111,7 +118,7 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
         message,
         pageContextKey,
         pageContext,
-        hasImageAttachments,
+        attachmentFlags,
         forceReroute,
       );
       lastRouteResult.value = result;
@@ -125,7 +132,7 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
     message: string,
     pageContextKey?: string,
     pageContext?: null | PageContext,
-    hasImageAttachments?: boolean,
+    attachmentFlags?: RouteAttachmentFlags,
     forceReroute = false,
   ): Promise<RouteResult> {
     const pinId = unref(options.pinnedAgentId);
@@ -153,7 +160,7 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
       message,
       pageContextKey,
       pageCtx,
-      hasImageAttachments,
+      attachmentFlags,
       forceReroute,
     );
   }
@@ -215,9 +222,15 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
     message: string,
     pageContextKey: string | undefined,
     pageContext: null | PageContext,
-    hasImageAttachments?: boolean,
+    attachmentFlags?: RouteAttachmentFlags,
     forceReroute = false,
   ): Promise<RouteResult> {
+    const normalizedAttachmentFlags = {
+      hasAudioAttachments: Boolean(attachmentFlags?.hasAudioAttachments),
+      hasFileAttachments: Boolean(attachmentFlags?.hasFileAttachments),
+      hasImageAttachments: Boolean(attachmentFlags?.hasImageAttachments),
+      hasVideoAttachments: Boolean(attachmentFlags?.hasVideoAttachments),
+    };
     const convId = options.activeConversationId
       ? unref(options.activeConversationId)
       : null;
@@ -229,8 +242,14 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
       ? _simpleHash(JSON.stringify(pageContext.page_data))
       : '';
     const msgHash = _simpleHash(message.trim().slice(0, 200));
-    const imgFlag = hasImageAttachments ? '1' : '0';
-    const cacheKey = `${pageKey}-${convId ?? 'new'}-${msgHash}-${pageDataHash}-img${imgFlag}`;
+    const attachmentKey = [
+      `img${normalizedAttachmentFlags.hasImageAttachments ? '1' : '0'}`,
+      `aud${normalizedAttachmentFlags.hasAudioAttachments ? '1' : '0'}`,
+      `vid${normalizedAttachmentFlags.hasVideoAttachments ? '1' : '0'}`,
+      `file${normalizedAttachmentFlags.hasFileAttachments ? '1' : '0'}`,
+    ].join('-');
+    const cacheKey =
+      `${pageKey}-${convId ?? 'new'}-${msgHash}-${pageDataHash}-${attachmentKey}`;
 
     const now = Date.now();
     if (!forceReroute) {
@@ -249,7 +268,10 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
       page_context: pageContext,
       pinned_agent_id: pinId,
       force_reroute: forceReroute,
-      has_image_attachments: Boolean(hasImageAttachments),
+      has_image_attachments: normalizedAttachmentFlags.hasImageAttachments,
+      has_audio_attachments: normalizedAttachmentFlags.hasAudioAttachments,
+      has_video_attachments: normalizedAttachmentFlags.hasVideoAttachments,
+      has_file_attachments: normalizedAttachmentFlags.hasFileAttachments,
     });
 
     const result: RouteResult = {

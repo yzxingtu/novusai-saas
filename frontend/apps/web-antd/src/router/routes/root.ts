@@ -1,51 +1,35 @@
 import type { RouteRecordRaw } from 'vue-router';
 
-import { RouterView } from 'vue-router';
-
-import {
-  HOME_PATHS,
-  LOGIN_PATHS,
-  resolveRootEndpoint,
-} from '#/constants/endpoints';
+import { $t } from '#/locales';
 import { usePublicConfigStore } from '#/store';
-import { TokenStorage } from '#/store/shared/token-storage';
 
 const rootGatewayRoute: RouteRecordRaw = {
   path: '/',
-  name: 'RootGateway',
-  component: RouterView,
+  name: 'PlatformPublicHome',
+  component: () => import('#/views/public/platform-home/index.vue'),
   meta: {
     hideInBreadcrumb: true,
     hideInMenu: true,
     hideInTab: true,
-    title: 'Root Gateway',
+    title: $t('public.platformHome.title'),
   },
   beforeEnter: async (to) => {
     const publicConfigStore = usePublicConfigStore();
 
     await publicConfigStore.detectDomainType().catch(() => {});
 
-    const rootEndpoint =
-      publicConfigStore.isDomainDetected
-        ? publicConfigStore.isDomainTenantDomain
-          ? 'user'
-          : 'admin'
-        : resolveRootEndpoint();
-
-    if (rootEndpoint === 'admin') {
-      if (TokenStorage.hasToken('admin')) {
-        return { path: HOME_PATHS.admin, replace: true };
-      }
-      return { path: LOGIN_PATHS.admin, replace: true };
+    if (publicConfigStore.isDomainTenantDomain) {
+      return {
+        name: 'UserHome',
+        query: to.query,
+        hash: to.hash,
+        replace: true,
+      };
     }
-    return {
-      name: 'UserHome',
-      query: to.query,
-      hash: to.hash,
-      replace: true,
-    };
+
+    return true;
   },
 };
 
 export const rootRoutes: RouteRecordRaw[] = [rootGatewayRoute];
-export const rootCoreRouteNames = ['RootGateway'];
+export const rootCoreRouteNames = ['PlatformPublicHome'];

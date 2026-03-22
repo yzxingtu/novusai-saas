@@ -12,8 +12,6 @@ from typing import Any, Literal
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from app.core.i18n import _
-from app.enums.agent import ConfirmActionEnum
-
 PAGE_CONTEXT_KEY = "page_context"
 
 
@@ -226,6 +224,18 @@ class AgentRouteRequest(BaseModel):
         False,
         description="Whether the user message includes image attachments / 是否包含图片附件",
     )
+    has_audio_attachments: bool = Field(
+        False,
+        description="Whether the user message includes audio attachments / 是否包含音频附件",
+    )
+    has_video_attachments: bool = Field(
+        False,
+        description="Whether the user message includes video attachments / 是否包含视频附件",
+    )
+    has_file_attachments: bool = Field(
+        False,
+        description="Whether the user message includes generic file attachments / 是否包含通用文件附件",
+    )
 
 
 class AgentRouteResponse(BaseModel):
@@ -245,22 +255,6 @@ class AgentRouteResponse(BaseModel):
     )
 
 
-class AgentConfirmRequest(BaseModel):
-    """确认/取消操作请求 / Confirm/cancel action request."""
-
-    confirm_id: str = Field(
-        ..., min_length=1,
-        description=_("agent_chat.field.confirm_id"),
-    )
-    action: Literal[
-        ConfirmActionEnum.CONFIRM.value,
-        ConfirmActionEnum.CANCEL.value,
-    ] = Field(
-        ...,
-        description=_("agent_chat.field.confirm_action"),
-    )
-
-
 __all__ = [
     "ChatAttachment",
     "ImageParams",
@@ -270,5 +264,4 @@ __all__ = [
     "PageContext",
     "AgentRouteRequest",
     "AgentRouteResponse",
-    "AgentConfirmRequest",
 ]

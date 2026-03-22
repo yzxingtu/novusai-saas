@@ -15,6 +15,8 @@ from app.core.base_schema import (
     BaseUpdateSchema,
 )
 from app.core.i18n import _
+
+
 class SkillPackageCreate(BaseCreateSchema):
     """创建技能包请求 / Create skill package request."""
 
@@ -22,7 +24,6 @@ class SkillPackageCreate(BaseCreateSchema):
     description: str | None = Field(None, description=_("skill_package.field.description"))
     avatar: str | None = Field(None, max_length=255, description=_("skill_package.field.avatar"))
     is_recommended: bool = Field(False, description=_("skill_package.field.is_recommended"))
-    bind_mode: str = Field("manual", description=_("skill_package.field.bind_mode"))
     is_active: bool = Field(True, description=_("skill_package.field.is_active"))
     sort_order: int = Field(0, ge=0, description=_("skill_package.field.sort_order"))
 
@@ -34,7 +35,6 @@ class SkillPackageUpdate(BaseUpdateSchema):
     description: str | None = Field(None, description=_("skill_package.field.description"))
     avatar: str | None = Field(None, max_length=255, description=_("skill_package.field.avatar"))
     is_recommended: bool | None = Field(None, description=_("skill_package.field.is_recommended"))
-    bind_mode: str | None = Field(None, description=_("skill_package.field.bind_mode"))
     is_active: bool | None = Field(None, description=_("skill_package.field.is_active"))
     sort_order: int | None = Field(None, ge=0, description=_("skill_package.field.sort_order"))
 
@@ -48,7 +48,6 @@ class SkillPackageResponse(BaseResponseSchema):
     avatar: str | None = Field(None, description=_("skill_package.field.avatar"))
     is_recommended: bool = Field(False, description=_("skill_package.field.is_recommended"))
     is_system: bool = Field(False, description=_("skill_package.field.is_system"))
-    bind_mode: str = Field("manual", description=_("skill_package.field.bind_mode"))
     source_plugin: str | None = Field(None, description=_("skill_package.field.source_plugin"))
     valves_schema: dict[str, Any] | None = Field(None, description=_("skill_package.field.valves_schema"))
     valves_config: dict[str, Any] | None = Field(None, description=_("skill_package.field.valves_config"))

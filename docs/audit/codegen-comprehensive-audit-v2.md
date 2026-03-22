@@ -53,7 +53,7 @@
 ### 2.3 Store
 
 - 实际 Store：`codegen-builder.ts`，导出为 `useCodegenBuilderStore`
-- 兼容别名：`useCodegenWizardStore` 指向同一 Store（见 codegen-builder.ts 末行）
+- 历史上曾存在兼容别名 `useCodegenWizardStore`，当前已删除并统一为 `useCodegenBuilderStore`
 
 ---
 
@@ -433,7 +433,7 @@ input, textarea, number, password, select, switch, date, TimePicker, ImageUpload
 |------|------|
 | _PROJECT_ROOT 重复定义 | 抽到公共常量 |
 | MAX_HISTORY=50 魔法数字 | 可配置或加注释 |
-| useCodegenWizardStore deprecated | 迁移完成后移除 |
+| useCodegenWizardStore 历史别名已移除 | 已完成 |
 | expertItemCount 逻辑冗长 | 拆成小函数 |
 | FileWriter __all__ 用 replace | 可能误伤，考虑 AST 解析 |
 

@@ -12,7 +12,6 @@ class CacheCategoryEnum(LabeledStrEnum):
     AI_SCHEMA = ("ai_schema", "enum.cache.category.ai_schema")
     AI_SQL_RESULT = ("ai_sql_result", "enum.cache.category.ai_sql_result")
     AI_ACTION_RATE = ("ai_action_rate", "enum.cache.category.ai_action_rate")
-    AI_ACTION_CONFIRM = ("ai_action_confirm", "enum.cache.category.ai_action_confirm")
     KB_SEARCH = ("kb_search", "enum.cache.category.kb_search")
     WS_CONFIG = ("ws_config", "enum.cache.category.ws_config")
     MARKETPLACE = ("marketplace", "enum.cache.category.marketplace")

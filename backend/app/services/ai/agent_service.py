@@ -571,10 +571,6 @@ class AgentService(TenantService[Agent, AgentRepository]):
         await self.repo.cascade_promote_conversations(id)
         return instance
 
-    async def escalate_delete(self, id: int) -> Agent | None:
-        """兼容旧接口：升级删除 → 推进总回收站 / Backward-compatible alias for promote_to_global."""
-        return await self.promote_to_global(id)
-
     async def _after_restore(self, instance: Agent) -> None:
         """恢复后：级联恢复对话记录 / After restore: cascade restore conversations."""
         await self.repo.cascade_restore_conversations(instance.id)
@@ -1318,10 +1314,6 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
 
         await self.repo.cascade_promote_conversations(id)
         return instance
-
-    async def escalate_delete(self, id: int) -> Agent | None:
-        """兼容旧接口：升级删除 → 推进总回收站 / Backward-compatible alias for promote_to_global."""
-        return await self.promote_to_global(id)
 
     async def _after_restore(self, instance: Agent) -> None:
         """恢复后：级联恢复对话记录 / After restore: cascade restore conversations."""

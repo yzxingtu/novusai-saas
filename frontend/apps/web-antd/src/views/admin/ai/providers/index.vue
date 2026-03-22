@@ -10,7 +10,7 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Badge, message, Modal, Switch, Tag, Tooltip } from 'ant-design-vue';
 
-import { getProcessedImageUrl } from '#/utils/image';
+import { toAttachmentImageUrl } from '#/utils/image';
 
 import { useAutoTableDragSort, useCrudPage } from '#/adapter/vxe-table';
 import {
@@ -145,8 +145,8 @@ useAutoTableDragSort(() => gridApi.grid, {
             :class="row.is_active ? 'bg-primary/10' : 'bg-muted'"
           >
             <img
-              v-if="row.icon && Number(row.icon) > 0"
-              :src="getProcessedImageUrl(Number(row.icon), { preset: 'small' })"
+              v-if="toAttachmentImageUrl(row.icon, { preset: 'small' })"
+              :src="toAttachmentImageUrl(row.icon, { preset: 'small' })"
               class="size-full object-contain"
               alt=""
             />

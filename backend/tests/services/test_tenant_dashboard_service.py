@@ -88,3 +88,26 @@ class TestTenantDashboardService:
         service._count_visible_agents.assert_awaited_once()
         service._count_visible_knowledge_bases.assert_awaited_once()
         service._count_visible_knowledge_documents.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_get_overview_aggregates_service_sections(self, mock_db):
+        from app.services.system.dashboard_service import TenantDashboardService
+
+        service = TenantDashboardService.__new__(TenantDashboardService)
+        service.db = mock_db
+        service.tenant_id = 7
+        service.get_stats = AsyncMock(return_value={"total_users": 3})
+        service.get_ai_trend = AsyncMock(return_value=[{"date": "2026-03-22", "calls": 4, "tokens": 20}])
+        service.get_storage_detail = AsyncMock(return_value={"total_files": 6})
+        service.get_recent_activities = AsyncMock(return_value=[{"id": 9}])
+
+        result = await service.get_overview(activity_limit=6, trend_days=21)
+
+        assert result["stats"] == {"total_users": 3}
+        assert result["ai_trend"] == [{"date": "2026-03-22", "calls": 4, "tokens": 20}]
+        assert result["storage_detail"] == {"total_files": 6}
+        assert result["recent_activities"] == [{"id": 9}]
+        assert result["generated_at"]
+
+        service.get_ai_trend.assert_awaited_once_with(days=21)
+        service.get_recent_activities.assert_awaited_once_with(limit=6)

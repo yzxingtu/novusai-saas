@@ -20,8 +20,6 @@ export interface AIAgentInfo {
   avatar: null | string;
   /** 统一资源作用域 ResourceScopeEnum */
   scope: string;
-  /** @deprecated 技能包受众，与智能体资源作用域无关 */
-  target_audience?: string;
   /**
    * 展示用：由 owner_tenant_id 派生（有值 tenant / 无值 platform），非历史 DB 列 owner_type。
    * Display-only: derived from owner_tenant_id; not the legacy agents.owner_type column.
@@ -438,7 +436,6 @@ export interface AIAgentVersionDetail extends AIAgentVersionItem {
   temperature: number;
   max_tokens: null | number;
   top_p: null | number;
-  tool_bindings: null | unknown[];
   input_variables: null | unknown[];
   welcome_message: null | string;
   suggested_questions: null | unknown[];

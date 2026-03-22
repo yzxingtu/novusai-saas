@@ -12,7 +12,7 @@ import {
   VbenIconButton,
 } from '@vben-core/shadcn-ui';
 
-const TimezoneIcon = createIconifyIcon('fluent-mdl2:world-clock');
+const TimezoneIcon = createIconifyIcon('lucide:clock-3');
 
 const timezoneStore = useTimezoneStore();
 

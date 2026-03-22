@@ -1,6 +1,4 @@
 <script lang="ts" setup>
-import type { SkillOption } from '../data';
-
 /**
  * 管理端智能体新建/编辑表单抽屉
  *
@@ -11,8 +9,15 @@ import type { AIAgentInfo } from '#/api/admin/ai';
 
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { IconifyIcon } from '@vben/icons';
 
-import { Alert, Select as ASelect, Tag as ATag } from 'ant-design-vue';
+import {
+  Alert,
+  Button,
+  message,
+  Select as ASelect,
+  Tag as ATag,
+} from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
 import {
@@ -21,6 +26,12 @@ import {
   getAIAgentSkillsApi,
   getAIModelListApi,
 } from '#/api/admin/ai';
+import {
+  AgentSkillBindingPicker,
+  draftsToBatchPayload,
+  grantsToDrafts,
+  type AgentSkillBindingDraftItem,
+} from '#/components/business/agent-skill-binding-picker';
 import { scopeNeedsAssignment } from '#/components/business/scope-select/use-scope-fields';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
@@ -30,11 +41,7 @@ import {
 } from '#/utils/ai-starter-questions';
 import { getSkillTypeColor } from '#/utils/ai-helpers';
 
-import {
-  getFormDefaults,
-  getSkillSelectOptions,
-  useFormSchema,
-} from '../data';
+import { getFormDefaults, useFormSchema } from '../data';
 
 defineOptions({ name: 'AdminAgentForm' });
 
@@ -42,11 +49,8 @@ const emits = defineEmits<{ success: [] }>();
 const router = useRouter();
 
 const isSystemAgent = ref(false);
-const pendingSkillIds = ref<number[]>([]);
-const consentModes = ref<Record<string, string>>({});
-const selectedSkills = ref<Array<{ label: string; value: number }>>([]);
-const skillOptions = ref<SkillOption[]>([]);
-const skillLoading = ref(false);
+const skillDrafts = ref<AgentSkillBindingDraftItem[]>([]);
+const skillPickerOpen = ref(false);
 const modelMaxOutputTokensMap = ref<Record<number, number | undefined>>({});
 
 function resolveModelMaxOutputTokens(
@@ -128,26 +132,23 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } =
       };
     },
     afterOpen: () => {
-      // rowData is set before afterOpen; detailData is not yet loaded
       const sys = !!(rowData.value as Record<string, unknown> | undefined)
         ?.is_system;
       isSystemAgent.value = sys;
-      // Re-apply schema: initial schema() call ran before isSystemAgent was detected
       formApi.setState({ schema: buildSchema(isEdit.value, sys, !isEdit.value) });
+      if (!isEdit.value) {
+        skillDrafts.value = [];
+      }
     },
     onSuccess: async () => {
       const agentId = recordId.value as number | undefined;
       if (agentId) {
         try {
-          await batchBindAIAgentSkillsApi(agentId, {
-            skill_ids: pendingSkillIds.value,
-            default_consent_modes:
-              Object.keys(consentModes.value).length > 0
-                ? consentModes.value
-                : undefined,
-          });
-        } catch {
-          // skill grant errors are non-fatal
+          const payload = draftsToBatchPayload(skillDrafts.value);
+          await batchBindAIAgentSkillsApi(agentId, payload);
+        } catch (error) {
+          console.error('[AdminAgentForm] batchBind skills', error);
+          message.error($t('common.saveFailed'));
         }
       }
       emits('success');
@@ -159,25 +160,11 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } =
       const agent = await getAIAgentDetailApi(id as number);
       try {
         const grants = await getAIAgentSkillsApi(id as number);
-        const selectedOptions = grants.map((grant) => ({
-          label: grant.skill_name || `#${grant.skill_id}`,
-          value: grant.skill_id,
-        }));
-        const modes: Record<string, string> = {};
-        for (const grant of grants) {
-          if (
-            grant.default_consent_mode &&
-            grant.default_consent_mode !== 'auto'
-          ) {
-            modes[String(grant.skill_id)] = grant.default_consent_mode;
-          }
-        }
-        consentModes.value = modes;
-        selectedSkills.value = selectedOptions;
-        pendingSkillIds.value = selectedOptions.map((item) => item.value);
-      } catch {
-        selectedSkills.value = [];
-        pendingSkillIds.value = [];
+        skillDrafts.value = grantsToDrafts(grants);
+      } catch (error) {
+        console.error('[AdminAgentForm] load agent skills', error);
+        message.error($t('common.loadFailed'));
+        skillDrafts.value = [];
       }
       return agent;
     },
@@ -191,19 +178,6 @@ const consentModeOptions = computed(() => [
   { label: $t('admin.ai.agent.consentModeOptions.reject'), value: 'reject' },
 ]);
 
-function getConsentMode(pkgId: number): string {
-  return consentModes.value[String(pkgId)] || 'auto';
-}
-
-function setConsentMode(pkgId: number, mode: string) {
-  if (mode === 'auto') {
-    const { [String(pkgId)]: _, ...rest } = consentModes.value;
-    consentModes.value = rest;
-  } else {
-    consentModes.value = { ...consentModes.value, [String(pkgId)]: mode };
-  }
-}
-
 const title = computed(() => {
   if (isSystemAgent.value && isEdit.value) {
     return $t('admin.ai.agent.systemAgent');
@@ -211,13 +185,17 @@ const title = computed(() => {
   return isEdit.value ? $t('admin.common.edit') : $t('admin.ai.agent.create');
 });
 
-async function loadSkillOptions() {
-  skillLoading.value = true;
-  try {
-    skillOptions.value = await getSkillSelectOptions();
-  } finally {
-    skillLoading.value = false;
+function setDraftConsent(skillId: number, mode: string) {
+  const idx = skillDrafts.value.findIndex((d) => d.skill_id === skillId);
+  if (idx < 0) return;
+  const cur = skillDrafts.value[idx]!;
+  if (mode === 'auto' || mode === 'ask' || mode === 'reject') {
+    skillDrafts.value.splice(idx, 1, { ...cur, default_consent_mode: mode });
   }
+}
+
+function removeDraftSkill(skillId: number) {
+  skillDrafts.value = skillDrafts.value.filter((d) => d.skill_id !== skillId);
 }
 
 async function loadModelLimits() {
@@ -240,49 +218,8 @@ async function loadModelLimits() {
 }
 
 onMounted(() => {
-  void loadSkillOptions();
   void loadModelLimits();
 });
-
-const unboundSkillOptions = computed(() => {
-  const selectedIds = new Set(selectedSkills.value.map((skill) => skill.value));
-  return skillOptions.value.filter((skill) => !selectedIds.has(skill.value));
-});
-
-function getOptionTags(value: number): Array<{ color: string; text: string }> {
-  const opt = skillOptions.value.find((o) => o.value === value);
-  if (!opt) return [];
-  const tags: Array<{ color: string; text: string }> = [];
-  if (opt.packageName) {
-    tags.push({ text: opt.packageName, color: 'blue' });
-  }
-  if (opt.skillType) {
-    tags.push({
-      text: opt.skillType,
-      color: getSkillTypeColor(opt.skillType),
-    });
-  }
-  if (opt.isSystem) {
-    tags.push({ text: $t('admin.ai.skillPackage.system'), color: 'red' });
-  }
-  return tags;
-}
-
-function onSkillChange(val: unknown) {
-  const raw = (val || []) as Array<unknown>;
-  const items = raw.map((item) => {
-    if (typeof item === 'object' && item !== null) {
-      const obj = item as Record<string, unknown>;
-      return {
-        label: String(obj.label || ''),
-        value: Number(obj.value || obj.key || 0),
-      };
-    }
-    return { label: `#${item}`, value: Number(item) };
-  });
-  selectedSkills.value = items;
-  pendingSkillIds.value = items.map((skill) => skill.value);
-}
 </script>
 
 <template>
@@ -296,57 +233,117 @@ function onSkillChange(val: unknown) {
     />
     <Form />
 
-    <!-- Skill grant section -->
     <div class="mb-5">
-      <div class="mb-2 text-sm font-medium text-foreground">
-        {{ $t('admin.ai.agent.skillBindings') }}
-      </div>
+      <AgentSkillBindingPicker
+        v-model:open="skillPickerOpen"
+        v-model="skillDrafts"
+      />
 
-      <ASelect
-        :value="selectedSkills"
-        mode="multiple"
-        label-in-value
-        :loading="skillLoading"
-        :options="unboundSkillOptions"
-        :placeholder="$t('admin.ai.agent.placeholder.selectSkills')"
-        show-search
-        option-filter-prop="label"
-        class="w-full"
-        @change="onSkillChange"
-      >
-        <template #option="{ label: optLabel, value: optValue }">
-          <div class="flex items-center justify-between gap-2">
-            <span class="truncate">{{ optLabel }}</span>
-            <span class="flex shrink-0 gap-1">
-              <ATag
-                v-for="tag in getOptionTags(optValue as number)"
-                :key="tag.text"
-                :color="tag.color"
-                class="!m-0 !text-[10px]"
-              >
-                {{ tag.text }}
+      <div class="rounded-2xl border border-border/70 bg-muted/20 p-4">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-sm font-semibold text-foreground">{{
+                $t('admin.ai.agent.skillBindings')
+              }}</span>
+              <ATag class="!m-0 !rounded-full !px-2 !text-[11px]">
+                {{
+                  $t('admin.ai.agent.skillPicker.selectedCount', {
+                    count: skillDrafts.length,
+                  })
+                }}
               </ATag>
-            </span>
+            </div>
+            <p class="mt-1 text-xs leading-5 text-muted-foreground">
+              {{ $t('admin.ai.agent.help.skillBindings') }}
+            </p>
           </div>
-        </template>
-      </ASelect>
+          <Button type="primary" @click="skillPickerOpen = true">
+            <template #icon>
+              <IconifyIcon icon="lucide:sparkles" class="size-4" />
+            </template>
+            {{ $t('admin.ai.agent.skillPicker.openPicker') }}
+          </Button>
+        </div>
 
-      <div v-if="selectedSkills.length > 0" class="mt-3 space-y-2">
         <div
-          v-for="skill in selectedSkills"
-          :key="`skill-${skill.value}`"
-          class="flex items-center gap-2 rounded-md border border-border px-3 py-2"
+          v-if="skillDrafts.length === 0"
+          class="mt-4 flex items-center gap-3 rounded-2xl border border-dashed border-border/70 bg-background/70 px-4 py-4"
         >
-          <span class="min-w-0 flex-1 truncate text-sm font-medium">{{
-            skill.label
-          }}</span>
-          <ASelect
-            :value="getConsentMode(skill.value)"
-            :options="consentModeOptions"
-            size="small"
-            class="w-[120px] shrink-0"
-            @change="(v: unknown) => setConsentMode(skill.value, v as string)"
-          />
+          <div
+            class="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
+          >
+            <IconifyIcon icon="lucide:puzzle" class="size-5" />
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="text-sm font-medium text-foreground">
+              {{ $t('admin.ai.agent.skillPicker.emptySelected') }}
+            </div>
+            <div class="mt-1 text-xs leading-5 text-muted-foreground">
+              {{ $t('admin.ai.agent.skillPicker.formEmptyHint') }}
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="mt-4 space-y-3">
+          <div
+            v-for="d in skillDrafts"
+            :key="`skill-${d.skill_id}`"
+            class="rounded-2xl border border-border/70 bg-background px-4 py-3 shadow-sm"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-medium text-foreground">
+                  {{ d.skill_name }}
+                </div>
+                <div
+                  v-if="d.package_name"
+                  class="mt-1 truncate text-xs text-muted-foreground"
+                >
+                  {{ d.package_name }}
+                </div>
+                <div class="mt-2 flex flex-wrap gap-1.5">
+                  <ATag
+                    v-if="d.skill_type"
+                    class="!m-0 !text-[10px]"
+                    :color="getSkillTypeColor(d.skill_type)"
+                  >
+                    {{ d.skill_type }}
+                  </ATag>
+                  <ATag v-if="d.is_system" color="red" class="!m-0 !text-[10px]">
+                    {{ $t('admin.ai.skillPackage.system') }}
+                  </ATag>
+                  <ATag
+                    v-if="d.source_plugin"
+                    color="purple"
+                    class="!m-0 !text-[10px]"
+                  >
+                    {{ d.source_plugin }}
+                  </ATag>
+                </div>
+              </div>
+              <Button
+                type="text"
+                danger
+                size="small"
+                @click="removeDraftSkill(d.skill_id)"
+              >
+                {{ $t('admin.ai.agent.skillPicker.remove') }}
+              </Button>
+            </div>
+            <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <div class="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                {{ $t('admin.ai.agent.skillPicker.defaultConsentMode') }}
+              </div>
+              <ASelect
+                :value="d.default_consent_mode"
+                :options="consentModeOptions"
+                size="small"
+                class="w-[140px] shrink-0"
+                @update:value="(v) => setDraftConsent(d.skill_id, String(v))"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>

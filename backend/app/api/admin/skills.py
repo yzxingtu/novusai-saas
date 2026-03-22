@@ -7,7 +7,7 @@ Provides cross-tenant skill listing, details, and CRUD.
 
 from typing import Any
 
-from fastapi import Body, Request
+from fastapi import Body, Query, Request
 
 from app.api.shared._skill_helpers import (
     enrich_plugin_skill_info as _enrich_plugin_skill_info,
@@ -89,6 +89,34 @@ class AdminSkillController(GlobalController):
             """
             from app.enums.agent import get_skill_type_options
             return success(data=get_skill_type_options())
+
+        @router.get("/select", summary="技能绑定选择器（分页检索）")
+        @action_read("action.ai_skill.list")
+        async def select_skills_for_binding(
+            request: Request,
+            db: DbSession,
+            admin: ActiveAdmin,
+            search: str = Query("", description=_("api.param.search")),
+            package_id: int | None = Query(None, description="Filter by skill package id"),
+            page: int = Query(1, ge=1, description="Page number"),
+            page_size: int = Query(20, ge=1, le=100, description="Page size"),
+            include_system: bool = Query(True, description="Include system skills"),
+            only_active: bool = Query(True, description="Only active skills"),
+        ):
+            """
+            Paginated skills with package metadata for admin agent binding picker.
+            管理端智能体技能绑定选择器专用分页接口。
+            """
+            service = AdminSkillService(db)
+            data = await service.get_binding_select_options(
+                search=search,
+                package_id=package_id,
+                page=page,
+                page_size=page_size,
+                include_system=include_system,
+                only_active=only_active,
+            )
+            return success(data=data)
 
         @router.get("", summary="全企业技能列表")
         @action_read("action.ai_skill.list")

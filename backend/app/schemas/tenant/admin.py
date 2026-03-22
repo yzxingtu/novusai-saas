@@ -32,7 +32,7 @@ class TenantAdminResponse(BaseSchema):
     email: str = Field(..., description="邮箱")
     phone: str | None = Field(None, description="手机号")
     nickname: str | None = Field(None, description="昵称")
-    avatar: str | None = Field(None, description="头像 URL")
+    avatar: str | None = Field(None, description="头像附件 ID（兼容旧 URL 值）")
     is_active: bool = Field(..., description="是否激活")
     is_owner: bool = Field(..., description="是否企业所有者")
     role_id: int | None = Field(None, description="角色 ID")
@@ -88,7 +88,7 @@ class TenantAdminUpdateRequest(BaseSchema):
     email: str | None = Field(None, description="邮箱 / Email")
     phone: str | None = Field(None, description="手机号")
     nickname: str | None = Field(None, description="昵称")
-    avatar: str | None = Field(None, description="头像 URL")
+    avatar: str | None = Field(None, description="头像附件 ID（兼容旧 URL 值）")
     is_active: bool | None = Field(None, description="是否激活")
     is_owner: bool | None = Field(None, description="是否企业所有者")
     role_id: int | None = Field(None, description="角色 ID")
@@ -105,7 +105,7 @@ class TenantAdminUpdateProfileRequest(BaseSchema):
     """企业管理员自助修改个人信息请求 / Tenant admin self-update profile request."""
 
     nickname: str | None = Field(None, max_length=50, description="昵称 / Nickname")
-    avatar: str | None = Field(None, max_length=500, description="头像 URL")
+    avatar: str | None = Field(None, max_length=500, description="头像附件 ID（兼容旧 URL 值）")
     email: str | None = Field(None, max_length=100, description="邮箱")
     phone: str | None = Field(None, max_length=20, description="手机号")
 

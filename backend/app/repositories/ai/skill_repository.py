@@ -2,7 +2,7 @@
 技能 Repository / Skill Repository
 """
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 
 from app.core.base_repository import BaseRepository, TenantRepository
 from app.models.ai.skill import Skill
@@ -113,6 +113,33 @@ class SkillRepository(TenantRepository[Skill]):
                 if pkg and pkg.tenant_id is None:
                     visible.append(instance)
         return visible
+
+    async def get_by_package_id(
+        self,
+        package_id: int,
+        include_deleted: bool = False,
+    ) -> list[Skill]:
+        """
+        获取企业可见技能包下的全部技能 / Get all skills under a tenant-visible package.
+
+        只要技能包本身对当前企业可见，就允许读取该包下的技能定义。
+        If the package itself is visible to the current tenant, the tenant may
+        read all skills grouped under that package.
+        """
+        pkg = await self.db.get(SkillPackage, package_id)
+        if not pkg:
+            return []
+        if pkg.tenant_id not in {None, self.tenant_id}:
+            return []
+
+        stmt = select(Skill).where(Skill.package_id == package_id)
+
+        if not include_deleted:
+            stmt = stmt.where(Skill.is_deleted.is_(False))
+
+        stmt = stmt.order_by(Skill.sort_order.asc(), Skill.created_at.desc())
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
 
     async def get_by_name(
         self,
@@ -247,6 +274,74 @@ class AdminSkillRepository(BaseRepository[Skill]):
         stmt = select(Skill).where(and_(*conditions))
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def query_admin_binding_select(
+        self,
+        *,
+        search: str | None,
+        package_id: int | None,
+        page: int,
+        page_size: int,
+        include_system: bool,
+        only_active: bool,
+    ) -> tuple[list[tuple[Skill, SkillPackage]], int]:
+        """
+        Paginated skill rows with package join for admin agent binding picker.
+        管理端智能体技能绑定选择器：分页 + 技能包联表。
+        """
+        page = max(1, page)
+        page_size = max(1, min(100, page_size))
+
+        pkg = SkillPackage
+        sk = Skill
+        join_on = sk.package_id == pkg.id
+
+        conditions = [
+            sk.is_deleted.is_(False),
+            pkg.is_deleted.is_(False),
+        ]
+        if only_active:
+            conditions.append(sk.is_active.is_(True))
+        if not include_system:
+            conditions.append(sk.is_system.is_(False))
+        if package_id is not None:
+            conditions.append(sk.package_id == package_id)
+
+        raw = (search or "").strip()
+        if raw:
+            term = f"%{raw}%"
+            conditions.append(
+                or_(
+                    sk.name.ilike(term),
+                    sk.key.ilike(term),
+                    sk.description.ilike(term),
+                    pkg.name.ilike(term),
+                )
+            )
+
+        base_joined = select(sk, pkg).select_from(sk).join(pkg, join_on).where(
+            and_(*conditions)
+        )
+
+        count_stmt = (
+            select(func.count(sk.id))
+            .select_from(sk)
+            .join(pkg, join_on)
+            .where(and_(*conditions))
+        )
+        total = (await self.db.execute(count_stmt)).scalar() or 0
+
+        ordered = base_joined.order_by(
+            pkg.sort_order.asc(),
+            pkg.created_at.desc(),
+            sk.sort_order.asc(),
+            sk.created_at.desc(),
+            sk.id.asc(),
+        ).offset((page - 1) * page_size).limit(page_size)
+
+        result = await self.db.execute(ordered)
+        rows = list(result.all())
+        return rows, total
 
 
 __all__ = [

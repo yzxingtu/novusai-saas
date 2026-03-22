@@ -15,10 +15,10 @@ def test_aicalllog_response_schema_has_agent_resource_scope() -> None:
     assert "agent_distribution_mode" not in fields
 
 
-def test_permission_endpoint_scope_alias() -> None:
-    from app.enums.rbac import PermissionEndpointScope, PermissionScope
+def test_permission_endpoint_scope_alias_removed() -> None:
+    import app.enums.rbac as rbac
 
-    assert PermissionEndpointScope is PermissionScope
+    assert not hasattr(rbac, "PermissionEndpointScope")
 
 
 def test_resource_scope_enum_has_five_canonical_values() -> None:
@@ -36,6 +36,12 @@ def test_permission_scope_has_canonical_endpoint_values() -> None:
     actual = {e.value for e in PermissionScope}
     assert actual == expected
     assert not hasattr(PermissionScope, "ADMIN_AND_ALL")
+
+
+def test_require_permissions_alias_removed() -> None:
+    import app.rbac as rbac
+
+    assert not hasattr(rbac, "require_permissions")
 
 
 def test_crud_executor_only_accepts_canonical_scopes() -> None:

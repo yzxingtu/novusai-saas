@@ -53,6 +53,11 @@
     "rollback": {
       "no_manifest_entry": "未找到生成清单 codegen_manifest.json 中与此配置对应的条目。数据库状态可能与当前工作区不一致。常见原因：清单未生成、在其它目录运行进程、清单被删除或未与仓库同步。请在本 monorepo 根目录重新执行「生成」以写入清单后再回滚；若仅想修正状态请联系管理员或手动调整数据库。"
     },
+    "delete_guard": {
+      "manifest_present": "当前配置仍在工作区清单中，请先回滚生成产物后再删除。",
+      "generated_state": "当前配置已生成或已应用，请先完成回滚，再执行删除。",
+      "generation_history_present": "当前配置仍保留生成历史，请先清理到可删除状态。"
+    },
     "db": {
       "table_not_found": "表不存在: {name}"
     },
@@ -699,8 +704,6 @@
       "tool_calls": "工具调用",
       "total_tokens": "总 Token 数",
       "duration_ms": "耗时（毫秒）",
-      "confirm_id": "确认操作 ID",
-      "confirm_action": "确认或取消",
       "knowledge_base_ids": "关联知识库 ID 列表",
       "consented_actions": "会话级授权操作列表",
       "attachments": "附件列表",
@@ -739,6 +742,12 @@
       "default_agent_not_accessible": "默认智能体对当前角色或企业不可用",
       "default_agent_not_vision": "默认智能体不支持图片，请联系管理员配置可看图智能体",
       "no_vision_agent_available": "当前没有可看图智能体，请切换到支持视觉的智能体或联系管理员配置",
+      "no_vision_model_available": "当前智能体未配置可用的视觉模型，无法处理图片附件",
+      "no_audio_model_available": "当前智能体未配置可用的音频模型，无法处理音频附件",
+      "no_video_model_available": "当前智能体未配置可用的视频模型，无法处理视频附件",
+      "no_audio_video_model_available": "当前智能体未配置可同时处理音频或视频的模型",
+      "no_multimodal_model_available": "当前智能体未配置可处理所选附件类型的模型",
+      "no_long_context_model_available": "当前智能体未配置可承载该上下文长度的模型，请调整路由配置或缩短上下文",
       "pinned_agent_not_vision": "当前固定智能体不支持图片，请取消固定后重试",
       "conversation_agent_not_vision": "当前会话智能体不支持图片，请切换智能体并新开对话",
       "conversation_agent_mismatch": "当前对话已绑定其他智能体，请新开对话后重试",
@@ -779,6 +788,9 @@
       "vision_not_supported": "当前模型不支持图片，请切换到支持视觉的模型",
       "image_url_inaccessible": "无法获取图片内容（链接无效或不可访问）。请重试上传或检查附件存储配置。",
       "quota_not_found": "配额配置不存在",
+      "rate_limit_not_found": "速率限制配置不存在",
+      "quota_duplicate_active": "同一企业、同一模型范围、同一周期只允许存在一条启用中的配额规则",
+      "rate_limit_duplicate_active": "同一企业、同一模型只允许存在一条启用中的速率限制规则",
       "fallback_self_reference": "备用模型不能指向自身",
       "embedding_empty_result": "Embedding 返回空结果",
       "embedding_model_not_configured": "该知识库未配置 Embedding 模型",
@@ -790,6 +802,9 @@
       "api_key_owner_required": "部分企业（selected_tenants）作用域必须选择归属企业 / Owner tenant is required for selected_tenants scope",
       "api_key_owner_forbidden": "当前作用域下归属企业必须为空 / Owner tenant must be empty for this scope",
       "fetch_remote_models_failed": "从供应商拉取模型列表失败",
+      "rpm_limit_exceeded": "请求频率超限：当前 RPM {count}，限制 {limit}",
+      "tpm_limit_exceeded": "请求频率超限：当前 TPM {count}，限制 {limit}",
+      "quota_exceeded": "AI 配额超限：当前 {current}，限制 {limit}，周期 {period}",
       "quota_exceeded_default": "AI 配额已超出，请稍后重试"
     },
     "provider": {
@@ -2078,7 +2093,6 @@
         "ai_schema": "数据库 Schema 缓存",
         "ai_sql_result": "SQL 查询结果缓存",
         "ai_action_rate": "Action 频率限制",
-        "ai_action_confirm": "Action 确认缓存",
         "kb_search": "知识库检索缓存",
         "ws_config": "WebSocket 配置缓存",
         "marketplace": "插件市场缓存",
@@ -2343,7 +2357,8 @@
       "captcha_provider": {
         "name": "验证码驱动",
         "desc": "选择验证码的实现方式",
-        "image": "本地图形验证码"
+        "image": "本地图形验证码",
+        "slider": "滑动拼图验证码"
       },
       "captcha_difficulty": {
         "name": "验证码难度",
@@ -2542,7 +2557,8 @@
       "captcha_provider": {
         "name": "验证码驱动",
         "desc": "选择验证码的实现方式",
-        "image": "本地图形验证码"
+        "image": "本地图形验证码",
+        "slider": "滑动拼图验证码"
       },
       "captcha_difficulty": {
         "name": "验证码难度",
@@ -2974,11 +2990,6 @@
       "duration_ms": "执行耗时(ms)",
       "confidence": "置信度"
     }
-  },
-  "agent_confirm": {
-    "invalid_action": "无效的操作，仅支持 confirm/cancel",
-    "cancelled": "操作已取消",
-    "cancel_failed": "取消失败，确认可能已过期"
   },
   "ai_table_policy": {
     "not_found": "AI 表策略不存在",

@@ -140,6 +140,7 @@ extensions:
 - `pages[*].menu` 表示该页面派生为菜单入口。
 - `pages[*].scope` 只允许 `admin` 或 `tenant`。
 - `pages[*].icon` 与 `pages[*].menu.icon` 默认只写 `lucide:*`，并且必须命中宿主本地已注册图标。
+- 如声明 `dashboard_widgets`，插件前端入口必须导出对应组件；宿主 dashboard 只负责插槽挂载，不承载插件业务源码。
 - `pages[*].path` 必须与 scope 前缀一致：
   - `admin` -> `/admin/plugins/...`
   - `tenant` -> `/tenant/plugins/...`
@@ -156,12 +157,16 @@ extensions:
 ### 5.1 开发态
 
 - 宿主通过 `/__plugin_dev__/{plugin}/entry` 加载源码入口。
-- 入口对应 `extensions.frontend.dev.entry`，默认 `src/index.ts`。
+- Vite dev loader 从 `plugin.yaml -> extensions.frontend.dev.entry` 解析真实源码入口，默认 `src/index.ts`。
 - 用于本地开发与 HMR，不走 `/plugin-assets/{plugin}/index.js` 伪生产路径。
 
 ### 5.2 生产态
 
-- 宿主先读取 `/plugin-assets/{plugin}/plugin.manifest.json`。
+- `/plugins/slots` 返回的每个前端 slot 都应附带同一份 `frontend_runtime` 投影：
+  - `dev_entry`
+  - `release_manifest`
+- 宿主先读取 `/plugin-assets/{plugin}/{frontend_runtime.release_manifest}`；
+  未提供时默认回退 `plugin.manifest.json`。
 - 再按照 manifest 的 `entry` / `css` / `assets` 加载产物。
 
 `frontend/dist/plugin.manifest.json` 示例：
@@ -177,7 +182,7 @@ extensions:
 ```
 
 规则：
-- 生产环境前端插件缺失 release manifest 或缺失 manifest 指向的文件时，安装/启用必须拒绝。
+- 生产环境前端插件缺失 release manifest 或缺失 manifest 指向的文件时，安装/启用/启动恢复都必须拒绝。
 - `dist/index.js` 可以存在，但不再是唯一契约。
 
 ## 6. `/plugin-assets` 访问规则
@@ -206,12 +211,19 @@ extensions:
 - `sync-manifest` 只允许同步同版本 manifest 漂移。
 - 版本变化必须走正式 `upgrade`。
 - 启动恢复不再处理前端 npm 依赖，也不再自动补装 Python 依赖；仅执行依赖校验与恢复注册。
+- 启动恢复对单插件迁移失败采用 fail-close：
+  - 当前插件标记 `ERROR`
+  - 当前插件不注册扩展
+  - 不影响其它插件继续恢复
 
 ## 8. CLI
 
 使用：
 
 ```bash
+novusai plugin create my-plugin --template=minimal
+novusai plugin create my-plugin --template=skill
+novusai plugin create my-plugin --template=full-module
 novusai plugin build backend/plugins/my-plugin
 novusai plugin validate backend/plugins/my-plugin
 novusai plugin pack backend/plugins/my-plugin --release
@@ -219,6 +231,7 @@ novusai plugin pack backend/plugins/my-plugin --source
 ```
 
 规则：
+- `create --template minimal` 默认生成 `icon: ""`，保证最小模板能直接通过 manifest 校验
 - `build` 负责生成/刷新 `frontend/dist/plugin.manifest.json`
 - `validate` 校验新 manifest schema、dev contract、release contract、以及旧字段遗留
 - `pack --release` 排除 `frontend/src`、前端测试、`frontend/package.json` / `vite.config.*` / lockfile、`backend/tests`
@@ -237,6 +250,16 @@ novusai plugin pack backend/plugins/my-plugin --source
 - 不得手工热同步 manifest 覆盖授权能力
 - 不得在运行时自动 npm install
 - 不得绕过 `PluginDbProxy` 操作未授权表
+
+## 9-A. Skill / Capability 标准映射
+
+- `extensions.capabilities[*]` 是插件能力声明层，负责描述工具名、输入输出 schema、授权模式等。
+- `extensions.skills[*]` 是 Skill 投影层，负责把一个或多个 capability 归组到具体 Skill。
+- `extensions.skills[*].capabilities[]` 必须显式引用 `extensions.capabilities[*].key`，禁止只依赖单个样例插件形成隐式约定。
+- 插件启用/升级时同步的是：
+  - `SkillPackage`：目录、来源、归组单元
+  - `Skill`：可解析执行的能力单元
+- 插件启用**不等于**自动把 SkillPackage 绑定到 Agent 运行时；Agent 运行时是否获得能力，仍由直接 Skill 授权链路决定。
 
 ## 10. 历史插件处置
 

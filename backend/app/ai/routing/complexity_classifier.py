@@ -165,10 +165,8 @@ class ComplexityClassifier:
 
     @staticmethod
     def _get_turn_count(messages: list[ChatMessage]) -> int:
-        """Count conversation turns only when user intent exists. / 仅在用户意图存在时计算对话轮数。"""
-        if not any(msg.role == "user" for msg in messages):
-            return 0
-        return len(messages)
+        """Count user turns only, excluding system/tool chatter. / 仅统计用户轮次，排除 system/tool 噪声。"""
+        return sum(1 for msg in messages if msg.role == "user")
 
     @staticmethod
     def _get_all_user_content(messages: list[ChatMessage]) -> str:

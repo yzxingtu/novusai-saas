@@ -14,7 +14,6 @@ import {
   LockScreen,
   PreferencesButton,
   ThemeToggle,
-  TimezoneButton,
   UserDropdown,
 } from '@vben/layouts';
 import { preferences, updatePreferences } from '@vben/preferences';
@@ -22,7 +21,6 @@ import { useAccessStore, useTabbarStore, useUserStore } from '@vben/stores';
 
 import { message, Popover, Tooltip } from 'ant-design-vue';
 
-import { getApiEndpoint } from '#/api';
 import { AIChatSlidePanel } from '#/components/business/ai-slide-panel';
 import CacheClearModal from '#/components/business/cache-clear-modal/CacheClearModal.vue';
 import { CommandBar } from '#/components/business/command-bar';
@@ -40,6 +38,7 @@ import {
 } from '#/composables/use-plugin-frontend-init';
 import { usePreferenceSync } from '#/composables/use-preference-sync';
 import { $t } from '#/locales';
+import { getEndpointFromPath } from '#/utils';
 import { generateAccess } from '#/router/access';
 import { accessRoutes } from '#/router/routes';
 import {
@@ -262,7 +261,7 @@ async function handleLocaleChange() {
 
   try {
     // 获取当前端类型
-    const currentEndpoint = getApiEndpoint(router.currentRoute.value.path);
+    const currentEndpoint = getEndpointFromPath(router.currentRoute.value.path);
     const userRoles = userStore.userInfo?.roles ?? [];
 
     // 重新获取菜单和路由
@@ -456,14 +455,6 @@ watch(
     <template #fullscreen>
       <Tooltip :title="$t('ui.widgets.fullscreen')" placement="bottom">
         <VbenFullScreen class="mr-1" />
-      </Tooltip>
-    </template>
-    <template #timezone>
-      <Tooltip
-        :title="$t('ui.widgets.timezone.setTimezone')"
-        placement="bottom"
-      >
-        <TimezoneButton class="mr-1 mt-[2px]" />
       </Tooltip>
     </template>
     <template #preferences>

@@ -29,13 +29,7 @@ class PermissionScope(LabeledStrEnum):
     USER = ("user", "enum.permission_scope.user")
     BOTH = ("both", "enum.permission_scope.both")
 
-
-# 文档与类型提示别名：强调与 ResourceScopeEnum 分离 / Alias for docs & typing clarity
-PermissionEndpointScope = PermissionScope
-
-
 __all__ = [
-    "PermissionEndpointScope",
     "PermissionType",
     "PermissionScope",
 ]

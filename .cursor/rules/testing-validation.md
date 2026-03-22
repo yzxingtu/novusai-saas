@@ -23,6 +23,21 @@
 - 页面状态变化后重新 snapshot，不要复用失效的 `uid` / `ref`
 - 先查 console / network，再判断前端逻辑是否失败
 
+## AI 配额 / 限速专项验证
+
+- 涉及 `backend/app/ai/quota.py`、`backend/app/ai/rate_limiter.py`、`backend/app/ai/usage_recorder.py`、`admin/ai/quotas` 时，**禁止**只做编译或类型检查后就结束。
+- 最低后端验证 / Minimum backend verification：
+  - 目标测试文件至少覆盖硬配额、软配额、全局配额回退、限速继承、失败回滚
+  - 诊断 Service 必须验证返回的 `exhaustion_action`、`exhaustion_http_status`、`exhaustion_error_code`
+- 最低真实联调 / Minimum live validation：
+  - 管理端登录：`admin / admin123456`
+  - 企业端登录：`adminsss / admin123456`
+  - 先创建临时规则，再通过真实入口触发一次运行时拦截，确认：
+    - 硬配额返回 `HTTP 429 / 4291`
+    - 速率限制返回 `HTTP 429 / 4292`
+    - 软配额不会拦截请求
+  - 测试结束后必须删除临时规则，避免污染环境
+
 ## 回收站回归最低要求
 
 - 凡是列表页开启了 `recycleBin: true`，至少验证一次模块回收站弹窗可打开，且 `.../recycle-bin/count`、`.../recycle-bin?page[number]=1&page[size]=20` 返回 `200`

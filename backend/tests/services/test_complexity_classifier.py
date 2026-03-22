@@ -79,8 +79,8 @@ class TestComplexityClassifierBasic:
 
     def test_medium_attachment_does_not_lower_complex(self, classifier, ComplexityLevel):
         """有附件时 COMPLEX 不会被降级 / COMPLEX"""
-        # 11 轮消息 + 含「分析」关键词 → 2+2=4分 → COMPLEX
-        msgs = [_user("你好"), _assistant("好的")]  * 5 + [_user("请分析并对比这两个方案的区别")]
+        # 11 个 user turn + 含「分析」「对比」关键词 → 2+2=4分 → COMPLEX
+        msgs = [_user("你好"), _assistant("好的")] * 10 + [_user("请分析并对比这两个方案的区别")]
         result = classifier.classify(msgs, has_attachments=True)
         assert result == ComplexityLevel.COMPLEX
 
@@ -160,5 +160,16 @@ class TestComplexityClassifierEdgeCases:
     def test_only_assistant_messages(self, classifier, ComplexityLevel):
         """只有 assistant 消息，无 user 消息 → SIMPLE / assistant ， user → SI..."""
         msgs = [_assistant("你好") for _ in range(15)]
+        result = classifier.classify(msgs)
+        assert result == ComplexityLevel.SIMPLE
+
+    def test_non_user_messages_do_not_inflate_turn_count(self, classifier, ComplexityLevel):
+        """system/tool/assistant 不应抬高轮次评分 / system/tool/assistant must not inflate turn scoring."""
+        msgs = [
+            _Msg(role="system", content="你是助手"),
+            *[_assistant(f"第{i}轮回答") for i in range(12)],
+            *[_Msg(role="tool", content=f"tool-{i}") for i in range(12)],
+            _user("你好"),
+        ]
         result = classifier.classify(msgs)
         assert result == ComplexityLevel.SIMPLE

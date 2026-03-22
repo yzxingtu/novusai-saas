@@ -539,10 +539,6 @@ class BaseService(Generic[ModelType, RepoType]):
             )
         return instance
 
-    async def escalate_delete(self, id: int) -> ModelType | None:
-        """兼容旧接口：升级删除 → 推进总回收站 / Backward-compatible alias for promote_to_global"""
-        return await self.promote_to_global(id)
-
     async def permanent_delete(
         self,
         id: int,

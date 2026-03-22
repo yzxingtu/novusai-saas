@@ -266,8 +266,8 @@ class TestPageToolExpander:
         result = expand_editor_tools(base, {})
         assert result == base
 
-    def test_no_expansion_when_no_editor_ops(self) -> None:
-        """available_operations 无编辑操作时不展开"""
+    def test_expands_generic_page_tools_when_available(self) -> None:
+        """普通页面高频操作也应展开 pageop_* tools。"""
         from app.ai.tools.page_tool_expander import expand_editor_tools
         from app.ai.tools.types import ToolDefinition
 
@@ -275,7 +275,44 @@ class TestPageToolExpander:
         input_vars = {
             "page_context": {
                 "page_key": "admin.dashboard",
-                "page_data": {"available_operations": [{"name": "refresh_list", "label": "Refresh"}]},
+                "page_data": {
+                    "available_operations": [
+                        {"name": "refresh_list", "label": "Refresh", "readonly": True},
+                        {
+                            "name": "search",
+                            "label": "Search",
+                            "params": {
+                                "keyword": {"type": "string", "required": True},
+                            },
+                            "readonly": True,
+                        },
+                        {
+                            "name": "get_form_state",
+                            "label": "Form State",
+                            "readonly": True,
+                        },
+                    ]
+                },
+            },
+        }
+        result = expand_editor_tools(base, input_vars)
+        expanded_names = [tool.name for tool in result]
+        assert "pageop_refresh_list" in expanded_names
+        assert "pageop_search" in expanded_names
+        assert "pageop_get_form_state" in expanded_names
+
+    def test_no_expansion_when_no_expandable_page_ops(self) -> None:
+        """available_operations 无可展开操作时不展开。"""
+        from app.ai.tools.page_tool_expander import expand_editor_tools
+        from app.ai.tools.types import ToolDefinition
+
+        base = [ToolDefinition(name="invoke_page_operation", description="x")]
+        input_vars = {
+            "page_context": {
+                "page_key": "admin.dashboard",
+                "page_data": {
+                    "available_operations": [{"name": "open_help_center", "label": "Help"}],
+                },
             },
         }
         result = expand_editor_tools(base, input_vars)
@@ -312,3 +349,60 @@ class TestOptimizerRetainsPageopTools:
         assert "pageop_replace_section" in tool_names
         assert "get_page_context" in tool_names
         assert "invoke_page_operation" in tool_names
+
+
+class TestPageOperationsHint:
+    """页面操作提示文案测试"""
+
+    def test_prefers_dedicated_generic_pageop_tools(self) -> None:
+        """普通页面存在专用 pageop_* 时，也应给出 tool-first 提示。"""
+        from app.ai.engine.base import BaseEngine
+        from app.ai.tools.types import ToolDefinition
+
+        hint = BaseEngine._build_page_operations_hint(
+            {
+                "page_context": {
+                    "page_key": "admin.ai.agents",
+                    "page_data": {
+                        "available_operations": [
+                            {"name": "search"},
+                            {"name": "read_visible_rows"},
+                            {"name": "refresh_list"},
+                        ],
+                    },
+                },
+            },
+            [
+                ToolDefinition(name="invoke_page_operation", description="invoke"),
+                ToolDefinition(name="pageop_search", description="search"),
+                ToolDefinition(name="pageop_read_visible_rows", description="read rows"),
+            ],
+        )
+
+        assert "Preferred: use dedicated pageop_* tools directly when available." in hint
+        assert "Dedicated pageop_* tools available for: search, read_visible_rows" in hint
+        assert "Other operations (use invoke_page_operation): refresh_list" in hint
+
+    def test_fallback_hint_uses_generic_examples_without_editor_bias(self) -> None:
+        """非编辑页 fallback 提示不能硬编码 get_editor_html。"""
+        from app.ai.engine.base import BaseEngine
+        from app.ai.tools.types import ToolDefinition
+
+        hint = BaseEngine._build_page_operations_hint(
+            {
+                "page_context": {
+                    "page_key": "admin.ai.agents",
+                    "page_data": {
+                        "available_operations": [
+                            {"name": "search"},
+                            {"name": "read_visible_rows"},
+                        ],
+                    },
+                },
+            },
+            [ToolDefinition(name="invoke_page_operation", description="invoke")],
+        )
+
+        assert 'operation_name="read_visible_rows"' in hint
+        assert 'operation_name="search"' in hint
+        assert "get_editor_html" not in hint

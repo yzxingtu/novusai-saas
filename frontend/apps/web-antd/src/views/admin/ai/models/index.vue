@@ -19,7 +19,7 @@ import {
   toggleAIModelStatusApi,
 } from '#/api/admin/ai';
 import { $t } from '#/locales';
-import { getProcessedImageUrl } from '#/utils/image';
+import { toAttachmentImageUrl } from '#/utils/image';
 
 import {
   getFormDefaults,
@@ -218,8 +218,12 @@ const { Grid, FormDrawer, onRefresh } = useCrudPage<AIModelInfo>({
             class="flex items-center justify-center gap-1.5"
           >
             <img
-              v-if="row.provider_icon && Number(row.provider_icon) > 0"
-              :src="getProcessedImageUrl(Number(row.provider_icon), { preset: 'small' })"
+              v-if="
+                toAttachmentImageUrl(row.provider_icon, { preset: 'small' })
+              "
+              :src="
+                toAttachmentImageUrl(row.provider_icon, { preset: 'small' })
+              "
               class="size-4 shrink-0 rounded object-contain"
               alt=""
             />

@@ -123,6 +123,17 @@ function setupAccessGuard(router: Router) {
         ? requiredAccessCodes.every((code) => codeSet.has(code))
         : requiredAccessCodes.some((code) => codeSet.has(code));
     };
+    const resetEndpointSession = (endpoint: ApiEndpoint) => {
+      TokenStorage.clearToken(endpoint);
+      accessStore.setAccessToken(null);
+      accessStore.setRefreshToken(null);
+      accessStore.setLoginExpired(false);
+      accessStore.setAccessMenus([]);
+      accessStore.setAccessRoutes([]);
+      accessStore.setAccessCodes([]);
+      accessStore.setIsAccessChecked(false);
+      userStore.setUserInfo(null);
+    };
 
     // 获取当前路由对应的端类型、登录路径和首页路径
     let currentEndpoint: ApiEndpoint = resolveEndpointByPath(to.path);
@@ -142,6 +153,13 @@ function setupAccessGuard(router: Router) {
       HOME_PATHS[currentEndpoint],
       currentEndpoint,
     );
+
+    const isPlatformDomain =
+      publicConfigStore.isDomainDetected &&
+      publicConfigStore.isDomainTenantDomain === false;
+    if (currentEndpoint === 'user' && isPlatformDomain) {
+      return { path: '/', replace: true };
+    }
 
     // 首次访问时加载对应端的公开配置（品牌、验证码等）
     if (currentEndpoint === 'admin') {
@@ -312,9 +330,10 @@ function setupAccessGuard(router: Router) {
     } catch (error) {
       // 获取用户信息失败（可能是 Token 过期），清除 Token 并跳转到登录页
       console.error('[Router Guard] 获取用户信息失败:', error);
-      TokenStorage.clearToken(currentEndpoint);
-      accessStore.setAccessToken(null);
-      accessStore.setIsAccessChecked(false);
+      resetEndpointSession(currentEndpoint);
+      if (to.meta.ignoreAccess) {
+        return true;
+      }
       return {
         path: currentLoginPath,
         query: { redirect: to.fullPath },
@@ -342,9 +361,10 @@ function setupAccessGuard(router: Router) {
       console.error('[Router Guard] 生成菜单路由失败:', error);
       // 菜单 API 可能返回 401 触发 doReAuthenticate；
       // 此处兜底：清 token 并跳登录，避免死循环
-      TokenStorage.clearToken(currentEndpoint);
-      accessStore.setAccessToken(null);
-      accessStore.setIsAccessChecked(false);
+      resetEndpointSession(currentEndpoint);
+      if (to.meta.ignoreAccess) {
+        return true;
+      }
       return {
         path: currentLoginPath,
         query: to.fullPath === currentHomePath ? {} : { redirect: to.fullPath },

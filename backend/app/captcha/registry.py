@@ -7,7 +7,7 @@ Singleton registry for captcha providers. Registers built-in providers on init.
 
 from __future__ import annotations
 
-from app.captcha.provider import ICaptchaProvider
+from app.captcha.provider import CaptchaProviderMetadata, ICaptchaProvider
 from app.captcha.providers.image import ImageCaptchaProvider
 
 
@@ -32,16 +32,35 @@ class CaptchaRegistry:
         if self._initialized:
             return
         self._providers: dict[str, ICaptchaProvider] = {}
+        self._metadata: dict[str, CaptchaProviderMetadata] = {}
         self.register("image", ImageCaptchaProvider())
         self._initialized = True
 
-    def register(self, code: str, provider: ICaptchaProvider) -> None:
+    def register(
+        self,
+        code: str,
+        provider: ICaptchaProvider,
+        *,
+        metadata: CaptchaProviderMetadata | None = None,
+    ) -> None:
         """Register a captcha provider by code / 按代码注册验证码提供者"""
         self._providers[code] = provider
+        self._metadata[code] = metadata or CaptchaProviderMetadata()
+
+    def unregister(self, code: str) -> None:
+        """Unregister a captcha provider by code / 按代码注销验证码提供者"""
+        if code == "image":
+            return
+        self._providers.pop(code, None)
+        self._metadata.pop(code, None)
 
     def get(self, code: str) -> ICaptchaProvider | None:
         """Get a captcha provider by code / 按代码获取验证码提供者"""
         return self._providers.get(code)
+
+    def get_metadata(self, code: str) -> CaptchaProviderMetadata | None:
+        """Get captcha provider metadata by code / 按代码获取验证码提供者元数据"""
+        return self._metadata.get(code)
 
     def get_default(self) -> ICaptchaProvider | None:
         """Get the default captcha provider (image) / 获取默认验证码提供者（图形）"""

@@ -36,20 +36,105 @@ from app.models.ai.agent_skill_grant import AgentSkillGrant
 from app.models.system.agent_assignment import SystemAgentAssignment
 from app.repositories.ai.agent_repository import _tenant_available_condition
 from app.services.ai.agent_service import AgentService
+from app.ai.routing.router import ModelRouter
 
 logger = LogManager.get_logger("ai")
 
-# 路由方式常量
+# Routing method constants / 路由方式常量
 ROUTED_BY_PINNED = "pinned"
 ROUTED_BY_ROUTER = "router"
 ROUTED_BY_DEFAULT = "default"
+ROUTED_BY_PREFERRED_FALLBACK = "preferred_fallback"
 ROUTED_BY_CONVERSATION = "conversation"
 
-# Router 超时秒数
+# Router timeout in seconds / Router 超时秒数
 ROUTER_TIMEOUT_SECONDS = 15
 
-# 最低置信度阈值
+# Minimum confidence threshold / 最低置信度阈值
 MIN_CONFIDENCE_THRESHOLD = 0.3
+
+PAGE_OPERATION_REQUIRED_SKILLS = frozenset(
+    {"get_page_context", "invoke_page_operation"},
+)
+PAGE_OPERATION_STRONG_INTENT_TOKENS = (
+    "operate on the current page",
+    "operate on this page",
+    "perform the page action",
+    "help me operate on the current page",
+    "帮我操作当前页面",
+    "帮我操作这个页面",
+    "操作当前页面",
+    "操作这个页面",
+    "操作本页面",
+)
+PAGE_OPERATION_REFERENCE_TOKENS = (
+    "current page",
+    "current form",
+    "current screen",
+    "this page",
+    "this form",
+    "当前页面",
+    "当前表单",
+    "这个页面",
+    "本页面",
+    "当前界面",
+    "这个表单",
+)
+PAGE_OPERATION_ACTION_TOKENS = (
+    "apply",
+    "change",
+    "click",
+    "configure",
+    "create",
+    "delete",
+    "edit",
+    "fill",
+    "filter",
+    "open",
+    "refresh",
+    "save",
+    "search",
+    "select",
+    "set",
+    "submit",
+    "switch",
+    "update",
+    "保存",
+    "修改",
+    "切换",
+    "创建",
+    "删除",
+    "刷新",
+    "填写",
+    "打开",
+    "操作",
+    "搜索",
+    "提交",
+    "新建",
+    "点击",
+    "筛选",
+    "编辑",
+    "设置",
+    "配置",
+)
+PAGE_OPERATION_TARGET_TOKENS = (
+    "button",
+    "dialog",
+    "drawer",
+    "form",
+    "list",
+    "menu",
+    "modal",
+    "tab",
+    "按钮",
+    "列表",
+    "菜单",
+    "表单",
+    "页签",
+    "弹窗",
+    "抽屉",
+    "对话框",
+)
 
 
 @dataclass
@@ -96,6 +181,9 @@ class AgentRouterService:
         user_id: int | None = None,
         force_reroute: bool = False,
         has_image_attachments: bool = False,
+        has_audio_attachments: bool = False,
+        has_video_attachments: bool = False,
+        has_file_attachments: bool = False,
     ) -> RouteResult:
         """
         执行智能路由 / Execute agent routing.
@@ -127,7 +215,7 @@ class AgentRouterService:
                 user_role_id=user_role_id,
             ):
                 if has_image_attachments:
-                    self._ensure_agent_supports_images(
+                    await self._ensure_agent_supports_images(
                         agent,
                         error_key="agent_chat.error.conversation_agent_not_vision",
                     )
@@ -165,7 +253,7 @@ class AgentRouterService:
                     user_role_id=user_role_id,
                 ):
                     if has_image_attachments:
-                        self._ensure_agent_supports_images(
+                        await self._ensure_agent_supports_images(
                             agent,
                             error_key="agent_chat.error.pinned_agent_not_vision",
                         )
@@ -180,7 +268,7 @@ class AgentRouterService:
                     pinned_agent_id, tenant_id, user_role,
                 )
 
-        # P2: 构建候选列表
+        # P2: Build candidate pool / 构建候选列表
         candidates = await self._list_available_agents(
             tenant_id,
             user_role,
@@ -196,10 +284,16 @@ class AgentRouterService:
                 has_image_attachments=has_image_attachments,
             )
 
+        page_operation_routing_required = self._requires_page_operation_routing(
+            message,
+            page_context,
+        )
+        page_operation_filtered = False
+
         if has_image_attachments:
             vision_candidates = [
                 a for a in candidates
-                if getattr(getattr(a, "model", None), "supports_vision", False)
+                if await self._agent_can_handle_images(a)
             ]
             if not vision_candidates:
                 raise BusinessException(
@@ -211,9 +305,41 @@ class AgentRouterService:
                 len(candidates),
             )
 
-        valid_ids = {a.id for a in candidates}
+        if page_operation_routing_required:
+            page_operation_candidates = [
+                agent for agent in candidates
+                if self._agent_supports_page_operations(agent)
+            ]
+            if page_operation_candidates:
+                candidates = page_operation_candidates
+                page_operation_filtered = True
+                logger.info(
+                    "Agent router: narrowed to {} page-operation-capable agents",
+                    len(candidates),
+                )
+            else:
+                logger.warning(
+                    "Agent router: page operation intent detected but no page-operation-capable agent was found; using general candidate pool",
+                )
 
-        # P3: 获取 Router 智能体
+        if page_operation_filtered and len(candidates) == 1:
+            agent = candidates[0]
+            logger.info(
+                "Agent router: directly selected page-operation-capable agent {} ({})",
+                agent.id,
+                agent.name,
+            )
+            return RouteResult(
+                agent_id=agent.id,
+                agent_name=agent.name,
+                confidence=1.0,
+                routed_by=ROUTED_BY_ROUTER,
+            )
+
+        valid_ids = {a.id for a in candidates}
+        preferred_fallback_candidates = candidates if page_operation_filtered else None
+
+        # P3: Resolve router agent / 获取 Router 智能体
         router_agent = await self._get_router_agent()
         if not router_agent:
             logger.warning("Router agent not found, falling back to default")
@@ -223,6 +349,7 @@ class AgentRouterService:
                 user_id=user_id,
                 user_role_id=user_role_id,
                 has_image_attachments=has_image_attachments,
+                preferred_candidates=preferred_fallback_candidates,
             )
 
         if not router_agent.model_id:
@@ -233,9 +360,10 @@ class AgentRouterService:
                 user_id=user_id,
                 user_role_id=user_role_id,
                 has_image_attachments=has_image_attachments,
+                preferred_candidates=preferred_fallback_candidates,
             )
 
-        # P3.5: 调用 Router 智能体（TASK 模式）
+        # P3.5: Call router agent in TASK mode / 调用 Router 智能体（TASK 模式）
         try:
             route_result = await self._call_router(
                 router_agent,
@@ -251,6 +379,9 @@ class AgentRouterService:
                 execution_user_role_id=user_role_id,
                 user_id=user_id,
                 has_image_attachments=has_image_attachments,
+                has_audio_attachments=has_audio_attachments,
+                has_video_attachments=has_video_attachments,
+                has_file_attachments=has_file_attachments,
             )
         except Exception as exc:
             logger.error("Router call failed: {}", exc, exc_info=True)
@@ -260,6 +391,7 @@ class AgentRouterService:
                 user_id=user_id,
                 user_role_id=user_role_id,
                 has_image_attachments=has_image_attachments,
+                preferred_candidates=preferred_fallback_candidates,
             )
 
         if not route_result:
@@ -269,9 +401,10 @@ class AgentRouterService:
                 user_id=user_id,
                 user_role_id=user_role_id,
                 has_image_attachments=has_image_attachments,
+                preferred_candidates=preferred_fallback_candidates,
             )
 
-        # P4: 二次校验
+        # P4: Validate routed result / 二次校验
         routed_id = route_result.get("agent_id")
         confidence = route_result.get("confidence", 0.0)
 
@@ -286,6 +419,7 @@ class AgentRouterService:
                 user_id=user_id,
                 user_role_id=user_role_id,
                 has_image_attachments=has_image_attachments,
+                preferred_candidates=preferred_fallback_candidates,
             )
 
         if confidence < MIN_CONFIDENCE_THRESHOLD:
@@ -299,9 +433,10 @@ class AgentRouterService:
                 user_id=user_id,
                 user_role_id=user_role_id,
                 has_image_attachments=has_image_attachments,
+                preferred_candidates=preferred_fallback_candidates,
             )
 
-        # 查找候选中的名称
+        # Resolve agent name from current candidates / 从当前候选集中解析名称
         agent_name = next(
             (a.name for a in candidates if a.id == routed_id), ""
         )
@@ -345,7 +480,7 @@ class AgentRouterService:
         if user_role == UserRoleEnum.PLATFORM_ADMIN.value:
             query = query.where(Agent.owner_tenant_id.is_(None))
             agents = list((await self.db.execute(query)).scalars().unique().all())
-            return agents
+            return sorted(agents, key=lambda item: item.id)
         elif tenant_id:
             query = query.where(_tenant_available_condition(tenant_id))
         else:
@@ -366,7 +501,7 @@ class AgentRouterService:
             )
             if allowed:
                 visible.append(agent)
-        return visible
+        return sorted(visible, key=lambda item: item.id)
 
     # ========================================
     # Router 智能体查找
@@ -401,6 +536,9 @@ class AgentRouterService:
         execution_user_role_id: int | None = None,
         user_id: int | None = None,
         has_image_attachments: bool = False,
+        has_audio_attachments: bool = False,
+        has_video_attachments: bool = False,
+        has_file_attachments: bool = False,
     ) -> dict[str, Any] | None:
         """
         TASK 模式调用 Router 智能体，解析 JSON 结果 / TASK mode: call Router agent and parse JSON result.
@@ -417,14 +555,12 @@ class AgentRouterService:
         # 构建候选列表描述（含能力摘要，帮助 Router 选择合适的 Agent）
         agent_list = []
         for a in candidates:
-            m = getattr(a, "model", None)
             entry: dict[str, Any] = {
                 "id": a.id,
                 "name": a.name,
                 "description": a.description or "",
             }
-            if m is not None:
-                entry["supports_vision"] = bool(getattr(m, "supports_vision", False))
+            entry["supports_vision"] = await self._agent_can_handle_images(a)
             # 提取已启用技能名称列表，让 Router 知道 Agent 的工具能力
             skill_grants = getattr(a, "skill_grants", None)
             if skill_grants:
@@ -447,7 +583,22 @@ class AgentRouterService:
                 "You MUST select an agent with supports_vision=true (listed in JSON). "
                 "Do not choose an agent that cannot analyze images.\n\n"
             )
-        routing_prompt = vision_preamble + (
+        attachment_notes: list[str] = []
+        if has_audio_attachments:
+            attachment_notes.append("audio")
+        if has_video_attachments:
+            attachment_notes.append("video")
+        if has_file_attachments:
+            attachment_notes.append("file")
+
+        attachment_preamble = ""
+        if attachment_notes:
+            attachment_preamble = (
+                "The user message also includes attachment(s): "
+                f"{', '.join(attachment_notes)}.\n\n"
+            )
+
+        routing_prompt = vision_preamble + attachment_preamble + (
             "Based on the user's message and context, select the most appropriate agent.\n\n"
             f"Available agents:\n{json.dumps(agent_list, ensure_ascii=False)}\n\n"
         )
@@ -538,7 +689,7 @@ class AgentRouterService:
         return None
 
     # ========================================
-    # 降级逻辑
+    # Fallback handling / 降级逻辑
     # ========================================
 
     async def _fallback_to_default(
@@ -549,19 +700,28 @@ class AgentRouterService:
         user_id: int | None,
         user_role_id: int | None,
         has_image_attachments: bool = False,
+        preferred_candidates: list[Agent] | None = None,
     ) -> RouteResult:
         """
-        降级到 default_chat 绑定的智能体 / Fallback to default_chat bound agent.
+        Fallback to the default_chat agent first, then to a preferred
+        filtered pool when the default agent cannot satisfy the narrowed
+        routing contract.
+        优先降级到 default_chat 绑定智能体；若其不满足收窄后的路由约束，再降级到 preferred 候选池。
 
-        查询 SystemAgentAssignment: feature_code='default_chat'
-        企业端先查企业覆盖，再 fallback 全局默认
+        Query SystemAgentAssignment with feature_code='default_chat'.
+        查询 SystemAgentAssignment，feature_code='default_chat'。
+        Tenant-scoped override is checked before the global default.
+        企业端优先检查企业覆盖，再回退到全局默认。
         """
         feature_code = "default_chat"
+        preferred_candidate_ids = {
+            agent.id for agent in (preferred_candidates or [])
+        }
 
         assignment: SystemAgentAssignment | None = None
 
         if tenant_id and user_role != UserRoleEnum.PLATFORM_ADMIN.value:
-            # 企业端：先查覆盖
+            # Tenant override first / 企业端优先查询覆盖配置
             result = await self.db.execute(
                 select(SystemAgentAssignment).where(
                     SystemAgentAssignment.feature_code == feature_code,
@@ -573,7 +733,7 @@ class AgentRouterService:
             assignment = result.scalar_one_or_none()
 
         if not assignment:
-            # 全局默认
+            # Global default fallback / 全局默认兜底
             result = await self.db.execute(
                 select(SystemAgentAssignment).where(
                     SystemAgentAssignment.feature_code == feature_code,
@@ -584,53 +744,93 @@ class AgentRouterService:
             )
             assignment = result.scalar_one_or_none()
 
-        if not assignment or not assignment.agent_id:
-            raise BusinessException(
-                message=_("agent_chat.error.default_agent_not_configured"),
+        if assignment and assignment.agent_id:
+            agent = await self._get_published_agent(assignment.agent_id)
+            if agent and await self._is_agent_visible(
+                agent,
+                tenant_id,
+                user_role,
+                user_id=user_id,
+                user_role_id=user_role_id,
+            ):
+                if (
+                    preferred_candidate_ids
+                    and agent.id not in preferred_candidate_ids
+                ):
+                    logger.warning(
+                        "Default agent {} is outside preferred fallback pool; using preferred fallback instead",
+                        agent.id,
+                    )
+                else:
+                    if has_image_attachments:
+                        await self._ensure_agent_supports_images(
+                            agent,
+                            error_key="agent_chat.error.default_agent_not_vision",
+                        )
+                    return RouteResult(
+                        agent_id=agent.id,
+                        agent_name=agent.name,
+                        confidence=1.0,
+                        routed_by=ROUTED_BY_DEFAULT,
+                    )
+            elif agent:
+                logger.warning(
+                    "Default agent {} not visible for tenant={} user_role={}",
+                    agent.id,
+                    tenant_id,
+                    user_role,
+                )
+
+        if preferred_candidates:
+            return await self._build_preferred_fallback_result(
+                preferred_candidates,
+                has_image_attachments=has_image_attachments,
             )
 
-        agent = await self._get_published_agent(assignment.agent_id)
-        if not agent:
-            raise BusinessException(
-                message=_("agent_chat.error.default_agent_not_configured"),
-            )
-
-        if not await self._is_agent_visible(
-            agent,
-            tenant_id,
-            user_role,
-            user_id=user_id,
-            user_role_id=user_role_id,
-        ):
-            logger.warning(
-                "Default agent {} not visible for tenant={} user_role={}",
-                agent.id, tenant_id, user_role,
-            )
+        if assignment and assignment.agent_id:
             raise BusinessException(
                 message=_("agent_chat.error.default_agent_not_accessible"),
             )
 
-        if has_image_attachments:
-            self._ensure_agent_supports_images(
-                agent,
-                error_key="agent_chat.error.default_agent_not_vision",
-            )
-
-        return RouteResult(
-            agent_id=agent.id,
-            agent_name=agent.name,
-            confidence=1.0,
-            routed_by=ROUTED_BY_DEFAULT,
+        raise BusinessException(
+            message=_("agent_chat.error.default_agent_not_configured"),
         )
 
     # ========================================
-    # 辅助方法
+    # Helpers / 辅助方法
     # ========================================
+
+    async def _build_preferred_fallback_result(
+        self,
+        preferred_candidates: list[Agent],
+        *,
+        has_image_attachments: bool,
+    ) -> RouteResult:
+        preferred_agent = preferred_candidates[0]
+        if has_image_attachments:
+            await self._ensure_agent_supports_images(
+                preferred_agent,
+                error_key="agent_chat.error.default_agent_not_vision",
+            )
+        logger.info(
+            "Router fallback: using preferred candidate {} ({}) from filtered candidate pool",
+            preferred_agent.id,
+            preferred_agent.name,
+        )
+        return RouteResult(
+            agent_id=preferred_agent.id,
+            agent_name=preferred_agent.name,
+            confidence=1.0,
+            routed_by=ROUTED_BY_PREFERRED_FALLBACK,
+        )
 
     async def _get_published_agent(self, agent_id: int) -> Agent | None:
         """获取已发布的智能体 / Get published agent."""
         result = await self.db.execute(
-            select(Agent).options(selectinload(Agent.model)).where(
+            select(Agent).options(
+                selectinload(Agent.model),
+                selectinload(Agent.skill_grants).selectinload(AgentSkillGrant.skill),
+            ).where(
                 Agent.id == agent_id,
                 Agent.status == AgentStatusEnum.PUBLISHED.value,
                 Agent.is_deleted.is_(False),
@@ -710,15 +910,117 @@ class AgentRouterService:
         model = getattr(agent, "model", None)
         return bool(getattr(model, "supports_vision", False))
 
-    def _ensure_agent_supports_images(
+    @staticmethod
+    def _agent_skill_names(agent: Agent | None) -> set[str]:
+        if agent is None:
+            return set()
+
+        skill_names: set[str] = set()
+        skill_grants = getattr(agent, "skill_grants", None) or []
+        for grant in skill_grants:
+            if getattr(grant, "enabled", True) is False:
+                continue
+            skill = getattr(grant, "skill", None)
+            skill_name = getattr(skill, "name", None)
+            if isinstance(skill_name, str) and skill_name:
+                skill_names.add(skill_name)
+        return skill_names
+
+    @classmethod
+    def _agent_supports_page_operations(cls, agent: Agent | None) -> bool:
+        return PAGE_OPERATION_REQUIRED_SKILLS.issubset(
+            cls._agent_skill_names(agent),
+        )
+
+    @staticmethod
+    def _page_context_has_available_operations(
+        page_context: dict[str, Any] | None,
+    ) -> bool:
+        if not isinstance(page_context, dict):
+            return False
+
+        page_data = page_context.get("page_data")
+        if isinstance(page_data, dict):
+            operations = page_data.get("available_operations")
+            if isinstance(operations, list) and len(operations) > 0:
+                return True
+
+        operations = page_context.get("available_operations")
+        return isinstance(operations, list) and len(operations) > 0
+
+    @classmethod
+    def _requires_page_operation_routing(
+        cls,
+        message: str,
+        page_context: dict[str, Any] | None,
+    ) -> bool:
+        if not message or not page_context:
+            return False
+
+        normalized_message = re.sub(r"\s+", " ", message).strip().lower()
+        if not normalized_message:
+            return False
+
+        if not cls._page_context_has_available_operations(page_context):
+            return False
+
+        has_strong_intent = any(
+            token in normalized_message
+            for token in PAGE_OPERATION_STRONG_INTENT_TOKENS
+        )
+        if has_strong_intent:
+            return True
+
+        has_action_token = any(
+            token in normalized_message
+            for token in PAGE_OPERATION_ACTION_TOKENS
+        )
+        if not has_action_token:
+            return False
+
+        has_reference_token = any(
+            token in normalized_message
+            for token in PAGE_OPERATION_REFERENCE_TOKENS
+        )
+        if has_reference_token:
+            return True
+
+        return any(
+            token in normalized_message
+            for token in PAGE_OPERATION_TARGET_TOKENS
+        )
+
+    async def _agent_can_handle_images(self, agent: Agent | None) -> bool:
+        if agent is None:
+            return False
+        if self._agent_supports_images(agent):
+            return True
+        needs_fc = self._agent_needs_function_calling(agent)
+        return await ModelRouter(self.db).can_handle_attachments(
+            agent,
+            has_image=True,
+            needs_fc=needs_fc,
+        )
+
+    async def _ensure_agent_supports_images(
         self,
         agent: Agent | None,
         *,
         error_key: str,
     ) -> None:
-        if self._agent_supports_images(agent):
+        if await self._agent_can_handle_images(agent):
             return
         raise BusinessException(message=_(error_key))
+
+    @staticmethod
+    def _agent_needs_function_calling(agent: Agent | None) -> bool:
+        skill_grants = getattr(agent, "skill_grants", None) or []
+        for grant in skill_grants:
+            if not getattr(grant, "enabled", True):
+                continue
+            if getattr(grant, "skill", None) is not None:
+                return True
+        return False
 
     @staticmethod
     def _build_router_billing_context(

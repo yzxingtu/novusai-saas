@@ -90,7 +90,7 @@ const userDropdownItems = computed(() => [
   },
   {
     key: 'logout',
-    label: $t('authentication.logoutTip'),
+    label: $t('ui.widgets.logoutTip'),
     icon: 'lucide:log-out',
     danger: true,
   },

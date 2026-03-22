@@ -36,7 +36,6 @@ const mainRoutes: RouteRecordRaw = {
       component: () => import('#/views/user/agents/index.vue'),
       meta: {
         icon: 'lucide:sparkles',
-        ignoreAccess: true,
         title: $t('user.agents.title'),
       },
     },
@@ -46,7 +45,6 @@ const mainRoutes: RouteRecordRaw = {
       component: () => import('#/views/user/ai-chat/index.vue'),
       meta: {
         icon: 'lucide:bot',
-        ignoreAccess: true,
         title: $t('user.aiChat.title'),
       },
     },
@@ -56,7 +54,6 @@ const mainRoutes: RouteRecordRaw = {
       component: () => import('#/views/user/help/index.vue'),
       meta: {
         icon: 'lucide:life-buoy',
-        ignoreAccess: true,
         title: $t('user.helpCenter.title'),
       },
     },
@@ -67,7 +64,6 @@ const mainRoutes: RouteRecordRaw = {
       redirect: '/settings/profile',
       meta: {
         icon: 'lucide:settings',
-        ignoreAccess: true,
         title: $t('user.settings.title'),
       },
       children: [
@@ -77,7 +73,6 @@ const mainRoutes: RouteRecordRaw = {
           component: () => import('#/views/user/profile/index.vue'),
           meta: {
             icon: 'lucide:user',
-            ignoreAccess: true,
             title: $t('user.profile.title'),
           },
         },
@@ -88,7 +83,6 @@ const mainRoutes: RouteRecordRaw = {
             import('#/views/user/profile/change-password.vue'),
           meta: {
             hideInMenu: true,
-            ignoreAccess: true,
             title: $t('user.profile.changePassword'),
           },
         },

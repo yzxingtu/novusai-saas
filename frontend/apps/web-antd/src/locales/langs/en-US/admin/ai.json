@@ -318,7 +318,7 @@
   "quota": {
     "name": "Quota",
     "title": "Quota Management",
-    "pageDesc": "Set token usage quotas for tenants. Soft limits warn only; hard limits reject requests when reached.",
+    "pageDesc": "Inspect the real runtime state, usage, and over-limit behavior of tenant quotas and rate limits.",
     "entityDescription": "AI quota and rate limit management",
     "tenantId": "Tenant",
     "tenantName": "Tenant",
@@ -332,6 +332,40 @@
     "description": "Description",
     "create": "Add Quota",
     "globalQuota": "Global Quota",
+    "refresh": "Refresh Diagnostics",
+    "scope": "Scope",
+    "usage": "Current Usage",
+    "remaining": "Remaining",
+    "runtime": "Runtime Status",
+    "response": "Over-limit Response",
+    "latestRule": "Effective Rule",
+    "shadowedRule": "Legacy Rule",
+    "warningReached": "Warning Threshold Reached",
+    "summary": {
+      "activeRules": "Active Quota Rules",
+      "blockRules": "Hard-Block Rules",
+      "riskRules": "Quota Risk Rules",
+      "rateLimitRules": "Active Rate Limits"
+    },
+    "aiOps": {
+      "refreshDescription": "Refresh AI quota and rate-limit diagnostics",
+      "openCreateDescription": "Open the quota creation form"
+    },
+    "helper": {
+      "hardLimit": "Hard quotas reject requests immediately after exhaustion and return HTTP 429 / business code 4291.",
+      "softLimit": "Soft quotas never block requests, but usage continues to accumulate and warnings can be triggered.",
+      "globalFallback": "Global quotas only apply when no model-specific quota exists for the same period; model-specific rules take precedence."
+    },
+    "scopeType": {
+      "global": "Global Quota",
+      "model": "Model Specific"
+    },
+    "runtimeStatus": {
+      "healthy": "Healthy",
+      "warning": "Warning",
+      "exceeded": "Exceeded",
+      "inactive": "Inactive"
+    },
     "section": {
       "basic": "Basic Info",
       "config": "Quota Configuration"
@@ -354,7 +388,8 @@
       "inputDescription": "Enter description",
       "allTenants": "All Tenants",
       "allPeriods": "All Periods",
-      "allTypes": "All Types"
+      "allTypes": "All Types",
+      "allStatus": "All Statuses"
     }
   },
   "rateLimit": {
@@ -369,6 +404,30 @@
     "isActive": "Status",
     "create": "Add Rate Limit",
     "noLimit": "No Limit",
+    "configured": "Configured Override",
+    "effective": "Runtime Effective",
+    "modelDefault": "Model Default",
+    "currentRpm": "Current RPM",
+    "currentTpm": "Current TPM",
+    "response": "Over-limit Response",
+    "latestRule": "Effective Rule",
+    "shadowedRule": "Legacy Rule",
+    "helper": {
+      "deny": "Rate limits reject requests immediately after exhaustion and return HTTP 429 / business code 4292.",
+      "inherit": "Blank RPM / TPM fields now inherit model defaults instead of clearing them."
+    },
+    "aiOps": {
+      "openTabDescription": "Switch to the rate-limit diagnostics tab",
+      "openCreateDescription": "Open the rate-limit creation form with optional defaults",
+      "openEditDescription": "Open the edit drawer for a rate-limit rule by ID",
+      "deleteDescription": "Delete a rate-limit rule by ID",
+      "ruleId": "Rate-limit rule ID"
+    },
+    "source": {
+      "tenant": "Tenant Override",
+      "model": "Model Default",
+      "none": "Unconfigured"
+    },
     "confirmDelete": "Confirm deleting this rate limit?",
     "placeholder": {
       "selectTenant": "Select tenant",
@@ -382,6 +441,7 @@
     "title": "Agent Management",
     "entityDescription": "Manage AI agent configuration, skill bindings and publish status",
     "pageDesc": "Manage all agents. Create global, tenant-specific, or admin-only agents. Publish, disable, or delete.",
+    "skillBindings": "Skill Bindings",
     "detail": {
       "title": "Agent Detail",
       "overview": "Overview",
@@ -442,11 +502,13 @@
       "saveSuccess": "Memory switch updated"
     },
     "routing": {
-      "description": "Smart routing automatically selects the most suitable AI model based on conversation complexity, attachment type, and token count, balancing performance and cost.",
+      "description": "Smart routing automatically selects the most suitable AI model based on conversation complexity, attachment type, and estimated token count, balancing performance and cost.",
       "enableRouting": "Enable Smart Routing",
       "maxTier": "Cost Limit",
       "maxTierHelp": "Limits the maximum model tier the router can use; automatically downgrades if exceeded",
       "visionModel": "Vision Model",
+      "audioModel": "Audio Model",
+      "videoModel": "Video Model",
       "longContextModel": "Long-Context Model",
       "longContextThreshold": "Long-Context Threshold (Estimated Input Tokens)",
       "longContextThresholdHelp": "Automatically switches to the long-context model when estimated input tokens (history + user input + RAG context, excluding this reply's output cap) exceed this threshold",
@@ -455,6 +517,8 @@
       "statusEnabled": "Smart Routing On",
       "statusDisabled": "Routing Off",
       "visionModelHelp": "Routes to this model when image attachments are present",
+      "audioModelHelp": "Routes to this model when audio attachments are present",
+      "videoModelHelp": "Routes to this model when video attachments are present",
       "longContextModelHelp": "Switches to this model when tokens exceed the threshold",
       "tier": {
         "fast": "Fast",
@@ -503,6 +567,37 @@
       "auto": "Auto Execute",
       "ask": "Require Confirmation",
       "reject": "Deny Execution"
+    },
+    "skillPicker": {
+      "title": "Select skill bindings",
+      "subtitle": "Search by skill, package, and source, then set the default consent mode for each selected skill.",
+      "searchPlaceholder": "Search skill name, key, description, or package",
+      "packageFilter": "Filter by package",
+      "onlyActive": "Active skills only",
+      "loadMorePackages": "Load more packages",
+      "refresh": "Refresh",
+      "candidates": "Available skills",
+      "selected": "Selected",
+      "packages": "Packages",
+      "matches": "Matches",
+      "filtered": "Filters applied",
+      "resultSummary": "{skills} matched skills across {packages} packages",
+      "candidateHint": "Browse candidate skills on the left. Click the whole row to select or deselect. There are {count} matches right now.",
+      "packageMatches": "{count} items",
+      "selectedBadge": "Selected",
+      "selectionSummary": "{skills} skills / {packages} packages",
+      "selectionHint": "Selected skills stay here across pages, and you can adjust the default consent mode for each one.",
+      "formEmptyHint": "No skills are configured for this agent yet. It is usually better to grant at least one directly runnable skill.",
+      "detailEmptyHint": "This agent currently has no granted skills. Use the button above to filter by package, browse pages, and save in one pass.",
+      "defaultConsentMode": "Default Consent Mode",
+      "replaceNotice": "Saving will replace the current skill grants as a whole, so confirm the default consent mode for every selected skill first.",
+      "paginationTotal": "{count} items",
+      "emptyCandidates": "No matching skills",
+      "emptySelected": "No skills selected",
+      "remove": "Remove",
+      "openPicker": "Choose skills",
+      "manageBindings": "Manage skill bindings",
+      "selectedCount": "{count} selected"
     },
     "quotaConfig": {
       "conversationsPerDay": "Daily Conversation Limit",
@@ -768,17 +863,21 @@
   },
   "skillPackage": {
     "title": "Skill Package Management",
-    "pageDesc": "Manage platform-wide skill packages. Packages organize skills, and actual usage is determined by agent bindings.",
+    "pageDesc": "Manage platform-wide skill packages. Packages provide grouping, source attribution, and catalog display, while runtime authorization is decided by direct agent skill grants.",
+    "runtimeTruthHint": "Skill packages are for grouping, source attribution, and catalog display. Runtime capability delivery now comes from direct skill grants rather than package-level auto-binding.",
     "system": "System",
     "name": "Package Name",
     "description": "Description",
     "avatar": "Icon",
     "isRecommended": "Recommended",
     "isActive": "Status",
+    "packageRole": "Package Role",
+    "sourceSummary": "Source Summary",
+    "runtimeBinding": "Runtime Authorization",
     "skillCount": "Skills",
     "sortOrder": "Sort Order",
     "create": "New Skill Package",
-    "createGuide": "A skill package is a container for skills. After creating it, you can add multiple skills (toolkits, knowledge bases, data intelligence, etc.) and bind it to agents.",
+    "createGuide": "A skill package is the grouping and source unit for skills. After creating it, you can maintain multiple skills inside it and expose it as a catalog entry, while runtime access still follows direct skill grants.",
     "placeholder": {
       "searchName": "Search package name",
       "inputName": "Enter package name",
@@ -799,6 +898,23 @@
     "importConflictMode": "Name Conflict",
     "importConflictSkip": "Skip (don't import)",
     "importConflictRename": "Auto Rename",
+    "roleOptions": {
+      "platform_system": "Platform System",
+      "platform_catalog": "Platform Catalog",
+      "tenant_owned": "Tenant Owned",
+      "plugin_managed": "Plugin Managed"
+    },
+    "runtimeBindingOptions": {
+      "direct_agent_skill_grant": "Direct Skill Grant"
+    },
+    "sourceSummaryOptions": {
+      "platform_system": "Platform System",
+      "platform_catalog": "Platform Catalog"
+    },
+    "sourceSummaryValue": {
+      "plugin": "Plugin: {plugin}",
+      "tenant": "Tenant #{tenantId}"
+    },
     "messages": {
       "toggleSuccess": "Package status updated",
       "confirmEnable": "Confirm enable this package?",
@@ -836,7 +952,8 @@
       "noTools": "No tool definitions",
       "toolParams": "Parameters",
       "envVars": "Env Vars",
-      "configured": "Configured"
+      "configured": "Configured",
+      "runtimeTruthHint": "SkillPackage provides grouping, source attribution, and catalog display; the agent runtime actually receives capabilities through direct skill grants, not package-level auto-binding."
     },
     "valves": {
       "configBtn": "Env Config",

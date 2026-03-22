@@ -1,18 +1,14 @@
-/**
- * Config Image Picker
- * 配置项图片选择器
- *
- * Used with ConfigForm, provides image selection for config items with value_type='image'.
- * 配合 ConfigForm 使用，在系统配置中为 value_type='image' 的配置项提供图片选择功能。
- * Selects images via FilePicker attachment manager modal, stores attachment ID (string),
- * 通过 FilePicker 附件管理器弹窗选择图片，存储附件 ID（字符串），
- * dynamically constructs image processing URL from ID for display.
- * 显示时根据 ID 动态拼接图片处理 URL。
- *
- * @example
- * <ConfigImagePicker v-model="formModel[cfg.key]" />
- * <ConfigImagePicker v-model="value" accept="image/png,image/jpeg" />
- */
+/** * Config Image Picker * 配置项图片选择器 * * Used with ConfigForm, provides
+image selection for config items with value_type='image'. * 配合 ConfigForm
+使用，在系统配置中为 value_type='image' 的配置项提供图片选择功能。 * Selects
+images via FilePicker attachment manager modal, stores attachment ID (string), *
+通过 FilePicker 附件管理器弹窗选择图片，存储附件 ID（字符串）， * dynamically
+constructs image processing URL from ID for display. * 显示时根据 ID
+动态拼接图片处理 URL。 * * @example *
+<ConfigImagePicker v-model="formModel[cfg.key]" />
+*
+<ConfigImagePicker v-model="value" accept="image/png,image/jpeg" />
+*/
 <script setup lang="ts">
 import type { AttachmentInfo } from '#/types/attachment';
 
@@ -24,7 +20,7 @@ import { Button, Form, Image } from 'ant-design-vue';
 
 import { FilePicker } from '#/components/business/file-picker';
 import { $t } from '#/locales';
-import { getProcessedImageUrl } from '#/utils/image';
+import { toAttachmentImageUrl } from '#/utils/image';
 
 withDefaults(
   defineProps<{
@@ -54,13 +50,7 @@ const previewVisible = ref(false);
  * 如果值是旧格式的完整 URL，直接返回
  */
 function toDisplayUrl(val: string | undefined): string {
-  if (!val) return '';
-  const id = Number(val);
-  if (Number.isFinite(id) && id > 0) {
-    return getProcessedImageUrl(id, { preset: 'medium' });
-  }
-  // Compatible with legacy URL format / 兼容旧的 URL 格式
-  return val;
+  return toAttachmentImageUrl(val, { preset: 'medium' });
 }
 
 /**
@@ -70,12 +60,7 @@ function toDisplayUrl(val: string | undefined): string {
  * 不传 preset 参数，返回原始尺寸图片
  */
 function toPreviewUrl(val: string | undefined): string {
-  if (!val) return '';
-  const id = Number(val);
-  if (Number.isFinite(id) && id > 0) {
-    return getProcessedImageUrl(id);
-  }
-  return val;
+  return toAttachmentImageUrl(val);
 }
 
 /** Open attachment manager modal / 打开附件管理器弹窗 */

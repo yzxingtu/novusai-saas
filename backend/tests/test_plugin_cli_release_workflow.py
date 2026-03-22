@@ -9,6 +9,9 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import yaml
+
+from app.plugins.manifest import PluginManifest
 
 _SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "scripts"
 if str(_SCRIPTS_DIR) not in sys.path:
@@ -271,3 +274,26 @@ def test_cmd_create_full_module_uses_new_frontend_contract(tmp_path: Path) -> No
     assert "menus:" not in plugin_yaml
     assert (output_dir / "frontend" / "src" / "ScaffoldDemoPage.vue").is_file()
     assert (output_dir / "frontend" / "dist" / "plugin.manifest.json").is_file()
+
+
+def test_cmd_create_minimal_generates_manifest_valid_plugin_yaml(
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "minimal-demo"
+
+    pc.cmd_create(
+        SimpleNamespace(
+            name="minimal-demo",
+            output=str(output_dir),
+            template="minimal",
+        )
+    )
+
+    manifest_payload = yaml.safe_load(
+        (output_dir / "plugin.yaml").read_text(encoding="utf-8"),
+    )
+    manifest = PluginManifest.model_validate(manifest_payload)
+
+    assert manifest.name == "minimal-demo"
+    assert manifest.icon == ""
+    assert manifest.dependencies.plugins == []

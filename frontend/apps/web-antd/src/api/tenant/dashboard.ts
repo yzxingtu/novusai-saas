@@ -51,7 +51,19 @@ export interface TenantActivityItem {
   created_at: null | string;
 }
 
+export interface TenantDashboardOverview {
+  ai_trend: AITrendItem[];
+  generated_at: null | string;
+  recent_activities: TenantActivityItem[];
+  stats: TenantDashboardStats;
+  storage_detail: StorageDetail;
+}
+
 // ── API Functions ──
+
+export async function getTenantDashboardOverviewApi(): Promise<TenantDashboardOverview> {
+  return requestClient.get<TenantDashboardOverview>(`${API_PREFIX}/overview`);
+}
 
 export async function getTenantDashboardStatsApi(): Promise<TenantDashboardStats> {
   return requestClient.get<TenantDashboardStats>(`${API_PREFIX}/stats`);

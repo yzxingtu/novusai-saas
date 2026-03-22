@@ -53,7 +53,6 @@ class TestCacheCategoryEnum:
             "ai_schema",
             "ai_sql_result",
             "ai_action_rate",
-            "ai_action_confirm",
             "kb_search",
             "ws_config",
             "marketplace",

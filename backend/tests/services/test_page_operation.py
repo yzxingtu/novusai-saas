@@ -169,7 +169,82 @@ class TestPageOperationExecutor:
         assert kwargs["skill_id"] == 88
         assert kwargs["action_name"] == "update_title"
         assert kwargs["status"] == "success"
+        assert kwargs["request_data"]["page_session_id"] == "ps-123"
         assert kwargs["request_data"]["page_key"] == "admin.ai.conversations"
+        assert kwargs["response_data"]["invoke_id"] == "inv-log"
+
+    @pytest.mark.asyncio
+    async def test_explicit_page_session_id_wins_over_active_mapping(self, executor, definition):
+        """显式 page_session_id 必须优先，不能被同 page_key 的 active mapping 偷换。"""
+        context = ExecutionContext(
+            tenant_id=1,
+            agent_id=2,
+            user_id=9,
+            user_role="tenant_admin",
+            page_session_id="ps-explicit",
+        )
+        mock_result = {
+            "invoke_id": "inv-explicit",
+            "success": True,
+            "message": "Used explicit session",
+        }
+
+        with patch(
+            "app.sio.page_session.get_active_session_id",
+            return_value="ps-active-newer",
+        ), patch(
+            "app.sio.page_session.invoke_page_operation",
+            new=AsyncMock(return_value=mock_result),
+        ) as invoke_mock:
+            result = await executor.execute(
+                definition,
+                "call_explicit",
+                {
+                    "page_key": "tenant.portal.home",
+                    "operation_name": "open_help",
+                },
+                context,
+            )
+
+        assert result.success is True
+        invoke_mock.assert_awaited_once()
+        assert invoke_mock.await_args.kwargs["page_session_id"] == "ps-explicit"
+
+    @pytest.mark.asyncio
+    async def test_active_session_id_used_when_context_session_missing(self, executor, definition):
+        """未携带 page_session_id 时，允许使用 active mapping 恢复会话。"""
+        context = ExecutionContext(
+            tenant_id=1,
+            agent_id=2,
+            user_id=9,
+            user_role="tenant_admin",
+        )
+        mock_result = {
+            "invoke_id": "inv-active",
+            "success": True,
+            "message": "Recovered session",
+        }
+
+        with patch(
+            "app.sio.page_session.get_active_session_id",
+            return_value="ps-recovered",
+        ), patch(
+            "app.sio.page_session.invoke_page_operation",
+            new=AsyncMock(return_value=mock_result),
+        ) as invoke_mock:
+            result = await executor.execute(
+                definition,
+                "call_active",
+                {
+                    "page_key": "tenant.portal.home",
+                    "operation_name": "open_help",
+                },
+                context,
+            )
+
+        assert result.success is True
+        invoke_mock.assert_awaited_once()
+        assert invoke_mock.await_args.kwargs["page_session_id"] == "ps-recovered"
 
     @pytest.mark.asyncio
     async def test_no_page_session_id(self, executor, definition):

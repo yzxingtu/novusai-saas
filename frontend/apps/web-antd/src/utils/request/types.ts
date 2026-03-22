@@ -5,6 +5,7 @@
  * @module utils/request/types
  */
 import type { AxiosRequestConfig, AxiosResponse } from 'axios';
+import type { ApiEndpoint } from '#/types/endpoint';
 
 // ============================================================
 // Request configuration types / 请求配置类型
@@ -203,12 +204,6 @@ export interface ResponseInterceptorConfig {
 // ============================================================
 
 /**
- * API endpoint type
- * API 端点类型
- */
-export type ApiEndpoint = 'admin' | 'tenant' | 'user';
-
-/**
  * Refresh token response (backend raw format)
  * 刷新 Token 响应（后端原始格式）
  */
@@ -294,3 +289,5 @@ export interface RequestClientOptions extends RequestOptions {
   /** Default request headers / 默认请求头 */
   headers?: Record<string, string>;
 }
+
+export type { ApiEndpoint };

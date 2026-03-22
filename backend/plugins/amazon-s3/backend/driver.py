@@ -351,6 +351,11 @@ class S3StorageDriver(StorageDriver):
         provider = self._get_image_process_provider()
         process_url = self._get_image_process_url()
         if provider == "cloudflare" and process_url:
+            if visibility is None:
+                info = await self.get_info(path)
+                visibility = info.visibility if info else StorageVisibility.PRIVATE
+            if visibility != StorageVisibility.PUBLIC:
+                return await self.get_url(path, expires=expires, visibility=visibility)
             key = self._key(path)
             cf_params = self._build_cloudflare_params(params)
             return f"{process_url.rstrip('/')}/cdn-cgi/image/{cf_params}/{key}"
@@ -371,7 +376,12 @@ class S3StorageDriver(StorageDriver):
         source = await self.get(path)
         return await ImageProcessor.process(source, params)
 
-    def supports_native_image_processing(self) -> bool:
+    def supports_native_image_processing(
+        self,
+        visibility: StorageVisibility | None = None,
+    ) -> bool:
         provider = self._get_image_process_provider()
         process_url = self._get_image_process_url()
+        if provider == "cloudflare" and visibility == StorageVisibility.PRIVATE:
+            return False
         return bool(provider) and bool(process_url)

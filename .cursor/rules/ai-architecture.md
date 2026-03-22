@@ -23,7 +23,7 @@
 - ✅ Agent engine 内部 LLM 调用（`conversation.py` / `base.py` / `task.py` / `dispatcher.py`）
 - ✅ RAG 管道内部 LLM 调用（`rag/embedding.py` / `query_rewriter.py` / `reranker.py` / `processor.py` / `vision_describer.py`）
 - ✅ `AIGateway.test_model` — 仅模型连通性测试
-- ✅ `SystemAgentService`（`app/ai/system_agent.py`）— Controller 层唯一合法 AI 调用入口
+- ✅ `InternalAIService`（`app/ai/internal_ai_service.py`）— 仅基础设施级内部 AI 网关入口，用于替代旧 `SystemAgentService`
 - ✅ 引擎装配：编排层创建 `AIGateway(db)` 注入 Engine 构造函数，但**禁止直接调用** gateway LLM 方法
 
 ## 二、Agent 核心规则
@@ -33,23 +33,23 @@
 - **可编辑/归属**：看 **`owner_tenant_id`**（列表 API 常序列化为 `tenant_id`），**禁止**再用「`all_tenants` + 是否带 tenant」旧双重语义推断
 - **权限/菜单端别**：`PermissionScope`（admin/tenant/user/both），与资源作用域无关
 - `is_system=True` → 不可删除/禁用
-- 工具绑定通过 `AgentSkillBinding`（M:N），禁止使用废弃的 `tool_bindings` JSON 字段
+- 技能授权通过 `AgentSkillGrant`（Agent 直接授权 Skill），禁止使用废弃的 `tool_bindings` JSON 字段
 - `routing_config`（JSON）：多模型路由 → 详见 `references/ai-routing.md`
 
 ## 三、Agent↔Skill 绑定规则
 
-- Agent 通过 `AgentSkillBinding` 与 `SkillPackage` 建立 M:N 关系
+- Agent 运行时通过 `AgentSkillGrant` 直接持有 Skill 授权
+- SkillPackage 仍可作为管理端/企业端的归组、来源与目录单元，但**不是**运行时绑定真相
 - **授权模式**（`consent_mode`）：`auto`（自动）/ `ask`（需用户确认）/ `reject`（禁止）
 - 写操作类工具（`data_create` / `data_update` / `data_delete`）**建议**设为 `ask`
-- `config_override` 可覆盖技能包的 Valves 配置
+- `AgentSkillGrant` 上的 override/config 字段仅作用于该条直接授权，不重新引入包级自动绑定语义
 
 ## 四、技能体系核心规则
 
 - Skill **必须**归属 SkillPackage（`package_id` 必填）
-- SkillPackage / Skill **不承载独立资源作用域**；实际生效范围由资源归属与 Agent 绑定决定
-- **绑定模式**：`auto`（平台自动生效，不依赖 SkillPackage scope）/ `manual`（需 AgentSkillBinding 显式绑定）
-- 系统包（`is_system=True`）默认 `auto`，企业只能创建 `manual`
-- **前端入口**：管理端仅 `/admin/ai/skill-packages`；企业端只允许在 Agent 页面查看/选择技能包辅助信息，**禁止独立技能路由**
+- SkillPackage 是**归组 / 来源 / 目录**单元，不是运行时自动绑定单元
+- `SkillPackage` / `Skill` 的**目录可见性与归属**主要由 **`tenant_id`、`package_id`、Skill 的 `tenant_id`（归属列）及仓储层过滤**表达；**`ResourceScopeEnum` 只适用于带 `scope` 列的其它资源，不得直接套用到 `skill_packages` / `skills`**。**运行时是否给某个 Agent 生效，只看 `AgentSkillGrant`**
+- **前端入口**：管理端使用 `/admin/ai/skill-packages`；企业端允许只读目录 `/tenant/ai/skill-packages`，但禁止 tenant 侧 SkillPackage CRUD / valves 编辑 / 包级运行绑定
 - **7 种技能类型**：`toolkit` / `knowledge_base` / `data_intelligence` / `builtin` / `http` / `email` / `code_execution`
 - **SkillResolver** 是唯一合法的 Skill→ToolDefinition 转换器，禁止使用 `ToolRegistry`
 
@@ -63,13 +63,36 @@
 
 - `is_system=True`，不可删除/禁用，通过 seed migration 创建
 - 系统 Agent：`system_chat_agent` / `system_embedding_agent`
-- Controller 层通过 `SystemAgentService` 调用 AI，架构：`Controller → SystemAgentService → AIGateway`
+- 历史 `SystemAgentService` 已被 `InternalAIService` 替代；仅基础设施级内部调用允许经 `InternalAIService → AIGateway`
 
 ## 六、新增 AI 功能标准流程
 
-1. 定义/复用 Skill 类型 → 2. 实现 Executor（继承 `BaseToolExecutor`）→ 3. 注册 SkillResolver 映射 → 4. 创建 Skill 记录 → 5. 绑定 Agent → 6. 通过 Agent 触发
+1. 定义/复用 Skill 类型 → 2. 实现 Executor（继承 `BaseToolExecutor`）→ 3. 注册 SkillResolver 映射 → 4. 创建/同步 SkillPackage（作为目录与来源单元）→ 5. 创建 Skill 记录 → 6. 通过 `AgentSkillGrant` 直接授权 Agent → 7. 通过 Agent 触发
 
 **禁止跳过步骤直接调用 AIGateway。**
+
+## 六-0、企业 AI 配额与限速规则
+
+- **硬配额 / Hard quota**：超限后必须直接拒绝请求，返回 `HTTP 429`，业务码 `4291`；页面文案、诊断接口、运行时拦截三者必须一致。
+- **软配额 / Soft quota**：超限后**不允许**阻断请求；必须继续累计用量，并保留告警通知语义。若页面显示“允许超额”，运行时也必须确实放行。
+- **速率限制 / Rate limit**：超限后必须直接拒绝请求，返回 `HTTP 429`，业务码 `4292`；RPM/TPM 任一命中都算拦截。
+- **全局配额回退 / Global quota fallback**：仅当“同企业 + 同周期”不存在模型专属启用规则时，才允许命中 `model_id IS NULL` 的全局规则；模型专属规则优先级更高。
+- **继承语义 / Inheritance semantics**：企业级 `rpm_limit` / `tpm_limit = null` 表示“继承模型默认值”，**不是**“把默认限速清空”。
+- **诊断页职责 / Diagnostics responsibility**：`/admin/ai/quotas` 与 `/admin/ai/quotas/rate-limits` 必须展示**真实运行时生效结果**，不能只回显原始 CRUD 字段；至少要说明当前生效值、来源、超限动作、HTTP 状态与业务码。
+- **临时修复禁止 / No stopgap fix**：涉及配额/限速语义时，禁止只改前端文案或只改诊断页；必须同步修正运行时检查、用量写回、错误码与测试。
+
+## 六-1、企业 AI 配额与限速最低验证
+
+- 新增或重构企业 AI 配额/限速后，必须同时完成 **单元测试 + 真实接口联调 + 页面验证**，三者缺一不可。
+- **真实接口联调 / Live API validation** 最低要求：
+  - 管理端 `summary / quotas / rate-limits` 三个诊断接口返回 `200`
+  - 重复启用规则创建返回 `422`
+  - 临时规则的创建、更新、删除要形成闭环，结束后汇总统计恢复原值
+  - 必须至少做一次真正的运行时拦截验证：通过 `/tenant/ai/gateway/chat` 或等价真实入口触发 `4291` / `4292`
+- **页面验证 / UI validation** 最低要求：
+  - `http://localhost:5666/admin/ai/quotas` 能正常打开
+  - 配额页与限速页切换正常，且无新增 console error
+  - 表单新增至少真实提交一次，并确认列表即时刷新
 
 ## 六-A、AI 写作规则
 
@@ -94,10 +117,12 @@
 ## 七、页面感知与操作规则
 
 - 三层架构：Layer 1（system prompt 注入）+ Layer 2（`get_page_context` 工具）+ Layer 3（`invoke_page_operation` WebSocket 执行）
-- 富文本页：**tool-first** — 有 pageop_* 时优先直调专用 tools；`content_format: 'html'|'markdown'` 与迁移/前端契约一致；禁止向用户回显 HTML/JSON/tool 参数，仅返回自然语言结果
+- 页面操作：**tool-first** — 有 `pageop_*` 时优先直调专用 tools；不再只限富文本页，`search` / `read_visible_rows` / `get_form_state` / `fill_form` / `refresh_list` / 分页类等高频操作也应优先展开；`content_format: 'html'|'markdown'` 与迁移/前端契约一致；禁止向用户回显 HTML/JSON/tool 参数，仅返回自然语言结果
 - `_PROTECTED_TOOL_NAMES` 白名单保护页面感知/操作工具不被优化器过滤
 - `readonly=false` 操作必须前端用户确认后才执行
-- 操作超时 30s，超时后自动清理 asyncio.Future
+- 操作确认超时 60s；页面会话切换、离开 page_session 房间或连接断开时必须清理链式确认状态
+- 前端页面操作通道必须按 `invoke_id` 做幂等保护；重复事件只能回放已缓存结果，禁止重复执行或重复弹确认
+- 前端执行页面操作前必须校验 `event.page_key` 与当前活动页面一致；不一致时返回 `page_key_mismatch`
 - 新增页面操作时必须通过 `registerPageOperations()` 注册，禁止绕过注册表直接执行
 
 ### 七-A、前端接入优先级

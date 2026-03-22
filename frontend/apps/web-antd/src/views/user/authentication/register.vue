@@ -116,6 +116,7 @@ async function handleSubmit() {
       if (!captchaResult) return;
       params.captchaChallengeId = captchaResult.challengeId;
       params.captchaSolution = captchaResult.captchaCode;
+      params.captchaType = captchaResult.provider;
       params.captchaProviderCode =
         publicConfigStore.tenantCaptcha?.provider ?? 'image';
     }

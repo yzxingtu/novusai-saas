@@ -17,6 +17,7 @@ import { formatDate, formatRelativeTime } from '#/utils/common';
 import {
   getStatusColor,
   getTriggerColor,
+  getTriggerLabel,
   useColumns,
   useGridFormSchema,
 } from './data';
@@ -89,7 +90,7 @@ const { Grid, onRefresh } = useCrudPage<EmailLogInfo>({
         <!-- 触发来源列 -->
         <template #trigger_cell="{ row }">
           <Tag :color="getTriggerColor(row.triggeredBy)">
-            {{ $t(`admin.system.emailLog.trigger.${row.triggeredBy}`) }}
+            {{ getTriggerLabel(row.triggeredBy) }}
           </Tag>
         </template>
 

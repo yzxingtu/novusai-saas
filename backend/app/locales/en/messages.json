@@ -53,6 +53,11 @@
     "rollback": {
       "no_manifest_entry": "No matching entry in codegen_manifest.json for this config. The DB status may not match this workspace. Typical causes: manifest never written, server run from another cwd, or manifest removed/out of sync. Re-run Generate from the monorepo root to refresh the manifest, then retry rollback; to fix DB-only state, adjust the database or ask an admin."
     },
+    "delete_guard": {
+      "manifest_present": "This config still has a manifest entry in the workspace. Roll back generated artifacts before deleting it.",
+      "generated_state": "This config is still in generated/applied state. Roll it back before deleting it.",
+      "generation_history_present": "This config still keeps generation history. Clean it up to a deletable state first."
+    },
     "db": {
       "table_not_found": "Table not found: {name}"
     },
@@ -699,8 +704,6 @@
       "tool_calls": "Tool Calls",
       "total_tokens": "Total Tokens",
       "duration_ms": "Duration (ms)",
-      "confirm_id": "Confirm ID",
-      "confirm_action": "Confirm or Cancel",
       "knowledge_base_ids": "Knowledge Base IDs",
       "consented_actions": "Session-level consented actions",
       "attachments": "Attachments",
@@ -739,6 +742,12 @@
       "default_agent_not_accessible": "Default agent is not accessible for your role or tenant",
       "default_agent_not_vision": "The default agent does not support images. Please ask an administrator to configure a vision-capable agent.",
       "no_vision_agent_available": "No vision-capable agent is available right now. Please switch to a vision-capable agent or contact an administrator.",
+      "no_vision_model_available": "This agent does not have an available vision model configured, so it cannot process image attachments.",
+      "no_audio_model_available": "This agent does not have an available audio model configured, so it cannot process audio attachments.",
+      "no_video_model_available": "This agent does not have an available video model configured, so it cannot process video attachments.",
+      "no_audio_video_model_available": "This agent does not have a model configured that can process audio or video attachments.",
+      "no_multimodal_model_available": "This agent does not have a model configured that can process the selected attachment types.",
+      "no_long_context_model_available": "This agent does not have a model configured that can handle the current context length. Please adjust routing settings or shorten the context.",
       "pinned_agent_not_vision": "The pinned agent does not support images. Please unpin it and try again.",
       "conversation_agent_not_vision": "The current conversation agent does not support images. Please switch agents and start a new conversation.",
       "conversation_agent_mismatch": "This conversation is already bound to a different agent. Please start a new conversation and try again.",
@@ -779,6 +788,9 @@
       "vision_not_supported": "Current model does not support images. Please switch to a vision-capable model.",
       "image_url_inaccessible": "Could not load image content (invalid or unreachable URL). Try re-uploading or check attachment storage configuration.",
       "quota_not_found": "Quota configuration not found",
+      "rate_limit_not_found": "Rate limit configuration not found",
+      "quota_duplicate_active": "Only one active quota rule is allowed for the same tenant, model scope, and period",
+      "rate_limit_duplicate_active": "Only one active rate-limit rule is allowed for the same tenant and model",
       "fallback_self_reference": "Fallback model cannot reference itself",
       "embedding_empty_result": "Embedding returned empty result",
       "embedding_model_not_configured": "Embedding model not configured for this knowledge base",
@@ -790,6 +802,9 @@
       "api_key_owner_required": "Owner tenant is required for selected_tenants scope / 部分企业作用域必须选择归属企业",
       "api_key_owner_forbidden": "Owner tenant must be empty for this scope / 当前作用域下归属企业必须为空",
       "fetch_remote_models_failed": "Failed to fetch models from provider",
+      "rpm_limit_exceeded": "Rate limit exceeded: current RPM {count}, limit {limit}",
+      "tpm_limit_exceeded": "Rate limit exceeded: current TPM {count}, limit {limit}",
+      "quota_exceeded": "AI quota exceeded: current {current}, limit {limit}, period {period}",
       "quota_exceeded_default": "AI quota exceeded, please try again later"
     },
     "provider": {
@@ -2069,7 +2084,6 @@
         "ai_schema": "Database Schema Cache",
         "ai_sql_result": "SQL Query Result Cache",
         "ai_action_rate": "Action Rate Limit",
-        "ai_action_confirm": "Action Confirm Cache",
         "kb_search": "Knowledge Base Search Cache",
         "ws_config": "WebSocket Config Cache",
         "marketplace": "Plugin Marketplace Cache",
@@ -2334,7 +2348,8 @@
       "captcha_provider": {
         "name": "CAPTCHA Provider",
         "desc": "Choose the CAPTCHA implementation",
-        "image": "Local Image CAPTCHA"
+        "image": "Local Image CAPTCHA",
+        "slider": "Slider Puzzle CAPTCHA"
       },
       "captcha_difficulty": {
         "name": "CAPTCHA Difficulty",
@@ -2525,7 +2540,8 @@
       "captcha_provider": {
         "name": "CAPTCHA Provider",
         "desc": "Choose the CAPTCHA implementation",
-        "image": "Local Image CAPTCHA"
+        "image": "Local Image CAPTCHA",
+        "slider": "Slider Puzzle CAPTCHA"
       },
       "captcha_difficulty": {
         "name": "CAPTCHA Difficulty",
@@ -2956,11 +2972,6 @@
       "duration_ms": "Duration (ms)",
       "confidence": "Confidence"
     }
-  },
-  "agent_confirm": {
-    "invalid_action": "Invalid action, only confirm/cancel supported",
-    "cancelled": "Action cancelled",
-    "cancel_failed": "Cancel failed, confirmation may have expired"
   },
   "ai_table_policy": {
     "not_found": "AI table policy not found",

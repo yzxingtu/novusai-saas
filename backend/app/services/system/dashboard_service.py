@@ -11,10 +11,11 @@ B1-B4: Tenant Dashboard 统计
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import and_, case, func, or_, select, text
+from sqlalchemy import and_, case, func, not_, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_model import utc_now
@@ -39,6 +40,27 @@ logger = LogManager.get_logger("dashboard")
 _ASSIGNED_SCOPES = (
     ResourceScopeEnum.SELECTED_TENANTS.value,
     ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+)
+_LOW_SIGNAL_ACTIVITY_EXACT_PATHS = (
+    "/admin/auth/me",
+    "/admin/auth/refresh",
+    "/admin/notifications/unread-count",
+    "/admin/permissions/menus",
+    "/admin/plugins/slots",
+    "/admin/preferences/me",
+    "/tenant/auth/me",
+    "/tenant/auth/refresh",
+    "/tenant/notifications/unread-count",
+    "/tenant/permissions/menus",
+    "/tenant/plugins/slots",
+    "/tenant/preferences/me",
+)
+_LOW_SIGNAL_ACTIVITY_PREFIXES = (
+    "/api/public/",
+    "/admin/dashboard",
+    "/admin/ws/",
+    "/tenant/dashboard",
+    "/tenant/ws/",
 )
 
 
@@ -82,11 +104,59 @@ def _visible_kb_condition(tenant_id: int):
     )
 
 
+def _meaningful_activity_condition():
+    exact_path_clauses = [
+        OperationLog.path == path
+        for path in _LOW_SIGNAL_ACTIVITY_EXACT_PATHS
+    ]
+    prefix_clauses = [
+        OperationLog.path.like(f"{prefix}%")
+        for prefix in _LOW_SIGNAL_ACTIVITY_PREFIXES
+    ]
+    return not_(or_(*(exact_path_clauses + prefix_clauses)))
+
+
 class AdminDashboardService:
     """平台端仪表盘统计服务 / Platform dashboard statistics service"""
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
+
+    async def get_overview(
+        self,
+        *,
+        activity_limit: int = 12,
+        growth_days: int = 30,
+    ) -> dict[str, Any]:
+        """聚合平台仪表盘快照 / Aggregate platform dashboard snapshot."""
+        (
+            stats,
+            health,
+            ai_overview,
+            storage_overview,
+            plugin_overview,
+            tenant_growth,
+            recent_activities,
+        ) = await asyncio.gather(
+            self.get_stats(),
+            self.get_system_health(),
+            self.get_ai_overview(),
+            self.get_storage_overview(),
+            self.get_plugin_overview(),
+            self.get_tenant_growth(days=growth_days),
+            self.get_recent_activities(limit=activity_limit),
+        )
+
+        return {
+            "generated_at": self._format_dt(utc_now()),
+            "stats": stats,
+            "health": health,
+            "ai_overview": ai_overview,
+            "storage_overview": storage_overview,
+            "plugin_overview": plugin_overview,
+            "tenant_growth": tenant_growth,
+            "recent_activities": recent_activities,
+        }
 
     async def get_stats(self) -> dict[str, Any]:
         """
@@ -339,6 +409,7 @@ class AdminDashboardService:
         rows = await self.db.execute(
             select(OperationLog)
             .where(OperationLog.is_deleted.is_(False))
+            .where(_meaningful_activity_condition())
             .order_by(OperationLog.created_at.desc())
             .limit(limit)
         )
@@ -397,6 +468,28 @@ class TenantDashboardService:
     def __init__(self, db: AsyncSession, tenant_id: int) -> None:
         self.db = db
         self.tenant_id = tenant_id
+
+    async def get_overview(
+        self,
+        *,
+        activity_limit: int = 10,
+        trend_days: int = 14,
+    ) -> dict[str, Any]:
+        """聚合企业仪表盘快照 / Aggregate tenant dashboard snapshot."""
+        stats, ai_trend, storage_detail, recent_activities = await asyncio.gather(
+            self.get_stats(),
+            self.get_ai_trend(days=trend_days),
+            self.get_storage_detail(),
+            self.get_recent_activities(limit=activity_limit),
+        )
+
+        return {
+            "generated_at": self._format_dt(utc_now()),
+            "stats": stats,
+            "ai_trend": ai_trend,
+            "storage_detail": storage_detail,
+            "recent_activities": recent_activities,
+        }
 
     async def get_stats(self) -> dict[str, Any]:
         """
@@ -546,6 +639,7 @@ class TenantDashboardService:
             .where(
                 OperationLog.tenant_id == self.tenant_id,
                 OperationLog.is_deleted.is_(False),
+                _meaningful_activity_condition(),
             )
             .order_by(OperationLog.created_at.desc())
             .limit(limit)

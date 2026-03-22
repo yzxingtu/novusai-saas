@@ -47,6 +47,9 @@ const previewFiles = computed<PreviewFile[]>(() => store.previewCache?.files ?? 
 const selectedFile = computed(() =>
   previewFiles.value.find((f) => f.path === selectedFilePath.value) ?? null,
 );
+const previewSummary = computed(() => store.previewCache?.summary);
+const previewWarnings = computed(() => store.previewCache?.warnings ?? []);
+const previewConflicts = computed(() => store.previewCache?.conflicts ?? []);
 
 async function fetchPreview() {
   const currentId = ++fetchId;
@@ -60,11 +63,15 @@ async function fetchPreview() {
       store.setPreviewCache({
         files: result.files ?? [],
         summary: result.summary,
+        warnings: result.warnings ?? [],
         conflicts: result.conflicts,
         timestamp: Date.now(),
       });
     }
-    if (result.files?.length && !selectedFilePath.value) {
+    const hasIssues = (result.conflicts?.length ?? 0) > 0 || (result.warnings?.length ?? 0) > 0;
+    if (hasIssues) {
+      selectedFilePath.value = '';
+    } else if (result.files?.length && !selectedFilePath.value) {
       selectedFilePath.value = result.files[0]?.path ?? '';
     }
   } catch (e) {
@@ -124,11 +131,43 @@ watch(
     :footer="null"
   >
     <Spin :spinning="isLoading">
+      <div class="mb-4 grid gap-3 md:grid-cols-3 xl:grid-cols-7">
+        <div class="rounded-2xl border border-border bg-muted/20 p-3">
+          <div class="text-xs text-muted-foreground">{{ $t('admin.system.codegen.generate.summaryCreate') }}</div>
+          <div class="mt-2 text-xl font-semibold">{{ previewSummary?.create_count ?? 0 }}</div>
+        </div>
+        <div class="rounded-2xl border border-border bg-muted/20 p-3">
+          <div class="text-xs text-muted-foreground">{{ $t('admin.system.codegen.generate.summaryModify') }}</div>
+          <div class="mt-2 text-xl font-semibold">{{ previewSummary?.modify_count ?? 0 }}</div>
+        </div>
+        <div class="rounded-2xl border border-border bg-muted/20 p-3">
+          <div class="text-xs text-muted-foreground">{{ $t('admin.system.codegen.preview.filterBackend') }}</div>
+          <div class="mt-2 text-xl font-semibold">{{ previewSummary?.backend_files ?? 0 }}</div>
+        </div>
+        <div class="rounded-2xl border border-border bg-muted/20 p-3">
+          <div class="text-xs text-muted-foreground">{{ $t('admin.system.codegen.preview.filterFrontend') }}</div>
+          <div class="mt-2 text-xl font-semibold">{{ previewSummary?.frontend_files ?? 0 }}</div>
+        </div>
+        <div class="rounded-2xl border border-border bg-muted/20 p-3">
+          <div class="text-xs text-muted-foreground">{{ $t('admin.system.codegen.generate.summaryLines') }}</div>
+          <div class="mt-2 text-xl font-semibold">{{ previewSummary?.total_lines ?? 0 }}</div>
+        </div>
+        <div class="rounded-2xl border border-amber-200 bg-amber-50/70 p-3">
+          <div class="text-xs text-amber-700">{{ $t('admin.system.codegen.generate.conflicts') }}</div>
+          <div class="mt-2 text-xl font-semibold text-amber-700">{{ previewConflicts.length }}</div>
+        </div>
+        <div class="rounded-2xl border border-sky-200 bg-sky-50/70 p-3">
+          <div class="text-xs text-sky-700">{{ $t('admin.system.codegen.preview.warnings') }}</div>
+          <div class="mt-2 text-xl font-semibold text-sky-700">{{ previewWarnings.length }}</div>
+        </div>
+      </div>
+
       <div class="flex gap-4">
         <div class="w-64 shrink-0">
           <FileTreePanel
             :files="previewFiles"
             :selected-path="selectedFilePath"
+            :conflicts="previewConflicts"
             @select="onSelectFile"
           />
         </div>
@@ -136,6 +175,9 @@ watch(
           <CodePreviewPanel
             :selected-file="selectedFile"
             :preview-error="store.previewCache?.error"
+            :summary="previewSummary ?? null"
+            :warnings="previewWarnings"
+            :conflicts="previewConflicts"
           />
         </div>
       </div>

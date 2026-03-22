@@ -19,6 +19,18 @@ from app.services.system.dashboard_service import TenantDashboardService
 router = APIRouter(prefix="/dashboard", tags=["Dashboard (Tenant)"])
 
 
+@router.get("/overview", summary="企业仪表盘总览")
+@auth_only
+async def get_tenant_dashboard_overview(
+    db: DbSession,
+    current_admin: ActiveTenantAdmin,
+):
+    """聚合企业端 dashboard 所需真实数据 / Aggregate tenant dashboard snapshot."""
+    service = TenantDashboardService(db, current_admin.tenant_id)
+    data = await service.get_overview()
+    return success(data=data)
+
+
 @router.get("/stats", summary="获取企业仪表盘统计数据")
 @auth_only
 async def get_tenant_dashboard_stats(

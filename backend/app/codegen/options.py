@@ -21,6 +21,7 @@ PARENT_RESOURCES: list[str] = [
 # 系统模块列表 / System modules
 SYSTEM_MODULES: list[str] = [
     "system",
+    "business",
     "auth",
     "tenant",
     "ai",

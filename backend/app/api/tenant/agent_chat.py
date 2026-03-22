@@ -29,12 +29,10 @@ from app.rbac.decorators import (
 from app.rbac.services.permission_service import PermissionService
 from app.api.shared._agent_chat_helpers import (
     enrich_conversations_with_agent,
-    handle_confirm_or_cancel,
     handle_route,
 )
 from app.schemas.ai.agent_chat import (
     AgentChatRequest,
-    AgentConfirmRequest,
     AgentRouteRequest,
     UpdateConversationTitleRequest,
 )
@@ -229,33 +227,9 @@ class TenantAgentChatController(TenantController):
                 user_id=tenant_admin.id,
                 force_reroute=data.force_reroute,
                 has_image_attachments=data.has_image_attachments,
-            )
-
-        # ========================================
-        # 操作确认 / Action Confirmation
-        # ========================================
-
-        @router.post("/confirm", summary="确认/取消 AI 操作")
-        @action_create("action.agent_chat.confirm")
-        async def confirm_action(
-            request: Request,
-            db: DbSession,
-            data: AgentConfirmRequest,
-            tenant_admin: ActiveTenantAdmin,
-        ):
-            """
-            处理 AI 操作确认或取消 / Handle AI action confirmation or cancellation
-
-            - action="confirm": 验证 confirm_id 并执行操作 / Verify confirm_id and execute action
-            - action="cancel": 删除 confirm_id，取消操作 / Delete confirm_id, cancel action
-
-            权限 / Permission: agent_chat:confirm
-            """
-            service = AgentChatService(db, tenant_admin.tenant_id)
-            return await handle_confirm_or_cancel(
-                service, data,
-                tenant_id=tenant_admin.tenant_id,
-                user_id=tenant_admin.id,
+                has_audio_attachments=data.has_audio_attachments,
+                has_video_attachments=data.has_video_attachments,
+                has_file_attachments=data.has_file_attachments,
             )
 
         # ========================================

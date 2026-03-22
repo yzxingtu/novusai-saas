@@ -13,14 +13,16 @@
 - 查看和使用平台分配的智能体
 - 配置智能体访问权限（`tenant_role_ids` / `user_role_ids`）
 - 调整智能体内存开关、配额参数
+- 查看只读 SkillPackage 目录（`/tenant/ai/skill-packages`），了解包来源、包含技能和解析后的工具
 - 管理自有知识库（上传、检索、删除文档）
 - 创建和管理自有用户角色、成员
 - 查看对话历史和调用日志
 
 ### 企业端【禁止】
 - 创建/编辑/删除技能包（SkillPackage CRUD）
+- 修改 SkillPackage valves 配置
 - 创建/编辑技能（Skill CRUD）
-- 绑定/解绑技能包到智能体（只能查看平台绑定的包）
+- 通过 SkillPackage 页面直接绑定/解绑技能包到智能体
 - 创建智能体（待讨论 — 如允许，智能体只能绑定平台提供的技能包）
 - 安装或启用插件
 
@@ -37,10 +39,25 @@ Platform Admin → 创建系统技能包（HTTP/数据/知识库/Toolkit）
              ↓
 Platform Admin → 将技能包分配给企业（`scope=selected_tenants` 或 `admin_and_selected_tenants` + `resource_tenant_assignments`）
              ↓
-Tenant → 查看和使用已分配的技能包（通过平台智能体）
+Tenant → 查看只读技能包目录，并通过平台智能体使用已授权的技能
              ↓
 Tenant → 上传业务文档到知识库 → RAG 检索增强
 ```
+
+## SkillPackage 边界
+
+- SkillPackage 在 tenant 侧是**目录与来源说明**，不是运行时绑定真相。
+- 智能体运行时真正持有能力的依据是 `AgentSkillGrant`，而不是 tenant 目录里是否看到某个 SkillPackage。
+- tenant 目录页可以展示：
+  - 包角色（平台系统 / 平台目录 / 插件托管 / 企业自有）
+  - 来源摘要
+  - 包内 Skill
+  - 解析后的工具定义
+- tenant 目录页禁止提供：
+  - 新建 / 编辑 / 删除
+  - 导入 / 导出 / 克隆
+  - valves 编辑
+  - 包级“绑定到智能体”动作
 
 ## 知识库扩展（允许）
 

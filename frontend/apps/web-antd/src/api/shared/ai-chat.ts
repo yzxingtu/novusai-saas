@@ -261,6 +261,12 @@ export async function routeMessageApi(
     force_reroute?: boolean;
     /** 含图片附件时传 true，后端强制要求视觉能力 */
     has_image_attachments?: boolean;
+    /** 含音频附件时传 true，后端可感知音频能力需求 */
+    has_audio_attachments?: boolean;
+    /** 含视频附件时传 true，后端可感知视频能力需求 */
+    has_video_attachments?: boolean;
+    /** 含通用文件附件时传 true，用于路由上下文 */
+    has_file_attachments?: boolean;
   },
 ): Promise<AgentRouteResponse> {
   return requestClient.post<AgentRouteResponse>(
@@ -299,20 +305,19 @@ export async function getChatAgentKBBindingsApi(
 export interface ChatSkillBindingInfo {
   id: null | number;
   agent_id: number;
-  package_id: number;
+  skill_id: number;
+  skill_name: null | string;
+  skill_key?: null | string;
+  skill_description?: null | string;
+  skill_type?: null | string;
+  enabled?: boolean;
+  default_consent_mode?: string;
+  package_id: null | number;
   package_name: null | string;
   package_description: null | string;
   package_is_system: boolean;
-  is_auto_bound: boolean;
-  consent_mode: string;
-}
-
-export interface ChatSkillInfo {
-  id: number;
-  name: string;
-  type: string;
-  is_active: boolean;
-  description?: null | string;
+  is_auto_bound?: boolean;
+  consent_mode?: string;
 }
 
 /**
@@ -324,19 +329,6 @@ export async function getChatAgentSkillsApi(
 ): Promise<ChatSkillBindingInfo[]> {
   return requestClient.get<ChatSkillBindingInfo[]>(
     `${apiPrefix}/ai/agents/${agentId}/skills`,
-  );
-}
-
-/**
- * Get skills in a skill package (shared) / 获取技能包内的技能列表
- */
-export async function getChatPackageSkillsApi(
-  apiPrefix: string,
-  packageId: number,
-): Promise<{ items: ChatSkillInfo[]; total: number }> {
-  return requestClient.get<{ items: ChatSkillInfo[]; total: number }>(
-    `${apiPrefix}/ai/skill-packages/${packageId}/skills`,
-    { params: { 'page[size]': 100 } },
   );
 }
 

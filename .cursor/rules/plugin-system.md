@@ -32,6 +32,10 @@
 - `sync-manifest` 只允许显式同步同版本 manifest 漂移，不得覆盖 `granted_capabilities`。
 - 版本变化必须走正式 `upgrade`，不得由启动扫描静默完成。
 - 启动恢复只做运行时恢复，不处理前端 npm 依赖。
+- 启动恢复对单插件迁移失败采用 fail-close：
+  - 当前插件标记 `ERROR`
+  - 当前插件不注册扩展
+  - 不影响其它插件继续恢复
 
 ## 依赖模型
 
@@ -55,9 +59,13 @@
 ## 前端契约
 
 - 开发态必须走 `/__plugin_dev__/{plugin}/entry`，禁止继续伪装成 `/plugin-assets/{plugin}/index.js`。
-- 生产态必须先读取 `frontend/dist/plugin.manifest.json`，再按 manifest 加载 JS/CSS。
+- Vite dev loader 必须从 `plugin.yaml -> extensions.frontend.dev.entry` 解析真实源码入口。
+- 生产态必须先读取 `frontend_runtime.release_manifest` 投影到的 release manifest，再按 manifest 加载 JS/CSS。
+- `/plugins/slots` 返回的每个前端 slot 都应携带同一份 `frontend_runtime` 投影：
+  - `dev_entry`
+  - `release_manifest`
 - `plugin.manifest.json` 是正式发布契约，`dist/index.js` 不是唯一契约。
-- 生产环境前端插件缺失 release manifest 或缺少 manifest 指向的产物时，安装/启用必须 fail-close。
+- 生产环境前端插件缺失 release manifest 或缺少 manifest 指向的产物时，安装/启用/启动恢复都必须 fail-close。
 - `/plugin-assets` 只用于运行时 release 资产分发；`plugin.manifest.json`、JS、CSS、运行时图片等都必须受 token + enabled + scope + tenant assignment + license 约束。
 - 管理态展示图标必须走独立的 `/plugin-icons/{plugin}/{file}` 元数据通道：
   - 只允许管理端鉴权访问
@@ -80,10 +88,14 @@
 ## CLI 与打包
 
 - 使用：
+  - `novusai plugin create --template minimal`
+  - `novusai plugin create --template skill`
+  - `novusai plugin create --template full-module`
   - `novusai plugin build`
   - `novusai plugin validate`
   - `novusai plugin pack --release`
   - `novusai plugin pack --source`
+- `create --template minimal` 生成的顶层 `icon` 必须为空字符串，不能再写 `lucide:*`
 - `pack --release` 默认排除：
   - `frontend/src`
   - 前端测试文件

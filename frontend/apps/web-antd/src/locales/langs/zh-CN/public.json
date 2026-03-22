@@ -1,0 +1,67 @@
+{
+  "platformHome": {
+    "title": "平台公开首页",
+    "headerEyebrow": "平台公开入口",
+    "badge": "平台能力总览",
+    "heroTitle": "{brand} 多端 AI SaaS 平台",
+    "heroDescription": "平台首页用于介绍系统能力、三端结构和接入方式，不承担后台首页职责。平台管理空间与企业侧空间都应在授权后进入，不在公开页暴露具体后台地址。",
+    "fallbackDescription": "统一承载平台管理、企业运营与企业用户 AI 服务能力的多端 SaaS 系统。",
+    "tenantAccessTitle": "企业侧通过企业域名访问",
+    "tenantAccessDescription": "企业品牌门户、企业管理后台和企业用户首页都不应和平台公开首页混在一起。企业侧入口应通过企业绑定域名访问。",
+    "highlightTitle": "本次演示重点",
+    "architectureTitle": "系统三端结构",
+    "architectureDescription": "平台公开首页负责介绍系统，后台首页负责管理，企业域名首页负责品牌门户和登录后用户工作台。",
+    "nextStepsTitle": "如何进入不同能力",
+    "nextStepsDescription": "把公开首页、后台首页和企业侧入口彻底分开，能更清晰地演示系统能力。",
+    "cta": {
+      "architecture": "查看系统结构",
+      "demoFlow": "查看演示路径"
+    },
+    "capabilities": {
+      "tenancy": {
+        "title": "多租户与品牌化",
+        "description": "支持平台域名与企业域名分流，企业可拥有自己的品牌门户、后台和用户前台。"
+      },
+      "ai": {
+        "title": "AI 服务链路",
+        "description": "复用现有智能体、知识库、会话、附件和页面能力，把 AI 做成真正可演示的业务功能。"
+      },
+      "security": {
+        "title": "权限与隔离",
+        "description": "平台管理员、企业管理员、企业用户三端职责分明，权限、菜单和会话都按端隔离。"
+      },
+      "extension": {
+        "title": "可扩展底座",
+        "description": "插件、配置、任务、日志与 AI 模块都可持续扩展，适合做平台演示和业务落地。"
+      }
+    },
+    "architecture": {
+      "platform": {
+        "title": "平台公开首页 + 平台后台",
+        "description": "平台公开首页只负责产品介绍与能力说明，管理空间与公开页严格分离。"
+      },
+      "tenant": {
+        "title": "企业品牌门户 + 企业管理后台",
+        "description": "企业域名承接未登录品牌展示与登录后业务体验，但管理空间不应在公开页直接暴露。"
+      },
+      "user": {
+        "title": "企业用户首页 + AI 能力页",
+        "description": "企业用户登录后仍进入 /，但此时首页已切换为工作台，并通过 /agents、/ai-chat、/help 等页进入功能。"
+      }
+    },
+    "highlights": {
+      "branding": "平台首页负责介绍系统，不再误跳后台。",
+      "rbac": "企业域名首页支持未登录品牌门户与登录后工作台双态切换。",
+      "rag": "AI 功能页全部收回到登录后，未登录不能直接执行 AI。",
+      "workflow": "后台首页保持原有职责，只做视觉与信息层级优化。"
+    },
+    "nextSteps": {
+      "platformTitle": "平台介绍与平台管理分开",
+      "platformDescription": "访客先看平台公开首页，理解系统能力后再按授权方式进入管理空间。",
+      "tenantTitle": "企业品牌与企业后台分开",
+      "tenantDescription": "企业访客先看到企业品牌门户，登录后的用户与管理角色分别进入各自受控空间。",
+      "userTitle": "企业用户首页与 AI 功能联动",
+      "userDescription": "企业用户登录后进入 / 首页，再从首页进入智能体广场、AI 对话和帮助中心。"
+    }
+  }
+}

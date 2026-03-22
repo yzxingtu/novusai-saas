@@ -46,14 +46,3 @@ export async function getUserMenusWithPermissionsApi(
 
   return { menus, permissions };
 }
-
-/**
- * Get current user menus / 获取当前用户菜单列表
- * @deprecated Use getUserMenusWithPermissionsApi to get permissions too / 请使用 getUserMenusWithPermissionsApi 以同时获取权限码
- */
-export async function getUserMenusApi(
-  options?: ApiRequestOptions,
-): Promise<RouteRecordStringComponent[]> {
-  const { menus } = await getUserMenusWithPermissionsApi(options);
-  return menus;
-}

@@ -5,11 +5,14 @@ import { TokenStorage } from '#/store/shared/token-storage';
 
 const PLUGIN_ASSET_AUTH_COOKIE = 'novus_plugin_asset_token';
 const PLUGIN_ASSET_PREFIX = '/plugin-assets/';
+const PLUGIN_PUBLIC_ASSET_PREFIX = '/plugin-public-assets/';
 const PLUGIN_ICON_PREFIX = '/plugin-icons/';
+type PublicPluginAssetEndpoint = 'admin' | 'tenant' | 'user';
 
 export interface BuildPluginAssetUrlOptions {
   cacheBust?: boolean;
   endpoint?: ApiEndpoint;
+  publicEndpoint?: PublicPluginAssetEndpoint;
   query?: Record<string, boolean | null | number | string | undefined>;
 }
 
@@ -21,12 +24,22 @@ function isExternalAssetUrl(url: string): boolean {
   );
 }
 
-function normalizePluginAssetPath(pluginName: string, assetPath: string): string {
+function normalizePluginAssetPath(
+  pluginName: string,
+  assetPath: string,
+  publicEndpoint?: PublicPluginAssetEndpoint,
+): string {
   const raw = (assetPath || '').trim();
   if (!raw) {
+    if (publicEndpoint) {
+      return `${PLUGIN_PUBLIC_ASSET_PREFIX}${publicEndpoint}/${pluginName}/`;
+    }
     return `/plugin-assets/${pluginName}/`;
   }
   if (isExternalAssetUrl(raw)) {
+    return raw;
+  }
+  if (raw.startsWith(PLUGIN_PUBLIC_ASSET_PREFIX)) {
     return raw;
   }
   if (raw.startsWith('/plugin-assets/')) {
@@ -34,6 +47,9 @@ function normalizePluginAssetPath(pluginName: string, assetPath: string): string
   }
   if (raw.startsWith('/')) {
     return raw;
+  }
+  if (publicEndpoint) {
+    return `${PLUGIN_PUBLIC_ASSET_PREFIX}${publicEndpoint}/${pluginName}/${raw.replace(/^\/+/, '')}`;
   }
   return `/plugin-assets/${pluginName}/${raw.replace(/^\/+/, '')}`;
 }
@@ -95,8 +111,15 @@ function appendQueryParams(
 }
 
 export function getPluginAssetAuthHeaders(
-  endpoint: ApiEndpoint = getCurrentEndpoint(),
+  options: ApiEndpoint | { endpoint?: ApiEndpoint; publicEndpoint?: PublicPluginAssetEndpoint } = getCurrentEndpoint(),
 ): HeadersInit {
+  const normalizedOptions =
+    typeof options === 'string' ? { endpoint: options } : options;
+  if (normalizedOptions.publicEndpoint) {
+    return {};
+  }
+
+  const endpoint = normalizedOptions.endpoint ?? getCurrentEndpoint();
   syncPluginAssetAuthCookie(endpoint);
   const token = TokenStorage.getToken(endpoint);
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -107,9 +130,17 @@ export function buildPluginAssetUrl(
   assetPath: string,
   options: BuildPluginAssetUrlOptions = {},
 ): string {
-  const normalized = normalizePluginAssetPath(pluginName, assetPath);
+  const normalized = normalizePluginAssetPath(
+    pluginName,
+    assetPath,
+    options.publicEndpoint,
+  );
   if (isExternalAssetUrl(normalized)) {
     return normalized;
+  }
+
+  if (options.publicEndpoint) {
+    return appendQueryParams(normalized, options);
   }
 
   const endpoint = options.endpoint ?? getCurrentEndpoint();

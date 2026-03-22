@@ -134,7 +134,7 @@ class TestWeatherWidgetExecutor:
         definition.name = "get_current_weather"
         result = await self.executor.execute(definition, "call-1", {"city": ""})
         assert result.success is False
-        assert "required" in result.output
+        assert "不能为空" in result.output
 
     @pytest.mark.asyncio
     async def test_execute_missing_city(self):
@@ -277,7 +277,7 @@ class TestWeatherWidgetExecutor:
             )
 
         assert result.success is False
-        assert "not found" in result.output.lower()
+        assert "未找到城市" in result.output
 
     # ── execute: API error ──
 
@@ -300,4 +300,4 @@ class TestWeatherWidgetExecutor:
             )
 
         assert result.success is False
-        assert "Error" in result.output
+        assert "API timeout" in result.output

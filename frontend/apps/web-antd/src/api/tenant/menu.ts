@@ -46,14 +46,3 @@ export async function getTenantMenusWithPermissionsApi(
 
   return { menus, permissions };
 }
-
-/**
- * Get current tenant admin menu list / 获取当前企业管理员菜单列表
- * @deprecated Use getTenantMenusWithPermissionsApi to get permission codes as well / 请使用 getTenantMenusWithPermissionsApi
- */
-export async function getTenantMenusApi(
-  options?: ApiRequestOptions,
-): Promise<RouteRecordStringComponent[]> {
-  const { menus } = await getTenantMenusWithPermissionsApi(options);
-  return menus;
-}

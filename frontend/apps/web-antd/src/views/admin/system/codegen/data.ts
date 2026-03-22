@@ -18,6 +18,26 @@ export function getStatusColor(status: string): string {
   return map[status] || 'default';
 }
 
+export function getStatusText(status: string): string {
+  const map: Record<string, string> = {
+    draft: $t('admin.system.codegen.status_options.draft'),
+    generated: $t('admin.system.codegen.status_options.generated'),
+    applied: $t('admin.system.codegen.status_options.applied'),
+    rolled_back: $t('admin.system.codegen.status_options.rolled_back'),
+  };
+  return map[status] || status || '-';
+}
+
+export function getManifestStatusColor(present: boolean): string {
+  return present ? 'success' : 'default';
+}
+
+export function getManifestStatusText(present: boolean): string {
+  return present
+    ? $t('admin.system.codegen.manifest.present')
+    : $t('admin.system.codegen.manifest.absent');
+}
+
 /**
  * 回滚以 codegen_manifest.json 为准；新 API 返回 manifest_present。
  * Rollback requires manifest; prefer manifest_present from API.
@@ -28,6 +48,10 @@ function canCodegenRollback(row: Record<string, unknown>): boolean {
   }
   const s = row.status as string | undefined;
   return s === 'generated' || s === 'applied';
+}
+
+function canDeleteCodegenConfig(row: Record<string, unknown>): boolean {
+  return row.delete_allowed !== false;
 }
 
 /** 状态选项（搜索用） / Status options (for search) */
@@ -57,7 +81,8 @@ export function useColumns<T = Record<string, unknown>>(
     {
       field: 'name',
       title: $t('admin.system.codegen.name'),
-      minWidth: 160,
+      minWidth: 240,
+      slots: { default: 'name_cell' },
     },
     {
       field: 'resource',
@@ -77,39 +102,23 @@ export function useColumns<T = Record<string, unknown>>(
     {
       field: 'status',
       title: $t('admin.system.codegen.status'),
-      width: 110,
+      width: 150,
       align: 'center',
-      cellRender: {
-        name: 'CellTag',
-        options: [
-          {
-            color: 'default',
-            label: $t('admin.system.codegen.status_options.draft'),
-            value: 'draft',
-          },
-          {
-            color: 'processing',
-            label: $t('admin.system.codegen.status_options.generated'),
-            value: 'generated',
-          },
-          {
-            color: 'success',
-            label: $t('admin.system.codegen.status_options.applied'),
-            value: 'applied',
-          },
-          {
-            color: 'warning',
-            label: $t('admin.system.codegen.status_options.rolled_back'),
-            value: 'rolled_back',
-          },
-        ],
-      },
+      slots: { default: 'status_cell' },
+    },
+    {
+      field: 'manifest_present',
+      title: $t('admin.system.codegen.manifestStatus'),
+      width: 130,
+      align: 'center',
+      slots: { default: 'manifest_present_cell' },
     },
     {
       field: 'generation_count',
       title: $t('admin.system.codegen.generationCount'),
       width: 100,
       align: 'center',
+      slots: { default: 'generation_count_cell' },
     },
     {
       field: 'last_generated_at',
@@ -120,8 +129,8 @@ export function useColumns<T = Record<string, unknown>>(
     {
       field: 'last_error',
       title: $t('admin.system.codegen.lastError'),
-      minWidth: 140,
-      showOverflow: 'tooltip',
+      minWidth: 220,
+      slots: { default: 'last_error_cell' },
     },
     {
       align: 'center',
@@ -169,9 +178,14 @@ export function useColumns<T = Record<string, unknown>>(
           },
           {
             code: 'delete',
-            text: $t('common.delete'),
+            text: (row: Record<string, unknown>) =>
+              canDeleteCodegenConfig(row)
+                ? $t('common.delete')
+                : ((row.delete_reason_message as string | undefined) ||
+                    $t('admin.system.codegen.actions.deleteDisabledHint')),
             icon: 'lucide:trash-2',
             accessCodes: ['action.codegen.delete'],
+            disabled: (row: Record<string, unknown>) => !canDeleteCodegenConfig(row),
           },
         ],
       },

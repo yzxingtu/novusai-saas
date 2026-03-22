@@ -22,10 +22,19 @@ import { useCrudPage } from '#/adapter/vxe-table';
 import { getAIApiKeyListApi, toggleAIApiKeyStatusApi } from '#/api/admin/ai';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
-import { getProcessedImageUrl } from '#/utils/image';
-import { getScopeColor, getScopeIcon, getScopeText } from '#/utils/scope-helpers';
+import { toAttachmentImageUrl } from '#/utils/image';
+import {
+  getScopeColor,
+  getScopeIcon,
+  getScopeText,
+} from '#/utils/scope-helpers';
 
-import { getFormDefaults, useColumns, useFormSchema, useGridFormSchema } from './data';
+import {
+  getFormDefaults,
+  useColumns,
+  useFormSchema,
+  useGridFormSchema,
+} from './data';
 import Form from './modules/form.vue';
 
 defineOptions({ name: 'AIApiKeyList' });
@@ -118,9 +127,14 @@ const { Grid, FormDrawer, onRefresh } = useCrudPage<AIApiKeyInfo>({
               <span
                 class="inline-flex w-fit max-w-full cursor-default items-center gap-1.5 rounded-full bg-muted/90 px-2 py-0.5 text-[11px] text-muted-foreground ring-1 ring-border/50"
               >
-                <IconifyIcon icon="lucide:clock" class="size-3 shrink-0 opacity-70" />
-                <span class="shrink-0">{{ $t('admin.ai.apiKey.lastUsedRecent') }}</span>
-                <span class="tabular-nums font-medium text-foreground/80">{{
+                <IconifyIcon
+                  icon="lucide:clock"
+                  class="size-3 shrink-0 opacity-70"
+                />
+                <span class="shrink-0">{{
+                  $t('admin.ai.apiKey.lastUsedRecent')
+                }}</span>
+                <span class="font-medium tabular-nums text-foreground/80">{{
                   formatRelativeTime(row.last_used_at)
                 }}</span>
               </span>
@@ -170,8 +184,12 @@ const { Grid, FormDrawer, onRefresh } = useCrudPage<AIApiKeyInfo>({
             class="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border/60 bg-card shadow-sm"
           >
             <img
-              v-if="row.provider_icon && Number(row.provider_icon) > 0"
-              :src="getProcessedImageUrl(Number(row.provider_icon), { preset: 'small' })"
+              v-if="
+                toAttachmentImageUrl(row.provider_icon, { preset: 'small' })
+              "
+              :src="
+                toAttachmentImageUrl(row.provider_icon, { preset: 'small' })
+              "
               class="size-6 object-contain"
               alt=""
             />
@@ -258,10 +276,13 @@ const { Grid, FormDrawer, onRefresh } = useCrudPage<AIApiKeyInfo>({
                   : 'hsl(var(--success))'
             "
             size="small"
-            class="!m-0 w-full [&_.ant-progress-inner]:!rounded-full [&_.ant-progress-bg]:!rounded-full"
+            class="!m-0 w-full [&_.ant-progress-bg]:!rounded-full [&_.ant-progress-inner]:!rounded-full"
           />
         </div>
-        <span v-else class="tabular-nums text-sm font-medium text-foreground/85">
+        <span
+          v-else
+          class="text-sm font-medium tabular-nums text-foreground/85"
+        >
           {{ row.usage_count }}
         </span>
       </template>

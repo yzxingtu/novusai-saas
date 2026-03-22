@@ -1,10 +1,11 @@
 """
 Page Tool Expander / 页面工具展开器
 
-Expands dedicated editor tools for rich-text/document pages before tool optimization.
-When page_context has available_operations with editor ops (get_editor_html, replace_section, etc.),
-injects pageop_* tools so the LLM calls them directly instead of invoke_page_operation.
-富文本/文档编辑页时，根据 available_operations 展开专用 pageop_* tools，模型可直接调用。
+Expands dedicated pageop_* tools before tool optimization.
+Supports both rich-text/document editor operations and high-frequency generic page operations,
+so the LLM can call pageop_* directly instead of wrapping everything in invoke_page_operation.
+在工具优化前展开专用 pageop_* 工具。
+同时支持富文本/文档编辑操作与高频通用页面操作，减少模型对 invoke_page_operation 包装的依赖。
 """
 
 from __future__ import annotations
@@ -30,6 +31,29 @@ EDITOR_OPS_TO_EXPAND: frozenset[str] = frozenset({
     "insert_table",
     "manage_link",
 })
+
+# High-frequency generic page ops that also benefit from dedicated tool schemas
+# 高频通用页面操作也展开为专用工具，减少 invoke_page_operation 的参数包装错误
+GENERIC_PAGE_OPS_TO_EXPAND: frozenset[str] = frozenset({
+    "clear_search",
+    "create_record",
+    "edit_record",
+    "fill_form",
+    "get_form_options",
+    "get_form_state",
+    "go_to_page",
+    "next_page",
+    "prev_page",
+    "read_row_detail",
+    "read_visible_rows",
+    "refresh_list",
+    "search",
+    "set_page_size",
+    "submit_form",
+    "validate_form",
+})
+
+EXPANDABLE_PAGE_OPS: frozenset[str] = EDITOR_OPS_TO_EXPAND | GENERIC_PAGE_OPS_TO_EXPAND
 
 PREFIX = "pageop_"
 
@@ -61,14 +85,14 @@ def _params_to_parameters(op_params: dict[str, Any] | None) -> list[ToolParamete
     return params
 
 
-def expand_editor_tools(
+def expand_page_tools(
     tools: list[ToolDefinition],
     input_variables: dict[str, Any] | None,
 ) -> list[ToolDefinition]:
     """
-    Expand dedicated editor tools for rich-text pages. Inserts pageop_* tools
-    when page_context.available_operations contains editor ops.
-    富文本页时展开专用工具。当 available_operations 含编辑操作时注入 pageop_* tools。
+    Expand dedicated page tools. Inserts pageop_* tools when
+    page_context.available_operations contains editor ops or common page ops.
+    展开专用页面工具。当 available_operations 含编辑操作或高频页面操作时注入 pageop_* tools。
 
     Runs BEFORE tool optimization so expanded tools can be optimized/filtered.
     在工具优化之前执行，以便展开的工具参与优化筛选。
@@ -95,7 +119,7 @@ def expand_editor_tools(
         if not isinstance(o, dict) or not o.get("name"):
             continue
         name = str(o["name"])
-        if name not in EDITOR_OPS_TO_EXPAND:
+        if name not in EXPANDABLE_PAGE_OPS:
             continue
         op_map[name] = {
             "label": o.get("label", name),
@@ -129,7 +153,7 @@ def expand_editor_tools(
 
     if expanded:
         logger.info(
-            "PageToolExpander: page_key={} expanded {} editor tools: {}",
+            "PageToolExpander: page_key={} expanded {} page tools: {}",
             page_key,
             len(expanded),
             [t.name for t in expanded],
@@ -138,5 +162,10 @@ def expand_editor_tools(
 
     return tools
 
-
-__all__ = ["expand_editor_tools", "EDITOR_OPS_TO_EXPAND", "PREFIX"]
+__all__ = [
+    "EDITOR_OPS_TO_EXPAND",
+    "EXPANDABLE_PAGE_OPS",
+    "GENERIC_PAGE_OPS_TO_EXPAND",
+    "PREFIX",
+    "expand_page_tools",
+]

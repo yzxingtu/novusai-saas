@@ -265,11 +265,17 @@ class AIGateway:
 
         # 2. Atomic check+record rate limit + quota check (tenant calls only) / 原子检查+记录速率限制 + 检查配额（仅企业调用）
         estimated_input = 0
+        metering_context = None
         if should_meter_usage:
             estimated_input = TokenCounter.count_messages_tokens(
                 messages_to_dicts(messages)
             )
-            await self.usage_recorder.check_rate_and_quota(tenant_id, model_id, ai_model, estimated_input)
+            metering_context = await self.usage_recorder.check_rate_and_quota(
+                tenant_id,
+                model_id,
+                ai_model,
+                estimated_input,
+            )
 
         # 4. Call adapter (with exponential backoff retry + failover) / 调用适配器（含指数退避重试 + 故障转移）
         try:
@@ -409,6 +415,7 @@ class AIGateway:
                 estimated_input=estimated_input,
                 latency_ms=latency_ms,
                 user_id=user_id,
+                metering_context=metering_context,
             )
 
         used_api_key.increment_usage()
@@ -531,11 +538,17 @@ class AIGateway:
 
         # Atomic check+record rate limit + quota check (tenant calls only) / 原子检查+记录速率限制 + 配额检查（仅企业调用）
         estimated_input = 0
+        metering_context = None
         if should_meter_usage:
             estimated_input = TokenCounter.count_messages_tokens(
                 messages_to_dicts(messages)
             )
-            await self.usage_recorder.check_rate_and_quota(tenant_id, ai_model.id, ai_model, estimated_input)
+            metering_context = await self.usage_recorder.check_rate_and_quota(
+                tenant_id,
+                ai_model.id,
+                ai_model,
+                estimated_input,
+            )
 
         async def generate_chunks() -> AsyncIterator[ChatChunk]:
             """Internal async generator using pre-fetched provider, api_key, ai_model. / 内部异步生成器，使用已获取的 provider, api_key, ai_model。
@@ -764,6 +777,7 @@ class AIGateway:
                     ),
                     routed_model_id=routed_model_id,
                     route_reason=route_reason,
+                    metering_context=metering_context,
                 )
 
         # Create SSE streaming response / 创建 SSE 流式响应
@@ -827,11 +841,17 @@ class AIGateway:
 
         # 1. Atomic check+record rate limit + quota check (tenant calls only) / 原子检查+记录速率限制 + 配额检查（仅企业调用）
         estimated_input = 0
+        metering_context = None
         if should_meter_usage:
             estimated_input = TokenCounter.count_messages_tokens(
                 [{"role": "user", "content": t} for t in texts]
             )
-            await self.usage_recorder.check_rate_and_quota(tenant_id, model_id, ai_model, estimated_input)
+            metering_context = await self.usage_recorder.check_rate_and_quota(
+                tenant_id,
+                model_id,
+                ai_model,
+                estimated_input,
+            )
 
         # 3. Call adapter (with exponential backoff retry + API Key rotation) / 调用适配器（含指数退避重试 + API Key 轮换）
         response, _retry_count, used_api_key = await self.retry_service.execute_with_retry(
@@ -867,6 +887,7 @@ class AIGateway:
                 estimated_input=estimated_input,
                 latency_ms=latency_ms,
                 user_id=user_id,
+                metering_context=metering_context,
             )
 
         used_api_key.increment_usage()
@@ -974,9 +995,10 @@ class AIGateway:
         # Atomic check+record rate limit + quota check (tenant calls only) / 原子检查+记录速率限制 + 配额检查（仅企业调用）
         # Image generation uses fixed token estimate (cannot predict precisely, use 1000 as baseline) / 生图按固定 token 估算（无法精确预估，使用 1000 作为基准）
         estimated_input = 0
+        metering_context = None
         if should_meter_usage:
             estimated_input = 1000 * n
-            await self.usage_recorder.check_rate_and_quota(
+            metering_context = await self.usage_recorder.check_rate_and_quota(
                 tenant_id, model_id, ai_model, estimated_input,
             )
 
@@ -1019,6 +1041,7 @@ class AIGateway:
                 estimated_input=estimated_input,
                 latency_ms=latency_ms,
                 user_id=user_id,
+                metering_context=metering_context,
             )
 
         used_api_key.increment_usage()

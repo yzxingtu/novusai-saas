@@ -203,11 +203,13 @@
       "saveSuccess": "记忆开关更新成功"
     },
     "routing": {
-      "description": "智能路由根据对话复杂度、附件类型和 Token 数量自动选择最合适的 AI 模型，平衡性能与成本。",
+      "description": "智能路由根据对话复杂度、附件类型和估算 Token 数量自动选择最合适的 AI 模型，平衡性能与成本。",
       "enableRouting": "启用智能路由",
       "maxTier": "成本上限",
       "maxTierHelp": "限制路由最高可使用的模型级别，超出后自动降级",
       "visionModel": "Vision 专用模型",
+      "audioModel": "音频专用模型",
+      "videoModel": "视频专用模型",
       "longContextModel": "长上下文模型",
       "longContextThreshold": "长上下文触发阈值（预计输入 Token）",
       "longContextThresholdHelp": "当预计输入 Token（历史消息 + 用户输入 + RAG 上下文，不含本次输出上限）超过此阈值时，自动切换到长上下文模型",
@@ -216,6 +218,8 @@
       "statusEnabled": "智能路由已开启",
       "statusDisabled": "未开启",
       "visionModelHelp": "有图片附件时优先路由到此模型",
+      "audioModelHelp": "有音频附件时优先路由到此模型",
+      "videoModelHelp": "有视频附件时优先路由到此模型",
       "longContextModelHelp": "Token 超过阈値时自动切换到此模型",
       "tier": {
         "fast": "快速型",
@@ -698,62 +702,64 @@
     }
   },
   "skillPackage": {
-    "title": "技能包管理",
-    "pageDesc": "管理技能包，每个技能包包含多个技能，可整体分配给智能体使用。",
+    "title": "技能包目录",
+    "pageDesc": "查看当前企业可见的技能包目录。技能包负责归组、来源标识与可读展示；运行时真实授权仍由智能体直接技能授予决定。",
+    "runtimeTruthHint": "此处是只读目录入口。技能包负责来源与归组展示；智能体运行时真正获得能力的是直接 Skill 授予，而不是包级自动绑定。",
     "system": "系统",
     "name": "技能包名称",
     "description": "描述",
+    "isRecommended": "推荐",
     "skillCount": "技能数",
     "isActive": "启用状态",
-    "scope": "作用域",
-    "sortOrder": "排序",
-    "create": "新建技能包",
-    "scopeTag": {
-      "plugin": "插件"
+    "packageRole": "包角色",
+    "sourceSummary": "来源摘要",
+    "runtimeBinding": "运行时授权",
+    "sourcePlugin": "来源插件",
+    "roleOptions": {
+      "platform_system": "平台系统",
+      "platform_catalog": "平台目录",
+      "tenant_owned": "企业自有",
+      "plugin_managed": "插件托管"
+    },
+    "runtimeBindingOptions": {
+      "direct_agent_skill_grant": "直接技能授予"
+    },
+    "sourceSummaryOptions": {
+      "platform_system": "平台系统",
+      "platform_catalog": "平台目录"
+    },
+    "sourceSummaryValue": {
+      "plugin": "插件：{plugin}",
+      "tenant": "企业 #{tenantId}"
     },
     "placeholder": {
-      "searchName": "搜索技能包名称",
-      "inputName": "请输入技能包名称",
-      "inputDescription": "请输入描述"
-    },
-    "uploadZip": "上传技能包",
-    "uploadDragText": "点击或拖拽 ZIP 文件到此处上传",
-    "uploadDesc": "支持包含 SKILL.md 的标准技能包 ZIP 文件",
-    "cloneToMine": "克隆到我的技能包",
-    "messages": {
-      "toggleSuccess": "技能包状态已更新",
-      "uploadSuccess": "技能包上传成功",
-      "uploading": "正在上传...",
-      "cloneSuccess": "已克隆为 {name}"
+      "searchName": "搜索技能包名称"
     },
     "detail": {
       "title": "技能包详情",
+      "overview": "概览",
       "basicInfo": "基本信息",
       "skills": "包内技能",
-      "empty": "暂无技能，点击右上角添加",
+      "empty": "暂无技能",
       "noDescription": "暂无描述",
       "updatedAt": "更新时间",
-      "isSystem": "系统内置",
-      "yes": "是",
-      "no": "否",
       "sourcePlugin": "来源插件",
       "skillName": "技能名称",
       "skillType": "技能类型",
       "skillTimeout": "超时时间",
       "skillStatus": "启用状态",
       "skillDescription": "技能描述",
-      "backToList": "返回列表"
+      "backToList": "返回目录",
+      "tools": "工具定义",
+      "noTools": "暂无工具定义",
+      "toolParams": "参数",
+      "envVars": "环境变量",
+      "configured": "已配置",
+      "runtimeTruthHint": "这个目录页展示的是包的来源、结构和解析结果；运行时真正控制智能体能力的是直接 Skill 授予。"
     },
     "valves": {
-      "configBtn": "环境配置",
-      "title": "环境变量配置",
-      "description": "配置该技能包运行所需的环境变量。带有红色标记的为必填项，敏感信息（如密钥）会以密码形式显示。",
       "required": "必填",
-      "sensitiveHint": "敏感信息，请妥善保管",
-      "noSchema": "该技能包没有可配置的环境变量",
-      "saveSuccess": "环境变量配置已保存",
-      "resetDefaults": "重置为默认值",
-      "secretConfigured": "已配置（点击清除）"
+      "title": "环境变量配置"
     }
   },
   "skill": {

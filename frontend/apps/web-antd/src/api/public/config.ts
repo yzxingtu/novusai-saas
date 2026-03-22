@@ -2,7 +2,7 @@
  * Public config API / 公开配置 API
  * Get platform/tenant public config, no auth required / 获取平台/企业公开配置，无需认证
  */
-import { getProcessedImageUrl } from '#/utils/image';
+import { toAttachmentImageUrl } from '#/utils/image';
 import { baseRequestClient } from '#/utils/request';
 
 interface HttpResponse<T = unknown> {
@@ -42,10 +42,8 @@ function pickDefined<T, K extends keyof T>(
  * Config stores attachment IDs (e.g. "10"), needs conversion to /api/public/attachments/{id}/image
  */
 function attachmentIdToUrl(idStr: string | undefined): string | undefined {
-  if (!idStr) return undefined;
-  const id = Number(idStr);
-  if (!Number.isFinite(id) || id <= 0) return idStr;
-  return getProcessedImageUrl(id);
+  const url = toAttachmentImageUrl(idStr);
+  return url || undefined;
 }
 
 // ============================================================
@@ -75,6 +73,18 @@ export interface BrandConfig {
 }
 
 /** Captcha config / 验证码配置 */
+export interface CaptchaPluginRuntime {
+  /** Plugin name / 插件名称 */
+  pluginName: string;
+  /** Frontend runtime contract / 前端运行时契约 */
+  frontendRuntime: {
+    dev_entry?: string;
+    release_manifest?: string;
+  };
+  /** Public asset endpoint / 公开资源端点 */
+  publicEndpoint: 'admin' | 'tenant' | 'user';
+}
+
 export interface CaptchaConfig {
   /** Whether captcha is enabled / 是否启用验证码 */
   enabled: boolean;
@@ -86,6 +96,8 @@ export interface CaptchaConfig {
   failedThreshold: number;
   /** Captcha provider (backend driver type) / 验证码提供方标识 */
   provider?: string;
+  /** Plugin runtime info for non-builtin captcha / 非内置验证码插件运行时信息 */
+  plugin?: CaptchaPluginRuntime;
 }
 
 /** Login config / 登录配置 */
@@ -222,6 +234,7 @@ interface PlatformPublicConfigRaw {
   captcha_difficulty?: string;
   captcha_enable_threshold_admin?: number;
   captcha_provider?: string;
+  captcha_plugin?: CaptchaPluginRuntimeRaw;
   login_max_attempts?: number;
   login_lockout_minutes?: number;
   allowed_methods?: string[];
@@ -260,6 +273,7 @@ interface TenantPublicConfigRaw {
   // Login / Captcha
   captcha_enabled?: boolean;
   captcha_provider?: string;
+  captcha_plugin?: CaptchaPluginRuntimeRaw;
   captcha_difficulty?: string;
   captcha_enable_threshold?: number;
   login_methods?: string[];
@@ -303,6 +317,15 @@ interface TenantPublicConfigRaw {
   };
 }
 
+interface CaptchaPluginRuntimeRaw {
+  plugin_name: string;
+  public_endpoint: 'admin' | 'tenant' | 'user';
+  frontend_runtime?: {
+    dev_entry?: string;
+    release_manifest?: string;
+  };
+}
+
 // ============================================================
 // Transform functions / 转换函数
 // ============================================================
@@ -328,6 +351,13 @@ function transformPlatformConfig(
         difficulty: raw.captcha_difficulty ?? 'medium',
         failedThreshold: raw.captcha_enable_threshold_admin ?? 0,
         provider: raw.captcha_provider ?? 'image',
+        plugin: raw.captcha_plugin
+          ? {
+              frontendRuntime: raw.captcha_plugin.frontend_runtime ?? {},
+              pluginName: raw.captcha_plugin.plugin_name,
+              publicEndpoint: raw.captcha_plugin.public_endpoint,
+            }
+          : undefined,
       },
       allowedMethods: raw.allowed_methods ?? [],
       maxAttempts: raw.login_max_attempts,
@@ -382,6 +412,13 @@ function transformTenantConfig(raw: TenantPublicConfigRaw): TenantPublicConfig {
         difficulty: raw.captcha_difficulty ?? 'medium',
         failedThreshold: raw.captcha_enable_threshold ?? 0,
         provider: raw.captcha_provider ?? 'image',
+        plugin: raw.captcha_plugin
+          ? {
+              frontendRuntime: raw.captcha_plugin.frontend_runtime ?? {},
+              pluginName: raw.captcha_plugin.plugin_name,
+              publicEndpoint: raw.captcha_plugin.public_endpoint,
+            }
+          : undefined,
       },
       allowedMethods: raw.login_methods ?? ['password'],
       maxAttempts: raw.login_max_attempts,

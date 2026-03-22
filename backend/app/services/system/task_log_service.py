@@ -6,12 +6,22 @@ Provides task log business logic.
 """
 
 from datetime import datetime
+from typing import Literal
 
 from app.core.base_model import utc_now
 from app.core.base_service import GlobalService
 from app.enums.task import TaskStatusEnum
 from app.models.system.task_log import TaskLog
 from app.repositories.system.task_log_repository import TaskLogRepository
+from app.schemas.common.query import FilterRule, QuerySpec
+
+TaskLogListView = Literal["all", "execution", "internal"]
+
+HIGH_FREQUENCY_INTERNAL_TASK_NAMES: tuple[str, ...] = (
+    "tasks.ai.log_ai_call",
+    "app.tasks.scheduled.system_health_check",
+    "app.tasks.ai_health_check.ai_provider_health_check",
+)
 
 
 class TaskLogService(GlobalService[TaskLog, TaskLogRepository]):
@@ -22,6 +32,35 @@ class TaskLogService(GlobalService[TaskLog, TaskLogRepository]):
     model = TaskLog
     repository_class = TaskLogRepository
 
+    async def query_list_by_view(
+        self,
+        spec: QuerySpec,
+        view: TaskLogListView = "all",
+        scope: str | None = None,
+        forced_filters: list[FilterRule] | None = None,
+    ) -> tuple[list[TaskLog], int]:
+        if view == "all":
+            return await self.query_list(
+                spec=spec,
+                scope=scope,
+                forced_filters=forced_filters,
+            )
+
+        include_task_names = (
+            list(HIGH_FREQUENCY_INTERNAL_TASK_NAMES) if view == "internal" else None
+        )
+        exclude_task_names = (
+            list(HIGH_FREQUENCY_INTERNAL_TASK_NAMES) if view == "execution" else None
+        )
+
+        return await self.repo.query_list(
+            spec=spec,
+            scope=scope,
+            forced_filters=forced_filters,
+            include_task_names=include_task_names,
+            exclude_task_names=exclude_task_names,
+        )
+
     async def record_start(
         self,
         task_id: str,
@@ -31,16 +70,18 @@ class TaskLogService(GlobalService[TaskLog, TaskLogRepository]):
         kwargs: dict | None = None,
         tenant_id: int | None = None,
     ) -> TaskLog:
-        return await self.create({
-            "task_id": task_id,
-            "task_name": task_name,
-            "queue": queue,
-            "status": TaskStatusEnum.RUNNING.value,
-            "args": args,
-            "kwargs": kwargs,
-            "started_at": utc_now(),
-            "tenant_id": tenant_id,
-        })
+        return await self.create(
+            {
+                "task_id": task_id,
+                "task_name": task_name,
+                "queue": queue,
+                "status": TaskStatusEnum.RUNNING.value,
+                "args": args,
+                "kwargs": kwargs,
+                "started_at": utc_now(),
+                "tenant_id": tenant_id,
+            }
+        )
 
     async def record_success(
         self,
@@ -99,11 +140,14 @@ class TaskLogService(GlobalService[TaskLog, TaskLogRepository]):
         log = await self.repo.get_by_task_id(task_id)
         if log is None:
             return None
-        return await self.update(log.id, {
-            "status": TaskStatusEnum.RETRYING.value,
-            "retry_count": retry_count,
-            "error_message": error_message,
-        })
+        return await self.update(
+            log.id,
+            {
+                "status": TaskStatusEnum.RETRYING.value,
+                "retry_count": retry_count,
+                "error_message": error_message,
+            },
+        )
 
     async def get_dashboard_stats(
         self,

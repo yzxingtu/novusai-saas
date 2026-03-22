@@ -170,13 +170,6 @@ class ActionResultTypeEnum(LabeledStrEnum):
     CONFIRM_REQUIRED = ("confirm_required", "enum.action_result_type.confirm_required")
 
 
-class ConfirmActionEnum(LabeledStrEnum):
-    """Confirm Action Enum / 操作确认动作枚举"""
-
-    CONFIRM = ("confirm", "enum.confirm_action.confirm")
-    CANCEL = ("cancel", "enum.confirm_action.cancel")
-
-
 class SkillTypeEnum(LabeledStrEnum):
     """Skill Type Enum / 技能类型枚举"""
 
@@ -251,7 +244,6 @@ __all__ = [
     "ActionTypeEnum",
     "ActionStatusEnum",
     "ActionResultTypeEnum",
-    "ConfirmActionEnum",
     "ToolConsentModeEnum",
     "BatchRunStatusEnum",
     "get_all_skill_types",

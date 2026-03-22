@@ -10,7 +10,6 @@ Includes real-time tool call push, confirmation interception, DSML tag cleanup, 
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import json
 import re
 import time
@@ -70,6 +69,35 @@ class StreamExecutionHandler:
         self.prep = prep
         self.start_time = start_time
         self.on_complete = on_complete
+        self._background_tasks: set[asyncio.Task[None]] = set()
+
+    def _schedule_on_complete(self, result: ExecutionResult) -> None:
+        """Run on_complete in background before client disconnect can cancel it.
+
+        在发送 `done` 事件前启动后台回调，避免前端收到完成事件后立即断开 SSE，
+        导致消息持久化 / 统计 / 记忆提取回调被请求取消一并杀掉。
+        """
+        if not self.on_complete or self._on_complete_called:
+            return
+
+        self._on_complete_called = True
+
+        async def _runner() -> None:
+            try:
+                await self.on_complete(result)
+            except Exception as cb_exc:
+                logger.error("on_complete callback error: {}", str(cb_exc))
+            except BaseException as cb_base_exc:
+                logger.error(
+                    "on_complete callback base exception: type={} error={}",
+                    type(cb_base_exc).__name__,
+                    str(cb_base_exc),
+                    exc_info=True,
+                )
+
+        task = asyncio.create_task(_runner())
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
 
     async def generate(self) -> AsyncIterator[str]:
         """SSE event generator main loop / SSE 事件生成器主循环"""
@@ -92,6 +120,7 @@ class StreamExecutionHandler:
         self._on_complete_called = False
 
         try:
+            next_runtime_context = getattr(self.prep, "stream_runtime", None)
             if self.request.conversation_id:
                 # Publish conversation id early so frontend keeps the session
                 # even when the stream is interrupted before the final done event.
@@ -142,6 +171,7 @@ class StreamExecutionHandler:
                     user_id=getattr(self.request, "user_id", None),
                     billing_context=getattr(self.request, "billing_context", None),
                     log_user_type=log_user_type_for_call_log(_req_role),
+                    runtime_context=next_runtime_context,
                 ):
                     if (
                         self._runtime_model_info is None
@@ -169,6 +199,7 @@ class StreamExecutionHandler:
 
                     # 不可在 finish_reason 处 break：会提前 aclose 异步生成器，
                     # ConversationEngine._stream_llm_chunks 尾部的 Key 计数/commit 不会执行。
+                next_runtime_context = None
 
                 messages.append(ChatMessage(
                     role="assistant",
@@ -210,6 +241,11 @@ class StreamExecutionHandler:
                 rag_sources=rag_sources,
             )
 
+            # Start callback before yielding done so client-side disconnect
+            # cannot prevent persistence from even starting.
+            # 在发送 done 之前启动后台回调，确保客户端断开不会阻止持久化开始。
+            self._schedule_on_complete(result)
+
             # ---- Send done event FIRST so frontend unlocks immediately ----
             # on_complete may trigger slow operations (e.g. memory extraction LLM call);
             # emitting done before the callback prevents the UI from hanging.
@@ -219,15 +255,6 @@ class StreamExecutionHandler:
                 "total_tokens": total_tokens,
                 "duration_ms": duration_ms,
             })
-
-            # ---- Run on_complete callback (persistence, memory, hooks) ----
-            # SSE connection stays alive until [DONE]; callback runs while stream is still open.
-            if self.on_complete and not self._on_complete_called:
-                self._on_complete_called = True
-                try:
-                    await self.on_complete(result)
-                except Exception as cb_exc:
-                    logger.error("on_complete callback error: {}", str(cb_exc))
 
             yield SSEChunkEncoder.done()
 
@@ -250,7 +277,6 @@ class StreamExecutionHandler:
 
             # Partial persist: pass accumulated state so history is not lost / 中断时传递已累积状态，避免历史丢失
             if self.on_complete and not self._on_complete_called:
-                self._on_complete_called = True
                 duration_ms = int((time.perf_counter() - self.start_time) * 1000)
                 partial_output = getattr(self, "_output", None) or output
                 partial_tokens = getattr(self, "_total_tokens", None)
@@ -282,13 +308,7 @@ class StreamExecutionHandler:
                     completion_reason="error",
                     rag_sources=rag_sources,
                 )
-                try:
-                    await asyncio.shield(self.on_complete(failed_result))
-                except Exception as cb_exc:
-                    logger.error(
-                        "on_complete callback error: {}",
-                        str(cb_exc),
-                    )
+                self._schedule_on_complete(failed_result)
 
         except BaseException as exc:
             # Catch CancelledError / GeneratorExit and other non-Exception exceptions / 捕获 CancelledError / GeneratorExit 等非 Exception 异常
@@ -298,7 +318,6 @@ class StreamExecutionHandler:
                 exc_info=True,
             )
             if self.on_complete and not self._on_complete_called:
-                self._on_complete_called = True
                 duration_ms = int((time.perf_counter() - self.start_time) * 1000)
                 partial_output = getattr(self, "_output", None) or output
                 partial_tokens = getattr(self, "_total_tokens", None)
@@ -329,8 +348,7 @@ class StreamExecutionHandler:
                     completion_reason="interrupted",
                     rag_sources=rag_sources,
                 )
-                with contextlib.suppress(Exception):
-                    await asyncio.shield(self.on_complete(interrupted_result))
+                self._schedule_on_complete(interrupted_result)
             raise  # Must re-raise BaseException / 必须重新抛出 BaseException
 
     def _chunk_text_for_streaming(self, text: str, chunk_size: int = 32) -> list[str]:
@@ -359,6 +377,7 @@ class StreamExecutionHandler:
         self._reasoning_output = ""
         _ = strip_fc_tokens  # unused in real streaming path
         append_final_assistant = True
+        next_runtime_context = getattr(self.prep, "stream_runtime", None)
 
         # ---- Confirmation interception ---- / 确认拦截
         _last_user_text = ""
@@ -433,6 +452,7 @@ class StreamExecutionHandler:
                 user_id=getattr(self.request, "user_id", None),
                 billing_context=getattr(self.request, "billing_context", None),
                 log_user_type=log_user_type_for_call_log(_req_role),
+                runtime_context=next_runtime_context,
             ):
                 if (
                     self._runtime_model_info is None
@@ -467,6 +487,8 @@ class StreamExecutionHandler:
 
                 if chunk.total_tokens is not None:
                     round_total_tokens = chunk.total_tokens
+
+            next_runtime_context = None
 
             self._total_tokens += round_total_tokens
             tc_list = self._finalize_stream_tool_calls(round_tool_calls)

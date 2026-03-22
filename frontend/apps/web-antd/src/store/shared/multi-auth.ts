@@ -19,7 +19,7 @@ import { useAccessStore, useTabbarStore, useUserStore } from '@vben/stores';
 import { notification } from 'ant-design-vue';
 import { defineStore } from 'pinia';
 
-import { adminApi, getApiEndpoint, tenantApi, userApi } from '#/api';
+import { adminApi, tenantApi, userApi } from '#/api';
 import {
   HOME_PATHS,
   LOGIN_PATHS,
@@ -30,12 +30,10 @@ import {
 import { $t } from '#/locales';
 import { toAvatarDisplayUrl } from '#/utils/image';
 import { clearPersistedTabbarStorage } from '#/utils/tabbar-storage';
+import { getEndpointFromPath } from '#/utils';
 
 import { TokenStorage } from './token-storage';
 import { useUserPreferenceStore } from './user-preference';
-
-// Re-export for backward compatibility (guard.ts, impersonate.vue etc.)
-export { HOME_PATHS, LOGIN_PATHS };
 
 export const useMultiAuthStore = defineStore('multi-auth', () => {
   const accessStore = useAccessStore();
@@ -47,7 +45,7 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
 
   /** Current API endpoint type / 当前 API 端类型 */
   const currentEndpoint = computed<ApiEndpoint>(() => {
-    return getApiEndpoint(route.path);
+    return getEndpointFromPath(route.path) as ApiEndpoint;
   });
 
   /** Current endpoint login path / 当前端的登录路径 */
@@ -59,6 +57,20 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
   const currentHomePath = computed(() => {
     return resolveHomePathByPath(route.path);
   });
+
+  function resolvePostLoginTarget(endpoint: ApiEndpoint): string {
+    const rawRedirect = route.query.redirect;
+    const redirect =
+      typeof rawRedirect === 'string'
+        ? normalizeEndpointNavigationPath(rawRedirect, endpoint)
+        : '';
+    const fallbackHome = normalizeEndpointNavigationPath(
+      HOME_PATHS[endpoint],
+      endpoint,
+    );
+
+    return redirect || fallbackHome;
+  }
 
   /**
    * Get auth API for the current endpoint / 获取当前端对应的 API
@@ -111,6 +123,7 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
     const ep = endpoint || currentEndpoint.value;
     const api = getAuthApi(ep);
     const homePath = normalizeEndpointNavigationPath(HOME_PATHS[ep], ep);
+    const postLoginTarget = resolvePostLoginTarget(ep);
 
     let userInfo: BaseUserInfo | null = null;
     let captchaRequired = false;
@@ -156,9 +169,10 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
         userInfo = await fetchUserInfo(ep);
 
         // Load user preferences and sync to UI framework / 加载用户偏好并同步到 UI 框架
-        const prefSide = ep === 'admin' ? 'admin' : 'tenant';
         const preferenceStore = useUserPreferenceStore();
-        preferenceStore.loadPreferences(prefSide as 'admin' | 'tenant').catch(() => {});
+        if (ep === 'admin' || ep === 'tenant') {
+          preferenceStore.loadPreferences(ep).catch(() => {});
+        }
 
         // Convert to Vben UserInfo format / 转换为 vben UserInfo 格式
         const vbenUserInfo: UserInfo = {
@@ -179,7 +193,7 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
         } else {
           onSuccess
             ? await onSuccess?.()
-            : await router.push(vbenUserInfo.homePath || homePath);
+            : await router.push(postLoginTarget || vbenUserInfo.homePath || homePath);
         }
 
         if (vbenUserInfo.realName) {
@@ -222,6 +236,7 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
     const ep = endpoint || currentEndpoint.value;
     const api = getAuthApi(ep);
     const loginPath = LOGIN_PATHS[ep];
+    const userHomePath = normalizeEndpointNavigationPath(HOME_PATHS.user, 'user');
     const tabbarStore = useTabbarStore();
 
     try {
@@ -266,6 +281,14 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
     // Clear preference cache / 清除偏好缓存
     const preferenceStore = useUserPreferenceStore();
     preferenceStore.clearPreferences();
+
+    if (ep === 'user') {
+      await router.replace({
+        path: userHomePath,
+        query: {},
+      });
+      return;
+    }
 
     await router.replace({
       path: loginPath,

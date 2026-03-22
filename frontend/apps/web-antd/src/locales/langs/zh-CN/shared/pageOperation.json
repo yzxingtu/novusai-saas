@@ -108,6 +108,7 @@
     "userCancelled": "用户取消了操作",
     "operationDisabled": "操作 '{op}' 在页面 '{page}' 上已被禁用",
     "operationNotRegistered": "操作 '{op}' 未在页面 '{page}' 注册",
+    "pageKeyMismatch": "页面操作目标不匹配：请求页面为 {requested}，当前活动页面为 {active}",
     "pageNoOperations": "页面 \"{page}\" 未注册任何操作",
     "opNotFound": "操作 \"{op}\" 在页面 \"{page}\" 中未找到。可用：{available}",
     "opNoHandler": "操作 \"{op}\" 没有处理器",
@@ -130,6 +131,9 @@
     "invalidPageSize": "无效的每页条数：{pageSize}",
     "unknownField": "未知字段：{field}。可用字段：{available}",
     "foundOptions": "已找到 {field} 的 {count} 个选项",
-    "noOptionsLoaded": "未加载到 {field} 的选项"
+    "noOptionsLoaded": "未加载到 {field} 的选项",
+    "paramRequired": "缺少必填参数：{param}",
+    "paramInvalidType": "参数 {param} 类型无效，期望 {expected}",
+    "paramInvalidEnum": "参数 {param} 必须为以下之一：{allowed}"
   }
 }

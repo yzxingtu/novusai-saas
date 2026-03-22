@@ -457,15 +457,7 @@ async def restore_enabled_plugins(
                 # / 确保 Alembic 迁移已执行
                 migrations_dir = loader.plugins_dir / plugin.name / "backend" / "migrations" / "versions"
                 if migrations_dir.is_dir():
-                    try:
-                        await lifecycle.run_alembic_upgrade(plugin.name)
-                    except Exception as exc:
-                        logger.warning(
-                            "Restore({}): alembic upgrade for {} failed: {}",
-                            mode_label,
-                            plugin.name,
-                            exc,
-                        )
+                    await lifecycle.run_alembic_upgrade(plugin.name)
 
             # Register all extension points (shared function, used by lifecycle.enable)
             # / 注册所有扩展点

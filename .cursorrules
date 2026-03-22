@@ -271,7 +271,7 @@ alembic revision --autogenerate -m "add xxx table"
 - ❌ 禁止使用已废弃的 `ToolRegistry` / `tool_bindings` JSON 字段
 
 **合法 AI 调用入口：**
-- ✅ `SystemAgentService`（Controller 层唯一 AI 入口）：`Controller → SystemAgentService → AIGateway`
+- ✅ `InternalAIService`（`app/ai/internal_ai_service.py`，替代旧 `SystemAgentService`）：基础设施级内部调用经 `InternalAIService → AIGateway`
 - ✅ Agent engine 内部（`conversation.py` / `base.py`）— 属于 Agent 实现层
 - ✅ RAG 管道内部（`rag/embedding.py` 等）— 属于 Skill 内部实现
 - ✅ `AIGateway.test_model` — 仅模型连通性测试

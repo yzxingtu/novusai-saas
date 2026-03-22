@@ -18,6 +18,11 @@ const emits = defineEmits<{
   success: [domain: TenantDomainInfo];
 }>();
 
+interface DomainCreateDefaults {
+  domain?: string;
+  remark?: string;
+}
+
 /** 表单 Schema / Form schema */
 function useFormSchema() {
   return [
@@ -78,7 +83,11 @@ async function onSubmit() {
 }
 
 /** 打开抽屉 / Open drawer */
-function open() {
+async function open(defaults?: DomainCreateDefaults) {
+  await formApi.resetForm();
+  if (defaults && Object.keys(defaults).length > 0) {
+    await formApi.setValues(defaults);
+  }
   drawerApi.setData({ mode: 'add' }).open();
 }
 

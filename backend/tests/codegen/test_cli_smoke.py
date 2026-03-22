@@ -12,12 +12,28 @@ from types import SimpleNamespace
 
 from click.testing import CliRunner
 
-from app.exceptions import NotFoundException
+from app.exceptions import ConflictException, NotFoundException
 
 
 def _raise_system_exit_not_found(coro) -> None:
     coro.close()
     raise SystemExit("Config not found")
+
+
+def _return_value(value):
+    def _inner(coro):
+        coro.close()
+        return value
+
+    return _inner
+
+
+def _raise_exception(exc):
+    def _inner(coro):
+        coro.close()
+        raise exc
+
+    return _inner
 
 
 def _return_none(coro):
@@ -51,6 +67,10 @@ def _return_fake_generate_output(coro):
     logging.basicConfig(level=logging.INFO, stream=sys.stderr, force=True)
     logging.getLogger("cli-smoke").info("cli-generate-noise")
     return _fake_generate_output()
+
+
+def _parse_output_json(result) -> dict:
+    return json.loads(result.output)
 
 
 def test_codegen_delete_not_found_returns_clean_json(monkeypatch) -> None:
@@ -172,9 +192,10 @@ def test_codegen_generate_success_with_auto_migrate_returns_single_json(
     result = runner.invoke(cli, ["codegen", "generate", "--stdin", "--json"])
 
     assert result.exit_code == 0
-    payload = json.loads(result.output)
+    payload = _parse_output_json(result)
     assert payload["success"] is True
-    assert payload["auto_migrate"]["success"] is True
+    assert payload["data"]["auto_migrate"]["success"] is True
+    assert payload["data"]["resource"] == "demo"
     assert "cli-generate-noise" not in result.output
     assert "cli-auto-migrate-noise" not in result.output
     assert "[auto-migrate]" not in result.output
@@ -204,11 +225,205 @@ def test_codegen_generate_auto_migrate_failure_returns_single_json(
     result = runner.invoke(cli, ["codegen", "generate", "--stdin", "--json"])
 
     assert result.exit_code == 1
-    payload = json.loads(result.output)
+    payload = _parse_output_json(result)
     assert payload["success"] is False
-    assert payload["auto_migrate"]["phase"] == "post_upgrade"
-    assert "migration failed" in payload["error"]
+    assert payload["data"]["auto_migrate"]["phase"] == "post_upgrade"
+    assert "migration failed" in payload["error"]["message"]
     assert "[auto-migrate]" not in result.output
+
+
+def test_codegen_validate_draft_returns_enveloped_json(monkeypatch) -> None:
+    """codegen validate --mode draft 返回统一 envelope，且 mode 透传到 service。"""
+    from app.cli import cli
+
+    runner = CliRunner()
+
+    class _FakeService:
+        def validate(self, config_json, *, mode):
+            assert config_json == {"resource": "demo"}
+            assert mode == "draft"
+            return {"valid": True, "errors": [], "warnings": [], "mode": mode}
+
+    monkeypatch.setattr("app.cli._load_config_stdin", lambda: {"resource": "demo"})
+    monkeypatch.setattr(
+        "app.services.system.codegen_service.CodegenService.create_standalone",
+        staticmethod(lambda: _FakeService()),
+    )
+
+    result = runner.invoke(cli, ["codegen", "validate", "--stdin", "--mode", "draft", "--json"])
+
+    assert result.exit_code == 0
+    payload = _parse_output_json(result)
+    assert payload == {
+        "success": True,
+        "data": {"valid": True, "errors": [], "warnings": [], "mode": "draft"},
+        "error": None,
+    }
+
+
+def test_codegen_preview_stdin_returns_enveloped_json(monkeypatch) -> None:
+    """codegen preview --stdin 使用统一 envelope 返回数据。"""
+    from app.cli import cli
+
+    runner = CliRunner()
+
+    class _FakeService:
+        def preview(self, config_json, *, step=None, project_root=None):
+            assert config_json == {"resource": "demo"}
+            assert step is None
+            assert project_root is not None
+            return {
+                "success": True,
+                "files": [{"path": "backend/app/models/system/demo.py", "type": "create", "line_count": 12}],
+                "summary": {"create_count": 1, "modify_count": 0, "backend_files": 1, "frontend_files": 0, "total_lines": 12},
+                "warnings": [],
+                "conflicts": [],
+                "error": None,
+            }
+
+    monkeypatch.setattr("app.cli._load_config_stdin", lambda: {"resource": "demo"})
+    monkeypatch.setattr(
+        "app.services.system.codegen_service.CodegenService.create_standalone",
+        staticmethod(lambda: _FakeService()),
+    )
+
+    result = runner.invoke(cli, ["codegen", "preview", "--stdin", "--json"])
+
+    assert result.exit_code == 0
+    payload = _parse_output_json(result)
+    assert payload["success"] is True
+    assert payload["data"]["summary"]["create_count"] == 1
+    assert payload["data"]["files"][0]["path"] == "backend/app/models/system/demo.py"
+
+
+def test_codegen_show_by_resource_returns_enveloped_json(monkeypatch) -> None:
+    """codegen show --resource 使用统一 envelope 返回配置详情。"""
+    from app.cli import cli
+
+    runner = CliRunner()
+
+    monkeypatch.setattr(
+        "app.cli._run_async",
+        _return_value(
+            {
+                "id": 8,
+                "name": "Demo",
+                "resource": "demo",
+                "module": "system",
+                "status": "draft",
+                "config_json": {"resource": "demo"},
+            }
+        ),
+    )
+
+    result = runner.invoke(cli, ["codegen", "show", "--resource", "demo", "--json"])
+
+    assert result.exit_code == 0
+    payload = _parse_output_json(result)
+    assert payload["success"] is True
+    assert payload["data"]["resource"] == "demo"
+    assert payload["data"]["id"] == 8
+
+
+def test_codegen_delete_blocked_returns_reason_code_and_clean_json(monkeypatch) -> None:
+    """codegen delete 被 delete guard 阻断时返回结构化 JSON。"""
+    from app.cli import cli
+
+    runner = CliRunner()
+
+    monkeypatch.setattr(
+        "app.cli._run_async",
+        _raise_exception(
+            ConflictException(
+                message="Manifest entry still exists",
+                data={"reason_code": "manifest_present"},
+            )
+        ),
+    )
+
+    result = runner.invoke(cli, ["codegen", "delete", "--id", "9", "--yes", "--json"])
+
+    assert result.exit_code == 1
+    payload = _parse_output_json(result)
+    assert payload["success"] is False
+    assert payload["error"]["code"] == "delete_blocked"
+    assert payload["data"]["reason_code"] == "manifest_present"
+    assert "Traceback" not in result.output
+
+
+def test_codegen_presets_list_returns_enveloped_json(monkeypatch) -> None:
+    """codegen presets list --json 返回结构化预设列表。"""
+    from app.cli import cli
+
+    runner = CliRunner()
+
+    monkeypatch.setattr(
+        "app.codegen.preset_loader.list_presets",
+        lambda: [
+            {
+                "name": "simple",
+                "label_zh": "基础 CRUD",
+                "label_en": "Basic CRUD",
+                "category": "crud",
+                "tags": ["basic"],
+            }
+        ],
+    )
+
+    result = runner.invoke(cli, ["codegen", "presets", "list", "--json"])
+
+    assert result.exit_code == 0
+    payload = _parse_output_json(result)
+    assert payload["success"] is True
+    assert payload["data"]["items"][0]["name"] == "simple"
+
+
+def test_codegen_presets_show_returns_enveloped_json(monkeypatch) -> None:
+    """codegen presets show --json 返回结构化预设详情。"""
+    from app.cli import cli
+
+    runner = CliRunner()
+
+    monkeypatch.setattr(
+        "app.codegen.preset_loader.get_preset",
+        lambda name: {
+            "name": name,
+            "label_zh": "基础 CRUD",
+            "label_en": "Basic CRUD",
+            "content": "resource: demo\n",
+            "parsed": {"resource": "demo"},
+        },
+    )
+
+    result = runner.invoke(cli, ["codegen", "presets", "show", "--name", "simple", "--json"])
+
+    assert result.exit_code == 0
+    payload = _parse_output_json(result)
+    assert payload["success"] is True
+    assert payload["data"]["parsed"]["resource"] == "demo"
+
+
+def test_codegen_db_tables_json_uses_envelope(monkeypatch) -> None:
+    """codegen db tables --json 使用统一 envelope。"""
+    from app.cli import cli
+
+    runner = CliRunner()
+
+    class _FakeService:
+        def introspect_tables(self):
+            return [{"name": "demo", "has_model": True}]
+
+    monkeypatch.setattr(
+        "app.services.system.codegen_service.CodegenService.create_standalone",
+        staticmethod(lambda: _FakeService()),
+    )
+
+    result = runner.invoke(cli, ["codegen", "db", "tables", "--json"])
+
+    assert result.exit_code == 0
+    payload = _parse_output_json(result)
+    assert payload["success"] is True
+    assert payload["data"]["items"][0]["name"] == "demo"
 
 
 def test_cli_imports() -> None:

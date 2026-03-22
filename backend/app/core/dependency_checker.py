@@ -452,19 +452,6 @@ async def execute_cascade_promote_to_global(
     return total
 
 
-async def execute_cascade_escalate(
-    db: AsyncSession,
-    instance: Any,
-    tenant_id: int | None = None,
-) -> int:
-    """兼容旧接口：升级删除 → 推进总回收站 / Backward-compatible alias for execute_cascade_promote_to_global"""
-    return await execute_cascade_promote_to_global(
-        db,
-        instance,
-        tenant_id=tenant_id,
-    )
-
-
 async def execute_cascade_restore(
     db: AsyncSession,
     instance: Any,
@@ -528,7 +515,6 @@ __all__ = [
     "check_deletion_deps",
     "execute_cascade_deps",
     "execute_cascade_promote_to_global",
-    "execute_cascade_escalate",
     "execute_cascade_restore",
     "resolve_model_class",
 ]

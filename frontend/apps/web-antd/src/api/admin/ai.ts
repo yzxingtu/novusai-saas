@@ -12,8 +12,7 @@ import type { ApiRequestOptions } from '#/utils/request';
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// Backward-compat re-export — Providers, API Key, Health, Gateway test
-// 向后兼容 re-export — 供应商、API Key、健康、网关测试
+// Backward-compat re-export — Agents / 向后兼容 re-export — 智能体
 // ============================================================
 
 export {
@@ -66,7 +65,7 @@ export {
 } from './ai-agents';
 
 // ============================================================
-// Backward-compat re-export — Models / 向后兼容 re-export — 模型
+// Backward-compat re-export — Call logs & Usage / 向后兼容 re-export — 调用日志与使用量
 // ============================================================
 
 export {
@@ -82,7 +81,7 @@ export {
 } from './ai-call-logs';
 
 // ============================================================
-// Backward-compat re-export — Agents / 向后兼容 re-export — 智能体
+// Backward-compat re-export — Conversations / 向后兼容 re-export — 对话
 // ============================================================
 
 export {
@@ -92,7 +91,7 @@ export {
 } from './ai-conversations';
 
 // ============================================================
-// Backward-compat re-export — Call logs & Usage / 向后兼容 re-export — 调用日志 & 使用量
+// Backward-compat re-export — Models / 向后兼容 re-export — 模型
 // ============================================================
 
 export {
@@ -114,7 +113,8 @@ export {
 } from './ai-models';
 
 // ============================================================
-// Backward-compat re-export — Conversations / 向后兼容 re-export — 对话管理
+// Backward-compat re-export — Providers, API Key, Health, Gateway test
+// 向后兼容 re-export — 供应商、API Key、健康、网关测试
 // ============================================================
 
 export {
@@ -305,6 +305,37 @@ export interface AIQuotaInfo {
   updated_at: string;
 }
 
+/** AI quota diagnostics summary / AI 配额诊断总览 */
+export interface AIQuotaDiagnosticsSummaryInfo {
+  total_quota_rules: number;
+  active_quota_rules: number;
+  hard_quota_rules: number;
+  soft_quota_rules: number;
+  quota_warning_rules: number;
+  quota_exceeded_rules: number;
+  total_rate_limit_rules: number;
+  active_rate_limit_rules: number;
+  rate_limit_warning_rules: number;
+  rate_limit_exceeded_rules: number;
+}
+
+/** AI quota diagnostic item / AI 配额诊断项 */
+export interface AIQuotaDiagnosticInfo extends AIQuotaInfo {
+  scope_type: 'global' | 'model';
+  tracking_model_id: number;
+  usage: number;
+  remaining: number;
+  usage_percent: number;
+  is_warning: boolean;
+  is_exceeded: boolean;
+  runtime_status: 'exceeded' | 'healthy' | 'inactive' | 'warning';
+  exhaustion_action: 'allow' | 'deny';
+  exhaustion_http_status: null | number;
+  exhaustion_error_code: null | number;
+  exhaustion_message_preview: null | string;
+  is_latest_scope_rule: boolean;
+}
+
 /** Create quota request (admin) / 创建配额请求（管理员） */
 export interface AIQuotaCreateRequest {
   tenant_id: number;
@@ -335,11 +366,21 @@ const QUOTA_PREFIX = '/admin/ai/quotas';
 export async function getAIQuotaListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
-): Promise<PageResponse<AIQuotaInfo>> {
-  return requestClient.get<PageResponse<AIQuotaInfo>>(QUOTA_PREFIX, {
+): Promise<PageResponse<AIQuotaDiagnosticInfo>> {
+  return requestClient.get<PageResponse<AIQuotaDiagnosticInfo>>(QUOTA_PREFIX, {
     params,
     ...options,
   });
+}
+
+/** Get quota diagnostics summary / 获取配额诊断总览 */
+export async function getAIQuotaSummaryApi(
+  options?: ApiRequestOptions,
+): Promise<AIQuotaDiagnosticsSummaryInfo> {
+  return requestClient.get<AIQuotaDiagnosticsSummaryInfo>(
+    `${QUOTA_PREFIX}/summary`,
+    options,
+  );
 }
 
 /** Get quota detail / 获取配额详情 */
@@ -393,6 +434,31 @@ export interface AIRateLimitInfo {
   updated_at: string;
 }
 
+/** Rate limit diagnostic item / 速率限制诊断项 */
+export interface AIRateLimitDiagnosticInfo extends AIRateLimitInfo {
+  tenant_name: null | string;
+  configured_rpm_limit: null | number;
+  configured_tpm_limit: null | number;
+  model_default_rpm_limit: null | number;
+  model_default_tpm_limit: null | number;
+  effective_rpm_limit: null | number;
+  effective_tpm_limit: null | number;
+  rpm_source: 'model' | 'none' | 'tenant';
+  tpm_source: 'model' | 'none' | 'tenant';
+  current_rpm: number;
+  current_tpm: number;
+  rpm_usage_percent: number;
+  tpm_usage_percent: number;
+  is_warning: boolean;
+  is_exceeded: boolean;
+  runtime_status: 'exceeded' | 'healthy' | 'inactive' | 'warning';
+  exhaustion_action: 'deny';
+  exhaustion_http_status: number;
+  exhaustion_error_code: number;
+  exhaustion_message_preview: null | string;
+  is_latest_model_rule: boolean;
+}
+
 /** Create rate limit request (admin) / 创建速率限制请求 */
 export interface AIRateLimitCreateRequest {
   tenant_id: number;
@@ -420,11 +486,14 @@ const RATE_LIMIT_PREFIX = '/admin/ai/quotas/rate-limits';
 export async function getAIRateLimitListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
-): Promise<AIRateLimitInfo[]> {
-  return requestClient.get<AIRateLimitInfo[]>(RATE_LIMIT_PREFIX, {
+): Promise<PageResponse<AIRateLimitDiagnosticInfo>> {
+  return requestClient.get<PageResponse<AIRateLimitDiagnosticInfo>>(
+    RATE_LIMIT_PREFIX,
+    {
     params,
     ...options,
-  });
+    },
+  );
 }
 
 /** Create rate limit / 创建速率限制 */

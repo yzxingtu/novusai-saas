@@ -577,8 +577,11 @@ const idMainContent = ELEMENT_ID_MAIN_CONTENT;
               class="my-0 mr-1 rounded-md"
               @click="handleHeaderToggle"
             >
-              <IconifyIcon v-if="showSidebar" icon="ep:fold" />
-              <IconifyIcon v-else icon="ep:expand" />
+              <IconifyIcon
+                v-if="showSidebar"
+                icon="lucide:panel-left-close"
+              />
+              <IconifyIcon v-else icon="lucide:panel-left-open" />
             </VbenIconButton>
           </template>
           <slot name="header"></slot>

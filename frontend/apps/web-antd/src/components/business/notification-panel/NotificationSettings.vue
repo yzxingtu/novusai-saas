@@ -10,7 +10,16 @@
  */
 import { ref, watch } from 'vue';
 
-import { Alert, Button, Drawer, message, Modal, Spin, Switch, Tag } from 'ant-design-vue';
+import {
+  Alert,
+  Button,
+  Drawer,
+  message,
+  Modal,
+  Spin,
+  Switch,
+  Tag,
+} from 'ant-design-vue';
 
 import { $t } from '#/locales';
 import { requestClient } from '#/utils/request';
@@ -40,6 +49,13 @@ const saving = ref(false);
 const resetting = ref(false);
 
 const CATEGORIES = ['system', 'ai', 'task', 'biz', 'audit'];
+const CHANNEL_ITEMS = [
+  { key: 'channel_ws', labelKey: 'common.notification.channelWs' },
+  { key: 'channel_inbox', labelKey: 'common.notification.channelInbox' },
+  { key: 'channel_email', labelKey: 'common.notification.channelEmail' },
+] as const;
+
+type ChannelKey = (typeof CHANNEL_ITEMS)[number]['key'];
 
 interface PrefRow {
   category: string;
@@ -141,6 +157,10 @@ function getPref(category: string): PrefRow {
   return row;
 }
 
+function setChannelValue(category: string, key: ChannelKey, value: boolean) {
+  getPref(category)[key] = value;
+}
+
 /** Open settings drawer (personal mode only) / 打开设置抽屉（仅 personal 模式） */
 async function open() {
   visible.value = true;
@@ -173,54 +193,42 @@ defineExpose({ open, load, save: handleSave });
         :message="$t('common.notification.globalDesc')"
         type="info"
         show-icon
-        class="mb-4"
+        class="mb-4 !rounded-xl !border !border-primary/15 !bg-primary/5"
       />
-      <table class="w-full">
-        <thead>
-          <tr
-            class="border-b border-border text-left text-xs text-muted-foreground"
-          >
-            <th class="pb-2 pr-4">
-              {{ $t('common.notification.categoryLabel') }}
-            </th>
-            <th class="pb-2 text-center">
-              {{ $t('common.notification.channelWs') }}
-            </th>
-            <th class="pb-2 text-center">
-              {{ $t('common.notification.channelInbox') }}
-            </th>
-            <th class="pb-2 text-center">
-              {{ $t('common.notification.channelEmail') }}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="cat in CATEGORIES"
-            :key="cat"
-            class="border-b border-border/30"
-          >
-            <td class="py-3 pr-4 text-sm font-medium text-foreground">
+
+      <div class="grid gap-3 md:grid-cols-2">
+        <div
+          v-for="cat in CATEGORIES"
+          :key="cat"
+          class="rounded-[22px] border border-border/70 bg-background/80 p-4 shadow-sm"
+        >
+          <div class="mb-4">
+            <div class="text-sm font-semibold text-foreground">
               {{ $t(`common.notification.category.${cat}`) }}
-            </td>
-            <td class="py-3 text-center">
-              <Switch v-model:checked="getPref(cat).channel_ws" size="small" />
-            </td>
-            <td class="py-3 text-center">
+            </div>
+            <div class="mt-1 text-xs text-muted-foreground">
+              {{ $t('common.notification.categoryLabel') }}
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <div
+              v-for="channel in CHANNEL_ITEMS"
+              :key="channel.key"
+              class="flex items-center justify-between rounded-2xl border border-border/60 bg-card px-3 py-2.5"
+            >
+              <span class="text-sm text-foreground">
+                {{ $t(channel.labelKey) }}
+              </span>
               <Switch
-                v-model:checked="getPref(cat).channel_inbox"
+                :checked="getPref(cat)[channel.key]"
                 size="small"
+                @update:checked="setChannelValue(cat, channel.key, !!$event)"
               />
-            </td>
-            <td class="py-3 text-center">
-              <Switch
-                v-model:checked="getPref(cat).channel_email"
-                size="small"
-              />
-            </td>
-          </tr>
-        </tbody>
-      </table>
+            </div>
+          </div>
+        </div>
+      </div>
     </Spin>
   </template>
 

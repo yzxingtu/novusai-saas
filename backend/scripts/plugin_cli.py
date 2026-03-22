@@ -42,7 +42,7 @@ description:
   zh-CN: "{description}"
   en: "{description_en}"
 author: ""
-icon: "lucide:puzzle"
+icon: ""
 scope: all_tenants
 
 capabilities: []

@@ -6,6 +6,7 @@
  */
 import type { NovusPluginSharedAPI } from './types';
 
+import WeatherDashboardWidget from './WeatherDashboardWidget.vue';
 import WeatherHeaderWidget from './WeatherHeaderWidget.vue';
 import { zhCN, enUS } from './locales';
 import { WX_STYLES } from './styles';
@@ -35,4 +36,4 @@ export function setup(): void {
   }
 }
 
-export { WeatherHeaderWidget };
+export { WeatherDashboardWidget, WeatherHeaderWidget };

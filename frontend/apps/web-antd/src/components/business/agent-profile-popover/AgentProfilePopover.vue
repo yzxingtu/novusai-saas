@@ -1,24 +1,21 @@
 <script lang="ts" setup>
 /**
- * Agent Profile Popover - Shared component for displaying agent info + skill packages / 智能体资料气泡卡片
+ * Agent Profile Popover - Shared component for displaying agent info + granted skills / 智能体资料气泡卡片
  *
  * Reused in ChatMessageItem (slide panel chat) and ConversationDetail (history drawer).
  * Clicking the avatar opens a Popover with:
  *  - Agent name, model, description
- *  - Skill package list (expandable to show individual skills)
+ *  - Directly granted skills grouped by package
  */
-import type { ChatSkillBindingInfo, ChatSkillInfo } from '#/api/shared/ai-chat';
+import type { ChatSkillBindingInfo } from '#/api/shared/ai-chat';
 
-import { reactive, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
 import { Popover, Spin, Tag } from 'ant-design-vue';
 
-import {
-  getChatAgentSkillsApi,
-  getChatPackageSkillsApi,
-} from '#/api/shared/ai-chat';
+import { getChatAgentSkillsApi } from '#/api/shared/ai-chat';
 import { $t } from '#/locales';
 import { getSkillTypeColor, getSkillTypeIcon } from '#/utils/ai-helpers';
 import { toAvatarDisplayUrl } from '#/utils/image';
@@ -67,9 +64,40 @@ const showProfileCard = ref(false);
 const skillBindings = ref<ChatSkillBindingInfo[]>([]);
 const skillBindingsLoaded = ref(false);
 const skillBindingsLoading = ref(false);
-const expandedPackages = reactive(new Set<number>());
-const packageSkills = reactive(new Map<number, ChatSkillInfo[]>());
-const packageSkillsLoading = reactive(new Set<number>());
+const groupedSkillBindings = computed(() => {
+  const groups = new Map<
+    string,
+    {
+      package_id: null | number;
+      package_is_system: boolean;
+      package_name: null | string;
+      skills: ChatSkillBindingInfo[];
+    }
+  >();
+
+  for (const binding of skillBindings.value) {
+    const key =
+      binding.package_id != null
+        ? `pkg:${binding.package_id}`
+        : `name:${binding.package_name ?? 'ungrouped'}`;
+    let group = groups.get(key);
+    if (!group) {
+      group = {
+        package_id: binding.package_id,
+        package_name: binding.package_name,
+        package_is_system: binding.package_is_system,
+        skills: [],
+      };
+      groups.set(key, group);
+    }
+    if (!group.skills.some((item) => item.skill_id === binding.skill_id)) {
+      group.skills.push(binding);
+    }
+  }
+
+  return [...groups.values()];
+});
+const grantedSkillCount = computed(() => skillBindings.value.length);
 
 function getSkillTypeText(type: string | undefined): string {
   if (!type) return '-';
@@ -98,25 +126,6 @@ async function loadSkillBindings() {
   }
 }
 
-async function togglePackageSkills(packageId: number) {
-  if (expandedPackages.has(packageId)) {
-    expandedPackages.delete(packageId);
-    return;
-  }
-  expandedPackages.add(packageId);
-  if (packageSkills.has(packageId)) return;
-  if (!props.apiPrefix) return;
-  packageSkillsLoading.add(packageId);
-  try {
-    const res = await getChatPackageSkillsApi(props.apiPrefix, packageId);
-    packageSkills.set(packageId, res.items || []);
-  } catch {
-    packageSkills.set(packageId, []);
-  } finally {
-    packageSkillsLoading.delete(packageId);
-  }
-}
-
 watch(showProfileCard, (open) => {
   if (open) loadSkillBindings();
 });
@@ -136,6 +145,12 @@ const sizeClasses = {
     icon: 'size-4',
   },
 };
+
+function getPackageDisplayName(bindingGroup: {
+  package_name: null | string;
+}) {
+  return bindingGroup.package_name || $t('common.globalAiChat.ungroupedPackage');
+}
 </script>
 
 <template>
@@ -187,14 +202,24 @@ const sizeClasses = {
         >
           {{ $t('common.globalAiChat.noDescription') }}
         </div>
-        <!-- Skill Packages -->
+        <!-- Granted skills grouped by package -->
         <div
           v-if="apiPrefix && agentId"
           class="mt-2.5 border-t border-border/30 pt-2.5"
         >
-          <div class="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
-            <IconifyIcon icon="lucide:puzzle" class="size-3" />
-            <span>{{ $t('common.globalAiChat.skillPackages') }}</span>
+          <div class="mb-1.5 flex items-center justify-between gap-2 text-[11px] font-medium text-muted-foreground">
+            <div class="flex items-center gap-1.5">
+              <IconifyIcon icon="lucide:puzzle" class="size-3" />
+              <span>{{ $t('common.globalAiChat.skillPackages') }}</span>
+            </div>
+            <span>
+              {{
+                $t('common.globalAiChat.skillPackageSummary', {
+                  packages: groupedSkillBindings.length,
+                  skills: grantedSkillCount,
+                })
+              }}
+            </span>
           </div>
           <Spin
             v-if="skillBindingsLoading"
@@ -209,74 +234,70 @@ const sizeClasses = {
           </div>
           <div v-else class="max-h-[240px] space-y-1 overflow-y-auto">
             <div
-              v-for="binding in skillBindings"
-              :key="binding.package_id"
+              v-for="group in groupedSkillBindings"
+              :key="
+                group.package_id != null
+                  ? `package-${group.package_id}`
+                  : `package-name-${group.package_name ?? 'ungrouped'}`
+              "
               class="overflow-hidden rounded-lg border border-border/30"
             >
               <div
-                class="flex cursor-pointer items-center gap-2 px-2.5 py-1.5 transition-colors hover:bg-accent/30"
-                @click="togglePackageSkills(binding.package_id)"
+                class="flex items-center gap-2 border-b border-border/20 bg-accent/10 px-2.5 py-1.5"
               >
                 <IconifyIcon
                   icon="lucide:package"
                   class="size-3 shrink-0 text-primary/60"
                 />
                 <span class="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground">
-                  {{ binding.package_name || `#${binding.package_id}` }}
+                  {{ getPackageDisplayName(group) }}
                 </span>
                 <Tag
-                  v-if="binding.package_is_system"
+                  v-if="group.package_is_system"
                   color="red"
                   class="!mr-0 !text-[9px] !leading-tight"
                 >
                   {{ $t('admin.ai.skillPackage.system') }}
                 </Tag>
-                <IconifyIcon
-                  :icon="expandedPackages.has(binding.package_id) ? 'lucide:chevron-up' : 'lucide:chevron-down'"
-                  class="size-3 shrink-0 text-muted-foreground/50"
-                />
+                <Tag class="!mr-0 !text-[9px] !leading-tight">
+                  {{ group.skills.length }}
+                </Tag>
               </div>
-              <!-- Skills within package -->
-              <div
-                v-if="expandedPackages.has(binding.package_id)"
-                class="border-t border-border/20 bg-accent/10 px-2 py-1"
-              >
-                <Spin
-                  v-if="packageSkillsLoading.has(binding.package_id)"
-                  size="small"
-                  class="flex justify-center py-1.5"
-                />
+              <div class="space-y-px bg-background px-2 py-1.5">
                 <div
-                  v-else-if="packageSkills.get(binding.package_id)?.length === 0"
-                  class="py-1.5 text-center text-[10px] italic text-muted-foreground/50"
+                  v-for="skill in group.skills"
+                  :key="skill.skill_id"
+                  class="flex items-start gap-1.5 rounded-md px-1.5 py-1.5 transition-colors hover:bg-accent/30"
                 >
-                  {{ $t('common.globalAiChat.noSkillsInPackage') }}
-                </div>
-                <div v-else class="space-y-px">
-                  <div
-                    v-for="skill in packageSkills.get(binding.package_id)"
-                    :key="skill.id"
-                    class="flex items-center gap-1.5 rounded-md px-1.5 py-1 transition-colors hover:bg-accent/30"
-                  >
-                    <IconifyIcon
-                      :icon="getSkillTypeIcon(skill.type)"
-                      class="size-3 shrink-0"
-                      :style="{ color: `var(--ant-color-${getSkillTypeColor(skill.type)})` }"
-                    />
-                    <span class="min-w-0 flex-1 truncate text-[10px] text-foreground/80">
-                      {{ skill.name }}
-                    </span>
-                    <Tag
-                      :color="getSkillTypeColor(skill.type)"
-                      class="!mr-0 !text-[9px] !leading-tight"
+                  <IconifyIcon
+                    :icon="getSkillTypeIcon(skill.skill_type || 'toolkit')"
+                    class="mt-0.5 size-3 shrink-0"
+                    :style="{
+                      color: `var(--ant-color-${getSkillTypeColor(skill.skill_type || 'toolkit')})`,
+                    }"
+                  />
+                  <div class="min-w-0 flex-1">
+                    <div class="truncate text-[10px] font-medium text-foreground/85">
+                      {{
+                        skill.skill_name ||
+                        skill.skill_key ||
+                        `#${skill.skill_id}`
+                      }}
+                    </div>
+                    <div
+                      v-if="skill.skill_description"
+                      class="mt-0.5 line-clamp-2 text-[9px] leading-relaxed text-muted-foreground"
                     >
-                      {{ getSkillTypeText(skill.type) }}
-                    </Tag>
-                    <span
-                      :class="skill.is_active ? 'bg-green-500' : 'bg-muted-foreground/30'"
-                      class="inline-block size-1.5 shrink-0 rounded-full"
-                    ></span>
+                      {{ skill.skill_description }}
+                    </div>
                   </div>
+                  <Tag
+                    v-if="skill.skill_type"
+                    :color="getSkillTypeColor(skill.skill_type)"
+                    class="!mr-0 !text-[9px] !leading-tight"
+                  >
+                    {{ getSkillTypeText(skill.skill_type) }}
+                  </Tag>
                 </div>
               </div>
             </div>

@@ -13,7 +13,6 @@ import {
   LanguageToggle,
   PreferencesButton,
   ThemeToggle,
-  TimezoneButton,
 } from '../../widgets';
 
 interface Props {
@@ -68,12 +67,6 @@ const rightSlots = computed(() => {
     list.push({
       index: REFERENCE_VALUE + 30,
       name: 'language-toggle',
-    });
-  }
-  if (preferences.widget.timezone) {
-    list.push({
-      index: REFERENCE_VALUE + 40,
-      name: 'timezone',
     });
   }
   if (preferences.widget.fullscreen) {
@@ -180,9 +173,6 @@ function resetPreferencesHandler() {
         </template>
         <template v-else-if="slot.name === 'fullscreen'">
           <VbenFullScreen class="mr-1" />
-        </template>
-        <template v-else-if="slot.name === 'timezone'">
-          <TimezoneButton class="mr-1 mt-[2px]" />
         </template>
       </slot>
     </template>

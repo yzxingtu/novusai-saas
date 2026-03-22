@@ -1,7 +1,7 @@
 {
   "_description": "前端 API 端点使用情况 - 深度检查结果",
   "_generated_at": "2026-01-19",
-  "_last_verified": "2026-01-19",
+  "_last_verified": "2026-03-23",
   "_note": "动态路径参数用 {param} 表示。本文件经过代码搜索验证，标注了实际使用状态。",
 
   "admin": {
@@ -9,10 +9,10 @@
 
     "auth": {
       "_status": "部分使用",
-      "POST /admin/auth/login": "管理员登录 [store/admin/auth.ts]",
+      "POST /admin/auth/login": "管理员登录 [store/shared/multi-auth.ts, api/admin/auth.ts]",
       "POST /admin/auth/refresh": "刷新 Token [request 拦截器]",
-      "POST /admin/auth/logout": "管理员登出 [store/admin/auth.ts]",
-      "GET /admin/auth/me": "获取当前管理员信息 [store/admin/auth.ts]",
+      "POST /admin/auth/logout": "管理员登出 [store/shared/multi-auth.ts, api/admin/auth.ts]",
+      "GET /admin/auth/me": "获取当前管理员信息 [store/shared/multi-auth.ts, api/admin/auth.ts]",
       "_未使用": {
         "PUT /admin/auth/password": "修改密码 - 已定义但未使用"
       }
@@ -113,10 +113,10 @@
 
     "auth": {
       "_status": "部分使用",
-      "POST /tenant/auth/login": "企业管理员登录 [store/tenant/auth.ts]",
+      "POST /tenant/auth/login": "企业管理员登录 [store/shared/multi-auth.ts, api/tenant/auth.ts]",
       "POST /tenant/auth/refresh": "刷新 Token [request 拦截器]",
-      "POST /tenant/auth/logout": "企业管理员登出 [store/tenant/auth.ts]",
-      "GET /tenant/auth/me": "获取当前企业管理员信息 [store/tenant/auth.ts, impersonate.vue]",
+      "POST /tenant/auth/logout": "企业管理员登出 [store/shared/multi-auth.ts, api/tenant/auth.ts]",
+      "GET /tenant/auth/me": "获取当前企业管理员信息 [store/shared/multi-auth.ts, api/tenant/auth.ts, impersonate.vue]",
       "POST /tenant/auth/impersonate": "平台管理员一键登录验证 [views/tenant/authentication/impersonate.vue]",
       "_未使用": {
         "PUT /tenant/auth/password": "修改密码 - 已定义但未使用"
@@ -182,10 +182,10 @@
 
     "auth": {
       "_status": "部分使用",
-      "POST /api/v1/auth/login/json": "用户登录（JSON 格式）[store/user/auth.ts]",
+      "POST /api/v1/auth/login/json": "用户登录（JSON 格式）[store/shared/multi-auth.ts, api/user/auth.ts]",
       "POST /api/v1/auth/refresh": "刷新 Token [request 拦截器]",
-      "POST /api/v1/auth/logout": "用户登出 [store/user/auth.ts]",
-      "GET /api/v1/auth/me": "获取当前用户信息 [store/user/auth.ts]",
+      "POST /api/v1/auth/logout": "用户登出 [store/shared/multi-auth.ts, api/user/auth.ts]",
+      "GET /api/v1/auth/me": "获取当前用户信息 [store/shared/multi-auth.ts, api/user/auth.ts]",
       "_未使用": {
         "PUT /api/v1/auth/password": "修改密码 - 已定义但未使用"
       }

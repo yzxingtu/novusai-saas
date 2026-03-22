@@ -254,10 +254,6 @@ class AgentRepository(TenantRepository[Agent]):
             )
         )
 
-    async def cascade_escalate_conversations(self, agent_id: int) -> None:
-        """兼容旧接口：升级删除 → 推进总回收站 / Backward-compatible alias for cascade_promote_conversations."""
-        await self.cascade_promote_conversations(agent_id)
-
     async def cascade_restore_conversations(self, agent_id: int) -> None:
         """级联恢复对话记录 / Cascade restore conversations."""
         now = utc_now()

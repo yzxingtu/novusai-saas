@@ -233,10 +233,10 @@ class ImageProcessService:
                 return direct
 
         driver = storage_manager.get_driver(storage_config)
+        visibility = StorageVisibility(attachment.visibility)
 
         # 云存储原生处理，返回重定向 URL
-        if driver.supports_native_image_processing():
-            visibility = StorageVisibility(attachment.visibility)
+        if driver.supports_native_image_processing(visibility):
             url = await driver.get_image_url(
                 attachment.path,
                 params,
@@ -273,6 +273,7 @@ class ImageProcessService:
         """
         storage_config = await self._resolve_storage_config(attachment)
         driver = storage_manager.get_driver(storage_config)
+        visibility = StorageVisibility(attachment.visibility)
 
         url = await self.get_image_url(attachment, params)
 
@@ -280,7 +281,9 @@ class ImageProcessService:
             "attachment_id": attachment.id,
             "url": url,
             "driver": storage_config.driver,
-            "native_processing": driver.supports_native_image_processing(),
+            "native_processing": driver.supports_native_image_processing(
+                visibility
+            ),
             "params": {
                 "width": params.width,
                 "height": params.height,

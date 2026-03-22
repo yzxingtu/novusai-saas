@@ -1,5 +1,6 @@
 /**
- * 技能包管理（平台端） - 表格列、搜索配置
+ * Skill package view helpers (admin)
+ * 技能包页面辅助函数（管理端）
  */
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
@@ -9,30 +10,108 @@ import {
   inputField,
   numberField,
   searchInput,
-  select,
   switchField,
   textareaField,
 } from '#/adapter/form';
 import { $t } from '#/locales';
 
-export function getAudienceColor(audience: string | undefined): string {
-  switch (audience) {
-    case 'admin_only': return 'error';
-    case 'admin_tenant': return 'processing';
-    case 'all': return 'success';
-    default: return 'default';
+function getFallbackTextKey(): string {
+  return 'admin.ai.skillPackage.roleOptions.platform_catalog';
+}
+
+export function getPackageRoleColor(roleKey: null | string | undefined): string {
+  switch (roleKey) {
+    case 'platform_system': {
+      return 'gold';
+    }
+    case 'plugin_managed': {
+      return 'geekblue';
+    }
+    case 'tenant_owned': {
+      return 'green';
+    }
+    case 'platform_catalog': {
+      return 'purple';
+    }
+    default: {
+      return 'default';
+    }
   }
 }
 
-export function getAudienceOptions() {
-  return [
-    { label: $t('admin.ai.agent.audience_options.all'), value: 'all' },
-    { label: $t('admin.ai.agent.audience_options.admin_only'), value: 'admin_only' },
-    { label: $t('admin.ai.agent.audience_options.admin_tenant'), value: 'admin_tenant' },
-  ];
+export function getPackageRoleIcon(roleKey: null | string | undefined): string {
+  switch (roleKey) {
+    case 'platform_system': {
+      return 'lucide:shield-check';
+    }
+    case 'plugin_managed': {
+      return 'lucide:plug';
+    }
+    case 'tenant_owned': {
+      return 'lucide:building-2';
+    }
+    case 'platform_catalog': {
+      return 'lucide:package';
+    }
+    default: {
+      return 'lucide:package';
+    }
+  }
 }
 
-/** 表格列定义 / Table column definitions */
+export function getPackageRoleText(roleKey: null | string | undefined): string {
+  if (!roleKey) {
+    return $t(getFallbackTextKey());
+  }
+  return $t(`admin.ai.skillPackage.roleOptions.${roleKey}`);
+}
+
+export function getRuntimeBindingModeColor(
+  mode: null | string | undefined,
+): string {
+  switch (mode) {
+    case 'direct_agent_skill_grant': {
+      return 'cyan';
+    }
+    default: {
+      return 'default';
+    }
+  }
+}
+
+export function getRuntimeBindingModeText(
+  mode: null | string | undefined,
+): string {
+  if (!mode) {
+    return $t('admin.ai.skillPackage.runtimeBindingOptions.direct_agent_skill_grant');
+  }
+  return $t(`admin.ai.skillPackage.runtimeBindingOptions.${mode}`);
+}
+
+export function getSourceSummaryText(
+  summary: null | string | undefined,
+  sourcePlugin?: null | string,
+): string {
+  if (!summary) {
+    return $t('admin.ai.skillPackage.sourceSummaryOptions.platform_catalog');
+  }
+
+  if (summary.startsWith('plugin:')) {
+    return $t('admin.ai.skillPackage.sourceSummaryValue.plugin', {
+      plugin: sourcePlugin || summary.replace(/^plugin:/, ''),
+    });
+  }
+
+  if (summary.startsWith('tenant:')) {
+    return $t('admin.ai.skillPackage.sourceSummaryValue.tenant', {
+      tenantId: summary.replace(/^tenant:/, ''),
+    });
+  }
+
+  return $t(`admin.ai.skillPackage.sourceSummaryOptions.${summary.replace(':', '_')}`);
+}
+
+/** Table column definitions / 表格列定义 */
 export function useColumns<T = AdminSkillPackageInfo>(
   onActionClick: OnActionClickFn<T>,
 ): VxeTableGridOptions['columns'] {
@@ -40,15 +119,21 @@ export function useColumns<T = AdminSkillPackageInfo>(
     {
       field: 'name',
       title: $t('admin.ai.skillPackage.name'),
-      minWidth: 200,
+      minWidth: 220,
       slots: { default: 'name_cell' },
     },
     {
-      field: 'bind_mode',
-      title: $t('common.bindMode.label'),
-      width: 100,
+      field: 'package_role_key',
+      title: $t('admin.ai.skillPackage.packageRole'),
+      width: 140,
       align: 'center',
-      slots: { default: 'bind_mode_cell' },
+      slots: { default: 'package_role_cell' },
+    },
+    {
+      field: 'source_summary',
+      title: $t('admin.ai.skillPackage.sourceSummary'),
+      minWidth: 200,
+      slots: { default: 'source_summary_cell' },
     },
     {
       field: 'skill_count',
@@ -58,32 +143,11 @@ export function useColumns<T = AdminSkillPackageInfo>(
       slots: { default: 'skill_count_cell' },
     },
     {
-      field: 'target_audience',
-      title: $t('admin.ai.skillPackage.targetAudience'),
-      width: 120,
-      align: 'center',
-      slots: { default: 'targetAudience_cell' },
-    },
-    {
-      field: 'is_recommended',
-      title: $t('admin.ai.skillPackage.isRecommended'),
-      width: 100,
-      align: 'center',
-      slots: { default: 'isRecommended_cell' },
-    },
-    {
       field: 'is_active',
       title: $t('admin.ai.skillPackage.isActive'),
       width: 100,
       align: 'center',
       slots: { default: 'isActive_cell' },
-    },
-    {
-      field: 'created_at',
-      title: $t('admin.common.createdAt'),
-      width: 130,
-      sortable: true,
-      slots: { default: 'createdAt_cell' },
     },
     {
       align: 'center',
@@ -111,10 +175,7 @@ export function useColumns<T = AdminSkillPackageInfo>(
   ];
 }
 
-/**
- * Package form schema (for AI field extraction)
- * 技能包表单 Schema（供 AI 字段提取使用）
- */
+/** Package form schema / 技能包表单 Schema */
 export function usePackageFormSchema(): VbenFormSchema[] {
   return [
     inputField('name', $t('admin.ai.skillPackage.name'), {
@@ -123,10 +184,6 @@ export function usePackageFormSchema(): VbenFormSchema[] {
     }),
     textareaField('description', $t('admin.ai.skillPackage.description'), {
       placeholder: $t('admin.ai.skillPackage.placeholder.inputDescription'),
-    }),
-    select('target_audience', $t('admin.ai.skillPackage.targetAudience'), {
-      options: getAudienceOptions(),
-      required: true,
     }),
     switchField('is_recommended', $t('admin.ai.skillPackage.isRecommended'), {
       defaultValue: false,
@@ -141,15 +198,11 @@ export function usePackageFormSchema(): VbenFormSchema[] {
   ];
 }
 
-/** 搜索表单 Schema / Search form schema */
+/** Search form schema / 搜索表单 Schema */
 export function useGridFormSchema(): VbenFormSchema[] {
   return [
     searchInput('filter[name][ilike]', $t('admin.ai.skillPackage.name'), {
       placeholder: $t('admin.ai.skillPackage.placeholder.searchName'),
-    }),
-    select('filter[target_audience][eq]', $t('admin.ai.skillPackage.targetAudience'), {
-      options: getAudienceOptions(),
-      placeholder: $t('admin.ai.skillPackage.placeholder.allScopes'),
     }),
   ];
 }

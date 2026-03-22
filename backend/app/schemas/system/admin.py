@@ -30,7 +30,7 @@ class AdminResponse(BaseSchema):
     email: str = Field(..., description="邮箱")
     phone: str | None = Field(None, description="手机号")
     nickname: str | None = Field(None, description="昵称")
-    avatar: str | None = Field(None, description="头像 URL")
+    avatar: str | None = Field(None, description="头像附件 ID（兼容旧 URL 值）")
     is_active: bool = Field(..., description="是否激活")
     is_super: bool = Field(..., description="是否超级管理员")
     role_id: int | None = Field(None, description="角色 ID")
@@ -76,7 +76,7 @@ class AdminUpdateRequest(BaseSchema):
     email: str | None = Field(None, description="邮箱")
     phone: str | None = Field(None, description="手机号")
     nickname: str | None = Field(None, description="昵称")
-    avatar: str | None = Field(None, description="头像 URL")
+    avatar: str | None = Field(None, description="头像附件 ID（兼容旧 URL 值）")
     is_active: bool | None = Field(None, description="是否激活")
     is_super: bool | None = Field(None, description="是否超级管理员")
     role_id: int | None = Field(None, description="角色 ID")
@@ -93,7 +93,7 @@ class AdminUpdateProfileRequest(BaseSchema):
     """管理员自助修改个人信息请求 / Admin self-update profile request."""
 
     nickname: str | None = Field(None, max_length=50, description="昵称")
-    avatar: str | None = Field(None, max_length=500, description="头像 URL")
+    avatar: str | None = Field(None, max_length=500, description="头像附件 ID（兼容旧 URL 值）")
     email: str | None = Field(None, max_length=100, description="邮箱")
     phone: str | None = Field(None, max_length=20, description="手机号")
 

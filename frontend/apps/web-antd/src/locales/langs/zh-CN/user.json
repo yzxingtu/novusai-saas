@@ -1,6 +1,6 @@
 {
   "home": {
-    "title": "首页",
+    "title": "AI 服务门户",
     "heroTitle": "智能 AI 驱动的 SaaS 平台",
     "heroDesc": "为企业提供一站式 AI 能力集成方案，助力数字化转型",
     "heroDescExtended": "开箱即用的 AI 驱动 SaaS 框架，多租户、知识库 RAG、智能体、插件扩展一应俱全。",
@@ -39,6 +39,75 @@
     "featureDomainDesc": "企业专属域名、SSL 证书、多租户域名隔离",
     "platformFooter": "© {year} {name}"
   },
+  "portal": {
+    "heroBadge": "AI 服务门户",
+    "greetingEyebrow": "{brand} 智能工作台",
+    "greetingTitle": "你好，{name}",
+    "greetingDesc": "从这里进入智能体广场、继续最近会话、查看常用能力说明，把企业侧 AI 服务集中在一个真正可演示的门户里。",
+    "primaryCta": "浏览智能体广场",
+    "secondaryCta": "进入 AI 工作区",
+    "helpCta": "查看帮助中心",
+    "tenantWelcomeFallback": "登录后即可使用企业专属智能体、知识库问答和文件增强会话。",
+    "platformWelcomeFallback": "面向平台、企业和终端用户的一体化 AI SaaS 运行底座。",
+    "metrics": {
+      "agents": "可用智能体",
+      "sessions": "最近会话",
+      "vision": "支持多模态",
+      "starters": "带推荐问题"
+    },
+    "recommendedAgentsTitle": "推荐智能体",
+    "recommendedAgentsDesc": "优先展示最近用过、支持多模态或已经配置了推荐问题的 AI 服务。",
+    "viewAllAgents": "查看全部智能体",
+    "recommendedQuestions": "推荐开场问题",
+    "openWorkspace": "打开对话工作区",
+    "recentSessionsTitle": "最近会话",
+    "recentSessionsDesc": "继续上次讨论，直接回到已有上下文，不再从零开始。",
+    "quickStartTitle": "快速开始",
+    "quickStartDesc": "三步上手：选智能体、进入会话、再把常用设置补齐。",
+    "helpSnapshotTitle": "帮助摘要",
+    "helpSnapshotDesc": "把首次上手、附件使用、历史会话与导出方式集中说明。",
+    "viewHelpCenter": "进入帮助中心",
+    "stepLabel": "步骤 {index}",
+    "tenantBadge": "企业专属门户",
+    "tenantHeroTitle": "欢迎来到 {brand} 的 AI 服务门户",
+    "tenantQuickStartDesc": "登录后即可进入企业内可见的智能体与历史会话，适合用来做演示或正式上线入口。",
+    "tenantHelpSnapshotDesc": "帮助中心与资源入口会告诉新用户如何快速开始、如何上传文件、以及如何延续会话。",
+    "platformBadge": "平台能力总览",
+    "platformHint": "正式版根路径将由入口契约决定最终归属；当前页面仍保留平台能力介绍，方便联调和演示说明。",
+    "platformOverviewTitle": "门户能力概览",
+    "platformOverviewDesc": "用统一的导航、动态菜单和企业品牌配置，把 AI 服务包装成面向终端用户的前台产品。",
+    "platformNextTitle": "接下来可以做什么",
+    "platformNextDesc": "如果你正在联调企业用户域名，可以优先接入帮助中心、智能体广场和对话页入口。",
+    "capabilityBands": {
+      "agent": {
+        "title": "可直接演示的智能体服务",
+        "desc": "从推荐智能体到最近会话，所有入口都围绕“现在能用什么 AI 服务”来组织。"
+      },
+      "workflow": {
+        "title": "对话、附件与知识增强联动",
+        "desc": "继续沿用现有会话、文件上传、Memory 和知识库链路，不重新发明后端。"
+      },
+      "help": {
+        "title": "新手引导与帮助一体化",
+        "desc": "把开始使用、常见问题和常用跳转集中到帮助中心，降低首次使用门槛。"
+      }
+    },
+    "badges": {
+      "vision": "多模态",
+      "knowledge": "{count} 个知识源",
+      "platform": "平台共享",
+      "tenant": "企业可用",
+      "workflow": "工作流"
+    },
+    "agentFallbackDescription": "已发布，可直接进入对话工作区开始处理问题、文件或知识检索请求。",
+    "agentModelLabel": "当前模型：{model}",
+    "agentReady": "已就绪，可立即开始对话",
+    "openAgent": "立即对话",
+    "emptyAgents": "当前还没有可展示的智能体",
+    "emptySessions": "还没有历史会话，先从一个智能体开始",
+    "untitledConversation": "未命名会话",
+    "agentFallbackName": "智能体"
+  },
   "dashboard": {
     "title": "工作台",
     "welcome": "欢迎回来",
@@ -56,6 +125,112 @@
     "myProfileDesc": "查看和编辑个人信息",
     "changePassword": "修改密码",
     "changePasswordDesc": "更新您的登录密码"
+  },
+  "agents": {
+    "badge": "智能体广场",
+    "title": "智能体广场",
+    "description": "把当前用户可访问的已发布智能体集中到一个浏览型目录里，支持搜索、快速筛选和一键进入对话。",
+    "primaryCta": "打开 AI 工作区",
+    "secondaryCta": "使用帮助中心",
+    "directoryTitle": "按服务能力浏览",
+    "directoryDesc": "通过能力标签和最近使用记录，快速找到适合当前任务的智能体。",
+    "searchPlaceholder": "搜索智能体名称、简介或模型",
+    "lastUsed": "最近使用",
+    "empty": "没有符合当前筛选条件的智能体",
+    "guestTitle": "登录后查看完整智能体目录",
+    "guestDesc": "广场内容会根据当前用户的权限、企业分配和已发布状态动态展示。",
+    "guestCta": "登录用户端",
+    "pagination": "第 {current} / {total} 页",
+    "prevPage": "上一页",
+    "nextPage": "下一页",
+    "filters": {
+      "all": "全部",
+      "recent": "最近使用",
+      "vision": "支持多模态",
+      "knowledge": "带知识增强",
+      "tenant": "企业可用"
+    },
+    "stats": {
+      "agents": "广场智能体",
+      "recent": "近期使用过",
+      "vision": "多模态支持",
+      "starter": "带推荐问题"
+    }
+  },
+  "helpCenter": {
+    "badge": "使用帮助中心",
+    "title": "帮助中心",
+    "description": "把首次上手步骤、常见问题、常用入口和使用建议集中到一个轻量页面中，便于用户快速完成第一次有效对话。",
+    "primaryCta": "去智能体广场",
+    "secondaryCta": "打开 AI 工作区",
+    "loginCta": "登录用户端",
+    "getStartedTitle": "开始使用",
+    "getStartedDesc": "第一次进入用户端时，推荐按这个顺序完成体验闭环。",
+    "bestPracticesTitle": "推荐做法",
+    "bestPracticesDesc": "这些建议可以帮助你更快地得到可复用、可追踪的 AI 结果。",
+    "faqTitle": "常见问题",
+    "faqDesc": "围绕智能体选择、附件上传、历史会话、会话记忆和导出等高频问题做了集中说明。",
+    "askAiCta": "去 AI 工作区提问",
+    "journeys": {
+      "discover": {
+        "title": "先看广场里有哪些智能体",
+        "desc": "用卡片方式查看简介、能力标签和推荐问题，快速判断哪个智能体最适合当前任务。"
+      },
+      "chat": {
+        "title": "进入工作区开始对话",
+        "desc": "从空状态、推荐问题或最近会话继续，保留附件上传、Memory 和导出能力。"
+      },
+      "settings": {
+        "title": "补齐个人资料与账户安全",
+        "desc": "把个人信息和密码设置统一收口到设置页，便于后续长期使用。"
+      }
+    },
+    "resources": {
+      "agents": {
+        "title": "智能体目录",
+        "desc": "查看当前用户可以访问的 AI 服务，并直接进入指定智能体对话。"
+      },
+      "workspace": {
+        "title": "AI 工作区",
+        "desc": "继续历史会话、上传附件、查看 Memory 或导出记录。"
+      },
+      "profile": {
+        "title": "账户与安全",
+        "desc": "个人资料和密码修改都在这里完成，适合做首次登录后的收口入口。"
+      }
+    },
+    "faqs": {
+      "agent": {
+        "question": "应该先选择智能体还是直接进入聊天？",
+        "answer": "如果你已经知道当前任务要用哪个智能体，可以直接从广场进入；如果还不确定，可以先打开 AI 工作区，从推荐问题或最近会话开始。"
+      },
+      "upload": {
+        "question": "上传附件后会发生什么？",
+        "answer": "附件会继续走现有上传与 AI 对话链路，聊天页会保留文件列表、知识增强和上下文提示，不需要切换到其他页面。"
+      },
+      "history": {
+        "question": "如何继续之前的会话？",
+        "answer": "首页会展示最近会话，聊天页左侧也保留历史列表。点击任一条目即可回到原始上下文，不会新建重复对话。"
+      },
+      "memory": {
+        "question": "Memory 面板有什么用？",
+        "answer": "它会显示当前会话被保留下来的偏好、约束和事实，适合在长会话里确认 AI 还记得什么，以及是否需要清理。"
+      },
+      "export": {
+        "question": "聊天记录可以导出吗？",
+        "answer": "可以，聊天页底部依旧保留 Markdown 和 TXT 导出入口，适合把结果整理给同事或沉淀为文档。"
+      },
+      "help": {
+        "question": "如果还不确定下一步做什么？",
+        "answer": "优先按“广场 -> 工作区 -> 设置”的顺序完成第一次体验。如果需要更快起步，可以直接点击推荐问题，让智能体先帮你把任务拆开。"
+      }
+    },
+    "bestPractices": {
+      "clear": "描述任务时尽量给出目标、对象和交付格式，例如“总结这份附件并输出三点结论”。",
+      "attachment": "涉及文档、截图或合同内容时，优先上传附件并在同一轮消息里说明你想得到什么。",
+      "conversation": "尽量沿用已有会话，这样智能体能继续参考之前已经确认过的背景信息。",
+      "export": "当你准备把结果分享给同事或沉淀为资料时，直接使用导出功能而不是手动复制。"
+    }
   },
   "profile": {
     "title": "个人中心",
@@ -100,6 +275,27 @@
     "welcomeTitle": "开始 AI 对话",
     "welcomeDesc": "选择一个智能体，开始您的 AI 对话之旅",
     "inputPlaceholder": "输入消息，输入 {'@'} 搜索智能体...",
+    "workspace": {
+      "badge": "AI 工作区",
+      "title": "把智能体能力集中到一个对话中心",
+      "description": "从首页、智能体广场和帮助中心都可以进入这里。当前页面继续复用现有会话、附件上传、Memory、推荐问题与导出能力。",
+      "primaryCta": "去智能体广场",
+      "secondaryCta": "新建会话",
+      "helpCta": "查看帮助中心",
+      "noAgentSelected": "尚未选择智能体",
+      "agentSummaryFallback": "先从左侧选择一个智能体，或者从首页和广场带着指定智能体进入工作区。",
+      "signals": {
+        "agent": "当前智能体",
+        "knowledge": "知识增强",
+        "knowledgeValue": "{count} 个已绑定知识源",
+        "knowledgeEmpty": "暂无知识源绑定",
+        "history": "历史会话",
+        "historyValue": "{count} 个会话入口",
+        "vision": "多模态能力",
+        "visionReady": "已支持图片理解",
+        "visionStandard": "文本优先模式"
+      }
+    },
     "varsModal": {
       "title": "填写对话变量 — {name}",
       "desc": "请填写以下信息，用于个性化本次对话。",

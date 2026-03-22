@@ -158,7 +158,7 @@ def get_table_rows(
 ### 6.3 Store
 
 - **useCodegenBuilderStore**：主 store，configJson、selectedFieldKey、previewCache 等
-- **useCodegenWizardStore**：`@deprecated`，别名指向 useCodegenBuilderStore
+- **useCodegenWizardStore**：历史旧别名，当前已删除；仓内统一使用 `useCodegenBuilderStore`
 
 
 ## 七、后端生成器概况

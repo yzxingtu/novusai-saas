@@ -47,6 +47,269 @@ import { $t } from '#/locales';
 import { normalizePageKey } from './page-key-utils';
 import { getDefaultPageOperations } from './page-operation-defaults';
 
+interface PageOperationParamSchema {
+  default?: unknown;
+  description?: string;
+  enum?: unknown[];
+  required?: boolean;
+  type?: 'array' | 'boolean' | 'number' | 'object' | 'string';
+}
+
+interface PageOperationContextSnapshot {
+  formOpen: boolean;
+  hasDrawer: boolean;
+  hasModal: boolean;
+}
+
+type PageOperationContextDiff = Record<string, boolean>;
+
+const CONTEXT_DIFF_POLL_INTERVAL_MS = 60;
+const CONTEXT_DIFF_WAIT_TIMEOUT_MS = 480;
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isPageOperationResult(value: unknown): value is PageOperationResult {
+  return (
+    isPlainRecord(value)
+    && typeof value.success === 'boolean'
+    && typeof value.message === 'string'
+  );
+}
+
+function buildMissingParamResult(paramName: string): PageOperationResult {
+  return {
+    success: false,
+    message: $t('shared.pageOperation.msg.paramRequired', {
+      param: paramName,
+    }),
+    error_type: 'invalid_input',
+  };
+}
+
+function buildInvalidParamTypeResult(
+  paramName: string,
+  expectedType: string,
+): PageOperationResult {
+  return {
+    success: false,
+    message: $t('shared.pageOperation.msg.paramInvalidType', {
+      expected: expectedType,
+      param: paramName,
+    }),
+    error_type: 'invalid_input',
+  };
+}
+
+function buildInvalidParamEnumResult(
+  paramName: string,
+  allowedValues: unknown[],
+): PageOperationResult {
+  return {
+    success: false,
+    message: $t('shared.pageOperation.msg.paramInvalidEnum', {
+      allowed: allowedValues.map((value) => String(value)).join(', '),
+      param: paramName,
+    }),
+    error_type: 'invalid_input',
+  };
+}
+
+function parseStructuredParamValue(
+  value: string,
+  expectedType: 'array' | 'object',
+): unknown {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const looksStructured =
+    (expectedType === 'array' && trimmed.startsWith('['))
+    || (expectedType === 'object' && trimmed.startsWith('{'));
+  if (!looksStructured) return undefined;
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return undefined;
+  }
+}
+
+function coerceOperationParamValue(
+  paramName: string,
+  rawValue: unknown,
+  schema: PageOperationParamSchema,
+): PageOperationResult | unknown {
+  const expectedType = schema.type;
+  if (!expectedType) {
+    return rawValue;
+  }
+
+  switch (expectedType) {
+    case 'string': {
+      if (typeof rawValue === 'string') return rawValue;
+      if (Array.isArray(rawValue) || isPlainRecord(rawValue)) {
+        return buildInvalidParamTypeResult(paramName, expectedType);
+      }
+      return String(rawValue);
+    }
+    case 'number': {
+      if (typeof rawValue === 'number' && Number.isFinite(rawValue)) {
+        return rawValue;
+      }
+      if (typeof rawValue === 'string' && rawValue.trim()) {
+        const parsed = Number(rawValue);
+        if (Number.isFinite(parsed)) {
+          return parsed;
+        }
+      }
+      return buildInvalidParamTypeResult(paramName, expectedType);
+    }
+    case 'boolean': {
+      if (typeof rawValue === 'boolean') return rawValue;
+      if (typeof rawValue === 'string') {
+        const normalized = rawValue.trim().toLowerCase();
+        if (['true', '1', 'yes'].includes(normalized)) return true;
+        if (['false', '0', 'no'].includes(normalized)) return false;
+      }
+      if (rawValue === 1) return true;
+      if (rawValue === 0) return false;
+      return buildInvalidParamTypeResult(paramName, expectedType);
+    }
+    case 'array': {
+      if (Array.isArray(rawValue)) return rawValue;
+      if (typeof rawValue === 'string') {
+        const parsed = parseStructuredParamValue(rawValue, 'array');
+        if (Array.isArray(parsed)) return parsed;
+      }
+      return buildInvalidParamTypeResult(paramName, expectedType);
+    }
+    case 'object': {
+      if (isPlainRecord(rawValue)) return rawValue;
+      if (typeof rawValue === 'string') {
+        const parsed = parseStructuredParamValue(rawValue, 'object');
+        if (isPlainRecord(parsed)) return parsed;
+      }
+      return buildInvalidParamTypeResult(paramName, expectedType);
+    }
+    default:
+      return rawValue;
+  }
+}
+
+function validateAndNormalizeOperationParams(
+  operation: PageOperation,
+  rawParams: Record<string, unknown>,
+): PageOperationResult | Record<string, unknown> {
+  if (!isPlainRecord(operation.params)) {
+    return rawParams;
+  }
+
+  const normalizedParams: Record<string, unknown> = { ...rawParams };
+  for (const [paramName, rawSchema] of Object.entries(operation.params)) {
+    if (!isPlainRecord(rawSchema)) continue;
+
+    const schema = rawSchema as PageOperationParamSchema;
+    const rawValue = rawParams[paramName];
+    const hasValue = !(
+      rawValue === undefined
+      || rawValue === null
+      || (typeof rawValue === 'string' && rawValue.trim() === '')
+    );
+
+    if (!hasValue) {
+      if (schema.default !== undefined) {
+        normalizedParams[paramName] = schema.default;
+        continue;
+      }
+      if (schema.required) {
+        return buildMissingParamResult(paramName);
+      }
+      continue;
+    }
+
+    const coerced = coerceOperationParamValue(paramName, rawValue, schema);
+    if (isPageOperationResult(coerced)) {
+      return coerced;
+    }
+
+    if (
+      Array.isArray(schema.enum)
+      && schema.enum.length > 0
+      && !schema.enum.some((candidate) => candidate === coerced)
+    ) {
+      return buildInvalidParamEnumResult(paramName, schema.enum);
+    }
+
+    normalizedParams[paramName] = coerced;
+  }
+
+  return normalizedParams;
+}
+
+function getContextSnapshot(pageKey: string): PageOperationContextSnapshot {
+  return {
+    formOpen: formStateTracker.isOpenWithFallback(pageKey),
+    hasModal: !!document.querySelector('.ant-modal-wrap:not(.ant-modal-wrap-hidden)'),
+    hasDrawer: !!document.querySelector('.ant-drawer-open'),
+  };
+}
+
+function buildContextDiff(
+  before: PageOperationContextSnapshot,
+  after: PageOperationContextSnapshot,
+): PageOperationContextDiff {
+  return {
+    form_opened: !before.formOpen && after.formOpen,
+    form_closed: before.formOpen && !after.formOpen,
+    modal_opened: !before.hasModal && after.hasModal,
+    modal_closed: before.hasModal && !after.hasModal,
+    drawer_opened: !before.hasDrawer && after.hasDrawer,
+    drawer_closed: before.hasDrawer && !after.hasDrawer,
+  };
+}
+
+function hasContextDiffChange(diff: PageOperationContextDiff): boolean {
+  return Object.values(diff).some(Boolean);
+}
+
+function mergeContextDiffs(
+  ...diffs: Array<Record<string, unknown> | undefined>
+): PageOperationContextDiff {
+  const merged: PageOperationContextDiff = {};
+  for (const diff of diffs) {
+    if (!isPlainRecord(diff)) continue;
+    for (const [key, value] of Object.entries(diff)) {
+      if (typeof value === 'boolean') {
+        merged[key] = Boolean(merged[key]) || value;
+      }
+    }
+  }
+  return merged;
+}
+
+async function waitForContextSnapshotChange(
+  pageKey: string,
+  before: PageOperationContextSnapshot,
+): Promise<PageOperationContextSnapshot> {
+  let elapsed = 0;
+  let latest = getContextSnapshot(pageKey);
+
+  while (elapsed < CONTEXT_DIFF_WAIT_TIMEOUT_MS) {
+    const diff = buildContextDiff(before, latest);
+    if (hasContextDiffChange(diff)) {
+      return latest;
+    }
+
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, CONTEXT_DIFF_POLL_INTERVAL_MS);
+    });
+    elapsed += CONTEXT_DIFF_POLL_INTERVAL_MS;
+    latest = getContextSnapshot(pageKey);
+  }
+
+  return latest;
+}
+
 /** Operation execution result / 操作执行结果 */
 export interface PageOperationResult {
   /** Whether execution succeeded / 是否执行成功 */
@@ -253,35 +516,28 @@ export async function executePageOperation(
     };
   }
 
-  // Snapshot form state before execution for context_diff
-  const beforeFormOpen = formStateTracker.isOpen(nk);
-  const beforeHasModal = !!document.querySelector(
-    '.ant-modal-wrap:not(.ant-modal-wrap-hidden)',
-  );
-  const beforeHasDrawer = !!document.querySelector('.ant-drawer-open');
+  const normalizedParams = validateAndNormalizeOperationParams(operation, params);
+  if (isPageOperationResult(normalizedParams)) {
+    return normalizedParams;
+  }
+
+  const beforeSnapshot = getContextSnapshot(nk);
 
   try {
-    const result = await operation.handler(params);
-
-    // Brief delay to let DOM settle after the operation
-    await new Promise<void>((r) => setTimeout(r, 120));
-
-    const afterFormOpen = formStateTracker.isOpen(nk);
-    const afterHasModal = !!document.querySelector(
-      '.ant-modal-wrap:not(.ant-modal-wrap-hidden)',
+    const result = await operation.handler(normalizedParams);
+    const afterSnapshot = await waitForContextSnapshotChange(nk, beforeSnapshot);
+    const observedContextDiff = buildContextDiff(beforeSnapshot, afterSnapshot);
+    const resultData = isPlainRecord(result.data) ? result.data : {};
+    const mergedContextDiff = mergeContextDiffs(
+      observedContextDiff,
+      isPlainRecord(resultData.context_diff)
+        ? (resultData.context_diff as Record<string, unknown>)
+        : undefined,
     );
-    const afterHasDrawer = !!document.querySelector('.ant-drawer-open');
 
     result.data = {
-      ...result.data,
-      context_diff: {
-        form_opened: !beforeFormOpen && afterFormOpen,
-        form_closed: beforeFormOpen && !afterFormOpen,
-        modal_opened: !beforeHasModal && afterHasModal,
-        modal_closed: beforeHasModal && !afterHasModal,
-        drawer_opened: !beforeHasDrawer && afterHasDrawer,
-        drawer_closed: beforeHasDrawer && !afterHasDrawer,
-      },
+      ...resultData,
+      context_diff: mergedContextDiff,
     };
 
     return result;

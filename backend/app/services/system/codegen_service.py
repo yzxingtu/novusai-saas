@@ -13,6 +13,8 @@ from typing import Any
 
 from app.codegen.config_parser import ConfigParser
 from app.codegen.db_introspector import DbIntrospector
+from app.codegen.preset_loader import get_preset as load_codegen_preset
+from app.codegen.preset_loader import list_presets as list_codegen_presets
 from dataclasses import dataclass
 
 from app.codegen.file_writer import FileWriter, WriteResult
@@ -24,7 +26,7 @@ from app.codegen.zip_exporter import export_zip, format_code
 from app.core.base_service import GlobalService
 from app.core.i18n import _
 from app.enums.codegen import CodegenConfigStatusEnum
-from app.exceptions import NotFoundException
+from app.exceptions import ConflictException, NotFoundException
 from app.models.system.codegen_config import CodegenConfig
 from app.models.system.codegen_config_version import CodegenConfigVersion
 from app.repositories.system.codegen_config_repository import (
@@ -46,6 +48,15 @@ class GenerateOutput:
     resource: str | None = None
     module: str | None = None
     table_name: str | None = None
+
+
+@dataclass(frozen=True)
+class CodegenDeleteGuard:
+    """Delete guard result / 删除保护判断结果."""
+
+    allowed: bool
+    reason_code: str | None = None
+    message: str | None = None
 
 
 class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
@@ -124,6 +135,16 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         with sync_session_factory() as session:
             result = session.execute(text("SELECT to_regclass(:tbl)"), {"tbl": table_name})
             return result.scalar_one_or_none() is not None
+
+    @staticmethod
+    def list_available_presets() -> list[dict[str, Any]]:
+        """List available presets / 列出全部可用预设."""
+        return list_codegen_presets()
+
+    @staticmethod
+    def get_preset_detail(name: str) -> dict[str, Any] | None:
+        """Get preset detail / 获取预设详情."""
+        return load_codegen_preset(name)
 
     @classmethod
     def create_standalone(cls) -> "CodegenService":
@@ -269,7 +290,9 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         if not source:
             raise NotFoundException(message=_("codegen.config_not_found"))
 
-        new_resource = f"{source.resource}_copy"
+        duplicate_suffix = _("codegen.duplicate_suffix")
+        new_resource = await self._allocate_duplicate_resource(source.resource)
+        new_name = await self._allocate_duplicate_name(source.name, duplicate_suffix)
         config_json = dict(source.config_json) if source.config_json else {}
         config_json["resource"] = new_resource
         config_json["module"] = source.module
@@ -277,7 +300,7 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         config_json["display_name_en"] = source.display_name_en
 
         copy_data: dict[str, Any] = {
-            "name": f"{source.name}{_('codegen.duplicate_suffix')}",
+            "name": new_name,
             "resource": new_resource,
             "module": source.module,
             "display_name": source.display_name,
@@ -288,9 +311,99 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         }
         return await self.create(copy_data)
 
+    async def _allocate_duplicate_resource(self, base_resource: str) -> str:
+        """Allocate a unique resource name for duplicates / 为复制配置分配唯一 resource."""
+        candidate = f"{base_resource}_copy"
+        index = 2
+        while await self.get_by_resource(candidate):
+            candidate = f"{base_resource}_copy_{index}"
+            index += 1
+        return candidate
+
+    async def _allocate_duplicate_name(self, base_name: str, suffix: str) -> str:
+        """Allocate a unique config name for duplicates / 为复制配置分配唯一名称."""
+        existing = await self.get_list(limit=2000)
+        existing_names = {str(item.name or "").strip() for item in existing}
+        candidate = f"{base_name}{suffix}"
+        index = 2
+        while candidate in existing_names:
+            candidate = f"{base_name}{suffix} {index}"
+            index += 1
+        return candidate
+
+    @staticmethod
+    def build_delete_guard(
+        config: CodegenConfig,
+        *,
+        manifest_present: bool,
+    ) -> CodegenDeleteGuard:
+        """Build delete guard info from config state / 根据配置状态构建删除保护信息."""
+        status = str(config.status or "")
+        if manifest_present:
+            return CodegenDeleteGuard(
+                allowed=False,
+                reason_code="manifest_present",
+                message=_("codegen.delete_guard.manifest_present"),
+            )
+        if status == CodegenConfigStatusEnum.ROLLED_BACK.value:
+            return CodegenDeleteGuard(allowed=True)
+        if status in {
+            CodegenConfigStatusEnum.GENERATED.value,
+            CodegenConfigStatusEnum.APPLIED.value,
+        }:
+            return CodegenDeleteGuard(
+                allowed=False,
+                reason_code="generated_state",
+                message=_("codegen.delete_guard.generated_state"),
+            )
+        if config.generated_files or config.last_generated_at or (config.generation_count or 0) > 0:
+            return CodegenDeleteGuard(
+                allowed=False,
+                reason_code="generation_history_present",
+                message=_("codegen.delete_guard.generation_history_present"),
+            )
+        return CodegenDeleteGuard(allowed=True)
+
+    async def get_delete_guard(
+        self,
+        config_id: int,
+        *,
+        project_root: Path | None = None,
+    ) -> CodegenDeleteGuard:
+        """Get delete guard info for a config / 获取配置删除保护信息."""
+        config = await self.get_by_id(config_id)
+        if not config:
+            raise NotFoundException(message=_("codegen.config_not_found"))
+        root = project_root or _PROJECT_ROOT
+        manifest = ManifestManager(root)
+        manifest_present = manifest.find_entry_for_config(config.resource, config.id) is not None
+        return self.build_delete_guard(config, manifest_present=manifest_present)
+
+    async def assert_can_delete(
+        self,
+        config_id: int,
+        *,
+        project_root: Path | None = None,
+    ) -> CodegenDeleteGuard:
+        """Raise when deleting is unsafe / 删除不安全时抛出异常."""
+        guard = await self.get_delete_guard(config_id, project_root=project_root)
+        if guard.allowed:
+            return guard
+        raise ConflictException(
+            message=guard.message or _("common.failed"),
+            data={
+                "reason_code": guard.reason_code,
+            },
+        )
+
     # ==================== Preview / Generate / Rollback / Validate ====================
 
-    def validate(self, config_json: dict[str, Any]) -> dict[str, Any]:
+    def validate(
+        self,
+        config_json: dict[str, Any],
+        *,
+        mode: str = "generate",
+    ) -> dict[str, Any]:
         """
         校验配置 JSON / Validate config JSON.
 
@@ -300,11 +413,13 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         parser = ConfigParser()
         try:
             parsed = parser.parse(config_json)
-            errors = parser.validate(parsed)
+            require_fields = mode != "draft"
+            errors = parser.validate(parsed, require_fields=require_fields)
             return {
                 "valid": len(errors) == 0,
                 "errors": [{"code": e.code, "message": e.message, "path": e.path, "field": e.field} for e in errors],
                 "warnings": [],
+                "mode": mode,
             }
         except Exception as e:
             # 脱敏：不向用户暴露堆栈 / Sanitize: do not expose stack trace
@@ -313,7 +428,12 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
                 safe_msg = _("codegen.validation.parse_error")
             else:
                 safe_msg = str(e)[:200]  # 短错误可保留，截断防泄露
-            return {"valid": False, "errors": [{"code": "parse_error", "message": safe_msg, "path": "", "field": ""}], "warnings": []}
+            return {
+                "valid": False,
+                "errors": [{"code": "parse_error", "message": safe_msg, "path": "", "field": ""}],
+                "warnings": [],
+                "mode": mode,
+            }
 
     def preview(
         self,

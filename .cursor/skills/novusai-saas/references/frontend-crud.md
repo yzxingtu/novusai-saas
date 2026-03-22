@@ -355,7 +355,7 @@ Token 按 URL 前缀自动选择：`/admin/*` → admin，`/tenant/*` → tenant
 | 目录 / TS | kebab-case | `admin-user/` |
 | Vue 组件 | PascalCase | `UserList.vue` |
 | API 函数 | `{action}{Resource}Api` | `adminLoginApi` |
-| Store | `use{Endpoint}AuthStore` | `useAdminAuthStore` |
+| Store | `use{Name}Store` | `useMultiAuthStore` |
 | Composable | `use{Name}` | `useCrudPage` |
 
 ---

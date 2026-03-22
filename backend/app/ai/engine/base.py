@@ -33,6 +33,7 @@ from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.common import UserRoleEnum
 from app.enums.log import UserTypeEnum as LogUserTypeEnum
+from app.exceptions import BusinessException
 from app.models.ai.agent import Agent
 
 from .types import ExecutionRequest, ExecutionResult, PreparedExecution
@@ -242,7 +243,7 @@ class BaseEngine(ABC):
         desc_line = f"\nPage entity: {entity_desc}\n" if entity_desc else "\n"
 
         tool_names = [t.name for t in (tools or [])]
-        has_dedicated_editor_tools = any(n.startswith("pageop_") for n in tool_names)
+        has_dedicated_page_tools = any(n.startswith("pageop_") for n in tool_names)
         has_data_tools = any(n.startswith("data_") for n in tool_names)
         data_distinction_note = ""
         if has_data_tools:
@@ -251,13 +252,18 @@ class BaseEngine(ABC):
                 "use data_* tools instead of page operations."
             )
 
-        if has_dedicated_editor_tools:
-            # Preferred: pageop_* for expanded ops; invoke_page_operation for others (17 ops).
+        if has_dedicated_page_tools:
+            # Preferred: pageop_* for expanded ops; invoke_page_operation for others.
             # 优先使用 pageop_* 调用已展开操作；无专用工具的操作用 invoke_page_operation。
             pageop_tool_ops = {
                 n.removeprefix("pageop_") for n in tool_names if n.startswith("pageop_")
             }
+            dedicated_ops = [name for name in op_names if name in pageop_tool_ops]
             other_ops = [name for name in op_names if name not in pageop_tool_ops]
+            dedicated_hint = (
+                f"\nDedicated pageop_* tools available for: {', '.join(dedicated_ops)}"
+                if dedicated_ops else ""
+            )
             other_ops_hint = ""
             if other_ops:
                 other_ops_hint = (
@@ -266,19 +272,50 @@ class BaseEngine(ABC):
                     f'Format: invoke_page_operation(page_key="{page_key}", '
                     f'operation_name="<name>", params={{...}})'
                 )
+            editor_flow_hint = ""
+            if "get_editor_html" in pageop_tool_ops:
+                editor_flow_hint = (
+                    "\nEditor order: 1) pageop_get_editor_html to read; "
+                    "2) pageop_replace_section for partial edits; "
+                    "3) pageop_replace_content only for full rewrite; "
+                    "4) pageop_update_title for metadata title (not body H1)."
+                )
             return (
                 f"\n\n[PAGE OPERATIONS]\n"
                 f"Current page: {page_key}{desc_line}"
                 f"Preferred: use dedicated pageop_* tools directly when available.\n"
-                f"Order: 1) pageop_get_editor_html to read; 2) pageop_replace_section for partial edits; "
-                f"3) pageop_replace_content only for full rewrite; "
-                f"4) pageop_update_title for metadata title (not body H1)."
+                f"{dedicated_hint}"
+                f"{editor_flow_hint}"
                 f"{other_ops_hint}\n"
                 f"Do NOT show HTML, JSON, tool params or call examples to the user. "
                 f"Tools are for internal execution; return natural language results only."
                 f"{data_distinction_note}"
             )
         # Fallback: invoke_page_operation format for non-rich-text pages
+        read_example = ""
+        if "read_visible_rows" in op_names:
+            read_example = (
+                f'\nRead rows: invoke_page_operation(page_key="{page_key}", '
+                f'operation_name="read_visible_rows", params={{}})'
+            )
+        elif "get_form_state" in op_names:
+            read_example = (
+                f'\nRead form: invoke_page_operation(page_key="{page_key}", '
+                f'operation_name="get_form_state", params={{}})'
+            )
+        elif "get_editor_html" in op_names:
+            read_example = (
+                f'\nRead editor: invoke_page_operation(page_key="{page_key}", '
+                f'operation_name="get_editor_html", params={{}})'
+            )
+
+        search_example = ""
+        if "search" in op_names:
+            search_example = (
+                f'\nSearch example: invoke_page_operation(page_key="{page_key}", '
+                f'operation_name="search", params={{"keyword": "<query>"}})'
+            )
+
         has_replace_section = "replace_section" in op_names
         section_example = ""
         if has_replace_section:
@@ -297,8 +334,8 @@ class BaseEngine(ABC):
             f'page_key="{page_key}", '
             f'operation_name="<pick one>", '
             f"params={{...}})\n"
-            f'Read: invoke_page_operation(page_key="{page_key}", '
-            f'operation_name="get_editor_html", params={{}})'
+            f"{read_example}"
+            f"{search_example}"
             f"{section_example}"
             f"{data_distinction_note}"
         )
@@ -404,11 +441,11 @@ class BaseEngine(ABC):
                 kb_weights=agent_kb_weights,
             )
 
-        # 4. Get tool list + expand editor tools (before optimize) + optimize
+        # 4. Get tool list + expand dedicated page tools (before optimize) + optimize
         tools = skill_result.tools if skill_result else []
         if tools:
-            from app.ai.tools.page_tool_expander import expand_editor_tools
-            tools = expand_editor_tools(tools, request.input_variables)
+            from app.ai.tools.page_tool_expander import expand_page_tools
+            tools = expand_page_tools(tools, request.input_variables)
 
         optimize_event: dict[str, Any] | None = None
         if tools:
@@ -448,6 +485,8 @@ class BaseEngine(ABC):
             )
             router = ModelRouter(self.db)
             route_result = await router.route(agent, request, estimated_tokens, tools=tools)
+        except BusinessException:
+            raise
         except Exception as _routing_exc:
             logger.warning("ModelRouter integration failed: {}", str(_routing_exc))
 

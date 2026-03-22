@@ -1328,10 +1328,6 @@ class BaseRepository(Generic[ModelType]):
         await self.db.refresh(instance)
         return instance
 
-    async def escalate_delete_by_id(self, id: int) -> ModelType | None:
-        """兼容旧接口：升级删除 → 推进总回收站 / Backward-compatible alias for promote_to_global_by_id"""
-        return await self.promote_to_global_by_id(id)
-
     async def permanent_delete(
         self,
         id: int,

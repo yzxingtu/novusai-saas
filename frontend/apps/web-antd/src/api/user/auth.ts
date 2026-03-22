@@ -239,6 +239,7 @@ export interface RegisterParams {
   captchaChallengeId?: string;
   captchaProviderCode?: string;
   captchaSolution?: string;
+  captchaType?: string;
   confirmPassword: string;
   email: string;
   nickname?: string;
@@ -296,6 +297,9 @@ export async function userRegisterApi(
   }
   if (data.captchaSolution) {
     requestBody.captcha_solution = data.captchaSolution;
+  }
+  if (data.captchaType) {
+    requestBody.captcha_type = data.captchaType;
   }
   if (data.captchaProviderCode) {
     requestBody.captcha_provider_code = data.captchaProviderCode;

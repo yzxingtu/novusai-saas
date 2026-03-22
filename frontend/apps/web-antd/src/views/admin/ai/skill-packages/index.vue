@@ -77,8 +77,11 @@ import {
 import { getSkillTypeColor, getSkillTypeText } from '../skills/data';
 import SkillForm from '../skills/modules/form.vue';
 import {
-  getBindModeColor,
-  getBindModeText,
+  getPackageRoleColor,
+  getPackageRoleText,
+  getRuntimeBindingModeColor,
+  getRuntimeBindingModeText,
+  getSourceSummaryText,
   usePackageFormSchema,
 } from './data';
 import PackageForm from './modules/form.vue';
@@ -943,8 +946,7 @@ usePageAIOperations({
                     {{ pkg.name }}
                   </span>
                   <Tag
-                    v-if="pkg.is_system"
-                    color="purple"
+                    :color="getPackageRoleColor(pkg.package_role_key)"
                     class="shrink-0"
                     style="
                       padding: 0 3px;
@@ -953,11 +955,41 @@ usePageAIOperations({
                       line-height: 14px;
                     "
                   >
-                    {{ $t('admin.ai.skillPackage.system') }}
+                    {{ getPackageRoleText(pkg.package_role_key) }}
                   </Tag>
-                  <Tooltip v-if="pkg.source_plugin" :title="pkg.source_plugin">
+                  <Tag
+                    v-if="pkg.is_recommended"
+                    color="gold"
+                    class="shrink-0"
+                    style="
+                      padding: 0 3px;
+                      margin: 0;
+                      font-size: 10px;
+                      line-height: 14px;
+                    "
+                  >
+                    {{ $t('admin.ai.skillPackage.isRecommended') }}
+                  </Tag>
+                </div>
+                <div class="mt-0.5 flex items-center gap-1.5">
+                  <Tag
+                    :color="
+                      getRuntimeBindingModeColor(pkg.runtime_binding_mode)
+                    "
+                    style="
+                      padding: 0 3px;
+                      margin: 0;
+                      font-size: 10px;
+                      line-height: 14px;
+                    "
+                  >
+                    {{ getRuntimeBindingModeText(pkg.runtime_binding_mode) }}
+                  </Tag>
+                  <Tooltip
+                    :title="getSourceSummaryText(pkg.source_summary, pkg.source_plugin)"
+                  >
                     <Tag
-                      color="cyan"
+                      color="blue"
                       class="shrink-0"
                       style="
                         padding: 0 3px;
@@ -966,29 +998,18 @@ usePageAIOperations({
                         line-height: 14px;
                       "
                     >
-                      <IconifyIcon
-                        icon="lucide:plug"
-                        class="mr-0.5 inline size-2.5"
-                      />
-                      {{ $t('admin.ai.skillPackage.sourcePlugin') }}
+                      {{ getSourceSummaryText(pkg.source_summary, pkg.source_plugin) }}
                     </Tag>
                   </Tooltip>
                 </div>
-                <div class="mt-0.5 flex items-center gap-1.5">
-                  <Tag
-                    :color="getBindModeColor(pkg.bind_mode)"
-                    style="
-                      padding: 0 3px;
-                      margin: 0;
-                      font-size: 10px;
-                      line-height: 14px;
-                    "
-                  >
-                    {{ getBindModeText(pkg.bind_mode) }}
-                  </Tag>
+                <div class="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
                   <span class="whitespace-nowrap text-xs text-muted-foreground">
                     {{ pkg.skill_count }}
                     {{ $t('admin.ai.skillPackage.detail.skills') }}
+                  </span>
+                  <span class="whitespace-nowrap text-xs text-muted-foreground">
+                    {{ pkg.configured_valves_count }}/{{ pkg.valves_field_count }}
+                    {{ $t('admin.ai.skillPackage.detail.envVars') }}
                   </span>
                 </div>
               </div>
@@ -1092,8 +1113,7 @@ usePageAIOperations({
                 {{ selectedPackage.name }}
               </span>
               <Tag
-                v-if="selectedPackage.is_system"
-                color="purple"
+                :color="getPackageRoleColor(selectedPackage.package_role_key)"
                 style="
                   padding: 0 4px;
                   margin: 0;
@@ -1101,7 +1121,7 @@ usePageAIOperations({
                   line-height: 16px;
                 "
               >
-                {{ $t('admin.ai.skillPackage.system') }}
+                {{ getPackageRoleText(selectedPackage.package_role_key) }}
               </Tag>
               <Tag
                 :color="selectedPackage.is_active ? 'success' : 'default'"
@@ -1120,11 +1140,15 @@ usePageAIOperations({
                 {{
                   selectedPackage.is_active
                     ? $t('admin.common.enabled')
-                    : $t('admin.common.disabled')
+                  : $t('admin.common.disabled')
                 }}
               </Tag>
               <Tag
-                :color="getBindModeColor(selectedPackage.bind_mode)"
+                :color="
+                  getRuntimeBindingModeColor(
+                    selectedPackage.runtime_binding_mode,
+                  )
+                "
                 style="
                   padding: 0 4px;
                   margin: 0;
@@ -1132,20 +1156,34 @@ usePageAIOperations({
                   line-height: 16px;
                 "
               >
-                {{ getBindModeText(selectedPackage.bind_mode) }}
+                {{
+                  getRuntimeBindingModeText(
+                    selectedPackage.runtime_binding_mode,
+                  )
+                }}
               </Tag>
             </div>
-            <span
-              v-if="selectedPackage.description"
-              class="text-xs text-muted-foreground"
-            >
-              {{ selectedPackage.description }}
-            </span>
+            <div class="flex flex-col gap-0.5">
+              <span
+                v-if="selectedPackage.description"
+                class="text-xs text-muted-foreground"
+              >
+                {{ selectedPackage.description }}
+              </span>
+              <span class="text-xs text-muted-foreground">
+                {{
+                  getSourceSummaryText(
+                    selectedPackage.source_summary,
+                    selectedPackage.source_plugin,
+                  )
+                }}
+              </span>
+            </div>
           </div>
         </div>
         <Space>
           <Button
-            v-if="selectedPackage.valves_schema"
+            v-if="selectedPackage.valves_field_count > 0"
             size="small"
             @click="onOpenValvesConfig"
           >

@@ -11,12 +11,13 @@ from __future__ import annotations
 
 import dataclasses
 import time
+from datetime import date
 from decimal import Decimal
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.quota import QuotaExceeded, QuotaManager
+from app.ai.quota import QuotaCheckResult, QuotaExceeded, QuotaManager
 from app.ai.rate_limiter import RateLimiter, RateLimitExceeded
 from app.ai.types import (
     ChatMessage,
@@ -32,6 +33,21 @@ from app.models.ai import AIModel, AIProvider, ProviderApiKey
 from app.services.ai.call_log_service import CallLogService
 
 logger = LogManager.get_logger("ai")
+
+
+@dataclasses.dataclass(frozen=True)
+class UsageMeteringContext:
+    """
+    Usage metering context / 用量计量上下文
+
+    Captures request-start values so response completion can update the same
+    rate-limit and quota buckets deterministically.
+    保存请求开始时的计量上下文，确保响应阶段写回同一组限流/配额桶。
+    """
+
+    request_minute_key: int | None = None
+    request_stat_date: date | None = None
+    quota_check: QuotaCheckResult = QuotaCheckResult()
 
 
 class UsageRecorder:
@@ -78,13 +94,19 @@ class UsageRecorder:
         model_id: int,
         ai_model: AIModel,
         estimated_tokens: int,
-    ) -> None:
+    ) -> UsageMeteringContext:
         """
         Atomic rate limit + quota check (executed only for tenant calls). / 原子检查速率限制 + 配额（仅企业调用时执行）。
 
         Rate limit priority: tenant custom > model default.
         速率限制优先级：企业自定义 > 模型默认值。
         """
+        current_time = int(time.time())
+        metering_context = UsageMeteringContext(
+            request_minute_key=current_time // 60,
+            request_stat_date=date.today(),
+        )
+
         # Determine effective rate limits: prioritize tenant-specific config / 确定有效的速率限制：优先使用企业专属配置
         rpm_limit = ai_model.rpm_limit
         tpm_limit = ai_model.tpm_limit
@@ -93,9 +115,8 @@ class UsageRecorder:
             from app.services.ai.tenant_rate_limit_service import TenantRateLimitService
             rate_svc = TenantRateLimitService(self.db, tenant_id)
             effective = await rate_svc.get_effective_rate_limits(model_id)
-            if effective.get("source") == "tenant":
-                rpm_limit = effective["rpm_limit"]
-                tpm_limit = effective["tpm_limit"]
+            rpm_limit = effective["rpm_limit"]
+            tpm_limit = effective["tpm_limit"]
 
         try:
             await RateLimiter.check_and_record(
@@ -104,6 +125,7 @@ class UsageRecorder:
                 rpm_limit=rpm_limit,
                 tpm_limit=tpm_limit,
                 estimated_tokens=estimated_tokens,
+                current_time=current_time,
             )
         except RateLimitExceeded as e:
             logger.warning(
@@ -113,10 +135,11 @@ class UsageRecorder:
             raise
 
         try:
-            await self.quota_manager.check_quota(
+            quota_check = await self.quota_manager.check_quota(
                 tenant_id=tenant_id,
                 model_id=model_id,
                 estimated_tokens=estimated_tokens,
+                request_stat_date=metering_context.request_stat_date,
             )
         except QuotaExceeded as e:
             logger.warning(
@@ -124,6 +147,8 @@ class UsageRecorder:
                 tenant_id, str(e),
             )
             raise
+
+        return dataclasses.replace(metering_context, quota_check=quota_check)
 
     async def record_usage_and_adjust(
         self,
@@ -137,24 +162,33 @@ class UsageRecorder:
         estimated_input: int,
         latency_ms: int,
         user_id: int | None = None,
+        metering_context: UsageMeteringContext | None = None,
     ) -> None:
         """
         Adjust TPM/quota from estimated to actual. / 将 TPM/配额从预估调整为实际。
         """
+        context = metering_context or UsageMeteringContext(
+            request_minute_key=int(time.time()) // 60,
+            request_stat_date=date.today(),
+        )
+
         if estimated_input > 0:
             await RateLimiter.adjust_tpm_after_response(
                 tenant_id=tenant_id,
                 model_id=model_id,
                 estimated_tokens=estimated_input,
                 actual_tokens=total_tokens,
-                request_minute_key=int(time.time()) // 60,
+                request_minute_key=context.request_minute_key,
             )
-            await self.quota_manager.adjust_usage(
-                tenant_id=tenant_id,
-                model_id=model_id,
-                estimated_tokens=estimated_input,
-                actual_tokens=total_tokens,
-            )
+
+        await self.quota_manager.adjust_usage(
+            tenant_id=tenant_id,
+            model_id=model_id,
+            estimated_tokens=estimated_input,
+            actual_tokens=total_tokens,
+            quota_result=context.quota_check,
+            stat_date=context.request_stat_date,
+        )
 
     async def log_call_failure(
         self,
@@ -177,6 +211,7 @@ class UsageRecorder:
         billing_context: dict[str, Any] | None = None,
         routed_model_id: int | None = None,
         route_reason: str | None = None,
+        metering_context: UsageMeteringContext | None = None,
     ) -> None:
         """
         记录失败调用日志到 DB（用于审计追踪）/ Log failed call to DB (for audit trail).
@@ -262,6 +297,7 @@ class UsageRecorder:
                 estimated_input=estimated_input,
                 latency_ms=latency_ms,
                 user_id=user_id,
+                metering_context=metering_context,
             )
 
         api_key.increment_usage()
@@ -331,4 +367,4 @@ class UsageRecorder:
         return data
 
 
-__all__ = ["UsageRecorder"]
+__all__ = ["UsageMeteringContext", "UsageRecorder"]

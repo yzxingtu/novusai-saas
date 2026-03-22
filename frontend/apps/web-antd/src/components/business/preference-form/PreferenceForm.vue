@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import type { WritableComputedRef } from 'vue';
+
 /**
- * Global preference form using Vben's built-in preference blocks.
- * 使用 Vben 内置偏好块组件的全局偏好表单。
+ * Global preference form with compact section cards.
+ * 使用更细颗粒卡片分区的全局偏好表单。
  */
 import type {
   BreadcrumbStyleType,
@@ -19,13 +21,9 @@ import type { PreferencesData } from '#/api/shared/types';
 
 import { computed, nextTick, reactive, ref, watch } from 'vue';
 
-import type { SegmentedItem } from '@vben/layouts/preference-blocks';
-
-import { usePreferences } from '@vben/preferences';
-
+import { IconifyIcon } from '@vben/icons';
 import {
   Animation,
-  Block,
   Breadcrumb,
   BuiltinTheme,
   ColorMode,
@@ -41,9 +39,9 @@ import {
   SwitchItem,
   Tabbar,
   Theme,
-  VbenSegmented,
   Widget,
 } from '@vben/layouts/preference-blocks';
+import { usePreferences } from '@vben/preferences';
 
 import { Alert, Input, Switch } from 'ant-design-vue';
 
@@ -62,7 +60,18 @@ const emit = defineEmits<{
   'update:modelValue': [value: PreferencesData];
 }>();
 
-const form = reactive<Record<string, any>>({});
+const form = reactive<PreferencesData>({});
+const PREFERENCE_FORM_SECTIONS = [
+  { anchor: 'preference-section-appearance', id: 'appearance' },
+  { anchor: 'preference-section-layout', id: 'layout' },
+  { anchor: 'preference-section-shortcut', id: 'shortcut' },
+  { anchor: 'preference-section-general', id: 'general' },
+] as const;
+
+const panelClass =
+  'rounded-[24px] border border-border/70 bg-card p-4 shadow-sm sm:p-5';
+const subPanelClass =
+  'rounded-2xl border border-border/60 bg-background/80 p-3.5';
 
 watch(
   () => props.modelValue,
@@ -71,7 +80,7 @@ watch(
       Object.assign(form, val);
     }
   },
-  { immediate: true, deep: true },
+  { deep: true, immediate: true },
 );
 
 function onFieldChange() {
@@ -89,33 +98,29 @@ const {
   isSideNav,
 } = usePreferences();
 
-const activeTab = ref('appearance');
-
-const tabs = computed((): SegmentedItem[] => [
-  { label: $t('preferences.appearance'), value: 'appearance' },
-  { label: $t('preferences.layout'), value: 'layout' },
-  { label: $t('preferences.shortcutKeys.title'), value: 'shortcutKey' },
-  { label: $t('preferences.general'), value: 'general' },
-]);
-
 const showBreadcrumbConfig = computed(() => {
-  return (
-    !isFullContent.value &&
-    !isMixedNav.value &&
-    !isHeaderNav.value
-  );
+  return !isFullContent.value && !isMixedNav.value && !isHeaderNav.value;
 });
 
-// ── Computed bridge: flat snake_case form ↔ camelCase defineModel ──
+type PreferencePrimitive = PreferencesData[string];
 
-function bridge<T>(key: string) {
-  return computed<T>({
+function bridge<T extends PreferencePrimitive>(
+  key: string,
+): WritableComputedRef<T> {
+  return computed({
     get: () => form[key] as T,
-    set: (v: T) => {
-      form[key] = v;
+    set: (value: T) => {
+      form[key] = value as PreferencePrimitive;
       onFieldChange();
     },
-  });
+  }) as WritableComputedRef<T>;
+}
+
+function getSectionAnchor(sectionId: string) {
+  return (
+    PREFERENCE_FORM_SECTIONS.find((section) => section.id === sectionId)
+      ?.anchor ?? sectionId
+  );
 }
 
 const themeMode = bridge<ThemeModeType>('theme_mode');
@@ -133,7 +138,9 @@ const appContentCompact = bridge<ContentCompactType>('content_compact');
 const sidebarEnable = bridge<boolean>('sidebar_enable');
 const sidebarWidth = bridge<number>('sidebar_width');
 const sidebarCollapsed = bridge<boolean>('sidebar_collapsed');
-const sidebarCollapsedShowTitle = bridge<boolean>('sidebar_collapsed_show_title');
+const sidebarCollapsedShowTitle = bridge<boolean>(
+  'sidebar_collapsed_show_title',
+);
 const sidebarAutoActivateChild = bridge<boolean>('sidebar_auto_activate_child');
 const sidebarExpandOnHover = bridge<boolean>('sidebar_expand_on_hover');
 const sidebarCollapsedButton = bridge<boolean>('sidebar_collapsed_button');
@@ -141,13 +148,17 @@ const sidebarFixedButton = bridge<boolean>('sidebar_fixed_button');
 const headerEnable = bridge<boolean>('header_enable');
 const headerMode = bridge<LayoutHeaderModeType>('header_mode');
 const headerMenuAlign = bridge<LayoutHeaderMenuAlignType>('header_menu_align');
-const navigationStyleType = bridge<NavigationStyleType>('navigation_style_type');
+const navigationStyleType = bridge<NavigationStyleType>(
+  'navigation_style_type',
+);
 const navigationSplit = bridge<boolean>('navigation_split');
 const navigationAccordion = bridge<boolean>('navigation_accordion');
 const breadcrumbEnable = bridge<boolean>('breadcrumb_enable');
 const breadcrumbShowIcon = bridge<boolean>('breadcrumb_show_icon');
 const breadcrumbShowHome = bridge<boolean>('breadcrumb_show_home');
-const breadcrumbStyleType = bridge<BreadcrumbStyleType>('breadcrumb_style_type');
+const breadcrumbStyleType = bridge<BreadcrumbStyleType>(
+  'breadcrumb_style_type',
+);
 const breadcrumbHideOnlyOne = bridge<boolean>('breadcrumb_hide_only_one');
 const tabbarEnable = bridge<boolean>('tabbar_enable');
 const tabbarShowIcon = bridge<boolean>('tabbar_show_icon');
@@ -158,7 +169,9 @@ const tabbarStyleType = bridge<string>('tabbar_style_type');
 const tabbarShowMore = bridge<boolean>('tabbar_show_more');
 const tabbarShowMaximize = bridge<boolean>('tabbar_show_maximize');
 const tabbarMaxCount = bridge<number>('tabbar_max_count');
-const tabbarMiddleClickToClose = bridge<boolean>('tabbar_middle_click_to_close');
+const tabbarMiddleClickToClose = bridge<boolean>(
+  'tabbar_middle_click_to_close',
+);
 const widgetGlobalSearch = bridge<boolean>('widget_global_search');
 const widgetFullscreen = bridge<boolean>('widget_fullscreen');
 const widgetLanguageToggle = bridge<boolean>('widget_language_toggle');
@@ -167,7 +180,9 @@ const widgetThemeToggle = bridge<boolean>('widget_theme_toggle');
 const widgetSidebarToggle = bridge<boolean>('widget_sidebar_toggle');
 const widgetLockScreen = bridge<boolean>('widget_lock_screen');
 const widgetRefresh = bridge<boolean>('widget_refresh');
-const widgetPreferencesButtonPosition = bridge<PreferencesButtonPositionType>('widget_preferences_button_position');
+const widgetPreferencesButtonPosition = bridge<PreferencesButtonPositionType>(
+  'widget_preferences_button_position',
+);
 const footerEnable = bridge<boolean>('footer_enable');
 const footerFixed = bridge<boolean>('footer_fixed');
 
@@ -176,7 +191,9 @@ const dynamicTitle = bridge<boolean>('dynamic_title');
 const shortcutKeysEnable = bridge<boolean>('shortcut_keys_enable');
 const shortcutKeysGlobalSearch = bridge<boolean>('shortcut_keys_global_search');
 const shortcutKeysGlobalLogout = bridge<boolean>('shortcut_keys_global_logout');
-const shortcutKeysGlobalLockScreen = bridge<boolean>('shortcut_keys_global_lock_screen');
+const shortcutKeysGlobalLockScreen = bridge<boolean>(
+  'shortcut_keys_global_lock_screen',
+);
 const transitionEnable = bridge<boolean>('transition_enable');
 const transitionLoading = bridge<boolean>('transition_loading');
 const transitionProgress = bridge<boolean>('transition_progress');
@@ -188,75 +205,249 @@ const watermarkContent = bridge<string>('watermark_content');
 const watermarkInputRef = ref<InstanceType<typeof Input>>();
 
 const WATERMARK_VARS = [
-  { key: '{tenant_name}', label: () => $t('common.preference.watermarkVar.tenantName') },
-  { key: '{real_name}', label: () => $t('common.preference.watermarkVar.realName') },
-  { key: '{username}', label: () => $t('common.preference.watermarkVar.username') },
-  { key: '{user_id}', label: () => $t('common.preference.watermarkVar.userId') },
-];
+  {
+    key: '{tenant_name}',
+    label: () => $t('common.preference.watermarkVar.tenantName'),
+  },
+  {
+    key: '{real_name}',
+    label: () => $t('common.preference.watermarkVar.realName'),
+  },
+  {
+    key: '{username}',
+    label: () => $t('common.preference.watermarkVar.username'),
+  },
+  {
+    key: '{user_id}',
+    label: () => $t('common.preference.watermarkVar.userId'),
+  },
+] as const;
 
 function insertWatermarkVar(varKey: string) {
-  const el = watermarkInputRef.value?.$el?.querySelector?.('input') as
-    | HTMLInputElement
-    | undefined;
-  if (!el) {
-    watermarkContent.value = (watermarkContent.value || '') + varKey;
+  const inputElement = watermarkInputRef.value?.$el?.querySelector?.(
+    'input',
+  ) as HTMLInputElement | undefined;
+  if (!inputElement) {
+    watermarkContent.value = `${watermarkContent.value || ''}${varKey}`;
     return;
   }
-  const start = el.selectionStart ?? el.value.length;
-  const end = el.selectionEnd ?? start;
-  const before = el.value.slice(0, start);
-  const after = el.value.slice(end);
-  watermarkContent.value = before + varKey + after;
+
+  const start = inputElement.selectionStart ?? inputElement.value.length;
+  const end = inputElement.selectionEnd ?? start;
+  const before = inputElement.value.slice(0, start);
+  const after = inputElement.value.slice(end);
+
+  watermarkContent.value = `${before}${varKey}${after}`;
+
   nextTick(() => {
-    const pos = start + varKey.length;
-    el.focus();
-    el.setSelectionRange(pos, pos);
+    const position = start + varKey.length;
+    inputElement.focus();
+    inputElement.setSelectionRange(position, position);
   });
 }
 </script>
 
 <template>
-  <div :class="{ 'pointer-events-none opacity-60': readonly }">
-    <VbenSegmented v-model="activeTab" :tabs="tabs">
-      <!-- ===== Appearance ===== -->
-      <template #appearance>
-        <Block :title="$t('preferences.theme.title')">
+  <div
+    :class="{ 'pointer-events-none opacity-60': readonly }"
+    class="space-y-8"
+  >
+    <section
+      :id="getSectionAnchor('appearance')"
+      class="scroll-mt-24 space-y-4"
+    >
+      <div class="flex items-center gap-3">
+        <div
+          class="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary"
+        >
+          <IconifyIcon icon="lucide:palette" class="size-5" />
+        </div>
+        <div>
+          <p class="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+            {{ $t('common.preference.tab.appearance') }}
+          </p>
+          <h2 class="text-lg font-semibold text-foreground">
+            {{ $t('common.preference.category.appearance') }}
+          </h2>
+        </div>
+      </div>
+
+      <div class="grid gap-4 xl:grid-cols-2">
+        <div :class="panelClass">
+          <div class="mb-4 flex items-center gap-2">
+            <div
+              class="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary"
+            >
+              <IconifyIcon icon="lucide:sparkles" class="size-4" />
+            </div>
+            <div>
+              <div class="text-sm font-semibold text-foreground">
+                {{ $t('common.preference.category.theme') }}
+              </div>
+              <div class="text-xs text-muted-foreground">
+                {{ $t('common.preference.field.themeMode') }}
+              </div>
+            </div>
+          </div>
           <Theme
             v-model="themeMode"
-            v-model:theme-semi-dark-sidebar="themeSemiDarkSidebar"
             v-model:theme-semi-dark-header="themeSemiDarkHeader"
+            v-model:theme-semi-dark-sidebar="themeSemiDarkSidebar"
           />
-        </Block>
-        <Block :title="$t('preferences.theme.builtin.title')">
+        </div>
+
+        <div :class="panelClass">
+          <div class="mb-4 flex items-center gap-2">
+            <div
+              class="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary"
+            >
+              <IconifyIcon icon="lucide:settings-2" class="size-4" />
+            </div>
+            <div>
+              <div class="text-sm font-semibold text-foreground">
+                {{ $t('common.preference.field.builtinType') }}
+              </div>
+              <div class="text-xs text-muted-foreground">
+                {{ $t('common.preference.field.colorPrimary') }}
+              </div>
+            </div>
+          </div>
           <BuiltinTheme
             v-model="themeBuiltinType"
             v-model:theme-color-primary="themeColorPrimary"
             :is-dark="isDark"
           />
-        </Block>
-        <Block :title="$t('preferences.theme.radius')">
-          <Radius v-model:theme-radius="themeRadius" />
-        </Block>
-        <Block :title="$t('preferences.theme.fontSize')">
-          <FontSize v-model="themeFontSize" />
-        </Block>
-        <Block :title="$t('preferences.other')">
+        </div>
+
+        <div :class="panelClass">
+          <div class="mb-4 flex items-center gap-2">
+            <div
+              class="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary"
+            >
+              <IconifyIcon icon="lucide:panel-left" class="size-4" />
+            </div>
+            <div>
+              <div class="text-sm font-semibold text-foreground">
+                {{ $t('preferences.theme.radius') }}
+              </div>
+              <div class="text-xs text-muted-foreground">
+                {{ $t('preferences.theme.fontSize') }}
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-3">
+            <div :class="subPanelClass">
+              <div class="mb-3 text-xs font-medium text-muted-foreground">
+                {{ $t('preferences.theme.radius') }}
+              </div>
+              <Radius v-model="themeRadius" />
+            </div>
+            <div :class="subPanelClass">
+              <div class="mb-3 text-xs font-medium text-muted-foreground">
+                {{ $t('preferences.theme.fontSize') }}
+              </div>
+              <FontSize v-model="themeFontSize" />
+            </div>
+          </div>
+        </div>
+
+        <div :class="panelClass">
+          <div class="mb-4 flex items-center gap-2">
+            <div
+              class="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary"
+            >
+              <IconifyIcon icon="lucide:sliders-horizontal" class="size-4" />
+            </div>
+            <div>
+              <div class="text-sm font-semibold text-foreground">
+                {{ $t('preferences.other') }}
+              </div>
+              <div class="text-xs text-muted-foreground">
+                {{ $t('preferences.theme.grayMode') }}
+              </div>
+            </div>
+          </div>
           <ColorMode
             v-model:app-color-gray-mode="appColorGrayMode"
             v-model:app-color-weak-mode="appColorWeakMode"
           />
-        </Block>
-      </template>
+        </div>
+      </div>
+    </section>
 
-      <!-- ===== Layout ===== -->
-      <template #layout>
-        <Block :title="$t('preferences.layout')">
+    <section :id="getSectionAnchor('layout')" class="scroll-mt-24 space-y-4">
+      <div class="flex items-center gap-3">
+        <div
+          class="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary"
+        >
+          <IconifyIcon icon="lucide:panel-left-close" class="size-5" />
+        </div>
+        <div>
+          <p class="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+            {{ $t('common.preference.tab.layout') }}
+          </p>
+          <h2 class="text-lg font-semibold text-foreground">
+            {{ $t('common.preference.category.layout') }}
+          </h2>
+        </div>
+      </div>
+
+      <div class="grid gap-4 xl:grid-cols-2">
+        <div :class="panelClass">
+          <div class="mb-4 flex items-center gap-2">
+            <div
+              class="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary"
+            >
+              <IconifyIcon icon="lucide:panel-left" class="size-4" />
+            </div>
+            <div>
+              <div class="text-sm font-semibold text-foreground">
+                {{ $t('common.preference.field.layoutMode') }}
+              </div>
+              <div class="text-xs text-muted-foreground">
+                {{ $t('preferences.layout') }}
+              </div>
+            </div>
+          </div>
           <Layout v-model="appLayout" />
-        </Block>
-        <Block :title="$t('preferences.content')">
+        </div>
+
+        <div :class="panelClass">
+          <div class="mb-4 flex items-center gap-2">
+            <div
+              class="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary"
+            >
+              <IconifyIcon icon="lucide:panel-left" class="size-4" />
+            </div>
+            <div>
+              <div class="text-sm font-semibold text-foreground">
+                {{ $t('common.preference.field.contentCompact') }}
+              </div>
+              <div class="text-xs text-muted-foreground">
+                {{ $t('preferences.content') }}
+              </div>
+            </div>
+          </div>
           <Content v-model="appContentCompact" />
-        </Block>
-        <Block :title="$t('preferences.sidebar.title')">
+        </div>
+
+        <div :class="panelClass">
+          <div class="mb-4 flex items-center gap-2">
+            <div
+              class="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary"
+            >
+              <IconifyIcon icon="lucide:panel-left-open" class="size-4" />
+            </div>
+            <div>
+              <div class="text-sm font-semibold text-foreground">
+                {{ $t('common.preference.category.sidebar') }}
+              </div>
+              <div class="text-xs text-muted-foreground">
+                {{ $t('common.preference.field.sidebarWidth') }}
+              </div>
+            </div>
+          </div>
           <Sidebar
             v-model:sidebar-auto-activate-child="sidebarAutoActivateChild"
             v-model:sidebar-collapsed="sidebarCollapsed"
@@ -269,16 +460,48 @@ function insertWatermarkVar(varKey: string) {
             :current-layout="appLayout"
             :disabled="!isSideMode"
           />
-        </Block>
-        <Block :title="$t('preferences.header.title')">
+        </div>
+
+        <div :class="panelClass">
+          <div class="mb-4 flex items-center gap-2">
+            <div
+              class="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary"
+            >
+              <IconifyIcon icon="lucide:settings-2" class="size-4" />
+            </div>
+            <div>
+              <div class="text-sm font-semibold text-foreground">
+                {{ $t('common.preference.category.header') }}
+              </div>
+              <div class="text-xs text-muted-foreground">
+                {{ $t('common.preference.field.headerMode') }}
+              </div>
+            </div>
+          </div>
           <Header
             v-model:header-enable="headerEnable"
             v-model:header-menu-align="headerMenuAlign"
             v-model:header-mode="headerMode"
             :disabled="isFullContent"
           />
-        </Block>
-        <Block :title="$t('preferences.navigationMenu.title')">
+        </div>
+
+        <div :class="panelClass">
+          <div class="mb-4 flex items-center gap-2">
+            <div
+              class="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary"
+            >
+              <IconifyIcon icon="lucide:settings-2" class="size-4" />
+            </div>
+            <div>
+              <div class="text-sm font-semibold text-foreground">
+                {{ $t('common.preference.category.navigation') }}
+              </div>
+              <div class="text-xs text-muted-foreground">
+                {{ $t('common.preference.field.navigationStyleType') }}
+              </div>
+            </div>
+          </div>
           <Navigation
             v-model:navigation-accordion="navigationAccordion"
             v-model:navigation-split="navigationSplit"
@@ -286,8 +509,24 @@ function insertWatermarkVar(varKey: string) {
             :disabled="isFullContent"
             :disabled-navigation-split="!isMixedNav"
           />
-        </Block>
-        <Block :title="$t('preferences.breadcrumb.title')">
+        </div>
+
+        <div :class="panelClass">
+          <div class="mb-4 flex items-center gap-2">
+            <div
+              class="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary"
+            >
+              <IconifyIcon icon="lucide:panel-left" class="size-4" />
+            </div>
+            <div>
+              <div class="text-sm font-semibold text-foreground">
+                {{ $t('common.preference.category.breadcrumb') }}
+              </div>
+              <div class="text-xs text-muted-foreground">
+                {{ $t('common.preference.field.breadcrumbStyleType') }}
+              </div>
+            </div>
+          </div>
           <Breadcrumb
             v-model:breadcrumb-enable="breadcrumbEnable"
             v-model:breadcrumb-hide-only-one="breadcrumbHideOnlyOne"
@@ -299,8 +538,24 @@ function insertWatermarkVar(varKey: string) {
               !(isSideNav || isSideMixedNav || isHeaderSidebarNav)
             "
           />
-        </Block>
-        <Block :title="$t('preferences.tabbar.title')">
+        </div>
+
+        <div :class="panelClass">
+          <div class="mb-4 flex items-center gap-2">
+            <div
+              class="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary"
+            >
+              <IconifyIcon icon="lucide:panel-left" class="size-4" />
+            </div>
+            <div>
+              <div class="text-sm font-semibold text-foreground">
+                {{ $t('common.preference.category.tabbar') }}
+              </div>
+              <div class="text-xs text-muted-foreground">
+                {{ $t('common.preference.field.tabbarStyleType') }}
+              </div>
+            </div>
+          </div>
           <Tabbar
             v-model:tabbar-draggable="tabbarDraggable"
             v-model:tabbar-enable="tabbarEnable"
@@ -313,10 +568,28 @@ function insertWatermarkVar(varKey: string) {
             v-model:tabbar-style-type="tabbarStyleType"
             v-model:tabbar-wheelable="tabbarWheelable"
           />
-        </Block>
-        <Block :title="$t('preferences.widget.title')">
+        </div>
+
+        <div :class="panelClass">
+          <div class="mb-4 flex items-center gap-2">
+            <div
+              class="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary"
+            >
+              <IconifyIcon icon="lucide:sparkles" class="size-4" />
+            </div>
+            <div>
+              <div class="text-sm font-semibold text-foreground">
+                {{ $t('common.preference.category.widget') }}
+              </div>
+              <div class="text-xs text-muted-foreground">
+                {{ $t('preferences.position.title') }}
+              </div>
+            </div>
+          </div>
           <Widget
-            v-model:app-preferences-button-position="widgetPreferencesButtonPosition"
+            v-model:app-preferences-button-position="
+              widgetPreferencesButtonPosition
+            "
             v-model:widget-fullscreen="widgetFullscreen"
             v-model:widget-global-search="widgetGlobalSearch"
             v-model:widget-language-toggle="widgetLanguageToggle"
@@ -326,107 +599,231 @@ function insertWatermarkVar(varKey: string) {
             v-model:widget-sidebar-toggle="widgetSidebarToggle"
             v-model:widget-theme-toggle="widgetThemeToggle"
           />
-        </Block>
-        <Block :title="$t('preferences.footer.title')">
+        </div>
+
+        <div :class="panelClass">
+          <div class="mb-4 flex items-center gap-2">
+            <div
+              class="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary"
+            >
+              <IconifyIcon icon="lucide:panel-left" class="size-4" />
+            </div>
+            <div>
+              <div class="text-sm font-semibold text-foreground">
+                {{ $t('common.preference.category.footer') }}
+              </div>
+              <div class="text-xs text-muted-foreground">
+                {{ $t('common.preference.field.footerFixed') }}
+              </div>
+            </div>
+          </div>
           <Footer
             v-model:footer-enable="footerEnable"
             v-model:footer-fixed="footerFixed"
           />
-        </Block>
-      </template>
+        </div>
+      </div>
+    </section>
 
-      <!-- ===== Shortcut Keys ===== -->
-      <template #shortcutKey>
-        <Block :title="$t('preferences.shortcutKeys.global')">
-          <GlobalShortcutKeys
-            v-model:shortcut-keys-enable="shortcutKeysEnable"
-            v-model:shortcut-keys-global-search="shortcutKeysGlobalSearch"
-            v-model:shortcut-keys-lock-screen="shortcutKeysGlobalLockScreen"
-            v-model:shortcut-keys-logout="shortcutKeysGlobalLogout"
-          />
-        </Block>
-      </template>
+    <section :id="getSectionAnchor('shortcut')" class="scroll-mt-24 space-y-4">
+      <div class="flex items-center gap-3">
+        <div
+          class="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary"
+        >
+          <IconifyIcon icon="lucide:keyboard" class="size-5" />
+        </div>
+        <div>
+          <p class="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+            {{ $t('preferences.shortcutKeys.title') }}
+          </p>
+          <h2 class="text-lg font-semibold text-foreground">
+            {{ $t('preferences.shortcutKeys.global') }}
+          </h2>
+        </div>
+      </div>
 
-      <!-- ===== General ===== -->
-      <template #general>
-        <Block :title="$t('preferences.general')">
-          <div class="flex flex-col gap-2">
-            <div
-              class="text-muted-foreground flex items-center justify-between py-2 text-sm"
-            >
-              <span>{{ $t('preferences.language') }}</span>
-              <select
-                :value="appLocale"
-                class="border-input bg-background h-8 rounded-md border px-2 text-sm"
-                @change="
-                  appLocale = ($event.target as HTMLSelectElement).value
-                "
-              >
-                <option value="zh-CN">简体中文</option>
-                <option value="en">English</option>
-              </select>
+      <div :class="panelClass">
+        <div class="mb-4 flex items-center gap-2">
+          <div
+            class="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary"
+          >
+            <IconifyIcon icon="lucide:keyboard" class="size-4" />
+          </div>
+          <div>
+            <div class="text-sm font-semibold text-foreground">
+              {{ $t('preferences.shortcutKeys.title') }}
             </div>
+            <div class="text-xs text-muted-foreground">
+              {{ $t('preferences.shortcutKeys.search') }}
+            </div>
+          </div>
+        </div>
+        <GlobalShortcutKeys
+          v-model:shortcut-keys-enable="shortcutKeysEnable"
+          v-model:shortcut-keys-global-search="shortcutKeysGlobalSearch"
+          v-model:shortcut-keys-lock-screen="shortcutKeysGlobalLockScreen"
+          v-model:shortcut-keys-logout="shortcutKeysGlobalLogout"
+        />
+      </div>
+    </section>
+
+    <section :id="getSectionAnchor('general')" class="scroll-mt-24 space-y-4">
+      <div class="flex items-center gap-3">
+        <div
+          class="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary"
+        >
+          <IconifyIcon icon="lucide:sliders-horizontal" class="size-5" />
+        </div>
+        <div>
+          <p class="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+            {{ $t('preferences.general') }}
+          </p>
+          <h2 class="text-lg font-semibold text-foreground">
+            {{ $t('common.preference.category.language') }}
+          </h2>
+        </div>
+      </div>
+
+      <div class="grid gap-4 xl:grid-cols-2">
+        <div :class="panelClass">
+          <div class="mb-4 flex items-center gap-2">
+            <div
+              class="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary"
+            >
+              <IconifyIcon icon="lucide:languages" class="size-4" />
+            </div>
+            <div>
+              <div class="text-sm font-semibold text-foreground">
+                {{ $t('common.preference.field.locale') }}
+              </div>
+              <div class="text-xs text-muted-foreground">
+                {{ $t('preferences.dynamicTitle') }}
+              </div>
+            </div>
+          </div>
+
+          <div :class="subPanelClass">
+            <div class="mb-2 text-xs font-medium text-muted-foreground">
+              {{ $t('common.preference.field.locale') }}
+            </div>
+            <select
+              :value="appLocale"
+              class="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary/40"
+              @change="appLocale = ($event.target as HTMLSelectElement).value"
+            >
+              <option value="zh-CN">
+                {{ $t('common.preference.option.zhCN') }}
+              </option>
+              <option value="en">
+                {{ $t('common.preference.option.en') }}
+              </option>
+            </select>
+          </div>
+
+          <div class="mt-3" :class="subPanelClass">
             <SwitchItem v-model="dynamicTitle">
               {{ $t('preferences.dynamicTitle') }}
             </SwitchItem>
           </div>
-        </Block>
-        <Block :title="$t('preferences.animation.title')">
+        </div>
+
+        <div :class="panelClass">
+          <div class="mb-4 flex items-center gap-2">
+            <div
+              class="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary"
+            >
+              <IconifyIcon icon="lucide:sparkles" class="size-4" />
+            </div>
+            <div>
+              <div class="text-sm font-semibold text-foreground">
+                {{ $t('common.preference.category.animation') }}
+              </div>
+              <div class="text-xs text-muted-foreground">
+                {{ $t('common.preference.field.transitionName') }}
+              </div>
+            </div>
+          </div>
           <Animation
             v-model:transition-enable="transitionEnable"
             v-model:transition-loading="transitionLoading"
             v-model:transition-name="transitionName"
             v-model:transition-progress="transitionProgress"
           />
-        </Block>
+        </div>
 
-        <Block :title="$t('common.preference.category.watermark')">
-          <div class="flex flex-col gap-4">
-            <div class="flex items-center justify-between">
-              <span class="text-sm">{{
-                $t('common.preference.field.watermarkEnable')
-              }}</span>
-              <Switch
-                :checked="watermarkEnable"
-                size="small"
-                @update:checked="watermarkEnable = !!$event"
-              />
+        <div :class="`${panelClass} xl:col-span-2`">
+          <div class="mb-4 flex items-center gap-2">
+            <div
+              class="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary"
+            >
+              <IconifyIcon icon="lucide:settings-2" class="size-4" />
             </div>
-            <div v-if="watermarkEnable" class="flex flex-col gap-2">
-              <span class="text-sm">{{
-                $t('common.preference.field.watermarkContent')
-              }}</span>
-              <Input
-                ref="watermarkInputRef"
-                :value="watermarkContent"
-                :placeholder="'{tenant_name} - {real_name}'"
-                size="small"
-                @update:value="watermarkContent = $event"
-              />
-              <div class="flex flex-wrap items-center gap-1.5">
-                <span class="text-muted-foreground text-xs">{{
-                  $t('common.preference.watermarkVar.insert')
-                }}</span>
-                <button
-                  v-for="v in WATERMARK_VARS"
-                  :key="v.key"
-                  type="button"
-                  class="bg-accent hover:bg-primary/10 hover:text-primary rounded px-1.5 py-0.5 font-mono text-xs transition"
-                  @click="insertWatermarkVar(v.key)"
-                >
-                  {{ v.label() }}
-                </button>
+            <div>
+              <div class="text-sm font-semibold text-foreground">
+                {{ $t('common.preference.category.watermark') }}
+              </div>
+              <div class="text-xs text-muted-foreground">
+                {{ $t('common.preference.field.watermarkContent') }}
               </div>
             </div>
+          </div>
+
+          <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
+            <div class="space-y-3">
+              <div :class="subPanelClass">
+                <div class="flex items-center justify-between gap-3">
+                  <div>
+                    <div class="text-sm font-medium text-foreground">
+                      {{ $t('common.preference.field.watermarkEnable') }}
+                    </div>
+                    <div class="text-xs text-muted-foreground">
+                      {{ $t('common.preference.help.watermarkGlobalOnly') }}
+                    </div>
+                  </div>
+                  <Switch
+                    :checked="watermarkEnable"
+                    size="small"
+                    @update:checked="watermarkEnable = !!$event"
+                  />
+                </div>
+              </div>
+
+              <div v-if="watermarkEnable" :class="subPanelClass">
+                <div class="mb-2 text-xs font-medium text-muted-foreground">
+                  {{ $t('common.preference.field.watermarkContent') }}
+                </div>
+                <Input
+                  ref="watermarkInputRef"
+                  :value="watermarkContent"
+                  size="small"
+                  @update:value="watermarkContent = String($event ?? '')"
+                />
+                <div class="mt-3 flex flex-wrap items-center gap-1.5">
+                  <span class="text-xs text-muted-foreground">
+                    {{ $t('common.preference.watermarkVar.insert') }}
+                  </span>
+                  <button
+                    v-for="variable in WATERMARK_VARS"
+                    :key="variable.key"
+                    type="button"
+                    class="rounded-full border border-border/60 bg-background px-2.5 py-1 font-mono text-xs text-foreground transition hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
+                    @click="insertWatermarkVar(variable.key)"
+                  >
+                    {{ variable.label() }}
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <Alert
               type="info"
               show-icon
-              :message="$t('common.preference.help.watermarkGlobalOnly')"
-              class="!py-1 !text-xs"
+              :message="$t('common.preference.help.watermarkVars')"
+              class="!rounded-2xl !border !border-primary/15 !bg-primary/5"
             />
           </div>
-        </Block>
-      </template>
-    </VbenSegmented>
+        </div>
+      </div>
+    </section>
   </div>
 </template>

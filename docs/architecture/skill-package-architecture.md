@@ -1,517 +1,151 @@
-# 技能包架构全景 — 深度代码审查报告
+# SkillPackage 架构（2026-03 现行）
 
-> 生成时间：2026-02-22 | 基于实际源码逐行审计
+## 1. 定位
 
----
+`SkillPackage` 现在承担三件事：
 
-## 一、数据模型层（ER 关系图）
+1. 归组单元：把多个 `Skill` 组织成一个可管理目录项。
+2. 来源单元：标记该组能力来自平台系统、平台目录、企业自有还是插件托管。
+3. 展示单元：为管理端与企业端提供可读目录、摘要字段和解析后的工具预览。
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                          数据库表结构                                │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ┌──────────────────────┐         ┌──────────────────────┐          │
-│  │  skill_packages      │ 1───N   │       skills         │          │
-│  │  （技能包）           │         │     （技能）          │          │
-│  ├──────────────────────┤         ├──────────────────────┤          │
-│  │ id (主键)            │◄────────│ package_id (外键)    │          │
-│  │ tenant_id (可空)     │         │ id (主键)            │          │
-│  │ name 名称            │         │ tenant_id (可空)     │          │
-│  │ description 描述     │         │ name 名称            │          │
-│  │ avatar 头像          │         │ description 描述     │          │
-│  │ scope 作用域(枚举)   │         │ type 类型(枚举)      │          │
-│  │ source_plugin 来源   │         │ config 配置(JSON)    │          │
-│  │ is_system 系统标记   │         │ toolkit_content 代码 │          │
-│  │ valves_schema 配置项 │         │ toolkit_meta 元数据  │          │
-│  │ valves_config 配置值 │         │ input_schema 输入    │          │
-│  │ is_active 是否启用   │         │ output_schema 输出   │          │
-│  │ sort_order 排序      │         │ is_system 系统标记   │          │
-│  │ is_deleted 软删除    │         │ is_active 是否启用   │          │
-│  │ delete_level 删除层级│         │ sort_order 排序      │          │
-│  └──────────┬───────────┘         │ timeout 超时(秒)     │          │
-│             │                     │ is_deleted 软删除    │          │
-│             │                     │ delete_level 删除层级│          │
-│             │                     └──────────────────────┘          │
-│             │                                                       │
-│             │ 1───N                                                  │
-│             ▼                                                       │
-│  ┌──────────────────────────┐       ┌──────────────────────┐        │
-│  │ agent_skill_bindings     │ N───1 │       agents         │        │
-│  │ （智能体-技能包绑定）     │       │     （智能体）        │        │
-│  ├──────────────────────────┤       ├──────────────────────┤        │
-│  │ id (主键)                │       │ id (主键)            │        │
-│  │ tenant_id (可空)         │       │ tenant_id (可空)     │        │
-│  │ agent_id (外键) ─────────┼──────►│ name 名称            │        │
-│  │ package_id (外键) ───────┼──┐    │ scope 作用域         │        │
-│  │ enabled 是否启用         │  │    │ model_id (外键→      │        │
-│  │ config_override 配置覆盖 │  │    │   ai_models)         │        │
-│  │ sort_order 排序          │  │    │ system_prompt 提示词 │        │
-│  │ consent_mode 授权模式    │  │    │ is_system 系统标记   │        │
-│  │ skill_consent_overrides  │  │    │ status 状态          │        │
-│  │   技能级授权覆盖(JSON)   │  │    │ execution_mode 模式  │        │
-│  │ UQ(agent_id, package_id) │  │    │ ...                  │        │
-│  └──────────────────────────┘  │    └──────────────────────┘        │
-│                                │                                    │
-│                   指向 skill_packages                                │
-└─────────────────────────────────────────────────────────────────────┘
-```
+它**不再是运行时绑定真相**。
 
-### 核心关系
+运行时真正决定某个 Agent 拥有哪些能力的依据是：
 
-| 关系 | 基数 | 外键位置 |
-|---|---|---|
-| **技能包 → 技能** | 1:N | `skills.package_id` |
-| **智能体 ↔ 技能包** | M:N | `agent_skill_bindings`（中间表） |
-| **智能体 → AI 模型** | N:1 | `agents.model_id` |
+- `AgentSkillGrant -> Skill -> SkillResolver -> ToolDefinition`
 
-> **重要**：智能体**不直接绑定**单个技能（Skill），而是始终绑定**技能包**（SkillPackage）。解析器在运行时加载技能包内所有激活的技能。
+也就是说，Agent 在执行时直接消费 Skill 授权，不再依赖“包级自动绑定”语义。
 
 ---
 
-## 二、作用域与多企业体系
+## 2. 运行时真相
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                    ResourceScopeEnum 作用域枚举                │
-├─────────┬────────────────────────────────────────────────────┤
-│  tenant │ tenant_id = X（必填）                               │
-│  企业级  │ 仅该企业可见                                        │
-│         │ 企业可完全增删改查                                    │
-├─────────┼────────────────────────────────────────────────────┤
-│  admin  │ tenant_id = NULL                                    │
-│  管理级  │ 仅管理端可见                                        │
-│         │ 企业可绑定使用（只读），可通过"从模板克隆"复制为自有    │
-├─────────┼────────────────────────────────────────────────────┤
-│  global │ tenant_id = NULL                                    │
-│  全局级  │ 全平台可见（管理端 + 所有企业）                       │
-│         │ 自动包含在企业的列表查询中                             │
-└─────────┴────────────────────────────────────────────────────┘
+当前 AI 运行链路：
+
+```text
+Agent
+  -> AgentSkillGrant
+  -> Skill
+  -> SkillResolver
+  -> ToolDefinition / RAG 配置 / 其它执行元数据
 ```
 
-### 可见性规则（源自 Repository 代码）
+关键不变量：
 
-**企业端** (`SkillPackageRepository.query_list`)：
-```python
-WHERE (tenant_id = :当前企业ID) OR (scope = 'global')
-```
-
-**企业端绑定下拉** (`get_available_for_binding`)：
-```python
-WHERE is_active AND NOT is_deleted AND (
-    tenant_id = :当前企业ID                          -- 自有包
-    OR (tenant_id IS NULL AND scope IN ('admin', 'global'))  -- 共享包
-)
-```
-
-**管理端** (`AdminSkillPackageRepository` / `BaseRepository`)：
-- 无企业过滤 — 可查看**所有企业**、**所有作用域**的技能包。
+- `Skill` 必须归属于某个 `SkillPackage`
+- `SkillPackage` 只负责目录、来源和归组
+- Agent 运行时是否拿到能力，只看 `AgentSkillGrant`
+- 不要重新引入 `SkillPackage auto-bind`、`AgentSkillBinding` 或“整包天然生效”语义
 
 ---
 
-## 三、技能类型体系
+## 3. 信息架构字段
 
-```
-┌───────────────────┬───────────────┬──────────────────────────────────┐
-│   SkillTypeEnum    │ 产生工具数量   │ 工作原理                         │
-├───────────────────┼───────────────┼──────────────────────────────────┤
-│  knowledge_base   │  0 个工具     │ 不生成 ToolDefinition。           │
-│  知识库            │               │ 提取知识库 ID → RAG 检索后       │
-│                   │               │ 注入到 system_prompt 中。         │
-├───────────────────┼───────────────┼──────────────────────────────────┤
-│  data_intelligence│  1~4 个工具   │ data_query（始终生成）             │
-│  数据智能          │               │ + data_create/update/delete      │
-│                   │               │ （由 TablePolicy 控制）           │
-├───────────────────┼───────────────┼──────────────────────────────────┤
-│  toolkit          │  N 个工具     │ Python 源码存于 toolkit_content   │
-│  工具包            │               │ Tools 类的每个公开方法 →          │
-│                   │               │ 1 个 ToolDefinition              │
-├───────────────────┼───────────────┼──────────────────────────────────┤
-│  builtin          │  1 或 N 个    │ 单工具模式（默认）或              │
-│  内置              │               │ config.tools[] → N 个工具        │
-├───────────────────┼───────────────┼──────────────────────────────────┤
-│  http             │  1 个工具     │ 声明式 HTTP 调用                  │
-│  HTTP 调用         │               │ URL/方法/头/请求体模板            │
-├───────────────────┼───────────────┼──────────────────────────────────┤
-│  email            │  1 个工具     │ 通过 EmailService 发送邮件        │
-│  邮件              │               │                                  │
-├───────────────────┼───────────────┼──────────────────────────────────┤
-│  code_execution   │  1 个工具     │ 在安全沙箱中执行代码              │
-│  代码执行          │               │                                  │
-└───────────────────┴───────────────┴──────────────────────────────────┘
-```
+为避免前后端继续把旧包级绑定语义当成主语义，当前 API 统一补充规范化摘要字段：
+
+- `package_role_key`
+  - `platform_system`
+  - `platform_catalog`
+  - `tenant_owned`
+  - `plugin_managed`
+- `source_summary`
+  - `platform:system`
+  - `platform:catalog`
+  - `tenant:{tenant_id}`
+  - `plugin:{plugin_name}`
+- `runtime_binding_mode`
+  - 当前固定为 `direct_agent_skill_grant`
+- `valves_field_count`
+- `configured_valves_count`
+
+原则：
+
+- 前端展示优先使用上述规范化字段
+- 通用详情接口默认不返回原始 `valves_config`
 
 ---
 
-## 四、AI 执行全链路 — 智能体如何使用技能包
+## 4. 管理端与企业端边界
 
-```
-用户消息
-    │
-    ▼
-┌─────────────────────────────────────────────────────────────┐
-│  AgentChatService / API 控制器                               │
-│  （企业端/管理端接收用户消息）                                │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│  ExecutionDispatcher.dispatch() — 执行分发器                 │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ 1. 加载智能体 Agent（校验 status=published）            │ │
-│  │ 2. 并发控制（AgentConcurrencyLimiter）                  │ │
-│  │ 3. 配额检查（AgentQuotaManager）                        │ │
-│  │ 4. BEFORE_EXECUTE 钩子                                 │ │
-│  │                                                        │ │
-│  │ 5. ★ resolve_for_agent(db, agent, tenant_id) ★        │ │
-│  │    ┌──────────────────────────────────────────────┐   │ │
-│  │    │ 阶段一：加载技能包绑定                         │   │ │
-│  │    │   查询 agent_skill_bindings                   │   │ │
-│  │    │   WHERE agent_id=X AND enabled=true           │   │ │
-│  │    │   → 得到 package_ids + 配置覆盖               │   │ │
-│  │    │                                                │   │ │
-│  │    │ 阶段二：从绑定的技能包中加载技能               │   │ │
-│  │    │   WHERE package_id IN (...) AND is_active     │   │ │
-│  │    │   → 合并 Skill.config + 绑定覆盖              │   │ │
-│  │    │   → 注入 package.valves_config 作为 "valves"  │   │ │
-│  │    │                                                │   │ │
-│  │    │ 阶段三：SkillResolver.resolve(skills) 解析     │   │ │
-│  │    │   按技能类型分发：                              │   │ │
-│  │    │   ├─ knowledge_base → 提取知识库ID + RAG配置  │   │ │
-│  │    │   ├─ data_intelligence → 1~4个 ToolDefinition │   │ │
-│  │    │   ├─ toolkit → 解析Python源码 → N个 ToolDef   │   │ │
-│  │    │   ├─ builtin → 1或N个 ToolDef                 │   │ │
-│  │    │   ├─ http → 1个 ToolDef（含HTTP配置）         │   │ │
-│  │    │   ├─ email → 1个 ToolDef（send_email）        │   │ │
-│  │    │   ├─ code_execution → 1个 ToolDef             │   │ │
-│  │    │                                                │   │ │
-│  │    │ 返回 SkillResolveResult {                      │   │ │
-│  │    │   tools: [ToolDefinition, ...],    工具列表    │   │ │
-│  │    │   knowledge_base_ids: [1, 5, ...], 知识库ID   │   │ │
-│  │    │   rag_config: {...},               RAG配置    │   │ │
-│  │    │   tool_consent_modes: {"名": "auto"}, 授权    │   │ │
-│  │    │   warnings: [...]                  警告       │   │ │
-│  │    │ }                                              │   │ │
-│  │    └──────────────────────────────────────────────┘   │ │
-│  │                                                        │ │
-│  │ 6. 创建引擎（对话/任务/批处理）                         │ │
-│  │    engine.execute(agent, request, skill_result)        │ │
-│  └────────────────────────────────────────────────────────┘ │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│  BaseEngine._prepare_execution() — 执行前准备               │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ 1. 构建 system_prompt（Jinja2 渲染变量）               │ │
-│  │ 2. 若有 knowledge_base_ids → RAG 检索注入到 prompt    │ │
-│  │ 3. 将 ToolDefinition[] → OpenAI function calling 格式 │ │
-│  │    通过 to_openai_tools() 转换                         │ │
-│  │ 4. 工具优化器：按用户问题筛选相关工具                    │ │
-│  └────────────────────────────────────────────────────────┘ │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│  ConversationEngine.stream_execute() — 流式对话引擎         │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ 循环（最多 10 轮）：                                    │ │
-│  │ 1. AIGateway.stream_chat(消息, 工具, 模型配置)         │ │
-│  │ 2. 若 LLM 返回 tool_calls：                           │ │
-│  │    → ToolSandbox.execute(call_id, 工具名, 参数)       │ │
-│  │    → 按 tool_type 路由到对应执行器：                    │ │
-│  │      ┌─────────────────────────────────────────────┐  │ │
-│  │      │ toolkit       → ToolkitExecutor  (Python)   │  │ │
-│  │      │ builtin       → BuiltinToolExecutor         │  │ │
-│  │      │ text_to_sql   → TextToSQLExecutor           │  │ │
-│  │      │ data_create   → CreateRecordExecutor        │  │ │
-│  │      │ data_update   → UpdateRecordExecutor        │  │ │
-│  │      │ data_delete   → DeleteRecordExecutor        │  │ │
-│  │      │ http          → HTTP 执行器                 │  │ │
-│  │      │ email         → 邮件执行器                  │  │ │
-│  │      │ code_execution→ 代码执行器                  │  │ │
-│  │      └─────────────────────────────────────────────┘  │ │
-│  │    → 将 ToolResult 作为 tool 消息追加                  │ │
-│  │    → 继续循环（LLM 看到工具结果后继续推理）             │ │
-│  │ 3. 若 LLM 返回文本 → yield SSE 流式块 → 结束          │ │
-│  └────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────┘
-```
+### 管理端
+
+- 路由：`/admin/ai/skill-packages`
+- 能力：完整目录管理、导入导出、克隆、详情、valves 配置
+- 用途：维护 SkillPackage 目录、Skill 归属和来源元数据
+
+### 企业端
+
+- 路由：`/tenant/ai/skill-packages`
+- 能力：**只读目录**
+- 可看内容：
+  - 包角色
+  - 来源摘要
+  - 包内 Skill
+  - 解析后的工具定义
+- 禁止：
+  - SkillPackage CRUD
+  - valves 编辑
+  - 导入导出/克隆
+  - 包级运行绑定动作
+
+企业端之所以允许目录页，是为了让租户管理员理解“当前可见能力来自哪里、包里有什么、最终会解析出哪些工具”，而不是把这里变成运行时绑定入口。
 
 ---
 
-## 五、智能体 ↔ 技能包绑定机制
+## 5. 插件映射模型
 
-```
-                    ┌──────────┐
-                    │ 智能体    │
-                    │ Agent    │
-                    │ id=42    │
-                    └────┬─────┘
-                         │ 拥有多个绑定
-                         ▼
-           ┌─────────────────────────────┐
-           │  AgentSkillBinding（M:N）    │
-           ├─────────────────────────────┤
-           │ agent_id=42, package_id=1   │──► 技能包「客服知识库」
-           │   enabled=true ← 已启用     │       ├─ 技能: FAQ知识库 (knowledge_base)
-           │   config_override=null      │       └─ 技能: 产品知识库 (knowledge_base)
-           │   consent_mode="auto"       │
-           │   sort_order=0              │
-           ├─────────────────────────────┤
-           │ agent_id=42, package_id=5   │──► 技能包「数据分析工具」
-           │   enabled=true ← 已启用     │       ├─ 技能: 销售查询 (data_intelligence)
-           │   config_override={...}     │       └─ 技能: 报表生成 (toolkit)
-           │   consent_mode="ask"        │
-           │   sort_order=1              │
-           ├─────────────────────────────┤
-           │ agent_id=42, package_id=12  │──► 技能包「数据分析」
-           │   enabled=true              │       └─ 技能: data_analysis
-           │   sort_order=2              │
-           └─────────────────────────────┘
+插件与 SkillPackage/Skill 的关系现在也收口为显式映射：
 
-   绑定功能说明：
-   ────────────
-   • enabled：按绑定粒度启用/禁用
-   • config_override：每个智能体可覆盖技能包的部分配置
-   • consent_mode：auto(自动)|ask(需确认)|reject(拒绝) — 工具调用授权模式
-   • skill_consent_overrides：包内按技能粒度覆盖授权模式
-   • sort_order：控制工具优先级（LLM 按此排序接收工具列表）
-   • UniqueConstraint(agent_id, package_id)：同一包不可重复绑定
+```text
+plugin.yaml
+  -> extensions.capabilities[*]        # 能力声明层
+  -> extensions.skills[*]              # Skill 投影层
+  -> extensions.skills[*].capabilities # 显式引用 capability.key
+  -> SkillPackage / Skill 同步投影
 ```
 
-### 绑定解析流程
+约束：
 
-```
-resolve_for_agent(db, agent, tenant_id)
-    │
-    ├─ 1. 查询 agent_skill_bindings
-    │      WHERE agent_id=42 AND enabled=true AND NOT is_deleted
-    │      ORDER BY sort_order
-    │
-    ├─ 2. 遍历每个绑定：
-    │      └─ 检查 binding.package.is_active AND NOT is_deleted
-    │      └─ 收集 package_ids、config_overrides、consent_modes
-    │
-    ├─ 3. 查询 skills
-    │      WHERE package_id IN (1, 5) AND is_active AND NOT is_deleted
-    │      ORDER BY sort_order
-    │
-    ├─ 4. 合并配置（优先级从低到高）：
-    │      skill.config ← package.valves_config（作为"valves"键）← binding.config_override
-    │
-    ├─ 5. SkillResolver.resolve(skills, 合并后配置)
-    │      → 按技能类型分发 → ToolDefinition[]
-    │
-    └─ 6. 映射 consent_mode（技能包级 → 技能级覆盖）
-```
+- `extensions.capabilities[*]` 与 `extensions.skills[*].capabilities[]` 必须显式关联
+- 插件启用/升级时同步的是 `SkillPackage + Skill` 目录投影
+- 插件启用**不等于**自动把整包绑定给 Agent
+- 插件前端如声明 `dashboard_widgets`，必须在插件自己的前端入口导出对应组件
 
 ---
 
-## 六、管理端 vs 企业端 — 完整对比
+## 6. 与知识库链路的边界
 
-### 6.1 后端架构差异
+本轮 SkillPackage 收口不会破坏知识库链路，原因如下：
 
-```
-┌──────────────────────────────────┬──────────────────────────────────────┐
-│         管理端 (Admin)            │          企业端 (Tenant)              │
-├──────────────────────────────────┼──────────────────────────────────────┤
-│ 控制器：                          │ 控制器：                              │
-│   GlobalController               │   TenantController                   │
-│   （无企业隔离）                   │   （自动注入 tenant_id）              │
-│                                  │                                      │
-│ 服务层：                          │ 服务层：                              │
-│   AdminSkillPackageService       │   SkillPackageService                │
-│   继承 GlobalService             │   继承 TenantService                 │
-│                                  │                                      │
-│ 仓库层：                          │ 仓库层：                              │
-│   AdminSkillPackageRepository    │   SkillPackageRepository             │
-│   继承 BaseRepository            │   继承 TenantRepository              │
-│   （无 WHERE tenant_id 条件）     │   （自动 WHERE tenant_id=X            │
-│                                  │    OR scope='global'）               │
-│                                  │                                      │
-│ 认证依赖：                        │ 认证依赖：                            │
-│   ActiveAdmin                    │   ActiveTenantAdmin                  │
-│                                  │                                      │
-│ 权限资源码：                      │ 权限资源码：                          │
-│   ai_skill_package               │   skill_package                      │
-│   scope=ADMIN                    │   scope=TENANT                       │
-│                                  │                                      │
-│ 删除层级：                        │ 删除层级：                            │
-│   _default_delete_level='admin'  │   _default_delete_level='tenant'     │
-│   （直接进入管理端回收站）         │   （先进企业回收站，可升级到管理端）    │
-└──────────────────────────────────┴──────────────────────────────────────┘
-```
+- 知识库运行时入口仍然是 `Agent` 侧的直接配置与授权链路
+- `SkillPackage` 只负责归组和目录，不承载知识库检索真相
+- `knowledge_base` 类型 `Skill` 仍然通过 `SkillResolver` 进入 RAG 相关元数据，而不是靠包级绑定决定是否生效
 
-### 6.2 API 端点差异
-
-```
-┌───────────────────────┬──────────────────────────┬──────────────────────────┐
-│ 功能                   │ 管理端 (/admin/...)       │ 企业端 (/tenant/...)      │
-├───────────────────────┼──────────────────────────┼──────────────────────────┤
-│ 技能包列表             │ GET  /ai/skill-packages  │ GET  /ai/skill-packages  │
-│                       │ （所有作用域、所有企业）    │ （仅本企业 + global 包）  │
-├───────────────────────┼──────────────────────────┼──────────────────────────┤
-│ 下拉选项               │ GET  .../select          │ GET  .../select          │
-├───────────────────────┼──────────────────────────┼──────────────────────────┤
-│ 可绑定列表             │ —                        │ GET  .../available       │
-│                       │                          │ （自有 + admin + global）  │
-├───────────────────────┼──────────────────────────┼──────────────────────────┤
-│ 创建                   │ POST（任意作用域，        │ POST（仅 tenant 作用域）  │
-│                       │  可指定 tenant_id）        │ tenant_id=当前企业       │
-├───────────────────────┼──────────────────────────┼──────────────────────────┤
-│ 上传 ZIP 安装          │ POST .../upload          │ POST .../upload          │
-│                       │ scope=admin              │ scope=tenant             │
-│                       │ 允许 is_system=true      │ 始终 is_system=false     │
-├───────────────────────┼──────────────────────────┼──────────────────────────┤
-│ 克隆                   │ POST .../{id}/clone      │ —                        │
-│                       │ （任意作用域 → 任意作用域）│                          │
-├───────────────────────┼──────────────────────────┼──────────────────────────┤
-│ 从模板克隆             │ —                        │ POST .../from-template/  │
-│                       │                          │  {id}                    │
-│                       │                          │ （admin/global → 企业自有）│
-├───────────────────────┼──────────────────────────┼──────────────────────────┤
-│ 导出                   │ GET .../{id}/export      │ —                        │
-├───────────────────────┼──────────────────────────┼──────────────────────────┤
-│ 导入                   │ POST .../import          │ —                        │
-├───────────────────────┼──────────────────────────┼──────────────────────────┤
-│ 调用统计               │ GET .../{id}/stats       │ —                        │
-├───────────────────────┼──────────────────────────┼──────────────────────────┤
-│ Valves 环境配置        │ GET/PUT .../valves       │ GET/PUT .../valves       │
-├───────────────────────┼──────────────────────────┼──────────────────────────┤
-│ 包内技能列表           │ GET .../{id}/skills      │ GET .../{id}/skills      │
-├───────────────────────┼──────────────────────────┼──────────────────────────┤
-│ 切换启用状态           │ PUT .../{id}/status      │ —                        │
-├───────────────────────┼──────────────────────────┼──────────────────────────┤
-│ 回收站                 │ 管理端级别路由            │ 企业端级别路由            │
-└───────────────────────┴──────────────────────────┴──────────────────────────┘
-```
-
-### 6.3 作用域校验差异
-
-**管理端** (`AdminSkillPackageService._before_create`)：
-- 可创建**任意作用域**的技能包（tenant/admin/global）
-- `scope=tenant` 时，必须提供 `tenant_id`
-- `scope=admin` 或 `scope=global` 时，自动设置 `tenant_id=NULL`
-- 名称唯一性在**同一 scope + tenant_id** 范围内检查
-
-**企业端** (`SkillPackageService._before_create`)：
-- **只能**创建 `scope=tenant` 的技能包
-- `tenant_id` 由 `TenantService` 自动注入
-- 名称唯一性仅在本企业范围内检查
-- **不能**创建 `is_system=True` 的技能包
+因此，SkillPackage 的信息架构调整不会改变知识库检索、召回或注入逻辑。
 
 ---
 
-## 七、系统保护层
+## 7. 当前实现落点
 
-```
-is_system = True（系统技能包标记）
-    │
-    ├─ 不可删除（管理端和企业端 Service 均检查）
-    ├─ 不可修改以下字段：scope、is_system、is_active
-    ├─ 前端：删除按钮隐藏、状态切换开关禁用
-    ├─ 前端：显示紫色「系统」徽章
-    │
-    └─ 典型示例：
-       ├─ 系统预置智能体绑定的技能包
-       └─ 通过迁移脚本种子数据创建的技能包
-```
+后端：
 
----
+- `backend/app/api/shared/_skill_package_summary.py`
+- `backend/app/api/admin/skill_packages.py`
+- `backend/app/api/tenant/skill_packages.py`
+- `backend/app/services/ai/skill_package_service.py`
+- `backend/app/repositories/ai/skill_package_repository.py`
 
-## 八、完整生命周期图
+前端：
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                     技能包完整生命周期                          │
-├──────────────────────────────────────────────────────────────┤
-│                                                               │
-│  创建                                                         │
-│  ├─ 管理端：API 创建 + ZIP 上传 + JSON 导入 + 克隆           │
-│  ├─ 企业端：API 创建 + ZIP 上传 + 从模板克隆                  │
-│                                                               │
-│  绑定到智能体                                                  │
-│  ├─ 创建 AgentSkillBinding(agent_id, package_id)              │
-│  ├─ 可选：config_override（配置覆盖）、consent_mode（授权模式）│
-│  └─ 企业可使用：自有包 + admin 共享包 + global 全局包          │
-│                                                               │
-│  AI 执行                                                      │
-│  ├─ Dispatcher 调用 resolve_for_agent()                       │
-│  ├─ 加载 绑定 → 技能包 → 技能 → ToolDefinition               │
-│  ├─ Engine 使用工具列表进行 LLM Function Calling              │
-│  └─ Sandbox 按 tool_type 路由到对应执行器                      │
-│                                                               │
-│  删除（两级回收站）                                            │
-│  ├─ 企业删除 → delete_level='tenant'（进入企业回收站）         │
-│  │   └─ 级联：技能软删除、绑定物理删除                         │
-│  ├─ 管理端升级 → delete_level='admin'（进入管理端回收站）      │
-│  ├─ 永久删除 → 物理删除 + 清理磁盘存储文件                     │
-│  └─ 30 天自动清理（Celery Beat 定时任务）                      │
-│                                                               │
-│  恢复                                                         │
-│  └─ 级联恢复技能包下所有子技能                                 │
-│                                                               │
-└──────────────────────────────────────────────────────────────┘
-```
+- `frontend/apps/web-antd/src/views/admin/ai/skill-packages/*`
+- `frontend/apps/web-antd/src/views/tenant/ai/skill-packages/*`
+- `frontend/apps/web-antd/src/api/admin/skill-packages.ts`
+- `frontend/apps/web-antd/src/api/tenant/skill-packages.ts`
 
 ---
 
-## 九、关键源码文件索引
+## 8. 结论
 
-### 模型层
-| 文件 | 说明 |
-|---|---|
-| `backend/app/models/ai/skill_package.py` | 技能包 ORM（TenantModel，tenant_id 可空） |
-| `backend/app/models/ai/skill.py` | 技能 ORM（通过 package_id 外键归属技能包） |
-| `backend/app/models/ai/agent.py` | 智能体 ORM（含 skill_bindings 关系） |
-| `backend/app/models/ai/agent_skill_binding.py` | M:N 中间表（智能体 ↔ 技能包） |
+后续涉及 SkillPackage 的实现，都应遵守以下一句话：
 
-### 枚举层
-| 文件 | 说明 |
-|---|---|
-| `backend/app/enums/agent.py` | SkillTypeEnum（7种类型）+ ToolTypeEnum + ToolConsentModeEnum |
-| `backend/app/enums/common.py` | ResourceScopeEnum（tenant/global/admin） |
-
-### AI 引擎（技能解析 → 执行）
-| 文件 | 说明 |
-|---|---|
-| `backend/app/ai/skills/resolver.py` | SkillResolver + resolve_for_agent() — 核心转换逻辑 |
-| `backend/app/ai/engine/dispatcher.py` | ExecutionDispatcher — 编排整个执行流程 |
-| `backend/app/ai/engine/base.py` | BaseEngine — _prepare_execution 使用 SkillResolveResult |
-| `backend/app/ai/tools/sandbox.py` | ToolSandbox — 按 tool_type 路由到执行器 |
-| `backend/app/ai/tools/types.py` | ToolDefinition / ToolResult / ExecutionContext 类型定义 |
-
-### 执行器（每种 tool_type 一个）
-| 文件 | 对应工具类型 |
-|---|---|
-| `backend/app/ai/tools/executors/toolkit_executor.py` | toolkit（Python 工具包） |
-| `backend/app/ai/tools/executors/builtin_executor.py` | builtin（内置工具） |
-| `backend/app/ai/tools/executors/text_to_sql_executor.py` | text_to_sql（自然语言转SQL） |
-| `backend/app/ai/tools/executors/crud_executor.py` | data_create/update/delete（数据增删改） |
-
-### 服务层 / 仓库层
-| 文件 | 说明 |
-|---|---|
-| `backend/app/services/ai/skill_package_service.py` | SkillPackageService（企业）+ AdminSkillPackageService（全局） |
-| `backend/app/repositories/ai/skill_package_repository.py` | 仓库 + 级联 Mixin + 作用域感知查询 |
-
-### API 控制器
-| 文件 | 说明 |
-|---|---|
-| `backend/app/api/admin/skill_packages.py` | AdminSkillPackageController（GlobalController）— 14 个端点 |
-| `backend/app/api/tenant/skill_packages.py` | TenantSkillPackageController（TenantController）— 11 个端点 |
-
----
-
-## 十、架构不变量（设计原则）
-
-1. **智能体永远不直接绑定单个技能** — 始终绑定技能包。
-2. **SkillResolver 是唯一桥梁** — 连接 ORM 模型和 AI 引擎运行时（ToolDefinition）。
-3. **resolve_for_agent() 在 Dispatcher 层调用**，不在 Engine 内部 — Engine 接收已解析好的 `SkillResolveResult`。
-4. **knowledge_base 类型技能产生 0 个 ToolDefinition** — 通过 RAG 管线注入上下文到 system_prompt。
-5. **作用域创建后不可变** — 不能将企业包改为管理包或反之。
-6. **系统技能包/技能**（is_system=True）不可删除、禁用，scope/is_system 字段不可修改。
-7. **企业可查看并绑定 admin/global 技能包**，但不能修改 — 只能通过"从模板克隆"复制为自有。
-8. **删除级联规则**：删除技能包 → 软删除所有子技能 + 物理删除所有 AgentSkillBinding。
-9. **Valves 环境配置**存储在技能包级别，解析时注入到每个工具的 config 中（键名 `_valves_config`）。
+> SkillPackage 是归组 / 来源 / 目录单元；Agent 的运行时能力真相是直接 Skill 授权。

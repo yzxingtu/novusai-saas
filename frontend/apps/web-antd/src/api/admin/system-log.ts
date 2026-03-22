@@ -5,6 +5,7 @@
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
+import { downloadBlob } from '#/utils/download';
 
 // ============================================================
 // Type definitions / 类型定义
@@ -204,8 +205,15 @@ export async function getSystemLogContentApi(
  * Download log file / 下载日志文件
  * GET /admin/system-logs/files/{filename}/download
  */
-export function getSystemLogDownloadUrl(filename: string): string {
-  return `${API_PREFIX}/files/${encodeURIComponent(filename)}/download`;
+export async function downloadSystemLogFileApi(
+  filename: string,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  const blob = await requestClient.download<Blob>(
+    `${API_PREFIX}/files/${encodeURIComponent(filename)}/download`,
+    options,
+  );
+  downloadBlob(blob, { filename });
 }
 
 /**

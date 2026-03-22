@@ -65,13 +65,20 @@ export interface PageOperationResultEvent {
 let currentJoinedRoom = '';
 /** Retry rejoin after reconnect/hot-reload races / 连接恢复后补发重入，覆盖热更新竞态 */
 const REJOIN_RETRY_DELAYS_MS = [0, 400, 1200] as const;
+const RECENT_INVOKE_RESULT_TTL_MS = 90_000;
+const recentInvokeResults = new Map<string, PageOperationResultEvent>();
+const recentInvokeResultTimers = new Map<
+  string,
+  ReturnType<typeof setTimeout>
+>();
+const inFlightInvocations = new Map<string, Promise<void>>();
 
 /**
  * Agent Loop: track recently confirmed mutation operations per page key / 按页面 key 跟踪最近确认的变更操作
  * When user confirms create_record/edit_record, subsequent fill_form
  * operations on the same page within CHAIN_CONFIRM_TTL_MS are auto-approved.
  */
-const CHAIN_CONFIRM_TTL_MS = 30_000;
+const CHAIN_CONFIRM_TTL_MS = 60_000;
 const _chainConfirmed = new Map<string, number>();
 
 function markChainConfirmed(pageKey: string): void {
@@ -91,6 +98,47 @@ function isChainConfirmed(pageKey: string): boolean {
 const CHAIN_TRIGGER_OPS = new Set(['create_record', 'edit_record']);
 const CHAIN_AUTO_OPS = new Set(['fill_form']);
 
+function clearChainConfirmed(): void {
+  _chainConfirmed.clear();
+}
+
+function clearRecentInvokeResultTimer(invokeId: string): void {
+  const timerId = recentInvokeResultTimers.get(invokeId);
+  if (timerId !== undefined) {
+    clearTimeout(timerId);
+    recentInvokeResultTimers.delete(invokeId);
+  }
+}
+
+function rememberInvokeResult(payload: PageOperationResultEvent): void {
+  clearRecentInvokeResultTimer(payload.invoke_id);
+  recentInvokeResults.set(payload.invoke_id, payload);
+  const timerId = setTimeout(() => {
+    recentInvokeResults.delete(payload.invoke_id);
+    recentInvokeResultTimers.delete(payload.invoke_id);
+  }, RECENT_INVOKE_RESULT_TTL_MS);
+  recentInvokeResultTimers.set(payload.invoke_id, timerId);
+}
+
+function replayInvokeResult(
+  socketIOStore: ReturnType<typeof useSocketIOStore>,
+  invokeId: string,
+): boolean {
+  const payload = recentInvokeResults.get(invokeId);
+  if (!payload) return false;
+  socketIOStore.emit('page_operation_result', payload);
+  return true;
+}
+
+function clearTrackedInvocations(): void {
+  for (const timerId of recentInvokeResultTimers.values()) {
+    clearTimeout(timerId);
+  }
+  recentInvokeResultTimers.clear();
+  recentInvokeResults.clear();
+  inFlightInvocations.clear();
+}
+
 /**
  * Execute operation and send result back via WebSocket
  * 执行操作并通过 WebSocket 回传结果
@@ -101,13 +149,15 @@ function emitResult(
   result: { success: boolean; message: string; data?: Record<string, unknown> },
   errorType?: string,
 ): void {
-  socketIOStore.emit('page_operation_result', {
+  const payload = {
     invoke_id: invokeId,
     success: result.success,
     message: result.message,
     data: result.data,
     ...(errorType ? { error_type: errorType } : {}),
-  } satisfies PageOperationResultEvent);
+  } satisfies PageOperationResultEvent;
+  rememberInvokeResult(payload);
+  socketIOStore.emit('page_operation_result', payload);
 }
 
 /**
@@ -136,13 +186,10 @@ export function usePageOperationChannel(): void {
       event.operation_name,
       event.params || {},
     );
-    const errorType = result.success ? undefined : (result.error_type ?? 'execution_failed');
-    emitResult(
-      socketIOStore,
-      event.invoke_id,
-      result,
-      errorType,
-    );
+    const errorType = result.success
+      ? undefined
+      : (result.error_type ?? 'execution_failed');
+    emitResult(socketIOStore, event.invoke_id, result, errorType);
   }
 
   const aiPanelStore = useAIPanelStore();
@@ -189,20 +236,30 @@ export function usePageOperationChannel(): void {
     if (result === null) {
       // Timeout: dismiss the lingering confirmation card in the panel / 超时：清理面板中残留的确认卡片
       aiPanelStore.resolvePageOp(event.invoke_id, false);
-      emitResult(socketIOStore, event.invoke_id, {
-        success: false,
-        message: $t('shared.pageOperation.msg.confirmationTimedOut'),
-      }, 'timeout');
+      emitResult(
+        socketIOStore,
+        event.invoke_id,
+        {
+          success: false,
+          message: $t('shared.pageOperation.msg.confirmationTimedOut'),
+        },
+        'timeout',
+      );
     } else if (result) {
       if (CHAIN_TRIGGER_OPS.has(event.operation_name)) {
         markChainConfirmed(event.page_key);
       }
       await executeAndEmit(event);
     } else {
-      emitResult(socketIOStore, event.invoke_id, {
-        success: false,
-        message: $t('shared.pageOperation.msg.userCancelled'),
-      }, 'user_cancelled');
+      emitResult(
+        socketIOStore,
+        event.invoke_id,
+        {
+          success: false,
+          message: $t('shared.pageOperation.msg.userCancelled'),
+        },
+        'user_cancelled',
+      );
     }
   }
 
@@ -213,98 +270,151 @@ export function usePageOperationChannel(): void {
       return;
     }
 
-    try {
-      // Find operation registration / 查找操作注册
-      const operation = findPageOperation(
-        event.page_key,
-        event.operation_name,
-      );
+    if (replayInvokeResult(socketIOStore, event.invoke_id)) {
+      return;
+    }
 
-      const currentPolicy = currentPageAIExecutionPolicy.value;
-      const normalizedEventPageKey = normalizePageKey(event.page_key);
-      const currentPolicyPageKey = currentPolicy.pageContextKey
-        ? normalizePageKey(currentPolicy.pageContextKey)
-        : '';
+    const inFlight = inFlightInvocations.get(event.invoke_id);
+    if (inFlight) {
+      await inFlight;
+      replayInvokeResult(socketIOStore, event.invoke_id);
+      return;
+    }
 
-      if (
-        operation &&
-        currentPolicyPageKey &&
-        currentPolicyPageKey === normalizedEventPageKey
-      ) {
-        const allowedOperations = filterPageOperationsByPolicy(
-          listPageOperations(normalizedEventPageKey),
-          currentPolicy,
+    const run = (async () => {
+      try {
+        // Find operation registration / 查找操作注册
+        const operation = findPageOperation(
+          event.page_key,
+          event.operation_name,
         );
-        const isAllowed = allowedOperations.some(
-          (item) => item.name === event.operation_name,
-        );
-        if (!isAllowed) {
+
+        const currentPolicy = currentPageAIExecutionPolicy.value;
+        const normalizedEventPageKey = normalizePageKey(event.page_key);
+        const currentPolicyPageKey = currentPolicy.pageContextKey
+          ? normalizePageKey(currentPolicy.pageContextKey)
+          : '';
+        const activePageKey =
+          currentPolicyPageKey || normalizePageKey(window.location.pathname);
+
+        if (activePageKey && normalizedEventPageKey !== activePageKey) {
           emitResult(
             socketIOStore,
             event.invoke_id,
             {
               success: false,
-              message: $t('shared.pageOperation.msg.operationDisabled', {
-                op: event.operation_name,
-                page: normalizedEventPageKey,
+              message: $t('shared.pageOperation.msg.pageKeyMismatch', {
+                active: activePageKey,
+                requested: normalizedEventPageKey,
               }),
             },
-            'disabled_by_policy',
+            'page_key_mismatch',
           );
           return;
         }
-      }
 
-      // Unregistered operation → reject / 未注册操作 → 拒绝执行
-      if (!operation) {
-        emitResult(socketIOStore, event.invoke_id, {
-          success: false,
-          message: $t('shared.pageOperation.msg.operationNotRegistered', { op: event.operation_name, page: event.page_key }),
-        }, 'not_registered');
-        return;
-      }
+        if (
+          operation &&
+          currentPolicyPageKey &&
+          currentPolicyPageKey === normalizedEventPageKey
+        ) {
+          const allowedOperations = filterPageOperationsByPolicy(
+            listPageOperations(normalizedEventPageKey),
+            currentPolicy,
+          );
+          const isAllowed = allowedOperations.some(
+            (item) => item.name === event.operation_name,
+          );
+          if (!isAllowed) {
+            emitResult(
+              socketIOStore,
+              event.invoke_id,
+              {
+                success: false,
+                message: $t('shared.pageOperation.msg.operationDisabled', {
+                  op: event.operation_name,
+                  page: normalizedEventPageKey,
+                }),
+              },
+              'disabled_by_policy',
+            );
+            return;
+          }
+        }
 
-      // Backend explicit requires_confirmation → always show confirmation (overrides readonly/chain) / 后端强制确认语义优先
-      if (event.requires_confirmation) {
+        // Unregistered operation → reject / 未注册操作 → 拒绝执行
+        if (!operation) {
+          emitResult(
+            socketIOStore,
+            event.invoke_id,
+            {
+              success: false,
+              message: $t('shared.pageOperation.msg.operationNotRegistered', {
+                op: event.operation_name,
+                page: event.page_key,
+              }),
+            },
+            'not_registered',
+          );
+          return;
+        }
+
+        // Backend explicit requires_confirmation → always show confirmation (overrides readonly/chain) / 后端强制确认语义优先
+        if (event.requires_confirmation) {
+          let desc = operation.description || '';
+          if (event.operation_name === 'replace_content') {
+            const contentLen = String(event.params?.content ?? '').length;
+            desc = $t('shared.pageOperation.replaceContentConfirm', {
+              count: contentLen,
+            });
+          }
+          await confirmAndExecute(event, operation.label, desc);
+          return;
+        }
+
+        // readonly=true → execute directly (no confirmation needed) / 直接执行（无需确认）
+        if (operation.readonly) {
+          await executeAndEmit(event);
+          return;
+        }
+
+        // Agent Loop: auto-approve chain-follow operations (e.g. fill_form after create_record) / 链式自动确认仅作附加优化
+        if (
+          CHAIN_AUTO_OPS.has(event.operation_name) &&
+          isChainConfirmed(event.page_key)
+        ) {
+          await executeAndEmit(event);
+          return;
+        }
+
+        // readonly=false → show confirmation dialog / 弹出确认对话框
         let desc = operation.description || '';
         if (event.operation_name === 'replace_content') {
           const contentLen = String(event.params?.content ?? '').length;
-          desc = $t('shared.pageOperation.replaceContentConfirm', { count: contentLen });
+          desc = $t('shared.pageOperation.replaceContentConfirm', {
+            count: contentLen,
+          });
         }
         await confirmAndExecute(event, operation.label, desc);
-        return;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        emitResult(
+          socketIOStore,
+          event.invoke_id,
+          {
+            success: false,
+            message: msg,
+          },
+          'internal_error',
+        );
       }
+    })();
 
-      // readonly=true → execute directly (no confirmation needed) / 直接执行（无需确认）
-      if (operation.readonly) {
-        await executeAndEmit(event);
-        return;
-      }
-
-      // Agent Loop: auto-approve chain-follow operations (e.g. fill_form after create_record) / 链式自动确认仅作附加优化
-      if (
-        CHAIN_AUTO_OPS.has(event.operation_name) &&
-        isChainConfirmed(event.page_key)
-      ) {
-        await executeAndEmit(event);
-        return;
-      }
-
-      // readonly=false → show confirmation dialog / 弹出确认对话框
-      let desc = operation.description || '';
-      if (event.operation_name === 'replace_content') {
-        const contentLen = String(event.params?.content ?? '').length;
-        desc = $t('shared.pageOperation.replaceContentConfirm', {
-          count: contentLen,
-        });
-      }
-      await confirmAndExecute(event, operation.label, desc);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      emitResult(socketIOStore, event.invoke_id, {
-        success: false,
-        message: msg,
-      }, 'internal_error');
+    inFlightInvocations.set(event.invoke_id, run);
+    try {
+      await run;
+    } finally {
+      inFlightInvocations.delete(event.invoke_id);
     }
   }
 
@@ -319,6 +429,7 @@ export function usePageOperationChannel(): void {
     socketIOStore.emit('page_session_leave', {
       page_session_id: currentJoinedRoom,
     });
+    clearChainConfirmed();
     currentJoinedRoom = '';
   }
 
@@ -378,6 +489,7 @@ export function usePageOperationChannel(): void {
     window.removeEventListener('focus', handleWindowFocus);
     document.removeEventListener('visibilitychange', handleVisibilityChange);
     leavePageSessionRoom();
+    clearTrackedInvocations();
     socketIOStore.unregisterHandler(
       'page_operation_invoke',
       handleInvoke as (data: unknown) => void,
@@ -393,6 +505,8 @@ export function usePageOperationChannel(): void {
         scheduleJoinRetries();
       } else {
         clearRejoinRetryTimers();
+        clearChainConfirmed();
+        clearTrackedInvocations();
         currentJoinedRoom = '';
       }
     },

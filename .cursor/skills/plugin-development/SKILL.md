@@ -17,6 +17,8 @@ description: NovusAI 插件开发技能。适用于新建插件、迁移旧插�
 
 - 插件必须零侵入，代码只能留在插件目录内。
 - `plugin.yaml` 是声明层单一事实来源。
+- `extensions.capabilities[*]` 与 `extensions.skills[*].capabilities[]` 必须形成显式标准映射，禁止只靠单个示例插件做隐式约定。
+- 插件启用时同步的是 `SkillPackage + Skill` 目录投影，**不是**自动把整包绑定到 Agent 运行时。
 - License 语义只允许：
   - `trial`
   - `fixed_term`
@@ -32,7 +34,9 @@ description: NovusAI 插件开发技能。适用于新建插件、迁移旧插�
 ## 前端开发规则
 
 - dev 模式走 `/__plugin_dev__/{plugin}/entry`，用于源码调试与 HMR。
-- production 模式只能消费 `frontend/dist/plugin.manifest.json` 和其声明的发布产物。
+- dev loader 必须从 `plugin.yaml -> extensions.frontend.dev.entry` 解析真实入口，不能再假定固定 `src/index.ts`。
+- production 模式只能消费 `frontend_runtime.release_manifest` 指向的 release manifest 以及其声明的发布产物。
+- `/plugins/slots` 中每个前端 slot 都应附带 `frontend_runtime` 投影，用来把 `release.manifest` 契约传给宿主 loader。
 - 插件元数据图标只允许插件根目录 `icon.png`；未提供时宿主管理端统一回退 `lucide:plug`。
 - 插件页面/菜单图标默认使用 `lucide:*`，禁止依赖在线 Iconify。
 - 不允许继续写：
@@ -56,6 +60,7 @@ description: NovusAI 插件开发技能。适用于新建插件、迁移旧插�
 - `sync-manifest` 只同步同版本 manifest 漂移，不覆盖 `granted_capabilities`。
 - `upgrade` 才能处理版本变化。
 - 启动恢复不处理前端 npm 依赖。
+- 启动恢复遇到 Alembic 迁移失败时，必须像 `enable()` 一样对当前插件 fail-close，并标记 `ERROR`。
 
 ## 依赖模型
 
@@ -82,6 +87,8 @@ novusai plugin pack backend/plugins/my-plugin --release
 novusai plugin pack backend/plugins/my-plugin --source
 ```
 
+- `create --template minimal` 现在默认生成 `icon: ""`，保证脚手架产物可直接通过 manifest 校验。
+
 ## 开发检查清单
 
 1. 先确认插件顶层 `scope` 与企业分配模型是否一致。
@@ -95,12 +102,16 @@ novusai plugin pack backend/plugins/my-plugin --source
    - `pages[*].icon`
    - `extensions.frontend.dev.entry`
    - `extensions.frontend.release.manifest`
-5. 如有图标，必须同时检查：
+5. 如声明 `extensions.frontend.dashboard_widgets[*]`，必须同时检查：
+   - 宿主 dashboard 已支持对应插槽
+   - `frontend/src/index.ts` 已导出对应组件名
+   - 组件实际位于插件目录内，而不是宿主前端源码里
+6. 如有图标，必须同时检查：
    - 顶层 `icon` 是否为 `icon.png` 或空字符串
    - 插件根目录是否真的提供了 `icon.png`
    - 是否没有引入在线 Iconify 依赖
-6. 如是付费插件，确认统一 runtime gate 已覆盖执行入口。
-7. 最后跑 `validate`、相关 pytest/vitest、以及需要的 `pack` 验证。
+7. 如是付费插件，确认统一 runtime gate 已覆盖执行入口。
+8. 最后跑 `validate`、相关 pytest/vitest、以及需要的 `pack` 验证。
 
 ## 参考
 

@@ -36,7 +36,7 @@ import {
 import { createViewDetailPageOperation } from '#/composables';
 import { PLATFORM_TENANT_ID } from '#/constants';
 import { $t } from '#/locales';
-import { copyToClipboard, formatDate } from '#/utils/common';
+import { copyToClipboard, formatDate, formatRelativeTime } from '#/utils/common';
 
 import {
   getLevelColor,
@@ -228,7 +228,7 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
         <template #createdAt_cell="{ row }">
           <Tooltip :title="formatDate(row.created_at)">
             <span class="text-muted-foreground">
-              {{ formatDate(row.created_at) }}
+              {{ formatRelativeTime(row.created_at) }}
             </span>
           </Tooltip>
         </template>

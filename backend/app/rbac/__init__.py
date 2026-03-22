@@ -25,7 +25,6 @@ from app.rbac.deps import (
     require_admin_permissions,
     require_any_admin_permission,
     require_any_tenant_admin_permission,
-    require_permissions,
     require_tenant_admin_permissions,
 )
 from app.rbac.registry import permission_registry
@@ -49,7 +48,6 @@ __all__ = [
     "require_any_admin_permission",
     "require_tenant_admin_permissions",
     "require_any_tenant_admin_permission",
-    "require_permissions",
     # Services / 服务
     "PermissionService",
 ]

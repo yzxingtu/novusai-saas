@@ -866,3 +866,42 @@ class TestPageContextExecutorTruncation:
         assert "Available Editor Operations" in result.output
         assert "get_editor_html" in result.output
         assert "replace_section" in result.output
+
+    @pytest.mark.asyncio
+    async def test_generic_operations_and_fallback_source_are_visible(self):
+        """普通页面也要输出 available_operations，且 fallback 来源需显式标识。"""
+        from app.ai.tools.executors.page_context_executor import PageContextExecutor
+
+        executor = PageContextExecutor()
+        context = MagicMock()
+        context.variables = {
+            "page_context": {
+                "page_key": "tenant.portal.home",
+                "page_title": "Portal Home",
+                "page_data": {
+                    "source": "dom_snapshot",
+                    "available_operations": [
+                        {
+                            "name": "search",
+                            "label": "Search",
+                            "description": "Apply structured search",
+                            "readonly": True,
+                            "params": {
+                                "keyword": {"type": "string", "required": True},
+                                "status": {"type": "string", "enum": ["active", "paused"]},
+                            },
+                        }
+                    ],
+                },
+            }
+        }
+        definition = ToolDefinition(name="get_page_context", description="")
+
+        result = await executor.execute(definition, "tc-generic-ops", {}, context)
+
+        assert result.success
+        assert "Context Source: dom_snapshot" in result.output
+        assert "Available Page Operations" in result.output
+        assert "search [readonly]" in result.output
+        assert "keyword:string required" in result.output
+        assert "status:string enum[active, paused]" in result.output

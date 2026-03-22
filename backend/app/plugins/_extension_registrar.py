@@ -23,6 +23,22 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
+def _build_frontend_runtime_payload(manifest: PluginManifest) -> dict[str, str]:
+    """Project frontend runtime contract into slot metadata. / 将前端运行时契约投影到插槽元数据。"""
+    frontend = manifest.extensions.frontend
+    payload: dict[str, str] = {}
+
+    dev_entry = str(getattr(frontend.dev, "entry", "") or "").strip()
+    if dev_entry:
+        payload["dev_entry"] = dev_entry
+
+    release_manifest = str(getattr(frontend.release, "manifest", "") or "").strip()
+    if release_manifest:
+        payload["release_manifest"] = release_manifest
+
+    return payload
+
+
 def _load_handler(plugin_name: str, handler_path: str) -> Callable | None:
     """Load plugin handler function — delegates to unified loader / 加载插件处理函数 — 委托给统一加载器"""
     from app.plugins.module_loader import load_plugin_handler
@@ -35,6 +51,62 @@ def _load_executor(plugin_name: str, skill_type: str) -> type | None:
     from app.plugins.module_loader import load_plugin_executor
 
     return load_plugin_executor(plugin_name, skill_type)
+
+
+def _normalize_public_captcha_endpoints(value: object) -> list[str]:
+    """Normalize public captcha endpoints / 规范化公开验证码端点列表"""
+    allowed = {"admin", "tenant", "user"}
+    if not isinstance(value, list):
+        return []
+
+    normalized: list[str] = []
+    for item in value:
+        endpoint = str(item or "").strip().lower()
+        if endpoint in allowed and endpoint not in normalized:
+            normalized.append(endpoint)
+    return normalized
+
+
+def _register_custom_captcha_provider(
+    manifest: PluginManifest,
+    plugin_name: str,
+    custom_ext,
+) -> bool:
+    """Register captcha provider declared via custom extension / 注册通过 custom 声明的验证码提供者"""
+    entry_point = str((custom_ext.data or {}).get("entry_point") or "").strip()
+    if not entry_point:
+        return False
+
+    provider_ref = _load_handler(plugin_name, entry_point)
+    if provider_ref is None:
+        return False
+
+    try:
+        provider = provider_ref() if isinstance(provider_ref, type) else provider_ref
+    except Exception:
+        logger.warning(
+            "Plugin {} captcha provider '{}' failed to instantiate",
+            plugin_name,
+            entry_point,
+            exc_info=True,
+        )
+        return False
+
+    from app.captcha.provider import CaptchaProviderMetadata
+    from app.captcha.registry import registry as captcha_registry
+
+    captcha_registry.register(
+        custom_ext.name,
+        provider,
+        metadata=CaptchaProviderMetadata(
+            plugin_name=plugin_name,
+            public_endpoints=_normalize_public_captcha_endpoints(
+                (custom_ext.data or {}).get("public_endpoints"),
+            ),
+            frontend_runtime=_build_frontend_runtime_payload(manifest),
+        ),
+    )
+    return True
 
 
 def register_all_extensions(
@@ -183,6 +255,8 @@ def register_all_extensions(
     )
 
     # ── T9: Frontend Slots (6 types, registered by slot_type) / （6 种前端插槽，按 slot_type 分类注册）──
+    frontend_runtime = _build_frontend_runtime_payload(manifest)
+    slot_common = {"frontend_runtime": frontend_runtime} if frontend_runtime else {}
 
     # header_widgets — Top-right navigation bar components / 右上角导航栏组件
     for widget in ext.frontend.header_widgets:
@@ -192,6 +266,7 @@ def register_all_extensions(
             component=widget.component,
             sort_order=widget.sort_order,
             scope=widget.scope,
+            **slot_common,
         )
 
     # floating_panels — Page floating panels (bottom-right, etc.) / 页面浮动面板（右下角等）
@@ -202,9 +277,15 @@ def register_all_extensions(
             component=panel.component,
             icon=panel.icon,
             position=panel.position,
+            **slot_common,
         )
 
-    register_frontend_page_extensions(registry, manifest, plugin_name)
+    register_frontend_page_extensions(
+        registry,
+        manifest,
+        plugin_name,
+        frontend_runtime=frontend_runtime,
+    )
 
     # notification_ui — Notification center custom UI components / 通知中心自定义 UI 组件
     for notif_ui in ext.frontend.notification_ui:
@@ -213,6 +294,7 @@ def register_all_extensions(
             name=notif_ui.event,
             event=notif_ui.event,
             component=notif_ui.component,
+            **slot_common,
         )
 
     # dashboard_widgets — Dashboard widget cards / 仪表板卡片
@@ -224,6 +306,7 @@ def register_all_extensions(
             title=widget.title,
             grid=widget.grid,
             scope=widget.scope,
+            **slot_common,
         )
 
     # settings_tabs — System settings tabs / 系统设置页签
@@ -234,6 +317,7 @@ def register_all_extensions(
             component=tab.component,
             title=tab.title,
             scope=tab.scope,
+            **slot_common,
         )
 
     # Middleware — ASGI middleware (injected into request chain) / ASGI 中间件（注入请求链）
@@ -249,6 +333,10 @@ def register_all_extensions(
 
     # Custom Extensions — Generic custom extension points (metadata injection) / 通用自定义扩展点（元数据注入）
     for custom_ext in ext.custom:
+        if custom_ext.type == "captcha_provider":
+            if not _register_custom_captcha_provider(manifest, plugin_name, custom_ext):
+                entry_point = str((custom_ext.data or {}).get("entry_point") or custom_ext.name)
+                _record_failure(plugin_name, "custom", entry_point)
         registry.register_custom(
             plugin_name, custom_ext.type, custom_ext.name,
             data=custom_ext.data,
@@ -306,6 +394,8 @@ def register_frontend_page_extensions(
     registry: ExtensionRegistry,
     manifest: PluginManifest,
     plugin_name: str,
+    *,
+    frontend_runtime: dict[str, str] | None = None,
 ) -> None:
     """Register page slots from frontend.pages. / 根据 frontend.pages 注册页面插槽。"""
     for page in manifest.extensions.frontend.pages:
@@ -320,6 +410,8 @@ def register_frontend_page_extensions(
             slot_kwargs["icon"] = page.icon
         if page.ai is not None:
             slot_kwargs["ai"] = page.ai.model_dump(exclude_none=True)
+        if frontend_runtime:
+            slot_kwargs["frontend_runtime"] = frontend_runtime
         registry.register_frontend_slot(
             plugin_name,
             FrontendSlotTypeEnum.STANDALONE_PAGE.value,

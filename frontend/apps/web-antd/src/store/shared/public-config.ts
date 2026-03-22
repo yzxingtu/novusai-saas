@@ -18,6 +18,10 @@ import {
   getPlatformPublicConfigApi,
   getTenantPublicConfigApi,
 } from '#/api/public/config';
+import {
+  ensureCaptchaPluginReady,
+  fallbackToBuiltinCaptcha,
+} from '#/utils/captcha-plugin';
 
 /**
  * Update page head info (Favicon, Meta Description)
@@ -99,8 +103,6 @@ interface PublicConfigState {
   platformConfigLoaded: boolean;
   /** Whether tenant config is loaded / 企业配置是否已加载 */
   tenantConfigLoaded: boolean;
-  /** Loading state (backward compat, true if any endpoint loading) / 加载中状态 */
-  loading: boolean;
   /** Platform config loading / 平台配置加载中 */
   platformLoading: boolean;
   /** Tenant config loading / 企业配置加载中 */
@@ -140,7 +142,6 @@ export const usePublicConfigStore = defineStore('publicConfig', {
     tenantConfig: null,
     platformConfigLoaded: false,
     tenantConfigLoaded: false,
-    loading: false,
     platformLoading: false,
     tenantLoading: false,
     error: null,
@@ -264,11 +265,15 @@ export const usePublicConfigStore = defineStore('publicConfig', {
 
     async _doLoadPlatformConfig(): Promise<null | PlatformPublicConfig> {
       this.platformLoading = true;
-      this.loading = true;
       this.error = null;
 
       try {
         const config = await getPlatformPublicConfigApi();
+        if (!(await ensureCaptchaPluginReady(config.login.captcha))) {
+          config.login.captcha =
+            fallbackToBuiltinCaptcha(config.login.captcha) ??
+            config.login.captcha;
+        }
         this.platformConfig = config;
         this.platformConfigLoaded = true;
 
@@ -282,7 +287,6 @@ export const usePublicConfigStore = defineStore('publicConfig', {
         return null;
       } finally {
         this.platformLoading = false;
-        this.loading = this.tenantLoading;
       }
     },
 
@@ -309,11 +313,15 @@ export const usePublicConfigStore = defineStore('publicConfig', {
 
     async _doLoadTenantConfig(): Promise<null | TenantPublicConfig> {
       this.tenantLoading = true;
-      this.loading = true;
       this.error = null;
 
       try {
         const config = await getTenantPublicConfigApi();
+        if (!(await ensureCaptchaPluginReady(config.login.captcha))) {
+          config.login.captcha =
+            fallbackToBuiltinCaptcha(config.login.captcha) ??
+            config.login.captcha;
+        }
         this.tenantConfig = config;
         this.tenantConfigLoaded = true;
 
@@ -326,7 +334,6 @@ export const usePublicConfigStore = defineStore('publicConfig', {
         return null;
       } finally {
         this.tenantLoading = false;
-        this.loading = this.platformLoading;
       }
     },
 

@@ -108,6 +108,7 @@
     "userCancelled": "User cancelled the operation",
     "operationDisabled": "Operation '{op}' is disabled on page '{page}'",
     "operationNotRegistered": "Operation '{op}' is not registered on page '{page}'",
+    "pageKeyMismatch": "Page operation target mismatch: requested {requested}, active page is {active}",
     "pageNoOperations": "Page \"{page}\" has no registered operations",
     "opNotFound": "Operation \"{op}\" not found on page \"{page}\". Available: {available}",
     "opNoHandler": "Operation \"{op}\" has no handler",
@@ -130,6 +131,9 @@
     "invalidPageSize": "Invalid page size: {pageSize}",
     "unknownField": "Unknown field: {field}. Available: {available}",
     "foundOptions": "Found {count} options for {field}",
-    "noOptionsLoaded": "No options loaded for {field}"
+    "noOptionsLoaded": "No options loaded for {field}",
+    "paramRequired": "Missing required parameter: {param}",
+    "paramInvalidType": "Parameter {param} has invalid type, expected {expected}",
+    "paramInvalidEnum": "Parameter {param} must be one of: {allowed}"
   }
 }

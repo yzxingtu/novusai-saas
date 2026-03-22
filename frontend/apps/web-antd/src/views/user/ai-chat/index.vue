@@ -9,6 +9,11 @@
  * Reuses useAIChat composable with /user API prefix
  */
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import {
+  type LocationQuery,
+  useRoute,
+  useRouter,
+} from 'vue-router';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -38,11 +43,46 @@ defineOptions({ name: 'UserAIChat' });
 
 const API_PREFIX = '/api/user';
 const UPLOAD_URL = '/api/user/attachments/upload';
+const route = useRoute();
+const router = useRouter();
+
+function parsePositiveQueryNumber(
+  value: LocationQuery[string] | undefined,
+): number | undefined {
+  const rawValue = Array.isArray(value) ? value[0] : value;
+  if (typeof rawValue !== 'string') {
+    return undefined;
+  }
+  const parsed = Number.parseInt(rawValue, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function parseQueryText(
+  value: LocationQuery[string] | undefined,
+): string | undefined {
+  const rawValue = Array.isArray(value) ? value[0] : value;
+  if (typeof rawValue !== 'string') {
+    return undefined;
+  }
+  const normalized = rawValue.trim();
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+const initialAgentId = ref<number | undefined>(
+  parsePositiveQueryNumber(route.query.agentId),
+);
+const initialConversationId = ref<number | undefined>(
+  parsePositiveQueryNumber(route.query.conversationId),
+);
+const lastAppliedPrompt = ref('');
+const routeReady = ref(false);
 
 // ============ Chat Logic ============
 
 const chat = useAIChat({
   apiPrefix: API_PREFIX,
+  initialAgentId,
+  initialConversationId,
   uploadUrl: UPLOAD_URL,
   onVariablesMissing: () => {
     const agent = selectedAgent.value;
@@ -210,7 +250,17 @@ const exportMenuItems = computed(() => [
 // ============ Conversation handlers ============
 
 function onSelectConversation(convId: number) {
-  loadConversationMessages(convId);
+  void loadConversationMessages(convId);
+  const conversation = conversations.value.find((item) => item.id === convId);
+  void router.replace({
+    path: '/ai-chat',
+    query: {
+      ...(conversation?.agent_id
+        ? { agentId: String(conversation.agent_id) }
+        : {}),
+      conversationId: String(convId),
+    },
+  });
   mobileSidebarOpen.value = false;
 }
 
@@ -245,7 +295,21 @@ function cancelEditTitle() {
 
 function onStartNewChat() {
   startNewConversation();
+  void router.replace({
+    path: '/ai-chat',
+    query: selectedAgentId.value
+      ? { agentId: String(selectedAgentId.value) }
+      : {},
+  });
   mobileSidebarOpen.value = false;
+}
+
+function onSelectAgent(agentId: number) {
+  selectAgent(agentId);
+  void router.replace({
+    path: '/ai-chat',
+    query: { agentId: String(agentId) },
+  });
 }
 
 // ============ Memory ============
@@ -289,6 +353,112 @@ const effectiveWelcomeMessage = computed(
 const effectiveSuggestedQuestions = computed<string[]>(() => {
   return normalizeStarterQuestions(starterAgent.value?.suggested_questions);
 });
+
+const activeConversation = computed(() => {
+  return (
+    conversations.value.find((item) => item.id === activeConversationId.value) ??
+    null
+  );
+});
+
+const workspaceHighlights = computed(() => {
+  return [
+    {
+      icon: 'lucide:book-open',
+      key: 'knowledge',
+      label: $t('user.aiChat.workspace.signals.knowledge'),
+      value:
+        agentKBBindings.value.length > 0
+          ? $t('user.aiChat.workspace.signals.knowledgeValue', {
+              count: agentKBBindings.value.length,
+            })
+          : $t('user.aiChat.workspace.signals.knowledgeEmpty'),
+    },
+    {
+      icon: 'lucide:history',
+      key: 'history',
+      label: $t('user.aiChat.workspace.signals.history'),
+      value: $t('user.aiChat.workspace.signals.historyValue', {
+        count: conversations.value.length,
+      }),
+    },
+    {
+      icon: 'lucide:image-up',
+      key: 'vision',
+      label: $t('user.aiChat.workspace.signals.vision'),
+      value: selectedAgent.value?.model_capabilities?.supports_vision
+        ? $t('user.aiChat.workspace.signals.visionReady')
+        : $t('user.aiChat.workspace.signals.visionStandard'),
+    },
+  ];
+});
+
+const showWorkspaceHero = computed(() => {
+  return !(
+    chatMessages.value.length > 0 ||
+    !!activeConversationId.value ||
+    sending.value ||
+    streaming.value
+  );
+});
+
+const chatHeaderSubtitle = computed(() => {
+  if (showWorkspaceHero.value) {
+    return '';
+  }
+  if (activeConversation.value?.title?.trim()) {
+    return activeConversation.value.title;
+  }
+  if (selectedAgent.value?.description?.trim()) {
+    return selectedAgent.value.description;
+  }
+  return $t('user.aiChat.workspace.noAgentSelected');
+});
+
+const selectedAgentInputVariables = computed(() =>
+  getAgentInputVariables(selectedAgent.value),
+);
+
+const selectedAgentHasVariables = computed(
+  () => selectedAgentInputVariables.value.length > 0,
+);
+
+const selectedAgentVarsConfigured = computed(() => {
+  return Object.keys(allAgentsVariables.value[selectedAgent.value?.id ?? 0] ?? {})
+    .length > 0;
+});
+
+function openSelectedAgentVarsModal() {
+  const agent = selectedAgent.value;
+  if (!agent) {
+    return;
+  }
+  openVarsModal(selectedAgentInputVariables.value, agent.id, agent.name);
+}
+
+async function applyRouteIntent() {
+  const conversationId = parsePositiveQueryNumber(route.query.conversationId);
+  const agentId = parsePositiveQueryNumber(route.query.agentId);
+  const prompt = parseQueryText(route.query.prompt);
+
+  if (conversationId && conversationId !== activeConversationId.value) {
+    await loadConversationMessages(conversationId);
+  } else if (
+    agentId &&
+    agentId !== selectedAgentId.value &&
+    agents.value.some((agent) => agent.id === agentId)
+  ) {
+    selectAgent(agentId);
+  }
+
+  if (prompt && lastAppliedPrompt.value !== prompt) {
+    inputMessage.value = prompt;
+    lastAppliedPrompt.value = prompt;
+  }
+  if (!prompt) {
+    lastAppliedPrompt.value = '';
+  }
+}
 
 function askSuggested(question: string) {
   inputMessage.value = question;
@@ -450,17 +620,148 @@ watch(selectedAgentId, (agentId) => {
 // ============ Lifecycle ============
 
 onMounted(async () => {
-  await loadAgents();
+  initialAgentId.value = parsePositiveQueryNumber(route.query.agentId);
+  initialConversationId.value = parsePositiveQueryNumber(
+    route.query.conversationId,
+  );
+  await loadAgents(initialAgentId.value);
   await loadConversations();
+  await applyRouteIntent();
+  routeReady.value = true;
 });
 
 onUnmounted(() => {
   cleanup();
 });
+
+watch(
+  () => route.query,
+  async () => {
+    initialAgentId.value = parsePositiveQueryNumber(route.query.agentId);
+    initialConversationId.value = parsePositiveQueryNumber(
+      route.query.conversationId,
+    );
+    if (!routeReady.value) {
+      return;
+    }
+    await applyRouteIntent();
+  },
+  { deep: true },
+);
 </script>
 
 <template>
-  <div class="flex h-[calc(100vh-9rem)] overflow-hidden rounded-xl border border-border bg-card">
+  <div class="space-y-4">
+    <section
+      v-if="showWorkspaceHero"
+      class="relative overflow-hidden rounded-[28px] border border-border/70 bg-card px-5 py-5 shadow-sm sm:px-6"
+    >
+      <div class="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
+      <div class="absolute -right-24 top-0 size-72 rounded-full bg-primary/10 blur-3xl" />
+      <div class="absolute left-0 top-1/2 size-48 -translate-y-1/2 rounded-full bg-sky-500/10 blur-3xl" />
+
+      <div class="relative grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+        <div class="space-y-4">
+          <div class="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/8 px-3 py-1 text-xs font-medium text-primary">
+            <IconifyIcon icon="lucide:messages-square" class="size-3.5" />
+            {{ $t('user.aiChat.workspace.badge') }}
+          </div>
+
+          <div>
+            <h1 class="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+              {{ $t('user.aiChat.workspace.title') }}
+            </h1>
+            <p class="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
+              {{ $t('user.aiChat.workspace.description') }}
+            </p>
+          </div>
+
+          <div class="flex flex-wrap gap-3">
+            <button
+              class="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-lg shadow-primary/15 transition-all hover:scale-[1.01] hover:shadow-xl hover:shadow-primary/20"
+              type="button"
+              @click="router.push('/agents')"
+            >
+              {{ $t('user.aiChat.workspace.primaryCta') }}
+              <IconifyIcon icon="lucide:arrow-up-right" class="size-4" />
+            </button>
+            <button
+              class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/90 px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:border-primary/25 hover:text-primary"
+              type="button"
+              @click="onStartNewChat"
+            >
+              <IconifyIcon icon="lucide:plus" class="size-4" />
+              {{ $t('user.aiChat.workspace.secondaryCta') }}
+            </button>
+            <button
+              class="inline-flex items-center gap-2 rounded-full border border-transparent px-2 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              type="button"
+              @click="router.push('/help')"
+            >
+              <IconifyIcon icon="lucide:life-buoy" class="size-4" />
+              {{ $t('user.aiChat.workspace.helpCta') }}
+            </button>
+          </div>
+
+        </div>
+
+        <div class="rounded-[24px] border border-border/60 bg-background/90 p-5 shadow-sm">
+          <div class="flex items-start gap-3">
+            <div
+              class="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-sm font-semibold text-primary"
+            >
+              <img
+                v-if="selectedAgent?.avatar"
+                :src="selectedAgent.avatar"
+                :alt="selectedAgent.name"
+                class="size-12 rounded-2xl object-cover"
+              />
+              <span v-else>
+                {{ (selectedAgent?.name || 'AI').charAt(0).toUpperCase() }}
+              </span>
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                {{ $t('user.aiChat.workspace.signals.agent') }}
+              </div>
+              <div class="mt-2 text-base font-semibold text-foreground">
+                {{
+                  selectedAgent?.name || $t('user.aiChat.workspace.noAgentSelected')
+                }}
+              </div>
+              <p class="mt-2 text-sm leading-6 text-muted-foreground">
+                {{
+                  selectedAgent?.description ||
+                  $t('user.aiChat.workspace.agentSummaryFallback')
+                }}
+              </p>
+            </div>
+          </div>
+
+          <div class="mt-4 space-y-2">
+            <div
+              v-for="signal in workspaceHighlights"
+              :key="signal.key"
+              class="flex items-start gap-3 rounded-2xl border border-border/50 bg-card/70 px-3 py-2.5"
+            >
+              <span class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <IconifyIcon :icon="signal.icon" class="size-4" />
+              </span>
+              <div class="min-w-0 flex-1">
+                <div class="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                  {{ signal.label }}
+                </div>
+                <div class="mt-1 text-sm font-medium leading-6 text-foreground">
+                  {{ signal.value }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="flex min-h-[72vh] overflow-hidden rounded-xl border border-border bg-card">
     <!-- ═══ Input Variables Modal ═══ -->
     <Modal
       v-model:open="varsModalVisible"
@@ -524,7 +825,7 @@ onUnmounted(() => {
                 ? 'bg-primary/8 text-foreground shadow-sm ring-1 ring-primary/15'
                 : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
             "
-            @click="selectAgent(agent.id)"
+            @click="onSelectAgent(agent.id)"
           >
             <div
               class="flex size-8 shrink-0 items-center justify-center rounded-lg text-xs font-medium"
@@ -683,96 +984,105 @@ onUnmounted(() => {
     </aside>
 
     <!-- ═══ Chat Area ═══ -->
-    <div class="flex flex-1 flex-col overflow-hidden">
-      <!-- Chat Header -->
-      <div class="flex shrink-0 items-center justify-between border-b border-border/40 px-4 py-2">
-        <div class="flex min-w-0 items-center gap-2">
-          <!-- Mobile sidebar toggle -->
-          <button
-            class="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:hidden"
-            @click="mobileSidebarOpen = true"
-          >
-            <IconifyIcon icon="lucide:panel-left" class="size-4" />
-          </button>
-          <!-- Current agent info -->
-          <div v-if="selectedAgent" class="flex items-center gap-2">
-            <div
-              class="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-xs font-medium text-primary"
+      <div class="flex flex-1 flex-col overflow-hidden">
+        <!-- Chat Header -->
+        <div class="flex shrink-0 items-start justify-between gap-3 border-b border-border/40 px-4 py-3">
+          <div class="flex min-w-0 items-start gap-3">
+            <!-- Mobile sidebar toggle -->
+            <button
+              class="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:hidden"
+              @click="mobileSidebarOpen = true"
             >
-              <img
-                v-if="selectedAgent.avatar"
-                :src="selectedAgent.avatar"
-                :alt="selectedAgent.name"
-                class="size-8 rounded-lg object-cover"
-              />
-              <span v-else>{{ selectedAgent.name.charAt(0).toUpperCase() }}</span>
+              <IconifyIcon icon="lucide:panel-left" class="size-4" />
+            </button>
+            <div
+              v-if="!showWorkspaceHero && selectedAgent"
+              class="flex min-w-0 items-center gap-3"
+            >
+              <div
+                class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-xs font-medium text-primary"
+              >
+                <img
+                  v-if="selectedAgent.avatar"
+                  :src="selectedAgent.avatar"
+                  :alt="selectedAgent.name"
+                  class="size-9 rounded-xl object-cover"
+                />
+                <span v-else>{{ selectedAgent.name.charAt(0).toUpperCase() }}</span>
+              </div>
+              <div class="min-w-0">
+                <div class="truncate text-sm font-semibold text-foreground">
+                  {{ selectedAgent.name }}
+                </div>
+                <div
+                  v-if="chatHeaderSubtitle"
+                  class="truncate text-[11px] text-muted-foreground"
+                >
+                  {{ chatHeaderSubtitle }}
+                </div>
+              </div>
             </div>
-            <div>
+            <div v-else class="min-w-0">
               <div class="text-sm font-semibold text-foreground">
-                {{ selectedAgent.name }}
+                {{ $t('user.aiChat.title') }}
               </div>
               <div
-                v-if="selectedAgent.description"
-                class="max-w-[300px] truncate text-[11px] text-muted-foreground"
+                v-if="chatHeaderSubtitle"
+                class="truncate text-[11px] text-muted-foreground"
               >
-                {{ selectedAgent.description }}
+                {{ chatHeaderSubtitle }}
               </div>
             </div>
           </div>
-          <span v-else class="text-sm font-semibold text-foreground">
-            {{ $t('user.aiChat.title') }}
-          </span>
-        </div>
 
-        <!-- Right actions -->
-        <div class="flex items-center gap-0.5">
-          <!-- Edit variables button (shown when agent has input_variables) -->
-          <Tooltip
-            v-if="getAgentInputVariables(selectedAgent).length"
-            :title="$t('user.aiChat.varsModal.editVars')"
-          >
-            <button
-              class="flex h-7 items-center gap-1 rounded-lg px-2 text-xs font-medium text-primary transition-colors hover:bg-primary/8"
-              @click="openVarsModal(getAgentInputVariables(selectedAgent), selectedAgent!.id, selectedAgent!.name)"
+          <!-- Right actions -->
+          <div class="flex shrink-0 items-center gap-1">
+            <Tooltip
+              v-if="selectedAgentHasVariables"
+              :title="$t('user.aiChat.varsModal.editVars')"
             >
-              <IconifyIcon icon="lucide:sliders-horizontal" class="size-3.5" />
-              <span class="hidden sm:inline">{{ $t('user.aiChat.varsModal.editVars') }}</span>
-              <span
-                v-if="Object.keys(allAgentsVariables[selectedAgent?.id ?? 0] ?? {}).length > 0"
-                class="size-1.5 rounded-full bg-green-500"
-              />
-            </button>
-          </Tooltip>
-          <Tooltip :title="$t('common.aiPanel.newChat')">
-            <button
-              class="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              @click="onStartNewChat"
+              <button
+                class="flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-medium text-primary transition-colors hover:bg-primary/8"
+                @click="openSelectedAgentVarsModal"
+              >
+                <IconifyIcon icon="lucide:sliders-horizontal" class="size-3.5" />
+                <span class="hidden sm:inline">{{ $t('user.aiChat.varsModal.editVars') }}</span>
+                <span
+                  v-if="selectedAgentVarsConfigured"
+                  class="size-1.5 rounded-full bg-green-500"
+                />
+              </button>
+            </Tooltip>
+            <Tooltip :title="$t('common.aiPanel.newChat')">
+              <button
+                class="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                @click="onStartNewChat"
+              >
+                <IconifyIcon icon="lucide:plus" class="size-4" />
+              </button>
+            </Tooltip>
+            <Tooltip
+              v-if="activeConversationId"
+              :title="$t('common.globalAiChat.memoryUpdated')"
             >
-              <IconifyIcon icon="lucide:plus" class="size-4" />
-            </button>
-          </Tooltip>
-          <Tooltip
-            v-if="activeConversationId"
-            :title="$t('common.globalAiChat.memoryUpdated')"
-          >
-            <button
-              class="flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-muted disabled:opacity-40"
-              :class="
-                showMemoryPanel
-                  ? 'bg-primary/10 text-primary'
-                  : lastMemoryUpdated
-                    ? 'text-primary'
-                    : 'text-muted-foreground hover:text-foreground'
-              "
-              :disabled="clearingMemory"
-              @click="onToggleMemory"
-            >
-              <Spin v-if="memoryLoading" size="small" />
-              <IconifyIcon v-else icon="lucide:brain" class="size-4" />
-            </button>
-          </Tooltip>
+              <button
+                class="flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-muted disabled:opacity-40"
+                :class="
+                  showMemoryPanel
+                    ? 'bg-primary/10 text-primary'
+                    : lastMemoryUpdated
+                      ? 'text-primary'
+                      : 'text-muted-foreground hover:text-foreground'
+                "
+                :disabled="clearingMemory"
+                @click="onToggleMemory"
+              >
+                <Spin v-if="memoryLoading" size="small" />
+                <IconifyIcon v-else icon="lucide:brain" class="size-4" />
+              </button>
+            </Tooltip>
+          </div>
         </div>
-      </div>
 
       <!-- Streaming progress bar -->
       <div v-if="streaming" class="h-0.5 w-full overflow-hidden bg-primary/10">
@@ -878,31 +1188,38 @@ onUnmounted(() => {
           v-if="chatMessages.length === 0 && !sending"
           class="flex h-full items-center justify-center"
         >
-          <div class="max-w-md text-center">
-            <div class="relative mx-auto mb-5 size-16">
-              <div
-                class="absolute inset-0 animate-pulse rounded-2xl bg-gradient-to-br from-primary/25 to-primary/5 blur-lg"
-              ></div>
-              <div
-                class="relative flex size-16 animate-float items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 shadow-lg shadow-primary/10 ring-1 ring-primary/10"
-              >
-                <IconifyIcon icon="lucide:sparkles" class="size-8 text-primary" />
+          <div
+            class="w-full"
+            :class="showWorkspaceHero ? 'max-w-3xl' : 'max-w-2xl text-center'"
+          >
+            <template v-if="!showWorkspaceHero">
+              <div class="text-base font-semibold text-foreground">
+                {{
+                  effectiveWelcomeMessage ||
+                  $t('user.aiChat.welcomeTitle')
+                }}
               </div>
-            </div>
-            <div class="text-base font-semibold text-foreground">
-              {{
-                effectiveWelcomeMessage ||
-                $t('user.aiChat.welcomeTitle')
-              }}
-            </div>
-            <div class="mt-2 text-sm text-muted-foreground">
-              {{ $t('user.aiChat.welcomeDesc') }}
-            </div>
-            <!-- Suggested questions -->
+              <div class="mt-2 text-sm text-muted-foreground">
+                {{ $t('user.aiChat.welcomeDesc') }}
+              </div>
+            </template>
+
             <div
               v-if="effectiveSuggestedQuestions.length > 0"
-              class="mt-6 flex flex-col gap-2"
+              class="flex flex-col gap-2"
+              :class="
+                showWorkspaceHero
+                  ? 'mx-auto max-w-2xl rounded-[24px] border border-border/60 bg-background/80 p-4 text-left shadow-sm'
+                  : 'mt-6'
+              "
             >
+              <div
+                v-if="showWorkspaceHero"
+                class="mb-1 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+              >
+                <IconifyIcon icon="lucide:message-circle-more" class="size-3.5 text-primary" />
+                {{ $t('common.globalAiChat.starterQuestions') }}
+              </div>
               <button
                 v-for="(q, qi) in effectiveSuggestedQuestions"
                 :key="qi"
@@ -1341,7 +1658,7 @@ onUnmounted(() => {
                 ? 'bg-primary/8 text-foreground ring-1 ring-primary/15'
                 : 'text-muted-foreground hover:bg-accent/50'
             "
-            @click="selectAgent(agent.id); mobileSidebarOpen = false;"
+            @click="onSelectAgent(agent.id); mobileSidebarOpen = false;"
           >
             <div
               class="flex size-7 shrink-0 items-center justify-center rounded-lg text-[10px] font-medium"
@@ -1436,21 +1753,22 @@ onUnmounted(() => {
       </div>
     </Drawer>
 
-    <!-- Image preview lightbox -->
-    <Modal
-      v-model:open="previewImageVisible"
-      :footer="null"
-      width="auto"
-      :style="{ maxWidth: '90vw' }"
-      centered
-      destroy-on-close
-    >
-      <img
-        :src="previewImageUrl"
-        alt=""
-        class="max-h-[80vh] max-w-full object-contain"
-      />
-    </Modal>
+      <!-- Image preview lightbox -->
+      <Modal
+        v-model:open="previewImageVisible"
+        :footer="null"
+        width="auto"
+        :style="{ maxWidth: '90vw' }"
+        centered
+        destroy-on-close
+      >
+        <img
+          :src="previewImageUrl"
+          alt=""
+          class="max-h-[80vh] max-w-full object-contain"
+        />
+      </Modal>
+    </div>
   </div>
 </template>
 
@@ -1494,21 +1812,6 @@ onUnmounted(() => {
 }
 
 /* Float animation for empty state / 空状态浮动动画 */
-@keyframes float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-
-  50% {
-    transform: translateY(-6px);
-  }
-}
-
-.animate-float {
-  animation: float 3s ease-in-out infinite;
-}
-
 /* Attachment pop transition */
 .att-pop-enter-active {
   animation: att-in 0.25s ease-out;

@@ -183,7 +183,7 @@ usePageAIOperations({
 - 目录/TS 文件：kebab-case
 - Vue 组件：PascalCase
 - API 函数：`{action}{Resource}Api`
-- Store：`use{Name}Store`（通用）/ `use{Endpoint}AuthStore`（仅限认证 Store）
+- Store：统一使用 `use{Name}Store`；认证场景优先复用 `useMultiAuthStore`
 - Composable：`use{Name}`
 
 ### 样式
@@ -389,7 +389,7 @@ alembic revision --autogenerate -m "add xxx table"
 - ❌ 禁止使用已废弃的 `ToolRegistry` / `tool_bindings` JSON 字段
 
 **合法 AI 调用入口：**
-- ✅ `SystemAgentService`（Controller 层唯一 AI 入口）：`Controller → SystemAgentService → AIGateway`
+- ✅ `InternalAIService`（基础设施级内部 AI 入口）：`Infrastructure → InternalAIService → AIGateway`
 - ✅ Agent engine 内部（`conversation.py` / `base.py`）— 属于 Agent 实现层
 - ✅ RAG 管道内部（`rag/embedding.py` 等）— 属于 Skill 内部实现
 - ✅ `AIGateway.test_model` — 仅模型连通性测试
@@ -451,6 +451,8 @@ alembic revision --autogenerate -m "add xxx table"
 - 插件必须零侵入，代码只能位于 `backend/plugins/{name}/`
 - `plugin.yaml` 的 capabilities / extensions / permissions 必须如实声明，不能偷跑主系统能力
 - 插件 Skill 类型只能使用系统既有 7 种，禁止自定义 SkillType
+- 插件启用时同步的是 `SkillPackage + Skill` 目录投影；**禁止**把插件启用等同于“自动把整包绑定到 Agent 运行时”
+- `extensions.capabilities[*] -> extensions.skills[*].capabilities[]` 必须形成显式标准映射；不要只靠单个示例插件做隐式约定
 - 插件表名必须 `px_{name}_*`，迁移 `branch_labels` 必须是 `plugin_{name_underscored}`
 - 插件前端通过 UMD 动态加载，权限和菜单注册必须与 manifest 声明保持一致
 

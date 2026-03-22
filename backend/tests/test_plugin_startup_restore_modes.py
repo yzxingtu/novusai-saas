@@ -331,3 +331,87 @@ async def test_restore_marks_error_when_python_dependencies_missing(
     assert result == {"restored": 0, "failed": 1, "total": 1}
     assert plugin.status == PluginStatusEnum.ERROR.value
     assert "Dependency validation failed" in (plugin.error_message or "")
+
+
+@pytest.mark.asyncio
+async def test_restore_marks_error_when_alembic_upgrade_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    plugin = SimpleNamespace(
+        id=5,
+        name="broken-migration-plugin",
+        version="1.0.0",
+        status=PluginStatusEnum.ENABLED.value,
+        pricing_type="free",
+        error_count=0,
+        error_message=None,
+        config={},
+    )
+
+    db = AsyncMock()
+    db.flush = AsyncMock()
+    db.execute = AsyncMock(
+        side_effect=[
+            _ScalarsResult([plugin]),
+            _RowsResult([]),
+        ]
+    )
+
+    plugins_dir = tmp_path / "plugins"
+    (plugins_dir / "broken-migration-plugin" / "backend" / "migrations" / "versions").mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    class _Loader:
+        def __init__(self):
+            self.plugins_dir = plugins_dir
+
+        def load_manifest(self, _plugin_name: str):
+            return _build_manifest()
+
+    lifecycle_instances: list[object] = []
+
+    class _Lifecycle:
+        def __init__(self, _db):
+            self.run_alembic_upgrade = AsyncMock(side_effect=RuntimeError("migration boom"))
+            lifecycle_instances.append(self)
+
+    registry = MagicMock()
+    register_all_extensions = MagicMock()
+
+    monkeypatch.setattr("app.plugins.loader.PluginLoader", _Loader)
+    monkeypatch.setattr(
+        "app.plugins.license.get_plugin_runtime_license_status",
+        AsyncMock(return_value={"runtime_allowed": True, "status": "not_required"}),
+    )
+    monkeypatch.setattr(
+        "app.plugins.registry.ExtensionRegistry.get_instance",
+        lambda: registry,
+    )
+    monkeypatch.setattr("app.plugins.lifecycle.PluginLifecycle", _Lifecycle)
+    monkeypatch.setattr(
+        "app.plugins._extension_registrar.register_all_extensions",
+        register_all_extensions,
+    )
+    monkeypatch.setattr(
+        "app.plugins._extension_registrar.get_failed_extensions",
+        lambda _plugin_name: [],
+    )
+
+    result = await restore_enabled_plugins(
+        db,
+        run_heavy=True,
+        mutate_db_status=True,
+    )
+
+    assert len(lifecycle_instances) == 1
+    lifecycle = lifecycle_instances[0]
+    lifecycle.run_alembic_upgrade.assert_awaited_once_with("broken-migration-plugin")
+    register_all_extensions.assert_not_called()
+    db.flush.assert_awaited_once()
+    assert result == {"restored": 0, "failed": 1, "total": 1}
+    assert plugin.status == PluginStatusEnum.ERROR.value
+    assert plugin.error_count == 1
+    assert plugin.error_message == "Startup restore failed: migration boom"

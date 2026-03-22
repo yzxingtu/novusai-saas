@@ -30,7 +30,6 @@ _REDIS_PATTERNS: dict[str, str] = {
     CacheCategoryEnum.AI_SCHEMA.value: "ai:schema:*",
     CacheCategoryEnum.AI_SQL_RESULT.value: "ai:sql_result:*",
     CacheCategoryEnum.AI_ACTION_RATE.value: "ai:action_rate:*",
-    CacheCategoryEnum.AI_ACTION_CONFIRM.value: "ai:action_confirm:*",
     CacheCategoryEnum.KB_SEARCH.value: "kb:search:*",
     CacheCategoryEnum.WS_CONFIG.value: "ws_cfg:*",
     CacheCategoryEnum.MARKETPLACE.value: "marketplace:*",

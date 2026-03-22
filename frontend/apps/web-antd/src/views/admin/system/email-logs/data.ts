@@ -5,8 +5,80 @@ import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { EmailLogInfo } from '#/api/admin/email-log';
 
+import { $te } from '@vben/locales';
+
 import { searchInput, select } from '#/adapter/form';
 import { $t } from '#/locales';
+
+const LEGACY_AI_TRIGGERS = new Set(['ai_tool', 'quota_exhausted', 'quota_warning']);
+const LEGACY_SYSTEM_TRIGGERS = new Set([
+  'notification',
+  'password_reset',
+  'security_alert',
+  'ssl_expiry',
+  'task_failure',
+  'tenant_welcome',
+  'welcome',
+]);
+
+const EMAIL_TRIGGER_VALUES = [
+  'manual',
+  'test',
+  'notification',
+  'ai_tool',
+  'password_reset',
+  'security_alert',
+  'tenant_welcome',
+  'task_failure',
+  'ssl_expiry',
+  'system.announcement',
+  'system.maintenance',
+  'system.security_alert',
+  'system.password_reset',
+  'system.tenant_welcome',
+  'system.task_failure',
+  'system.ssl_expiry',
+  'ai.batch_progress',
+  'ai.batch_complete',
+  'ai.batch_failed',
+  'ai.kb_index_complete',
+  'ai.kb_index_failed',
+  'ai.soft_quota_exceeded',
+  'ai.quota_warning',
+  'ai.quota_exhausted',
+  'task.failed',
+  'biz.tenant_expired',
+  'biz.plugin_installed',
+  'biz.plugin_enabled',
+  'biz.plugin_disabled',
+  'biz.plugin_uninstalled',
+  'biz.user_registration_pending',
+  'biz.user_approved',
+  'biz.user_rejected',
+  'audit.suspicious_login',
+  'audit.permission_changed',
+  'audit.role_changed',
+  'audit.account_locked',
+] as const;
+
+function humanizeTriggerSegment(segment: string): string {
+  return segment
+    .replaceAll('_', ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function formatTriggerFallback(trigger: string): string {
+  return trigger
+    .split('.')
+    .map((segment) => humanizeTriggerSegment(segment))
+    .join(' / ');
+}
+
+export function getTriggerLabel(trigger: string | undefined): string {
+  if (!trigger) return '-';
+  const key = `admin.system.emailLog.trigger.${trigger}`;
+  return $te(key) ? $t(key) : formatTriggerFallback(trigger);
+}
 
 /**
  * 获取状态颜色
@@ -35,6 +107,8 @@ export function getTriggerColor(trigger: string | undefined): string {
   if (!trigger) return 'default';
   if (trigger === 'manual') return 'blue';
   if (trigger === 'test') return 'cyan';
+  if (LEGACY_AI_TRIGGERS.has(trigger)) return 'purple';
+  if (LEGACY_SYSTEM_TRIGGERS.has(trigger)) return 'orange';
   const category = trigger.split('.')[0];
   switch (category) {
     case 'ai': {
@@ -73,46 +147,10 @@ function getStatusOptions() {
  * 触发来源选项
  */
 function getTriggerOptions() {
-  return [
-    { label: $t('admin.system.emailLog.trigger.manual'), value: 'manual' },
-    { label: $t('admin.system.emailLog.trigger.test'), value: 'test' },
-    {
-      label: $t('admin.system.emailLog.trigger.system.security_alert'),
-      value: 'system.security_alert',
-    },
-    {
-      label: $t('admin.system.emailLog.trigger.system.password_reset'),
-      value: 'system.password_reset',
-    },
-    {
-      label: $t('admin.system.emailLog.trigger.system.tenant_welcome'),
-      value: 'system.tenant_welcome',
-    },
-    {
-      label: $t('admin.system.emailLog.trigger.system.task_failure'),
-      value: 'system.task_failure',
-    },
-    {
-      label: $t('admin.system.emailLog.trigger.system.ssl_expiry'),
-      value: 'system.ssl_expiry',
-    },
-    {
-      label: $t('admin.system.emailLog.trigger.ai.quota_exhausted'),
-      value: 'ai.quota_exhausted',
-    },
-    {
-      label: $t('admin.system.emailLog.trigger.ai.quota_warning'),
-      value: 'ai.quota_warning',
-    },
-    {
-      label: $t('admin.system.emailLog.trigger.biz.tenant_expired'),
-      value: 'biz.tenant_expired',
-    },
-    {
-      label: $t('admin.system.emailLog.trigger.audit.suspicious_login'),
-      value: 'audit.suspicious_login',
-    },
-  ];
+  return EMAIL_TRIGGER_VALUES.map((value) => ({
+    label: getTriggerLabel(value),
+    value,
+  }));
 }
 
 /**

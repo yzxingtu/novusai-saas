@@ -117,6 +117,22 @@ class KodoStorageDriver(StorageDriver):
         clean = path.lstrip("/")
         return f"{self.prefix}/{clean}" if self.prefix else clean
 
+    def _validate_visibility(self, visibility: StorageVisibility) -> None:
+        if self.is_private and visibility != StorageVisibility.PRIVATE:
+            raise StorageConfigError(
+                message=(
+                    "Qiniu Kodo private buckets only support private attachments. "
+                    "Use a public bucket or change attachment visibility."
+                ),
+            )
+        if not self.is_private and visibility != StorageVisibility.PUBLIC:
+            raise StorageConfigError(
+                message=(
+                    "Qiniu Kodo public buckets only support public attachments. "
+                    "Use a private bucket or change attachment visibility."
+                ),
+            )
+
     async def put(
         self,
         path: str,
@@ -125,7 +141,7 @@ class KodoStorageDriver(StorageDriver):
         visibility: StorageVisibility = StorageVisibility.PRIVATE,
         metadata: dict | None = None,
     ) -> UploadResult:
-        _ = metadata
+        self._validate_visibility(visibility)
         key = self._key(path)
         final_mime_type = mime_type or mimetypes.guess_type(path)[0] or "application/octet-stream"
 
@@ -143,11 +159,16 @@ class KodoStorageDriver(StorageDriver):
                 tmp.seek(0)
                 file_hash = hasher.hexdigest()
                 token = self.auth.upload_token(self.bucket_name, key, 3600)
+                upload_params = {
+                    f"x:{k}": str(v) for k, v in (metadata or {}).items()
+                }
+                upload_params["x:visibility"] = visibility.value
                 ret, info = self._sdk.put_stream(
                     token,
                     key,
                     tmp,
                     size,
+                    params=upload_params,
                     mime_type=final_mime_type,
                 )
             if info.status_code != 200:
@@ -225,6 +246,11 @@ class KodoStorageDriver(StorageDriver):
         if self.is_private or (visibility and visibility == StorageVisibility.PRIVATE):
             return self.auth.private_download_url(base, expires=expires)
         return base
+
+    def get_base_url(self) -> str:
+        if self.is_private:
+            return ""
+        return super().get_base_url()
 
     async def get_info(self, path: str) -> FileInfo | None:
         key = self._key(path)
@@ -344,5 +370,9 @@ class KodoStorageDriver(StorageDriver):
         source = await self.get(path)
         return await ImageProcessor.process(source, params)
 
-    def supports_native_image_processing(self) -> bool:
+    def supports_native_image_processing(
+        self,
+        visibility: StorageVisibility | None = None,
+    ) -> bool:
+        _ = visibility
         return True

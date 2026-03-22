@@ -15,7 +15,7 @@ import { getAIHealthStatusApi } from '#/api/admin/ai';
 import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
-import { getProcessedImageUrl } from '#/utils/image';
+import { toAttachmentImageUrl } from '#/utils/image';
 
 defineOptions({ name: 'AIHealthMonitor' });
 
@@ -90,7 +90,6 @@ function getBadgeStatus(
 ): 'error' | 'success' | 'warning' {
   return getStatusColor(status) as 'error' | 'success' | 'warning';
 }
-
 </script>
 
 <template>
@@ -169,8 +168,16 @@ function getBadgeStatus(
                 "
               >
                 <img
-                  v-if="status.provider_icon && Number(status.provider_icon) > 0"
-                  :src="getProcessedImageUrl(Number(status.provider_icon), { preset: 'small' })"
+                  v-if="
+                    toAttachmentImageUrl(status.provider_icon, {
+                      preset: 'small',
+                    })
+                  "
+                  :src="
+                    toAttachmentImageUrl(status.provider_icon, {
+                      preset: 'small',
+                    })
+                  "
                   class="size-full object-contain"
                   alt=""
                 />

@@ -292,8 +292,10 @@ const {
               ...(params.remark ? { remark: params.remark } : {}),
             });
           },
-          successMessage: (_tenant, _params, appliedKeys) => {
-            const filledKeys = appliedKeys.filter((key) => key !== 'tenant_id');
+          successMessage: (_tenant, params) => {
+            const filledKeys = Object.keys(params).filter(
+              (key) => key !== 'tenant_id',
+            );
             return filledKeys.length > 0
               ? $t('shared.pageOperation.msg.createFormOpened', {
                   fields: filledKeys.join(', '),

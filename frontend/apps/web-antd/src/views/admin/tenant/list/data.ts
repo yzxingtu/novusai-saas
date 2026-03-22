@@ -37,11 +37,6 @@ export function getPlanOptions(): { label: string; value: TenantPlan }[] {
   ];
 }
 
-// For backward compatibility - 使用函数获取以支持 i18n
-export function PLAN_OPTIONS(): { label: string; value: TenantPlan }[] {
-  return getPlanOptions();
-}
-
 /**
  * 获取套餐显示文本
  */

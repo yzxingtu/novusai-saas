@@ -9,11 +9,11 @@
 import type { ApiEndpoint, EndpointConfig } from '#/types/endpoint';
 
 import {
-  ADMIN_ROUTE_PREFIX,
   ENDPOINT_CONFIGS,
-  HOME_PATHS,
-  LOGIN_PATHS,
-  TENANT_ROUTE_PREFIX,
+  getEndpointConfig as getEndpointConfigFromConstants,
+  getHomePath as getHomePathFromConstants,
+  getLoginPath as getLoginPathFromConstants,
+  resolveEndpointByPath,
 } from '#/constants/endpoints';
 import { ALL_ENDPOINTS, EndpointType, isValidEndpoint } from '#/types/endpoint';
 
@@ -29,25 +29,7 @@ import { ALL_ENDPOINTS, EndpointType, isValidEndpoint } from '#/types/endpoint';
  * @returns Endpoint type / 端类型
  */
 export function getEndpointFromPath(path: string): EndpointType {
-  if (path.startsWith(ADMIN_ROUTE_PREFIX)) {
-    return EndpointType.ADMIN;
-  }
-  if (path.startsWith(TENANT_ROUTE_PREFIX)) {
-    return EndpointType.TENANT;
-  }
-  return EndpointType.USER;
-}
-
-/**
- * Get endpoint type from route path (legacy string literal type for backward compatibility)
- * 根据路由路径获取端类型（兼容旧代码的字符串字面量类型）
- *
- * @param path - Route path / 路由路径
- * @returns Endpoint type string / 端类型字符串
- * @deprecated Use getEndpointFromPath instead / 请使用 getEndpointFromPath 替代
- */
-export function getApiEndpoint(path: string): ApiEndpoint {
-  return getEndpointFromPath(path);
+  return resolveEndpointByPath(path);
 }
 
 /**
@@ -105,7 +87,7 @@ export function isUserPath(path: string): boolean {
  * @param endpoint - Endpoint type / 端类型
  */
 export function getLoginPath(endpoint: EndpointType): string {
-  return LOGIN_PATHS[endpoint];
+  return getLoginPathFromConstants(endpoint);
 }
 
 /**
@@ -115,7 +97,7 @@ export function getLoginPath(endpoint: EndpointType): string {
  * @param endpoint - Endpoint type / 端类型
  */
 export function getHomePath(endpoint: EndpointType): string {
-  return HOME_PATHS[endpoint];
+  return getHomePathFromConstants(endpoint);
 }
 
 /**
@@ -125,7 +107,7 @@ export function getHomePath(endpoint: EndpointType): string {
  * @param endpoint - Endpoint type / 端类型
  */
 export function getEndpointConfig(endpoint: EndpointType): EndpointConfig {
-  return ENDPOINT_CONFIGS[endpoint];
+  return getEndpointConfigFromConstants(endpoint);
 }
 
 // ============================================================

@@ -8,7 +8,11 @@ Defines tenant public info accessible before login.
 from pydantic import Field
 
 from app.core.base_schema import BaseSchema
-from app.schemas.public.platform import RuntimeLimitsPublicConfig, StoragePublicConfig
+from app.schemas.public.platform import (
+    CaptchaPluginFrontendRuntimePublicConfig,
+    RuntimeLimitsPublicConfig,
+    StoragePublicConfig,
+)
 
 
 class TenantPublicConfig(BaseSchema):
@@ -34,6 +38,10 @@ class TenantPublicConfig(BaseSchema):
     # 登录设置
     captcha_enabled: bool = Field(False, description="是否启用验证码")
     captcha_provider: str | None = Field(None, description="验证码驱动")
+    captcha_plugin: CaptchaPluginFrontendRuntimePublicConfig | None = Field(
+        None,
+        description="验证码插件前端运行时信息",
+    )
     captcha_difficulty: str | None = Field(None, description="验证码难度")
     captcha_enable_threshold: int | None = Field(None, description="验证码启用阈值")
     login_methods: list[str] = Field(

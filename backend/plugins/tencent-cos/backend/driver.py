@@ -385,5 +385,9 @@ class CosStorageDriver(StorageDriver):
         source = await self.get(path)
         return await ImageProcessor.process(source, params)
 
-    def supports_native_image_processing(self) -> bool:
+    def supports_native_image_processing(
+        self,
+        visibility: StorageVisibility | None = None,
+    ) -> bool:
+        _ = visibility
         return True

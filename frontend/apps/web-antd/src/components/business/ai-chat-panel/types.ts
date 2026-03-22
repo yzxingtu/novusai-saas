@@ -58,6 +58,7 @@ export interface ConversationItem {
   title: null | string;
   status: string;
   created_at: string;
+  message_count?: number;
   /** Agent name (enriched by global conversations API) / 智能体名称 */
   agent_name?: null | string;
   /** Agent avatar URL (enriched by global conversations API) / 智能体头像 URL */
@@ -197,4 +198,3 @@ export interface ChatMessage {
   /** Set when SSE onError (non-Abort); show retry button / 请求失败需重试 */
   requestFailedRetry?: boolean;
 }
-

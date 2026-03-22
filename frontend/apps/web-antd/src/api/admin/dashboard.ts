@@ -90,7 +90,24 @@ export interface SystemInfo {
   plugins: PluginOverview;
 }
 
+/** Dashboard overview / 仪表盘总览 */
+export interface AdminDashboardOverview {
+  ai_overview: AIOverview;
+  generated_at: null | string;
+  health: SystemHealth;
+  plugin_overview: PluginOverview;
+  recent_activities: ActivityItem[];
+  stats: DashboardStats;
+  storage_overview: StorageOverview;
+  tenant_growth: TenantGrowthItem[];
+}
+
 // ── API Functions / API 接口 ──
+
+/** Get dashboard overview / 获取仪表盘总览 */
+export async function getDashboardOverviewApi(): Promise<AdminDashboardOverview> {
+  return requestClient.get<AdminDashboardOverview>(`${API_PREFIX}/overview`);
+}
 
 /** Get dashboard stats / 获取仪表盘统计 */
 export async function getDashboardStatsApi(): Promise<DashboardStats> {

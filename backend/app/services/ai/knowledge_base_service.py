@@ -164,10 +164,6 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
         )
         return instance
 
-    async def escalate_delete(self, id: int) -> KnowledgeBase | None:
-        """兼容旧接口：升级删除 → 推进总回收站 / Backward-compatible alias for promote_to_global."""
-        return await self.promote_to_global(id)
-
     async def _after_restore(self, instance: KnowledgeBase) -> None:
         """恢复后：级联恢复文档和分块 / After restore: cascade restore docs and chunks."""
         now = utc_now()
@@ -535,10 +531,6 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
             )
         )
         return instance
-
-    async def escalate_delete(self, id: int) -> KnowledgeBase | None:
-        """兼容旧接口：升级删除 → 推进总回收站 / Backward-compatible alias for promote_to_global."""
-        return await self.promote_to_global(id)
 
     async def _after_restore(self, instance: KnowledgeBase) -> None:
         """恢复后：级联恢复文档和分块 / After restore: cascade restore docs and chunks."""

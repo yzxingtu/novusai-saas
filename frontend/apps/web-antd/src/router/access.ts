@@ -15,7 +15,6 @@ import { message } from 'ant-design-vue';
 
 import {
   adminApi,
-  getApiEndpoint,
   setExistingComponents,
   tenantApi,
   userApi,
@@ -23,6 +22,7 @@ import {
 import { BasicLayout, IFrameView, UserLayout } from '#/layouts';
 import { $t } from '#/locales';
 import { adminRoutes } from '#/router/routes/admin';
+import { getEndpointFromPath } from '#/utils';
 
 const forbiddenComponent = () => import('#/views/_core/fallback/forbidden.vue');
 
@@ -155,7 +155,7 @@ async function generateAccess(
  */
 function getCurrentEndpoint(): ApiEndpoint {
   const path = window.location.pathname;
-  return getApiEndpoint(path);
+  return getEndpointFromPath(path) as ApiEndpoint;
 }
 
 export { generateAccess, getCurrentEndpoint, getMenuWithPermissionsApi };

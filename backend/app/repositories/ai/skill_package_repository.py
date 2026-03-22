@@ -52,10 +52,6 @@ class _SkillPackageCascadeMixin:
             )
         )
 
-    async def cascade_escalate_skills(self, package_id: int) -> None:
-        """兼容旧接口：升级删除 → 推进总回收站 / Backward-compatible alias for cascade_promote_skills."""
-        await self.cascade_promote_skills(package_id)
-
     async def cascade_restore_skills(self, package_id: int) -> None:
         """级联恢复技能 / Cascade restore skills."""
         now = utc_now()
@@ -172,6 +168,7 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
         scope: str | None = None,
         forced_filters: list[FilterRule] | None = None,
         include_deleted: bool = False,
+        include_system: bool = False,
     ) -> tuple[list[SkillPackage], int]:
         """
         企业级技能包列表查询 / Tenant-level skill package list query.
@@ -194,7 +191,8 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
             )
         )
 
-        query = query.where(self.model.is_system.is_(False))
+        if not include_system:
+            query = query.where(self.model.is_system.is_(False))
 
         if forced_filters:
             query = self._apply_filters(query, forced_filters, all_fields)

@@ -22,6 +22,7 @@ export type {
   TaskLogInfo,
   TaskLogListParams,
   TaskLogListResponse,
+  TaskLogListView,
   TaskStatsItem,
 } from '#/api/shared/task-log-types';
 

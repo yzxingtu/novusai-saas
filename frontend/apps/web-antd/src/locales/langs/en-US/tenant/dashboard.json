@@ -1,38 +1,93 @@
 {
-  "title": "Tenant Admin Dashboard",
-  "welcome": "Welcome back",
-  "greeting": "Hello, {name}!",
-  "description": "This is the tenant management dashboard where you can manage your tenant resources.",
-  "stats": {
-    "users": "Users",
-    "orders": "Orders",
-    "revenue": "Revenue",
-    "growth": "Growth Rate",
-    "totalUsers": "Total Users",
-    "activeUsers": "Active Users",
-    "totalAgents": "Agents",
-    "totalKnowledgeBases": "Knowledge Bases",
-    "totalKBDocuments": "KB Documents",
-    "monthlyConversations": "Monthly Chats",
-    "apiCalls": "AI Calls",
-    "resourceUsage": "Resource Usage",
-    "totalTokens": "Total Tokens",
-    "totalCost": "Total Cost",
-    "storageUsed": "Storage Used"
-  },
-  "quickActions": {
-    "title": "Quick Actions",
-    "aiChat": "AI Chat",
-    "agents": "Agents",
-    "knowledgeBases": "Knowledge Bases",
-    "callLogs": "Call Logs"
-  },
+  "title": "Tenant Operations Cockpit",
   "aiTrend": {
-    "title": "AI Usage Trend",
-    "empty": "No data"
+    "empty": "No trend data"
   },
   "activities": {
-    "title": "Recent Activities",
-    "empty": "No activities"
+    "title": "Recent activities",
+    "empty": "No activities yet"
+  },
+  "realtime": {
+    "onlineAdmins": "{count} admins online",
+    "onlineUsers": "{count} business users online",
+    "unreadNotifications": "{count} unread notifications"
+  },
+  "cockpit": {
+    "badge": "Tenant operations cockpit",
+    "description": "{name}, this surface combines user activity, AI usage trends, portal performance, and the actions worth handling first.",
+    "primaryCta": "Manage agents",
+    "secondaryCta": "View AI analytics",
+    "metrics": {
+      "users": "Total tenant users",
+      "activeRate": "Active user rate",
+      "conversations": "Monthly conversations",
+      "calls": "Total AI calls"
+    },
+    "signalsTitle": "Operational signals",
+    "signalsDesc": "Bring agents, knowledge bases, storage, and cost into one side panel for quick review.",
+    "signals": {
+      "agentsTitle": "Agent orchestration",
+      "agentsDesc": "See how many agents are available for tenant operations and publishing.",
+      "kbTitle": "Knowledge assets",
+      "kbDesc": "Confirm how many knowledge bases are ready for retrieval and QA.",
+      "storageTitle": "Attachments and storage",
+      "storageDesc": "Review storage consumption from the portal usage perspective.",
+      "costTitle": "AI cost",
+      "costDesc": "Track accumulated spend and detect high-consumption periods early."
+    },
+    "actionsTitle": "Operational actions",
+    "actionsDesc": "Jump directly from the cockpit into the most-used resource, analytics, and governance pages.",
+    "actions": {
+      "agentsTitle": "Maintain agents",
+      "agentsDesc": "Open agent details, configuration, and publishing states.",
+      "kbsTitle": "Maintain knowledge bases",
+      "kbsDesc": "Add documents, tune knowledge sources, and verify readiness.",
+      "usageTitle": "Analyze AI usage",
+      "usageDesc": "Inspect call volume, costs, and trend shifts.",
+      "usersTitle": "Manage user architecture",
+      "usersDesc": "Open organization and user architecture to review members and roles.",
+      "storageTitle": "Inspect storage usage",
+      "storageDesc": "Confirm attachment capacity and file structure health.",
+      "logsTitle": "Review operation logs",
+      "logsDesc": "Replay recent tenant actions for troubleshooting and operational review."
+    },
+    "trendTitle": "AI usage trend",
+    "trendDesc": "Keep call volume and token consumption in one trend chart to understand the current rhythm of tenant AI usage.",
+    "trendSummary": "Monthly conversations",
+    "trend": {
+      "calls": "Calls",
+      "tokens": "Tokens"
+    },
+    "spotlights": {
+      "documents": "Knowledge documents",
+      "files": "Attachment files",
+      "cost": "Total AI cost",
+      "storage": "Used storage"
+    },
+    "portalTitle": "Portal performance",
+    "portalDesc": "Treat document inventory, conversation density, token usage, and active users as the core health metrics of the tenant-facing portal.",
+    "portal": {
+      "cards": {
+        "documents": "Knowledge documents",
+        "avgConversation": "Avg conversations per agent",
+        "tokens": "Total tokens",
+        "activeUsers": "Active users"
+      }
+    },
+    "widgetsTitle": "Plugins and extensions",
+    "widgetsDesc": "Keep plugin entry points visible while folding tenant-side extension capability into the cockpit layout.",
+    "widgetsEmptyTitle": "No plugin dashboard widgets yet",
+    "widgetsEmptyDesc": "No tenant-visible plugin currently registers content to the dashboard_widgets area, so no plugin cards are shown here.",
+    "summaryTitle": "Resource and storage summary",
+    "summaryDesc": "Bring in real attachment, knowledge, and storage structure signals to complete the tenant dashboard context.",
+    "summary": {
+      "assetsTitle": "Knowledge and agent assets",
+      "files": "Attachment files",
+      "usedSpace": "Used space",
+      "topType": "Top file type"
+    },
+    "activitiesDesc": "Recent tenant-side operations, useful for quick validation of ongoing actions and entry-point issues.",
+    "systemActor": "System",
+    "unknownModule": "Unlabeled module"
   }
 }

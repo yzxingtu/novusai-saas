@@ -16,15 +16,12 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.base_model import TenantModel
 from app.core.deletion import DeletionDep, DeletionStrategy
 from app.core.i18n import _
-from app.enums.common import SkillBindModeEnum
-
-
 class SkillPackage(TenantModel):
     """
     技能包模型 / Skill package model.
 
-    技能包是面向用户的管理单元，将多个 Skill 组织为一个可整体绑定的能力集合。
-    例如：「客服知识库包」包含若干知识库 Skill，「数据分析包」包含若干数据智能 Skill。
+    技能包是归组、来源与目录单元，将多个 Skill 组织为可浏览、可管理的目录项；
+    Agent 运行时是否生效由 AgentSkillGrant 决定，而非包级自动绑定。
     """
 
     __tablename__ = "skill_packages"
@@ -54,7 +51,6 @@ class SkillPackage(TenantModel):
         "is_active": "is_active",
         "is_system": "is_system",
         "is_recommended": "is_recommended",
-        "bind_mode": "bind_mode",
         "tenant_id": "tenant_id",
         "created_at": "created_at",
     }
@@ -73,7 +69,7 @@ class SkillPackage(TenantModel):
         "label": "name",
         "value": "id",
         "search": ["name"],
-        "extra": ["is_system", "source_plugin", "bind_mode"],
+        "extra": ["is_system", "source_plugin"],
     }
 
     # ==================== 基本信息 ====================
@@ -102,16 +98,6 @@ class SkillPackage(TenantModel):
         nullable=False,
         default=False,
         comment=_("skill_package.field.is_recommended"),
-    )
-
-    # ==================== 绑定模式 ====================
-
-    bind_mode: Mapped[str] = mapped_column(
-        String(20),
-        nullable=False,
-        default=SkillBindModeEnum.MANUAL.value,
-        index=True,
-        comment=_("skill_package.field.bind_mode"),
     )
 
     # ==================== 来源标记 ====================

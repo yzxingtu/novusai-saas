@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from fastapi.responses import StreamingResponse
@@ -23,6 +24,7 @@ from app.ai.usage_recorder import UsageRecorder
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.logging import LogManager
 from app.enums.ai import CallStatusEnum, RequestTypeEnum
+from app.exceptions import BusinessException, NotFoundException
 from app.models.ai.agent import Agent
 from app.services.ai.usage_metrics import CostCalculator, TokenCounter
 
@@ -34,6 +36,22 @@ if TYPE_CHECKING:
     from app.ai.skills.resolver import SkillResolveResult
 
 logger = LogManager.get_logger("ai.engine.conversation")
+
+
+@dataclass
+class _StreamRuntimeContext:
+    provider: Any
+    api_key: Any
+    ai_model: Any
+    model_code: str
+    is_vision: bool
+    is_audio: bool
+    is_video: bool
+    estimated_input: int
+    metering_context: Any
+    should_meter_usage: bool
+    should_record_call_log: bool
+    runtime_info: dict[str, Any]
 
 
 
@@ -146,6 +164,9 @@ class ConversationEngine(BaseEngine):
 
             return result
 
+        except (BusinessException, NotFoundException):
+            raise
+
         except Exception as exc:
             duration_ms = int((time.perf_counter() - start) * 1000)
             logger.error(
@@ -199,6 +220,12 @@ class ConversationEngine(BaseEngine):
 
         # Shared pre-logic (Skill resolve + message building + RAG + tool optimization) / 共享前置逻辑
         prep = await self._prepare_execution(agent, request, skill_result)
+        prep.stream_runtime = await self._prepare_stream_runtime(
+            agent=agent,
+            messages=prep.messages,
+            tenant_id=request.tenant_id,
+            route_result=prep.route_result,
+        )
 
         handler = StreamExecutionHandler(
             engine=self,
@@ -234,6 +261,7 @@ class ConversationEngine(BaseEngine):
         user_id: int | None = None,
         log_user_type: str | None = None,
         billing_context: dict[str, Any] | None = None,
+        runtime_context: _StreamRuntimeContext | None = None,
     ) -> AsyncIterator[ChatChunk]:
         """
         Get streaming ChatChunk via adapter (with rate limiting/quota/metering protection).
@@ -258,71 +286,25 @@ class ConversationEngine(BaseEngine):
         """
         stream_start = time.perf_counter()
 
-        # Route override takes priority / 路由覆写优先（与 BaseEngine._call_llm 对齐）
-        if route_result is not None and getattr(route_result, "is_overridden", False):
-            provider_code: str = route_result.provider_code or ""
-            model_code: str = route_result.model_code or ""
-            routed_mid = int(getattr(route_result, "model_id", 0) or 0)
-            route_model_obj = None
-            if routed_mid:
-                from app.repositories.ai.model_repository import AIModelRepository
-
-                route_model_obj = await AIModelRepository(self.db).get_active_with_provider(
-                    routed_mid,
-                )
-            if route_model_obj is not None:
-                ai_model = route_model_obj
-                is_vision = bool(route_model_obj.supports_vision)
-                is_audio = bool(getattr(route_model_obj, "supports_audio", False))
-                is_video = bool(getattr(route_model_obj, "supports_video", False))
-            else:
-                ai_model = agent.model
-                reason_str: str = route_result.reason or ""
-                is_vision = "vision" in reason_str
-                is_audio = "audio" in reason_str
-                is_video = "video" in reason_str
-        else:
-            mobj = agent.model
-            ai_model = mobj
-            provider_code = mobj.provider.code if mobj and mobj.provider else ""
-            model_code = mobj.code if mobj else ""
-            is_vision = mobj.supports_vision if mobj else False
-            is_audio = getattr(mobj, "supports_audio", False) if mobj else False
-            is_video = getattr(mobj, "supports_video", False) if mobj else False
-
-        # Non-capability model: remove corresponding attachments to avoid API errors
-        # 无对应能力的模型：移除对应附件，避免 API 报错
-        for msg in messages:
-            if msg.attachments:
-                kept = [
-                    a
-                    for a in msg.attachments
-                    if not (
-                        (a.get("type") == "image" and not is_vision)
-                        or (a.get("type") == "audio" and not is_audio)
-                        or (a.get("type") == "video" and not is_video)
-                    )
-                ]
-                msg.attachments = kept if kept else None
-
-        # Get provider and API Key via gateway / 通过 gateway 获取 provider 和 API Key
-        provider, api_key = await self.gateway.get_provider_and_key(
-            provider_code, tenant_id,
-        )
-
-        # Rate limiting + quota check (reuse gateway unified method) / 限流 + 配额检查（复用 gateway 统一方法）
-        estimated_input = 0
-        should_meter_usage = (
-            tenant_id is not None and tenant_id > PLATFORM_TENANT_ID
-        )
-        should_record_call_log = tenant_id is not None
-        if should_meter_usage and ai_model:
-            estimated_input = TokenCounter.count_messages_tokens(
-                messages_to_dicts(messages)
+        if runtime_context is None:
+            runtime_context = await self._prepare_stream_runtime(
+                agent=agent,
+                messages=messages,
+                tenant_id=tenant_id,
+                route_result=route_result,
             )
-            await self.gateway.usage_recorder.check_rate_and_quota(
-                tenant_id, ai_model.id, ai_model, estimated_input,
-            )
+
+        provider = runtime_context.provider
+        api_key = runtime_context.api_key
+        ai_model = runtime_context.ai_model
+        model_code = runtime_context.model_code
+        is_vision = runtime_context.is_vision
+        is_audio = runtime_context.is_audio
+        is_video = runtime_context.is_video
+        estimated_input = runtime_context.estimated_input
+        metering_context = runtime_context.metering_context
+        should_meter_usage = runtime_context.should_meter_usage
+        should_record_call_log = runtime_context.should_record_call_log
 
         adapter = AdapterRegistry.create_adapter(
             provider_type=provider.type,
@@ -339,21 +321,7 @@ class ConversationEngine(BaseEngine):
         total_tokens = 0
         input_tokens = 0
         output_tokens = 0
-        runtime_info = {
-            "provider_id": provider.id,
-            "provider_name": (
-                getattr(provider, "name", None)
-                or getattr(provider, "code", None)
-                or f"Provider #{provider.id}"
-            ),
-            "model_id": ai_model.id if ai_model else None,
-            "model_name": (
-                (getattr(ai_model, "name", None) or model_code)
-                if ai_model
-                else None
-            ),
-            "model_code": model_code,
-        }
+        runtime_info = runtime_context.runtime_info
 
         if not supports_streaming:
             logger.info(
@@ -431,6 +399,7 @@ class ConversationEngine(BaseEngine):
                     estimated_input=estimated_input,
                     latency_ms=latency_ms,
                     user_id=user_id,
+                    metering_context=metering_context,
                 )
 
             api_key.increment_usage()
@@ -488,6 +457,107 @@ class ConversationEngine(BaseEngine):
                 model_code,
                 str(tail_exc),
             )
+
+    async def _prepare_stream_runtime(
+        self,
+        *,
+        agent: Agent,
+        messages: list[ChatMessage],
+        tenant_id: int | None,
+        route_result: Any | None = None,
+    ) -> _StreamRuntimeContext:
+        """Prepare first-round stream runtime and perform quota/rate preflight.
+
+        为首轮流式请求准备运行时上下文，并在返回 StreamingResponse 之前完成限速/配额预检。
+        """
+        if route_result is not None and getattr(route_result, "is_overridden", False):
+            provider_code: str = route_result.provider_code or ""
+            model_code: str = route_result.model_code or ""
+            routed_mid = int(getattr(route_result, "model_id", 0) or 0)
+            route_model_obj = None
+            if routed_mid:
+                from app.repositories.ai.model_repository import AIModelRepository
+
+                route_model_obj = await AIModelRepository(self.db).get_active_with_provider(
+                    routed_mid,
+                )
+            if route_model_obj is not None:
+                ai_model = route_model_obj
+                is_vision = bool(route_model_obj.supports_vision)
+                is_audio = bool(getattr(route_model_obj, "supports_audio", False))
+                is_video = bool(getattr(route_model_obj, "supports_video", False))
+            else:
+                ai_model = agent.model
+                reason_str: str = route_result.reason or ""
+                is_vision = "vision" in reason_str
+                is_audio = "audio" in reason_str
+                is_video = "video" in reason_str
+        else:
+            mobj = agent.model
+            ai_model = mobj
+            provider_code = mobj.provider.code if mobj and mobj.provider else ""
+            model_code = mobj.code if mobj else ""
+            is_vision = mobj.supports_vision if mobj else False
+            is_audio = getattr(mobj, "supports_audio", False) if mobj else False
+            is_video = getattr(mobj, "supports_video", False) if mobj else False
+
+        for msg in messages:
+            if msg.attachments:
+                kept = [
+                    a
+                    for a in msg.attachments
+                    if not (
+                        (a.get("type") == "image" and not is_vision)
+                        or (a.get("type") == "audio" and not is_audio)
+                        or (a.get("type") == "video" and not is_video)
+                    )
+                ]
+                msg.attachments = kept if kept else None
+
+        provider, api_key = await self.gateway.get_provider_and_key(
+            provider_code, tenant_id,
+        )
+
+        estimated_input = 0
+        metering_context = None
+        should_meter_usage = tenant_id is not None and tenant_id > PLATFORM_TENANT_ID
+        should_record_call_log = tenant_id is not None
+        if should_meter_usage and ai_model:
+            estimated_input = TokenCounter.count_messages_tokens(
+                messages_to_dicts(messages)
+            )
+            metering_context = await self.gateway.usage_recorder.check_rate_and_quota(
+                tenant_id, ai_model.id, ai_model, estimated_input,
+            )
+
+        return _StreamRuntimeContext(
+            provider=provider,
+            api_key=api_key,
+            ai_model=ai_model,
+            model_code=model_code,
+            is_vision=is_vision,
+            is_audio=is_audio,
+            is_video=is_video,
+            estimated_input=estimated_input,
+            metering_context=metering_context,
+            should_meter_usage=should_meter_usage,
+            should_record_call_log=should_record_call_log,
+            runtime_info={
+                "provider_id": provider.id,
+                "provider_name": (
+                    getattr(provider, "name", None)
+                    or getattr(provider, "code", None)
+                    or f"Provider #{provider.id}"
+                ),
+                "model_id": ai_model.id if ai_model else None,
+                "model_name": (
+                    (getattr(ai_model, "name", None) or model_code)
+                    if ai_model
+                    else None
+                ),
+                "model_code": model_code,
+            },
+        )
 
 
 __all__ = ["ConversationEngine"]

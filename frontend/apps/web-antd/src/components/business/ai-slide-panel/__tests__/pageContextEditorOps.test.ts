@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /**
  * Page context editor ops tests / 页面上下文与富文本操作测试
  *

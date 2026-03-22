@@ -143,6 +143,7 @@ class PreparedExecution:
     tool_consent_modes: dict[str, str] = field(default_factory=dict)
     optimize_event: dict[str, Any] | None = None
     route_result: RouteResult | None = None
+    stream_runtime: Any | None = None
 
 
 @dataclass

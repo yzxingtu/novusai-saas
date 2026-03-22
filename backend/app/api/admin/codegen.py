@@ -43,6 +43,7 @@ from app.schemas.codegen import (
     CodegenVersionItemSchema,
     ComponentInfoSchema,
     GenerateResultSchema,
+    PresetInfoSchema,
     PreviewResultSchema,
     RollbackResultSchema,
     ValidationResultSchema,
@@ -96,6 +97,21 @@ class AdminCodegenController(GlobalController):
     tags = ["Codegen"]
     service_class = CodegenService
 
+    @staticmethod
+    def _serialize_config(
+        obj,
+        *,
+        manifest_present: bool = False,
+    ) -> CodegenConfigResponse:
+        guard = CodegenService.build_delete_guard(obj, manifest_present=manifest_present)
+        return CodegenConfigResponse.from_model(
+            obj,
+            manifest_present=manifest_present,
+            delete_allowed=guard.allowed,
+            delete_reason_code=guard.reason_code,
+            delete_reason_message=guard.message,
+        )
+
     def _register_routes(self) -> None:
         """注册路由 / Register routes"""
         router = self.router
@@ -122,10 +138,7 @@ class AdminCodegenController(GlobalController):
 
             return paginated(
                 items=[
-                    CodegenConfigResponse.from_model(
-                        x,
-                        manifest_present=_row_has_manifest(x),
-                    )
+                    self._serialize_config(x, manifest_present=_row_has_manifest(x))
                     for x in items
                 ],
                 total=total,
@@ -148,7 +161,7 @@ class AdminCodegenController(GlobalController):
                 raise NotFoundException(message=_("codegen.config_not_found"))
             manifest = ManifestManager(_PROJECT_ROOT)
             mp = manifest.find_entry_for_config(obj.resource, obj.id) is not None
-            return success(data=CodegenConfigResponse.from_model(obj, manifest_present=mp))
+            return success(data=self._serialize_config(obj, manifest_present=mp))
 
         @router.post("/configs", summary=_("codegen.api.configs.create"))
         @action_create("action.codegen.create")
@@ -163,7 +176,7 @@ class AdminCodegenController(GlobalController):
             obj = await service.create(body.model_dump())
             await db.commit()
             return success(
-                data=CodegenConfigResponse.from_model(obj, manifest_present=False),
+                data=self._serialize_config(obj, manifest_present=False),
                 message=_("common.created"),
             )
 
@@ -185,7 +198,7 @@ class AdminCodegenController(GlobalController):
             manifest = ManifestManager(_PROJECT_ROOT)
             mp = manifest.find_entry_for_config(obj.resource, obj.id) is not None
             return success(
-                data=CodegenConfigResponse.from_model(obj, manifest_present=mp),
+                data=self._serialize_config(obj, manifest_present=mp),
                 message=_("common.updated"),
             )
 
@@ -199,6 +212,7 @@ class AdminCodegenController(GlobalController):
         ):
             _require_debug()
             service = CodegenService(db)
+            await service.assert_can_delete(id, project_root=_PROJECT_ROOT)
             await service.delete(id)
             await db.commit()
             return success(message=_("common.deleted"))
@@ -216,7 +230,7 @@ class AdminCodegenController(GlobalController):
             obj = await service.duplicate(id)
             await db.commit()
             return success(
-                data=CodegenConfigResponse.from_model(obj, manifest_present=False),
+                data=self._serialize_config(obj, manifest_present=False),
                 message=_("common.created"),
             )
 
@@ -276,7 +290,7 @@ class AdminCodegenController(GlobalController):
             manifest = ManifestManager(_PROJECT_ROOT)
             mp = manifest.find_entry_for_config(obj.resource, obj.id) is not None
             return success(
-                data=CodegenConfigResponse.from_model(obj, manifest_present=mp),
+                data=self._serialize_config(obj, manifest_present=mp),
                 message=_("common.updated"),
             )
 
@@ -335,12 +349,9 @@ class AdminCodegenController(GlobalController):
         @action_read("action.codegen.presets")
         async def list_presets(request: Request, current_admin: ActiveAdmin):
             _require_debug()
-            presets_dir = Path(__file__).resolve().parent.parent.parent / "codegen" / "templates" / "presets"
-            names = []
-            if presets_dir.exists():
-                for f in presets_dir.glob("*.yaml"):
-                    names.append(f.stem)
-            return success(data=sorted(names))
+            items = CodegenService.list_available_presets()
+            validated = [PresetInfoSchema.model_validate(item) for item in items]
+            return success(data=[item.model_dump() for item in validated])
 
         @router.get("/presets/{name}", summary=_("codegen.api.presets.get"))
         @action_read("action.codegen.presets")
@@ -351,7 +362,6 @@ class AdminCodegenController(GlobalController):
         ):
             _require_debug()
             import re
-            import yaml
             # 防止路径遍历：仅允许字母、数字、下划线、连字符
             # Prevent path traversal: only allow alphanumeric, underscore, hyphen
             if not re.match(r"^[a-zA-Z0-9_-]+$", name):
@@ -362,10 +372,10 @@ class AdminCodegenController(GlobalController):
                 raise NotFoundException(message=_("codegen.preset_not_found"))
             if not path.exists():
                 raise NotFoundException(message=_("codegen.preset_not_found"))
-            content = path.read_text(encoding="utf-8")
-            data = yaml.safe_load(content)
-            parsed = data if isinstance(data, dict) else {}
-            return success(data={"name": name, "content": content, "parsed": parsed})
+            preset = CodegenService.get_preset_detail(name)
+            if not preset:
+                raise NotFoundException(message=_("codegen.preset_not_found"))
+            return success(data=preset)
 
         @router.get("/parent-resources", summary=_("codegen.api.parent_resources"))
         @action_read("action.codegen.parent_resources")
@@ -472,7 +482,7 @@ class AdminCodegenController(GlobalController):
             _require_debug()
             service = CodegenService(db)
             config = body.config_json or {}
-            result = service.validate(config)
+            result = service.validate(config, mode=body.mode)
             validated = ValidationResultSchema.model_validate(result)
             return success(data=validated.model_dump())
 

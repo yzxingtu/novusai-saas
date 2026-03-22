@@ -17,6 +17,22 @@ import {
 
 const MAX_HISTORY = 50;
 
+type PreviewCacheSnapshot = {
+  files: PreviewFile[];
+  summary?: {
+    create_count: number;
+    modify_count: number;
+    backend_files: number;
+    frontend_files: number;
+    total_lines: number;
+  };
+  warnings?: string[];
+  conflicts?: Array<Record<string, string>>;
+  step?: string;
+  timestamp?: number;
+  error?: string;
+};
+
 /** configJson 持久化最大体积（约 400KB），超过则不持久化 configJson 防占满 localStorage / Max size for configJson persist (~400KB) */
 const CONFIG_JSON_PERSIST_MAX_BYTES = 400 * 1024;
 
@@ -111,14 +127,7 @@ export const useCodegenBuilderStore = defineStore(
     const redoStack = ref<Record<string, unknown>[]>([]);
 
     /** 预览缓存 / Preview cache */
-    const previewCache = ref<{
-      files: PreviewFile[];
-      summary?: { create_count: number; modify_count: number; total_lines: number };
-      conflicts?: Array<Record<string, string>>;
-      step?: string;
-      timestamp?: number;
-      error?: string;
-    } | null>(null);
+    const previewCache = ref<null | PreviewCacheSnapshot>(null);
 
     /** 校验警告 / Validation warnings */
     const validationWarnings = ref<string[]>([]);
@@ -215,7 +224,7 @@ export const useCodegenBuilderStore = defineStore(
     }
 
     /** 设置预览缓存 / Set preview cache */
-    function setPreviewCache(cache: typeof previewCache.value) {
+    function setPreviewCache(cache: null | PreviewCacheSnapshot) {
       previewCache.value = cache;
     }
 
@@ -346,6 +355,3 @@ export const useCodegenBuilderStore = defineStore(
     },
   },
 );
-
-/** @deprecated Use useCodegenBuilderStore instead */
-export const useCodegenWizardStore = useCodegenBuilderStore;

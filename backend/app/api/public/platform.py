@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.configs.service import ConfigService
+from app.captcha.runtime import resolve_public_captcha_plugin_bundle
 from app.core.config import settings
 from app.core.deps import DbSession
 from app.core.i18n import _
@@ -31,6 +32,13 @@ async def get_platform_public_config(db: DbSession):
     )
     configs = {**general_config, **security_config, **ai_toolkit_config, **storage_config}
 
+    captcha_plugin = await resolve_public_captcha_plugin_bundle(
+        db,
+        None,
+        configs.get("captcha_provider"),
+        "admin",
+    )
+
     return success(
         data=PlatformPublicConfig(
             platform_domains=settings.platform_domains_list,
@@ -46,6 +54,9 @@ async def get_platform_public_config(db: DbSession):
             maintenance_message=configs.get("maintenance_message"),
             login_captcha_enabled=configs.get("login_captcha_enabled"),
             captcha_provider=configs.get("captcha_provider"),
+            captcha_plugin=(
+                captcha_plugin.to_public_payload() if captcha_plugin else None
+            ),
             captcha_difficulty=configs.get("captcha_difficulty"),
             captcha_enable_threshold_admin=configs.get("captcha_enable_threshold_admin"),
             login_max_attempts=configs.get("login_max_attempts"),

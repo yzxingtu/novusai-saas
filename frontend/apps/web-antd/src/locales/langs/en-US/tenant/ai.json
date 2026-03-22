@@ -203,11 +203,13 @@
       "saveSuccess": "Memory switch updated"
     },
     "routing": {
-      "description": "Smart routing automatically selects the most suitable AI model based on conversation complexity, attachment type, and token count, balancing performance and cost.",
+      "description": "Smart routing automatically selects the most suitable AI model based on conversation complexity, attachment type, and estimated token count, balancing performance and cost.",
       "enableRouting": "Enable Smart Routing",
       "maxTier": "Cost Limit",
       "maxTierHelp": "Limits the maximum model tier the router can use; automatically downgrades if exceeded",
       "visionModel": "Vision Model",
+      "audioModel": "Audio Model",
+      "videoModel": "Video Model",
       "longContextModel": "Long-Context Model",
       "longContextThreshold": "Long-Context Threshold (Estimated Input Tokens)",
       "longContextThresholdHelp": "Automatically switches to the long-context model when estimated input tokens (history + user input + RAG context, excluding this reply's output cap) exceed this threshold",
@@ -216,6 +218,8 @@
       "statusEnabled": "Smart Routing On",
       "statusDisabled": "Routing Off",
       "visionModelHelp": "Routes to this model when image attachments are present",
+      "audioModelHelp": "Routes to this model when audio attachments are present",
+      "videoModelHelp": "Routes to this model when video attachments are present",
       "longContextModelHelp": "Switches to this model when tokens exceed the threshold",
       "tier": {
         "fast": "Fast",
@@ -698,62 +702,64 @@
     }
   },
   "skillPackage": {
-    "title": "Skill Packages",
-    "pageDesc": "Manage skill packages. Each package contains multiple skills and can be assigned to agents as a whole.",
+    "title": "Skill Package Catalog",
+    "pageDesc": "Browse the skill package catalog visible to the current tenant. Packages provide grouping, source attribution, and readable display, while runtime authorization still comes from direct agent skill grants.",
+    "runtimeTruthHint": "This is a read-only catalog entry. Skill packages describe grouping and source attribution; runtime capability delivery still comes from direct skill grants rather than package-level auto-binding.",
     "system": "System",
     "name": "Package Name",
     "description": "Description",
+    "isRecommended": "Recommended",
     "skillCount": "Skills",
     "isActive": "Status",
-    "scope": "Scope",
-    "sortOrder": "Sort Order",
-    "create": "New Skill Package",
-    "scopeTag": {
-      "plugin": "Plugin"
+    "packageRole": "Package Role",
+    "sourceSummary": "Source Summary",
+    "runtimeBinding": "Runtime Authorization",
+    "sourcePlugin": "Source Plugin",
+    "roleOptions": {
+      "platform_system": "Platform System",
+      "platform_catalog": "Platform Catalog",
+      "tenant_owned": "Tenant Owned",
+      "plugin_managed": "Plugin Managed"
+    },
+    "runtimeBindingOptions": {
+      "direct_agent_skill_grant": "Direct Skill Grant"
+    },
+    "sourceSummaryOptions": {
+      "platform_system": "Platform System",
+      "platform_catalog": "Platform Catalog"
+    },
+    "sourceSummaryValue": {
+      "plugin": "Plugin: {plugin}",
+      "tenant": "Tenant #{tenantId}"
     },
     "placeholder": {
-      "searchName": "Search package name",
-      "inputName": "Enter package name",
-      "inputDescription": "Enter description"
-    },
-    "uploadZip": "Upload Skill Package",
-    "uploadDragText": "Click or drag a ZIP file here to upload",
-    "uploadDesc": "Supports standard skill package ZIP files containing SKILL.md",
-    "cloneToMine": "Clone to My Packages",
-    "messages": {
-      "toggleSuccess": "Package status updated",
-      "uploadSuccess": "Skill package uploaded successfully",
-      "uploading": "Uploading...",
-      "cloneSuccess": "Cloned as {name}"
+      "searchName": "Search package name"
     },
     "detail": {
       "title": "Package Details",
+      "overview": "Overview",
       "basicInfo": "Basic Info",
       "skills": "Skills in Package",
-      "empty": "No skills yet, click the button above to add",
+      "empty": "No skills yet",
       "noDescription": "No description",
       "updatedAt": "Updated At",
-      "isSystem": "System Built-in",
-      "yes": "Yes",
-      "no": "No",
       "sourcePlugin": "Source Plugin",
       "skillName": "Skill Name",
       "skillType": "Skill Type",
       "skillTimeout": "Timeout",
       "skillStatus": "Status",
       "skillDescription": "Description",
-      "backToList": "Back to List"
+      "backToList": "Back to Catalog",
+      "tools": "Tool Definitions",
+      "noTools": "No tool definitions",
+      "toolParams": "Parameters",
+      "envVars": "Env Vars",
+      "configured": "Configured",
+      "runtimeTruthHint": "This catalog page shows package source, structure, and resolved output. Runtime capability control still comes from direct skill grants."
     },
     "valves": {
-      "configBtn": "Env Config",
-      "title": "Environment Variable Configuration",
-      "description": "Configure the environment variables required by this skill package. Fields marked in red are required. Sensitive values (like secrets) are displayed as password fields.",
       "required": "Required",
-      "sensitiveHint": "Sensitive information, keep it safe",
-      "noSchema": "This skill package has no configurable environment variables",
-      "saveSuccess": "Environment variable configuration saved",
-      "resetDefaults": "Reset to Defaults",
-      "secretConfigured": "Configured (click to clear)"
+      "title": "Environment Variable Configuration"
     }
   },
   "skill": {

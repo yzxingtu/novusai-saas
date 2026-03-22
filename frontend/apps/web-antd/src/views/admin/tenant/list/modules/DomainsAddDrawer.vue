@@ -23,6 +23,11 @@ const emits = defineEmits<{
 // Current tenant ID / 当前企业 ID
 const tenantId = ref<number>();
 
+interface DomainCreateDefaults {
+  domain?: string;
+  remark?: string;
+}
+
 /** 表单 Schema / Form schema */
 function useFormSchema() {
   return [
@@ -87,8 +92,12 @@ async function onSubmit() {
 }
 
 /** 打开抽屉 / Open drawer */
-function open(tid: number) {
+async function open(tid: number, defaults?: DomainCreateDefaults) {
   tenantId.value = tid;
+  await formApi.resetForm();
+  if (defaults && Object.keys(defaults).length > 0) {
+    await formApi.setValues(defaults);
+  }
   drawerApi.setData({ mode: 'add' }).open();
 }
 

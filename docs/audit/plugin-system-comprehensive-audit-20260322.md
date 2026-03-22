@@ -10,7 +10,7 @@
 - 插件管理 API：`backend/app/api/admin/plugins.py`、`backend/app/api/tenant/plugins.py`
 - 插件服务与生命周期：`backend/app/services/system/plugin_service.py`、`backend/app/plugins/lifecycle.py`、`backend/app/plugins/startup.py`
 - 插件授权与试用：`backend/app/plugins/license.py`、`backend/app/models/system/plugin_license.py`、`backend/app/enums/plugin.py`、`backend/app/cli.py`
-- 前端插件加载与构建：`frontend/apps/web-antd/src/utils/plugin-loader.ts`、`frontend/apps/web-antd/src/utils/vite-plugin-novus-plugins.ts`
+- 前端插件加载与构建：`frontend/apps/web-antd/src/utils/plugin-loader.ts`、`frontend/apps/web-antd/build/vite-plugin-novus-plugins.ts`（当前路径；审计时实现已迁移出 `src/utils/`）
 - 插件静态资源与打包：`backend/app/main.py`、`backend/app/plugins/asset_resolver.py`、`backend/scripts/plugin_cli.py`
 - 历史/备份插件源码：`backend/plugins/.backups/*`
 - 历史基线与上线材料：
@@ -202,15 +202,20 @@
 
 ---
 
-### P1-1. 调度任务只处理试用过期，不处理带期限付费授权过期
+### P1-1. 历史上调度任务只处理试用过期，不处理带期限付费授权过期
 
 #### 现状
 
-- 当前定时任务 `check_trial_expirations()` 只筛选 `license_type == trial`。
+- 历史实现中的定时任务 `check_trial_expirations()` 只筛选 `license_type == trial`。
 - 它会对试用过期做两件事：
   - 标记 `is_valid = false`
   - 尝试禁用插件
 - 但对付费且设置了 `expires_at` 的授权，没有对应的统一过期任务。
+
+补充说明：
+
+- 该问题在后续整改中已统一收口为 `check_plugin_license_expirations()`。
+- 本节保留的是 2026-03-22 审计时的原始问题描述，用于说明为什么需要这次整改。
 
 对应代码：
 
@@ -447,7 +452,7 @@
 对应代码：
 
 - `frontend/apps/web-antd/src/utils/plugin-loader.ts:136-199`
-- `frontend/apps/web-antd/src/utils/vite-plugin-novus-plugins.ts:114-299`
+- `frontend/apps/web-antd/build/vite-plugin-novus-plugins.ts`
 - `backend/app/plugins/asset_resolver.py:24-52`
 
 #### 为什么不合适
@@ -1777,7 +1782,7 @@
 
 ### 7.4 过期处理流程回放
 
-当前唯一的定时过期任务是 `check_trial_expirations()`。
+审计当时唯一的定时过期任务是 `check_trial_expirations()`；当前实现已统一为 `check_plugin_license_expirations()`。
 
 真实流程如下：
 
@@ -2604,7 +2609,7 @@ backend/.venv/Scripts/python -m pytest tests/plugins/test_contract_lifecycle.py 
 这项改造不是只改一个文件，而是至少涉及这些入口：
 
 - `frontend/apps/web-antd/src/utils/plugin-loader.ts`
-- `frontend/apps/web-antd/src/utils/vite-plugin-novus-plugins.ts`
+- `frontend/apps/web-antd/build/vite-plugin-novus-plugins.ts`
 - `backend/scripts/plugin_cli.py`
 - `backend/app/main.py`
 - `backend/app/plugins/asset_resolver.py`

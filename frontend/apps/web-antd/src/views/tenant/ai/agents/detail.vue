@@ -673,27 +673,39 @@ async function saveQuota() {
 const routingEnabled = ref(false);
 const routingMaxTier = ref<string | undefined>(undefined);
 const routingVisionModelId = ref<number | undefined>(undefined);
+const routingAudioModelId = ref<number | undefined>(undefined);
+const routingVideoModelId = ref<number | undefined>(undefined);
 const routingLongContextModelId = ref<number | undefined>(undefined);
 const routingLongContextThreshold = ref(32_000);
 
 const visionModelOptions = ref<{ label: string; value: number }[]>([]);
+const audioModelOptions = ref<{ label: string; value: number }[]>([]);
+const videoModelOptions = ref<{ label: string; value: number }[]>([]);
 const chatModelOptions = ref<{ label: string; value: number }[]>([]);
 
 async function loadRoutingModelOptions() {
   try {
     const models = await getTenantAIModelsApi();
+    const toOption = (model: {
+      id: number;
+      name: string;
+      provider_name: null | string;
+    }) => ({
+      label: `${model.name} (${model.provider_name || '-'})`,
+      value: model.id,
+    });
     visionModelOptions.value = models
       .filter((m) => m.type === 'chat' && m.supports_vision)
-      .map((m) => ({
-        label: `${m.name} (${m.provider_name || '-'})`,
-        value: m.id,
-      }));
+      .map(toOption);
+    audioModelOptions.value = models
+      .filter((m) => m.type === 'chat' && m.supports_audio)
+      .map(toOption);
+    videoModelOptions.value = models
+      .filter((m) => m.type === 'chat' && m.supports_video)
+      .map(toOption);
     chatModelOptions.value = models
       .filter((m) => m.type === 'chat')
-      .map((m) => ({
-        label: `${m.name} (${m.provider_name || '-'})`,
-        value: m.id,
-      }));
+      .map(toOption);
     chatModelMaxOutputTokens.value = Object.fromEntries(
       models
         .filter((m) => m.type === 'chat')
@@ -702,6 +714,10 @@ async function loadRoutingModelOptions() {
   } catch {
     // fallback: empty list
     chatModelMaxOutputTokens.value = {};
+    visionModelOptions.value = [];
+    audioModelOptions.value = [];
+    videoModelOptions.value = [];
+    chatModelOptions.value = [];
   }
 }
 
@@ -718,6 +734,10 @@ function initRouting() {
   routingMaxTier.value = (rc.max_tier as string | undefined) ?? undefined;
   routingVisionModelId.value =
     (rc.vision_model_id as number | undefined) ?? undefined;
+  routingAudioModelId.value =
+    (rc.audio_model_id as number | undefined) ?? undefined;
+  routingVideoModelId.value =
+    (rc.video_model_id as number | undefined) ?? undefined;
   routingLongContextModelId.value =
     (rc.long_context_model_id as number | undefined) ?? undefined;
   routingLongContextThreshold.value =
@@ -730,6 +750,8 @@ async function saveRouting() {
       enable_routing: routingEnabled.value,
       max_tier: routingMaxTier.value || null,
       vision_model_id: routingVisionModelId.value ?? null,
+      audio_model_id: routingAudioModelId.value ?? null,
+      video_model_id: routingVideoModelId.value ?? null,
       long_context_model_id: routingLongContextModelId.value ?? null,
       long_context_threshold: routingLongContextThreshold.value,
     },
@@ -2199,6 +2221,68 @@ useDetailPageAi({
                     <ASelect
                       v-model:value="routingVisionModelId"
                       :options="visionModelOptions"
+                      class="w-full"
+                      :allow-clear="true"
+                      :placeholder="$t('tenant.ai.agent.routing.autoSelect')"
+                      show-search
+                      option-filter-prop="label"
+                      :disabled="!isTenantOwned"
+                    />
+                  </div>
+
+                  <div class="rounded-xl border bg-background p-5 shadow-sm">
+                    <div class="mb-4 flex items-center gap-3">
+                      <div
+                        class="flex size-9 items-center justify-center rounded-xl bg-rose-500/10"
+                      >
+                        <IconifyIcon
+                          icon="lucide:audio-lines"
+                          class="size-5 text-rose-500"
+                        />
+                      </div>
+                      <div>
+                        <div class="text-sm font-semibold">
+                          {{ $t('tenant.ai.agent.routing.audioModel') }}
+                        </div>
+                        <div class="text-xs text-muted-foreground">
+                          {{ $t('tenant.ai.agent.routing.audioModelHelp') }}
+                        </div>
+                      </div>
+                    </div>
+                    <ASelect
+                      v-model:value="routingAudioModelId"
+                      :options="audioModelOptions"
+                      class="w-full"
+                      :allow-clear="true"
+                      :placeholder="$t('tenant.ai.agent.routing.autoSelect')"
+                      show-search
+                      option-filter-prop="label"
+                      :disabled="!isTenantOwned"
+                    />
+                  </div>
+
+                  <div class="rounded-xl border bg-background p-5 shadow-sm">
+                    <div class="mb-4 flex items-center gap-3">
+                      <div
+                        class="flex size-9 items-center justify-center rounded-xl bg-fuchsia-500/10"
+                      >
+                        <IconifyIcon
+                          icon="lucide:clapperboard"
+                          class="size-5 text-fuchsia-500"
+                        />
+                      </div>
+                      <div>
+                        <div class="text-sm font-semibold">
+                          {{ $t('tenant.ai.agent.routing.videoModel') }}
+                        </div>
+                        <div class="text-xs text-muted-foreground">
+                          {{ $t('tenant.ai.agent.routing.videoModelHelp') }}
+                        </div>
+                      </div>
+                    </div>
+                    <ASelect
+                      v-model:value="routingVideoModelId"
+                      :options="videoModelOptions"
                       class="w-full"
                       :allow-clear="true"
                       :placeholder="$t('tenant.ai.agent.routing.autoSelect')"

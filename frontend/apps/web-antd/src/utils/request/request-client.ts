@@ -44,6 +44,8 @@ import type {
 import axios from 'axios';
 import qs from 'qs';
 
+import { getEndpointByUrl } from './endpoint';
+
 // ============================================================
 // Default configuration / 默认配置
 // ============================================================
@@ -80,21 +82,6 @@ function getParamsSerializer(type: ParamsSerializer) {
   };
   return (params: any) =>
     qs.stringify(params, { arrayFormat: formatMap[type] });
-}
-
-/**
- * Determine endpoint type from request URL
- * 根据请求 URL 判断端类型
- */
-function getEndpointByUrl(url: string): ApiEndpoint {
-  if (url.startsWith('/admin')) return 'admin';
-  if (url.startsWith('/tenant')) return 'tenant';
-  // 双端插件路由：/plugins/{name}/admin/* 或 /plugins/{name}/tenant/*
-  if (url.startsWith('/plugins/')) {
-    if (/^\/plugins\/[^/]+\/admin(?:\/|$)/.test(url)) return 'admin';
-    if (/^\/plugins\/[^/]+\/tenant(?:\/|$)/.test(url)) return 'tenant';
-  }
-  return 'user';
 }
 
 /**
