@@ -4,7 +4,7 @@ import type { VNode } from 'vue';
 import { computed, ref, useAttrs, watch, watchEffect } from 'vue';
 
 import { usePagination } from '@vben/hooks';
-import { EmptyIcon, Grip, listIcons } from '@vben/icons';
+import { EmptyIcon, Grip, listIcons, normalizeLucideIconId } from '@vben/icons';
 import { $t } from '@vben/locales';
 
 import {
@@ -32,7 +32,7 @@ interface Props {
   pageSize?: number;
   /** 图标集的名字 */
   prefix?: string;
-  /** 是否自动请求API以获得图标集的数据.提供prefix时有效 */
+  /** 是否自动加载本地图标集数据.提供prefix时有效 */
   autoFetchApi?: boolean;
   /**
    * 图标列表
@@ -50,7 +50,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  prefix: 'ant-design',
+  prefix: 'lucide',
   pageSize: 36,
   icons: () => [],
   iconSlot: 'default',
@@ -75,6 +75,31 @@ const keyword = ref('');
 const keywordDebounce = refDebounced(keyword, 300);
 const innerIcons = ref<string[]>([]);
 
+function normalizeSelectableIcon(icon: string): string {
+  const raw = icon.trim();
+  if (!raw) {
+    return '';
+  }
+  return props.prefix === 'lucide' ? normalizeLucideIconId(raw) : raw;
+}
+
+const currentIconSet = computed(
+  () => new Set(currentList.value.map((icon) => normalizeSelectableIcon(icon))),
+);
+
+function isSelectableIcon(icon: null | string | undefined): boolean {
+  if (!icon) {
+    return false;
+  }
+  return currentIconSet.value.has(normalizeSelectableIcon(icon));
+}
+
+const previewIcon = computed(() => {
+  return isSelectableIcon(currentSelect.value)
+    ? normalizeSelectableIcon(currentSelect.value)
+    : '';
+});
+
 watchDebounced(
   () => props.prefix,
   async (prefix) => {
@@ -87,22 +112,18 @@ watchDebounced(
 
 const currentList = computed(() => {
   try {
-    if (props.prefix) {
-      if (
-        props.prefix !== 'svg' &&
-        props.autoFetchApi &&
-        props.icons.length === 0
-      ) {
-        return innerIcons.value;
-      }
-      const icons = listIcons('', props.prefix);
-      if (icons.length === 0) {
-        console.warn(`No icons found for prefix: ${props.prefix}`);
-      }
-      return icons;
-    } else {
+    if (props.icons.length > 0) {
       return props.icons;
     }
+
+    if (props.prefix) {
+      if (props.prefix !== 'svg' && props.autoFetchApi) {
+        return innerIcons.value;
+      }
+      return listIcons('', props.prefix);
+    }
+
+    return props.icons;
   } catch (error) {
     console.error('Failed to load icons:', error);
     return [];
@@ -127,13 +148,35 @@ watchEffect(() => {
 watch(
   () => currentSelect.value,
   (v) => {
-    emit('change', v);
+    const normalized = normalizeSelectableIcon(v);
+    if (!normalized) {
+      if (modelValue.value !== '') {
+        modelValue.value = '';
+      }
+      emit('change', '');
+      return;
+    }
+
+    if (!isSelectableIcon(normalized)) {
+      return;
+    }
+
+    if (currentSelect.value !== normalized) {
+      currentSelect.value = normalized;
+      return;
+    }
+
+    if (modelValue.value !== normalized) {
+      modelValue.value = normalized;
+    }
+    emit('change', normalized);
   },
 );
 
 const handleClick = (icon: string) => {
-  currentSelect.value = icon;
-  modelValue.value = icon;
+  const normalized = normalizeSelectableIcon(icon);
+  currentSelect.value = normalized;
+  modelValue.value = normalized;
   close();
 };
 
@@ -201,7 +244,7 @@ defineExpose({ toggleOpenState, open, close });
         >
           <template #[iconSlot]>
             <VbenIcon
-              :icon="currentSelect || Grip"
+              :icon="previewIcon || Grip"
               class="size-4"
               aria-hidden="true"
             />
@@ -218,14 +261,14 @@ defineExpose({ toggleOpenState, open, close });
             aria-expanded="visible"
           />
           <VbenIcon
-            :icon="currentSelect || Grip"
+            :icon="previewIcon || Grip"
             class="absolute right-1 top-1 size-6"
             aria-hidden="true"
           />
         </div>
       </template>
       <VbenIcon
-        :icon="currentSelect || Grip"
+        :icon="previewIcon || Grip"
         v-else
         class="size-4"
         v-bind="$attrs"

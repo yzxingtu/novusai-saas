@@ -1,6 +1,10 @@
 import { createApp, watchEffect } from 'vue';
 
 import { registerLoadingDirective } from '@vben/common-ui/es/loading';
+import {
+  disableOnlineIconifyRequests,
+  ensureLucideIconSubsetRegistered,
+} from '@vben/icons';
 import { preferences } from '@vben/preferences';
 import { initStores } from '@vben/stores';
 import '@vben/styles';
@@ -23,6 +27,9 @@ import { setupAriaHiddenFix, setupConsoleFilter } from './utils/console-filter';
 import './styles/vxe-table-modern.css';
 
 async function bootstrap(namespace: string) {
+  disableOnlineIconifyRequests();
+  ensureLucideIconSubsetRegistered();
+
   // 初始化 TokenStorage（多端 Token 分离存储）
   TokenStorage.init(namespace);
 

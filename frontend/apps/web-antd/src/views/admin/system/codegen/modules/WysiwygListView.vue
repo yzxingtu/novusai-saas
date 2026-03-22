@@ -145,10 +145,11 @@ const [Grid, gridApi] = useVbenVxeGrid({
 });
 
 watch(
-  searchFormOptions,
-  (options) => {
-    nextTick(() => {
-      gridApi.formApi?.setState({ schema: options?.schema ?? [] });
+  [showSearchForm, searchFormOptions],
+  ([showSearch, options]) => {
+    gridApi.setState({
+      formOptions: options,
+      showSearchForm: showSearch,
     });
   },
   { deep: true, immediate: true },

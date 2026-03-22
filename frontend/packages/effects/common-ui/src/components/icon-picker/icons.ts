@@ -1,56 +1,55 @@
+import { ensureLucideIconCatalogRegistered, listIcons } from '@vben/icons';
 import type { Recordable } from '@vben/types';
 
 /**
- * 一个缓存对象，在不刷新页面时，无需重复请求远程接口
+ * Local icon cache, populated from registered collections only.
+ * 本地图标缓存，仅来自已注册的本地图标集合。
  */
 export const ICONS_MAP: Recordable<string[]> = {};
-
-interface IconifyResponse {
-  prefix: string;
-  total: number;
-  title: string;
-  uncategorized?: string[];
-  categories?: Recordable<string[]>;
-  aliases?: Recordable<string>;
-}
 
 const PENDING_REQUESTS: Recordable<Promise<string[]>> = {};
 
 /**
- * 通过Iconify接口获取图标集数据。
- * 同一时间多个图标选择器同时请求同一个图标集时，实际上只会发起一次请求（所有请求共享同一份结果）。
- * 请求结果会被缓存，刷新页面前同一个图标集不会再次请求
- * @param prefix 图标集名称
- * @returns 图标集中包含的所有图标名称
+ * Load icons from local collections without any online Iconify request.
+ * 从本地图标集合加载图标，禁止任何在线 Iconify 请求。
  */
 export async function fetchIconsData(prefix: string): Promise<string[]> {
-  if (Reflect.has(ICONS_MAP, prefix) && ICONS_MAP[prefix]) {
-    return ICONS_MAP[prefix];
+  const normalizedPrefix = prefix.trim();
+  if (!normalizedPrefix) {
+    return [];
   }
-  if (Reflect.has(PENDING_REQUESTS, prefix) && PENDING_REQUESTS[prefix]) {
-    return PENDING_REQUESTS[prefix];
+
+  if (Reflect.has(ICONS_MAP, normalizedPrefix) && ICONS_MAP[normalizedPrefix]) {
+    return ICONS_MAP[normalizedPrefix];
   }
-  PENDING_REQUESTS[prefix] = (async () => {
+  if (
+    Reflect.has(PENDING_REQUESTS, normalizedPrefix) &&
+    PENDING_REQUESTS[normalizedPrefix]
+  ) {
+    return PENDING_REQUESTS[normalizedPrefix];
+  }
+
+  PENDING_REQUESTS[normalizedPrefix] = (async () => {
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1000 * 10);
-      const response: IconifyResponse = await fetch(
-        `https://api.iconify.design/collection?prefix=${prefix}`,
-        { signal: controller.signal },
-      ).then((res) => res.json());
-      clearTimeout(timeoutId);
-      const list = response.uncategorized || [];
-      if (response.categories) {
-        for (const category in response.categories) {
-          list.push(...(response.categories[category] || []));
-        }
+      if (normalizedPrefix === 'lucide') {
+        ICONS_MAP[normalizedPrefix] = [
+          ...(await ensureLucideIconCatalogRegistered()),
+        ];
+        return ICONS_MAP[normalizedPrefix];
       }
-      ICONS_MAP[prefix] = list.map((v) => `${prefix}:${v}`);
+
+      ICONS_MAP[normalizedPrefix] = listIcons('', normalizedPrefix);
+      return ICONS_MAP[normalizedPrefix];
     } catch (error) {
-      console.error(`Failed to fetch icons for prefix ${prefix}:`, error);
-      return [] as string[];
+      console.error(
+        `Failed to load local icons for prefix ${normalizedPrefix}:`,
+        error,
+      );
+      return [];
+    } finally {
+      delete PENDING_REQUESTS[normalizedPrefix];
     }
-    return ICONS_MAP[prefix];
   })();
-  return PENDING_REQUESTS[prefix];
+
+  return PENDING_REQUESTS[normalizedPrefix];
 }

@@ -2,6 +2,10 @@ import { createApp, watchEffect } from 'vue';
 
 import { registerAccessDirective } from '@vben/access';
 import { registerLoadingDirective } from '@vben/common-ui';
+import {
+  disableOnlineIconifyRequests,
+  ensureLucideIconSubsetRegistered,
+} from '@vben/icons';
 import { preferences } from '@vben/preferences';
 import { initStores } from '@vben/stores';
 import '@vben/styles';
@@ -18,11 +22,15 @@ import App from './app.vue';
 import { initTimezone } from './timezone-init';
 
 async function bootstrap(namespace: string) {
+  disableOnlineIconifyRequests();
+
   // 初始化组件适配器
   await initComponentAdapter();
 
   // 初始化表单组件
   await initSetupVbenForm();
+
+  ensureLucideIconSubsetRegistered();
 
   // 设置弹窗的默认配置
   // setDefaultModalProps({

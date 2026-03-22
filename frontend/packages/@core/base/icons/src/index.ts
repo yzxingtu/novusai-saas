@@ -1,4 +1,5 @@
 export * from './create-icon';
+export * from './offline-guard';
 
 export * from './lucide';
 
