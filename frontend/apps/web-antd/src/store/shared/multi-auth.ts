@@ -7,9 +7,9 @@
  * - Uses TokenStorage for endpoint-separated storage; tokens don't interfere across endpoints.
  * - Logout only clears the current endpoint's token, not others.
  */
-import type { Recordable, UserInfo } from '@vben/types';
+import type { UserInfo } from '@vben/types';
 
-import type { ApiEndpoint, BaseUserInfo } from '#/api';
+import type { ApiEndpoint, BaseUserInfo, LoginParams } from '#/api';
 
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -23,6 +23,9 @@ import { adminApi, getApiEndpoint, tenantApi, userApi } from '#/api';
 import {
   HOME_PATHS,
   LOGIN_PATHS,
+  normalizeEndpointNavigationPath,
+  resolveHomePathByPath,
+  resolveLoginPathByPath,
 } from '#/constants/endpoints';
 import { $t } from '#/locales';
 import { toAvatarDisplayUrl } from '#/utils/image';
@@ -49,12 +52,12 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
 
   /** Current endpoint login path / 当前端的登录路径 */
   const currentLoginPath = computed(() => {
-    return LOGIN_PATHS[currentEndpoint.value];
+    return resolveLoginPathByPath(route.path);
   });
 
   /** Current endpoint default home path / 当前端的默认首页路径 */
   const currentHomePath = computed(() => {
-    return HOME_PATHS[currentEndpoint.value];
+    return resolveHomePathByPath(route.path);
   });
 
   /**
@@ -101,13 +104,13 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
    * @returns { userInfo, captchaRequired } - null userInfo = login failed / captchaRequired = needs captcha
    */
   async function authLogin(
-    params: Recordable<any>,
+    params: LoginParams | Record<string, unknown>,
     endpoint?: ApiEndpoint,
     onSuccess?: () => Promise<void> | void,
   ) {
     const ep = endpoint || currentEndpoint.value;
     const api = getAuthApi(ep);
-    const homePath = HOME_PATHS[ep];
+    const homePath = normalizeEndpointNavigationPath(HOME_PATHS[ep], ep);
 
     let userInfo: BaseUserInfo | null = null;
     let captchaRequired = false;
@@ -115,15 +118,25 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
     try {
       loginLoading.value = true;
 
+      const normalizeOptional = (value: unknown): string | undefined => {
+        if (value === null || value === undefined) {
+          return undefined;
+        }
+        const normalized = String(value).trim();
+        return normalized ? normalized : undefined;
+      };
+      const username = normalizeOptional(params.username) ?? '';
+      const password = normalizeOptional(params.password) ?? '';
+
       // Pass full login params (including captcha params) / 传递完整的登录参数
       const { accessToken, refreshToken } = await api.login({
-        captchaChallengeId: params.captchaChallengeId,
-        captchaProviderCode: params.captchaProviderCode,
-        captchaSolution: params.captchaSolution,
-        captchaType: params.captchaType,
-        password: params.password,
-        tenantCode: params.tenantCode,
-        username: params.username,
+        captchaChallengeId: normalizeOptional(params.captchaChallengeId),
+        captchaProviderCode: normalizeOptional(params.captchaProviderCode),
+        captchaSolution: normalizeOptional(params.captchaSolution),
+        captchaType: normalizeOptional(params.captchaType),
+        password,
+        tenantCode: normalizeOptional(params.tenantCode),
+        username,
       });
 
       if (accessToken) {
@@ -151,7 +164,7 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
         const vbenUserInfo: UserInfo = {
           avatar: toAvatarDisplayUrl(userInfo?.avatar),
           desc: '',
-          homePath: userInfo?.homePath || homePath,
+          homePath: normalizeEndpointNavigationPath(userInfo?.homePath, ep),
           realName: userInfo?.realName || '',
           roles: userInfo?.roles || [],
           token: accessToken,
@@ -258,7 +271,10 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
       path: loginPath,
       query: redirect
         ? {
-            redirect: router.currentRoute.value.fullPath,
+            redirect: normalizeEndpointNavigationPath(
+              router.currentRoute.value.fullPath,
+              ep,
+            ),
           }
         : {},
     });
@@ -269,16 +285,24 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
    * @param endpoint Endpoint type (optional) / 指定端类型
    */
   async function fetchUserInfo(endpoint?: ApiEndpoint) {
-    const api = getAuthApi(endpoint);
+    const ep = endpoint || currentEndpoint.value;
+    const api = getAuthApi(ep);
     const userInfo = await api.getUserInfo();
+    const endpointHomePath = normalizeEndpointNavigationPath(
+      userInfo?.homePath,
+      ep,
+    );
+    const normalizedUserInfo = {
+      ...userInfo,
+      homePath: endpointHomePath,
+    };
 
     // Tenant: check plan status, warn if no plan / 企业端：检查套餐状态
-    const ep = endpoint || currentEndpoint.value;
     if (
       ep === 'tenant' &&
-      userInfo &&
-      'hasPlan' in userInfo &&
-      !userInfo.hasPlan
+      normalizedUserInfo &&
+      'hasPlan' in normalizedUserInfo &&
+      !normalizedUserInfo.hasPlan
     ) {
       notification.warning({
         description: $t('tenant.common.noPlanDesc'),
@@ -289,23 +313,23 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
 
     // Convert to Vben UserInfo format / 转换为 vben UserInfo 格式
     const vbenUserInfo: UserInfo = {
-      avatar: toAvatarDisplayUrl(userInfo?.avatar),
+      avatar: toAvatarDisplayUrl(normalizedUserInfo?.avatar),
       desc: '',
-      homePath: userInfo?.homePath || currentHomePath.value,
-      realName: userInfo?.realName || '',
-      roles: userInfo?.roles || [],
+      homePath: endpointHomePath,
+      realName: normalizedUserInfo?.realName || '',
+      roles: normalizedUserInfo?.roles || [],
       token: accessStore.accessToken || '',
-      userId: String(userInfo?.id || ''),
-      username: userInfo?.username || '',
+      userId: String(normalizedUserInfo?.id || ''),
+      username: normalizedUserInfo?.username || '',
     };
 
     userStore.setUserInfo(vbenUserInfo);
 
     // Set permission codes in accessStore for button-level access control / 设置权限码
-    const permissions = userInfo?.permissions || [];
+    const permissions = normalizedUserInfo?.permissions || [];
     accessStore.setAccessCodes(permissions);
 
-    return userInfo;
+    return normalizedUserInfo;
   }
 
   /**

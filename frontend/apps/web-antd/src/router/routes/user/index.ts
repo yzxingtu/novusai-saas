@@ -17,17 +17,27 @@ const mainRoutes: RouteRecordRaw = {
   },
   name: 'UserRoot',
   path: '/',
-  redirect: '/home',
   children: [
     {
       name: 'UserHome',
-      path: 'home',
+      path: '',
+      alias: ['/home'],
       component: () => import('#/views/user/home/index.vue'),
       meta: {
         affixTab: true,
         icon: 'lucide:home',
         ignoreAccess: true,
         title: $t('user.home.title'),
+      },
+    },
+    {
+      name: 'UserAgents',
+      path: 'agents',
+      component: () => import('#/views/user/agents/index.vue'),
+      meta: {
+        icon: 'lucide:sparkles',
+        ignoreAccess: true,
+        title: $t('user.agents.title'),
       },
     },
     {
@@ -38,6 +48,16 @@ const mainRoutes: RouteRecordRaw = {
         icon: 'lucide:bot',
         ignoreAccess: true,
         title: $t('user.aiChat.title'),
+      },
+    },
+    {
+      name: 'UserHelp',
+      path: 'help',
+      component: () => import('#/views/user/help/index.vue'),
+      meta: {
+        icon: 'lucide:life-buoy',
+        ignoreAccess: true,
+        title: $t('user.helpCenter.title'),
       },
     },
     {

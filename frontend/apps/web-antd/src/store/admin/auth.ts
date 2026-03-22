@@ -5,9 +5,9 @@
  * Handles admin login, logout, and user info management.
  * 专用于平台管理员的登录、登出、用户信息管理。
  */
-import type { Recordable, UserInfo } from '@vben/types';
+import type { UserInfo } from '@vben/types';
 
-import type { AdminUserInfo } from '#/api';
+import type { AdminUserInfo, LoginParams } from '#/api';
 
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -18,7 +18,11 @@ import { notification } from 'ant-design-vue';
 import { defineStore } from 'pinia';
 
 import { adminApi } from '#/api';
-import { ADMIN_HOME_PATH, ADMIN_LOGIN_PATH } from '#/constants/endpoints';
+import {
+  ADMIN_HOME_PATH,
+  ADMIN_LOGIN_PATH,
+  normalizeEndpointNavigationPath,
+} from '#/constants/endpoints';
 import { $t } from '#/locales';
 import { EndpointType } from '#/types/endpoint';
 import { toAvatarDisplayUrl } from '#/utils/image';
@@ -40,7 +44,7 @@ export const useAdminAuthStore = defineStore('admin-auth', () => {
    * @param onSuccess Login success callback / 登录成功回调
    */
   async function login(
-    params: Recordable<any>,
+    params: LoginParams | Record<string, unknown>,
     onSuccess?: () => Promise<void> | void,
   ) {
     let userInfo: AdminUserInfo | null = null;
@@ -48,9 +52,12 @@ export const useAdminAuthStore = defineStore('admin-auth', () => {
     try {
       loginLoading.value = true;
 
+      const username = String(params.username ?? '').trim();
+      const password = String(params.password ?? '');
+
       const { accessToken, refreshToken } = await adminApi.adminLoginApi({
-        password: params.password,
-        username: params.username,
+        password,
+        username,
       });
 
       if (accessToken) {
@@ -79,7 +86,10 @@ export const useAdminAuthStore = defineStore('admin-auth', () => {
           desc: userInfo?.isSuperAdmin
             ? $t('admin.system.admin.superAdmin')
             : $t('admin.system.admin.normalAdmin'),
-          homePath: userInfo?.homePath || ADMIN_HOME_PATH,
+          homePath: normalizeEndpointNavigationPath(
+            userInfo?.homePath,
+            EndpointType.ADMIN,
+          ),
           realName: userInfo?.realName || '',
           roles: userInfo?.roles || [],
           token: accessToken,
@@ -146,7 +156,14 @@ export const useAdminAuthStore = defineStore('admin-auth', () => {
 
     await router.replace({
       path: ADMIN_LOGIN_PATH,
-      query: redirect ? { redirect: router.currentRoute.value.fullPath } : {},
+      query: redirect
+        ? {
+            redirect: normalizeEndpointNavigationPath(
+              router.currentRoute.value.fullPath,
+              EndpointType.ADMIN,
+            ),
+          }
+        : {},
     });
   }
 
@@ -157,8 +174,15 @@ export const useAdminAuthStore = defineStore('admin-auth', () => {
    */
   async function fetchUserInfo() {
     const info = await adminApi.getAdminInfoApi();
-    adminInfo.value = info;
-    return info;
+    const normalizedInfo: AdminUserInfo = {
+      ...info,
+      homePath: normalizeEndpointNavigationPath(
+        info?.homePath,
+        EndpointType.ADMIN,
+      ),
+    };
+    adminInfo.value = normalizedInfo;
+    return normalizedInfo;
   }
 
   /**

@@ -5,7 +5,7 @@
  * 统一管理各端的路由前缀、登录路径、首页路径等配置
  */
 
-import type { EndpointConfig } from '#/types/endpoint';
+import type { ApiEndpoint, EndpointConfig } from '#/types/endpoint';
 
 import { EndpointType } from '#/types/endpoint';
 
@@ -47,6 +47,9 @@ export const TENANT_HOME_PATH = '/tenant/dashboard';
 
 /** User default home / 用户端默认首页 */
 export const USER_HOME_PATH = '/';
+
+/** User legacy home alias / 用户端历史首页别名 */
+export const USER_HOME_ALIAS_PATH = '/home';
 
 // ============================================================
 // API prefix constants / API 前缀常量
@@ -92,6 +95,170 @@ export const API_PREFIXES: Record<EndpointType, string> = {
   [EndpointType.TENANT]: TENANT_API_PREFIX,
   [EndpointType.USER]: USER_API_PREFIX,
 };
+
+// ============================================================
+// Domain-aware endpoint resolver / 域名感知端解析器
+// ============================================================
+
+const LOCALHOST_HOSTNAMES = new Set(['127.0.0.1', '::1', 'localhost']);
+
+function getCurrentHostname(): string {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+  return (window.location.hostname || '').trim().toLowerCase();
+}
+
+function getPlatformDomainsFromEnv(): Set<string> {
+  const raw = String(import.meta.env.VITE_PLATFORM_DOMAINS ?? '');
+  const domains = raw
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+  return new Set(domains);
+}
+
+function normalizePath(path: string): string {
+  const [pathname = ''] = String(path || '').split(/[?#]/, 1);
+  if (!pathname) {
+    return '/';
+  }
+  return pathname.startsWith('/') ? pathname : `/${pathname}`;
+}
+
+function splitPathSuffix(path: string): { pathname: string; suffix: string } {
+  const raw = String(path || '').trim();
+  if (!raw) {
+    return { pathname: '', suffix: '' };
+  }
+
+  const queryIndex = raw.indexOf('?');
+  const hashIndex = raw.indexOf('#');
+  const splitIndex =
+    queryIndex === -1
+      ? hashIndex
+      : hashIndex === -1
+        ? queryIndex
+        : Math.min(queryIndex, hashIndex);
+
+  if (splitIndex === -1) {
+    return { pathname: raw, suffix: '' };
+  }
+
+  return {
+    pathname: raw.slice(0, splitIndex),
+    suffix: raw.slice(splitIndex),
+  };
+}
+
+/**
+ * Determine whether hostname should be treated as platform domain.
+ * 判断域名是否应按平台域名处理。
+ */
+export function isPlatformHostname(hostname: string): boolean {
+  const normalized = (hostname || '').trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  if (LOCALHOST_HOSTNAMES.has(normalized)) {
+    return true;
+  }
+  return getPlatformDomainsFromEnv().has(normalized);
+}
+
+/**
+ * Resolve endpoint owner for root path `/` by hostname.
+ * 按域名解析根路径 `/` 的端归属。
+ */
+export function resolveRootEndpoint(hostname?: string): EndpointType {
+  const currentHostname = (hostname ?? getCurrentHostname()).trim().toLowerCase();
+  return isPlatformHostname(currentHostname)
+    ? EndpointType.ADMIN
+    : EndpointType.USER;
+}
+
+/**
+ * Resolve endpoint from route path with root-domain ownership rule.
+ * 基于路径并结合根路径域名归属规则解析端类型。
+ */
+export function resolveEndpointByPath(
+  path: string,
+  hostname?: string,
+): EndpointType {
+  const normalizedPath = normalizePath(path);
+
+  if (normalizedPath.startsWith(ADMIN_ROUTE_PREFIX)) {
+    return EndpointType.ADMIN;
+  }
+  if (normalizedPath.startsWith(TENANT_ROUTE_PREFIX)) {
+    return EndpointType.TENANT;
+  }
+  if (normalizedPath === '/') {
+    return resolveRootEndpoint(hostname);
+  }
+  return EndpointType.USER;
+}
+
+/**
+ * Resolve login path for a route path.
+ * 基于路由路径解析登录路径。
+ */
+export function resolveLoginPathByPath(
+  path: string,
+  hostname?: string,
+): string {
+  const endpoint = resolveEndpointByPath(path, hostname);
+  return LOGIN_PATHS[endpoint];
+}
+
+/**
+ * Resolve home path for a route path.
+ * 基于路由路径解析首页路径。
+ */
+export function resolveHomePathByPath(path: string, hostname?: string): string {
+  const endpoint = resolveEndpointByPath(path, hostname);
+  return HOME_PATHS[endpoint];
+}
+
+/**
+ * Normalize navigation target for an endpoint.
+ * 规范化端内导航目标，收敛历史 `/home` 别名并阻止跨端错跳。
+ */
+export function normalizeEndpointNavigationPath(
+  path: null | string | undefined,
+  endpoint: ApiEndpoint,
+  hostname?: string,
+): string {
+  const endpointKey = endpoint as EndpointType;
+  const homePath = HOME_PATHS[endpointKey];
+  const rawPath = String(path || '').trim();
+
+  if (!rawPath) {
+    return homePath;
+  }
+
+  const { pathname: rawPathname, suffix } = splitPathSuffix(rawPath);
+  const pathname = normalizePath(rawPathname);
+
+  if (endpointKey === EndpointType.USER && pathname === USER_HOME_ALIAS_PATH) {
+    return `${USER_HOME_PATH}${suffix}`;
+  }
+
+  if (pathname === LOGIN_PATHS[endpointKey]) {
+    return homePath;
+  }
+
+  if (endpointKey !== EndpointType.USER && pathname === USER_HOME_PATH) {
+    return homePath;
+  }
+
+  const resolvedEndpoint = resolveEndpointByPath(pathname, hostname);
+  if (resolvedEndpoint !== endpointKey) {
+    return homePath;
+  }
+
+  return `${pathname}${suffix}`;
+}
 
 // ============================================================
 // Full endpoint configuration / 完整端配置

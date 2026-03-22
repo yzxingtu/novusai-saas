@@ -5,6 +5,7 @@ import { traverseTreeValues } from '@vben/utils';
 // Endpoint route modules / 各端路由模块
 import { adminCoreRouteNames, adminRoutes } from './admin';
 import { coreRoutes, fallbackNotFoundRoute } from './core';
+import { rootCoreRouteNames, rootRoutes } from './root';
 import { tenantRoutes } from './tenant';
 import { tenantCoreRouteNames } from './tenant/names';
 import { userCoreRouteNames, userRoutes } from './user';
@@ -14,6 +15,7 @@ const routes: RouteRecordRaw[] = [
   ...coreRoutes,
   ...adminRoutes,
   ...tenantRoutes,
+  ...rootRoutes,
   ...userRoutes,
   fallbackNotFoundRoute,
 ];
@@ -23,6 +25,7 @@ const coreRouteNames = [
   ...traverseTreeValues(coreRoutes, (route) => route.name),
   ...adminCoreRouteNames,
   ...tenantCoreRouteNames,
+  ...rootCoreRouteNames,
   ...userCoreRouteNames,
 ];
 

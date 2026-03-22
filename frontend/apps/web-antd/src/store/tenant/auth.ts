@@ -3,9 +3,9 @@
  * Handles tenant admin login, logout, and user info management.
  * 专用于企业管理员的登录、登出、用户信息管理。
  */
-import type { Recordable, UserInfo } from '@vben/types';
+import type { UserInfo } from '@vben/types';
 
-import type { TenantAdminInfo } from '#/api';
+import type { LoginParams, TenantAdminInfo } from '#/api';
 
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -16,7 +16,11 @@ import { notification } from 'ant-design-vue';
 import { defineStore } from 'pinia';
 
 import { tenantApi } from '#/api';
-import { TENANT_HOME_PATH, TENANT_LOGIN_PATH } from '#/constants/endpoints';
+import {
+  TENANT_HOME_PATH,
+  TENANT_LOGIN_PATH,
+  normalizeEndpointNavigationPath,
+} from '#/constants/endpoints';
 import { $t } from '#/locales';
 import { EndpointType } from '#/types/endpoint';
 import { toAvatarDisplayUrl } from '#/utils/image';
@@ -38,7 +42,7 @@ export const useTenantAuthStore = defineStore('tenant-auth', () => {
    * @param onSuccess Login success callback / 登录成功回调
    */
   async function login(
-    params: Recordable<any>,
+    params: LoginParams | Record<string, unknown>,
     onSuccess?: () => Promise<void> | void,
   ) {
     let userInfo: null | TenantAdminInfo = null;
@@ -46,9 +50,12 @@ export const useTenantAuthStore = defineStore('tenant-auth', () => {
     try {
       loginLoading.value = true;
 
+      const username = String(params.username ?? '').trim();
+      const password = String(params.password ?? '');
+
       const { accessToken, refreshToken } = await tenantApi.tenantLoginApi({
-        password: params.password,
-        username: params.username,
+        password,
+        username,
       });
 
       if (accessToken) {
@@ -75,7 +82,10 @@ export const useTenantAuthStore = defineStore('tenant-auth', () => {
         const vbenUserInfo: UserInfo = {
           avatar: toAvatarDisplayUrl(userInfo?.avatar),
           desc: userInfo?.tenantName || $t('tenant.common.tenantAdmin'),
-          homePath: userInfo?.homePath || TENANT_HOME_PATH,
+          homePath: normalizeEndpointNavigationPath(
+            userInfo?.homePath,
+            EndpointType.TENANT,
+          ),
           realName: userInfo?.realName || '',
           roles: userInfo?.roles || [],
           token: accessToken,
@@ -142,7 +152,14 @@ export const useTenantAuthStore = defineStore('tenant-auth', () => {
 
     await router.replace({
       path: TENANT_LOGIN_PATH,
-      query: redirect ? { redirect: router.currentRoute.value.fullPath } : {},
+      query: redirect
+        ? {
+            redirect: normalizeEndpointNavigationPath(
+              router.currentRoute.value.fullPath,
+              EndpointType.TENANT,
+            ),
+          }
+        : {},
     });
   }
 
@@ -153,8 +170,15 @@ export const useTenantAuthStore = defineStore('tenant-auth', () => {
    */
   async function fetchUserInfo() {
     const info = await tenantApi.getTenantAdminInfoApi();
-    tenantAdminInfo.value = info;
-    return info;
+    const normalizedInfo: TenantAdminInfo = {
+      ...info,
+      homePath: normalizeEndpointNavigationPath(
+        info?.homePath,
+        EndpointType.TENANT,
+      ),
+    };
+    tenantAdminInfo.value = normalizedInfo;
+    return normalizedInfo;
   }
 
   /**

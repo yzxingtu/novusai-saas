@@ -3,6 +3,8 @@
  * Common types for multi-endpoint API / 用于多端 API 的通用类型
  */
 
+import { resolveEndpointByPath } from '#/constants/endpoints';
+
 /** Login request params / 登录请求参数 */
 export interface LoginParams {
   username: string;
@@ -99,13 +101,7 @@ export type ApiEndpoint = 'admin' | 'tenant' | 'user';
  * @deprecated Use `getEndpointFromPath` or `getApiEndpoint` from '#/utils/endpoint'
  */
 export function getApiEndpoint(path: string): ApiEndpoint {
-  if (path.startsWith('/admin')) {
-    return 'admin';
-  }
-  if (path.startsWith('/tenant')) {
-    return 'tenant';
-  }
-  return 'user';
+  return resolveEndpointByPath(path);
 }
 
 /** 偏好 JSON 对象 / Preferences JSON object */

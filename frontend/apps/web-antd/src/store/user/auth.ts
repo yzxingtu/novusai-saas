@@ -3,9 +3,9 @@
  * Handles tenant user login, logout, and user info management.
  * 专用于企业普通用户的登录、登出、用户信息管理。
  */
-import type { Recordable, UserInfo } from '@vben/types';
+import type { UserInfo } from '@vben/types';
 
-import type { TenantUserInfo } from '#/api';
+import type { LoginParams, TenantUserInfo } from '#/api';
 
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -16,7 +16,11 @@ import { notification } from 'ant-design-vue';
 import { defineStore } from 'pinia';
 
 import { userApi } from '#/api';
-import { USER_HOME_PATH, USER_LOGIN_PATH } from '#/constants/endpoints';
+import {
+  USER_HOME_PATH,
+  USER_LOGIN_PATH,
+  normalizeEndpointNavigationPath,
+} from '#/constants/endpoints';
 import { $t } from '#/locales';
 import { EndpointType } from '#/types/endpoint';
 import { toAvatarDisplayUrl } from '#/utils/image';
@@ -37,7 +41,7 @@ export const useUserAuthStore = defineStore('user-auth', () => {
    * @param onSuccess Login success callback / 登录成功回调
    */
   async function login(
-    params: Recordable<any>,
+    params: LoginParams | Record<string, unknown>,
     onSuccess?: () => Promise<void> | void,
   ) {
     let info: null | TenantUserInfo = null;
@@ -45,9 +49,12 @@ export const useUserAuthStore = defineStore('user-auth', () => {
     try {
       loginLoading.value = true;
 
+      const username = String(params.username ?? '').trim();
+      const password = String(params.password ?? '');
+
       const { accessToken, refreshToken } = await userApi.userLoginApi({
-        password: params.password,
-        username: params.username,
+        password,
+        username,
       });
 
       if (accessToken) {
@@ -70,7 +77,10 @@ export const useUserAuthStore = defineStore('user-auth', () => {
         const vbenUserInfo: UserInfo = {
           avatar: toAvatarDisplayUrl(info?.avatar),
           desc: '',
-          homePath: info?.homePath || USER_HOME_PATH,
+          homePath: normalizeEndpointNavigationPath(
+            info?.homePath,
+            EndpointType.USER,
+          ),
           realName: info?.realName || '',
           roles: info?.roles || [],
           token: accessToken,
@@ -133,7 +143,14 @@ export const useUserAuthStore = defineStore('user-auth', () => {
 
     await router.replace({
       path: USER_LOGIN_PATH,
-      query: redirect ? { redirect: router.currentRoute.value.fullPath } : {},
+      query: redirect
+        ? {
+            redirect: normalizeEndpointNavigationPath(
+              router.currentRoute.value.fullPath,
+              EndpointType.USER,
+            ),
+          }
+        : {},
     });
   }
 
@@ -142,13 +159,20 @@ export const useUserAuthStore = defineStore('user-auth', () => {
    */
   async function fetchUserInfo() {
     const info = await userApi.getUserInfoApi();
-    userInfo.value = info;
+    const normalizedInfo: TenantUserInfo = {
+      ...info,
+      homePath: normalizeEndpointNavigationPath(
+        info?.homePath,
+        EndpointType.USER,
+      ),
+    };
+    userInfo.value = normalizedInfo;
 
     // Set permission codes / 设置权限码
-    const permissions = info?.permissions || [];
+    const permissions = normalizedInfo.permissions || [];
     accessStore.setAccessCodes(permissions);
 
-    return info;
+    return normalizedInfo;
   }
 
   /**

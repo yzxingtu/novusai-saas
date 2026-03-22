@@ -7,7 +7,9 @@ Defines directory menu structure for tenant business user; leaf menus declared v
 
 Menu hierarchy example / 菜单层级示例:
 - Home / 首页 (legacy dashboard resource code)
+- Agents / 智能体广场
 - AI Chat / AI 对话 (ai_chat)
+- Help / 帮助中心
 - Settings / 设置 (settings)
 
 The name field uses i18n keys, translated during frontend rendering.
@@ -26,7 +28,7 @@ from app.rbac.decorators import PermissionMeta
 # User directory menus / 用户端目录菜单
 USER_DIRECTORY_MENUS: list[PermissionMeta] = [
     # ========================================
-    # Home (legacy dashboard resource code, canonical route=/home) / 首页（保留 dashboard 资源码，规范路由=/home）
+    # Home (legacy dashboard resource code, canonical route=/) / 首页（保留 dashboard 资源码，规范路由=/）
     # ========================================
     PermissionMeta(
         code="menu:user.dashboard",
@@ -36,9 +38,25 @@ USER_DIRECTORY_MENUS: list[PermissionMeta] = [
         resource="menu",
         action="user.dashboard",
         icon="lucide:home",
-        path="/home",
+        path="/",
         component="user/home/Index",
         sort_order=0,
+    ),
+
+    # ========================================
+    # Agents / 智能体广场
+    # ========================================
+    PermissionMeta(
+        code="menu:user.agents",
+        name="menu.user.agents",
+        type=PermissionType.MENU,
+        scope=PermissionScope.USER,
+        resource="menu",
+        action="user.agents",
+        icon="lucide:sparkles",
+        path="/agents",
+        component="user/agents/Index",
+        sort_order=50,
     ),
 
     # ========================================
@@ -55,6 +73,22 @@ USER_DIRECTORY_MENUS: list[PermissionMeta] = [
         path="/ai-chat",
         component="user/ai-chat/Index",
         sort_order=100,
+    ),
+
+    # ========================================
+    # Help / 帮助中心
+    # ========================================
+    PermissionMeta(
+        code="menu:user.help",
+        name="menu.user.help",
+        type=PermissionType.MENU,
+        scope=PermissionScope.USER,
+        resource="menu",
+        action="user.help",
+        icon="lucide:life-buoy",
+        path="/help",
+        component="user/help/Index",
+        sort_order=150,
     ),
 
     # ========================================
