@@ -282,7 +282,7 @@ function openRecycleBin() { recycleBinRef.value?.open(); }
 </template>
 ```
 
-**依赖阻止**：`useCrudList` 内置处理 4221 错误码，自动弹出 `Modal.warning` 显示依赖详情，无需额外组件。
+**依赖阻止**：`useCrudList` 与 `useCrudPage` 已统一接入共享 `DependencyBlockModal` helper；删除遇到 4221 时会自动弹出统一依赖详情弹窗，无需页面额外拼装第二套 `Modal.warning`。
 
 ---
 

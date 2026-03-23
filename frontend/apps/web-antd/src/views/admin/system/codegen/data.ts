@@ -50,6 +50,10 @@ function canCodegenRollback(row: Record<string, unknown>): boolean {
   return s === 'generated' || s === 'applied';
 }
 
+function canDownloadGenerated(row: Record<string, unknown>): boolean {
+  return row.manifest_present === true;
+}
+
 function canDeleteCodegenConfig(row: Record<string, unknown>): boolean {
   return row.delete_allowed !== false;
 }
@@ -102,28 +106,28 @@ export function useColumns<T = Record<string, unknown>>(
     {
       field: 'status',
       title: $t('admin.system.codegen.status'),
-      width: 150,
+      width: 136,
       align: 'center',
       slots: { default: 'status_cell' },
     },
     {
       field: 'manifest_present',
       title: $t('admin.system.codegen.manifestStatus'),
-      width: 130,
+      width: 118,
       align: 'center',
       slots: { default: 'manifest_present_cell' },
     },
     {
       field: 'generation_count',
       title: $t('admin.system.codegen.generationCount'),
-      width: 100,
+      width: 92,
       align: 'center',
       slots: { default: 'generation_count_cell' },
     },
     {
       field: 'last_generated_at',
       title: $t('admin.system.codegen.lastGeneratedAt'),
-      width: 170,
+      width: 152,
       slots: { default: 'last_generated_at_cell' },
     },
     {
@@ -156,9 +160,14 @@ export function useColumns<T = Record<string, unknown>>(
           },
           {
             code: 'download',
-            text: $t('admin.system.codegen.actions.download'),
+            text: (row: Record<string, unknown>) =>
+              canDownloadGenerated(row)
+                ? $t('admin.system.codegen.actions.download')
+                : $t('admin.system.codegen.actions.downloadDisabledHint'),
             icon: 'lucide:download',
             accessCodes: ['action.codegen.download'],
+            disabled: (row: Record<string, unknown>) =>
+              !canDownloadGenerated(row),
           },
           {
             code: 'duplicate',
@@ -174,25 +183,27 @@ export function useColumns<T = Record<string, unknown>>(
                 : $t('admin.system.codegen.actions.rollbackDisabledHint'),
             icon: 'lucide:undo-2',
             accessCodes: ['action.codegen.rollback'],
-            disabled: (row: Record<string, unknown>) => !canCodegenRollback(row),
+            disabled: (row: Record<string, unknown>) =>
+              !canCodegenRollback(row),
           },
           {
             code: 'delete',
             text: (row: Record<string, unknown>) =>
               canDeleteCodegenConfig(row)
                 ? $t('common.delete')
-                : ((row.delete_reason_message as string | undefined) ||
-                    $t('admin.system.codegen.actions.deleteDisabledHint')),
+                : (row.delete_reason_message as string | undefined) ||
+                  $t('admin.system.codegen.actions.deleteDisabledHint'),
             icon: 'lucide:trash-2',
             accessCodes: ['action.codegen.delete'],
-            disabled: (row: Record<string, unknown>) => !canDeleteCodegenConfig(row),
+            disabled: (row: Record<string, unknown>) =>
+              !canDeleteCodegenConfig(row),
           },
         ],
       },
       field: 'operation',
       fixed: 'right',
       title: $t('admin.common.operation'),
-      width: 220,
+      width: 208,
     },
   ];
 }
@@ -201,7 +212,10 @@ export function useColumns<T = Record<string, unknown>>(
 export function useGridFormSchema() {
   return [
     searchInput('name', $t('admin.system.codegen.placeholder.searchName')),
-    searchInput('resource', $t('admin.system.codegen.placeholder.searchResource')),
+    searchInput(
+      'resource',
+      $t('admin.system.codegen.placeholder.searchResource'),
+    ),
     select('filter[status][eq]', $t('admin.system.codegen.status'), {
       options: getStatusOptions(),
       placeholder: $t('admin.system.codegen.placeholder.allStatus'),

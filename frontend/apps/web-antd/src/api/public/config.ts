@@ -88,7 +88,7 @@ export interface CaptchaPluginRuntime {
 export interface CaptchaConfig {
   /** Whether captcha is enabled / 是否启用验证码 */
   enabled: boolean;
-  /** Captcha type: image | slider | click / 验证码类型 */
+  /** Captcha type identifier / 验证码类型标识 */
   type: string;
   /** Difficulty: easy | medium | hard / 难度等级 */
   difficulty: string;
@@ -193,6 +193,12 @@ export interface TenantPublicConfig {
   privacyPolicyUrl?: string;
   /** Registration terms of service URL / 注册页服务条款链接 */
   termsUrl?: string;
+  /** User login captcha enabled / 用户端登录验证码开关 */
+  userLoginCaptchaEnabled?: boolean;
+  /** User login captcha threshold / 用户端登录验证码阈值 */
+  userLoginCaptchaEnableThreshold?: number;
+  /** User registration captcha enabled / 用户端注册验证码开关 */
+  userRegistrationCaptchaEnabled?: boolean;
   /** In-site privacy policy HTML is configured / 是否配置了站内隐私政策正文 */
   privacyPolicyInternal?: boolean;
   /** In-site terms HTML is configured / 是否配置了站内服务条款正文 */
@@ -272,6 +278,9 @@ interface TenantPublicConfigRaw {
 
   // Login / Captcha
   captcha_enabled?: boolean;
+  user_login_captcha_enabled?: boolean;
+  user_login_captcha_enable_threshold?: number;
+  user_registration_captcha_enabled?: boolean;
   captcha_provider?: string;
   captcha_plugin?: CaptchaPluginRuntimeRaw;
   captcha_difficulty?: string;
@@ -447,6 +456,9 @@ function transformTenantConfig(raw: TenantPublicConfigRaw): TenantPublicConfig {
             pageContextMaxBytes: raw.runtime_limits.page_context_max_bytes,
           }
         : undefined,
+    userLoginCaptchaEnabled: raw.user_login_captcha_enabled,
+    userLoginCaptchaEnableThreshold: raw.user_login_captcha_enable_threshold,
+    userRegistrationCaptchaEnabled: raw.user_registration_captcha_enabled,
     privacyPolicyUrl: raw.privacy_policy_url || undefined,
     termsUrl: raw.terms_url || undefined,
     privacyPolicyInternal: raw.privacy_policy_internal === true,

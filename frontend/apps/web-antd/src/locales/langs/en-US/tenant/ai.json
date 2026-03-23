@@ -288,7 +288,6 @@
     "accessConfig": "Access Configuration",
     "noDescription": "No description",
     "actions": {
-      "test": "Test Chat",
       "publish": "Publish",
       "versions": "Version History",
       "access": "Access Config"
@@ -490,28 +489,12 @@
         "specific_users": "Only specified users can access",
         "api_only": "Only accessible via API, not visible to frontend users"
       }
-    },
-    "test": {
-      "title": "Test Chat",
-      "placeholder": "Type a message to test...",
-      "send": "Send",
-      "stop": "Stop Generating",
-      "clear": "Clear Chat",
-      "thinking": "Thinking...",
-      "toolCalling": "Calling tool: {name}",
-      "toolSuccess": "Tool call succeeded",
-      "toolFailed": "Tool call failed",
-      "tokenUsage": "Token usage: {count}",
-      "duration": "Duration: {ms}ms",
-      "streamError": "Stream error",
-      "notPublished": "Agent is not published, cannot test",
-      "conversationId": "Conversation ID: {id}"
     }
   },
   "conversation": {
     "title": "Title",
     "conversationTitle": "Conversation Title",
-    "pageDesc": "Manage agent conversation records. View details, archive, and perform batch operations.",
+    "pageDesc": "Review agent conversations and related call details.",
     "pageTitle": "Conversations",
     "name": "Conversations",
     "agentName": "Agent",
@@ -535,12 +518,6 @@
     "untitled": "Untitled Conversation",
     "viewDetail": "View Detail",
     "detailTitle": "Conversation Detail",
-    "archive": "Archive",
-    "export": "Export",
-    "batchArchive": "Batch Archive",
-    "archiveBeforeDays": "Archive conversations older than",
-    "confirmArchive": "Are you sure to archive this conversation? This cannot be undone.",
-    "batchArchiveWarning": "This will archive all active conversations within the selected time range. Please proceed with caution.",
     "placeholder": {
       "searchTitle": "Search conversation title",
       "allStatuses": "All Statuses"
@@ -549,18 +526,10 @@
       "active": "Active",
       "archived": "Archived"
     },
-    "batchArchiveOptions": {
-      "days7": "7 days ago",
-      "days14": "14 days ago",
-      "days30": "30 days ago",
-      "days60": "60 days ago",
-      "days90": "90 days ago"
-    },
     "messages": {
       "archiveSuccess": "Conversation archived",
       "exportSuccess": "Export successful",
-      "deleteSuccess": "Conversation deleted",
-      "batchArchiveSuccess": "{count} conversations archived"
+      "deleteSuccess": "Conversation deleted"
     }
   },
   "chat": {

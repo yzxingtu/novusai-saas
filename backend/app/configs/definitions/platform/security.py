@@ -157,7 +157,6 @@ CAPTCHA_PROVIDER = ConfigMeta(
     default_value="image",
     options=[
         option("image", "config.platform.captcha_provider.image"),
-        option("slider", "config.platform.captcha_provider.slider"),
     ],
     sort_order=62,
     display_rules=[

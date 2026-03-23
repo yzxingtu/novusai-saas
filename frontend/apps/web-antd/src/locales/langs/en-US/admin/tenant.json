@@ -323,6 +323,8 @@
     "advancedAnalytics": "Advanced Analytics",
     "whiteLabel": "White Label",
     "prioritySupport": "Priority Support",
+    "storageBillingEnabled": "Object Storage Billing Reconciliation",
+    "storageBillingHelp": "Enabling this requires the storage-billing plugin to be installed and enabled, plus at least one cloud object storage plugin (Alibaba OSS, Tencent COS, or Qiniu Kodo).",
     "placeholder": {
       "searchName": "Search plan name",
       "searchCode": "Search plan code",
@@ -351,7 +353,8 @@
     "featureAI": "AI",
     "featureAnalytics": "Analytics",
     "featureWhiteLabel": "White Label",
-    "featureSupport": "Support"
+    "featureSupport": "Support",
+    "featureStorageBilling": "Storage Billing"
   },
   "aiUsage": {
     "title": "AI Usage Statistics",

@@ -9,7 +9,6 @@ import {
   Alert,
   Button,
   Checkbox,
-  Divider,
   Input,
   InputNumber,
   Select,
@@ -159,10 +158,14 @@ onMounted(() => {
 });
 
 watch(
-  () => selectedField.value?.relation_table,
-  async (table) => {
+  [() => selectedField.value?.relation_table, () => tableOptions.value],
+  async ([table, tables]) => {
     const tableName = asString(table);
     if (!tableName) {
+      displayFieldOptions.value = [];
+      return;
+    }
+    if (!tables.some((item) => item.value === tableName)) {
       displayFieldOptions.value = [];
       return;
     }
@@ -229,6 +232,36 @@ const relationModeOptions = computed(() => [
   },
   { label: $t('admin.system.codegen.property.modeModal'), value: 'modal' },
 ]);
+
+function hasRelationMetadata(field: BuilderField | null): boolean {
+  if (!field) return false;
+  return Boolean(
+    asString(field.relation_table) ||
+      asString(field.relation_display) ||
+      asString(field.relation_display_field) ||
+      asString(field.relation_value_field),
+  );
+}
+
+const showTreeRelationConfig = computed(() => {
+  return (
+    selectedFieldType.value === 'TreeSelect' ||
+    selectedFormComponent.value === 'ApiTreeSelect'
+  );
+});
+
+const showUserRelationConfig = computed(
+  () => selectedFieldType.value === 'UserSelect',
+);
+
+const showSelectRelationConfig = computed(() => {
+  if (showTreeRelationConfig.value || showUserRelationConfig.value) return false;
+  return (
+    selectedFieldType.value === 'ForeignKey' ||
+    selectedFormComponent.value === 'ApiSelect' ||
+    hasRelationMetadata(selectedField.value)
+  );
+});
 
 const inferredComponent = computed(() => {
   const name = asString(selectedField.value?.name);
@@ -352,10 +385,12 @@ function onTypeChange(value: unknown) {
     patch.enum_render = undefined;
   }
   if (
-    !['ForeignKey', 'TreeSelect', 'UserSelect', 'DeptSelect'].includes(
-      nextType,
-    ) &&
-    ['ForeignKey', 'TreeSelect', 'UserSelect', 'DeptSelect'].includes(curType)
+    !['ForeignKey', 'TreeSelect', 'UserSelect', 'DeptSelect'].includes(nextType) &&
+    (
+      ['ForeignKey', 'TreeSelect', 'UserSelect', 'DeptSelect'].includes(curType) ||
+      ['ApiSelect', 'ApiTreeSelect'].includes(selectedFormComponent.value) ||
+      hasRelationMetadata(selectedField.value)
+    )
   ) {
     patch.relation_table = undefined;
     patch.relation_display = undefined;
@@ -401,7 +436,9 @@ function onCascaderOptionsChange(v: string) {
 
 /** 确保 Input value 为 string，避免 boolean 等导致 Vue 警告 / Ensure Input value is string, avoid Vue warning from boolean etc */
 function strVal(v: unknown): string {
-  return typeof v === 'string' ? v : '';
+  if (typeof v === 'string') return v;
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+  return '';
 }
 
 function getEnumValues(field: BuilderField): EnumValueItem[] {
@@ -424,12 +461,12 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
 <template>
   <div
     v-if="!selectedField"
-    class="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-muted-foreground"
+    class="flex flex-1 flex-col items-center justify-center gap-3 p-5 text-center text-muted-foreground"
   >
     <div
-      class="flex size-14 items-center justify-center rounded-3xl bg-muted/25"
+      class="flex size-12 items-center justify-center rounded-2xl bg-muted/25"
     >
-      <IconifyIcon icon="lucide:sliders-horizontal" class="size-7" />
+      <IconifyIcon icon="lucide:sliders-horizontal" class="size-6" />
     </div>
     <span class="text-sm font-medium text-foreground">{{
       $t('admin.system.codegen.property.title')
@@ -440,10 +477,10 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
   </div>
   <div
     v-else-if="isDivider"
-    class="flex flex-1 flex-col gap-4 overflow-y-auto p-4"
+    class="flex flex-1 flex-col gap-3 overflow-y-auto p-3"
   >
     <div
-      class="rounded-[22px] border border-dashed border-border/70 bg-muted/15 p-4"
+      class="rounded-[16px] border border-dashed border-border/70 bg-muted/15 p-3"
     >
       <div
         class="text-[11px] uppercase tracking-[0.16em] text-muted-foreground"
@@ -463,15 +500,15 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
     </div>
   </div>
   <div v-else class="flex flex-1 flex-col overflow-hidden">
-    <div class="border-b border-border/70 px-4 py-4">
+    <div class="border-b border-border/70 px-3 py-3">
       <div class="flex items-start justify-between gap-3">
         <div class="flex min-w-0 items-start gap-3">
           <div
-            class="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-muted/20 ring-1 ring-border/70"
+            class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted/20 ring-1 ring-border/70"
           >
             <IconifyIcon
               :icon="selectedFieldIcon"
-              class="size-5 text-foreground"
+              class="size-4.5 text-foreground"
             />
           </div>
           <div class="min-w-0">
@@ -517,7 +554,7 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
         v-if="showInferHint"
         type="success"
         show-icon
-        class="mt-4 !py-1.5 text-xs"
+        class="mt-3 !py-1 text-xs"
         :message="$t('admin.system.codegen.property.inferHint')"
       />
       <Alert
@@ -528,15 +565,15 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
         "
         type="info"
         show-icon
-        class="mt-4 !py-1.5 text-xs"
+        class="mt-3 !py-1 text-xs"
         :message="recommendMessage"
       />
     </div>
 
-    <div class="border-b border-border/60 px-4 py-3">
-      <div class="flex flex-wrap gap-2">
+    <div class="border-b border-border/60 px-3 py-2.5">
+      <div class="grid grid-cols-2 gap-1.5">
         <div
-          class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/15 px-3 py-1.5"
+          class="flex items-center justify-between gap-2 rounded-xl border border-border/70 bg-muted/15 px-2.5 py-1.5"
         >
           <span class="text-xs text-muted-foreground">
             {{ $t('admin.system.codegen.property.required') }}
@@ -550,7 +587,7 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
           />
         </div>
         <div
-          class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/15 px-3 py-1.5"
+          class="flex items-center justify-between gap-2 rounded-xl border border-border/70 bg-muted/15 px-2.5 py-1.5"
         >
           <span class="text-xs text-muted-foreground">
             {{ $t('admin.system.codegen.property.nullable') }}
@@ -564,7 +601,7 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
           />
         </div>
         <div
-          class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/15 px-3 py-1.5"
+          class="flex items-center justify-between gap-2 rounded-xl border border-border/70 bg-muted/15 px-2.5 py-1.5"
         >
           <span class="text-xs text-muted-foreground">
             {{ $t('admin.system.codegen.property.listVisible') }}
@@ -578,7 +615,7 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
           />
         </div>
         <div
-          class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/15 px-3 py-1.5"
+          class="flex items-center justify-between gap-2 rounded-xl border border-border/70 bg-muted/15 px-2.5 py-1.5"
         >
           <span class="text-xs text-muted-foreground">
             {{ $t('admin.system.codegen.property.filterable') }}
@@ -594,8 +631,8 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
       </div>
     </div>
 
-    <div class="flex-1 overflow-y-auto p-4">
-      <div>
+    <div class="flex-1 overflow-y-auto p-3">
+      <section class="rounded-xl border border-border/70 bg-muted/10 p-3">
         <div class="mb-2 text-xs font-medium text-muted-foreground">
           {{ $t('admin.system.codegen.property.basic') }}
         </div>
@@ -669,11 +706,11 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
             />
           </div>
         </div>
-      </div>
+      </section>
 
-      <Divider class="!my-2" />
+      <div class="h-2" />
 
-      <div>
+      <section class="rounded-xl border border-border/70 bg-muted/10 p-3">
         <div class="mb-2 text-xs font-medium text-muted-foreground">
           {{ $t('admin.system.codegen.property.database') }}
         </div>
@@ -766,22 +803,6 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
           </div>
           <div class="flex flex-wrap gap-4">
             <Checkbox
-              :checked="asBoolean(selectedField.required)"
-              @update:checked="
-                (value) => updateField({ required: asBoolean(value) })
-              "
-            >
-              {{ $t('admin.system.codegen.property.required') }}
-            </Checkbox>
-            <Checkbox
-              :checked="asBoolean(selectedField.nullable)"
-              @update:checked="
-                (value) => updateField({ nullable: asBoolean(value) })
-              "
-            >
-              {{ $t('admin.system.codegen.property.nullable') }}
-            </Checkbox>
-            <Checkbox
               :checked="asBoolean(selectedField.unique)"
               @update:checked="
                 (value) => updateField({ unique: asBoolean(value) })
@@ -799,11 +820,11 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
             </Checkbox>
           </div>
         </div>
-      </div>
+      </section>
 
-      <Divider class="!my-2" />
+      <div class="h-2" />
 
-      <div>
+      <section class="rounded-xl border border-border/70 bg-muted/10 p-3">
         <div class="mb-2 text-xs font-medium text-muted-foreground">
           {{ $t('admin.system.codegen.property.formList') }}
         </div>
@@ -854,22 +875,6 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
               "
             >
               {{ $t('admin.system.codegen.property.editable') }}
-            </Checkbox>
-            <Checkbox
-              :checked="selectedField.list_visible !== false"
-              @update:checked="
-                (value) => updateField({ list_visible: asBoolean(value) })
-              "
-            >
-              {{ $t('admin.system.codegen.property.listVisible') }}
-            </Checkbox>
-            <Checkbox
-              :checked="asBoolean(selectedField.filterable)"
-              @update:checked="
-                (value) => updateField({ filterable: asBoolean(value) })
-              "
-            >
-              {{ $t('admin.system.codegen.property.filterable') }}
             </Checkbox>
             <Checkbox
               :checked="asBoolean(selectedField.sortable)"
@@ -1039,11 +1044,11 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
       <template v-if="selectedFieldType === 'Enum'">
-        <Divider class="!my-2" />
-        <div>
+        <div class="h-2" />
+        <section class="rounded-xl border border-border/70 bg-muted/10 p-3">
           <div class="mb-2 text-xs font-medium text-muted-foreground">
             {{ $t('admin.system.codegen.property.enum') }}
           </div>
@@ -1093,12 +1098,12 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
               @update:model-value="updateField({ enum_values: $event })"
             />
           </div>
-        </div>
+        </section>
       </template>
 
-      <template v-if="selectedFieldType === 'TreeSelect'">
-        <Divider class="!my-2" />
-        <div>
+      <template v-if="showTreeRelationConfig">
+        <div class="h-2" />
+        <section class="rounded-xl border border-border/70 bg-muted/10 p-3">
           <div class="mb-2 text-xs font-medium text-muted-foreground">
             {{ $t('admin.system.codegen.property.relation') }}
           </div>
@@ -1164,12 +1169,12 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
               />
             </div>
           </div>
-        </div>
+        </section>
       </template>
 
-      <template v-if="selectedFieldType === 'ForeignKey'">
-        <Divider class="!my-2" />
-        <div>
+      <template v-if="showSelectRelationConfig">
+        <div class="h-2" />
+        <section class="rounded-xl border border-border/70 bg-muted/10 p-3">
           <div class="mb-2 text-xs font-medium text-muted-foreground">
             {{ $t('admin.system.codegen.property.relation') }}
           </div>
@@ -1256,12 +1261,12 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
               {{ $t('admin.system.codegen.property.multiple') }}
             </Checkbox>
           </div>
-        </div>
+        </section>
       </template>
 
-      <template v-if="['UserSelect', 'DeptSelect'].includes(selectedFieldType)">
-        <Divider class="!my-2" />
-        <div>
+      <template v-if="showUserRelationConfig">
+        <div class="h-2" />
+        <section class="rounded-xl border border-border/70 bg-muted/10 p-3">
           <div class="mb-2 text-xs font-medium text-muted-foreground">
             {{ $t('admin.system.codegen.property.relation') }}
           </div>
@@ -1327,12 +1332,12 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
               />
             </div>
           </div>
-        </div>
+        </section>
       </template>
 
       <template v-if="selectedFieldType === 'Cascader'">
-        <Divider class="!my-2" />
-        <div>
+        <div class="h-2" />
+        <section class="rounded-xl border border-border/70 bg-muted/10 p-3">
           <div class="mb-2 text-xs font-medium text-muted-foreground">
             {{ $t('admin.system.codegen.property.cascaderOptions') }}
           </div>
@@ -1357,7 +1362,7 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
               @update:value="onCascaderOptionsChange"
             />
           </div>
-        </div>
+        </section>
       </template>
 
       <template
@@ -1374,8 +1379,8 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
           selectedFormComponent === 'FilePicker'
         "
       >
-        <Divider class="!my-2" />
-        <div>
+        <div class="h-2" />
+        <section class="rounded-xl border border-border/70 bg-muted/10 p-3">
           <div class="mb-2 text-xs font-medium text-muted-foreground">
             {{ $t('admin.system.codegen.property.upload') }}
           </div>
@@ -1403,7 +1408,7 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
               />
             </div>
           </div>
-        </div>
+        </section>
       </template>
     </div>
   </div>

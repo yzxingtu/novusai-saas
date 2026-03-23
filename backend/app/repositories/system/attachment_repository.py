@@ -50,6 +50,7 @@ class AdminAttachmentRepository(BaseRepository[Attachment]):
         file_hash: str,
         tenant_id: int | None = None,
         driver: str | None = None,
+        visibility: str | None = None,
     ) -> Attachment | None:
         """
         根据哈希获取附件 / Get attachment by hash.
@@ -58,6 +59,7 @@ class AdminAttachmentRepository(BaseRepository[Attachment]):
             file_hash: 文件哈希
             tenant_id: 可选的企业 ID
             driver: 存储驱动名称，传入时仅匹配同驱动的记录（防止驱动切换后误命中）
+            visibility: 附件可见性，传入时仅匹配同可见性的记录（防止 public/private 误复用）
 
         Returns:
             附件实例或 None
@@ -70,6 +72,8 @@ class AdminAttachmentRepository(BaseRepository[Attachment]):
             query = query.where(self.model.tenant_id == tenant_id)
         if driver is not None:
             query = query.where(self.model.driver == driver)
+        if visibility is not None:
+            query = query.where(self.model.visibility == visibility)
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 

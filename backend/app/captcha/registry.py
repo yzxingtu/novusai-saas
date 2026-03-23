@@ -62,6 +62,13 @@ class CaptchaRegistry:
         """Get captcha provider metadata by code / 按代码获取验证码提供者元数据"""
         return self._metadata.get(code)
 
+    def items(self) -> list[tuple[str, CaptchaProviderMetadata]]:
+        """List registered provider codes with metadata / 列出已注册提供者及其元数据"""
+        return [
+            (code, self._metadata.get(code, CaptchaProviderMetadata()))
+            for code in self._providers.keys()
+        ]
+
     def get_default(self) -> ICaptchaProvider | None:
         """Get the default captcha provider (image) / 获取默认验证码提供者（图形）"""
         return self.get("image")

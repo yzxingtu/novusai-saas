@@ -10,6 +10,7 @@ import { IconifyIcon } from '@vben/icons';
 import { $t } from '#/locales';
 
 import { getComponent } from './field-utils';
+import { getPreviewFieldSampleValue } from './preview-builders';
 
 defineOptions({ name: 'DetailFieldValue' });
 
@@ -37,6 +38,15 @@ defineEmits<{
 
 /** 主色色块（替代硬编码 #6366f1） */
 const PRIMARY_SWATCH = 'var(--primary)';
+
+function isBooleanField(field: Record<string, unknown>): boolean {
+  const type = String(field.type || '').toLowerCase();
+  return getComponent(field) === 'switch' || type === 'bool' || type.includes('boolean');
+}
+
+function getBooleanSample(field: Record<string, unknown>): boolean {
+  return Boolean(getPreviewFieldSampleValue(field));
+}
 </script>
 
 <template>
@@ -70,23 +80,17 @@ const PRIMARY_SWATCH = 'var(--primary)';
     <template v-else-if="getComponent(field) === 'RichText' || String(field.type || '') === 'RichText'">
       <span class="text-muted-foreground text-xs italic">{{ $t('admin.system.codegen.preview.richTextContent') }}</span>
     </template>
-    <template
-      v-else-if="String(field.type || '').toLowerCase().includes('boolean')"
-    >
+    <template v-else-if="isBooleanField(field)">
       <span
         class="rounded px-2 py-0.5 text-xs"
         :class="
-          (String(field.name || '').toLowerCase().includes('active') ||
-            String(field.name || '').toLowerCase().includes('enable'))
+          getBooleanSample(field)
             ? 'bg-green-500/10 text-green-600'
-            : 'bg-red-500/10 text-red-600'
+            : 'bg-slate-500/10 text-slate-600'
         "
       >
         {{
-          (String(field.name || '').toLowerCase().includes('active') ||
-            String(field.name || '').toLowerCase().includes('enable'))
-            ? $t('common.statusEnabled')
-            : $t('common.statusDisabled')
+          getBooleanSample(field) ? $t('common.yes') : $t('common.no')
         }}
       </span>
     </template>

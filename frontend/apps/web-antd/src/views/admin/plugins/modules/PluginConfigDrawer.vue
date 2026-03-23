@@ -64,6 +64,7 @@ import {
   upgradePluginApi,
 } from '#/api/admin/plugin';
 import { getTenantListApi } from '#/api/admin/tenant';
+import { ConfigImagePicker } from '#/components/business/config-image-picker';
 import { MarkdownRender } from '#/components/business/markdown-render';
 import { scopeNeedsAssignment } from '#/components/business/scope-select';
 import {
@@ -146,6 +147,7 @@ async function refreshAdminMenusAndPluginRoutes() {
 
 interface ConfigField {
   key: string;
+  format?: string;
   type: string;
   title: string;
   description: string;
@@ -185,6 +187,7 @@ const configSchemaFields = computed<ConfigField[]>(() => {
 
     return {
       key,
+      format: typeof prop.format === 'string' ? prop.format : undefined,
       type: String(prop.type || 'string'),
       title,
       description,
@@ -1023,6 +1026,18 @@ function getPluginMetadataIcon(pluginName: string, icon: null | string | undefin
                   {{ opt }}
                 </SelectOption>
               </Select>
+              <ConfigImagePicker
+                v-else-if="
+                  field.type === 'image' ||
+                  (field.type === 'string' && field.format === 'image')
+                "
+                :model-value="
+                  (configValues[field.key] as string) ??
+                  (field.default as string) ??
+                  ''
+                "
+                @update:model-value="configValues[field.key] = $event"
+              />
               <!-- string → Input -->
               <Input
                 v-else-if="field.type === 'string'"

@@ -1,8 +1,8 @@
 /**
  * Captcha Type Registry
- * Built-in image type; plugins can register new types (slider/puzzle/recaptcha, etc.)
+ * Built-in image type; plugins can register additional provider types dynamically.
  * 验证码类型注册表
- * 内置 image 类型，插件可注册新类型（slider/puzzle/recaptcha 等）
+ * 内置 image 类型，插件可动态注册额外提供方类型
  */
 import type { Component } from 'vue';
 

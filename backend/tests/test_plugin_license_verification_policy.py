@@ -39,3 +39,13 @@ def test_verify_license_key_without_public_key_allows_debug_fallback(monkeypatch
 
     assert parsed is not None
     assert parsed.get("plugin") == "demo-plugin"
+
+
+def test_verify_license_key_without_public_key_rejects_plugin_mismatch_in_debug(monkeypatch) -> None:
+    from app.plugins.license import verify_license_key
+
+    monkeypatch.delenv("NOVUSAI_LICENSE_PUBLIC_KEY", raising=False)
+    monkeypatch.setattr("app.core.config.settings.DEBUG", True, raising=False)
+
+    key = _build_license_key("other-plugin")
+    assert verify_license_key(key, "demo-plugin") is None

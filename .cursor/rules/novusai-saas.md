@@ -438,7 +438,7 @@ alembic revision --autogenerate -m "add xxx table"
 
 - 用户端 API 前缀固定为 `/api/user/*`，依赖注入使用 `ActiveTenantUser`
 - 用户端布局固定为 `UserLayout`，无侧边栏，移动端优先
-- 当前前端静态主路由为 `/home`、`/ai-chat`、`/settings/*`，认证页在共享 `/auth/*`
+- 当前前端静态主路由为 `/`、`/ai-chat`、`/settings/*`，其中 `/home` 仅保留为兼容 alias；认证页在共享 `/auth/*`
 - 企业域名与平台域名由 Host header 和 `detectDomainType()` 协同判定，禁止回退到 `tenant_code` 查询参数主导
 - 品牌与验证码统一走公开配置：`/api/public/platform|tenant/config` + `usePublicConfigStore` + `CaptchaProvider`
 - 平台域名禁止访问 tenant / user 端，企业域名禁止访问 admin 端

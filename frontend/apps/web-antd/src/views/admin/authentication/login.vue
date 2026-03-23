@@ -19,6 +19,7 @@ const multiAuthStore = useMultiAuthStore();
 
 // Captcha component ref / 验证码组件引用
 const captchaRef = ref<CaptchaAdapterExpose>();
+const pendingLoginValues = ref<null | Record<string, unknown>>(null);
 
 // Load platform public config on first visit / 首次访问加载平台公开配置
 onMounted(() => {
@@ -74,6 +75,15 @@ function refreshCaptcha() {
   captchaRef.value?.refresh();
 }
 
+function handleCaptchaVerified() {
+  if (!pendingLoginValues.value || multiAuthStore.loginLoading) {
+    return;
+  }
+  const nextValues = pendingLoginValues.value;
+  pendingLoginValues.value = null;
+  void handleLogin(nextValues);
+}
+
 async function handleLogin(values: Record<string, unknown>) {
   // Build login params / 构建登录参数
   const loginParams: Record<string, unknown> = {
@@ -85,9 +95,10 @@ async function handleLogin(values: Record<string, unknown>) {
   if (showCaptcha.value && captchaRef.value) {
     const result = captchaRef.value.getResult();
     if (!result) {
-      // Captcha not filled, do not submit / 验证码未填写，不提交
+      pendingLoginValues.value = { ...values };
       return;
     }
+    pendingLoginValues.value = null;
     loginParams.captchaChallengeId = result.challengeId;
     loginParams.captchaSolution = result.captchaCode;
     loginParams.captchaType = result.provider;
@@ -139,6 +150,7 @@ async function handleLogin(values: Record<string, unknown>) {
             action="login"
             :provider="captchaProvider"
             :difficulty="captchaDifficulty"
+            @verified="handleCaptchaVerified"
           />
         </div>
       </template>

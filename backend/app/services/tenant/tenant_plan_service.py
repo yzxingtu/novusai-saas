@@ -17,10 +17,14 @@ from app.enums import ErrorCode, PermissionScope, PermissionType
 from app.exceptions import BusinessException, NotFoundException
 from app.models.auth.permission import Permission
 from app.models.tenant.tenant_plan import TenantPlan
+from app.plugins.tenant_plan_preflight import run_tenant_plan_preflight
 from app.repositories.tenant.tenant_plan_repository import TenantPlanRepository
 from app.schemas.tenant.plan import (
     TenantPlanCreateRequest,
     TenantPlanUpdateRequest,
+)
+from app.services.tenant.tenant_plan_plugin_entitlement_service import (
+    TenantPlanPluginEntitlementService,
 )
 
 
@@ -34,6 +38,52 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
 
     model = TenantPlan
     repository_class = TenantPlanRepository
+
+    async def _run_plan_preflight(
+        self,
+        *,
+        operation: str,
+        plan_id: int | None,
+        features: dict[str, Any] | None,
+        quota: dict[str, Any] | None,
+        context: dict[str, Any] | None = None,
+    ) -> None:
+        """Run host-level tenant plan preflight and raise on denial.
+        / 运行宿主级套餐前置校验，若被拒绝则抛异常。
+        """
+        result = await run_tenant_plan_preflight(
+            {
+                "operation": operation,
+                "plan_id": plan_id,
+                "tenant_id": None,
+                "features": dict(features or {}),
+                "quota": dict(quota or {}),
+                "context": dict(context or {}),
+            }
+        )
+        if result.get("allowed", True):
+            return
+
+        raise BusinessException(
+            message=result.get("message") or _("common.failed"),
+            data={
+                "reason_code": result.get("reason_code") or "preflight_denied",
+                "details": result.get("details") or {},
+                "operation": operation,
+                "plan_id": plan_id,
+            },
+        )
+
+    async def _sync_plan_plugin_entitlements(
+        self,
+        plan_id: int,
+        features: dict[str, Any] | None,
+    ) -> dict[str, dict[str, Any]]:
+        """Sync feature-managed plugin entitlements for a plan.
+        / 为套餐同步由 feature 驱动的插件授权。
+        """
+        service = TenantPlanPluginEntitlementService(self.db)
+        return await service.sync_plan_feature_entitlements(plan_id, features)
 
     async def get_by_code(self, code: str) -> TenantPlan | None:
         """
@@ -109,6 +159,17 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
         # 自动生成套餐代码
         code = await self._generate_plan_code()
 
+        quota_data = request.quota.to_dict() if request.quota else None
+        features_data = request.features.to_dict() if request.features else None
+
+        await self._run_plan_preflight(
+            operation="plan_create",
+            plan_id=None,
+            features=features_data,
+            quota=quota_data,
+            context={"code": code, "name": request.name},
+        )
+
         # 构建创建数据
         data = {
             "code": code,
@@ -118,11 +179,13 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
             "billing_cycle": request.billing_cycle,
             "is_active": request.is_active,
             "sort_order": request.sort_order,
-            "quota": request.quota.to_dict() if request.quota else None,
-            "features": request.features.to_dict() if request.features else None,
+            "quota": quota_data,
+            "features": features_data,
         }
 
-        return await self.create(data)
+        plan = await self.create(data)
+        await self._sync_plan_plugin_entitlements(plan.id, features_data)
+        return plan
 
     async def update_plan(
         self,
@@ -148,6 +211,25 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
                 message=_("tenant_plan.not_found"),
             )
 
+        effective_features = (
+            request.features.to_dict()
+            if request.features is not None
+            else dict(plan.features or {})
+        )
+        effective_quota = (
+            request.quota.to_dict()
+            if request.quota is not None
+            else dict(plan.quota or {})
+        )
+
+        await self._run_plan_preflight(
+            operation="plan_update",
+            plan_id=plan_id,
+            features=effective_features,
+            quota=effective_quota,
+            context={"code": plan.code, "name": request.name or plan.name},
+        )
+
         # 构建更新数据（仅包含非 None 字段）
         data: dict[str, Any] = {}
 
@@ -171,6 +253,11 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
         result = await self.update(plan_id, data)
         if not result:
             raise NotFoundException(message=_("tenant_plan.not_found"))
+
+        await self._sync_plan_plugin_entitlements(
+            result.id,
+            dict(result.features or effective_features or {}),
+        )
         return result
 
     async def delete_plan(self, plan_id: int) -> bool:
@@ -234,6 +321,7 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
         plan.permissions = valid_permissions
         await self.db.flush()
         await self.db.refresh(plan)
+        await self._sync_plan_plugin_entitlements(plan.id, dict(plan.features or {}))
 
         return plan
 

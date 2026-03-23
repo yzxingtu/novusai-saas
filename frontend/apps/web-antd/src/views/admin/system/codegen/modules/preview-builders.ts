@@ -26,11 +26,59 @@ import {
 
 export type FieldRecord = Record<string, unknown>;
 
+function parseBooleanDefault(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value !== 'string') return undefined;
+
+  const normalized = value.trim().toLowerCase();
+  if (['1', 'on', 'true', 'y', 'yes'].includes(normalized)) return true;
+  if (['0', 'false', 'n', 'no', 'off'].includes(normalized)) return false;
+  return undefined;
+}
+
+function getDefaultPreviewValue(f: FieldRecord): unknown {
+  const def = f.default;
+  if (def === undefined || def === null || def === '') return undefined;
+
+  const t = String(f.type || '').toLowerCase();
+  if (t.includes('boolean')) {
+    return parseBooleanDefault(def);
+  }
+
+  if (
+    t.includes('int') ||
+    t.includes('float') ||
+    t.includes('decimal') ||
+    t === 'number'
+  ) {
+    if (typeof def === 'number' && Number.isFinite(def)) return def;
+    if (typeof def === 'string' && def.trim() !== '') {
+      const parsed = Number(def);
+      if (!Number.isNaN(parsed)) return parsed;
+    }
+    return undefined;
+  }
+
+  if (
+    typeof def === 'string' ||
+    typeof def === 'number' ||
+    typeof def === 'boolean'
+  ) {
+    return def;
+  }
+  return undefined;
+}
+
 /** 根据字段类型生成单元格 mock 值（用于表格预览） */
-function getMockCellValue(f: FieldRecord, rowIdx: number): unknown {
+export function getMockCellValue(f: FieldRecord, rowIdx: number): unknown {
   const name = String(f.name || '').toLowerCase();
   const t = String(f.type || '').toLowerCase();
   const comp = getComponent(f);
+  if (rowIdx === 0) {
+    const defaultValue = getDefaultPreviewValue(f);
+    if (defaultValue !== undefined) return defaultValue;
+  }
   if (name === 'id') return rowIdx + 1;
   if (t.includes('boolean')) return rowIdx === 0;
   if (t.includes('int') || t.includes('float') || t.includes('decimal')) return 100 + rowIdx;
@@ -53,6 +101,10 @@ function getMockCellValue(f: FieldRecord, rowIdx: number): unknown {
   }
   if (f.dict_code) return rowIdx === 0 ? 'a' : rowIdx === 1 ? 'b' : 'c';
   return rowIdx === 0 ? $t('admin.system.codegen.preview.sampleA') : rowIdx === 1 ? $t('admin.system.codegen.preview.sampleB') : $t('admin.system.codegen.preview.sampleC');
+}
+
+export function getPreviewFieldSampleValue(f: FieldRecord): unknown {
+  return getMockCellValue(f, 0);
 }
 
 /** 生成 mock 行数据 */

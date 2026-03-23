@@ -84,7 +84,7 @@ cd backend/plugins/novusdoc/frontend && pnpm test
 
 - `backend/app/ai/engine/tool_processor.py`：parse_arguments 返回 (dict|None, error_type|None)
 - `backend/app/ai/engine/stream_handler.py`：JSON 解析失败时推送错误、不执行
-- `backend/app/ai/engine/base.py`：expand_editor_tools 前置、_build_page_operations_hint 富文本 tool-first
+- `backend/app/ai/engine/base.py`：expand_page_tools 前置、_build_page_operations_hint 页面 tool-first
 - `backend/app/ai/tools/sandbox.py`：顶层白名单、移除 content 推断、pageop_* 重定向
 - `backend/app/ai/tools/page_tool_expander.py`：新增
 - `backend/app/ai/tools/optimizer.py`：pageop_* 保护

@@ -578,15 +578,72 @@ class PermissionService:
         if name and "." in name:
             translated = _(name)
             if translated == name:
-                # Plugin menu key missing from locale file, fallback to runtime title (manifest.title) / 插件菜单 key 缺失于 locale 文件时，回退到 runtime title
-                from app.plugins.registry import ExtensionRegistry
-
-                runtime_title = ExtensionRegistry.get_instance().resolve_plugin_menu_title(name)
+                runtime_title = PermissionService._resolve_plugin_menu_title(name)
                 if runtime_title:
                     return runtime_title
-                return name.split(".")[-1]
+                return PermissionService._fallback_permission_name(name)
             return translated
         return name or ""
+
+    @staticmethod
+    def _resolve_plugin_menu_title(name: str) -> str | None:
+        """
+        Resolve plugin menu runtime title with tolerant key matching.
+        使用宽松 key 匹配解析插件菜单运行时标题。
+
+        Plugin menu names may flow through different normalization paths
+        (for example `foo-bar` vs `foo_bar`). We first try exact match,
+        then retry with the last segment normalized across both styles.
+        插件菜单名在不同链路里可能出现不同规范化形式（例如 `foo-bar` / `foo_bar`）。
+        先尝试精确匹配，再对末段做横杠/下划线双向兜底。
+        """
+        from app.plugins.registry import ExtensionRegistry
+
+        registry = ExtensionRegistry.get_instance()
+        runtime_title = registry.resolve_plugin_menu_title(name)
+        if runtime_title:
+            return runtime_title
+
+        parts = name.split(".")
+        if len(parts) < 3 or parts[-1] != "title":
+            return None
+
+        plugin_key = parts[0]
+        menu_key = ".".join(parts[1:-1])
+        candidate_menu_keys = {
+            menu_key,
+            menu_key.replace("-", "_"),
+            menu_key.replace("_", "-"),
+        }
+
+        for candidate_menu_key in candidate_menu_keys:
+            candidate_key = f"{plugin_key}.{candidate_menu_key}.title"
+            if candidate_key == name:
+                continue
+            runtime_title = registry.resolve_plugin_menu_title(candidate_key)
+            if runtime_title:
+                return runtime_title
+
+        return None
+
+    @staticmethod
+    def _fallback_permission_name(name: str) -> str:
+        """
+        Build a readable fallback label when i18n lookup misses.
+        在 i18n 未命中时生成可读兜底标题。
+        """
+        parts = name.split(".")
+        fallback = parts[-1] if parts else name
+        if fallback == "title" and len(parts) >= 2:
+            menu_name = parts[-2].replace("-", " ").replace("_", " ").strip()
+            if menu_name:
+                return menu_name
+        return fallback
+
+    @staticmethod
+    def _is_plugin_menu(code: str | None) -> bool:
+        """Check whether permission code belongs to a plugin menu. / 判断是否为插件菜单权限。"""
+        return bool(code and ".plugin_" in code)
 
     @classmethod
     def _build_permission_tree(
@@ -888,6 +945,7 @@ class PermissionService:
             菜单树，每个菜单节点包含该菜单下用户拥有的操作权限码
         """
         tree = []
+        seen_plugin_paths: set[str] = set()
         for perm in permissions:
             if perm.parent_id == parent_id and perm.type == "menu":
                 # Recursively build child menus / 递归构建子菜单
@@ -907,7 +965,10 @@ class PermissionService:
                 # Skip empty directory menus: no component (pure directory) + no children + no operation permissions / 跳过空目录菜单
                 # Typical scenario: parent directory becomes empty shell after plugin disabled / 典型场景：插件禁用后其父目录变为空壳
                 # Exception: plugin menus use dynamic standalone pages, not static view components / 插件菜单使用动态独立页面，不走静态视图组件
-                is_plugin_menu = perm.code and ".plugin_" in perm.code
+                is_plugin_menu = cls._is_plugin_menu(perm.code)
+                if is_plugin_menu and perm.path and perm.path in seen_plugin_paths:
+                    continue
+                menu_component = None if is_plugin_menu else perm.component
                 if not perm.component and not children and not menu_permissions and not is_plugin_menu:
                     continue
 
@@ -917,12 +978,14 @@ class PermissionService:
                     name=cls._translate_name(perm.name),
                     icon=perm.icon,
                     path=perm.path,
-                    component=perm.component,
+                    component=menu_component,
                     hidden=perm.hidden,
                     sort_order=perm.sort_order,
                     permissions=sorted(menu_permissions),
                     children=children,
                 ))
+                if is_plugin_menu and perm.path:
+                    seen_plugin_paths.add(perm.path)
         return sorted(tree, key=lambda x: x.sort_order)
 
     async def get_admin_menus(self, admin: Admin) -> list[MenuResponse]:

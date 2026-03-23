@@ -142,6 +142,7 @@ class AdminNamespace(PageSessionMixin, socketio.AsyncNamespace):
 
     async def on_disconnect(self, sid: str, reason: str = "") -> None:
         """Disconnect, update online status / 断开连接，更新在线状态"""
+        self.cleanup_page_sessions_for_disconnect(sid)
         user_id = None
         try:
             session = await self.get_session(sid)

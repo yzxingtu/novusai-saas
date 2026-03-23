@@ -46,7 +46,7 @@ function humanizeField(field: string) {
   return field.replaceAll('_', ' ');
 }
 
-export function getColumnLabel(
+function getColumnLabel(
   meta: RecycleBinModuleMeta | null,
   field: string,
 ): string {

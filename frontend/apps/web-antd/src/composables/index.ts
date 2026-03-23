@@ -25,8 +25,6 @@ export {
 export {
   type FileValidationResult,
   type FileValidationRules,
-  type UploadOptions,
-  type UploadResult,
   useFileUpload,
 } from './use-file-upload';
 

@@ -329,6 +329,68 @@ async def test_stream_chat_uses_responses_protocol_when_configured() -> None:
 
 
 @pytest.mark.asyncio
+async def test_stream_chat_emits_reasoning_from_completed_response_when_no_reasoning_delta() -> None:
+    class _FakeResponsesStream:
+        def __init__(self, events):
+            self._events = events
+            self.aclose_called = False
+
+        def __aiter__(self):
+            self._iter = iter(self._events)
+            return self
+
+        async def __anext__(self):
+            try:
+                return next(self._iter)
+            except StopIteration as exc:
+                raise StopAsyncIteration from exc
+
+        async def aclose(self) -> None:
+            self.aclose_called = True
+
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+    completed_response = SimpleNamespace(
+        usage=SimpleNamespace(input_tokens=11, output_tokens=4, total_tokens=15),
+        output_text="OK",
+        output=[
+            SimpleNamespace(
+                type="reasoning",
+                summary=[SimpleNamespace(text="先检查上下文。")],
+            ),
+            _make_responses_message("OK"),
+        ],
+    )
+    rs = _FakeResponsesStream([
+        SimpleNamespace(type="response.output_text.delta", delta="O"),
+        SimpleNamespace(type="response.output_text.delta", delta="K"),
+        SimpleNamespace(type="response.completed", response=completed_response),
+    ])
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(
+            create=_FakeResponses(rs).create,
+        ),
+        chat=SimpleNamespace(completions=_FakeChatCompletions(None)),
+    )
+
+    chunks = []
+    async for chunk in adapter.stream_chat(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+    ):
+        chunks.append(chunk)
+
+    reasoning = "".join(chunk.reasoning_delta for chunk in chunks)
+    assert reasoning == "先检查上下文。"
+    assert "".join(chunk.delta for chunk in chunks) == "OK"
+    assert chunks[-1].finish_reason == "stop"
+    assert rs.aclose_called is True
+
+
+@pytest.mark.asyncio
 async def test_convert_messages_to_responses_input_preserves_tool_roundtrip() -> None:
     adapter = OpenAIAdapter(
         api_key="test-key",
@@ -376,3 +438,71 @@ def test_init_normalizes_endpoint_style_base_url_and_infers_responses_wire_api()
 
     assert adapter.base_url == "https://code.respyun.com/v1"
     assert adapter.wire_api == "responses"
+
+
+@pytest.mark.asyncio
+async def test_build_responses_request_enables_reasoning_summary_for_gpt5() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+
+    request = await adapter._build_responses_request(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        stream=True,
+    )
+
+    assert request["reasoning"] == {"summary": "auto"}
+
+
+@pytest.mark.asyncio
+async def test_build_responses_request_preserves_explicit_reasoning_effort() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+
+    request = await adapter._build_responses_request(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        reasoning={"effort": "high"},
+    )
+
+    assert request["reasoning"] == {
+        "effort": "high",
+        "summary": "auto",
+    }
+
+
+def test_convert_responses_chat_response_extracts_reasoning_summary() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+
+    response_obj = SimpleNamespace(
+        object="response",
+        status="completed",
+        usage=SimpleNamespace(input_tokens=12, output_tokens=8, total_tokens=20),
+        output=[
+            SimpleNamespace(
+                type="reasoning",
+                summary=[SimpleNamespace(text="先读取上下文，再决定是否调用工具。")],
+            ),
+            _make_responses_message("hello from responses"),
+        ],
+        output_text="hello from responses",
+        model_dump=lambda: {"ok": True},
+    )
+
+    result = adapter._convert_responses_chat_response(
+        response_obj,
+        "gpt-5.4-xhigh",
+    )
+
+    assert result.message.content == "hello from responses"
+    assert result.message.reasoning_content == "先读取上下文，再决定是否调用工具。"

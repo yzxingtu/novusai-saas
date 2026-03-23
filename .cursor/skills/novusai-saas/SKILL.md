@@ -210,10 +210,13 @@ show: (row) => row.tenant_id != null && row.tenant_id === currentTenantId
 - `_PROTECTED_TOOL_NAMES` 白名单保护 `get_page_context`、`invoke_page_operation`、`list_page_operations` 不被工具优化器过滤
 - 页面感知标准接入点：`useCrudList` 的 `ai` 配置自动注册 context + operations；ref 模式页面需传递 `_aiPageKey`
 - 页面感知 `page_context` 字节预算由平台配置 `ai_page_context_max_bytes` 控制；入口在 **管理端 → 系统配置 → AI Toolkit 与页面上下文**，默认 `8192` bytes，**不是**模型输入/输出 token 限制
+- 页面截图能力统一走 `capture_screenshot` 页面操作；仅当前运行模型 `supports_vision=true` 时允许执行，截图附件必须作为内部多模态输入进入下一轮 LLM，不能只返回 URL 文本
+- `capture_screenshot` 只用于视觉/布局歧义或文本上下文不足的场景；默认先用 `read_current_view` / `read_current_sections` / `get_page_context`
 - 操作安全：`readonly=true` 直接执行，`readonly=false` 前端弹出确认对话框，确认超时 `60s`
 - 前端页面操作通道必须按 `invoke_id` 做幂等保护；重复下发同一操作时只能回放缓存结果，禁止重复执行/重复确认
 - 前端页面操作通道必须校验 `event.page_key` 与当前活动页面一致；不一致时返回 `page_key_mismatch`，禁止在错误页面执行操作
 - Agent Loop 链式自动确认仅允许在当前页面会话内短时复用；页面会话切换、离开房间或连接断开时必须清空链式确认状态，禁止跨会话残留
+- 后端 `page_session` fallback 只允许命中“唯一活跃页面实例”；同用户同页面存在多个活跃标签页时必须返回 `None`，禁止猜测最新会话
 - **禁止手动 `registerPageContext` 与 `useCrudList` 的 `ai` 配置共存**——会覆盖增强 context，使用 `contextExtras` 合并自定义数据
 - **企业 AI 配额与限速 / Tenant AI quota & rate limit**：
   - 硬配额超限必须拒绝，返回 `HTTP 429 / 4291`
@@ -517,7 +520,7 @@ admin / tenant 端 UI 偏好使用三层模型：`SYSTEM_DEFAULTS -> global pref
 
 **核心要点**：
 - UserLayout = 56px 水平导航栏 + 居中内容区（max-width: 1100px）+ 移动端 hamburger drawer
-- 当前前端静态主路由是 `/home`、`/ai-chat`、`/settings/*`；认证页在共享 `/auth/*` 路由下
+- 当前前端静态主路由是 `/`、`/ai-chat`、`/settings/*`；`/home` 仅保留为兼容 alias，认证页在共享 `/auth/*` 路由下
 - 用户端菜单与权限仍由 `user_menus.py` 提供，但部分资源码保留 legacy `dashboard` 命名，新增功能不要继续扩散旧命名
 - 域名→企业→品牌加载：Router Guard `detectDomainType()` → `loadTenantConfig()` → `applyBrandConfig()`
 - 公开端点用 `@public`，登录后端点用 `@auth_only`

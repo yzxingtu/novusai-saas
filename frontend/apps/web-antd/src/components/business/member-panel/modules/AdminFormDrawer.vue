@@ -20,7 +20,7 @@ import { Avatar, message, Spin, Upload } from 'ant-design-vue';
 import { useVbenForm } from '#/adapter/form';
 import { adminApi as admin, tenantApi as tenant } from '#/api';
 import { $t } from '#/locales';
-import { getProcessedImageUrl } from '#/utils/image';
+import { toAttachmentImageUrl } from '#/utils/image';
 
 import { getAdminFormDefaults, useAdminFormSchema } from '../data';
 
@@ -50,12 +50,7 @@ const avatarUploading = ref(false);
 
 const avatarSrc = computed(() => {
   const val = avatarValue.value;
-  if (!val) return '';
-  const id = Number(val);
-  if (Number.isFinite(id) && id > 0) {
-    return getProcessedImageUrl(id, { preset: 'avatar' });
-  }
-  return val;
+  return toAttachmentImageUrl(val, { preset: 'avatar' });
 });
 
 const avatarInitial = computed(() => {

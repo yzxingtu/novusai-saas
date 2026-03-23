@@ -6,14 +6,18 @@ Codegen Service 回归测试 / Codegen service regression tests.
 """
 
 import json
+from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
+from zipfile import ZipFile
 
 import pytest
 
+from app.codegen.manifest import ManifestManager
 from app.codegen.file_writer import WriteResult
 from app.codegen.generator import GenerateResult, GeneratedFile
+from app.exceptions import ConflictException
 from app.services.system.codegen_service import CodegenService, GenerateOutput
 
 
@@ -43,7 +47,9 @@ async def test_partial_render_failure_no_disk_write(tmp_path: Path) -> None:
         "display_name": "Partial",
         "display_name_en": "Partial",
         "model": {"base_class": "TenantModel"},
-        "fields": [{"name": "title", "type": "String(100)", "column": True, "form": "input"}],
+        "fields": [
+            {"name": "title", "type": "String(100)", "column": True, "form": "input"}
+        ],
         "endpoints": [{"scope": "admin", "data_mode": "tenant_only"}],
     }
 
@@ -72,7 +78,9 @@ async def test_partial_render_failure_no_disk_write(tmp_path: Path) -> None:
     if manifest_path.exists():
         entries = json.loads(manifest_path.read_text()).get("entries", [])
         for e in entries:
-            assert e.get("resource") != "partial_fail", "must not add manifest entry on render failure"
+            assert e.get("resource") != "partial_fail", (
+                "must not add manifest entry on render failure"
+            )
 
 
 @pytest.mark.anyio
@@ -92,7 +100,14 @@ async def test_before_create_syncs_top_level_fields_from_config_json() -> None:
             "display_name": "分类",
             "display_name_en": "Category",
             "model": {"base_class": "BaseModel"},
-            "fields": [{"name": "title", "type": "String(100)", "column": True, "form": "input"}],
+            "fields": [
+                {
+                    "name": "title",
+                    "type": "String(100)",
+                    "column": True,
+                    "form": "input",
+                }
+            ],
             "endpoints": [{"scope": "admin", "data_mode": "independent"}],
         },
     }
@@ -120,7 +135,14 @@ async def test_before_update_pushes_top_level_changes_back_into_config_json() ->
                 "display_name": "分类",
                 "display_name_en": "Category",
                 "model": {"base_class": "BaseModel"},
-                "fields": [{"name": "title", "type": "String(100)", "column": True, "form": "input"}],
+                "fields": [
+                    {
+                        "name": "title",
+                        "type": "String(100)",
+                        "column": True,
+                        "form": "input",
+                    }
+                ],
                 "endpoints": [{"scope": "admin", "data_mode": "independent"}],
             }
         )
@@ -135,6 +157,145 @@ async def test_before_update_pushes_top_level_changes_back_into_config_json() ->
     assert data["config_hash"]
 
 
+@pytest.mark.anyio
+async def test_restore_version_resets_runtime_generation_state() -> None:
+    """restore_version 恢复版本时应回到 draft 真相，并清空运行时生成态字段."""
+    svc = CodegenService.create_standalone()
+    svc.get_version_config = AsyncMock(  # type: ignore[method-assign]
+        return_value={
+            "name": "Category Builder",
+            "resource": "category",
+            "module": "system",
+            "display_name": "分类",
+            "display_name_en": "Category",
+        }
+    )
+    restored = SimpleNamespace(id=7)
+    svc.update = AsyncMock(return_value=restored)  # type: ignore[method-assign]
+
+    result = await svc.restore_version(7, 3)
+
+    assert result is restored
+    assert svc.update.await_args.args[0] == 7
+    update_data = svc.update.await_args.args[1]
+    assert update_data["status"] == "draft"
+    assert update_data["generated_files"] is None
+    assert update_data["last_error"] is None
+    assert update_data["last_generated_at"] is None
+    assert update_data["resource"] == "category"
+    assert update_data["display_name"] == "分类"
+
+
+@pytest.mark.anyio
+async def test_download_requires_manifest_snapshot(tmp_path: Path) -> None:
+    """download 在 manifest 缺失时必须拒绝，不得重新渲染 config_json."""
+    svc = CodegenService.create_standalone()
+    svc.get_by_id = AsyncMock(  # type: ignore[method-assign]
+        return_value=SimpleNamespace(id=7, resource="article")
+    )
+
+    with pytest.raises(ConflictException) as exc_info:
+        await svc.download(7, project_root=tmp_path)
+
+    assert exc_info.value.code == 4090
+    assert exc_info.value.data == {"config_id": 7, "resource": "article"}
+
+
+@pytest.mark.anyio
+async def test_download_fails_when_manifest_snapshot_files_are_missing(
+    tmp_path: Path,
+) -> None:
+    """manifest 存在但磁盘文件缺失时，download 应明确报错而不是回退到重新生成."""
+    manifest = ManifestManager(tmp_path)
+    manifest.add_entry(
+        resource="article",
+        module="system",
+        config_id=7,
+        files=[
+            GeneratedFile(
+                path="backend/app/models/system/article.py",
+                content="# generated snapshot",
+                action="create",
+            )
+        ],
+    )
+
+    svc = CodegenService.create_standalone()
+    svc.get_by_id = AsyncMock(  # type: ignore[method-assign]
+        return_value=SimpleNamespace(id=7, resource="article")
+    )
+
+    with pytest.raises(ConflictException) as exc_info:
+        await svc.download(7, project_root=tmp_path)
+
+    assert exc_info.value.data == {
+        "config_id": 7,
+        "resource": "article",
+        "missing_files": ["backend/app/models/system/article.py"],
+    }
+
+
+@pytest.mark.anyio
+async def test_download_uses_manifest_backed_disk_snapshot_instead_of_regenerating(
+    tmp_path: Path,
+) -> None:
+    """download 应导出当前磁盘快照，而不是按 config_json 重新渲染模板."""
+    model_file = tmp_path / "backend" / "app" / "models" / "system" / "article.py"
+    model_file.parent.mkdir(parents=True, exist_ok=True)
+    model_file.write_text("# current disk snapshot\n", encoding="utf-8")
+
+    migration_file = (
+        tmp_path / "backend" / "migrations" / "versions" / "20260323_codegen_article.py"
+    )
+    migration_file.parent.mkdir(parents=True, exist_ok=True)
+    migration_file.write_text("# current migration snapshot\n", encoding="utf-8")
+
+    manifest = ManifestManager(tmp_path)
+    manifest.add_entry(
+        resource="article",
+        module="system",
+        config_id=7,
+        files=[
+            GeneratedFile(
+                path="backend/app/models/system/article.py",
+                content="# stale template snapshot",
+                action="create",
+            )
+        ],
+    )
+    manifest.update_migration_file(
+        "article",
+        "backend/migrations/versions/20260323_codegen_article.py",
+    )
+
+    svc = CodegenService.create_standalone()
+    svc.get_by_id = AsyncMock(  # type: ignore[method-assign]
+        return_value=SimpleNamespace(id=7, resource="article")
+    )
+
+    with patch(
+        "app.services.system.codegen_service.CodeGenerator",
+        side_effect=AssertionError("download must not regenerate from config_json"),
+    ):
+        zip_bytes = await svc.download(7, project_root=tmp_path)
+
+    with ZipFile(BytesIO(zip_bytes)) as zf:
+        assert sorted(zf.namelist()) == [
+            "backend/app/models/system/article.py",
+            "backend/migrations/versions/20260323_codegen_article.py",
+        ]
+        assert (
+            zf.read("backend/app/models/system/article.py").decode("utf-8")
+            == "# current disk snapshot\n"
+        )
+        assert (
+            zf.read("backend/migrations/versions/20260323_codegen_article.py").decode(
+                "utf-8"
+            )
+            == "# current migration snapshot\n"
+        )
+
+
 def test_run_auto_migrate_accepts_non_create_table_operations(tmp_path: Path) -> None:
     """add_column/alter_column 等非 create_table 迁移也应判定成功."""
     backend_dir = tmp_path / "backend"
@@ -142,7 +303,7 @@ def test_run_auto_migrate_accepts_non_create_table_operations(tmp_path: Path) ->
     versions_dir.mkdir(parents=True, exist_ok=True)
     migration_file = versions_dir / "20260319_add_column.py"
     migration_file.write_text(
-        '\n'.join(
+        "\n".join(
             [
                 'revision = "abc123"',
                 'down_revision = "prev123"',
@@ -180,7 +341,7 @@ def test_run_auto_migrate_empty_migration_is_noop_when_table_already_exists(
     versions_dir.mkdir(parents=True, exist_ok=True)
     migration_file = versions_dir / "20260319_noop.py"
     migration_file.write_text(
-        '\n'.join(
+        "\n".join(
             [
                 'revision = "noop123"',
                 'down_revision = "prev123"',

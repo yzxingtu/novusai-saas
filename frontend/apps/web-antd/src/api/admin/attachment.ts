@@ -16,6 +16,7 @@ import type { PaginatedResponse, SelectOption } from '#/types/query';
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { inferCategory } from '#/types/attachment';
+import { downloadBlob } from '#/utils/download';
 import { computeFileHash } from '#/utils/file-hash';
 import { requestClient } from '#/utils/request';
 
@@ -166,18 +167,23 @@ export async function getAttachmentStatsByTenantApi(
 }
 
 /**
- * Get download URL / 获取下载链接
- * GET /admin/attachments/{attachment_id}/download-url
+ * Download attachment blob / 下载附件二进制
+ * GET /admin/attachments/{attachment_id}/download
  */
-export async function getAttachmentDownloadUrlApi(
+export async function downloadAttachmentApi(
   attachmentId: number,
-  params?: { expires?: number },
+  filename: string,
+  mimeType?: string | null,
   options?: ApiRequestOptions,
-): Promise<AttachmentUrlResult> {
-  return requestClient.get<AttachmentUrlResult>(
-    `${API_PREFIX}/${attachmentId}/download-url`,
-    { params, ...options },
+): Promise<void> {
+  const blob = await requestClient.download<Blob>(
+    `${API_PREFIX}/${attachmentId}/download`,
+    options,
   );
+  downloadBlob(blob, {
+    filename,
+    ...(mimeType ? { mimeType } : {}),
+  });
 }
 
 /**

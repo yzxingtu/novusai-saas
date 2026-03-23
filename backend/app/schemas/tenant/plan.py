@@ -41,6 +41,7 @@ class FeaturesSchema(BaseSchema):
     advanced_analytics: bool | None = Field(None, description="是否启用高级分析")
     white_label: bool | None = Field(None, description="是否支持白标")
     priority_support: bool | None = Field(None, description="是否优先支持")
+    storage_billing_enabled: bool | None = Field(None, description="是否启用对象存储账单对账收费")
 
     def to_dict(self) -> dict[str, Any]:
         """转换为字典，仅包含非空值 / Convert to dict, non-null values only"""

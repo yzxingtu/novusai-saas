@@ -128,6 +128,93 @@ class TestPluginMenuI18n:
         finally:
             reg.unregister_all("demo-plugin")
 
+    def test_menu_title_fallback_tolerates_hyphen_underscore_drift(self):
+        from app.core.i18n import set_locale
+        from app.rbac.services.permission_service import PermissionService
+
+        reg = ExtensionRegistry.get_instance()
+        try:
+            reg.register_menu(
+                plugin_name="demo-plugin",
+                name="docs-list",
+                path="/admin/plugins/demo-plugin/docs",
+                title={"zh-CN": "文档管理", "en": "Documents"},
+            )
+
+            set_locale("zh_CN")
+            assert PermissionService._translate_name("demo_plugin.docs_list.title") == "文档管理"
+        finally:
+            reg.unregister_all("demo-plugin")
+            set_locale("zh_CN")
+
+    def test_menu_title_fallback_never_returns_literal_title(self):
+        from app.rbac.services.permission_service import PermissionService
+
+        assert PermissionService._translate_name("demo_plugin.missing_entry.title") == "missing entry"
+
+    def test_build_menu_tree_hides_plugin_component_from_menu_response(self):
+        from app.models.auth.permission import Permission
+        from app.rbac.services.permission_service import PermissionService
+
+        menu = Permission(
+            id=1,
+            code="menu:admin.plugin_demo_plugin_docs",
+            name="demo_plugin.docs.title",
+            type="menu",
+            scope="admin",
+            resource="menu",
+            action="admin.plugin_demo_plugin_docs",
+            sort_order=10,
+            path="/admin/plugins/demo-plugin/docs",
+            component="DemoPluginDocsPage",
+            hidden=False,
+            is_enabled=True,
+        )
+
+        result = PermissionService._build_menu_tree([menu])
+
+        assert len(result) == 1
+        assert result[0].path == "/admin/plugins/demo-plugin/docs"
+        assert result[0].component is None
+
+    def test_build_menu_tree_deduplicates_plugin_entries_with_same_path(self):
+        from app.models.auth.permission import Permission
+        from app.rbac.services.permission_service import PermissionService
+
+        old_menu = Permission(
+            id=1,
+            code="menu:admin.plugin_demo_plugin_docs_old",
+            name="demo_plugin.docs_old.title",
+            type="menu",
+            scope="admin",
+            resource="menu",
+            action="admin.plugin_demo_plugin_docs_old",
+            sort_order=10,
+            path="/admin/plugins/demo-plugin/docs",
+            component="OldDemoPluginDocsPage",
+            hidden=False,
+            is_enabled=True,
+        )
+        current_menu = Permission(
+            id=2,
+            code="menu:admin.plugin_demo_plugin_docs",
+            name="demo_plugin.docs.title",
+            type="menu",
+            scope="admin",
+            resource="menu",
+            action="admin.plugin_demo_plugin_docs",
+            sort_order=10,
+            path="/admin/plugins/demo-plugin/docs",
+            component="DemoPluginDocsPage",
+            hidden=False,
+            is_enabled=True,
+        )
+
+        result = PermissionService._build_menu_tree([old_menu, current_menu])
+
+        assert len(result) == 1
+        assert result[0].path == "/admin/plugins/demo-plugin/docs"
+
 
 class TestPluginEventBusLifecycle:
     """PluginEventBus 注册/反注册契约"""

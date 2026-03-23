@@ -19,7 +19,7 @@ from dataclasses import dataclass
 
 from app.codegen.file_writer import FileWriter, WriteResult
 from app.codegen.generator import CodeGenerator, GeneratedFile
-from app.codegen.manifest import ManifestManager
+from app.codegen.manifest import ManifestEntry, ManifestManager
 from app.codegen.rollback import CodegenRollback, RollbackResult
 from app.codegen.type_registry import type_registry
 from app.codegen.zip_exporter import export_zip, format_code
@@ -59,6 +59,15 @@ class CodegenDeleteGuard:
     message: str | None = None
 
 
+@dataclass(frozen=True)
+class CodegenWorkbenchEntry:
+    """Workbench entry / 工作台条目."""
+
+    config: CodegenConfig
+    manifest_present: bool
+    delete_guard: CodegenDeleteGuard
+
+
 class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
     """
     CRUD 代码生成服务 / Codegen service.
@@ -75,7 +84,9 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         """从 config_json 派生顶层字段，统一以 config_json 为事实源 / Derive top-level fields from config_json."""
         parsed = ConfigParser().parse(config_json)
         display_name = parsed.display_name or parsed.resource
-        display_name_en = parsed.display_name_en or parsed.resource.replace("_", " ").title()
+        display_name_en = (
+            parsed.display_name_en or parsed.resource.replace("_", " ").title()
+        )
         return {
             "name": config_json.get("name") or display_name,
             "resource": parsed.resource,
@@ -97,8 +108,16 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         data: dict[str, Any],
     ) -> dict[str, Any] | None:
         """当仅更新顶层字段时，回写到 config_json / Push top-level field updates back into config_json."""
-        tracked_fields = ("name", "resource", "module", "display_name", "display_name_en")
-        if not any(field in data and data[field] is not None for field in tracked_fields):
+        tracked_fields = (
+            "name",
+            "resource",
+            "module",
+            "display_name",
+            "display_name_en",
+        )
+        if not any(
+            field in data and data[field] is not None for field in tracked_fields
+        ):
             return None
         config_json = dict(base_config_json or {})
         for field in tracked_fields:
@@ -125,6 +144,42 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         }
 
     @staticmethod
+    def _iter_manifest_snapshot_paths(entry: ManifestEntry) -> list[str]:
+        """提取 manifest 中可下载的文件路径 / Extract downloadable snapshot paths from manifest."""
+        ordered_paths: list[str] = []
+        seen: set[str] = set()
+
+        for item in entry.files:
+            raw_path = str(item.get("path") or "").strip()
+            if not raw_path or raw_path in seen:
+                continue
+            seen.add(raw_path)
+            ordered_paths.append(raw_path)
+
+        migration_path = str(entry.migration_file or "").strip()
+        if migration_path and migration_path not in seen:
+            ordered_paths.append(migration_path)
+
+        return ordered_paths
+
+    @staticmethod
+    def _resolve_manifest_snapshot_path(
+        raw_path: str,
+        project_root: Path,
+    ) -> tuple[Path, str]:
+        """将 manifest 路径解析为磁盘路径和 ZIP 内路径 / Resolve manifest path to disk path and ZIP path."""
+        candidate = Path(raw_path)
+        resolved = candidate if candidate.is_absolute() else project_root / candidate
+        if candidate.is_absolute():
+            try:
+                zip_path = str(resolved.relative_to(project_root))
+            except ValueError:
+                zip_path = resolved.name
+        else:
+            zip_path = candidate.as_posix()
+        return resolved, zip_path.replace("\\", "/")
+
+    @staticmethod
     def _table_exists(table_name: str) -> bool:
         """检查表是否已存在 / Check whether table exists."""
         if not table_name:
@@ -133,7 +188,9 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         from app.core.database import sync_session_factory
 
         with sync_session_factory() as session:
-            result = session.execute(text("SELECT to_regclass(:tbl)"), {"tbl": table_name})
+            result = session.execute(
+                text("SELECT to_regclass(:tbl)"), {"tbl": table_name}
+            )
             return result.scalar_one_or_none() is not None
 
     @staticmethod
@@ -184,14 +241,18 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         status_val = status.value if hasattr(status, "value") else status
         return await self.repo.get_by_status(status_val)
 
-    async def _save_version(self, config: CodegenConfig, note: str | None = None) -> None:
+    async def _save_version(
+        self, config: CodegenConfig, note: str | None = None
+    ) -> None:
         """保存配置版本快照 / Save config version snapshot."""
         version_repo = CodegenConfigVersionRepository(self.repo.db)
-        await version_repo.create({
-            "config_id": config.id,
-            "config_json": dict(config.config_json) if config.config_json else {},
-            "note": note,
-        })
+        await version_repo.create(
+            {
+                "config_id": config.id,
+                "config_json": dict(config.config_json) if config.config_json else {},
+                "note": note,
+            }
+        )
 
     async def _before_create(self, data: dict[str, Any]) -> None:
         """创建前计算 config_hash / Compute config_hash before create."""
@@ -210,7 +271,9 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         else:
             current = await self.get_by_id(id)
             if current:
-                synced_config = self._sync_config_json_from_top_level(current.config_json, data)
+                synced_config = self._sync_config_json_from_top_level(
+                    current.config_json, data
+                )
                 if synced_config is not None:
                     data["config_json"] = synced_config
                     self._sync_data_from_config_json(data)
@@ -249,12 +312,20 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
             return None
         return version.config_json
 
-    async def restore_version(self, config_id: int, version_id: int) -> CodegenConfig | None:
+    async def restore_version(
+        self, config_id: int, version_id: int
+    ) -> CodegenConfig | None:
         """恢复配置到指定版本；同步顶层 name/resource/module/display_name 与 config_json。"""
         config_json = await self.get_version_config(config_id, version_id)
         if config_json is None:
             return None
-        update_data: dict[str, Any] = {"config_json": config_json}
+        update_data: dict[str, Any] = {
+            "config_json": config_json,
+            "status": CodegenConfigStatusEnum.DRAFT.value,
+            "generated_files": None,
+            "last_error": None,
+            "last_generated_at": None,
+        }
         if isinstance(config_json, dict):
             if "display_name" in config_json:
                 update_data["display_name"] = config_json["display_name"]
@@ -356,13 +427,108 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
                 reason_code="generated_state",
                 message=_("codegen.delete_guard.generated_state"),
             )
-        if config.generated_files or config.last_generated_at or (config.generation_count or 0) > 0:
+        if (
+            config.generated_files
+            or config.last_generated_at
+            or (config.generation_count or 0) > 0
+        ):
             return CodegenDeleteGuard(
                 allowed=False,
                 reason_code="generation_history_present",
                 message=_("codegen.delete_guard.generation_history_present"),
             )
         return CodegenDeleteGuard(allowed=True)
+
+    @staticmethod
+    def _has_manifest_entry(
+        config: CodegenConfig,
+        *,
+        manifest_resources: set[str],
+        manifest_config_ids: set[int],
+    ) -> bool:
+        """判断配置是否存在 manifest 条目 / Check whether config has a manifest entry."""
+        if config.resource and config.resource in manifest_resources:
+            return True
+        return config.id in manifest_config_ids
+
+    @classmethod
+    def build_workbench_summary(
+        cls,
+        items: list[CodegenConfig],
+        *,
+        manifest_resources: set[str],
+        manifest_config_ids: set[int],
+        focus_limit: int = 6,
+    ) -> dict[str, Any]:
+        """构建 codegen 工作台摘要 / Build codegen workbench summary."""
+        stats = {
+            "draft": 0,
+            "generated": 0,
+            "applied": 0,
+            "rollback": 0,
+            "attention": 0,
+            "total": len(items),
+        }
+        sections: dict[str, list[CodegenWorkbenchEntry]] = {
+            "draft": [],
+            "generated": [],
+            "applied": [],
+            "rollback": [],
+            "attention": [],
+        }
+
+        for item in items:
+            manifest_present = cls._has_manifest_entry(
+                item,
+                manifest_resources=manifest_resources,
+                manifest_config_ids=manifest_config_ids,
+            )
+            guard = cls.build_delete_guard(item, manifest_present=manifest_present)
+            entry = CodegenWorkbenchEntry(
+                config=item,
+                manifest_present=manifest_present,
+                delete_guard=guard,
+            )
+            status = str(item.status or "")
+
+            if status in {"draft", "generated", "applied"}:
+                stats[status] += 1
+                if len(sections[status]) < focus_limit:
+                    sections[status].append(entry)
+
+            if manifest_present:
+                stats["rollback"] += 1
+                if len(sections["rollback"]) < focus_limit:
+                    sections["rollback"].append(entry)
+
+            needs_attention = bool(item.last_error) or not guard.allowed
+            if needs_attention:
+                stats["attention"] += 1
+                if len(sections["attention"]) < focus_limit:
+                    sections["attention"].append(entry)
+
+        return {
+            "stats": stats,
+            "sections": sections,
+        }
+
+    async def get_workbench_summary(
+        self,
+        *,
+        project_root: Path | None = None,
+        focus_limit: int = 6,
+    ) -> dict[str, Any]:
+        """获取工作台摘要 / Get workbench summary."""
+        root = project_root or _PROJECT_ROOT
+        items = await self.repo.list_workbench_rows()
+        manifest = ManifestManager(root)
+        manifest_resources, manifest_config_ids = manifest.manifest_index()
+        return self.build_workbench_summary(
+            items,
+            manifest_resources=manifest_resources,
+            manifest_config_ids=manifest_config_ids,
+            focus_limit=focus_limit,
+        )
 
     async def get_delete_guard(
         self,
@@ -376,7 +542,9 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
             raise NotFoundException(message=_("codegen.config_not_found"))
         root = project_root or _PROJECT_ROOT
         manifest = ManifestManager(root)
-        manifest_present = manifest.find_entry_for_config(config.resource, config.id) is not None
+        manifest_present = (
+            manifest.find_entry_for_config(config.resource, config.id) is not None
+        )
         return self.build_delete_guard(config, manifest_present=manifest_present)
 
     async def assert_can_delete(
@@ -417,20 +585,38 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
             errors = parser.validate(parsed, require_fields=require_fields)
             return {
                 "valid": len(errors) == 0,
-                "errors": [{"code": e.code, "message": e.message, "path": e.path, "field": e.field} for e in errors],
+                "errors": [
+                    {
+                        "code": e.code,
+                        "message": e.message,
+                        "path": e.path,
+                        "field": e.field,
+                    }
+                    for e in errors
+                ],
                 "warnings": [],
                 "mode": mode,
             }
         except Exception as e:
             # 脱敏：不向用户暴露堆栈 / Sanitize: do not expose stack trace
             err_str = str(e).lower()
-            if any(x in err_str for x in ("traceback", "file ", ".py", "line ", "\\", "path")):
+            if any(
+                x in err_str
+                for x in ("traceback", "file ", ".py", "line ", "\\", "path")
+            ):
                 safe_msg = _("codegen.validation.parse_error")
             else:
                 safe_msg = str(e)[:200]  # 短错误可保留，截断防泄露
             return {
                 "valid": False,
-                "errors": [{"code": "parse_error", "message": safe_msg, "path": "", "field": ""}],
+                "errors": [
+                    {
+                        "code": "parse_error",
+                        "message": safe_msg,
+                        "path": "",
+                        "field": "",
+                    }
+                ],
                 "warnings": [],
                 "mode": mode,
             }
@@ -465,7 +651,13 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
                 "success": False,
                 "error": str(e),
                 "files": [],
-                "summary": {"create_count": 0, "modify_count": 0, "backend_files": 0, "frontend_files": 0, "total_lines": 0},
+                "summary": {
+                    "create_count": 0,
+                    "modify_count": 0,
+                    "backend_files": 0,
+                    "frontend_files": 0,
+                    "total_lines": 0,
+                },
                 "warnings": [],
                 "conflicts": [],
             }
@@ -484,7 +676,11 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         total_lines = 0
 
         for f in files:
-            lang = "python" if f.path.endswith(".py") else ("typescript" if f.path.endswith((".ts", ".vue")) else "yaml")
+            lang = (
+                "python"
+                if f.path.endswith(".py")
+                else ("typescript" if f.path.endswith((".ts", ".vue")) else "yaml")
+            )
             if f.path.startswith("backend/"):
                 backend_count += 1
             elif f.path.startswith("frontend/"):
@@ -591,7 +787,9 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         table_name = CodeGenerator._pluralize(parsed.resource.replace("-", "_"))
         if not files:
             return GenerateOutput(
-                result=WriteResult(success=False, errors=gen_result.errors or ["No files to generate"]),
+                result=WriteResult(
+                    success=False, errors=gen_result.errors or ["No files to generate"]
+                ),
                 config_id=config_id,
                 resource=parsed.resource,
                 module=parsed.module,
@@ -632,7 +830,13 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
             format_code(root, files)
 
         # CLI generate from YAML: auto-save to DB so config appears in Web UI
-        if result.success and config_id is None and resource and module and self.db is not None:
+        if (
+            result.success
+            and config_id is None
+            and resource
+            and module
+            and self.db is not None
+        ):
             existing = await self.get_by_resource(resource)
             if existing:
                 update_data: dict[str, Any] = {"config_json": config_json}
@@ -642,15 +846,18 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
                 config_id = existing.id
                 config = existing
             else:
-                created = await self.create({
-                    "name": parsed.display_name or resource,
-                    "resource": resource,
-                    "module": module,
-                    "display_name": parsed.display_name or resource,
-                    "display_name_en": parsed.display_name_en or resource.replace("_", " ").title(),
-                    "config_json": config_json,
-                    "status": CodegenConfigStatusEnum.DRAFT.value,
-                })
+                created = await self.create(
+                    {
+                        "name": parsed.display_name or resource,
+                        "resource": resource,
+                        "module": module,
+                        "display_name": parsed.display_name or resource,
+                        "display_name_en": parsed.display_name_en
+                        or resource.replace("_", " ").title(),
+                        "config_json": config_json,
+                        "status": CodegenConfigStatusEnum.DRAFT.value,
+                    }
+                )
                 config_id = created.id
                 config = created
 
@@ -678,7 +885,9 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
                     table_name=table_name,
                 )
             else:
-                update_data["last_error"] = "; ".join(result.errors) if result.errors else None
+                update_data["last_error"] = (
+                    "; ".join(result.errors) if result.errors else None
+                )
             await self.update(config_id, update_data)
 
         return GenerateOutput(
@@ -709,7 +918,9 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
 
         _up_pre = subprocess.run(
             [sys.executable, "-m", "alembic", "upgrade", "head"],
-            cwd=str(backend_dir), capture_output=True, text=True,
+            cwd=str(backend_dir),
+            capture_output=True,
+            text=True,
         )
         if _up_pre.returncode != 0:
             return {
@@ -719,8 +930,18 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
             }
 
         _rev = subprocess.run(
-            [sys.executable, "-m", "alembic", "revision", "--autogenerate", "-m", f"codegen_{resource}"],
-            cwd=str(backend_dir), capture_output=True, text=True,
+            [
+                sys.executable,
+                "-m",
+                "alembic",
+                "revision",
+                "--autogenerate",
+                "-m",
+                f"codegen_{resource}",
+            ],
+            cwd=str(backend_dir),
+            capture_output=True,
+            text=True,
         )
         if _rev.returncode != 0:
             return {
@@ -757,7 +978,9 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
                     upgrade_body = _upgrade_match.group(1)
                 has_ops = bool(_re.search(r"\bop\.[a-zA-Z_]+\(", upgrade_body))
                 if not has_ops:
-                    expected_table = CodeGenerator._pluralize(resource.replace("-", "_"))
+                    expected_table = CodeGenerator._pluralize(
+                        resource.replace("-", "_")
+                    )
                     if CodegenService._table_exists(expected_table):
                         _mp.unlink(missing_ok=True)
                         return {
@@ -778,7 +1001,9 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
 
         _up_post = subprocess.run(
             [sys.executable, "-m", "alembic", "upgrade", "head"],
-            cwd=str(backend_dir), capture_output=True, text=True,
+            cwd=str(backend_dir),
+            capture_output=True,
+            text=True,
         )
         if _up_post.returncode != 0:
             return {
@@ -840,7 +1065,9 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         if not result.success and result.errors and self.db is not None:
             config = await self.get_by_id(config_id)
             if config:
-                result = rb.rollback(resource=config.resource, force=force, dry_run=dry_run)
+                result = rb.rollback(
+                    resource=config.resource, force=force, dry_run=dry_run
+                )
         return result
 
     async def download(self, config_id: int, project_root: Path | None = None) -> bytes:
@@ -857,13 +1084,61 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         config = await self.get_by_id(config_id)
         if not config:
             raise NotFoundException(message=_("codegen.config_not_found"))
-        config_json = config.config_json or {}
-        parsed = ConfigParser().parse(config_json)
-        gen = CodeGenerator()
-        gen_result = gen.generate(parsed, step=None)
-        return export_zip(gen_result.files)
+        root = project_root or _PROJECT_ROOT
+        manifest = ManifestManager(root)
+        entry = manifest.find_entry_for_config(config.resource, config.id)
+        if not entry:
+            raise ConflictException(
+                message=_("codegen.download.no_manifest_entry"),
+                data={
+                    "config_id": config.id,
+                    "resource": config.resource,
+                },
+            )
 
-    def preview_zip(self, config_json: dict[str, Any], step: str | None = None) -> bytes:
+        snapshot_paths = self._iter_manifest_snapshot_paths(entry)
+        if not snapshot_paths:
+            raise ConflictException(
+                message=_("codegen.download.no_tracked_files"),
+                data={
+                    "config_id": config.id,
+                    "resource": entry.resource,
+                },
+            )
+
+        zip_files: list[GeneratedFile] = []
+        missing_paths: list[str] = []
+        for raw_path in snapshot_paths:
+            resolved, zip_path = self._resolve_manifest_snapshot_path(raw_path, root)
+            if not resolved.exists() or not resolved.is_file():
+                missing_paths.append(raw_path.replace("\\", "/"))
+                continue
+            zip_files.append(
+                GeneratedFile(
+                    path=zip_path,
+                    content=resolved.read_text(encoding="utf-8", errors="replace"),
+                    action="create",
+                )
+            )
+
+        if missing_paths:
+            raise ConflictException(
+                message=_(
+                    "codegen.download.missing_files",
+                    paths=", ".join(missing_paths),
+                ),
+                data={
+                    "config_id": config.id,
+                    "resource": entry.resource,
+                    "missing_files": missing_paths,
+                },
+            )
+
+        return export_zip(zip_files)
+
+    def preview_zip(
+        self, config_json: dict[str, Any], step: str | None = None
+    ) -> bytes:
         """
         预览 ZIP（不写入项目，仅用于下载审查）/ Preview ZIP without writing to project.
 
@@ -891,12 +1166,14 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         names = intro.get_table_names()
         result = []
         for name in names:
-            result.append({
-                "name": name,
-                "comment": None,
-                "row_count": intro.get_row_count_estimate(name),
-                "has_model": intro.has_model(name),
-            })
+            result.append(
+                {
+                    "name": name,
+                    "comment": None,
+                    "row_count": intro.get_row_count_estimate(name),
+                    "has_model": intro.has_model(name),
+                }
+            )
         return result
 
     def introspect_columns(self, table_name: str) -> list[dict[str, Any]]:
@@ -962,10 +1239,12 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
                 resource = table_name[:-1]
         fields = []
         for c in cols:
-            fields.append({
-                "name": c["name"],
-                **c.get("suggested_config", {}),
-            })
+            fields.append(
+                {
+                    "name": c["name"],
+                    **c.get("suggested_config", {}),
+                }
+            )
         return {
             "resource": resource,
             "module": "system",

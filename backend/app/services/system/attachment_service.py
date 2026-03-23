@@ -29,7 +29,11 @@ from app.exceptions import BusinessException, NotFoundException
 from app.models.tenant.attachment import Attachment
 from app.repositories.system.attachment_repository import AdminAttachmentRepository
 from app.services.common.file_validator import FileValidator, validate_result_or_raise
-from app.services.common.storage_config_resolver import StorageConfigResolver
+from app.services.common.storage_config_resolver import (
+    StorageConfigResolver,
+    merge_attachment_storage_snapshot,
+)
+from app.services.tenant.attachment_download_service import AttachmentDownloadService
 from app.storage import StorageConfig, StorageVisibility, storage_manager
 
 
@@ -47,6 +51,19 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         super().__init__(db)
         self._config_service = ConfigService(db)
         self._file_validator = FileValidator(db)
+
+    @staticmethod
+    def _build_client_access_url(attachment: Attachment) -> str:
+        tenant_id = (
+            attachment.tenant_id
+            if attachment.tenant_id is not None
+            else PLATFORM_TENANT_ID
+        )
+        return AttachmentDownloadService.build_client_access_url(
+            attachment_id=attachment.id,
+            tenant_id=tenant_id,
+            visibility=attachment.visibility,
+        )
 
     # ========== 上传方法 ==========
 
@@ -94,15 +111,18 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         storage_config = await self._resolve_platform_storage_config()
         temp_path, _size, file_hash = await self._save_to_temp(content)
 
-        # 检查同企业是否已存在相同哈希的文件（同时匹配当前存储驱动）
+        # 检查同企业是否已存在相同哈希的文件（同时匹配当前存储驱动与可见性）
         existing = await self.repo.get_by_hash(
-            file_hash, tenant_id=tenant_id, driver=storage_config.driver
+            file_hash,
+            tenant_id=tenant_id,
+            driver=storage_config.driver,
+            visibility=visibility.value,
         )
         if existing:
             await self._remove_temp_file(temp_path)
             return {
                 "attachment": existing,
-                "url": f"/api/public/attachments/{existing.id}/access",
+                "url": self._build_client_access_url(existing),
             }
 
         storage_path = self._build_storage_path(tenant_id, filename)
@@ -126,8 +146,9 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
             business_id=business_id,
             metadata=metadata,
             storage_config=storage_config,
+            storage_scope="platform",
         )
-        return {"attachment": attachment, "url": f"/api/public/attachments/{attachment.id}/access"}
+        return {"attachment": attachment, "url": self._build_client_access_url(attachment)}
 
     async def preflight_check(
         self,
@@ -135,6 +156,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         file_hash: str,
         filename: str,
         size: int,
+        visibility: AttachmentVisibility = AttachmentVisibility.PRIVATE,
     ) -> dict[str, Any]:
         """
         预检查文件是否已存在（秒传）/ Pre-check file existence (instant upload).
@@ -144,6 +166,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
             file_hash: 文件哈希（纯 hex digest）
             filename: 文件名
             size: 文件大小
+            visibility: 附件可见性
 
         Returns:
             {"exists": bool, "attachment": Attachment|None, "url": str|None}
@@ -155,13 +178,16 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
 
         storage_config = await self._resolve_platform_storage_config()
         existing = await self.repo.get_by_hash(
-            file_hash, tenant_id=tenant_id, driver=storage_config.driver
+            file_hash,
+            tenant_id=tenant_id,
+            driver=storage_config.driver,
+            visibility=visibility.value,
         )
         if existing:
             return {
                 "exists": True,
                 "attachment": existing,
-                "url": f"/api/public/attachments/{existing.id}/access",
+                "url": self._build_client_access_url(existing),
             }
         return {
             "exists": False,
@@ -259,16 +285,19 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         storage_config = await self._resolve_platform_storage_config()
         tenant_id = int(session["tenant_id"])
 
-        # 检查是否已存在（同时匹配当前存储驱动）
+        # 检查是否已存在（同时匹配当前存储驱动与可见性）
         existing = await self.repo.get_by_hash(
-            file_hash, tenant_id=tenant_id, driver=storage_config.driver
+            file_hash,
+            tenant_id=tenant_id,
+            driver=storage_config.driver,
+            visibility=str(session["visibility"]),
         )
         if existing:
             await self._remove_temp_file(temp_path)
             await self._remove_session(upload_id)
             return {
                 "attachment": existing,
-                "url": f"/api/public/attachments/{existing.id}/access",
+                "url": self._build_client_access_url(existing),
             }
 
         storage_path = self._build_storage_path(tenant_id, session["filename"])
@@ -292,9 +321,10 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
             business_id=session.get("business_id"),
             metadata=session.get("metadata"),
             storage_config=storage_config,
+            storage_scope="platform",
         )
         await self._remove_session(upload_id)
-        return {"attachment": attachment, "url": f"/api/public/attachments/{attachment.id}/access"}
+        return {"attachment": attachment, "url": self._build_client_access_url(attachment)}
 
     async def get_upload_status(self, upload_id: str) -> dict[str, Any]:
         """
@@ -405,6 +435,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         business_id: int | None,
         metadata: dict | None,
         storage_config: StorageConfig | None = None,
+        storage_scope: str | None = None,
     ) -> Attachment:
         """
         落库附件记录 / Persist attachment record.
@@ -417,6 +448,13 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
             base_url = driver.get_base_url()
         else:
             base_url = ""
+        stored_meta = metadata or {}
+        if storage_config and storage_scope in {"platform", "tenant"}:
+            stored_meta = merge_attachment_storage_snapshot(
+                metadata,
+                storage_config,
+                storage_scope,
+            )
 
         attachment = await self.repo.create(
             {
@@ -436,7 +474,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
                 "uploader_id": uploader_id,
                 "business_type": business_type,
                 "business_id": business_id,
-                "meta": metadata or {},
+                "meta": stored_meta,
             }
         )
         return attachment

@@ -61,10 +61,11 @@ def _user_role_to_scope(user_role: str) -> str:
 
 def get_active_session_id(user_id: int | None, page_key: str, user_role: str = "tenant_admin") -> str | None:
     """
-    Get the latest page_session_id for (user_id, page_key) from active session tracking.
-    Used when context.page_session_id may be stale (e.g. after WebSocket reconnect).
-    从活跃会话映射中获取 (user_id, page_key) 对应的最新 page_session_id。
-    当 context.page_session_id 可能已过期（如 WebSocket 重连后）时使用。
+    Get the active page_session_id for (user_id, page_key) from active session tracking.
+    Fallback is intentionally conservative: only returns a session when there is
+    exactly one active candidate for the page; otherwise returns None.
+    从活跃会话映射中获取 (user_id, page_key) 对应的活跃 page_session_id。
+    该 fallback 是保守策略：只有页面唯一活跃候选会话时才返回，否则返回 None。
 
     Args:
         user_id: Current user ID / 当前用户 ID
@@ -72,13 +73,80 @@ def get_active_session_id(user_id: int | None, page_key: str, user_role: str = "
         user_role: User role (platform_admin / tenant_admin / tenant_user) / 用户角色
 
     Returns:
-        Latest page_session_id or None if not found / 最新 page_session_id，未找到则 None
+        Active page_session_id or None / 活跃 page_session_id 或 None
     """
     if not user_id or not page_key:
         return None
     scope = _user_role_to_scope(user_role)
     key = (scope, user_id, page_key)
-    return _active_sessions.get(key)
+    session_map = _active_sessions.get(key)
+    if not session_map:
+        return None
+    if len(session_map) == 1:
+        return next(iter(session_map))
+    logger.info(
+        "Ambiguous active page sessions: scope={} user_id={} page_key={} count={} sessions={}",
+        scope,
+        user_id,
+        page_key,
+        len(session_map),
+        list(session_map.keys()),
+    )
+    return None
+
+
+def _remove_active_session_entry(
+    active_key: tuple[str, int, str],
+    page_session_id: str,
+) -> None:
+    session_map = _active_sessions.get(active_key)
+    if not session_map:
+        return
+    session_map.pop(page_session_id, None)
+    if not session_map:
+        _active_sessions.pop(active_key, None)
+
+
+def _track_sid_active_session(
+    scope: str,
+    sid: str,
+    active_key: tuple[str, int, str],
+    page_session_id: str,
+) -> None:
+    sid_key = (scope, sid)
+    tracked_pairs = _sid_active_sessions.setdefault(sid_key, set())
+
+    stale_pairs = {
+        pair for pair in tracked_pairs
+        if pair[0] == active_key and pair[1] != page_session_id
+    }
+    for stale_active_key, stale_session_id in stale_pairs:
+        _remove_active_session_entry(stale_active_key, stale_session_id)
+        tracked_pairs.discard((stale_active_key, stale_session_id))
+
+    tracked_pairs.add((active_key, page_session_id))
+
+
+def _remove_sid_active_sessions(
+    scope: str,
+    sid: str,
+    page_session_id: str | None = None,
+) -> None:
+    sid_key = (scope, sid)
+    tracked_pairs = _sid_active_sessions.get(sid_key)
+    if not tracked_pairs:
+        return
+
+    pairs_to_remove = {
+        pair for pair in tracked_pairs
+        if page_session_id is None or pair[1] == page_session_id
+    }
+    for active_key, tracked_session_id in pairs_to_remove:
+        _remove_active_session_entry(active_key, tracked_session_id)
+        tracked_pairs.discard((active_key, tracked_session_id))
+
+    if not tracked_pairs:
+        _sid_active_sessions.pop(sid_key, None)
 
 
 class PageSessionMixin:
@@ -113,10 +181,12 @@ class PageSessionMixin:
                 if user_id is not None:
                     scope = self.namespace or "/tenant"
                     key = (scope, int(user_id), page_key)
-                    _active_sessions[key] = page_session_id
+                    session_map = _active_sessions.setdefault(key, {})
+                    session_map[page_session_id] = time.monotonic()
+                    _track_sid_active_session(scope, sid, key, page_session_id)
                     logger.debug(
-                        "SIO {} active_session stored scope={} user_id={} page_key={} -> {}",
-                        self.namespace, scope, user_id, page_key, page_session_id,
+                        "SIO {} active_session stored scope={} user_id={} page_key={} session={} active_count={}",
+                        self.namespace, scope, user_id, page_key, page_session_id, len(session_map),
                     )
             except Exception as e:
                 logger.debug("SIO {} get_session for active_session failed: {}", self.namespace, e)
@@ -138,15 +208,22 @@ class PageSessionMixin:
         room = f"page_session:{page_session_id}"
         await self.leave_room(sid, room)
 
-        # Remove from active session tracking
-        to_remove = [k for k, v in _active_sessions.items() if v == page_session_id]
-        for k in to_remove:
-            _active_sessions.pop(k, None)
+        # Remove from active session tracking for this socket only
+        scope = self.namespace or "/tenant"
+        _remove_sid_active_sessions(scope, sid, page_session_id)
 
         logger.debug(
             "SIO {} sid={} left room {}",
             self.namespace, sid, room,
         )
+
+    def cleanup_page_sessions_for_disconnect(
+        self: socketio.AsyncNamespace,  # type: ignore[override]
+        sid: str,
+    ) -> None:
+        """Clean page_session tracking for a disconnected socket / 清理断线 socket 的 page_session 追踪。"""
+        scope = self.namespace or "/tenant"
+        _remove_sid_active_sessions(scope, sid)
 
     async def on_page_operation_result(
         self: socketio.AsyncNamespace,  # type: ignore[override]

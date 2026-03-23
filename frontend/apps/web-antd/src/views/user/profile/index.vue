@@ -30,7 +30,7 @@ import { getUserProfileApi, updateUserProfileApi } from '#/api/user/auth';
 import { $t } from '#/locales';
 import { usePublicConfigStore } from '#/store/shared/public-config';
 import { formatDate, formatDateOnly } from '#/utils/common';
-import { getProcessedImageUrl, toAvatarDisplayUrl } from '#/utils/image';
+import { toAttachmentImageUrl, toAvatarDisplayUrl } from '#/utils/image';
 
 defineOptions({ name: 'UserProfile' });
 
@@ -54,13 +54,15 @@ const formState = reactive({
 });
 
 const avatarSrc = computed(() => {
-  const val = formState.avatarId || profile.value?.avatar || '';
-  if (!val) return userStore.userInfo?.avatar || preferences.app.defaultAvatar;
-  const id = Number(val);
-  if (Number.isFinite(id) && id > 0) {
-    return getProcessedImageUrl(id, { preset: 'avatar' });
-  }
-  return val;
+  const val =
+    formState.avatarId ||
+    profile.value?.avatar ||
+    userStore.userInfo?.avatar ||
+    '';
+  return (
+    toAttachmentImageUrl(val, { preset: 'avatar' }) ||
+    preferences.app.defaultAvatar
+  );
 });
 
 const avatarInitial = computed(() =>

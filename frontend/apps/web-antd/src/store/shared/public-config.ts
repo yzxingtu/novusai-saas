@@ -90,6 +90,16 @@ function applyBrandConfig(brand: BrandConfig) {
   updateHead(brand);
 }
 
+async function prepareTenantCaptchaPlugin(
+  config: TenantPublicConfig,
+): Promise<TenantPublicConfig> {
+  if (!(await ensureCaptchaPluginReady(config.login.captcha))) {
+    config.login.captcha =
+      fallbackToBuiltinCaptcha(config.login.captcha) ?? config.login.captcha;
+  }
+  return config;
+}
+
 // ============================================================
 // Type definitions / 类型定义
 // ============================================================
@@ -186,6 +196,33 @@ export const usePublicConfigStore = defineStore('publicConfig', {
       return this.tenantConfig?.login?.captcha?.enabled ?? false;
     },
 
+    /** Whether user login captcha is enabled / 用户端登录验证码是否启用 */
+    isUserLoginCaptchaEnabled(): boolean {
+      return (
+        this.tenantConfig?.userLoginCaptchaEnabled ??
+        this.tenantConfig?.login?.captcha?.enabled ??
+        false
+      );
+    },
+
+    /** Whether user registration captcha is enabled / 用户端注册验证码是否启用 */
+    isUserRegistrationCaptchaEnabled(): boolean {
+      return (
+        this.tenantConfig?.userRegistrationCaptchaEnabled ??
+        this.tenantConfig?.login?.captcha?.enabled ??
+        false
+      );
+    },
+
+    /** User login captcha threshold / 用户端登录验证码阈值 */
+    userLoginCaptchaThreshold(): number {
+      return (
+        this.tenantConfig?.userLoginCaptchaEnableThreshold ??
+        this.tenantConfig?.login?.captcha?.failedThreshold ??
+        0
+      );
+    },
+
     /** Whether platform captcha should show (based on switch, threshold, or forced) / 平台验证码是否需显示 */
     shouldShowPlatformCaptcha(): boolean {
       // If backend forces captcha, show immediately (highest priority) / 后端强制验证码
@@ -218,11 +255,11 @@ export const usePublicConfigStore = defineStore('publicConfig', {
     shouldShowUserCaptcha(): boolean {
       if (this.userCaptchaRequired) return true;
 
-      const captcha = this.tenantConfig?.login?.captcha;
-      if (!captcha?.enabled) return false;
+      if (!this.isUserLoginCaptchaEnabled) return false;
 
-      if (!captcha.failedThreshold || captcha.failedThreshold <= 0) return true;
-      return this.userLoginFailCount >= captcha.failedThreshold;
+      const threshold = this.userLoginCaptchaThreshold;
+      if (!threshold || threshold <= 0) return true;
+      return this.userLoginFailCount >= threshold;
     },
 
     /** Whether registration is enabled (default true) / 是否允许注册 */
@@ -316,12 +353,9 @@ export const usePublicConfigStore = defineStore('publicConfig', {
       this.error = null;
 
       try {
-        const config = await getTenantPublicConfigApi();
-        if (!(await ensureCaptchaPluginReady(config.login.captcha))) {
-          config.login.captcha =
-            fallbackToBuiltinCaptcha(config.login.captcha) ??
-            config.login.captcha;
-        }
+        const config = await prepareTenantCaptchaPlugin(
+          await getTenantPublicConfigApi(),
+        );
         this.tenantConfig = config;
         this.tenantConfigLoaded = true;
 
@@ -406,7 +440,9 @@ export const usePublicConfigStore = defineStore('publicConfig', {
 
       // ── Layer 3: Tenant config API fallback (custom domain) / 企业配置回退 ────
       try {
-        const tenantConfig = await getTenantPublicConfigApi();
+        const tenantConfig = await prepareTenantCaptchaPlugin(
+          await getTenantPublicConfigApi(),
+        );
         this.isDomainTenantDomain = true;
         if (!this.tenantConfig) {
           this.tenantConfig = tenantConfig;

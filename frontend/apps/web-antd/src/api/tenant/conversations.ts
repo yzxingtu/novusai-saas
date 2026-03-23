@@ -36,6 +36,19 @@ export interface ConversationInfo {
 }
 
 /** Conversation message / 对话消息 */
+export interface ConversationMessageAttachment {
+  attachment_id?: number;
+  mime_type?: string;
+  name?: string;
+  type: 'audio' | 'file' | 'image' | 'video';
+  url: string;
+}
+
+export interface ConversationMessageMetadata {
+  attachments?: ConversationMessageAttachment[];
+  [key: string]: unknown;
+}
+
 export interface ConversationMessageInfo {
   id: number;
   conversation_id: number;
@@ -46,6 +59,7 @@ export interface ConversationMessageInfo {
   tool_calls: null | unknown[];
   tool_call_id: null | string;
   model_id: null | number;
+  metadata?: ConversationMessageMetadata | null;
   created_at: string;
 }
 
@@ -70,12 +84,6 @@ interface ConversationPageResponse {
   page: number;
   page_size: number;
   total: number;
-}
-
-/** Batch archive request / 批量归档请求 */
-export interface BatchArchiveRequest {
-  agent_id?: null | number;
-  before_days?: number;
 }
 
 /** Export result / 导出响应 */
@@ -133,18 +141,6 @@ export async function archiveConversationApi(
   return requestClient.post<ConversationInfo>(
     `${PREFIX}/${id}/archive`,
     {},
-    options,
-  );
-}
-
-/** Batch archive / 批量归档 */
-export async function batchArchiveConversationsApi(
-  data: BatchArchiveRequest,
-  options?: ApiRequestOptions,
-): Promise<{ archived_count: number }> {
-  return requestClient.post<{ archived_count: number }>(
-    `${PREFIX}/batch-archive`,
-    data,
     options,
   );
 }

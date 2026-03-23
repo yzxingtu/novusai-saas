@@ -141,17 +141,6 @@ export function getProviderTypeText(type: string | undefined): string {
 }
 
 /**
- * 获取适配器来源文本
- */
-export function getAdapterSource(
-  type: string | undefined,
-): 'builtin' | 'plugin' {
-  if (!type) return 'builtin';
-  const cached = adapterTypesCache.value.find((t) => t.type === type);
-  return cached?.source ?? 'builtin';
-}
-
-/**
  * 表格列定义
  */
 export function useColumns<T = AIProviderInfo>(

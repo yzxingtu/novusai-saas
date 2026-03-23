@@ -17,6 +17,8 @@ const mockRefs = vi.hoisted(() => ({
   registerPageContextExtras: vi.fn(() => vi.fn()),
   requestDelete: vi.fn(),
   requestGet: vi.fn(),
+  showDependencyBlockModal: vi.fn(),
+  showDependencyPreviewModal: vi.fn(),
 }));
 
 vi.mock('@vben/common-ui', () => ({
@@ -57,17 +59,9 @@ vi.mock('#/utils/request', () => ({
   },
 }));
 
-vi.mock('#/components/business/dependency-block-modal/index.vue', () => ({
-  default: defineComponent({
-    name: 'MockDependencyBlockModal',
-    setup(_, { expose }) {
-      expose({
-        open: vi.fn(),
-        openPreview: vi.fn(),
-      });
-      return () => null;
-    },
-  }),
+vi.mock('#/components/business/dependency-block-modal/service', () => ({
+  showDependencyBlockModal: mockRefs.showDependencyBlockModal,
+  showDependencyPreviewModal: mockRefs.showDependencyPreviewModal,
 }));
 
 vi.mock('#/components/business/ai-slide-panel', () => ({
@@ -184,6 +178,8 @@ describe('useCrudPage', () => {
     mockRefs.gridReload.mockReset();
     mockRefs.registerPageContext.mockClear();
     mockRefs.registerPageContextExtras.mockClear();
+    mockRefs.showDependencyBlockModal.mockReset();
+    mockRefs.showDependencyPreviewModal.mockReset();
   });
 
   it('uses custom delete api when provided', async () => {

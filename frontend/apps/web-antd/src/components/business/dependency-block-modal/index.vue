@@ -80,8 +80,8 @@ const strategyConfig: Record<
   },
 };
 
-/** Legacy open method for backward compatibility with 4221 error code / 向后兼容的阻止模式 */
-function open(deps: DependencyGroup[], name?: string) {
+/** Open blocked-only dependency modal / 打开仅阻止模式的依赖弹窗 */
+function openBlocked(deps: DependencyGroup[], name?: string) {
   resourceName.value = name || '';
   isBlocked.value = true;
   displayGroups.value = deps.map((dep) => ({ dep, strategy: 'blocked' }));
@@ -209,7 +209,7 @@ const guidanceIcon = computed(() =>
   isBlocked.value ? 'lucide:lightbulb' : 'lucide:info',
 );
 
-defineExpose({ open, close: onCancel, openPreview });
+defineExpose({ close: onCancel, openBlocked, openPreview });
 </script>
 
 <template>

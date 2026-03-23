@@ -20,6 +20,7 @@ const publicConfigStore = usePublicConfigStore();
 const multiAuthStore = useMultiAuthStore();
 
 const captchaRef = ref<CaptchaAdapterExpose>();
+const submitAfterCaptcha = ref(false);
 
 const formState = reactive({
   password: '',
@@ -53,6 +54,14 @@ function refreshCaptcha() {
   captchaRef.value?.refresh();
 }
 
+function handleCaptchaVerified() {
+  if (!submitAfterCaptcha.value || multiAuthStore.loginLoading) {
+    return;
+  }
+  submitAfterCaptcha.value = false;
+  void handleLogin();
+}
+
 async function handleLogin() {
   const loginParams: Record<string, unknown> = {
     password: formState.password,
@@ -61,7 +70,11 @@ async function handleLogin() {
 
   if (showCaptcha.value && captchaRef.value) {
     const result = captchaRef.value.getResult();
-    if (!result) return;
+    if (!result) {
+      submitAfterCaptcha.value = true;
+      return;
+    }
+    submitAfterCaptcha.value = false;
     loginParams.captchaChallengeId = result.challengeId;
     loginParams.captchaSolution = result.captchaCode;
     loginParams.captchaType = result.provider;
@@ -153,6 +166,7 @@ async function handleLogin() {
           action="login"
           :provider="captchaProvider"
           :difficulty="captchaDifficulty"
+          @verified="handleCaptchaVerified"
         />
       </div>
 

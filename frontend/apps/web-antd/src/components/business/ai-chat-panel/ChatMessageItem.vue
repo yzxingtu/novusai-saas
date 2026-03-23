@@ -311,7 +311,7 @@ watch(
             <div class="thinking-glow relative flex size-5 items-center justify-center rounded-full bg-primary/10">
               <span class="typing-dots"><span /><span /><span /></span>
             </div>
-            <span class="text-xs font-medium text-muted-foreground">{{ $t('common.globalAiChat.thinking') }}</span>
+            <span class="text-xs font-medium text-muted-foreground">{{ $t('common.globalAiChat.processing') }}</span>
           </div>
           <div class="space-y-2">
             <div class="skeleton-line h-2 w-[90%] rounded-full bg-muted/50"></div>

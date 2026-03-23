@@ -123,6 +123,8 @@
 - 操作确认超时 60s；页面会话切换、离开 page_session 房间或连接断开时必须清理链式确认状态
 - 前端页面操作通道必须按 `invoke_id` 做幂等保护；重复事件只能回放已缓存结果，禁止重复执行或重复弹确认
 - 前端执行页面操作前必须校验 `event.page_key` 与当前活动页面一致；不一致时返回 `page_key_mismatch`
+- 页面截图能力统一使用 `capture_screenshot` 页面操作 + 附件上传链路；仅当当前运行模型明确支持视觉时才允许真正执行。截图结果必须作为内部多模态输入注入下一轮 LLM，禁止只返回图片 URL 文本假装“已看图”
+- `capture_screenshot` 仅用于页面视觉/布局问题或 DOM/文本上下文不足的场景；禁止把截图当作默认读取手段，优先使用 `read_current_view` / `read_current_sections` / `get_page_context`
 - 新增页面操作时必须通过 `registerPageOperations()` 注册，禁止绕过注册表直接执行
 
 ### 七-A、前端接入优先级

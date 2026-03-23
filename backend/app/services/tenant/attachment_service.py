@@ -35,7 +35,11 @@ from app.models.tenant.attachment import Attachment
 from app.models.tenant.tenant import Tenant
 from app.repositories.tenant.attachment_repository import AttachmentRepository
 from app.services.common.file_validator import FileValidator, validate_result_or_raise
-from app.services.common.storage_config_resolver import StorageConfigResolver
+from app.services.common.storage_config_resolver import (
+    StorageConfigResolver,
+    merge_attachment_storage_snapshot,
+)
+from app.services.tenant.attachment_download_service import AttachmentDownloadService
 from app.services.tenant.quota_service import QuotaService
 from app.storage import StorageConfig, StorageVisibility, storage_manager
 
@@ -57,6 +61,19 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         super().__init__(db, tenant_id)
         self._config_service = ConfigService(db)
         self._file_validator = FileValidator(db)
+
+    @staticmethod
+    def _build_client_access_url(attachment: Attachment) -> str:
+        tenant_id = (
+            attachment.tenant_id
+            if attachment.tenant_id is not None
+            else PLATFORM_TENANT_ID
+        )
+        return AttachmentDownloadService.build_client_access_url(
+            attachment_id=attachment.id,
+            tenant_id=tenant_id,
+            visibility=attachment.visibility,
+        )
 
     async def upload_file(
         self,
@@ -87,12 +104,17 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
         # 检查配额
         await self._check_quota(actual_size)
-        existing = await self.repo.get_by_hash(file_hash, driver=storage_config.driver)
+        # Hash de-duplication must stay visibility-scoped; public/private records cannot be reused interchangeably.
+        existing = await self.repo.get_by_hash(
+            file_hash,
+            driver=storage_config.driver,
+            visibility=visibility.value,
+        )
         if existing:
             await self._remove_temp_file(temp_path)
             return {
                 "attachment": existing,
-                "url": f"/api/public/attachments/{existing.id}/access",
+                "url": self._build_client_access_url(existing),
                 "used_bytes": await self.repo.sum_size(),
             }
 
@@ -116,9 +138,10 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
             business_id=business_id,
             metadata=metadata,
             storage_config=storage_config,
+            storage_scope="platform" if storage_mode == "platform" else "tenant",
         )
         used_bytes = await self.repo.sum_size()
-        url = f"/api/public/attachments/{attachment.id}/access"
+        url = self._build_client_access_url(attachment)
         return {"attachment": attachment, "url": url, "used_bytes": used_bytes}
 
     async def preflight_check(
@@ -151,12 +174,16 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         validate_result_or_raise(validation_result)
 
         _storage_mode, storage_config, _apply_quota = await self._resolve_storage_context()
-        existing = await self.repo.get_by_hash(file_hash, driver=storage_config.driver)
+        existing = await self.repo.get_by_hash(
+            file_hash,
+            driver=storage_config.driver,
+            visibility=visibility.value,
+        )
         if existing:
             return {
                 "exists": True,
                 "attachment": existing,
-                "url": f"/api/public/attachments/{existing.id}/access",
+                "url": self._build_client_access_url(existing),
                 "used_bytes": await self.repo.sum_size(),
             }
 
@@ -274,13 +301,17 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         await self._check_quota(size)
         storage_config = await self._resolve_storage_config(storage_mode)
 
-        existing = await self.repo.get_by_hash(file_hash, driver=storage_config.driver)
+        existing = await self.repo.get_by_hash(
+            file_hash,
+            driver=storage_config.driver,
+            visibility=str(session["visibility"]),
+        )
         if existing:
             await self._remove_temp_file(temp_path)
             await self._remove_session(upload_id)
             return {
                 "attachment": existing,
-                "url": f"/api/public/attachments/{existing.id}/access",
+                "url": self._build_client_access_url(existing),
                 "used_bytes": await self.repo.sum_size(),
             }
 
@@ -304,10 +335,11 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
             business_id=session.get("business_id"),
             metadata=session.get("metadata"),
             storage_config=storage_config,
+            storage_scope="platform" if storage_mode == "platform" else "tenant",
         )
         await self._remove_session(upload_id)
         used_bytes = await self.repo.sum_size()
-        url = f"/api/public/attachments/{attachment.id}/access"
+        url = self._build_client_access_url(attachment)
         return {"attachment": attachment, "url": url, "used_bytes": used_bytes}
 
     async def get_upload_status(self, upload_id: str) -> dict[str, Any]:
@@ -465,6 +497,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         business_id: int | None,
         metadata: dict | None,
         storage_config: StorageConfig | None = None,
+        storage_scope: str | None = None,
     ) -> Attachment:
         """
         落库附件记录 / Persist attachment record.
@@ -478,6 +511,13 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         else:
             # 容错处理：如果没有 storage_config，使用空字符串
             base_url = ""
+        stored_meta = metadata or {}
+        if storage_config and storage_scope in {"platform", "tenant"}:
+            stored_meta = merge_attachment_storage_snapshot(
+                metadata,
+                storage_config,
+                storage_scope,
+            )
 
         attachment = await self.repo.create(
             {
@@ -496,7 +536,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
                 "uploader_id": uploader_id,
                 "business_type": business_type,
                 "business_id": business_id,
-                "meta": metadata or {},
+                "meta": stored_meta,
             }
         )
         return attachment

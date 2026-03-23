@@ -349,7 +349,7 @@ python scripts/scan_comment_compliance.py --ci
 
 - **扫描方式**：使用 `scripts/scan_comment_compliance.py` 对 `frontend/apps/web-antd/src` 与 `backend/app` 全量扫描，检出仅中文或仅英文的 JSDoc/docstring。
 - **前端（仅英文 JSDoc → 补中文）**：
-  - `api/public/config.ts`（Logo URL、Favicon URL）、`api/shared/menu-transformer.ts`（ORPHAN_EXCLUDED_PATTERNS）、`api/tenant/agents.ts`（@deprecated 三处）。
+  - `api/public/config.ts`（Logo URL、Favicon URL）、`api/shared/menu-transformer.ts`（菜单转换类型与权限提取说明）、`api/tenant/agents.ts`（发布配置与请求类型）。
   - `components/business/agent-profile-popover/AgentProfilePopover.vue`（agentId、agentAvatar、agentDescription 等 8 处）、`ai-chat-panel/ChatMessageItem.vue`、`ai-chat-panel/use-ai-chat.ts`（UseAIChatOptions 及内部多处）、`ai-slide-panel/AIChatSlidePanel.vue`（panelTitle、varsModal、pendingSendContext、多智能体变量、检测智能体切换、当前页面上下文/操作/是否注册、CSS 变量）、`use-agent-router.ts`、`conversation-detail/ConversationDetail.vue`、`notification-panel/NotificationSettings.vue`、`rich-text-editor/ai/useEditorAI.ts`、`toolkit-editor/ToolkitEditor.vue`。
   - `composables/use-file-upload.ts`、`use-modal-detector.ts`、`views/tenant/ai/agents/detail.vue`、`views/tenant/system/user-architecture/index.vue`。
 - **前端（仅中文 JSDoc → 补英文）**：`views/tenant/system-mgmt/domains/modules/domains-types.ts`（域名信息）。

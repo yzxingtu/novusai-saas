@@ -172,6 +172,57 @@ class CodegenVersionItemSchema(BaseModel):
     note: str | None = Field(None, description="备注 / Note")
 
 
+class CodegenWorkbenchStatsSchema(BaseModel):
+    """代码生成工作台统计 / Codegen workbench stats."""
+
+    draft: int = Field(0, description="草稿数量 / Draft count")
+    generated: int = Field(0, description="已生成数量 / Generated count")
+    applied: int = Field(0, description="已应用数量 / Applied count")
+    rollback: int = Field(0, description="可回滚数量 / Rollback-ready count")
+    attention: int = Field(0, description="需关注数量 / Attention count")
+    total: int = Field(0, description="总配置数 / Total config count")
+
+
+class CodegenWorkbenchItemSchema(BaseModel):
+    """工作台关注项 / Workbench focus item."""
+
+    id: int = Field(..., description="配置 ID / Config ID")
+    name: str = Field(..., description="配置名称 / Config name")
+    resource: str = Field(..., description="资源名 / Resource")
+    status: str = Field(..., description="状态 / Status")
+    manifest_present: bool = Field(False, description="是否存在 manifest / Manifest exists")
+    delete_allowed: bool = Field(True, description="是否允许删除 / Delete allowed")
+    delete_reason_message: str | None = Field(
+        None,
+        description="删除阻断提示 / Delete guard message",
+    )
+    last_generated_at: datetime | None = Field(
+        None,
+        description="上次生成时间 / Last generated at",
+    )
+    generation_count: int = Field(0, description="生成次数 / Generation count")
+    last_error: str | None = Field(None, description="最近错误 / Last error")
+
+
+class CodegenWorkbenchSectionsSchema(BaseModel):
+    """工作台各分区条目 / Workbench section items."""
+
+    draft: list[CodegenWorkbenchItemSchema] = Field(default_factory=list)
+    generated: list[CodegenWorkbenchItemSchema] = Field(default_factory=list)
+    applied: list[CodegenWorkbenchItemSchema] = Field(default_factory=list)
+    rollback: list[CodegenWorkbenchItemSchema] = Field(default_factory=list)
+    attention: list[CodegenWorkbenchItemSchema] = Field(default_factory=list)
+
+
+class CodegenWorkbenchSummarySchema(BaseModel):
+    """代码生成工作台摘要 / Codegen workbench summary."""
+
+    stats: CodegenWorkbenchStatsSchema = Field(default_factory=CodegenWorkbenchStatsSchema)
+    sections: CodegenWorkbenchSectionsSchema = Field(
+        default_factory=CodegenWorkbenchSectionsSchema
+    )
+
+
 # ============================================================
 # Preview / Generate / Rollback / Validation / DB Introspect
 # ============================================================

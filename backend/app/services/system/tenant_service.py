@@ -10,6 +10,8 @@ import string
 from datetime import datetime
 from typing import Any
 
+from sqlalchemy import select
+
 from app.core.base_service import GlobalService
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -20,6 +22,8 @@ from app.models.auth.tenant_admin_role import TenantAdminRole
 from app.models.auth.tenant_user_role import TenantUserRole
 from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_admin import TenantAdmin
+from app.models.tenant.tenant_plan import TenantPlan
+from app.plugins.tenant_plan_preflight import run_tenant_plan_preflight
 from app.repositories.system.tenant_repository import TenantRepository
 from app.services.system.tenant_domain_service import TenantDomainService
 
@@ -35,6 +39,62 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
 
     model = Tenant
     repository_class = TenantRepository
+
+    async def _get_plan_preflight_snapshot(
+        self,
+        plan_id: int,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Load plan features/quota snapshot for preflight.
+        / 为前置校验加载套餐 features/quota 快照。
+        """
+        result = await self.db.execute(
+            select(TenantPlan).where(
+                TenantPlan.id == plan_id,
+                TenantPlan.is_deleted.is_(False),
+            )
+        )
+        plan = result.scalar_one_or_none()
+        if plan is None:
+            raise NotFoundException(message=_("tenant_plan.not_found"))
+
+        return dict(plan.features or {}), dict(plan.quota or {})
+
+    async def _run_plan_preflight(
+        self,
+        *,
+        operation: str,
+        plan_id: int,
+        tenant_id: int | None,
+        features: dict[str, Any],
+        quota: dict[str, Any],
+        context: dict[str, Any] | None = None,
+    ) -> None:
+        """Run host-level tenant plan preflight and raise on denial.
+        / 运行宿主级套餐前置校验，若被拒绝则抛异常。
+        """
+        result = await run_tenant_plan_preflight(
+            {
+                "operation": operation,
+                "plan_id": plan_id,
+                "tenant_id": tenant_id,
+                "features": dict(features or {}),
+                "quota": dict(quota or {}),
+                "context": dict(context or {}),
+            }
+        )
+        if result.get("allowed", True):
+            return
+
+        raise BusinessException(
+            message=result.get("message") or _("common.failed"),
+            data={
+                "reason_code": result.get("reason_code") or "preflight_denied",
+                "details": result.get("details") or {},
+                "operation": operation,
+                "plan_id": plan_id,
+                "tenant_id": tenant_id,
+            },
+        )
 
     async def get_by_code(self, code: str) -> Tenant | None:
         """
@@ -110,6 +170,17 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         """
         # 自动生成企业编码
         code = await self._generate_tenant_code()
+
+        if plan_id is not None:
+            plan_features, plan_quota = await self._get_plan_preflight_snapshot(plan_id)
+            await self._run_plan_preflight(
+                operation="tenant_create",
+                plan_id=plan_id,
+                tenant_id=None,
+                features=plan_features,
+                quota=plan_quota,
+                context={"tenant_code": code, "tenant_name": name},
+            )
 
         # 创建企业
         data = {
@@ -447,6 +518,22 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             raise BusinessException(
                 message=_("tenant.code_exists"),
                 code=ErrorCode.DUPLICATE_ENTRY,
+            )
+
+        new_plan_id = data.get("plan_id")
+        if "plan_id" in data and new_plan_id != tenant.plan_id and new_plan_id is not None:
+            plan_features, plan_quota = await self._get_plan_preflight_snapshot(new_plan_id)
+            await self._run_plan_preflight(
+                operation="tenant_plan_switch",
+                plan_id=new_plan_id,
+                tenant_id=tenant_id,
+                features=plan_features,
+                quota=plan_quota,
+                context={
+                    "tenant_code": tenant.code,
+                    "tenant_name": tenant.name,
+                    "previous_plan_id": tenant.plan_id,
+                },
             )
 
         result = await self.update(tenant_id, data)

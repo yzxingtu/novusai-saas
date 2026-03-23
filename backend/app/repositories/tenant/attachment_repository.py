@@ -58,7 +58,10 @@ class AttachmentRepository(TenantRepository[Attachment]):
     }
 
     async def get_by_hash(
-        self, file_hash: str, driver: str | None = None
+        self,
+        file_hash: str,
+        driver: str | None = None,
+        visibility: str | None = None,
     ) -> Attachment | None:
         """
         根据哈希获取附件 / Get attachment by hash.
@@ -66,6 +69,7 @@ class AttachmentRepository(TenantRepository[Attachment]):
         Args:
             file_hash: 文件哈希
             driver: 存储驱动名称，传入时仅匹配同驱动的记录（防止驱动切换后误命中）
+            visibility: 附件可见性，传入时仅匹配同可见性的记录（防止 public/private 误复用）
         """
         query = select(self.model).where(
             self.model.tenant_id == self.tenant_id,
@@ -74,6 +78,8 @@ class AttachmentRepository(TenantRepository[Attachment]):
         )
         if driver is not None:
             query = query.where(self.model.driver == driver)
+        if visibility is not None:
+            query = query.where(self.model.visibility == visibility)
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 

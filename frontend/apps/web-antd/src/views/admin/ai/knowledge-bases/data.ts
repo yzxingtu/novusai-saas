@@ -31,11 +31,11 @@ export function getScopeOptions() {
 
 // ============ Embedding / Vision 模型下拉 ============
 
-export function getEmbeddingModelSelectApi(params?: Record<string, unknown>) {
+function getEmbeddingModelSelectApi(params?: Record<string, unknown>) {
   return getAIModelSelectApi({ ...params, type: 'embedding' });
 }
 
-export async function getVisionModelSelectApi(
+async function getVisionModelSelectApi(
   params?: Record<string, unknown>,
 ) {
   const res = await getAIModelSelectApi({
@@ -53,7 +53,7 @@ export async function getVisionModelSelectApi(
   return res;
 }
 
-export async function getAudioModelSelectApi(
+async function getAudioModelSelectApi(
   params?: Record<string, unknown>,
 ) {
   const res = await getAIModelSelectApi({
@@ -71,7 +71,7 @@ export async function getAudioModelSelectApi(
   return res;
 }
 
-export async function getVideoModelSelectApi(
+async function getVideoModelSelectApi(
   params?: Record<string, unknown>,
 ) {
   const res = await getAIModelSelectApi({

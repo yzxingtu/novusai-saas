@@ -38,6 +38,7 @@ _TABLE_KEYWORD_RE = _re.compile(
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from app.plugins.host_read_facade import HostReadFacade
     from app.plugins.manifest import PluginManifest
 
 logger = get_logger(__name__)
@@ -232,12 +233,14 @@ class PluginContext:
         db: AsyncSession,
         granted_capabilities: list[str] | None = None,
         request_context: RequestContext | None = None,
+        host_read: HostReadFacade | None = None,
     ) -> None:
         self.plugin_name = plugin_name
         self.manifest = manifest
         self._db = db
         self._granted_capabilities = set(granted_capabilities or [])
         self._request_context = request_context
+        self._host_read = host_read
         self._logger: logging.Logger | None = None
 
     # ── Capability checks / 能力检查 ──
@@ -353,6 +356,23 @@ class PluginContext:
             self.plugin_name,
             allowed_table_prefixes=allowed_prefixes,
         )
+
+    def get_host_read(self) -> HostReadFacade:
+        """
+        Return host read-only facade, requires platform:read capability.
+        / 返回宿主只读门面，需 platform:read 能力。
+        """
+        self._require("platform:read")
+        if self._host_read is None:
+            from app.plugins.host_read_facade import HostReadFacade
+
+            self._host_read = HostReadFacade(self._db)
+        return self._host_read
+
+    @property
+    def host(self) -> HostReadFacade:
+        """Alias of get_host_read() / get_host_read() 的别名。"""
+        return self.get_host_read()
 
     async def get_own_license_status(self) -> dict[str, Any]:
         """

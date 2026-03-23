@@ -151,6 +151,18 @@ async def get_tenant_public_config(request: Request, db: DbSession):
             login_subtitle=login_subtitle,
             footer_copyright=footer_copyright,
             captcha_enabled=configs.get("tenant_captcha_enabled", False),
+            user_login_captcha_enabled=configs.get(
+                "user_login_captcha_enabled",
+                True,
+            ),
+            user_registration_captcha_enabled=configs.get(
+                "user_registration_captcha_enabled",
+                True,
+            ),
+            user_login_captcha_enable_threshold=configs.get(
+                "user_login_captcha_enable_threshold",
+                0,
+            ),
             captcha_provider=configs.get("tenant_captcha_provider"),
             captcha_plugin=(
                 captcha_plugin.to_public_payload() if captcha_plugin else None

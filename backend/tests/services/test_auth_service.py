@@ -8,7 +8,11 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from tests.services.conftest import make_mock_model, make_scalar_result
+from tests.services.conftest import (
+    make_mock_model,
+    make_scalar_result,
+    make_scalars_result,
+)
 
 # ── Helpers ──
 
@@ -257,6 +261,111 @@ class TestChangePassword:
             await service.change_admin_password(admin, "old_pass", "new_pass123!")
 
         assert admin.password_hash == "new_hash"
+
+
+class TestTenantUserLogin:
+    """企业用户登录测试 / Test."""
+
+    @pytest.mark.asyncio
+    async def test_login_uses_user_login_captcha_switch(self, mock_db):
+        from app.exceptions import AuthenticationException
+        from app.services.common.auth_service import AuthService
+
+        user = make_mock_model(
+            id=11,
+            tenant_id=3,
+            username="tenant_user",
+            email="user@example.com",
+            phone="13800000000",
+            password_hash="hashed_password",
+            is_active=True,
+            is_deleted=False,
+            login_fail_count=0,
+        )
+        mock_db.execute.return_value = make_scalars_result([user])
+        service = AuthService(mock_db)
+
+        with (
+            patch.object(service, "_is_account_locked", new_callable=AsyncMock, return_value=False),
+            patch.object(service, "_verify_captcha", new_callable=AsyncMock) as mock_verify_captcha,
+            patch.object(service, "_record_login_failure", new_callable=AsyncMock),
+            patch("app.services.common.auth_service.verify_password", return_value=False),
+            pytest.raises(AuthenticationException),
+        ):
+            service._config_service.get_tenant_config = AsyncMock(
+                side_effect=lambda tenant_id, key, default=None: {
+                    "user_login_captcha_enabled": True,
+                    "user_login_captcha_enable_threshold": 0,
+                }.get(key, default)
+            )
+            await service.authenticate_tenant_user(
+                "tenant_user",
+                "wrong_password",
+                tenant_id_from_ctx=3,
+                client_ip="127.0.0.1",
+                captcha_challenge_id="challenge-1",
+                captcha_solution="solution-1",
+                captcha_provider_code="image",
+            )
+
+        assert mock_verify_captcha.await_count == 1
+        assert any(
+            call.args[:2] == (3, "user_login_captcha_enabled")
+            for call in service._config_service.get_tenant_config.await_args_list
+        )
+        assert any(
+            call.args[:2] == (3, "user_login_captcha_enable_threshold")
+            for call in service._config_service.get_tenant_config.await_args_list
+        )
+        assert not any(
+            call.args[:2] == (3, "tenant_captcha_enabled")
+            for call in service._config_service.get_tenant_config.await_args_list
+        )
+        assert not any(
+            call.args[:2] == (3, "tenant_captcha_enable_threshold")
+            for call in service._config_service.get_tenant_config.await_args_list
+        )
+
+    @pytest.mark.asyncio
+    async def test_login_skips_captcha_when_user_login_switch_disabled(self, mock_db):
+        from app.exceptions import AuthenticationException
+        from app.services.common.auth_service import AuthService
+
+        user = make_mock_model(
+            id=12,
+            tenant_id=5,
+            username="tenant_user_2",
+            email="user2@example.com",
+            phone="13900000000",
+            password_hash="hashed_password",
+            is_active=True,
+            is_deleted=False,
+            login_fail_count=10,
+        )
+        mock_db.execute.return_value = make_scalars_result([user])
+        service = AuthService(mock_db)
+
+        with (
+            patch.object(service, "_is_account_locked", new_callable=AsyncMock, return_value=False),
+            patch.object(service, "_verify_captcha", new_callable=AsyncMock) as mock_verify_captcha,
+            patch.object(service, "_record_login_failure", new_callable=AsyncMock),
+            patch("app.services.common.auth_service.verify_password", return_value=False),
+            pytest.raises(AuthenticationException),
+        ):
+            service._config_service.get_tenant_config = AsyncMock(
+                side_effect=lambda tenant_id, key, default=None: {
+                    "user_login_captcha_enabled": False,
+                    "user_login_captcha_enable_threshold": 0,
+                }.get(key, default)
+            )
+            await service.authenticate_tenant_user(
+                "tenant_user_2",
+                "wrong_password",
+                tenant_id_from_ctx=5,
+                client_ip="127.0.0.1",
+            )
+
+        mock_verify_captcha.assert_not_awaited()
 
 
 # ── 真实密码 Hash 测试（无 Mock，测试 security 模块）──

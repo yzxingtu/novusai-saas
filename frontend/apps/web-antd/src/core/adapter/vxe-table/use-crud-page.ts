@@ -50,7 +50,14 @@ import {
 } from '#/components/business/ai-slide-panel';
 import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
-import DependencyBlockModal from '#/components/business/dependency-block-modal/index.vue';
+import type {
+  DeletePreviewResult,
+  DependencyGroup,
+} from '#/components/business/dependency-block-modal/service';
+import {
+  showDependencyBlockModal,
+  showDependencyPreviewModal,
+} from '#/components/business/dependency-block-modal/service';
 import {
   buildCrudListSummary,
   buildCrudPaginationState,
@@ -128,11 +135,6 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
   const recycleBinPermission =
     recycleBinConfig.permission ??
     (createPermission ? createPermission.replace(/:\w+$/, ':recycle_bin') : '');
-
-  // ==================== Dependency block modal / 依赖阻止弹窗 ====================
-  const depBlockRef = ref<InstanceType<typeof DependencyBlockModal> | null>(
-    null,
-  );
 
   // ==================== Form popup / 表单弹窗 ====================
   let FormPopup:
@@ -237,8 +239,8 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
    * Delete (auto-constructs DELETE {resource}/{id} request)
    * 删除（自动构造 DELETE {resource}/{id} 请求）
    *
-   * Flow: preview deps → if blocked show DependencyBlockModal → if has cascade show confirm → execute DELETE
-   * 流程：预览依赖 → 如果阻止则显示阻止弹窗 → 如果有级联则显示确认 → 执行 DELETE
+   * Flow: preview deps → show unified dependency modal → execute DELETE after confirmation
+   * 流程：预览依赖 → 显示统一依赖弹窗 → 确认后执行 DELETE
    */
   async function onDelete(row: T) {
     if (isProcessing(row.id)) return;
@@ -269,10 +271,8 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
 
         if (hasAnyDeps) {
           const displayName = String(row[nameField] || row.id);
-          const confirmed = await depBlockRef.value?.openPreview(
-            preview as unknown as Parameters<
-              InstanceType<typeof DependencyBlockModal>['openPreview']
-            >[0],
+          const confirmed = await showDependencyPreviewModal(
+            preview as unknown as DeletePreviewResult,
             displayName,
           );
           if (!confirmed) return;
@@ -301,10 +301,8 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
         respData?.dependencies
       ) {
         const displayName = String(row[nameField] || row.id);
-        depBlockRef.value?.open(
-          respData.dependencies as Parameters<
-            InstanceType<typeof DependencyBlockModal>['open']
-          >[0],
+        await showDependencyBlockModal(
+          respData.dependencies as DependencyGroup[],
           displayName,
         );
       } else {
@@ -553,9 +551,6 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
             }),
           );
         }
-
-        // Render dependency block modal / 渲染依赖阻止弹窗
-        children.push(h(DependencyBlockModal, { ref: depBlockRef }));
 
         return h('div', { class: 'crud-page-grid h-full' }, children);
       };

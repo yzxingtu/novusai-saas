@@ -38,6 +38,37 @@ export interface CodegenConfigInfo {
   updated_at: string;
 }
 
+export interface CodegenWorkbenchItem {
+  id: number;
+  name: string;
+  resource: string;
+  status: string;
+  manifest_present: boolean;
+  delete_allowed: boolean;
+  delete_reason_message: null | string;
+  last_generated_at: null | string;
+  generation_count: number;
+  last_error: null | string;
+}
+
+export interface CodegenWorkbenchSummary {
+  stats: {
+    draft: number;
+    generated: number;
+    applied: number;
+    rollback: number;
+    attention: number;
+    total: number;
+  };
+  sections: {
+    draft: CodegenWorkbenchItem[];
+    generated: CodegenWorkbenchItem[];
+    applied: CodegenWorkbenchItem[];
+    rollback: CodegenWorkbenchItem[];
+    attention: CodegenWorkbenchItem[];
+  };
+}
+
 /** 创建配置请求 / Create config request */
 export interface CodegenConfigCreateInput {
   name: string;
@@ -193,6 +224,12 @@ export async function getCodegenConfigListApi(
   options?: ApiRequestOptions,
 ): Promise<{ items: CodegenConfigInfo[]; total: number; page: number; page_size: number }> {
   return requestClient.get(PREFIX + '/configs', { params, ...options });
+}
+
+export async function getCodegenWorkbenchSummaryApi(
+  options?: ApiRequestOptions,
+): Promise<CodegenWorkbenchSummary> {
+  return requestClient.get(`${PREFIX}/workbench-summary`, options);
 }
 
 /** 获取配置详情 / Get config detail */

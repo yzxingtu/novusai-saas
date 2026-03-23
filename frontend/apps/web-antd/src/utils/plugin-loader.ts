@@ -188,12 +188,19 @@ export function parsePluginReleaseManifest(
 
 export function buildPluginDevEntryUrl(
   pluginName: string,
-  loadOptions: PluginAssetLoadOptions = {},
+  runtimeContract?: PluginFrontendRuntimeContract,
+  _loadOptions: PluginAssetLoadOptions = {},
 ): string {
-  return buildPluginAssetUrl(pluginName, `/__plugin_dev__/${pluginName}/entry`, {
-    cacheBust: true,
-    publicEndpoint: loadOptions.publicEndpoint,
-  });
+  const url = new URL(
+    `/__plugin_dev__/${pluginName}/entry`,
+    window.location.origin,
+  );
+  const devEntry = normalizeRelativeAssetPath(runtimeContract?.dev_entry || '');
+  if (devEntry) {
+    url.searchParams.set('entry', devEntry);
+  }
+  url.searchParams.set('t', String(Date.now()));
+  return `${url.pathname}${url.search}${url.hash}`;
 }
 
 async function loadPluginReleaseManifest(
@@ -224,6 +231,60 @@ async function loadPluginReleaseManifest(
     pluginName,
     (await response.json()) as unknown,
   );
+}
+
+async function loadPluginReleaseModule(
+  pluginName: string,
+  runtimeContract?: PluginFrontendRuntimeContract,
+  loadOptions: PluginAssetLoadOptions = {},
+): Promise<PluginModule> {
+  const releaseManifest = await loadPluginReleaseManifest(
+    pluginName,
+    runtimeContract,
+    loadOptions,
+  );
+  await loadPluginCSS(pluginName, releaseManifest.css, loadOptions);
+
+  return await new Promise<PluginModule>((resolve, reject) => {
+    const scriptUrl = buildPluginAssetUrl(
+      pluginName,
+      releaseManifest.entry,
+      {
+        publicEndpoint: loadOptions.publicEndpoint,
+      },
+    );
+    const script = document.createElement('script');
+    script.dataset.novusPlugin = pluginName;
+    script.dataset.novusPluginRole = 'script';
+    script.src = scriptUrl;
+    script.async = true;
+
+    script.addEventListener('load', () => {
+      const globalVar = releaseManifest.global_var;
+      const m = (window as unknown as Record<string, unknown>)[
+        globalVar
+      ] as PluginModule | undefined;
+
+      if (m) {
+        loadedPluginGlobals.set(pluginName, globalVar);
+        resolve(m);
+        return;
+      }
+      script.remove();
+      reject(
+        new Error(
+          `Plugin '${pluginName}' loaded but window.${globalVar} not found`,
+        ),
+      );
+    });
+
+    script.addEventListener('error', () => {
+      script.remove();
+      reject(new Error(`Failed to load plugin script: ${scriptUrl}`));
+    });
+
+    document.head.append(script);
+  });
 }
 
 function _injectPluginCSS(
@@ -322,58 +383,28 @@ export async function loadPluginComponents(
     let mod: PluginModule;
 
     if (pluginRuntimeEnv.isDev()) {
-      mod = (await import(
-        /* @vite-ignore */
-        buildPluginDevEntryUrl(pluginName, loadOptions)
-      )) as PluginModule;
+      try {
+        mod = (await import(
+          /* @vite-ignore */
+          buildPluginDevEntryUrl(pluginName, runtimeContract, loadOptions)
+        )) as PluginModule;
+      } catch (error) {
+        console.warn(
+          `[PluginLoader] Dev entry load failed for '${pluginName}', falling back to release bundle.`,
+          error,
+        );
+        mod = await loadPluginReleaseModule(
+          pluginName,
+          runtimeContract,
+          loadOptions,
+        );
+      }
     } else {
-      const releaseManifest = await loadPluginReleaseManifest(
+      mod = await loadPluginReleaseModule(
         pluginName,
         runtimeContract,
         loadOptions,
       );
-      await loadPluginCSS(pluginName, releaseManifest.css, loadOptions);
-
-      mod = await new Promise<PluginModule>((resolve, reject) => {
-        const scriptUrl = buildPluginAssetUrl(
-          pluginName,
-          releaseManifest.entry,
-          {
-            publicEndpoint: loadOptions.publicEndpoint,
-          },
-        );
-        const script = document.createElement('script');
-        script.dataset.novusPlugin = pluginName;
-        script.dataset.novusPluginRole = 'script';
-        script.src = scriptUrl;
-        script.async = true;
-
-        script.addEventListener('load', () => {
-          const globalVar = releaseManifest.global_var;
-          const m = (window as unknown as Record<string, unknown>)[
-            globalVar
-          ] as PluginModule | undefined;
-
-          if (m) {
-            loadedPluginGlobals.set(pluginName, globalVar);
-            resolve(m);
-            return;
-          }
-          script.remove();
-          reject(
-            new Error(
-              `Plugin '${pluginName}' loaded but window.${globalVar} not found`,
-            ),
-          );
-        });
-
-        script.addEventListener('error', () => {
-          script.remove();
-          reject(new Error(`Failed to load plugin script: ${scriptUrl}`));
-        });
-
-        document.head.append(script);
-      });
     }
 
     // Race guard: skip caching if plugin was unloaded during async load

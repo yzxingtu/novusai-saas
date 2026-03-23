@@ -207,6 +207,9 @@ upload_result = await attachment_service.upload_file(
 
 前端工具函数：
 - `getAttachmentUrl(attachment, options?)` — 优先使用 `attachment.previewUrl`，回退到 ID 构建
+- 只要上下文里已经有完整 `attachment` 对象（例如附件详情、附件库、文件预览弹窗），图片预览也必须走 `getAttachmentUrl(attachment, { preset })`，不要退化成 `getProcessedImageUrl(attachment.id)`；后者会丢掉私有文件 `preview_url` 自带的 token
+- 对 AI chat / 消息流这类会把附件元数据持久化到 JSON 的场景，附件对象必须携带 `attachment_id`；私有文件的 `url` 只用于当次展示，历史消息回放时要基于 `attachment_id` 重新生成当前有效 URL，不能把一次上传返回的临时链接当成永久主键
+- 页面截图、页面操作工具回传的图片附件虽然通常只在当前 Agent Loop 内部流转，但也应尽量保留 `attachment_id`；LLM 侧图片解析必须兼容 `/api/public/attachments/{id}/access` 与 `/api/public/attachments/{id}/image` 两种相对路径，避免私有图片还依赖额外的内部 HTTP 回抓配置
 
 ### 禁止事项
 

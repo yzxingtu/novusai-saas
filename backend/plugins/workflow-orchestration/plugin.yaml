@@ -1,0 +1,535 @@
+name: workflow-orchestration
+version: "1.0.0"
+display_name:
+  zh-CN: "任务编排"
+  en: "Workflow Orchestration"
+description:
+  zh-CN: "可安装的任务编排产品模块插件，包含设计态、运行态、企业工作流和前端页面接线。"
+  en: "Installable workflow orchestration product module plugin with design-time, runtime, tenant workflow, and frontend page integration."
+author: "NovusAI"
+icon: ""
+scope: admin_and_selected_tenants
+tags:
+  - workflow
+  - orchestration
+  - product-module
+
+capabilities:
+  - db:own_tables
+  - storage:read
+  - storage:write
+  - ai:call
+  - notifications:send
+
+dependencies:
+  python: []
+  plugins: []
+
+pricing:
+  type: paid
+  price: 9999
+  currency: CNY
+  trial:
+    enabled: false
+    days: 14
+
+extensions:
+  custom:
+    - type: product_module
+      name: workflow_orchestration
+      description: "Workflow orchestration product module with zero-host persistence boundary"
+      data:
+        module_kind: product_module
+        module_code: workflow_orchestration
+        deployment_mode: plugin_only
+        host_footprint: none
+        persistence_mode: plugin_tables_only
+        delivery_status: integrated_dev_runtime
+        builder_surfaces:
+          - platform_workflow_studio
+          - tenant_template_editor
+          - tenant_simple_builder
+
+  permissions:
+    - code: orchestration_admin
+      name:
+        zh-CN: "编排管理"
+        en: "Orchestration Admin"
+      scope: admin
+      actions: [view, configure]
+    - code: platform_template
+      name:
+        zh-CN: "平台模板"
+        en: "Platform Template"
+      scope: admin
+      actions: [list, view, create, edit, publish]
+    - code: release_ops
+      name:
+        zh-CN: "发布管理"
+        en: "Release Operations"
+      scope: admin
+      actions: [list, view, rollback]
+    - code: runtime_ops
+      name:
+        zh-CN: "运行治理"
+        en: "Runtime Operations"
+      scope: admin
+      actions: [list, view, replay, recover, terminate]
+    - code: workflow_center
+      name:
+        zh-CN: "工作流中心"
+        en: "Workflow Center"
+      scope: tenant
+      actions: [list, view]
+    - code: workflow_builder
+      name:
+        zh-CN: "工作流构建"
+        en: "Workflow Builder"
+      scope: tenant
+      actions: [create, copy, edit, publish]
+    - code: workflow_run
+      name:
+        zh-CN: "工作流运行"
+        en: "Workflow Run"
+      scope: tenant
+      actions: [list, view, execute, pause, resume, retry, terminate]
+    - code: artifact_center
+      name:
+        zh-CN: "产物中心"
+        en: "Artifact Center"
+      scope: tenant
+      actions: [list, view, edit, export, feedback]
+
+  notifications:
+    - code: run_failed
+      title:
+        zh-CN: "运行失败"
+        en: "Run Failed"
+      channels: ["ws", "inbox"]
+      category: biz
+    - code: artifact_ready
+      title:
+        zh-CN: "产物已生成"
+        en: "Artifact Ready"
+      channels: ["ws", "inbox"]
+      category: biz
+
+  api:
+    admin_routes:
+      - method: GET
+        path: overview
+        handler: "api.admin_overview.get_overview"
+        summary: "Workflow orchestration overview"
+        auth: required
+        permission: "orchestration_admin:view"
+      - method: GET
+        path: metrics
+        handler: "api.admin_overview.get_metrics"
+        summary: "Workflow orchestration metrics"
+        auth: required
+        permission: "orchestration_admin:view"
+      - method: GET
+        path: templates
+        handler: "api.admin_templates.list_templates"
+        summary: "List workflow templates"
+        auth: required
+        permission: "platform_template:list"
+      - method: POST
+        path: templates
+        handler: "api.admin_templates.create_template"
+        summary: "Create workflow template"
+        auth: required
+        permission: "platform_template:create"
+      - method: GET
+        path: "templates/{template_id}"
+        handler: "api.admin_templates.get_template_detail"
+        summary: "Get workflow template detail"
+        auth: required
+        permission: "platform_template:view"
+      - method: PUT
+        path: "templates/{template_id}"
+        handler: "api.admin_templates.update_template"
+        summary: "Update workflow template"
+        auth: required
+        permission: "platform_template:edit"
+      - method: GET
+        path: "templates/{template_id}/versions"
+        handler: "api.admin_templates.list_template_versions"
+        summary: "List workflow template versions"
+        auth: required
+        permission: "platform_template:view"
+      - method: POST
+        path: "templates/{template_id}/publish"
+        handler: "api.admin_releases.publish_template"
+        summary: "Publish workflow template"
+        auth: required
+        permission: "platform_template:publish"
+      - method: GET
+        path: releases
+        handler: "api.admin_releases.list_releases"
+        summary: "List workflow releases"
+        auth: required
+        permission: "release_ops:list"
+      - method: POST
+        path: "releases/{release_id}/rollback"
+        handler: "api.admin_releases.rollback_release"
+        summary: "Rollback workflow release"
+        auth: required
+        permission: "release_ops:rollback"
+      - method: GET
+        path: settings
+        handler: "api.admin_settings.get_settings"
+        summary: "Get workflow orchestration settings"
+        auth: required
+        permission: "orchestration_admin:view"
+      - method: PUT
+        path: settings
+        handler: "api.admin_settings.update_settings"
+        summary: "Update workflow orchestration settings"
+        auth: required
+        permission: "orchestration_admin:configure"
+      - method: GET
+        path: runs
+        handler: "api.admin_runtime.list_runs"
+        summary: "List workflow runs"
+        auth: required
+        permission: "runtime_ops:list"
+      - method: GET
+        path: "runs/{run_id}"
+        handler: "api.admin_runtime.get_run_detail"
+        summary: "Get workflow run detail"
+        auth: required
+        permission: "runtime_ops:view"
+      - method: POST
+        path: "runs/{run_id}/replay"
+        handler: "api.admin_runtime.replay_run"
+        summary: "Replay workflow run"
+        auth: required
+        permission: "runtime_ops:replay"
+      - method: POST
+        path: "runs/{run_id}/recover"
+        handler: "api.admin_runtime.recover_run"
+        summary: "Recover workflow run"
+        auth: required
+        permission: "runtime_ops:recover"
+      - method: POST
+        path: "runs/{run_id}/terminate"
+        handler: "api.admin_runtime.terminate_run"
+        summary: "Terminate workflow run"
+        auth: required
+        permission: "runtime_ops:terminate"
+    tenant_routes:
+      - method: GET
+        path: home
+        handler: "api.tenant_home.get_home"
+        summary: "Get workflow orchestration tenant home"
+        auth: required
+        permission: "workflow_center:view"
+      - method: GET
+        path: builder-capabilities
+        handler: "api.tenant_home.get_builder_capabilities"
+        summary: "Get tenant builder capabilities"
+        auth: required
+        permission: "workflow_center:view"
+      - method: GET
+        path: workflows
+        handler: "api.tenant_workflows.list_workflows"
+        summary: "List tenant workflows"
+        auth: required
+        permission: "workflow_center:list"
+      - method: POST
+        path: workflows
+        handler: "api.tenant_workflows.create_workflow"
+        summary: "Create tenant workflow"
+        auth: required
+        permission: "workflow_builder:create"
+      - method: POST
+        path: "workflows/copy-from-template"
+        handler: "api.tenant_workflows.copy_from_template"
+        summary: "Create tenant workflow from template"
+        auth: required
+        permission: "workflow_builder:copy"
+      - method: GET
+        path: "workflows/{workflow_id}"
+        handler: "api.tenant_workflows.get_workflow_detail"
+        summary: "Get tenant workflow detail"
+        auth: required
+        permission: "workflow_center:view"
+      - method: PUT
+        path: "workflows/{workflow_id}"
+        handler: "api.tenant_workflows.update_workflow"
+        summary: "Update tenant workflow"
+        auth: required
+        permission: "workflow_builder:edit"
+      - method: GET
+        path: "workflows/{workflow_id}/versions"
+        handler: "api.tenant_workflows.list_workflow_versions"
+        summary: "List tenant workflow versions"
+        auth: required
+        permission: "workflow_center:view"
+      - method: POST
+        path: "workflows/{workflow_id}/publish"
+        handler: "api.tenant_workflows.publish_workflow"
+        summary: "Publish tenant workflow"
+        auth: required
+        permission: "workflow_builder:publish"
+      - method: POST
+        path: "workflows/{workflow_id}/run"
+        handler: "api.runs.create_run"
+        summary: "Execute tenant workflow"
+        auth: required
+        permission: "workflow_run:execute"
+      - method: GET
+        path: runs
+        handler: "api.runs.tenant_list_runs"
+        summary: "List tenant workflow runs"
+        auth: required
+        permission: "workflow_run:list"
+      - method: GET
+        path: "runs/{run_id}"
+        handler: "api.runs.tenant_get_run_detail"
+        summary: "Get tenant workflow run detail"
+        auth: required
+        permission: "workflow_run:view"
+      - method: POST
+        path: "runs/{run_id}/pause"
+        handler: "api.runs.tenant_pause_run"
+        summary: "Pause tenant workflow run"
+        auth: required
+        permission: "workflow_run:pause"
+      - method: POST
+        path: "runs/{run_id}/resume"
+        handler: "api.runs.tenant_resume_run"
+        summary: "Resume tenant workflow run"
+        auth: required
+        permission: "workflow_run:resume"
+      - method: POST
+        path: "runs/{run_id}/retry"
+        handler: "api.runs.tenant_retry_run"
+        summary: "Retry tenant workflow run"
+        auth: required
+        permission: "workflow_run:retry"
+      - method: POST
+        path: "runs/{run_id}/terminate"
+        handler: "api.runs.tenant_terminate_run"
+        summary: "Terminate tenant workflow run"
+        auth: required
+        permission: "workflow_run:terminate"
+      - method: GET
+        path: artifacts
+        handler: "api.artifacts.list_artifacts"
+        summary: "List tenant workflow artifacts"
+        auth: required
+        permission: "artifact_center:list"
+      - method: GET
+        path: "artifacts/{artifact_id}"
+        handler: "api.artifacts.get_artifact_detail"
+        summary: "Get tenant workflow artifact detail"
+        auth: required
+        permission: "artifact_center:view"
+      - method: POST
+        path: "artifacts/{artifact_id}/feedback"
+        handler: "api.artifacts.submit_feedback"
+        summary: "Submit artifact feedback"
+        auth: required
+        permission: "artifact_center:feedback"
+      - method: GET
+        path: "artifacts/{artifact_id}/download"
+        handler: "api.artifacts.download_artifact"
+        summary: "Download workflow artifact"
+        auth: required
+        permission: "artifact_center:export"
+    public_routes: []
+
+  tasks:
+    - name: workflow_run_timeout_sweeper
+      handler: "tasks.run_timeout_sweeper.handle"
+      schedule_type: interval
+      interval_seconds: 300
+      queue: default
+      description: "Sweep timeout workflow runs."
+    - name: workflow_run_retry_dispatcher
+      handler: "tasks.run_retry_dispatcher.handle"
+      schedule_type: interval
+      interval_seconds: 120
+      queue: default
+      description: "Dispatch retryable workflow runs."
+    - name: workflow_artifact_retention
+      handler: "tasks.artifact_retention.handle"
+      schedule_type: interval
+      interval_seconds: 3600
+      queue: default
+      description: "Cleanup expired workflow artifacts."
+
+  frontend:
+    pages:
+      - name: workflow-orchestration-admin-home
+        path: /admin/plugins/workflow-orchestration
+        component: "WorkflowOrchestrationAdminHomePage"
+        scope: admin
+        icon: "lucide:workflow"
+        title:
+          zh-CN: "任务编排"
+          en: "Workflow Orchestration"
+        menu:
+          icon: "lucide:workflow"
+          sort_order: 70
+          title:
+            zh-CN: "任务编排"
+            en: "Workflow Orchestration"
+      - name: workflow-orchestration-admin-templates
+        path: /admin/plugins/workflow-orchestration/templates
+        component: "WorkflowOrchestrationAdminTemplateListPage"
+        scope: admin
+        icon: "lucide:copy-plus"
+        title:
+          zh-CN: "平台模板"
+          en: "Templates"
+        menu:
+          icon: "lucide:copy-plus"
+          parent: workflow-orchestration-admin-home
+          sort_order: 71
+          title:
+            zh-CN: "平台模板"
+            en: "Templates"
+      - name: workflow-orchestration-admin-template-detail
+        path: /admin/plugins/workflow-orchestration/templates/:id
+        component: "WorkflowOrchestrationAdminTemplateDetailPage"
+        scope: admin
+        icon: "lucide:copy-check"
+        title:
+          zh-CN: "模板详情"
+          en: "Template Detail"
+      - name: workflow-orchestration-admin-template-editor
+        path: /admin/plugins/workflow-orchestration/templates/:id/editor
+        component: "WorkflowOrchestrationAdminTemplateEditorPage"
+        scope: admin
+        icon: "lucide:spline"
+        title:
+          zh-CN: "模板编辑器"
+          en: "Template Editor"
+      - name: workflow-orchestration-admin-releases
+        path: /admin/plugins/workflow-orchestration/releases
+        component: "WorkflowOrchestrationAdminReleaseListPage"
+        scope: admin
+        icon: "lucide:rocket"
+        title:
+          zh-CN: "发布管理"
+          en: "Releases"
+        menu:
+          icon: "lucide:rocket"
+          parent: workflow-orchestration-admin-home
+          sort_order: 72
+          title:
+            zh-CN: "发布管理"
+            en: "Releases"
+      - name: workflow-orchestration-admin-runtime
+        path: /admin/plugins/workflow-orchestration/runtime
+        component: "WorkflowOrchestrationAdminRuntimePage"
+        scope: admin
+        icon: "lucide:activity"
+        title:
+          zh-CN: "运行治理"
+          en: "Runtime"
+        menu:
+          icon: "lucide:activity"
+          parent: workflow-orchestration-admin-home
+          sort_order: 73
+          title:
+            zh-CN: "运行治理"
+            en: "Runtime"
+      - name: workflow-orchestration-tenant-home
+        path: /tenant/plugins/workflow-orchestration
+        component: "WorkflowOrchestrationTenantHomePage"
+        scope: tenant
+        icon: "lucide:workflow"
+        title:
+          zh-CN: "任务编排"
+          en: "Workflow Orchestration"
+        menu:
+          icon: "lucide:workflow"
+          sort_order: 70
+          title:
+            zh-CN: "任务编排"
+            en: "Workflow Orchestration"
+      - name: workflow-orchestration-tenant-workflows
+        path: /tenant/plugins/workflow-orchestration/workflows
+        component: "WorkflowOrchestrationTenantWorkflowListPage"
+        scope: tenant
+        icon: "lucide:blocks"
+        title:
+          zh-CN: "工作流中心"
+          en: "Workflows"
+        menu:
+          icon: "lucide:blocks"
+          parent: workflow-orchestration-tenant-home
+          sort_order: 71
+          title:
+            zh-CN: "工作流中心"
+            en: "Workflows"
+      - name: workflow-orchestration-tenant-workflow-detail
+        path: /tenant/plugins/workflow-orchestration/workflows/:id
+        component: "WorkflowOrchestrationTenantWorkflowDetailPage"
+        scope: tenant
+        icon: "lucide:scan-search"
+        title:
+          zh-CN: "工作流详情"
+          en: "Workflow Detail"
+      - name: workflow-orchestration-tenant-workflow-editor
+        path: /tenant/plugins/workflow-orchestration/workflows/:id/editor
+        component: "WorkflowOrchestrationTenantWorkflowEditorPage"
+        scope: tenant
+        icon: "lucide:square-pen"
+        title:
+          zh-CN: "工作流编辑器"
+          en: "Workflow Editor"
+      - name: workflow-orchestration-tenant-runs
+        path: /tenant/plugins/workflow-orchestration/runs
+        component: "WorkflowOrchestrationTenantRunListPage"
+        scope: tenant
+        icon: "lucide:activity"
+        title:
+          zh-CN: "运行中心"
+          en: "Runs"
+        menu:
+          icon: "lucide:activity"
+          parent: workflow-orchestration-tenant-home
+          sort_order: 72
+          title:
+            zh-CN: "运行中心"
+            en: "Runs"
+      - name: workflow-orchestration-tenant-run-detail
+        path: /tenant/plugins/workflow-orchestration/runs/:runId
+        component: "WorkflowOrchestrationTenantRunDetailPage"
+        scope: tenant
+        icon: "lucide:list-tree"
+        title:
+          zh-CN: "运行详情"
+          en: "Run Detail"
+      - name: workflow-orchestration-tenant-artifacts
+        path: /tenant/plugins/workflow-orchestration/artifacts
+        component: "WorkflowOrchestrationTenantArtifactListPage"
+        scope: tenant
+        icon: "lucide:package-search"
+        title:
+          zh-CN: "产物中心"
+          en: "Artifacts"
+        menu:
+          icon: "lucide:package-search"
+          parent: workflow-orchestration-tenant-home
+          sort_order: 73
+          title:
+            zh-CN: "产物中心"
+            en: "Artifacts"
+      - name: workflow-orchestration-tenant-artifact-detail
+        path: /tenant/plugins/workflow-orchestration/artifacts/:artifactId
+        component: "WorkflowOrchestrationTenantArtifactDetailPage"
+        scope: tenant
+        icon: "lucide:file-output"
+        title:
+          zh-CN: "产物详情"
+          en: "Artifact Detail"
+    dev:
+      entry: "src/index.ts"
+    release:
+      manifest: "plugin.manifest.json"

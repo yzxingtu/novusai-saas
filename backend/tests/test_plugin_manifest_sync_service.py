@@ -106,3 +106,64 @@ async def test_sync_manifest_rejects_disk_version_drift(
 
     with pytest.raises(Exception, match="Use formal upgrade"):
         await service.sync_manifest(1)
+
+
+@pytest.mark.asyncio
+async def test_update_plugin_config_uses_latest_disk_schema_without_syncing_manifest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db = AsyncMock()
+    db.flush = AsyncMock()
+    service = PluginService(db)
+
+    old_manifest = _manifest_payload("Old")
+    old_manifest["config_schema"] = {
+        "type": "object",
+        "properties": {
+            "legacy": {"type": "string"},
+        },
+    }
+    new_manifest = _manifest_payload("New")
+    new_manifest["config_schema"] = {
+        "type": "object",
+        "properties": {
+            "api_key": {"type": "string"},
+        },
+    }
+
+    plugin = SimpleNamespace(
+        id=1,
+        name="demo-plugin",
+        manifest=old_manifest,
+        config={},
+    )
+
+    service.repo = MagicMock()
+    service.repo.get_by_id = AsyncMock(return_value=plugin)
+
+    from app.plugins.manifest import PluginManifest
+
+    service._loader = MagicMock()
+    service._loader.load_manifest.return_value = PluginManifest.model_validate(
+        new_manifest,
+    )
+
+    seen: dict[str, object] = {}
+
+    def _capture_validate(config: dict, schema: dict) -> None:
+        seen["config"] = config
+        seen["schema"] = schema
+
+    monkeypatch.setattr(service, "_validate_config_against_schema", _capture_validate)
+    monkeypatch.setattr(
+        "app.plugins.crypto.encrypt_plugin_config",
+        lambda config, _schema: config,
+    )
+
+    await service.update_plugin_config(1, {"api_key": "secret"})
+
+    assert seen["config"] == {"api_key": "secret"}
+    assert seen["schema"] == new_manifest["config_schema"]
+    assert plugin.manifest == old_manifest
+    assert plugin.config == {"api_key": "secret"}
+    db.flush.assert_awaited_once()

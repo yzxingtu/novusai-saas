@@ -13,7 +13,7 @@ import { Card, Image, message, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import {
-  getAttachmentDownloadUrlApi,
+  downloadAttachmentApi,
   getAttachmentListApi,
 } from '#/api/admin/attachment';
 import { getTenantSelectApi } from '#/api/admin/tenant';
@@ -93,15 +93,7 @@ function isImage(row: AttachmentInfo): boolean {
  */
 async function onDownload(row: AttachmentInfo) {
   try {
-    const result = await getAttachmentDownloadUrlApi(row.id);
-    // Create hidden anchor tag to trigger download / 创建隐藏的 a 标签触发下载
-    const link = document.createElement('a');
-    link.href = result.url;
-    link.download = row.name;
-    link.target = '_blank';
-    document.body.append(link);
-    link.click();
-    link.remove();
+    await downloadAttachmentApi(row.id, row.name, row.mimeType);
     message.success($t('admin.system.attachment.messages.downloadStarted'));
   } catch {
     // Error handled by request interceptor / 错误由请求拦截器处理

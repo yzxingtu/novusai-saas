@@ -84,7 +84,7 @@ export function getDocStatusColor(status: string | undefined): string {
 
 // ============ Embedding / Vision 模型下拉 ============
 
-export async function getEmbeddingModelOptions() {
+async function getEmbeddingModelOptions() {
   try {
     const models = await getTenantAIModelsApi();
     return models
@@ -98,7 +98,7 @@ export async function getEmbeddingModelOptions() {
   }
 }
 
-export async function getTenantVisionModelOptions() {
+async function getTenantVisionModelOptions() {
   try {
     const models = await getTenantAIModelsApi();
     const visionModels = models
@@ -118,7 +118,7 @@ export async function getTenantVisionModelOptions() {
   }
 }
 
-export async function getTenantAudioModelOptions() {
+async function getTenantAudioModelOptions() {
   try {
     const models = await getTenantAIModelsApi();
     const audioModels = models
@@ -138,7 +138,7 @@ export async function getTenantAudioModelOptions() {
   }
 }
 
-export async function getTenantVideoModelOptions() {
+async function getTenantVideoModelOptions() {
   try {
     const models = await getTenantAIModelsApi();
     const videoModels = models
@@ -160,7 +160,7 @@ export async function getTenantVideoModelOptions() {
 
 // ============ 分块策略 / 检索模式选项 ============
 
-export function getChunkStrategyOptions() {
+function getChunkStrategyOptions() {
   return [
     {
       label: $t('tenant.knowledgeBase.field.chunkStrategyRecursive'),

@@ -10,9 +10,6 @@ import { requestClient } from '#/utils/request';
 // Type definitions / 类型定义
 // ============================================================
 
-/** Plan type / 套餐类型 */
-export type TenantPlan = 'basic' | 'enterprise' | 'free' | 'pro';
-
 /** Tenant list query params / 企业列表查询参数 */
 export type TenantListParams = Record<string, unknown>;
 
@@ -24,7 +21,6 @@ export interface TenantCreateRequest {
   contact_name?: null | string;
   contact_phone?: null | string;
   contact_email?: null | string;
-  plan?: TenantPlan;
   quota?: null | Record<string, any>;
   expires_at?: null | string;
   remark?: null | string;
@@ -36,7 +32,6 @@ export interface TenantUpdateRequest {
   contact_name?: null | string;
   contact_phone?: null | string;
   contact_email?: null | string;
-  plan?: null | TenantPlan;
   quota?: null | Record<string, any>;
   expires_at?: null | string;
   remark?: null | string;
@@ -97,7 +92,6 @@ export interface TenantInfoRaw {
   contact_name?: string;
   contact_phone?: string;
   contact_email?: string;
-  plan?: null | TenantPlan;
   plan_id?: null | number;
   plan_info?: null | TenantPlanBriefRaw;
   quota?: Record<string, any>;
@@ -120,7 +114,6 @@ export interface TenantInfo {
   contactName?: string;
   contactPhone?: string;
   contactEmail?: string;
-  plan?: null | TenantPlan;
   planId?: null | number;
   planInfo?: null | TenantPlanBrief;
   quota?: Record<string, any>;
@@ -169,7 +162,6 @@ function transformTenantInfo(raw: TenantInfoRaw): TenantInfo {
     contactName: raw.contact_name,
     contactPhone: raw.contact_phone,
     contactEmail: raw.contact_email,
-    plan: raw.plan,
     planId: raw.plan_id,
     planInfo: raw.plan_info || null,
     quota: raw.quota,

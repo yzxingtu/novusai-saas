@@ -4,6 +4,7 @@
       "preview": "预览生成",
       "preview_download": "预览 ZIP 下载",
       "options": "获取代码生成器选项",
+      "workbench_summary": "获取代码生成工作台摘要",
       "configs": {
         "versions": "配置版本列表",
         "version_get": "获取配置版本",
@@ -51,7 +52,14 @@
       "rolled_back": "已回滚"
     },
     "rollback": {
-      "no_manifest_entry": "未找到生成清单 codegen_manifest.json 中与此配置对应的条目。数据库状态可能与当前工作区不一致。常见原因：清单未生成、在其它目录运行进程、清单被删除或未与仓库同步。请在本 monorepo 根目录重新执行「生成」以写入清单后再回滚；若仅想修正状态请联系管理员或手动调整数据库。"
+      "no_manifest_entry": "未找到生成清单 codegen_manifest.json 中与此配置对应的条目。数据库状态可能与当前工作区不一致。常见原因：清单未生成、在其它目录运行进程、清单被删除或未与仓库同步。请在本 monorepo 根目录重新执行「生成」以写入清单后再回滚；若仅想修正状态请联系管理员或手动调整数据库。",
+      "cleanup_failed": "文件回滚已完成，但迁移清理失败。已保留 manifest 条目，便于后续重试。",
+      "cleanup_pending": "文件回滚已完成，但本次跳过了迁移清理。已保留 manifest 条目；请去掉 --no-auto-migrate 重新执行回滚以完成收尾。"
+    },
+    "download": {
+      "no_manifest_entry": "当前工作区没有此配置的生成快照，无法下载已生成结果。请先在本仓库根目录执行生成以写入 manifest。",
+      "no_tracked_files": "当前 manifest 条目未记录任何可下载文件，无法导出 ZIP。",
+      "missing_files": "manifest 已记录生成结果，但以下文件在磁盘上缺失：{paths}"
     },
     "delete_guard": {
       "manifest_present": "当前配置仍在工作区清单中，请先回滚生成产物后再删除。",
@@ -759,13 +767,11 @@
   "conversation": {
     "not_found": "对话不存在",
     "archived": "对话已归档",
-    "batch_archived": "批量归档完成",
     "exported": "对话导出成功",
     "deleted": "对话已删除",
     "already_archived": "对话已处于归档状态",
     "search_keyword_required": "请输入搜索关键词",
-    "agent_id": "智能体 ID",
-    "before_days": "归档天数"
+    "agent_id": "智能体 ID"
   },
   "ai": {
     "request_failed": "AI 请求失败",
@@ -1259,7 +1265,6 @@
       "search": "搜索对话消息",
       "detail": "查看对话详情",
       "archive": "归档对话",
-      "batch_archive": "批量归档对话",
       "delete": "删除对话",
       "export": "导出对话"
     },
@@ -2358,7 +2363,7 @@
         "name": "验证码驱动",
         "desc": "选择验证码的实现方式",
         "image": "本地图形验证码",
-        "slider": "滑动拼图验证码"
+        "unavailable_option": "当前值：{provider}（插件未启用或不可用于当前端）"
       },
       "captcha_difficulty": {
         "name": "验证码难度",
@@ -2558,7 +2563,7 @@
         "name": "验证码驱动",
         "desc": "选择验证码的实现方式",
         "image": "本地图形验证码",
-        "slider": "滑动拼图验证码"
+        "unavailable_option": "当前值：{provider}（插件未启用或不可用于当前端）"
       },
       "captcha_difficulty": {
         "name": "验证码难度",
@@ -3128,6 +3133,10 @@
   },
   "config.tenant.user_registration_enabled.name": "用户注册",
   "config.tenant.user_registration_enabled.desc": "是否允许用户自助注册",
+  "config.tenant.user_login_captcha_enabled.name": "用户登录验证码",
+  "config.tenant.user_login_captcha_enabled.desc": "用户端登录时是否需要验证码验证",
+  "config.tenant.user_login_captcha_enable_threshold.name": "用户登录验证码阈值",
+  "config.tenant.user_login_captcha_enable_threshold.desc": "用户端登录失败达到该次数后显示验证码（0 表示始终显示）",
   "config.tenant.user_registration_captcha_enabled.name": "注册验证码",
   "config.tenant.user_registration_captcha_enabled.desc": "注册时是否需要验证码验证",
   "config.tenant.user_default_active.name": "默认激活",
@@ -3181,7 +3190,10 @@
   "page_operation.error.multiple_failures_parse": "[System] Multiple page operations failed (including JSON parse errors). Please tell the user to retry with valid input or refresh the page.",
   "page_operation.error.multiple_failures_sequence": "[System] Multiple page operations failed in sequence. Please tell the user the operation encountered issues and suggest they retry or refresh the page.",
   "page_operation.error.json_parse_failed": "工具参数 JSON 解析失败。请确保参数为有效 JSON。请勿使用相同无效输入重试。",
+  "page_operation.error.screenshot_requires_vision": "当前运行模型不支持图片识别，不能调用页面截图能力。请改用文字页面上下文或切换到支持视觉的模型。",
   "page_operation.hint.replace_section": "使用短且唯一的 HTML 片段作为 replace_section 的 old_html；避免使用整篇文档。",
+  "page_operation.hint.screenshot_attached": "已附加当前页面截图供内部视觉分析使用。仅在视觉/布局判断时参考，不要向用户描述原始附件链路。",
+  "page_operation.hint.screenshot_follow_up": "请结合现有页面上下文分析所附的当前页面截图。仅在 DOM 或文本上下文无法可靠判断视觉/布局细节时使用该截图。",
   "api.param.tenant_id": "目标企业 ID，0 表示平台附件",
   "api.param.tenant_id_filter": "按企业筛选",
   "api.param.file": "上传的文件",

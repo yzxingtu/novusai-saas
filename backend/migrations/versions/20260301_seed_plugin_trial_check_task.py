@@ -1,6 +1,6 @@
 """seed plugin trial expiration check task
 
-Bug 27 fix: check_trial_expirations() was defined but never called.
+Bug 27 fix: the legacy trial-expiration task was defined but never called.
 Add a daily scheduled task to auto-disable expired trial licenses.
 
 Revision ID: 20260301_plugin_trial

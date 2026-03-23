@@ -326,12 +326,14 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         if not plugin:
             raise NotFoundException(message="plugin.error.not_found")
 
-        # 优先读取磁盘最新 manifest（便于插件作者修正 schema 后立即生效）
+        # 优先读取磁盘最新 manifest 做 schema 校验，但不在配置保存路径上隐式同步
+        # manifest snapshot；same-version drift 仍必须显式走 sync-manifest。
+        # / Prefer the latest disk manifest for schema validation, but do not
+        # implicitly sync the DB manifest snapshot during config updates.
         manifest_data = plugin.manifest or {}
         try:
             latest_manifest = self._loader.load_manifest(plugin.name)
             manifest_data = latest_manifest.model_dump(exclude_none=True)
-            plugin.manifest = manifest_data
         except Exception as exc:
             logger.warning(
                 "Failed to load latest manifest for plugin {}, fallback to DB manifest: {}",

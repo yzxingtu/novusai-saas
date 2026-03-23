@@ -9,6 +9,7 @@ from typing import Any
 
 from fastapi import Body, Request
 
+from app.api.shared._captcha_helpers import inject_captcha_provider_options
 from app.api.shared._storage_helpers import (
     get_known_plugin_storage_drivers as _get_known_plugin_storage_drivers,
 )
@@ -239,6 +240,11 @@ class AdminConfigController(GlobalController):
                     _inject_legacy_select_option(c)
                     for c in raw_configs
                 ]
+            inject_captcha_provider_options(
+                raw_configs,
+                required_endpoints={"admin"},
+                unavailable_label_key="config.platform.captcha_provider.unavailable_option",
+            )
 
             # 转换响应 / Convert response
             configs = [
@@ -345,6 +351,11 @@ class AdminConfigController(GlobalController):
                     _inject_legacy_select_option(c)
                     for c in raw_configs
                 ]
+            inject_captcha_provider_options(
+                raw_configs,
+                required_endpoints={"admin"},
+                unavailable_label_key="config.platform.captcha_provider.unavailable_option",
+            )
 
             configs = [
                 _translate_config_item(c)

@@ -7,8 +7,6 @@ type FieldRecord = Record<string, unknown>;
 
 import { preferences } from '@vben/preferences';
 
-import { $t } from '#/locales';
-
 import { inferFieldConfigForMerge, inferRelationTable } from './infer';
 
 /** 根据当前语言获取字段显示名 / Get field display label for current locale */
@@ -129,6 +127,8 @@ export function getComponent(f: FieldRecord): string {
     base = comp;
   } else {
     const t = String(f.type || '').trim();
+    const normalized = t.toLowerCase();
+
     if (t === 'RichText') base = 'RichText';
     else if (['ImageUpload', 'Images', 'Image'].includes(t)) base = 'ImageUpload';
     else if (['File', 'Files'].includes(t)) base = 'FilePicker';
@@ -138,7 +138,27 @@ export function getComponent(f: FieldRecord): string {
     else if (t === 'CronPicker') base = 'CronPicker';
     else if (t === 'DictSelect') base = 'DictSelect';
     else if (t === 'Cascader') base = 'Cascader';
-    else base = 'input';
+    else if (t === 'ForeignKey') base = 'ApiSelect';
+    else if (t === 'Enum') base = 'select';
+    else if (t === 'Boolean' || normalized === 'bool' || normalized.includes('boolean')) base = 'switch';
+    else if (t === 'Text') base = 'textarea';
+    else if (
+      ['Integer', 'Float', 'Decimal', 'Number'].includes(t) ||
+      normalized.includes('int') ||
+      normalized.includes('float') ||
+      normalized.includes('decimal')
+    ) {
+      base = 'number';
+    } else if (
+      t === 'Date' ||
+      t === 'DateTime' ||
+      normalized.includes('date') ||
+      normalized.includes('timestamp')
+    ) {
+      base = 'date';
+    } else {
+      base = 'input';
+    }
   }
 
   // 当基础组件为 Input 等文本型，且配置了枚举 + 枚举渲染方式时，优先按枚举渲染（下拉框/单选/多选）
@@ -169,19 +189,6 @@ export function getTableCellRenderType(f: FieldRecord): string {
   if (t.includes('file')) return 'File';
   if (t.includes('richtext')) return 'RichText';
   return 'text';
-}
-
-/** 获取示例单元格数值 / Get sample value for component preview */
-export function getSampleCellValue(f: FieldRecord, rowIdx: number): string {
-  const name = String(f.name || '').toLowerCase();
-  const t = String(f.type || '').toLowerCase();
-  if (name === 'id') return String(rowIdx + 1);
-  if (t.includes('boolean')) return rowIdx === 0 ? '✓' : '—';
-  if (t.includes('int') || t.includes('float') || t.includes('decimal')) return String(100 + rowIdx);
-  if (t.includes('date') || t.includes('datetime')) return rowIdx < 9 ? `2024-01-0${rowIdx + 1}` : `2024-01-${rowIdx + 1}`;
-  if (t.includes('image') || t.includes('file')) return `file_${rowIdx}.pdf`;
-  if (t.includes('richtext')) return '...';
-  return rowIdx === 0 ? $t('admin.system.codegen.preview.sampleA') : rowIdx === 1 ? $t('admin.system.codegen.preview.sampleB') : $t('admin.system.codegen.preview.sampleC');
 }
 
 export function isMultiple(f: FieldRecord): boolean {

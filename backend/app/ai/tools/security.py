@@ -39,11 +39,6 @@ class ToolInputValidationError(ToolSecurityError):
     pass
 
 
-class ToolOutputTruncatedError(ToolSecurityError):
-    """Output was truncated / 输出被截断"""
-    pass
-
-
 class ToolExecutionLimitExceeded(ToolSecurityError):
     """Tool call count exceeded / 工具调用次数超限"""
     pass
@@ -532,7 +527,6 @@ __all__ = [
     # Exceptions / 异常
     "ToolSecurityError",
     "ToolInputValidationError",
-    "ToolOutputTruncatedError",
     "ToolExecutionLimitExceeded",
     "SSRFBlockedError",
     "SqlInjectionBlockedError",

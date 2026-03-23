@@ -107,6 +107,9 @@ class TenantMiddleware:
         "/tenant/",
         "/api/user/",
         "/api/public/tenant",
+        "/api/public/captcha",
+        "/plugin-public-assets/tenant/",
+        "/plugin-public-assets/user/",
     )
 
     @staticmethod

@@ -12,6 +12,10 @@ Three-mode resolution chain (priority high → low):
 3. platform    — global platform storage (Mode 1)
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.configs.service import ConfigService, PLATFORM_TENANT_ID
@@ -19,6 +23,91 @@ from app.core.i18n import _
 from app.enums import ErrorCode
 from app.exceptions import BusinessException
 from app.storage import StorageConfig
+
+if TYPE_CHECKING:
+    from app.models.tenant.attachment import Attachment
+
+
+ATTACHMENT_STORAGE_SNAPSHOT_KEY = "_storage_snapshot"
+
+
+def build_attachment_storage_snapshot(
+    storage_config: StorageConfig,
+    scope: str,
+) -> dict[str, str | None]:
+    """Build a non-secret storage snapshot stored on attachment.meta."""
+    return {
+        "scope": scope,
+        "driver": storage_config.driver,
+        "root_path": storage_config.root_path,
+        "base_url": storage_config.base_url,
+    }
+
+
+def merge_attachment_storage_snapshot(
+    metadata: dict | None,
+    storage_config: StorageConfig,
+    scope: str,
+) -> dict:
+    """Merge internal storage snapshot into attachment DB metadata."""
+    merged = metadata.copy() if metadata else {}
+    merged[ATTACHMENT_STORAGE_SNAPSHOT_KEY] = build_attachment_storage_snapshot(
+        storage_config,
+        scope,
+    )
+    return merged
+
+
+def strip_internal_attachment_meta(metadata: dict | None) -> dict | None:
+    """Drop DB-only internal metadata before writing object metadata."""
+    if not metadata:
+        return None
+    cleaned = {
+        key: value
+        for key, value in metadata.items()
+        if key != ATTACHMENT_STORAGE_SNAPSHOT_KEY
+    }
+    return cleaned or None
+
+
+def infer_attachment_storage_scope(
+    meta: dict | None,
+    path: str,
+    tenant_id: int | None,
+) -> str | None:
+    """Infer whether an attachment originally used platform or tenant storage."""
+    snapshot = meta.get(ATTACHMENT_STORAGE_SNAPSHOT_KEY) if isinstance(meta, dict) else None
+    if isinstance(snapshot, dict):
+        scope = snapshot.get("scope")
+        if scope in {"platform", "tenant"}:
+            return scope
+
+    normalized_path = (path or "").lstrip("/")
+    if normalized_path.startswith("platform/"):
+        return "platform"
+    if tenant_id is not None and normalized_path.startswith(f"tenants/{tenant_id}/"):
+        return "platform"
+    if tenant_id is not None and tenant_id > PLATFORM_TENANT_ID:
+        return "tenant"
+    return None
+
+
+def _storage_snapshot_matches_config(
+    snapshot: dict[str, Any] | None,
+    config: StorageConfig,
+) -> bool:
+    if not isinstance(snapshot, dict):
+        return True
+    snapshot_driver = snapshot.get("driver")
+    if snapshot_driver and snapshot_driver != config.driver:
+        return False
+    snapshot_root_path = snapshot.get("root_path")
+    if snapshot_root_path and snapshot_root_path != config.root_path:
+        return False
+    snapshot_base_url = snapshot.get("base_url")
+    if snapshot_base_url and snapshot_base_url != config.base_url:
+        return False
+    return True
 
 
 class StorageConfigResolver:
@@ -277,5 +366,63 @@ class StorageConfigResolver:
         self._check_driver_available(config)
         return config
 
+    async def resolve_for_attachment_record(
+        self,
+        attachment: Attachment,
+    ) -> StorageConfig:
+        """Resolve storage config for a full attachment record using snapshot/path hints."""
+        effective_tenant_id = (
+            attachment.tenant_id
+            if attachment.tenant_id is not None
+            else PLATFORM_TENANT_ID
+        )
+        scope = infer_attachment_storage_scope(
+            getattr(attachment, "meta", None),
+            getattr(attachment, "path", ""),
+            getattr(attachment, "tenant_id", None),
+        )
+        snapshot = (
+            getattr(attachment, "meta", {}).get(ATTACHMENT_STORAGE_SNAPSHOT_KEY)
+            if isinstance(getattr(attachment, "meta", None), dict)
+            else None
+        )
 
-__all__ = ["StorageConfigResolver"]
+        if scope == "platform":
+            config = await self.resolve_platform_config()
+            if config.driver == attachment.driver:
+                if not _storage_snapshot_matches_config(snapshot, config):
+                    raise BusinessException(
+                        message=_("error.common.invalid_parameter"),
+                        code=ErrorCode.INVALID_PARAMETER,
+                    )
+                self._check_driver_available(config)
+                return config
+
+        if scope == "tenant" and attachment.tenant_id is not None:
+            try:
+                config = await self.resolve_tenant_config(attachment.tenant_id)
+                if config.driver == attachment.driver:
+                    if not _storage_snapshot_matches_config(snapshot, config):
+                        raise BusinessException(
+                            message=_("error.common.invalid_parameter"),
+                            code=ErrorCode.INVALID_PARAMETER,
+                        )
+                    self._check_driver_available(config)
+                    return config
+            except BusinessException:
+                pass
+
+        return await self.resolve_for_attachment(
+            driver=attachment.driver,
+            tenant_id=effective_tenant_id,
+        )
+
+
+__all__ = [
+    "ATTACHMENT_STORAGE_SNAPSHOT_KEY",
+    "StorageConfigResolver",
+    "build_attachment_storage_snapshot",
+    "infer_attachment_storage_scope",
+    "merge_attachment_storage_snapshot",
+    "strip_internal_attachment_meta",
+]

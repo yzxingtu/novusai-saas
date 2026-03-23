@@ -316,10 +316,7 @@ class ImageProcessService:
         from app.services.common.storage_config_resolver import StorageConfigResolver
 
         resolver = StorageConfigResolver(self.db)
-        return await resolver.resolve_for_attachment(
-            driver=attachment.driver,
-            tenant_id=self.tenant_id or PLATFORM_TENANT_ID,
-        )
+        return await resolver.resolve_for_attachment_record(attachment)
 
     @staticmethod
     def _build_direct_cdn_url(attachment: Attachment) -> str | None:

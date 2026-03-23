@@ -170,7 +170,6 @@ Key 格式：
 当前真实清理点：
 
 - `ConversationService.archive_conversation()`
-- `ConversationService.batch_archive()`
 - `ConversationService._after_delete()`
 - 管理端/企业端/用户端 `DELETE .../conversations/{id}/memory-state`
 

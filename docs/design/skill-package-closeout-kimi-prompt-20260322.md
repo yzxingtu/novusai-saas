@@ -51,7 +51,6 @@ SkillPackage = 归组 / 来源 / 目录单元
   - 页面 `/admin/ai/skill-packages/:id`
 - 企业端：
   - `GET /tenant/ai/skill-packages`
-  - `GET /tenant/ai/skill-packages/available`
   - `GET /tenant/ai/skill-packages/{id}`
   - `GET /tenant/ai/skill-packages/{id}/skills`
   - `GET /tenant/ai/skill-packages/{id}/resolved-tools`
@@ -101,4 +100,3 @@ rg -n "bind_mode|AgentSkillBinding|auto-bind|SystemAgentService" . --glob '!back
 5. 后续建议（最多 2 条）
 
 请直接执行，不要先输出泛泛计划，也不要发散到其它任务线。
-

@@ -1,46 +1,58 @@
 /**
  * User attachment upload API / 用户端附件上传 API
- * Backend: /user/attachments/* (simplified: upload + preflight only) / 对接后端 /user/attachments/* 接口（精简版，仅上传+预检）
+ * Backend: /user/attachments/* / 对接后端 /user/attachments/* 接口
  */
+import type {
+  AttachmentInfo,
+  AttachmentInfoRaw,
+  AttachmentUrlResult,
+} from '#/types/attachment';
 import type { ApiRequestOptions } from '#/utils/request';
 
+import { inferCategory } from '#/types/attachment';
+import { downloadBlob } from '#/utils/download';
 import { computeFileHash } from '#/utils/file-hash';
 import { requestClient } from '#/utils/request';
 
 const API_PREFIX = '/api/user/attachments';
 
-/** Attachment info (backend raw format) / 附件信息（后端原始格式） */
-interface AttachmentRaw {
-  base_url?: string;
-  business_id?: number;
-  business_type?: string;
-  created_at?: string;
-  driver?: string;
-  extension?: string;
-  hash?: string;
-  id: number;
-  mime_type?: string;
-  name?: string;
-  original_name?: string;
-  path?: string;
-  size?: number;
-  source?: string;
-  status?: string;
-  tenant_id?: number;
-  uploader_id?: number;
-  visibility?: string;
+function transformAttachmentInfo(raw: AttachmentInfoRaw): AttachmentInfo {
+  return {
+    id: raw.id,
+    tenantId: raw.tenant_id,
+    name: raw.name,
+    originalName: raw.original_name,
+    path: raw.path,
+    size: raw.size,
+    hash: raw.hash,
+    mimeType: raw.mime_type,
+    extension: raw.extension,
+    visibility: raw.visibility,
+    driver: raw.driver,
+    baseUrl: raw.base_url,
+    status: raw.status,
+    source: raw.source,
+    uploaderId: raw.uploader_id,
+    businessType: raw.business_type,
+    businessId: raw.business_id,
+    meta: raw.meta,
+    previewUrl: raw.preview_url,
+    category: inferCategory(raw.mime_type),
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+  } satisfies AttachmentInfo;
 }
 
 /** Upload response / 上传响应 */
 export interface UploadResult {
-  attachment: AttachmentRaw;
+  attachment: AttachmentInfoRaw;
   url: string;
   used_bytes: number;
 }
 
 /** Preflight response / 预检响应 */
 interface PreflightResult {
-  attachment?: AttachmentRaw;
+  attachment?: AttachmentInfoRaw;
   exists: boolean;
   url?: string;
   used_bytes?: number;
@@ -121,6 +133,53 @@ export async function getUserUploadRulesApi(
     `${API_PREFIX}/upload-rules`,
     options,
   );
+}
+
+/**
+ * Get user attachment detail / 获取用户附件详情
+ */
+export async function getAttachmentDetailApi(
+  attachmentId: number,
+  options?: ApiRequestOptions,
+): Promise<AttachmentInfo> {
+  const raw = await requestClient.get<AttachmentInfoRaw>(
+    `${API_PREFIX}/${attachmentId}`,
+    options,
+  );
+  return transformAttachmentInfo(raw);
+}
+
+/**
+ * Get user attachment preview URL / 获取用户附件预览链接
+ */
+export async function getAttachmentPreviewUrlApi(
+  attachmentId: number,
+  params?: { expires?: number },
+  options?: ApiRequestOptions,
+): Promise<AttachmentUrlResult> {
+  return requestClient.get<AttachmentUrlResult>(
+    `${API_PREFIX}/${attachmentId}/preview-url`,
+    { params, ...options },
+  );
+}
+
+/**
+ * Download user attachment blob / 下载用户附件二进制
+ */
+export async function downloadAttachmentApi(
+  attachmentId: number,
+  filename: string,
+  mimeType?: string | null,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  const blob = await requestClient.download<Blob>(
+    `${API_PREFIX}/${attachmentId}/download`,
+    options,
+  );
+  downloadBlob(blob, {
+    filename,
+    ...(mimeType ? { mimeType } : {}),
+  });
 }
 
 /**

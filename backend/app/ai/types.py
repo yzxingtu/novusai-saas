@@ -27,6 +27,7 @@ class ChatMessage:
     separate from content for display. Persisted in message metadata.
     思考/推理内容（链式思考模型如 DeepSeek R1），与最终答复分离，存入 metadata。
     """
+
     role: Literal["system", "user", "assistant", "tool"]
     content: str
     name: str | None = None
@@ -34,6 +35,7 @@ class ChatMessage:
     tool_call_id: str | None = None
     attachments: list[dict] | None = None
     reasoning_content: str | None = None
+    internal_only: bool = False
 
 
 @dataclass
@@ -44,6 +46,7 @@ class ChatResponse:
     Unified chat response format.
     统一的聊天响应格式。
     """
+
     # Message content / 消息内容
     message: ChatMessage
 
@@ -79,6 +82,7 @@ class ChatChunk:
     Used for SSE streaming responses.
     用于 SSE 流式响应。
     """
+
     # Delta content / 增量内容
     delta: str
 
@@ -111,6 +115,7 @@ class EmbeddingResponse:
     Unified embedding vector format.
     统一的嵌入向量格式。
     """
+
     # Embedding vectors (list of lists, supports multi-text) / 嵌入向量（列表的列表，支持多文本）
     embeddings: list[list[float]]
 
@@ -136,6 +141,7 @@ class ImageResponse:
     Unified image generation format.
     统一的图像生成格式。
     """
+
     # Image URL (or base64) / 图像 URL（或 base64）
     url: str
 
@@ -157,6 +163,7 @@ class ImageGenerationResponse:
     Contains all images and metadata from a single generation request.
     包含一次生图请求返回的所有图像及元数据。
     """
+
     # Generated images / 生成的图像列表
     images: list[ImageResponse]
 
@@ -178,6 +185,7 @@ class TestModelResult:
     Typed return value for the test_model method.
     test_model 方法的类型化返回值。
     """
+
     connected: bool
     latency_ms: int = 0
     input_tokens: int = 0
@@ -192,6 +200,7 @@ class TestModelResult:
 def messages_to_dicts(messages: list[ChatMessage]) -> list[dict]:
     """Convert ChatMessage list to dict list (avoids repeated dataclasses.asdict calls) / 将 ChatMessage 列表转换为 dict 列表"""
     from dataclasses import asdict
+
     return [asdict(msg) for msg in messages]
 
 

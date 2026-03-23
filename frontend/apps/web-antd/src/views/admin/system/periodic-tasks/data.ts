@@ -56,7 +56,7 @@ export function formatInterval(seconds: null | number | undefined): string {
 /**
  * 格式化 Cron 表达式为可读文本
  */
-export function formatCronHuman(cron: null | string | undefined): string {
+function formatCronHuman(cron: null | string | undefined): string {
   if (!cron) return '-';
   const parts = cron.trim().split(/\s+/);
   if (parts.length !== 5) return cron;

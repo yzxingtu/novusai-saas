@@ -51,7 +51,9 @@ def _fake_generate_output() -> SimpleNamespace:
         result=SimpleNamespace(
             success=True,
             files_created=["backend/app/models/system/demo.py"],
-            files_modified=["frontend/apps/web-antd/src/views/admin/system/demo/index.vue"],
+            files_modified=[
+                "frontend/apps/web-antd/src/views/admin/system/demo/index.vue"
+            ],
             errors=[],
         ),
         config_id=None,
@@ -85,7 +87,9 @@ def test_codegen_delete_not_found_returns_clean_json(monkeypatch) -> None:
 
     monkeypatch.setattr("app.cli._run_async", _raise_not_found)
 
-    result = runner.invoke(cli, ["codegen", "delete", "--id", "999999", "--yes", "--json"])
+    result = runner.invoke(
+        cli, ["codegen", "delete", "--id", "999999", "--yes", "--json"]
+    )
 
     assert result.exit_code == 1
     assert '"success": false' in result.output.lower()
@@ -250,7 +254,9 @@ def test_codegen_validate_draft_returns_enveloped_json(monkeypatch) -> None:
         staticmethod(lambda: _FakeService()),
     )
 
-    result = runner.invoke(cli, ["codegen", "validate", "--stdin", "--mode", "draft", "--json"])
+    result = runner.invoke(
+        cli, ["codegen", "validate", "--stdin", "--mode", "draft", "--json"]
+    )
 
     assert result.exit_code == 0
     payload = _parse_output_json(result)
@@ -274,8 +280,20 @@ def test_codegen_preview_stdin_returns_enveloped_json(monkeypatch) -> None:
             assert project_root is not None
             return {
                 "success": True,
-                "files": [{"path": "backend/app/models/system/demo.py", "type": "create", "line_count": 12}],
-                "summary": {"create_count": 1, "modify_count": 0, "backend_files": 1, "frontend_files": 0, "total_lines": 12},
+                "files": [
+                    {
+                        "path": "backend/app/models/system/demo.py",
+                        "type": "create",
+                        "line_count": 12,
+                    }
+                ],
+                "summary": {
+                    "create_count": 1,
+                    "modify_count": 0,
+                    "backend_files": 1,
+                    "frontend_files": 0,
+                    "total_lines": 12,
+                },
                 "warnings": [],
                 "conflicts": [],
                 "error": None,
@@ -395,7 +413,9 @@ def test_codegen_presets_show_returns_enveloped_json(monkeypatch) -> None:
         },
     )
 
-    result = runner.invoke(cli, ["codegen", "presets", "show", "--name", "simple", "--json"])
+    result = runner.invoke(
+        cli, ["codegen", "presets", "show", "--name", "simple", "--json"]
+    )
 
     assert result.exit_code == 0
     payload = _parse_output_json(result)
@@ -424,6 +444,142 @@ def test_codegen_db_tables_json_uses_envelope(monkeypatch) -> None:
     payload = _parse_output_json(result)
     assert payload["success"] is True
     assert payload["data"]["items"][0]["name"] == "demo"
+
+
+def test_codegen_rollback_no_auto_migrate_returns_partial_json(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """rollback --no-auto-migrate 不应误报成功，manifest 也必须保留."""
+    from app.cli import cli
+
+    runner = CliRunner()
+    backend_dir = tmp_path / "backend"
+    backend_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = tmp_path / "codegen_manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "entries": [
+                    {
+                        "resource": "demo",
+                        "module": "system",
+                        "generated_at": "2026-03-23T00:00:00Z",
+                        "config_id": 8,
+                        "config_hash": "abc",
+                        "files": [],
+                    }
+                ],
+                "version": 1,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr("app.cli._BACKEND_DIR", backend_dir)
+    monkeypatch.setattr("app.cli._CODEGEN_PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(
+        "app.codegen.rollback.CodegenRollback.rollback",
+        lambda self, **kwargs: SimpleNamespace(
+            success=True,
+            files_deleted=["backend/app/models/system/demo.py"],
+            files_modified=[],
+            files_skipped=[],
+            manual_steps=[],
+            errors=[],
+        ),
+    )
+    monkeypatch.setattr("app.cli._run_async", lambda coro: coro.close())
+
+    result = runner.invoke(
+        cli,
+        [
+            "codegen",
+            "rollback",
+            "--resource",
+            "demo",
+            "--no-auto-migrate",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 1
+    payload = _parse_output_json(result)
+    assert payload["success"] is False
+    assert payload["migration_cleaned"] is False
+    assert payload["pending_migration_cleanup"] is True
+    assert payload["files_deleted"] == ["backend/app/models/system/demo.py"]
+    assert any(
+        "cleanup" in error.lower() or "清理" in error for error in payload["errors"]
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["entries"][0]["resource"] == "demo"
+
+
+def test_codegen_download_by_id_uses_service_download(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """codegen download --id 应下载 manifest 对应快照，而不是走 preview_zip."""
+    from app.cli import cli
+
+    runner = CliRunner()
+    backend_dir = tmp_path / "backend"
+    backend_dir.mkdir(parents=True, exist_ok=True)
+    output_path = tmp_path / "demo.zip"
+    calls: dict[str, object] = {}
+
+    class _DummyDbContext:
+        async def __aenter__(self):
+            return None
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+    class _FakeService:
+        def __init__(self, db):
+            self.db = db
+
+        async def get_by_id(self, config_id: int):
+            return SimpleNamespace(
+                id=config_id, resource="demo", config_json={"resource": "demo"}
+            )
+
+        async def get_by_resource(self, resource: str):
+            return SimpleNamespace(
+                id=8, resource=resource, config_json={"resource": resource}
+            )
+
+        async def download(self, config_id: int, project_root: Path | None = None):
+            calls["config_id"] = config_id
+            calls["project_root"] = project_root
+            return b"zip-bytes"
+
+        @staticmethod
+        def create_standalone():
+            raise AssertionError(
+                "create_standalone should not be used for --id download"
+            )
+
+    monkeypatch.setattr("app.cli._BACKEND_DIR", backend_dir)
+    monkeypatch.setattr("app.cli._CODEGEN_PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr("app.core.database.get_db_context", lambda: _DummyDbContext())
+    monkeypatch.setattr(
+        "app.services.system.codegen_service.CodegenService", _FakeService
+    )
+
+    result = runner.invoke(
+        cli,
+        ["codegen", "download", "--id", "8", "--output", str(output_path), "--json"],
+    )
+
+    assert result.exit_code == 0
+    payload = _parse_output_json(result)
+    assert payload["success"] is True
+    assert output_path.read_bytes() == b"zip-bytes"
+    assert calls == {"config_id": 8, "project_root": tmp_path}
 
 
 def test_cli_imports() -> None:

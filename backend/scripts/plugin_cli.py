@@ -423,6 +423,22 @@ def _manifest_has_frontend_extensions(manifest_data: dict) -> bool:
     )
 
 
+def _load_frontend_package_json(package_json_path: Path) -> dict | None:
+    try:
+        payload = json.loads(package_json_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _has_local_frontend_dependency(package_data: dict, package_name: str) -> bool:
+    for field in ("dependencies", "devDependencies"):
+        deps = package_data.get(field)
+        if isinstance(deps, dict) and package_name in deps:
+            return True
+    return False
+
+
 def _detect_package_manager(frontend_dir: Path) -> list[str]:
     is_windows = os.name == "nt"
     if (frontend_dir / "pnpm-lock.yaml").is_file():
@@ -754,10 +770,35 @@ def cmd_validate(args: argparse.Namespace) -> None:
                             warnings.append(f"i18n key '{key}' in {json_file.name} should start with '{prefix}'")
 
             if _manifest_has_frontend_extensions(data or {}):
+                frontend_dir = plugin_dir / "frontend"
+                package_json_path = frontend_dir / "package.json"
+                frontend_package: dict | None = None
+                if package_json_path.is_file():
+                    frontend_package = _load_frontend_package_json(package_json_path)
+                    if frontend_package is None:
+                        errors.append("frontend/package.json invalid JSON object")
+                    else:
+                        print("  [OK] frontend/package.json exists")
+                        if _has_local_frontend_dependency(frontend_package, "vue"):
+                            print("  [OK] frontend local build dependency present: vue")
+                        else:
+                            errors.append(
+                                "frontend/package.json must declare local build dependency 'vue' "
+                                "in dependencies or devDependencies"
+                            )
+                else:
+                    errors.append("frontend/package.json missing")
+
+                vite_config = frontend_dir / "vite.config.ts"
+                if vite_config.is_file():
+                    print("  [OK] frontend/vite.config.ts exists")
+                else:
+                    errors.append("frontend/vite.config.ts missing")
+
                 dev_entry_rel = str(
                     ((frontend.get("dev") or {}).get("entry") or "src/index.ts")
                 )
-                dev_entry = plugin_dir / "frontend" / dev_entry_rel
+                dev_entry = frontend_dir / dev_entry_rel
                 if dev_entry.is_file():
                     print(f"  [OK] frontend dev entry exists: {dev_entry_rel}")
                 else:

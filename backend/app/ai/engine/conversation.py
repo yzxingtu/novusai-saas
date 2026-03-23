@@ -317,62 +317,114 @@ class ConversationEngine(BaseEngine):
         openai_tools = to_openai_tools(tools) if tools else None
 
         supports_streaming = getattr(ai_model, "supports_streaming", True) if ai_model else True
+        routed_model_id = (
+            int(getattr(route_result, "model_id", 0) or 0)
+            if route_result is not None and getattr(route_result, "is_overridden", False)
+            else None
+        )
+        route_reason = (
+            route_result.reason
+            if route_result is not None and getattr(route_result, "is_overridden", False)
+            else None
+        )
 
         total_tokens = 0
         input_tokens = 0
         output_tokens = 0
         runtime_info = runtime_context.runtime_info
 
-        if not supports_streaming:
-            logger.info(
-                "Model {} does not support streaming, falling back to sync chat",
+        try:
+            if not supports_streaming:
+                logger.info(
+                    "Model {} does not support streaming, falling back to sync chat",
+                    model_code,
+                )
+                response = await adapter.chat(
+                    messages=messages,
+                    model=model_code,
+                    temperature=agent.temperature,
+                    max_tokens=agent.max_tokens,
+                    top_p=agent.top_p or 1.0,
+                    tools=openai_tools,
+                    supports_vision=bool(is_vision),
+                    supports_audio=bool(is_audio),
+                    supports_video=bool(is_video),
+                )
+                total_tokens = response.total_tokens or 0
+                input_tokens = response.input_tokens or 0
+                output_tokens = response.output_tokens or 0
+                yield ChatChunk(
+                    delta=response.message.content or "",
+                    role=response.message.role,
+                    finish_reason="stop",
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    total_tokens=total_tokens,
+                    tool_calls=response.tool_calls,
+                    metadata={"runtime_model_info": runtime_info},
+                )
+            else:
+                async for chunk in adapter.stream_chat(
+                    messages=messages,
+                    model=model_code,
+                    temperature=agent.temperature,
+                    max_tokens=agent.max_tokens,
+                    top_p=agent.top_p or 1.0,
+                    tools=openai_tools,
+                    supports_vision=bool(is_vision),
+                    supports_audio=bool(is_audio),
+                    supports_video=bool(is_video),
+                ):
+                    if chunk.total_tokens is not None:
+                        total_tokens = chunk.total_tokens
+                    if chunk.input_tokens is not None:
+                        input_tokens = chunk.input_tokens
+                    if chunk.output_tokens is not None:
+                        output_tokens = chunk.output_tokens
+                    chunk.metadata = dict(chunk.metadata or {})
+                    chunk.metadata.setdefault("runtime_model_info", runtime_info)
+                    yield chunk
+        except Exception as exc:
+            logger.error(
+                "Engine stream upstream failed: provider={} model={} conversation={} error={}",
+                provider.code,
                 model_code,
+                conversation_id,
+                str(exc),
+                exc_info=True,
             )
-            response = await adapter.chat(
-                messages=messages,
-                model=model_code,
-                temperature=agent.temperature,
-                max_tokens=agent.max_tokens,
-                top_p=agent.top_p or 1.0,
-                tools=openai_tools,
-                supports_vision=bool(is_vision),
-                supports_audio=bool(is_audio),
-                supports_video=bool(is_video),
-            )
-            total_tokens = response.total_tokens or 0
-            input_tokens = response.input_tokens or 0
-            output_tokens = response.output_tokens or 0
-            yield ChatChunk(
-                delta=response.message.content or "",
-                role=response.message.role,
-                finish_reason="stop",
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                total_tokens=total_tokens,
-                tool_calls=response.tool_calls,
-                metadata={"runtime_model_info": runtime_info},
-            )
-        else:
-            async for chunk in adapter.stream_chat(
-                messages=messages,
-                model=model_code,
-                temperature=agent.temperature,
-                max_tokens=agent.max_tokens,
-                top_p=agent.top_p or 1.0,
-                tools=openai_tools,
-                supports_vision=bool(is_vision),
-                supports_audio=bool(is_audio),
-                supports_video=bool(is_video),
-            ):
-                if chunk.total_tokens is not None:
-                    total_tokens = chunk.total_tokens
-                if chunk.input_tokens is not None:
-                    input_tokens = chunk.input_tokens
-                if chunk.output_tokens is not None:
-                    output_tokens = chunk.output_tokens
-                chunk.metadata = dict(chunk.metadata or {})
-                chunk.metadata.setdefault("runtime_model_info", runtime_info)
-                yield chunk
+            if should_record_call_log and ai_model:
+                try:
+                    await self.gateway.usage_recorder.log_call_failure(
+                        error=exc,
+                        start_time=stream_start,
+                        provider=provider,
+                        model=model_code,
+                        model_id=ai_model.id,
+                        messages=messages,
+                        temperature=agent.temperature,
+                        max_tokens=agent.max_tokens,
+                        top_p=agent.top_p or 1.0,
+                        tools=openai_tools,
+                        request_type=RequestTypeEnum.CHAT.value,
+                        tenant_id=tenant_id,
+                        user_id=user_id,
+                        user_type=log_user_type,
+                        agent_id=getattr(agent, "id", None),
+                        conversation_id=conversation_id,
+                        billing_context=billing_context,
+                        routed_model_id=routed_model_id,
+                        route_reason=route_reason,
+                    )
+                except Exception as log_exc:
+                    logger.error(
+                        "Engine stream failure audit log failed: provider={} model={} conversation={} error={}",
+                        provider.code,
+                        model_code,
+                        conversation_id,
+                        str(log_exc),
+                    )
+            raise
 
         # 流结束后：与 gateway.chat 一致 — 先租户计量再 Key；日志 best-effort
         # 整个尾部用 try/except 保护，避免计量/flush 异常阻塞生成器导致前端永远收不到 done
@@ -438,16 +490,8 @@ class ConversationEngine(BaseEngine):
                         agent_id=getattr(agent, "id", None),
                         conversation_id=conversation_id,
                         billing_context=billing_context,
-                        routed_model_id=(
-                            int(getattr(route_result, "model_id", 0) or 0)
-                            if route_result is not None and getattr(route_result, "is_overridden", False)
-                            else None
-                        ),
-                        route_reason=(
-                            route_result.reason
-                            if route_result is not None and getattr(route_result, "is_overridden", False)
-                            else None
-                        ),
+                        routed_model_id=routed_model_id,
+                        route_reason=route_reason,
                     )
                 except Exception as log_exc:
                     logger.error("Engine stream call log failed: {}", str(log_exc))

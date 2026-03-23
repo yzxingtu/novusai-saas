@@ -21,7 +21,7 @@ def _normalize_input_variables(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
 
 
-def extract_agent_relations(agent: Any) -> tuple[str | None, dict | None, list[dict]]:
+def _extract_agent_relations(agent: Any) -> tuple[str | None, dict | None, list[dict]]:
     """
     从 ORM Agent 对象中安全提取关联的 model_name、model_capabilities 和 skills。
     Safely extract related model_name, model_capabilities and skills from ORM Agent object.
@@ -66,7 +66,7 @@ def build_agent_base_item(agent: Any) -> dict[str, Any]:
     admin/tenant 各自在此基础上追加端特有的字段。
     admin/tenant each append endpoint-specific fields on top of this.
     """
-    model_name, model_capabilities, skills = extract_agent_relations(agent)
+    model_name, model_capabilities, skills = _extract_agent_relations(agent)
 
     _otid = getattr(agent, "owner_tenant_id", None)
     # owner_type: 仅列表/详情展示用派生字段（非 ORM 列、非历史 owner_type 列）。

@@ -1,0 +1,334 @@
+name: storage-billing
+version: "0.1.0"
+display_name:
+  zh-CN: "对象存储对账计费"
+  en: "Storage Billing Reconciliation"
+description:
+  zh-CN: "独立的对象存储对账计费插件，负责按官方账单口径归集七牛云、阿里云 OSS、腾讯云 COS 的云端流量费用，并按套餐 feature 控制企业侧可见性。"
+  en: "Standalone storage billing reconciliation plugin that aggregates official traffic charges from Qiniu Kodo, Alibaba Cloud OSS, and Tencent Cloud COS, with tenant visibility controlled by plan features."
+author: "NovusAI"
+icon: ""
+scope: all_tenants
+tags:
+  - storage
+  - billing
+  - reconciliation
+
+capabilities:
+  - db:own_tables
+  - platform:read
+  - http:outbound
+  - config:write
+
+db_table_prefixes:
+  - px_storage_billing_
+
+dependencies:
+  python: []
+  plugins: []
+
+pricing:
+  type: free
+
+config_schema:
+  type: object
+  properties:
+    providers:
+      type: object
+      properties:
+        qiniu-kodo:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              default: false
+            profile_code:
+              type: string
+              default: "qiniu-default"
+            bill_source:
+              type: string
+              enum: ["finance_api"]
+              default: "finance_api"
+            access_key:
+              type: string
+              default: ""
+              x-encrypted: true
+            secret_key:
+              type: string
+              default: ""
+              x-encrypted: true
+            account_identifier:
+              type: string
+              default: ""
+        aliyun-oss:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              default: false
+            profile_code:
+              type: string
+              default: "aliyun-default"
+            bill_source:
+              type: string
+              enum: ["oss_subscription", "bss_openapi"]
+              default: "bss_openapi"
+            region:
+              type: string
+              default: ""
+            access_key_id:
+              type: string
+              default: ""
+              x-encrypted: true
+            access_key_secret:
+              type: string
+              default: ""
+              x-encrypted: true
+            bill_bucket:
+              type: string
+              default: ""
+            bill_prefix:
+              type: string
+              default: ""
+            account_identifier:
+              type: string
+              default: ""
+        tencent-cos:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              default: false
+            profile_code:
+              type: string
+              default: "tencent-default"
+            bill_source:
+              enum: ["cos_bill_bucket", "describe_bill_detail"]
+              type: string
+              default: "describe_bill_detail"
+            region:
+              type: string
+              default: ""
+            secret_id:
+              type: string
+              default: ""
+              x-encrypted: true
+            secret_key:
+              type: string
+              default: ""
+              x-encrypted: true
+            bill_bucket:
+              type: string
+              default: ""
+            bill_prefix:
+              type: string
+              default: ""
+            account_identifier:
+              type: string
+              default: ""
+
+extensions:
+  custom:
+    - type: tenant_menu_policy
+      name: feature_managed_entitlement
+      description: "Tenant entitlement is managed by host plan features instead of lifecycle auto-grant."
+      data:
+        grant_mode: manual_entitlement
+    - type: billing_scope
+      name: official_bill_only
+      description: "Only official provider bills are billable; local storage is excluded."
+      data:
+        supported_drivers:
+          - qiniu-kodo
+          - aliyun-oss
+          - tencent-cos
+        excluded_drivers:
+          - local
+        reconciliation_mode: official_bill_alignment
+
+  permissions:
+    - code: billing_admin
+      name:
+        zh-CN: "对象存储对账管理"
+        en: "Storage Billing Admin"
+      scope: admin
+      actions: [view, configure, reconcile]
+    - code: billing_portal
+      name:
+        zh-CN: "对象存储账单"
+        en: "Storage Billing Portal"
+      scope: tenant
+      actions: [view]
+    - code: billing_statement
+      name:
+        zh-CN: "对象存储账单明细"
+        en: "Storage Billing Statement"
+      scope: tenant
+      actions: [list, export]
+
+  api:
+    admin_routes:
+      - method: GET
+        path: overview
+        handler: "api.admin.get_overview"
+        summary: "Get storage billing plugin overview"
+        auth: required
+        permission: "billing_admin:view"
+      - method: GET
+        path: provider-profiles
+        handler: "api.admin.list_provider_profiles"
+        summary: "List storage billing provider profiles"
+        auth: required
+        permission: "billing_admin:view"
+      - method: PUT
+        path: provider-profiles
+        handler: "api.admin.save_provider_profiles"
+        summary: "Save storage billing provider profiles"
+        auth: required
+        permission: "billing_admin:configure"
+      - method: POST
+        path: "provider-profiles/{provider}/validate"
+        handler: "api.admin.validate_provider_profile"
+        summary: "Validate storage billing provider profile"
+        auth: required
+        permission: "billing_admin:configure"
+      - method: GET
+        path: bindings
+        handler: "api.admin.list_bindings"
+        summary: "List storage billing tenant bindings"
+        auth: required
+        permission: "billing_admin:view"
+      - method: POST
+        path: bindings
+        handler: "api.admin.create_binding"
+        summary: "Create storage billing tenant binding"
+        auth: required
+        permission: "billing_admin:configure"
+      - method: PUT
+        path: "bindings/{binding_id}"
+        handler: "api.admin.update_binding"
+        summary: "Update storage billing tenant binding"
+        auth: required
+        permission: "billing_admin:configure"
+      - method: POST
+        path: "bindings/{binding_id}/validate"
+        handler: "api.admin.validate_binding"
+        summary: "Validate storage billing tenant binding"
+        auth: required
+        permission: "billing_admin:configure"
+      - method: GET
+        path: runs
+        handler: "api.admin.list_reconciliation_runs"
+        summary: "List storage billing reconciliation runs"
+        auth: required
+        permission: "billing_admin:view"
+      - method: GET
+        path: "runs/{run_id}"
+        handler: "api.admin.get_reconciliation_run"
+        summary: "Get storage billing reconciliation run detail"
+        auth: required
+        permission: "billing_admin:view"
+      - method: GET
+        path: "runs/{run_id}/charges"
+        handler: "api.admin.list_reconciliation_run_charges"
+        summary: "List storage billing charge rows generated by a run"
+        auth: required
+        permission: "billing_admin:view"
+      - method: GET
+        path: "runs/{run_id}/charges/export"
+        handler: "api.admin.export_reconciliation_run_charges"
+        summary: "Export storage billing charge rows for a run"
+        auth: required
+        permission: "billing_admin:view"
+      - method: POST
+        path: reconcile/run
+        handler: "api.admin.run_reconciliation"
+        summary: "Trigger storage billing reconciliation placeholder run"
+        auth: required
+        permission: "billing_admin:reconcile"
+      - method: POST
+        path: providers/qiniu-kodo/monthly-settlement/run
+        handler: "api.admin.run_qiniu_monthly_settlement"
+        summary: "Trigger Qiniu monthly settled billing import"
+        auth: required
+        permission: "billing_admin:reconcile"
+    tenant_routes:
+      - method: GET
+        path: statement/current
+        handler: "api.tenant.get_current_statement"
+        summary: "Get current tenant storage billing statement placeholder"
+        auth: required
+        permission: "billing_portal:view"
+      - method: GET
+        path: statements
+        handler: "api.tenant.list_statements"
+        summary: "List recent tenant storage billing statements"
+        auth: required
+        permission: "billing_portal:view"
+      - method: GET
+        path: statement/charges
+        handler: "api.tenant.list_statement_charges"
+        summary: "List tenant storage billing charge rows for a billing date"
+        auth: required
+        permission: "billing_portal:view"
+      - method: GET
+        path: statement/charges/export
+        handler: "api.tenant.export_statement_charges"
+        summary: "Export tenant storage billing charge rows for a billing date"
+        auth: required
+        permission: "billing_statement:export"
+      - method: GET
+        path: me/prerequisites
+        handler: "api.tenant.get_prerequisites"
+        summary: "Get current tenant storage billing prerequisites"
+        auth: required
+        permission: "billing_portal:view"
+
+  tasks:
+    - name: daily_reconciliation
+      handler: "tasks.run_daily_reconciliation"
+      schedule_type: cron
+      cron_expression: "0 3 * * *"
+      queue: default
+      description: "Daily storage billing reconciliation at 03:00 platform time"
+    - name: qiniu_monthly_settlement
+      handler: "tasks.run_qiniu_monthly_settlement"
+      schedule_type: cron
+      cron_expression: "0 3 6 * *"
+      queue: default
+      description: "Qiniu monthly settled billing import at 03:00 on day 6"
+
+  frontend:
+    pages:
+      - name: storage-billing-admin-home
+        path: /admin/plugins/storage-billing
+        component: "StorageBillingAdminPage"
+        scope: admin
+        icon: "lucide:receipt-text"
+        title:
+          zh-CN: "对象存储对账计费"
+          en: "Storage Billing"
+        menu:
+          icon: "lucide:receipt-text"
+          sort_order: 74
+          title:
+            zh-CN: "对象存储对账计费"
+            en: "Storage Billing"
+      - name: storage-billing-tenant-home
+        path: /tenant/plugins/storage-billing
+        component: "StorageBillingTenantPage"
+        scope: tenant
+        icon: "lucide:badge-dollar-sign"
+        title:
+          zh-CN: "对象存储账单"
+          en: "Storage Billing"
+        menu:
+          icon: "lucide:badge-dollar-sign"
+          sort_order: 74
+          title:
+            zh-CN: "对象存储账单"
+            en: "Storage Billing"
+    dev:
+      entry: "src/index.ts"
+    release:
+      manifest: "plugin.manifest.json"

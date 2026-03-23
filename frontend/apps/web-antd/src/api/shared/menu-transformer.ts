@@ -51,6 +51,11 @@ export interface BackendMenuItemRaw {
   children?: BackendMenuItemRaw[];
 }
 
+const PLUGIN_STANDALONE_ROUTE_PREFIXES = [
+  '/admin/plugins/',
+  '/tenant/plugins/',
+] as const;
+
 /**
  * Recursively extract all permission codes from menu data / 从菜单数据中递归提取所有权限码
  * @param menus Menu list / 菜单列表
@@ -231,7 +236,9 @@ function transformMenuItem(
   const routePath = transformRoutePath(item.path, endpoint);
 
   // Build route item / 构建路由项
-  const transformedComponent = transformComponentPath(item.component, endpoint);
+  const transformedComponent = isPluginStandalonePageMenu(item)
+    ? ''
+    : transformComponentPath(item.component, endpoint);
   const route: RouteRecordStringComponent = {
     name: routeName,
     path: routePath,
@@ -254,6 +261,13 @@ function transformMenuItem(
   }
 
   return route;
+}
+
+function isPluginStandalonePageMenu(item: BackendMenuItemRaw): boolean {
+  const path = item.path ?? '';
+  return PLUGIN_STANDALONE_ROUTE_PREFIXES.some((prefix) =>
+    path.startsWith(prefix),
+  );
 }
 
 /** Missing component info for logging / 缺失组件提示信息 */

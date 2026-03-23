@@ -17,7 +17,7 @@ description: NovusAI 用户端开发技能。当需要开发或修复 `/api/user
 - 用户端 API 前缀固定为 `/api/user/*`
 - 依赖注入使用 `ActiveTenantUser`
 - 布局使用 `UserLayout`
-- 当前前端静态主路由为 `/home`、`/ai-chat`、`/settings/*`，认证页在共享 `/auth/*`
+- 当前前端静态主路由为 `/`、`/ai-chat`、`/settings/*`，其中 `/home` 仅保留为兼容 alias；认证页在共享 `/auth/*`
 - 用户端是移动端优先，不照搬 admin / tenant 后台布局
 - 企业识别基于 Host header，不以 `tenant_code` 参数为主
 - 品牌、域名识别、验证码统一走 `usePublicConfigStore` + `CaptchaProvider`
@@ -29,7 +29,7 @@ description: NovusAI 用户端开发技能。当需要开发或修复 `/api/user
 3. 检查 `TenantMiddleware` 和前端 `detectDomainType()` 是否协同工作
 4. 检查品牌配置是否来自 `loadTenantConfig()`
 5. 验证平台域名与企业域名的访问隔离
-6. 若菜单或首页异常，同时检查前端 `/home` 路由与后端 legacy `menu:user.dashboard` 命名是否发生漂移
+6. 若菜单或首页异常，同时检查前端 `/` 主路由、`/home` alias 与后端 legacy `menu:user.dashboard` 命名是否发生漂移
 
 ## 关键禁令
 

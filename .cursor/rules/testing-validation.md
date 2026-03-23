@@ -55,6 +55,22 @@
 - 新增上传下载：至少验证上传成功、下载成功、权限或可见性正确
 - 新增插件页：至少验证菜单注册、页面加载、权限与卸载后回收
 
+## 附件 / 图片 / 存储专项验证
+
+- 涉及 `attachments`、`ImageUpload`、`FilePicker`、`FilePreview`、`smartUploadFile`、对象存储插件、图片显示 helper 时，禁止只做页面点点看或只跑单侧测试
+- 最低静态检查：
+  - `rg "requestClient\\.upload\\(" frontend/apps/web-antd/src`
+  - `rg "Number\\(|parseInt\\(" frontend/apps/web-antd/src`，并人工确认 avatar/icon/image 字段没有脆弱强转
+- 最低前端验证：
+  - `pnpm exec vue-tsc --noEmit --skipLibCheck --pretty false -p apps/web-antd/tsconfig.json`
+- 最低后端验证：
+  - `pytest backend/tests/test_storage_plugins.py backend/tests/services/test_attachment_service.py`
+- 若改动涉及共享上传组件、AI chat 附件、页面截图上传，还必须确认共享层没有偷偷绕回 `requestClient.upload`
+- 若改动涉及可见性、秒传、图片预览，必须额外确认：
+  - public / private 不会误复用同一附件记录
+  - 图片显示走公共 image 接口，非图片或私有预览走签名 preview 接口
+  - 对象存储的公开 CDN 处理能力不会被错误用于私有文件
+
 ## 参考
 
 - `../skills/novusai-saas/references/testing-spec.md`

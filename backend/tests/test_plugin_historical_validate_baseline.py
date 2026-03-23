@@ -17,25 +17,42 @@ import plugin_cli as pc
 
 
 @pytest.mark.parametrize(
-    "plugin_dir",
+    ("plugin_dir", "expected_exit_code", "expected_fragment"),
     [
-        _BACKEND_DIR
-        / "plugins/.backups/netdisk/1.0.0_20260316_201902/files",
-        _BACKEND_DIR
-        / "plugins/.backups/novus-crud-code/1.0.0_20260314_083358/files",
-        _BACKEND_DIR
-        / "plugins/.backups/regression-probe/0.0.1_20260303_090249/files",
-        _BACKEND_DIR
-        / "plugins/.backups/example-weather/1.0.0_20260303_091616/files",
+        (
+            _BACKEND_DIR / "plugins/.backups/netdisk/1.0.0_20260316_201902/files",
+            1,
+            "Plugin metadata icon must be empty or 'icon.png'",
+        ),
+        (
+            _BACKEND_DIR
+            / "plugins/.backups/novus-crud-code/1.0.0_20260314_083358/files",
+            1,
+            "Plugin metadata icon must be empty or 'icon.png'",
+        ),
+        (
+            _BACKEND_DIR
+            / "plugins/.backups/regression-probe/0.0.1_20260303_090249/files",
+            0,
+            "plugin.yaml valid",
+        ),
+        (
+            _BACKEND_DIR
+            / "plugins/.backups/example-weather/1.0.0_20260303_091616/files",
+            0,
+            "plugin.yaml valid",
+        ),
     ],
 )
 def test_historical_plugin_validate_baseline(
     plugin_dir: Path,
+    expected_exit_code: int,
+    expected_fragment: str,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     with pytest.raises(SystemExit) as exc:
         pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
 
-    assert exc.value.code == 0
+    assert exc.value.code == expected_exit_code
     out = capsys.readouterr().out
-    assert "plugin.yaml valid" in out
+    assert expected_fragment in out

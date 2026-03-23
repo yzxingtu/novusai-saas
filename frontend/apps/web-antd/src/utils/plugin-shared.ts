@@ -36,6 +36,7 @@ import {
   registerPageContextExtras,
   registerPageOperations,
 } from '#/components/business/ai-slide-panel';
+import { registerCaptchaProvider as registerCaptchaProviderRegistry } from '#/components/business/captcha';
 import {
   mountRichTextEditor,
   RichTextEditor,
@@ -59,6 +60,7 @@ export {
   IconifyIcon,
   listPageOperations,
   mountRichTextEditor,
+  registerCaptchaProviderRegistry as registerCaptchaProvider,
   registerPageContext,
   registerPageContextExtras,
   registerPageOperations,
@@ -137,6 +139,8 @@ export interface NovusPluginSharedAPI {
   registerPageContextExtras: typeof registerPageContextExtras;
   /** Register page operations for AI invocation / 注册页面操作供 AI 调用 */
   registerPageOperations: typeof registerPageOperations;
+  /** Register captcha provider component / 注册验证码提供方组件 */
+  registerCaptchaProvider: typeof registerCaptchaProviderRegistry;
   /** List currently registered page operations (e.g. to merge with plugin ops) / 获取当前已注册的页面操作（如与插件操作合并） */
   listPageOperations: typeof listPageOperations;
   /** Append page operations without replacing (for plugins; call after platform has registered) / 追加页面操作不替换（供插件在平台注册后追加） */
@@ -179,6 +183,7 @@ export function exposePluginShared(): void {
     getCurrentUser,
     router,
     listPageOperations,
+    registerCaptchaProvider: registerCaptchaProviderRegistry,
     registerPageContext,
     registerPageContextExtras,
     registerPageOperations,

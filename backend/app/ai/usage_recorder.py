@@ -273,6 +273,7 @@ class UsageRecorder:
         billing_context: dict[str, Any] | None = None,
         routed_model_id: int | None = None,
         route_reason: str | None = None,
+        metering_context: UsageMeteringContext | None = None,
     ) -> None:
         """
         流式响应完成回调 / Stream response completion callback.

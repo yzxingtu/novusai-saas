@@ -29,7 +29,7 @@ import {
   updateAdminProfileApi,
 } from '#/api/admin/auth';
 import { $t } from '#/locales';
-import { getProcessedImageUrl, toAvatarDisplayUrl } from '#/utils/image';
+import { toAttachmentImageUrl, toAvatarDisplayUrl } from '#/utils/image';
 
 defineOptions({ name: 'AdminProfile' });
 
@@ -68,12 +68,7 @@ const displayName = computed(
 );
 const avatarSrc = computed(() => {
   const val = form.value.avatar || userStore.userInfo?.avatar || '';
-  if (!val) return '';
-  const id = Number(val);
-  if (Number.isFinite(id) && id > 0) {
-    return getProcessedImageUrl(id, { preset: 'avatar' });
-  }
-  return val;
+  return toAttachmentImageUrl(val, { preset: 'avatar' });
 });
 const avatarInitial = computed(() =>
   (displayName.value || '?').charAt(0).toUpperCase(),

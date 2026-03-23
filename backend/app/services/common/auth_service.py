@@ -7,6 +7,7 @@ Provides authentication logic for platform admins, tenant admins and tenant user
 
 import secrets
 import string
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import and_, or_, select
@@ -14,7 +15,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.captcha.service import captcha_service
 from app.configs.service import ConfigService
-from app.core.base_model import utc_now
 from app.core.i18n import _
 from app.core.config import settings
 from app.core.security import (
@@ -94,6 +94,18 @@ class AuthService:
     def _log_auth_warning(cls, event: str, **fields: Any) -> None:
         details = cls._format_auth_fields(**fields)
         logger.warning(f"{event} | {details}" if details else event)
+
+    @staticmethod
+    def _utc_now_aware() -> datetime:
+        """返回认证安全字段使用的带时区 UTC 时间 / Return an aware UTC datetime for auth security fields."""
+        return datetime.now(timezone.utc)
+
+    @staticmethod
+    def _normalize_utc(value: datetime) -> datetime:
+        """比较前统一归一化为带时区 UTC 时间 / Normalize naive or aware datetimes to aware UTC before comparison."""
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
 
     async def _record_active_tokens(
         self,
@@ -429,7 +441,7 @@ class AuthService:
         await self._reset_admin_login_failures(admin.id)
 
         # 更新登录信息
-        admin.last_login_at = utc_now()
+        admin.last_login_at = self._utc_now_aware()
         admin.last_login_ip = client_ip
 
         # 生成 Token（应用会话配置）
@@ -498,7 +510,7 @@ class AuthService:
                 "login_lockout_minutes", default=30
             )
 
-        now = utc_now()
+        now = self._utc_now_aware()
 
         if user_type == "admin":
             # 处理平台管理员
@@ -579,8 +591,7 @@ class AuthService:
             return False
 
         # 检查锁定是否已过期
-        now = utc_now()
-        return locked_until > now
+        return self._normalize_utc(locked_until) > self._utc_now_aware()
 
     async def _reset_login_failures(self, user_id: int, user_type: str = "admin") -> None:
         """
@@ -946,7 +957,7 @@ class AuthService:
         await self._reset_login_failures(tenant_admin.id, "tenant_admin")
 
         # 更新登录信息
-        tenant_admin.last_login_at = utc_now()
+        tenant_admin.last_login_at = self._utc_now_aware()
         tenant_admin.last_login_ip = client_ip
 
         # 生成 Token（优先使用企业会话配置，回退到平台配置）
@@ -1316,10 +1327,10 @@ class AuthService:
             raise AuthenticationException(message=_("auth.credentials_invalid"))
 
         captcha_enabled = await self._config_service.get_tenant_config(
-            user.tenant_id, "tenant_captcha_enabled", default=True
+            user.tenant_id, "user_login_captcha_enabled", default=True
         )
         threshold = await self._config_service.get_tenant_config(
-            user.tenant_id, "tenant_captcha_enable_threshold", default=2
+            user.tenant_id, "user_login_captcha_enable_threshold", default=0
         )
         fail_count = user.login_fail_count or 0
         captcha_required = captcha_enabled and (threshold == 0 or fail_count >= threshold)
@@ -1361,7 +1372,7 @@ class AuthService:
         await self._reset_login_failures(user.id, "tenant_user")
 
         # 更新登录信息
-        user.last_login_at = utc_now()
+        user.last_login_at = self._utc_now_aware()
         user.last_login_ip = client_ip
 
         # 生成 Token（优先使用企业会话配置，回退到平台配置）

@@ -39,26 +39,6 @@ export function getPackageRoleColor(roleKey: null | string | undefined): string 
   }
 }
 
-export function getPackageRoleIcon(roleKey: null | string | undefined): string {
-  switch (roleKey) {
-    case 'platform_system': {
-      return 'lucide:shield-check';
-    }
-    case 'plugin_managed': {
-      return 'lucide:plug';
-    }
-    case 'tenant_owned': {
-      return 'lucide:building-2';
-    }
-    case 'platform_catalog': {
-      return 'lucide:package';
-    }
-    default: {
-      return 'lucide:package';
-    }
-  }
-}
-
 export function getPackageRoleText(roleKey: null | string | undefined): string {
   if (!roleKey) {
     return $t(getFallbackTextKey());

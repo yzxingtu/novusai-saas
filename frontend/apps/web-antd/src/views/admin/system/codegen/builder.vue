@@ -366,11 +366,9 @@ const previewConflictCount = computed(
 function createDefaultEndpoint(
   scope: 'admin' | 'tenant',
 ): Record<string, unknown> {
-  const r =
+  const plural =
     (store.configJson.resource_plural as string) ||
-    (store.configJson.resource as string) ||
-    'items';
-  const plural = r.endsWith('s') ? r : `${r}s`;
+    pluralize((store.configJson.resource as string) || 'item');
   return {
     scope,
     data_mode: scope === 'admin' ? 'independent' : 'tenant_isolated',
@@ -388,6 +386,7 @@ function createDefaultEndpoint(
 }
 
 function onAdminChange(checked: boolean) {
+  const previousEndpoints = [...endpoints.value];
   if (checked) {
     const hasAdminEp = endpoints.value.some(
       (e) => (e.scope as string) === 'admin',
@@ -395,7 +394,7 @@ function onAdminChange(checked: boolean) {
     if (!hasAdminEp) {
       const next = [createDefaultEndpoint('admin'), ...endpoints.value];
       store.updateConfig({ endpoints: next });
-      syncBaseClassFromEndpoints(next);
+      syncBaseClassFromEndpoints(next, previousEndpoints);
     }
   } else {
     const next = endpoints.value.filter((e) => (e.scope as string) !== 'admin');
@@ -404,11 +403,12 @@ function onAdminChange(checked: boolean) {
       return;
     }
     store.updateConfig({ endpoints: next });
-    syncBaseClassFromEndpoints(next);
+    syncBaseClassFromEndpoints(next, previousEndpoints);
   }
 }
 
 function onTenantChange(checked: boolean) {
+  const previousEndpoints = [...endpoints.value];
   if (checked) {
     const hasTenantEp = endpoints.value.some(
       (e) => (e.scope as string) === 'tenant',
@@ -416,7 +416,7 @@ function onTenantChange(checked: boolean) {
     if (!hasTenantEp) {
       const next = [...endpoints.value, createDefaultEndpoint('tenant')];
       store.updateConfig({ endpoints: next });
-      syncBaseClassFromEndpoints(next);
+      syncBaseClassFromEndpoints(next, previousEndpoints);
     }
   } else {
     const next = endpoints.value.filter(
@@ -427,7 +427,7 @@ function onTenantChange(checked: boolean) {
       return;
     }
     store.updateConfig({ endpoints: next });
-    syncBaseClassFromEndpoints(next);
+    syncBaseClassFromEndpoints(next, previousEndpoints);
   }
 }
 
@@ -437,24 +437,90 @@ function extractCheckboxChecked(event: unknown): boolean {
   );
 }
 
-function syncBaseClassFromEndpoints(eps: Record<string, unknown>[]) {
+function getSuggestedBaseClassFromEndpoints(
+  eps: Record<string, unknown>[],
+): 'BaseModel' | 'TenantModel' {
   const hasTenant = eps.some((e) => (e.scope as string) === 'tenant');
+  return hasTenant ? 'TenantModel' : 'BaseModel';
+}
+
+function syncBaseClassFromEndpoints(
+  eps: Record<string, unknown>[],
+  previousEps: Record<string, unknown>[] = endpoints.value,
+) {
   const m = model.value;
-  const nextClass = hasTenant ? 'TenantModel' : 'BaseModel';
-  if ((m.base_class as string) !== nextClass) {
-    store.updateConfig({ model: { ...m, base_class: nextClass } });
+  const currentClass = String(m.base_class || '');
+  const previousSuggested = getSuggestedBaseClassFromEndpoints(previousEps);
+  const nextSuggested = getSuggestedBaseClassFromEndpoints(eps);
+
+  if (!currentClass || currentClass === previousSuggested) {
+    if (currentClass !== nextSuggested) {
+      store.updateConfig({ model: { ...m, base_class: nextSuggested } });
+    }
   }
 }
 
+function shouldSyncAutoRoutePrefix(
+  routePrefix: string,
+  previousResource: string,
+  previousPlural: string,
+): boolean {
+  const normalized = routePrefix.trim();
+  const candidates = new Set(['/items']);
+
+  if (previousResource) {
+    candidates.add(`/${previousResource}`);
+    candidates.add(`/${pluralize(previousResource)}`);
+  }
+  if (previousPlural) {
+    candidates.add(`/${previousPlural}`);
+  }
+
+  return !normalized || candidates.has(normalized);
+}
+
 function onResourceChange(v: string) {
-  store.updateConfig({ resource: v });
-  if (v && !(store.configJson.resource_plural as string)) {
-    store.updateConfig({ resource_plural: pluralize(v) });
-  }
+  const previousResource = (store.configJson.resource as string) || '';
+  const previousPlural = (store.configJson.resource_plural as string) || '';
+  const nextPlural = v ? pluralize(v) : '';
   const m = (store.configJson.model as Record<string, unknown>) || {};
-  if (v && !m.table_name) {
-    store.updateConfig({ model: { ...m, table_name: v } });
+  const currentTableName = String(m.table_name || '');
+  const shouldUpdatePlural =
+    Boolean(v) &&
+    (!previousPlural || previousPlural === pluralize(previousResource));
+  const shouldUpdateTableName =
+    Boolean(v) &&
+    (!currentTableName ||
+      currentTableName === previousResource ||
+      currentTableName === previousPlural);
+  const nextEndpoints = endpoints.value.map((ep) => {
+    const routePrefix = String(ep.route_prefix || '');
+    if (
+      !shouldSyncAutoRoutePrefix(routePrefix, previousResource, previousPlural)
+    ) {
+      return ep;
+    }
+    return {
+      ...ep,
+      route_prefix: nextPlural ? `/${nextPlural}` : routePrefix,
+    };
+  });
+
+  const patch: Record<string, unknown> = { resource: v };
+  if (shouldUpdatePlural) {
+    patch.resource_plural = nextPlural;
   }
+  if (shouldUpdateTableName) {
+    patch.model = { ...m, table_name: nextPlural };
+  }
+  if (
+    nextEndpoints.some(
+      (ep, index) => ep.route_prefix !== endpoints.value[index]?.route_prefix,
+    )
+  ) {
+    patch.endpoints = nextEndpoints;
+  }
+  store.updateConfig(patch);
 }
 
 function onPaletteAdd(item: PaletteItem) {
@@ -620,7 +686,7 @@ async function onSave() {
   }
 }
 
-async function doGenerate() {
+async function doGenerate(force = false) {
   validationErrors.value = [];
   try {
     const vResult = await postCodegenValidateApi({
@@ -634,8 +700,8 @@ async function doGenerate() {
     }
     const payload =
       store.configId != null
-        ? { config_id: store.configId, force: false, auto_migrate: true }
-        : { config_json: store.configJson, force: false, auto_migrate: true };
+        ? { config_id: store.configId, force, auto_migrate: true }
+        : { config_json: store.configJson, force, auto_migrate: true };
     const result = await postCodegenGenerateApi(payload);
     lastResult.value = result;
     resultModalVisible.value = true;
@@ -670,6 +736,7 @@ function openPreviewFromResult() {
 
 async function onGenerate() {
   const r = (store.configJson.resource as string) || '';
+  const forceGenerate = ref(false);
   isPreparingGenerate.value = true;
   try {
     const preview = await buildGeneratePreviewSnapshot();
@@ -796,21 +863,63 @@ async function onGenerate() {
               $t('admin.system.codegen.builder.generateWarningHint'),
             )
           : null,
+        h(
+          Checkbox,
+          {
+            defaultChecked: false,
+            onChange: (event: unknown) => {
+              forceGenerate.value = extractCheckboxChecked(event);
+            },
+          },
+          {
+            default: () =>
+              $t('admin.system.codegen.confirm.generateForceLabel'),
+          },
+        ),
+        h(
+          'p',
+          { class: 'm-0 text-xs text-muted-foreground' },
+          $t('admin.system.codegen.confirm.generateForceHint'),
+        ),
       ]),
       onOk: async () => {
         isGenerating.value = true;
-        await doGenerate();
+        await doGenerate(forceGenerate.value);
       },
     });
   } catch {
     Modal.confirm({
       title: $t('admin.system.codegen.builder.generateConfirmTitle'),
-      content: $t('admin.system.codegen.builder.generateConfirmContent', {
-        resource: r,
-      }),
+      content: h('div', { class: 'flex flex-col gap-3' }, [
+        h(
+          'p',
+          { class: 'm-0 text-sm text-muted-foreground' },
+          $t('admin.system.codegen.builder.generateConfirmContent', {
+            resource: r,
+          }),
+        ),
+        h(
+          Checkbox,
+          {
+            defaultChecked: false,
+            onChange: (event: unknown) => {
+              forceGenerate.value = extractCheckboxChecked(event);
+            },
+          },
+          {
+            default: () =>
+              $t('admin.system.codegen.confirm.generateForceLabel'),
+          },
+        ),
+        h(
+          'p',
+          { class: 'm-0 text-xs text-muted-foreground' },
+          $t('admin.system.codegen.confirm.generateForceHint'),
+        ),
+      ]),
       onOk: async () => {
         isGenerating.value = true;
-        await doGenerate();
+        await doGenerate(forceGenerate.value);
       },
     });
   } finally {
@@ -1218,16 +1327,16 @@ watch(
 </script>
 
 <template>
-  <Page auto-content-height content-class="flex flex-col gap-3">
-    <Card ref="builderTopRef" :body-style="{ padding: '12px' }">
-      <div class="flex flex-col gap-3">
+  <Page auto-content-height content-class="flex flex-col gap-2.5">
+    <Card ref="builderTopRef" :body-style="{ padding: '10px' }">
+      <div class="flex flex-col gap-2.5">
         <div
-          class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between"
+          class="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between"
         >
           <div class="min-w-0">
-            <div class="flex flex-wrap items-center gap-2">
+            <div class="flex flex-wrap items-center gap-1.5">
               <span
-                class="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground"
+                class="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
               >
                 <IconifyIcon icon="lucide:square-pen" class="size-3.5" />
                 {{
@@ -1295,7 +1404,7 @@ watch(
               </Button>
             </Tooltip>
             <Dropdown :trigger="['click']">
-              <Button>
+              <Button size="small">
                 {{ $t('admin.system.codegen.toolbar.more') }}
                 <IconifyIcon icon="lucide:chevron-down" class="ml-1 size-4" />
               </Button>
@@ -1340,6 +1449,7 @@ watch(
             </Dropdown>
             <Button
               v-access:code="['action.codegen.update']"
+              size="small"
               :loading="isSaving"
               @click="onSave"
             >
@@ -1354,6 +1464,7 @@ watch(
               <Button
                 v-access:code="['action.codegen.generate']"
                 type="primary"
+                size="small"
                 :loading="isGenerating || isPreparingGenerate"
                 @click="onGenerate"
               >
@@ -1365,10 +1476,9 @@ watch(
         </div>
 
         <div
-          class="grid gap-3 rounded-2xl border border-border/70 bg-muted/10 px-3 py-3 xl:grid-cols-[minmax(0,1.7fr)_auto]"
+          class="grid gap-2 rounded-xl border border-border/70 bg-muted/10 px-2.5 py-2.5 md:grid-cols-2 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.8fr)_auto]"
         >
-          <div class="grid gap-2 md:grid-cols-2 2xl:grid-cols-3">
-            <div>
+          <div>
               <div class="mb-1 text-[11px] font-medium text-muted-foreground">
                 {{ $t('admin.system.codegen.basic.resource') }}
               </div>
@@ -1378,8 +1488,8 @@ watch(
                 :placeholder="$t('admin.system.codegen.basic.resource')"
                 @update:model-value="onResourceChange"
               />
-            </div>
-            <div>
+          </div>
+          <div>
               <div
                 class="mb-1 flex items-center gap-1 text-[11px] font-medium text-muted-foreground"
               >
@@ -1420,15 +1530,12 @@ watch(
                 show-search
                 style="width: 100%"
               />
-              <div class="mt-2 flex flex-wrap items-center gap-2">
-                <span class="text-[11px] text-muted-foreground">
-                  {{ $t('admin.system.codegen.basic.moduleCommon') }}
-                </span>
+              <div class="mt-1.5 flex flex-wrap items-center gap-1">
                 <button
                   v-for="item in commonModuleOptions"
                   :key="item.value"
                   type="button"
-                  class="rounded-full border px-2.5 py-1 text-[11px] transition-colors"
+                  class="rounded-full border px-2 py-0.5 text-[10px] transition-colors"
                   :class="
                     moduleVal === item.value
                       ? 'border-primary bg-primary/5 text-primary'
@@ -1439,8 +1546,8 @@ watch(
                   {{ item.label }}
                 </button>
               </div>
-            </div>
-            <div>
+          </div>
+          <div>
               <div class="mb-1 text-[11px] font-medium text-muted-foreground">
                 {{ $t('admin.system.codegen.basic.displayName') }}
               </div>
@@ -1448,8 +1555,8 @@ watch(
                 v-model:value="displayName"
                 :placeholder="$t('admin.system.codegen.basic.displayName')"
               />
-            </div>
-            <div>
+          </div>
+          <div>
               <div class="mb-1 text-[11px] font-medium text-muted-foreground">
                 {{ $t('admin.system.codegen.basic.displayNameEn') }}
               </div>
@@ -1457,8 +1564,8 @@ watch(
                 v-model:value="displayNameEn"
                 :placeholder="$t('admin.system.codegen.basic.displayNameEn')"
               />
-            </div>
-            <div>
+          </div>
+          <div>
               <div class="mb-1 text-[11px] font-medium text-muted-foreground">
                 {{
                   $t('admin.system.codegen.basic.placeholder.resourcePlural')
@@ -1470,17 +1577,16 @@ watch(
                   $t('admin.system.codegen.basic.placeholder.resourcePlural')
                 "
               />
-            </div>
           </div>
 
           <div
-            class="flex flex-wrap items-center gap-3 rounded-xl border border-border/70 bg-background px-3 py-2"
+            class="flex min-w-0 flex-wrap items-center gap-3 rounded-xl border border-border/70 bg-background px-2.5 py-2"
           >
             <div>
-              <div class="mb-1 text-[11px] font-medium text-muted-foreground">
+              <div class="mb-1 text-[10px] font-medium text-muted-foreground">
                 {{ $t('admin.system.codegen.builder.basicsEntryTitle') }}
               </div>
-              <div class="flex flex-wrap gap-3">
+              <div class="flex flex-wrap gap-2">
                 <Checkbox
                   :checked="hasAdmin"
                   @change="
@@ -1500,10 +1606,10 @@ watch(
               </div>
             </div>
 
-            <div class="h-8 w-px bg-border/70" />
+            <div class="h-7 w-px bg-border/70" />
 
             <div>
-              <div class="mb-1 text-[11px] font-medium text-muted-foreground">
+              <div class="mb-1 text-[10px] font-medium text-muted-foreground">
                 {{ $t('admin.system.codegen.builder.basicsViewTitle') }}
               </div>
               <Radio.Group v-model:value="feMode" size="small">
@@ -1522,9 +1628,9 @@ watch(
 
     <div
       v-if="validationErrors.length > 0"
-      class="rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2"
+      class="rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-1.5"
     >
-      <div class="mb-2 flex items-start justify-between gap-3">
+      <div class="mb-1.5 flex items-start justify-between gap-3">
         <div>
           <div
             class="flex items-center gap-2 text-sm font-semibold text-amber-800"
@@ -1543,7 +1649,7 @@ watch(
         </Tag>
       </div>
 
-      <div class="grid max-h-44 gap-2 overflow-y-auto pr-1">
+      <div class="grid max-h-36 gap-1.5 overflow-y-auto pr-1">
         <div
           v-for="(item, index) in validationErrors"
           :key="`${item.path}-${item.field}-${index}`"
@@ -1568,7 +1674,9 @@ watch(
       </div>
     </div>
 
-    <div class="grid gap-3 xl:grid-cols-[300px_minmax(0,1fr)_320px]">
+    <div
+      class="grid gap-2.5 xl:grid-cols-[232px_minmax(0,1fr)_272px] 2xl:grid-cols-[244px_minmax(0,1fr)_288px]"
+    >
       <div class="flex min-w-0 flex-col gap-3">
         <ComponentPalette @add="onPaletteAdd" />
       </div>

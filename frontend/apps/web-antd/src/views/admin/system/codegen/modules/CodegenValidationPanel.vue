@@ -4,6 +4,8 @@
  *
  * 当未选中字段时，用于展示当前配置摘要、预览摘要与下一步动作。
  */
+import { IconifyIcon } from '@vben/icons';
+
 const props = defineProps<{
   displayName?: string;
   expertItemCount: number;
@@ -39,94 +41,84 @@ const emit = defineEmits<{
 
 <template>
   <div class="flex h-full flex-col overflow-y-auto bg-background">
-    <div class="border-b border-border px-4 py-3">
+    <div class="border-b border-border px-3 py-2">
       <div class="flex items-center justify-between gap-2">
-        <div class="text-sm font-semibold text-foreground">
-          {{ $t('admin.system.codegen.builder.panelTitle') }}
+        <div class="flex flex-wrap items-center gap-1.5">
+          <span
+            class="rounded-full px-2 py-0.5 text-[11px] font-medium"
+            :class="
+              isDirty
+                ? 'bg-amber-100 text-amber-700'
+                : 'bg-emerald-100 text-emerald-700'
+            "
+          >
+            {{
+              isDirty
+                ? $t('admin.system.codegen.builder.unsavedChanges')
+                : $t('admin.system.codegen.builder.savedState')
+            }}
+          </span>
+          <span
+            class="rounded-full px-2 py-0.5 text-[11px] font-medium"
+            :class="
+              hasAdmin
+                ? 'bg-sky-100 text-sky-700'
+                : 'bg-muted text-muted-foreground'
+            "
+          >
+            {{ $t('admin.system.codegen.enum.admin') }}
+          </span>
+          <span
+            class="rounded-full px-2 py-0.5 text-[11px] font-medium"
+            :class="
+              hasTenant
+                ? 'bg-emerald-100 text-emerald-700'
+                : 'bg-muted text-muted-foreground'
+            "
+          >
+            {{ $t('admin.system.codegen.enum.tenant') }}
+          </span>
+          <span
+            class="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+          >
+            {{
+              feMode === 'card'
+                ? $t('admin.system.codegen.frontend.card')
+                : $t('admin.system.codegen.frontend.table')
+            }}
+          </span>
+          <span
+            class="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+          >
+            {{ $t('admin.system.codegen.builder.metricFields') }} {{ fieldCount }}
+          </span>
+          <span
+            class="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+          >
+            {{ $t('admin.system.codegen.builder.metricAdvanced') }}
+            {{ expertItemCount }}
+          </span>
+          <span
+            v-if="validationErrorCount > 0"
+            class="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700"
+          >
+            {{ $t('admin.system.codegen.builder.metricErrors') }}
+            {{ validationErrorCount }}
+          </span>
         </div>
-        <span
-          class="rounded-full px-2 py-0.5 text-[11px] font-medium"
-          :class="
-            isDirty
-              ? 'bg-amber-100 text-amber-700'
-              : 'bg-emerald-100 text-emerald-700'
-          "
+        <button
+          type="button"
+          class="shrink-0 text-xs font-medium text-primary transition-colors hover:text-primary/80"
+          @click="emit('openPreview')"
         >
-          {{
-            isDirty
-              ? $t('admin.system.codegen.builder.unsavedChanges')
-              : $t('admin.system.codegen.builder.savedState')
-          }}
-        </span>
-      </div>
-      <div class="mt-2 flex flex-wrap gap-1.5">
-        <span
-          class="rounded-full px-2 py-0.5 text-[11px] font-medium"
-          :class="
-            hasAdmin
-              ? 'bg-sky-100 text-sky-700'
-              : 'bg-muted text-muted-foreground'
-          "
-        >
-          {{ $t('admin.system.codegen.enum.admin') }}
-        </span>
-        <span
-          class="rounded-full px-2 py-0.5 text-[11px] font-medium"
-          :class="
-            hasTenant
-              ? 'bg-emerald-100 text-emerald-700'
-              : 'bg-muted text-muted-foreground'
-          "
-        >
-          {{ $t('admin.system.codegen.enum.tenant') }}
-        </span>
-        <span
-          class="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
-        >
-          {{
-            feMode === 'card'
-              ? $t('admin.system.codegen.frontend.card')
-              : $t('admin.system.codegen.frontend.table')
-          }}
-        </span>
-        <span
-          class="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
-        >
-          {{ $t('admin.system.codegen.builder.metricFields') }} {{ fieldCount }}
-        </span>
-        <span
-          class="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
-        >
-          {{ $t('admin.system.codegen.builder.metricScopes') }} {{ scopeCount }}
-        </span>
-        <span
-          class="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
-        >
-          {{ $t('admin.system.codegen.builder.metricAdvanced') }}
-          {{ expertItemCount }}
-        </span>
-        <span
-          class="rounded-full px-2 py-0.5 text-[11px] font-medium"
-          :class="
-            validationErrorCount > 0
-              ? 'bg-amber-100 text-amber-700'
-              : 'bg-muted text-muted-foreground'
-          "
-        >
-          {{ $t('admin.system.codegen.builder.metricErrors') }}
-          {{ validationErrorCount }}
-        </span>
+          {{ $t('admin.system.codegen.toolbar.preview') }}
+        </button>
       </div>
     </div>
 
-    <div class="flex flex-col gap-3 p-3">
-      <section class="rounded-xl border border-border/70 bg-muted/10 px-3 py-3">
-        <div
-          class="mb-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground"
-        >
-          {{ $t('admin.system.codegen.builder.panelConfigTitle') }}
-        </div>
-        <div class="grid gap-2 text-sm">
+    <div class="flex flex-col gap-2 p-2.5">
+      <section class="rounded-xl border border-border/70 bg-muted/10 px-3 py-2.5">
+        <div class="grid gap-1.5 text-sm">
           <div class="grid grid-cols-[84px_minmax(0,1fr)] items-center gap-2">
             <span class="text-xs text-muted-foreground">
               {{ $t('admin.system.codegen.builder.panelResource') }}
@@ -162,22 +154,15 @@ const emit = defineEmits<{
         </div>
       </section>
 
-      <section class="rounded-xl border border-border/70 bg-muted/10 px-3 py-3">
-        <div class="mb-3 flex items-center justify-between">
-          <div class="text-sm font-medium text-foreground">
-            {{ $t('admin.system.codegen.builder.panelPreviewTitle') }}
-          </div>
-          <button
-            type="button"
-            class="text-xs font-medium text-primary transition-colors hover:text-primary/80"
-            @click="emit('openPreview')"
-          >
-            {{ $t('admin.system.codegen.toolbar.preview') }}
-          </button>
+      <section
+        v-if="previewSummary || previewWarnings > 0 || previewConflicts > 0"
+        class="rounded-xl border border-border/70 bg-muted/10 px-3 py-2.5"
+      >
+        <div class="mb-2 text-[11px] font-medium text-muted-foreground">
+          {{ $t('admin.system.codegen.builder.panelPreviewTitle') }}
         </div>
-
-        <div v-if="previewSummary" class="grid grid-cols-2 gap-2">
-          <div class="rounded-lg bg-background px-3 py-2.5">
+        <div class="grid grid-cols-2 gap-2">
+          <div v-if="previewSummary" class="rounded-lg bg-background px-3 py-2">
             <div class="text-[11px] text-muted-foreground">
               {{ $t('admin.system.codegen.builder.previewCreateFiles') }}
             </div>
@@ -185,7 +170,7 @@ const emit = defineEmits<{
               {{ previewSummary.create_count }}
             </div>
           </div>
-          <div class="rounded-lg bg-background px-3 py-2.5">
+          <div v-if="previewSummary" class="rounded-lg bg-background px-3 py-2">
             <div class="text-[11px] text-muted-foreground">
               {{ $t('admin.system.codegen.builder.previewModifyFiles') }}
             </div>
@@ -193,7 +178,7 @@ const emit = defineEmits<{
               {{ previewSummary.modify_count }}
             </div>
           </div>
-          <div class="rounded-lg bg-background px-3 py-2.5">
+          <div v-if="previewSummary" class="rounded-lg bg-background px-3 py-2">
             <div class="text-[11px] text-muted-foreground">
               {{ $t('admin.system.codegen.preview.filterBackend') }}
             </div>
@@ -201,7 +186,7 @@ const emit = defineEmits<{
               {{ previewSummary.backend_files }}
             </div>
           </div>
-          <div class="rounded-lg bg-background px-3 py-2.5">
+          <div v-if="previewSummary" class="rounded-lg bg-background px-3 py-2">
             <div class="text-[11px] text-muted-foreground">
               {{ $t('admin.system.codegen.preview.filterFrontend') }}
             </div>
@@ -209,7 +194,7 @@ const emit = defineEmits<{
               {{ previewSummary.frontend_files }}
             </div>
           </div>
-          <div class="rounded-lg bg-background px-3 py-2.5">
+          <div class="rounded-lg bg-background px-3 py-2">
             <div class="text-[11px] text-muted-foreground">
               {{ $t('admin.system.codegen.preview.warnings') }}
             </div>
@@ -222,7 +207,7 @@ const emit = defineEmits<{
               {{ previewWarnings }}
             </div>
           </div>
-          <div class="rounded-lg bg-background px-3 py-2.5">
+          <div class="rounded-lg bg-background px-3 py-2">
             <div class="text-[11px] text-muted-foreground">
               {{ $t('admin.system.codegen.preview.filterConflicts') }}
             </div>
@@ -236,64 +221,80 @@ const emit = defineEmits<{
             </div>
           </div>
         </div>
-        <div
-          v-else
-          class="rounded-lg border border-dashed border-border bg-background px-3 py-4 text-center text-xs leading-5 text-muted-foreground"
-        >
-          {{ $t('admin.system.codegen.builder.panelPreviewEmpty') }}
-        </div>
       </section>
 
-      <section class="grid gap-2">
-        <div
-          class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground"
-        >
+      <section class="rounded-xl border border-border/70 bg-muted/10 px-3 py-2.5">
+        <div class="mb-2 text-[11px] font-medium text-muted-foreground">
           {{ $t('admin.system.codegen.builder.panelActionsTitle') }}
         </div>
-        <div class="grid gap-2">
+        <div class="grid gap-1.5">
           <button
             type="button"
-            class="flex items-center justify-between rounded-xl border border-border bg-muted/10 px-3 py-2.5 text-left transition-colors hover:bg-muted/50"
+            class="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-left transition-colors hover:border-primary/30 hover:bg-primary/5"
             @click="emit('openExpert')"
           >
-            <span class="text-sm font-medium text-foreground">
-              {{ $t('admin.system.codegen.advanced.button') }}
+            <span class="flex min-w-0 items-center gap-2">
+              <IconifyIcon
+                icon="lucide:settings-2"
+                class="size-4 text-muted-foreground"
+              />
+              <span class="text-sm font-medium text-foreground">
+                {{ $t('admin.system.codegen.advanced.button') }}
+              </span>
             </span>
-            <span class="text-sm font-semibold text-foreground">
+            <span class="text-xs text-muted-foreground">
               {{ expertItemCount }}
             </span>
           </button>
 
           <button
             type="button"
-            class="flex items-center justify-between rounded-xl border border-border bg-muted/10 px-3 py-2.5 text-left transition-colors hover:bg-muted/50"
+            class="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-left transition-colors hover:border-primary/30 hover:bg-primary/5"
             @click="emit('openDbImport')"
           >
-            <span class="text-sm font-medium text-foreground">
-              {{ $t('admin.system.codegen.builder.dbImportBtn') }}
+            <span class="flex min-w-0 items-center gap-2">
+              <IconifyIcon
+                icon="lucide:database"
+                class="size-4 text-muted-foreground"
+              />
+              <span class="text-sm font-medium text-foreground">
+                {{ $t('admin.system.codegen.builder.dbImportBtn') }}
+              </span>
             </span>
           </button>
 
           <button
             type="button"
-            class="flex items-center justify-between rounded-xl border border-border bg-muted/10 px-3 py-2.5 text-left transition-colors hover:bg-muted/50"
+            class="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-left transition-colors hover:border-primary/30 hover:bg-primary/5"
             @click="emit('openImportYaml')"
           >
-            <span class="text-sm font-medium text-foreground">
-              {{ $t('admin.system.codegen.builder.importYaml') }}
+            <span class="flex min-w-0 items-center gap-2">
+              <IconifyIcon
+                icon="lucide:upload"
+                class="size-4 text-muted-foreground"
+              />
+              <span class="text-sm font-medium text-foreground">
+                {{ $t('admin.system.codegen.builder.importYaml') }}
+              </span>
             </span>
           </button>
 
           <button
             v-if="validationErrorCount > 0"
             type="button"
-            class="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2.5 text-left transition-colors hover:bg-amber-50"
+            class="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-left transition-colors hover:bg-amber-50"
             @click="emit('jumpErrors')"
           >
-            <span class="text-sm font-medium text-amber-800">
-              {{ $t('admin.system.codegen.generate.validationErrors') }}
+            <span class="flex min-w-0 items-center gap-2">
+              <IconifyIcon
+                icon="lucide:triangle-alert"
+                class="size-4 text-amber-700"
+              />
+              <span class="text-sm font-medium text-amber-800">
+                {{ $t('admin.system.codegen.generate.validationErrors') }}
+              </span>
             </span>
-            <span class="text-sm font-semibold text-amber-800">
+            <span class="text-xs font-semibold text-amber-800">
               {{ validationErrorCount }}
             </span>
           </button>

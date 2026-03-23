@@ -459,6 +459,14 @@ async def restore_enabled_plugins(
                 if migrations_dir.is_dir():
                     await lifecycle.run_alembic_upgrade(plugin.name)
 
+                # Restore periodic task DB rows so Celery Beat can still see plugin tasks after startup recovery.
+                # / 恢复插件定时任务 DB 记录，确保启动恢复后 Celery Beat 仍能看到任务。
+                if getattr(manifest.extensions, "tasks", None):
+                    await lifecycle._sync_plugin_periodic_tasks(
+                        plugin.name,
+                        manifest.extensions.tasks,
+                    )
+
             # Register all extension points (shared function, used by lifecycle.enable)
             # / 注册所有扩展点
             menu_overrides = (plugin.config or {}).get("menu_overrides")

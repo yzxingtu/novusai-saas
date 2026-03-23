@@ -40,6 +40,7 @@ import type {
 } from '#/api/shared/ai-chat';
 
 import {
+  buildChatAttachmentFromUpload,
   clearChatConversationMemoryApi,
   deleteChatConversationApi,
   updateChatConversationTitleApi,
@@ -1045,20 +1046,9 @@ export function useAIChat(options: UseAIChatOptions) {
         fileToUpload,
         getUploadExtraData(),
       );
-      const isAudio = file.type.startsWith('audio/');
-      const isVideo = file.type.startsWith('video/');
-      const attachmentType = isImage
-        ? 'image'
-        : isAudio
-          ? 'audio'
-          : isVideo
-            ? 'video'
-            : 'file';
+      const uploadedAttachment = buildChatAttachmentFromUpload(fileToUpload, data);
       return {
-        type: attachmentType,
-        url: data.url,
-        name: file.name,
-        mime_type: fileToUpload.type,
+        ...uploadedAttachment,
         preview: isImage ? URL.createObjectURL(fileToUpload) : undefined,
       };
     } catch (error: unknown) {
@@ -1223,7 +1213,8 @@ export function useAIChat(options: UseAIChatOptions) {
     /** 气泡展示用附件：去掉 preview，避免 clearPending 撤销 blob 后仍引用失效 URL */
     const displayAttachments =
       msgAttachments.length > 0
-        ? msgAttachments.map(({ type, url, name, mime_type }) => ({
+        ? msgAttachments.map(({ attachment_id, type, url, name, mime_type }) => ({
+            attachment_id,
             type,
             url,
             name,
@@ -1295,7 +1286,8 @@ export function useAIChat(options: UseAIChatOptions) {
       texts: [userMsg],
       apiAttachments:
         msgAttachments.length > 0
-          ? msgAttachments.map(({ type, url, name, mime_type }) => ({
+          ? msgAttachments.map(({ attachment_id, type, url, name, mime_type }) => ({
+              attachment_id,
               type,
               url,
               name,
@@ -1734,17 +1726,62 @@ export function useAIChat(options: UseAIChatOptions) {
     messagesRequestSeq += 1;
   }
 
+  function getExportAttachmentTypeLabel(type: ChatAttachment['type']): string {
+    switch (type) {
+      case 'file': {
+        return $t('common.globalAiChat.file');
+      }
+      case 'image': {
+        return $t('common.image');
+      }
+      default: {
+        return type;
+      }
+    }
+  }
+
+  function buildExportAttachmentLines(
+    attachments?: ChatAttachment[],
+    format: 'markdown' | 'text' = 'markdown',
+  ): string[] {
+    if (!attachments?.length) return [];
+
+    const lines = [
+      format === 'markdown'
+        ? `**${$t('common.globalAiChat.attachments')}:**`
+        : `${$t('common.globalAiChat.attachments')}:`,
+    ];
+
+    for (const attachment of attachments) {
+      const typeLabel = getExportAttachmentTypeLabel(attachment.type);
+      const attachmentLabel = attachment.name || attachment.url || '-';
+      lines.push(`- ${typeLabel}: ${attachmentLabel}`);
+      if (attachment.attachment_id) {
+        lines.push(`  ${$t('common.globalAiChat.attachmentId')}: ${attachment.attachment_id}`);
+      }
+      if (attachment.url) {
+        lines.push(`  URL: ${attachment.url}`);
+      }
+    }
+
+    lines.push('');
+    return lines;
+  }
+
   function exportAsMarkdown() {
     if (chatMessages.value.length === 0) return;
-    const agentName = selectedAgent.value?.name || 'AI';
+    const agentName =
+      selectedAgent.value?.name || $t('common.globalAiChat.assistant');
+    const userLabel = $t('common.globalAiChat.user');
     const lines: string[] = [
       `# ${agentName} - ${$t('common.globalAiChat.history')}`,
       '',
     ];
     for (const msg of chatMessages.value) {
-      const role = msg.role === 'user' ? '**User**' : `**${agentName}**`;
+      const role = msg.role === 'user' ? `**${userLabel}**` : `**${agentName}**`;
       lines.push(`### ${role}`, '');
       if (msg.content) lines.push(msg.content);
+      lines.push(...buildExportAttachmentLines(msg.attachments, 'markdown'));
       if (msg.toolCalls?.length) {
         lines.push('');
         for (const tc of msg.toolCalls) {
@@ -1783,12 +1820,14 @@ export function useAIChat(options: UseAIChatOptions) {
 
   function exportAsPlainText() {
     if (chatMessages.value.length === 0) return;
-    const agentName = selectedAgent.value?.name || 'AI';
+    const agentName =
+      selectedAgent.value?.name || $t('common.globalAiChat.assistant');
     const lines: string[] = [];
     for (const msg of chatMessages.value) {
       const label = msg.role === 'user' ? $t('common.globalAiChat.user') : agentName;
       lines.push(`${label}:`);
       if (msg.content) lines.push(msg.content);
+      lines.push(...buildExportAttachmentLines(msg.attachments, 'text'));
       lines.push('');
     }
     const blob = new Blob([lines.join('\n')], {

@@ -55,6 +55,8 @@ export interface FeaturesSchema {
   aiEnabled?: boolean | null;
   /** Priority support / 优先支持 */
   prioritySupport?: boolean | null;
+  /** Storage billing enabled / 对象存储账单对账收费 */
+  storageBillingEnabled?: boolean | null;
   /** White label / 白标支持 */
   whiteLabel?: boolean | null;
 }
@@ -64,6 +66,7 @@ interface FeaturesSchemaRaw {
   advanced_analytics?: boolean | null;
   ai_enabled?: boolean | null;
   priority_support?: boolean | null;
+  storage_billing_enabled?: boolean | null;
   white_label?: boolean | null;
 }
 
@@ -212,6 +215,7 @@ function transformFeatures(
     advancedAnalytics: raw.advanced_analytics,
     aiEnabled: raw.ai_enabled,
     prioritySupport: raw.priority_support,
+    storageBillingEnabled: raw.storage_billing_enabled,
     whiteLabel: raw.white_label,
   };
 }

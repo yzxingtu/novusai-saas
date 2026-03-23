@@ -28,14 +28,36 @@ from app.core.logging import LogManager
 logger = LogManager.get_logger("ai.engine.tool_processor")
 
 # User confirmation/rejection trigger words / 用户确认/拒绝触发词
-_CONFIRMATION_TEXTS: frozenset[str] = frozenset({
-    "确认执行", "确认", "执行", "好的", "是", "好", "可以",
-    "confirm", "yes", "ok", "sure", "go ahead",
-})
-_REJECTION_TEXTS: frozenset[str] = frozenset({
-    "取消", "拒绝", "不执行", "不", "算了",
-    "cancel", "no", "reject", "abort", "stop",
-})
+_CONFIRMATION_TEXTS: frozenset[str] = frozenset(
+    {
+        "确认执行",
+        "确认",
+        "执行",
+        "好的",
+        "是",
+        "好",
+        "可以",
+        "confirm",
+        "yes",
+        "ok",
+        "sure",
+        "go ahead",
+    }
+)
+_REJECTION_TEXTS: frozenset[str] = frozenset(
+    {
+        "取消",
+        "拒绝",
+        "不执行",
+        "不",
+        "算了",
+        "cancel",
+        "no",
+        "reject",
+        "abort",
+        "stop",
+    }
+)
 
 
 # DeepSeek DSML markers (same as conversation.py, for tool arguments cleanup)
@@ -103,7 +125,9 @@ def _fix_unescaped_control_chars(s: str) -> str:
 def _brute_force_control_chars(s: str) -> str:
     """Replace ALL literal control characters (\n, \r, \t) with spaces
     as a last-resort fix when context-aware repair fails."""
-    return s.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("\t", " ")
+    return (
+        s.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("\t", " ")
+    )
 
 
 def _try_convert_single_quotes(s: str) -> str | None:
@@ -259,6 +283,7 @@ class SingleToolResult:
     tool_result: ToolResult | None = None
     duration_ms: int = 0
     tool_message: ChatMessage | None = None
+    follow_up_message: ChatMessage | None = None
     events: list[dict[str, Any]] = field(default_factory=list)
     has_confirmation: bool = False
     skipped: bool = False
@@ -287,7 +312,9 @@ class ToolCallProcessor:
     # ========================================
 
     @staticmethod
-    def parse_arguments(raw_args: str | dict) -> tuple[dict[str, Any] | None, str | None]:
+    def parse_arguments(
+        raw_args: str | dict,
+    ) -> tuple[dict[str, Any] | None, str | None]:
         """
         Parse tool call arguments (JSON string → dict).
         解析工具调用参数（JSON 字符串 → dict）
@@ -355,6 +382,22 @@ class ToolCallProcessor:
         return ChatMessage(role="tool", content=content, tool_call_id=tc_id)
 
     @staticmethod
+    def build_follow_up_message(result: ToolResult) -> ChatMessage | None:
+        """Build internal follow-up user message for multimodal tool outputs / 为多模态工具结果构建内部后续 user 消息"""
+        if not (result.success and result.attachments):
+            return None
+
+        follow_up = result.llm_follow_up_message or result.output
+        if not follow_up:
+            return None
+        return ChatMessage(
+            role="user",
+            content=follow_up,
+            attachments=result.attachments,
+            internal_only=True,
+        )
+
+    @staticmethod
     def build_assistant_tool_call_message(
         content: str,
         tool_calls: list[dict[str, Any]],
@@ -382,7 +425,8 @@ class ToolCallProcessor:
         return self.consent_modes.get(func_name, "auto")
 
     def build_consent_reject_message(
-        self, tc_id: str,
+        self,
+        tc_id: str,
     ) -> ChatMessage:
         """Build tool message for consent rejection / 构建 consent 被拒绝的 tool 消息"""
         return ChatMessage(
@@ -398,13 +442,16 @@ class ToolCallProcessor:
         arguments: dict[str, Any],
     ) -> ChatMessage:
         """Build tool message for consent requiring user confirmation / 构建 consent 需要用户确认的 tool 消息"""
-        payload = json.dumps({
-            "requires_confirmation": True,
-            "consent_required": True,
-            "action": "tool_consent",
-            "tool_name": func_name,
-            "arguments": arguments,
-        }, ensure_ascii=False)
+        payload = json.dumps(
+            {
+                "requires_confirmation": True,
+                "consent_required": True,
+                "action": "tool_consent",
+                "tool_name": func_name,
+                "arguments": arguments,
+            },
+            ensure_ascii=False,
+        )
         return ChatMessage(role="tool", content=payload, tool_call_id=tc_id)
 
     # ========================================
@@ -577,9 +624,7 @@ class ToolCallProcessor:
             "action": parsed.get("action", ""),
             "table": parsed.get("table", ""),
             "preview": (
-                parsed.get("preview")
-                or parsed.get("diff")
-                or parsed.get("record")
+                parsed.get("preview") or parsed.get("diff") or parsed.get("record")
             ),
         }
         # File generation confirmation (e.g. plugin codegen)
@@ -682,10 +727,14 @@ class ToolCallProcessor:
                 tool_result=result,
                 duration_ms=0,
                 tool_message=tool_message,
+                follow_up_message=self.build_follow_up_message(result),
             )
 
         result, duration_ms = await self.execute_tool(
-            tc_id, func_name, arguments, conversation_id,
+            tc_id,
+            func_name,
+            arguments,
+            conversation_id,
         )
         tool_message = self.build_tool_message(result, tc_id)
 
@@ -693,6 +742,7 @@ class ToolCallProcessor:
             tool_result=result,
             duration_ms=duration_ms,
             tool_message=tool_message,
+            follow_up_message=self.build_follow_up_message(result),
         )
 
 

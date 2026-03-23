@@ -37,6 +37,7 @@
 - 依赖方向：`views → composables → store/api → utils`，禁止反向依赖
 - adapter 层不依赖具体业务代码
 - 请求客户端：`import { requestClient } from '#/utils/request'`
+- 上传、图片显示、文件预览必须遵循 `.cursor/rules/attachments-and-storage.md`，共享 API / composable / 基础设施层也不例外
 
 ### CRUD 开发
 
@@ -113,6 +114,10 @@ const canEdit = row.tenant_id != null && row.tenant_id === currentTenantId;
 - Service：业务逻辑、钩子、事务编排
 - Repository：数据访问、查询构建
 - Model：表结构定义
+- 附件秒传/去重时，`hash` 匹配必须同时带 `driver + visibility`，禁止 public/private 互相复用
+- 存储迁移或对象复制时，`visibility` / `mime_type` / `metadata` 必须以附件表记录为准；云驱动 `copy` / `move` 不能丢 public ACL
+- 解析已有附件的存储配置时，必须优先使用 `attachment.tenant_id`，不要在 admin/public 上下文把企业附件错解析到平台存储配置
+- platform 与 tenant 若同用一个驱动名，不能只看 `driver` 猜配置；必须结合附件存储快照或路径语义（`platform/...`、`tenants/{tenant_id}/...`）判断来源配置，且内部快照不得写入对象 metadata
 
 ### 多企业
 

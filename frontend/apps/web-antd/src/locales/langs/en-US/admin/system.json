@@ -729,8 +729,8 @@
     "lastGeneratedAt": "Last Generated",
     "lastError": "Last Error",
     "placeholder": {
-      "searchName": "Search config name",
-      "searchResource": "Search resource",
+      "searchName": "Config Name",
+      "searchResource": "Resource",
       "allStatus": "All status"
     },
     "status_options": {
@@ -749,6 +749,7 @@
       "download": "Download",
       "duplicate": "Duplicate",
       "rollback": "Rollback",
+      "downloadDisabledHint": "No generated snapshot is available in this workspace yet. Generate again to refresh the manifest.",
       "deleteDisabledHint": "This config still has generated traces or an active manifest entry. Roll it back and clear generated history before deleting.",
       "rollbackDisabledHint": "No manifest entry in this workspace (codegen_manifest.json). Re-generate from the repo root, or DB status is out of sync."
     },
@@ -759,7 +760,11 @@
     "confirm": {
       "generate": "Generate code for \"{name}\"?",
       "rollback": "Rollback generated code for \"{name}\"? This may not fully restore previous state.",
-      "delete": "Delete config \"{name}\"?"
+      "delete": "Delete config \"{name}\"?",
+      "generateForceLabel": "Allow overwriting existing conflicting files",
+      "generateForceHint": "Only enable this when you are sure the current generated output should replace the target files.",
+      "rollbackForceLabel": "Force rollback for generated files that were edited manually",
+      "rollbackForceHint": "Only enable this when you are sure those local edits do not need to be kept."
     },
     "messages": {
       "deleteSuccess": "Deleted successfully",
@@ -803,8 +808,8 @@
       "displayName": "Display Name (ZH)",
       "displayNameEn": "Display Name (EN)",
       "moduleCommon": "Common",
-      "moduleHelpDesc": "Controls the generated directories, route segment, and i18n namespace.",
-      "moduleHelpCurrentBusinessShort": "This config belongs to a business preset.",
+      "moduleHelpDesc": "Controls the generated directories, page route segment, menu component path, and i18n namespace.",
+      "moduleHelpCurrentBusinessShort": "Current module is business.",
       "moduleLabels": {
         "system": "System",
         "business": "Business",
@@ -1062,8 +1067,12 @@
       "relation": "Relation",
       "advanced": "Advanced",
       "layout": "Layout",
+      "titleField": "Title",
       "input": "Input",
       "code": "Code/SN",
+      "email": "Email",
+      "phone": "Phone",
+      "url": "URL",
       "textarea": "Textarea",
       "number": "Number",
       "amount": "Amount",
@@ -1074,7 +1083,9 @@
       "switch": "Switch",
       "date": "Date",
       "datetime": "DateTime",
+      "updatedAt": "Updated At",
       "singleImage": "Single Image",
+      "coverImage": "Cover Image",
       "multiImage": "Multiple Images",
       "singleFile": "Single File",
       "multiFile": "Multiple Files",

@@ -61,7 +61,7 @@ export function getModelTypeText(type: string | undefined): string {
 /**
  * 备用模型下拉 — 用闭包排除自身 ID 后透传 ApiSelect 分页参数
  */
-export function getFallbackModelSelectApi(excludeId?: number) {
+function getFallbackModelSelectApi(excludeId?: number) {
   return async (params?: Record<string, unknown>) => {
     const res = await getAIModelSelectApi({ ...params, type: 'chat' });
     if (excludeId && res?.items) {

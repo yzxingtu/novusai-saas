@@ -31,50 +31,13 @@ function getExecutionModeOptions() {
 
 // ============ Chat 模型下拉 ============
 
-export function getChatModelSelectApi(params?: Record<string, unknown>) {
+function getChatModelSelectApi(params?: Record<string, unknown>) {
   return getAIModelSelectApi({ ...params, type: 'chat' });
 }
 
 // ============ 表单默认值 ============
 
-export function getAudienceOptions() {
-  return [
-    { label: $t('admin.ai.agent.audience_options.all'), value: 'all' },
-    {
-      label: $t('admin.ai.agent.audience_options.admin_only'),
-      value: 'admin_only',
-    },
-    {
-      label: $t('admin.ai.agent.audience_options.admin_tenant'),
-      value: 'admin_tenant',
-    },
-  ];
-}
-
-export function getAudienceText(audience: string | undefined): string {
-  if (!audience) return '-';
-  const opt = getAudienceOptions().find((o) => o.value === audience);
-  return opt?.label ?? audience;
-}
-
-export function getAudienceColor(audience: string | undefined): string {
-  switch (audience) {
-    case 'admin_only': {
-      return 'orange';
-    }
-    case 'admin_tenant': {
-      return 'blue';
-    }
-    case 'all': {
-      return 'green';
-    }
-    default: {
-      return 'default';
-    }
-  }
-}
-
-export function getOwnerTypeOptions() {
+function getOwnerTypeOptions() {
   return [
     { label: $t('admin.ai.agent.ownerType.platform'), value: 'platform' },
     { label: $t('admin.ai.agent.ownerType.tenant'), value: 'tenant' },
@@ -106,7 +69,7 @@ export interface AgentScopeFieldsOptions {
 }
 
 /** 管理端智能体：统一资源作用域 + 分配企业 */
-export function useAgentScopeFields(
+function useAgentScopeFields(
   options: AgentScopeFieldsOptions = {},
 ): VbenFormSchema[] {
   const { scopeDisabled = false } = options;

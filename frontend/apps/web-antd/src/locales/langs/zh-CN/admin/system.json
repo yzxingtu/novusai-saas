@@ -729,8 +729,8 @@
     "lastGeneratedAt": "上次生成",
     "lastError": "最近错误",
     "placeholder": {
-      "searchName": "搜索配置名",
-      "searchResource": "搜索资源名",
+      "searchName": "配置名",
+      "searchResource": "资源名",
       "allStatus": "全部状态"
     },
     "status_options": {
@@ -749,6 +749,7 @@
       "download": "下载",
       "duplicate": "复制",
       "rollback": "回滚",
+      "downloadDisabledHint": "当前工作区没有可下载的生成快照，请先重新生成以写入 manifest。",
       "deleteDisabledHint": "该配置已有生成痕迹或仍在 manifest 中，需先回滚并清理生成记录后才能删除。",
       "rollbackDisabledHint": "当前工作区清单中无此配置记录（codegen_manifest.json）。请在本仓库根目录重新生成后再试，或与数据库状态不一致时需先对齐。"
     },
@@ -759,7 +760,11 @@
     "confirm": {
       "generate": "确定要为「{name}」执行代码生成吗？",
       "rollback": "确定要回滚「{name}」的生成代码吗？此操作可能无法完全还原。",
-      "delete": "确定要删除配置「{name}」吗？"
+      "delete": "确定要删除配置「{name}」吗？",
+      "generateForceLabel": "允许覆盖已存在的冲突文件",
+      "generateForceHint": "仅在你确认目标文件可以被本次生成结果直接替换时再勾选。",
+      "rollbackForceLabel": "强制删除或回退已被手动改动的生成文件",
+      "rollbackForceHint": "仅在你确认这些文件不需要保留本地改动时再勾选。"
     },
     "messages": {
       "deleteSuccess": "删除成功",
@@ -803,8 +808,8 @@
       "displayName": "中文显示名",
       "displayNameEn": "英文显示名",
       "moduleCommon": "常用",
-      "moduleHelpDesc": "决定生成目录、路由片段和 i18n 命名空间。",
-      "moduleHelpCurrentBusinessShort": "当前配置属于业务域预设。",
+      "moduleHelpDesc": "决定生成目录、页面路由片段、菜单组件路径和 i18n 命名空间。",
+      "moduleHelpCurrentBusinessShort": "当前模块为业务域。",
       "moduleLabels": {
         "system": "系统",
         "business": "业务",
@@ -1062,8 +1067,12 @@
       "relation": "关联",
       "advanced": "高级",
       "layout": "布局",
+      "titleField": "标题",
       "input": "输入框",
       "code": "编码/序号",
+      "email": "邮箱",
+      "phone": "手机号",
+      "url": "网址",
       "textarea": "多行文本",
       "number": "数字",
       "amount": "金额",
@@ -1074,7 +1083,9 @@
       "switch": "开关",
       "date": "日期",
       "datetime": "日期时间",
+      "updatedAt": "更新时间",
       "singleImage": "单图",
+      "coverImage": "封面图",
       "multiImage": "多图",
       "singleFile": "单文件",
       "multiFile": "多文件",

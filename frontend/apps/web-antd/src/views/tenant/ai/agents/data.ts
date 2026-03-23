@@ -2,7 +2,6 @@
  * 企业端智能体管理 - 表格列、搜索配置、表单 Schema
  */
 import type { VbenFormSchema } from '#/adapter/form';
-import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { AgentListItem } from '#/api/tenant/agents';
 
 import {
@@ -17,7 +16,7 @@ import { $t } from '#/locales';
 import { getScopeOptions } from '#/utils/scope-helpers';
 
 /** 列表/筛选：统一资源作用域选项 */
-export function getAgentScopeFilterOptions() {
+function getAgentScopeFilterOptions() {
   return getScopeOptions();
 }
 
@@ -83,59 +82,6 @@ export function getStatusColor(status: string | undefined): string {
   }
 }
 
-// ============ 可见性辅助 ============
-
-/**
- * 获取可见性下拉选项
- */
-export function getVisibilityOptions() {
-  return [
-    {
-      label: $t('tenant.ai.agent.access.visibility_options.public'),
-      value: 'public',
-    },
-    {
-      label: $t('tenant.ai.agent.access.visibility_options.private'),
-      value: 'private',
-    },
-  ];
-}
-
-/**
- * 获取可见性文本
- */
-export function getVisibilityText(visibility: string | undefined): string {
-  if (!visibility) return '-';
-  switch (visibility) {
-    case 'private': {
-      return $t('tenant.ai.agent.access.visibility_options.private');
-    }
-    case 'public': {
-      return $t('tenant.ai.agent.access.visibility_options.public');
-    }
-    default: {
-      return visibility;
-    }
-  }
-}
-
-/**
- * 获取可见性颜色
- */
-export function getVisibilityColor(visibility: string | undefined): string {
-  switch (visibility) {
-    case 'private': {
-      return 'orange';
-    }
-    case 'public': {
-      return 'green';
-    }
-    default: {
-      return 'default';
-    }
-  }
-}
-
 // ============ 执行模式辅助 ============
 
 /**
@@ -177,29 +123,6 @@ export function getExecutionModeText(mode: string | undefined): string {
   }
 }
 
-/**
- * 获取执行模式颜色
- */
-export function getExecutionModeColor(mode: string | undefined): string {
-  switch (mode) {
-    case 'api': {
-      return 'cyan';
-    }
-    case 'batch': {
-      return 'purple';
-    }
-    case 'conversation': {
-      return 'blue';
-    }
-    case 'task': {
-      return 'orange';
-    }
-    default: {
-      return 'default';
-    }
-  }
-}
-
 // ============ 模型下拉 ============
 
 /**
@@ -215,130 +138,6 @@ export async function getModelSelectOptions() {
   } catch {
     return [];
   }
-}
-
-// ============ 表格列 ============
-
-/**
- * 表格列定义
- */
-export function useColumns<T = AgentListItem>(
-  onActionClick: OnActionClickFn<T>,
-): VxeTableGridOptions['columns'] {
-  return [
-    {
-      field: 'name',
-      title: $t('tenant.ai.agent.name'),
-      minWidth: 180,
-      slots: { default: 'name_cell' },
-    },
-    {
-      field: 'status',
-      title: $t('tenant.ai.agent.status'),
-      width: 110,
-      align: 'center',
-      slots: { default: 'status_cell' },
-    },
-    {
-      field: 'scope',
-      title: $t('common.scope.label'),
-      width: 160,
-      align: 'center',
-      slots: { default: 'scope_cell' },
-    },
-    {
-      field: 'execution_mode',
-      title: $t('tenant.ai.agent.executionMode'),
-      width: 120,
-      align: 'center',
-      slots: { default: 'mode_cell' },
-    },
-    {
-      field: 'model_name',
-      title: $t('tenant.ai.agent.modelName'),
-      width: 180,
-      slots: { default: 'model_cell' },
-    },
-    {
-      field: 'skills',
-      title: $t('tenant.ai.agent.skillCount'),
-      width: 180,
-      slots: { default: 'skill_count_cell' },
-    },
-    {
-      field: 'visibility',
-      title: $t('tenant.ai.agent.access.visibility'),
-      width: 100,
-      align: 'center',
-      slots: { default: 'visibility_cell' },
-    },
-    {
-      field: 'description',
-      title: $t('tenant.ai.agent.description'),
-      minWidth: 200,
-      slots: { default: 'description_cell' },
-    },
-    {
-      field: 'created_at',
-      title: $t('tenant.ai.agent.createdAt'),
-      width: 170,
-      sortable: true,
-      slots: { default: 'createdAt_cell' },
-    },
-    {
-      align: 'center',
-      cellRender: {
-        attrs: {
-          resource: 'agent',
-          nameField: 'name',
-          nameTitle: $t('tenant.ai.agent.name'),
-          onClick: onActionClick,
-        },
-        name: 'CellOperation',
-        options: [
-          {
-            code: 'access',
-            text: $t('tenant.ai.agent.access.title'),
-            icon: 'lucide:shield',
-            accessCodes: ['agent:update'],
-            show: () => true,
-          },
-          {
-            code: 'test',
-            text: $t('tenant.ai.agent.test.title'),
-            icon: 'lucide:play',
-            accessCodes: ['agent:list'],
-          },
-          {
-            code: 'publish',
-            text: $t('tenant.ai.agent.publish'),
-            icon: 'lucide:rocket',
-            accessCodes: ['agent:update'],
-            show: () => true,
-          },
-          {
-            code: 'versions',
-            text: $t('tenant.ai.agent.version.title'),
-            icon: 'lucide:history',
-            accessCodes: ['agent:list'],
-          },
-          {
-            code: 'edit',
-            show: (row: AgentListItem) => isTenantOwnedAgent(row),
-          },
-          {
-            code: 'delete',
-            show: (row: AgentListItem) =>
-              !row.is_system && isTenantOwnedAgent(row),
-          },
-        ],
-      },
-      field: 'operation',
-      fixed: 'right',
-      title: $t('tenant.common.operation'),
-      width: 300,
-    },
-  ];
 }
 
 // ============ 搜索表单 ============

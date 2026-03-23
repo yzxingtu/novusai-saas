@@ -47,6 +47,9 @@ def _write_plugin(
                 "name": "@novus-plugin/demo-plugin",
                 "private": True,
                 "scripts": {"build": "vite build"},
+                "devDependencies": {
+                    "vue": "^3.5.0",
+                },
             }
         ),
         encoding="utf-8",
@@ -180,6 +183,63 @@ def test_cmd_validate_accepts_nested_plugin_locale_tree(
     assert exc.value.code == 0
     out = capsys.readouterr().out
     assert "should start with 'plugin.demo-plugin.'" not in out
+
+
+def test_cmd_validate_rejects_missing_frontend_package_json(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    plugin_dir = _write_plugin(tmp_path, with_release=False)
+    (plugin_dir / "frontend" / "package.json").unlink()
+
+    with pytest.raises(SystemExit) as exc:
+        pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
+
+    assert exc.value.code == 1
+    out = capsys.readouterr().out
+    assert "frontend/package.json missing" in out
+
+
+def test_cmd_validate_rejects_missing_frontend_vite_config(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    plugin_dir = _write_plugin(tmp_path, with_release=False)
+    (plugin_dir / "frontend" / "vite.config.ts").unlink()
+
+    with pytest.raises(SystemExit) as exc:
+        pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
+
+    assert exc.value.code == 1
+    out = capsys.readouterr().out
+    assert "frontend/vite.config.ts missing" in out
+
+
+def test_cmd_validate_rejects_peer_only_vue_dependency(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    plugin_dir = _write_plugin(tmp_path, with_release=False)
+    (plugin_dir / "frontend" / "package.json").write_text(
+        json.dumps(
+            {
+                "name": "@novus-plugin/demo-plugin",
+                "private": True,
+                "scripts": {"build": "vite build"},
+                "peerDependencies": {
+                    "vue": "^3.5.0",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
+
+    assert exc.value.code == 1
+    out = capsys.readouterr().out
+    assert "frontend/package.json must declare local build dependency 'vue'" in out
 
 
 def test_cmd_build_generates_release_manifest(

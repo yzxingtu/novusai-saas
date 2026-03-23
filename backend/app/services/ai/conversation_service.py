@@ -1,14 +1,17 @@
 """
 对话数据生命周期管理 Service / Conversation Lifecycle Service
 
-提供对话列表、详情、搜索、归档、批量归档、删除和导出
-Provides conversation list, detail, search, archive, batch archive, delete and export.
+提供对话列表、详情、搜索、归档、删除和导出
+Provides conversation list, detail, search, archive, delete and export.
 """
 
 import json
-from datetime import date, datetime, timedelta, timezone
+import re
+from datetime import datetime, timezone
 from typing import Any
+from unittest.mock import Mock
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.engine.output_parser import parse_output
@@ -28,6 +31,7 @@ from app.enums.agent import (
 from app.exceptions import BusinessException, NotFoundException
 from app.models.ai.agent import Agent
 from app.models.ai.agent_conversation import AgentConversation
+from app.models.tenant.attachment import Attachment
 from app.repositories.ai.agent_conversation_repository import (
     AdminAgentConversationRepository,
     AgentConversationRepository,
@@ -36,15 +40,22 @@ from app.repositories.ai.conversation_message_repository import (
     ConversationMessageRepository,
 )
 from app.services.ai.session_memory_service import SessionMemoryService
+from app.services.tenant.attachment_download_service import AttachmentDownloadService
 
 logger = LogManager.get_logger("ai.conversation_service")
+_ATTACHMENT_URL_RE = re.compile(
+    r"/api/public/attachments/(\d+)/(?:access|image)",
+    re.IGNORECASE,
+)
 
 
-class ConversationService(TenantService[AgentConversation, AgentConversationRepository]):
+class ConversationService(
+    TenantService[AgentConversation, AgentConversationRepository]
+):
     """
     对话数据生命周期管理 Service / Conversation lifecycle service.
 
-    提供对话列表、详情、搜索、归档、批量归档、删除和导出
+    提供对话列表、详情、搜索、归档、删除和导出
     """
 
     model = AgentConversation
@@ -59,12 +70,93 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             dt = dt.replace(tzinfo=timezone.utc)
         return dt.isoformat()
 
+    @staticmethod
+    def _extract_attachment_id(raw_url: Any) -> int | None:
+        text = str(raw_url or "").strip()
+        if not text:
+            return None
+        match = _ATTACHMENT_URL_RE.search(text)
+        if not match:
+            return None
+        return int(match.group(1))
+
+    async def _hydrate_chat_attachments(
+        self,
+        attachments: Any,
+    ) -> Any:
+        """Refresh persisted chat attachment URLs and backfill attachment_id."""
+        if not isinstance(attachments, list) or not attachments:
+            return attachments
+
+        normalized: list[Any] = []
+        attachment_ids: set[int] = set()
+
+        for item in attachments:
+            if not isinstance(item, dict):
+                normalized.append(item)
+                continue
+
+            payload = dict(item)
+            raw_id = payload.get("attachment_id")
+            attachment_id = raw_id if isinstance(raw_id, int) and raw_id > 0 else None
+            if attachment_id is None:
+                attachment_id = self._extract_attachment_id(payload.get("url"))
+            if attachment_id is not None:
+                payload["attachment_id"] = attachment_id
+                attachment_ids.add(attachment_id)
+            normalized.append(payload)
+
+        if not attachment_ids:
+            return normalized
+
+        result = await self.db.execute(
+            select(Attachment).where(
+                Attachment.id.in_(attachment_ids),
+                Attachment.is_deleted.is_(False),
+            )
+        )
+        attachment_map = {item.id: item for item in result.scalars()}
+
+        for payload in normalized:
+            if not isinstance(payload, dict):
+                continue
+
+            attachment_id = payload.get("attachment_id")
+            if not isinstance(attachment_id, int):
+                continue
+            attachment = attachment_map.get(attachment_id)
+            if not attachment:
+                continue
+
+            tenant_id = (
+                attachment.tenant_id
+                if attachment.tenant_id is not None
+                else PLATFORM_TENANT_ID
+            )
+            payload.setdefault("name", attachment.original_name or attachment.name)
+            payload.setdefault("mime_type", attachment.mime_type)
+            if payload.get("type") == "image":
+                payload["url"] = AttachmentDownloadService.build_preview_url(
+                    attachment_id=attachment.id,
+                    tenant_id=tenant_id,
+                    visibility=attachment.visibility,
+                )
+            else:
+                payload["url"] = AttachmentDownloadService.build_client_access_url(
+                    attachment_id=attachment.id,
+                    tenant_id=tenant_id,
+                    visibility=attachment.visibility,
+                )
+
+        return normalized
+
     @property
     def message_repo(self) -> ConversationMessageRepository:
         """获取消息 Repository（延迟创建） / Get message repo (lazy init)."""
         if not hasattr(self, "_message_repo"):
             self._message_repo = ConversationMessageRepository(
-                self.db, self.tenant_id,
+                self.db,
+                self.tenant_id,
             )
         return self._message_repo
 
@@ -75,8 +167,10 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             from app.repositories.tenant.tenant_admin_repository import (
                 TenantAdminRepository,
             )
+
             self._tenant_admin_repo = TenantAdminRepository(
-                self.db, self.tenant_id,
+                self.db,
+                self.tenant_id,
             )
         return self._tenant_admin_repo
 
@@ -242,6 +336,13 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
                 msg_dict["agent_name"] = None
                 msg_dict["agent_avatar"] = None
             runtime_meta = msg.metadata_ if isinstance(msg.metadata_, dict) else {}
+            hydrated_attachments = await self._hydrate_chat_attachments(
+                runtime_meta.get("attachments")
+            )
+            if hydrated_attachments is not None:
+                metadata_payload = dict(msg_dict.get("metadata") or {})
+                metadata_payload["attachments"] = hydrated_attachments
+                msg_dict["metadata"] = metadata_payload
             msg_dict["model_name"] = runtime_meta.get("model_name")
             if not msg_dict["model_name"] and getattr(msg, "model", None) is not None:
                 msg_dict["model_name"] = msg.model.name
@@ -357,8 +458,23 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             limit=page_size,
         )
 
+        items: list[dict[str, Any]] = []
+        for msg in messages:
+            msg_dict = msg.to_dict()
+            runtime_meta = msg.metadata_ if isinstance(msg.metadata_, dict) else {}
+            hydrated_attachments = await self._hydrate_chat_attachments(
+                runtime_meta.get("attachments")
+            )
+            if runtime_meta or hydrated_attachments is not None:
+                metadata_payload = dict(msg_dict.get("metadata") or {})
+                metadata_payload.update(runtime_meta)
+                if hydrated_attachments is not None:
+                    metadata_payload["attachments"] = hydrated_attachments
+                msg_dict["metadata"] = metadata_payload
+            items.append(msg_dict)
+
         return {
-            "items": [msg.to_dict() for msg in messages],
+            "items": items,
             "total": total,
             "page": page,
             "page_size": page_size,
@@ -387,9 +503,12 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
                 message=_("conversation.already_archived"),
             )
 
-        updated = await self.repo.update(conversation_id, {
-            "status": ConversationStatusEnum.ARCHIVED.value,
-        })
+        updated = await self.repo.update(
+            conversation_id,
+            {
+                "status": ConversationStatusEnum.ARCHIVED.value,
+            },
+        )
 
         # 主动清理会话记忆（兜底 TTL 之外的即时清理）
         memory_svc = SessionMemoryService(self._get_memory_tenant_id())
@@ -405,71 +524,11 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
 
         logger.info(
             "Conversation archived: conversation_id={} tenant_id={}",
-            conversation_id, self.tenant_id,
+            conversation_id,
+            self.tenant_id,
         )
 
         return updated
-
-    async def batch_archive(
-        self,
-        agent_id: int | None = None,
-        before_days: int = 90,
-    ) -> int:
-        """
-        批量归档 N 天前的对话 / Batch archive conversations older than N days.
-
-        使用 ID-only 查询 + 分批处理，避免大数据量时全量加载 ORM 对象导致 OOM。
-
-        Args:
-            agent_id: 可选，按智能体过滤
-            before_days: 天数（归档 N 天前的 active 对话）
-
-        Returns:
-            归档的对话数量
-        """
-        before_date = date.today() - timedelta(days=before_days)
-        total_count = 0
-        batch_size = 1000
-
-        while True:
-            ids = await self.repo.get_conversation_ids_before(
-                before_date=before_date,
-                agent_id=agent_id,
-                batch_size=batch_size,
-            )
-            if not ids:
-                break
-
-            count = await self.repo.batch_update_status(
-                ids=ids,
-                status=ConversationStatusEnum.ARCHIVED.value,
-            )
-            total_count += count
-
-            # 批量归档后按 id 清理会话记忆
-            memory_svc = SessionMemoryService(self._get_memory_tenant_id())
-            for cid in ids:
-                try:
-                    await memory_svc.clear_conversation_memory(cid)
-                except Exception as exc:
-                    logger.warning(
-                        "Batch archive memory cleanup failed: conversation={} tenant={} err={}",
-                        cid,
-                        self.tenant_id,
-                        str(exc),
-                    )
-
-            # 如果本批实际归档数 < 查询数，说明已处理完毕
-            if len(ids) < batch_size:
-                break
-
-        if total_count > 0:
-            logger.info(
-                "Conversations batch archived: count={} tenant_id={} agent_id={} before_days={}",
-                total_count, self.tenant_id, agent_id, before_days,
-            )
-
-        return total_count
 
     async def _after_delete(self, id: int) -> None:
         """
@@ -533,11 +592,51 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
 
         title = conversation.title or f"conversation_{conversation_id}"
 
+        def _safe_attr(obj: Any, key: str, default: Any = None) -> Any:
+            if obj is None:
+                return default
+            if hasattr(obj, "__dict__") and key in vars(obj):
+                return vars(obj).get(key, default)
+            value = getattr(obj, key, default)
+            return default if isinstance(value, Mock) else value
+
+        serialized_messages = []
+        for msg in messages:
+            metadata_payload = (
+                dict(_safe_attr(msg, "metadata_"))
+                if isinstance(_safe_attr(msg, "metadata_"), dict)
+                else None
+            )
+            hydrated_attachments = await self._hydrate_chat_attachments(
+                metadata_payload.get("attachments") if metadata_payload else None
+            )
+            if hydrated_attachments is not None:
+                metadata_payload = metadata_payload or {}
+                metadata_payload["attachments"] = hydrated_attachments
+            agent_obj = _safe_attr(msg, "agent")
+            serialized_messages.append(
+                {
+                    "role": _safe_attr(msg, "role"),
+                    "content": _safe_attr(msg, "content"),
+                    "token_count": _safe_attr(msg, "token_count"),
+                    "tool_calls": _safe_attr(msg, "tool_calls"),
+                    "tool_call_id": _safe_attr(msg, "tool_call_id"),
+                    "tool_name": _safe_attr(msg, "tool_name"),
+                    "agent_id": _safe_attr(msg, "agent_id"),
+                    "agent_name": _safe_attr(agent_obj, "name"),
+                    "agent_avatar": _safe_attr(agent_obj, "avatar"),
+                    "created_at": ConversationService._format_dt(
+                        _safe_attr(msg, "created_at")
+                    ),
+                    "metadata": metadata_payload,
+                }
+            )
+
         if export_format == "markdown":
-            content = self._to_markdown(conversation, messages)
+            content = self._to_markdown(conversation, serialized_messages)
             filename = f"{title}.md"
         else:
-            content = self._to_json(conversation, messages)
+            content = self._to_json(conversation, serialized_messages)
             filename = f"{title}.json"
 
         return {
@@ -553,6 +652,25 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         messages: list,
     ) -> str:
         """将对话转换为 JSON 字符串 / Convert conversation to JSON string."""
+        def _msg_get(message: Any, key: str, default: Any = None) -> Any:
+            if isinstance(message, dict):
+                return message.get(key, default)
+            if hasattr(message, "__dict__") and key in vars(message):
+                return vars(message).get(key, default)
+            value = getattr(message, key, default)
+            return default if isinstance(value, Mock) else value
+
+        def _related_attr(message: Any, relation: str, key: str) -> Any:
+            if isinstance(message, dict):
+                return None
+            relation_obj = _msg_get(message, relation)
+            if relation_obj is None:
+                return None
+            if hasattr(relation_obj, "__dict__") and key in vars(relation_obj):
+                return vars(relation_obj).get(key)
+            value = getattr(relation_obj, key, None)
+            return None if isinstance(value, Mock) else value
+
         data = {
             "id": conversation.id,
             "title": conversation.title,
@@ -561,15 +679,32 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             "created_at": ConversationService._format_dt(conversation.created_at),
             "messages": [
                 {
-                    "role": msg.role,
-                    "content": msg.content,
-                    "token_count": msg.token_count,
-                    "tool_calls": msg.tool_calls,
-                    "tool_call_id": msg.tool_call_id,
-                    "agent_id": msg.agent_id,
-                    "agent_name": getattr(getattr(msg, "agent", None), "name", None),
-                    "agent_avatar": getattr(getattr(msg, "agent", None), "avatar", None),
-                    "created_at": ConversationService._format_dt(msg.created_at),
+                    "role": _msg_get(msg, "role"),
+                    "content": _msg_get(msg, "content"),
+                    "token_count": _msg_get(msg, "token_count"),
+                    "tool_calls": _msg_get(msg, "tool_calls"),
+                    "tool_call_id": _msg_get(msg, "tool_call_id"),
+                    "agent_id": _msg_get(msg, "agent_id"),
+                    "agent_name": _msg_get(
+                        msg,
+                        "agent_name",
+                        _related_attr(msg, "agent", "name"),
+                    ),
+                    "agent_avatar": _msg_get(
+                        msg,
+                        "agent_avatar",
+                        _related_attr(msg, "agent", "avatar"),
+                    ),
+                    "created_at": _msg_get(
+                        msg,
+                        "created_at",
+                        ConversationService._format_dt(_msg_get(msg, "created_at")),
+                    ),
+                    "metadata": _msg_get(
+                        msg,
+                        "metadata",
+                        _msg_get(msg, "metadata_"),
+                    ),
                 }
                 for msg in messages
             ],
@@ -582,6 +717,25 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         messages: list,
     ) -> str:
         """将对话转换为 Markdown 字符串 / Convert conversation to Markdown string."""
+        def _msg_get(message: Any, key: str, default: Any = None) -> Any:
+            if isinstance(message, dict):
+                return message.get(key, default)
+            if hasattr(message, "__dict__") and key in vars(message):
+                return vars(message).get(key, default)
+            value = getattr(message, key, default)
+            return default if isinstance(value, Mock) else value
+
+        def _related_attr(message: Any, relation: str, key: str) -> Any:
+            if isinstance(message, dict):
+                return None
+            relation_obj = _msg_get(message, relation)
+            if relation_obj is None:
+                return None
+            if hasattr(relation_obj, "__dict__") and key in vars(relation_obj):
+                return vars(relation_obj).get(key)
+            value = getattr(relation_obj, key, None)
+            return None if isinstance(value, Mock) else value
+
         role_labels = {
             MessageRoleEnum.SYSTEM.value: _("conversation.export.role.system"),
             MessageRoleEnum.USER.value: _("conversation.export.role.user"),
@@ -593,26 +747,55 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         lines = [f"# {title}", ""]
 
         for msg in messages:
-            label = role_labels.get(msg.role, msg.role)
-            agent_name = getattr(getattr(msg, "agent", None), "name", None)
+            role = _msg_get(msg, "role", "")
+            label = role_labels.get(role, role)
+            agent_name = _msg_get(
+                msg,
+                "agent_name",
+                _related_attr(msg, "agent", "name"),
+            )
             if agent_name:
                 lines.append(f"## {label} ({agent_name})")
-            elif msg.agent_id:
-                lines.append(f"## {label} (#{msg.agent_id})")
+            elif _msg_get(msg, "agent_id"):
+                lines.append(f"## {label} (#{_msg_get(msg, 'agent_id')})")
             else:
                 lines.append(f"## {label}")
             lines.append("")
-            lines.append(msg.content or "")
+            lines.append(_msg_get(msg, "content") or "")
             lines.append("")
 
             # 工具调用信息
-            if msg.tool_calls:
+            tool_calls = _msg_get(msg, "tool_calls")
+            if tool_calls:
                 lines.append("**Tool Calls:**")
-                lines.append(f"```json\n{json.dumps(msg.tool_calls, indent=2, ensure_ascii=False)}\n```")
+                lines.append(
+                    f"```json\n{json.dumps(tool_calls, indent=2, ensure_ascii=False)}\n```"
+                )
+                lines.append("")
+
+            metadata = _msg_get(msg, "metadata", _msg_get(msg, "metadata_"))
+            attachments = (
+                metadata.get("attachments")
+                if isinstance(metadata, dict)
+                else None
+            )
+            if isinstance(attachments, list) and attachments:
+                lines.append("**Attachments:**")
+                for item in attachments:
+                    if not isinstance(item, dict):
+                        continue
+                    att_type = str(item.get("type") or "file")
+                    name = str(item.get("name") or item.get("url") or "-")
+                    attachment_id = item.get("attachment_id")
+                    url = str(item.get("url") or "").strip()
+                    suffix = f" (#{attachment_id})" if attachment_id else ""
+                    if url:
+                        lines.append(f"- `{att_type}` {name}{suffix} `{url}`")
+                    else:
+                        lines.append(f"- `{att_type}` {name}{suffix}")
                 lines.append("")
 
         return "\n".join(lines)
-
 
     # ========================================
     # 对话执行辅助（从 AgentChatService 提取）
@@ -653,11 +836,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             # 续接已有对话
             conversation = await self.get_accessible_conversation(
                 conversation_id,
-                user_id=(
-                    user_id
-                    if self.tenant_id != PLATFORM_TENANT_ID
-                    else None
-                ),
+                user_id=(user_id if self.tenant_id != PLATFORM_TENANT_ID else None),
                 owner_type=owner_type,
             )
 
@@ -674,17 +853,19 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             return conversation
 
         # 创建新对话
-        title = first_message[:self.MAX_TITLE_LENGTH].strip()
-        conversation = await self.repo.create({
-            "tenant_id": self.tenant_id,
-            "agent_id": agent_id,
-            "user_id": user_id,
-            "owner_type": owner_type,
-            "title": title,
-            "status": ConversationStatusEnum.ACTIVE.value,
-            "token_count": 0,
-            "cost": 0,
-        })
+        title = first_message[: self.MAX_TITLE_LENGTH].strip()
+        conversation = await self.repo.create(
+            {
+                "tenant_id": self.tenant_id,
+                "agent_id": agent_id,
+                "user_id": user_id,
+                "owner_type": owner_type,
+                "title": title,
+                "status": ConversationStatusEnum.ACTIVE.value,
+                "token_count": 0,
+                "cost": 0,
+            }
+        )
 
         logger.info(
             "Conversation created: id={} agent={} tenant={} owner_type={}",
@@ -717,7 +898,9 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         Returns:
             ChatMessage 列表（不含 system 消息，由引擎构建）
         """
-        effective_limit = max_messages if max_messages > 0 else self.MAX_HISTORY_MESSAGES
+        effective_limit = (
+            max_messages if max_messages > 0 else self.MAX_HISTORY_MESSAGES
+        )
         db_messages = await self.message_repo.get_last_n_messages(
             conversation_id=conversation_id,
             n=effective_limit,
@@ -799,7 +982,9 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
                 i += 1
                 continue
 
-            tc_ids_expected = {tc.get("id", "") for tc in msg.tool_calls if tc.get("id")}
+            tc_ids_expected = {
+                tc.get("id", "") for tc in msg.tool_calls if tc.get("id")
+            }
             if not tc_ids_expected:
                 result.append(msg)
                 i += 1
@@ -875,6 +1060,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
                 tool_call_id=m.get("tool_call_id"),
                 attachments=m.get("attachments"),
                 reasoning_content=m.get("reasoning_content"),
+                internal_only=bool(m.get("internal_only", False)),
             )
             for m in new_messages_raw
         ]
@@ -889,6 +1075,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
                 "reasoning_content": m.reasoning_content,
             }
             for m in chat_msgs
+            if not m.internal_only
         ]
 
         # 构建 tool_call_id → ToolResult 的查找表
@@ -945,7 +1132,10 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             is_last_assistant = (
                 role == "assistant"
                 and not tool_calls
-                and (getattr(result, "partial", False) or getattr(result, "interrupted", False))
+                and (
+                    getattr(result, "partial", False)
+                    or getattr(result, "interrupted", False)
+                )
                 and i == len(new_messages) - 1
             )
             if is_last_assistant:
@@ -955,11 +1145,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
                 if getattr(result, "completion_reason", ""):
                     metadata["completion_reason"] = result.completion_reason
 
-            if (
-                route_source
-                and role == "assistant"
-                and not route_source_marked
-            ):
+            if route_source and role == "assistant" and not route_source_marked:
                 metadata = metadata or {}
                 metadata["route_source"] = route_source
                 route_source_marked = True
@@ -988,19 +1174,21 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             msg_agent_id = agent_id if role in ("assistant", "tool") else None
             msg_model_id = result.runtime_model_id if role == "assistant" else None
 
-            await self.message_repo.create({
-                "tenant_id": self.tenant_id,
-                "conversation_id": conversation.id,
-                "role": role,
-                "content": content,
-                "sequence": next_seq + i,
-                "token_count": token_estimate,
-                "tool_calls": tool_calls,
-                "tool_call_id": tool_call_id,
-                "agent_id": msg_agent_id,
-                "model_id": msg_model_id,
-                "metadata_": metadata,
-            })
+            await self.message_repo.create(
+                {
+                    "tenant_id": self.tenant_id,
+                    "conversation_id": conversation.id,
+                    "role": role,
+                    "content": content,
+                    "sequence": next_seq + i,
+                    "token_count": token_estimate,
+                    "tool_calls": tool_calls,
+                    "tool_call_id": tool_call_id,
+                    "agent_id": msg_agent_id,
+                    "model_id": msg_model_id,
+                    "metadata_": metadata,
+                }
+            )
 
         # 递增 message_count 冗余计数
         new_message_count = (conversation.message_count or 0) + len(new_messages)
@@ -1018,7 +1206,8 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         在 _persist_session_memory 成功后调用，用于前端加载历史时恢复记忆标记。
         """
         messages = await self.message_repo.get_last_n_messages(
-            conversation_id=conversation_id, n=1,
+            conversation_id=conversation_id,
+            n=1,
         )
         if not messages:
             return

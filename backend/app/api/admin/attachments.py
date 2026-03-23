@@ -147,6 +147,7 @@ class AdminAttachmentController(GlobalController):
                 file_hash=raw_hash,
                 filename=body.filename,
                 size=body.size,
+                visibility=AttachmentVisibility(body.visibility),
             )
             resp = AttachmentPreflightResponse(
                 exists=result["exists"],

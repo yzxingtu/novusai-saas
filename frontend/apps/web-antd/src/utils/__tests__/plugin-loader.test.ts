@@ -33,7 +33,7 @@ import {
   parsePluginReleaseManifest,
   pluginRuntimeEnv,
   unloadPlugin,
-} from '#/utils/plugin-loader';
+} from '../plugin-loader';
 
 describe('plugin-loader', () => {
   beforeEach(() => {
@@ -53,10 +53,28 @@ describe('plugin-loader', () => {
     ).NovusPlugin_demo_plugin;
   });
 
-  it('builds dev entry url from the __plugin_dev__ contract', () => {
+  it('builds the dev entry url and forwards runtime dev_entry when provided', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1);
+
     expect(buildPluginDevEntryUrl('demo-plugin')).toBe(
       '/__plugin_dev__/demo-plugin/entry?t=1',
     );
+
+    expect(
+      buildPluginDevEntryUrl('demo-plugin', {
+        dev_entry: 'src/index.ts',
+      }),
+    ).toBe('/__plugin_dev__/demo-plugin/entry?entry=src%2Findex.ts&t=1');
+  });
+
+  it('drops invalid dev_entry traversal paths', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1);
+
+    expect(
+      buildPluginDevEntryUrl('demo-plugin', {
+        dev_entry: '../escape.ts',
+      }),
+    ).toBe('/__plugin_dev__/demo-plugin/entry?t=1');
   });
 
   it('rejects invalid release manifest entries', () => {
@@ -65,6 +83,20 @@ describe('plugin-loader', () => {
         entry: '../bad.js',
       }),
     ).toThrow(/valid entry/);
+  });
+
+  it('parses release manifests with default global var fallback', () => {
+    expect(
+      parsePluginReleaseManifest('demo-plugin', {
+        entry: 'plugin.js',
+      }),
+    ).toEqual({
+      assets: [],
+      css: [],
+      entry: 'plugin.js',
+      format: 'novus.plugin.release.v1',
+      global_var: 'NovusPlugin_demo_plugin',
+    });
   });
 
   it('loads release manifest before injecting css and script assets', async () => {
@@ -126,9 +158,7 @@ describe('plugin-loader', () => {
       '/plugin-assets/demo-plugin/assets/plugin.js',
     );
 
-    expect(pluginAssetMocks.getPluginAssetAuthHeaders).toHaveBeenCalledTimes(
-      1,
-    );
+    expect(pluginAssetMocks.getPluginAssetAuthHeaders).toHaveBeenCalledTimes(1);
     expect(setup).toHaveBeenCalledTimes(1);
     expect(mod).toBe(moduleExport);
   });

@@ -315,6 +315,15 @@ useAutoTableDragSort(() => gridApi.grid, {
                 </template>
                 {{ $t('admin.tenant.plan.featureSupport') }}
               </Tag>
+              <Tag
+                v-if="row.features.storageBillingEnabled"
+                class="!mr-0 rounded bg-emerald-500/10 text-emerald-500"
+              >
+                <template #icon>
+                  <IconifyIcon icon="lucide:database" class="size-3" />
+                </template>
+                {{ $t('admin.tenant.plan.featureStorageBilling') }}
+              </Tag>
             </div>
             <span v-else class="text-muted-foreground">-</span>
           </div>

@@ -188,7 +188,7 @@ isProject: true
 1. 平台域名 `/` 和企业域名 `/` 需要按域名区分
 2. 企业域名 `/` 还要按登录态再区分未登录与已登录体验
 3. 后台首页与公开首页必须彻底脱钩
-4. 旧的 `/home`、`HOME_PATHS`、`guard`、端点 resolver 历史别名（如 `getApiEndpoint()`）、动态菜单 path 必须统一收口
+4. 旧的 `/home`、`HOME_PATHS`、`guard`、端点 resolver 历史别名链、动态菜单 path 必须统一收口
 
 因此，本次改造本质上是“公开首页体系 + 登录后首页体系 + 多端入口体系”的重构。
 
@@ -326,9 +326,9 @@ isProject: true
 5. [frontend/apps/web-antd/src/api/shared/types.ts](E:/git_clone/novusai-saas-yudi/frontend/apps/web-antd/src/api/shared/types.ts)
    结论：保留文件，保留代理入口
    保留部分：
-   - 历史上的 `getApiEndpoint(path)` 委托共享 resolver 的收口思路
+   - 统一端点解析由共享 resolver 承接的收口思路
    丢弃部分：
-   - 继续保留 `getApiEndpoint()` 旧别名本身（该别名现已删除）
+   - 恢复共享端点 resolver 的已删除历史别名链（后续也不应恢复）
    - 若 resolver 仍按旧首页语义工作，则必须随 `endpoints.ts` 一起调整
 6. [frontend/apps/web-antd/src/store/shared/multi-auth.ts](E:/git_clone/novusai-saas-yudi/frontend/apps/web-antd/src/store/shared/multi-auth.ts)
    结论：保留文件，重做当前路由/登出跳转语义

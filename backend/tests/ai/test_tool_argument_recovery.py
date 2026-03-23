@@ -227,7 +227,7 @@ class TestPageToolExpander:
 
     def test_expands_editor_tools_when_available(self) -> None:
         """available_operations 含编辑操作时展开 pageop_* tools"""
-        from app.ai.tools.page_tool_expander import PREFIX, expand_editor_tools
+        from app.ai.tools.page_tool_expander import PREFIX, expand_page_tools
         from app.ai.tools.types import ToolDefinition
 
         base_tools = [
@@ -244,7 +244,7 @@ class TestPageToolExpander:
                 },
             },
         }
-        result = expand_editor_tools(base_tools, input_vars)
+        result = expand_page_tools(base_tools, input_vars)
         expanded_names = [t.name for t in result if t.name.startswith(PREFIX)]
         assert "pageop_get_editor_html" in expanded_names
         assert "pageop_replace_content" in expanded_names
@@ -257,18 +257,18 @@ class TestPageToolExpander:
 
     def test_no_expansion_without_page_context(self) -> None:
         """无 page_context 时不展开"""
-        from app.ai.tools.page_tool_expander import expand_editor_tools
+        from app.ai.tools.page_tool_expander import expand_page_tools
         from app.ai.tools.types import ToolDefinition
 
         base = [ToolDefinition(name="invoke_page_operation", description="x")]
-        result = expand_editor_tools(base, None)
+        result = expand_page_tools(base, None)
         assert result == base
-        result = expand_editor_tools(base, {})
+        result = expand_page_tools(base, {})
         assert result == base
 
     def test_expands_generic_page_tools_when_available(self) -> None:
         """普通页面高频操作也应展开 pageop_* tools。"""
-        from app.ai.tools.page_tool_expander import expand_editor_tools
+        from app.ai.tools.page_tool_expander import expand_page_tools
         from app.ai.tools.types import ToolDefinition
 
         base = [ToolDefinition(name="invoke_page_operation", description="x")]
@@ -295,7 +295,7 @@ class TestPageToolExpander:
                 },
             },
         }
-        result = expand_editor_tools(base, input_vars)
+        result = expand_page_tools(base, input_vars)
         expanded_names = [tool.name for tool in result]
         assert "pageop_refresh_list" in expanded_names
         assert "pageop_search" in expanded_names
@@ -303,7 +303,7 @@ class TestPageToolExpander:
 
     def test_no_expansion_when_no_expandable_page_ops(self) -> None:
         """available_operations 无可展开操作时不展开。"""
-        from app.ai.tools.page_tool_expander import expand_editor_tools
+        from app.ai.tools.page_tool_expander import expand_page_tools
         from app.ai.tools.types import ToolDefinition
 
         base = [ToolDefinition(name="invoke_page_operation", description="x")]
@@ -315,7 +315,7 @@ class TestPageToolExpander:
                 },
             },
         }
-        result = expand_editor_tools(base, input_vars)
+        result = expand_page_tools(base, input_vars)
         assert len(result) == 1
         assert result[0].name == "invoke_page_operation"
 

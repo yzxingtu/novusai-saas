@@ -50,6 +50,8 @@ async def create_challenge(
         )
     if captcha_plugin is not None:
         ctx["plugin_config"] = captcha_plugin.plugin_config
+        ctx["plugin_name"] = captcha_plugin.plugin_name
+        ctx["public_endpoint"] = captcha_plugin.public_endpoint
 
     if not captcha_service.check_rate_limit(ctx, "challenge"):
         raise RateLimitException()

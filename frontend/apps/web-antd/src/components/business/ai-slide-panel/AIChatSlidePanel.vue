@@ -45,7 +45,10 @@ import { getAgentInputVariables } from '#/components/business/ai-chat-panel/type
 import { useAIChat } from '#/components/business/ai-chat-panel/use-ai-chat';
 import { formStateTracker } from '#/composables/use-form-state-tracker';
 import { useModalDetector } from '#/composables/use-modal-detector';
-import { usePageScreenshot } from '#/composables/use-page-screenshot';
+import {
+  DEFAULT_PAGE_SCREENSHOT_EXCLUDE_SELECTORS,
+  usePageScreenshot,
+} from '#/composables/use-page-screenshot';
 import { getActivePageSessionId } from '#/composables/use-page-session';
 import { $t } from '#/locales';
 import { useAIPanelStore } from '#/store';
@@ -1161,6 +1164,7 @@ async function handleSendMessage() {
     if (result.agentId !== selectedAgentId.value) {
       selectedAgentId.value = result.agentId;
     }
+    const routedPageContext = currentPageContext.value;
 
     // On @mention routing, replace input with cleaned message (remove @name prefix) / @mention 路由时，用清理后的消息替换输入（去除 @name 前缀）
     if (result.routedBy === 'mention' && result.cleanedMessage !== undefined) {
@@ -1186,7 +1190,7 @@ async function handleSendMessage() {
         // Defer send: open modal and wait for vars to be filled / 延迟发送：打开弹窗等待变量填写
         pendingSendContext.value = {
           agentId: result.agentId,
-          pageContext,
+          pageContext: routedPageContext,
           ...(result.routedBy === 'mention' ? { routeSource: 'mention' } : {}),
         };
         openVarsModal(routedInputVariables, result.agentId, routedAgent!.name);
@@ -1197,7 +1201,7 @@ async function handleSendMessage() {
     // Send message (using routed agent ID) / 发送消息（使用路由后的智能体 ID）
     sendMessage({
       agentId: result.agentId,
-      pageContext,
+      pageContext: routedPageContext,
       ...(result.routedBy === 'mention' ? { routeSource: 'mention' } : {}),
     });
   } catch (error: unknown) {
@@ -1478,6 +1482,16 @@ const headerConversationSummary = computed(() => {
 const headerMoreMenuItems = computed(() => {
   const items: ItemType[] = [];
 
+  if (isPinned.value) {
+    items.push({
+      key: 'unpin-agent',
+      label: $t('common.aiPanel.unpinAgent'),
+      onClick: () => {
+        unpinAgent();
+      },
+    });
+  }
+
   if (switchAgentMenuItems.value.length > 1) {
     items.push({
       children: switchAgentMenuItems.value,
@@ -1503,6 +1517,7 @@ const showHeaderMoreMenu = computed(() => headerMoreMenuItems.value.length > 0);
 
 const headerMoreHasAttention = computed(
   () =>
+    isPinned.value ||
     forceRerouteNextTurn.value ||
     !!(
       activeConversationId.value &&
@@ -1521,12 +1536,7 @@ async function handleScreenshot() {
     extraData: props.apiPrefix.includes('/admin')
       ? { tenant_id: '0' }
       : undefined,
-    excludeSelectors: [
-      '[data-ai-panel]',
-      '.ant-modal-root',
-      '.ant-message',
-      '.ant-notification',
-    ],
+    excludeSelectors: [...DEFAULT_PAGE_SCREENSHOT_EXCLUDE_SELECTORS],
   });
   if (result) {
     pendingAttachments.value.push(result.attachment);
@@ -1984,16 +1994,6 @@ onUnmounted(() => {
               data-testid="ai-panel-header-status"
               class="flex min-w-0 flex-1 flex-wrap items-center gap-1"
             >
-              <Tooltip v-if="isPinned" :title="$t('common.aiPanel.unpinAgent')">
-                <button
-                  class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary transition-colors hover:bg-primary/20"
-                  @click="unpinAgent"
-                >
-                  <IconifyIcon icon="lucide:pin" class="size-2.5" />
-                  {{ aiPanelStore.pinnedAgentName }}
-                  <IconifyIcon icon="lucide:x" class="size-2" />
-                </button>
-              </Tooltip>
               <span
                 v-if="forceRerouteNextTurn"
                 class="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700"

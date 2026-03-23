@@ -85,6 +85,9 @@ def test_simple_files_have_content() -> None:
 
 def test_tree_generates_with_tree_config() -> None:
     """tree 预设生成包含树形相关逻辑."""
+    config = _load_preset("tree")
+    assert config["model"]["base_class"] == "BaseModel"
+
     files = _generate("tree")
 
     paths = [f.path for f in files]

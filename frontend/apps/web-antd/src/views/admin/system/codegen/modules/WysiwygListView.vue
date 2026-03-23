@@ -318,8 +318,8 @@ function getFileName(val: unknown): string {
                   <Tag :color="row[f.name as string] ? 'success' : 'default'">
                     {{
                       row[f.name as string]
-                        ? $t('common.statusEnabled')
-                        : $t('common.statusDisabled')
+                        ? $t('common.yes')
+                        : $t('common.no')
                     }}
                   </Tag>
                 </template>

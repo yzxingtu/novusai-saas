@@ -64,6 +64,7 @@
   "refreshAnalytics": "Refresh Analytics",
   "readCurrentView": "Read Current View",
   "readCurrentSections": "Read Current Sections",
+  "captureScreenshot": "Capture Screenshot",
   "readVisibleRows": "Read Visible Rows",
   "readRowDetail": "Read Row Detail",
 
@@ -78,6 +79,8 @@
     "listRefreshed": "List refreshed",
     "currentViewRead": "Current page view snapshot captured",
     "currentSectionsRead": "Current page sections captured",
+    "screenshotCaptured": "Captured the current page screenshot and attached it to this turn",
+    "screenshotFailed": "Page screenshot failed. Continue with text page context for now or retry later",
     "visibleRowsRead": "Read {count} visible row(s) from the current page",
     "rowDetailRead": "Read detail for record {id}",
     "formNotOpen": "Form is not open. Use create_record or edit_record first.",

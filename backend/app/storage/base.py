@@ -6,7 +6,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, BinaryIO
+from urllib.parse import quote
 
 from app.core.logging import StorageLoggerMixin
 from app.enums.base import StrEnum
@@ -58,6 +60,28 @@ class FileInfo:
     last_modified: datetime
     visibility: StorageVisibility
     metadata: dict = field(default_factory=dict)
+
+
+def build_content_disposition(
+    filename: str,
+    disposition: str = "attachment",
+) -> str:
+    """
+    Build RFC 5987-compatible Content-Disposition header.
+    构建兼容 RFC 5987 的 Content-Disposition 响应头。
+    """
+    safe_filename = filename.replace("\\", "_").replace('"', "_").strip() or "file"
+    try:
+        safe_filename.encode("latin-1")
+        return f'{disposition}; filename="{safe_filename}"'
+    except UnicodeEncodeError:
+        suffix = Path(safe_filename).suffix
+        fallback = f"file{suffix}" if suffix else "file"
+        encoded = quote(safe_filename, safe="")
+        return (
+            f'{disposition}; filename="{fallback}"; '
+            f"filename*=UTF-8''{encoded}"
+        )
 
 
 class StorageDriver(StorageLoggerMixin):
@@ -147,7 +171,7 @@ class StorageDriver(StorageLoggerMixin):
         info = await self.get_info(path)
         headers = {}
         if filename:
-            headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+            headers["Content-Disposition"] = build_content_disposition(filename)
         return StreamingResponse(
             content,
             media_type=info.mime_type if info else "application/octet-stream",

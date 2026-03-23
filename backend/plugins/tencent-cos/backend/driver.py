@@ -153,7 +153,7 @@ class CosStorageDriver(StorageDriver):
                 user_meta["visibility"] = visibility.value
                 if user_meta:
                     extra_args["Metadata"] = {
-                        f"x-cos-meta-{k}": str(v) for k, v in user_meta.items()
+                        str(k): str(v) for k, v in user_meta.items()
                     }
                 self.client.put_object(
                     Bucket=self.bucket_name,
@@ -262,7 +262,10 @@ class CosStorageDriver(StorageDriver):
             for k, v in response.items():
                 lk = k.lower()
                 if lk.startswith("x-cos-meta-"):
-                    metadata[lk[len("x-cos-meta-"):]] = v
+                    meta_key = lk[len("x-cos-meta-"):]
+                    while meta_key.startswith("x-cos-meta-"):
+                        meta_key = meta_key[len("x-cos-meta-"):]
+                    metadata[meta_key] = v
             visibility_value = metadata.get("visibility", "private")
             last_modified = datetime.now(timezone.utc)
             raw_lm = response.get("Last-Modified")
@@ -285,6 +288,10 @@ class CosStorageDriver(StorageDriver):
     async def copy(self, source: str, destination: str) -> bool:
         src_key = self._key(source)
         dst_key = self._key(destination)
+        source_info = await self.get_info(source)
+        extra_args: dict[str, str] = {}
+        if source_info and source_info.visibility == StorageVisibility.PUBLIC:
+            extra_args["ACL"] = "public-read"
 
         def _copy() -> bool:
             try:
@@ -296,6 +303,7 @@ class CosStorageDriver(StorageDriver):
                         "Key": src_key,
                         "Region": self.region,
                     },
+                    **extra_args,
                 )
             except CosServiceError as exc:
                 raise StorageError(message=str(exc)) from exc

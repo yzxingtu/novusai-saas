@@ -37,13 +37,28 @@ class TenantPublicConfig(BaseSchema):
 
     # 登录设置
     captcha_enabled: bool = Field(False, description="是否启用验证码")
+    user_login_captcha_enabled: bool = Field(
+        True,
+        description="用户端登录是否启用验证码",
+    )
+    user_registration_captcha_enabled: bool = Field(
+        True,
+        description="用户端注册是否启用验证码",
+    )
+    user_login_captcha_enable_threshold: int = Field(
+        0,
+        description="用户端登录验证码启用阈值",
+    )
     captcha_provider: str | None = Field(None, description="验证码驱动")
     captcha_plugin: CaptchaPluginFrontendRuntimePublicConfig | None = Field(
         None,
         description="验证码插件前端运行时信息",
     )
     captcha_difficulty: str | None = Field(None, description="验证码难度")
-    captcha_enable_threshold: int | None = Field(None, description="验证码启用阈值")
+    captcha_enable_threshold: int | None = Field(
+        None,
+        description="企业端登录验证码启用阈值",
+    )
     login_methods: list[str] = Field(
         default_factory=lambda: ["password"],
         description="支持的登录方式",

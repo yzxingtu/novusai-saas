@@ -34,12 +34,13 @@ def _build_manifest(
     *,
     python_deps: list[str] | None = None,
     version: str = "1.0.0",
+    tasks: list[object] | None = None,
 ):
     return SimpleNamespace(
         version=version,
         dependencies=SimpleNamespace(python=python_deps or []),
         compatibility=None,
-        extensions=SimpleNamespace(frontend=SimpleNamespace()),
+        extensions=SimpleNamespace(frontend=SimpleNamespace(), tasks=tasks or []),
     )
 
 
@@ -78,13 +79,25 @@ async def test_restore_owner_mode_runs_heavy_and_mutates_status(
             self.plugins_dir = plugins_dir
 
         def load_manifest(self, _plugin_name: str):
-            return _build_manifest(python_deps=["pydantic"])
+            return _build_manifest(
+                python_deps=["pydantic"],
+                tasks=[
+                    SimpleNamespace(
+                        name="run-timeout-sweeper",
+                        schedule_type="interval",
+                        interval_seconds=300,
+                        cron_expression=None,
+                        description="sweep timeout runs",
+                    )
+                ],
+            )
 
     lifecycle_instances: list[object] = []
 
     class _Lifecycle:
         def __init__(self, _db):
             self.run_alembic_upgrade = AsyncMock()
+            self._sync_plugin_periodic_tasks = AsyncMock()
             lifecycle_instances.append(self)
 
     registry = MagicMock()
@@ -118,6 +131,7 @@ async def test_restore_owner_mode_runs_heavy_and_mutates_status(
     assert len(lifecycle_instances) == 1
     lifecycle = lifecycle_instances[0]
     lifecycle.run_alembic_upgrade.assert_awaited_once_with("demo-plugin")
+    lifecycle._sync_plugin_periodic_tasks.assert_awaited_once()
 
     assert plugin.error_count == 0
     assert plugin.error_message is None

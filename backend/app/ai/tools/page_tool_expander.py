@@ -20,38 +20,43 @@ logger = LogManager.get_logger("ai.tool.page_expander")
 
 # Editor ops that get expanded as dedicated tools (when present in available_operations)
 # 展开为专用工具的编辑操作（当 available_operations 中存在时）
-EDITOR_OPS_TO_EXPAND: frozenset[str] = frozenset({
-    "get_editor_html",
-    "get_editor_text",
-    "replace_section",
-    "replace_content",
-    "insert_content",
-    "append_content",
-    "update_title",
-    "insert_table",
-    "manage_link",
-})
+EDITOR_OPS_TO_EXPAND: frozenset[str] = frozenset(
+    {
+        "get_editor_html",
+        "get_editor_text",
+        "replace_section",
+        "replace_content",
+        "insert_content",
+        "append_content",
+        "update_title",
+        "insert_table",
+        "manage_link",
+    }
+)
 
 # High-frequency generic page ops that also benefit from dedicated tool schemas
 # 高频通用页面操作也展开为专用工具，减少 invoke_page_operation 的参数包装错误
-GENERIC_PAGE_OPS_TO_EXPAND: frozenset[str] = frozenset({
-    "clear_search",
-    "create_record",
-    "edit_record",
-    "fill_form",
-    "get_form_options",
-    "get_form_state",
-    "go_to_page",
-    "next_page",
-    "prev_page",
-    "read_row_detail",
-    "read_visible_rows",
-    "refresh_list",
-    "search",
-    "set_page_size",
-    "submit_form",
-    "validate_form",
-})
+GENERIC_PAGE_OPS_TO_EXPAND: frozenset[str] = frozenset(
+    {
+        "capture_screenshot",
+        "clear_search",
+        "create_record",
+        "edit_record",
+        "fill_form",
+        "get_form_options",
+        "get_form_state",
+        "go_to_page",
+        "next_page",
+        "prev_page",
+        "read_row_detail",
+        "read_visible_rows",
+        "refresh_list",
+        "search",
+        "set_page_size",
+        "submit_form",
+        "validate_form",
+    }
+)
 
 EXPANDABLE_PAGE_OPS: frozenset[str] = EDITOR_OPS_TO_EXPAND | GENERIC_PAGE_OPS_TO_EXPAND
 
@@ -74,14 +79,16 @@ def _params_to_parameters(op_params: dict[str, Any] | None) -> list[ToolParamete
         required = bool(spec.get("required", True))
         enum_val = spec.get("enum")
         default_val = spec.get("default")
-        params.append(ToolParameter(
-            name=name,
-            type=str(param_type),
-            description=str(desc) if desc else "",
-            required=required,
-            enum=list(enum_val) if isinstance(enum_val, list) else None,
-            default=default_val,
-        ))
+        params.append(
+            ToolParameter(
+                name=name,
+                type=str(param_type),
+                description=str(desc) if desc else "",
+                required=required,
+                enum=list(enum_val) if isinstance(enum_val, list) else None,
+                default=default_val,
+            )
+        )
     return params
 
 
@@ -143,13 +150,15 @@ def expand_page_tools(
         params_list = _params_to_parameters(meta.get("params"))
         desc = str(meta.get("description", "") or meta.get("label", op_name))
 
-        expanded.append(ToolDefinition(
-            name=tool_name,
-            description=desc,
-            tool_type="builtin",  # Executed via sandbox redirect to invoke_page_operation
-            parameters=params_list,
-            config={"underlying_operation": op_name, "page_tool": True},
-        ))
+        expanded.append(
+            ToolDefinition(
+                name=tool_name,
+                description=desc,
+                tool_type="builtin",  # Executed via sandbox redirect to invoke_page_operation
+                parameters=params_list,
+                config={"underlying_operation": op_name, "page_tool": True},
+            )
+        )
 
     if expanded:
         logger.info(
@@ -161,6 +170,7 @@ def expand_page_tools(
         return tools + expanded
 
     return tools
+
 
 __all__ = [
     "EDITOR_OPS_TO_EXPAND",

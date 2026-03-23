@@ -12,7 +12,13 @@ import dataclasses
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
-from jinja2 import BaseLoader, ChainableUndefined, Environment, TemplateSyntaxError, UndefinedError
+from jinja2 import (
+    BaseLoader,
+    ChainableUndefined,
+    Environment,
+    TemplateSyntaxError,
+    UndefinedError,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.events.bus import get_event_bus
@@ -49,11 +55,14 @@ def log_user_type_for_call_log(user_role: str) -> str:
         return LogUserTypeEnum.TENANT_USER.value
     return LogUserTypeEnum.TENANT_ADMIN.value
 
+
 # Max tool call rounds (prevents infinite loop) / 工具调用最大循环次数（防止无限循环）
 MAX_TOOL_CALL_ROUNDS = 10
 
 # Jinja2 environment (shared instance, undefined renders as empty string instead of error) / Jinja2 环境（共享实例，undefined 渲染为空字符串而非报错）
-_jinja_env = Environment(loader=BaseLoader(), keep_trailing_newline=True, undefined=ChainableUndefined)
+_jinja_env = Environment(
+    loader=BaseLoader(), keep_trailing_newline=True, undefined=ChainableUndefined
+)
 
 
 class BaseEngine(ABC):
@@ -130,7 +139,9 @@ class BaseEngine(ABC):
         # Auto-inject identity declaration to prevent model from self-identifying as GPT/DeepSeek etc.
         # 自动注入身份声明，防止模型自称 GPT / DeepSeek 等
         if agent_name:
-            identity = _("data_intelligence.identity_declaration").format(agent_name=agent_name)
+            identity = _("data_intelligence.identity_declaration").format(
+                agent_name=agent_name
+            )
             prompt = f"{identity}\n\n{prompt}"
 
         # Build template variables (built-in + custom) / 构建模板变量（内置 + 自定义）
@@ -149,17 +160,20 @@ class BaseEngine(ABC):
         except TemplateSyntaxError as exc:
             logger.warning(
                 "Template syntax error: agent_id={} error={}",
-                agent.id, str(exc),
+                agent.id,
+                str(exc),
             )
         except UndefinedError as exc:
             logger.warning(
                 "Template undefined variable: agent_id={} error={}",
-                agent.id, str(exc),
+                agent.id,
+                str(exc),
             )
         except Exception as exc:
             logger.warning(
                 "Template render error: agent_id={} error={}",
-                agent.id, str(exc),
+                agent.id,
+                str(exc),
             )
 
         return ChatMessage(role="system", content=prompt)
@@ -260,9 +274,17 @@ class BaseEngine(ABC):
             }
             dedicated_ops = [name for name in op_names if name in pageop_tool_ops]
             other_ops = [name for name in op_names if name not in pageop_tool_ops]
+            screenshot_hint = ""
+            if "capture_screenshot" in op_names:
+                screenshot_hint = (
+                    "\nScreenshot rule: use capture_screenshot only when text page context, DOM structure, "
+                    "or visible-row/form data is insufficient for a visual/layout question. "
+                    "Do NOT take repeated screenshots unless the page visibly changed."
+                )
             dedicated_hint = (
                 f"\nDedicated pageop_* tools available for: {', '.join(dedicated_ops)}"
-                if dedicated_ops else ""
+                if dedicated_ops
+                else ""
             )
             other_ops_hint = ""
             if other_ops:
@@ -287,6 +309,7 @@ class BaseEngine(ABC):
                 f"{dedicated_hint}"
                 f"{editor_flow_hint}"
                 f"{other_ops_hint}\n"
+                f"{screenshot_hint}"
                 f"Do NOT show HTML, JSON, tool params or call examples to the user. "
                 f"Tools are for internal execution; return natural language results only."
                 f"{data_distinction_note}"
@@ -326,6 +349,14 @@ class BaseEngine(ABC):
                 f'"new_html": "<h2>New heading</h2><p>Updated text</p>"}})'
             )
 
+        screenshot_guidance = ""
+        if "capture_screenshot" in op_names:
+            screenshot_guidance = (
+                "\nScreenshot rule: use capture_screenshot only when page context, DOM structure, "
+                "or table/form data is insufficient for a visual/layout question. "
+                "Avoid repeated screenshots unless the page visibly changed."
+            )
+
         return (
             f"\n\n[PAGE OPERATIONS]\n"
             f"Current page: {page_key}{desc_line}"
@@ -337,6 +368,7 @@ class BaseEngine(ABC):
             f"{read_example}"
             f"{search_example}"
             f"{section_example}"
+            f"{screenshot_guidance}"
             f"{data_distinction_note}"
         )
 
@@ -398,8 +430,10 @@ class BaseEngine(ABC):
         # 1. Use pre-resolved Skill result, or fallback to internal resolve (backward compatible) / 使用预解析的 Skill 结果，或回退到内部解析（兼容旧调用路径）
         if skill_result is None:
             from app.ai.skills.resolver import resolve_for_agent
+
             skill_result = await resolve_for_agent(
-                self.db, agent,
+                self.db,
+                agent,
                 tenant_id=request.tenant_id,
                 user_role=getattr(request, "user_role", None),
             )
@@ -419,9 +453,12 @@ class BaseEngine(ABC):
             inject_rag_context,
             load_agent_kb_bindings,
         )
+
         rag_sources = None
         agent_kb_ids, agent_kb_weights = await load_agent_kb_bindings(
-            self.db, agent.id, request.tenant_id,
+            self.db,
+            agent.id,
+            request.tenant_id,
         )
         # User-selected KB ids (already sanitized to bound subset in AgentChatService) narrow retrieval.
         # 用户选中的知识库（已在 AgentChatService 校验为绑定子集）用于收窄检索范围。
@@ -435,7 +472,10 @@ class BaseEngine(ABC):
         effective_rag_config = agent.rag_config or {}
         if merged_kb_ids:
             messages, rag_sources = await inject_rag_context(
-                self.db, agent, messages, request.tenant_id,
+                self.db,
+                agent,
+                messages,
+                request.tenant_id,
                 kb_ids=merged_kb_ids,
                 rag_config=effective_rag_config or None,
                 kb_weights=agent_kb_weights,
@@ -445,6 +485,7 @@ class BaseEngine(ABC):
         tools = skill_result.tools if skill_result else []
         if tools:
             from app.ai.tools.page_tool_expander import expand_page_tools
+
             tools = expand_page_tools(tools, request.input_variables)
 
         optimize_event: dict[str, Any] | None = None
@@ -455,6 +496,7 @@ class BaseEngine(ABC):
                     user_query = _m.content or ""
                     break
             from app.ai.tools.optimizer import optimize_tools
+
             opt = optimize_tools(tools, user_query)
             tools = opt.tools
             if not opt.skipped:
@@ -463,6 +505,7 @@ class BaseEngine(ABC):
         # 4.5 Enhance tool schemas with page context (enum/default) / 用页面上下文增强工具 Schema
         if tools:
             from app.ai.tools.enhancer import enhance_tools_with_page_context
+
             enhance_tools_with_page_context(tools, request.input_variables)
 
         # 5. Inject tool awareness hint / 注入工具感知提示
@@ -470,9 +513,7 @@ class BaseEngine(ABC):
             self._inject_tool_awareness(messages, tools, request.input_variables)
 
         # 6. Extract consent_modes / 提取 consent_modes
-        tool_consent_modes = (
-            skill_result.tool_consent_modes if skill_result else {}
-        )
+        tool_consent_modes = skill_result.tool_consent_modes if skill_result else {}
 
         # 7. ModelRouter multi-model routing (graceful fallback on failure) / ModelRouter 多模型路由（容错失败时自动向后兼容）
         route_result = None
@@ -484,11 +525,66 @@ class BaseEngine(ABC):
                 [{"content": m.content or "", "name": m.name or ""} for m in messages]
             )
             router = ModelRouter(self.db)
-            route_result = await router.route(agent, request, estimated_tokens, tools=tools)
+            route_result = await router.route(
+                agent, request, estimated_tokens, tools=tools
+            )
         except BusinessException:
             raise
         except Exception as _routing_exc:
             logger.warning("ModelRouter integration failed: {}", str(_routing_exc))
+
+        runtime_model_capabilities: dict[str, bool] | None = None
+        try:
+            if route_result is not None and getattr(
+                route_result, "is_overridden", False
+            ):
+                model_id = int(getattr(route_result, "model_id", 0) or 0)
+                route_model_obj = None
+                if model_id:
+                    from app.repositories.ai.model_repository import AIModelRepository
+
+                    model_repo = AIModelRepository(self.db)
+                    route_model_obj = await model_repo.get_active_with_provider(
+                        model_id
+                    )
+                if route_model_obj is not None:
+                    runtime_model_capabilities = {
+                        "supports_audio": bool(
+                            getattr(route_model_obj, "supports_audio", False)
+                        ),
+                        "supports_video": bool(
+                            getattr(route_model_obj, "supports_video", False)
+                        ),
+                        "supports_vision": bool(
+                            getattr(route_model_obj, "supports_vision", False)
+                        ),
+                    }
+            elif agent.model is not None:
+                runtime_model_capabilities = {
+                    "supports_audio": bool(
+                        getattr(agent.model, "supports_audio", False)
+                    ),
+                    "supports_video": bool(
+                        getattr(agent.model, "supports_video", False)
+                    ),
+                    "supports_vision": bool(
+                        getattr(agent.model, "supports_vision", False)
+                    ),
+                }
+        except Exception as capability_exc:
+            logger.warning(
+                "Resolve runtime model capabilities failed: {}", str(capability_exc)
+            )
+
+        if runtime_model_capabilities:
+            request.input_variables = {
+                **(request.input_variables or {}),
+                "runtime_model_capabilities": runtime_model_capabilities,
+            }
+            self.sandbox.input_variables = {
+                **(self.sandbox.input_variables or {}),
+                "runtime_model_capabilities": runtime_model_capabilities,
+            }
 
         return PreparedExecution(
             messages=messages,
@@ -547,6 +643,7 @@ class BaseEngine(ABC):
             route_model_obj = None
             if model_id:
                 from app.repositories.ai.model_repository import AIModelRepository
+
                 model_repo = AIModelRepository(self.db)
                 route_model_obj = await model_repo.get_active_with_provider(model_id)
             if route_model_obj is not None:
@@ -562,11 +659,17 @@ class BaseEngine(ABC):
                 is_video = "video" in reason_str
         else:
             model_obj = agent.model
-            provider_code = model_obj.provider.code if model_obj and model_obj.provider else ""
+            provider_code = (
+                model_obj.provider.code if model_obj and model_obj.provider else ""
+            )
             model_code = model_obj.code if model_obj else ""
             is_vision = model_obj.supports_vision if model_obj else False
-            is_audio = getattr(model_obj, "supports_audio", False) if model_obj else False
-            is_video = getattr(model_obj, "supports_video", False) if model_obj else False
+            is_audio = (
+                getattr(model_obj, "supports_audio", False) if model_obj else False
+            )
+            is_video = (
+                getattr(model_obj, "supports_video", False) if model_obj else False
+            )
 
         # Non-capability model: remove corresponding attachments to avoid API errors
         # 无对应能力的模型：移除对应附件，避免 API 报错
@@ -669,11 +772,15 @@ class BaseEngine(ABC):
                 break
 
             # Append assistant message (with tool_calls) / 追加 assistant 消息（含 tool_calls）
-            messages.append(processor.build_assistant_tool_call_message(
-                content=current_response.message.content or "",
-                tool_calls=tool_calls,
-                reasoning_content=(current_response.message.content or "").strip() or None,
-            ))
+            messages.append(
+                processor.build_assistant_tool_call_message(
+                    content=current_response.message.content or "",
+                    tool_calls=tool_calls,
+                    reasoning_content=(current_response.message.content or "").strip()
+                    or None,
+                )
+            )
+            follow_up_messages: list[ChatMessage] = []
 
             # Execute each tool call (using ToolCallProcessor shared logic) / 执行每个工具调用（使用 ToolCallProcessor 共享逻辑）
             # consent_mode pre-check: same semantic as stream path / consent_mode 前置检查：与流式路径语义一致
@@ -693,7 +800,9 @@ class BaseEngine(ABC):
                     if _consent == "ask":
                         messages.append(
                             processor.build_consent_ask_message(
-                                tc_id, func_name, arguments,
+                                tc_id,
+                                func_name,
+                                arguments,
                             )
                         )
                         return (
@@ -704,7 +813,9 @@ class BaseEngine(ABC):
                                     tool_calls=tool_calls,
                                 ),
                                 metadata={
-                                    **dict(getattr(current_response, "metadata", {}) or {}),
+                                    **dict(
+                                        getattr(current_response, "metadata", {}) or {}
+                                    ),
                                     "skip_final_assistant": True,
                                 },
                             ),
@@ -713,12 +824,18 @@ class BaseEngine(ABC):
                         )
 
                 single = await processor.process_single(
-                    tc, conversation_id=request.conversation_id or 0,
+                    tc,
+                    conversation_id=request.conversation_id or 0,
                 )
                 if single.tool_result:
                     all_tool_results.append(single.tool_result)
                 if single.tool_message:
                     messages.append(single.tool_message)
+                if single.follow_up_message:
+                    follow_up_messages.append(single.follow_up_message)
+
+            if follow_up_messages:
+                messages.extend(follow_up_messages)
 
             if skip_final_call:
                 if _round < MAX_TOOL_CALL_ROUNDS - 1:
@@ -726,13 +843,13 @@ class BaseEngine(ABC):
                         agent=agent,
                         messages=messages,
                         tools=tools,
-                    tenant_id=request.tenant_id,
-                    user_id=request.user_id,
-                    conversation_id=request.conversation_id,
-                    billing_context=request.billing_context,
-                    route_result=route_result,
-                    log_user_type=log_user_type_for_call_log(request.user_role),
-                )
+                        tenant_id=request.tenant_id,
+                        user_id=request.user_id,
+                        conversation_id=request.conversation_id,
+                        billing_context=request.billing_context,
+                        route_result=route_result,
+                        log_user_type=log_user_type_for_call_log(request.user_role),
+                    )
                     total_tokens += peek_response.total_tokens or 0
                     if peek_response.tool_calls:
                         current_response = peek_response
@@ -760,13 +877,17 @@ class BaseEngine(ABC):
     # ========================================
 
     @staticmethod
-    async def _publish_execution_started(request: ExecutionRequest, agent: Agent) -> None:
+    async def _publish_execution_started(
+        request: ExecutionRequest, agent: Agent
+    ) -> None:
         """Publish execution started event / 发布执行开始事件"""
-        await get_event_bus().publish(ExecutionStarted(
-            tenant_id=request.tenant_id,
-            agent_id=agent.id,
-            execution_mode=request.execution_mode,
-        ))
+        await get_event_bus().publish(
+            ExecutionStarted(
+                tenant_id=request.tenant_id,
+                agent_id=agent.id,
+                execution_mode=request.execution_mode,
+            )
+        )
 
     @staticmethod
     async def _publish_execution_completed(
@@ -775,12 +896,14 @@ class BaseEngine(ABC):
         result: ExecutionResult,
     ) -> None:
         """Publish execution completed event / 发布执行完成事件"""
-        await get_event_bus().publish(ExecutionCompleted(
-            tenant_id=request.tenant_id,
-            agent_id=agent.id,
-            total_tokens=result.total_tokens,
-            duration_ms=result.duration_ms,
-        ))
+        await get_event_bus().publish(
+            ExecutionCompleted(
+                tenant_id=request.tenant_id,
+                agent_id=agent.id,
+                total_tokens=result.total_tokens,
+                duration_ms=result.duration_ms,
+            )
+        )
 
     @staticmethod
     async def _publish_execution_failed(
@@ -790,12 +913,14 @@ class BaseEngine(ABC):
         error_type: str = "",
     ) -> None:
         """Publish execution failed event / 发布执行失败事件"""
-        await get_event_bus().publish(ExecutionFailed(
-            tenant_id=request.tenant_id,
-            agent_id=agent.id,
-            error=error,
-            error_type=error_type,
-        ))
+        await get_event_bus().publish(
+            ExecutionFailed(
+                tenant_id=request.tenant_id,
+                agent_id=agent.id,
+                error=error,
+                error_type=error_type,
+            )
+        )
 
     # ========================================
     # Utility Methods / 工具方法

@@ -125,7 +125,7 @@ onMounted(() => {
 <template>
   <div
     :class="[
-      'flex min-h-[680px] min-w-80 flex-1 flex-col overflow-hidden rounded-[24px] bg-background transition-all',
+      'flex min-h-[620px] min-w-80 flex-1 flex-col overflow-hidden rounded-[18px] bg-background transition-all',
       isDragOver && 'ring-2 ring-primary/50 ring-offset-2',
     ]"
     @dragenter="onDragEnter"
@@ -133,8 +133,8 @@ onMounted(() => {
     @dragleave="onDragLeave"
     @drop="onDrop"
   >
-    <div class="border-b border-border px-4 py-3">
-      <div class="flex flex-col gap-3">
+    <div class="border-b border-border px-3 py-2">
+      <div class="flex flex-col gap-2">
         <div
           class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between"
         >
@@ -144,7 +144,7 @@ onMounted(() => {
                 {{ workspaceMeta.title }}
               </span>
               <span
-                class="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground"
+                class="rounded-full bg-muted px-2.5 py-0.5 text-[11px] text-muted-foreground"
               >
                 {{
                   $t('admin.system.codegen.fieldConfig.fieldCount', {
@@ -154,7 +154,7 @@ onMounted(() => {
               </span>
               <span
                 v-if="selectedFieldName"
-                class="max-w-full truncate rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 text-xs text-primary"
+                class="max-w-full truncate rounded-full border border-primary/20 bg-primary/5 px-2.5 py-0.5 text-[11px] text-primary"
               >
                 {{ selectedFieldName }}
               </span>
@@ -190,7 +190,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <div class="min-h-0 flex-1 overflow-y-auto bg-muted/10 p-3">
+    <div class="min-h-0 flex-1 overflow-y-auto bg-muted/10 p-2">
       <FieldCardList
         v-if="workspaceMode === 'fields'"
         ref="fieldCardListRef"

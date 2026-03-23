@@ -78,6 +78,7 @@ export interface RagSource {
 }
 
 export interface ChatAttachment {
+  attachment_id?: number;
   type: 'file' | 'image' | 'audio' | 'video';
   url: string;
   name?: string;

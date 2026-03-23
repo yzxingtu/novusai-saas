@@ -180,7 +180,6 @@ KIMI 开始前，按下面顺序读，不要跳读：
 #### 企业端
 
 - `GET /tenant/ai/skill-packages`
-- `GET /tenant/ai/skill-packages/available`
 - `GET /tenant/ai/skill-packages/{id}`
 - `GET /tenant/ai/skill-packages/{id}/skills`
 - `GET /tenant/ai/skill-packages/{id}/resolved-tools`
@@ -393,4 +392,3 @@ KIMI 完成后，必须给出这 4 类信息：
 请 KIMI 始终记住下面这句话，不要偏：
 
 > SkillPackage 是归组 / 来源 / 目录单元；Agent 的运行时能力真相是直接 Skill 授权。
-

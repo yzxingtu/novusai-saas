@@ -952,6 +952,7 @@ _VALID_CAPABILITIES: frozenset[str] = frozenset({
     "db:read",           # Read database (own tables) / 读取数据库（自有表）
     "db:write",          # Write database (own tables) / 写入数据库（自有表）
     "db:own_tables",     # Operate own px_ tables (includes read+write) / 操作自有 px_ 数据表
+    "platform:read",     # Read host snapshots via sandbox facade / 通过沙箱门面读取宿主快照
     "http:outbound",     # Send outbound HTTP requests (with SSRF protection) / 发送外部 HTTP 请求
     "storage:read",      # Read storage files / 读取存储文件
     "storage:write",     # Write storage files / 写入存储文件

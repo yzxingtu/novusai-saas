@@ -48,14 +48,13 @@ class MyModel(BaseModel):
 
 ## 四、前端 DependencyBlockModal
 
-`useCrudPage` 已自动集成：删除被 4221 阻止时自动弹出依赖详情弹窗。
+`useCrudPage` / `useCrudList` 已统一接入：删除被 4221 阻止时会自动弹出依赖详情弹窗。
 
-**非 useCrudPage 页面手动使用：**
+**非 useCrudPage / useCrudList 页面手动使用：**
 
 ```vue
-<script setup>
-import DependencyBlockModal from '#/components/business/dependency-block-modal/index.vue';
-const depBlockRef = ref<InstanceType<typeof DependencyBlockModal> | null>(null);
+<script setup lang="ts">
+import { showDependencyBlockModal } from '#/components/business/dependency-block-modal/service';
 
 async function onDelete(record) {
   try {
@@ -63,14 +62,11 @@ async function onDelete(record) {
   } catch (error) {
     const resp = error?.response?.data;
     if (resp?.code === 4221 && resp?.dependencies) {
-      depBlockRef.value?.open(resp.dependencies, record.name);
+      await showDependencyBlockModal(resp.dependencies, record.name);
     }
   }
 }
 </script>
-<template>
-  <DependencyBlockModal ref="depBlockRef" />
-</template>
 ```
 
 ---

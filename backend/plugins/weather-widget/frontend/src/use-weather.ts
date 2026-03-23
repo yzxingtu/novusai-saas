@@ -1,18 +1,13 @@
 /**
- * 天气数据 Composable (v2)
+ * Shared weather state for plugin widgets.
  *
- * - 合并 current / forecast / hourly / aqi 数据获取
- * - AbortController 请求去重
- * - localStorage 缓存上次成功数据（弱网 fallback）
- * - 骨架屏 initialLoading 状态
- * - 修复 geolocate：先反向地理编码，重试 1 次，降级提示
+ * Header and dashboard widgets use the same singleton store, so
+ * data loading, refresh cadence, stale state, and city selection stay in sync.
  */
-
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { requestClient } from '@novus/plugin-shared';
 
-// ── 类型 ──
+export type TemperatureUnit = 'celsius' | 'fahrenheit';
 
 export interface WeatherCurrent {
   temperature: number | null;
@@ -66,7 +61,7 @@ export interface CityInfo {
 
 interface PluginConfig {
   default_city?: string;
-  temperature_unit?: string;
+  temperature_unit?: TemperatureUnit;
   forecast_days?: number;
   cache_ttl?: number;
   auto_refresh?: boolean;
@@ -87,7 +82,31 @@ interface CachedWeatherData {
   timestamp: number;
 }
 
-// ── 热门城市 ──
+interface WeatherStore {
+  cityName: ReturnType<typeof computed<string>>;
+  recentCities: ReturnType<typeof computed<CityInfo[]>>;
+  current: typeof currentRef;
+  forecast: typeof forecastRef;
+  hourly: typeof hourlyRef;
+  airQuality: typeof airQualityRef;
+  loading: typeof loadingRef;
+  initialLoading: typeof initialLoadingRef;
+  error: typeof errorRef;
+  locating: typeof locatingRef;
+  locateError: typeof locateErrorRef;
+  showCitySelector: typeof showCitySelectorRef;
+  isStale: typeof isStaleRef;
+  pluginConfig: typeof pluginConfigRef;
+  temperatureUnit: ReturnType<typeof computed<TemperatureUnit>>;
+  forecastDays: ReturnType<typeof computed<number>>;
+  lastUpdatedAt: typeof lastUpdatedAtRef;
+  fetchAll: () => Promise<void>;
+  searchCity: (name: string) => Promise<CityInfo[]>;
+  selectCity: (city: CityInfo) => Promise<void>;
+  geolocate: () => Promise<void>;
+  mount: () => Promise<void>;
+  unmount: () => void;
+}
 
 export const POPULAR_CITIES: CityInfo[] = [
   { name: '北京', latitude: 39.9042, longitude: 116.4074, country: 'China' },
@@ -100,29 +119,44 @@ export const POPULAR_CITIES: CityInfo[] = [
   { name: '南京', latitude: 32.0603, longitude: 118.7969, country: 'China' },
   { name: '重庆', latitude: 29.4316, longitude: 106.9123, country: 'China' },
   { name: '西安', latitude: 34.3416, longitude: 108.9398, country: 'China' },
-  { name: '苏州', latitude: 31.2990, longitude: 120.5853, country: 'China' },
+  { name: '苏州', latitude: 31.299, longitude: 120.5853, country: 'China' },
   { name: '天津', latitude: 39.3434, longitude: 117.3616, country: 'China' },
 ];
 
-// ── 常量 ──
-
 const STORAGE_KEY = 'novusai_weather_config';
 const WEATHER_DATA_KEY = 'novusai_weather_data';
-const MAX_RECENT_CITIES = 5;
-const STALE_THRESHOLD = 30 * 60 * 1000; // 30 min
+const MAX_RECENT_CITIES = 6;
+const DEFAULT_CACHE_TTL_SECONDS = 600;
 
 const DEFAULT_LOCAL: WeatherLocalConfig = {
-  city: '上海',
+  city: 'Shanghai',
   latitude: 31.2304,
   longitude: 121.4737,
   recentCities: [
-    { name: '上海', latitude: 31.2304, longitude: 121.4737, country: 'China' },
+    { name: 'Shanghai', latitude: 31.2304, longitude: 121.4737, country: 'China' },
   ],
 };
+
+const localConfigExistsRef = ref(false);
+
+function clamp(num: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, num));
+}
+
+function resolveApiBase(): string {
+  const path = window.location.pathname;
+  const prefix = path.startsWith('/admin') ? '/admin' : '/tenant';
+  return `${prefix}/plugins/weather-widget/api`;
+}
+
+function normalizeTemperatureUnit(unit: unknown): TemperatureUnit {
+  return unit === 'fahrenheit' ? 'fahrenheit' : 'celsius';
+}
 
 function loadLocalConfig(): WeatherLocalConfig {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
+    localConfigExistsRef.value = Boolean(raw);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<WeatherLocalConfig>;
       return {
@@ -135,157 +169,251 @@ function loadLocalConfig(): WeatherLocalConfig {
             : DEFAULT_LOCAL.recentCities,
       };
     }
-  } catch { /* ignore */ }
+  } catch {
+    localConfigExistsRef.value = false;
+  }
   return { ...DEFAULT_LOCAL, recentCities: [...DEFAULT_LOCAL.recentCities] };
 }
 
 function saveLocalConfig(cfg: WeatherLocalConfig): void {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg)); } catch { /* ignore */ }
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+    localConfigExistsRef.value = true;
+  } catch {
+    /* noop */
+  }
 }
 
 function loadCachedWeather(): CachedWeatherData | null {
   try {
     const raw = localStorage.getItem(WEATHER_DATA_KEY);
-    if (raw) return JSON.parse(raw) as CachedWeatherData;
-  } catch { /* ignore */ }
+    if (raw) {
+      return JSON.parse(raw) as CachedWeatherData;
+    }
+  } catch {
+    /* noop */
+  }
   return null;
 }
 
 function saveCachedWeather(data: CachedWeatherData): void {
-  try { localStorage.setItem(WEATHER_DATA_KEY, JSON.stringify(data)); } catch { /* ignore */ }
+  try {
+    localStorage.setItem(WEATHER_DATA_KEY, JSON.stringify(data));
+  } catch {
+    /* noop */
+  }
 }
 
-// ── Composable ──
+const localConfigRef = ref<WeatherLocalConfig>(loadLocalConfig());
+const pluginConfigRef = ref<PluginConfig>({});
+const currentRef = ref<WeatherCurrent | null>(null);
+const forecastRef = ref<WeatherForecastDay[]>([]);
+const hourlyRef = ref<WeatherHourly[]>([]);
+const airQualityRef = ref<AirQuality | null>(null);
+const loadingRef = ref(false);
+const initialLoadingRef = ref(true);
+const errorRef = ref<string | null>(null);
+const locatingRef = ref(false);
+const locateErrorRef = ref<string | null>(null);
+const showCitySelectorRef = ref(false);
+const isStaleRef = ref(false);
+const lastUpdatedAtRef = ref<number | null>(null);
 
-export function useWeather() {
-  const router = useRouter();
-  const localConfig = ref<WeatherLocalConfig>(loadLocalConfig());
-  const pluginConfig = ref<PluginConfig>({});
+let sharedStore: WeatherStore | null = null;
+let consumerCount = 0;
+let initialized = false;
+let requestSeq = 0;
+let refreshTimer: ReturnType<typeof setInterval> | null = null;
+let abortController: AbortController | null = null;
 
-  const current = ref<WeatherCurrent | null>(null);
-  const forecast = ref<WeatherForecastDay[]>([]);
-  const hourly = ref<WeatherHourly[]>([]);
-  const airQuality = ref<AirQuality | null>(null);
+function markStaleByTimestamp(ts: number | null, staleThresholdMs: number): void {
+  if (!ts) {
+    isStaleRef.value = false;
+    return;
+  }
+  isStaleRef.value = Date.now() - ts > staleThresholdMs;
+}
 
-  const loading = ref(false);
-  const initialLoading = ref(true);
-  const error = ref<string | null>(null);
-  const locating = ref(false);
-  const locateError = ref<string | null>(null);
-  const showCitySelector = ref(false);
-  const isStale = ref(false);
+function syncRefreshTimer(intervalMs: number, autoRefresh: boolean, fetchAll: () => Promise<void>): void {
+  if (refreshTimer) {
+    clearInterval(refreshTimer);
+    refreshTimer = null;
+  }
+  if (!autoRefresh || consumerCount <= 0) {
+    return;
+  }
+  refreshTimer = setInterval(() => {
+    void fetchAll();
+  }, intervalMs);
+}
 
-  let refreshTimer: ReturnType<typeof setInterval> | null = null;
-  let abortController: AbortController | null = null;
-
-  const cityName = computed(() => localConfig.value.city);
-  const recentCities = computed(() => localConfig.value.recentCities);
-
-  const apiBase = computed(() => {
-    const path = router.currentRoute.value.path;
-    const prefix = path.startsWith('/admin') ? '/admin' : '/tenant';
-    return `${prefix}/plugins/weather-widget/api`;
-  });
-
-  // ── 插件配置 ──
+function createStore(): WeatherStore {
+  const cityName = computed(() => localConfigRef.value.city);
+  const recentCities = computed(() => localConfigRef.value.recentCities);
+  const temperatureUnit = computed(() =>
+    normalizeTemperatureUnit(pluginConfigRef.value.temperature_unit),
+  );
+  const forecastDays = computed(() =>
+    clamp(pluginConfigRef.value.forecast_days ?? 3, 1, 7),
+  );
+  const refreshIntervalMs = computed(() =>
+    clamp(pluginConfigRef.value.cache_ttl ?? DEFAULT_CACHE_TTL_SECONDS, 60, 3600) * 1000,
+  );
+  const staleThresholdMs = computed(() => Math.max(refreshIntervalMs.value, 5 * 60 * 1000));
 
   async function fetchPluginConfig(): Promise<void> {
     try {
-      const resp = await requestClient.get<{ config: PluginConfig }>(
-        `${apiBase.value}/config`,
-      );
-      if (resp?.config) pluginConfig.value = resp.config;
-    } catch { /* use defaults */ }
+      const resp = await requestClient.get<{ config: PluginConfig }>(`${resolveApiBase()}/config`);
+      if (resp?.config) {
+        pluginConfigRef.value = resp.config;
+      }
+    } catch {
+      pluginConfigRef.value = {};
+    }
   }
 
-  // ── 数据获取 ──
+  async function resolveDefaultCityFromConfig(): Promise<void> {
+    const defaultCityName = pluginConfigRef.value.default_city?.trim();
+    if (!defaultCityName || localConfigExistsRef.value) {
+      return;
+    }
+    const cities = await searchCity(defaultCityName);
+    if (cities.length > 0) {
+      const primary = cities[0]!;
+      localConfigRef.value.city = primary.name;
+      localConfigRef.value.latitude = primary.latitude;
+      localConfigRef.value.longitude = primary.longitude;
+      localConfigRef.value.recentCities = [primary];
+      saveLocalConfig(localConfigRef.value);
+      return;
+    }
+    localConfigRef.value.city = defaultCityName;
+    saveLocalConfig(localConfigRef.value);
+  }
 
   async function fetchAll(): Promise<void> {
-    if (abortController) abortController.abort();
+    const seq = ++requestSeq;
+    if (abortController) {
+      abortController.abort();
+    }
     abortController = new AbortController();
+    loadingRef.value = true;
+    errorRef.value = null;
 
-    loading.value = true;
-    error.value = null;
-    isStale.value = false;
-
-    const { latitude, longitude } = localConfig.value;
+    const { latitude, longitude } = localConfigRef.value;
+    const days = forecastDays.value;
 
     try {
-      const [weatherResp, aqiResp] = await Promise.all([
-        requestClient.get<{
-          weather: WeatherCurrent;
-          forecast?: WeatherForecastDay[];
-          hourly?: WeatherHourly[];
-        }>(`${apiBase.value}/current`, {
+      const [weatherResp, forecastResp, hourlyResp, aqiResp] = await Promise.all([
+        requestClient.get<{ weather: WeatherCurrent }>(`${resolveApiBase()}/current`, {
           params: { lat: latitude, lon: longitude },
+          signal: abortController.signal,
         }),
-        requestClient.get<{ air_quality: AirQuality }>(
-          `${apiBase.value}/air-quality`,
-          { params: { lat: latitude, lon: longitude } },
-        ).catch(() => null),
+        requestClient
+          .get<{ forecast: WeatherForecastDay[] }>(`${resolveApiBase()}/forecast`, {
+            params: { lat: latitude, lon: longitude, days },
+            signal: abortController.signal,
+          })
+          .catch(() => null),
+        requestClient
+          .get<{ hourly: WeatherHourly[] }>(`${resolveApiBase()}/hourly`, {
+            params: { lat: latitude, lon: longitude },
+            signal: abortController.signal,
+          })
+          .catch(() => null),
+        requestClient
+          .get<{ air_quality: AirQuality }>(`${resolveApiBase()}/air-quality`, {
+            params: { lat: latitude, lon: longitude },
+            signal: abortController.signal,
+          })
+          .catch(() => null),
       ]);
 
-      if (weatherResp?.weather) {
-        current.value = weatherResp.weather;
-        error.value = null;
+      if (seq !== requestSeq) {
+        return;
       }
 
-      // Fetch forecast + hourly in parallel
-      const [forecastResp, hourlyResp] = await Promise.all([
-        requestClient.get<{ forecast: WeatherForecastDay[] }>(
-          `${apiBase.value}/forecast`,
-          { params: { lat: latitude, lon: longitude } },
-        ).catch(() => null),
-        requestClient.get<{ hourly: WeatherHourly[] }>(
-          `${apiBase.value}/hourly`,
-          { params: { lat: latitude, lon: longitude } },
-        ).catch(() => null),
-      ]);
-
-      if (forecastResp?.forecast) forecast.value = forecastResp.forecast;
-      if (hourlyResp?.hourly) hourly.value = hourlyResp.hourly;
-      if (aqiResp?.air_quality) airQuality.value = aqiResp.air_quality;
+      currentRef.value = weatherResp?.weather ?? null;
+      forecastRef.value = (forecastResp?.forecast ?? []).slice(0, days);
+      hourlyRef.value = hourlyResp?.hourly ?? [];
+      airQualityRef.value = aqiResp?.air_quality ?? null;
+      lastUpdatedAtRef.value = Date.now();
+      markStaleByTimestamp(lastUpdatedAtRef.value, staleThresholdMs.value);
 
       saveCachedWeather({
-        current: current.value,
-        forecast: forecast.value,
-        hourly: hourly.value,
-        airQuality: airQuality.value,
-        timestamp: Date.now(),
+        current: currentRef.value,
+        forecast: forecastRef.value,
+        hourly: hourlyRef.value,
+        airQuality: airQualityRef.value,
+        timestamp: lastUpdatedAtRef.value,
       });
     } catch (err: unknown) {
-      error.value = err instanceof Error ? err.message : String(err);
-
+      if (seq !== requestSeq) {
+        return;
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.toLowerCase().includes('aborted')) {
+        return;
+      }
+      errorRef.value = message;
       const cached = loadCachedWeather();
-      if (cached && cached.current) {
-        current.value = cached.current;
-        forecast.value = cached.forecast;
-        hourly.value = cached.hourly;
-        airQuality.value = cached.airQuality;
-        isStale.value = Date.now() - cached.timestamp > STALE_THRESHOLD;
+      if (cached?.current) {
+        currentRef.value = cached.current;
+        forecastRef.value = cached.forecast.slice(0, days);
+        hourlyRef.value = cached.hourly;
+        airQualityRef.value = cached.airQuality;
+        lastUpdatedAtRef.value = cached.timestamp;
+        markStaleByTimestamp(cached.timestamp, staleThresholdMs.value);
       }
     } finally {
-      loading.value = false;
-      initialLoading.value = false;
+      if (seq === requestSeq) {
+        loadingRef.value = false;
+        initialLoadingRef.value = false;
+      }
     }
   }
 
   async function searchCity(name: string): Promise<CityInfo[]> {
+    const query = name.trim();
+    if (!query) {
+      return [];
+    }
     try {
       const resp = await requestClient.get<{ cities: CityInfo[] }>(
-        `${apiBase.value}/geocoding`, { params: { name, count: 8 } },
+        `${resolveApiBase()}/geocoding`,
+        { params: { name: query, count: 8 } },
       );
       return resp?.cities ?? [];
-    } catch { return []; }
+    } catch {
+      return [];
+    }
   }
 
-  // ── 定位 ──
+  async function selectCity(city: CityInfo): Promise<void> {
+    localConfigRef.value.city = city.name;
+    localConfigRef.value.latitude = city.latitude;
+    localConfigRef.value.longitude = city.longitude;
+    const nextRecent = localConfigRef.value.recentCities.filter(
+      (item) =>
+        !(
+          Math.abs(item.latitude - city.latitude) < 0.01 &&
+          Math.abs(item.longitude - city.longitude) < 0.01
+        ),
+    );
+    nextRecent.unshift(city);
+    localConfigRef.value.recentCities = nextRecent.slice(0, MAX_RECENT_CITIES);
+    saveLocalConfig(localConfigRef.value);
+    showCitySelectorRef.value = false;
+    await fetchAll();
+  }
 
   async function geolocate(): Promise<void> {
-    if (!navigator.geolocation) return;
-    locating.value = true;
-    locateError.value = null;
-
+    if (!navigator.geolocation) {
+      locateErrorRef.value = 'locate_failed';
+      return;
+    }
+    locatingRef.value = true;
+    locateErrorRef.value = null;
     try {
       const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
@@ -294,90 +422,110 @@ export function useWeather() {
           maximumAge: 300000,
         });
       });
-
       const { latitude, longitude } = pos.coords;
       let resolvedCity: CityInfo | null = null;
-
-      // Attempt reverse geocode with 1 retry
-      for (let attempt = 0; attempt < 2; attempt++) {
+      for (let attempt = 0; attempt < 2; attempt += 1) {
         try {
           const resp = await requestClient.get<{ cities: CityInfo[] }>(
-            `${apiBase.value}/geocoding`,
+            `${resolveApiBase()}/geocoding`,
             { params: { lat: latitude, lon: longitude } },
           );
-          if (resp?.cities?.length && resp.cities[0]!.name) {
-            resolvedCity = resp.cities[0]!;
+          if (resp?.cities?.length && resp.cities[0]?.name) {
+            resolvedCity = resp.cities[0];
             break;
           }
-        } catch { /* retry */ }
-        if (attempt === 0) await new Promise(r => setTimeout(r, 1000));
+        } catch {
+          /* retry once */
+        }
+        if (attempt === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
       }
-
       if (resolvedCity) {
-        selectCity(resolvedCity);
+        await selectCity(resolvedCity);
       } else {
-        selectCity({ name: `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`, latitude, longitude });
-        locateError.value = 'locate_fallback';
+        await selectCity({
+          name: `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`,
+          latitude,
+          longitude,
+        });
+        locateErrorRef.value = 'locate_fallback';
       }
     } catch {
-      locateError.value = 'locate_failed';
+      locateErrorRef.value = 'locate_failed';
     } finally {
-      locating.value = false;
+      locatingRef.value = false;
     }
   }
 
-  // ── 城市切换 ──
-
-  function selectCity(city: CityInfo): void {
-    localConfig.value.city = city.name;
-    localConfig.value.latitude = city.latitude;
-    localConfig.value.longitude = city.longitude;
-    const recent = localConfig.value.recentCities.filter(
-      (c: CityInfo) => !(Math.abs(c.latitude - city.latitude) < 0.01 && Math.abs(c.longitude - city.longitude) < 0.01),
+  async function mount(): Promise<void> {
+    consumerCount += 1;
+    if (!initialized) {
+      initialized = true;
+      const cached = loadCachedWeather();
+      if (cached?.current) {
+        currentRef.value = cached.current;
+        forecastRef.value = cached.forecast;
+        hourlyRef.value = cached.hourly;
+        airQualityRef.value = cached.airQuality;
+        lastUpdatedAtRef.value = cached.timestamp;
+        initialLoadingRef.value = false;
+      }
+      await fetchPluginConfig();
+      await resolveDefaultCityFromConfig();
+      await fetchAll();
+    }
+    syncRefreshTimer(
+      refreshIntervalMs.value,
+      pluginConfigRef.value.auto_refresh ?? true,
+      fetchAll,
     );
-    recent.unshift(city);
-    localConfig.value.recentCities = recent.slice(0, MAX_RECENT_CITIES);
-    saveLocalConfig(localConfig.value);
-    showCitySelector.value = false;
-    fetchAll();
   }
 
-  // ── 生命周期 ──
-
-  onMounted(async () => {
-    // Show cached data immediately while loading fresh data
-    const cached = loadCachedWeather();
-    if (cached?.current) {
-      current.value = cached.current;
-      forecast.value = cached.forecast;
-      hourly.value = cached.hourly;
-      airQuality.value = cached.airQuality;
-      isStale.value = Date.now() - cached.timestamp > STALE_THRESHOLD;
-      initialLoading.value = false;
+  function unmount(): void {
+    consumerCount = Math.max(0, consumerCount - 1);
+    if (consumerCount <= 0 && refreshTimer) {
+      clearInterval(refreshTimer);
+      refreshTimer = null;
     }
-
-    await fetchPluginConfig();
-    const refreshInterval = (pluginConfig.value.cache_ttl ?? 600) * 1000;
-    const autoRefresh = pluginConfig.value.auto_refresh ?? true;
-
-    await fetchAll();
-
-    if (autoRefresh) {
-      refreshTimer = setInterval(fetchAll, refreshInterval);
-    }
-  });
-
-  onBeforeUnmount(() => {
-    if (refreshTimer) clearInterval(refreshTimer);
-    if (abortController) abortController.abort();
-  });
-
-  watch(() => localConfig.value.city, () => saveLocalConfig(localConfig.value));
+  }
 
   return {
-    cityName, recentCities, current, forecast, hourly, airQuality,
-    loading, initialLoading, error, locating, locateError,
-    showCitySelector, isStale, pluginConfig,
-    fetchAll, searchCity, selectCity, geolocate,
+    cityName,
+    recentCities,
+    current: currentRef,
+    forecast: forecastRef,
+    hourly: hourlyRef,
+    airQuality: airQualityRef,
+    loading: loadingRef,
+    initialLoading: initialLoadingRef,
+    error: errorRef,
+    locating: locatingRef,
+    locateError: locateErrorRef,
+    showCitySelector: showCitySelectorRef,
+    isStale: isStaleRef,
+    pluginConfig: pluginConfigRef,
+    temperatureUnit,
+    forecastDays,
+    lastUpdatedAt: lastUpdatedAtRef,
+    fetchAll,
+    searchCity,
+    selectCity,
+    geolocate,
+    mount,
+    unmount,
   };
+}
+
+export function useWeather() {
+  if (!sharedStore) {
+    sharedStore = createStore();
+  }
+  onMounted(() => {
+    void sharedStore?.mount();
+  });
+  onBeforeUnmount(() => {
+    sharedStore?.unmount();
+  });
+  return sharedStore;
 }

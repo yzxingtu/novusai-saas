@@ -38,6 +38,8 @@ from app.schemas.codegen import (
     CodegenConfigCreate,
     CodegenConfigResponse,
     CodegenConfigUpdate,
+    CodegenWorkbenchItemSchema,
+    CodegenWorkbenchSummarySchema,
     CodegenPreviewBodySchema,
     CodegenValidateBodySchema,
     CodegenVersionItemSchema,
@@ -103,7 +105,9 @@ class AdminCodegenController(GlobalController):
         *,
         manifest_present: bool = False,
     ) -> CodegenConfigResponse:
-        guard = CodegenService.build_delete_guard(obj, manifest_present=manifest_present)
+        guard = CodegenService.build_delete_guard(
+            obj, manifest_present=manifest_present
+        )
         return CodegenConfigResponse.from_model(
             obj,
             manifest_present=manifest_present,
@@ -145,6 +149,42 @@ class AdminCodegenController(GlobalController):
                 page=spec.page or 1,
                 page_size=spec.size or 20,
             )
+
+        @router.get("/workbench-summary", summary=_("codegen.api.workbench_summary"))
+        @action_read("action.codegen.list")
+        async def get_workbench_summary(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+        ):
+            _require_debug()
+            service = CodegenService(db)
+            summary = await service.get_workbench_summary(project_root=_PROJECT_ROOT)
+
+            def _serialize_item(entry) -> CodegenWorkbenchItemSchema:
+                return CodegenWorkbenchItemSchema(
+                    id=entry.config.id,
+                    name=entry.config.name,
+                    resource=entry.config.resource,
+                    status=entry.config.status,
+                    manifest_present=entry.manifest_present,
+                    delete_allowed=entry.delete_guard.allowed,
+                    delete_reason_message=entry.delete_guard.message,
+                    last_generated_at=entry.config.last_generated_at,
+                    generation_count=entry.config.generation_count or 0,
+                    last_error=entry.config.last_error,
+                )
+
+            validated = CodegenWorkbenchSummarySchema.model_validate(
+                {
+                    "stats": summary["stats"],
+                    "sections": {
+                        key: [_serialize_item(entry).model_dump() for entry in entries]
+                        for key, entries in summary["sections"].items()
+                    },
+                }
+            )
+            return success(data=validated.model_dump())
 
         @router.get("/configs/{id}", summary=_("codegen.api.configs.detail"))
         @action_read("action.codegen.detail")
@@ -217,7 +257,9 @@ class AdminCodegenController(GlobalController):
             await db.commit()
             return success(message=_("common.deleted"))
 
-        @router.post("/configs/{id}/duplicate", summary=_("codegen.api.configs.duplicate"))
+        @router.post(
+            "/configs/{id}/duplicate", summary=_("codegen.api.configs.duplicate")
+        )
         @action_create("action.codegen.duplicate")
         async def duplicate_config(
             request: Request,
@@ -253,7 +295,9 @@ class AdminCodegenController(GlobalController):
             validated = [CodegenVersionItemSchema.model_validate(v) for v in versions]
             return success(data=[v.model_dump() for v in validated])
 
-        @router.get("/configs/{id}/versions/{vid}", summary=_("codegen.api.configs.version_get"))
+        @router.get(
+            "/configs/{id}/versions/{vid}", summary=_("codegen.api.configs.version_get")
+        )
         @action_read("action.codegen.update")
         async def get_config_version(
             request: Request,
@@ -272,7 +316,10 @@ class AdminCodegenController(GlobalController):
                 raise NotFoundException(message=_("common.not_found"))
             return success(data={"config_json": config_json})
 
-        @router.post("/configs/{id}/versions/{vid}/restore", summary=_("codegen.api.configs.restore_version"))
+        @router.post(
+            "/configs/{id}/versions/{vid}/restore",
+            summary=_("codegen.api.configs.restore_version"),
+        )
         @action_update("action.codegen.update")
         async def restore_config_version(
             request: Request,
@@ -300,15 +347,18 @@ class AdminCodegenController(GlobalController):
         async def get_types(request: Request, current_admin: ActiveAdmin):
             _require_debug()
             from app.codegen.type_registry import type_registry
+
             type_map = type_registry.get_type_map()
             items = [
-                TypeInfoSchema.model_validate({
-                    "type": k,
-                    "python_type": v.get("python_type", ""),
-                    "ts_type": v.get("ts_type", ""),
-                    "form_component": v.get("default_form_component", ""),
-                    "search_type": v.get("default_search_type"),
-                })
+                TypeInfoSchema.model_validate(
+                    {
+                        "type": k,
+                        "python_type": v.get("python_type", ""),
+                        "ts_type": v.get("ts_type", ""),
+                        "form_component": v.get("default_form_component", ""),
+                        "search_type": v.get("default_search_type"),
+                    }
+                )
                 for k, v in type_map.items()
             ]
             return success(data=[x.model_dump() for x in items])
@@ -322,18 +372,31 @@ class AdminCodegenController(GlobalController):
             type_map = type_registry.get_type_map()
             seen: set[str] = set()
             raw: list[dict] = []
-            _advanced = {"ImageUpload", "RichText", "FilePicker", "CronPicker", "IconPicker", "CodeEditor"}
+            _advanced = {
+                "ImageUpload",
+                "RichText",
+                "FilePicker",
+                "CronPicker",
+                "IconPicker",
+                "CodeEditor",
+            }
             _select_category = {"select", "ApiSelect"}
             for v in type_map.values():
                 comp = v.get("default_form_component") or ""
                 if comp and comp not in seen:
                     seen.add(comp)
-                    cat = "advanced" if comp in _advanced else ("select" if comp in _select_category else "input")
-                    raw.append({
-                        "name": comp,
-                        "label": comp.replace("_", " ").title(),
-                        "category": cat,
-                    })
+                    cat = (
+                        "advanced"
+                        if comp in _advanced
+                        else ("select" if comp in _select_category else "input")
+                    )
+                    raw.append(
+                        {
+                            "name": comp,
+                            "label": comp.replace("_", " ").title(),
+                            "category": cat,
+                        }
+                    )
             raw.sort(key=lambda x: (x["category"], x["name"]))
             components = [ComponentInfoSchema.model_validate(x) for x in raw]
             return success(data=[x.model_dump() for x in components])
@@ -343,6 +406,7 @@ class AdminCodegenController(GlobalController):
         async def get_models(request: Request, current_admin: ActiveAdmin):
             _require_debug()
             from app.models import __all__ as model_all
+
             return success(data=sorted(model_all))
 
         @router.get("/presets", summary=_("codegen.api.presets.list"))
@@ -362,11 +426,17 @@ class AdminCodegenController(GlobalController):
         ):
             _require_debug()
             import re
+
             # 防止路径遍历：仅允许字母、数字、下划线、连字符
             # Prevent path traversal: only allow alphanumeric, underscore, hyphen
             if not re.match(r"^[a-zA-Z0-9_-]+$", name):
                 raise NotFoundException(message=_("codegen.preset_not_found"))
-            presets_dir = Path(__file__).resolve().parent.parent.parent / "codegen" / "templates" / "presets"
+            presets_dir = (
+                Path(__file__).resolve().parent.parent.parent
+                / "codegen"
+                / "templates"
+                / "presets"
+            )
             path = (presets_dir / f"{name}.yaml").resolve()
             if not path.is_relative_to(presets_dir.resolve()):
                 raise NotFoundException(message=_("codegen.preset_not_found"))
@@ -382,6 +452,7 @@ class AdminCodegenController(GlobalController):
         async def get_parent_resources(request: Request, current_admin: ActiveAdmin):
             _require_debug()
             from app.codegen.options import PARENT_RESOURCES
+
             return success(data=PARENT_RESOURCES)
 
         @router.get("/options", summary=_("codegen.api.options"))
@@ -389,6 +460,7 @@ class AdminCodegenController(GlobalController):
         async def get_options(request: Request, current_admin: ActiveAdmin):
             _require_debug()
             from app.codegen.options import get_codegen_options
+
             return success(data=get_codegen_options())
 
         # ========== DB 反射 ==========
@@ -556,6 +628,7 @@ class AdminCodegenController(GlobalController):
                 resource = cfg.resource if cfg else None
             elif body.config_json:
                 from app.codegen.config_parser import ConfigParser
+
                 parsed = ConfigParser().parse(body.config_json)
                 resource = parsed.resource
 
@@ -566,7 +639,9 @@ class AdminCodegenController(GlobalController):
                 raise HTTPException(409, _("codegen.concurrent_operation"))
 
             try:
-                output = await service.generate(inp, force=body.force, project_root=_PROJECT_ROOT)
+                output = await service.generate(
+                    inp, force=body.force, project_root=_PROJECT_ROOT
+                )
                 result = output.result
                 data = {
                     "success": result.success,
@@ -581,12 +656,16 @@ class AdminCodegenController(GlobalController):
                     "table_name": output.table_name,
                 }
                 if body.auto_migrate and result.success and output.resource:
-                    migrate_result = CodegenService.run_auto_migrate(output.resource, _PROJECT_ROOT)
+                    migrate_result = CodegenService.run_auto_migrate(
+                        output.resource, _PROJECT_ROOT
+                    )
                     data["migration"] = migrate_result
                     if migrate_result.get("success"):
                         if migrate_result.get("migration_path"):
                             manifest = ManifestManager(_PROJECT_ROOT)
-                            manifest.update_migration_file(output.resource, migrate_result["migration_path"])
+                            manifest.update_migration_file(
+                                output.resource, migrate_result["migration_path"]
+                            )
                         if output.config_id is not None:
                             await service.update(
                                 output.config_id,
@@ -630,7 +709,9 @@ class AdminCodegenController(GlobalController):
             return StreamingResponse(
                 iter([zip_bytes]),
                 media_type="application/zip",
-                headers={"Content-Disposition": f"attachment; filename=codegen_{config_id}.zip"},
+                headers={
+                    "Content-Disposition": f"attachment; filename=codegen_{config_id}.zip"
+                },
             )
 
         @router.get("/history", summary=_("codegen.api.history"))
@@ -643,6 +724,7 @@ class AdminCodegenController(GlobalController):
         ):
             _require_debug()
             from app.codegen.manifest import ManifestManager
+
             manifest = ManifestManager(_PROJECT_ROOT)
             entries = manifest.list_entries()
             if resource:
@@ -721,10 +803,7 @@ class AdminCodegenController(GlobalController):
                             )
                     else:
                         overall_success = False
-                        rollback_err = (
-                            "File rollback completed but migration cleanup failed. "
-                            "Manifest entry preserved for retry."
-                        )
+                        rollback_err = _("codegen.rollback.cleanup_failed")
                         errors.append(rollback_err)
                         if config:
                             await service.update(id, {"last_error": rollback_err})
@@ -804,10 +883,7 @@ class AdminCodegenController(GlobalController):
                             )
                     else:
                         overall_success = False
-                        rollback_err = (
-                            "File rollback completed but migration cleanup failed. "
-                            "Manifest entry preserved for retry."
-                        )
+                        rollback_err = _("codegen.rollback.cleanup_failed")
                         errors.append(rollback_err)
                         if cfg:
                             await svc.update(cfg.id, {"last_error": rollback_err})

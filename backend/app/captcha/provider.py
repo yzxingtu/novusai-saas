@@ -41,6 +41,7 @@ class CaptchaProviderMetadata:
     plugin_name: str | None = None
     public_endpoints: list[str] = field(default_factory=list)
     frontend_runtime: dict[str, str] = field(default_factory=dict)
+    display_name: dict[str, str] = field(default_factory=dict)
 
 
 class ICaptchaProvider(Protocol):

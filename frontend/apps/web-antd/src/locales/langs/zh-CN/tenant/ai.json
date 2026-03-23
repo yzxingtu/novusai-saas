@@ -288,7 +288,6 @@
     "accessConfig": "访问权限配置",
     "noDescription": "暂无描述",
     "actions": {
-      "test": "测试对话",
       "publish": "发布",
       "versions": "版本历史",
       "access": "访问权限"
@@ -490,28 +489,12 @@
         "specific_users": "仅指定用户可访问",
         "api_only": "仅通过 API 调用可访问，前端用户不可见"
       }
-    },
-    "test": {
-      "title": "测试对话",
-      "placeholder": "输入消息进行测试...",
-      "send": "发送",
-      "stop": "停止生成",
-      "clear": "清空对话",
-      "thinking": "思考中...",
-      "toolCalling": "调用工具: {name}",
-      "toolSuccess": "工具调用成功",
-      "toolFailed": "工具调用失败",
-      "tokenUsage": "Token 用量: {count}",
-      "duration": "耗时: {ms}ms",
-      "streamError": "流式响应出错",
-      "notPublished": "智能体尚未发布，无法测试",
-      "conversationId": "对话 ID: {id}"
     }
   },
   "conversation": {
     "title": "对话标题",
     "conversationTitle": "对话标题",
-    "pageDesc": "管理智能体对话记录。支持查看详情、归档和批量操作。",
+    "pageDesc": "查看智能体对话记录与调用详情。",
     "pageTitle": "对话管理",
     "name": "对话管理",
     "agentName": "智能体",
@@ -535,12 +518,6 @@
     "untitled": "未命名对话",
     "viewDetail": "查看详情",
     "detailTitle": "对话详情",
-    "archive": "归档",
-    "export": "导出",
-    "batchArchive": "批量归档",
-    "archiveBeforeDays": "归档多少天前的对话",
-    "confirmArchive": "确认归档此对话？归档后不可恢复为活跃状态。",
-    "batchArchiveWarning": "此操作将归档所选时间范围内的所有活跃对话，请谨慎操作。",
     "placeholder": {
       "searchTitle": "搜索对话标题",
       "allStatuses": "全部状态"
@@ -549,18 +526,10 @@
       "active": "活跃",
       "archived": "已归档"
     },
-    "batchArchiveOptions": {
-      "days7": "7 天前",
-      "days14": "14 天前",
-      "days30": "30 天前",
-      "days60": "60 天前",
-      "days90": "90 天前"
-    },
     "messages": {
       "archiveSuccess": "对话已归档",
       "exportSuccess": "导出成功",
-      "deleteSuccess": "对话已删除",
-      "batchArchiveSuccess": "已归档 {count} 条对话"
+      "deleteSuccess": "对话已删除"
     }
   },
   "chat": {

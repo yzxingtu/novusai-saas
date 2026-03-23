@@ -77,7 +77,7 @@ onMounted(async () => {
     router.replace('/auth/login');
     return;
   }
-  showCaptcha.value = publicConfigStore.shouldShowTenantCaptcha;
+  showCaptcha.value = publicConfigStore.isUserRegistrationCaptchaEnabled;
 });
 
 function refreshCaptcha() {

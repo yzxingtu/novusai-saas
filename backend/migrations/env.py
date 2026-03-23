@@ -98,19 +98,27 @@ from app.models.system.email_log import EmailLog
 from app.models.common.user_preference import UserPreference
 
 # Dynamic plugin model discovery (Alembic autogenerate needs models registered on Base.metadata)
-# Scans plugins/*/backend/models/__init__.py — no hardcoded plugin names
+# Only DB-registered plugins participate by default, so optional repo plugins do not
+# leak into host autogenerate or revision graph resolution.
+# / 默认只让数据库已注册插件参与，避免仓库里未安装插件污染宿主迁移与 autogenerate。
 import importlib
+from app.plugins.migration_paths import (
+    build_migration_version_locations,
+    get_migration_plugin_names,
+)
 
 _plugins_base = Path(__file__).parent.parent / "plugins"
-if _plugins_base.exists():
-    for _pd in sorted(_plugins_base.iterdir()):
-        _models_init = _pd / "backend" / "models" / "__init__.py"
-        if _models_init.is_file():
-            _mod_name = f"plugins.{_pd.name}.backend.models"
-            try:
-                importlib.import_module(_mod_name)
-            except Exception:
-                pass  # plugin not installed or import error — skip
+for _plugin_name in get_migration_plugin_names(
+    backend_dir=Path(__file__).parent.parent,
+    db_url=settings.DATABASE_URL_SYNC,
+):
+    _models_init = _plugins_base / _plugin_name / "backend" / "models" / "__init__.py"
+    if _models_init.is_file():
+        _mod_name = f"plugins.{_plugin_name}.backend.models"
+        try:
+            importlib.import_module(_mod_name)
+        except Exception:
+            pass  # plugin not installed or import error — skip
 
 # Alembic 配置对象
 config = context.config
@@ -120,19 +128,10 @@ config.set_main_option("sqlalchemy.url", settings.DATABASE_URL_SYNC)
 
 # 迁移文件目录
 _migrations_dir = Path(__file__).parent / "versions"
-_version_paths = [str(_migrations_dir)]
-
-# 与 app.core.database.run_migrations 子进程一致：扫描仓库内全部插件的 versions 目录。
-# Align with run_migrations subprocess: all plugin revision files are on version_locations,
-# so `alembic upgrade heads` from CLI and startup auto-migrate resolve the same revision graph.
-_plugins_dir = Path(__file__).parent.parent / "plugins"
-if _plugins_dir.exists():
-    for _plugin_dir in sorted(_plugins_dir.iterdir()):
-        if not _plugin_dir.is_dir() or _plugin_dir.name.startswith("."):
-            continue
-        _plugin_migrations = _plugin_dir / "backend" / "migrations" / "versions"
-        if _plugin_migrations.is_dir():
-            _version_paths.append(str(_plugin_migrations))
+_version_paths = build_migration_version_locations(
+    backend_dir=Path(__file__).parent.parent,
+    db_url=settings.DATABASE_URL_SYNC,
+)
 
 config.set_main_option(
     "version_locations",

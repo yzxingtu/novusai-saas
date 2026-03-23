@@ -10,6 +10,7 @@ from app.storage.base import (
     StorageDriver,
     StorageVisibility,
     UploadResult,
+    build_content_disposition,
 )
 from app.storage.manager import StorageManager, storage_manager
 
@@ -26,6 +27,7 @@ __all__ = [
     "StorageDriver",
     "StorageVisibility",
     "UploadResult",
+    "build_content_disposition",
     # Manager / 管理器
     "StorageManager",
     "storage_manager",

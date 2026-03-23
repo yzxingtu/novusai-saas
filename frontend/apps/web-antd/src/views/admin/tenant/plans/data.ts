@@ -314,6 +314,13 @@ export function useFormSchema(_isEdit: boolean = false): VbenFormSchema[] {
       'features.priority_support',
       $t('admin.tenant.plan.prioritySupport'),
     ),
+    switchField(
+      'features.storage_billing_enabled',
+      $t('admin.tenant.plan.storageBillingEnabled'),
+      {
+        help: $t('admin.tenant.plan.storageBillingHelp'),
+      },
+    ),
   ];
 }
 
@@ -333,6 +340,7 @@ export function getFormDefaults(): Record<string, any> {
       advanced_analytics: false,
       white_label: false,
       priority_support: false,
+      storage_billing_enabled: false,
     },
   };
 }

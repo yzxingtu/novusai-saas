@@ -287,6 +287,10 @@ class OssStorageDriver(StorageDriver):
     async def copy(self, source: str, destination: str) -> bool:
         src_key = self._key(source)
         dst_key = self._key(destination)
+        source_info = await self.get_info(source)
+        acl = "public-read" if (
+            source_info and source_info.visibility == StorageVisibility.PUBLIC
+        ) else None
 
         def _copy() -> bool:
             try:
@@ -295,6 +299,7 @@ class OssStorageDriver(StorageDriver):
                     key=dst_key,
                     source_bucket=self.bucket_name,
                     source_key=src_key,
+                    acl=acl,
                 ))
             except oss.exceptions.OperationError as exc:
                 raise StorageError(message=str(exc)) from exc

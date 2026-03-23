@@ -1,12 +1,11 @@
 """
 企业端对话管理 API / Tenant Conversation Management API
 
-提供对话列表、详情、搜索、归档、批量归档、删除和导出接口
-Provides conversation list, details, search, archive, batch archive, delete and export endpoints
+提供对话列表、详情、搜索、归档、删除和导出接口
+Provides conversation list, details, search, archive, delete and export endpoints
 """
 
 from fastapi import Query, Request
-from pydantic import BaseModel, Field
 
 from app.core.base_controller import TenantController
 from app.core.deps import ActiveTenantAdmin, DbSession, QueryParams
@@ -22,15 +21,6 @@ from app.rbac.decorators import (
     permission_resource,
 )
 from app.services.ai.conversation_service import ConversationService
-
-# ============================================
-# 请求 Schema / Request Schema
-# ============================================
-
-class BatchArchiveRequest(BaseModel):
-    """批量归档请求 / Batch archive request"""
-    agent_id: int | None = Field(None, description=_("conversation.agent_id"))
-    before_days: int = Field(90, ge=1, le=365, description=_("conversation.before_days"))
 
 
 # ============================================
@@ -54,8 +44,8 @@ class TenantConversationController(TenantController):
     """
     企业端对话管理控制器 / Tenant Conversation Management Controller
 
-    提供对话列表、详情、搜索、归档、批量归档、删除和导出操作
-    Provides conversation list, details, search, archive, batch archive, delete and export operations
+    提供对话列表、详情、搜索、归档、删除和导出操作
+    Provides conversation list, details, search, archive, delete and export operations
     """
 
     prefix = "/ai/conversations"
@@ -163,31 +153,6 @@ class TenantConversationController(TenantController):
             return success(
                 data=conv.to_dict(),
                 message=_("conversation.archived"),
-            )
-
-        @router.post("/batch-archive", summary="批量归档对话")
-        @action_update("action.agent_conversation.batch_archive")
-        async def batch_archive(
-            request: Request,
-            db: DbSession,
-            data: BatchArchiveRequest,
-            tenant_admin: ActiveTenantAdmin,
-        ):
-            """
-            批量归档 N 天前的对话 / Batch archive conversations older than N days
-
-            权限 / Permission: agent_conversation:batch_archive
-            """
-            service = ConversationService(db, tenant_admin.tenant_id)
-            count = await service.batch_archive(
-                agent_id=data.agent_id,
-                before_days=data.before_days,
-            )
-            await db.commit()
-
-            return success(
-                data={"archived_count": count},
-                message=_("conversation.batch_archived"),
             )
 
         @router.delete("/{conversation_id}", summary="删除对话")

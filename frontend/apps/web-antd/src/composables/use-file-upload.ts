@@ -1,8 +1,8 @@
 /**
- * Unified file upload composable / 统一文件上传 Composable
+ * Unified file validation composable / 统一文件校验 Composable
  *
- * Provides pre-validation (extension + size) and upload execution
- * with i18n error messages. Consumed by AI Chat, ImageUpload, etc.
+ * Provides pre-validation (extension + size) and preview URL cleanup
+ * with i18n error messages. Consumed by AI Chat and upload wrappers.
  */
 import { message } from 'ant-design-vue';
 
@@ -14,7 +14,6 @@ import {
   PLATFORM_MAX_FILE_SIZE_MB,
 } from '#/constants/upload';
 import { $t } from '#/locales';
-import { requestClient } from '#/utils/request';
 
 // ============ Types ============
 
@@ -33,19 +32,6 @@ export interface FileValidationResult {
   valid: boolean;
   /** i18n-resolved error message (only when valid=false) / 国际化错误信息 */
   errorMessage?: string;
-}
-
-export interface UploadOptions {
-  /** Additional form data fields to send with the upload / 额外表单字段 */
-  extraData?: Record<string, string>;
-  /** Upload progress callback / 上传进度回调 */
-  onProgress?: (progress: { percent: number }) => void;
-}
-
-export interface UploadResult<T = unknown> {
-  success: boolean;
-  data?: T;
-  error?: string;
 }
 
 // ============ Composable ============
@@ -166,49 +152,6 @@ export function useFileUpload() {
   }
 
   /**
-   * Upload a file to the specified URL / 向指定 URL 上传文件
-   * Shows error message on failure.
-   *
-   * @returns UploadResult with success flag and response data
-   */
-  async function uploadFile<T = unknown>(
-    url: string,
-    file: File,
-    options: UploadOptions = {},
-  ): Promise<UploadResult<T>> {
-    const { extraData, onProgress } = options;
-    try {
-      const uploadData: Record<string, Blob | File | string> = { file };
-      if (extraData) {
-        for (const [key, value] of Object.entries(extraData)) {
-          uploadData[key] = value;
-        }
-      }
-      const data = await requestClient.upload<T>(
-        url,
-        uploadData as { [key: string]: Blob | File | string; file: File },
-        {},
-        onProgress
-          ? (progressEvent) => {
-              const percent = progressEvent.total
-                ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
-                : 0;
-              onProgress({ percent });
-            }
-          : undefined,
-      );
-      return { success: true, data };
-    } catch (error: unknown) {
-      const errorMsg =
-        error instanceof Error
-          ? error.message
-          : $t('common.uploadValidation.uploadFailed');
-      message.error(errorMsg);
-      return { success: false, error: errorMsg };
-    }
-  }
-
-  /**
    * Revoke all preview URLs from an array of attachments to prevent memory leaks / 撤销附件预览 URL 防止内存泄漏
    */
   function revokePreviewUrls(attachments: Array<{ preview?: string }>): void {
@@ -222,7 +165,6 @@ export function useFileUpload() {
   return {
     validateFile,
     validateChatFile,
-    uploadFile,
     revokePreviewUrls,
   };
 }

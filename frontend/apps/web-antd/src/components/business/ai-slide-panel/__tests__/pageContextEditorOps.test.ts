@@ -7,7 +7,19 @@
  * - registerPageContextExtras 合并不覆盖主 context
  * - entity_description_append 正确追加
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+const { capturePageScreenshotMock } = vi.hoisted(() => ({
+  capturePageScreenshotMock: vi.fn(),
+}));
+
+vi.mock('#/composables/use-page-screenshot', () => ({
+  DEFAULT_PAGE_SCREENSHOT_EXCLUDE_SELECTORS: ['[data-ai-panel]'],
+  capturePageScreenshot: capturePageScreenshotMock,
+  resolveScreenshotUploadTarget: () => ({
+    uploadUrl: '/tenant/attachments/upload',
+  }),
+}));
 
 import {
   clearPageContextRegistry,
@@ -26,6 +38,7 @@ describe('Page context editor ops', () => {
   const EDITOR_KEY = 'tenant.plugins.novusdoc.editor.42';
 
   afterEach(() => {
+    capturePageScreenshotMock.mockReset();
     clearPageContextRegistry();
     clearPageOperationRegistry();
   });
@@ -50,13 +63,49 @@ describe('Page context editor ops', () => {
     expect(replaceSection).toBeDefined();
     expect(replaceSection!.params).toBeDefined();
     expect(replaceSection!.params!.old_html).toBeDefined();
-    expect(replaceSection!.params!.content_format).toEqual({ type: 'string', enum: ['html', 'markdown'] });
+    expect(replaceSection!.params!.content_format).toEqual({
+      type: 'string',
+      enum: ['html', 'markdown'],
+    });
   });
 
   it('provides default page read operations for unregistered pages', () => {
     const ops = listPageOperations('admin.dashboard');
     expect(ops.map((op) => op.name)).toContain('read_current_view');
     expect(ops.map((op) => op.name)).toContain('read_current_sections');
+    expect(ops.map((op) => op.name)).toContain('capture_screenshot');
+  });
+
+  it('capture_screenshot keeps attachment_id in returned payload', async () => {
+    capturePageScreenshotMock.mockResolvedValueOnce({
+      attachment: {
+        attachment_id: 42,
+        type: 'image',
+        url: '/api/public/attachments/42/image?exp=1&sign=abc',
+        name: 'shot.jpg',
+        mime_type: 'image/jpeg',
+      },
+      blob: new Blob(['shot'], { type: 'image/jpeg' }),
+    });
+
+    const operation = listPageOperations('admin.dashboard').find(
+      (item) => item.name === 'capture_screenshot',
+    );
+    const result = await operation?.handler?.({});
+
+    expect(capturePageScreenshotMock).toHaveBeenCalledOnce();
+    expect(result?.success).toBe(true);
+    expect(result?.data).toMatchObject({
+      attachment: {
+        attachment_id: 42,
+        type: 'image',
+        url: '/api/public/attachments/42/image?exp=1&sign=abc',
+        name: 'shot.jpg',
+        mime_type: 'image/jpeg',
+      },
+      capture_scope: 'viewport',
+      page_key: 'admin.dashboard',
+    });
   });
 
   it('page-specific registrations override same-named default operations', () => {
@@ -77,7 +126,8 @@ describe('Page context editor ops', () => {
   });
 
   it('registerPageContextExtras merges without overwriting primary entity_description', () => {
-    const primaryDesc = 'Primary editor context. Use get_editor_html, replace_section.';
+    const primaryDesc =
+      'Primary editor context. Use get_editor_html, replace_section.';
     registerPageContext(EDITOR_KEY, () => ({
       page_key: EDITOR_KEY,
       page_title: 'Editor',
@@ -90,7 +140,8 @@ describe('Page context editor ops', () => {
     registerPageContextExtras(EDITOR_KEY, () => ({
       page_key: EDITOR_KEY,
       page_data: {
-        entity_description_append: 'update_title modifies document metadata title, not body H1.',
+        entity_description_append:
+          'update_title modifies document metadata title, not body H1.',
         document_id: 42,
       },
     }));
@@ -127,11 +178,17 @@ describe('Page context editor ops', () => {
       ...(op.params ? { params: op.params } : {}),
     }));
 
-    const replaceOp = available_operations.find((o) => o.name === 'replace_content');
+    const replaceOp = available_operations.find(
+      (o) => o.name === 'replace_content',
+    );
     expect(replaceOp).toBeDefined();
     expect(replaceOp!.params).toBeDefined();
-    expect((replaceOp!.params as Record<string, unknown>).content).toBeDefined();
-    expect((replaceOp!.params as Record<string, unknown>).content_format).toEqual({
+    expect(
+      (replaceOp!.params as Record<string, unknown>).content,
+    ).toBeDefined();
+    expect(
+      (replaceOp!.params as Record<string, unknown>).content_format,
+    ).toEqual({
       type: 'string',
       enum: ['html', 'markdown'],
     });
@@ -140,14 +197,39 @@ describe('Page context editor ops', () => {
   it('DocumentEditor appendPageOperations: platform editor ops preserved, document ops appended', () => {
     // Platform (useEditorPageOps) registers editor ops first
     registerPageOperations(EDITOR_KEY, [
-      { name: 'get_editor_html', label: 'Get HTML', description: 'Read', readonly: true, handler: async () => ({ success: true, message: '' }) },
-      { name: 'replace_section', label: 'Replace', description: 'Replace', readonly: false, handler: async () => ({ success: true, message: '' }) },
+      {
+        name: 'get_editor_html',
+        label: 'Get HTML',
+        description: 'Read',
+        readonly: true,
+        handler: async () => ({ success: true, message: '' }),
+      },
+      {
+        name: 'replace_section',
+        label: 'Replace',
+        description: 'Replace',
+        readonly: false,
+        handler: async () => ({ success: true, message: '' }),
+      },
     ]);
 
     // DocumentEditor appends document ops (save_document, update_title, etc.) without replacing
     const cleanupAppend = appendPageOperations(EDITOR_KEY, [
-      { name: 'save_document', label: 'Save', description: 'Save document', readonly: false, handler: async () => ({ success: true, message: '' }) },
-      { name: 'update_title', label: 'Update title', description: 'Change title', readonly: false, params: { title: { type: 'string' } }, handler: async () => ({ success: true, message: '' }) },
+      {
+        name: 'save_document',
+        label: 'Save',
+        description: 'Save document',
+        readonly: false,
+        handler: async () => ({ success: true, message: '' }),
+      },
+      {
+        name: 'update_title',
+        label: 'Update title',
+        description: 'Change title',
+        readonly: false,
+        params: { title: { type: 'string' } },
+        handler: async () => ({ success: true, message: '' }),
+      },
     ]);
 
     const ops = listPageOperations(EDITOR_KEY);
@@ -156,7 +238,9 @@ describe('Page context editor ops', () => {
     expect(names).toContain('replace_section');
     expect(names).toContain('save_document');
     expect(names).toContain('update_title');
-    expect(ops.find((o) => o.name === 'update_title')?.params?.title).toBeDefined();
+    expect(
+      ops.find((o) => o.name === 'update_title')?.params?.title,
+    ).toBeDefined();
 
     cleanupAppend();
     const afterCleanup = listPageOperations(EDITOR_KEY).map((o) => o.name);
@@ -208,21 +292,27 @@ describe('Page context editor ops', () => {
     expect(ops.map((op) => op.name)).toEqual([
       'read_current_view',
       'read_current_sections',
+      'capture_screenshot',
       'refresh_list',
       'search',
       'next_page',
     ]);
-    expect(ops.find((op) => op.name === 'search')?.label).toBe('Structured Search');
+    expect(ops.find((op) => op.name === 'search')?.label).toBe(
+      'Structured Search',
+    );
 
     cleanupAppend();
     const afterCleanup = listPageOperations(EDITOR_KEY);
     expect(afterCleanup.map((op) => op.name)).toEqual([
       'read_current_view',
       'read_current_sections',
+      'capture_screenshot',
       'refresh_list',
       'search',
     ]);
-    expect(afterCleanup.find((op) => op.name === 'search')?.label).toBe('Legacy Search');
+    expect(afterCleanup.find((op) => op.name === 'search')?.label).toBe(
+      'Legacy Search',
+    );
   });
 
   it('DocumentEditor-style extras: merge does not overwrite platform entity_description', () => {
@@ -241,7 +331,9 @@ describe('Page context editor ops', () => {
     }));
 
     const resolved = resolvePageContext(EDITOR_KEY);
-    expect(resolved!.page_data?.entity_description).toBe(baseDesc + '\n\nAppended by DocumentEditor.');
+    expect(resolved!.page_data?.entity_description).toBe(
+      baseDesc + '\n\nAppended by DocumentEditor.',
+    );
     expect(resolved!.page_data?.document_title).toBe('Doc Title');
   });
 

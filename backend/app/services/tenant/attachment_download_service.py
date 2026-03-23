@@ -20,7 +20,7 @@ from app.enums.attachment import AttachmentVisibility
 from app.exceptions import BusinessException, NotFoundException
 from app.models.tenant.attachment import Attachment
 from app.repositories.tenant.attachment_repository import AttachmentRepository
-from app.storage import StorageConfig, StorageVisibility, storage_manager
+from app.storage import StorageConfig, StorageVisibility, build_content_disposition, storage_manager
 
 
 class AttachmentDownloadService:
@@ -83,7 +83,10 @@ class AttachmentDownloadService:
         filename = attachment.original_name or attachment.name
         response = await driver.get_download_response(attachment.path, filename=filename)
         if preview:
-            response.headers["Content-Disposition"] = f'inline; filename="{filename}"'
+            response.headers["Content-Disposition"] = build_content_disposition(
+                filename,
+                disposition="inline",
+            )
         return response
 
     async def record_download(self, attachment: Attachment, size: int | None = None) -> None:
@@ -216,10 +219,7 @@ class AttachmentDownloadService:
         from app.services.common.storage_config_resolver import StorageConfigResolver
 
         resolver = StorageConfigResolver(self.db)
-        return await resolver.resolve_for_attachment(
-            driver=attachment.driver,
-            tenant_id=self.tenant_id or PLATFORM_TENANT_ID,
-        )
+        return await resolver.resolve_for_attachment_record(attachment)
 
     @staticmethod
     def _build_direct_cdn_url(attachment: Attachment) -> str | None:
@@ -293,6 +293,42 @@ class AttachmentDownloadService:
                 token_payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM,
             )
         return f"/api/public/attachments/{attachment_id}/image?{urlencode(params)}"
+
+    @staticmethod
+    def build_client_access_url(
+        attachment_id: int,
+        tenant_id: int,
+        visibility: str,
+        expires: int = 3600,
+    ) -> str:
+        """Build a client-facing access URL.
+
+        Public files keep a stable `/access` path for long-lived content such as
+        rich-text links. Private files get a signed URL for immediate display/use.
+        """
+        if visibility == AttachmentVisibility.PUBLIC.value:
+            return f"/api/public/attachments/{attachment_id}/access"
+
+        exp_ts = int(time.time()) + expires
+        sign = AttachmentDownloadService.create_access_sign(attachment_id, exp_ts)
+        expire_at = utc_now() + timedelta(seconds=expires)
+        token_payload = {
+            "type": "attachment_download",
+            "attachment_id": attachment_id,
+            "tenant_id": tenant_id,
+            "preview": False,
+            "exp": expire_at,
+        }
+        params = {
+            "exp": str(exp_ts),
+            "sign": sign,
+            "token": jwt.encode(
+                token_payload,
+                settings.SECRET_KEY,
+                algorithm=settings.ALGORITHM,
+            ),
+        }
+        return f"/api/public/attachments/{attachment_id}/access?{urlencode(params)}"
 
     @staticmethod
     def create_access_sign(attachment_id: int, exp: int) -> str:

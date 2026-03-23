@@ -124,6 +124,56 @@ class TestPageOperationExecutor:
         assert result.duration_ms >= 0
 
     @pytest.mark.asyncio
+    async def test_capture_screenshot_preserves_attachment_id(
+        self, executor, definition
+    ):
+        """截图结果应透传 attachment_id，供后续多模态链路稳定解析。"""
+        context = ExecutionContext(
+            tenant_id=1,
+            agent_id=2,
+            page_session_id="ps-123",
+        )
+        mock_result = {
+            "invoke_id": "inv-shot",
+            "success": True,
+            "message": "Screenshot captured",
+            "data": {
+                "attachment": {
+                    "attachment_id": 77,
+                    "type": "image",
+                    "url": "/api/public/attachments/77/image?exp=1&sign=abc",
+                    "name": "shot.jpg",
+                    "mime_type": "image/jpeg",
+                }
+            },
+        }
+
+        with patch(
+            "app.sio.page_session.invoke_page_operation",
+            new=AsyncMock(return_value=mock_result),
+        ):
+            result = await executor.execute(
+                definition,
+                "call_shot",
+                {
+                    "page_key": "admin.dashboard",
+                    "operation_name": "capture_screenshot",
+                },
+                context,
+            )
+
+        assert result.success is True
+        assert result.attachments == [
+            {
+                "attachment_id": 77,
+                "type": "image",
+                "url": "/api/public/attachments/77/image?exp=1&sign=abc",
+                "name": "shot.jpg",
+                "mime_type": "image/jpeg",
+            }
+        ]
+
+    @pytest.mark.asyncio
     async def test_success_writes_action_audit_log(self, executor, definition):
         """成功页面操作应写入 AI 操作审计日志。"""
         context = ExecutionContext(
@@ -142,12 +192,15 @@ class TestPageOperationExecutor:
         }
         audit_mock = AsyncMock()
 
-        with patch(
-            "app.sio.page_session.invoke_page_operation",
-            new=AsyncMock(return_value=mock_result),
-        ), patch(
-            "app.ai.tools.executors.page_operation_executor.write_ai_action_log",
-            new=audit_mock,
+        with (
+            patch(
+                "app.sio.page_session.invoke_page_operation",
+                new=AsyncMock(return_value=mock_result),
+            ),
+            patch(
+                "app.ai.tools.executors.page_operation_executor.write_ai_action_log",
+                new=audit_mock,
+            ),
         ):
             result = await executor.execute(
                 definition,
@@ -174,7 +227,9 @@ class TestPageOperationExecutor:
         assert kwargs["response_data"]["invoke_id"] == "inv-log"
 
     @pytest.mark.asyncio
-    async def test_explicit_page_session_id_wins_over_active_mapping(self, executor, definition):
+    async def test_explicit_page_session_id_wins_over_active_mapping(
+        self, executor, definition
+    ):
         """显式 page_session_id 必须优先，不能被同 page_key 的 active mapping 偷换。"""
         context = ExecutionContext(
             tenant_id=1,
@@ -189,13 +244,16 @@ class TestPageOperationExecutor:
             "message": "Used explicit session",
         }
 
-        with patch(
-            "app.sio.page_session.get_active_session_id",
-            return_value="ps-active-newer",
-        ), patch(
-            "app.sio.page_session.invoke_page_operation",
-            new=AsyncMock(return_value=mock_result),
-        ) as invoke_mock:
+        with (
+            patch(
+                "app.sio.page_session.get_active_session_id",
+                return_value="ps-active-newer",
+            ),
+            patch(
+                "app.sio.page_session.invoke_page_operation",
+                new=AsyncMock(return_value=mock_result),
+            ) as invoke_mock,
+        ):
             result = await executor.execute(
                 definition,
                 "call_explicit",
@@ -211,7 +269,9 @@ class TestPageOperationExecutor:
         assert invoke_mock.await_args.kwargs["page_session_id"] == "ps-explicit"
 
     @pytest.mark.asyncio
-    async def test_active_session_id_used_when_context_session_missing(self, executor, definition):
+    async def test_active_session_id_used_when_context_session_missing(
+        self, executor, definition
+    ):
         """未携带 page_session_id 时，允许使用 active mapping 恢复会话。"""
         context = ExecutionContext(
             tenant_id=1,
@@ -225,13 +285,16 @@ class TestPageOperationExecutor:
             "message": "Recovered session",
         }
 
-        with patch(
-            "app.sio.page_session.get_active_session_id",
-            return_value="ps-recovered",
-        ), patch(
-            "app.sio.page_session.invoke_page_operation",
-            new=AsyncMock(return_value=mock_result),
-        ) as invoke_mock:
+        with (
+            patch(
+                "app.sio.page_session.get_active_session_id",
+                return_value="ps-recovered",
+            ),
+            patch(
+                "app.sio.page_session.invoke_page_operation",
+                new=AsyncMock(return_value=mock_result),
+            ) as invoke_mock,
+        ):
             result = await executor.execute(
                 definition,
                 "call_active",
@@ -285,7 +348,9 @@ class TestPageOperationExecutor:
     async def test_missing_page_key(self, executor, definition):
         """缺少 page_key → 参数错误 / page_key →"""
         context = ExecutionContext(
-            tenant_id=1, agent_id=2, page_session_id="ps-123",
+            tenant_id=1,
+            agent_id=2,
+            page_session_id="ps-123",
         )
 
         result = await executor.execute(
@@ -303,7 +368,9 @@ class TestPageOperationExecutor:
     async def test_target_not_found_recovery_guidance(self, executor, definition):
         """replace_section target_not_found 时返回恢复指引 / target_not_found ..."""
         context = ExecutionContext(
-            tenant_id=1, agent_id=2, page_session_id="ps-123",
+            tenant_id=1,
+            agent_id=2,
+            page_session_id="ps-123",
         )
         mock_result = {
             "success": False,
@@ -328,14 +395,20 @@ class TestPageOperationExecutor:
 
         assert result.success is False
         assert result.error_type == "target_not_found"
-        assert "get_editor_html" in result.error or "short" in result.error.lower() or "短" in result.error
+        assert (
+            "get_editor_html" in result.error
+            or "short" in result.error.lower()
+            or "短" in result.error
+        )
         assert "HTML" in result.error and "JSON" in result.error
 
     @pytest.mark.asyncio
     async def test_missing_operation_name(self, executor, definition):
         """缺少 operation_name → 参数错误 / operation_name →"""
         context = ExecutionContext(
-            tenant_id=1, agent_id=2, page_session_id="ps-123",
+            tenant_id=1,
+            agent_id=2,
+            page_session_id="ps-123",
         )
 
         result = await executor.execute(
@@ -350,10 +423,40 @@ class TestPageOperationExecutor:
         assert result.error_type == "invalid_input"
 
     @pytest.mark.asyncio
+    async def test_capture_screenshot_requires_vision_model(self, executor, definition):
+        """非视觉模型必须拒绝 capture_screenshot。"""
+        context = ExecutionContext(
+            tenant_id=1,
+            agent_id=2,
+            page_session_id="ps-123",
+            variables={
+                "runtime_model_capabilities": {
+                    "supports_vision": False,
+                },
+            },
+        )
+
+        result = await executor.execute(
+            definition,
+            "call_capture",
+            {
+                "page_key": "admin.dashboard",
+                "operation_name": "capture_screenshot",
+            },
+            context,
+        )
+
+        assert result.success is False
+        assert result.error_type == "vision_not_supported"
+        assert "图片" in result.error or "vision" in result.error.lower()
+
+    @pytest.mark.asyncio
     async def test_timeout(self, executor, definition):
         """操作超时 → error_type=timeout / → error_type=timeout"""
         context = ExecutionContext(
-            tenant_id=1, agent_id=2, page_session_id="ps-123",
+            tenant_id=1,
+            agent_id=2,
+            page_session_id="ps-123",
         )
         mock_result = {
             "invoke_id": "inv-timeout",
@@ -383,7 +486,9 @@ class TestPageOperationExecutor:
     async def test_user_cancelled(self, executor, definition):
         """用户取消 → error_type=user_cancelled / → error_type=user_cancell..."""
         context = ExecutionContext(
-            tenant_id=1, agent_id=2, page_session_id="ps-123",
+            tenant_id=1,
+            agent_id=2,
+            page_session_id="ps-123",
         )
         mock_result = {
             "invoke_id": "inv-cancel",
@@ -414,7 +519,9 @@ class TestPageOperationExecutor:
     async def test_not_registered(self, executor, definition):
         """未注册操作 → 前端回传 not_registered / → not_registered"""
         context = ExecutionContext(
-            tenant_id=1, agent_id=2, page_session_id="ps-123",
+            tenant_id=1,
+            agent_id=2,
+            page_session_id="ps-123",
         )
         mock_result = {
             "invoke_id": "inv-noreg",
@@ -444,13 +551,17 @@ class TestPageOperationExecutor:
     async def test_requires_confirmation_passed_to_invoke(self, executor, definition):
         """requires_confirmation 参数正确传递到 invoke_page_operation / requires_confirmation ..."""
         context = ExecutionContext(
-            tenant_id=1, agent_id=2, page_session_id="ps-123",
+            tenant_id=1,
+            agent_id=2,
+            page_session_id="ps-123",
         )
-        mock_invoke = AsyncMock(return_value={
-            "invoke_id": "inv-confirm",
-            "success": True,
-            "message": "Done",
-        })
+        mock_invoke = AsyncMock(
+            return_value={
+                "invoke_id": "inv-confirm",
+                "success": True,
+                "message": "Done",
+            }
+        )
 
         with patch(
             "app.sio.page_session.invoke_page_operation",
@@ -477,13 +588,17 @@ class TestPageOperationExecutor:
     async def test_params_passed_to_invoke(self, executor, definition):
         """params 参数正确传递 / params"""
         context = ExecutionContext(
-            tenant_id=1, agent_id=2, page_session_id="ps-123",
+            tenant_id=1,
+            agent_id=2,
+            page_session_id="ps-123",
         )
-        mock_invoke = AsyncMock(return_value={
-            "invoke_id": "inv-params",
-            "success": True,
-            "message": "OK",
-        })
+        mock_invoke = AsyncMock(
+            return_value={
+                "invoke_id": "inv-params",
+                "success": True,
+                "message": "OK",
+            }
+        )
 
         with patch(
             "app.sio.page_session.invoke_page_operation",
@@ -522,22 +637,40 @@ class TestPageOperationExecutorValidate:
 
     @pytest.mark.asyncio
     async def test_valid_args(self, executor, definition):
-        assert await executor.validate(definition, {
-            "page_key": "admin.dashboard",
-            "operation_name": "refresh",
-        }) is True
+        assert (
+            await executor.validate(
+                definition,
+                {
+                    "page_key": "admin.dashboard",
+                    "operation_name": "refresh",
+                },
+            )
+            is True
+        )
 
     @pytest.mark.asyncio
     async def test_missing_page_key(self, executor, definition):
-        assert await executor.validate(definition, {
-            "operation_name": "refresh",
-        }) is False
+        assert (
+            await executor.validate(
+                definition,
+                {
+                    "operation_name": "refresh",
+                },
+            )
+            is False
+        )
 
     @pytest.mark.asyncio
     async def test_missing_operation_name(self, executor, definition):
-        assert await executor.validate(definition, {
-            "page_key": "admin.dashboard",
-        }) is False
+        assert (
+            await executor.validate(
+                definition,
+                {
+                    "page_key": "admin.dashboard",
+                },
+            )
+            is False
+        )
 
     @pytest.mark.asyncio
     async def test_empty_args(self, executor, definition):
@@ -545,10 +678,16 @@ class TestPageOperationExecutorValidate:
 
     @pytest.mark.asyncio
     async def test_empty_page_key(self, executor, definition):
-        assert await executor.validate(definition, {
-            "page_key": "",
-            "operation_name": "refresh",
-        }) is False
+        assert (
+            await executor.validate(
+                definition,
+                {
+                    "page_key": "",
+                    "operation_name": "refresh",
+                },
+            )
+            is False
+        )
 
 
 # ========================================
@@ -577,11 +716,13 @@ class TestInvokePageOperation:
             await asyncio.sleep(0.01)
             future = _pending_invocations.get(invoke_id)
             if future and not future.done():
-                future.set_result({
-                    "invoke_id": invoke_id,
-                    "success": True,
-                    "message": "List refreshed",
-                })
+                future.set_result(
+                    {
+                        "invoke_id": invoke_id,
+                        "success": True,
+                        "message": "List refreshed",
+                    }
+                )
 
         _mock_sio_instance.emit = AsyncMock(side_effect=fake_emit)
 
@@ -624,11 +765,13 @@ class TestInvokePageOperation:
             await asyncio.sleep(0.01)
             future = _pending_invocations.get(invoke_id)
             if future and not future.done():
-                future.set_result({
-                    "invoke_id": invoke_id,
-                    "success": True,
-                    "message": "OK",
-                })
+                future.set_result(
+                    {
+                        "invoke_id": invoke_id,
+                        "success": True,
+                        "message": "OK",
+                    }
+                )
 
         _mock_sio_instance.emit = AsyncMock(side_effect=fake_emit)
 
@@ -661,11 +804,13 @@ class TestInvokePageOperation:
             await asyncio.sleep(0.01)
             future = _pending_invocations.get(invoke_id)
             if future and not future.done():
-                future.set_result({
-                    "invoke_id": invoke_id,
-                    "success": True,
-                    "message": "OK",
-                })
+                future.set_result(
+                    {
+                        "invoke_id": invoke_id,
+                        "success": True,
+                        "message": "OK",
+                    }
+                )
 
         _mock_sio_instance.emit = AsyncMock(side_effect=fake_emit)
 
@@ -706,6 +851,16 @@ class TestInvokePageOperation:
 
 class TestPageSessionMixin:
     """PageSessionMixin 事件处理测试 / Test."""
+
+    @pytest.fixture(autouse=True)
+    def _clear_page_session_tracking(self):
+        from app.sio.page_session import _active_sessions, _sid_active_sessions
+
+        _active_sessions.clear()
+        _sid_active_sessions.clear()
+        yield
+        _active_sessions.clear()
+        _sid_active_sessions.clear()
 
     @pytest.mark.asyncio
     async def test_join_room(self):
@@ -772,11 +927,14 @@ class TestPageSessionMixin:
         future = loop.create_future()
         _pending_invocations["inv-result"] = future
 
-        await mixin.on_page_operation_result("sid-1", {
-            "invoke_id": "inv-result",
-            "success": True,
-            "message": "Done",
-        })
+        await mixin.on_page_operation_result(
+            "sid-1",
+            {
+                "invoke_id": "inv-result",
+                "success": True,
+                "message": "Done",
+            },
+        )
 
         assert future.done()
         assert future.result()["success"] is True
@@ -792,11 +950,14 @@ class TestPageSessionMixin:
         mixin.namespace = "/admin"
 
         # 不应抛出异常
-        await mixin.on_page_operation_result("sid-1", {
-            "invoke_id": "inv-nonexistent",
-            "success": True,
-            "message": "No matching future",
-        })
+        await mixin.on_page_operation_result(
+            "sid-1",
+            {
+                "invoke_id": "inv-nonexistent",
+                "success": True,
+                "message": "No matching future",
+            },
+        )
 
     @pytest.mark.asyncio
     async def test_operation_result_no_data(self):
@@ -824,6 +985,72 @@ class TestPageSessionMixin:
 
         expected_room = f"page_session:{long_id[:64]}"
         mixin.enter_room.assert_called_once_with("sid-1", expected_room)
+
+    @pytest.mark.asyncio
+    async def test_active_session_fallback_returns_none_when_multiple_tabs_are_active(
+        self,
+    ):
+        """同用户同 page_key 存在多个活跃 session 时，fallback 必须拒绝猜测。"""
+        from app.sio.page_session import PageSessionMixin, get_active_session_id
+
+        mixin1 = PageSessionMixin()
+        mixin1.namespace = "/tenant"
+        mixin1.enter_room = AsyncMock()
+        mixin1.get_session = AsyncMock(return_value={"user_id": 9})
+
+        mixin2 = PageSessionMixin()
+        mixin2.namespace = "/tenant"
+        mixin2.enter_room = AsyncMock()
+        mixin2.leave_room = AsyncMock()
+        mixin2.get_session = AsyncMock(return_value={"user_id": 9})
+
+        await mixin1.on_page_session_join(
+            "sid-1",
+            {
+                "page_session_id": "ps-1",
+                "page_key": "tenant.portal.home",
+            },
+        )
+        await mixin2.on_page_session_join(
+            "sid-2",
+            {
+                "page_session_id": "ps-2",
+                "page_key": "tenant.portal.home",
+            },
+        )
+
+        assert get_active_session_id(9, "tenant.portal.home", "tenant_admin") is None
+
+        await mixin2.on_page_session_leave("sid-2", {"page_session_id": "ps-2"})
+
+        assert get_active_session_id(9, "tenant.portal.home", "tenant_admin") == "ps-1"
+
+    @pytest.mark.asyncio
+    async def test_disconnect_cleanup_removes_tracked_page_sessions_for_sid(self):
+        """socket 断线清理后，旧 sid 的 page_session 不能继续留在 active mapping 中。"""
+        from app.sio.page_session import PageSessionMixin, get_active_session_id
+
+        mixin = PageSessionMixin()
+        mixin.namespace = "/admin"
+        mixin.enter_room = AsyncMock()
+        mixin.get_session = AsyncMock(return_value={"user_id": 7})
+
+        await mixin.on_page_session_join(
+            "sid-1",
+            {
+                "page_session_id": "ps-admin-1",
+                "page_key": "admin.ai.agents",
+            },
+        )
+
+        assert (
+            get_active_session_id(7, "admin.ai.agents", "platform_admin")
+            == "ps-admin-1"
+        )
+
+        mixin.cleanup_page_sessions_for_disconnect("sid-1")
+
+        assert get_active_session_id(7, "admin.ai.agents", "platform_admin") is None
 
 
 # ========================================
@@ -896,11 +1123,13 @@ class TestSkillResolverPageOperation:
         context_skill.is_active = True
         context_skill.config = {
             "builtin_type": "page_context",
-            "tools": [{
-                "name": "get_page_context",
-                "description": "Read current page context",
-                "parameters": {"type": "object", "properties": {}, "required": []},
-            }],
+            "tools": [
+                {
+                    "name": "get_page_context",
+                    "description": "Read current page context",
+                    "parameters": {"type": "object", "properties": {}, "required": []},
+                }
+            ],
         }
         context_skill.name = "get_page_context"
         context_skill.description = "Read current page context"
@@ -913,18 +1142,20 @@ class TestSkillResolverPageOperation:
         operation_skill.is_active = True
         operation_skill.config = {
             "builtin_type": "page_operation",
-            "tools": [{
-                "name": "invoke_page_operation",
-                "description": "Execute a page operation",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "page_key": {"type": "string"},
-                        "operation_name": {"type": "string"},
+            "tools": [
+                {
+                    "name": "invoke_page_operation",
+                    "description": "Execute a page operation",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "page_key": {"type": "string"},
+                            "operation_name": {"type": "string"},
+                        },
+                        "required": ["page_key", "operation_name"],
                     },
-                    "required": ["page_key", "operation_name"],
-                },
-            }],
+                }
+            ],
         }
         operation_skill.name = "invoke_page_operation"
         operation_skill.description = "Execute a page operation"

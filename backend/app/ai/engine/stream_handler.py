@@ -18,7 +18,6 @@ from typing import TYPE_CHECKING, Any
 
 from app.ai.sse import SSEChunkEncoder
 from app.ai.types import ChatMessage
-from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.common import UserRoleEnum
 
@@ -61,7 +60,8 @@ class StreamExecutionHandler:
         request: ExecutionRequest,
         prep: PreparedExecution,
         start_time: float,
-        on_complete: Callable[[ExecutionResult], Awaitable[dict[str, Any] | None]] | None = None,
+        on_complete: Callable[[ExecutionResult], Awaitable[dict[str, Any] | None]]
+        | None = None,
     ):
         self.engine = engine
         self.agent = agent
@@ -114,7 +114,9 @@ class StreamExecutionHandler:
         all_tool_results: list[ToolResult] = []
         output = ""
         self._output = ""  # Used for partial persist on interrupt
-        self._reasoning_output = ""  # For chain-of-thought models, used in partial persist
+        self._reasoning_output = (
+            ""  # For chain-of-thought models, used in partial persist
+        )
         self._total_tokens = 0
         self._runtime_model_info: dict[str, Any] | None = None
         self._on_complete_called = False
@@ -124,10 +126,12 @@ class StreamExecutionHandler:
             if self.request.conversation_id:
                 # Publish conversation id early so frontend keeps the session
                 # even when the stream is interrupted before the final done event.
-                yield SSEChunkEncoder.encode({
-                    "event": "conversation",
-                    "conversation_id": self.request.conversation_id,
-                })
+                yield SSEChunkEncoder.encode(
+                    {
+                        "event": "conversation",
+                        "conversation_id": self.request.conversation_id,
+                    }
+                )
 
             processor = ToolCallProcessor(
                 sandbox=self.engine.sandbox,
@@ -146,7 +150,10 @@ class StreamExecutionHandler:
             if tools:
                 # ---- With tools: tool call loop + final reply streaming ---- / 有工具：工具调用循环 + 最终回复流式推送
                 async for event in self._generate_with_tools(
-                    messages, tools, processor, all_tool_results,
+                    messages,
+                    tools,
+                    processor,
+                    all_tool_results,
                     _strip_model_fc_tokens,
                 ):
                     yield event
@@ -160,7 +167,9 @@ class StreamExecutionHandler:
                 # ---- Without tools: real streaming push ---- / 无工具：真实流式推送
                 self._reasoning_output = ""
                 _req_role = getattr(
-                    self.request, "user_role", UserRoleEnum.TENANT_ADMIN.value,
+                    self.request,
+                    "user_role",
+                    UserRoleEnum.TENANT_ADMIN.value,
                 )
                 async for chunk in self.engine._stream_llm_chunks(
                     agent=self.agent,
@@ -173,26 +182,29 @@ class StreamExecutionHandler:
                     log_user_type=log_user_type_for_call_log(_req_role),
                     runtime_context=next_runtime_context,
                 ):
-                    if (
-                        self._runtime_model_info is None
-                        and isinstance(getattr(chunk, "metadata", None), dict)
+                    if self._runtime_model_info is None and isinstance(
+                        getattr(chunk, "metadata", None), dict
                     ):
                         self._runtime_model_info = chunk.metadata.get(
                             "runtime_model_info",
                         )
                     if chunk.reasoning_delta:
                         self._reasoning_output += chunk.reasoning_delta
-                        yield SSEChunkEncoder.encode({
-                            "event": "thinking",
-                            "delta": chunk.reasoning_delta,
-                        })
+                        yield SSEChunkEncoder.encode(
+                            {
+                                "event": "thinking",
+                                "delta": chunk.reasoning_delta,
+                            }
+                        )
 
                     if chunk.delta:
                         output += chunk.delta
-                        yield SSEChunkEncoder.encode({
-                            "event": "message",
-                            "delta": chunk.delta,
-                        })
+                        yield SSEChunkEncoder.encode(
+                            {
+                                "event": "message",
+                                "delta": chunk.delta,
+                            }
+                        )
 
                     if chunk.total_tokens is not None:
                         total_tokens = chunk.total_tokens
@@ -201,27 +213,34 @@ class StreamExecutionHandler:
                     # ConversationEngine._stream_llm_chunks 尾部的 Key 计数/commit 不会执行。
                 next_runtime_context = None
 
-                messages.append(ChatMessage(
-                    role="assistant",
-                    content=output,
-                    reasoning_content=(self._reasoning_output or "").strip() or None,
-                ))
+                messages.append(
+                    ChatMessage(
+                        role="assistant",
+                        content=output,
+                        reasoning_content=(self._reasoning_output or "").strip()
+                        or None,
+                    )
+                )
 
             # ---- Parse and send Action Buttons ---- / 解析并发送 Action Buttons
             cleaned_output, action_buttons = self._extract_action_buttons(output)
             if action_buttons:
                 output = cleaned_output
-                yield SSEChunkEncoder.encode({
-                    "event": "action_buttons",
-                    "buttons": action_buttons,
-                })
+                yield SSEChunkEncoder.encode(
+                    {
+                        "event": "action_buttons",
+                        "buttons": action_buttons,
+                    }
+                )
 
             # ---- Send RAG reference source event ---- / 发送 RAG 引用来源事件
             if rag_sources:
-                yield SSEChunkEncoder.encode({
-                    "event": "rag_sources",
-                    "sources": rag_sources,
-                })
+                yield SSEChunkEncoder.encode(
+                    {
+                        "event": "rag_sources",
+                        "sources": rag_sources,
+                    }
+                )
 
             # ---- Build result ---- / 构建结果
             duration_ms = int((time.perf_counter() - self.start_time) * 1000)
@@ -237,7 +256,9 @@ class StreamExecutionHandler:
                 runtime_model_id=(self._runtime_model_info or {}).get("model_id"),
                 runtime_model_name=(self._runtime_model_info or {}).get("model_name"),
                 runtime_provider_id=(self._runtime_model_info or {}).get("provider_id"),
-                runtime_provider_name=(self._runtime_model_info or {}).get("provider_name"),
+                runtime_provider_name=(self._runtime_model_info or {}).get(
+                    "provider_name"
+                ),
                 rag_sources=rag_sources,
             )
 
@@ -249,12 +270,14 @@ class StreamExecutionHandler:
             # ---- Send done event FIRST so frontend unlocks immediately ----
             # on_complete may trigger slow operations (e.g. memory extraction LLM call);
             # emitting done before the callback prevents the UI from hanging.
-            yield SSEChunkEncoder.encode({
-                "event": "done",
-                "conversation_id": self.request.conversation_id,
-                "total_tokens": total_tokens,
-                "duration_ms": duration_ms,
-            })
+            yield SSEChunkEncoder.encode(
+                {
+                    "event": "done",
+                    "conversation_id": self.request.conversation_id,
+                    "total_tokens": total_tokens,
+                    "duration_ms": duration_ms,
+                }
+            )
 
             yield SSEChunkEncoder.done()
 
@@ -266,11 +289,13 @@ class StreamExecutionHandler:
                 exc_info=True,
             )
             try:
-                yield SSEChunkEncoder.encode({
-                    "error": True,
-                    "message": str(exc),
-                    "conversation_id": self.request.conversation_id,
-                })
+                yield SSEChunkEncoder.encode(
+                    {
+                        "error": True,
+                        "message": str(exc),
+                        "conversation_id": self.request.conversation_id,
+                    }
+                )
                 yield SSEChunkEncoder.done()
             except Exception:
                 pass  # Ignore yield error when connection is broken / 连接已断开时忽略 yield 错误
@@ -284,12 +309,16 @@ class StreamExecutionHandler:
                     partial_tokens = total_tokens
                 # Append partial assistant message when we have output but did not finish normally
                 if partial_output:
-                    reasoning = (getattr(self, "_reasoning_output", None) or "").strip() or None
-                    messages.append(ChatMessage(
-                        role="assistant",
-                        content=partial_output,
-                        reasoning_content=reasoning,
-                    ))
+                    reasoning = (
+                        getattr(self, "_reasoning_output", None) or ""
+                    ).strip() or None
+                    messages.append(
+                        ChatMessage(
+                            role="assistant",
+                            content=partial_output,
+                            reasoning_content=reasoning,
+                        )
+                    )
                 failed_result = ExecutionResult(
                     success=False,
                     output=partial_output,
@@ -299,9 +328,15 @@ class StreamExecutionHandler:
                     duration_ms=duration_ms,
                     conversation_id=self.request.conversation_id,
                     runtime_model_id=(self._runtime_model_info or {}).get("model_id"),
-                    runtime_model_name=(self._runtime_model_info or {}).get("model_name"),
-                    runtime_provider_id=(self._runtime_model_info or {}).get("provider_id"),
-                    runtime_provider_name=(self._runtime_model_info or {}).get("provider_name"),
+                    runtime_model_name=(self._runtime_model_info or {}).get(
+                        "model_name"
+                    ),
+                    runtime_provider_id=(self._runtime_model_info or {}).get(
+                        "provider_id"
+                    ),
+                    runtime_provider_name=(self._runtime_model_info or {}).get(
+                        "provider_name"
+                    ),
                     error=str(exc),
                     partial=True,
                     interrupted=False,
@@ -314,7 +349,9 @@ class StreamExecutionHandler:
             # Catch CancelledError / GeneratorExit and other non-Exception exceptions / 捕获 CancelledError / GeneratorExit 等非 Exception 异常
             logger.error(
                 "Stream BaseException: agent={} type={} error={}",
-                self.agent.id, type(exc).__name__, str(exc),
+                self.agent.id,
+                type(exc).__name__,
+                str(exc),
                 exc_info=True,
             )
             if self.on_complete and not self._on_complete_called:
@@ -324,12 +361,16 @@ class StreamExecutionHandler:
                 if partial_tokens is None:
                     partial_tokens = total_tokens
                 if partial_output:
-                    reasoning = (getattr(self, "_reasoning_output", None) or "").strip() or None
-                    messages.append(ChatMessage(
-                        role="assistant",
-                        content=partial_output,
-                        reasoning_content=reasoning,
-                    ))
+                    reasoning = (
+                        getattr(self, "_reasoning_output", None) or ""
+                    ).strip() or None
+                    messages.append(
+                        ChatMessage(
+                            role="assistant",
+                            content=partial_output,
+                            reasoning_content=reasoning,
+                        )
+                    )
                 interrupted_result = ExecutionResult(
                     success=False,
                     output=partial_output,
@@ -339,9 +380,15 @@ class StreamExecutionHandler:
                     duration_ms=duration_ms,
                     conversation_id=self.request.conversation_id,
                     runtime_model_id=(self._runtime_model_info or {}).get("model_id"),
-                    runtime_model_name=(self._runtime_model_info or {}).get("model_name"),
-                    runtime_provider_id=(self._runtime_model_info or {}).get("provider_id"),
-                    runtime_provider_name=(self._runtime_model_info or {}).get("provider_name"),
+                    runtime_model_name=(self._runtime_model_info or {}).get(
+                        "model_name"
+                    ),
+                    runtime_provider_id=(self._runtime_model_info or {}).get(
+                        "provider_id"
+                    ),
+                    runtime_provider_name=(self._runtime_model_info or {}).get(
+                        "provider_name"
+                    ),
                     error=f"{type(exc).__name__}: {exc}",
                     partial=True,
                     interrupted=True,
@@ -397,33 +444,46 @@ class StreamExecutionHandler:
             _conf_skill = processor.get_skill_info(_func_name)
             yield SSEChunkEncoder.encode(
                 processor.build_tool_start_event(
-                    _func_name, _arguments, _conf_skill,
+                    _func_name,
+                    _arguments,
+                    _conf_skill,
                     tool_call_id=_tc_id,
                 )
             )
             _result, _tc_dur = await processor.execute_tool(
-                _tc_id, _func_name, _arguments,
+                _tc_id,
+                _func_name,
+                _arguments,
                 conversation_id=self.request.conversation_id or 0,
             )
             all_tool_results.append(_result)
             yield SSEChunkEncoder.encode(
                 processor.build_tool_call_event(
-                    _result, _tc_dur, _conf_skill,
+                    _result,
+                    _tc_dur,
+                    _conf_skill,
                     name_override=_func_name,
                 )
             )
-            messages.append(processor.build_assistant_tool_call_message(
-                content="",
-                tool_calls=[{
-                    "id": _tc_id,
-                    "type": "function",
-                    "function": {
-                        "name": _func_name,
-                        "arguments": json.dumps(_arguments, ensure_ascii=False),
-                    },
-                }],
-            ))
+            messages.append(
+                processor.build_assistant_tool_call_message(
+                    content="",
+                    tool_calls=[
+                        {
+                            "id": _tc_id,
+                            "type": "function",
+                            "function": {
+                                "name": _func_name,
+                                "arguments": json.dumps(_arguments, ensure_ascii=False),
+                            },
+                        }
+                    ],
+                )
+            )
             messages.append(processor.build_tool_message(_result, _tc_id))
+            _follow_up_message = processor.build_follow_up_message(_result)
+            if _follow_up_message:
+                messages.append(_follow_up_message)
 
         _consecutive_page_op_failures = 0
         _consecutive_data_op_failures = 0
@@ -440,7 +500,9 @@ class StreamExecutionHandler:
             self._reasoning_output = ""
 
             _req_role = getattr(
-                self.request, "user_role", UserRoleEnum.TENANT_ADMIN.value,
+                self.request,
+                "user_role",
+                UserRoleEnum.TENANT_ADMIN.value,
             )
             async for chunk in self.engine._stream_llm_chunks(
                 agent=self.agent,
@@ -454,9 +516,8 @@ class StreamExecutionHandler:
                 log_user_type=log_user_type_for_call_log(_req_role),
                 runtime_context=next_runtime_context,
             ):
-                if (
-                    self._runtime_model_info is None
-                    and isinstance(getattr(chunk, "metadata", None), dict)
+                if self._runtime_model_info is None and isinstance(
+                    getattr(chunk, "metadata", None), dict
                 ):
                     self._runtime_model_info = chunk.metadata.get(
                         "runtime_model_info",
@@ -465,19 +526,23 @@ class StreamExecutionHandler:
                     round_reasoning_output += chunk.reasoning_delta
                     round_visible_thinking += chunk.reasoning_delta
                     self._reasoning_output = round_reasoning_output
-                    yield SSEChunkEncoder.encode({
-                        "event": "thinking",
-                        "delta": chunk.reasoning_delta,
-                    })
+                    yield SSEChunkEncoder.encode(
+                        {
+                            "event": "thinking",
+                            "delta": chunk.reasoning_delta,
+                        }
+                    )
 
                 if chunk.delta:
                     round_output += chunk.delta
                     round_visible_thinking += chunk.delta
                     self._output = round_output
-                    yield SSEChunkEncoder.encode({
-                        "event": "message",
-                        "delta": chunk.delta,
-                    })
+                    yield SSEChunkEncoder.encode(
+                        {
+                            "event": "message",
+                            "delta": chunk.delta,
+                        }
+                    )
 
                 if chunk.tool_calls:
                     round_tool_calls = self._merge_stream_tool_calls(
@@ -505,6 +570,7 @@ class StreamExecutionHandler:
                     reasoning_content=round_visible_thinking or None,
                 )
             )
+            follow_up_messages: list[ChatMessage] = []
 
             round_has_confirmation = False
 
@@ -537,7 +603,9 @@ class StreamExecutionHandler:
                         _consecutive_data_op_failures += 1
                         err_msg += " " + _("data_intelligence.crud.json_parse_guidance")
                         if _consecutive_data_op_failures >= 2:
-                            err_msg += " " + _("data_intelligence.crud.json_parse_guidance_tip")
+                            err_msg += " " + _(
+                                "data_intelligence.crud.json_parse_guidance_tip"
+                            )
                     err_result = ToolResult(
                         tool_call_id=tc_id,
                         name=func_name or "unknown",
@@ -548,16 +616,17 @@ class StreamExecutionHandler:
                     all_tool_results.append(err_result)
                     yield SSEChunkEncoder.encode(
                         processor.build_tool_call_event(
-                            err_result, 0, processor.get_skill_info(func_name),
+                            err_result,
+                            0,
+                            processor.get_skill_info(func_name),
                             name_override=func_name,
                         ),
                     )
                     messages.append(processor.build_tool_message(err_result, tc_id))
 
                     # Count parse error as page op failure (circuit breaking) / parse error 计入页面操作失败以触发熔断
-                    _is_page_op = (
-                        func_name == "invoke_page_operation"
-                        or (func_name.startswith("pageop_") if func_name else False)
+                    _is_page_op = func_name == "invoke_page_operation" or (
+                        func_name.startswith("pageop_") if func_name else False
                     )
                     if _is_page_op:
                         _consecutive_page_op_failures += 1
@@ -587,7 +656,8 @@ class StreamExecutionHandler:
                     messages.append(processor.build_consent_reject_message(tc_id))
                     yield SSEChunkEncoder.encode(
                         processor.build_consent_reject_event(
-                            func_name, _skill_info,
+                            func_name,
+                            _skill_info,
                         )
                     )
                     continue
@@ -595,12 +665,16 @@ class StreamExecutionHandler:
                 if _consent == "ask":
                     messages.append(
                         processor.build_consent_ask_message(
-                            tc_id, func_name, arguments,
+                            tc_id,
+                            func_name,
+                            arguments,
                         )
                     )
                     yield SSEChunkEncoder.encode(
                         processor.build_consent_ask_event(
-                            func_name, arguments, _skill_info,
+                            func_name,
+                            arguments,
+                            _skill_info,
                         )
                     )
                     round_has_confirmation = True
@@ -609,21 +683,24 @@ class StreamExecutionHandler:
                 # ---- auto: normal execution ---- / auto: 正常执行
                 yield SSEChunkEncoder.encode(
                     processor.build_tool_start_event(
-                        func_name, arguments, _skill_info,
+                        func_name,
+                        arguments,
+                        _skill_info,
                         tool_call_id=tc_id,
                     )
                 )
 
                 result, tc_duration = await processor.execute_tool(
-                    tc_id, func_name, arguments,
+                    tc_id,
+                    func_name,
+                    arguments,
                     conversation_id=self.request.conversation_id or 0,
                 )
                 all_tool_results.append(result)
 
                 # Track consecutive page operation failures; abort to stop apology loops
-                _is_page_op = (
-                    func_name == "invoke_page_operation"
-                    or (func_name.startswith("pageop_") if func_name else False)
+                _is_page_op = func_name == "invoke_page_operation" or (
+                    func_name.startswith("pageop_") if func_name else False
                 )
                 if _is_page_op:
                     if result.success:
@@ -648,7 +725,9 @@ class StreamExecutionHandler:
                 # Push tool_result event / 推送 tool_result 事件（name_override 保持与 tool_start 一致，避免前端匹配失败）
                 yield SSEChunkEncoder.encode(
                     processor.build_tool_call_event(
-                        result, tc_duration, _skill_info,
+                        result,
+                        tc_duration,
+                        _skill_info,
                         name_override=func_name,
                     )
                 )
@@ -663,9 +742,19 @@ class StreamExecutionHandler:
 
                 # Append tool message / 追加 tool 消息
                 messages.append(processor.build_tool_message(result, tc_id))
+                _follow_up_message = processor.build_follow_up_message(result)
+                if _follow_up_message:
+                    follow_up_messages.append(_follow_up_message)
 
                 if _page_op_aborted:
                     break
+
+            if (
+                follow_up_messages
+                and not round_has_confirmation
+                and not _page_op_aborted
+            ):
+                messages.extend(follow_up_messages)
 
             if round_has_confirmation or _page_op_aborted:
                 if round_has_confirmation:
@@ -683,11 +772,13 @@ class StreamExecutionHandler:
             )
 
         if append_final_assistant:
-            messages.append(ChatMessage(
-                role="assistant",
-                content=self._output,
-                reasoning_content=(self._reasoning_output or "").strip() or None,
-            ))
+            messages.append(
+                ChatMessage(
+                    role="assistant",
+                    content=self._output,
+                    reasoning_content=(self._reasoning_output or "").strip() or None,
+                )
+            )
 
     # ========================================
     # Tool Call Incremental Aggregation / 工具调用增量聚合
@@ -882,7 +973,9 @@ class StreamExecutionHandler:
                         "value": str(btn["value"]),
                     }
                     if "style" in btn and btn["style"] in (
-                        "primary", "default", "danger",
+                        "primary",
+                        "default",
+                        "danger",
                     ):
                         item["style"] = btn["style"]
                     valid_buttons.append(item)
@@ -890,7 +983,8 @@ class StreamExecutionHandler:
                 return output, None
             # Remove markers from output / 从输出中移除标记
             cleaned = StreamExecutionHandler._ACTION_BUTTONS_RE.sub(
-                "", output,
+                "",
+                output,
             ).strip()
             return cleaned, valid_buttons
         except (json.JSONDecodeError, TypeError, ValueError):

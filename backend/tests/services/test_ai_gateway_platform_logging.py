@@ -326,3 +326,86 @@ async def test_conversation_engine_stream_logs_platform_admin_calls_without_mete
     assert kwargs["response_data"]["model"] == "gpt-5.4-xhigh"
     api_key.increment_usage.assert_called_once()
     mock_db.flush.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_conversation_engine_stream_logs_failure_before_done(
+    mock_db,
+):
+    from app.ai.engine.conversation import ConversationEngine
+
+    provider = SimpleNamespace(
+        id=11,
+        code="provider_1",
+        type="openai_compatible",
+        base_url="https://example.com/v1",
+        config={},
+    )
+    api_key = SimpleNamespace(
+        decrypt_key=MagicMock(return_value="sk-test"),
+        increment_usage=MagicMock(),
+    )
+    model = SimpleNamespace(
+        id=33,
+        provider=provider,
+        code="gpt-5.4-xhigh",
+        supports_vision=False,
+        supports_audio=False,
+        supports_video=False,
+        supports_streaming=True,
+    )
+    agent = SimpleNamespace(
+        id=59,
+        model=model,
+        temperature=0.7,
+        max_tokens=256,
+        top_p=1.0,
+    )
+
+    async def fake_stream_chat(**kwargs):
+        _ = kwargs
+        if False:
+            yield None
+        raise RuntimeError("upstream boom")
+
+    gateway = MagicMock()
+    gateway.get_provider_and_key = AsyncMock(return_value=(provider, api_key))
+    gateway.usage_recorder = MagicMock()
+    gateway.usage_recorder.check_rate_and_quota = AsyncMock()
+    gateway.usage_recorder.record_usage_and_adjust = AsyncMock()
+    gateway.usage_recorder.log_call_failure = AsyncMock()
+    gateway.usage_recorder.call_log_service = MagicMock()
+    gateway.usage_recorder.call_log_service.log_call_async = AsyncMock()
+
+    engine = ConversationEngine(db=mock_db, gateway=gateway, sandbox=MagicMock())
+
+    with (
+        patch(
+            "app.ai.engine.conversation.AdapterRegistry.create_adapter",
+            return_value=SimpleNamespace(stream_chat=fake_stream_chat),
+        ),
+        pytest.raises(RuntimeError, match="upstream boom"),
+    ):
+        _ = [
+            chunk
+            async for chunk in engine._stream_llm_chunks(
+                agent=agent,
+                messages=[ChatMessage(role="user", content="hello")],
+                tenant_id=PLATFORM_TENANT_ID,
+                user_id=7,
+                conversation_id=386,
+            )
+        ]
+
+    gateway.usage_recorder.log_call_failure.assert_awaited_once()
+    kwargs = gateway.usage_recorder.log_call_failure.await_args.kwargs
+    assert kwargs["tenant_id"] == PLATFORM_TENANT_ID
+    assert kwargs["user_id"] == 7
+    assert kwargs["agent_id"] == 59
+    assert kwargs["conversation_id"] == 386
+    assert kwargs["model_id"] == 33
+    assert kwargs["provider"] is provider
+    gateway.usage_recorder.call_log_service.log_call_async.assert_not_awaited()
+    gateway.usage_recorder.record_usage_and_adjust.assert_not_awaited()
+    api_key.increment_usage.assert_not_called()
+    mock_db.flush.assert_not_awaited()

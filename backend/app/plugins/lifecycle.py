@@ -43,7 +43,9 @@ from app.plugins.dependencies import (
     normalize_plugin_dependencies,
     normalize_python_package_name,
 )
+from app.plugins.lifecycle_guards import run_plugin_lifecycle_guards
 from app.plugins.loader import PLUGINS_DIR, PluginLoader
+from app.plugins.migration_paths import build_migration_version_locations
 from app.plugins.preview import resolve_i18n
 
 if TYPE_CHECKING:
@@ -212,6 +214,41 @@ class PluginLifecycle:
                 exc,
             )
         return list(dict.fromkeys(prefixes))
+
+    async def _run_lifecycle_guards(
+        self,
+        *,
+        operation: str,
+        plugin_id: int,
+        plugin_name: str,
+        force: bool,
+        manifest: dict[str, Any] | None,
+    ) -> None:
+        """Run lifecycle guards and raise PluginError on denial.
+        / 执行生命周期阻断校验，若被拒绝则抛 PluginError。
+        """
+        result = await run_plugin_lifecycle_guards(
+            {
+                "operation": operation,
+                "plugin_id": plugin_id,
+                "plugin_name": plugin_name,
+                "force": force,
+                "manifest": dict(manifest or {}),
+            }
+        )
+        if result.get("allowed", True):
+            return
+
+        raise PluginError(
+            message=result.get("message") or f"Plugin {operation} blocked",
+            data={
+                "reason_code": result.get("reason_code") or "lifecycle_blocked",
+                "details": result.get("details") or {},
+                "operation": operation,
+                "plugin_id": plugin_id,
+                "plugin_name": plugin_name,
+            },
+        )
 
     async def _collect_plugin_dependency_states(
         self,
@@ -938,26 +975,29 @@ class PluginLifecycle:
         plugin.error_count = 0
         await self._db.flush()
 
-        # Write in-memory permission_registry menu permissions to DB (flush, no commit, preserves outer txn); _set_plugin_permissions_enabled only does UPDATE; on first enable must sync first / 将 permission_registry 内存中的菜单权限写入 DB；首次 enable 须先 sync
+        # Write plugin permissions to DB (menus + plugin action permissions, flush only);
+        # _set_plugin_permissions_enabled only does UPDATE, first enable must sync first.
+        # / 将插件权限写入 DB（菜单 + 插件动作权限）；首次 enable 须先 sync
         # _set_plugin_permissions_enabled 只做 UPDATE（依赖 DB 记录已存在），
         # 首次 enable 时 DB 尚无该插件权限记录，必须先 sync 才能写入。
         try:
             from app.rbac.sync import PermissionSyncService
             perm_sync = PermissionSyncService(self._db)
-            await perm_sync.sync_plugin_permissions(plugin_name)
+            async with self._db.begin_nested():
+                await perm_sync.sync_plugin_permissions(plugin_name)
         except Exception as exc:
-            logger.warning("Plugin {}: failed to sync menu permissions to DB: {}", plugin_name, exc)
+            logger.warning("Plugin {}: failed to sync plugin permissions to DB: {}", plugin_name, exc)
 
-        # Enable plugin menu permissions in DB so menu API immediately returns plugin menus / 启用 DB 中插件菜单权限
-        # / 启用 DB 中的插件菜单权限，使菜单 API 立即返回该插件菜单
+        # Enable plugin permissions in DB so API/menu reflect runtime immediately
+        # / 启用 DB 中插件权限，使 API/菜单权限状态立即生效
         await self._set_plugin_permissions_enabled(plugin_name, True)
 
-        # Auto-grant tenant-scoped plugin menu permissions to all active plans / 自动授予企业端插件菜单权限给所有活跃套餐
-        # / 将企业端插件菜单权限自动关联到所有活跃套餐
+        # Auto-grant tenant-scoped plugin permissions to all active plans (unless manual entitlement policy)
+        # / 自动授予企业端插件权限给所有活跃套餐（声明 manual_entitlement 时跳过）
         try:
             await self._auto_grant_plugin_menus_to_plans(plugin_name)
         except Exception as exc:
-            logger.warning("Plugin {}: failed to auto-grant menus to plans: {}", plugin_name, exc)
+            logger.warning("Plugin {}: failed to auto-grant permissions to plans: {}", plugin_name, exc)
 
         # Clear route regex cache (routes may change in DEBUG mode) / 清除路由正则缓存（DEBUG 模式下路由可能变化）
         from app.plugins.api_dispatcher import _compile_route_regex
@@ -986,7 +1026,14 @@ class PluginLifecycle:
         async with _plugin_lock(plugin_id):
             await self._disable_impl(plugin_id, force=force, operator_id=operator_id)
 
-    async def _disable_impl(self, plugin_id: int, *, force: bool = False, operator_id: int | None = None) -> None:
+    async def _disable_impl(
+        self,
+        plugin_id: int,
+        *,
+        force: bool = False,
+        operator_id: int | None = None,
+        skip_lifecycle_guards: bool = False,
+    ) -> None:
         """Disable plugin implementation (caller must hold lock) / 禁用插件实现（调用方须持锁）"""
         from sqlalchemy import select
 
@@ -1024,6 +1071,15 @@ class PluginLifecycle:
                     f"[{', '.join(dep['plugin'] for dep in dependents)}] depend on it. "
                     "Disable them first."
                 ),
+            )
+
+        if not skip_lifecycle_guards:
+            await self._run_lifecycle_guards(
+                operation="disable",
+                plugin_id=plugin_id,
+                plugin_name=plugin_name,
+                force=force,
+                manifest=plugin.manifest or {},
             )
 
         # Check if storage driver is in use (force=True auto-switches to local instead of raising) / 检查存储驱动是否正在被使用（force=True 时自动切换到 local 而非抛错）
@@ -1071,19 +1127,19 @@ class PluginLifecycle:
         plugin.enabled_at = None
         await self._db.flush()
 
-        # Sync-disable plugin menu permissions in DB so menu API no longer returns plugin menus / 同步禁用 DB 中插件菜单权限
-        # / 同步禁用 DB 中的插件菜单权限，使菜单 API 立即不再返回该插件菜单
-        await emitter.emit_step("permissions", "running", "Disabling menu permissions...")
+        # Sync-disable plugin permissions in DB so menu/API no longer authorize plugin access
+        # / 同步禁用 DB 中插件权限，使菜单/API 立即失效
+        await emitter.emit_step("permissions", "running", "Disabling plugin permissions...")
         await self._set_plugin_permissions_enabled(plugin_name, False)
 
-        # Revoke tenant-scoped plugin menu permissions from all plans / 从所有套餐撤销企业端插件菜单权限
-        # / 从所有套餐中移除企业端插件菜单权限
+        # Revoke tenant-scoped plugin permissions from all plans
+        # / 从所有套餐中移除企业端插件权限
         try:
             await self._revoke_plugin_menus_from_plans(plugin_name)
         except Exception as exc:
-            logger.warning("Plugin {}: failed to revoke menus from plans: {}", plugin_name, exc)
+            logger.warning("Plugin {}: failed to revoke permissions from plans: {}", plugin_name, exc)
 
-        await emitter.emit_step("permissions", "success", "Menu permissions disabled")
+        await emitter.emit_step("permissions", "success", "Plugin permissions disabled")
 
         await emitter.emit_done(f"Plugin {plugin_name} disabled successfully")
         logger.info("Plugin {} disabled", plugin_name)
@@ -1293,10 +1349,18 @@ class PluginLifecycle:
                 ),
             )
 
+        await self._run_lifecycle_guards(
+            operation="uninstall",
+            plugin_id=plugin_id,
+            plugin_name=plugin_name,
+            force=False,
+            manifest=plugin.manifest or {},
+        )
+
         # 2. Disable (if enabled) / 禁用（如果启用中）
         if plugin.status == PluginStatusEnum.ENABLED.value:
             await emitter.emit_step("disable", "running", "Disabling plugin...")
-            await self._disable_impl(plugin_id)
+            await self._disable_impl(plugin_id, skip_lifecycle_guards=True)
             await emitter.emit_step("disable", "success", "Plugin disabled")
 
         # 3. Call on_uninstall / 调用 on_uninstall
@@ -1527,13 +1591,14 @@ class PluginLifecycle:
 
     async def _set_plugin_permissions_enabled(self, plugin_name: str, is_enabled: bool) -> None:
         """
-        Batch enable or disable plugin menu permission records in DB.
-        / 批量启用或禁用插件在 DB 中的菜单权限记录。
+        Batch enable or disable plugin permission records in DB.
+        / 批量启用或禁用插件在 DB 中的权限记录。
 
-        Permission code format: menu:{admin|tenant}.plugin_{safe_name}_{menu_name}
-        Uses startswith to match admin and tenant scope permissions respectively.
-        / 权限代码格式: menu:{admin|tenant}.plugin_{safe_name}_{menu_name}
-        使用 startswith 分别匹配 admin 和 tenant scope 的权限。
+        Covers:
+        - menu:admin.plugin_{safe_name}_*
+        - menu:tenant.plugin_{safe_name}_*
+        - plugin.{plugin_name}.*
+        / 覆盖菜单权限与插件动作权限。
         """
         from sqlalchemy import or_, update
 
@@ -1542,6 +1607,7 @@ class PluginLifecycle:
         safe_name = plugin_name.replace("-", "_")
         admin_prefix = f"menu:admin.plugin_{safe_name}_"
         tenant_prefix = f"menu:tenant.plugin_{safe_name}_"
+        plugin_prefix = f"plugin.{plugin_name}."
 
         await self._db.execute(
             update(Permission)
@@ -1549,31 +1615,48 @@ class PluginLifecycle:
                 or_(
                     Permission.code.startswith(admin_prefix, autoescape=True),
                     Permission.code.startswith(tenant_prefix, autoescape=True),
+                    Permission.code.startswith(plugin_prefix, autoescape=True),
                 ),
                 Permission.is_deleted.is_(False),
             )
             .values(is_enabled=is_enabled)
         )
         action = "enabled" if is_enabled else "disabled"
-        logger.info("Plugin {}: {} menu permissions in DB", plugin_name, action)
+        logger.info("Plugin {}: {} plugin permissions in DB", plugin_name, action)
 
     async def _auto_grant_plugin_menus_to_plans(self, plugin_name: str) -> None:
         """
-        Auto-grant tenant-scoped plugin menu permissions to all active plans.
+        Auto-grant tenant-scoped plugin permissions to all active plans.
         Uses INSERT ... ON CONFLICT DO NOTHING (idempotent).
-        / 将企业端插件菜单权限自动关联到所有活跃套餐（幂等）。
+        If plugin declares tenant menu policy as `manual_entitlement`, skip auto-grant.
+        / 将企业端插件权限自动关联到所有活跃套餐（幂等）。
+        若插件声明 `manual_entitlement`，跳过自动授权。
         """
         from sqlalchemy import select, text
 
         from app.models.auth.permission import Permission
         from app.models.tenant.tenant_plan import TenantPlan
+        from app.plugins.registry import ExtensionRegistry
 
         safe_name = plugin_name.replace("-", "_")
         tenant_prefix = f"menu:tenant.plugin_{safe_name}_%"
+        plugin_prefix = f"plugin.{plugin_name}.%"
+
+        policy = ExtensionRegistry.get_instance().get_plugin_tenant_menu_policy(plugin_name)
+        if policy.get("grant_mode") == "manual_entitlement":
+            logger.info(
+                "Plugin {}: skip auto-grant due to tenant menu policy manual_entitlement",
+                plugin_name,
+            )
+            return
 
         perm_ids = (await self._db.execute(
             select(Permission.id).where(
-                Permission.code.like(tenant_prefix),
+                (
+                    Permission.code.like(tenant_prefix)
+                    | Permission.code.like(plugin_prefix)
+                ),
+                Permission.scope.in_(["tenant", "both"]),
                 Permission.is_enabled.is_(True),
                 Permission.is_deleted.is_(False),
             )
@@ -1598,14 +1681,14 @@ class PluginLifecycle:
         )
         await self._db.flush()
         logger.info(
-            "Plugin {}: auto-granted {} menu permission(s) to {} plan(s)",
+            "Plugin {}: auto-granted {} permission(s) to {} plan(s)",
             plugin_name, len(perm_ids), len(plan_ids),
         )
 
     async def _revoke_plugin_menus_from_plans(self, plugin_name: str) -> None:
         """
-        Revoke tenant-scoped plugin menu permissions from all plans on disable.
-        / 插件禁用时，从所有套餐中移除企业端插件菜单权限。
+        Revoke tenant-scoped plugin permissions from all plans on disable.
+        / 插件禁用时，从所有套餐中移除企业端插件权限。
         """
         from sqlalchemy import select
 
@@ -1614,10 +1697,15 @@ class PluginLifecycle:
 
         safe_name = plugin_name.replace("-", "_")
         tenant_prefix = f"menu:tenant.plugin_{safe_name}_%"
+        plugin_prefix = f"plugin.{plugin_name}.%"
 
         perm_ids = (await self._db.execute(
             select(Permission.id).where(
-                Permission.code.like(tenant_prefix),
+                (
+                    Permission.code.like(tenant_prefix)
+                    | Permission.code.like(plugin_prefix)
+                ),
+                Permission.scope.in_(["tenant", "both"]),
                 Permission.is_deleted.is_(False),
             )
         )).scalars().all()
@@ -1631,7 +1719,7 @@ class PluginLifecycle:
         )
         await self._db.flush()
         logger.info(
-            "Plugin {}: revoked {} menu permission(s) from all plans",
+            "Plugin {}: revoked {} permission(s) from all plans",
             plugin_name, len(perm_ids),
         )
 
@@ -2229,18 +2317,15 @@ class PluginLifecycle:
 
         from sqlalchemy import text
 
-        # 1. Collect valid revision IDs from main project + all installed plugins
-        # / 1. 收集主项目 + 所有已安装插件的合法 revision ID
+        # 1. Collect valid revision IDs from main project + DB-registered plugins
+        # / 1. 收集主项目 + 数据库已注册插件的合法 revision ID
         known_revisions: set[str] = set()
-        dirs_to_scan: list[Path] = [PLUGINS_DIR.parent / "migrations" / "versions"]
-        try:
-            for d in PLUGINS_DIR.iterdir():
-                if d.is_dir() and not d.name.startswith("."):
-                    vdir = d / "backend" / "migrations" / "versions"
-                    if vdir.is_dir():
-                        dirs_to_scan.append(vdir)
-        except Exception:
-            pass
+        dirs_to_scan = [
+            Path(path)
+            for path in build_migration_version_locations(
+                backend_dir=PLUGINS_DIR.parent,
+            )
+        ]
 
         for vdir in dirs_to_scan:
             if not vdir.is_dir():
@@ -2304,33 +2389,10 @@ class PluginLifecycle:
 
         branch_label = f"plugin_{plugin_name.replace('-', '_')}"
 
-        # Collect ALL plugins' migration dirs (not just current), use normcase to normalize paths and avoid duplicates
-        # / 收集所有插件的迁移目录（不只是当前插件），使用 normcase 规范化路径避免重复
-        seen_paths: set[str] = set()
-        all_plugin_migration_paths: list[str] = []
-
-        def _add_path(p: Path) -> None:
-            normalized = os.path.normcase(str(p.resolve()))
-            if normalized not in seen_paths:
-                seen_paths.add(normalized)
-                all_plugin_migration_paths.append(str(p).replace("\\", "/"))
-
-        try:
-            for d in PLUGINS_DIR.iterdir():
-                if not d.is_dir():
-                    continue
-                versions_dir = d / "backend" / "migrations" / "versions"
-                if versions_dir.is_dir():
-                    _add_path(versions_dir)
-        except Exception:
-            pass
-
-        # Current plugin takes priority (ensure it's in the list) / 当前插件优先（确保一定在列表中）
-        current_versions_dir = PLUGINS_DIR / plugin_name / "backend" / "migrations" / "versions"
-        _add_path(current_versions_dir)
-
-        # Serialize as space-separated string (for subprocess use) / 序列化为空格分隔字符串（供子进程使用）
-        extra_paths = " ".join(all_plugin_migration_paths)
+        version_locations = build_migration_version_locations(
+            backend_dir=PLUGINS_DIR.parent,
+            include_plugin_names=[plugin_name],
+        )
 
         # Run via sys.executable -c to use Alembic Python API in a subprocess,
         # keeping sync Alembic isolated from the async event loop.
@@ -2347,16 +2409,10 @@ from alembic import command
 import os
 
 cfg = Config('alembic.ini')
-vl = cfg.get_main_option('version_locations') or 'migrations/versions'
-extra = {extra_paths!r}
+version_locations = {version_locations!r}
 target = {f"{branch_label}@head"!r}
 
-base_parts = [p.strip() for p in vl.splitlines() if p.strip()]
-if not base_parts:
-    base_parts = ['migrations/versions']
-vl_norm = set(os.path.normcase(os.path.abspath(p)) for p in base_parts)
-new_parts = [p for p in extra.split() if os.path.normcase(os.path.abspath(p)) not in vl_norm]
-cfg.set_main_option('version_locations', '\\n'.join(base_parts + new_parts))
+cfg.set_main_option('version_locations', '\\n'.join(version_locations))
 
 try:
     command.upgrade(cfg, target)
@@ -2406,6 +2462,10 @@ except Exception as exc:
         from sqlalchemy import text as _text
 
         branch_label = f"plugin_{plugin_name.replace('-', '_')}"
+        version_locations = build_migration_version_locations(
+            backend_dir=PLUGINS_DIR.parent,
+            include_plugin_names=[plugin_name],
+        )
 
         # Scan migration files to get actual revision IDs, then query DB directly.
         # More reliable than alembic command.current(): the latter depends on version_locations containing plugin paths,
@@ -2453,17 +2513,8 @@ from alembic import command
 import os
 
 cfg = Config('alembic.ini')
-vl = cfg.get_main_option('version_locations') or 'migrations/versions'
-pm = {str(PLUGINS_DIR / plugin_name / 'backend' / 'migrations' / 'versions').replace(chr(92), '/')!r}
-
-parts = [p.strip() for p in vl.splitlines() if p.strip()]
-if not parts:
-    parts = ['migrations/versions']
-pm_norm = os.path.normcase(os.path.abspath(pm))
-existing = {{os.path.normcase(os.path.abspath(p)) for p in parts}}
-if pm_norm not in existing:
-    parts.append(pm)
-cfg.set_main_option('version_locations', '\\n'.join(parts))
+version_locations = {version_locations!r}
+cfg.set_main_option('version_locations', '\\n'.join(version_locations))
 command.downgrade(cfg, {f"{branch_label}@base"!r})
 """
         result = await _run_subprocess_async(
@@ -2836,17 +2887,18 @@ command.downgrade(cfg, {f"{branch_label}@base"!r})
 
     async def _delete_plugin_permissions_from_db(self, plugin_name: str) -> None:
         """
-        Hard-delete plugin menu permission records from permissions table on uninstall.
-        / 卸载时从 permissions 表硬删除插件的菜单权限记录。
+        Hard-delete plugin permission records from permissions table on uninstall.
+        / 卸载时从 permissions 表硬删除插件权限记录。
 
         _set_plugin_permissions_enabled only sets is_enabled=False;
         after uninstall, residual records show as ghost menus in admin pages, need full deletion.
         / _set_plugin_permissions_enabled 只做 is_enabled=False，
         uninstall 后残留记录需彻底删除。
 
-        Permission code format:
+        Covered code prefixes:
           menu:admin.plugin_{safe_name}_{menu_name}
           menu:tenant.plugin_{safe_name}_{menu_name}
+          plugin.{plugin_name}.*
         """
         from sqlalchemy import delete, or_
 
@@ -2855,12 +2907,14 @@ command.downgrade(cfg, {f"{branch_label}@base"!r})
         safe_name = plugin_name.replace("-", "_")
         admin_prefix = f"menu:admin.plugin_{safe_name}_"
         tenant_prefix = f"menu:tenant.plugin_{safe_name}_"
+        plugin_prefix = f"plugin.{plugin_name}."
 
         result = await self._db.execute(
             delete(Permission).where(
                 or_(
                     Permission.code.startswith(admin_prefix, autoescape=True),
                     Permission.code.startswith(tenant_prefix, autoescape=True),
+                    Permission.code.startswith(plugin_prefix, autoescape=True),
                 )
             )
         )

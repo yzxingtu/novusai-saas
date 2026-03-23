@@ -7,6 +7,9 @@
  */
 import type { ChatAttachment, RagSource } from '#/components/business/ai-chat-panel/types';
 
+import { smartUploadFile as adminSmartUploadFile } from '#/api/admin/attachment';
+import { smartUploadFile as tenantSmartUploadFile } from '#/api/tenant/attachment';
+import { smartUploadFile as userSmartUploadFile } from '#/api/user/attachment';
 import { requestClient } from '#/utils/request';
 
 // ============ Types ============
@@ -61,9 +64,11 @@ export interface FileUploadResponse {
     extension?: null | string;
     id: number;
     mime_type?: null | string;
-    name: string;
+    name?: string;
     original_name?: null | string;
-    size: number;
+    preview_url?: null | string;
+    previewUrl?: null | string;
+    size?: number;
   };
   used_bytes: number;
 }
@@ -74,6 +79,8 @@ export interface SSEOptions {
   onEnd: () => void;
   onError: (error: Error) => void;
 }
+
+type ChatUploadEndpoint = 'admin' | 'tenant' | 'user';
 
 // ============ API Functions ============
 
@@ -188,26 +195,73 @@ export async function getChatConversationMessagesApi(
   );
 }
 
+function resolveChatUploadEndpoint(uploadUrl: string): ChatUploadEndpoint {
+  if (uploadUrl.startsWith('/admin/')) {
+    return 'admin';
+  }
+  if (uploadUrl.startsWith('/api/user/')) {
+    return 'user';
+  }
+  return 'tenant';
+}
+
 /**
- * Upload chat attachment / 上传聊天附件
+ * Upload chat attachment through standard smart-upload APIs / 通过标准 smart-upload API 上传聊天附件
  *
- * @param uploadUrl - Upload endpoint URL
+ * @param uploadUrl - Upload endpoint URL (used for endpoint resolution)
  * @param file - File to upload
- * @param extraData - Additional form fields (e.g. tenant_id for admin endpoint)
+ * @param extraData - Additional form fields (currently used for admin tenant_id)
  */
 export async function uploadChatFileApi(
   uploadUrl: string,
   file: File,
   extraData?: Record<string, string>,
 ): Promise<FileUploadResponse> {
-  const uploadData: Record<string, Blob | File | string> = { file };
-  if (extraData) {
-    Object.assign(uploadData, extraData);
+  const endpoint = resolveChatUploadEndpoint(uploadUrl);
+  if (endpoint === 'admin') {
+    const tenantId = Number(extraData?.tenant_id ?? '0');
+    return adminSmartUploadFile({
+      file,
+      tenant_id: Number.isFinite(tenantId) ? tenantId : 0,
+      visibility: 'private',
+    });
   }
-  return requestClient.upload<FileUploadResponse>(
-    uploadUrl,
-    uploadData as { [key: string]: Blob | File | string; file: File },
-  );
+  if (endpoint === 'user') {
+    return userSmartUploadFile({
+      file,
+      visibility: 'private',
+    });
+  }
+  return tenantSmartUploadFile({
+    file,
+    visibility: 'private',
+  });
+}
+
+export function buildChatAttachmentFromUpload(
+  file: File,
+  upload: FileUploadResponse,
+): ChatAttachment {
+  const isImage = file.type.startsWith('image/');
+  const isAudio = file.type.startsWith('audio/');
+  const isVideo = file.type.startsWith('video/');
+  const type: ChatAttachment['type'] = isImage
+    ? 'image'
+    : isAudio
+      ? 'audio'
+      : isVideo
+        ? 'video'
+        : 'file';
+  const previewUrl =
+    upload.attachment.previewUrl || upload.attachment.preview_url || upload.url;
+
+  return {
+    attachment_id: upload.attachment.id,
+    type,
+    url: type === 'image' ? previewUrl : upload.url,
+    name: upload.attachment.original_name || file.name,
+    mime_type: upload.attachment.mime_type || file.type,
+  };
 }
 
 // ============ Route Types ============

@@ -270,6 +270,10 @@ class S3StorageDriver(StorageDriver):
     async def copy(self, source: str, destination: str) -> bool:
         src_key = self._key(source)
         dst_key = self._key(destination)
+        source_info = await self.get_info(source)
+        extra_args: dict[str, str] = {}
+        if source_info and source_info.visibility == StorageVisibility.PUBLIC:
+            extra_args["ACL"] = "public-read"
 
         def _copy() -> bool:
             try:
@@ -277,6 +281,7 @@ class S3StorageDriver(StorageDriver):
                     Bucket=self.bucket,
                     CopySource={"Bucket": self.bucket, "Key": src_key},
                     Key=dst_key,
+                    **extra_args,
                 )
             except ClientError as exc:
                 raise StorageError(message=str(exc)) from exc

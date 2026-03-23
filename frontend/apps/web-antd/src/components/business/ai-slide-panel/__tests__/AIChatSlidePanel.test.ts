@@ -18,6 +18,7 @@ const minimized = ref(false);
 const mode = ref<'full' | 'panel'>('panel');
 const panelWidth = ref(460);
 const selectedAgentIdValue = ref<null | number>(1);
+const supportsVisionValue = ref(false);
 const activeConversationIdValue = ref<null | number>(null);
 const inputMessageValue = ref('');
 const pendingAttachmentsValue = ref<Array<{ type: string }>>([]);
@@ -122,7 +123,8 @@ vi.mock('ant-design-vue', () => {
 
   const Dropdown = defineComponent({
     name: 'DropdownStub',
-    template: '<div class="dropdown-stub"><slot /><slot name="overlay" /></div>',
+    template:
+      '<div class="dropdown-stub"><slot /><slot name="overlay" /></div>',
   });
 
   const Menu = defineComponent({
@@ -231,7 +233,8 @@ vi.mock('#/store/shared/public-config', () => ({
 
 vi.mock('#/locales', () => ({
   $t: (key: string, params?: { seconds?: number }) =>
-    key === 'shared.pageOperation.confirmCountdown' && params?.seconds !== undefined
+    key === 'shared.pageOperation.confirmCountdown' &&
+    params?.seconds !== undefined
       ? `${params.seconds}s remaining`
       : key,
 }));
@@ -284,7 +287,10 @@ vi.mock('#/components/business/ai-chat-panel/use-ai-chat', async () => {
       agentsLoading: vue.ref(false),
       selectedAgentId: selectedAgentIdValue,
       selectedAgent: vue.computed(
-        () => agents.value.find((agent) => agent.id === selectedAgentIdValue.value) ?? null,
+        () =>
+          agents.value.find(
+            (agent) => agent.id === selectedAgentIdValue.value,
+          ) ?? null,
       ),
       loadAgents: loadAgentsMock,
       conversations,
@@ -348,7 +354,7 @@ vi.mock('#/components/business/ai-chat-panel/use-ai-chat', async () => {
       exportAsMarkdown: vi.fn(),
       exportAsPlainText: vi.fn(),
       totalTokensUsed: vue.ref(0),
-      supportsVision: vue.ref(false),
+      supportsVision: supportsVisionValue,
       agentKBBindings: vue.ref([]),
       allAgentsVariables: vue.ref({}),
       agentsWithVarsInConversation: vue.ref([]),
@@ -374,7 +380,14 @@ vi.mock('#/composables/use-page-session', () => ({
 }));
 
 vi.mock('#/composables/use-page-screenshot', () => ({
-  usePageScreenshot: () => ({ capture: vi.fn(), capturing: ref(false) }),
+  DEFAULT_PAGE_SCREENSHOT_EXCLUDE_SELECTORS: [
+    '[data-ai-panel]',
+    '.ant-message',
+  ],
+  usePageScreenshot: () => ({
+    captureAndUpload: vi.fn(),
+    capturing: ref(false),
+  }),
 }));
 
 vi.mock('#/composables/use-form-state-tracker', () => ({
@@ -406,6 +419,7 @@ describe('AIChatSlidePanel (component mount)', () => {
     mode.value = 'panel';
     panelWidth.value = 460;
     selectedAgentIdValue.value = 1;
+    supportsVisionValue.value = false;
     activeConversationIdValue.value = null;
     inputMessageValue.value = '';
     pendingAttachmentsValue.value = [];
@@ -583,10 +597,16 @@ describe('AIChatSlidePanel (component mount)', () => {
 
     await flushPromises();
 
-    expect(document.body.querySelector('[data-testid="ai-panel-header-status"]')).toBeTruthy();
-    expect(document.body.querySelector('[data-testid="ai-panel-header-actions"]')).toBeTruthy();
     expect(
-      document.body.querySelector('button[aria-label="common.aiPanel.moreActions"]'),
+      document.body.querySelector('[data-testid="ai-panel-header-status"]'),
+    ).toBeTruthy();
+    expect(
+      document.body.querySelector('[data-testid="ai-panel-header-actions"]'),
+    ).toBeTruthy();
+    expect(
+      document.body.querySelector(
+        'button[aria-label="common.aiPanel.moreActions"]',
+      ),
     ).toBeTruthy();
 
     wrapper.unmount();
@@ -618,7 +638,9 @@ describe('AIChatSlidePanel (component mount)', () => {
     sendButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();
 
-    const routeBanner = document.body.querySelector('[data-testid="ai-panel-route-banner"]');
+    const routeBanner = document.body.querySelector(
+      '[data-testid="ai-panel-route-banner"]',
+    );
     expect(routeBanner).toBeTruthy();
     expect(routeBanner?.textContent).toContain('common.aiPanel.routedTo');
 
@@ -651,9 +673,17 @@ describe('AIChatSlidePanel (component mount)', () => {
 
     await flushPromises();
 
-    expect(document.body.querySelector('[data-testid="ai-panel-page-ai-card"]')).toBeTruthy();
-    expect(document.body.querySelector('[data-testid="ai-panel-page-ai-details"]')).toBeFalsy();
-    expect(document.body.querySelectorAll('[data-testid="ai-panel-page-ai-preview-item"]')).toHaveLength(0);
+    expect(
+      document.body.querySelector('[data-testid="ai-panel-page-ai-card"]'),
+    ).toBeTruthy();
+    expect(
+      document.body.querySelector('[data-testid="ai-panel-page-ai-details"]'),
+    ).toBeFalsy();
+    expect(
+      document.body.querySelectorAll(
+        '[data-testid="ai-panel-page-ai-preview-item"]',
+      ),
+    ).toHaveLength(0);
 
     const capabilityRail = document.body.querySelector(
       '[data-testid="ai-panel-page-ai-card"]',
@@ -662,12 +692,20 @@ describe('AIChatSlidePanel (component mount)', () => {
     capabilityRail?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();
 
-    expect(document.body.querySelector('[data-testid="ai-panel-page-ai-details"]')).toBeTruthy();
-    expect(document.body.querySelectorAll('[data-testid="ai-panel-page-ai-preview-item"]')).toHaveLength(4);
+    expect(
+      document.body.querySelector('[data-testid="ai-panel-page-ai-details"]'),
+    ).toBeTruthy();
+    expect(
+      document.body.querySelectorAll(
+        '[data-testid="ai-panel-page-ai-preview-item"]',
+      ),
+    ).toHaveLength(4);
 
     capabilityRail?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();
-    expect(document.body.querySelector('[data-testid="ai-panel-page-ai-details"]')).toBeFalsy();
+    expect(
+      document.body.querySelector('[data-testid="ai-panel-page-ai-details"]'),
+    ).toBeFalsy();
 
     const toggleButton = document.body.querySelector(
       '[data-testid="ai-panel-page-ai-toggle"]',
@@ -676,11 +714,23 @@ describe('AIChatSlidePanel (component mount)', () => {
     toggleButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();
 
-    expect(document.body.querySelector('[data-testid="ai-panel-page-ai-details"]')).toBeTruthy();
-    expect(document.body.textContent).toContain('common.aiPanel.pageAiOperationCount');
-    expect(document.body.textContent).toContain('common.aiPanel.pageAiWritableCount');
-    expect(document.body.textContent).toContain('common.aiPanel.pageAiReadonlyCount');
-    expect(document.body.querySelectorAll('[data-testid="ai-panel-page-ai-preview-item"]')).toHaveLength(4);
+    expect(
+      document.body.querySelector('[data-testid="ai-panel-page-ai-details"]'),
+    ).toBeTruthy();
+    expect(document.body.textContent).toContain(
+      'common.aiPanel.pageAiOperationCount',
+    );
+    expect(document.body.textContent).toContain(
+      'common.aiPanel.pageAiWritableCount',
+    );
+    expect(document.body.textContent).toContain(
+      'common.aiPanel.pageAiReadonlyCount',
+    );
+    expect(
+      document.body.querySelectorAll(
+        '[data-testid="ai-panel-page-ai-preview-item"]',
+      ),
+    ).toHaveLength(4);
 
     const moreButton = document.body.querySelector(
       '[data-testid="ai-panel-page-ai-more"]',
@@ -689,11 +739,17 @@ describe('AIChatSlidePanel (component mount)', () => {
     moreButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();
 
-    expect(document.body.querySelectorAll('[data-testid="ai-panel-page-ai-preview-item"]')).toHaveLength(6);
+    expect(
+      document.body.querySelectorAll(
+        '[data-testid="ai-panel-page-ai-preview-item"]',
+      ),
+    ).toHaveLength(6);
 
     toggleButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();
-    expect(document.body.querySelector('[data-testid="ai-panel-page-ai-details"]')).toBeFalsy();
+    expect(
+      document.body.querySelector('[data-testid="ai-panel-page-ai-details"]'),
+    ).toBeFalsy();
 
     wrapper.unmount();
   });
@@ -730,7 +786,9 @@ describe('AIChatSlidePanel (component mount)', () => {
 
     await flushPromises();
 
-    expect(document.body.querySelector('[data-testid="ai-panel-page-ai-card"]')).toBeTruthy();
+    expect(
+      document.body.querySelector('[data-testid="ai-panel-page-ai-card"]'),
+    ).toBeTruthy();
     expect(antMessageMocks.error).not.toHaveBeenCalled();
 
     wrapper.unmount();
@@ -762,7 +820,9 @@ describe('AIChatSlidePanel (component mount)', () => {
 
     await flushPromises();
 
-    expect(document.body.querySelector('[data-testid="ai-panel-page-ai-card"]')).toBeFalsy();
+    expect(
+      document.body.querySelector('[data-testid="ai-panel-page-ai-card"]'),
+    ).toBeFalsy();
 
     wrapper.unmount();
   });
@@ -836,29 +896,82 @@ describe('AIChatSlidePanel (component mount)', () => {
     sendButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();
 
-    const routedContext = routeMessageMock.mock.calls[0]?.[2] as
-      | null
-      | {
-          page_data?: Record<string, unknown>;
-        };
+    const routedContext = routeMessageMock.mock.calls[0]?.[2] as null | {
+      page_data?: Record<string, unknown>;
+    };
     expect(routedContext?.page_data).toBeTruthy();
     expect(routedContext?.page_data?.form_fields).toBeTruthy();
     expect(
-      Object.keys(routedContext?.page_data?.form_fields as Record<string, unknown>).length,
+      Object.keys(
+        routedContext?.page_data?.form_fields as Record<string, unknown>,
+      ).length,
     ).toBeGreaterThan(0);
     expect(
       (
-        routedContext?.page_data?.list_summary as { sample_rows?: unknown[] } | undefined
+        routedContext?.page_data?.list_summary as
+          | { sample_rows?: unknown[] }
+          | undefined
       )?.sample_rows?.length ?? 0,
     ).toBeLessThanOrEqual(2);
     expect(
-      (
-        routedContext?.page_data?.available_operations as unknown[] | undefined
-      )?.length ?? 0,
+      (routedContext?.page_data?.available_operations as unknown[] | undefined)
+        ?.length ?? 0,
     ).toBeLessThanOrEqual(16);
     expect(
       String(routedContext?.page_data?.document_body_text ?? '').length,
     ).toBeLessThan(6400);
+
+    wrapper.unmount();
+  });
+
+  it('keeps screenshot page operations in routed page context for backend runtime gating', async () => {
+    inputMessageValue.value = 'inspect this page';
+    supportsVisionValue.value = false;
+    pageContextValue.value = {
+      page_key: 'tenant.demo.visual',
+      page_title: 'Visual Demo',
+      page_data: {},
+    };
+    pageOperationsValue.value = [
+      {
+        label: 'Capture Screenshot',
+        name: 'capture_screenshot',
+        readonly: true,
+      },
+      { label: 'Read View', name: 'read_current_view', readonly: true },
+    ];
+
+    const wrapper = mount(AIChatSlidePanel, {
+      props: {
+        apiPrefix: '/tenant',
+        pageContextKey: 'tenant.demo.visual',
+        uploadUrl: '/upload',
+      },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          ChatMessageItem: true,
+        },
+      },
+    });
+
+    await flushPromises();
+    const sendButton = document.body.querySelector('button.send-btn');
+    expect(sendButton).toBeTruthy();
+    sendButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPromises();
+
+    const routedContext = routeMessageMock.mock.calls[0]?.[2] as null | {
+      page_data?: {
+        available_operations?: Array<{ name: string }>;
+      };
+    };
+    const opNames =
+      routedContext?.page_data?.available_operations?.map(
+        (item) => item.name,
+      ) ?? [];
+    expect(opNames).toContain('read_current_view');
+    expect(opNames).toContain('capture_screenshot');
 
     wrapper.unmount();
   });

@@ -104,6 +104,9 @@ def _register_custom_captcha_provider(
                 (custom_ext.data or {}).get("public_endpoints"),
             ),
             frontend_runtime=_build_frontend_runtime_payload(manifest),
+            display_name=dict(
+                ((custom_ext.data or {}).get("display_name") or manifest.display_name or {}),
+            ),
         ),
     )
     return True
@@ -371,11 +374,18 @@ def register_navigation_extensions(
 ) -> None:
     """Register page-derived navigation only. / 仅注册页面派生导航。"""
     overrides = menu_overrides or {}
+    plugin_menu_parent_aliases = {
+        page.name: f"plugin_{plugin_name.replace('-', '_')}_{page.name}"
+        for page in manifest.extensions.frontend.pages
+        if page.menu is not None
+    }
     for page in manifest.extensions.frontend.pages:
         if page.menu is None:
             continue
         override = overrides.get(page.name, {})
         effective_parent = override.get("parent", page.menu.parent)
+        if effective_parent in plugin_menu_parent_aliases:
+            effective_parent = plugin_menu_parent_aliases[effective_parent]
         registry.register_menu(
             plugin_name,
             name=page.name,

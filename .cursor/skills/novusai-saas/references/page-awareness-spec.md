@@ -229,6 +229,16 @@ onOpenChange(isOpen) {
 
 `extra` 操作可覆盖同名标准操作。
 
+### 截图能力 / Screenshot Capability
+
+- 平台默认提供只读页面操作 `capture_screenshot`
+- `capture_screenshot` 只用于视觉/布局判断或文本上下文不足的场景；默认先用 `read_current_view` / `read_current_sections` / `get_page_context`
+- 前端截图统一复用 `use-page-screenshot.ts`，必须走附件上传链路，禁止返回本地 base64 或只回传截图 URL 字符串假装“已看图”
+- 若当前运行模型 `supports_vision=false`，后端必须拒绝 `capture_screenshot`
+- 若截图成功，工具结果必须把图片附件作为**内部多模态输入**注入下一轮 LLM，而不是仅把附件元数据写进 tool 文本消息
+- 内部截图消息属于运行时中间态，禁止写入会话持久化历史
+- 专用工具展开允许把 `capture_screenshot` 展开为 `pageop_capture_screenshot`，与其它高频页面操作一致
+
 ---
 
 ## 八、CrudListAiOptions 完整配置 / Full CrudListAiOptions
@@ -588,7 +598,7 @@ const CHAIN_AUTO_OPS = new Set(['fill_form']);
 
 ### 12.6 L4 / L6 说明
 
-- **L4 (page_session_id 单点)**：SPA 单 tab 场景下全局单例已足够，暂不实施多 tab 支持
+- **L4 (page_session_id 单点)**：前端仍采用 SPA 当前活跃 `page_session_id` 单例，但后端 active-session fallback 已改为“唯一候选才恢复”；同用户同页面存在多个活跃标签页时返回 `None`，避免跨 tab 猜测
 - **L6 (工具不被 optimizer 过滤)**：`get_page_context` / `invoke_page_operation` 列入 `_PROTECTED_TOOL_NAMES` 白名单属于有意设计
 
 ---

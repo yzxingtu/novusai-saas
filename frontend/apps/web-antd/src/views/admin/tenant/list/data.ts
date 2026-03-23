@@ -21,54 +21,6 @@ import { getTenantPlanSelectApi } from '#/api/admin/plan';
 import { $t } from '#/locales';
 
 type TenantInfo = adminApi.TenantInfo;
-type TenantPlan = adminApi.TenantPlan;
-
-// ============ 业务预设 ============
-
-/**
- * 获取套餐选项列表（用于下拉选择）
- */
-export function getPlanOptions(): { label: string; value: TenantPlan }[] {
-  return [
-    { label: $t('admin.tenant.planOptions.free'), value: 'free' },
-    { label: $t('admin.tenant.planOptions.basic'), value: 'basic' },
-    { label: $t('admin.tenant.planOptions.pro'), value: 'pro' },
-    { label: $t('admin.tenant.planOptions.enterprise'), value: 'enterprise' },
-  ];
-}
-
-/**
- * 获取套餐显示文本
- */
-export function getPlanText(plan: null | TenantPlan | undefined): string {
-  if (!plan) return '-';
-  const key = `admin.tenant.planOptions.${plan}`;
-  return $t(key);
-}
-
-/**
- * 获取套餐颜色
- */
-export function getPlanColor(plan: null | TenantPlan | undefined): string {
-  if (!plan) return 'default';
-  switch (plan) {
-    case 'basic': {
-      return 'blue';
-    }
-    case 'enterprise': {
-      return 'gold';
-    }
-    case 'free': {
-      return 'default';
-    }
-    case 'pro': {
-      return 'green';
-    }
-    default: {
-      return 'default';
-    }
-  }
-}
 
 /**
  * 表格列定义
@@ -181,7 +133,7 @@ export function useColumns<T = TenantInfo>(
 // ============ 业务预设 ============
 
 /** 套餐选择器 / Plan selector */
-export function planSelect(
+function planSelect(
   options: { required?: boolean; search?: boolean } = {},
 ): VbenFormSchema {
   const { search = false, required = false } = options;

@@ -16,6 +16,11 @@ from sqlalchemy import func, select, text, update
 from app.core.base_model import utc_now
 from app.core.logging import LogManager
 from app.models.tenant.attachment import Attachment
+from app.services.common.storage_config_resolver import (
+    infer_attachment_storage_scope,
+    merge_attachment_storage_snapshot,
+    strip_internal_attachment_meta,
+)
 from app.services.common.storage_config_resolver import StorageConfigResolver
 from app.storage.base import StorageConfig, StorageVisibility
 from app.storage.manager import storage_manager
@@ -674,6 +679,7 @@ class StorageMigrationService:
                             target_driver=target_storage,
                             target_driver_name=target_driver_name,
                             target_base_url=target_base_url,
+                            target_storage_config=target_config,
                         )
 
                     # Accumulate counters (lock-protected for safety)
@@ -768,6 +774,7 @@ class StorageMigrationService:
         target_driver: object,
         target_driver_name: str,
         target_base_url: str,
+        target_storage_config: StorageConfig,
     ) -> bool:
         """Migrate a single file from source to target driver. / 获取/返回
 
@@ -778,11 +785,34 @@ class StorageMigrationService:
         Task-level counters are NOT updated here; callers accumulate
         them in memory and flush per batch."""
         try:
-            # Get file info for visibility (metadata only, no file content)
-            file_info = await source_driver.get_info(file_path)  # type: ignore[union-attr]
-            visibility = (
-                file_info.visibility if file_info
-                else StorageVisibility.PRIVATE
+            attachment_meta_q = select(
+                Attachment.visibility,
+                Attachment.mime_type,
+                Attachment.meta,
+                Attachment.tenant_id,
+            ).where(Attachment.id == attachment_id)
+            attachment_meta_result = await db.execute(attachment_meta_q)
+            attachment_meta = attachment_meta_result.one_or_none()
+            if attachment_meta is None:
+                raise RuntimeError(
+                    f"Attachment {attachment_id} not found during storage migration",
+                )
+
+            visibility = StorageVisibility(
+                attachment_meta.visibility or StorageVisibility.PRIVATE.value
+            )
+            mime_type = attachment_meta.mime_type
+            metadata = attachment_meta.meta if isinstance(attachment_meta.meta, dict) else None
+            object_metadata = strip_internal_attachment_meta(metadata)
+            storage_scope = infer_attachment_storage_scope(
+                metadata,
+                file_path,
+                attachment_meta.tenant_id,
+            ) or "platform"
+            updated_meta = merge_attachment_storage_snapshot(
+                metadata,
+                target_storage_config,
+                storage_scope,
             )
 
             # Read from source — returns BinaryIO stream.
@@ -794,14 +824,20 @@ class StorageMigrationService:
             await target_driver.put(  # type: ignore[union-attr]
                 path=file_path,
                 content=file_data,
+                mime_type=mime_type,
                 visibility=visibility,
+                metadata=object_metadata,
             )
 
             # Update attachment record
             await db.execute(
                 update(Attachment)
                 .where(Attachment.id == attachment_id)
-                .values(driver=target_driver_name, base_url=target_base_url)
+                .values(
+                    driver=target_driver_name,
+                    base_url=target_base_url,
+                    meta=updated_meta,
+                )
             )
 
             # Update log entry

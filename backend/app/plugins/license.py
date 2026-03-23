@@ -131,7 +131,15 @@ def verify_license_key(
 
         if settings.DEBUG:
             logger.warning("License verification skipped: no public key configured (DEBUG mode)")
-            return _parse_payload_without_verify(license_key)
+            payload = _parse_payload_without_verify(license_key)
+            if payload and payload.get("plugin") == plugin_name:
+                return payload
+            logger.warning(
+                "License debug fallback rejected: plugin mismatch (expected={}, payload={})",
+                plugin_name,
+                (payload or {}).get("plugin"),
+            )
+            return None
 
         logger.error("License verification failed: no public key configured")
         return None

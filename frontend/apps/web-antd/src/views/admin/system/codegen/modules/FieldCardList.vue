@@ -41,7 +41,7 @@ type BatchToggleField =
 const store = useCodegenBuilderStore();
 const listRef = ref<HTMLElement | null>(null);
 const tableBodyRef = ref<HTMLElement | null>(null);
-const viewMode = ref<'card' | 'table'>('card');
+const viewMode = ref<'card' | 'table'>('table');
 const sortableInstance = shallowRef<ReturnType<typeof Sortable.create> | null>(
   null,
 );
@@ -102,9 +102,26 @@ const summaryCards = computed(() => [
   },
 ]);
 
+function isToggleFieldEnabled(
+  field: Recordable,
+  column: BatchToggleField,
+): boolean {
+  if (['editable', 'insertable', 'list_visible'].includes(column)) {
+    return field[column] !== false;
+  }
+  return Boolean(field[column]);
+}
+
 function updateField(key: string, patch: Partial<Recordable>) {
+  const normalizedPatch = { ...patch };
+  if (patch.required === true) {
+    normalizedPatch.nullable = false;
+  }
+  if (patch.nullable === true) {
+    normalizedPatch.required = false;
+  }
   fields.value = fields.value.map((field) =>
-    field.__key === key ? { ...field, ...patch } : field,
+    field.__key === key ? { ...field, ...normalizedPatch } : field,
   );
 }
 
@@ -114,25 +131,31 @@ function toggleBatch(column: BatchToggleField) {
     (field) => field.type !== '__divider__' && !field.divider,
   );
   if (dataOnly.length === 0) return;
-  const count = dataOnly.filter((field) => Boolean(field[column])).length;
+  const count = dataOnly.filter((field) =>
+    isToggleFieldEnabled(field, column),
+  ).length;
   const nextValue = count < dataOnly.length;
   for (let index = 0; index < arr.length; index += 1) {
     const current = arr[index];
     if (!current || current.type === '__divider__' || current.divider) continue;
-    arr[index] = { ...current, [column]: nextValue };
+    const patch: Record<string, unknown> = { [column]: nextValue };
+    if (column === 'required' && nextValue === true) {
+      patch.nullable = false;
+    }
+    arr[index] = { ...current, ...patch };
   }
   fields.value = arr;
 }
 
 function isBatchAll(column: BatchToggleField): boolean {
   if (dataFields.value.length === 0) return false;
-  return dataFields.value.every((field) => Boolean(field[column]));
+  return dataFields.value.every((field) => isToggleFieldEnabled(field, column));
 }
 
 function isBatchSome(column: BatchToggleField): boolean {
   if (dataFields.value.length === 0) return false;
   const count = dataFields.value.filter((field) =>
-    Boolean(field[column]),
+    isToggleFieldEnabled(field, column),
   ).length;
   return count > 0 && count < dataFields.value.length;
 }
@@ -306,51 +329,50 @@ onUnmounted(destroySortable);
 
 <template>
   <div
-    class="flex min-w-80 flex-1 flex-col overflow-hidden rounded-[24px] border border-border bg-background shadow-sm"
+    class="flex min-w-80 flex-1 flex-col overflow-hidden rounded-[18px] border border-border bg-background shadow-sm"
   >
-    <div class="border-b border-border px-4 py-3">
-      <div class="flex flex-col gap-3">
-        <div
-          class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
-        >
-          <div class="flex min-w-0 flex-wrap items-center gap-2">
-            <div class="text-sm font-semibold text-foreground">
-              {{ $t('admin.system.codegen.builder.schemaBoardTitle') }}
-            </div>
-            <span
-              class="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground"
-            >
-              {{
-                $t('admin.system.codegen.fieldConfig.fieldCount', {
-                  count: fieldCount,
-                })
-              }}
-            </span>
-            <span class="text-xs text-muted-foreground">
-              {{ $t('admin.system.codegen.builder.schemaBoardHint') }}
-            </span>
-          </div>
+    <div class="border-b border-border px-3 py-2">
+      <div
+        class="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between"
+      >
+        <div class="flex min-w-0 flex-wrap items-center gap-1.5">
+          <span
+            class="rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground"
+          >
+            {{ $t('admin.system.codegen.builder.metricFields') }} {{ fieldCount }}
+          </span>
+          <span
+            v-for="item in summaryCards"
+            :key="item.key"
+            class="rounded-full border border-border/70 bg-background px-2.5 py-0.5 text-[11px] text-muted-foreground"
+          >
+            {{ item.label }} {{ item.value }}
+          </span>
+        </div>
 
-          <div class="flex flex-wrap items-center gap-2">
-            <Button size="small" @click="addEmptyField">
-              <IconifyIcon icon="lucide:plus" class="mr-1 size-4" />
-              {{ $t('admin.system.codegen.fieldConfig.addEmptyField') }}
-            </Button>
-            <Button size="small" @click="addDivider">
-              <IconifyIcon icon="lucide:minus" class="mr-1 size-4" />
-              {{ $t('admin.system.codegen.palette.divider') }}
-            </Button>
+        <div class="flex flex-wrap items-center gap-2">
+          <Button size="small" @click="addEmptyField">
+            <IconifyIcon icon="lucide:plus" class="mr-1 size-4" />
+            {{ $t('admin.system.codegen.fieldConfig.addEmptyField') }}
+          </Button>
+          <Button size="small" @click="addDivider">
+            <IconifyIcon icon="lucide:minus" class="mr-1 size-4" />
+            {{ $t('admin.system.codegen.palette.divider') }}
+          </Button>
+          <div class="flex items-center gap-1 rounded-full bg-muted p-0.5">
             <Button
-              :type="viewMode === 'card' ? 'primary' : 'default'"
+              :type="viewMode === 'card' ? 'primary' : 'text'"
               size="small"
+              class="!rounded-full"
               @click="viewMode = 'card'"
             >
               <IconifyIcon icon="lucide:layout-grid" class="mr-1 size-4" />
               {{ $t('admin.system.codegen.fieldConfig.cardView') }}
             </Button>
             <Button
-              :type="viewMode === 'table' ? 'primary' : 'default'"
+              :type="viewMode === 'table' ? 'primary' : 'text'"
               size="small"
+              class="!rounded-full"
               @click="viewMode = 'table'"
             >
               <IconifyIcon icon="lucide:table" class="mr-1 size-4" />
@@ -358,29 +380,19 @@ onUnmounted(destroySortable);
             </Button>
           </div>
         </div>
-
-        <div class="flex flex-wrap gap-2">
-          <span
-            v-for="item in summaryCards"
-            :key="item.key"
-            class="rounded-full border border-border/70 bg-muted/20 px-2.5 py-1 text-xs text-muted-foreground"
-          >
-            {{ item.label }} {{ item.value }}
-          </span>
-        </div>
       </div>
     </div>
 
-    <div class="min-h-0 flex-1 overflow-y-auto bg-muted/10 p-3">
+    <div class="min-h-0 flex-1 overflow-y-auto bg-muted/10 p-2">
       <div
         v-if="viewMode === 'card'"
-        class="min-h-full rounded-[24px] border border-dashed border-border/70 bg-background/90 p-3"
+        class="min-h-full rounded-[18px] border border-dashed border-border/70 bg-background/90 p-2.5"
         @dragover="onDragOver"
         @drop="onDrop"
       >
         <div
           v-if="fields.length === 0"
-          class="flex min-h-[220px] flex-col items-center justify-center rounded-[20px] border border-dashed border-border bg-muted/15 px-4 text-center"
+          class="flex min-h-[180px] flex-col items-center justify-center rounded-[16px] border border-dashed border-border bg-muted/15 px-4 text-center"
         >
           <IconifyIcon
             icon="lucide:layers"
@@ -425,13 +437,13 @@ onUnmounted(destroySortable);
 
       <div
         v-else
-        class="min-h-full overflow-hidden rounded-[24px] border border-border/80 bg-background"
+        class="min-h-full overflow-hidden rounded-[18px] border border-border/80 bg-background"
         @dragover="onDragOver"
         @drop="onDrop"
       >
         <div
           v-if="fields.length === 0"
-          class="flex min-h-[220px] flex-col items-center justify-center px-4 text-center"
+          class="flex min-h-[180px] flex-col items-center justify-center px-4 text-center"
         >
           <IconifyIcon
             icon="lucide:layers"
@@ -654,17 +666,5 @@ onUnmounted(destroySortable);
       </div>
     </div>
 
-    <div class="border-t border-border px-4 py-3">
-      <div class="flex flex-wrap justify-end gap-2">
-        <Button @click="addDivider">
-          <IconifyIcon icon="lucide:minus" class="mr-1 size-4" />
-          {{ $t('admin.system.codegen.palette.divider') }}
-        </Button>
-        <Button type="primary" @click="addEmptyField">
-          <IconifyIcon icon="lucide:plus" class="mr-1 size-4" />
-          {{ $t('admin.system.codegen.fieldConfig.addEmptyField') }}
-        </Button>
-      </div>
-    </div>
   </div>
 </template>

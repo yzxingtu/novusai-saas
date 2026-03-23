@@ -46,7 +46,6 @@ def _make_message(**overrides):
 
 
 class TestGetConversationDetail:
-
     @pytest.mark.asyncio
     async def test_not_found_raises(self, mock_db):
         from app.exceptions import NotFoundException
@@ -61,9 +60,89 @@ class TestGetConversationDetail:
         with pytest.raises(NotFoundException):
             await service.get_conversation_detail(999)
 
+    @pytest.mark.asyncio
+    async def test_refreshes_attachment_urls_from_attachment_id(self, mock_db):
+        from app.services.ai.conversation_service import ConversationService
+
+        conversation = _make_conversation()
+        message = _make_message(role="user", content="See attachment")
+        message.to_dict.return_value = {
+            "id": 1,
+            "role": "user",
+            "content": "See attachment",
+            "metadata": {
+                "attachments": [
+                    {
+                        "attachment_id": 7,
+                        "type": "image",
+                        "url": "/api/public/attachments/7/access",
+                    },
+                    {
+                        "attachment_id": 8,
+                        "type": "file",
+                        "url": "/api/public/attachments/8/access",
+                    },
+                ]
+            },
+        }
+        message.metadata_ = {
+            "attachments": [
+                {
+                    "attachment_id": 7,
+                    "type": "image",
+                    "url": "/api/public/attachments/7/access",
+                },
+                {
+                    "attachment_id": 8,
+                    "type": "file",
+                    "url": "/api/public/attachments/8/access",
+                },
+            ]
+        }
+
+        image_attachment = SimpleNamespace(
+            id=7,
+            tenant_id=1,
+            visibility="private",
+            original_name="secret.png",
+            name="secret.png",
+            mime_type="image/png",
+        )
+        file_attachment = SimpleNamespace(
+            id=8,
+            tenant_id=1,
+            visibility="private",
+            original_name="secret.pdf",
+            name="secret.pdf",
+            mime_type="application/pdf",
+        )
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.get_accessible_conversation = AsyncMock(return_value=conversation)
+        service._message_repo = MagicMock()
+        service._message_repo.get_by_conversation = AsyncMock(return_value=[message])
+        service._message_repo.count_by_conversation = AsyncMock(return_value=1)
+        mock_db.execute = AsyncMock(
+            return_value=SimpleNamespace(
+                scalars=lambda: [image_attachment, file_attachment]
+            )
+        )
+
+        detail = await service.get_conversation_detail(1, user_id=1)
+
+        attachments = detail["message_list"][0]["metadata"]["attachments"]
+        assert attachments[0]["attachment_id"] == 7
+        assert attachments[0]["url"].startswith("/api/public/attachments/7/image?")
+        assert "token=" in attachments[0]["url"]
+        assert attachments[1]["attachment_id"] == 8
+        assert attachments[1]["url"].startswith("/api/public/attachments/8/access?")
+        assert "token=" in attachments[1]["url"]
+
 
 class TestGetServiceForConversation:
-
     @pytest.mark.asyncio
     async def test_preserves_none_tenant_id_for_global_conversation(self, mock_db):
         from app.services.ai.conversation_service import ConversationService
@@ -75,7 +154,10 @@ class TestGetServiceForConversation:
             "app.services.ai.conversation_service.AdminAgentConversationRepository",
             return_value=repo,
         ):
-            service, conversation = await ConversationService.get_service_for_conversation(
+            (
+                service,
+                conversation,
+            ) = await ConversationService.get_service_for_conversation(
                 mock_db,
                 1,
             )
@@ -85,7 +167,6 @@ class TestGetServiceForConversation:
 
 
 class TestGetPlatformAdminChatServiceForUser:
-
     @pytest.mark.asyncio
     async def test_scopes_to_current_platform_admin(self, mock_db):
         from app.configs.service import PLATFORM_TENANT_ID
@@ -103,7 +184,10 @@ class TestGetPlatformAdminChatServiceForUser:
             "get_accessible_conversation",
             new=AsyncMock(return_value=conversation),
         ) as mock_access:
-            service, result = await ConversationService.get_platform_admin_chat_service_for_user(
+            (
+                service,
+                result,
+            ) = await ConversationService.get_platform_admin_chat_service_for_user(
                 mock_db,
                 12,
                 88,
@@ -119,7 +203,6 @@ class TestGetPlatformAdminChatServiceForUser:
 
 
 class TestGetAccessibleConversation:
-
     @pytest.mark.asyncio
     async def test_rejects_other_users_conversation(self, mock_db):
         from app.exceptions import NotFoundException
@@ -156,16 +239,19 @@ class TestGetAccessibleConversation:
 
 
 class TestConversationAccessHelpers:
-
     @pytest.mark.asyncio
-    async def test_delete_accessible_conversation_runs_delete_after_access(self, mock_db):
+    async def test_delete_accessible_conversation_runs_delete_after_access(
+        self, mock_db
+    ):
         from app.services.ai.conversation_service import ConversationService
 
         service = ConversationService.__new__(ConversationService)
         service.db = mock_db
         service.tenant_id = 1
         service.repo = AsyncMock()
-        service.get_accessible_conversation = AsyncMock(return_value=_make_conversation())
+        service.get_accessible_conversation = AsyncMock(
+            return_value=_make_conversation()
+        )
         service.delete = AsyncMock()
 
         await service.delete_accessible_conversation(10, user_id=1)
@@ -185,7 +271,9 @@ class TestConversationAccessHelpers:
         service.db = mock_db
         service.tenant_id = 1
         service.repo = AsyncMock()
-        service.get_accessible_conversation = AsyncMock(return_value=_make_conversation())
+        service.get_accessible_conversation = AsyncMock(
+            return_value=_make_conversation()
+        )
 
         memory_svc = MagicMock()
         memory_svc.get_conversation_memory_state = AsyncMock(
@@ -214,7 +302,9 @@ class TestConversationAccessHelpers:
         service.db = mock_db
         service.tenant_id = 1
         service.repo = AsyncMock()
-        service.get_accessible_conversation = AsyncMock(return_value=_make_conversation())
+        service.get_accessible_conversation = AsyncMock(
+            return_value=_make_conversation()
+        )
 
         memory_svc = MagicMock()
         memory_svc.clear_conversation_memory = AsyncMock(return_value=2)
@@ -241,10 +331,14 @@ class TestConversationAccessHelpers:
         service.db = mock_db
         service.tenant_id = None
         service.repo = AsyncMock()
-        service.get_accessible_conversation = AsyncMock(return_value=_make_conversation(tenant_id=None))
+        service.get_accessible_conversation = AsyncMock(
+            return_value=_make_conversation(tenant_id=None)
+        )
 
         memory_svc = MagicMock()
-        memory_svc.get_conversation_memory_state = AsyncMock(return_value={"preferences": []})
+        memory_svc.get_conversation_memory_state = AsyncMock(
+            return_value={"preferences": []}
+        )
 
         with patch(
             "app.services.ai.conversation_service.SessionMemoryService",
@@ -257,7 +351,6 @@ class TestConversationAccessHelpers:
 
 
 class TestArchiveConversation:
-
     @pytest.mark.asyncio
     async def test_archive_not_found_raises(self, mock_db):
         from app.exceptions import NotFoundException
@@ -273,8 +366,57 @@ class TestArchiveConversation:
             await service.archive_conversation(999)
 
 
-class TestExportConversation:
+class TestSearchMessages:
+    @pytest.mark.asyncio
+    async def test_search_messages_hydrates_attachment_metadata(self, mock_db):
+        from app.services.ai.conversation_service import ConversationService
 
+        message = _make_message(role="user", content="See attachment")
+        message.to_dict.return_value = {
+            "id": 1,
+            "role": "user",
+            "content": "See attachment",
+        }
+        message.metadata_ = {
+            "attachments": [
+                {
+                    "attachment_id": 9,
+                    "type": "image",
+                    "url": "/api/public/attachments/9/access",
+                }
+            ]
+        }
+
+        image_attachment = SimpleNamespace(
+            id=9,
+            tenant_id=1,
+            visibility="private",
+            original_name="result.png",
+            name="result.png",
+            mime_type="image/png",
+        )
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service._message_repo = MagicMock()
+        service._message_repo.search_by_content = AsyncMock(
+            return_value=([message], 1)
+        )
+        mock_db.execute = AsyncMock(
+            return_value=SimpleNamespace(scalars=lambda: [image_attachment])
+        )
+
+        result = await service.search_messages("attachment")
+
+        attachments = result["items"][0]["metadata"]["attachments"]
+        assert attachments[0]["attachment_id"] == 9
+        assert attachments[0]["url"].startswith("/api/public/attachments/9/image?")
+        assert "token=" in attachments[0]["url"]
+
+
+class TestExportConversation:
     @pytest.mark.asyncio
     async def test_export_not_found_raises(self, mock_db):
         from app.exceptions import NotFoundException
@@ -288,6 +430,58 @@ class TestExportConversation:
 
         with pytest.raises(NotFoundException):
             await service.export_conversation(999)
+
+    @pytest.mark.asyncio
+    async def test_export_conversation_preserves_hydrated_attachments(self, mock_db):
+        from app.services.ai.conversation_service import ConversationService
+
+        conversation = _make_conversation(created_at=None)
+        message = _make_message(
+            role="user",
+            content="Look at this image",
+            token_count=10,
+            tool_calls=None,
+            tool_call_id=None,
+            created_at=None,
+        )
+        message.metadata_ = {
+            "attachments": [
+                {
+                    "attachment_id": 11,
+                    "type": "image",
+                    "url": "/api/public/attachments/11/access",
+                }
+            ]
+        }
+
+        image_attachment = SimpleNamespace(
+            id=11,
+            tenant_id=1,
+            visibility="private",
+            original_name="shot.png",
+            name="shot.png",
+            mime_type="image/png",
+        )
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.repo.get_by_id = AsyncMock(return_value=conversation)
+        service._message_repo = MagicMock()
+        service._message_repo.get_by_conversation = AsyncMock(return_value=[message])
+        service._message_repo.count_by_conversation = AsyncMock(return_value=1)
+        mock_db.execute = AsyncMock(
+            return_value=SimpleNamespace(scalars=lambda: [image_attachment])
+        )
+
+        result = await service.export_conversation(1, export_format="json")
+        payload = json.loads(result["content"])
+        attachments = payload["messages"][0]["metadata"]["attachments"]
+
+        assert attachments[0]["attachment_id"] == 11
+        assert attachments[0]["url"].startswith("/api/public/attachments/11/image?")
+        assert "token=" in attachments[0]["url"]
 
     def test_serializers_preserve_message_agent_metadata(self):
         from app.services.ai.conversation_service import ConversationService
@@ -303,6 +497,16 @@ class TestExportConversation:
             agent_id=42,
         )
         message.agent = make_mock_model(name="Router Agent", avatar="/router.png")
+        message.metadata_ = {
+            "attachments": [
+                {
+                    "attachment_id": 7,
+                    "type": "file",
+                    "name": "report.pdf",
+                    "url": "/api/public/attachments/7/access",
+                }
+            ]
+        }
 
         json_content = ConversationService._to_json(conversation, [message])
         markdown_content = ConversationService._to_markdown(conversation, [message])
@@ -311,11 +515,13 @@ class TestExportConversation:
         assert payload["messages"][0]["agent_id"] == 42
         assert payload["messages"][0]["agent_name"] == "Router Agent"
         assert payload["messages"][0]["agent_avatar"] == "/router.png"
+        assert payload["messages"][0]["metadata"]["attachments"][0]["attachment_id"] == 7
+        assert "**Attachments:**" in markdown_content
+        assert "report.pdf" in markdown_content
         assert "(Router Agent)" in markdown_content
 
 
 class TestGetOrCreateForChat:
-
     @pytest.mark.asyncio
     async def test_returns_existing_conversation(self, mock_db):
         from app.services.ai.conversation_service import ConversationService
@@ -405,7 +611,6 @@ class TestGetOrCreateForChat:
 
 
 class TestUpdateStats:
-
     @pytest.mark.asyncio
     async def test_prefers_current_agent_output_schema(self, mock_db):
         from app.services.ai.conversation_service import ConversationService
@@ -443,7 +648,6 @@ class TestUpdateStats:
 
 
 class TestDeleteConversationMemoryCleanup:
-
     @pytest.mark.asyncio
     async def test_after_delete_clears_session_memory(self, mock_db):
         from app.services.ai.conversation_service import ConversationService
@@ -474,7 +678,9 @@ class TestDeleteConversationMemoryCleanup:
         service.repo = AsyncMock()
 
         memory_svc = MagicMock()
-        memory_svc.clear_conversation_memory = AsyncMock(side_effect=RuntimeError("redis down"))
+        memory_svc.clear_conversation_memory = AsyncMock(
+            side_effect=RuntimeError("redis down")
+        )
 
         with patch(
             "app.services.ai.conversation_service.SessionMemoryService",
@@ -486,9 +692,10 @@ class TestDeleteConversationMemoryCleanup:
 
 
 class TestThinkingPersistence:
-
     @pytest.mark.asyncio
-    async def test_load_chat_history_restores_reasoning_content_and_strips_tool_round_content(self, mock_db):
+    async def test_load_chat_history_restores_reasoning_content_and_strips_tool_round_content(
+        self, mock_db
+    ):
         from app.services.ai.conversation_service import ConversationService
 
         assistant = _make_message(
@@ -523,7 +730,9 @@ class TestThinkingPersistence:
         assert history[0].reasoning_content == "先查询数据库。"
 
     @pytest.mark.asyncio
-    async def test_persist_chat_messages_stores_thinking_content_metadata(self, mock_db):
+    async def test_persist_chat_messages_stores_thinking_content_metadata(
+        self, mock_db
+    ):
         from app.services.ai.conversation_service import ConversationService
 
         conversation = _make_conversation(id=88, message_count=0)
@@ -616,6 +825,61 @@ class TestThinkingPersistence:
         assert assistant_payload["metadata_"]["provider_id"] == 5
         assert assistant_payload["metadata_"]["provider_name"] == "OpenAI Compatible"
 
+    @pytest.mark.asyncio
+    async def test_persist_chat_messages_skips_internal_only_messages(self, mock_db):
+        from app.services.ai.conversation_service import ConversationService
+
+        conversation = _make_conversation(id=90, message_count=0)
+        result = SimpleNamespace(
+            messages=[
+                {"role": "user", "content": "请看这个页面"},
+                {
+                    "role": "user",
+                    "content": "Analyze the attached screenshot internally.",
+                    "attachments": [{"type": "image", "url": "/uploads/s1.jpg"}],
+                    "internal_only": True,
+                    "tool_calls": None,
+                    "tool_call_id": None,
+                    "reasoning_content": None,
+                },
+                {
+                    "role": "assistant",
+                    "content": "我已完成分析",
+                    "tool_calls": None,
+                    "tool_call_id": None,
+                    "attachments": None,
+                    "reasoning_content": None,
+                },
+            ],
+            tool_results=[],
+            partial=False,
+            interrupted=False,
+            completion_reason="",
+            runtime_model_id=None,
+            runtime_model_name=None,
+            runtime_provider_id=None,
+            runtime_provider_name=None,
+        )
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service._message_repo = MagicMock()
+        service._message_repo.get_next_sequence = AsyncMock(return_value=1)
+        service._message_repo.create = AsyncMock()
+
+        await service.persist_chat_messages(
+            conversation=conversation,
+            result=result,
+            history_count=0,
+            agent_id=7,
+        )
+
+        create_calls = service._message_repo.create.await_args_list
+        assert len(create_calls) == 2
+        assert [call.args[0]["role"] for call in create_calls] == ["user", "assistant"]
+
 
 class TestSanitizeToolMessages:
     """Test sanitize_tool_messages atomic round logic / 原子 assistant-tool round 保留策略"""
@@ -623,6 +887,7 @@ class TestSanitizeToolMessages:
     @staticmethod
     def _msg(role: str, content: str = "", tool_calls=None, tool_call_id=None):
         from app.ai.types import ChatMessage
+
         return ChatMessage(
             role=role,
             content=content,
@@ -632,6 +897,7 @@ class TestSanitizeToolMessages:
 
     def test_complete_round_kept(self):
         from app.services.ai.conversation_service import ConversationService
+
         msgs = [
             self._msg("user", "hi"),
             self._msg("assistant", "ok", tool_calls=[{"id": "tc1"}, {"id": "tc2"}]),
@@ -641,10 +907,17 @@ class TestSanitizeToolMessages:
         ]
         result = ConversationService.sanitize_tool_messages(msgs)
         assert len(result) == 5
-        assert [m.role for m in result] == ["user", "assistant", "tool", "tool", "assistant"]
+        assert [m.role for m in result] == [
+            "user",
+            "assistant",
+            "tool",
+            "tool",
+            "assistant",
+        ]
 
     def test_partial_round_dropped(self):
         from app.services.ai.conversation_service import ConversationService
+
         msgs = [
             self._msg("user", "hi"),
             self._msg("assistant", "ok", tool_calls=[{"id": "tc1"}, {"id": "tc2"}]),
@@ -657,6 +930,7 @@ class TestSanitizeToolMessages:
 
     def test_orphan_tool_dropped(self):
         from app.services.ai.conversation_service import ConversationService
+
         msgs = [
             self._msg("tool", "orphan", tool_call_id="x"),
             self._msg("user", "hi"),
@@ -667,4 +941,5 @@ class TestSanitizeToolMessages:
 
     def test_empty_preserved(self):
         from app.services.ai.conversation_service import ConversationService
+
         assert ConversationService.sanitize_tool_messages([]) == []

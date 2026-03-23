@@ -62,6 +62,8 @@ const { Drawer, isEdit } = useCrudDrawer<TenantPlanInfo>({
       finalFeatures.white_label = features.white_label;
     if (features.priority_support !== undefined)
       finalFeatures.priority_support = features.priority_support;
+    if (features.storage_billing_enabled !== undefined)
+      finalFeatures.storage_billing_enabled = features.storage_billing_enabled;
 
     return {
       code: values.code,
@@ -100,6 +102,7 @@ const { Drawer, isEdit } = useCrudDrawer<TenantPlanInfo>({
         advanced_analytics: data.features?.advancedAnalytics ?? false,
         white_label: data.features?.whiteLabel ?? false,
         priority_support: data.features?.prioritySupport ?? false,
+        storage_billing_enabled: data.features?.storageBillingEnabled ?? false,
       },
     };
   },

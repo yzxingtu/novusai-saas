@@ -6,6 +6,7 @@ Provides codegen config data access operations.
 """
 
 from sqlalchemy import select
+from sqlalchemy.orm import load_only
 
 from app.core.base_repository import BaseRepository
 from app.models.system.codegen_config import CodegenConfig
@@ -44,6 +45,34 @@ class CodegenConfigRepository(BaseRepository[CodegenConfig]):
             配置列表 / List of config instances
         """
         return await self.get_list(status=status, limit=1000)
+
+    async def list_workbench_rows(self) -> list[CodegenConfig]:
+        """
+        获取工作台统计所需的最小字段集合 / Load minimal fields for workbench summary.
+
+        按最近更新时间倒序，供 summary 统计与关注事项使用。
+        Ordered by latest updates for summary stats and focus lists.
+        """
+        query = (
+            select(self.model)
+            .options(
+                load_only(
+                    self.model.id,
+                    self.model.name,
+                    self.model.resource,
+                    self.model.status,
+                    self.model.last_generated_at,
+                    self.model.generation_count,
+                    self.model.generated_files,
+                    self.model.last_error,
+                    self.model.updated_at,
+                )
+            )
+            .where(self.model.is_deleted.is_(False))
+            .order_by(self.model.updated_at.desc(), self.model.id.desc())
+        )
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
 
 
 __all__ = ["CodegenConfigRepository"]

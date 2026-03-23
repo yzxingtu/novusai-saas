@@ -1,6 +1,11 @@
 import type { PageOperation } from './page-operation-registry';
 
 import { $t } from '#/locales';
+import {
+  capturePageScreenshot,
+  DEFAULT_PAGE_SCREENSHOT_EXCLUDE_SELECTORS,
+  resolveScreenshotUploadTarget,
+} from '#/composables/use-page-screenshot';
 
 import { scanDomSemantics } from './dom-semantic-scanner';
 import { resolvePageContext } from './page-context-registry';
@@ -80,6 +85,47 @@ export function getDefaultPageOperations(pageKey: string): PageOperation[] {
                 tabs: domSnapshot.tabs,
               }
             : { page_title: normalizedKey },
+        };
+      },
+    },
+    {
+      name: 'capture_screenshot',
+      label: $t('shared.pageOperation.captureScreenshot'),
+      description:
+        'Capture the current visible page as an image for visual inspection. Use this only when page context, DOM structure, or table/form data is insufficient, and avoid repeated screenshots unless the page changed visually / 截取当前可见页面作为图片供视觉分析。仅在页面上下文、DOM 结构或表单表格数据不足时使用；除非页面视觉状态明显变化，否则避免重复截图',
+      readonly: true,
+      handler: async () => {
+        const result = await capturePageScreenshot({
+          ...resolveScreenshotUploadTarget(),
+          excludeSelectors: [...DEFAULT_PAGE_SCREENSHOT_EXCLUDE_SELECTORS],
+        });
+
+        if (!result) {
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.screenshotFailed'),
+            error_type: 'capture_failed',
+          };
+        }
+
+        return {
+          success: true,
+          message: $t('shared.pageOperation.msg.screenshotCaptured'),
+          data: {
+            attachment: {
+              attachment_id: result.attachment.attachment_id,
+              type: result.attachment.type,
+              url: result.attachment.url,
+              name: result.attachment.name,
+              mime_type: result.attachment.mime_type,
+            },
+            capture_scope: 'viewport',
+            page_key: normalizedKey,
+            viewport: {
+              height: window.innerHeight,
+              width: window.innerWidth,
+            },
+          },
         };
       },
     },

@@ -206,7 +206,7 @@
 
 #### 现状
 
-- 历史实现中的定时任务 `check_trial_expirations()` 只筛选 `license_type == trial`。
+- 历史实现中的“试用过期检查任务”只筛选 `license_type == trial`。
 - 它会对试用过期做两件事：
   - 标记 `is_valid = false`
   - 尝试禁用插件
@@ -1782,7 +1782,7 @@
 
 ### 7.4 过期处理流程回放
 
-审计当时唯一的定时过期任务是 `check_trial_expirations()`；当前实现已统一为 `check_plugin_license_expirations()`。
+审计当时唯一的定时过期任务是“试用过期检查任务”；当前实现已统一为 `check_plugin_license_expirations()`。
 
 真实流程如下：
 

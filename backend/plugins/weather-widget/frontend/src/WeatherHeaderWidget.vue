@@ -1,493 +1,640 @@
 <script lang="ts" setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
-import { Popover, Tooltip } from 'ant-design-vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { Tooltip } from 'ant-design-vue';
 import { IconifyIcon, $t } from '@novus/plugin-shared';
 
 import type { CityInfo } from './use-weather';
-import { useWeather, POPULAR_CITIES } from './use-weather';
-import { getWeatherCodeInfo, getWeatherBg } from './weather-codes';
+import { POPULAR_CITIES, useWeather } from './use-weather';
+import {
+  formatCityMeta,
+  formatClockTime,
+  formatSunTime,
+  formatTemperature,
+  formatWindSpeed,
+  getAqiColor,
+  getAqiLevel,
+  getDayLabel,
+  getWeatherText,
+  temperatureSymbol,
+} from './weather-ui';
+import { getWeatherBg, getWeatherCodeInfo } from './weather-codes';
 
 const {
-  cityName, recentCities, current, forecast, hourly, airQuality,
-  loading, initialLoading, error, locating, locateError,
-  showCitySelector, isStale,
-  fetchAll, searchCity, selectCity, geolocate,
+  cityName,
+  recentCities,
+  current,
+  forecast,
+  hourly,
+  airQuality,
+  loading,
+  initialLoading,
+  error,
+  locating,
+  locateError,
+  showCitySelector,
+  isStale,
+  temperatureUnit,
+  forecastDays,
+  lastUpdatedAt,
+  fetchAll,
+  searchCity,
+  selectCity,
+  geolocate,
 } = useWeather();
-
-const isZh = computed(() => $t('plugin.weather-widget._meta.lang') === 'zh');
-
-function weatherText(item: { weather_text_zh?: string; weather_text_en?: string }): string {
-  return isZh.value ? (item.weather_text_zh || item.weather_text_en || '') : (item.weather_text_en || item.weather_text_zh || '');
-}
 
 const popoverOpen = ref(false);
 const searchKeyword = ref('');
 const searchResults = ref<CityInfo[]>([]);
 const searching = ref(false);
+const hourlyScrollRef = ref<HTMLElement | null>(null);
+const triggerRef = ref<HTMLElement | null>(null);
+const panelRef = ref<HTMLElement | null>(null);
+const overlayStyle = ref<Record<string, string>>({});
 let searchTimer: ReturnType<typeof setTimeout> | null = null;
+let overlaySyncRaf: null | number = null;
 
-function handleSearchInput(val: string) {
-  searchKeyword.value = val;
-  if (searchTimer) clearTimeout(searchTimer);
-  if (!val.trim()) { searchResults.value = []; searching.value = false; return; }
-  searching.value = true;
-  searchTimer = setTimeout(async () => {
-    searchResults.value = await searchCity(val.trim());
-    searching.value = false;
-  }, 400);
-}
+const isZh = computed(() => $t('plugin.weather-widget._meta.lang') === 'zh');
+const tempUnit = computed(() => temperatureSymbol(temperatureUnit.value));
+const speedUnit = computed(() =>
+  temperatureUnit.value === 'fahrenheit'
+    ? $t('plugin.weather-widget.ui.unit_mph')
+    : $t('plugin.weather-widget.ui.unit_kmh'),
+);
+const todayForecast = computed(() => forecast.value[0] ?? null);
+const displayForecast = computed(() => forecast.value.slice(0, Math.min(forecastDays.value, 3)));
+const displayHourly = computed(() => hourly.value.slice(0, 6));
+const freshnessLabel = computed(() =>
+  isStale.value
+    ? $t('plugin.weather-widget.ui.cached_data')
+    : $t('plugin.weather-widget.ui.live_data'),
+);
+const updateTime = computed(() =>
+  formatClockTime(lastUpdatedAt.value, isZh.value ? 'zh-CN' : 'en-US'),
+);
+const bgInfo = computed(() => {
+  if (!current.value) {
+    return { bgClass: 'wx-bg--cloudy-day', scene: 'cloud' };
+  }
+  return getWeatherBg(current.value.weather_code, current.value.is_day);
+});
+const quickMetrics = computed(() => {
+  if (!current.value) {
+    return [];
+  }
+  return [
+    {
+      key: 'humidity',
+      label: $t('plugin.weather-widget.ui.humidity'),
+      note: undefined,
+      tone: undefined,
+      value: `${current.value.humidity ?? '--'}%`,
+    },
+    {
+      key: 'wind',
+      label: $t('plugin.weather-widget.ui.wind_speed'),
+      note: undefined,
+      tone: undefined,
+      value: `${formatWindSpeed(current.value.wind_speed, temperatureUnit.value)} ${speedUnit.value}`,
+    },
+    {
+      key: 'uv',
+      label: $t('plugin.weather-widget.ui.uv_index'),
+      note: undefined,
+      tone: undefined,
+      value: `${current.value.uv_index ?? '--'}`,
+    },
+    {
+      key: 'aqi',
+      label: $t('plugin.weather-widget.ui.aqi'),
+      value: `${airQuality.value?.aqi ?? '--'}`,
+      note: aqiLabel(airQuality.value?.aqi),
+      tone: getAqiColor(airQuality.value?.aqi),
+    },
+  ];
+});
 
-function handleSelectCity(city: CityInfo) {
-  selectCity(city);
-  searchKeyword.value = '';
-  searchResults.value = [];
-}
-
-function getIcon(code: number, isDay = true): string {
+function weatherIcon(code: number, isDay = true): string {
   return getWeatherCodeInfo(code, isDay).icon;
 }
 
-function getBg(code: number, isDay = true) {
-  return getWeatherBg(code, isDay);
+function weatherText(item: { weather_text_zh?: string; weather_text_en?: string }): string {
+  return getWeatherText(item, isZh.value);
 }
 
-function formatDate(dateStr: string, index: number): string {
-  if (index === 0) return $t('plugin.weather-widget.ui.today');
-  if (index === 1) return $t('plugin.weather-widget.ui.tomorrow');
-  if (index === 2) return $t('plugin.weather-widget.ui.day_after');
-  const d = new Date(dateStr);
-  return `${d.getMonth() + 1}/${d.getDate()}`;
-}
-
-function formatWeekday(dateStr: string): string {
-  const dayIndex = new Date(dateStr).getDay();
-  return $t(`plugin.weather-widget.ui.weekday_${dayIndex}`);
-}
-
-function formatTime(timeStr: string, isCurrent: boolean | undefined): string {
-  if (isCurrent) return $t('plugin.weather-widget.ui.now');
-  return timeStr;
-}
-
-function formatSunTime(isoStr: string | null | undefined): string {
-  if (!isoStr) return '--:--';
-  const t = isoStr.includes('T') ? isoStr.split('T')[1] : isoStr;
-  return t ? t.substring(0, 5) : '--:--';
-}
-
-function aqiLevel(aqi: number | null | undefined): string {
-  if (aqi == null) return '--';
-  if (aqi <= 50) return $t('plugin.weather-widget.aqi_level.good');
-  if (aqi <= 100) return $t('plugin.weather-widget.aqi_level.moderate');
-  if (aqi <= 150) return $t('plugin.weather-widget.aqi_level.unhealthy_sensitive');
-  if (aqi <= 200) return $t('plugin.weather-widget.aqi_level.unhealthy');
-  if (aqi <= 300) return $t('plugin.weather-widget.aqi_level.very_unhealthy');
-  return $t('plugin.weather-widget.aqi_level.hazardous');
-}
-
-function aqiColor(aqi: number | null | undefined): string {
-  if (aqi == null) return 'rgba(255,255,255,0.5)';
-  if (aqi <= 50) return '#4ade80';
-  if (aqi <= 100) return '#facc15';
-  if (aqi <= 150) return '#fb923c';
-  if (aqi <= 200) return '#f87171';
-  if (aqi <= 300) return '#a78bfa';
-  return '#9f1239';
-}
-
-const todayForecast = computed(() => forecast.value?.[0] ?? null);
-
-const TEMP_COLOR_STOPS: [number, number, number, number][] = [
-  [-10, 108, 180, 238], [0, 147, 197, 253], [10, 167, 216, 160],
-  [20, 253, 230, 138], [30, 251, 146, 60], [40, 239, 68, 68],
-];
-
-function tempToColor(temp: number): string {
-  const t = Math.max(-10, Math.min(40, temp));
-  for (let i = 1; i < TEMP_COLOR_STOPS.length; i++) {
-    const [t1, r1, g1, b1] = TEMP_COLOR_STOPS[i - 1]!;
-    const [t2, r2, g2, b2] = TEMP_COLOR_STOPS[i]!;
-    if (t <= t2) {
-      const p = (t - t1) / (t2 - t1);
-      const r = Math.round(r1 + (r2 - r1) * p);
-      const g = Math.round(g1 + (g2 - g1) * p);
-      const b = Math.round(b1 + (b2 - b1) * p);
-      return `rgb(${r},${g},${b})`;
-    }
+function formatHour(time: string, currentHour?: boolean): string {
+  if (currentHour) {
+    return $t('plugin.weather-widget.ui.now');
   }
-  return 'rgb(239,68,68)';
+  return time;
 }
 
-function tempBarStyle(min: number | null, max: number | null): Record<string, string> {
-  if (min === null || max === null || !forecast.value.length) return {};
-  const allMin = Math.min(...forecast.value.map(d => d.temp_min ?? 99));
-  const allMax = Math.max(...forecast.value.map(d => d.temp_max ?? -99));
-  const range = allMax - allMin || 1;
-  const left = ((min - allMin) / range) * 100;
-  const width = ((max - min) / range) * 100;
-  return {
-    left: `${left}%`,
-    width: `${Math.max(width, 14)}%`,
-    background: `linear-gradient(to right, ${tempToColor(min)}, ${tempToColor(max)})`,
+function aqiLabel(aqi: number | null | undefined): string {
+  const level = getAqiLevel(aqi);
+  return $t(`plugin.weather-widget.aqi_level.${level}`);
+}
+
+function estimatePanelWidth(): number {
+  return Math.max(Math.min(360, window.innerWidth - 20), 0);
+}
+
+function updateOverlayPosition(): void {
+  const trigger = triggerRef.value;
+  if (!trigger || !trigger.isConnected) {
+    popoverOpen.value = false;
+    return;
+  }
+  const gap = 4;
+  const margin = 10;
+  const triggerRect = trigger.getBoundingClientRect();
+  const panelWidth = panelRef.value?.offsetWidth ?? estimatePanelWidth();
+  const viewportMaxLeft = Math.max(window.innerWidth - panelWidth - margin, margin);
+  const left = Math.min(
+    Math.max(triggerRect.right - panelWidth, margin),
+    viewportMaxLeft,
+  );
+  overlayStyle.value = {
+    left: `${left}px`,
+    top: `${Math.max(triggerRect.bottom + gap, margin)}px`,
   };
 }
 
-const bgInfo = computed(() => {
-  if (!current.value) return { bgClass: 'wx-bg--cloudy-day', scene: 'cloud' as const };
-  return getBg(current.value.weather_code, current.value.is_day);
-});
+function handleDocumentPointerDown(event: PointerEvent): void {
+  if (!popoverOpen.value) {
+    return;
+  }
+  const target = event.target as Node | null;
+  if (!target) {
+    return;
+  }
+  if (triggerRef.value?.contains(target) || panelRef.value?.contains(target)) {
+    return;
+  }
+  popoverOpen.value = false;
+}
 
-const hourlyScrollRef = ref<HTMLElement | null>(null);
+function handleDocumentKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape') {
+    popoverOpen.value = false;
+  }
+}
+
+function startOverlaySync(): void {
+  stopOverlaySync();
+  const sync = () => {
+    updateOverlayPosition();
+    overlaySyncRaf = requestAnimationFrame(sync);
+  };
+  sync();
+  document.addEventListener('pointerdown', handleDocumentPointerDown, true);
+  window.addEventListener('keydown', handleDocumentKeydown);
+}
+
+function stopOverlaySync(): void {
+  if (overlaySyncRaf != null) {
+    cancelAnimationFrame(overlaySyncRaf);
+    overlaySyncRaf = null;
+  }
+  document.removeEventListener('pointerdown', handleDocumentPointerDown, true);
+  window.removeEventListener('keydown', handleDocumentKeydown);
+}
+
+function togglePopover(): void {
+  popoverOpen.value = !popoverOpen.value;
+}
+
+function handleSearchInput(value: string): void {
+  searchKeyword.value = value;
+  if (searchTimer) {
+    clearTimeout(searchTimer);
+  }
+  if (!value.trim()) {
+    searching.value = false;
+    searchResults.value = [];
+    return;
+  }
+  searching.value = true;
+  searchTimer = setTimeout(async () => {
+    searchResults.value = await searchCity(value.trim());
+    searching.value = false;
+  }, 260);
+}
+
+async function handleCitySelect(city: CityInfo): Promise<void> {
+  searchKeyword.value = '';
+  searchResults.value = [];
+  await selectCity(city);
+}
+
+function scrollToCurrentHour(): void {
+  nextTick(() => {
+    const node = hourlyScrollRef.value;
+    if (!node) {
+      return;
+    }
+    const currentItem = node.querySelector('.wx-hour-item--active') as HTMLElement | null;
+    if (!currentItem) {
+      return;
+    }
+    node.scrollTo({
+      left: Math.max(currentItem.offsetLeft - 16, 0),
+      behavior: 'smooth',
+    });
+  });
+}
 
 watch(hourly, () => {
-  nextTick(() => {
-    const el = hourlyScrollRef.value;
-    if (!el) return;
-    const currentItem = el.querySelector('.wx-hourly-item--current') as HTMLElement | null;
-    if (currentItem) {
-      el.scrollLeft = currentItem.offsetLeft - 12;
-    }
-  });
+  if (!popoverOpen.value) {
+    return;
+  }
+  scrollToCurrentHour();
+});
+
+watch(popoverOpen, (open) => {
+  if (open) {
+    scrollToCurrentHour();
+    nextTick(() => {
+      startOverlaySync();
+    });
+    return;
+  }
+  stopOverlaySync();
+});
+
+onBeforeUnmount(() => {
+  if (searchTimer) {
+    clearTimeout(searchTimer);
+  }
+  stopOverlaySync();
 });
 </script>
 
 <template>
-  <Popover
-    v-model:open="popoverOpen"
-    trigger="click"
-    placement="bottomRight"
-    :arrow="false"
-    overlay-class-name="weather-popover-immersive"
-  >
-    <!-- 顶栏触发按钮 -->
-    <template #default>
-      <Tooltip :title="$t('plugin.weather-widget.ui.temperature')" placement="bottom">
-        <div class="flex items-center gap-1 px-2 py-1 rounded-md cursor-pointer transition-colors hover:bg-accent">
+  <Tooltip :title="$t('plugin.weather-widget.ui.open_weather')" placement="bottom">
+    <button
+      ref="triggerRef"
+      type="button"
+      class="wx-trigger"
+      :aria-label="$t('plugin.weather-widget.ui.open_weather')"
+      :aria-expanded="popoverOpen"
+      @click="togglePopover"
+    >
+      <span class="wx-trigger__icon-wrap">
+        <template v-if="current && !initialLoading">
+          <IconifyIcon
+            :icon="`lucide:${weatherIcon(current.weather_code, current.is_day)}`"
+            class="wx-trigger__icon"
+          />
+        </template>
+        <template v-else-if="initialLoading">
+          <IconifyIcon icon="lucide:loader-2" class="wx-trigger__icon animate-spin" />
+        </template>
+        <template v-else>
+          <IconifyIcon icon="lucide:cloud-off" class="wx-trigger__icon" />
+        </template>
+      </span>
+      <span class="wx-trigger__copy">
+        <small>{{ cityName }}</small>
+        <strong>
           <template v-if="current && !initialLoading">
-            <IconifyIcon :icon="`lucide:${getIcon(current.weather_code, current.is_day)}`" class="size-4 text-primary" />
-            <span class="text-[13px] font-semibold hidden sm:inline">{{ current.temperature !== null ? `${Math.round(current.temperature)}°` : '--' }}</span>
-          </template>
-          <template v-else-if="initialLoading">
-            <IconifyIcon icon="lucide:loader-2" class="size-4 animate-spin text-muted-foreground" />
+            {{ formatTemperature(current.temperature, temperatureUnit) }}°
           </template>
           <template v-else>
-            <IconifyIcon icon="lucide:cloud-off" class="size-4 text-muted-foreground" />
+            --
           </template>
-        </div>
-      </Tooltip>
-    </template>
+        </strong>
+      </span>
+    </button>
+  </Tooltip>
 
-    <!-- 面板 -->
-    <template #content>
-      <div
-        class="relative rounded-2xl overflow-hidden text-white font-sans wx-noise"
-        style="width: 340px"
-        :class="bgInfo.bgClass"
+  <Teleport to="body">
+    <div
+      v-if="popoverOpen"
+      class="weather-popover-immersive-overlay"
+      :style="overlayStyle"
+    >
+      <section
+        ref="panelRef"
+        class="wx-panel wx-noise"
+        :class="[bgInfo.bgClass, `wx-scene--${bgInfo.scene}`]"
       >
-        <div class="wx-panel-inner-glow" />
-        <Transition name="wx-view" mode="out-in">
-          <!-- ═══ 城市选择视图 ═══ -->
-          <div v-if="showCitySelector" key="city" class="relative z-[2] p-4 flex flex-col gap-3 wx-panel-scroll" style="max-height: 520px">
-            <div class="flex justify-between items-center">
-              <span class="text-sm font-semibold tracking-wide">{{ $t('plugin.weather-widget.ui.change_city') }}</span>
+        <div class="wx-panel__veil" />
+
+        <Transition name="wx-fade-slide" mode="out-in">
+          <div v-if="showCitySelector" key="city-selector" class="wx-city-panel">
+            <header class="wx-city-panel__head">
               <button
-                class="flex items-center justify-center size-7 rounded-full bg-white/[0.08] text-inherit cursor-pointer transition-colors hover:bg-white/[0.16] active:scale-95"
+                type="button"
+                class="wx-icon-btn"
+                :aria-label="$t('plugin.weather-widget.ui.back')"
                 @click="showCitySelector = false"
               >
-                <IconifyIcon icon="lucide:x" class="size-3.5" />
+                <IconifyIcon icon="lucide:chevron-left" class="size-4" />
               </button>
+              <h3>{{ $t('plugin.weather-widget.ui.change_city') }}</h3>
+              <button
+                type="button"
+                class="wx-icon-btn"
+                :aria-label="$t('plugin.weather-widget.ui.close')"
+                @click="popoverOpen = false"
+              >
+                <IconifyIcon icon="lucide:x" class="size-4" />
+              </button>
+            </header>
+
+            <div class="wx-city-panel__summary">
+              <span class="wx-city-panel__label">
+                {{ $t('plugin.weather-widget.ui.current_city') }}
+              </span>
+              <strong>{{ cityName }}</strong>
             </div>
 
-            <!-- 搜索 -->
-            <div class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-white/[0.06] border border-white/[0.06]">
-              <IconifyIcon icon="lucide:search" class="size-3.5 opacity-50" />
+            <label class="wx-search">
+              <IconifyIcon icon="lucide:search" class="size-4 opacity-70" />
               <input
                 :value="searchKeyword"
                 :placeholder="$t('plugin.weather-widget.ui.search_city')"
-                class="flex-1 bg-transparent border-none outline-none text-inherit text-[13px] placeholder:text-white/30"
                 @input="handleSearchInput(($event.target as HTMLInputElement).value)"
               />
-            </div>
+            </label>
 
-            <!-- 搜索结果 -->
-            <div v-if="searchKeyword.trim()" class="flex flex-col gap-1 max-h-40 overflow-y-auto">
-              <div v-if="searching" class="flex items-center gap-2 py-3 justify-center text-xs opacity-60">
-                <IconifyIcon icon="lucide:loader-2" class="size-3.5 animate-spin" /> {{ $t('plugin.weather-widget.ui.loading') }}
+            <div class="wx-city-list">
+              <div v-if="searchKeyword.trim()">
+                <div v-if="searching" class="wx-state-line">
+                  <IconifyIcon icon="lucide:loader-2" class="size-4 animate-spin" />
+                  {{ $t('plugin.weather-widget.ui.loading') }}
+                </div>
+                <button
+                  v-for="city in searchResults"
+                  :key="`search-${city.latitude}-${city.longitude}`"
+                  type="button"
+                  class="wx-city-chip"
+                  @click="handleCitySelect(city)"
+                >
+                  <span class="wx-city-chip__main">
+                    <IconifyIcon icon="lucide:map-pin" class="size-3.5 opacity-65" />
+                    <span class="truncate">{{ city.name }}</span>
+                  </span>
+                  <span
+                    v-if="formatCityMeta(city)"
+                    class="wx-city-chip__meta"
+                  >
+                    {{ formatCityMeta(city) }}
+                  </span>
+                </button>
+                <div v-if="!searching && searchResults.length === 0" class="wx-state-line">
+                  {{ $t('plugin.weather-widget.error.city_not_found') }}
+                </div>
               </div>
+
               <button
-                v-for="c in searchResults" :key="`${c.latitude}-${c.longitude}`"
-                class="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white/[0.06] text-inherit cursor-pointer text-[13px] text-left transition-all hover:bg-white/[0.14] active:scale-[0.98] border border-transparent hover:border-white/[0.06]"
-                @click="handleSelectCity(c)"
+                type="button"
+                class="wx-locate-btn"
+                :disabled="locating"
+                :aria-label="$t('plugin.weather-widget.ui.auto_locate')"
+                @click="geolocate"
               >
-                <IconifyIcon icon="lucide:map-pin" class="size-3.5 opacity-40 shrink-0" />
-                <span>{{ c.name }}</span>
-                <span v-if="c.admin1" class="opacity-40 text-xs">{{ c.admin1 }}</span>
+                <IconifyIcon
+                  :icon="locating ? 'lucide:loader-2' : 'lucide:locate'"
+                  :class="locating ? 'size-4 animate-spin' : 'size-4'"
+                />
+                {{ locating ? $t('plugin.weather-widget.ui.locating') : $t('plugin.weather-widget.ui.auto_locate') }}
               </button>
-              <div v-if="!searching && searchResults.length === 0" class="flex items-center gap-2 py-3 justify-center text-xs opacity-50">
-                {{ $t('plugin.weather-widget.error.city_not_found') }}
+              <div v-if="locateError" class="wx-state-line wx-state-line--error">
+                {{ $t(`plugin.weather-widget.error.${locateError}`) }}
               </div>
-            </div>
 
-            <!-- 定位 -->
-            <button
-              class="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white/[0.06] text-inherit cursor-pointer text-[13px] justify-center font-medium transition-colors hover:bg-white/[0.12] active:scale-[0.98] disabled:opacity-30 border border-white/[0.06]"
-              :disabled="locating"
-              @click="geolocate"
-            >
-              <IconifyIcon :icon="locating ? 'lucide:loader-2' : 'lucide:locate'" :class="locating ? 'size-3.5 animate-spin' : 'size-3.5'" />
-              {{ locating ? $t('plugin.weather-widget.ui.locating') : $t('plugin.weather-widget.ui.auto_locate') }}
-            </button>
-            <div v-if="locateError" class="text-xs text-center opacity-50">
-              {{ $t(`plugin.weather-widget.error.${locateError}`) }}
-            </div>
-
-            <!-- 最近城市 -->
-            <div v-if="recentCities.length > 0" class="flex flex-col gap-2">
-              <div class="text-[10px] uppercase tracking-wider opacity-40 font-semibold">{{ $t('plugin.weather-widget.ui.recent_cities') }}</div>
-              <div class="flex flex-wrap gap-1.5">
-                <button
-                  v-for="c in recentCities" :key="`r-${c.latitude}`"
-                  class="px-3 py-1.5 rounded-full bg-white/[0.06] text-inherit cursor-pointer text-xs transition-colors hover:bg-white/[0.12] active:scale-95 border border-white/[0.06]"
-                  @click="handleSelectCity(c)"
-                >
-                  {{ c.name }}
-                </button>
+              <div v-if="recentCities.length > 0" class="wx-city-group">
+                <h4>{{ $t('plugin.weather-widget.ui.recent_cities') }}</h4>
+                <div class="wx-city-grid">
+                  <button
+                    v-for="city in recentCities"
+                    :key="`recent-${city.latitude}-${city.longitude}`"
+                    type="button"
+                    class="wx-city-chip"
+                    @click="handleCitySelect(city)"
+                  >
+                    <span class="truncate">{{ city.name }}</span>
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <!-- 热门城市 -->
-            <div class="flex flex-col gap-2">
-              <div class="text-[10px] uppercase tracking-wider opacity-40 font-semibold">{{ $t('plugin.weather-widget.ui.popular_cities') }}</div>
-              <div class="flex flex-wrap gap-1.5">
-                <button
-                  v-for="c in POPULAR_CITIES" :key="`p-${c.latitude}`"
-                  class="px-3 py-1.5 rounded-full bg-white/[0.06] text-inherit cursor-pointer text-xs transition-colors hover:bg-white/[0.12] active:scale-95 border border-white/[0.06]"
-                  @click="handleSelectCity(c)"
-                >
-                  {{ c.name }}
-                </button>
+              <div class="wx-city-group">
+                <h4>{{ $t('plugin.weather-widget.ui.popular_cities') }}</h4>
+                <div class="wx-city-grid">
+                  <button
+                    v-for="city in POPULAR_CITIES"
+                    :key="`popular-${city.latitude}-${city.longitude}`"
+                    type="button"
+                    class="wx-city-chip"
+                    @click="handleCitySelect(city)"
+                  >
+                    <span class="truncate">{{ city.name }}</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- ═══ 天气主视图 ═══ -->
-          <div v-else key="weather" class="relative z-[2] flex flex-col wx-panel-scroll" style="max-height: 520px">
-
-            <!-- 骨架屏 -->
+          <div v-else key="weather-main" class="wx-main-panel">
             <template v-if="initialLoading && !current">
-              <div class="p-5 flex flex-col gap-4">
-                <div class="flex justify-between items-center">
-                  <div class="wx-skeleton" style="width:80px;height:24px" />
-                  <div class="flex gap-1.5"><div class="wx-skeleton" style="width:24px;height:24px;border-radius:50%" /><div class="wx-skeleton" style="width:24px;height:24px;border-radius:50%" /></div>
-                </div>
-                <div class="flex flex-col items-center gap-2 py-4">
-                  <div class="wx-skeleton" style="width:100px;height:64px" />
-                  <div class="wx-skeleton" style="width:120px;height:16px" />
-                  <div class="wx-skeleton" style="width:80px;height:12px" />
-                </div>
-                <div class="wx-skeleton" style="width:100%;height:80px;border-radius:12px" />
-                <div class="grid grid-cols-3 gap-2">
-                  <div v-for="i in 6" :key="i" class="wx-skeleton" style="height:68px;border-radius:12px" />
-                </div>
-                <div class="wx-skeleton" style="width:100%;height:100px;border-radius:12px" />
+              <div class="wx-skeleton-wrap">
+                <div class="wx-skeleton wx-skeleton--lg" />
+                <div class="wx-skeleton wx-skeleton--md" />
+                <div class="wx-skeleton wx-skeleton--grid" />
               </div>
             </template>
 
-            <!-- 错误（无缓存数据时） -->
-            <div v-else-if="error && !current" class="p-5 flex flex-col items-center justify-center gap-3 text-center" style="min-height: 300px">
-              <IconifyIcon icon="lucide:cloud-off" class="size-10 opacity-30" />
-              <p class="text-sm opacity-70">{{ $t('plugin.weather-widget.ui.error') }}</p>
-              <button
-                class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/[0.08] text-inherit cursor-pointer text-sm font-medium transition-colors hover:bg-white/[0.14] active:scale-95"
-                @click="fetchAll"
-              >
-                <IconifyIcon icon="lucide:refresh-cw" class="size-3.5" /> {{ $t('plugin.weather-widget.ui.retry') }}
-              </button>
-            </div>
+            <template v-else-if="error && !current">
+              <div class="wx-empty">
+                <IconifyIcon icon="lucide:cloud-off" class="size-10 opacity-65" />
+                <p>{{ $t('plugin.weather-widget.ui.error') }}</p>
+                <button type="button" class="wx-action-btn" @click="fetchAll">
+                  <IconifyIcon icon="lucide:refresh-cw" class="size-4" />
+                  {{ $t('plugin.weather-widget.ui.retry') }}
+                </button>
+              </div>
+            </template>
 
-            <!-- 天气内容 -->
-            <template v-if="current">
-              <!-- 头部：场景装饰 + 城市 + 温度 -->
-              <div class="relative p-5 pb-3">
-                <!-- 场景装饰 -->
-                <div class="absolute inset-0 pointer-events-none overflow-hidden z-0">
-                  <template v-if="bgInfo.scene === 'sun'">
-                    <div class="wx-sun-glow" />
-                  </template>
-                  <template v-else-if="bgInfo.scene === 'moon-star'">
-                    <div class="wx-moon-glow" />
-                    <div class="wx-star-dot" style="top:12%;left:15%;animation-delay:0s" />
-                    <div class="wx-star-dot" style="top:6%;left:40%;animation-delay:0.8s" />
-                    <div class="wx-star-dot" style="top:20%;left:60%;animation-delay:1.5s" />
-                    <div class="wx-star-dot" style="top:8%;left:80%;animation-delay:2.2s" />
-                  </template>
-                  <template v-else-if="bgInfo.scene === 'cloud'">
-                    <div class="wx-cloud-glow" />
-                  </template>
-                  <template v-else-if="bgInfo.scene === 'rain'">
-                    <div class="wx-rain-hint" />
-                    <div class="wx-rain-hint" />
-                    <div class="wx-rain-hint" />
-                  </template>
-                  <template v-else-if="bgInfo.scene === 'snow'">
-                    <div class="wx-snow-hint" />
-                    <div class="wx-snow-hint" />
-                    <div class="wx-snow-hint" />
-                  </template>
-                  <template v-else-if="bgInfo.scene === 'thunder'">
-                    <div class="wx-thunder-flash" />
-                  </template>
-                  <template v-else-if="bgInfo.scene === 'fog'">
-                    <div class="wx-fog-layer" />
-                    <div class="wx-fog-layer" />
-                  </template>
-                </div>
-
-                <!-- 城市行 -->
-                <div class="relative z-[1] flex justify-between items-center mb-2 wx-fade-up">
+            <template v-else-if="current">
+              <header class="wx-main-head">
+                <button
+                  type="button"
+                  class="wx-city-btn"
+                  :aria-label="$t('plugin.weather-widget.ui.change_city')"
+                  @click="showCitySelector = true"
+                >
+                  <IconifyIcon icon="lucide:map-pin" class="size-3.5 opacity-70" />
+                  <span class="truncate">{{ cityName }}</span>
+                  <IconifyIcon icon="lucide:chevron-down" class="size-3.5 opacity-60" />
+                </button>
+                <div class="wx-head-actions">
+                  <span class="wx-status-chip">{{ freshnessLabel }}</span>
                   <button
-                    class="flex items-center gap-1.5 bg-white/[0.08] rounded-full px-3 py-1 text-[13px] text-inherit cursor-pointer transition-all hover:bg-white/[0.14] active:scale-95 border border-white/[0.06]"
-                    @click="showCitySelector = true"
+                    type="button"
+                    class="wx-icon-btn"
+                    :disabled="locating"
+                    :aria-label="$t('plugin.weather-widget.ui.auto_locate')"
+                    @click="geolocate"
                   >
-                    <IconifyIcon icon="lucide:map-pin" class="size-3 opacity-60" />
-                    <span class="font-medium max-w-[140px] truncate">{{ cityName }}</span>
-                    <IconifyIcon icon="lucide:chevron-down" class="size-2.5 opacity-40" />
+                    <IconifyIcon
+                      :icon="locating ? 'lucide:loader-2' : 'lucide:locate'"
+                      :class="locating ? 'size-4 animate-spin' : 'size-4'"
+                    />
                   </button>
-                  <div class="flex gap-1">
-                    <button
-                      class="flex items-center justify-center size-7 rounded-full text-inherit cursor-pointer transition-colors hover:bg-white/[0.1] active:scale-90 disabled:opacity-25"
-                      :disabled="locating"
-                      @click="geolocate"
-                    >
-                      <IconifyIcon :icon="locating ? 'lucide:loader-2' : 'lucide:locate'" :class="locating ? 'size-3.5 animate-spin' : 'size-3.5'" />
-                    </button>
-                    <button
-                      class="flex items-center justify-center size-7 rounded-full text-inherit cursor-pointer transition-colors hover:bg-white/[0.1] active:scale-90 disabled:opacity-25"
-                      :disabled="loading"
-                      @click="fetchAll"
-                    >
-                      <IconifyIcon :icon="loading ? 'lucide:loader-2' : 'lucide:refresh-cw'" :class="loading ? 'size-3.5 animate-spin' : 'size-3.5'" />
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    class="wx-icon-btn"
+                    :disabled="loading"
+                    :aria-label="$t('plugin.weather-widget.ui.refresh')"
+                    @click="fetchAll"
+                  >
+                    <IconifyIcon
+                      :icon="loading ? 'lucide:loader-2' : 'lucide:refresh-cw'"
+                      :class="loading ? 'size-4 animate-spin' : 'size-4'"
+                    />
+                  </button>
                 </div>
+              </header>
 
-                <!-- 主温度 -->
-                <div class="relative z-[1] flex flex-col items-center py-3 wx-fade-up wx-fade-up-1">
-                  <div class="flex items-center justify-center gap-4">
-                    <div class="text-[64px] font-extralight leading-none tracking-[-3px]" style="text-shadow: 0 2px 20px rgba(0,0,0,0.12)">
-                      {{ current.temperature !== null ? Math.round(current.temperature) : '--' }}°
+              <div class="wx-scene" aria-hidden="true">
+                <span class="wx-scene__orb" />
+                <span class="wx-scene__cloud wx-scene__cloud--1" />
+                <span class="wx-scene__cloud wx-scene__cloud--2" />
+                <span class="wx-scene__spark wx-scene__spark--1" />
+                <span class="wx-scene__spark wx-scene__spark--2" />
+                <span class="wx-scene__spark wx-scene__spark--3" />
+                <span class="wx-scene__drop wx-scene__drop--1" />
+                <span class="wx-scene__drop wx-scene__drop--2" />
+                <span class="wx-scene__drop wx-scene__drop--3" />
+                <span class="wx-scene__flake wx-scene__flake--1" />
+                <span class="wx-scene__flake wx-scene__flake--2" />
+                <span class="wx-scene__mist wx-scene__mist--1" />
+                <span class="wx-scene__mist wx-scene__mist--2" />
+                <span class="wx-scene__flash" />
+              </div>
+
+              <div class="wx-hero">
+                <div class="wx-hero__eyebrow">
+                  <span>{{ freshnessLabel }}</span>
+                  <span>{{ $t('plugin.weather-widget.ui.last_updated') }} {{ updateTime }}</span>
+                </div>
+                <div class="wx-hero__body">
+                  <div class="wx-hero__copy">
+                    <div class="wx-hero__temp">
+                      {{ formatTemperature(current.temperature, temperatureUnit) }}°
                     </div>
-                    <IconifyIcon :icon="`lucide:${getIcon(current.weather_code, current.is_day)}`" class="wx-hero-icon" />
+                    <div class="wx-hero__text">{{ weatherText(current) }}</div>
+                    <div class="wx-hero__sub">
+                      <span>
+                        {{ $t('plugin.weather-widget.ui.feels_like') }}
+                        {{ formatTemperature(current.apparent_temperature, temperatureUnit) }}°{{ tempUnit }}
+                      </span>
+                      <span v-if="todayForecast">
+                        {{ $t('plugin.weather-widget.ui.high_short') }}
+                        {{ formatTemperature(todayForecast.temp_max, temperatureUnit) }}°
+                        /
+                        {{ $t('plugin.weather-widget.ui.low_short') }}
+                        {{ formatTemperature(todayForecast.temp_min, temperatureUnit) }}°
+                      </span>
+                    </div>
                   </div>
-                  <div class="flex items-center gap-2 mt-2">
-                    <span class="text-[13px] font-medium opacity-85">{{ weatherText(current) }}</span>
-                  </div>
-                  <div class="flex items-center gap-3 mt-1 text-xs opacity-50 tabular-nums">
-                    <span v-if="todayForecast">H:{{ todayForecast.temp_max !== null ? Math.round(todayForecast.temp_max) : '--' }}°</span>
-                    <span v-if="todayForecast">L:{{ todayForecast.temp_min !== null ? Math.round(todayForecast.temp_min) : '--' }}°</span>
+                  <div class="wx-hero__meta">
+                    <div class="wx-hero__icon-shell">
+                      <IconifyIcon
+                        :icon="`lucide:${weatherIcon(current.weather_code, current.is_day)}`"
+                        class="wx-hero__icon"
+                      />
+                    </div>
+                    <span class="wx-hero__unit">{{ tempUnit }}</span>
                   </div>
                 </div>
-
-                <!-- 过期提示 -->
-                <div v-if="isStale" class="relative z-[1] text-center text-[10px] opacity-40 mt-1">
+                <div v-if="isStale" class="wx-stale-badge">
                   {{ $t('plugin.weather-widget.ui.data_stale') }}
                 </div>
               </div>
 
-              <!-- 内容区域 -->
-              <div class="px-4 pb-4 flex flex-col gap-3">
+              <section class="wx-chip-grid">
+                <article
+                  v-for="metric in quickMetrics"
+                  :key="metric.key"
+                  class="wx-chip"
+                >
+                  <span>{{ metric.label }}</span>
+                  <strong :style="metric.tone ? { color: metric.tone } : undefined">
+                    {{ metric.value }}
+                  </strong>
+                  <small v-if="metric.note" :style="metric.tone ? { color: metric.tone } : undefined">
+                    {{ metric.note }}
+                  </small>
+                </article>
+              </section>
 
-                <!-- 24小时预报 -->
-                <div v-if="hourly.length > 0" class="wx-acrylic wx-noise relative overflow-hidden wx-fade-up wx-fade-up-2">
-                  <div ref="hourlyScrollRef" class="wx-hourly-scroll">
-                    <div
-                      v-for="(h, idx) in hourly"
-                      :key="idx"
-                      class="wx-hourly-item"
-                      :class="h.is_current ? 'wx-hourly-item--current' : ''"
-                    >
-                      <span class="text-[10px] opacity-60" :class="h.is_current ? 'font-semibold opacity-90' : ''">
-                        {{ formatTime(h.time, h.is_current) }}
-                      </span>
-                      <IconifyIcon :icon="`lucide:${getIcon(h.weather_code, current.is_day)}`" class="size-4 opacity-80" />
-                      <span class="text-[13px] font-semibold tabular-nums">
-                        {{ h.temperature !== null ? `${Math.round(h.temperature)}°` : '--' }}
-                      </span>
-                    </div>
-                  </div>
+              <section v-if="displayHourly.length > 0" class="wx-hourly-band">
+                <div class="wx-section-head wx-section-head--inline">
+                  <h4>{{ $t('plugin.weather-widget.ui.hourly_forecast') }}</h4>
+                  <span>{{ $t('plugin.weather-widget.ui.hourly_digest') }}</span>
                 </div>
-
-                <!-- 指标网格 2x3 -->
-                <div class="grid grid-cols-3 gap-2 wx-fade-up wx-fade-up-3">
-                  <!-- 体感温度 -->
-                  <div class="wx-acrylic wx-noise wx-metric-feels relative flex flex-col items-center gap-1 py-3 px-1">
-                    <IconifyIcon icon="lucide:thermometer" class="size-3.5 opacity-55" />
-                    <span class="text-[15px] font-bold leading-none tabular-nums">
-                      {{ current.apparent_temperature !== null ? `${Math.round(current.apparent_temperature)}°` : '--' }}
-                    </span>
-                    <span class="text-[10px] opacity-50">{{ $t('plugin.weather-widget.ui.feels_like') }}</span>
-                  </div>
-                  <!-- 湿度 -->
-                  <div class="wx-acrylic wx-noise wx-metric-humidity relative flex flex-col items-center gap-1 py-3 px-1">
-                    <IconifyIcon icon="lucide:droplets" class="size-3.5 opacity-55" />
-                    <span class="text-[15px] font-bold leading-none tabular-nums">{{ current.humidity ?? '--' }}%</span>
-                    <span class="text-[10px] opacity-50">{{ $t('plugin.weather-widget.ui.humidity') }}</span>
-                  </div>
-                  <!-- 风速 -->
-                  <div class="wx-acrylic wx-noise wx-metric-wind relative flex flex-col items-center gap-1 py-3 px-1">
-                    <IconifyIcon icon="lucide:wind" class="size-3.5 opacity-55" />
-                    <span class="text-[15px] font-bold leading-none tabular-nums">{{ current.wind_speed ?? '--' }}</span>
-                    <span class="text-[10px] opacity-50">km/h</span>
-                  </div>
-                  <!-- UV -->
-                  <div class="wx-acrylic wx-noise wx-metric-uv relative flex flex-col items-center gap-1 py-3 px-1">
-                    <IconifyIcon icon="lucide:sun-dim" class="size-3.5 opacity-55" />
-                    <span class="text-[15px] font-bold leading-none tabular-nums">{{ current.uv_index ?? '--' }}</span>
-                    <span class="text-[10px] opacity-50">UV</span>
-                  </div>
-                  <!-- AQI -->
-                  <div class="wx-acrylic wx-noise wx-metric-aqi relative flex flex-col items-center gap-1 py-3 px-1">
-                    <IconifyIcon icon="lucide:leaf" class="size-3.5 opacity-55" />
-                    <span class="text-[15px] font-bold leading-none" :style="{ color: aqiColor(airQuality?.aqi) }">
-                      {{ aqiLevel(airQuality?.aqi) }}
-                    </span>
-                    <span class="text-[10px] opacity-50">{{ $t('plugin.weather-widget.ui.aqi') }}</span>
-                  </div>
-                  <!-- 日出/日落 -->
-                  <div class="wx-acrylic wx-noise wx-metric-sun relative flex flex-col items-center gap-1 py-3 px-1">
-                    <IconifyIcon :icon="current.is_day ? 'lucide:sunrise' : 'lucide:sunset'" class="size-3.5 opacity-55" />
-                    <span class="text-[15px] font-bold leading-none tabular-nums">
-                      {{ current.is_day ? formatSunTime(todayForecast?.sunrise) : formatSunTime(todayForecast?.sunset) }}
-                    </span>
-                    <span class="text-[10px] opacity-50">
-                      {{ current.is_day ? $t('plugin.weather-widget.ui.sunrise') : $t('plugin.weather-widget.ui.sunset') }}
-                    </span>
-                  </div>
-                </div>
-
-                <!-- 多日预报 -->
-                <div v-if="forecast.length > 0" class="wx-acrylic wx-noise relative overflow-hidden wx-fade-up wx-fade-up-4">
-                  <div
-                    v-for="(day, index) in forecast"
-                    :key="day.date"
-                    class="flex items-center px-3.5 py-2.5 text-[13px]"
-                    :class="index < forecast.length - 1 ? 'border-b border-white/[0.06]' : ''"
+                <div ref="hourlyScrollRef" class="wx-hourly-scroll">
+                  <article
+                    v-for="(item, index) in displayHourly"
+                    :key="`hour-${index}`"
+                    class="wx-hour-item"
+                    :class="item.is_current ? 'wx-hour-item--active' : ''"
                   >
-                    <span class="w-9 font-semibold shrink-0">{{ formatDate(day.date, index) }}</span>
-                    <span class="w-8 text-[11px] opacity-40 shrink-0">{{ formatWeekday(day.date) }}</span>
-                    <IconifyIcon :icon="`lucide:${getIcon(day.weather_code)}`" class="size-4 mx-1.5 opacity-70 shrink-0" />
-                    <span class="opacity-45 w-7 text-right tabular-nums shrink-0 text-xs">{{ day.temp_min !== null ? Math.round(day.temp_min) : '--' }}°</span>
-                    <div class="flex-1 mx-2 wx-temp-bar-track">
-                      <div class="wx-temp-bar-fill" :style="tempBarStyle(day.temp_min, day.temp_max)" />
-                    </div>
-                    <span class="font-semibold w-7 text-right tabular-nums shrink-0 text-xs">{{ day.temp_max !== null ? Math.round(day.temp_max) : '--' }}°</span>
-                  </div>
+                    <span class="wx-hour-item__time">{{ formatHour(item.time, item.is_current) }}</span>
+                    <IconifyIcon
+                      :icon="`lucide:${weatherIcon(item.weather_code, current.is_day)}`"
+                      class="size-4"
+                    />
+                    <span class="wx-hour-item__temp">
+                      {{ formatTemperature(item.temperature, temperatureUnit) }}°
+                    </span>
+                  </article>
                 </div>
+              </section>
+
+              <div class="wx-sun-strip">
+                <article class="wx-sun-chip">
+                  <span>{{ $t('plugin.weather-widget.ui.sunrise') }}</span>
+                  <strong>{{ formatSunTime(todayForecast?.sunrise) }}</strong>
+                </article>
+                <article class="wx-sun-chip">
+                  <span>{{ $t('plugin.weather-widget.ui.sunset') }}</span>
+                  <strong>{{ formatSunTime(todayForecast?.sunset) }}</strong>
+                </article>
               </div>
+
+              <section v-if="displayForecast.length > 0" class="wx-forecast-sheet">
+                <div class="wx-section-head wx-section-head--inline">
+                  <h4>{{ $t('plugin.weather-widget.ui.forecast') }}</h4>
+                  <span>{{ $t('plugin.weather-widget.ui.forecast_digest') }}</span>
+                </div>
+                <article
+                  v-for="(day, index) in displayForecast"
+                  :key="day.date"
+                  class="wx-forecast-row"
+                >
+                  <div class="wx-forecast-row__day">
+                    <span>{{ getDayLabel(day.date, index, $t) }}</span>
+                    <small>{{ weatherText(day) }}</small>
+                  </div>
+                  <IconifyIcon :icon="`lucide:${weatherIcon(day.weather_code, current.is_day)}`" class="size-4" />
+                  <div class="wx-forecast-row__temp">
+                    <span>
+                      {{ $t('plugin.weather-widget.ui.high_short') }}
+                      {{ formatTemperature(day.temp_max, temperatureUnit) }}°
+                    </span>
+                    <span>
+                      {{ $t('plugin.weather-widget.ui.low_short') }}
+                      {{ formatTemperature(day.temp_min, temperatureUnit) }}°
+                    </span>
+                  </div>
+                </article>
+              </section>
             </template>
           </div>
         </Transition>
-      </div>
-    </template>
-  </Popover>
+      </section>
+    </div>
+  </Teleport>
 </template>

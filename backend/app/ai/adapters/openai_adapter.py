@@ -74,6 +74,13 @@ _AUDIO_MIME_TO_OPENAI_FORMAT: dict[str, str] = {
 _AUDIO_FETCH_TIMEOUT_SEC: float = 30.0
 _AUDIO_MAX_BYTES: int = 25 * 1024 * 1024  # 25 MB
 
+_RESPONSES_REASONING_SUMMARY_MODEL_PREFIXES: tuple[str, ...] = (
+    "gpt-5",
+    "o1",
+    "o3",
+    "o4",
+)
+
 
 class OpenAIAdapter(BaseAdapter):
     """
@@ -584,6 +591,7 @@ class OpenAIAdapter(BaseAdapter):
         logger.info("Responses stream request: model={}", model)
         stream = await self.client.responses.create(**request_params)
         emitted_text = False
+        emitted_reasoning = False
 
         try:
             async for event in stream:
@@ -620,6 +628,7 @@ class OpenAIAdapter(BaseAdapter):
                 if event_type in {"response.reasoning_text.delta", "response.reasoning_summary_text.delta"}:
                     delta = getattr(event, "delta", "") or ""
                     if delta:
+                        emitted_reasoning = True
                         yield ChatChunk(delta="", reasoning_delta=delta)
                     continue
 
@@ -666,6 +675,15 @@ class OpenAIAdapter(BaseAdapter):
 
                 if event_type == "response.completed":
                     response = getattr(event, "response", None)
+                    if response is not None and not emitted_reasoning:
+                        final_reasoning = self._extract_responses_reasoning_text(
+                            response,
+                        )
+                        if final_reasoning:
+                            yield ChatChunk(
+                                delta="",
+                                reasoning_delta=final_reasoning,
+                            )
                     if response is not None and not emitted_text:
                         final_text = self._extract_responses_text(response)
                         if final_text:
@@ -706,6 +724,7 @@ class OpenAIAdapter(BaseAdapter):
         supports_vision = kwargs.pop("supports_vision", True)
         supports_audio = kwargs.pop("supports_audio", False)
         supports_video = kwargs.pop("supports_video", False)
+        explicit_reasoning = kwargs.pop("reasoning", None)
         request_params: dict[str, Any] = {
             "model": model,
             "input": await self._convert_messages_to_responses_input(
@@ -723,8 +742,52 @@ class OpenAIAdapter(BaseAdapter):
             request_params["stream"] = True
         if tools:
             request_params["tools"] = self._convert_tools_for_responses(tools)
+        reasoning = self._build_responses_reasoning_config(
+            model=model,
+            explicit_reasoning=explicit_reasoning,
+        )
+        if reasoning is not None:
+            request_params["reasoning"] = reasoning
         request_params.update(kwargs)
         return request_params
+
+    def _build_responses_reasoning_config(
+        self,
+        *,
+        model: str,
+        explicit_reasoning: Any = None,
+    ) -> Any:
+        """
+        Request a concise reasoning summary when the upstream model supports it.
+        / 对支持的推理模型请求简洁 reasoning summary，便于前端展示“思考内容”。
+
+        Keep caller-provided config intact and only auto-fill missing summary.
+        / 保留调用方显式配置，仅在缺少 summary 时自动补齐。
+        """
+        if isinstance(explicit_reasoning, dict):
+            if explicit_reasoning.get("summary") is not None:
+                return explicit_reasoning
+            if not self._supports_responses_reasoning_summary(model):
+                return explicit_reasoning
+            return {
+                **explicit_reasoning,
+                "summary": "auto",
+            }
+
+        if explicit_reasoning is not None:
+            return explicit_reasoning
+
+        if not self._supports_responses_reasoning_summary(model):
+            return None
+
+        return {"summary": "auto"}
+
+    def _supports_responses_reasoning_summary(self, model: str) -> bool:
+        normalized = str(model or "").strip().lower()
+        return any(
+            normalized.startswith(prefix)
+            for prefix in _RESPONSES_REASONING_SUMMARY_MODEL_PREFIXES
+        )
 
     def _convert_tools_for_responses(self, tools: list[dict]) -> list[dict]:
         converted: list[dict] = []
@@ -810,10 +873,15 @@ class OpenAIAdapter(BaseAdapter):
             url = str(att.get("url") or "").strip()
             name = att.get("name") or att.get("filename") or "file"
             att_mime = str(att.get("mime_type") or "")
+            attachment_id = att.get("attachment_id")
 
             if att_type == "image":
                 if supports_vision and url:
-                    resolved = await self._resolve_image_url_for_llm(url, att_mime)
+                    resolved = await self._resolve_image_url_for_llm(
+                        url,
+                        att_mime,
+                        attachment_id=attachment_id,
+                    )
                     if resolved:
                         parts.append({
                             "type": "input_image",
@@ -899,13 +967,36 @@ class OpenAIAdapter(BaseAdapter):
             })
         return tool_calls or None
 
+    def _extract_responses_reasoning_text(self, response: Any) -> str | None:
+        parts: list[str] = []
+
+        for item in getattr(response, "output", []) or []:
+            if getattr(item, "type", None) != "reasoning":
+                continue
+
+            for summary_item in getattr(item, "summary", []) or []:
+                text = getattr(summary_item, "text", None)
+                if isinstance(text, str) and text.strip():
+                    parts.append(text.strip())
+                    continue
+
+                nested_text = getattr(summary_item, "summary_text", None)
+                if isinstance(nested_text, str) and nested_text.strip():
+                    parts.append(nested_text.strip())
+
+        if not parts:
+            return None
+        return "\n\n".join(parts)
+
     def _convert_responses_chat_response(self, response: Any, model: str) -> ChatResponse:
         tool_calls = self._extract_responses_tool_calls(response)
+        reasoning_content = self._extract_responses_reasoning_text(response)
         usage = getattr(response, "usage", None)
         return ChatResponse(
             message=ChatMessage(
                 role="assistant",
                 content=self._extract_responses_text(response),
+                reasoning_content=reasoning_content,
                 tool_calls=tool_calls,
             ),
             input_tokens=getattr(usage, "input_tokens", None),
@@ -972,7 +1063,13 @@ class OpenAIAdapter(BaseAdapter):
             logger.warning("Fetch audio URL failed: {}", e)
             return None
 
-    async def _resolve_image_url_for_llm(self, att_url: str, att_mime: str) -> str | None:
+    async def _resolve_image_url_for_llm(
+        self,
+        att_url: str,
+        att_mime: str,
+        *,
+        attachment_id: object = None,
+    ) -> str | None:
         """
         Convert attachment / remote image URL to data URL for vendor multimodal APIs.
         """
@@ -983,6 +1080,7 @@ class OpenAIAdapter(BaseAdapter):
             att_mime or None,
             db=db,
             tenant_id=tenant_id,
+            attachment_id=attachment_id,
         )
 
     async def _convert_messages(
@@ -1027,10 +1125,13 @@ class OpenAIAdapter(BaseAdapter):
                     att_url = att.get("url", "")
                     att_name = att.get("name", "")
                     att_mime = att.get("mime_type", "")
+                    attachment_id = att.get("attachment_id")
                     if att_type == "image" and att_url:
                         if supports_vision:
                             resolved = await self._resolve_image_url_for_llm(
-                                att_url, att_mime,
+                                att_url,
+                                att_mime,
+                                attachment_id=attachment_id,
                             )
                             if resolved:
                                 content_parts.append({

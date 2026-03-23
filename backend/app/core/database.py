@@ -18,6 +18,10 @@ from sqlalchemy.orm import sessionmaker
 
 from app.core.config import settings
 from app.core.logging import LogManager
+from app.plugins.migration_paths import (
+    build_migration_version_locations,
+    purge_migration_bytecode,
+)
 
 logger = LogManager.get_logger("db")
 
@@ -481,7 +485,6 @@ def purge_orphaned_alembic_stamps(backend_dir: Path | None = None) -> bool:
     用于 codegen auto-migrate 前清理插件残留（如 sm_001_init），避免 alembic revision 报错。
     Used before codegen auto-migrate to clean plugin residuals.
     """
-    import os
     import re
 
     backend = backend_dir or Path(__file__).resolve().parent.parent.parent
@@ -507,14 +510,12 @@ def purge_orphaned_alembic_stamps(backend_dir: Path | None = None) -> bool:
                 _failed_reads.append(str(f))
                 logger.warning("Cannot read migration file {}: {}", f, e)
 
-    _collect(versions_path)
-    # 与 env.py / run_migrations / CLI 一致：插件迁移在 backend/plugins/* 下，非仓库根 plugins/
-    plugins_root = backend / "plugins"
-    if plugins_root.is_dir():
-        for p in sorted(plugins_root.iterdir()):
-            if not p.is_dir() or p.name.startswith("."):
-                continue
-            _collect(p / "backend" / "migrations" / "versions")
+    db_url = settings.DATABASE_URL_SYNC.replace("\\", "/")
+    for version_location in build_migration_version_locations(
+        backend_dir=backend,
+        db_url=db_url,
+    ):
+        _collect(Path(version_location))
 
     if _failed_reads:
         logger.warning(
@@ -526,7 +527,6 @@ def purge_orphaned_alembic_stamps(backend_dir: Path | None = None) -> bool:
     if not known_revs:
         return True
 
-    db_url = settings.DATABASE_URL_SYNC.replace("\\", "/")
     # 临时抑制 SQLAlchemy SQL 日志，避免 codegen rollback/generate 时控制台刷屏
     import logging as _log
     _sa_log = _log.getLogger("sqlalchemy.engine")
@@ -590,6 +590,16 @@ def run_migrations() -> bool:
         env["PYTHONUTF8"] = "1"
 
         db_url = settings.DATABASE_URL_SYNC.replace("\\", "/")
+        version_locations = build_migration_version_locations(
+            backend_dir=backend_dir,
+            db_url=db_url,
+        )
+        purged_bytecode = purge_migration_bytecode(version_locations)
+        if purged_bytecode:
+            logger.info(
+                "Purged {} cached migration bytecode file(s) before Alembic run",
+                len(purged_bytecode),
+            )
 
         versions_path = str(backend_dir / "migrations" / "versions")
 
@@ -614,6 +624,8 @@ if backend_dir not in sys.path:
 #   - revision: str = 'xxx'
 # 并同时扫描主应用 + plugins/* 的迁移目录，避免误删合法插件 revision。
 versions_dir = {versions_path!r}
+db_url = {db_url!r}
+version_locations = {version_locations!r}
 known_revs = set()
 _rev_pat = re.compile(r'^revision\\s*(?::[^=]*)?=\\s*[\"\\']([^\"\\']+)[\"\\']', re.MULTILINE)
 
@@ -632,28 +644,17 @@ def _collect_revisions_from_dir(_dir: str) -> None:
         except Exception:
             pass
 
-# 主应用迁移
-_collect_revisions_from_dir(versions_dir)
+for _version_dir in version_locations:
+    _collect_revisions_from_dir(_version_dir)
 
-# 插件迁移（全部插件目录；跳过隐藏目录）
-plugins_root = os.path.join(os.path.dirname(os.path.dirname(versions_dir)), 'plugins')
-if os.path.isdir(plugins_root):
-    for _plugin_name in sorted(os.listdir(plugins_root)):
-        if _plugin_name.startswith('.'):
-            continue
-        _plugin_root = os.path.join(plugins_root, _plugin_name)
-        if not os.path.isdir(_plugin_root):
-            continue
-        _plugin_versions_dir = os.path.join(
-            plugins_root, _plugin_name, 'backend', 'migrations', 'versions'
-        )
-        _collect_revisions_from_dir(_plugin_versions_dir)
-
-print(f'[migration] Known revisions (main+plugins): {{len(known_revs)}}')
+print(
+    f'[migration] Version locations: {{len(version_locations)}}, '
+    f'known revisions: {{len(known_revs)}}'
+)
 
 # 安全检查：若 known_revs 为空（regex 未匹配到任何文件），跳过清理，避免误删合法 stamp
 if known_revs:
-    engine = create_engine({db_url!r})
+    engine = create_engine(db_url)
     with engine.connect() as conn:
         rows = conn.execute(text('SELECT version_num FROM alembic_version')).fetchall()
         for row in rows:
@@ -669,24 +670,11 @@ else:
 # Step 2: 运行迁移（主应用 + 插件 revision 可解析）
 cfg = Config({str(alembic_ini)!r})
 cfg.set_main_option('script_location', {str(backend_dir / 'migrations')!r})
-cfg.set_main_option('sqlalchemy.url', {db_url!r})
+cfg.set_main_option('sqlalchemy.url', db_url)
 
 # 关键：command.upgrade 在创建 ScriptDirectory 时就会读取 version_locations，
 # 不能只依赖 env.py 里后置 set_main_option（那时已太晚）。
-_version_locations = [versions_dir]
-if os.path.isdir(plugins_root):
-    for _plugin_name in sorted(os.listdir(plugins_root)):
-        if _plugin_name.startswith('.'):
-            continue
-        _plugin_root = os.path.join(plugins_root, _plugin_name)
-        if not os.path.isdir(_plugin_root):
-            continue
-        _plugin_versions_dir = os.path.join(
-            plugins_root, _plugin_name, 'backend', 'migrations', 'versions'
-        )
-        if os.path.isdir(_plugin_versions_dir):
-            _version_locations.append(_plugin_versions_dir)
-cfg.set_main_option('version_locations', '\\n'.join(_version_locations))
+cfg.set_main_option('version_locations', '\\n'.join(version_locations))
 
 try:
     command.upgrade(cfg, 'heads')
@@ -696,7 +684,7 @@ except Exception as e:
     # 若已有 revision 记录仍报 DuplicateTable，多为卡在某条迁移上；此时 stamp heads 会跳过后续 ALTER，
     # 导致 ORM（如 owner_tenant_id）与真实库列不一致——禁止自动 stamp。
     if 'already exists' in err_str or 'DuplicateTable' in type(e).__name__:
-        eng = create_engine({db_url!r})
+        eng = create_engine(db_url)
         stamp_count = -1
         try:
             with eng.connect() as c:
@@ -721,7 +709,7 @@ except Exception as e:
 
             recovered, recover_msg = maybe_recover_missing_main_branch_stamp(
                 cfg=cfg,
-                db_url={db_url!r},
+                db_url=db_url,
                 main_versions_dir=Path(versions_dir),
             )
             if recovered:
@@ -731,7 +719,7 @@ except Exception as e:
                 print(
                     '[migration] DuplicateTable/already exists but alembic_version is nonempty; '
                     + recover_msg
-                    + '. Fix the DB conflict or run: alembic upgrade heads'
+                    + '. Fix the DB conflict or run: python -m app.cli db upgrade heads'
                 )
                 raise
     else:
@@ -816,7 +804,7 @@ async def init_database() -> bool:
             )
         logger.error(
             "Database init failed at step: run_migrations — "
-            "run manually: cd backend && alembic upgrade heads"
+            "run manually: cd backend && python -m app.cli db upgrade heads"
         )
         return False
 

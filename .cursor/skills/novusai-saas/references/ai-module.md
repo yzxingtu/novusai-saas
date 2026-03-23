@@ -242,6 +242,7 @@ tools_schema = skill_result.to_openai_tools()
 - `to_openai_tools()` 将工具转为模型可见的 function schema
 - `PageOperationExecutor` 通过 `invoke_page_operation()` 创建 asyncio.Future，经 Socket.IO 下发操作指令到前端
 - `PageSessionMixin` 管理 page_session 房间加入/离开，处理操作结果回调
+- `capture_screenshot` 属于页面操作而非普通上传按钮逻辑；截图成功后，后端必须把附件作为内部多模态消息注入下一轮 LLM，且持久化阶段要跳过该内部消息
 
 #### 关键规则
 
@@ -250,11 +251,13 @@ tools_schema = skill_result.to_openai_tools()
 - `_PROTECTED_TOOL_NAMES` 白名单保护 `get_page_context`、`invoke_page_operation`、`list_page_operations` 不被工具优化器过滤
 - `pageop_*` 不再只用于富文本编辑器；`search`、`refresh_list`、`read_visible_rows`、`read_row_detail`、`get_form_state`、`fill_form`、`validate_form`、`get_form_options`、分页等高频页面操作也应优先展开
 - **tool-first 原则**：有专用 `pageop_*` 时，模型优先直调专用工具；仅对未展开的剩余操作使用 `invoke_page_operation`
+- `capture_screenshot` 只允许在当前运行模型支持视觉时执行；默认先使用文本页面上下文，避免滥用截图
 - `readonly=true` 操作直接执行，`readonly=false` 操作前端弹出确认对话框
 - 操作确认超时 60s，超时后自动清理 pending 确认卡片与结果等待链路
 - 前端页面操作通道必须按 `invoke_id` 做幂等保护；重复事件应等待首个执行完成后回放缓存结果，禁止重复执行或重复弹确认
 - 页面操作通道必须校验 `event.page_key` 是否等于当前活动页面 key；不匹配时返回 `page_key_mismatch`，禁止误操作错误页面
 - Agent Loop 链式自动确认只允许在当前页面会话内短时复用；页面会话切换、leave 或断线时必须清空链式确认状态
+- 后端 `get_active_session_id()` 只在 `(scope, user_id, page_key)` 存在唯一活跃 `page_session_id` 时才允许 fallback 恢复；多标签页歧义场景必须返回 `None`
 - 已覆盖 29 页面（Admin 19 + Tenant 10），标准操作类型：`refresh_list`、`refresh_dashboard`、`export_data`、`navigate_to`
 
 #### SkillPackage 目录与资源作用域规则

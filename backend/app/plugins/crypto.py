@@ -20,13 +20,46 @@ logger = get_logger(__name__)
 _FERNET_PREFIX = "gAAAAA"
 
 
-def _get_encrypted_fields(schema: dict) -> set[str]:
-    """Extract field names marked with x-encrypted from JSON Schema / 从 JSON Schema 中提取标记了 x-encrypted 的字段名"""
-    fields: set[str] = set()
-    for name, prop in schema.get("properties", {}).items():
-        if prop.get("x-encrypted"):
-            fields.add(name)
-    return fields
+def _walk_schema_value(
+    value,
+    schema: dict,
+    *,
+    transform,
+):
+    """Recursively walk config data with JSON Schema metadata.
+
+    Supports nested object properties and arrays while preserving unknown keys.
+    """
+    if not isinstance(schema, dict):
+        return value
+
+    if schema.get("x-encrypted"):
+        return transform(value)
+
+    schema_type = str(schema.get("type") or "").strip().lower()
+    if schema_type == "object" and isinstance(value, dict):
+        result = dict(value)
+        properties = schema.get("properties") or {}
+        for name, prop_schema in properties.items():
+            if name not in result:
+                continue
+            result[name] = _walk_schema_value(
+                result[name],
+                prop_schema if isinstance(prop_schema, dict) else {},
+                transform=transform,
+            )
+        return result
+
+    if schema_type == "array" and isinstance(value, list):
+        item_schema = schema.get("items") or {}
+        if not isinstance(item_schema, dict):
+            return list(value)
+        return [
+            _walk_schema_value(item, item_schema, transform=transform)
+            for item in value
+        ]
+
+    return value
 
 
 def encrypt_plugin_config(config: dict, schema: dict) -> dict:
@@ -39,19 +72,15 @@ def encrypt_plugin_config(config: dict, schema: dict) -> dict:
     """
     from app.core.security import encrypt_data
 
-    encrypted_fields = _get_encrypted_fields(schema)
-    if not encrypted_fields:
-        return config
-
-    result = dict(config)
-    for name in encrypted_fields:
-        val = result.get(name)
+    def _encrypt_leaf(val):
         if val and isinstance(val, str) and not val.startswith(_FERNET_PREFIX):
             try:
-                result[name] = encrypt_data(val)
+                return encrypt_data(val)
             except Exception as exc:
-                logger.warning("Failed to encrypt config field '{}': {}", name, exc)
-    return result
+                logger.warning("Failed to encrypt config field: {}", exc)
+        return val
+
+    return _walk_schema_value(dict(config), schema, transform=_encrypt_leaf)
 
 
 def decrypt_plugin_config(config: dict, schema: dict) -> dict:
@@ -64,20 +93,16 @@ def decrypt_plugin_config(config: dict, schema: dict) -> dict:
     """
     from app.core.security import decrypt_data
 
-    encrypted_fields = _get_encrypted_fields(schema)
-    if not encrypted_fields:
-        return config
-
-    result = dict(config)
-    for name in encrypted_fields:
-        val = result.get(name)
+    def _decrypt_leaf(val):
         if val and isinstance(val, str) and val.startswith(_FERNET_PREFIX):
             try:
-                result[name] = decrypt_data(val)
+                return decrypt_data(val)
             except Exception as exc:
-                logger.warning("Failed to decrypt config field '{}': {}", name, exc)
-                result[name] = ""
-    return result
+                logger.warning("Failed to decrypt config field: {}", exc)
+                return ""
+        return val
+
+    return _walk_schema_value(dict(config), schema, transform=_decrypt_leaf)
 
 
 def mask_plugin_config(config: dict, schema: dict) -> dict:
@@ -88,16 +113,11 @@ def mask_plugin_config(config: dict, schema: dict) -> dict:
     Used for response processing when viewing plugin config in admin panel.
     / 用于管理端查看插件配置时的响应处理。
     """
-    encrypted_fields = _get_encrypted_fields(schema)
-    if not encrypted_fields:
-        return config
-
-    result = dict(config)
-    for name in encrypted_fields:
-        val = result.get(name)
+    def _mask_leaf(val):
         if val and isinstance(val, str):
             if len(val) > 6:
-                result[name] = val[:3] + "***" + val[-3:]
-            else:
-                result[name] = "***"
-    return result
+                return val[:3] + "***" + val[-3:]
+            return "***"
+        return val
+
+    return _walk_schema_value(dict(config), schema, transform=_mask_leaf)

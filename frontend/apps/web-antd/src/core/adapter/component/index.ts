@@ -181,6 +181,22 @@ const withPreviewUpload = () => {
     visible: Ref<boolean>,
     fileList: Ref<UploadProps['fileList']>,
   ) => {
+    type UploadPreviewFile = UploadFile & {
+      previewUrl?: string;
+      preview_url?: string;
+    };
+
+    const getPreviewSource = (item: UploadFile): string | undefined => {
+      const previewFile = item as UploadPreviewFile;
+      if (previewFile.previewUrl) {
+        return previewFile.previewUrl;
+      }
+      if (previewFile.preview_url) {
+        return previewFile.preview_url;
+      }
+      return typeof item.preview === 'string' ? item.preview : item.url;
+    };
+
     // Helper function to check if file is an image / 检查是否为图片文件的辅助函数
     const isImageFile = (file: UploadFile): boolean => {
       const imageExtensions = new Set([
@@ -191,8 +207,9 @@ const withPreviewUpload = () => {
         'png',
         'webp',
       ]);
-      if (file.url) {
-        const ext = file.url?.split('.').pop()?.toLowerCase();
+      const previewSource = getPreviewSource(file);
+      if (previewSource) {
+        const ext = previewSource.split('?')[0]?.split('.').pop()?.toLowerCase();
         return ext ? imageExtensions.has(ext) : false;
       }
       if (!file.type) {
@@ -204,10 +221,9 @@ const withPreviewUpload = () => {
 
     // If current file is not an image, open directly / 如果当前文件不是图片，直接打开
     if (!isImageFile(file)) {
-      if (file.url) {
-        window.open(file.url, '_blank');
-      } else if (file.preview) {
-        window.open(file.preview, '_blank');
+      const previewSource = getPreviewSource(file);
+      if (previewSource) {
+        window.open(previewSource, '_blank');
       } else {
         message.error($t('ui.formRules.previewWarning'));
       }
@@ -235,7 +251,7 @@ const withPreviewUpload = () => {
 
     // Generate previews for all images without preview URLs / 为所有没有预览地址的图片生成预览
     for (const imgFile of imageFiles) {
-      if (!imgFile.url && !imgFile.preview && imgFile.originFileObj) {
+      if (!getPreviewSource(imgFile) && imgFile.originFileObj) {
         imgFile.preview = (await getBase64(imgFile.originFileObj)) as string;
       }
     }
@@ -277,7 +293,7 @@ const withPreviewUpload = () => {
               imageFiles.map((imgFile) =>
                 h(ImageComponent, {
                   key: imgFile.uid,
-                  src: imgFile.url || imgFile.preview,
+                  src: getPreviewSource(imgFile),
                 }),
               ),
           );

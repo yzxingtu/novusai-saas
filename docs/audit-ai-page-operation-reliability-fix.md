@@ -3,6 +3,8 @@
 **审计日期**：基于当前实现  
 **对照文档**：`@ai页面操作可靠性修复_c5e1391f.plan.md` + NovusAI SaaS 项目规范
 
+> 历史说明：文中出现的“企业端智能体测试抽屉”为审计当时存在的一套测试 UI。该组件现已删除，相关对话反馈能力已并入统一聊天页；本报告保留的是当时审计结论。
+
 ---
 
 ## 一、计划文档符合性
@@ -31,12 +33,12 @@
 | C1 统一 error_type 枚举 | ✅ | timeout、user_cancelled、not_registered、invalid_input、execution_failed、session_not_found |
 | C2 session 失效提示 | ✅ | session_not_found → pageOpSessionNotFoundHint |
 
-### 阶段 D：AgentTestDrawer
+### 阶段 D：历史测试抽屉
 
 | 检查项 | 状态 | 说明 |
 |--------|------|------|
-| tool_start 处理 | ✅ | 支持 running → success/error 完整可视化 |
-| 与主聊天对齐 | ⚠️ | 独立实现 CollapsePanel+Tag，未复用 ChatMessageItem 工具卡片（计划建议复用以减少逻辑漂移，当前可接受） |
+| tool_start 处理 | ✅ | 当时支持 running → success/error 完整可视化 |
+| 与主聊天对齐 | ⚠️ | 审计当时为独立实现 CollapsePanel+Tag，未复用 ChatMessageItem 工具卡片；后续该历史组件已下线，能力已并入统一聊天页 |
 
 ### 阶段 E：测试与验收
 
@@ -80,7 +82,7 @@
 
 ## 四、待改进项（非阻塞）
 
-1. **AgentTestDrawer 复用**：可考虑抽取工具卡片为公共组件，供主聊天与 Drawer 共用，减少两套逻辑。
+1. **历史结论已收口**：原“测试抽屉与主聊天页双实现”问题已随着该组件下线而自然消失；当前应继续关注统一聊天页自身的工具反馈一致性，而不是恢复旧抽屉。
 
 ---
 

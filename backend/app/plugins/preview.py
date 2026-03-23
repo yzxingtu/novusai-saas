@@ -44,6 +44,7 @@ _CAPABILITY_DESCRIPTIONS: dict[str, dict[str, str]] = {
     "db:read": {"zh-CN": "读取数据库", "en": "Read database"},
     "db:write": {"zh-CN": "写入数据库", "en": "Write to database"},
     "db:own_tables": {"zh-CN": "操作自有数据表", "en": "Operate own tables"},
+    "platform:read": {"zh-CN": "读取宿主平台快照", "en": "Read host platform snapshots"},
     "http:outbound": {"zh-CN": "发送外部 HTTP 请求", "en": "Send outbound HTTP requests"},
     "storage:read": {"zh-CN": "读取存储文件", "en": "Read storage files"},
     "storage:write": {"zh-CN": "写入存储文件", "en": "Write storage files"},

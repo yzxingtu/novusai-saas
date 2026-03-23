@@ -19,8 +19,8 @@ import {
 } from 'ant-design-vue';
 
 import {
+  downloadAttachmentApi,
   getAttachmentDetailApi,
-  getAttachmentDownloadUrlApi,
 } from '#/api/tenant/attachment';
 import { FilePreview } from '#/components/business/file-preview';
 import { $t } from '#/locales';
@@ -74,14 +74,11 @@ function onPreview() {
 async function onDownload() {
   if (!detail.value) return;
   try {
-    const result = await getAttachmentDownloadUrlApi(detail.value.id);
-    const link = document.createElement('a');
-    link.href = result.url;
-    link.download = detail.value.name;
-    link.target = '_blank';
-    document.body.append(link);
-    link.click();
-    link.remove();
+    await downloadAttachmentApi(
+      detail.value.id,
+      detail.value.name,
+      detail.value.mimeType,
+    );
     message.success($t('tenant.system.attachment.messages.downloadStarted'));
   } catch {
     // Error handled by request interceptor / 错误由请求拦截器处理

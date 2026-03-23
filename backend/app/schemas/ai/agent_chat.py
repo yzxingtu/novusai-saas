@@ -18,6 +18,10 @@ PAGE_CONTEXT_KEY = "page_context"
 class ChatAttachment(BaseModel):
     """对话附件（图片/文件/音频/视频） / Chat attachment (image/file/audio/video)."""
 
+    attachment_id: int | None = Field(
+        None,
+        description="Attachment ID for refreshing signed URLs / 用于刷新签名 URL 的附件 ID",
+    )
     type: Literal["image", "file", "audio", "video"] = Field(
         ..., description=_("agent_chat.field.attachment_type"),
     )

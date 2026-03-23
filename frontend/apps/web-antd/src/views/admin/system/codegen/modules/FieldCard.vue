@@ -71,7 +71,7 @@ const capabilityBadges = computed(() => {
   <div
     v-if="isDivider"
     :data-field-key="String(field.__key || '')"
-    class="group flex items-center gap-3 rounded-[22px] border border-dashed px-4 py-3 transition-colors"
+    class="group flex items-center gap-3 rounded-[16px] border border-dashed px-3 py-2.5 transition-colors"
     :class="
       selected
         ? 'bg-primary/8 border-primary shadow-sm'
@@ -81,13 +81,13 @@ const capabilityBadges = computed(() => {
   >
     <button
       type="button"
-      class="drag-handle inline-flex size-9 cursor-grab items-center justify-center rounded-2xl border border-border/70 bg-muted/20 text-muted-foreground active:cursor-grabbing"
+      class="drag-handle inline-flex size-8 cursor-grab items-center justify-center rounded-xl border border-border/70 bg-muted/20 text-muted-foreground active:cursor-grabbing"
     >
       <IconifyIcon icon="lucide:grip-vertical" class="size-4" />
     </button>
 
     <div
-      class="flex size-9 items-center justify-center rounded-2xl bg-background ring-1 ring-border/70"
+      class="flex size-8 items-center justify-center rounded-xl bg-background ring-1 ring-border/70"
     >
       <IconifyIcon icon="lucide:minus" class="size-4 text-muted-foreground" />
     </div>
@@ -124,7 +124,7 @@ const capabilityBadges = computed(() => {
   <div
     v-else
     :data-field-key="String(field.__key || '')"
-    class="group flex gap-4 rounded-[22px] border px-4 py-4 transition-all"
+    class="group flex gap-3 rounded-[16px] border px-3 py-3 transition-all"
     :class="
       selected
         ? 'bg-primary/8 border-primary shadow-sm'
@@ -135,15 +135,15 @@ const capabilityBadges = computed(() => {
     <div class="flex items-start gap-3">
       <button
         type="button"
-        class="drag-handle mt-0.5 inline-flex size-9 cursor-grab items-center justify-center rounded-2xl border border-border/70 bg-muted/20 text-muted-foreground active:cursor-grabbing"
+        class="drag-handle mt-0.5 inline-flex size-8 cursor-grab items-center justify-center rounded-xl border border-border/70 bg-muted/20 text-muted-foreground active:cursor-grabbing"
       >
         <IconifyIcon icon="lucide:grip-vertical" class="size-4" />
       </button>
 
       <div
-        class="flex size-10 items-center justify-center rounded-2xl bg-background shadow-sm ring-1 ring-border/70"
+        class="flex size-9 items-center justify-center rounded-xl bg-background shadow-sm ring-1 ring-border/70"
       >
-        <IconifyIcon :icon="icon" class="size-5 text-foreground" />
+        <IconifyIcon :icon="icon" class="size-4.5 text-foreground" />
       </div>
     </div>
 
@@ -192,11 +192,11 @@ const capabilityBadges = computed(() => {
         </Button>
       </div>
 
-      <div class="mt-3 flex flex-wrap gap-2">
+      <div class="mt-2.5 flex flex-wrap gap-1.5">
         <span
           v-for="badge in capabilityBadges"
           :key="badge"
-          class="rounded-full border border-border/70 bg-muted/20 px-2 py-0.5 text-[11px] text-muted-foreground"
+          class="rounded-full border border-border/70 bg-muted/20 px-2 py-0.5 text-[10px] text-muted-foreground"
         >
           {{ badge }}
         </span>

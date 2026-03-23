@@ -14,11 +14,11 @@ Parent-child relationship handling / 父子关系处理:
 - Supports menu hierarchy changes (moving to different parent) / 支持菜单层级变更（移动到不同父级）
 """
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import LoggerMixin
-from app.enums.rbac import PermissionType
+from app.enums.rbac import PermissionScope, PermissionType
 from app.models.auth.permission import Permission
 from app.rbac.decorators import PermissionMeta
 from app.rbac.registry import permission_registry
@@ -78,6 +78,46 @@ class PermissionSyncService(LoggerMixin):
     def _make_key(self, code: str, scope: str) -> str:
         """Generate permission unique key (code + scope) / 生成权限唯一标识（code + scope）"""
         return f"{code}:{scope}"
+
+    @staticmethod
+    def _normalize_plugin_permission_scope(raw_scope: str) -> str:
+        """
+        Normalize plugin permission scope value to DB scope values.
+        / 规范化插件权限 scope，映射到 DB scope 值。
+        """
+        scope = str(raw_scope or "").strip().lower()
+        if scope in {
+            PermissionScope.ADMIN.value,
+            PermissionScope.TENANT.value,
+            PermissionScope.BOTH.value,
+        }:
+            return scope
+        # Backward-compatible fallback for legacy/unexpected values
+        # / 兼容历史/异常值，默认按 tenant 处理
+        return PermissionScope.TENANT.value
+
+    @staticmethod
+    def _resolve_plugin_permission_name(raw_name: object, code: str, action: str) -> str:
+        """
+        Resolve plugin permission display name from i18n dict/string.
+        / 从 i18n 字典或字符串解析插件权限名称。
+        """
+        suffix = f"{code}:{action}"
+        if isinstance(raw_name, str) and raw_name.strip():
+            return f"{raw_name.strip()}:{action}"
+        if isinstance(raw_name, dict):
+            preferred = (
+                str(raw_name.get("zh-CN") or "").strip(),
+                str(raw_name.get("en") or "").strip(),
+            )
+            for item in preferred:
+                if item:
+                    return f"{item}:{action}"
+            for value in raw_name.values():
+                text = str(value or "").strip()
+                if text:
+                    return f"{text}:{action}"
+        return suffix
 
     async def sync_permissions(self) -> dict[str, int]:
         """
@@ -232,13 +272,13 @@ class PermissionSyncService(LoggerMixin):
 
     async def sync_plugin_permissions(self, plugin_name: str) -> int:
         """
-        Sync only specified plugin's menu permissions (flush, no commit, no orphan handling).
-        仅同步指定插件的菜单权限（flush，不 commit，不处理孤儿权限）。
+        Sync specified plugin permissions (menus + plugin action permissions, flush only).
+        / 同步指定插件权限（菜单 + 插件动作权限，flush 不 commit）。
 
         Used during plugin enable flow, avoids sync_permissions()'s commit breaking outer transaction atomicity.
-        Only processes registered plugin permissions (create/update), won't disable any existing permissions.
-        用于插件 enable 流程中途调用，避免 sync_permissions() 的 commit 破坏外层事务原子性。
-        只处理代码中已注册的该插件权限，不会禁用任何现有权限。
+        Also disables stale permission rows under plugin-related prefixes.
+        / 用于插件 enable 流程中途调用，避免 sync_permissions() 的 commit 破坏外层事务原子性。
+        同时会禁用该插件前缀下失效的权限记录。
 
         Args:
             plugin_name: Plugin name (for prefix filtering, e.g. "my-plugin") / 插件名称（用于前缀过滤）
@@ -249,20 +289,80 @@ class PermissionSyncService(LoggerMixin):
         safe_name = plugin_name.replace("-", "_")
         prefix_admin = f"menu:admin.plugin_{safe_name}_"
         prefix_tenant = f"menu:tenant.plugin_{safe_name}_"
+        prefix_plugin = f"plugin.{plugin_name}."
 
-        # Only process permissions belonging to this plugin / 只处理属于此插件的权限
-        plugin_perms = [
+        # 1) Menu permissions from permission_registry bridge
+        # / 菜单权限（来自 permission_registry 桥接）
+        plugin_menu_perms = [
             p for p in permission_registry.get_all()
             if p.code.startswith(prefix_admin) or p.code.startswith(prefix_tenant)
         ]
+
+        # 2) Action permissions from plugin extension registry
+        # / 动作权限（来自插件 extension registry）
+        from app.plugins.registry import ExtensionRegistry
+
+        plugin_permission_exts = ExtensionRegistry.get_instance().get_plugin_permissions(
+            plugin_name
+        )
+
+        plugin_action_perms: list[PermissionMeta] = []
+        for perm_ext in plugin_permission_exts:
+            base_code = str(perm_ext.get("code") or "").strip()
+            if not base_code:
+                continue
+            actions = [
+                str(action).strip()
+                for action in (perm_ext.get("actions") or [])
+                if str(action).strip()
+            ]
+            if not actions:
+                continue
+
+            scope_value = self._normalize_plugin_permission_scope(
+                str(perm_ext.get("scope") or "")
+            )
+            if scope_value == PermissionScope.ADMIN.value:
+                scope_enum = PermissionScope.ADMIN
+            elif scope_value == PermissionScope.BOTH.value:
+                scope_enum = PermissionScope.BOTH
+            else:
+                scope_enum = PermissionScope.TENANT
+
+            raw_name = perm_ext.get("name")
+            for index, action in enumerate(actions):
+                code = f"{base_code}:{action}"
+                plugin_action_perms.append(
+                    PermissionMeta(
+                        code=code,
+                        name=self._resolve_plugin_permission_name(raw_name, base_code, action),
+                        type=PermissionType.OPERATION,
+                        scope=scope_enum,
+                        resource=base_code,
+                        action=action,
+                        parent_code=None,
+                        sort_order=100 + index,
+                        hidden=False,
+                    )
+                )
+
+        plugin_perms = [*plugin_menu_perms, *plugin_action_perms]
         if not plugin_perms:
             return 0
+
+        registered_keys = {
+            self._make_key(p.code, p.scope.value)
+            for p in plugin_perms
+        }
 
         # Query existing plugin permissions (including is_deleted) / 查询已有的插件权限（含 is_deleted）
         result = await self.db.execute(
             select(Permission).where(
-                (Permission.code.startswith(prefix_admin, autoescape=True))
-                | (Permission.code.startswith(prefix_tenant, autoescape=True))
+                or_(
+                    Permission.code.startswith(prefix_admin, autoescape=True),
+                    Permission.code.startswith(prefix_tenant, autoescape=True),
+                    Permission.code.startswith(prefix_plugin, autoescape=True),
+                )
             )
         )
         existing_db: dict[str, Permission] = {
@@ -276,11 +376,45 @@ class PermissionSyncService(LoggerMixin):
 
         count = 0
         sorted_perms = self._topological_sort(plugin_perms)
+
+        # Derive default parent menu codes for action permission attachment.
+        # Resolved to IDs dynamically during loop, so first-time sync can still attach
+        # after menu rows are created in this transaction.
+        # / 先推导父菜单 code，在循环中动态解析 ID，保证首次同步时菜单新建后也能挂载动作权限。
+        tenant_parent_code = next(
+            (
+                meta.code
+                for meta in sorted_perms
+                if meta.type == PermissionType.MENU
+                and meta.code.startswith(prefix_tenant)
+            ),
+            "",
+        )
+        admin_parent_code = next(
+            (
+                meta.code
+                for meta in sorted_perms
+                if meta.type == PermissionType.MENU
+                and meta.code.startswith(prefix_admin)
+            ),
+            "",
+        )
+
         for perm_meta in sorted_perms:
             perm_key = self._make_key(perm_meta.code, perm_meta.scope.value)
             parent_id = None
             if perm_meta.parent_code:
                 parent_id = code_to_id.get(perm_meta.parent_code)
+            elif (
+                perm_meta.type == PermissionType.OPERATION
+                and perm_meta.code.startswith(prefix_plugin)
+            ):
+                # Attach plugin operations to plugin menu root by scope for RBAC tree/plan-chain compatibility.
+                # / 将插件动作权限按 scope 挂到插件菜单根节点，兼容 RBAC 树与套餐权限链路。
+                if perm_meta.scope == PermissionScope.ADMIN:
+                    parent_id = code_to_id.get(admin_parent_code)
+                elif perm_meta.scope in {PermissionScope.TENANT, PermissionScope.BOTH}:
+                    parent_id = code_to_id.get(tenant_parent_code)
 
             if perm_key in existing_db:
                 db_perm = existing_db[perm_key]
@@ -318,9 +452,18 @@ class PermissionSyncService(LoggerMixin):
                 code_to_id[perm_meta.code] = db_perm.id
             count += 1
 
-        if count:
+        disabled_count = 0
+        stale_keys = set(existing_db.keys()) - registered_keys
+        for stale_key in stale_keys:
+            stale_perm = existing_db[stale_key]
+            if stale_perm.is_enabled or stale_perm.is_deleted:
+                stale_perm.is_enabled = False
+                stale_perm.is_deleted = False
+                disabled_count += 1
+
+        if count or disabled_count:
             await self.db.flush()
-        return count
+        return count + disabled_count
 
 
 async def sync_permissions_on_startup(db: AsyncSession) -> dict[str, int]:

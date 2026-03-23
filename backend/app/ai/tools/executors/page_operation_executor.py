@@ -25,6 +25,35 @@ if TYPE_CHECKING:
 logger = LogManager.get_logger("ai.tool.page_operation")
 
 
+def _extract_screenshot_attachment(
+    result_data: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Extract screenshot attachment metadata from frontend page op result / 从前端页面操作结果中提取截图附件元数据"""
+    if not isinstance(result_data, dict):
+        return None
+    attachment = result_data.get("attachment")
+    if not isinstance(attachment, dict):
+        return None
+
+    att_type = str(attachment.get("type") or "").strip().lower()
+    att_url = str(attachment.get("url") or "").strip()
+    if att_type != "image" or not att_url:
+        return None
+
+    normalized: dict[str, Any] = {
+        "type": "image",
+        "url": att_url,
+    }
+    attachment_id = attachment.get("attachment_id")
+    if isinstance(attachment_id, int) and attachment_id > 0:
+        normalized["attachment_id"] = attachment_id
+    if attachment.get("name"):
+        normalized["name"] = attachment.get("name")
+    if attachment.get("mime_type"):
+        normalized["mime_type"] = attachment.get("mime_type")
+    return normalized
+
+
 class PageOperationExecutor(BaseToolExecutor):
     """
     Page operation executor. / 页面操作执行器。
@@ -67,6 +96,24 @@ class PageOperationExecutor(BaseToolExecutor):
                 error_type="invalid_input",
             )
 
+        runtime_model_capabilities = (
+            context.variables.get("runtime_model_capabilities", {})
+            if context and isinstance(context.variables, dict)
+            else {}
+        )
+        if (
+            operation_name == "capture_screenshot"
+            and runtime_model_capabilities.get("supports_vision") is False
+        ):
+            return ToolResult(
+                tool_call_id=tool_call_id,
+                name=definition.name,
+                success=False,
+                error=_("page_operation.error.screenshot_requires_vision"),
+                duration_ms=int((time.perf_counter() - start) * 1000),
+                error_type="vision_not_supported",
+            )
+
         # Resolve page_session_id: prefer fresh from active tracking (recover after reconnect)
         from app.sio.page_session import get_active_session_id, invoke_page_operation
 
@@ -106,7 +153,9 @@ class PageOperationExecutor(BaseToolExecutor):
 
         logger.info(
             "Invoking page operation: page_key={} op={} page_session={}",
-            page_key, operation_name, session_id,
+            page_key,
+            operation_name,
+            session_id,
         )
 
         result = await invoke_page_operation(
@@ -124,6 +173,11 @@ class PageOperationExecutor(BaseToolExecutor):
         message = result.get("message", "")
         error_type = result.get("error_type", "")
         result_data = result.get("data")
+        screenshot_attachment = (
+            _extract_screenshot_attachment(result_data)
+            if operation_name == "capture_screenshot"
+            else None
+        )
 
         async def audit_page_operation(
             status: str,
@@ -179,14 +233,19 @@ class PageOperationExecutor(BaseToolExecutor):
         if success:
             logger.info(
                 "Page operation succeeded: page_key={} op={} duration={}ms",
-                page_key, operation_name, duration_ms,
+                page_key,
+                operation_name,
+                duration_ms,
             )
             await audit_page_operation(ActionStatusEnum.SUCCESS.value)
             output = f"Operation '{operation_name}' executed successfully on page '{page_key}'."
             if message:
                 output += f" Result: {message}"
-            if result_data and isinstance(result_data, dict):
+            if screenshot_attachment:
+                output += "\n" + _("page_operation.hint.screenshot_attached")
+            elif result_data and isinstance(result_data, dict):
                 import json
+
                 data_str = json.dumps(result_data, ensure_ascii=False, default=str)
                 if len(data_str) <= 4000:
                     output += f"\nData: {data_str}"
@@ -195,8 +254,12 @@ class PageOperationExecutor(BaseToolExecutor):
                     html_content = result_data.get("html", "") or ""
                     max_html_chars = 12000
                     if len(html_content) > max_html_chars:
-                        html_content = html_content[:max_html_chars] + "\n... (truncated)"
-                    hint = result_data.get("_hint") or _("page_operation.hint.replace_section")
+                        html_content = (
+                            html_content[:max_html_chars] + "\n... (truncated)"
+                        )
+                    hint = result_data.get("_hint") or _(
+                        "page_operation.hint.replace_section"
+                    )
                     output += f"\n{hint}\nHTML:\n{html_content}"
                     output += "\n[Do NOT echo this HTML to the user. Use it internally for replace_section, then respond in natural language.]"
                 # Agent Loop guidance: suggest next step based on context_diff
@@ -218,24 +281,42 @@ class PageOperationExecutor(BaseToolExecutor):
                 success=True,
                 output=output,
                 duration_ms=duration_ms,
+                attachments=[screenshot_attachment] if screenshot_attachment else None,
+                llm_follow_up_message=(
+                    _("page_operation.hint.screenshot_follow_up")
+                    if screenshot_attachment
+                    else None
+                ),
             )
 
         # Failure case with recovery guidance / 失败情况，含恢复指引
         logger.warning(
             "Page operation failed: page_key={} op={} error_type={} message={} duration={}ms",
-            page_key, operation_name, error_type, message, duration_ms,
+            page_key,
+            operation_name,
+            error_type,
+            message,
+            duration_ms,
         )
         error_msg = _("page_operation.error.failed", op=operation_name, page=page_key)
         if error_type == "timeout":
-            error_msg = _("page_operation.error.timeout_hint", op=operation_name, page=page_key)
+            error_msg = _(
+                "page_operation.error.timeout_hint", op=operation_name, page=page_key
+            )
         elif error_type == "pending_confirmation":
-            error_msg = _("page_operation.error.pending_confirmation", op=operation_name)
+            error_msg = _(
+                "page_operation.error.pending_confirmation", op=operation_name
+            )
         elif error_type == "target_not_found":
-            error_msg = _("page_operation.error.target_not_found_next", message=message or "")
+            error_msg = _(
+                "page_operation.error.target_not_found_next", message=message or ""
+            )
         elif error_type == "non_unique_match":
             error_msg = _("page_operation.error.non_unique_next", message=message or "")
         elif error_type == "invalid_html":
-            error_msg = _("page_operation.error.invalid_html_next", message=message or "")
+            error_msg = _(
+                "page_operation.error.invalid_html_next", message=message or ""
+            )
         elif message:
             error_msg += _("page_operation.error.reason_suffix", message=message)
         error_msg += "\n\n" + _("page_operation.error.no_echo")
@@ -261,7 +342,7 @@ class PageOperationExecutor(BaseToolExecutor):
 
     async def validate(
         self,
-        definition: ToolDefinition,
+        _definition: ToolDefinition,
         arguments: dict[str, Any],
     ) -> bool:
         """校验参数：page_key 和 operation_name 必填 / Validate parameters: page_key and operation_name are required."""

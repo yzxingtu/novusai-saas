@@ -36,7 +36,6 @@ import { IconPicker } from '#/components/business/icon-picker';
 import RichTextEditor from '#/components/business/rich-text-editor/RichTextEditor.vue';
 
 import {
-  getCodegenDbColumnsApi,
   getCodegenDbTableRowsApi,
 } from '#/api/admin/codegen';
 
@@ -87,9 +86,6 @@ function isJsonContent(value: unknown): value is JSONContent {
 function isSelectScalarValue(value: unknown): value is SelectScalarValue {
   return typeof value === 'number' || typeof value === 'string';
 }
-
-/** 缓存关联表的列信息，用于预览时显示真实列名 */
-const relationColumnsCache = ref<Record<string, { displayField: string }>>({});
 
 /** RichTextEditor 默认空文档结构（稳定引用，避免每次渲染创建新对象）
  * 注意：ProseMirror 不允许空文本节点，故使用空 paragraph 而非 { type: 'text', text: '' }
@@ -315,32 +311,6 @@ watch(
 );
 
 /** 预加载关联表列信息（用于改善 mock 显示的列名） */
-watch(
-  () => formItemsWithDividers.value,
-  (items) => {
-    const tables = new Set<string>();
-    for (const f of items) {
-      const t = asString(f.relation_table).trim();
-      if (t && !tables.has(t)) tables.add(t);
-    }
-    for (const table of tables) {
-      if (relationColumnsCache.value[table]) continue;
-      getCodegenDbColumnsApi(table)
-        .then((cols) => {
-          const displayCol = cols.find((c) => c.name !== 'id');
-          if (displayCol) {
-            relationColumnsCache.value = {
-              ...relationColumnsCache.value,
-              [table]: { displayField: displayCol.name },
-            };
-          }
-        })
-        .catch(() => {});
-    }
-  },
-  { immediate: true },
-);
-
 function getRichTextAi(f: BuilderField): boolean {
   const form = asRecord(f.form);
   if (form.ai === false) return false;
@@ -409,11 +379,9 @@ function getMockRelationOptions(
   const table = asString(
     f.relation_table || $t('admin.system.codegen.preview.mockRelation'),
   ).replace(/_/g, ' ');
-  const cached = relationColumnsCache.value[asString(f.relation_table)];
   const display = String(
     f.relation_display ||
       f.relation_display_field ||
-      cached?.displayField ||
       'name',
   );
   return [

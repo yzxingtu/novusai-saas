@@ -3,6 +3,8 @@
 > 对应整改方案：`@ai页面操作可靠性修复_c5e1391f.plan.md`
 >
 > 与富文本完整修复审计方案交叉引用：`@富文本完整修复审计方案_09c31c3d.plan.md`、`docs/acceptance/rich-text-dedicated-tools-dod.md`。parse error 熔断、content_format 契约等与富文本整改一致。
+>
+> 历史说明：文中提到的“企业端智能体测试抽屉”是当时存在的一套测试 UI。该抽屉后续已删除，相关 AI 对话反馈能力已并入统一聊天页/统一页面操作链路；本文件保留的是当时验收事实，而非当前活跃组件清单。
 
 ## 验收标准（DoD）完成情况
 
@@ -14,7 +16,7 @@
 | 确认卡片 60s 倒计时 | ✅ | `ai-panel.ts` 增加 startedAt，AIChatSlidePanel 显示倒计时 |
 | 执行中过程提示（8s+） | ✅ | `ChatMessageItem` 执行超 8s 显示「仍在执行，可继续等待」 |
 | error_type 前后端打通 | ✅ | ToolResult/SSE 含 error_type，前端按类型映射 i18n 提示 |
-| AgentTestDrawer tool_start | ✅ | 支持 tool_start → running，tool_call → success/error |
+| 历史测试抽屉 tool_start | ✅ | 当时支持 tool_start → running，tool_call → success/error；现能力已并入统一聊天页 |
 | 后端 error_type 测试 | ✅ | test_page_operation 断言 invalid_input、session_not_found |
 
 ## 整改实施明细
@@ -42,9 +44,9 @@
 - [x] `page_operation_executor.py`：缺参 → invalid_input，无 session → session_not_found，失败时透传前端 error_type
 - [x] `tool_processor.build_tool_call_event`：失败时附带 error_type 到 SSE
 
-### 阶段 D：AgentTestDrawer 对齐
+### 阶段 D：历史测试抽屉对齐（该组件现已删除）
 
-- [x] `AgentTestDrawer.vue`：处理 tool_start，工具列表展示 running → success/error
+- [x] 历史测试抽屉：当时已处理 `tool_start`，工具列表展示 `running -> success/error`
 
 ### 阶段 E：测试与验收
 
@@ -71,7 +73,7 @@
 | 用户不确认到超时 | 确认卡片显示倒计时，超时后显示「建议刷新页面后重试」 |
 | 用户取消操作 | 显示「你已取消本次操作」 |
 | 编辑页刷新/断线 | 显示「请回到编辑页后重试」 |
-| AgentTestDrawer 工具执行 | 先显示「执行中」，完成后显示成功/失败 |
+| 历史测试抽屉工具执行 | 先显示「执行中」，完成后显示成功/失败；现由统一聊天页承接 |
 
 ## 测试执行
 
@@ -99,7 +101,7 @@ cd frontend && pnpm run test:unit
 - `frontend/.../ai-chat-panel/ChatMessageItem.vue`：子状态、提示映射、8s 提示
 - `frontend/.../ai-slide-panel/AIChatSlidePanel.vue`：60s 倒计时
 - `frontend/.../store/shared/ai-panel.ts`：PendingPageOp.startedAt
-- `frontend/.../views/tenant/ai/agents/modules/AgentTestDrawer.vue`：tool_start 处理
+- 历史企业端智能体测试抽屉：已删除；当时用于验证 `tool_start` 处理
 - i18n：zh-CN/en-US common.json、shared/pageOperation.json
 - （二期）`replaceContentValidator.ts`、`pageOpErrorHints.ts`：可测模块
 - （二期）`__tests__/replaceContentValidator.test.ts`、`__tests__/getPageOpErrorHintKey.test.ts`

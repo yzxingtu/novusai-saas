@@ -8,6 +8,7 @@ tracks registration records for unregistration.
 
 from __future__ import annotations
 
+import hashlib
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -16,6 +17,8 @@ from typing import Any
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
+
+_PLUGIN_MENU_ACTION_MAX_LEN = 50
 
 # Shared event loop (for running async plugin tasks in Celery worker) / 共享事件循环（Celery worker 中运行异步插件任务用）
 _bg_loop = None
@@ -47,6 +50,21 @@ def _run_async(coro):
         loop = _bg_loop
     future = asyncio.run_coroutine_threadsafe(coro, loop)
     return future.result(timeout=300)
+
+
+def _build_plugin_menu_action(scope_prefix: str, safe_name: str, name: str) -> str:
+    """Build a menu action string that stays within Permission.action limits.
+    / 构造满足 Permission.action 长度限制的插件菜单 action。"""
+    raw_action = f"{scope_prefix}.plugin_{safe_name}_{name}"
+    if len(raw_action) <= _PLUGIN_MENU_ACTION_MAX_LEN:
+        return raw_action
+
+    digest = hashlib.sha1(raw_action.encode("utf-8")).hexdigest()[:10]
+    compact_source = f"{safe_name}_{name}".replace("-", "_")
+    reserved = len(scope_prefix) + len(".plugin.") + len(digest) + 1
+    budget = max(1, _PLUGIN_MENU_ACTION_MAX_LEN - reserved)
+    compact = compact_source[:budget].rstrip("._") or "menu"
+    return f"{scope_prefix}.plugin.{compact}.{digest}"
 
 
 @dataclass
@@ -644,7 +662,7 @@ class ExtensionRegistry:
             type=PermissionType.MENU,
             scope=perm_scope,
             resource="menu",
-            action=f"{scope_prefix}.plugin_{safe_name}_{name}",
+            action=_build_plugin_menu_action(scope_prefix, safe_name, name),
             icon=icon,
             path=path,
             component=component,
@@ -1212,6 +1230,44 @@ class ExtensionRegistry:
                     continue
                 result.append(ext)
         return result
+
+    def get_plugin_tenant_menu_policy(self, plugin_name: str) -> dict[str, Any]:
+        """
+        Get tenant menu grant policy declared by plugin custom extensions.
+        / 读取插件 custom extension 声明的 tenant 菜单授权策略。
+
+        Contract:
+        - ext.type must be `tenant_menu_policy`
+        - ext.data.grant_mode supports:
+          - auto_all_active_plans (default)
+          - manual_entitlement
+        """
+        default_policy: dict[str, Any] = {
+            "plugin_name": plugin_name,
+            "grant_mode": "auto_all_active_plans",
+            "source": "default",
+            "extension_name": "",
+        }
+        extensions = self.get_custom_extensions(
+            ext_type="tenant_menu_policy",
+            plugin_name=plugin_name,
+        )
+        if not extensions:
+            return default_policy
+
+        # Prefer the first valid declaration, preserve backward compatibility.
+        # / 取第一个合法声明，保持向后兼容。
+        for ext in extensions:
+            data = ext.get("data") if isinstance(ext.get("data"), dict) else {}
+            raw_mode = str(data.get("grant_mode") or "").strip().lower()
+            if raw_mode in {"auto_all_active_plans", "manual_entitlement"}:
+                return {
+                    "plugin_name": plugin_name,
+                    "grant_mode": raw_mode,
+                    "source": "custom_extension",
+                    "extension_name": str(ext.get("name") or ""),
+                }
+        return default_policy
 
     def get_frontend_slots_grouped(
         self,

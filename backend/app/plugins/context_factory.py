@@ -10,10 +10,12 @@ Currently only V1 is supported; versioned extension mechanism is reserved.
 
 from __future__ import annotations
 
+import inspect
 from typing import TYPE_CHECKING
 
 from app.plugins.context import PluginContext, RequestContext
 from app.plugins.exceptions import PluginError
+from app.plugins.host_read_facade import HostReadFacade
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -64,10 +66,17 @@ def create_plugin_context(
             f"Supported versions: {sorted(_VERSION_MAP.keys())}",
         )
 
-    return ctx_class(
-        plugin_name=plugin_name,
-        manifest=manifest,
-        db=db,
-        granted_capabilities=granted_capabilities,
-        request_context=request_context,
-    )
+    kwargs = {
+        "plugin_name": plugin_name,
+        "manifest": manifest,
+        "db": db,
+        "granted_capabilities": granted_capabilities,
+        "request_context": request_context,
+    }
+
+    # Backward compatibility: only pass host facade when context class supports it.
+    # / 向后兼容：仅当上下文类支持时才注入宿主只读门面。
+    if "host_read" in inspect.signature(ctx_class).parameters:
+        kwargs["host_read"] = HostReadFacade(db)
+
+    return ctx_class(**kwargs)

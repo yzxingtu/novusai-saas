@@ -160,6 +160,8 @@ class ToolResult:
     summary: str | None = None
     result_link: str | None = None
     error_type: str = ""
+    attachments: list[dict[str, Any]] | None = None
+    llm_follow_up_message: str | None = None
 
     @classmethod
     def error_result(
@@ -216,7 +218,9 @@ class ExecutionContext:
     user_role: str = UserRoleEnum.TENANT_ADMIN.value
     permissions: set[str] = field(default_factory=set)
     db: AsyncSession | None = None
-    consented_actions: set[str] = field(default_factory=set)  # "read:agents", "create:agents"
+    consented_actions: set[str] = field(
+        default_factory=set
+    )  # "read:agents", "create:agents"
     skill_id: int | None = None
     variables: dict[str, Any] = field(default_factory=dict)
     page_session_id: str | None = None

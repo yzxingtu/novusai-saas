@@ -15,7 +15,6 @@ export type CaptchaProviderType =
   | 'image'
   | 'puzzle'
   | 'recaptcha'
-  | 'slider'
   | 'turnstile'
   | (string & {});
 

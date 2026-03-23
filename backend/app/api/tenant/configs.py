@@ -15,6 +15,7 @@ from sqlalchemy import select as sa_select
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.shared._captcha_helpers import inject_captcha_provider_options
 from app.api.shared._storage_helpers import (
     get_known_plugin_storage_drivers as _get_known_plugin_storage_drivers,
 )
@@ -285,6 +286,11 @@ class TenantConfigController(TenantController):
 
             # 动态注入角色选项 / Dynamically inject role options
             await _inject_role_options(db, current_admin.tenant_id, target_group["configs"])
+            inject_captcha_provider_options(
+                target_group["configs"],
+                required_endpoints={"tenant", "user"},
+                unavailable_label_key="config.tenant.captcha_provider.unavailable_option",
+            )
 
             # 转换响应 / Convert response
             configs = [
@@ -363,6 +369,11 @@ class TenantConfigController(TenantController):
             # 动态注入角色选项 / Dynamically inject role options
             if target_group:
                 await _inject_role_options(db, current_admin.tenant_id, target_group["configs"])
+                inject_captcha_provider_options(
+                    target_group["configs"],
+                    required_endpoints={"tenant", "user"},
+                    unavailable_label_key="config.tenant.captcha_provider.unavailable_option",
+                )
 
             configs = [
                 _translate_config_item(c)

@@ -35,7 +35,7 @@ def _is_configured_value(value: Any) -> bool:
     return True
 
 
-def build_skill_package_summary(
+def _build_skill_package_summary(
     package: Mapping[str, Any] | SkillPackage,
 ) -> dict[str, Any]:
     """
@@ -120,11 +120,10 @@ def build_skill_package_payload(
     if include_valves_config:
         payload["valves_config"] = _get_package_value(package, "valves_config")
 
-    payload.update(build_skill_package_summary(package))
+    payload.update(_build_skill_package_summary(package))
     return payload
 
 
 __all__ = [
     "build_skill_package_payload",
-    "build_skill_package_summary",
 ]

@@ -23,6 +23,7 @@ export const LUCIDE_ICON_NAMES = [
   "at-sign",
   "atom",
   "audio-lines",
+  "badge-alert",
   "badge-check",
   "badge-dollar-sign",
   "badge-info",
@@ -55,7 +56,6 @@ export const LUCIDE_ICON_NAMES = [
   "check-check",
   "check-circle",
   "check-circle-2",
-  "check-square",
   "chevron-down",
   "chevron-left",
   "chevron-right",
@@ -86,6 +86,8 @@ export const LUCIDE_ICON_NAMES = [
   "code-xml",
   "compass",
   "copy",
+  "copy-check",
+  "copy-plus",
   "corner-down-left",
   "cpu",
   "credit-card",
@@ -94,7 +96,6 @@ export const LUCIDE_ICON_NAMES = [
   "database-zap",
   "dollar-sign",
   "download",
-  "droplets",
   "edit",
   "edit-3",
   "ellipsis",
@@ -106,7 +107,9 @@ export const LUCIDE_ICON_NAMES = [
   "file",
   "file-code",
   "file-code-2",
+  "file-edit",
   "file-input",
+  "file-output",
   "file-pen",
   "file-pen-line",
   "file-plus",
@@ -118,6 +121,7 @@ export const LUCIDE_ICON_NAMES = [
   "file-type",
   "file-warning",
   "files",
+  "filter",
   "flame",
   "fold-vertical",
   "folder",
@@ -160,13 +164,13 @@ export const LUCIDE_ICON_NAMES = [
   "languages",
   "laptop",
   "layers",
+  "layers-2",
   "layers-3",
   "layout-dashboard",
   "layout-grid",
   "layout-list",
   "layout-panel-left",
   "layout-panel-top",
-  "leaf",
   "library",
   "life-buoy",
   "lightbulb",
@@ -175,7 +179,9 @@ export const LUCIDE_ICON_NAMES = [
   "list",
   "list-checks",
   "list-ordered",
+  "list-tree",
   "loader-2",
+  "loader-circle",
   "locate",
   "locate-fixed",
   "lock",
@@ -219,6 +225,7 @@ export const LUCIDE_ICON_NAMES = [
   "panel-left",
   "panel-left-close",
   "panel-left-open",
+  "panel-top-open",
   "paperclip",
   "pause",
   "pause-circle",
@@ -239,6 +246,7 @@ export const LUCIDE_ICON_NAMES = [
   "radar",
   "radio",
   "radio-tower",
+  "receipt-text",
   "redo-2",
   "refresh-cw",
   "repeat",
@@ -273,6 +281,7 @@ export const LUCIDE_ICON_NAMES = [
   "snowflake",
   "sparkles",
   "spell-check",
+  "spline",
   "square",
   "square-check",
   "square-pen",
@@ -282,9 +291,7 @@ export const LUCIDE_ICON_NAMES = [
   "strikethrough",
   "subscript",
   "sun",
-  "sun-dim",
   "sunrise",
-  "sunset",
   "superscript",
   "table",
   "table-2",
@@ -317,10 +324,10 @@ export const LUCIDE_ICON_NAMES = [
   "video",
   "wallet",
   "wand-2",
+  "wand-sparkles",
   "waypoints",
   "webhook",
   "wifi",
-  "wind",
   "workflow",
   "wrench",
   "x",
@@ -350,6 +357,7 @@ export const LUCIDE_ICON_IDS = [
   "lucide:at-sign",
   "lucide:atom",
   "lucide:audio-lines",
+  "lucide:badge-alert",
   "lucide:badge-check",
   "lucide:badge-dollar-sign",
   "lucide:badge-info",
@@ -382,7 +390,6 @@ export const LUCIDE_ICON_IDS = [
   "lucide:check-check",
   "lucide:check-circle",
   "lucide:check-circle-2",
-  "lucide:check-square",
   "lucide:chevron-down",
   "lucide:chevron-left",
   "lucide:chevron-right",
@@ -413,6 +420,8 @@ export const LUCIDE_ICON_IDS = [
   "lucide:code-xml",
   "lucide:compass",
   "lucide:copy",
+  "lucide:copy-check",
+  "lucide:copy-plus",
   "lucide:corner-down-left",
   "lucide:cpu",
   "lucide:credit-card",
@@ -421,7 +430,6 @@ export const LUCIDE_ICON_IDS = [
   "lucide:database-zap",
   "lucide:dollar-sign",
   "lucide:download",
-  "lucide:droplets",
   "lucide:edit",
   "lucide:edit-3",
   "lucide:ellipsis",
@@ -433,7 +441,9 @@ export const LUCIDE_ICON_IDS = [
   "lucide:file",
   "lucide:file-code",
   "lucide:file-code-2",
+  "lucide:file-edit",
   "lucide:file-input",
+  "lucide:file-output",
   "lucide:file-pen",
   "lucide:file-pen-line",
   "lucide:file-plus",
@@ -445,6 +455,7 @@ export const LUCIDE_ICON_IDS = [
   "lucide:file-type",
   "lucide:file-warning",
   "lucide:files",
+  "lucide:filter",
   "lucide:flame",
   "lucide:fold-vertical",
   "lucide:folder",
@@ -487,13 +498,13 @@ export const LUCIDE_ICON_IDS = [
   "lucide:languages",
   "lucide:laptop",
   "lucide:layers",
+  "lucide:layers-2",
   "lucide:layers-3",
   "lucide:layout-dashboard",
   "lucide:layout-grid",
   "lucide:layout-list",
   "lucide:layout-panel-left",
   "lucide:layout-panel-top",
-  "lucide:leaf",
   "lucide:library",
   "lucide:life-buoy",
   "lucide:lightbulb",
@@ -502,7 +513,9 @@ export const LUCIDE_ICON_IDS = [
   "lucide:list",
   "lucide:list-checks",
   "lucide:list-ordered",
+  "lucide:list-tree",
   "lucide:loader-2",
+  "lucide:loader-circle",
   "lucide:locate",
   "lucide:locate-fixed",
   "lucide:lock",
@@ -546,6 +559,7 @@ export const LUCIDE_ICON_IDS = [
   "lucide:panel-left",
   "lucide:panel-left-close",
   "lucide:panel-left-open",
+  "lucide:panel-top-open",
   "lucide:paperclip",
   "lucide:pause",
   "lucide:pause-circle",
@@ -566,6 +580,7 @@ export const LUCIDE_ICON_IDS = [
   "lucide:radar",
   "lucide:radio",
   "lucide:radio-tower",
+  "lucide:receipt-text",
   "lucide:redo-2",
   "lucide:refresh-cw",
   "lucide:repeat",
@@ -600,6 +615,7 @@ export const LUCIDE_ICON_IDS = [
   "lucide:snowflake",
   "lucide:sparkles",
   "lucide:spell-check",
+  "lucide:spline",
   "lucide:square",
   "lucide:square-check",
   "lucide:square-pen",
@@ -609,9 +625,7 @@ export const LUCIDE_ICON_IDS = [
   "lucide:strikethrough",
   "lucide:subscript",
   "lucide:sun",
-  "lucide:sun-dim",
   "lucide:sunrise",
-  "lucide:sunset",
   "lucide:superscript",
   "lucide:table",
   "lucide:table-2",
@@ -644,10 +658,10 @@ export const LUCIDE_ICON_IDS = [
   "lucide:video",
   "lucide:wallet",
   "lucide:wand-2",
+  "lucide:wand-sparkles",
   "lucide:waypoints",
   "lucide:webhook",
   "lucide:wifi",
-  "lucide:wind",
   "lucide:workflow",
   "lucide:wrench",
   "lucide:x",
@@ -676,9 +690,6 @@ export const LUCIDE_ICON_SUBSET = {
     "check-circle-2": {
       "parent": "circle-check"
     },
-    "check-square": {
-      "parent": "square-check-big"
-    },
     "code-2": {
       "parent": "code-xml"
     },
@@ -687,6 +698,9 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "edit-3": {
       "parent": "pen-line"
+    },
+    "file-edit": {
+      "parent": "file-pen"
     },
     "file-question": {
       "parent": "file-question-mark"
@@ -795,6 +809,9 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "audio-lines": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M2 10v3m4-7v11m4-14v18m4-13v7m4-10v13m4-8v3\"/>"
+    },
+    "badge-alert": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M3.85 8.62a4 4 0 0 1 4.78-4.77a4 4 0 0 1 6.74 0a4 4 0 0 1 4.78 4.78a4 4 0 0 1 0 6.74a4 4 0 0 1-4.77 4.78a4 4 0 0 1-6.75 0a4 4 0 0 1-4.78-4.77a4 4 0 0 1 0-6.76M12 8v4m0 4h.01\"/>"
     },
     "badge-check": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M3.85 8.62a4 4 0 0 1 4.78-4.77a4 4 0 0 1 6.74 0a4 4 0 0 1 4.78 4.78a4 4 0 0 1 0 6.74a4 4 0 0 1-4.77 4.78a4 4 0 0 1-6.75 0a4 4 0 0 1-4.78-4.77a4 4 0 0 1 0-6.76\"/><path d=\"m9 12l2 2l4-4\"/></g>"
@@ -992,6 +1009,12 @@ export const LUCIDE_ICON_SUBSET = {
     "copy": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><rect width=\"14\" height=\"14\" x=\"8\" y=\"8\" rx=\"2\" ry=\"2\"/><path d=\"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2\"/></g>"
     },
+    "copy-check": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"m12 15l2 2l4-4\"/><rect width=\"14\" height=\"14\" x=\"8\" y=\"8\" rx=\"2\" ry=\"2\"/><path d=\"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2\"/></g>"
+    },
+    "copy-plus": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M15 12v6m-3-3h6\"/><rect width=\"14\" height=\"14\" x=\"8\" y=\"8\" rx=\"2\" ry=\"2\"/><path d=\"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2\"/></g>"
+    },
     "corner-down-left": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M20 4v7a4 4 0 0 1-4 4H4\"/><path d=\"m9 10l-5 5l5 5\"/></g>"
     },
@@ -1015,9 +1038,6 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "download": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M12 15V3m9 12v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\"/><path d=\"m7 10l5 5l5-5\"/></g>"
-    },
-    "droplets": {
-      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M7 16.3c2.2 0 4-1.83 4-4.05c0-1.16-.57-2.26-1.71-3.19S7.29 6.75 7 5.3c-.29 1.45-1.14 2.84-2.29 3.76S3 11.1 3 12.25c0 2.22 1.8 4.05 4 4.05\"/><path d=\"M12.56 6.6A11 11 0 0 0 14 3.02c.5 2.5 2 4.9 4 6.5s3 3.5 3 5.5a6.98 6.98 0 0 1-11.91 4.97\"/></g>"
     },
     "earth": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M21.54 15H17a2 2 0 0 0-2 2v4.54M7 3.34V5a3 3 0 0 0 3 3a2 2 0 0 1 2 2c0 1.1.9 2 2 2a2 2 0 0 0 2-2c0-1.1.9-2 2-2h3.17M11 21.95V18a2 2 0 0 0-2-2a2 2 0 0 1-2-2v-1a2 2 0 0 0-2-2H2.05\"/><circle cx=\"12\" cy=\"12\" r=\"10\"/></g>"
@@ -1053,6 +1073,9 @@ export const LUCIDE_ICON_SUBSET = {
     "file-input": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M4 11V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.706.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-1\"/><path d=\"M14 2v5a1 1 0 0 0 1 1h5M2 15h10m-3 3l3-3l-3-3\"/></g>"
     },
+    "file-output": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M4.226 20.925A2 2 0 0 0 6 22h12a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v3.127\"/><path d=\"M14 2v5a1 1 0 0 0 1 1h5M5 11l-3 3m3 3l-3-3h10\"/></g>"
+    },
     "file-pen": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M12.659 22H18a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v9.34\"/><path d=\"M14 2v5a1 1 0 0 0 1 1h5m-9.622 4.622a1 1 0 0 1 3 3.003L8.36 20.637a2 2 0 0 1-.854.506l-2.867.837a.5.5 0 0 1-.62-.62l.836-2.869a2 2 0 0 1 .506-.853z\"/></g>"
     },
@@ -1086,6 +1109,10 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "files": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M15 2h-4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8\"/><path d=\"M16.706 2.706A2.4 2.4 0 0 0 15 2v5a1 1 0 0 0 1 1h5a2.4 2.4 0 0 0-.706-1.706zM5 7a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h8a2 2 0 0 0 1.732-1\"/></g>"
+    },
+    "filter": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M22 3H2l8 9.46V19l4 2v-8.54z\"/>",
+      "hidden": true
     },
     "flame": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0a5 5 0 0 1 1-3a1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4\"/>"
@@ -1207,6 +1234,9 @@ export const LUCIDE_ICON_SUBSET = {
     "layers": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z\"/><path d=\"M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12\"/><path d=\"M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17\"/></g>"
     },
+    "layers-2": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M13 13.74a2 2 0 0 1-2 0L2.5 8.87a1 1 0 0 1 0-1.74L11 2.26a2 2 0 0 1 2 0l8.5 4.87a1 1 0 0 1 0 1.74zm7 .545l1.5.845a1 1 0 0 1 0 1.74L13 21.74a2 2 0 0 1-2 0l-8.5-4.87a1 1 0 0 1 0-1.74l1.5-.845\"/>"
+    },
     "layers-3": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z\"/><path d=\"m6.08 9.5l-3.5 1.6a1 1 0 0 0 0 1.81l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9a1 1 0 0 0 0-1.83l-3.5-1.59\"/><path d=\"m6.08 14.5l-3.5 1.6a1 1 0 0 0 0 1.81l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9a1 1 0 0 0 0-1.83l-3.5-1.59\"/></g>",
       "hidden": true
@@ -1225,9 +1255,6 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "layout-panel-top": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><rect width=\"18\" height=\"7\" x=\"3\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"7\" x=\"3\" y=\"14\" rx=\"1\"/><rect width=\"7\" height=\"7\" x=\"14\" y=\"14\" rx=\"1\"/></g>"
-    },
-    "leaf": {
-      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8c0 5.5-4.78 10-10 10\"/><path d=\"M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12\"/></g>"
     },
     "library": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m16 6l4 14M12 6v14M8 8v12M4 4v16\"/>"
@@ -1252,6 +1279,9 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "list-ordered": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M11 5h10m-10 7h10m-10 7h10M4 4h1v5M4 9h2m.5 11H3.4c0-1 2.6-1.925 2.6-3.5a1.5 1.5 0 0 0-2.6-1.02\"/>"
+    },
+    "list-tree": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M8 5h13m-8 7h8m-8 7h8M3 10a2 2 0 0 0 2 2h3\"/><path d=\"M3 5v12a2 2 0 0 0 2 2h3\"/></g>"
     },
     "loader-circle": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M21 12a9 9 0 1 1-6.219-8.56\"/>"
@@ -1376,6 +1406,9 @@ export const LUCIDE_ICON_SUBSET = {
     "panel-left-open": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"M9 3v18m5-12l3 3l-3 3\"/></g>"
     },
+    "panel-top-open": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"M3 9h18m-6 5l-3 3l-3-3\"/></g>"
+    },
     "paperclip": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m16 6l-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551\"/>"
     },
@@ -1429,6 +1462,9 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "radio-tower": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M4.9 16.1C1 12.2 1 5.8 4.9 1.9m2.9 2.8a6.14 6.14 0 0 0-.8 7.5\"/><circle cx=\"12\" cy=\"9\" r=\"2\"/><path d=\"M16.2 4.8c2 2 2.26 5.11.8 7.47M19.1 1.9a9.96 9.96 0 0 1 0 14.1m-9.6 2h5M8 22l4-11l4 11\"/></g>"
+    },
+    "receipt-text": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M13 16H8m6-8H8m8 4H8M4 3a1 1 0 0 1 1-1a1.3 1.3 0 0 1 .7.2l.933.6a1.3 1.3 0 0 0 1.4 0l.934-.6a1.3 1.3 0 0 1 1.4 0l.933.6a1.3 1.3 0 0 0 1.4 0l.933-.6a1.3 1.3 0 0 1 1.4 0l.934.6a1.3 1.3 0 0 0 1.4 0l.933-.6A1.3 1.3 0 0 1 19 2a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1a1.3 1.3 0 0 1-.7-.2l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.934.6a1.3 1.3 0 0 1-1.4 0l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-1.4 0l-.934-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-.7.2a1 1 0 0 1-1-1z\"/>"
     },
     "redo-2": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"m15 14l5-5l-5-5\"/><path d=\"M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13\"/></g>"
@@ -1532,14 +1568,14 @@ export const LUCIDE_ICON_SUBSET = {
     "spell-check": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m6 16l6-12l6 12M8 12h8m0 8l2 2l4-4\"/>"
     },
+    "spline": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><circle cx=\"19\" cy=\"5\" r=\"2\"/><circle cx=\"5\" cy=\"19\" r=\"2\"/><path d=\"M5 17A12 12 0 0 1 17 5\"/></g>"
+    },
     "square": {
       "body": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" rx=\"2\"/>"
     },
     "square-check": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"m9 12l2 2l4-4\"/></g>"
-    },
-    "square-check-big": {
-      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M21 10.656V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12.344\"/><path d=\"m9 11l3 3L22 4\"/></g>"
     },
     "square-pen": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7\"/><path d=\"M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z\"/></g>"
@@ -1562,14 +1598,8 @@ export const LUCIDE_ICON_SUBSET = {
     "sun": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41\"/></g>"
     },
-    "sun-dim": {
-      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"M12 4h.01M20 12h.01M12 20h.01M4 12h.01m13.647-5.657h.01m-.01 11.314h.01m-11.324 0h.01m-.01-11.314h.01\"/></g>"
-    },
     "sunrise": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 2v8m-7.07.93l1.41 1.41M2 18h2m16 0h2m-2.93-7.07l-1.41 1.41M22 22H2M8 6l4-4l4 4m0 12a4 4 0 0 0-8 0\"/>"
-    },
-    "sunset": {
-      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 10V2m-7.07 8.93l1.41 1.41M2 18h2m16 0h2m-2.93-7.07l-1.41 1.41M22 22H2M16 6l-4 4l-4-4m8 12a4 4 0 0 0-8 0\"/>"
     },
     "superscript": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m4 19l8-8m0 8l-8-8m16 1h-4c0-1.5.442-2 1.5-2.5S20 8.334 20 7.002c0-.472-.17-.93-.484-1.29a2.105 2.105 0 0 0-2.617-.436c-.42.239-.738.614-.899 1.06\"/>"
@@ -1672,9 +1702,6 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "wifi": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 20h.01M2 8.82a15 15 0 0 1 20 0M5 12.859a10 10 0 0 1 14 0m-10.5 3.57a5 5 0 0 1 7 0\"/>"
-    },
-    "wind": {
-      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12.8 19.6A2 2 0 1 0 14 16H2m15.5-8a2.5 2.5 0 1 1 2 4H2m7.8-7.6A2 2 0 1 1 11 8H2\"/>"
     },
     "workflow": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><rect width=\"8\" height=\"8\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"M7 11v4a2 2 0 0 0 2 2h4\"/><rect width=\"8\" height=\"8\" x=\"13\" y=\"13\" rx=\"2\"/></g>"

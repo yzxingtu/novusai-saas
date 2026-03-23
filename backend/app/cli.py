@@ -64,7 +64,11 @@ def cli() -> None:
 @cli.command("run")
 @click.option("--host", default="0.0.0.0", help="Host to bind")
 @click.option("--port", type=int, default=8000, help="Port to listen")
-@click.option("--reload/--no-reload", default=None, help="Enable auto-reload (default: on in development)")
+@click.option(
+    "--reload/--no-reload",
+    default=None,
+    help="Enable auto-reload (default: on in development)",
+)
 @click.option("--workers", type=int, default=1, help="Number of workers")
 def run_cmd(
     host: str,
@@ -119,7 +123,9 @@ def _run_celery(args: list[str]) -> None:
 
 
 @celery_cmd.command()
-@click.option("-Q", "--queues", default=None, help="Comma-separated queues (default: all)")
+@click.option(
+    "-Q", "--queues", default=None, help="Comma-separated queues (default: all)"
+)
 @click.option("-c", "--concurrency", type=int, default=None)
 @click.option("-l", "--loglevel", default="info")
 def worker(queues: str | None, concurrency: int | None, loglevel: str) -> None:
@@ -150,8 +156,14 @@ def dev(loglevel: str) -> None:
         def _worker() -> None:
             subprocess.run(
                 [
-                    python_exe, "-m", "celery", "-A", _CELERY_APP,
-                    "worker", "-Q", _ALL_QUEUES,
+                    python_exe,
+                    "-m",
+                    "celery",
+                    "-A",
+                    _CELERY_APP,
+                    "worker",
+                    "-Q",
+                    _ALL_QUEUES,
                     f"--loglevel={loglevel}",
                     "--pool=solo",
                 ],
@@ -161,8 +173,13 @@ def dev(loglevel: str) -> None:
         def _beat() -> None:
             subprocess.run(
                 [
-                    python_exe, "-m", "celery", "-A", _CELERY_APP,
-                    "beat", f"--loglevel={loglevel}",
+                    python_exe,
+                    "-m",
+                    "celery",
+                    "-A",
+                    _CELERY_APP,
+                    "beat",
+                    f"--loglevel={loglevel}",
                 ],
                 cwd=str(_BACKEND_DIR),
             )
@@ -177,10 +194,17 @@ def dev(loglevel: str) -> None:
         except KeyboardInterrupt:
             click.echo("\nStopping...")
     else:
-        _run_celery([
-            "worker", "--beat", "-Q", _ALL_QUEUES,
-            f"--loglevel={loglevel}", "-c", "2",
-        ])
+        _run_celery(
+            [
+                "worker",
+                "--beat",
+                "-Q",
+                _ALL_QUEUES,
+                f"--loglevel={loglevel}",
+                "-c",
+                "2",
+            ]
+        )
 
 
 @celery_cmd.command()
@@ -207,17 +231,14 @@ def db_cmd() -> None:
 
 
 def _discover_plugin_migration_paths() -> list[str]:
-    """Scan plugins/*/backend/migrations/versions/ for plugin migration paths / 扫描插件 migrations 路径"""
-    plugins_dir = _BACKEND_DIR / "plugins"
-    paths: list[str] = []
-    if plugins_dir.exists():
-        for d in sorted(plugins_dir.iterdir()):
-            if not d.is_dir() or d.name.startswith("."):
-                continue
-            versions = d / "backend" / "migrations" / "versions"
-            if versions.is_dir():
-                paths.append(str(versions))
-    return paths
+    """
+    Resolve plugin migration paths from DB-registered plugins.
+    / 仅从数据库已注册插件解析迁移路径。
+    """
+    from app.plugins.migration_paths import build_migration_version_locations
+
+    version_locations = build_migration_version_locations(backend_dir=_BACKEND_DIR)
+    return version_locations[1:]
 
 
 def _get_alembic_config():
@@ -228,7 +249,9 @@ def _get_alembic_config():
     merged_paths: list[str] = []
     seen_paths: set[str] = set()
 
-    for path in (cfg.get_version_locations_list() or []) + _discover_plugin_migration_paths():
+    for path in (
+        cfg.get_version_locations_list() or []
+    ) + _discover_plugin_migration_paths():
         normalized = os.path.normcase(os.path.abspath(path))
         if normalized in seen_paths:
             continue
@@ -343,7 +366,10 @@ def db_autogenerate(message: str) -> None:
 # ============================================================
 
 
-@cli.group("plugin", help="Plugin build / create / validate / pack / list / cleanup")
+@cli.group(
+    "plugin",
+    help="Plugin build / create / validate / pack / list / cleanup / sync / enable",
+)
 def plugin_cmd() -> None:
     pass
 
@@ -455,7 +481,9 @@ def plugin_list() -> None:
 
 
 @plugin_cmd.command("cleanup")
-@click.option("--plugin", "-p", required=True, help="Plugin name (e.g. novus-crud-code)")
+@click.option(
+    "--plugin", "-p", required=True, help="Plugin name (e.g. novus-crud-code)"
+)
 @click.option(
     "--revision",
     "-r",
@@ -471,6 +499,115 @@ def plugin_cleanup(plugin: str, revision: str | None) -> None:
     if revision:
         cmd.extend(["--revision", revision])
     subprocess.run(cmd, check=True)
+
+
+def _run_plugin_operator_action(
+    plugin_name: str,
+    action,
+    *,
+    init_redis: bool = False,
+):
+    """Run a plugin operator action inside a managed DB session / 在托管 DB 会话中执行插件运维动作。"""
+
+    async def _do():
+        from app.core.database import get_db_context
+        from app.core.redis import RedisManager
+        from app.services.system.plugin_service import PluginService
+
+        if init_redis:
+            await RedisManager.init()
+        try:
+            async with get_db_context() as db:
+                service = PluginService(db)
+                plugin = await service.get_by_name(plugin_name)
+                if not plugin:
+                    raise SystemExit(f"Plugin '{plugin_name}' not found")
+                return await action(service, plugin)
+        finally:
+            if init_redis:
+                await RedisManager.close()
+
+    return _run_async(_do())
+
+
+@plugin_cmd.command("sync-manifest")
+@click.option("--plugin", "-p", "plugin_name", required=True, help="Plugin name")
+def plugin_sync_manifest(plugin_name: str) -> None:
+    """Sync disk plugin.yaml into DB snapshot / 同步磁盘 plugin.yaml 到数据库快照"""
+
+    async def _action(service, plugin):
+        synced = await service.sync_manifest(plugin.id)
+        return {
+            "name": synced.name,
+            "version": synced.version,
+        }
+
+    result = _run_plugin_operator_action(plugin_name, _action)
+    click.echo(
+        "Manifest synced: {}@{}".format(
+            result["name"],
+            result["version"] or "unknown",
+        )
+    )
+
+
+@plugin_cmd.command("activate-license")
+@click.option("--plugin", "-p", "plugin_name", required=True, help="Plugin name")
+@click.option("--key", "license_key", required=True, help="License key to activate")
+def plugin_activate_license(plugin_name: str, license_key: str) -> None:
+    """Activate a plugin license in the local DB / 在本地数据库中激活插件授权"""
+
+    async def _action(service, plugin):
+        await service.activate_license(plugin.id, license_key)
+        return {"name": plugin.name}
+
+    result = _run_plugin_operator_action(plugin_name, _action)
+    click.echo("License activated: {}".format(result["name"]))
+
+
+@plugin_cmd.command("enable")
+@click.option("--plugin", "-p", "plugin_name", required=True, help="Plugin name")
+def plugin_enable(plugin_name: str) -> None:
+    """Enable an installed plugin / 启用已安装插件"""
+
+    async def _action(service, plugin):
+        await service.enable_plugin(plugin.id)
+        return {"name": plugin.name}
+
+    result = _run_plugin_operator_action(plugin_name, _action, init_redis=True)
+    click.echo("Plugin enabled: {}".format(result["name"]))
+    click.echo(
+        "Note: if the backend server is already running in another process, restart it or use the admin API enable path there to load runtime extensions."
+    )
+
+
+@plugin_cmd.command("assign-tenant")
+@click.option("--plugin", "-p", "plugin_name", required=True, help="Plugin name")
+@click.option(
+    "--tenant-id",
+    "tenant_ids",
+    type=int,
+    multiple=True,
+    required=True,
+    help="Tenant ID to assign; repeat the option for multiple tenants",
+)
+def plugin_assign_tenant(plugin_name: str, tenant_ids: tuple[int, ...]) -> None:
+    """Assign a plugin to one or more tenants / 将插件分配给一个或多个企业"""
+
+    async def _action(service, plugin):
+        assigned = await service.assign_tenants(plugin.id, list(tenant_ids))
+        return {
+            "name": plugin.name,
+            "assigned": assigned,
+        }
+
+    result = _run_plugin_operator_action(plugin_name, _action)
+    click.echo(
+        "Assigned {} tenant(s): {}".format(
+            result["assigned"],
+            result["name"],
+        )
+    )
 
 
 # ============================================================
@@ -502,7 +639,9 @@ def _generate_keypair() -> tuple[str, str]:
 @license_cmd.command("generate")
 @click.option("--plugin", required=True, help="Plugin name")
 @click.option("--email", default="", help="Buyer email")
-@click.option("--days", type=int, default=None, help="Validity in days (default: perpetual)")
+@click.option(
+    "--days", type=int, default=None, help="Validity in days (default: perpetual)"
+)
 @click.option("--scope", default="*", help="Version scope")
 @click.option("--private-key", default=None, help="Ed25519 private key (base64)")
 def license_generate(
@@ -564,6 +703,7 @@ def license_verify(plugin: str, license_key: str) -> None:
         expires = result.get("expires_at")
         if expires:
             import datetime
+
             dt = datetime.datetime.fromtimestamp(expires, tz=datetime.timezone.utc)
             click.echo("  Expires:   {}".format(dt.isoformat()))
         else:
@@ -635,7 +775,9 @@ def _echo_json(data: dict) -> None:
     click.echo(json.dumps(data, ensure_ascii=False, indent=2))
 
 
-def _json_error(message: str, *, code: str | None = None, data: dict | None = None) -> dict:
+def _json_error(
+    message: str, *, code: str | None = None, data: dict | None = None
+) -> dict:
     payload: dict = {
         "success": False,
         "data": data,
@@ -658,7 +800,11 @@ def _json_success(data: dict | list | None = None) -> dict:
 
 def _codegen_delete_hint(reason_code: str | None, config_id: int) -> str | None:
     """Return human-readable delete guidance / 返回删除阻断的人类可读提示."""
-    if reason_code in {"manifest_present", "generated_state", "generation_history_present"}:
+    if reason_code in {
+        "manifest_present",
+        "generated_state",
+        "generation_history_present",
+    }:
         return "Hint: run `novusai codegen rollback --id {}` first.".format(config_id)
     return None
 
@@ -741,10 +887,24 @@ def codegen_cmd() -> None:
 
 
 @codegen_cmd.command("generate")
-@click.option("--config", "-c", "config_path", type=click.Path(exists=True), help="YAML config file path")
-@click.option("--id", "config_id", type=int, default=None, help="Config ID (from database)")
-@click.option("--resource", "-r", default=None, help="Resource name (resolve config from DB)")
-@click.option("--stdin", is_flag=True, help="Read config from stdin (priority: stdin > config > id/resource)")
+@click.option(
+    "--config",
+    "-c",
+    "config_path",
+    type=click.Path(exists=True),
+    help="YAML config file path",
+)
+@click.option(
+    "--id", "config_id", type=int, default=None, help="Config ID (from database)"
+)
+@click.option(
+    "--resource", "-r", default=None, help="Resource name (resolve config from DB)"
+)
+@click.option(
+    "--stdin",
+    is_flag=True,
+    help="Read config from stdin (priority: stdin > config > id/resource)",
+)
 @click.option("--force", "-f", is_flag=True, help="Force overwrite existing files")
 @click.option(
     "--auto-migrate/--no-auto-migrate",
@@ -786,7 +946,9 @@ def codegen_generate(
             for f in result.get("files", []):
                 click.echo("  {} ({})".format(f.get("path", ""), f.get("type", "")))
             if result.get("conflicts"):
-                click.echo("Conflicts: {}".format([c.get("path") for c in result["conflicts"]]))
+                click.echo(
+                    "Conflicts: {}".format([c.get("path") for c in result["conflicts"]])
+                )
         return
 
     from filelock import FileLock, Timeout
@@ -801,7 +963,9 @@ def codegen_generate(
     try:
         _codegen_lock.acquire()
     except Timeout:
-        click.echo("Error: Another codegen operation is in progress (lock timeout).", err=True)
+        click.echo(
+            "Error: Another codegen operation is in progress (lock timeout).", err=True
+        )
         sys.exit(1)
 
     use_config_id = config_id is not None or resource is not None
@@ -815,11 +979,15 @@ def codegen_generate(
                 else:
                     cfg = await svc.get_by_resource(resource)
                     if not cfg:
-                        raise SystemExit("Config not found for resource: {}".format(resource))
+                        raise SystemExit(
+                            "Config not found for resource: {}".format(resource)
+                        )
                     inp = cfg.id
             else:
                 inp = config_json
-            output = await svc.generate(inp, force=force, project_root=_CODEGEN_PROJECT_ROOT)
+            output = await svc.generate(
+                inp, force=force, project_root=_CODEGEN_PROJECT_ROOT
+            )
             return output
 
     try:
@@ -840,7 +1008,9 @@ def codegen_generate(
                 if not result.success:
                     _echo_json(
                         _json_error(
-                            "; ".join(result.errors) if result.errors else "Generation failed",
+                            "; ".join(result.errors)
+                            if result.errors
+                            else "Generation failed",
                             code="generation_failed",
                             data=json_payload,
                         )
@@ -856,7 +1026,9 @@ def codegen_generate(
                 if output_json:
                     _echo_json(
                         _json_error(
-                            "; ".join(result.errors) if result.errors else "Generation failed",
+                            "; ".join(result.errors)
+                            if result.errors
+                            else "Generation failed",
                             code="generation_failed",
                             data={
                                 "errors": result.errors,
@@ -896,8 +1068,11 @@ def codegen_generate(
                     click.echo("[auto-migrate] " + str(mig_result.get("message", "OK")))
                 if _resource and mig_result.get("migration_path"):
                     manifest = ManifestManager(_CODEGEN_PROJECT_ROOT)
-                    manifest.update_migration_file(_resource, mig_result["migration_path"])
+                    manifest.update_migration_file(
+                        _resource, mig_result["migration_path"]
+                    )
                 if output.config_id is not None:
+
                     async def _mark_applied():
                         async with get_db_context() as db:
                             svc = CodegenService(db)
@@ -908,6 +1083,7 @@ def codegen_generate(
                                     "last_error": None,
                                 },
                             )
+
                     _run_quietly(output_json, _run_async, _mark_applied())
             else:
                 err_msg = "auto_migrate failed (phase={}): {}".format(
@@ -915,6 +1091,7 @@ def codegen_generate(
                     mig_result.get("error", "unknown error"),
                 )
                 if output.config_id is not None:
+
                     async def _mark_generate_failed():
                         async with get_db_context() as db:
                             svc = CodegenService(db)
@@ -928,11 +1105,16 @@ def codegen_generate(
                                     ),
                                 },
                             )
+
                     _run_quietly(output_json, _run_async, _mark_generate_failed())
                 if output_json:
                     assert json_payload is not None
                     json_payload["auto_migrate"] = mig_result
-                    _echo_json(_json_error(err_msg, code="auto_migrate_failed", data=json_payload))
+                    _echo_json(
+                        _json_error(
+                            err_msg, code="auto_migrate_failed", data=json_payload
+                        )
+                    )
                 else:
                     click.echo(
                         "[auto-migrate] Failed (phase={}): {}".format(
@@ -951,9 +1133,17 @@ def codegen_generate(
 @codegen_cmd.command("preview")
 @click.option("--config", "-c", "config_path", type=click.Path(exists=True))
 @click.option("--id", "config_id", type=int, default=None)
-@click.option("--resource", "-r", default=None, help="Load config by resource name from DB")
+@click.option(
+    "--resource", "-r", default=None, help="Load config by resource name from DB"
+)
 @click.option("--stdin", is_flag=True, help="Read config from stdin")
-@click.option("--step", "-s", type=click.Choice(["model", "controller", "frontend"]), default=None, help="Partial preview: model | controller | frontend")
+@click.option(
+    "--step",
+    "-s",
+    type=click.Choice(["model", "controller", "frontend"]),
+    default=None,
+    help="Partial preview: model | controller | frontend",
+)
 @click.option("--verbose", "-v", is_flag=True, help="Output full file content")
 @click.option("--json", "output_json", is_flag=True)
 def codegen_preview(
@@ -991,7 +1181,9 @@ def codegen_preview(
         _echo_json(_json_success(result))
     else:
         for f in result.get("files", []):
-            line = "  {} ({}): {} lines".format(f.get("path", ""), f.get("type", ""), f.get("line_count", 0))
+            line = "  {} ({}): {} lines".format(
+                f.get("path", ""), f.get("type", ""), f.get("line_count", 0)
+            )
             click.echo(line)
             if verbose and f.get("content"):
                 click.echo("    ---")
@@ -1010,9 +1202,16 @@ def codegen_preview(
 @codegen_cmd.command("validate")
 @click.option("--config", "-c", "config_path", type=click.Path(exists=True))
 @click.option("--stdin", is_flag=True, help="Read config from stdin")
-@click.option("--mode", type=click.Choice(["draft", "generate"]), default="generate", help="Validation mode")
+@click.option(
+    "--mode",
+    type=click.Choice(["draft", "generate"]),
+    default="generate",
+    help="Validation mode",
+)
 @click.option("--json", "output_json", is_flag=True)
-def codegen_validate(config_path: str | None, stdin: bool, mode: str, output_json: bool) -> None:
+def codegen_validate(
+    config_path: str | None, stdin: bool, mode: str, output_json: bool
+) -> None:
     """Validate config / 校验配置"""
     os.chdir(_BACKEND_DIR)
 
@@ -1074,6 +1273,7 @@ def codegen_rollback(
     from app.codegen.manifest import ManifestManager
     from app.codegen.migration_helper import run_rollback_migration_cleanup
     from app.core.database import get_db_context
+    from app.core.i18n import _
     from app.enums.codegen import CodegenConfigStatusEnum
     from app.services.system.codegen_service import CodegenService
 
@@ -1083,7 +1283,9 @@ def codegen_rollback(
     try:
         _rb_lock.acquire()
     except Timeout:
-        click.echo("Error: Another codegen operation is in progress (lock timeout).", err=True)
+        click.echo(
+            "Error: Another codegen operation is in progress (lock timeout).", err=True
+        )
         sys.exit(1)
 
     try:
@@ -1122,6 +1324,7 @@ def codegen_rollback(
 
         overall_success = result.success
         errors = list(result.errors)
+        cleanup_pending = False
         if auto_migrate and not dry_run and result.success and _resource:
             if _migration_cleaned:
                 manifest.remove_entry(_resource)
@@ -1143,10 +1346,7 @@ def codegen_rollback(
                 _run_async(_mark_rolled_back())
             else:
                 overall_success = False
-                rollback_err = (
-                    "File rollback completed but migration cleanup failed. "
-                    "Manifest entry preserved for retry."
-                )
+                rollback_err = _("codegen.rollback.cleanup_failed")
                 errors.append(rollback_err)
 
                 async def _mark_rollback_failed():
@@ -1157,19 +1357,47 @@ def codegen_rollback(
                             await svc.update(cfg.id, {"last_error": rollback_err})
 
                 _run_async(_mark_rollback_failed())
+        elif not auto_migrate and not dry_run and result.success and _resource:
+            overall_success = False
+            cleanup_pending = True
+            rollback_err = _("codegen.rollback.cleanup_pending")
+            errors.append(rollback_err)
+
+            async def _mark_rollback_incomplete():
+                async with get_db_context() as db:
+                    svc = CodegenService(db)
+                    cfg = await svc.get_by_resource(_resource)
+                    if cfg:
+                        await svc.update(cfg.id, {"last_error": rollback_err})
+
+            _run_async(_mark_rollback_incomplete())
 
         if output_json:
             import json
-            _out = {"success": overall_success, "files_deleted": result.files_deleted, "files_modified": result.files_modified, "errors": errors}
-            if auto_migrate and not dry_run:
+
+            _out = {
+                "success": overall_success,
+                "files_deleted": result.files_deleted,
+                "files_modified": result.files_modified,
+                "errors": errors,
+            }
+            if not dry_run:
                 _out["migration_cleaned"] = _migration_cleaned
+            if cleanup_pending:
+                _out["pending_migration_cleanup"] = True
             click.echo(json.dumps(_out, ensure_ascii=False, indent=2))
+            if not overall_success:
+                sys.exit(1)
         elif overall_success:
             click.echo("[{}] Rollback completed".format(_STATUS_OK))
             for p in result.files_deleted:
                 click.echo("  - {}".format(p))
         elif _migration_cleaned:
-            click.echo("[{}] Migration cleanup completed (no manifest entry for file rollback)".format(_STATUS_OK))
+            click.echo(
+                "[{}] Migration cleanup completed (no manifest entry for file rollback)".format(
+                    _STATUS_OK
+                )
+            )
         else:
             for e in errors:
                 click.echo("Error: {}".format(e), err=True)
@@ -1203,7 +1431,11 @@ def codegen_versions(config_id: int, limit: int, output_json: bool) -> None:
         _echo_json(_json_success({"versions": items}))
     else:
         for v in items:
-            click.echo("  {:>5}  {}  {}".format(v.get("id", ""), (v.get("created_at") or "")[:19], v.get("note", "")))
+            click.echo(
+                "  {:>5}  {}  {}".format(
+                    v.get("id", ""), (v.get("created_at") or "")[:19], v.get("note", "")
+                )
+            )
 
 
 @codegen_cmd.command("restore")
@@ -1233,7 +1465,11 @@ def codegen_restore(config_id: int, version_id: int, output_json: bool) -> None:
         if output_json:
             _echo_json(_json_success({"message": "Restored"}))
         else:
-            click.echo("[{}] Restored config id={} to version {}".format(_STATUS_OK, config_id, version_id))
+            click.echo(
+                "[{}] Restored config id={} to version {}".format(
+                    _STATUS_OK, config_id, version_id
+                )
+            )
     except Exception as e:
         if output_json:
             _echo_json(_json_error(str(e), code="restore_failed"))
@@ -1259,17 +1495,22 @@ def codegen_list(status: str | None, output_json: bool) -> None:
                 items = await svc.get_by_status(status)
             else:
                 items = await svc.get_list(limit=1000)
-            return [{
-                "id": c.id,
-                "name": c.name,
-                "resource": c.resource,
-                "module": c.module,
-                "display_name": c.display_name,
-                "display_name_en": c.display_name_en,
-                "status": c.status,
-                "generation_count": c.generation_count,
-                "last_generated_at": c.last_generated_at.isoformat() if c.last_generated_at else None,
-            } for c in items]
+            return [
+                {
+                    "id": c.id,
+                    "name": c.name,
+                    "resource": c.resource,
+                    "module": c.module,
+                    "display_name": c.display_name,
+                    "display_name_en": c.display_name_en,
+                    "status": c.status,
+                    "generation_count": c.generation_count,
+                    "last_generated_at": c.last_generated_at.isoformat()
+                    if c.last_generated_at
+                    else None,
+                }
+                for c in items
+            ]
 
     items = _run_quietly(output_json, _run_async, _do())
 
@@ -1277,26 +1518,38 @@ def codegen_list(status: str | None, output_json: bool) -> None:
         _echo_json(_json_success({"items": items}))
     else:
         for c in items:
-            click.echo("  {:>5}  {:20}  {:15}  {}".format(c["id"], c["name"], c["resource"], c["status"]))
+            click.echo(
+                "  {:>5}  {:20}  {:15}  {}".format(
+                    c["id"], c["name"], c["resource"], c["status"]
+                )
+            )
 
 
 @codegen_cmd.command("show")
 @click.option("--id", "config_id", type=int, default=None)
 @click.option("--resource", "-r", default=None)
 @click.option("--json", "output_json", is_flag=True)
-def codegen_show(config_id: int | None, resource: str | None, output_json: bool) -> None:
+def codegen_show(
+    config_id: int | None, resource: str | None, output_json: bool
+) -> None:
     """Show config detail / 显示配置详情"""
     os.chdir(_BACKEND_DIR)
 
     if config_id is None and not resource:
         if output_json:
-            _echo_json(_json_error("Provide --id or --resource", code="missing_config_selector"))
+            _echo_json(
+                _json_error(
+                    "Provide --id or --resource", code="missing_config_selector"
+                )
+            )
         else:
             click.echo("Error: Provide --id or --resource", err=True)
         sys.exit(1)
     if config_id is not None and resource:
         if output_json:
-            _echo_json(_json_error("Use --id OR --resource, not both", code="invalid_selector"))
+            _echo_json(
+                _json_error("Use --id OR --resource, not both", code="invalid_selector")
+            )
         else:
             click.echo("Error: Use --id OR --resource, not both", err=True)
         sys.exit(1)
@@ -1307,7 +1560,11 @@ def codegen_show(config_id: int | None, resource: str | None, output_json: bool)
     async def _do():
         async with get_db_context() as db:
             svc = CodegenService(db)
-            cfg = await (svc.get_by_id(config_id) if config_id is not None else svc.get_by_resource(resource))
+            cfg = await (
+                svc.get_by_id(config_id)
+                if config_id is not None
+                else svc.get_by_resource(resource)
+            )
             if not cfg:
                 return None
             return {
@@ -1336,7 +1593,9 @@ def codegen_show(config_id: int | None, resource: str | None, output_json: bool)
 
 
 @codegen_cmd.command("import")
-@click.option("--config", "-c", "config_path", required=True, type=click.Path(exists=True))
+@click.option(
+    "--config", "-c", "config_path", required=True, type=click.Path(exists=True)
+)
 @click.option("--json", "output_json", is_flag=True, help="Output JSON only (id)")
 def codegen_import_cmd(config_path: str, output_json: bool) -> None:
     """Import YAML config to database / 导入 YAML 配置到数据库"""
@@ -1355,14 +1614,16 @@ def codegen_import_cmd(config_path: str, output_json: bool) -> None:
     async def _do():
         async with get_db_context() as db:
             svc = CodegenService(db)
-            cfg = await svc.create({
-                "name": name,
-                "resource": resource,
-                "module": module,
-                "display_name": display_name,
-                "display_name_en": display_name_en,
-                "config_json": config_json,
-            })
+            cfg = await svc.create(
+                {
+                    "name": name,
+                    "resource": resource,
+                    "module": module,
+                    "display_name": display_name,
+                    "display_name_en": display_name_en,
+                    "config_json": config_json,
+                }
+            )
             return cfg.id
 
     cid = _run_quietly(output_json, _run_async, _do())
@@ -1376,7 +1637,9 @@ def codegen_import_cmd(config_path: str, output_json: bool) -> None:
 @click.option("--id", "config_id", type=int, default=None)
 @click.option("--resource", "-r", default=None)
 @click.option("--output", "-o", type=click.Path(), default=None)
-def codegen_export(config_id: int | None, resource: str | None, output: str | None) -> None:
+def codegen_export(
+    config_id: int | None, resource: str | None, output: str | None
+) -> None:
     """Export config to YAML / 导出配置为 YAML"""
     os.chdir(_BACKEND_DIR)
 
@@ -1404,7 +1667,10 @@ def codegen_export(config_id: int | None, resource: str | None, output: str | No
         sys.exit(1)
 
     import yaml
-    out = yaml.dump(config_json, allow_unicode=True, default_flow_style=False, sort_keys=False)
+
+    out = yaml.dump(
+        config_json, allow_unicode=True, default_flow_style=False, sort_keys=False
+    )
     if output:
         with open(output, "w", encoding="utf-8") as f:
             f.write(out)
@@ -1415,11 +1681,15 @@ def codegen_export(config_id: int | None, resource: str | None, output: str | No
 
 @codegen_cmd.command("delete")
 @click.option("--id", "config_id", required=True, type=int)
-@click.option("--yes", "-y", "skip_confirm", is_flag=True, help="Skip confirmation prompt")
+@click.option(
+    "--yes", "-y", "skip_confirm", is_flag=True, help="Skip confirmation prompt"
+)
 @click.option("--json", "output_json", is_flag=True, help="Output JSON only")
 def codegen_delete(config_id: int, skip_confirm: bool, output_json: bool) -> None:
     """Delete config / 删除配置"""
-    if not skip_confirm and not click.confirm("Delete codegen config id={}?".format(config_id)):
+    if not skip_confirm and not click.confirm(
+        "Delete codegen config id={}?".format(config_id)
+    ):
         return
     os.chdir(_BACKEND_DIR)
 
@@ -1511,7 +1781,9 @@ def codegen_db_tables(output_json: bool) -> None:
         _echo_json(_json_success({"items": items}))
     else:
         for t in items:
-            click.echo("  {}  (has_model: {})".format(t["name"], t.get("has_model", False)))
+            click.echo(
+                "  {}  (has_model: {})".format(t["name"], t.get("has_model", False))
+            )
 
 
 @codegen_db_cmd.command("columns")
@@ -1530,7 +1802,9 @@ def codegen_db_columns(table: str, output_json: bool) -> None:
         _echo_json(_json_success({"items": items}))
     else:
         for c in items:
-            click.echo("  {}  {}  nullable={}".format(c["name"], c["type"], c["nullable"]))
+            click.echo(
+                "  {}  {}  nullable={}".format(c["name"], c["type"], c["nullable"])
+            )
 
 
 @codegen_db_cmd.command("import")
@@ -1546,6 +1820,7 @@ def codegen_db_import(table: str, output: str | None) -> None:
     data = svc.import_from_table(table)
 
     import yaml
+
     out = yaml.dump(data, allow_unicode=True, default_flow_style=False, sort_keys=False)
     if output:
         with open(output, "w", encoding="utf-8") as f:
@@ -1578,7 +1853,9 @@ def codegen_presets_list(output_json: bool) -> None:
                 "  {name:20}  {category:12}  {label}".format(
                     name=item.get("name", ""),
                     category=item.get("category", ""),
-                    label=item.get("label_en") or item.get("label_zh") or item.get("name", ""),
+                    label=item.get("label_en")
+                    or item.get("label_zh")
+                    or item.get("name", ""),
                 )
             )
 
@@ -1641,17 +1918,31 @@ def codegen_history(resource: str | None, output_json: bool) -> None:
         entries = [e for e in entries if e.resource == resource]
 
     if output_json:
-        data = [{"resource": e.resource, "module": e.module, "config_id": e.config_id, "generated_at": e.generated_at} for e in entries]
+        data = [
+            {
+                "resource": e.resource,
+                "module": e.module,
+                "config_id": e.config_id,
+                "generated_at": e.generated_at,
+            }
+            for e in entries
+        ]
         _echo_json(_json_success({"entries": data}))
     else:
         for e in entries:
-            click.echo("  {}  {}  config_id={}  {}".format(e.resource, e.module, e.config_id, e.generated_at))
+            click.echo(
+                "  {}  {}  config_id={}  {}".format(
+                    e.resource, e.module, e.config_id, e.generated_at
+                )
+            )
 
 
 @codegen_cmd.command("download")
 @click.option("--id", "config_id", type=int, default=None)
 @click.option("--resource", "-r", default=None)
-@click.option("--config", "-c", "config_path", type=click.Path(exists=True), default=None)
+@click.option(
+    "--config", "-c", "config_path", type=click.Path(exists=True), default=None
+)
 @click.option("--stdin", is_flag=True, help="Read config from stdin")
 @click.option("--output", "-o", type=click.Path(), required=True)
 @click.option("--json", "output_json", is_flag=True)
@@ -1667,25 +1958,47 @@ def codegen_download(
     os.chdir(_BACKEND_DIR)
 
     zip_bytes = None
-    if sum([1 if config_id is not None else 0, 1 if resource else 0, 1 if config_path else 0, 1 if stdin else 0]) != 1:
+    if (
+        sum(
+            [
+                1 if config_id is not None else 0,
+                1 if resource else 0,
+                1 if config_path else 0,
+                1 if stdin else 0,
+            ]
+        )
+        != 1
+    ):
         if output_json:
-            _echo_json(_json_error("Provide exactly one of --id, --resource, --config, or --stdin", code="invalid_source_selector"))
+            _echo_json(
+                _json_error(
+                    "Provide exactly one of --id, --resource, --config, or --stdin",
+                    code="invalid_source_selector",
+                )
+            )
         else:
-            click.echo("Error: Provide exactly one of --id, --resource, --config, or --stdin", err=True)
+            click.echo(
+                "Error: Provide exactly one of --id, --resource, --config, or --stdin",
+                err=True,
+            )
         sys.exit(1)
 
     if config_id is not None or resource:
         from app.core.database import get_db_context
+        from app.exceptions import AppException
         from app.services.system.codegen_service import CodegenService
 
         async def _do():
             async with get_db_context() as db:
                 svc = CodegenService(db)
-                cfg = await (svc.get_by_id(config_id) if config_id is not None else svc.get_by_resource(resource))
+                cfg = await (
+                    svc.get_by_id(config_id)
+                    if config_id is not None
+                    else svc.get_by_resource(resource)
+                )
                 if not cfg:
                     raise SystemExit("Config not found")
-                standalone = CodegenService.create_standalone()
-                return standalone.preview_zip(cfg.config_json or {})
+                return await svc.download(cfg.id, project_root=_CODEGEN_PROJECT_ROOT)
 
         try:
             zip_bytes = _run_quietly(output_json, _run_async, _do())
@@ -1694,6 +2007,18 @@ def codegen_download(
                 _echo_json(_json_error(str(e), code="config_not_found"))
             else:
                 click.echo(str(e), err=True)
+            sys.exit(1)
+        except AppException as e:
+            if output_json:
+                _echo_json(
+                    _json_error(
+                        e.message,
+                        code="download_failed",
+                        data=e.data if isinstance(e.data, dict) else None,
+                    )
+                )
+            else:
+                click.echo("Error: {}".format(e.message), err=True)
             sys.exit(1)
     elif config_path:
         config_json = _load_config_from_file(config_path)
@@ -1709,9 +2034,16 @@ def codegen_download(
         zip_bytes = svc.preview_zip(config_json)
     else:
         if output_json:
-            _echo_json(_json_error("Provide --id, --resource, --config, or --stdin", code="missing_config_source"))
+            _echo_json(
+                _json_error(
+                    "Provide --id, --resource, --config, or --stdin",
+                    code="missing_config_source",
+                )
+            )
         else:
-            click.echo("Error: Provide --id, --resource, --config, or --stdin", err=True)
+            click.echo(
+                "Error: Provide --id, --resource, --config, or --stdin", err=True
+            )
         sys.exit(1)
 
     with open(output, "wb") as f:
@@ -1725,6 +2057,7 @@ def codegen_download(
 # ============================================================
 # novusai check / 环境检查
 # ============================================================
+
 
 def _check_db() -> bool:
     try:
@@ -1745,6 +2078,7 @@ def _check_redis() -> bool:
     try:
         from redis import Redis
         from app.core.config import settings
+
         r = Redis.from_url(settings.REDIS_URL)
         r.ping()
         return True
@@ -1756,6 +2090,7 @@ def _check_redis() -> bool:
 def _check_celery() -> bool:
     try:
         from app.celery_app import celery_app
+
         celery_app.connection().connect()
         return True
     except Exception as e:
@@ -1781,7 +2116,11 @@ def check_all() -> None:
     ]
     for name, fn in checks:
         ok = fn()
-        status = click.style(_STATUS_OK, fg="green") if ok else click.style(_STATUS_FAIL, fg="red")
+        status = (
+            click.style(_STATUS_OK, fg="green")
+            if ok
+            else click.style(_STATUS_FAIL, fg="red")
+        )
         click.echo("{}: {}".format(name, status))
     failed = sum(1 for _, fn in checks if not fn())
     if failed:
@@ -1792,7 +2131,11 @@ def check_all() -> None:
 def db() -> None:
     """Check database connection / 检查数据库连接"""
     ok = _check_db()
-    status = click.style(_STATUS_OK, fg="green") if ok else click.style(_STATUS_FAIL, fg="red")
+    status = (
+        click.style(_STATUS_OK, fg="green")
+        if ok
+        else click.style(_STATUS_FAIL, fg="red")
+    )
     click.echo("{}: {}".format(_CHECK_DB, status))
     sys.exit(0 if ok else 1)
 
@@ -1801,7 +2144,11 @@ def db() -> None:
 def redis() -> None:
     """Check Redis connection / 检查 Redis 连接"""
     ok = _check_redis()
-    status = click.style(_STATUS_OK, fg="green") if ok else click.style(_STATUS_FAIL, fg="red")
+    status = (
+        click.style(_STATUS_OK, fg="green")
+        if ok
+        else click.style(_STATUS_FAIL, fg="red")
+    )
     click.echo("{}: {}".format(_CHECK_REDIS, status))
     sys.exit(0 if ok else 1)
 
@@ -1810,7 +2157,11 @@ def redis() -> None:
 def celery() -> None:
     """Check Celery broker connection / 检查 Celery Broker 连接"""
     ok = _check_celery()
-    status = click.style(_STATUS_OK, fg="green") if ok else click.style(_STATUS_FAIL, fg="red")
+    status = (
+        click.style(_STATUS_OK, fg="green")
+        if ok
+        else click.style(_STATUS_FAIL, fg="red")
+    )
     click.echo("{}: {}".format(_CHECK_CELERY, status))
     sys.exit(0 if ok else 1)
 
@@ -1823,6 +2174,7 @@ def celery() -> None:
 @cli.command("info")
 def info() -> None:
     """Show version, environment, and config summary (sensitive values masked) / 显示版本、环境与配置摘要（敏感项脱敏）"""
+
     def _mask(s: str, visible: int = 4) -> str:
         if len(s) <= visible:
             return "****"
@@ -1832,11 +2184,13 @@ def info() -> None:
     click.echo("  Version:  {}".format(settings.APP_VERSION))
     click.echo("  Env:      {}".format(settings.APP_ENV))
     click.echo("  Python:   {}".format(sys.version.split()[0]))
-    click.echo("  Database: {}:{}/{}".format(
-        settings.DATABASE_HOST,
-        settings.DATABASE_PORT,
-        settings.DATABASE_NAME,
-    ))
+    click.echo(
+        "  Database: {}:{}/{}".format(
+            settings.DATABASE_HOST,
+            settings.DATABASE_PORT,
+            settings.DATABASE_NAME,
+        )
+    )
     click.echo("  Redis:    {}:{}".format(settings.REDIS_HOST, settings.REDIS_PORT))
 
 

@@ -4,6 +4,7 @@
       "preview": "Preview generation",
       "preview_download": "Preview ZIP download",
       "options": "Get codegen options",
+      "workbench_summary": "Get codegen workbench summary",
       "configs": {
         "versions": "Config version list",
         "version_get": "Get config version",
@@ -51,7 +52,14 @@
       "rolled_back": "Rolled Back"
     },
     "rollback": {
-      "no_manifest_entry": "No matching entry in codegen_manifest.json for this config. The DB status may not match this workspace. Typical causes: manifest never written, server run from another cwd, or manifest removed/out of sync. Re-run Generate from the monorepo root to refresh the manifest, then retry rollback; to fix DB-only state, adjust the database or ask an admin."
+      "no_manifest_entry": "No matching entry in codegen_manifest.json for this config. The DB status may not match this workspace. Typical causes: manifest never written, server run from another cwd, or manifest removed/out of sync. Re-run Generate from the monorepo root to refresh the manifest, then retry rollback; to fix DB-only state, adjust the database or ask an admin.",
+      "cleanup_failed": "File rollback completed, but migration cleanup failed. The manifest entry was preserved so you can retry.",
+      "cleanup_pending": "File rollback completed, but migration cleanup was skipped. The manifest entry was preserved; rerun rollback without --no-auto-migrate to finish cleanup."
+    },
+    "download": {
+      "no_manifest_entry": "No generated snapshot exists for this config in the current workspace, so the generated ZIP cannot be downloaded. Generate again from the repo root to refresh the manifest.",
+      "no_tracked_files": "The current manifest entry does not track any downloadable files, so ZIP export is unavailable.",
+      "missing_files": "The manifest references generated output, but these files are missing on disk: {paths}"
     },
     "delete_guard": {
       "manifest_present": "This config still has a manifest entry in the workspace. Roll back generated artifacts before deleting it.",
@@ -759,13 +767,11 @@
   "conversation": {
     "not_found": "Conversation not found",
     "archived": "Conversation archived",
-    "batch_archived": "Batch archive completed",
     "exported": "Conversation exported successfully",
     "deleted": "Conversation deleted",
     "already_archived": "Conversation is already archived",
     "search_keyword_required": "Search keyword is required",
-    "agent_id": "Agent ID",
-    "before_days": "Archive before days"
+    "agent_id": "Agent ID"
   },
   "ai": {
     "request_failed": "AI request failed",
@@ -1259,7 +1265,6 @@
       "search": "Search Conversation Messages",
       "detail": "View Conversation Detail",
       "archive": "Archive Conversation",
-      "batch_archive": "Batch Archive Conversations",
       "delete": "Delete Conversation",
       "export": "Export Conversation"
     },
@@ -2349,7 +2354,7 @@
         "name": "CAPTCHA Provider",
         "desc": "Choose the CAPTCHA implementation",
         "image": "Local Image CAPTCHA",
-        "slider": "Slider Puzzle CAPTCHA"
+        "unavailable_option": "Current value: {provider} (plugin unavailable for this endpoint)"
       },
       "captcha_difficulty": {
         "name": "CAPTCHA Difficulty",
@@ -2541,7 +2546,7 @@
         "name": "CAPTCHA Provider",
         "desc": "Choose the CAPTCHA implementation",
         "image": "Local Image CAPTCHA",
-        "slider": "Slider Puzzle CAPTCHA"
+        "unavailable_option": "Current value: {provider} (plugin unavailable for this endpoint)"
       },
       "captcha_difficulty": {
         "name": "CAPTCHA Difficulty",
@@ -3123,6 +3128,10 @@
   },
   "config.tenant.user_registration_enabled.name": "User Registration",
   "config.tenant.user_registration_enabled.desc": "Allow users to self-register",
+  "config.tenant.user_login_captcha_enabled.name": "User Login CAPTCHA",
+  "config.tenant.user_login_captcha_enabled.desc": "Require CAPTCHA verification during user login",
+  "config.tenant.user_login_captcha_enable_threshold.name": "User Login CAPTCHA Threshold",
+  "config.tenant.user_login_captcha_enable_threshold.desc": "Show CAPTCHA after this many failed user logins (0 means always)",
   "config.tenant.user_registration_captcha_enabled.name": "Registration CAPTCHA",
   "config.tenant.user_registration_captcha_enabled.desc": "Require CAPTCHA verification during registration",
   "config.tenant.user_default_active.name": "Default Active",
@@ -3176,7 +3185,10 @@
   "page_operation.error.multiple_failures_parse": "[System] Multiple page operations failed (including JSON parse errors). Please tell the user to retry with valid input or refresh the page.",
   "page_operation.error.multiple_failures_sequence": "[System] Multiple page operations failed in sequence. Please tell the user the operation encountered issues and suggest they retry or refresh the page.",
   "page_operation.error.json_parse_failed": "Tool arguments JSON parse failed. Ensure arguments are valid JSON. Do not retry with the same invalid input.",
+  "page_operation.error.screenshot_requires_vision": "The current runtime model does not support vision, so page screenshot capture cannot be used. Continue with text page context or switch to a vision-capable model.",
   "page_operation.hint.replace_section": "Use short, unique HTML snippets for replace_section old_html; avoid using the entire document.",
+  "page_operation.hint.screenshot_attached": "A current-page screenshot is attached for internal visual analysis. Use it only for visual/layout understanding and do not describe the raw attachment pipeline to the user.",
+  "page_operation.hint.screenshot_follow_up": "Analyze the attached current-page screenshot together with the existing page context. Use it only when DOM or text context cannot reliably determine the visual/layout details.",
   "api.param.tenant_id": "Tenant ID (0 = platform level)",
   "api.param.tenant_id_filter": "Filter by tenant",
   "api.param.file": "File to upload",

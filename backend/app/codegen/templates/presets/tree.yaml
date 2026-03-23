@@ -6,7 +6,7 @@ display_name: 部门管理
 display_name_en: Department Management
 
 model:
-  base_class: TenantModel
+  base_class: BaseModel
   tree:
     enabled: true
   drag_sort: true
@@ -45,6 +45,11 @@ fields:
     type: Integer
     nullable: true
     comment: 父部门ID
+    relation_table: departments
+    relation_display: name
+    relation_value_field: id
+    form:
+      component: ApiTreeSelect
 
 endpoints:
   - scope: admin

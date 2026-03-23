@@ -64,6 +64,7 @@
   "refreshAnalytics": "刷新分析数据",
   "readCurrentView": "读取当前视图",
   "readCurrentSections": "读取当前分区",
+  "captureScreenshot": "截取页面截图",
   "readVisibleRows": "读取当前可见行",
   "readRowDetail": "读取行详情",
 
@@ -78,6 +79,8 @@
     "listRefreshed": "列表已刷新",
     "currentViewRead": "已读取当前页面视图快照",
     "currentSectionsRead": "已读取当前页面分区信息",
+    "screenshotCaptured": "已截取当前页面截图并附加到本轮对话",
+    "screenshotFailed": "页面截图失败，请先继续使用文本页面上下文或稍后重试",
     "visibleRowsRead": "已读取当前页的 {count} 条可见记录",
     "rowDetailRead": "已读取记录 {id} 的详情",
     "formNotOpen": "表单未打开。请先使用 create_record 或 edit_record 打开表单。",

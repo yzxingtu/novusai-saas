@@ -4,26 +4,45 @@
  */
 import type { AttachmentInfo } from '#/types/attachment';
 
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
 import { Button, Image, message, Spin } from 'ant-design-vue';
 
-import { getAttachmentPreviewUrlApi } from '#/api/tenant/attachment';
+import { downloadAttachmentApi as downloadAdminAttachmentApi } from '#/api/admin/attachment';
+import { getAttachmentPreviewUrlApi as getAdminAttachmentPreviewUrlApi } from '#/api/admin/attachment';
+import { downloadAttachmentApi as downloadTenantAttachmentApi } from '#/api/tenant/attachment';
+import { getAttachmentPreviewUrlApi as getTenantAttachmentPreviewUrlApi } from '#/api/tenant/attachment';
+import { downloadAttachmentApi as downloadUserAttachmentApi } from '#/api/user/attachment';
+import { getAttachmentPreviewUrlApi as getUserAttachmentPreviewUrlApi } from '#/api/user/attachment';
 import { $t } from '#/locales';
-import { getProcessedImageUrl } from '#/utils/image';
+import { getAttachmentUrl } from '#/utils/image';
 
 defineOptions({ name: 'FilePreview' });
 
 const props = defineProps<{
+  /** Attachment endpoint type, defaults to admin/tenant/user auto-detection / 附件端点类型，默认自动识别 admin/tenant/user */
+  endpoint?: 'admin' | 'tenant' | 'user';
   /** Attachment info / 附件信息 */
   file?: AttachmentInfo | null;
 }>();
 
 const loading = ref(false);
 const previewUrl = ref<string>('');
+const resolvedEndpoint = computed(() => {
+  if (props.endpoint) {
+    return props.endpoint;
+  }
+  if (window.location.pathname.startsWith('/admin')) {
+    return 'admin';
+  }
+  if (window.location.pathname.startsWith('/tenant')) {
+    return 'tenant';
+  }
+  return 'user';
+});
 const isImage = computed(() => props.file?.category === 'image');
 const isVideo = computed(() => props.file?.category === 'video');
 const isAudio = computed(() => props.file?.category === 'audio');
@@ -43,18 +62,30 @@ const [Modal, modalApi] = useVbenModal({
 async function loadPreviewUrl() {
   if (!props.file) return;
 
-  // Images use public processing API / 图片使用公共处理接口
+  // Images must reuse signed previewUrl when present, otherwise private images lose access token
+  // 图片预览必须优先复用带签名的 previewUrl，否则私有图片会丢失访问 token
   if (isImage.value) {
-    previewUrl.value = getProcessedImageUrl(props.file.id, {
+    previewUrl.value = getAttachmentUrl(props.file, {
       preset: 'preview',
     });
     return;
   }
 
   // Other files get temporary preview link / 其他文件获取临时预览链接
+  if (props.file.previewUrl) {
+    previewUrl.value = props.file.previewUrl;
+    return;
+  }
+
   loading.value = true;
   try {
-    const result = await getAttachmentPreviewUrlApi(props.file.id);
+    const previewApi =
+      resolvedEndpoint.value === 'admin'
+        ? getAdminAttachmentPreviewUrlApi
+        : resolvedEndpoint.value === 'tenant'
+          ? getTenantAttachmentPreviewUrlApi
+          : getUserAttachmentPreviewUrlApi;
+    const result = await previewApi(props.file.id);
     previewUrl.value = result.url;
   } catch {
     message.error($t('shared.filePreview.loadFailed'));
@@ -63,16 +94,27 @@ async function loadPreviewUrl() {
   }
 }
 
-function handleDownload() {
-  if (!previewUrl.value) return;
-  const link = document.createElement('a');
-  link.href = previewUrl.value;
-  link.download = props.file?.name || 'download';
-  link.target = '_blank';
-  document.body.append(link);
-  link.click();
-  link.remove();
+async function handleDownload() {
+  if (!props.file) return;
+  try {
+    const downloadApi =
+      resolvedEndpoint.value === 'admin'
+        ? downloadAdminAttachmentApi
+        : resolvedEndpoint.value === 'tenant'
+          ? downloadTenantAttachmentApi
+          : downloadUserAttachmentApi;
+    await downloadApi(props.file.id, props.file.name, props.file.mimeType);
+  } catch {
+    message.error($t('common.http.downloadFailed'));
+  }
 }
+
+watch(
+  () => props.file?.id,
+  () => {
+    previewUrl.value = '';
+  },
+);
 
 defineExpose({
   open: () => modalApi.open(),
