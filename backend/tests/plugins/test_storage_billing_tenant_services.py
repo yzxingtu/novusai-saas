@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi.responses import Response
 
+from app.exceptions import BusinessException
 from app.plugins.module_loader import load_plugin_module
 
 
@@ -42,7 +43,17 @@ async def test_storage_billing_tenant_endpoints_delegate_to_service(monkeypatch)
     )
 
     binding_service = AsyncMock()
-    binding_service.get_tenant_prerequisites = AsyncMock(return_value={"ok": True})
+    binding_service.get_tenant_prerequisites = AsyncMock(
+        return_value={
+            "ok": True,
+            "provider_capabilities": {
+                "tencent-cos": {
+                    "scheduled_daily_supported": True,
+                    "supported_period_types": ["daily"],
+                }
+            },
+        }
+    )
 
     overview_factory = MagicMock()
     overview_factory.from_context.return_value = overview_service
@@ -101,6 +112,102 @@ async def test_storage_billing_tenant_endpoints_delegate_to_service(monkeypatch)
 
     assert prereq_result["ok"] is True
     binding_service.get_tenant_prerequisites.assert_awaited_once_with(9)
+    assert prereq_result["provider_capabilities"]["tencent-cos"]["scheduled_daily_supported"] is True
+    assert prereq_result["provider_capabilities"]["tencent-cos"]["supported_period_types"] == ["daily"]
+
+
+@pytest.mark.asyncio
+async def test_storage_billing_tenant_endpoints_forward_period_type(monkeypatch) -> None:
+    module = load_plugin_module("storage-billing", "api.tenant")
+    assert module is not None
+
+    overview_service = AsyncMock()
+    overview_service.build_tenant_statement = AsyncMock(return_value={"statement": {"id": 1}})
+    overview_service.list_tenant_statement_charges = AsyncMock(
+        return_value={"items": [{"id": 3}], "total": 1, "billing_date": "2026-03-22"}
+    )
+    overview_service.export_tenant_statement_charges_csv = AsyncMock(
+        return_value=Response(content=b"id\n3\n", media_type="text/csv")
+    )
+
+    binding_service = AsyncMock()
+    binding_service.get_tenant_prerequisites = AsyncMock(return_value={"ok": True})
+
+    overview_factory = MagicMock()
+    overview_factory.from_context.return_value = overview_service
+    monkeypatch.setattr(module, "StorageBillingOverviewService", overview_factory)
+
+    binding_factory = MagicMock()
+    binding_factory.from_context.return_value = binding_service
+    monkeypatch.setattr(module, "StorageBillingBindingService", binding_factory)
+
+    ctx = MagicMock()
+    ctx.get_current_tenant_id.return_value = 9
+    ctx.get_request_id.return_value = "req-tenant-1"
+
+    request = MagicMock()
+    request.query_params = {"billing_date": "2026-03-22", "period_type": "monthly"}
+    await module.get_current_statement(request, ctx)
+    overview_service.build_tenant_statement.assert_awaited_once_with(
+        tenant_id=9,
+        billing_date=date(2026, 3, 22),
+        request_id="req-tenant-1",
+        period_type="monthly",
+    )
+
+    charges_request = MagicMock()
+    charges_request.query_params = {"billing_date": "2026-03-22", "period_type": "monthly"}
+    await module.list_statement_charges(charges_request, ctx)
+    overview_service.list_tenant_statement_charges.assert_awaited_once_with(
+        tenant_id=9,
+        billing_date=date(2026, 3, 22),
+        period_type="monthly",
+    )
+
+    export_request = MagicMock()
+    export_request.query_params = {"billing_date": "2026-03-22", "period_type": "monthly"}
+    await module.export_statement_charges(export_request, ctx)
+    overview_service.export_tenant_statement_charges_csv.assert_awaited_once_with(
+        tenant_id=9,
+        billing_date=date(2026, 3, 22),
+        period_type="monthly",
+    )
+
+
+@pytest.mark.asyncio
+async def test_storage_billing_tenant_endpoints_reject_invalid_billing_date(monkeypatch) -> None:
+    module = load_plugin_module("storage-billing", "api.tenant")
+    assert module is not None
+
+    overview_factory = MagicMock()
+    monkeypatch.setattr(module, "StorageBillingOverviewService", overview_factory)
+
+    ctx = MagicMock()
+    request = MagicMock()
+    request.query_params = {"billing_date": "2026/03/22"}
+
+    with pytest.raises(BusinessException, match="billing_date"):
+        await module.get_current_statement(request, ctx)
+
+    overview_factory.from_context.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_storage_billing_tenant_endpoints_reject_invalid_period_type(monkeypatch) -> None:
+    module = load_plugin_module("storage-billing", "api.tenant")
+    assert module is not None
+
+    overview_factory = MagicMock()
+    monkeypatch.setattr(module, "StorageBillingOverviewService", overview_factory)
+
+    ctx = MagicMock()
+    request = MagicMock()
+    request.query_params = {"period_type": "weekly"}
+
+    with pytest.raises(BusinessException, match="period_type"):
+        await module.get_current_statement(request, ctx)
+
+    overview_factory.from_context.assert_not_called()
 
 
 @pytest.mark.asyncio

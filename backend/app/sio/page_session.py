@@ -22,6 +22,7 @@ ambiguous multi-tab sessions return None to avoid cross-tab misrouting.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 import uuid
 from typing import Any
@@ -30,6 +31,8 @@ import socketio
 
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.core.response import build_error_event, build_error_payload, build_exception_debug
+from app.middleware.trace import trace_id_var
 
 logger = LogManager.get_logger("app")
 
@@ -46,6 +49,59 @@ _sid_active_sessions: dict[tuple[str, str], set[tuple[tuple[str, int, str], str]
 # Default operation timeout (seconds) / 默认操作超时（秒）
 # 60s to align with frontend CONFIRM_TIMEOUT_MS / 与前端确认超时 60s 对齐
 PAGE_OPERATION_TIMEOUT = 60
+
+
+def _extract_trace_id(payload: dict[str, Any] | None = None) -> str | None:
+    """Extract a safe trace id from Socket.IO payload / 从 Socket.IO 载荷提取安全 trace id。"""
+    if not isinstance(payload, dict):
+        return None
+    trace_id = payload.get("trace_id")
+    if trace_id is None:
+        return None
+    value = str(trace_id).strip()
+    return value[:128] if value else None
+
+
+def _socket_event_error_payload(
+    *,
+    code: int | str,
+    message: str,
+    debug: Any = None,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build Socket.IO event error payload / 构建 Socket.IO 事件错误载荷。"""
+    return build_error_event(
+        code=code,
+        message=message,
+        trace_id=trace_id_var.get() or None,
+        debug=debug,
+        extra=extra,
+    )
+
+
+def _page_operation_error_result(
+    *,
+    invoke_id: str,
+    error_type: str,
+    message: str,
+    code: int | str,
+    debug: Any = None,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build page operation failure result / 构建页面操作失败结果。"""
+    payload = build_error_payload(
+        message=message,
+        code=code,
+        trace_id=trace_id_var.get() or None,
+        debug=debug,
+        extra=extra,
+    )
+    return {
+        "invoke_id": invoke_id,
+        "success": False,
+        "error_type": error_type,
+        **payload,
+    }
 
 
 def _user_role_to_scope(user_role: str) -> str:
@@ -160,41 +216,128 @@ class PageSessionMixin:
     page_session_join / page_session_leave / page_operation_result 事件。
     """
 
+    async def trigger_event(
+        self: socketio.AsyncNamespace,  # type: ignore[override]
+        event: str,
+        *args: Any,
+    ) -> Any:
+        """Bind trace context for generic Socket.IO events / 为通用 Socket.IO 事件绑定 trace 上下文。"""
+        if event in ("connect", "disconnect"):
+            return await super().trigger_event(event, *args)
+
+        if event not in {
+            "page_operation_result",
+            "page_session_join",
+            "page_session_leave",
+        }:
+            sid = str(args[0]) if args else ""
+            payload = args[1] if len(args) > 1 and isinstance(args[1], dict) else None
+            if sid:
+                await self.bind_socket_trace(sid, payload)
+                try:
+                    return await super().trigger_event(event, *args)
+                except Exception as exc:
+                    logger.error(
+                        "SIO {} event failed: event={} sid={} error={}",
+                        self.namespace,
+                        event,
+                        sid,
+                        exc,
+                        exc_info=True,
+                    )
+                    return _socket_event_error_payload(
+                        code="SOCKET_EVENT_ERROR",
+                        message=_("common.server_error"),
+                        debug=build_exception_debug(exc),
+                        extra={"event": event},
+                    )
+                finally:
+                    trace_id_var.set("")
+
+        return await super().trigger_event(event, *args)
+
+    async def get_socket_session_with_fallback(
+        self: socketio.AsyncNamespace,  # type: ignore[override]
+        sid: str,
+    ) -> dict[str, Any] | None:
+        """Get Socket.IO session with backup fallback / 获取 Socket.IO session，失败时回退备份。"""
+        with contextlib.suppress(Exception):
+            session = await self.get_session(sid)
+            if isinstance(session, dict):
+                return session
+
+        sid_sessions = getattr(self, "_sid_sessions", None)
+        if isinstance(sid_sessions, dict):
+            fallback = sid_sessions.get(sid)
+            if isinstance(fallback, dict):
+                return fallback
+        return None
+
+    async def bind_socket_trace(
+        self: socketio.AsyncNamespace,  # type: ignore[override]
+        sid: str,
+        payload: dict[str, Any] | None = None,
+        default_trace_id: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Bind current Socket.IO event to trace context / 将当前 Socket.IO 事件绑定到 trace 上下文。"""
+        session = await self.get_socket_session_with_fallback(sid)
+        trace_id = (
+            _extract_trace_id(payload)
+            or (session or {}).get("trace_id")
+            or default_trace_id
+            or str(uuid.uuid4())
+        )
+        trace_id_var.set(trace_id)
+
+        updated_session = session
+        if session is not None and session.get("trace_id") != trace_id:
+            updated_session = {**session, "trace_id": trace_id}
+            with contextlib.suppress(Exception):
+                await self.save_session(sid, updated_session)
+            sid_sessions = getattr(self, "_sid_sessions", None)
+            if isinstance(sid_sessions, dict):
+                sid_sessions[sid] = updated_session
+
+        return updated_session
+
     async def on_page_session_join(
         self: socketio.AsyncNamespace,  # type: ignore[override]
         sid: str,
         data: dict[str, Any] | None = None,
     ) -> None:
         """Frontend requests to join page_session room / 前端请求加入 page_session 房间"""
-        if not data or not data.get("page_session_id"):
-            return
-        page_session_id = str(data["page_session_id"])[:64]
-        room = f"page_session:{page_session_id}"
-        await self.enter_room(sid, room)
+        session = await self.bind_socket_trace(sid, data)
+        try:
+            if not data or not data.get("page_session_id"):
+                return
+            page_session_id = str(data["page_session_id"])[:64]
+            room = f"page_session:{page_session_id}"
+            await self.enter_room(sid, room)
 
-        # Track active session for executor to recover stale session after reconnect
-        page_key = (data.get("page_key") or "").strip()[:128]
-        if page_key:
-            try:
-                session = await self.get_session(sid)
-                user_id = session.get("user_id") if session else None
-                if user_id is not None:
-                    scope = self.namespace or "/tenant"
-                    key = (scope, int(user_id), page_key)
-                    session_map = _active_sessions.setdefault(key, {})
-                    session_map[page_session_id] = time.monotonic()
-                    _track_sid_active_session(scope, sid, key, page_session_id)
-                    logger.debug(
-                        "SIO {} active_session stored scope={} user_id={} page_key={} session={} active_count={}",
-                        self.namespace, scope, user_id, page_key, page_session_id, len(session_map),
-                    )
-            except Exception as e:
-                logger.debug("SIO {} get_session for active_session failed: {}", self.namespace, e)
+            # Track active session for executor to recover stale session after reconnect
+            page_key = (data.get("page_key") or "").strip()[:128]
+            if page_key:
+                try:
+                    user_id = session.get("user_id") if session else None
+                    if user_id is not None:
+                        scope = self.namespace or "/tenant"
+                        key = (scope, int(user_id), page_key)
+                        session_map = _active_sessions.setdefault(key, {})
+                        session_map[page_session_id] = time.monotonic()
+                        _track_sid_active_session(scope, sid, key, page_session_id)
+                        logger.debug(
+                            "SIO {} active_session stored scope={} user_id={} page_key={} session={} active_count={}",
+                            self.namespace, scope, user_id, page_key, page_session_id, len(session_map),
+                        )
+                except Exception as e:
+                    logger.debug("SIO {} get_session for active_session failed: {}", self.namespace, e)
 
-        logger.debug(
-            "SIO {} sid={} joined room {}",
-            self.namespace, sid, room,
-        )
+            logger.debug(
+                "SIO {} sid={} joined room {}",
+                self.namespace, sid, room,
+            )
+        finally:
+            trace_id_var.set("")
 
     async def on_page_session_leave(
         self: socketio.AsyncNamespace,  # type: ignore[override]
@@ -202,20 +345,24 @@ class PageSessionMixin:
         data: dict[str, Any] | None = None,
     ) -> None:
         """Frontend requests to leave page_session room / 前端请求离开 page_session 房间"""
-        if not data or not data.get("page_session_id"):
-            return
-        page_session_id = str(data["page_session_id"])[:64]
-        room = f"page_session:{page_session_id}"
-        await self.leave_room(sid, room)
+        await self.bind_socket_trace(sid, data)
+        try:
+            if not data or not data.get("page_session_id"):
+                return
+            page_session_id = str(data["page_session_id"])[:64]
+            room = f"page_session:{page_session_id}"
+            await self.leave_room(sid, room)
 
-        # Remove from active session tracking for this socket only
-        scope = self.namespace or "/tenant"
-        _remove_sid_active_sessions(scope, sid, page_session_id)
+            # Remove from active session tracking for this socket only
+            scope = self.namespace or "/tenant"
+            _remove_sid_active_sessions(scope, sid, page_session_id)
 
-        logger.debug(
-            "SIO {} sid={} left room {}",
-            self.namespace, sid, room,
-        )
+            logger.debug(
+                "SIO {} sid={} left room {}",
+                self.namespace, sid, room,
+            )
+        finally:
+            trace_id_var.set("")
 
     def cleanup_page_sessions_for_disconnect(
         self: socketio.AsyncNamespace,  # type: ignore[override]
@@ -232,16 +379,20 @@ class PageSessionMixin:
     ) -> None:
         """Frontend returns operation execution result / 前端回传操作执行结果"""
         _sid = sid  # noqa: F841
-        if not data or not data.get("invoke_id"):
-            return
-        invoke_id = data["invoke_id"]
-        future = _pending_invocations.get(invoke_id)
-        if future and not future.done():
-            future.set_result(data)
-            logger.debug(
-                "SIO {} page_operation:result received invoke_id={} success={}",
-                self.namespace, invoke_id, data.get("success"),
-            )
+        await self.bind_socket_trace(sid, data)
+        try:
+            if not data or not data.get("invoke_id"):
+                return
+            invoke_id = data["invoke_id"]
+            future = _pending_invocations.get(invoke_id)
+            if future and not future.done():
+                future.set_result(data)
+                logger.debug(
+                    "SIO {} page_operation:result received invoke_id={} success={}",
+                    self.namespace, invoke_id, data.get("success"),
+                )
+        finally:
+            trace_id_var.set("")
 
 
 async def invoke_page_operation(
@@ -295,6 +446,7 @@ async def invoke_page_operation(
     # Construct invoke event data / 构造 invoke 事件数据
     invoke_data: dict[str, Any] = {
         "invoke_id": invoke_id,
+        "trace_id": trace_id_var.get() or invoke_id,
         "page_key": page_key,
         "operation_name": operation_name,
         "params": params or {},
@@ -328,24 +480,29 @@ async def invoke_page_operation(
             "page_operation:invoke timed out invoke_id={} page_key={} op={} timeout={}s",
             invoke_id, page_key, operation_name, timeout,
         )
-        return {
-            "invoke_id": invoke_id,
-            "success": False,
-            "message": _("page_operation.error.timeout", op=operation_name, timeout=int(timeout)),
-            "error_type": "timeout",
-        }
+        return _page_operation_error_result(
+            invoke_id=invoke_id,
+            error_type="timeout",
+            message=_("page_operation.error.timeout", op=operation_name, timeout=int(timeout)),
+            code="PAGE_OPERATION_TIMEOUT",
+        )
 
     except Exception as e:
         logger.error(
             "page_operation:invoke failed invoke_id={} error={}",
             invoke_id, e,
         )
-        return {
-            "invoke_id": invoke_id,
-            "success": False,
-            "message": _("page_operation.error.internal_failed", op=operation_name, error=str(e)),
-            "error_type": "internal_error",
-        }
+        return _page_operation_error_result(
+            invoke_id=invoke_id,
+            error_type="internal_error",
+            message=_(
+                "page_operation.error.internal_failed",
+                op=operation_name,
+                error=_("common.server_error"),
+            ),
+            code="PAGE_OPERATION_INTERNAL_ERROR",
+            debug=build_exception_debug(e),
+        )
 
     finally:
         _pending_invocations.pop(invoke_id, None)

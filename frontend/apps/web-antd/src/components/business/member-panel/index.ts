@@ -5,7 +5,7 @@
  */
 
 // Type exports / 类型导出
-export type { RoleTreeApi } from './data';
+export type { OrgTreeApi } from './data';
 
 // Component exports / 组件导出
 export { default as MemberPanel } from './MemberPanel.vue';

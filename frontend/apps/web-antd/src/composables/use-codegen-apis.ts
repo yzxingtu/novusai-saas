@@ -55,8 +55,8 @@ export async function getUserSelectApi(params?: { search?: string }) {
 /**
  * 部门/组织树 API / Dept/Org tree API
  *
- * Admin: GET /admin/roles/organization (平台组织架构根节点)
- * Tenant: GET /tenant/roles/organization (企业组织架构根节点)
+ * Admin: GET /admin/organization (平台组织架构根节点)
+ * Tenant: GET /tenant/organization (企业组织架构根节点)
  */
 export async function getDeptTreeApi() {
   const prefix = getApiPrefix();

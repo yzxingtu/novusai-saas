@@ -18,9 +18,9 @@ from app.models.auth.tenant_admin_role import TenantAdminRole
 from app.models.auth.tenant_user_role import TenantUserRole
 from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_plan import TenantPlan
-from app.repositories.system.admin_role_repository import AdminRoleRepository
-from app.repositories.tenant.tenant_role_repository import TenantRoleRepository
 from app.schemas.common import MenuResponse, PermissionResponse, PermissionTreeResponse
+from app.services.system.admin_org_authority_service import AdminOrgAuthorityService
+from app.services.tenant.tenant_org_authority_service import TenantOrgAuthorityService
 
 
 class PermissionService:
@@ -121,11 +121,8 @@ class PermissionService:
 
     async def get_admin_manageable_role_ids(self, admin: Admin) -> set[int]:
         """
-        Get platform admin's manageable role ID set.
-        获取平台管理员可管理的角色 ID 集合。
-
-        Manageable roles = all descendant roles (excluding self) + roles where admin is leader.
-        可管理的角色 = 自身角色的所有后代角色（不含自身） + 自己作为负责人的角色。
+        Get platform admin's manageable organization-node IDs through legacy role API.
+        获取平台管理员经由旧角色命名接口暴露出来的“可管理组织节点 ID”集合。
 
         Args:
             admin: Platform admin / 平台管理员
@@ -133,43 +130,12 @@ class PermissionService:
         Returns:
             Role ID set / 角色 ID 集合
         """
-        # Super admin can manage all roles / 超级管理员可以管理所有角色
-        if admin.is_super:
-            result = await self.db.execute(
-                select(AdminRole.id).where(AdminRole.is_deleted.is_(False))
-            )
-            return set(result.scalars().all())
-
-        # No role means cannot manage any role / 无角色则无法管理任何角色
-        if admin.role_id is None:
-            return set()
-
-        manageable_ids = set()
-
-        # Get descendant roles (excluding self) / 获取后代角色（不含自身）
-        repo = AdminRoleRepository(self.db)
-        descendant_ids = await repo.get_descendant_ids(admin.role_id)
-        manageable_ids.update(descendant_ids)
-
-        # Get roles where admin is leader (dept leader can manage their dept) / 获取自己作为负责人的角色
-        leader_roles_result = await self.db.execute(
-            select(AdminRole.id).where(
-                AdminRole.leader_id == admin.id,
-                AdminRole.is_deleted.is_(False),
-            )
-        )
-        leader_role_ids = set(leader_roles_result.scalars().all())
-        manageable_ids.update(leader_role_ids)
-
-        return manageable_ids
+        return set(await AdminOrgAuthorityService(self.db, admin).get_manageable_org_node_ids())
 
     async def get_admin_visible_role_ids(self, admin: Admin) -> set[int]:
         """
-        Get platform admin's visible role ID set.
-        获取平台管理员可见的角色 ID 集合。
-
-        Visible roles = own role + all descendant roles.
-        可见的角色 = 自身角色 + 所有后代角色。
+        Get platform admin's visible organization-node IDs through legacy role API.
+        获取平台管理员经由旧角色命名接口暴露出来的“可见组织节点 ID”集合。
 
         Args:
             admin: Platform admin / 平台管理员
@@ -177,24 +143,7 @@ class PermissionService:
         Returns:
             Role ID set / 角色 ID 集合
         """
-        # Super admin can see all roles / 超级管理员可以看到所有角色
-        if admin.is_super:
-            result = await self.db.execute(
-                select(AdminRole.id).where(AdminRole.is_deleted.is_(False))
-            )
-            return set(result.scalars().all())
-
-        # No role means cannot see any role / 无角色则无法看到任何角色
-        if admin.role_id is None:
-            return set()
-
-        # Own role + descendant roles / 自身角色 + 后代角色
-        visible_ids = {admin.role_id}
-        repo = AdminRoleRepository(self.db)
-        descendant_ids = await repo.get_descendant_ids(admin.role_id)
-        visible_ids.update(descendant_ids)
-
-        return visible_ids
+        return set(await AdminOrgAuthorityService(self.db, admin).get_visible_org_node_ids())
 
     async def _get_tenant_plan_permissions(
         self,
@@ -372,8 +321,8 @@ class PermissionService:
         tenant_admin: TenantAdmin,
     ) -> set[int]:
         """
-        Get tenant admin's manageable role ID set.
-        获取企业管理员可管理的角色 ID 集合。
+        Get tenant admin's manageable organization-node IDs through legacy role API.
+        获取企业管理员经由旧角色命名接口暴露出来的“可管理组织节点 ID”集合。
 
         Args:
             tenant_admin: Tenant admin / 企业管理员
@@ -381,47 +330,17 @@ class PermissionService:
         Returns:
             Role ID set / 角色 ID 集合
         """
-        # Tenant owner can manage all roles / 企业所有者可以管理所有角色
-        if tenant_admin.is_owner:
-            result = await self.db.execute(
-                select(TenantAdminRole.id).where(
-                    TenantAdminRole.tenant_id == tenant_admin.tenant_id,
-                    TenantAdminRole.is_deleted.is_(False),
-                )
-            )
-            return set(result.scalars().all())
-
-        # No role means cannot manage / 无角色则无法管理
-        if tenant_admin.role_id is None:
-            return set()
-
-        manageable_ids = set()
-
-        # Get descendant roles / 获取后代角色
-        repo = TenantRoleRepository(self.db, tenant_admin.tenant_id)
-        descendant_ids = await repo.get_descendant_ids(tenant_admin.role_id)
-        manageable_ids.update(descendant_ids)
-
-        # Get roles where admin is leader (dept leader can manage their dept) / 获取自己作为负责人的角色
-        leader_roles_result = await self.db.execute(
-            select(TenantAdminRole.id).where(
-                TenantAdminRole.tenant_id == tenant_admin.tenant_id,
-                TenantAdminRole.leader_id == tenant_admin.id,
-                TenantAdminRole.is_deleted.is_(False),
-            )
+        return set(
+            await TenantOrgAuthorityService(self.db, tenant_admin).get_manageable_org_node_ids()
         )
-        leader_role_ids = set(leader_roles_result.scalars().all())
-        manageable_ids.update(leader_role_ids)
-
-        return manageable_ids
 
     async def get_tenant_admin_visible_role_ids(
         self,
         tenant_admin: TenantAdmin,
     ) -> set[int]:
         """
-        Get tenant admin's visible role ID set.
-        获取企业管理员可见的角色 ID 集合。
+        Get tenant admin's visible organization-node IDs through legacy role API.
+        获取企业管理员经由旧角色命名接口暴露出来的“可见组织节点 ID”集合。
 
         Args:
             tenant_admin: Tenant admin / 企业管理员
@@ -429,27 +348,7 @@ class PermissionService:
         Returns:
             Role ID set / 角色 ID 集合
         """
-        # Tenant owner can see all roles / 企业所有者可以看到所有角色
-        if tenant_admin.is_owner:
-            result = await self.db.execute(
-                select(TenantAdminRole.id).where(
-                    TenantAdminRole.tenant_id == tenant_admin.tenant_id,
-                    TenantAdminRole.is_deleted.is_(False),
-                )
-            )
-            return set(result.scalars().all())
-
-        # No role means cannot see any / 无角色则无法看到
-        if tenant_admin.role_id is None:
-            return set()
-
-        # Own role + descendant roles / 自身角色 + 后代角色
-        visible_ids = {tenant_admin.role_id}
-        repo = TenantRoleRepository(self.db, tenant_admin.tenant_id)
-        descendant_ids = await repo.get_descendant_ids(tenant_admin.role_id)
-        visible_ids.update(descendant_ids)
-
-        return visible_ids
+        return set(await TenantOrgAuthorityService(self.db, tenant_admin).get_visible_org_node_ids())
 
     def check_permission(
         self,
@@ -581,6 +480,9 @@ class PermissionService:
                 runtime_title = PermissionService._resolve_plugin_menu_title(name)
                 if runtime_title:
                     return runtime_title
+                runtime_permission_title = PermissionService._resolve_plugin_permission_title(name)
+                if runtime_permission_title:
+                    return runtime_permission_title
                 return PermissionService._fallback_permission_name(name)
             return translated
         return name or ""
@@ -625,6 +527,17 @@ class PermissionService:
                 return runtime_title
 
         return None
+
+    @staticmethod
+    def _resolve_plugin_permission_title(name: str) -> str | None:
+        """
+        Resolve plugin permission runtime title.
+        解析插件权限运行时标题。
+        """
+        from app.plugins.registry import ExtensionRegistry
+
+        registry = ExtensionRegistry.get_instance()
+        return registry.resolve_plugin_permission_title(name)
 
     @staticmethod
     def _fallback_permission_name(name: str) -> str:

@@ -1,16 +1,18 @@
 <script lang="ts" setup>
 import { computed } from 'vue';
+import type { AppErrorInfo } from '#/utils/request';
 
 import { Button } from 'ant-design-vue';
 import DOMPurify from 'dompurify';
 import MarkdownIt from 'markdown-it';
 import { $t } from '@vben/locales';
+import { isDevErrorMode } from '#/utils/request';
 
 const props = withDefaults(
   defineProps<{
     result: string;
     loading?: boolean;
-    error?: string | null;
+    error?: AppErrorInfo | null;
     /** When false, retry button is disabled (e.g. no prior stream run). / 为 false 时禁用重试按钮 */
     canRetry?: boolean;
     maxHeight?: number | string;
@@ -38,6 +40,10 @@ const maxH = computed(() => {
   const v = props.maxHeight;
   return typeof v === 'number' ? `${v}px` : v;
 });
+
+const showErrorDebug = computed(
+  () => isDevErrorMode() && !!props.error?.debugMessage,
+);
 </script>
 
 <template>
@@ -46,9 +52,16 @@ const maxH = computed(() => {
   >
     <div
       v-if="error"
-      class="mb-2 text-sm text-destructive"
+      class="mb-2 rounded border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive"
     >
-      {{ error }}
+      <p>{{ error.message }}</p>
+      <p v-if="error.traceId" class="mt-1 text-xs text-muted-foreground">
+        {{ `${$t('common.http.traceId')}: ${error.traceId}` }}
+      </p>
+      <pre
+        v-if="showErrorDebug"
+        class="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-all rounded bg-black/5 p-2 text-xs text-red-500"
+      >{{ error?.debugMessage }}</pre>
     </div>
     <div
       class="rte-ai-result-content mb-2 overflow-y-auto text-sm"

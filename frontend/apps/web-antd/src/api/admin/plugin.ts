@@ -425,6 +425,7 @@ export interface PluginSlotData {
   icon?: string;
   position?: string;
   event?: string;
+  access_codes?: string[];
   ai?: {
     disabled_capabilities?: string[];
     disabled_operations?: string[];

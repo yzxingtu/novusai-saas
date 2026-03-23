@@ -1,10 +1,11 @@
 <script lang="ts" setup>
 import type {
   AdminTemplateListQuery,
+  CreateAdminTemplatePayload,
   WorkflowTemplateSummary,
 } from '../../../types/admin';
 
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { Page } from '@vben/common-ui';
@@ -25,7 +26,11 @@ import {
   message,
 } from 'ant-design-vue';
 
-import { listAdminTemplatesApi, publishAdminTemplateApi } from '../../../api/admin';
+import {
+  createAdminTemplateApi,
+  listAdminTemplatesApi,
+  publishAdminTemplateApi,
+} from '../../../api/admin';
 import { formatCompactNumber, formatDateTime } from '../shared/format';
 import { usePaginatedCollection } from '../shared/use-paginated-collection';
 
@@ -49,6 +54,14 @@ defineOptions({ name: 'WorkflowOrchestrationAdminTemplates' });
 const router = useRouter();
 const publishingId = ref<null | number>(null);
 const searchKeyword = ref('');
+const createModalOpen = ref(false);
+const createSubmitting = ref(false);
+const createCodeTouched = ref(false);
+const createForm = reactive({
+  code: '',
+  description: '',
+  name: '',
+});
 
 const collection = usePaginatedCollection<
   WorkflowTemplateSummary,
@@ -180,6 +193,116 @@ function openEditor(templateId: number) {
   router.push(buildAdminPath(`templates/${templateId}/editor`));
 }
 
+function resetCreateForm() {
+  createForm.name = '';
+  createForm.code = '';
+  createForm.description = '';
+  createCodeTouched.value = false;
+}
+
+function openCreateModal() {
+  resetCreateForm();
+  createModalOpen.value = true;
+}
+
+function closeCreateModal() {
+  if (createSubmitting.value) {
+    return;
+  }
+  createModalOpen.value = false;
+  resetCreateForm();
+}
+
+function suggestTemplateCode(name: string): string {
+  const normalized = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .replace(/_+/g, '_');
+
+  return normalized;
+}
+
+function handleCreateNameInput(value: string) {
+  createForm.name = value;
+  if (!createCodeTouched.value) {
+    createForm.code = suggestTemplateCode(value);
+  }
+}
+
+function handleCreateCodeInput(value: string) {
+  createCodeTouched.value = true;
+  createForm.code = value;
+}
+
+function getCreateErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  if (typeof error === 'object' && error !== null) {
+    const messageValue =
+      Reflect.get(error, 'message') ??
+      Reflect.get(
+        Reflect.get(Reflect.get(error, 'response') as object | null, 'data') as
+          | object
+          | null,
+        'message',
+      );
+
+    if (typeof messageValue === 'string' && messageValue.trim()) {
+      return messageValue;
+    }
+  }
+
+  return $t(`${ADMIN_I18N_PREFIX}.templates.create.error`);
+}
+
+async function submitCreateTemplate() {
+  const name = createForm.name.trim();
+  const code = createForm.code.trim();
+
+  if (!name) {
+    message.warning($t(`${ADMIN_I18N_PREFIX}.templates.create.validation.nameRequired`));
+    return;
+  }
+
+  if (!code) {
+    message.warning($t(`${ADMIN_I18N_PREFIX}.templates.create.validation.codeRequired`));
+    return;
+  }
+
+  createSubmitting.value = true;
+
+  const payload: CreateAdminTemplatePayload = {
+    code,
+    name,
+    description: createForm.description.trim() || null,
+    builderSurface: 'platform_workflow_studio',
+    releaseScope: 'selected_tenants',
+    snapshot: {
+      builderSurface: 'platform_workflow_studio',
+      graph: {
+        nodes: [],
+        edges: [],
+      },
+    },
+  };
+
+  try {
+    const template = await createAdminTemplateApi(payload);
+    message.success($t(`${ADMIN_I18N_PREFIX}.templates.create.success`));
+    createModalOpen.value = false;
+    resetCreateForm();
+    await router.push(buildAdminPath(`templates/${template.id}/editor`));
+  } catch (error) {
+    message.error(getCreateErrorMessage(error));
+  } finally {
+    createSubmitting.value = false;
+  }
+}
+
 function confirmPublish(row: WorkflowTemplateSummary) {
   Modal.confirm({
     title: $t(`${ADMIN_I18N_PREFIX}.templates.publish.confirmTitle`),
@@ -226,12 +349,21 @@ onMounted(() => {
             </p>
           </div>
 
-          <Button :loading="collection.loading.value" @click="collection.load">
-            <template #icon>
-              <IconifyIcon icon="lucide:refresh-cw" />
-            </template>
-            {{ $t(`${ADMIN_I18N_PREFIX}.common.refresh`) }}
-          </Button>
+          <div class="flex items-center gap-2">
+            <Button type="primary" @click="openCreateModal">
+              <template #icon>
+                <IconifyIcon icon="lucide:plus" />
+              </template>
+              {{ $t(`${ADMIN_I18N_PREFIX}.templates.create.action`) }}
+            </Button>
+
+            <Button :loading="collection.loading.value" @click="collection.load">
+              <template #icon>
+                <IconifyIcon icon="lucide:refresh-cw" />
+              </template>
+              {{ $t(`${ADMIN_I18N_PREFIX}.common.refresh`) }}
+            </Button>
+          </div>
         </div>
 
         <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -419,5 +551,56 @@ onMounted(() => {
         />
       </div>
     </Card>
+
+    <Modal
+      :confirm-loading="createSubmitting"
+      :open="createModalOpen"
+      :title="$t(`${ADMIN_I18N_PREFIX}.templates.create.title`)"
+      destroy-on-close
+      @cancel="closeCreateModal"
+      @ok="submitCreateTemplate"
+    >
+      <div class="flex flex-col gap-4 pt-2">
+        <div class="flex flex-col gap-2">
+          <label class="text-sm font-medium text-foreground">
+            {{ $t(`${ADMIN_I18N_PREFIX}.templates.create.fields.name`) }}
+          </label>
+          <Input
+            :maxlength="255"
+            :placeholder="$t(`${ADMIN_I18N_PREFIX}.templates.create.placeholders.name`)"
+            :value="createForm.name"
+            @update:value="handleCreateNameInput"
+          />
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <label class="text-sm font-medium text-foreground">
+            {{ $t(`${ADMIN_I18N_PREFIX}.templates.create.fields.code`) }}
+          </label>
+          <Input
+            :maxlength="120"
+            :placeholder="$t(`${ADMIN_I18N_PREFIX}.templates.create.placeholders.code`)"
+            :value="createForm.code"
+            @update:value="handleCreateCodeInput"
+          />
+          <p class="text-xs text-muted-foreground">
+            {{ $t(`${ADMIN_I18N_PREFIX}.templates.create.codeHint`) }}
+          </p>
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <label class="text-sm font-medium text-foreground">
+            {{ $t(`${ADMIN_I18N_PREFIX}.templates.create.fields.description`) }}
+          </label>
+          <Input.TextArea
+            v-model:value="createForm.description"
+            :auto-size="{ minRows: 3, maxRows: 5 }"
+            :maxlength="500"
+            :placeholder="$t(`${ADMIN_I18N_PREFIX}.templates.create.placeholders.description`)"
+            show-count
+          />
+        </div>
+      </div>
+    </Modal>
   </Page>
 </template>

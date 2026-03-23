@@ -126,12 +126,14 @@ export const LUCIDE_ICON_NAMES = [
   "fold-vertical",
   "folder",
   "folder-git-2",
+  "folder-tree",
   "gallery-horizontal-end",
   "gauge",
   "git-branch",
   "git-branch-plus",
   "git-commit",
   "git-compare",
+  "git-merge",
   "globe",
   "globe-2",
   "grid-2x2",
@@ -460,12 +462,14 @@ export const LUCIDE_ICON_IDS = [
   "lucide:fold-vertical",
   "lucide:folder",
   "lucide:folder-git-2",
+  "lucide:folder-tree",
   "lucide:gallery-horizontal-end",
   "lucide:gauge",
   "lucide:git-branch",
   "lucide:git-branch-plus",
   "lucide:git-commit",
   "lucide:git-compare",
+  "lucide:git-merge",
   "lucide:globe",
   "lucide:globe-2",
   "lucide:grid-2x2",
@@ -1126,6 +1130,9 @@ export const LUCIDE_ICON_SUBSET = {
     "folder-git-2": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M18 19a5 5 0 0 1-5-5v8\"/><path d=\"M9 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v5\"/><circle cx=\"13\" cy=\"12\" r=\"2\"/><circle cx=\"20\" cy=\"19\" r=\"2\"/></g>"
     },
+    "folder-tree": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M20 10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2.5a1 1 0 0 1-.8-.4l-.9-1.2A1 1 0 0 0 15 3h-2a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1Zm0 11a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1h-2.9a1 1 0 0 1-.88-.55l-.42-.85a1 1 0 0 0-.92-.6H13a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1ZM3 5a2 2 0 0 0 2 2h3\"/><path d=\"M3 3v13a2 2 0 0 0 2 2h3\"/></g>"
+    },
     "gallery-horizontal-end": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M2 7v10M6 5v14\"/><rect width=\"12\" height=\"18\" x=\"10\" y=\"3\" rx=\"2\"/></g>"
     },
@@ -1143,6 +1150,9 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "git-compare": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><circle cx=\"18\" cy=\"18\" r=\"3\"/><circle cx=\"6\" cy=\"6\" r=\"3\"/><path d=\"M13 6h3a2 2 0 0 1 2 2v7m-7 3H8a2 2 0 0 1-2-2V9\"/></g>"
+    },
+    "git-merge": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><circle cx=\"18\" cy=\"18\" r=\"3\"/><circle cx=\"6\" cy=\"6\" r=\"3\"/><path d=\"M6 21V9a9 9 0 0 0 9 9\"/></g>"
     },
     "globe": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 2a14.5 14.5 0 0 0 0 20a14.5 14.5 0 0 0 0-20M2 12h20\"/></g>"

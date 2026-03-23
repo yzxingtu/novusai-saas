@@ -1,6 +1,6 @@
 /**
- * User architecture page - role form & user member table config
- * 用户架构页面 - 角色表单 & 用户成员表格配置
+ * User architecture page - filters, role form, and user table config
+ * 用户架构页面 - 筛选、权限角色表单与用户表格配置
  */
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
@@ -17,10 +17,6 @@ import {
 import { checkboxColumn } from '#/adapter/vxe-table';
 import { $t } from '#/locales';
 import { usePresenceStore } from '#/store';
-
-// ============================================================
-// Role form Schema (for create/edit role) / 角色表单 Schema（创建/编辑角色用）
-// ============================================================
 
 function getStatusOptions() {
   return [
@@ -73,10 +69,6 @@ export function getRoleFormDefaults(): Record<string, unknown> {
   };
 }
 
-// ============================================================
-// User member table column definitions (right panel) / 用户成员表格列定义（右侧面板）
-// ============================================================
-
 export function useMemberColumns<T = TenantUserInfo>(
   onActionClick: OnActionClickFn<T>,
 ): VxeTableGridOptions['columns'] {
@@ -85,13 +77,22 @@ export function useMemberColumns<T = TenantUserInfo>(
     {
       field: 'username',
       title: $t('tenant.system.user.username'),
-      minWidth: 120,
+      minWidth: 140,
       slots: { default: 'username_cell' },
     },
     {
-      field: 'nickname',
-      title: $t('tenant.system.user.nickname'),
-      minWidth: 100,
+      field: 'orgNodeName',
+      title: $t('tenant.system.userArchitecture.orgColumn'),
+      minWidth: 140,
+      formatter: ({ row }: { row: TenantUserInfo }) =>
+        row.orgNodeName || $t('tenant.system.userArchitecture.unassignedOrg'),
+    },
+    {
+      field: 'roleName',
+      title: $t('tenant.system.userArchitecture.permissionRoleColumn'),
+      minWidth: 140,
+      formatter: ({ row }: { row: TenantUserInfo }) =>
+        row.roleName || $t('tenant.system.userArchitecture.unassignedPermissionRole'),
     },
     {
       field: 'email',
@@ -185,10 +186,6 @@ export function useMemberSearchSchema(): VbenFormSchema[] {
   ];
 }
 
-// ============================================================
-// User form Schema (for create/edit user) / 用户表单 Schema（创建/编辑用户用）
-// ============================================================
-
 export function useUserFormSchema(isEdit: boolean): VbenFormSchema[] {
   return [
     {
@@ -225,11 +222,25 @@ export function useUserFormSchema(isEdit: boolean): VbenFormSchema[] {
       placeholder: $t('tenant.system.user.placeholder.inputNickname'),
     }),
     {
-      ...select('role_id', $t('tenant.system.user.role'), {
+      component: 'TreeSelect',
+      componentProps: {
+        allowClear: true,
+        class: 'w-full',
+        placeholder: $t('tenant.system.userArchitecture.selectOrgPlaceholder'),
+        showSearch: true,
+        treeData: [],
+        treeNodeFilterProp: 'label',
+      },
+      fieldName: 'org_node_id',
+      label: $t('tenant.system.userArchitecture.orgField'),
+      help: $t('tenant.system.userArchitecture.orgFieldHelp'),
+    },
+    {
+      ...select('role_id', $t('tenant.system.userArchitecture.permissionRoleField'), {
         options: [],
-        placeholder: $t('tenant.system.user.placeholder.selectRole'),
+        placeholder: $t('tenant.system.userArchitecture.selectPermissionRolePlaceholder'),
       }),
-      help: $t('tenant.system.user.help.roleHelp'),
+      help: $t('tenant.system.userArchitecture.permissionRoleHelp'),
     },
     switchField('is_active', $t('tenant.system.user.status'), {
       defaultValue: true,

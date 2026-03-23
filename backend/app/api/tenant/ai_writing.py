@@ -63,7 +63,11 @@ async def tenant_ai_writing(
             yield SSEFormatter.format_message({"event": "done"})
             yield SSEFormatter.format_done()
         except Exception as exc:
-            yield SSEFormatter.format_error("AI_WRITING_ERROR", str(exc))
+            yield SSEFormatter.format_exception(
+                "AI_WRITING_ERROR",
+                _("common.server_error"),
+                exc,
+            )
             yield SSEFormatter.format_done()
 
     return create_sse_response(_generate())

@@ -5,8 +5,8 @@ import type { OrgTreeNodeData } from './types';
  * Org Tree Node Component (recursive)
  * 组织架构树节点组件（递归）
  *
- * Supports department/position/role node types.
- * 支持 department/position/role 三种节点类型。
+ * Supports department/position node types.
+ * 支持 department/position 两种节点类型。
  */
 import type { OrgNodeType } from '#/api/admin/organization';
 
@@ -31,11 +31,15 @@ const props = withDefaults(
     /** Online member count inside the node (shows online count badge when passed) / 节点内在线成员数 */
     onlineCount?: null | number;
     selectedId?: null | number;
+    showActions?: boolean;
+    showPermissionCount?: boolean;
   }>(),
   {
     onlineCount: null,
     selectedId: null,
     i18nPrefix: 'admin',
+    showActions: true,
+    showPermissionCount: true,
   },
 );
 
@@ -55,9 +59,7 @@ const hasChildren = computed(
 const expanded = computed(() => props.isExpanded(props.node.id));
 const isSelected = computed(() => props.selectedId === props.node.id);
 const colors = computed(() => getLevelColor(props.level));
-const typeConfig = computed(
-  () => NODE_TYPE_CONFIG[props.node.type] || NODE_TYPE_CONFIG.role,
-);
+const typeConfig = computed(() => NODE_TYPE_CONFIG[props.node.type]);
 
 /**
  * Handle node click / 处理节点点击
@@ -201,6 +203,7 @@ export default {
 
       <!-- Permission count / 权限数量 -->
       <Tooltip
+        v-if="showPermissionCount"
         :title="$t(`${i18nPrefix}.system.organization.permissionsCount`)"
       >
         <div
@@ -225,6 +228,7 @@ export default {
 
       <!-- Action buttons / 操作按钮 -->
       <div
+        v-if="showActions"
         class="flex flex-shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
       >
         <Tooltip :title="$t('shared.common.addChild')">

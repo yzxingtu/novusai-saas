@@ -11,14 +11,6 @@ class ProviderProfilePayloadSchema(BaseModel):
     enabled: bool | None = None
     profile_code: str | None = Field(default=None, max_length=64)
     bill_source: str | None = Field(default=None, max_length=64)
-    region: str | None = Field(default=None, max_length=64)
-    access_key: str | None = Field(default=None, max_length=255)
-    secret_key: str | None = Field(default=None, max_length=255)
-    access_key_id: str | None = Field(default=None, max_length=255)
-    access_key_secret: str | None = Field(default=None, max_length=255)
-    secret_id: str | None = Field(default=None, max_length=255)
-    bill_bucket: str | None = Field(default=None, max_length=255)
-    bill_prefix: str | None = Field(default=None, max_length=255)
     account_identifier: str | None = Field(default=None, max_length=255)
 
 

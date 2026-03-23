@@ -430,14 +430,14 @@ async def test_convert_messages_to_responses_input_preserves_tool_roundtrip() ->
         },
     ]
 
-def test_init_normalizes_endpoint_style_base_url_and_infers_responses_wire_api() -> None:
+def test_init_keeps_endpoint_style_base_url_and_does_not_infer_wire_api() -> None:
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://code.respyun.com/v1/responses",
     )
 
-    assert adapter.base_url == "https://code.respyun.com/v1"
-    assert adapter.wire_api == "responses"
+    assert adapter.base_url == "https://code.respyun.com/v1/responses"
+    assert adapter.wire_api == "chat_completions"
 
 
 @pytest.mark.asyncio

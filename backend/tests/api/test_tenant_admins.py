@@ -18,6 +18,7 @@ from tests.api.base import (
     assert_error,
     assert_has_keys,
     assert_success,
+    assert_tenant_login_success,
     assert_true,
     config,
 )
@@ -163,10 +164,7 @@ class ManualTestTenantAdmins(BaseAPITest):
         assert_success(resp, "重置密码失败")
 
         # 验证新密码可以登录
-        login_resp = self.client.post("/tenant/auth/login", data={
-            "username": self._test_data["test_username"],
-            "password": new_password,
-        })
+        login_resp = self.post_tenant_login_request(self._test_data["test_username"], new_password)
         assert_success(login_resp, "使用新密码登录失败")
 
     def test_delete_admin(self) -> None:
@@ -188,7 +186,7 @@ class ManualTestTenantAdmins(BaseAPITest):
         """测试删除自己 - 应失败 / Test."""
         # 获取当前管理员信息
         me_resp = self.client.get("/tenant/auth/me")
-        me_data = me_resp.json()
+        me_data = assert_success(me_resp, "获取当前企业管理员信息失败")
         my_id = me_data["data"]["id"]
 
         # 尝试删除自己
@@ -197,12 +195,7 @@ class ManualTestTenantAdmins(BaseAPITest):
 
     def _do_login(self) -> None:
         """执行登录 / Description."""
-        resp = self.client.post("/tenant/auth/login", data={
-            "username": config.TENANT_ADMIN_USERNAME,
-            "password": config.TENANT_ADMIN_PASSWORD,
-        })
-        data = resp.json()
-        self.client.set_token(data["data"]["access_token"])
+        self.login_tenant_admin()
 
 
 if __name__ == "__main__":

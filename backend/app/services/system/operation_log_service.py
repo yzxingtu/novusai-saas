@@ -500,37 +500,26 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         Returns:
             下属用户 ID 列表
         """
+        from app.services.system.admin_org_authority_service import AdminOrgAuthorityService
+
         from app.models.auth.admin_role import AdminRole
         from app.models.system.admin import Admin as AdminModel
 
         # 总是包含自己
         user_ids = [admin.id]
 
-        # 如果没有角色，只能看自己的日志
-        if not admin.role_id or not admin.role:
+        visible_org_ids = await AdminOrgAuthorityService(self.db, admin).get_visible_org_node_ids()
+        if not visible_org_ids:
             return user_ids
 
-        # 获取当前角色的 path
-        current_role_path = admin.role.path or f"/{admin.role_id}/"
-
-        # 查询所有子角色（path 以当前角色 path 开头的）
-        child_roles_query = select(AdminRole.id).where(
-            AdminRole.is_deleted.is_(False),
-            AdminRole.path.like(f"{current_role_path}%"),
+        admins_query = select(AdminModel.id).where(
+            AdminModel.is_deleted.is_(False),
+            AdminModel.org_node_id.in_(visible_org_ids),
         )
-        result = await self.db.execute(child_roles_query)
-        child_role_ids = [row[0] for row in result.all()]
-
-        # 如果有子角色，查询这些角色下的所有成员
-        if child_role_ids:
-            admins_query = select(AdminModel.id).where(
-                AdminModel.is_deleted.is_(False),
-                AdminModel.role_id.in_(child_role_ids),
-            )
-            result = await self.db.execute(admins_query)
-            for row in result.all():
-                if row[0] not in user_ids:
-                    user_ids.append(row[0])
+        result = await self.db.execute(admins_query)
+        for row in result.all():
+            if row[0] not in user_ids:
+                user_ids.append(row[0])
 
         return user_ids
 
@@ -551,39 +540,26 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         Returns:
             下属用户 ID 列表
         """
-        from app.models.auth.tenant_admin_role import TenantAdminRole
+        from app.services.tenant.tenant_org_authority_service import TenantOrgAuthorityService
+
         from app.models.tenant.tenant_admin import TenantAdmin as TenantAdminModel
 
         # 总是包含自己
         user_ids = [tenant_admin.id]
 
-        # 如果没有角色，只能看自己的日志
-        if not tenant_admin.role_id or not tenant_admin.role:
+        visible_org_ids = await TenantOrgAuthorityService(self.db, tenant_admin).get_visible_org_node_ids()
+        if not visible_org_ids:
             return user_ids
 
-        # 获取当前角色的 path
-        current_role_path = tenant_admin.role.path or f"/{tenant_admin.role_id}/"
-
-        # 查询同企业内所有子角色（path 以当前角色 path 开头的）
-        child_roles_query = select(TenantAdminRole.id).where(
-            TenantAdminRole.is_deleted.is_(False),
-            TenantAdminRole.tenant_id == tenant_admin.tenant_id,
-            TenantAdminRole.path.like(f"{current_role_path}%"),
+        admins_query = select(TenantAdminModel.id).where(
+            TenantAdminModel.is_deleted.is_(False),
+            TenantAdminModel.tenant_id == tenant_admin.tenant_id,
+            TenantAdminModel.org_node_id.in_(visible_org_ids),
         )
-        result = await self.db.execute(child_roles_query)
-        child_role_ids = [row[0] for row in result.all()]
-
-        # 如果有子角色，查询这些角色下的所有成员
-        if child_role_ids:
-            admins_query = select(TenantAdminModel.id).where(
-                TenantAdminModel.is_deleted.is_(False),
-                TenantAdminModel.tenant_id == tenant_admin.tenant_id,
-                TenantAdminModel.role_id.in_(child_role_ids),
-            )
-            result = await self.db.execute(admins_query)
-            for row in result.all():
-                if row[0] not in user_ids:
-                    user_ids.append(row[0])
+        result = await self.db.execute(admins_query)
+        for row in result.all():
+            if row[0] not in user_ids:
+                user_ids.append(row[0])
 
         return user_ids
 

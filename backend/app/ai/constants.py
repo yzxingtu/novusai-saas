@@ -127,19 +127,6 @@ def session_memory_tenant_pattern(tenant_id: int) -> str:
     """Match all session memory keys by tenant / 按 tenant 维度匹配全部会话记忆 key。"""
     return f"{SESSION_MEMORY_KEY_PREFIX}{tenant_id}:*"
 
-
-# ============================================
-# OpenAI-compatible provider URL suffixes / OpenAI 兼容供应商 URL 路径后缀
-# ============================================
-
-# Trailing path suffix (matched on lowercased URL) → provider.config["wire_api"].
-# 与 Adapter 剥离 base_url 路径、ProviderService 保存时规范化共用同一映射。
-OPENAI_COMPATIBLE_URL_SUFFIX_TO_WIRE_API: dict[str, str] = {
-    "/responses": "responses",
-    "/chat/completions": "chat_completions",
-}
-
-
 __all__ = [
     # Rate limiting / 频率限制
     "ACTION_RATE_KEY_PREFIX",
@@ -170,6 +157,4 @@ __all__ = [
     "session_memory_key",
     "session_memory_conversation_pattern",
     "session_memory_tenant_pattern",
-    # OpenAI-compatible URL normalization / OpenAI 兼容 URL 规范化
-    "OPENAI_COMPATIBLE_URL_SUFFIX_TO_WIRE_API",
 ]

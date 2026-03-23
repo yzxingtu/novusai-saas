@@ -28,12 +28,14 @@ from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.deps import ActiveAdmin, ActiveTenantAdmin, DbSession
+from app.core.i18n import _
 from app.core.logging import get_logger
-from app.core.response import success
+from app.core.response import build_exception_debug, error, success
 from app.core.security import (
     TOKEN_SCOPE_ADMIN,
     TOKEN_SCOPE_TENANT_ADMIN,
 )
+from app.middleware.trace import trace_id_var
 from app.exceptions.base import AppException
 from app.plugins.module_loader import load_plugin_handler
 from app.plugins.runtime_gate import evaluate_plugin_runtime_gate
@@ -68,9 +70,10 @@ async def _dispatch_plugin_api(
         enforce_scope=True,
     )
     if not gate.allowed:
-        return JSONResponse(
+        return error(
+            message="Plugin not found or disabled",
+            code=4040,
             status_code=404,
-            content={"code": 4040, "message": "Plugin not found or disabled"},
         )
 
     manifest_data = gate.manifest or {}
@@ -123,9 +126,10 @@ async def _dispatch_plugin_api(
             break
 
     if not matched_route:
-        return JSONResponse(
+        return error(
+            message="Route not found",
+            code=4040,
             status_code=404,
-            content={"code": 4040, "message": "Route not found"},
         )
 
     # Inject extracted path params (e.g. {doc_id}=123) into request.path_params so handler can access via request.path_params.get("doc_id") / 注入提取到的路径参数到 request.path_params，供 handler 访问
@@ -145,12 +149,10 @@ async def _dispatch_plugin_api(
                 "Plugin permission denied: {}/{} requires '{}' (user={} role={})",
                 plugin_name, path, route_permission, user_id, user_role,
             )
-            return JSONResponse(
+            return error(
+                message=f"Permission denied: action '{route_permission}' required",
+                code=4030,
                 status_code=403,
-                content={
-                    "code": 4030,
-                    "message": f"Permission denied: action '{route_permission}' required",
-                },
             )
 
     # Load and execute handler / 加载并执行 handler
@@ -158,12 +160,19 @@ async def _dispatch_plugin_api(
     handler = load_plugin_handler(plugin_name, handler_path)
     if not handler:
         logger.error("Handler '{}' failed to load for plugin '{}'", handler_path, plugin_name)
-        return JSONResponse(
+        return error(
+            message="Plugin handler failed to load",
+            code=5000,
             status_code=500,
-            content={"code": 5000, "message": "Plugin handler failed to load"},
         )
 
     # Create PluginContext (including RequestContext) / 创建 PluginContext（含 RequestContext）
+    request_trace_id = (
+        request.headers.get("x-trace-id", "")
+        or getattr(request.state, "trace_id", "")
+        or trace_id_var.get()
+        or request.headers.get("x-request-id", "")
+    )
     ctx = _build_plugin_context(
         plugin_name=plugin_name,
         manifest_data=manifest_data,
@@ -172,7 +181,7 @@ async def _dispatch_plugin_api(
         tenant_id=tenant_id,
         user_id=user_id,
         user_role=user_role,
-        request_id=request.headers.get("x-request-id", ""),
+        request_id=request_trace_id,
     )
 
     try:
@@ -188,12 +197,10 @@ async def _dispatch_plugin_api(
             handler_kwargs["ctx"] = ctx
         if _handler_accepts_param(handler, "db"):
             if not _context_has_db_capability(ctx):
-                return JSONResponse(
+                return error(
+                    message="Plugin requires granted capability 'db:own_tables' to use db",
+                    code=4030,
                     status_code=403,
-                    content={
-                        "code": 4030,
-                        "message": "Plugin requires granted capability 'db:own_tables' to use db",
-                    },
                 )
             handler_kwargs["db"] = ctx.get_db()
 
@@ -241,11 +248,11 @@ async def _dispatch_plugin_api(
             "Plugin API handler error: {}/{}: {}",
             plugin_name, path, exc, exc_info=True,
         )
-        err_message = str(exc) if settings.DEBUG else "Internal server error"
         raise AppException(
-            message=err_message,
+            message=_("common.server_error"),
             code=5000,
             status_code=500,
+            debug=build_exception_debug(exc),
         )
 
 
@@ -396,7 +403,7 @@ async def _check_plugin_permission(
     / 检查用户是否拥有插件路由要求的权限动作。
 
     route_permission format / 格式: "permission_code:action" (e.g. "novusdoc:list")
-    - Admin users have all plugin permissions by default (superset) / admin 用户默认拥有所有插件权限（超集）
+    - admin checked via platform RBAC / admin 通过平台 RBAC 权限检查
     - tenant_admin checked via RBAC / tenant_admin 通过 RBAC 权限检查
 
     Returns:
@@ -404,10 +411,6 @@ async def _check_plugin_permission(
     """
     if not route_permission or not user_id:
         return False
-
-    # Admin role has all plugin permissions by default / admin 角色默认拥有所有插件权限
-    if user_role == TOKEN_SCOPE_ADMIN:
-        return True
 
     # Parse permission_code:action / 解析 permission_code:action
     parts = route_permission.split(":")
@@ -440,6 +443,28 @@ async def _check_plugin_permission(
             action, full_perm_code, declared_actions,
         )
         return False
+
+    if user_role == TOKEN_SCOPE_ADMIN:
+        try:
+            from app.models import Admin
+            from app.rbac.services.permission_service import PermissionService
+
+            perm_service = PermissionService(db)
+            result = await db.execute(
+                select(Admin).where(
+                    Admin.id == user_id,
+                    Admin.is_deleted.is_(False),
+                )
+            )
+            admin = result.scalar_one_or_none()
+            if not admin:
+                return False
+
+            user_perms = await perm_service.get_admin_permissions(admin)
+            return perm_service.check_permission(user_perms, f"{full_perm_code}:{action}")
+        except Exception as exc:
+            logger.error("Plugin permission check failed: {}", exc)
+            return False
 
     # tenant_admin: check RBAC permissions / 检查 RBAC 权限
     if user_role == TOKEN_SCOPE_TENANT_ADMIN and tenant_id:

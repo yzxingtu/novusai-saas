@@ -20,7 +20,7 @@ from app.core.config import settings
 from app.core.database import close_database, get_last_db_init_failure_reason, init_database
 from app.core.i18n import _, reload_translations
 from app.core.logging import get_logger, init_logging
-from app.core.response import error, validation_error
+from app.core.response import build_exception_debug, error, validation_error
 from app.exceptions import AppException
 from app.middleware.access_control import AccessControlMiddleware
 from app.middleware.audit_log import AuditLogMiddleware
@@ -565,13 +565,8 @@ def create_application() -> FastAPI:
         } if origin else {}
 
     def _get_error_response_headers(request: Request) -> dict[str, str]:
-        """Get CORS + X-Trace-ID headers for error responses / 获取错误响应所需的 CORS 与 trace_id 头"""
-        headers = _get_cors_headers(request)
-        from app.middleware.trace import trace_id_var
-        tid = trace_id_var.get()
-        if tid:
-            headers["X-Trace-ID"] = tid
-        return headers
+        """Get CORS headers for error responses / 获取错误响应所需的 CORS 头"""
+        return _get_cors_headers(request)
 
     @app.exception_handler(AppException)
     async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
@@ -620,11 +615,18 @@ def create_application() -> FastAPI:
             503: 5030,
         }
         code = status_code_map.get(exc.status_code, exc.status_code * 10)
-        # error() returns JSONResponse, but needs correct status_code / error() 返回 JSONResponse，但需要指定正确的 status_code
+        detail_text = str(exc.detail) if exc.detail else None
+        public_message = detail_text if exc.status_code < 500 else _("common.server_error")
+        debug_payload = (
+            build_exception_debug(exc, detail=detail_text, include_traceback=False)
+            if exc.status_code >= 500 and detail_text
+            else None
+        )
         response = error(
-            message=str(exc.detail) if exc.detail else None,
+            message=public_message,
             code=code,
             status_code=exc.status_code,
+            debug=debug_payload,
         )
         response.headers.update(_get_error_response_headers(request))
         return response
@@ -632,26 +634,15 @@ def create_application() -> FastAPI:
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         """Global exception handler - catches unhandled exceptions / 全局异常处理器 - 捕获未处理的异常"""
-        import traceback
-
         # Log exception / 记录异常日志
         logger = get_logger(__name__)
         logger.exception(f"Unhandled exception: {exc}")
-
-        # Return stack trace in DEBUG mode / DEBUG 模式下返回堆栈跟踪信息
-        error_data = None
-        if settings.DEBUG:
-            error_data = {
-                "type": type(exc).__name__,
-                "message": str(exc),
-                "traceback": traceback.format_exc(),
-            }
 
         response = error(
             message=_("common.server_error"),
             code=5000,
             status_code=500,
-            data=error_data,
+            debug=build_exception_debug(exc),
         )
         response.headers.update(_get_error_response_headers(request))
         return response
@@ -761,9 +752,10 @@ def create_application() -> FastAPI:
 
         _normalized = PurePosixPath(file_path.replace("\\", "/").lstrip("/"))
         if str(_normalized) in {"", "."}:
-            return JSONResponse(
+            return error(
+                message="Plugin asset not found",
+                code=4040,
                 status_code=404,
-                content={"code": 4040, "message": "Plugin asset not found"},
             )
 
         async with async_session_factory() as db:
@@ -774,16 +766,18 @@ def create_application() -> FastAPI:
                 public_endpoint,
             )
             if not access.allowed:
-                return JSONResponse(
+                return error(
+                    message="Plugin asset not found",
+                    code=4040,
                     status_code=404,
-                    content={"code": 4040, "message": "Plugin asset not found"},
                 )
 
         asset_file = resolve_plugin_asset_file(PLUGINS_ROOT, plugin_name, file_path)
         if asset_file is None:
-            return JSONResponse(
+            return error(
+                message="Plugin asset not found",
+                code=4040,
                 status_code=404,
-                content={"code": 4040, "message": "Plugin asset not found"},
             )
 
         content_type = _mimetypes.guess_type(str(asset_file))[0] or "application/octet-stream"
@@ -843,9 +837,10 @@ def create_application() -> FastAPI:
 
         _normalized = PurePosixPath(file_path.replace("\\", "/").lstrip("/"))
         if str(_normalized) in {"", "."}:
-            return JSONResponse(
+            return error(
+                message="Plugin asset not found",
+                code=4040,
                 status_code=404,
-                content={"code": 4040, "message": "Plugin asset not found"},
             )
 
         async with async_session_factory() as db:
@@ -856,16 +851,18 @@ def create_application() -> FastAPI:
                 require_enabled=True,
             )
             if not access.allowed:
-                return JSONResponse(
+                return error(
+                    message="Plugin asset not found",
+                    code=4040,
                     status_code=404,
-                    content={"code": 4040, "message": "Plugin asset not found"},
                 )
 
         asset_file = resolve_plugin_asset_file(PLUGINS_ROOT, plugin_name, file_path)
         if asset_file is None:
-            return JSONResponse(
+            return error(
+                message="Plugin asset not found",
+                code=4040,
                 status_code=404,
-                content={"code": 4040, "message": "Plugin asset not found"},
             )
 
         content_type = _mimetypes.guess_type(str(asset_file))[0] or "application/octet-stream"
@@ -911,24 +908,27 @@ def create_application() -> FastAPI:
 
         _normalized = PurePosixPath(file_path.replace("\\", "/").lstrip("/"))
         if str(_normalized) in {"", "."}:
-            return JSONResponse(
+            return error(
+                message="Plugin icon not found",
+                code=4040,
                 status_code=404,
-                content={"code": 4040, "message": "Plugin icon not found"},
             )
 
         async with async_session_factory() as db:
             access = await authorize_plugin_icon_request(db, request, plugin_name)
             if not access.allowed:
-                return JSONResponse(
+                return error(
+                    message="Plugin icon not found",
+                    code=4040,
                     status_code=404,
-                    content={"code": 4040, "message": "Plugin icon not found"},
                 )
 
         asset_file = resolve_plugin_icon_file(PLUGINS_ROOT, plugin_name, file_path)
         if asset_file is None:
-            return JSONResponse(
+            return error(
+                message="Plugin icon not found",
+                code=4040,
                 status_code=404,
-                content={"code": 4040, "message": "Plugin icon not found"},
             )
 
         content_type = _mimetypes.guess_type(str(asset_file))[0] or "application/octet-stream"

@@ -1,9 +1,11 @@
 <script lang="ts" setup>
+import type { TenantOrgNodeInfo } from '#/api/tenant/organization';
 import type { TenantUserInfo } from '#/api/tenant/tenant-users';
 
 import { computed } from 'vue';
 
 import { useVbenForm } from '#/adapter/form';
+import { getTenantOrganizationTreeApi } from '#/api/tenant/organization';
 import { getTenantUserRoleListApi } from '#/api/tenant/tenant-user-roles';
 import { getTenantUserDetailApi } from '#/api/tenant/tenant-users';
 import { useCrudDrawer } from '#/composables';
@@ -15,10 +17,24 @@ defineOptions({ name: 'UserArchitectureUserForm' });
 
 const emits = defineEmits<{ success: [] }>();
 
+type TreeOption = {
+  children?: TreeOption[];
+  label: string;
+  value: number;
+};
+
 const [Form, formApi] = useVbenForm({
   schema: useUserFormSchema(false),
   showDefaultActions: false,
 });
+
+function toTreeOptions(nodes: TenantOrgNodeInfo[]): TreeOption[] {
+  return nodes.map((node) => ({
+    label: node.name,
+    value: node.id,
+    children: node.children?.length ? toTreeOptions(node.children) : undefined,
+  }));
+}
 
 const { Drawer, isEdit } = useCrudDrawer<TenantUserInfo>({
   formApi,
@@ -30,6 +46,7 @@ const { Drawer, isEdit } = useCrudDrawer<TenantUserInfo>({
     'password',
     'phone',
     'nickname',
+    'org_node_id',
     'role_id',
     'is_active',
   ],
@@ -39,17 +56,23 @@ const { Drawer, isEdit } = useCrudDrawer<TenantUserInfo>({
   detailApi: (id) => getTenantUserDetailApi(id as number),
   async afterOpen(api) {
     if (!api) return;
+
     try {
-      const res = await getTenantUserRoleListApi({
-        'page[size]': 100,
-        'filter[is_active][eq]': true,
-      });
-      const roleOptions = res.items.map((r) => ({
-        label: r.name,
-        value: r.id,
+      const [roleResponse, orgTree] = await Promise.all([
+        getTenantUserRoleListApi({
+          'page[size]': 100,
+          'filter[is_active][eq]': true,
+        }),
+        getTenantOrganizationTreeApi(),
+      ]);
+
+      const roleOptions = roleResponse.items.map((role) => ({
+        label: role.name,
+        value: role.id,
       }));
-      const currentSchema = useUserFormSchema(isEdit.value);
-      const updatedSchema = currentSchema.map((item) => {
+      const orgOptions = toTreeOptions(orgTree);
+
+      const updatedSchema = useUserFormSchema(isEdit.value).map((item) => {
         if (item.fieldName === 'role_id' && item.componentProps) {
           return {
             ...item,
@@ -59,11 +82,23 @@ const { Drawer, isEdit } = useCrudDrawer<TenantUserInfo>({
             },
           };
         }
+
+        if (item.fieldName === 'org_node_id' && item.componentProps) {
+          return {
+            ...item,
+            componentProps: {
+              ...item.componentProps,
+              treeData: orgOptions,
+            },
+          };
+        }
+
         return item;
       });
+
       api.setState({ schema: updatedSchema });
     } catch {
-      // error handled by request client / 错误由请求拦截器处理
+      // Error handled by request client / 错误由请求拦截器处理
     }
   },
 });

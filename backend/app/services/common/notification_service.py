@@ -470,6 +470,7 @@ def notify_sync(
         notify_sync("system.task_failure", [("admin", 1)], {"error": "timeout"})
     """
     import asyncio
+    import contextvars
 
     from app.core.database import async_session_factory
 
@@ -491,8 +492,13 @@ def notify_sync(
         loop = asyncio.get_event_loop()
         if loop.is_running():
             import concurrent.futures
+            ctx = contextvars.copy_context()
+
+            def _run_in_thread() -> int:
+                return ctx.run(lambda: asyncio.run(_run()))
+
             with concurrent.futures.ThreadPoolExecutor() as pool:
-                future = pool.submit(asyncio.run, _run())
+                future = pool.submit(_run_in_thread)
                 return future.result(timeout=30)
         return loop.run_until_complete(_run())
     except RuntimeError:

@@ -16,7 +16,10 @@ from typing import Any
 
 from fastapi.responses import StreamingResponse
 
+from app.core.i18n import _
 from app.core.logging import get_logger
+from app.core.response import build_error_event, build_exception_debug
+from app.middleware.trace import trace_id_var
 
 logger = get_logger(__name__)
 
@@ -27,6 +30,13 @@ _HEARTBEAT_INTERVAL = 15.0
 # SSE heartbeat comment (not treated as event by client EventSource)
 # / SSE 心跳注释
 _HEARTBEAT_LINE = ":heartbeat\n\n"
+
+
+def _with_trace_id(data: dict[str, Any]) -> dict[str, Any]:
+    trace_id = trace_id_var.get()
+    if trace_id and "trace_id" not in data:
+        return {**data, "trace_id": trace_id}
+    return data
 
 
 def plugin_sse_response(
@@ -93,7 +103,7 @@ def plugin_sse_response(
                         yield _encode({"event": "message", "delta": delta})
 
             # Normal end / 正常结束
-            yield _encode({"event": "done"})
+            yield _encode(_with_trace_id({"event": "done"}))
             yield _done()
 
         except Exception as exc:
@@ -103,7 +113,14 @@ def plugin_sse_response(
                 exc_info=True,
             )
             try:
-                yield _encode({"error": True, "message": str(exc)})
+                yield _encode(
+                    build_error_event(
+                        code="PLUGIN_STREAM_ERROR",
+                        message=_("common.server_error"),
+                        debug=build_exception_debug(exc),
+                        trace_id=trace_id_var.get() or None,
+                    )
+                )
                 yield _done()
             except Exception:
                 pass  # Connection already closed / 连接已断开

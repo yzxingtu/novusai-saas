@@ -1491,7 +1491,7 @@ class TenantRepository(BaseRepository[ModelType]):
         return await super().count(include_deleted=include_deleted, **filters)
 
     async def create(self, data: dict[str, Any]) -> ModelType:
-        """创建企业级记录，对 __data_permission__ 模型自动填充 created_by / dept_id / Create tenant-scoped record, auto-fill created_by/dept_id for __data_permission__ models"""
+        """创建企业级记录，对 __data_permission__ 模型自动填充 created_by / org_node_id / dept_id / Create tenant-scoped record, auto-fill created_by / org_node_id / dept_id for __data_permission__ models"""
         data[self._tenant_scope_field_name()] = self.tenant_id
         if getattr(self.model, "__data_permission__", False):
             from app.core.data_permission import data_permission_ctx
@@ -1500,6 +1500,8 @@ class TenantRepository(BaseRepository[ModelType]):
             if ctx:
                 if "created_by" not in data and ctx.get("current_user_id") is not None and hasattr(self.model, "created_by"):
                     data = {**data, "created_by": ctx["current_user_id"]}
+                if "org_node_id" not in data and ctx.get("primary_org_id") is not None and hasattr(self.model, "org_node_id"):
+                    data = {**data, "org_node_id": ctx["primary_org_id"]}
                 if "dept_id" not in data and ctx.get("primary_department_id") is not None and hasattr(self.model, "dept_id"):
                     data = {**data, "dept_id": ctx["primary_department_id"]}
         return await super().create(data)

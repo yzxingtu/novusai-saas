@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import type { RoleTreeApi } from './data';
-
-import type { OrgMember } from '#/api/admin/organization';
+import type { OrgTreeApi } from './data';
+import type { MemberPanelMember } from './types';
 
 import { computed, onMounted, ref, watch } from 'vue';
 
@@ -44,8 +43,8 @@ const props = withDefaults(
     nodeId?: null | number;
     /** Node name (for display title) / 节点名称（用于显示标题） */
     nodeName?: string;
-    /** Role tree API (select roles in edit mode) / 角色树 API（编辑模式下可选择角色） */
-    roleTreeApi?: RoleTreeApi;
+    /** Org tree API (select nodes in edit mode) / 组织树 API（编辑模式下可选择节点） */
+    orgTreeApi?: OrgTreeApi;
     /** Whether to show online status / 是否显示在线状态 */
     showOnlineStatus?: boolean;
   }>(),
@@ -55,14 +54,14 @@ const props = withDefaults(
     allowMembers: true,
     leaderId: null,
     apiPrefix: 'admin',
-    roleTreeApi: undefined,
+    orgTreeApi: undefined,
     showOnlineStatus: false,
   },
 );
 
 const emit = defineEmits<{
   (e: 'leaderChanged', leaderId: null | number): void;
-  (e: 'memberAdded', member: OrgMember): void;
+  (e: 'memberAdded', member: MemberPanelMember): void;
   (e: 'memberRemoved', memberId: number): void;
   (e: 'refresh'): void;
 }>();
@@ -151,12 +150,12 @@ function handleOpenCreateDrawer() {
 }
 
 /** Handle edit member / 处理编辑成员 */
-function handleEditMember(member: OrgMember) {
+function handleEditMember(member: MemberPanelMember) {
   adminFormDrawerRef.value?.openEdit(member);
 }
 
 /** Handle reset password / 处理重置密码 */
-function handleResetPassword(member: OrgMember) {
+function handleResetPassword(member: MemberPanelMember) {
   resetPasswordModalRef.value?.open(toResetPasswordInfo(member));
 }
 
@@ -170,7 +169,7 @@ async function resolveTenantId(): Promise<null | number> {
 }
 
 /** Handle force logout / 处理强制下线 */
-async function handleForceLogout(member: OrgMember) {
+async function handleForceLogout(member: MemberPanelMember) {
   try {
     if (props.apiPrefix === 'admin') {
       await forceLogoutAdminApi(member.id);
@@ -196,10 +195,17 @@ async function handleMemberSuccess() {
   emit('refresh');
 }
 
+function toOptionalNodeId(nodeId: null | number | undefined): number | undefined {
+  return typeof nodeId === 'number' ? nodeId : undefined;
+}
+
 /** Handle remove member / 处理移除成员 */
-async function handleRemoveMember(member: OrgMember) {
-  // Use member's roleId, supports removing child node members in recursive mode / 使用成员所属 roleId，支持递归模式下移除子节点成员
-  const success = await removeMember(member.id, member.roleId);
+async function handleRemoveMember(member: MemberPanelMember) {
+  // Use member's orgNodeId, supports removing child node members in recursive mode / 使用成员所属 orgNodeId，支持递归模式下移除子节点成员
+  const success = await removeMember(
+    member.id,
+    toOptionalNodeId(member.orgNodeId),
+  );
   if (success) {
     emit('memberRemoved', member.id);
     emit('refresh');
@@ -207,9 +213,12 @@ async function handleRemoveMember(member: OrgMember) {
 }
 
 /** Handle set leader / 处理设置负责人 */
-async function handleSetLeader(member: OrgMember) {
-  // Use member's roleId as target node, supports setting leader when including children / 使用成员所属的 roleId 作为目标节点，支持包含子节点时设置负责人
-  const success = await setLeader(member.id, member.roleId);
+async function handleSetLeader(member: MemberPanelMember) {
+  // Use member's orgNodeId as target node, supports setting leader when including children / 使用成员所属的 orgNodeId 作为目标节点，支持包含子节点时设置负责人
+  const success = await setLeader(
+    member.id,
+    toOptionalNodeId(member.orgNodeId),
+  );
   if (success) {
     emit('leaderChanged', member.id);
     emit('refresh');
@@ -217,9 +226,9 @@ async function handleSetLeader(member: OrgMember) {
 }
 
 /** Handle cancel leader / 处理取消负责人 */
-async function handleCancelLeader(member: OrgMember) {
-  // Use member's roleId as target node / 使用成员所属的 roleId 作为目标节点
-  const success = await setLeader(null, member.roleId);
+async function handleCancelLeader(member: MemberPanelMember) {
+  // Use member's orgNodeId as target node / 使用成员所属的 orgNodeId 作为目标节点
+  const success = await setLeader(null, toOptionalNodeId(member.orgNodeId));
   if (success) {
     emit('leaderChanged', null);
     emit('refresh');
@@ -446,7 +455,7 @@ onMounted(() => {
       :node-id="nodeId"
       :node-name="nodeName"
       :api-prefix="apiPrefix"
-      :role-tree-api="roleTreeApi"
+      :org-tree-api="orgTreeApi"
       @success="handleMemberSuccess"
     />
 
@@ -454,7 +463,7 @@ onMounted(() => {
     <ResetPasswordModal
       ref="resetPasswordModalRef"
       :api-prefix="apiPrefix"
-      :role-id="nodeId || undefined"
+      :org-node-id="toOptionalNodeId(nodeId)"
       @success="handleMemberSuccess"
     />
   </div>

@@ -109,12 +109,7 @@ class ManualTestAdminPermissions(BaseAPITest):
 
     def _do_login(self) -> None:
         """执行登录 / Description."""
-        resp = self.client.post("/admin/auth/login", data={
-            "username": config.ADMIN_USERNAME,
-            "password": config.ADMIN_PASSWORD,
-        })
-        data = resp.json()
-        self.client.set_token(data["data"]["access_token"])
+        self.login_admin()
 
 
 if __name__ == "__main__":

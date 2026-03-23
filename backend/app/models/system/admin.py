@@ -29,6 +29,8 @@ class Admin(BaseModel):
     __delete_deps__ = [
         DeletionDep("AdminRole", "leader_id", DeletionStrategy.NULLIFY,
                     label_field="name", i18n_key="admin_role_leader"),
+        DeletionDep("AdminOrgNode", "leader_id", DeletionStrategy.NULLIFY,
+                    label_field="name", i18n_key="admin_org_node_leader"),
     ]
 
     # 可过滤字段声明（注意：不包含 password_hash 等敏感字段）
@@ -41,6 +43,7 @@ class Admin(BaseModel):
         "is_super": "is_super",
         "nickname": "nickname",
         "role_id": "role_id",
+        "org_node_id": "org_node_id",
         "created_at": "created_at",
         "updated_at": "updated_at",
     }
@@ -110,6 +113,13 @@ class Admin(BaseModel):
     role_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("admin_roles.id"), nullable=True, comment="角色 ID"
     )
+    org_node_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("admin_org_nodes.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="组织节点 ID",
+    )
 
     # 角色关系
     role: Mapped["AdminRole | None"] = relationship(
@@ -117,6 +127,12 @@ class Admin(BaseModel):
         back_populates="admins",
         lazy="selectin",
         foreign_keys=[role_id],
+    )
+    org_node: Mapped["AdminOrgNode | None"] = relationship(
+        "AdminOrgNode",
+        back_populates="admins",
+        lazy="selectin",
+        foreign_keys=[org_node_id],
     )
 
     def __repr__(self) -> str:
@@ -142,6 +158,7 @@ class Admin(BaseModel):
 
 if TYPE_CHECKING:
     from app.models.auth.admin_role import AdminRole
+    from app.models.org.admin_org_node import AdminOrgNode
 
 
 __all__ = ["Admin"]

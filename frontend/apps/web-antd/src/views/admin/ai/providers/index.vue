@@ -10,8 +10,6 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Badge, message, Modal, Switch, Tag, Tooltip } from 'ant-design-vue';
 
-import { toAttachmentImageUrl } from '#/utils/image';
-
 import { useAutoTableDragSort, useCrudPage } from '#/adapter/vxe-table';
 import {
   getAIProviderListApi,
@@ -20,11 +18,14 @@ import {
 } from '#/api/admin/ai';
 import QuickStartGuide from '#/components/business/quick-start-guide/QuickStartGuide.vue';
 import { $t } from '#/locales';
+import { toAttachmentImageUrl } from '#/utils/image';
 
 import {
   getFormDefaults,
   getProviderTypeText,
+  getProviderWireApiText,
   loadAdapterTypes,
+  resolveProviderWireApi,
   useColumns,
   useFormSchema,
   useGridFormSchema,
@@ -34,6 +35,17 @@ import Form from './modules/form.vue';
 defineOptions({ name: 'AIProviderList' });
 
 loadAdapterTypes();
+
+function getRowWireApi(row: AIProviderInfo) {
+  const config =
+    row.config && typeof row.config === 'object'
+      ? (row.config as Record<string, unknown>)
+      : null;
+  return resolveProviderWireApi(
+    row.type,
+    typeof config?.wire_api === 'string' ? config.wire_api : null,
+  );
+}
 
 // ============================================================
 // Status toggle
@@ -175,7 +187,16 @@ useAutoTableDragSort(() => gridApi.grid, {
               </div>
             </Tooltip>
             <div
-              v-else-if="row.description"
+              v-if="row.type === 'openai_compatible'"
+              class="mt-1 flex items-center gap-1"
+            >
+              <Tag color="processing" class="m-0">
+                {{ $t('admin.ai.provider.wireApi') }}:
+                {{ getProviderWireApiText(getRowWireApi(row)) }}
+              </Tag>
+            </div>
+            <div
+              v-if="row.description"
               class="mt-0.5 truncate text-xs text-muted-foreground"
             >
               {{ row.description }}

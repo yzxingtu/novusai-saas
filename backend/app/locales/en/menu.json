@@ -5,6 +5,7 @@
       "system": "System",
       "admin_user": "Users",
       "permission": "Permissions",
+      "permission_role": "Permission Roles",
       "organization": "Organization",
       "operation_log": "Operation Logs",
       "tenant_mgmt": "Tenants",

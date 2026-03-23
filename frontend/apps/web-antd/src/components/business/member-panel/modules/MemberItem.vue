@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { OrgMember } from '#/api/admin/organization';
+import type { MemberPanelMember } from '../types';
 
 import { computed } from 'vue';
 
@@ -19,7 +19,7 @@ const props = withDefaults(
     /** Whether this member is a leader / 是否为负责人 */
     isLeader?: boolean;
     /** Member info / 成员信息 */
-    member: OrgMember;
+    member: MemberPanelMember;
     /** Whether online (only effective when showOnlineStatus=true) / 是否在线 */
     online?: boolean;
     /** Whether to show action buttons / 是否显示操作按钮 */
@@ -38,12 +38,12 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-  (e: 'cancelLeader', member: OrgMember): void;
-  (e: 'edit', member: OrgMember): void;
-  (e: 'forceLogout', member: OrgMember): void;
-  (e: 'remove', member: OrgMember): void;
-  (e: 'resetPassword', member: OrgMember): void;
-  (e: 'setLeader', member: OrgMember): void;
+  (e: 'cancelLeader', member: MemberPanelMember): void;
+  (e: 'edit', member: MemberPanelMember): void;
+  (e: 'forceLogout', member: MemberPanelMember): void;
+  (e: 'remove', member: MemberPanelMember): void;
+  (e: 'resetPassword', member: MemberPanelMember): void;
+  (e: 'setLeader', member: MemberPanelMember): void;
 }>();
 
 /** Display name: prefer nickname, fallback to username / 显示名称：优先显示 nickname，回退到 username */
@@ -133,16 +133,6 @@ function handleForceLogout() {
         <Tag v-if="!member.isActive" color="default" class="flex-shrink-0">
           {{ $t('shared.memberPanel.item.disabled') }}
         </Tag>
-        <!-- Role name tag / 角色名称标签 -->
-        <Tag
-          v-if="member.roleName"
-          class="flex-shrink-0 !border-primary/30 !bg-primary/10 !text-primary"
-        >
-          <template #icon>
-            <IconifyIcon icon="lucide:shield" class="mr-1" />
-          </template>
-          {{ member.roleName }}
-        </Tag>
       </div>
       <div
         class="flex items-center gap-2 truncate text-sm text-gray-500 dark:text-gray-400"
@@ -162,6 +152,28 @@ function handleForceLogout() {
             {{ formatDate(member.createdAt, 'YYYY-MM-DD') }}
           </span>
         </Tooltip>
+      </div>
+      <div class="mt-1 flex flex-wrap items-center gap-2">
+        <Tag class="flex-shrink-0 !border-sky-200 !bg-sky-50 !text-sky-700">
+          <template #icon>
+            <IconifyIcon icon="lucide:building-2" class="mr-1" />
+          </template>
+          {{
+            `${$t('shared.memberPanel.orgNode')}: ${
+              member.orgNodeName || $t('shared.common.notAssigned')
+            }`
+          }}
+        </Tag>
+        <Tag class="flex-shrink-0 !border-primary/30 !bg-primary/10 !text-primary">
+          <template #icon>
+            <IconifyIcon icon="lucide:shield" class="mr-1" />
+          </template>
+          {{
+            `${$t('shared.memberPanel.permissionRole')}: ${
+              member.roleName || $t('shared.common.notAssigned')
+            }`
+          }}
+        </Tag>
       </div>
     </div>
 

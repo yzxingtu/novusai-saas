@@ -24,6 +24,7 @@ import { getPageOpErrorHintKey } from '#/components/business/ai-chat-panel/pageO
 import { $t } from '#/locales';
 import { formatTimeOnly } from '#/utils/common';
 import { getFileIcon } from '#/utils/file';
+import { isDevErrorMode } from '#/utils/request';
 
 /** Pending page op for inline confirmation card / 待确认的页面操作（内联卡片） */
 export interface PendingPageOpForDisplay {
@@ -166,6 +167,9 @@ const canCollapse = computed(
     !!props.msg.content &&
     !props.msg.streaming &&
     props.msg.content.length > COLLAPSE_THRESHOLD,
+);
+const showDebugError = computed(
+  () => isDevErrorMode() && !!props.msg.error?.debugMessage,
 );
 const expandedMap = ref<Record<number, boolean>>({});
 function toggleExpand(idx: number) {
@@ -397,6 +401,33 @@ watch(
               selected: msg.optimizingTools.selected,
             })
           }}</span>
+        </div>
+
+        <!-- Structured error panel -->
+        <div
+          v-if="msg.error"
+          class="rounded-xl border border-destructive/40 bg-destructive/5"
+          :class="compact ? 'mb-1 px-2.5 py-2 text-xs' : 'mb-2 px-3 py-2.5 text-sm'"
+        >
+          <div class="flex items-start gap-2">
+            <IconifyIcon
+              icon="lucide:alert-triangle"
+              class="mt-0.5 size-4 shrink-0 text-destructive"
+            />
+            <div class="min-w-0 flex-1">
+              <p class="break-words text-foreground">{{ msg.error.message }}</p>
+              <p
+                v-if="msg.error.traceId"
+                class="mt-1 font-mono text-[11px] text-muted-foreground"
+              >
+                {{ `${$t('common.http.traceId')}: ${msg.error.traceId}` }}
+              </p>
+              <pre
+                v-if="showDebugError"
+                class="mt-1 max-h-36 overflow-auto whitespace-pre-wrap break-all rounded bg-black/5 p-2 text-[11px] text-red-500"
+              >{{ msg.error?.debugMessage }}</pre>
+            </div>
+          </div>
         </div>
 
         <!-- Markdown content -->

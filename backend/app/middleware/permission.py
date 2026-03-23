@@ -10,19 +10,19 @@ Data permission context (max_data_scope, all_visible_dept_ids, etc.) is also set
 """
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.requests import Request
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.database import async_session_factory
+from app.core.org_authority import OrgAuthorityResolver
 from app.core.security import (
     TOKEN_SCOPE_ADMIN,
     TOKEN_SCOPE_TENANT_ADMIN,
     TOKEN_SCOPE_TENANT_USER,
     TOKEN_TYPE_ACCESS,
 )
-from app.enums.role import DataScope, RoleType
+from app.enums.role import DataScope
 from app.models import Admin, TenantAdmin, TenantUser
 from app.models.auth.admin_role import AdminRole
 from app.models.auth.tenant_admin_role import TenantAdminRole
@@ -116,14 +116,8 @@ class PermissionMiddleware:
             # Super admin has all permissions (and ALL data scope) / 超级管理员拥有所有权限及全部数据
             if admin.is_super:
                 request.state.user_permissions = {"*"}
-                await self._set_data_permission_ctx(
-                    request,
-                    admin_id,
-                    max_data_scope=DataScope.ALL.value,
-                    all_visible_dept_ids=[],
-                    primary_department_id=None,
-                    custom_dept_ids=[],
-                )
+                authority = await OrgAuthorityResolver(db).resolve_admin(admin)
+                await self._set_data_permission_ctx(request, admin_id, authority)
                 return
 
             # No role means no permissions / 无角色则无权限
@@ -147,15 +141,8 @@ class PermissionMiddleware:
 
             request.state.user_permissions = permissions
 
-            # 平台管理员默认 ALL 数据范围 / Platform admin defaults to ALL data scope
-            await self._set_data_permission_ctx(
-                request,
-                admin_id,
-                max_data_scope=DataScope.ALL.value,
-                all_visible_dept_ids=[],
-                primary_department_id=None,
-                custom_dept_ids=[],
-            )
+            authority = await OrgAuthorityResolver(db).resolve_admin(admin)
+            await self._set_data_permission_ctx(request, admin_id, authority)
 
     async def _load_tenant_admin_permissions(
         self, request: Request, tenant_admin_id: int
@@ -187,26 +174,14 @@ class PermissionMiddleware:
             # Tenant owner has all plan permissions (and ALL data scope) / 企业所有者拥有套餐内全部权限及全部数据
             if tenant_admin.is_owner:
                 request.state.user_permissions = {"*"}
-                await self._set_data_permission_ctx(
-                    request,
-                    tenant_admin_id,
-                    max_data_scope=DataScope.ALL.value,
-                    all_visible_dept_ids=[],
-                    primary_department_id=None,
-                    custom_dept_ids=[],
-                )
+                authority = await OrgAuthorityResolver(db).resolve_tenant_admin(tenant_admin)
+                await self._set_data_permission_ctx(request, tenant_admin_id, authority)
                 return
 
             # No role means no permissions / 无角色则无权限
             if tenant_admin.role_id is None:
-                await self._set_data_permission_ctx(
-                    request,
-                    tenant_admin_id,
-                    max_data_scope=DataScope.SELF_ONLY.value,
-                    all_visible_dept_ids=[],
-                    primary_department_id=None,
-                    custom_dept_ids=[],
-                )
+                authority = await OrgAuthorityResolver(db).resolve_tenant_admin(tenant_admin)
+                await self._set_data_permission_ctx(request, tenant_admin_id, authority)
                 return
 
             permissions: set[str] = set()
@@ -226,18 +201,8 @@ class PermissionMiddleware:
 
             request.state.user_permissions = permissions
 
-            # 企业管理员：从角色加载 data_scope，预计算可见部门 / Tenant admin: load data_scope from role, precompute visible depts
-            max_scope, all_dept_ids, primary_dept_id, custom_ids = (
-                await self._compute_tenant_admin_data_permission(db, tenant_admin, role)
-            )
-            await self._set_data_permission_ctx(
-                request,
-                tenant_admin_id,
-                max_data_scope=max_scope,
-                all_visible_dept_ids=all_dept_ids,
-                primary_department_id=primary_dept_id,
-                custom_dept_ids=custom_ids,
-            )
+            authority = await OrgAuthorityResolver(db).resolve_tenant_admin(tenant_admin)
+            await self._set_data_permission_ctx(request, tenant_admin_id, authority)
 
     async def _load_tenant_user_permissions(
         self, request: Request, tenant_user_id: int
@@ -257,14 +222,8 @@ class PermissionMiddleware:
 
             # No role means no permissions / 无角色则无权限
             if tenant_user.role_id is None:
-                await self._set_data_permission_ctx(
-                    request,
-                    tenant_user_id,
-                    max_data_scope=DataScope.SELF_ONLY.value,
-                    all_visible_dept_ids=[],
-                    primary_department_id=None,
-                    custom_dept_ids=[],
-                )
+                authority = await OrgAuthorityResolver(db).resolve_tenant_user(tenant_user)
+                await self._set_data_permission_ctx(request, tenant_user_id, authority)
                 return
 
             permissions: set[str] = set()
@@ -284,25 +243,14 @@ class PermissionMiddleware:
 
             request.state.user_permissions = permissions
 
-            # 企业业务用户默认 SELF_ONLY（TenantUserRole 无 data_scope 字段）/ Tenant user defaults to SELF_ONLY
-            await self._set_data_permission_ctx(
-                request,
-                tenant_user_id,
-                max_data_scope=DataScope.SELF_ONLY.value,
-                all_visible_dept_ids=[],
-                primary_department_id=None,
-                custom_dept_ids=[],
-            )
+            authority = await OrgAuthorityResolver(db).resolve_tenant_user(tenant_user)
+            await self._set_data_permission_ctx(request, tenant_user_id, authority)
 
     async def _set_data_permission_ctx(
         self,
         request: Request,
         current_user_id: int,
-        *,
-        max_data_scope: str,
-        all_visible_dept_ids: list[int],
-        primary_department_id: int | None,
-        custom_dept_ids: list[int],
+        authority,
     ) -> None:
         """
         设置数据权限上下文到 ContextVar（供 DataPermissionFilter 使用）
@@ -311,91 +259,24 @@ class PermissionMiddleware:
         Args:
             request: 当前请求 / Current request
             current_user_id: 当前用户 ID / Current user ID
-            max_data_scope: 最宽数据范围 / Max data scope
-            all_visible_dept_ids: 可见部门 ID 列表 / Visible department IDs
-            primary_department_id: 主部门 ID / Primary department ID
-            custom_dept_ids: 自定义部门 ID 列表 / Custom department IDs
+            authority: 组织权限结果 / Organization authority result
         """
         from app.core.data_permission import data_permission_ctx
 
         ctx = {
             "current_user_id": current_user_id,
-            "max_data_scope": max_data_scope,
-            "all_visible_dept_ids": all_visible_dept_ids,
-            "primary_department_id": primary_department_id,
-            "custom_dept_ids": custom_dept_ids,
+            "scope_mode": authority.scope_mode,
+            "max_data_scope": authority.scope_mode,
+            "visible_org_ids": authority.visible_org_ids,
+            "manageable_org_ids": authority.manageable_org_ids,
+            "scope_root_ids": authority.scope_root_ids,
+            "effective_scope_org_ids": authority.effective_scope_org_ids,
+            "primary_org_id": authority.primary_org_id,
+            "custom_org_ids": authority.custom_org_ids,
+            # Legacy keys kept for transitional compatibility / 过渡兼容旧上下文字段
+            "all_visible_dept_ids": authority.effective_scope_org_ids,
+            "primary_department_id": authority.primary_org_id,
+            "custom_dept_ids": authority.custom_org_ids,
         }
         data_permission_ctx.set(ctx)
         request.state.data_permission = ctx
-
-    async def _compute_tenant_admin_data_permission(
-        self,
-        db: AsyncSession,
-        tenant_admin: TenantAdmin,
-        role: TenantAdminRole | None,
-    ) -> tuple[str, list[int], int | None, list[int]]:
-        """
-        计算企业管理员的数据权限范围
-        Compute tenant admin's data permission scope.
-
-        Returns:
-            (max_data_scope, all_visible_dept_ids, primary_department_id, custom_dept_ids)
-        """
-        if role is None or not role.is_active:
-            return (
-                DataScope.SELF_ONLY.value,
-                [],
-                None,
-                [],
-            )
-
-        data_scope = getattr(role, "data_scope", DataScope.SELF_ONLY.value) or DataScope.SELF_ONLY.value
-        custom_dept_ids: list[int] = list(role.custom_dept_ids) if role.custom_dept_ids else []
-
-        if data_scope == DataScope.ALL.value:
-            return (DataScope.ALL.value, [], None, [])
-
-        if data_scope == DataScope.CUSTOM.value:
-            return (DataScope.CUSTOM.value, [], None, custom_dept_ids)
-
-        if data_scope == DataScope.SELF_ONLY.value:
-            return (DataScope.SELF_ONLY.value, [], None, [])
-
-        # DEPT_ONLY 或 DEPT_AND_CHILDREN：计算 primary_department_id 和 all_visible_dept_ids
-        primary_dept_id: int | None = None
-        if role.type == RoleType.DEPARTMENT.value:
-            primary_dept_id = role.id
-        elif role.type == RoleType.POSITION.value and role.parent_id:
-            # 岗位的父节点可能是部门 / Position's parent may be department
-            parent_result = await db.execute(
-                select(TenantAdminRole).where(TenantAdminRole.id == role.parent_id)
-            )
-            parent = parent_result.scalar_one_or_none()
-            if parent and parent.type == RoleType.DEPARTMENT.value:
-                primary_dept_id = parent.id
-
-        if primary_dept_id is None:
-            return (DataScope.SELF_ONLY.value, [], None, [])
-
-        if data_scope == DataScope.DEPT_ONLY.value:
-            return (DataScope.DEPT_ONLY.value, [primary_dept_id], primary_dept_id, [])
-
-        # DEPT_AND_CHILDREN：当前部门 + 所有子部门（path 前缀匹配）/ Self dept + all children (path prefix match)
-        path_result = await db.execute(
-            select(TenantAdminRole.path).where(TenantAdminRole.id == primary_dept_id)
-        )
-        path_row = path_result.scalar_one_or_none()
-        my_path = path_row[0] if path_row and path_row[0] else f"/{primary_dept_id}/"
-        if not my_path.endswith("/"):
-            my_path = my_path + "/"
-        children_result = await db.execute(
-            select(TenantAdminRole.id).where(
-                TenantAdminRole.tenant_id == tenant_admin.tenant_id,
-                TenantAdminRole.type == RoleType.DEPARTMENT.value,
-                TenantAdminRole.path.startswith(my_path),
-                TenantAdminRole.is_deleted.is_(False),
-            )
-        )
-        child_ids = [r[0] for r in children_result.scalars().all()]
-        all_visible = list(dict.fromkeys([primary_dept_id] + child_ids))
-        return (DataScope.DEPT_AND_CHILDREN.value, all_visible, primary_dept_id, [])

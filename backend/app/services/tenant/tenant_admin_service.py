@@ -14,9 +14,12 @@ from app.core.i18n import _
 from app.core.security import get_password_hash, verify_password
 from app.enums import ErrorCode
 from app.exceptions import BusinessException, NotFoundException
-from app.models.auth.tenant_admin_role import TenantAdminRole
+from app.models.org import TenantOrgNode
 from app.models.tenant.tenant_admin import TenantAdmin
 from app.repositories.tenant.tenant_admin_repository import TenantAdminRepository
+from app.repositories.tenant.tenant_permission_role_repository import (
+    TenantPermissionRoleRepository,
+)
 
 
 class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
@@ -78,6 +81,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
         is_active: bool = True,
         is_owner: bool = False,
         role_id: int | None = None,
+        org_node_id: int | None = None,
     ) -> TenantAdmin:
         """
         创建企业管理员 / Create tenant admin.
@@ -90,7 +94,8 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
             nickname: 昵称
             is_active: 是否激活
             is_owner: 是否企业所有者
-            role_id: 角色 ID
+            role_id: 权限角色 ID
+            org_node_id: 组织节点 ID
 
         Returns:
             创建的管理员
@@ -143,8 +148,11 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
         if is_owner:
             root_node = await self._get_tenant_root_node()
             # 如果未指定角色，自动关联到根节点
-            if root_node and role_id is None:
-                role_id = root_node.id
+            if root_node and org_node_id is None:
+                org_node_id = root_node.id
+
+        await self._validate_permission_role(role_id)
+        await self._validate_org_node(org_node_id)
 
         # 创建管理员（tenant_id 由 TenantService 自动注入）
         data = {
@@ -156,6 +164,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
             "is_active": is_active,
             "is_owner": is_owner,
             "role_id": role_id,
+            "org_node_id": org_node_id,
         }
 
         admin = await self.create(data)
@@ -213,6 +222,12 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
                 message=_("tenant_admin.phone_exists"),
                 code=ErrorCode.ADMIN_PHONE_EXISTS,
             )
+
+        if "role_id" in data:
+            await self._validate_permission_role(data["role_id"])
+
+        if "org_node_id" in data:
+            await self._validate_org_node(data["org_node_id"])
 
         # 移除不允许直接更新的字段
         data.pop("password", None)
@@ -322,7 +337,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
             raise NotFoundException(message=_("tenant_admin.not_found"))
         return result
 
-    async def _get_tenant_root_node(self) -> TenantAdminRole | None:
+    async def _get_tenant_root_node(self) -> TenantOrgNode | None:
         """
         获取企业的组织架构根节点 / Get tenant org root node.
 
@@ -330,14 +345,36 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
             根节点实例或 None
         """
         result = await self.db.execute(
-            select(TenantAdminRole).where(
-                TenantAdminRole.tenant_id == self.tenant_id,
-                TenantAdminRole.code == "tenant_root",
-                TenantAdminRole.is_system.is_(True),
-                TenantAdminRole.is_deleted.is_(False),
+            select(TenantOrgNode).where(
+                TenantOrgNode.tenant_id == self.tenant_id,
+                TenantOrgNode.code == "tenant_root",
+                TenantOrgNode.is_system.is_(True),
+                TenantOrgNode.is_deleted.is_(False),
             )
         )
         return result.scalar_one_or_none()
+
+    async def _validate_permission_role(self, role_id: int | None) -> None:
+        if role_id is None:
+            return
+
+        repo = TenantPermissionRoleRepository(self.db, self.tenant_id)
+        if await repo.get_by_id(role_id) is None:
+            raise NotFoundException(message=_("role.not_found"))
+
+    async def _validate_org_node(self, org_node_id: int | None) -> None:
+        if org_node_id is None:
+            return
+
+        result = await self.db.execute(
+            select(TenantOrgNode.id).where(
+                TenantOrgNode.id == org_node_id,
+                TenantOrgNode.tenant_id == self.tenant_id,
+                TenantOrgNode.is_deleted.is_(False),
+            )
+        )
+        if result.scalar_one_or_none() is None:
+            raise NotFoundException(message=_("role.not_found"))
 
 
 __all__ = ["TenantAdminService"]

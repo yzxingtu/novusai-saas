@@ -47,6 +47,12 @@ from app.models import (
     tenant_admin_role_permissions,
     TenantUserRole,
     tenant_user_role_permissions,
+    AdminOrgNode,
+    AdminOrgScopePolicy,
+    AdminOrgScopeTarget,
+    TenantOrgNode,
+    TenantOrgScopePolicy,
+    TenantOrgScopeTarget,
     # 通知
     NotificationTemplate,
     Notification,

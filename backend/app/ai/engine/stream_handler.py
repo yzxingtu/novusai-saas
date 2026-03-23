@@ -18,7 +18,10 @@ from typing import TYPE_CHECKING, Any
 
 from app.ai.sse import SSEChunkEncoder
 from app.ai.types import ChatMessage
+from app.core.i18n import _
 from app.core.logging import LogManager
+from app.core.response import build_error_event, build_exception_debug
+from app.middleware.trace import trace_id_var
 from app.enums.common import UserRoleEnum
 
 from .base import MAX_TOOL_CALL_ROUNDS, log_user_type_for_call_log
@@ -32,6 +35,13 @@ if TYPE_CHECKING:
     from .tool_processor import ToolCallProcessor
 
 logger = LogManager.get_logger("ai.engine.stream_handler")
+
+
+def _trace_payload(data: dict[str, Any]) -> dict[str, Any]:
+    trace_id = trace_id_var.get()
+    if trace_id and "trace_id" not in data:
+        return {**data, "trace_id": trace_id}
+    return data
 
 
 class StreamExecutionHandler:
@@ -127,10 +137,10 @@ class StreamExecutionHandler:
                 # Publish conversation id early so frontend keeps the session
                 # even when the stream is interrupted before the final done event.
                 yield SSEChunkEncoder.encode(
-                    {
+                    _trace_payload({
                         "event": "conversation",
                         "conversation_id": self.request.conversation_id,
-                    }
+                    })
                 )
 
             processor = ToolCallProcessor(
@@ -271,12 +281,12 @@ class StreamExecutionHandler:
             # on_complete may trigger slow operations (e.g. memory extraction LLM call);
             # emitting done before the callback prevents the UI from hanging.
             yield SSEChunkEncoder.encode(
-                {
+                _trace_payload({
                     "event": "done",
                     "conversation_id": self.request.conversation_id,
                     "total_tokens": total_tokens,
                     "duration_ms": duration_ms,
-                }
+                })
             )
 
             yield SSEChunkEncoder.done()
@@ -290,11 +300,13 @@ class StreamExecutionHandler:
             )
             try:
                 yield SSEChunkEncoder.encode(
-                    {
-                        "error": True,
-                        "message": str(exc),
-                        "conversation_id": self.request.conversation_id,
-                    }
+                    build_error_event(
+                        code="STREAM_EXECUTION_ERROR",
+                        message=_("common.server_error"),
+                        trace_id=trace_id_var.get() or None,
+                        debug=build_exception_debug(exc),
+                        extra={"conversation_id": self.request.conversation_id},
+                    )
                 )
                 yield SSEChunkEncoder.done()
             except Exception:

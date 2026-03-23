@@ -14,10 +14,8 @@ from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession
 from app.core.i18n import _
 from app.core.response import created, success
-from app.core.security import get_password_hash
-from app.enums import ErrorCode
 from app.enums.rbac import PermissionScope
-from app.exceptions import BusinessException
+from app.exceptions import BusinessException, NotFoundException
 from app.rbac.decorators import (
     action_create,
     action_read,
@@ -26,6 +24,7 @@ from app.rbac.decorators import (
 )
 from app.services.common import AuthService
 from app.services.system import TenantService
+from app.services.tenant import TenantAdminService
 
 # ==========================================
 # 请求/响应 Schema / Request/Response Schema
@@ -38,6 +37,7 @@ class TenantAdminCreateRequest(BaseModel):
     password: str = Field(..., min_length=6, max_length=100)
     nickname: str | None = Field(None, max_length=100)
     role_id: int | None = Field(None)
+    org_node_id: int | None = Field(None)
 
 
 class TenantAdminUpdateRequest(BaseModel):
@@ -45,12 +45,50 @@ class TenantAdminUpdateRequest(BaseModel):
     password: str | None = Field(None, min_length=6, max_length=100)
     nickname: str | None = Field(None, max_length=100)
     role_id: int | None = Field(None)
+    org_node_id: int | None = Field(None)
     is_active: bool | None = Field(None)
 
 
 class TenantAdminStatusRequest(BaseModel):
     """切换管理员状态请求 / Toggle admin status request"""
     is_active: bool
+
+
+def _raise_http(exc: Exception):
+    if isinstance(exc, NotFoundException):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc.message),
+        )
+    if isinstance(exc, BusinessException):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc.message),
+        )
+    raise exc
+
+
+def _serialize_tenant_admin(tenant_admin) -> dict:
+    permission_role = getattr(tenant_admin, "role", None)
+    org_node = getattr(tenant_admin, "org_node", None)
+    return {
+        "id": tenant_admin.id,
+        "username": tenant_admin.username,
+        "email": tenant_admin.email,
+        "nickname": tenant_admin.nickname,
+        "avatar": tenant_admin.avatar,
+        "is_owner": tenant_admin.is_owner,
+        "is_active": tenant_admin.is_active,
+        "role_name": permission_role.name if permission_role else None,
+        "role_id": tenant_admin.role_id,
+        "permission_role_name": permission_role.name if permission_role else None,
+        "permission_role_id": tenant_admin.role_id,
+        "org_node_name": org_node.name if org_node else None,
+        "org_node_id": tenant_admin.org_node_id,
+        "last_login_at": tenant_admin.last_login_at.isoformat() if tenant_admin.last_login_at else None,
+        "last_login_ip": tenant_admin.last_login_ip,
+        "created_at": tenant_admin.created_at.isoformat() if tenant_admin.created_at else None,
+    }
 
 
 # ==========================================
@@ -119,29 +157,14 @@ class AdminTenantAdminController(GlobalController):
                     TenantAdmin.tenant_id == tenant_id,
                     TenantAdmin.is_deleted.is_(False),
                 )
-                .options(selectinload(TenantAdmin.role))
+                .options(
+                    selectinload(TenantAdmin.role),
+                    selectinload(TenantAdmin.org_node),
+                )
                 .order_by(TenantAdmin.is_owner.desc(), TenantAdmin.created_at.asc())
             )
             admins = list(result.scalars().all())
-
-            items = []
-            for ta in admins:
-                items.append({
-                    "id": ta.id,
-                    "username": ta.username,
-                    "email": ta.email,
-                    "nickname": ta.nickname,
-                    "avatar": ta.avatar,
-                    "is_owner": ta.is_owner,
-                    "is_active": ta.is_active,
-                    "role_name": ta.role.name if ta.role else None,
-                    "role_id": ta.role_id,
-                    "last_login_at": ta.last_login_at.isoformat() if ta.last_login_at else None,
-                    "last_login_ip": ta.last_login_ip,
-                    "created_at": ta.created_at.isoformat() if ta.created_at else None,
-                })
-
-            return success(data=items)
+            return success(data=[_serialize_tenant_admin(ta) for ta in admins])
 
         @router.post("", summary="为企业创建管理员")
         @action_create("action.tenant_admin.create")
@@ -159,69 +182,22 @@ class AdminTenantAdminController(GlobalController):
             - 验证用户名/邮箱在该企业内唯一 / Validate username/email uniqueness within the tenant
             """
             await _verify_tenant(db, tenant_id)
-
-            from sqlalchemy import or_, select
-
-            from app.models import TenantAdmin
-
-            # 验证用户名/邮箱唯一性 / Validate username/email uniqueness
-            existing = await db.execute(
-                select(TenantAdmin).where(
-                    TenantAdmin.tenant_id == tenant_id,
-                    TenantAdmin.is_deleted.is_(False),
-                    or_(
-                        TenantAdmin.username == data.username,
-                        TenantAdmin.email == data.email,
-                    ),
+            service = TenantAdminService(db, tenant_id)
+            try:
+                new_admin = await service.create_admin(
+                    username=data.username,
+                    email=data.email,
+                    password=data.password,
+                    nickname=data.nickname,
+                    is_active=True,
+                    is_owner=False,
+                    role_id=data.role_id,
+                    org_node_id=data.org_node_id,
                 )
-            )
-            if existing.scalar_one_or_none():
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=_("tenant_admin.username_or_email_exists"),
-                )
-
-            # 检查管理员数配额 / Check admin count quota
-            from sqlalchemy.orm import selectinload as _sil
-
-            from app.models.tenant.tenant import Tenant
-            from app.services.tenant.quota_service import QuotaService
-            tenant_obj = (await db.execute(
-                select(Tenant)
-                .options(_sil(Tenant.tenant_plan))
-                .where(Tenant.id == tenant_id)
-            )).scalar_one_or_none()
-            if tenant_obj:
-                quota_svc = QuotaService(db, tenant_obj)
-                quota_check = await quota_svc.check_admin_quota()
-                if not quota_check.allowed:
-                    raise BusinessException(
-                        message=quota_check.message or _("quota.admins_exceeded"),
-                        code=ErrorCode.CONFLICT,
-                    )
-
-            # 创建管理员 / Create admin
-            new_admin = TenantAdmin(
-                tenant_id=tenant_id,
-                username=data.username,
-                email=data.email,
-                password_hash=get_password_hash(data.password),
-                nickname=data.nickname,
-                role_id=data.role_id,
-                is_owner=False,
-                is_active=True,
-            )
-            db.add(new_admin)
-            await db.flush()
-
-            return created(data={
-                "id": new_admin.id,
-                "username": new_admin.username,
-                "email": new_admin.email,
-                "nickname": new_admin.nickname,
-                "is_owner": new_admin.is_owner,
-                "is_active": new_admin.is_active,
-            })
+                await db.flush()
+                return created(data=_serialize_tenant_admin(new_admin))
+            except Exception as exc:
+                _raise_http(exc)
 
         @router.put("/{admin_id}", summary="更新企业管理员")
         @action_update("action.tenant_admin.update")
@@ -244,6 +220,7 @@ class AdminTenantAdminController(GlobalController):
             await _verify_tenant(db, tenant_id)
 
             from sqlalchemy import select
+            from sqlalchemy.orm import selectinload
 
             from app.models import TenantAdmin
 
@@ -261,29 +238,48 @@ class AdminTenantAdminController(GlobalController):
                     detail=_("tenant_admin.not_found"),
                 )
 
-            if data.password is not None:
-                tenant_admin.password_hash = get_password_hash(data.password)
-            if data.nickname is not None:
-                tenant_admin.nickname = data.nickname
-            if data.role_id is not None:
-                tenant_admin.role_id = data.role_id
             if data.is_active is not None:
                 if tenant_admin.is_owner and not data.is_active:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=_("tenant_admin.cannot_disable_owner"),
                     )
-                tenant_admin.is_active = data.is_active
 
-            await db.flush()
+            service = TenantAdminService(db, tenant_id)
+            update_data = data.model_dump(
+                exclude_unset=True,
+                exclude={"password"},
+            )
 
-            return success(data={
-                "id": tenant_admin.id,
-                "username": tenant_admin.username,
-                "nickname": tenant_admin.nickname,
-                "role_id": tenant_admin.role_id,
-                "is_active": tenant_admin.is_active,
-            })
+            try:
+                if data.password is not None:
+                    await service.reset_password(admin_id, data.password)
+                if update_data:
+                    await service.update_admin(admin_id, update_data)
+
+                refreshed = await db.execute(
+                    select(TenantAdmin)
+                    .where(
+                        TenantAdmin.id == admin_id,
+                        TenantAdmin.tenant_id == tenant_id,
+                        TenantAdmin.is_deleted.is_(False),
+                    )
+                    .options(
+                        selectinload(TenantAdmin.role),
+                        selectinload(TenantAdmin.org_node),
+                    )
+                )
+                updated_admin = refreshed.scalar_one_or_none()
+                if updated_admin is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=_("tenant_admin.not_found"),
+                    )
+
+                await db.flush()
+                return success(data=_serialize_tenant_admin(updated_admin))
+            except Exception as exc:
+                _raise_http(exc)
 
         @router.put("/{admin_id}/status", summary="切换管理员状态")
         @action_update("action.tenant_admin.update")

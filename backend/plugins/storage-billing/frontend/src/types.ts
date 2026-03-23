@@ -7,6 +7,8 @@ export type SettlementMode = 'monthly_settled' | 'strict_daily_reconciliation' |
 export interface ProviderCapabilitySnapshot {
   capability_message?: string;
   manual_pull_supported?: boolean;
+  official_billing_lag_days?: null | number;
+  official_target_rule?: string;
   recommended_scope_types?: string[];
   scheduled_daily_supported?: boolean;
   settlement_cycle?: PeriodType;
@@ -21,10 +23,59 @@ export interface PluginStatusSnapshot {
   status?: string;
 }
 
+export interface StorageContextSnapshot {
+  apply_quota?: boolean;
+  storage_mode?: string;
+  storage_config?: {
+    base_url?: string | null;
+    driver?: string;
+    options?: Record<string, unknown>;
+    root_path?: string | null;
+  };
+}
+
+export interface ProviderRuntimeStorageSnapshot {
+  base_url?: string | null;
+  bucket_name?: null | string;
+  current_driver?: string;
+  driver_match?: boolean;
+  endpoint?: string | null;
+  prefix?: string | null;
+  region?: string | null;
+  root_path?: string | null;
+  source?: string;
+  storage_mode?: string;
+}
+
+export interface ReconciliationScheduleRule {
+  cron?: string;
+  local_time?: string;
+  official_billing_lag_days?: null | number;
+  official_target_rule?: string;
+}
+
+export interface ReconciliationProviderPlan extends ReconciliationScheduleRule {
+  billing_date: string;
+  provider_code: string;
+}
+
+export interface ReconciliationRequestedScope extends Record<string, unknown> {
+  billing_date?: string;
+  billing_month?: string;
+  job?: string;
+  official_billing_lag_days?: null | number;
+  official_target_rule?: string;
+  provider_codes?: string[];
+  provider_plans?: ReconciliationProviderPlan[];
+  resolved_provider_code?: string;
+  scheduled_provider_code?: string;
+}
+
 export interface OverviewResponse {
   billable_drivers: string[];
   excluded_drivers: string[];
   host_snapshot: {
+    active_storage_driver?: null | string;
     enabled_storage_drivers: Array<{
       code: string;
       display_name?: string;
@@ -32,6 +83,7 @@ export interface OverviewResponse {
       plugin_name?: string | null;
       plugin_status?: string | null;
     }>;
+    platform_storage_context?: StorageContextSnapshot;
     related_plugins: PluginStatusSnapshot[];
   };
   ledger_snapshot: {
@@ -45,13 +97,15 @@ export interface OverviewResponse {
   provider_schedules?: Record<string, {
     cron?: string;
     local_time?: string;
+    provider_rules?: Record<string, ReconciliationScheduleRule>;
     provider_codes?: string[];
   }>;
   reconciliation_schedule: {
     cron: string;
     local_time: string;
-    official_billing_lag_days: number;
-    official_target_rule: string;
+    official_billing_lag_days?: null | number;
+    official_target_rule?: string;
+    provider_rules?: Record<string, ReconciliationScheduleRule>;
   };
   status: string;
 }
@@ -66,7 +120,7 @@ export interface ReconciliationRun {
   period_start?: string;
   period_type?: PeriodType;
   provider_codes: string[];
-  requested_scope: Record<string, unknown>;
+  requested_scope: ReconciliationRequestedScope;
   run_key: string;
   started_at: null | string;
   status: string;
@@ -167,43 +221,46 @@ export interface ReconciliationRunChargeListResponse {
 }
 
 export interface ProviderProfile {
-  access_key?: string;
-  access_key_id?: string;
-  access_key_secret?: string;
   account_identifier?: string;
-  bill_bucket?: string;
-  bill_prefix?: string;
   bill_source: string;
+  active_storage_driver?: string;
   collector_ready?: boolean;
   configured_fields?: Record<string, boolean>;
   configured_secret_fields?: Record<string, boolean>;
   capability_message?: string;
   driver_enabled?: boolean | null;
   enabled: boolean;
+  host_credentials_configured?: boolean;
   implemented?: boolean;
   manual_pull_supported?: boolean;
+  official_billing_lag_days?: null | number;
+  official_target_rule?: string;
   profile_code: string;
   profile_valid?: boolean;
   recommended_scope_types?: string[];
   region?: string;
   required_fields?: string[];
   scheduled_daily_supported?: boolean;
-  secret_id?: string;
-  secret_key?: string;
   settlement_cycle?: PeriodType;
   settlement_mode?: SettlementMode;
   status?: string;
+  storage_context?: ProviderRuntimeStorageSnapshot;
+  storage_driver_match?: boolean;
   strict_reconciliation_supported?: boolean;
   supported_bill_sources?: string[];
   supported_period_types?: PeriodType[];
 }
 
 export interface ProviderValidation {
+  active_storage_driver?: string;
   capability_message?: string;
   collector_ready: boolean;
   driver_enabled?: boolean | null;
   errors: string[];
+  host_credentials_configured?: boolean;
   manual_pull_supported?: boolean;
+  official_billing_lag_days?: null | number;
+  official_target_rule?: string;
   profile_valid: boolean;
   required_fields: string[];
   recommended_scope_types?: string[];
@@ -211,6 +268,8 @@ export interface ProviderValidation {
   settlement_cycle?: PeriodType;
   settlement_mode?: SettlementMode;
   status: string;
+  storage_context?: ProviderRuntimeStorageSnapshot;
+  storage_driver_match?: boolean;
   strict_reconciliation_supported?: boolean;
   supported_bill_sources: string[];
   supported_period_types?: PeriodType[];
@@ -380,7 +439,10 @@ export interface TenantPrerequisitesResponse {
   bindings: {
     active_total: number;
     items: BindingRecord[];
+    matching_active_total?: number;
+    ready_total?: number;
     total: number;
+    valid_active_total?: number;
   };
   ok: boolean;
   plan: {
@@ -400,15 +462,7 @@ export interface TenantPrerequisitesResponse {
   provider_profiles: ProviderProfilesResponse;
   provider_capabilities?: Record<string, ProviderCapabilitySnapshot>;
   storage_context: {
-    apply_quota?: boolean;
-    storage_config?: {
-      base_url?: string | null;
-      driver?: string;
-      options?: Record<string, unknown>;
-      root_path?: string | null;
-    };
-    storage_mode?: string;
     tenant_id?: number;
-  };
+  } & StorageContextSnapshot;
   tenant_id: number;
 }

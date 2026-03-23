@@ -10,7 +10,13 @@ import { ref, unref } from 'vue';
 
 import MarkdownIt from 'markdown-it';
 
-import { requestClient } from '#/utils/request';
+import { $t } from '#/locales';
+import {
+  type AppErrorInfo,
+  normalizeSseEventError,
+  normalizeSseTransportError,
+  requestClient,
+} from '#/utils/request';
 
 const md = new MarkdownIt({
   html: false,
@@ -29,7 +35,7 @@ function getAIWritingPath(feature: string): string {
 export function useEditorAI(editorRef: ShallowRef<Editor | undefined>) {
   const aiLoading = ref(false);
   const aiResult = ref('');
-  const aiError = ref<string | null>(null);
+  const aiError = ref<AppErrorInfo | null>(null);
   /** True after at least one streamAI call; used to enable retry button. / 至少调用一次 streamAI 后为 true，用于启用重试按钮 */
   const canRetry = ref(false);
 
@@ -93,10 +99,7 @@ export function useEditorAI(editorRef: ShallowRef<Editor | undefined>) {
             try {
               const event = JSON.parse(payload);
               if (event.error) {
-                aiError.value =
-                  typeof event.error === 'string'
-                    ? event.error
-                    : (event.error?.message as string) || 'AI stream error';
+                aiError.value = normalizeSseEventError(event, $t);
                 return;
               }
               if (event.event === 'message' && event.delta) {
@@ -107,16 +110,16 @@ export function useEditorAI(editorRef: ShallowRef<Editor | undefined>) {
             }
           }
         },
-        onError(err: Error) {
-          console.error('AI stream error:', err);
-          aiError.value = err.message || 'AI stream error';
+        onError(error: AppErrorInfo | Error) {
+          const normalized = normalizeSseTransportError(error, $t);
+          console.error('AI stream error:', normalized);
+          aiError.value = normalized;
         },
       });
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
         console.error('AI stream error:', err);
-        aiError.value =
-          err instanceof Error ? err.message : String(err) || 'AI request failed';
+        aiError.value = normalizeSseTransportError(err, $t);
       }
     } finally {
       aiLoading.value = false;

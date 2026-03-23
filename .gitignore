@@ -17,6 +17,9 @@ __pycache__/
 # Distribution / packaging
 .Python
 build/
+!frontend/apps/web-antd/build/
+frontend/apps/web-antd/build/*
+!frontend/apps/web-antd/build/vite-plugin-novus-plugins.d.ts
 develop-eggs/
 dist/
 downloads/

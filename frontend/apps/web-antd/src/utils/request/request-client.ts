@@ -45,6 +45,13 @@ import axios from 'axios';
 import qs from 'qs';
 
 import { getEndpointByUrl } from './endpoint';
+import { ensureTraceIdHeader } from './trace';
+import {
+  formatAppErrorMessage,
+  normalizeHttpError,
+  normalizeSseTransportError,
+  toErrorWithAppError,
+} from './app-error';
 
 // ============================================================
 // Default configuration / 默认配置
@@ -220,6 +227,8 @@ export class RequestClient {
     config?: RequestClientConfig & { data?: any; method?: 'GET' | 'POST' },
   ): Promise<T> {
     const { method = 'GET', data, ...restConfig } = config || {};
+    const headers = { ...(restConfig.headers || {}) };
+    ensureTraceIdHeader(headers);
 
     try {
       const response = await this.instance.request<T>({
@@ -228,6 +237,7 @@ export class RequestClient {
         data,
         responseType: 'blob',
         ...restConfig,
+        headers,
         // 下载请求：raw 模式跳过业务 code 解析，避免 Blob 被误判为错误
         ...({
           __options: {
@@ -244,20 +254,29 @@ export class RequestClient {
         // 解析 JSON 错误
         const text = await blob.text();
         const errorData = JSON.parse(text);
-        throw new Error(
-          errorData.message || errorData.error || 'Download failed',
-        );
+        const wrappedError = {
+          response: {
+            data: errorData,
+            headers: response.headers,
+            status: response.status,
+          },
+        };
+        throw toErrorWithAppError(normalizeHttpError(wrappedError, this.t));
       }
 
       return response.data;
     } catch (error: any) {
       // 显示友好的错误提示
       if (this.showMessage) {
-        const message =
-          error?.message ||
-          this.t?.('common.http.downloadFailed') ||
-          'Download failed';
-        this.showMessage('error', message);
+        const appError = normalizeHttpError(
+          error,
+          this.t,
+          this.t?.('common.http.downloadFailed') || 'Download failed',
+        );
+        this.showMessage(
+          'error',
+          formatAppErrorMessage(appError, this.t),
+        );
       }
       throw error;
     }
@@ -336,6 +355,9 @@ export class RequestClient {
     url: string,
     config: RequestClientConfig = {},
   ): Promise<T> {
+    const headers = { ...(config.headers || {}) };
+    ensureTraceIdHeader(headers);
+
     // 合并选项
     const options: Required<RequestOptions> = {
       ...this.defaultOptions,
@@ -348,6 +370,7 @@ export class RequestClient {
     >({
       url,
       ...config,
+      headers,
       // 存储选项到 config 中，供拦截器使用
       ...({ __options: options } as any),
     });
@@ -391,6 +414,7 @@ export class RequestClient {
       if (fetchOptions?.headers) {
         new Headers(fetchOptions.headers).forEach((v, k) => headers.set(k, v));
       }
+      ensureTraceIdHeader(headers);
 
       // 准备请求体
       let body: BodyInit | null = null;
@@ -407,15 +431,24 @@ export class RequestClient {
       });
 
       if (!response.ok) {
-        // 尝试解析响应体获取详细错误信息
-        let errorMessage = `HTTP error! status: ${response.status}`;
+        // 尝试解析响应体并归一化错误对象
+        let responseBody: Record<string, unknown> | null = null;
         try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorData.error || errorMessage;
+          responseBody = await response.json();
         } catch {
-          // 无法解析 JSON，使用默认错误信息
+          // ignore JSON parse errors
         }
-        throw new Error(errorMessage);
+        const normalized = normalizeHttpError(
+          {
+            response: {
+              data: responseBody,
+              headers: response.headers,
+              status: response.status,
+            },
+          },
+          this.t,
+        );
+        throw toErrorWithAppError(normalized);
       }
 
       const reader = response.body?.getReader();
@@ -446,12 +479,13 @@ export class RequestClient {
         // 请求被取消，不触发错误回调
         return;
       }
+      const appError = normalizeSseTransportError(error, this.t);
       // 触发错误回调
       if (onError) {
-        onError(error);
+        onError(toErrorWithAppError(appError));
       } else {
         // 没有错误回调时抛出错误
-        throw error;
+        throw toErrorWithAppError(appError);
       }
     }
   }

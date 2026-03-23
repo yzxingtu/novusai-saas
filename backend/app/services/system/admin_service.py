@@ -7,12 +7,18 @@ Provides platform admin business logic.
 
 from typing import Any
 
+from sqlalchemy import select
+
 from app.core.base_service import GlobalService
 from app.core.i18n import _
 from app.core.security import get_password_hash, verify_password
 from app.enums import ErrorCode
 from app.exceptions import BusinessException, NotFoundException
+from app.models.org import AdminOrgNode
 from app.models.system.admin import Admin
+from app.repositories.system.admin_permission_role_repository import (
+    AdminPermissionRoleRepository,
+)
 from app.repositories.system.admin_repository import AdminRepository
 
 
@@ -75,6 +81,7 @@ class AdminService(GlobalService[Admin, AdminRepository]):
         is_active: bool = True,
         is_super: bool = False,
         role_id: int | None = None,
+        org_node_id: int | None = None,
     ) -> Admin:
         """
         创建管理员 / Create admin.
@@ -116,6 +123,9 @@ class AdminService(GlobalService[Admin, AdminRepository]):
                 code=ErrorCode.ADMIN_PHONE_EXISTS,
             )
 
+        await self._validate_permission_role(role_id)
+        await self._validate_org_node(org_node_id)
+
         # 创建管理员
         data = {
             "username": username,
@@ -126,6 +136,7 @@ class AdminService(GlobalService[Admin, AdminRepository]):
             "is_active": is_active,
             "is_super": is_super,
             "role_id": role_id,
+            "org_node_id": org_node_id,
         }
 
         return await self.create(data)
@@ -176,6 +187,12 @@ class AdminService(GlobalService[Admin, AdminRepository]):
                 message=_("admin.phone_exists"),
                 code=ErrorCode.ADMIN_PHONE_EXISTS,
             )
+
+        if "role_id" in data:
+            await self._validate_permission_role(data["role_id"])
+
+        if "org_node_id" in data:
+            await self._validate_org_node(data["org_node_id"])
 
         # 移除不允许直接更新的字段
         data.pop("password", None)
@@ -283,6 +300,27 @@ class AdminService(GlobalService[Admin, AdminRepository]):
         if not result:
             raise NotFoundException(message=_("admin.not_found"))
         return result
+
+    async def _validate_permission_role(self, role_id: int | None) -> None:
+        if role_id is None:
+            return
+
+        repo = AdminPermissionRoleRepository(self.db)
+        if await repo.get_by_id(role_id) is None:
+            raise NotFoundException(message=_("role.not_found"))
+
+    async def _validate_org_node(self, org_node_id: int | None) -> None:
+        if org_node_id is None:
+            return
+
+        result = await self.db.execute(
+            select(AdminOrgNode.id).where(
+                AdminOrgNode.id == org_node_id,
+                AdminOrgNode.is_deleted.is_(False),
+            )
+        )
+        if result.scalar_one_or_none() is None:
+            raise NotFoundException(message=_("role.not_found"))
 
 
 __all__ = ["AdminService"]

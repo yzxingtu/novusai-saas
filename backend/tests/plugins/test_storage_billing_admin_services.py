@@ -22,7 +22,7 @@ def _make_scalar_none_result() -> MagicMock:
 
 
 @pytest.mark.asyncio
-async def test_storage_billing_provider_profiles_preserve_existing_secrets() -> None:
+async def test_storage_billing_provider_profiles_persist_only_billing_fields() -> None:
     module = load_plugin_module("storage-billing", "services.profile_service")
     assert module is not None
 
@@ -32,82 +32,61 @@ async def test_storage_billing_provider_profiles_preserve_existing_secrets() -> 
                 "enabled": True,
                 "profile_code": "tencent-default",
                 "bill_source": "describe_bill_detail",
-                "region": "ap-shanghai",
-                "secret_id": "sid-old",
-                "secret_key": "sk-old",
-                "bill_bucket": "bill-bucket",
-                "bill_prefix": "daily/",
                 "account_identifier": "acct-1",
             }
         }
     }
-    persisted_config = {
-        "providers": {
-            "qiniu-kodo": {
-                "enabled": False,
-                "profile_code": "qiniu-default",
-                "bill_source": "finance_api",
-                "access_key": "",
-                "secret_key": "",
-                "account_identifier": "",
-            },
-            "aliyun-oss": {
-                "enabled": False,
-                "profile_code": "aliyun-default",
-                "bill_source": "oss_subscription",
-                "region": "",
-                "access_key_id": "",
-                "access_key_secret": "",
-                "bill_bucket": "",
-                "bill_prefix": "",
-                "account_identifier": "",
-            },
-            "tencent-cos": {
-                "enabled": True,
-                "profile_code": "tencent-default",
-                "bill_source": "cos_bill_bucket",
-                "region": "ap-shanghai",
-                "secret_id": "sid-old",
-                "secret_key": "sk-new",
-                "bill_bucket": "bill-bucket",
-                "bill_prefix": "daily/",
-                "account_identifier": "acct-1",
-            },
-        }
-    }
 
     ctx = MagicMock()
-    ctx.get_config = AsyncMock(side_effect=[current_config, persisted_config])
+    ctx.get_config = AsyncMock(return_value=current_config)
     ctx.update_config = AsyncMock()
     host = MagicMock()
     host.get_plugin_runtime_summary = AsyncMock(
         return_value=[{"name": "tencent-cos", "enabled": True}]
     )
+    host.get_platform_storage_context = AsyncMock(
+        return_value={
+            "storage_mode": "platform",
+            "apply_quota": True,
+            "storage_config": {
+                "driver": "tencent-cos",
+                "root_path": "cos-bucket",
+                "base_url": "https://cos.example.com",
+                "options": {
+                    "region": "ap-shanghai",
+                    "secret_id": "sid-old",
+                    "secret_key": "sk-old",
+                },
+            },
+        }
+    )
 
     service = module.StorageBillingProviderProfileService(ctx, host_read=host)
-    result = await service.save_provider_profiles(
+    await service.save_provider_profiles(
         {
             "providers": {
                 "tencent-cos": {
                     "enabled": True,
-                    "region": "ap-shanghai",
-                    "secret_id": "",
-                    "secret_key": "sk-new",
-                    "bill_bucket": "bill-bucket",
+                    "bill_source": "describe_bill_detail",
+                    "account_identifier": "acct-2",
                 }
             }
         }
     )
 
     saved_config = ctx.update_config.await_args.args[0]
-    assert saved_config["providers"]["tencent-cos"]["secret_id"] == "sid-old"
-    assert saved_config["providers"]["tencent-cos"]["secret_key"] == "sk-new"
-    assert result["providers"]["tencent-cos"]["secret_id"] == ""
-    assert result["providers"]["tencent-cos"]["configured_secret_fields"]["secret_key"] is True
+    assert saved_config["providers"]["tencent-cos"] == {
+        "enabled": True,
+        "profile_code": "tencent-default",
+        "bill_source": "describe_bill_detail",
+        "account_identifier": "acct-2",
+    }
+    assert "secret_id" not in saved_config["providers"]["tencent-cos"]
+    assert "secret_key" not in saved_config["providers"]["tencent-cos"]
 
 
 @pytest.mark.asyncio
-async def test_storage_billing_provider_profiles_read_legacy_flat_config() -> None:
+async def test_storage_billing_provider_profiles_read_legacy_flat_billing_config_only() -> None:
     module = load_plugin_module("storage-billing", "services.profile_service")
     assert module is not None
 
@@ -117,15 +96,29 @@ async def test_storage_billing_provider_profiles_read_legacy_flat_config() -> No
             "tencent_enabled": True,
             "tencent_profile_code": "legacy-profile",
             "tencent_bill_source": "describe_bill_detail",
-            "tencent_region": "ap-guangzhou",
-            "tencent_secret_id": "legacy-sid",
-            "tencent_secret_key": "legacy-skey",
             "tencent_bill_bucket": "legacy-bucket",
+            "tencent_account_identifier": "acct-legacy",
         }
     )
     host = MagicMock()
     host.get_plugin_runtime_summary = AsyncMock(
         return_value=[{"name": "tencent-cos", "enabled": True}]
+    )
+    host.get_platform_storage_context = AsyncMock(
+        return_value={
+            "storage_mode": "platform",
+            "apply_quota": True,
+            "storage_config": {
+                "driver": "tencent-cos",
+                "root_path": "cos-bucket",
+                "base_url": "https://cos.example.com",
+                "options": {
+                    "region": "ap-guangzhou",
+                    "secret_id": "sid-host",
+                    "secret_key": "skey-host",
+                },
+            },
+        }
     )
 
     service = module.StorageBillingProviderProfileService(ctx, host_read=host)
@@ -134,8 +127,11 @@ async def test_storage_billing_provider_profiles_read_legacy_flat_config() -> No
     profile = result["providers"]["tencent-cos"]
     assert profile["enabled"] is True
     assert profile["profile_code"] == "legacy-profile"
+    assert "bill_bucket" not in profile
+    assert profile["account_identifier"] == "acct-legacy"
     assert profile["region"] == "ap-guangzhou"
     assert profile["configured_secret_fields"]["secret_id"] is True
+    assert "secret_id" not in profile
 
 
 @pytest.mark.asyncio
@@ -157,11 +153,6 @@ async def test_storage_billing_create_binding_validates_tenant_context() -> None
                     "enabled": True,
                     "profile_code": "tencent-default",
                     "bill_source": "describe_bill_detail",
-                    "region": "ap-shanghai",
-                    "secret_id": "sid",
-                    "secret_key": "skey",
-                    "bill_bucket": "bill-bucket",
-                    "bill_prefix": "daily/",
                     "account_identifier": "acct-1",
                 }
             }
@@ -179,6 +170,22 @@ async def test_storage_billing_create_binding_validates_tenant_context() -> None
     )
     host.get_plugin_runtime_summary = AsyncMock(
         return_value=[{"name": "tencent-cos", "enabled": True}]
+    )
+    host.get_platform_storage_context = AsyncMock(
+        return_value={
+            "storage_mode": "platform",
+            "apply_quota": True,
+            "storage_config": {
+                "driver": "tencent-cos",
+                "root_path": "tenant-9-bucket",
+                "base_url": "https://cos.example.com",
+                "options": {
+                    "region": "ap-shanghai",
+                    "secret_id": "sid",
+                    "secret_key": "skey",
+                },
+            },
+        }
     )
 
     service = module.StorageBillingBindingService(ctx, host_read=host)
@@ -218,8 +225,6 @@ async def test_storage_billing_binding_rejects_qiniu_pass_through() -> None:
                     "enabled": True,
                     "profile_code": "qiniu-default",
                     "bill_source": "finance_api",
-                    "access_key": "ak",
-                    "secret_key": "sk",
                     "account_identifier": "acct-2",
                 }
             }
@@ -237,6 +242,21 @@ async def test_storage_billing_binding_rejects_qiniu_pass_through() -> None:
     )
     host.get_plugin_runtime_summary = AsyncMock(
         return_value=[{"name": "qiniu-kodo", "enabled": True}]
+    )
+    host.get_platform_storage_context = AsyncMock(
+        return_value={
+            "storage_mode": "platform",
+            "apply_quota": True,
+            "storage_config": {
+                "driver": "qiniu-kodo",
+                "root_path": "tenant-10-bucket",
+                "base_url": "https://cdn.example.com",
+                "options": {
+                    "access_key": "ak",
+                    "secret_key": "sk",
+                },
+            },
+        }
     )
 
     service = module.StorageBillingBindingService(ctx, host_read=host)
@@ -320,6 +340,62 @@ async def test_storage_billing_admin_run_endpoints_delegate_to_service(monkeypat
 
 
 @pytest.mark.asyncio
+async def test_storage_billing_run_qiniu_monthly_settlement_endpoint(monkeypatch) -> None:
+    module = load_plugin_module("storage-billing", "api.admin")
+    assert module is not None
+
+    service = AsyncMock()
+    service.trigger_qiniu_monthly_settlement = AsyncMock(
+        return_value={"status": "ok"}
+    )
+
+    reconciliation_service = MagicMock()
+    reconciliation_service.from_context.return_value = service
+    monkeypatch.setattr(module, "StorageBillingReconciliationService", reconciliation_service)
+
+    request = MagicMock()
+    request.headers = {"content-type": "application/json"}
+    request.json = AsyncMock(return_value={"billing_month": "2026-03"})
+
+    result = await module.run_qiniu_monthly_settlement(request, MagicMock())
+
+    assert result["status"] == "ok"
+    service.trigger_qiniu_monthly_settlement.assert_awaited_once_with({"billing_month": "2026-03"})
+
+
+@pytest.mark.asyncio
+async def test_storage_billing_run_reconciliation_endpoint_forwards_payload(monkeypatch) -> None:
+    module = load_plugin_module("storage-billing", "api.admin")
+    assert module is not None
+
+    service = AsyncMock()
+    service.trigger_manual_run = AsyncMock(return_value={"status": "ok", "run": {"id": 17}})
+
+    reconciliation_service = MagicMock()
+    reconciliation_service.from_context.return_value = service
+    monkeypatch.setattr(module, "StorageBillingReconciliationService", reconciliation_service)
+
+    request = MagicMock()
+    request.headers = {"content-type": "application/json"}
+    request.json = AsyncMock(
+        return_value={
+            "billing_date": "2026-03-21",
+            "provider_codes": ["aliyun-oss"],
+        }
+    )
+
+    result = await module.run_reconciliation(request, MagicMock())
+
+    assert result["status"] == "ok"
+    service.trigger_manual_run.assert_awaited_once_with(
+        {
+            "billing_date": "2026-03-21",
+            "provider_codes": ["aliyun-oss"],
+        }
+    )
+
+
+@pytest.mark.asyncio
 async def test_admin_overview_includes_latest_runs_and_counts(monkeypatch) -> None:
     module = load_plugin_module("storage-billing", "services.reconciliation_service")
     models = load_plugin_module("storage-billing", "models")
@@ -365,3 +441,71 @@ async def test_admin_overview_includes_latest_runs_and_counts(monkeypatch) -> No
     assert overview["ledger_snapshot"]["statement_total"] == 3
     assert overview["ledger_snapshot"]["daily_charge_total"] == 4
     assert overview["ledger_snapshot"]["binding_total"] == 5
+
+
+@pytest.mark.asyncio
+async def test_admin_overview_includes_provider_metadata(monkeypatch) -> None:
+    module = load_plugin_module("storage-billing", "services.reconciliation_service")
+    models = load_plugin_module("storage-billing", "models")
+    assert module is not None
+    assert models is not None
+
+    run = models.StorageBillingRun(
+        billing_date=date(2026, 3, 21),
+        status="completed",
+        trigger_type="schedule",
+    )
+    run.provider_codes_json = ["qiniu-kodo"]
+    run.summary_json = {"driver_count": 1}
+
+    latest_result = MagicMock()
+    latest_scalars = MagicMock()
+    latest_scalars.all.return_value = [run]
+    latest_result.scalars.return_value = latest_scalars
+
+    db = AsyncMock()
+    db.execute = AsyncMock(
+        side_effect=[
+            latest_result,
+            _make_count_result(0),
+            _make_count_result(0),
+            _make_count_result(0),
+        ]
+    )
+
+    host = MagicMock()
+    host.get_enabled_storage_drivers = AsyncMock(return_value=[])
+    host.get_plugin_runtime_summary = AsyncMock(return_value=[])
+
+    stub_profile_service = MagicMock()
+    stub_profile_service.list_provider_profiles = AsyncMock(
+        return_value={
+            "providers": {
+                "qiniu-kodo": {
+                    "settlement_mode": "monthly_settled",
+                    "settlement_cycle": "monthly",
+                    "manual_pull_supported": True,
+                    "strict_reconciliation_supported": False,
+                    "scheduled_daily_supported": False,
+                    "supported_period_types": ["monthly"],
+                    "capability_message": "OK",
+                }
+            }
+        }
+    )
+    monkeypatch.setattr(
+        module,
+        "StorageBillingProviderProfileService",
+        MagicMock(return_value=stub_profile_service),
+    )
+
+    service = module.StorageBillingOverviewService(db, host_read=host)
+    overview = await service.build_admin_overview()
+
+    capabilities = overview["provider_capabilities"].get("qiniu-kodo", {})
+    assert capabilities["manual_pull_supported"] is True
+    assert capabilities["settlement_mode"] == "monthly_settled"
+    assert overview["reconciliation_schedule"]["official_billing_lag_days"] is None
+    assert overview["provider_schedules"]["daily"]["provider_rules"]["aliyun-oss"]["official_target_rule"] == "D-3"
+    assert overview["provider_schedules"]["daily"]["provider_rules"]["tencent-cos"]["official_target_rule"] == "D-2"
+    assert overview["provider_schedules"]["qiniu_monthly"]["provider_codes"] == ["qiniu-kodo"]

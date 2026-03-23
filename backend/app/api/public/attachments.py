@@ -3,10 +3,11 @@ from collections import defaultdict
 from typing import Literal
 
 from fastapi import APIRouter, Query, Request
-from fastapi.responses import JSONResponse, RedirectResponse, Response
+from fastapi.responses import RedirectResponse, Response
 
 from app.core.deps import DbSession
 from app.core.i18n import _
+from app.core.response import error
 from app.rbac.decorators import public
 from app.services.common import ImageProcessService
 from app.services.tenant.attachment_download_service import AttachmentDownloadService
@@ -67,9 +68,10 @@ async def access_attachment(
     # an API proxy URL (private file with config mismatch), return 404
     # instead of redirecting to ourselves.
     if url.startswith("/api/"):
-        return JSONResponse(
+        return error(
+            message="File storage config unavailable",
+            code=4040,
             status_code=404,
-            content={"code": 4040, "message": "File storage config unavailable"},
         )
 
     return RedirectResponse(url=url)
@@ -129,9 +131,10 @@ async def get_processed_image(
     ))
     client_ip = request.client.host if request.client else "unknown"
     if not _check_image_rate_limit(client_ip, limit=rate_limit):
-        return JSONResponse(
+        return error(
+            message="Too many image processing requests. Please try again later.",
+            code=4290,
             status_code=429,
-            content={"detail": "Too many image processing requests. Please try again later."},
         )
 
     # 验证访问权限 / Validate access permissions

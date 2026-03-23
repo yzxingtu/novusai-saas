@@ -36,6 +36,8 @@ def derive_run_status_from_nodes(node_statuses: Iterable[str]) -> str:
         return "queued"
     if "running" in statuses:
         return "running"
+    if "waiting_human" in statuses:
+        return "waiting_human"
     if "waiting_approval" in statuses:
         return "waiting_approval"
     if "waiting_input" in statuses:

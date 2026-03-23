@@ -352,7 +352,11 @@ class WorkflowCheckpoint(BaseModel):
         nullable=True,
     )
     tenant_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    checkpoint_type: Mapped[str] = mapped_column(String(64), nullable=False, default=CheckpointTypeEnum.STATE_SNAPSHOT.value)
+    checkpoint_type: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default=CheckpointTypeEnum.RUN_START_CHECKPOINT.value,
+    )
     resume_token: Mapped[str | None] = mapped_column(String(255), nullable=True)
     state_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
     snapshot_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)

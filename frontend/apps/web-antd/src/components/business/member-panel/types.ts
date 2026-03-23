@@ -4,6 +4,9 @@
  */
 import type { AdminInfo } from '#/api/admin/admin-user';
 import type { OrgMember } from '#/api/admin/organization';
+import type { TenantOrgMember } from '#/api/tenant/organization';
+
+export type MemberPanelMember = OrgMember | TenantOrgMember;
 
 /** Member Panel Props / 成员面板 Props */
 export interface MemberPanelProps {
@@ -21,7 +24,7 @@ export interface MemberPanelProps {
 
 /** Member Panel Emits / 成员面板 Emits */
 export interface MemberPanelEmits {
-  (e: 'memberAdded', member: OrgMember): void;
+  (e: 'memberAdded', member: MemberPanelMember): void;
   (e: 'memberRemoved', memberId: number): void;
   (e: 'leaderChanged', leaderId: null | number): void;
   (e: 'refresh'): void;
@@ -30,7 +33,7 @@ export interface MemberPanelEmits {
 /** Member List Item Props / 成员列表项 Props */
 export interface MemberItemProps {
   /** Member info / 成员信息 */
-  member: OrgMember;
+  member: MemberPanelMember;
   /** Whether this member is the leader / 是否为负责人 */
   isLeader?: boolean;
   /** Whether actions are disabled / 是否禁用操作 */
@@ -42,9 +45,9 @@ export interface MemberItemProps {
 /** Member List Item Emits / 成员列表项 Emits */
 /* eslint-disable @typescript-eslint/unified-signatures */
 export interface MemberItemEmits {
-  (e: 'remove', member: OrgMember): void;
-  (e: 'setLeader', member: OrgMember): void;
-  (e: 'cancelLeader', member: OrgMember): void;
+  (e: 'remove', member: MemberPanelMember): void;
+  (e: 'setLeader', member: MemberPanelMember): void;
+  (e: 'cancelLeader', member: MemberPanelMember): void;
 }
 /* eslint-enable @typescript-eslint/unified-signatures */
 
@@ -66,7 +69,7 @@ export interface UseMemberPanelOptions {
 /** useMemberPanel hook return type / useMemberPanel hook 返回类型 */
 export interface UseMemberPanelReturn {
   /** Member list / 成员列表 */
-  members: import('vue').Ref<OrgMember[]>;
+  members: import('vue').Ref<MemberPanelMember[]>;
   /** Whether loading / 是否正在加载 */
   loading: import('vue').Ref<boolean>;
   /** Whether operating (add/remove/set leader) / 是否正在操作（添加/移除/设置负责人） */
@@ -86,11 +89,11 @@ export interface UseMemberPanelReturn {
   /** Batch add members / 批量添加成员 */
   addMembers: (adminIds: number[]) => Promise<boolean>;
   /** Remove a member / 移除成员 */
-  removeMember: (adminId: number, targetRoleId?: number) => Promise<boolean>;
+  removeMember: (adminId: number, targetOrgNodeId?: number) => Promise<boolean>;
   /** Set leader / 设置负责人 */
   setLeader: (
     adminId: null | number,
-    targetRoleId?: number,
+    targetOrgNodeId?: number,
   ) => Promise<boolean>;
   /** Refresh list / 刷新列表 */
   refresh: () => Promise<void>;
@@ -108,15 +111,15 @@ export interface UseMemberPanelReturn {
  * Extract minimal info needed for reset password dialog
  * 提取用于重置密码弹窗所需的最小信息
  */
-export function toResetPasswordInfo(member: OrgMember): {
+export function toResetPasswordInfo(member: MemberPanelMember): {
   id: number;
-  roleId?: number;
+  orgNodeId?: null | number;
   username: string;
 } {
   return {
     id: member.id,
     username: member.username,
-    roleId: member.roleId,
+    orgNodeId: member.orgNodeId,
   };
 }
 
@@ -124,7 +127,7 @@ export function toResetPasswordInfo(member: OrgMember): {
  * Extract info needed for admin edit drawer
  * 提取用于管理员编辑抽屉所需的信息
  */
-export function toAdminInfo(member: OrgMember): AdminInfo {
+export function toAdminInfo(member: MemberPanelMember): AdminInfo {
   return {
     id: member.id,
     username: member.username,

@@ -116,9 +116,13 @@ class EventLevelEnum(LabeledStrEnum):
 
 
 class CheckpointTypeEnum(LabeledStrEnum):
-    STATE_SNAPSHOT = "state_snapshot"
-    ARTIFACT_SNAPSHOT = "artifact_snapshot"
-    COMPENSATION_ANCHOR = "compensation_anchor"
+    RUN_START_CHECKPOINT = "run_start_checkpoint"
+    NODE_INPUT_CHECKPOINT = "node_input_checkpoint"
+    NODE_OUTPUT_CHECKPOINT = "node_output_checkpoint"
+    APPROVAL_WAIT_CHECKPOINT = "approval_wait_checkpoint"
+    EXTERNAL_WRITE_PREFLIGHT_CHECKPOINT = "external_write_preflight_checkpoint"
+    EXTERNAL_WRITE_RECEIPT_CHECKPOINT = "external_write_receipt_checkpoint"
+    MANUAL_HANDOVER_CHECKPOINT = "manual_handover_checkpoint"
 
 
 __all__ = [
@@ -140,4 +144,3 @@ __all__ = [
     "TriggerTypeEnum",
     "WorkflowKindEnum",
 ]
-

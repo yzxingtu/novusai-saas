@@ -5,6 +5,7 @@
       "system": "权限管理",
       "admin_user": "用户管理",
       "permission": "权限查看",
+      "permission_role": "权限角色",
       "organization": "组织架构",
       "operation_log": "操作日志",
       "tenant_mgmt": "企业管理",

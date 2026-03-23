@@ -13,6 +13,7 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 
 from app.core.i18n import _
+from app.core.response import build_error_payload
 
 
 _login_buckets: dict[str, list[float]] = defaultdict(list)
@@ -59,11 +60,11 @@ def check_login_rate_limit(request: Request) -> JSONResponse | None:
         return JSONResponse(
             status_code=429,
             headers={"Retry-After": str(int(_LOGIN_WINDOW))},
-            content={
-                "code": 4290,
-                "message": _("auth.rate_limited"),
-                "retry_after": int(_LOGIN_WINDOW),
-            },
+            content=build_error_payload(
+                message=_("auth.rate_limited"),
+                code=4290,
+                extra={"retry_after": int(_LOGIN_WINDOW)},
+            ),
         )
 
     bucket.append(now)

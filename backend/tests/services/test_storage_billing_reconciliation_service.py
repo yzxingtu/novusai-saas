@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.exceptions import BusinessException
 from app.plugins.module_loader import load_plugin_module
 
 
@@ -251,6 +252,253 @@ async def test_reconciliation_service_marks_completed_with_gaps_for_not_implemen
     assert result["run"]["status"] == "completed_with_gaps"
     assert result["run"]["summary"]["source_status_counts"] == {"not_implemented": 1}
     assert result["sources"][0]["source_status"] == "not_implemented"
+
+
+@pytest.mark.asyncio
+async def test_reconciliation_service_rejects_invalid_manual_billing_date() -> None:
+    module = load_plugin_module("storage-billing", "services.reconciliation_service")
+    assert module is not None
+
+    service = module.StorageBillingReconciliationService(AsyncMock(), host_read=None)
+
+    with pytest.raises(BusinessException, match="billing_date"):
+        await service.trigger_manual_run({"billing_date": "2026/03/21"})
+
+
+@pytest.mark.asyncio
+async def test_reconciliation_service_rejects_invalid_qiniu_billing_month() -> None:
+    module = load_plugin_module("storage-billing", "services.reconciliation_service")
+    assert module is not None
+
+    service = module.StorageBillingReconciliationService(AsyncMock(), host_read=None)
+
+    with pytest.raises(BusinessException, match="billing_month"):
+        await service.trigger_qiniu_monthly_settlement({"billing_month": "2026-13"})
+
+
+@pytest.mark.asyncio
+async def test_trigger_manual_run_without_billing_date_fans_out_provider_specific_rules(
+    monkeypatch,
+) -> None:
+    module = load_plugin_module("storage-billing", "services.reconciliation_service")
+    assert module is not None
+
+    service = module.StorageBillingReconciliationService(AsyncMock(), host_read=None)
+    monkeypatch.setattr(
+        service,
+        "_get_billable_drivers",
+        AsyncMock(
+            return_value=[
+                {"code": "aliyun-oss", "is_available": True},
+                {"code": "tencent-cos", "is_available": True},
+            ]
+        ),
+    )
+    monkeypatch.setattr(
+        module,
+        "_resolve_billing_date",
+        lambda raw_value, default_offset_days=1: date(2026, 3, 24)
+        - module.timedelta(days=default_offset_days),
+    )
+    service._execute_reconciliation = AsyncMock(
+        side_effect=[
+            {
+                "run": {
+                    "id": 301,
+                    "status": "completed",
+                    "billing_date": "2026-03-21",
+                    "period_label": "2026-03-21",
+                    "summary": {
+                        "statement_count": 1,
+                        "source_status_counts": {"fetched": 1},
+                        "providers": [{"provider_code": "aliyun-oss", "source_status": "fetched"}],
+                    },
+                },
+                "sources": [],
+                "billable_drivers": [{"code": "aliyun-oss", "is_available": True}],
+            },
+            {
+                "run": {
+                    "id": 302,
+                    "status": "completed",
+                    "billing_date": "2026-03-22",
+                    "period_label": "2026-03-22",
+                    "summary": {
+                        "statement_count": 1,
+                        "source_status_counts": {"fetched": 1},
+                        "providers": [{"provider_code": "tencent-cos", "source_status": "fetched"}],
+                    },
+                },
+                "sources": [],
+                "billable_drivers": [{"code": "tencent-cos", "is_available": True}],
+            },
+        ]
+    )
+
+    result = await service.trigger_manual_run({})
+
+    assert result["run"]["status"] == "completed"
+    assert result["run"]["summary"]["run_count"] == 2
+    assert result["provider_plans"][0]["provider_code"] == "aliyun-oss"
+    assert result["provider_plans"][0]["official_target_rule"] == "D-3"
+    assert result["provider_plans"][1]["provider_code"] == "tencent-cos"
+    assert result["provider_plans"][1]["official_target_rule"] == "D-2"
+
+    first_call = service._execute_reconciliation.await_args_list[0].kwargs
+    second_call = service._execute_reconciliation.await_args_list[1].kwargs
+    assert first_call["trigger_type"] == "manual"
+    assert first_call["billing_date"] == date(2026, 3, 21)
+    assert first_call["provider_codes"] == ["aliyun-oss"]
+    assert first_call["requested_scope"]["official_target_rule"] == "D-3"
+    assert second_call["trigger_type"] == "manual"
+    assert second_call["billing_date"] == date(2026, 3, 22)
+    assert second_call["provider_codes"] == ["tencent-cos"]
+    assert second_call["requested_scope"]["official_target_rule"] == "D-2"
+
+
+@pytest.mark.asyncio
+async def test_trigger_manual_run_without_billing_date_returns_skipped_when_no_daily_provider_resolves(
+    monkeypatch,
+) -> None:
+    module = load_plugin_module("storage-billing", "services.reconciliation_service")
+    assert module is not None
+
+    service = module.StorageBillingReconciliationService(AsyncMock(), host_read=None)
+    monkeypatch.setattr(
+        service,
+        "_get_billable_drivers",
+        AsyncMock(return_value=[]),
+    )
+
+    result = await service.trigger_manual_run({})
+
+    assert result["run"]["status"] == "skipped"
+    assert result["run"]["summary"]["run_count"] == 0
+    assert result["provider_plans"] == []
+
+
+@pytest.mark.asyncio
+async def test_trigger_manual_run_without_billing_date_defaults_single_provider(
+    monkeypatch,
+) -> None:
+    module = load_plugin_module("storage-billing", "services.reconciliation_service")
+    assert module is not None
+
+    service = module.StorageBillingReconciliationService(AsyncMock(), host_read=None)
+    monkeypatch.setattr(
+        service,
+        "_get_billable_drivers",
+        AsyncMock(return_value=[{"code": "aliyun-oss", "is_available": True}]),
+    )
+    monkeypatch.setattr(
+        module,
+        "_resolve_billing_date",
+        lambda raw_value, default_offset_days=1: date(2026, 3, 24)
+        - module.timedelta(days=default_offset_days),
+    )
+    service._execute_reconciliation = AsyncMock(return_value={"run": {"id": 201, "status": "completed"}})
+
+    result = await service.trigger_manual_run({})
+
+    assert result["run"]["id"] == 201
+    service._execute_reconciliation.assert_awaited_once()
+    kwargs = service._execute_reconciliation.await_args.kwargs
+    assert kwargs["billing_date"] == date(2026, 3, 21)
+    assert kwargs["provider_codes"] == ["aliyun-oss"]
+    assert kwargs["requested_scope"]["official_target_rule"] == "D-3"
+
+
+@pytest.mark.asyncio
+async def test_run_daily_reconciliation_uses_provider_specific_lag_rules(monkeypatch) -> None:
+    module = load_plugin_module("storage-billing", "services.reconciliation_service")
+    assert module is not None
+
+    service = module.StorageBillingReconciliationService(AsyncMock(), host_read=MagicMock())
+    monkeypatch.setattr(
+        service,
+        "_get_billable_drivers",
+        AsyncMock(
+            return_value=[
+                {"code": "aliyun-oss", "is_available": True},
+                {"code": "tencent-cos", "is_available": True},
+            ]
+        ),
+    )
+    monkeypatch.setattr(
+        module,
+        "_resolve_billing_date",
+        lambda raw_value, default_offset_days=1: date(2026, 3, 24)
+        - module.timedelta(days=default_offset_days),
+    )
+    service._execute_reconciliation = AsyncMock(
+        side_effect=[
+            {
+                "run": {
+                    "id": 101,
+                    "status": "completed",
+                    "billing_date": "2026-03-21",
+                    "period_label": "2026-03-21",
+                    "summary": {
+                        "statement_count": 1,
+                        "source_status_counts": {"fetched": 1},
+                        "providers": [{"provider_code": "aliyun-oss", "source_status": "fetched"}],
+                    },
+                },
+                "sources": [],
+                "billable_drivers": [{"code": "aliyun-oss", "is_available": True}],
+            },
+            {
+                "run": {
+                    "id": 102,
+                    "status": "completed",
+                    "billing_date": "2026-03-22",
+                    "period_label": "2026-03-22",
+                    "summary": {
+                        "statement_count": 2,
+                        "source_status_counts": {"fetched": 1},
+                        "providers": [{"provider_code": "tencent-cos", "source_status": "fetched"}],
+                    },
+                },
+                "sources": [],
+                "billable_drivers": [{"code": "tencent-cos", "is_available": True}],
+            },
+        ]
+    )
+
+    result = await service.run_daily_reconciliation()
+
+    assert result["run"]["status"] == "completed"
+    assert result["run"]["summary"]["run_count"] == 2
+    assert result["provider_plans"][0]["provider_code"] == "aliyun-oss"
+    assert result["provider_plans"][0]["official_target_rule"] == "D-3"
+    assert result["provider_plans"][0]["billing_date"] == "2026-03-21"
+    assert result["provider_plans"][1]["provider_code"] == "tencent-cos"
+    assert result["provider_plans"][1]["official_target_rule"] == "D-2"
+    assert result["provider_plans"][1]["billing_date"] == "2026-03-22"
+
+    first_call = service._execute_reconciliation.await_args_list[0].kwargs
+    second_call = service._execute_reconciliation.await_args_list[1].kwargs
+    assert first_call["trigger_type"] == "schedule"
+    assert first_call["provider_codes"] == ["aliyun-oss"]
+    assert first_call["requested_scope"]["official_billing_lag_days"] == 3
+    assert first_call["requested_scope"]["official_target_rule"] == "D-3"
+    assert second_call["provider_codes"] == ["tencent-cos"]
+    assert second_call["requested_scope"]["official_billing_lag_days"] == 2
+    assert second_call["requested_scope"]["official_target_rule"] == "D-2"
+
+
+@pytest.mark.asyncio
+async def test_overview_service_rejects_invalid_period_type() -> None:
+    module = load_plugin_module("storage-billing", "services.reconciliation_service")
+    assert module is not None
+
+    service = module.StorageBillingOverviewService(db=None, host_read=None)
+
+    with pytest.raises(BusinessException, match="period_type"):
+        await service.build_tenant_statement(
+            tenant_id=9,
+            period_type="weekly",
+        )
 
 
 @pytest.mark.asyncio
@@ -507,6 +755,108 @@ async def test_reconciliation_run_includes_allocation_summary(monkeypatch) -> No
     audit = allocation_payload["allocation_audit"]
     assert audit["unmatched_item_samples"] == []
     assert audit["ambiguous_item_samples"] == []
+
+
+@pytest.mark.asyncio
+async def test_run_daily_reconciliation_uses_provider_specific_schedule_by_default(
+    monkeypatch,
+) -> None:
+    module = load_plugin_module("storage-billing", "services.reconciliation_service")
+    assert module is not None
+
+    db = AsyncMock()
+    service = module.StorageBillingReconciliationService(db, host_read=None)
+
+    monkeypatch.setattr(
+        service,
+        "_get_billable_drivers",
+        AsyncMock(
+            return_value=[
+                {"code": "aliyun-oss", "is_available": True},
+                {"code": "tencent-cos", "is_available": True},
+            ]
+        ),
+    )
+    monkeypatch.setattr(
+        module,
+        "_resolve_billing_date",
+        lambda raw_value, default_offset_days=1: date(2026, 3, 24)
+        - module.timedelta(days=default_offset_days),
+    )
+
+    execute_mock = AsyncMock(
+        side_effect=[
+            {
+                "run": {
+                    "id": 11,
+                    "status": "completed",
+                    "billing_date": "2026-03-21",
+                    "period_label": "2026-03-21",
+                    "summary": {
+                        "statement_count": 1,
+                        "source_status_counts": {"fetched": 1},
+                        "providers": [
+                            {
+                                "provider_code": "aliyun-oss",
+                                "source_status": "fetched",
+                                "charge_item_count": 1,
+                                "matched_items": 1,
+                                "unmatched_items": 0,
+                                "ambiguous_items": 0,
+                                "written_charge_rows": 1,
+                            }
+                        ],
+                    },
+                },
+                "sources": [],
+                "billable_drivers": [{"code": "aliyun-oss", "is_available": True}],
+            },
+            {
+                "run": {
+                    "id": 12,
+                    "status": "completed",
+                    "billing_date": "2026-03-22",
+                    "period_label": "2026-03-22",
+                    "summary": {
+                        "statement_count": 2,
+                        "source_status_counts": {"fetched": 1},
+                        "providers": [
+                            {
+                                "provider_code": "tencent-cos",
+                                "source_status": "fetched",
+                                "charge_item_count": 2,
+                                "matched_items": 2,
+                                "unmatched_items": 0,
+                                "ambiguous_items": 0,
+                                "written_charge_rows": 2,
+                            }
+                        ],
+                    },
+                },
+                "sources": [],
+                "billable_drivers": [{"code": "tencent-cos", "is_available": True}],
+            },
+        ]
+    )
+    monkeypatch.setattr(service, "_execute_reconciliation", execute_mock)
+
+    result = await service.run_daily_reconciliation()
+
+    assert execute_mock.await_count == 2
+    first_call = execute_mock.await_args_list[0].kwargs
+    second_call = execute_mock.await_args_list[1].kwargs
+    assert first_call["provider_codes"] == ["aliyun-oss"]
+    assert first_call["billing_date"] == date(2026, 3, 21)
+    assert first_call["requested_scope"]["official_target_rule"] == "D-3"
+    assert second_call["provider_codes"] == ["tencent-cos"]
+    assert second_call["billing_date"] == date(2026, 3, 22)
+    assert second_call["requested_scope"]["official_target_rule"] == "D-2"
+
+    assert result["run"]["status"] == "completed"
+    assert result["run"]["summary"]["run_count"] == 2
+    assert result["run"]["summary"]["statement_count"] == 3
+    assert result["provider_plans"][0]["official_target_rule"] == "D-3"
+    assert result["provider_plans"][1]["official_target_rule"] == "D-2"
 
 
 @pytest.mark.asyncio

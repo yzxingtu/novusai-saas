@@ -173,6 +173,10 @@ export interface HttpResponse<T = any> {
   data: T;
   /** Response message / 响应消息 */
   message: string;
+  /** Trace ID for request correlation / 请求追踪 ID */
+  trace_id?: string;
+  /** Dev-only debug payload / 仅开发环境调试负载 */
+  debug?: Record<string, unknown>;
   /** Whether the request succeeded / 请求是否成功 */
   success?: boolean;
 }

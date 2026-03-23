@@ -39,6 +39,7 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
         nickname: str | None = None,
         is_active: bool = True,
         role_id: int | None = None,
+        org_node_id: int | None = None,
     ) -> TenantUser:
         """
         创建企业用户（管理员操作）/ Create tenant user (admin action).
@@ -50,7 +51,8 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
             phone: 手机号
             nickname: 昵称
             is_active: 是否激活
-            role_id: 角色 ID
+            role_id: 权限角色 ID
+            org_node_id: 组织归属节点 ID
 
         Returns:
             创建的用户
@@ -97,6 +99,9 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
                 code=ErrorCode.CONFLICT,
             )
 
+        await self._validate_permission_role(role_id)
+        await self._validate_org_node(org_node_id)
+
         data = {
             "username": username,
             "email": email,
@@ -105,6 +110,7 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
             "nickname": nickname,
             "is_active": is_active,
             "role_id": role_id,
+            "org_node_id": org_node_id,
             "approval_status": ApprovalStatusEnum.APPROVED.value,
         }
 
@@ -154,6 +160,12 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
                 message=_("auth.phone_taken"),
                 code=ErrorCode.CONFLICT,
             )
+
+        if "role_id" in data:
+            await self._validate_permission_role(data["role_id"])
+
+        if "org_node_id" in data:
+            await self._validate_org_node(data["org_node_id"])
 
         # 移除不允许直接更新的字段
         data.pop("password", None)
@@ -368,6 +380,22 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
             data={"tenant_name": tenant_name},
             tenant_id=self.tenant_id,
         )
+
+    async def _validate_permission_role(self, role_id: int | None) -> None:
+        """校验权限角色归属 / Validate tenant user permission role assignment."""
+        if role_id is None:
+            return
+
+        if not await self.repo.permission_role_exists(role_id):
+            raise NotFoundException(message=_("tenant_user.permission_role_not_found"))
+
+    async def _validate_org_node(self, org_node_id: int | None) -> None:
+        """校验组织节点归属 / Validate tenant user organization assignment."""
+        if org_node_id is None:
+            return
+
+        if not await self.repo.org_node_exists(org_node_id):
+            raise NotFoundException(message=_("tenant_user.org_node_not_found"))
 
 
 __all__ = ["TenantUserService"]

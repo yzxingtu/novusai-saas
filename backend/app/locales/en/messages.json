@@ -804,6 +804,7 @@
       "model_code_exists": "Model code already exists",
       "provider_code_exists": "Provider code already exists",
       "provider_base_url_invalid": "Provider API URL is invalid. Please use a full URL starting with http:// or https://",
+      "provider_base_url_endpoint_not_allowed": "OpenAI-compatible provider API URL must not include /responses or /chat/completions. Enter the base URL only and choose the API protocol separately",
       "api_key_not_found": "API Key not found",
       "api_key_owner_required": "Owner tenant is required for selected_tenants scope / 部分企业作用域必须选择归属企业",
       "api_key_owner_forbidden": "Owner tenant must be empty for this scope / 当前作用域下归属企业必须为空",
@@ -1018,7 +1019,26 @@
     "invalid_permission": "Invalid permission code",
     "permission_not_found": "Permission not found",
     "cannot_access_resource": "No permission to access this resource",
-    "insufficient_privileges": "Insufficient privilege level"
+    "insufficient_privileges": "Insufficient privilege level",
+    "action": {
+      "configure": "Configure",
+      "copy": "Copy",
+      "create": "Create",
+      "edit": "Edit",
+      "execute": "Execute",
+      "export": "Export",
+      "feedback": "Feedback",
+      "list": "List",
+      "pause": "Pause",
+      "publish": "Publish",
+      "recover": "Recover",
+      "replay": "Replay",
+      "resume": "Resume",
+      "retry": "Retry",
+      "rollback": "Rollback",
+      "terminate": "Terminate",
+      "view": "View"
+    }
   },
   "permission": {
     "read": "View",
@@ -1050,7 +1070,17 @@
       "create_member": "Create Member",
       "update_member": "Update Member",
       "reset_password": "Reset Password",
-      "toggle_status": "Toggle Status"
+      "toggle_status": "Toggle Status",
+      "update_authority": "Update Organization Authority Scope"
+    },
+    "permission_role": {
+      "list": "View Permission Role List",
+      "detail": "View Permission Role Detail",
+      "create": "Create Permission Role",
+      "update": "Update Permission Role",
+      "delete": "Delete Permission Role",
+      "assign_permissions": "Assign Permission Role Permissions",
+      "effective_permissions": "View Permission Role Effective Permissions"
     },
     "admin": {
       "list": "View Admin List",
@@ -1617,7 +1647,9 @@
     "status_updated": "User status updated successfully",
     "approved": "User approved successfully",
     "rejected": "User rejected successfully",
-    "not_pending": "User is not in pending approval status"
+    "not_pending": "User is not in pending approval status",
+    "permission_role_not_found": "Permission role not found",
+    "org_node_not_found": "Organization node not found"
   },
   "tenant_user_role": {
     "not_found": "User role not found",

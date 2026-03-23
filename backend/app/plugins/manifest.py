@@ -454,6 +454,10 @@ class FrontendPageSchema(BaseModel):
     scope: Literal["admin", "tenant"]
     icon: str = ""
     title: I18nText = Field(default_factory=dict)
+    access_codes: list[str] = Field(
+        default_factory=list,
+        description="Optional route access codes enforced by host frontend router guard",
+    )
     menu: FrontendPageMenuSchema | None = None
     ai: FrontendPageAISchema | None = Field(
         None,
@@ -487,6 +491,22 @@ class FrontendPageSchema(BaseModel):
         if not name:
             raise ValueError("frontend.pages[*].name cannot be empty")
         return name
+
+    @field_validator("access_codes", mode="before")
+    @classmethod
+    def validate_access_codes(cls, v: object) -> list[str]:
+        if v is None:
+            return []
+        if not isinstance(v, list):
+            raise ValueError("frontend.pages[*].access_codes must be a list")
+
+        normalized: list[str] = []
+        for item in v:
+            code = str(item or "").strip()
+            if not code:
+                continue
+            normalized.append(code)
+        return normalized
 
     @model_validator(mode="after")
     def validate_scope_path_consistency(self) -> "FrontendPageSchema":

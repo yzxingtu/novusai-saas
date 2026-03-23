@@ -59,6 +59,11 @@ import { $t } from '#/locales';
 import { useSocketIOStore } from '#/store';
 import { addConsent, getConsentedActions } from '#/utils/ai-consent';
 import { toAvatarDisplayUrl } from '#/utils/image';
+import {
+  type AppErrorInfo,
+  normalizeSseEventError,
+  normalizeSseTransportError,
+} from '#/utils/request';
 
 export interface UseAIChatOptions {
   /** API prefix: '/admin', '/tenant', or '/api/user' / API 前缀 */
@@ -1380,6 +1385,16 @@ export function useAIChat(options: UseAIChatOptions) {
       moveStreamingContentToThinking(msg);
     }
 
+    function applyAssistantError(
+      msg: ChatMessage | undefined,
+      appError: AppErrorInfo,
+    ) {
+      if (!msg) return;
+      msg.error = appError;
+      msg.requestFailedRetry = true;
+      msg.content = '';
+    }
+
     function handleSsePayload(data: string) {
       if (data === '[DONE]') return;
       try {
@@ -1562,10 +1577,7 @@ export function useAIChat(options: UseAIChatOptions) {
                 activeConversationId.value = event.conversation_id as number;
                 activeConversationAgentId.value = targetAgentId;
               }
-              msg.content = `\u26A0\uFE0F ${
-                (event.message as string) || $t('common.requestFailed')
-              }`;
-              msg.requestFailedRetry = true;
+              applyAssistantError(msg, normalizeSseEventError(event, $t));
             }
           }
         }
@@ -1621,32 +1633,22 @@ export function useAIChat(options: UseAIChatOptions) {
             await parseSSEEvents('\n', sseBuffer, handleSsePayload);
             loadConversations();
           },
-          onError(error: Error) {
-            if (error.name === 'AbortError') return;
-            const msg = chatMessages.value[assistantIdx];
-            if (msg) {
-              if (!msg.content) {
-                msg.content = `\u26A0\uFE0F ${$t('common.requestFailed')}`;
-              }
-              msg.requestFailedRetry = true;
+          onError(error: AppErrorInfo | Error) {
+            const appError = normalizeSseTransportError(error, $t);
+            if ((appError.raw as { name?: string } | undefined)?.name === 'AbortError') {
+              return;
             }
+            const msg = chatMessages.value[assistantIdx];
+            applyAssistantError(msg, appError);
             finalizeMessage();
           },
         },
       );
     } catch (err: unknown) {
       // sendChatStreamApi throws on non-2xx; sse.ts does not call onError for HTTP errors
-      const errorMsg =
-        err instanceof Error
-          ? err.message
-          : typeof err === 'string'
-            ? err
-            : $t('common.requestFailed');
+      const normalizedError = normalizeSseTransportError(err, $t);
       const msg = chatMessages.value[assistantIdx];
-      if (msg) {
-        msg.content = `\u26A0\uFE0F ${errorMsg}`;
-        msg.requestFailedRetry = true;
-      }
+      applyAssistantError(msg, normalizedError);
       finalizeMessage();
     } finally {
       if (doneAbortTimer) {

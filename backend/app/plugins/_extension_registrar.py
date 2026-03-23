@@ -67,6 +67,26 @@ def _normalize_public_captcha_endpoints(value: object) -> list[str]:
     return normalized
 
 
+def _build_page_access_codes(plugin_name: str, page) -> list[str]:
+    """Build frontend page route access codes from explicit declarations and derived menu permission.
+    / 从显式声明和派生菜单权限生成前端页面路由权限码。
+    """
+    access_codes: list[str] = []
+
+    for code in page.access_codes:
+        normalized = str(code or "").strip()
+        if normalized and normalized not in access_codes:
+            access_codes.append(normalized)
+
+    if page.menu is not None:
+        safe_name = plugin_name.replace("-", "_")
+        derived_code = f"menu:{page.scope}.plugin_{safe_name}_{page.name}"
+        if derived_code not in access_codes:
+            access_codes.append(derived_code)
+
+    return access_codes
+
+
 def _register_custom_captcha_provider(
     manifest: PluginManifest,
     plugin_name: str,
@@ -211,19 +231,13 @@ def register_all_extensions(
         else:
             _record_failure(plugin_name, "webhook", webhook.handler)
 
-    # Tasks
-    for task_ext in ext.tasks:
-        handler = _load_handler(plugin_name, task_ext.handler)
-        if handler:
-            registry.register_task(
-                plugin_name, task_ext.name, handler,
-                task_ext.schedule_type,
-                task_ext.cron_expression,
-                task_ext.interval_seconds,
-                task_ext.queue,
-            )
-        else:
-            _record_failure(plugin_name, "task", task_ext.handler)
+    register_queue_extensions(
+        registry,
+        manifest,
+        plugin_name,
+        register_schedule=True,
+        record_failures=True,
+    )
 
     # Notifications
     for notif_ext in ext.notifications:
@@ -346,19 +360,6 @@ def register_all_extensions(
             description=custom_ext.description,
         )
 
-    # Consumers — Message queue consumers (no scheduling, triggered by queue messages) / 消息队列消费者（无调度，由队列消息触发）
-    for consumer_ext in ext.consumers:
-        handler = _load_handler(plugin_name, consumer_ext.handler)
-        if handler:
-            registry.register_consumer(
-                plugin_name, consumer_ext.name, handler,
-                queue=consumer_ext.queue,
-                max_retries=consumer_ext.max_retries,
-                retry_delay=consumer_ext.retry_delay,
-            )
-        else:
-            _record_failure(plugin_name, "consumer", consumer_ext.handler)
-
     # Clean up empty failure list / 清理空失败列表
     if not _failed_extensions[plugin_name]:
         del _failed_extensions[plugin_name]
@@ -409,6 +410,7 @@ def register_frontend_page_extensions(
 ) -> None:
     """Register page slots from frontend.pages. / 根据 frontend.pages 注册页面插槽。"""
     for page in manifest.extensions.frontend.pages:
+        access_codes = _build_page_access_codes(plugin_name, page)
         slot_kwargs: dict[str, object] = {
             "name": page.name,
             "path": page.path,
@@ -416,6 +418,8 @@ def register_frontend_page_extensions(
             "title": page.title,
             "scope": page.scope,
         }
+        if access_codes:
+            slot_kwargs["access_codes"] = access_codes
         if page.icon:
             slot_kwargs["icon"] = page.icon
         if page.ai is not None:
@@ -427,6 +431,48 @@ def register_frontend_page_extensions(
             FrontendSlotTypeEnum.STANDALONE_PAGE.value,
             **slot_kwargs,
         )
+
+
+def register_queue_extensions(
+    registry: ExtensionRegistry,
+    manifest: PluginManifest,
+    plugin_name: str,
+    *,
+    register_schedule: bool,
+    record_failures: bool,
+) -> None:
+    """Register plugin queue-executable extensions only. / 仅注册插件可执行队列扩展。"""
+    ext: ExtensionsSchema = manifest.extensions
+
+    for task_ext in ext.tasks:
+        handler = _load_handler(plugin_name, task_ext.handler)
+        if handler:
+            registry.register_task(
+                plugin_name,
+                task_ext.name,
+                handler,
+                task_ext.schedule_type,
+                task_ext.cron_expression,
+                task_ext.interval_seconds,
+                task_ext.queue,
+                register_schedule=register_schedule,
+            )
+        elif record_failures:
+            _record_failure(plugin_name, "task", task_ext.handler)
+
+    for consumer_ext in ext.consumers:
+        handler = _load_handler(plugin_name, consumer_ext.handler)
+        if handler:
+            registry.register_consumer(
+                plugin_name,
+                consumer_ext.name,
+                handler,
+                queue=consumer_ext.queue,
+                max_retries=consumer_ext.max_retries,
+                retry_delay=consumer_ext.retry_delay,
+            )
+        elif record_failures:
+            _record_failure(plugin_name, "consumer", consumer_ext.handler)
 
 
 def get_failed_extensions(plugin_name: str) -> list[dict[str, str]]:

@@ -368,6 +368,8 @@ extensions:
         component: "WorkflowOrchestrationAdminHomePage"
         scope: admin
         icon: "lucide:workflow"
+        access_codes:
+          - plugin.workflow-orchestration.orchestration_admin:view
         title:
           zh-CN: "任务编排"
           en: "Workflow Orchestration"
@@ -382,6 +384,8 @@ extensions:
         component: "WorkflowOrchestrationAdminTemplateListPage"
         scope: admin
         icon: "lucide:copy-plus"
+        access_codes:
+          - plugin.workflow-orchestration.platform_template:list
         title:
           zh-CN: "平台模板"
           en: "Templates"
@@ -397,6 +401,8 @@ extensions:
         component: "WorkflowOrchestrationAdminTemplateDetailPage"
         scope: admin
         icon: "lucide:copy-check"
+        access_codes:
+          - plugin.workflow-orchestration.platform_template:view
         title:
           zh-CN: "模板详情"
           en: "Template Detail"
@@ -405,6 +411,8 @@ extensions:
         component: "WorkflowOrchestrationAdminTemplateEditorPage"
         scope: admin
         icon: "lucide:spline"
+        access_codes:
+          - plugin.workflow-orchestration.platform_template:edit
         title:
           zh-CN: "模板编辑器"
           en: "Template Editor"
@@ -413,6 +421,8 @@ extensions:
         component: "WorkflowOrchestrationAdminReleaseListPage"
         scope: admin
         icon: "lucide:rocket"
+        access_codes:
+          - plugin.workflow-orchestration.release_ops:list
         title:
           zh-CN: "发布管理"
           en: "Releases"
@@ -428,6 +438,8 @@ extensions:
         component: "WorkflowOrchestrationAdminRuntimePage"
         scope: admin
         icon: "lucide:activity"
+        access_codes:
+          - plugin.workflow-orchestration.runtime_ops:list
         title:
           zh-CN: "运行治理"
           en: "Runtime"
@@ -443,6 +455,8 @@ extensions:
         component: "WorkflowOrchestrationTenantHomePage"
         scope: tenant
         icon: "lucide:workflow"
+        access_codes:
+          - plugin.workflow-orchestration.workflow_center:view
         title:
           zh-CN: "任务编排"
           en: "Workflow Orchestration"
@@ -457,6 +471,8 @@ extensions:
         component: "WorkflowOrchestrationTenantWorkflowListPage"
         scope: tenant
         icon: "lucide:blocks"
+        access_codes:
+          - plugin.workflow-orchestration.workflow_center:list
         title:
           zh-CN: "工作流中心"
           en: "Workflows"
@@ -472,6 +488,8 @@ extensions:
         component: "WorkflowOrchestrationTenantWorkflowDetailPage"
         scope: tenant
         icon: "lucide:scan-search"
+        access_codes:
+          - plugin.workflow-orchestration.workflow_center:view
         title:
           zh-CN: "工作流详情"
           en: "Workflow Detail"
@@ -480,6 +498,8 @@ extensions:
         component: "WorkflowOrchestrationTenantWorkflowEditorPage"
         scope: tenant
         icon: "lucide:square-pen"
+        access_codes:
+          - plugin.workflow-orchestration.workflow_builder:edit
         title:
           zh-CN: "工作流编辑器"
           en: "Workflow Editor"
@@ -488,6 +508,8 @@ extensions:
         component: "WorkflowOrchestrationTenantRunListPage"
         scope: tenant
         icon: "lucide:activity"
+        access_codes:
+          - plugin.workflow-orchestration.workflow_run:list
         title:
           zh-CN: "运行中心"
           en: "Runs"
@@ -503,6 +525,8 @@ extensions:
         component: "WorkflowOrchestrationTenantRunDetailPage"
         scope: tenant
         icon: "lucide:list-tree"
+        access_codes:
+          - plugin.workflow-orchestration.workflow_run:view
         title:
           zh-CN: "运行详情"
           en: "Run Detail"
@@ -511,6 +535,8 @@ extensions:
         component: "WorkflowOrchestrationTenantArtifactListPage"
         scope: tenant
         icon: "lucide:package-search"
+        access_codes:
+          - plugin.workflow-orchestration.artifact_center:list
         title:
           zh-CN: "产物中心"
           en: "Artifacts"
@@ -526,6 +552,8 @@ extensions:
         component: "WorkflowOrchestrationTenantArtifactDetailPage"
         scope: tenant
         icon: "lucide:file-output"
+        access_codes:
+          - plugin.workflow-orchestration.artifact_center:view
         title:
           zh-CN: "产物详情"
           en: "Artifact Detail"

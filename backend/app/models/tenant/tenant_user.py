@@ -50,6 +50,7 @@ class TenantUser(TenantModel):
         "nickname": "nickname",
         "is_active": "is_active",
         "role_id": "role_id",
+        "org_node_id": "org_node_id",
         "gender": "gender",
         "approval_status": "approval_status",
         "created_at": "created_at",
@@ -103,6 +104,13 @@ class TenantUser(TenantModel):
         nullable=True,
         index=True,
         comment="用户角色 ID"
+    )
+    org_node_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("tenant_org_nodes.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="组织节点 ID",
     )
 
     # 用户状态
@@ -158,6 +166,12 @@ class TenantUser(TenantModel):
         lazy="selectin",
         foreign_keys=[role_id],
     )
+    org_node: Mapped["TenantOrgNode | None"] = relationship(
+        "TenantOrgNode",
+        back_populates="users",
+        lazy="selectin",
+        foreign_keys=[org_node_id],
+    )
 
     def __repr__(self) -> str:
         return f"<TenantUser(id={self.id}, tenant_id={self.tenant_id})>"
@@ -165,6 +179,7 @@ class TenantUser(TenantModel):
 
 if TYPE_CHECKING:
     from app.models.auth.tenant_user_role import TenantUserRole
+    from app.models.org.tenant_org_node import TenantOrgNode
 
 
 __all__ = ["TenantUser"]

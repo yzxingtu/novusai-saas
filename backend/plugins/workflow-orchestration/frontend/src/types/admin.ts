@@ -17,6 +17,44 @@ export interface PublishTemplatePayload {
   riskLevel?: null | string;
 }
 
+export interface WorkflowTemplateCreateSnapshot {
+  artifactContracts?: Record<string, unknown>[];
+  builderSurface?: string;
+  compiledAt?: null | string;
+  compiledBy?: null | number;
+  contractRefs?: Record<string, unknown>[];
+  controlEnvelopeSchema?: Record<string, unknown>;
+  defaults?: Record<string, unknown>;
+  entrypoints?: Record<string, unknown>[];
+  graph?: {
+    edges?: Record<string, unknown>[];
+    nodes?: Record<string, unknown>[];
+  };
+  outputContracts?: Record<string, unknown>[];
+  riskPolicySnapshot?: Record<string, unknown>;
+  snapshotVersion?: string;
+  triggerSnapshot?: Record<string, unknown>;
+  workflowSchemaVersion?: string;
+}
+
+export interface CreateAdminTemplatePayload {
+  builderSurface?: string;
+  category?: null | string;
+  changeSummary?: null | string;
+  code: string;
+  contractSummaryJson?: Record<string, unknown>;
+  defaultTriggerJson?: Record<string, unknown>;
+  description?: null | string;
+  metadataJson?: Record<string, unknown>;
+  name: string;
+  releaseNotes?: null | string;
+  releaseScope?: string;
+  riskPolicyJson?: Record<string, unknown>;
+  snapshot: WorkflowTemplateCreateSnapshot;
+  status?: string;
+  tagsJson?: string[];
+}
+
 export interface AdminTemplateListQuery extends AdminCollectionQuery {
   builderSurface?: string;
   category?: string;

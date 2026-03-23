@@ -35,6 +35,9 @@ async def test_storage_billing_overview_service_scaffold() -> None:
     ]
     assert overview["excluded_drivers"] == ["local"]
     assert overview["reconciliation_schedule"]["local_time"] == "03:00"
+    assert overview["reconciliation_schedule"]["official_billing_lag_days"] is None
+    assert overview["reconciliation_schedule"]["official_target_rule"] == "per-provider"
+    assert overview["reconciliation_schedule"]["provider_rules"]["aliyun-oss"]["official_target_rule"] == "D-3"
 
 
 def test_storage_billing_task_handler_loads() -> None:

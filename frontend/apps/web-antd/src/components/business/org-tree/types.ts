@@ -40,12 +40,6 @@ export const NODE_TYPE_CONFIG: Record<OrgNodeType, NodeTypeConfig> = {
     bgColor: 'purple',
     textColor: 'white',
   },
-  role: {
-    icon: 'lucide:shield',
-    label: 'organization.nodeType.role',
-    bgColor: 'green',
-    textColor: 'white',
-  },
 };
 
 /** Level color configuration / 层级颜色配置 */
@@ -58,7 +52,6 @@ export interface LevelColorConfig {
 export type ContextMenuAction =
   | 'addDepartment'
   | 'addPosition'
-  | 'addRole'
   | 'delete'
   | 'edit'
   | 'move'

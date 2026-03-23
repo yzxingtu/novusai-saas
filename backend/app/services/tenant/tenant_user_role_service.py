@@ -1,8 +1,8 @@
 """
-企业用户角色服务 / Tenant User Role Service
+企业用户权限角色服务 / Tenant User Permission Role Service
 
-提供企业用户角色的业务逻辑（企业隔离），扁平结构无层级
-Provides tenant user role business logic (tenant-isolated), flat structure without hierarchy.
+提供企业业务用户权限角色的业务逻辑（企业隔离），扁平结构无层级
+Provides tenant business-user permission role logic (tenant-isolated), flat structure without hierarchy.
 """
 
 from __future__ import annotations
@@ -23,9 +23,9 @@ from app.repositories.tenant.tenant_user_role_repository import TenantUserRoleRe
 
 class TenantUserRoleService(TenantService[TenantUserRole, TenantUserRoleRepository]):
     """
-    企业用户角色服务 / Tenant user role service.
+    企业用户权限角色服务 / Tenant user permission role service.
 
-    提供企业用户角色特有的业务方法，自动注入企业隔离
+    提供企业业务用户权限角色特有的业务方法，自动注入企业隔离
     """
 
     model = TenantUserRole

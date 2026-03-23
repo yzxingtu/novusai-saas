@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import csv
 from collections import Counter
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from datetime import date, timedelta
 from decimal import Decimal
 import io
@@ -12,21 +12,23 @@ import inspect
 import json
 from typing import Any
 from urllib.parse import quote
-from zoneinfo import ZoneInfo
-
 from fastapi.responses import Response
 from sqlalchemy import desc, func, select
 
 from app.core.base_model import utc_now
+from app.core.i18n import _
 from app.core.logging import get_logger
-from app.exceptions import NotFoundException
+from app.exceptions import BusinessException, NotFoundException
 from app.models.system.plugin import Plugin
 from app.plugins.crypto import decrypt_plugin_config
 
 from ..constants import (
+    DEFAULT_OFFICIAL_BILLING_LAG_DAYS,
     EXCLUDED_DRIVERS,
+    PROVIDER_DAILY_RECONCILIATION_RULES,
     SUPPORTED_CLOUD_DRIVERS,
     get_provider_bill_source_capability,
+    get_provider_daily_reconciliation_rule,
     get_provider_implemented_bill_sources,
 )
 from ..models import (
@@ -47,13 +49,13 @@ from ..providers import (
     BillingFetchResult,
     get_provider_adapter,
 )
+from ..periods import parse_optional_period_type, resolve_billing_date, resolve_billing_month
 from .profile_service import StorageBillingProviderProfileService
 
 DAILY_RECONCILIATION_CRON = "0 3 * * *"
 QINIU_MONTHLY_SETTLEMENT_CRON = "0 3 6 * *"
-OFFICIAL_BILLING_LAG_DAYS = 2
+OFFICIAL_BILLING_LAG_DAYS = DEFAULT_OFFICIAL_BILLING_LAG_DAYS
 PLUGIN_NAME = "storage-billing"
-SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
 logger = get_logger(__name__)
 _SCOPE_MATCH_PRIORITY = {
     "bucket": 1,
@@ -76,6 +78,41 @@ class _ConfigContext:
         return await self._config_loader()
 
 
+def _normalize_host_storage_context(payload: Mapping[str, Any] | None) -> dict[str, Any]:
+    raw = dict(payload or {})
+    raw_storage_config = raw.get("storage_config")
+    storage_config = dict(raw_storage_config or {}) if isinstance(raw_storage_config, Mapping) else {}
+    options = storage_config.get("options")
+    storage_config["options"] = dict(options or {}) if isinstance(options, Mapping) else {}
+    return {
+        "storage_mode": str(raw.get("storage_mode") or "platform").strip() or "platform",
+        "apply_quota": bool(raw.get("apply_quota", True)),
+        "storage_config": {
+            "driver": str(storage_config.get("driver") or "").strip(),
+            "root_path": storage_config.get("root_path"),
+            "base_url": storage_config.get("base_url"),
+            "options": dict(storage_config.get("options") or {}),
+        },
+    }
+
+
+async def _read_platform_storage_context(host_read: Any | None) -> dict[str, Any]:
+    if host_read is None:
+        return _normalize_host_storage_context({})
+
+    reader = getattr(host_read, "get_platform_storage_context", None)
+    if not callable(reader):
+        return _normalize_host_storage_context({})
+
+    if inspect.iscoroutinefunction(reader):
+        payload = await reader()
+    else:
+        payload = reader()
+    if not isinstance(payload, Mapping):
+        return _normalize_host_storage_context({})
+    return _normalize_host_storage_context(payload)
+
+
 def _serialize_decimal(value: Decimal | None) -> str:
     return str(value or Decimal("0"))
 
@@ -85,24 +122,11 @@ def _resolve_billing_date(
     *,
     default_offset_days: int = 1,
 ) -> date:
-    if isinstance(raw_value, date):
-        return raw_value
-    if isinstance(raw_value, str) and raw_value.strip():
-        return date.fromisoformat(raw_value.strip())
-    return (utc_now().astimezone(SHANGHAI_TZ) - timedelta(days=default_offset_days)).date()
+    return resolve_billing_date(raw_value, default_offset_days=default_offset_days)
 
 
 def _resolve_billing_month(raw_value: object | None) -> date:
-    if isinstance(raw_value, date):
-        return raw_value.replace(day=1)
-    if isinstance(raw_value, str) and raw_value.strip():
-        normalized = raw_value.strip()
-        if len(normalized) == 7:
-            normalized = f"{normalized}-01"
-        return date.fromisoformat(normalized).replace(day=1)
-
-    today = utc_now().astimezone(SHANGHAI_TZ).date()
-    return (today.replace(day=1) - timedelta(days=1)).replace(day=1)
+    return resolve_billing_month(raw_value)
 
 
 def _month_start(value: date) -> date:
@@ -466,6 +490,18 @@ def _content_disposition_attachment(filename: str) -> str:
         return f"attachment; filename=\"document\"; filename*=UTF-8''{encoded}"
 
 
+def _aggregate_run_status(statuses: list[str]) -> str:
+    if not statuses:
+        return StorageBillingRunStatusEnum.SKIPPED.value
+    if StorageBillingRunStatusEnum.FAILED.value in statuses:
+        return StorageBillingRunStatusEnum.FAILED.value
+    if StorageBillingRunStatusEnum.COMPLETED_WITH_GAPS.value in statuses:
+        return StorageBillingRunStatusEnum.COMPLETED_WITH_GAPS.value
+    if StorageBillingRunStatusEnum.COMPLETED.value in statuses:
+        return StorageBillingRunStatusEnum.COMPLETED.value
+    return StorageBillingRunStatusEnum.SKIPPED.value
+
+
 class StorageBillingOverviewService:
     """Read-only overview helpers. / 只读概览服务。"""
 
@@ -490,14 +526,15 @@ class StorageBillingOverviewService:
         if self._db is None or tenant_id is None:
             return None
 
+        normalized_period_type = parse_optional_period_type(period_type)
         stmt = select(StorageTenantStatement).where(
             StorageTenantStatement.tenant_id == tenant_id,
             StorageTenantStatement.is_deleted.is_(False),
         )
         if billing_date is not None:
             stmt = stmt.where(StorageTenantStatement.billing_date == billing_date)
-        if _stringify(period_type):
-            stmt = stmt.where(StorageTenantStatement.period_type == _stringify(period_type))
+        if normalized_period_type:
+            stmt = stmt.where(StorageTenantStatement.period_type == normalized_period_type)
         stmt = stmt.order_by(
             desc(StorageTenantStatement.period_end),
             desc(StorageTenantStatement.billing_date),
@@ -514,6 +551,7 @@ class StorageBillingOverviewService:
     ) -> list[StorageTenantDailyCharge]:
         if self._db is None or tenant_id is None or billing_date is None:
             return []
+        normalized_period_type = parse_optional_period_type(period_type)
         return (
             await self._db.execute(
                 select(StorageTenantDailyCharge)
@@ -521,7 +559,9 @@ class StorageBillingOverviewService:
                     StorageTenantDailyCharge.tenant_id == tenant_id,
                     StorageTenantDailyCharge.billing_date == billing_date,
                     StorageTenantDailyCharge.period_type
-                    == (_stringify(period_type) or StorageBillingPeriodTypeEnum.DAILY.value),
+                    == (
+                        normalized_period_type or StorageBillingPeriodTypeEnum.DAILY.value
+                    ),
                     StorageTenantDailyCharge.is_deleted.is_(False),
                 )
                 .order_by(
@@ -557,11 +597,17 @@ class StorageBillingOverviewService:
     async def build_admin_overview(self) -> dict[str, Any]:
         enabled_drivers = []
         related_plugins = []
+        platform_storage_context = _normalize_host_storage_context({})
         if self._host_read is not None:
             enabled_drivers = await self._host_read.get_enabled_storage_drivers()
             related_plugins = await self._host_read.get_plugin_runtime_summary(
                 ["storage-billing", "qiniu-kodo", "aliyun-oss", "tencent-cos"]
             )
+            platform_storage_context = await _read_platform_storage_context(self._host_read)
+
+        active_storage_driver = str(
+            dict(platform_storage_context.get("storage_config") or {}).get("driver") or ""
+        ).strip()
 
         latest_runs: list[dict[str, Any]] = []
         statement_total = 0
@@ -631,9 +677,19 @@ class StorageBillingOverviewService:
                 "supported_period_types": list(
                     dict(profile).get("supported_period_types") or []
                 ),
+                "official_billing_lag_days": dict(profile).get("official_billing_lag_days"),
+                "official_target_rule": dict(profile).get("official_target_rule"),
                 "capability_message": dict(profile).get("capability_message"),
             }
             for provider, profile in dict(provider_profiles.get("providers") or {}).items()
+        }
+        daily_provider_rules = {
+            provider: {
+                **get_provider_daily_reconciliation_rule(provider),
+                "cron": DAILY_RECONCILIATION_CRON,
+                "local_time": "03:00",
+            }
+            for provider in PROVIDER_DAILY_RECONCILIATION_RULES
         }
 
         return {
@@ -643,14 +699,16 @@ class StorageBillingOverviewService:
             "reconciliation_schedule": {
                 "cron": DAILY_RECONCILIATION_CRON,
                 "local_time": "03:00",
-                "official_billing_lag_days": OFFICIAL_BILLING_LAG_DAYS,
-                "official_target_rule": "D-2",
+                "official_billing_lag_days": None,
+                "official_target_rule": "per-provider",
+                "provider_rules": daily_provider_rules,
             },
             "provider_schedules": {
                 "daily": {
                     "cron": DAILY_RECONCILIATION_CRON,
                     "local_time": "03:00",
                     "provider_codes": ["aliyun-oss", "tencent-cos"],
+                    "provider_rules": daily_provider_rules,
                 },
                 "qiniu_monthly": {
                     "cron": QINIU_MONTHLY_SETTLEMENT_CRON,
@@ -661,6 +719,8 @@ class StorageBillingOverviewService:
             "provider_capabilities": provider_capabilities,
             "host_snapshot": {
                 "enabled_storage_drivers": enabled_drivers,
+                "active_storage_driver": active_storage_driver or None,
+                "platform_storage_context": platform_storage_context,
                 "related_plugins": related_plugins,
             },
             "ledger_snapshot": {
@@ -680,10 +740,11 @@ class StorageBillingOverviewService:
         period_type: str | None = None,
         request_id: str = "",
     ) -> dict[str, Any]:
+        normalized_period_type = parse_optional_period_type(period_type)
         statement = await self._load_tenant_statement(
             tenant_id=tenant_id,
             billing_date=billing_date,
-            period_type=period_type,
+            period_type=normalized_period_type,
         )
 
         return {
@@ -745,10 +806,11 @@ class StorageBillingOverviewService:
         billing_date: date | None = None,
         period_type: str | None = None,
     ) -> dict[str, Any]:
+        normalized_period_type = parse_optional_period_type(period_type)
         statement = await self._load_tenant_statement(
             tenant_id=tenant_id,
             billing_date=billing_date,
-            period_type=period_type,
+            period_type=normalized_period_type,
         )
         resolved_billing_date = billing_date or (
             statement.billing_date if statement is not None else None
@@ -757,7 +819,7 @@ class StorageBillingOverviewService:
         if self._db is None or tenant_id is None or resolved_billing_date is None:
             return {
                 "tenant_id": tenant_id,
-                "period_type": _stringify(period_type),
+                "period_type": normalized_period_type or "",
                 "billing_date": resolved_billing_date.isoformat()
                 if resolved_billing_date is not None
                 else None,
@@ -771,11 +833,13 @@ class StorageBillingOverviewService:
         rows = await self._load_tenant_daily_charge_rows(
             tenant_id=tenant_id,
             billing_date=resolved_billing_date,
-            period_type=statement.period_type if statement is not None else period_type,
+            period_type=statement.period_type
+            if statement is not None
+            else normalized_period_type,
         )
         return {
             "tenant_id": tenant_id,
-            "period_type": statement.period_type if statement is not None else _stringify(period_type),
+            "period_type": statement.period_type if statement is not None else normalized_period_type,
             "billing_date": resolved_billing_date.isoformat(),
             "statement": _serialize_statement(statement) if statement else None,
             "items": [_serialize_daily_charge(item) for item in rows],
@@ -795,10 +859,11 @@ class StorageBillingOverviewService:
         billing_date: date | None = None,
         period_type: str | None = None,
     ) -> Response:
+        normalized_period_type = parse_optional_period_type(period_type)
         result = await self.list_tenant_statement_charges(
             tenant_id=tenant_id,
             billing_date=billing_date,
-            period_type=period_type,
+            period_type=normalized_period_type,
         )
         resolved_billing_date = result.get("billing_date") or "latest"
         parsed_billing_date = (
@@ -876,6 +941,12 @@ class StorageBillingReconciliationService:
 
     async def trigger_manual_run(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         request_payload = dict(payload or {})
+        if request_payload.get("billing_date") in {None, ""}:
+            return await self._run_provider_specific_daily_reconciliation(
+                trigger_type="manual",
+                requested_scope=request_payload,
+                provider_codes=request_payload.get("provider_codes"),
+            )
         billing_date = _resolve_billing_date(
             request_payload.get("billing_date"),
             default_offset_days=OFFICIAL_BILLING_LAG_DAYS,
@@ -891,6 +962,13 @@ class StorageBillingReconciliationService:
         )
 
     async def run_daily_reconciliation(self, billing_date: date | None = None) -> dict[str, Any]:
+        if billing_date is None:
+            return await self._run_provider_specific_daily_reconciliation(
+                trigger_type="schedule",
+                requested_scope={"job": "daily_reconciliation"},
+                provider_codes=None,
+            )
+
         target_date = _resolve_billing_date(
             billing_date,
             default_offset_days=OFFICIAL_BILLING_LAG_DAYS,
@@ -904,9 +982,179 @@ class StorageBillingReconciliationService:
             requested_scope={
                 "job": "daily_reconciliation",
                 "official_billing_lag_days": OFFICIAL_BILLING_LAG_DAYS,
-                "official_target_rule": "D-2",
+                "official_target_rule": f"D-{OFFICIAL_BILLING_LAG_DAYS}",
             },
         )
+
+    async def _run_provider_specific_daily_reconciliation(
+        self,
+        *,
+        trigger_type: str,
+        requested_scope: dict[str, Any],
+        provider_codes: list[str] | str | None,
+    ) -> dict[str, Any]:
+        billable_drivers = await self._get_billable_drivers(
+            period_type=StorageBillingPeriodTypeEnum.DAILY.value,
+            provider_codes=provider_codes,
+        )
+        if not billable_drivers:
+            return {
+                "run": {
+                    "id": None,
+                    "status": StorageBillingRunStatusEnum.SKIPPED.value,
+                    "trigger_type": trigger_type,
+                    "period_type": StorageBillingPeriodTypeEnum.DAILY.value,
+                    "provider_codes": [],
+                    "requested_scope": dict(requested_scope or {}),
+                    "summary": {
+                        "driver_count": 0,
+                        "run_count": 0,
+                        "statement_count": 0,
+                        "source_status_counts": {},
+                        "providers": [],
+                        "excluded_drivers": EXCLUDED_DRIVERS,
+                    },
+                },
+                "runs": [],
+                "sources": [],
+                "billable_drivers": [],
+                "excluded_drivers": EXCLUDED_DRIVERS,
+                "schedule": DAILY_RECONCILIATION_CRON,
+                "provider_plans": [],
+            }
+
+        if len(billable_drivers) == 1:
+            provider_code = _stringify(billable_drivers[0].get("code"))
+            rule = get_provider_daily_reconciliation_rule(provider_code)
+            lag_days = int(rule.get("official_billing_lag_days") or OFFICIAL_BILLING_LAG_DAYS)
+            target_date = _resolve_billing_date(
+                None,
+                default_offset_days=lag_days,
+            )
+            return await self._execute_reconciliation(
+                billing_date=target_date,
+                period_type=StorageBillingPeriodTypeEnum.DAILY.value,
+                period_start=target_date,
+                period_end=target_date,
+                trigger_type=trigger_type,
+                requested_scope={
+                    **dict(requested_scope or {}),
+                    "provider_codes": [provider_code],
+                    "scheduled_provider_code": provider_code,
+                    "official_billing_lag_days": lag_days,
+                    "official_target_rule": _stringify(rule.get("official_target_rule"))
+                    or f"D-{lag_days}",
+                },
+                provider_codes=[provider_code],
+            )
+
+        provider_plans: list[dict[str, Any]] = []
+        runs: list[dict[str, Any]] = []
+        sources: list[dict[str, Any]] = []
+        provider_summaries: list[dict[str, Any]] = []
+        status_counter: Counter[str] = Counter()
+        statement_count = 0
+        aggregate_billable_drivers: list[dict[str, Any]] = []
+
+        for driver in billable_drivers:
+            provider_code = _stringify(driver.get("code"))
+            if not provider_code:
+                continue
+            rule = get_provider_daily_reconciliation_rule(provider_code)
+            lag_days = int(rule.get("official_billing_lag_days") or OFFICIAL_BILLING_LAG_DAYS)
+            target_date = _resolve_billing_date(
+                None,
+                default_offset_days=lag_days,
+            )
+            provider_plans.append(
+                {
+                    "provider_code": provider_code,
+                    "billing_date": target_date.isoformat(),
+                    "official_billing_lag_days": lag_days,
+                    "official_target_rule": _stringify(rule.get("official_target_rule"))
+                    or f"D-{lag_days}",
+                    "cron": DAILY_RECONCILIATION_CRON,
+                    "local_time": "03:00",
+                }
+            )
+            result = await self._execute_reconciliation(
+                billing_date=target_date,
+                period_type=StorageBillingPeriodTypeEnum.DAILY.value,
+                period_start=target_date,
+                period_end=target_date,
+                trigger_type=trigger_type,
+                requested_scope={
+                    **dict(requested_scope or {}),
+                    "provider_codes": [provider_code],
+                    "scheduled_provider_code": provider_code,
+                    "official_billing_lag_days": lag_days,
+                    "official_target_rule": _stringify(rule.get("official_target_rule"))
+                    or f"D-{lag_days}",
+                },
+                provider_codes=[provider_code],
+            )
+            run_payload = dict(result.get("run") or {})
+            runs.append(run_payload)
+            sources.extend(list(result.get("sources") or []))
+            aggregate_billable_drivers.extend(list(result.get("billable_drivers") or []))
+
+            run_summary = dict(run_payload.get("summary") or {})
+            status_counter.update(dict(run_summary.get("source_status_counts") or {}))
+            statement_count += int(run_summary.get("statement_count") or 0)
+
+            provider_summary = dict((run_summary.get("providers") or [{}])[0] or {})
+            provider_summary.update(
+                {
+                    "run_id": run_payload.get("id"),
+                    "billing_date": run_payload.get("billing_date"),
+                    "period_label": run_payload.get("period_label"),
+                    "run_status": run_payload.get("status"),
+                    "official_billing_lag_days": lag_days,
+                    "official_target_rule": _stringify(rule.get("official_target_rule"))
+                    or f"D-{lag_days}",
+                }
+            )
+            provider_summaries.append(provider_summary)
+
+        aggregate_status = _aggregate_run_status(
+            [_stringify(item.get("status")) for item in runs if _stringify(item.get("status"))]
+        )
+        unique_billable_drivers = []
+        seen_driver_codes: set[str] = set()
+        for driver in aggregate_billable_drivers:
+            driver_code = _stringify(dict(driver).get("code"))
+            if not driver_code or driver_code in seen_driver_codes:
+                continue
+            seen_driver_codes.add(driver_code)
+            unique_billable_drivers.append(driver)
+
+        return {
+            "run": {
+                "id": None,
+                "status": aggregate_status,
+                "trigger_type": trigger_type,
+                "period_type": StorageBillingPeriodTypeEnum.DAILY.value,
+                "provider_codes": [item["provider_code"] for item in provider_plans],
+                "requested_scope": {
+                    **dict(requested_scope or {}),
+                    "provider_plans": provider_plans,
+                },
+                "summary": {
+                    "driver_count": len(provider_plans),
+                    "run_count": len(runs),
+                    "statement_count": statement_count,
+                    "source_status_counts": dict(status_counter),
+                    "providers": provider_summaries,
+                    "excluded_drivers": EXCLUDED_DRIVERS,
+                },
+            },
+            "runs": runs,
+            "sources": sources,
+            "billable_drivers": unique_billable_drivers,
+            "excluded_drivers": EXCLUDED_DRIVERS,
+            "schedule": DAILY_RECONCILIATION_CRON,
+            "provider_plans": provider_plans,
+        }
 
     async def run_qiniu_monthly_settlement(
         self,
@@ -1330,7 +1578,11 @@ class StorageBillingReconciliationService:
                 if normalized_period_type == StorageBillingPeriodTypeEnum.DAILY.value
                 else QINIU_MONTHLY_SETTLEMENT_CRON
             ),
-            "official_billing_lag_days": OFFICIAL_BILLING_LAG_DAYS,
+            "official_billing_lag_days": requested_scope.get(
+                "official_billing_lag_days",
+                OFFICIAL_BILLING_LAG_DAYS,
+            ),
+            "official_target_rule": requested_scope.get("official_target_rule"),
         }
 
     async def rebuild_tenant_statements_for_period(
@@ -1728,6 +1980,17 @@ class StorageBillingReconciliationService:
             for item in raw_provider_codes
             if _stringify(item)
         }
+        platform_storage_context = await _read_platform_storage_context(self._host_read)
+        active_storage_driver = _stringify(
+            dict(platform_storage_context.get("storage_config") or {}).get("driver")
+        )
+        if not active_storage_driver:
+            return []
+        if active_storage_driver in EXCLUDED_DRIVERS:
+            return []
+        if active_storage_driver and active_storage_driver not in SUPPORTED_CLOUD_DRIVERS:
+            return []
+
         drivers = await self._host_read.get_enabled_storage_drivers()
         result: list[dict[str, Any]] = []
         for item in drivers:
@@ -1737,6 +2000,8 @@ class StorageBillingReconciliationService:
             if code not in SUPPORTED_CLOUD_DRIVERS:
                 continue
             if not item.get("is_available", True):
+                continue
+            if active_storage_driver and code != active_storage_driver:
                 continue
             if requested_codes and code not in requested_codes:
                 continue

@@ -304,7 +304,7 @@ class ManualTestAdminPlans(BaseAPITest):
             "username": config.ADMIN_USERNAME,
             "password": config.ADMIN_PASSWORD,
         })
-        data = resp.json()
+        data = assert_success(resp, "平台管理员登录失败")
         self.client.set_token(data["data"]["access_token"])
 
 

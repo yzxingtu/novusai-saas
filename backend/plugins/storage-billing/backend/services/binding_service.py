@@ -236,6 +236,19 @@ class StorageBillingBindingService:
         current_driver = _stringify(storage_config.get("driver"))
         feature_enabled = _to_bool(features.get("storage_billing_enabled"))
         active_bindings = [item for item in bindings if item["is_active"]]
+        valid_active_bindings = [
+            item
+            for item in active_bindings
+            if item["validation_status"] == StorageBillingValidationStatusEnum.VALID.value
+        ]
+        matching_active_bindings = [
+            item for item in active_bindings if item["provider_code"] == current_driver
+        ]
+        valid_matching_bindings = [
+            item
+            for item in matching_active_bindings
+            if item["validation_status"] == StorageBillingValidationStatusEnum.VALID.value
+        ]
 
         missing_reasons: list[str] = []
         if not feature_enabled:
@@ -246,6 +259,11 @@ class StorageBillingBindingService:
             missing_reasons.append("current_driver_unsupported")
         if not active_bindings:
             missing_reasons.append("binding_missing")
+        elif current_driver in SUPPORTED_CLOUD_DRIVERS:
+            if not matching_active_bindings:
+                missing_reasons.append("binding_provider_mismatch")
+            elif not valid_matching_bindings:
+                missing_reasons.append("binding_invalid")
 
         return {
             "ok": True,
@@ -266,6 +284,16 @@ class StorageBillingBindingService:
                         "strict_reconciliation_supported"
                     ),
                     "manual_pull_supported": dict(profile).get("manual_pull_supported"),
+                    "scheduled_daily_supported": dict(profile).get(
+                        "scheduled_daily_supported"
+                    ),
+                    "supported_period_types": list(
+                        dict(profile).get("supported_period_types") or []
+                    ),
+                    "official_billing_lag_days": dict(profile).get(
+                        "official_billing_lag_days"
+                    ),
+                    "official_target_rule": dict(profile).get("official_target_rule"),
                     "capability_message": dict(profile).get("capability_message"),
                     "recommended_scope_types": list(
                         dict(profile).get("recommended_scope_types") or []
@@ -277,6 +305,9 @@ class StorageBillingBindingService:
                 "items": bindings,
                 "total": len(bindings),
                 "active_total": len(active_bindings),
+                "valid_active_total": len(valid_active_bindings),
+                "matching_active_total": len(matching_active_bindings),
+                "ready_total": len(valid_matching_bindings),
             },
             "prerequisites": {
                 "ready": feature_enabled and not missing_reasons,

@@ -67,14 +67,16 @@ from app.api.admin.periodic_tasks import AdminPeriodicTaskController
 from app.api.admin.periodic_tasks import router as periodic_tasks_router
 from app.api.admin.permissions import AdminPermissionController
 from app.api.admin.permissions import router as permissions_router
+from app.api.admin.permission_roles import AdminPermissionRoleController
+from app.api.admin.permission_roles import router as permission_roles_router
 from app.api.admin.plans import AdminPlanController
 from app.api.admin.plans import router as plans_router
 from app.api.admin.plugins import AdminPluginController
 from app.api.admin.plugins import router as plugins_router
 from app.api.admin.recycle_bin import AdminRecycleBinController
 from app.api.admin.recycle_bin import router as recycle_bin_router
-from app.api.admin.roles import AdminRoleController
-from app.api.admin.roles import router as roles_router
+from app.api.admin.organization import AdminOrganizationController
+from app.api.admin.organization import router as organization_router
 from app.api.admin.skill_packages import AdminSkillPackageController
 from app.api.admin.skill_packages import router as ai_skill_packages_router
 from app.api.admin.skills import AdminSkillController
@@ -104,7 +106,8 @@ admin_router.include_router(auth_router)
 admin_router.include_router(dashboard_router)
 admin_router.include_router(analytics_router)
 admin_router.include_router(permissions_router)
-admin_router.include_router(roles_router)
+admin_router.include_router(permission_roles_router)
+admin_router.include_router(organization_router)
 admin_router.include_router(users_router)
 admin_router.include_router(tenants_router)
 admin_router.include_router(tenant_domains_router)
@@ -169,7 +172,8 @@ __all__ = [
     "admin_router",
     # 导出控制器类，确保权限装饰器被执行 / Export controller classes to ensure permission decorators are executed
     "AdminPermissionController",
-    "AdminRoleController",
+    "AdminPermissionRoleController",
+    "AdminOrganizationController",
     "AdminTenantController",
     "AdminTenantDomainController",
     "AdminUserController",

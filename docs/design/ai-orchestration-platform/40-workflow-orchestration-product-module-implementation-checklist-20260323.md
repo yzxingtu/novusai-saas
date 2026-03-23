@@ -14,6 +14,24 @@
 
 本文是“落地实施清单”，不是最终代码设计稿；但会尽量贴合当前仓库插件系统的真实约束。
 
+## 0. 2026-03-24 对账说明
+
+本文是规划实施清单，不再等同于当前仓库真相。到 2026-03-24 为止，以下内容必须以代码为准，本文对应章节仅可作为历史规划参考：
+
+- 配置真相：
+  当前插件已不再通过 manifest `config_schema` / `tenant_config_schema` 承载运行配置。
+  当前真实来源是插件运行时上下文 `ctx.get_config()` / `ctx.get_tenant_config()`，以及插件自表 `px_workflow_orchestration_module_configs`。
+- 页面与 API 真相：
+  当前实际页面以 `backend/plugins/workflow-orchestration/plugin.yaml` 的 `frontend.pages` 为准。
+  当前实际 API 以 `plugin.yaml` 的 `admin_routes` / `tenant_routes` / `public_routes` 为准。
+  本文后续出现的 `admin settings` 页面、`tenant settings` 页面、`workflows/new`、`metrics` 页面等规划项，若未出现在当前 `plugin.yaml` 中，应视为未落地规划项，不得当成现网事实。
+- 前端入口真相：
+  当前插件页面挂载链路已经依赖 `frontend/src/index.ts` 真实导出与 `plugin.yaml frontend.pages[*].component` 对齐。
+  本文后续提到的 `frontend/src/api/index.ts`、`frontend/src/locales/index.ts` 只是早期规划占位，不是当前宿主挂载所必需的集成前提。
+- 运行态状态真相：
+  当前运行态状态集合以 `backend/plugins/workflow-orchestration/backend/runtime/constants.py` 为准。
+  本文若仍使用早期精简状态集合，只能视为概念化表达，不能直接指导联调或测试断言。
+
 ---
 
 ## 二、第一版实施目标
@@ -204,16 +222,15 @@ backend/plugins/workflow-orchestration/
 
 ### 5.2 草案示例
 
-下面示例优先保证两件事：
+下面示例已经按 2026-03-24 当前仓库真相收口，来源以
+`backend/plugins/workflow-orchestration/plugin.yaml` 为准。
 
-- 字段结构与当前仓库 manifest schema 对齐
-- handler / 页面声明与 4 AI 文件所有权对齐
+但仍要明确：
 
-但要明确：
-
-- 这是一份**关键子集草案**
-- 最终完整的页面与 API 覆盖范围，以第八章页面树和第九章 API 清单为准
-- 集成人必须核对 `plugin.yaml` 最终声明与第八章、第九章是否一致
+- 这是一份**同步后的关键子集示例**
+- 真实执行时应直接以仓库内 `plugin.yaml` 文件为单一事实来源
+- 模块运行配置不再通过 manifest `config_schema` / `tenant_config_schema` 承载
+- 集成人必须核对 `plugin.yaml`、第八章页面树、第九章 API 清单三者是否一致
 ```yaml
 name: workflow-orchestration
 version: "1.0.0"
@@ -230,11 +247,10 @@ tags: ["workflow", "orchestration", "product-module"]
 
 capabilities:
   - db:own_tables
-  - config:write
-  - ai:call
-  - notifications:send
   - storage:read
   - storage:write
+  - ai:call
+  - notifications:send
 
 dependencies:
   python: []
@@ -248,72 +264,33 @@ pricing:
     enabled: false
     days: 14
 
-config_schema:
-  type: object
-  properties:
-    max_parallel_runs:
-      type: integer
-      default: 20
-      minimum: 1
-      maximum: 200
-    run_timeout_minutes:
-      type: integer
-      default: 30
-      minimum: 1
-      maximum: 720
-    artifact_preview_budget:
-      type: integer
-      default: 16384
-      minimum: 2048
-      maximum: 262144
-    tenant_agentic_enabled_default:
-      type: boolean
-      default: false
-
-tenant_config_schema:
-  type: object
-  properties:
-    simple_builder_enabled:
-      type: boolean
-      default: true
-    template_editor_enabled:
-      type: boolean
-      default: true
-    agentic_builder_enabled:
-      type: boolean
-      default: false
-    max_agentic_steps:
-      type: integer
-      default: 8
-      minimum: 1
-      maximum: 30
-
 extensions:
   custom:
     - type: product_module
       name: workflow_orchestration
-      description: "Cross-industry workflow orchestration product module"
+      description: "Workflow orchestration product module with zero-host persistence boundary"
       data:
         module_kind: product_module
         module_code: workflow_orchestration
         deployment_mode: plugin_only
         host_footprint: none
+        persistence_mode: plugin_tables_only
+        delivery_status: integrated_dev_runtime
         builder_surfaces:
           - platform_workflow_studio
           - tenant_template_editor
           - tenant_simple_builder
-        tenant_scope_mode: selected_tenants
 
   permissions:
     - code: orchestration_admin
       scope: admin
-      actions: [list, view, configure]
+      actions: [view, configure]
     - code: platform_template
       scope: admin
-      actions: [list, view, create, edit, publish, disable]
+      actions: [list, view, create, edit, publish]
     - code: release_ops
       scope: admin
-      actions: [list, view, promote, rollback]
+      actions: [list, view, rollback]
     - code: runtime_ops
       scope: admin
       actions: [list, view, replay, recover, terminate]
@@ -345,12 +322,17 @@ extensions:
       category: "biz"
 
   tasks:
-    - name: run_timeout_sweeper
+    - name: workflow_run_timeout_sweeper
       handler: "tasks.run_timeout_sweeper.handle"
       schedule_type: interval
-      interval_seconds: 60
+      interval_seconds: 300
       queue: default
-    - name: artifact_retention
+    - name: workflow_run_retry_dispatcher
+      handler: "tasks.run_retry_dispatcher.handle"
+      schedule_type: interval
+      interval_seconds: 120
+      queue: default
+    - name: workflow_artifact_retention
       handler: "tasks.artifact_retention.handle"
       schedule_type: interval
       interval_seconds: 3600
@@ -361,6 +343,10 @@ extensions:
       - method: GET
         path: overview
         handler: "api.admin_overview.get_overview"
+        permission: "orchestration_admin:view"
+      - method: GET
+        path: metrics
+        handler: "api.admin_overview.get_metrics"
         permission: "orchestration_admin:view"
       - method: GET
         path: templates
@@ -395,17 +381,13 @@ extensions:
         handler: "api.admin_releases.rollback_release"
         permission: "release_ops:rollback"
       - method: GET
-        path: metrics
-        handler: "api.admin_overview.get_metrics"
+        path: settings
+        handler: "api.admin_settings.get_settings"
         permission: "orchestration_admin:view"
       - method: PUT
         path: settings
         handler: "api.admin_settings.update_settings"
         permission: "orchestration_admin:configure"
-      - method: GET
-        path: settings
-        handler: "api.admin_settings.get_settings"
-        permission: "orchestration_admin:view"
       - method: GET
         path: runs
         handler: "api.admin_runtime.list_runs"
@@ -456,6 +438,10 @@ extensions:
         path: "workflows/{workflow_id}"
         handler: "api.tenant_workflows.update_workflow"
         permission: "workflow_builder:edit"
+      - method: GET
+        path: "workflows/{workflow_id}/versions"
+        handler: "api.tenant_workflows.list_workflow_versions"
+        permission: "workflow_center:view"
       - method: POST
         path: "workflows/{workflow_id}/publish"
         handler: "api.tenant_workflows.publish_workflow"
@@ -473,9 +459,21 @@ extensions:
         handler: "api.runs.tenant_get_run_detail"
         permission: "workflow_run:view"
       - method: POST
+        path: "runs/{run_id}/pause"
+        handler: "api.runs.tenant_pause_run"
+        permission: "workflow_run:pause"
+      - method: POST
+        path: "runs/{run_id}/resume"
+        handler: "api.runs.tenant_resume_run"
+        permission: "workflow_run:resume"
+      - method: POST
         path: "runs/{run_id}/retry"
         handler: "api.runs.tenant_retry_run"
         permission: "workflow_run:retry"
+      - method: POST
+        path: "runs/{run_id}/terminate"
+        handler: "api.runs.tenant_terminate_run"
+        permission: "workflow_run:terminate"
       - method: GET
         path: artifacts
         handler: "api.artifacts.list_artifacts"
@@ -488,14 +486,16 @@ extensions:
         path: "artifacts/{artifact_id}/feedback"
         handler: "api.artifacts.submit_feedback"
         permission: "artifact_center:feedback"
+      - method: GET
+        path: "artifacts/{artifact_id}/download"
+        handler: "api.artifacts.download_artifact"
+        permission: "artifact_center:export"
 
   frontend:
     pages:
-      # 注意：frontend.pages 是当前插件前端动态路由的单一事实来源。
-      # 本示例只展示关键页面；真实落地时应覆盖第八章中所有“可直接访问 URL”的页面。
-      - name: orchestration_admin_home
+      - name: workflow-orchestration-admin-home
         path: /admin/plugins/workflow-orchestration
-        component: "WorkflowOrchestrationAdminHome"
+        component: "WorkflowOrchestrationAdminHomePage"
         scope: admin
         icon: "lucide:workflow"
         title:
@@ -503,21 +503,74 @@ extensions:
           en: "Workflow Orchestration"
         menu:
           icon: "lucide:workflow"
-          sort_order: 45
+          sort_order: 70
           title:
             zh-CN: "任务编排"
             en: "Workflow Orchestration"
-      - name: orchestration_admin_template_editor
+      - name: workflow-orchestration-admin-templates
+        path: /admin/plugins/workflow-orchestration/templates
+        component: "WorkflowOrchestrationAdminTemplateListPage"
+        scope: admin
+        icon: "lucide:copy-plus"
+        title:
+          zh-CN: "平台模板"
+          en: "Templates"
+        menu:
+          icon: "lucide:copy-plus"
+          parent: workflow-orchestration-admin-home
+          sort_order: 71
+          title:
+            zh-CN: "平台模板"
+            en: "Templates"
+      - name: workflow-orchestration-admin-template-detail
         path: /admin/plugins/workflow-orchestration/templates/:id
-        component: "WorkflowOrchestrationAdminTemplateEditor"
+        component: "WorkflowOrchestrationAdminTemplateDetailPage"
+        scope: admin
+        icon: "lucide:copy-check"
+        title:
+          zh-CN: "模板详情"
+          en: "Template Detail"
+      - name: workflow-orchestration-admin-template-editor
+        path: /admin/plugins/workflow-orchestration/templates/:id/editor
+        component: "WorkflowOrchestrationAdminTemplateEditorPage"
         scope: admin
         icon: "lucide:spline"
         title:
-          zh-CN: "模板编辑"
+          zh-CN: "模板编辑器"
           en: "Template Editor"
-      - name: orchestration_tenant_home
+      - name: workflow-orchestration-admin-releases
+        path: /admin/plugins/workflow-orchestration/releases
+        component: "WorkflowOrchestrationAdminReleaseListPage"
+        scope: admin
+        icon: "lucide:rocket"
+        title:
+          zh-CN: "发布管理"
+          en: "Releases"
+        menu:
+          icon: "lucide:rocket"
+          parent: workflow-orchestration-admin-home
+          sort_order: 72
+          title:
+            zh-CN: "发布管理"
+            en: "Releases"
+      - name: workflow-orchestration-admin-runtime
+        path: /admin/plugins/workflow-orchestration/runtime
+        component: "WorkflowOrchestrationAdminRuntimePage"
+        scope: admin
+        icon: "lucide:activity"
+        title:
+          zh-CN: "运行治理"
+          en: "Runtime"
+        menu:
+          icon: "lucide:activity"
+          parent: workflow-orchestration-admin-home
+          sort_order: 73
+          title:
+            zh-CN: "运行治理"
+            en: "Runtime"
+      - name: workflow-orchestration-tenant-home
         path: /tenant/plugins/workflow-orchestration
-        component: "WorkflowOrchestrationTenantHome"
+        component: "WorkflowOrchestrationTenantHomePage"
         scope: tenant
         icon: "lucide:workflow"
         title:
@@ -525,18 +578,87 @@ extensions:
           en: "Workflow Orchestration"
         menu:
           icon: "lucide:workflow"
-          sort_order: 45
+          sort_order: 70
           title:
             zh-CN: "任务编排"
             en: "Workflow Orchestration"
-      - name: orchestration_tenant_workflow_editor
-        path: /tenant/plugins/workflow-orchestration/workflows/:id
-        component: "WorkflowOrchestrationTenantWorkflowEditor"
+      - name: workflow-orchestration-tenant-workflows
+        path: /tenant/plugins/workflow-orchestration/workflows
+        component: "WorkflowOrchestrationTenantWorkflowListPage"
         scope: tenant
-        icon: "lucide:spline"
+        icon: "lucide:blocks"
         title:
-          zh-CN: "工作流编辑"
+          zh-CN: "工作流中心"
+          en: "Workflows"
+        menu:
+          icon: "lucide:blocks"
+          parent: workflow-orchestration-tenant-home
+          sort_order: 71
+          title:
+            zh-CN: "工作流中心"
+            en: "Workflows"
+      - name: workflow-orchestration-tenant-workflow-detail
+        path: /tenant/plugins/workflow-orchestration/workflows/:id
+        component: "WorkflowOrchestrationTenantWorkflowDetailPage"
+        scope: tenant
+        icon: "lucide:scan-search"
+        title:
+          zh-CN: "工作流详情"
+          en: "Workflow Detail"
+      - name: workflow-orchestration-tenant-workflow-editor
+        path: /tenant/plugins/workflow-orchestration/workflows/:id/editor
+        component: "WorkflowOrchestrationTenantWorkflowEditorPage"
+        scope: tenant
+        icon: "lucide:square-pen"
+        title:
+          zh-CN: "工作流编辑器"
           en: "Workflow Editor"
+      - name: workflow-orchestration-tenant-runs
+        path: /tenant/plugins/workflow-orchestration/runs
+        component: "WorkflowOrchestrationTenantRunListPage"
+        scope: tenant
+        icon: "lucide:activity"
+        title:
+          zh-CN: "运行中心"
+          en: "Runs"
+        menu:
+          icon: "lucide:activity"
+          parent: workflow-orchestration-tenant-home
+          sort_order: 72
+          title:
+            zh-CN: "运行中心"
+            en: "Runs"
+      - name: workflow-orchestration-tenant-run-detail
+        path: /tenant/plugins/workflow-orchestration/runs/:runId
+        component: "WorkflowOrchestrationTenantRunDetailPage"
+        scope: tenant
+        icon: "lucide:list-tree"
+        title:
+          zh-CN: "运行详情"
+          en: "Run Detail"
+      - name: workflow-orchestration-tenant-artifacts
+        path: /tenant/plugins/workflow-orchestration/artifacts
+        component: "WorkflowOrchestrationTenantArtifactListPage"
+        scope: tenant
+        icon: "lucide:package-search"
+        title:
+          zh-CN: "产物中心"
+          en: "Artifacts"
+        menu:
+          icon: "lucide:package-search"
+          parent: workflow-orchestration-tenant-home
+          sort_order: 73
+          title:
+            zh-CN: "产物中心"
+            en: "Artifacts"
+      - name: workflow-orchestration-tenant-artifact-detail
+        path: /tenant/plugins/workflow-orchestration/artifacts/:artifactId
+        component: "WorkflowOrchestrationTenantArtifactDetailPage"
+        scope: tenant
+        icon: "lucide:file-output"
+        title:
+          zh-CN: "产物详情"
+          en: "Artifact Detail"
     dev:
       entry: "src/index.ts"
     release:
@@ -548,6 +670,8 @@ extensions:
 - “产品模块插件”语义目前先用 `extensions.custom` 表达，不直接假设 manifest 已支持新的顶层类型字段。
 - 企业启用能力不需要在本插件内重做安装逻辑，继续走宿主插件市场与插件分配机制。
 - 路由权限值应使用 `code:action` 形式，例如 `workflow_builder:create`。
+- 当前运行配置真相是 `ctx.get_config()` / `ctx.get_tenant_config()` 与
+  `px_workflow_orchestration_module_configs`，不再使用 manifest schema 承载配置。
 - `scope` 必须使用当前仓库已支持的 `ResourceScopeEnum` 值；本模块第一版应使用 `admin_and_selected_tenants`。
 - `frontend.pages` 是当前插件前端页面路由的单一事实来源；凡是需要直接访问 URL 的页面，都应在这里显式声明。
 - 如果后续把某些详情页改成同页签 / Drawer / Modal 承载，就必须同步收敛第八章页面树，不能保留失真的独立路由清单。
@@ -575,7 +699,8 @@ extensions:
 
 ### 6.2 插件自有表清单
 
-以下表建议作为第一版必须落地的插件自有表。
+以下表以当前迁移链 `wo_001_init` + `wo_002_wf_ver_nullable_fix`
+为准，表示已经进入插件自有持久化真相的对象。
 
 表前缀统一为：
 
@@ -589,26 +714,34 @@ extensions:
 | `px_workflow_orchestration_template_versions` | 模板版本快照 | 是 |
 | `px_workflow_orchestration_template_nodes` | 模板节点明细 | 是 |
 | `px_workflow_orchestration_template_edges` | 模板边明细 | 是 |
+| `px_workflow_orchestration_environments` | 发布环境定义 | 是 |
+| `px_workflow_orchestration_change_sets` | 变更集快照 | 是 |
+| `px_workflow_orchestration_triggers` | 触发器定义与绑定 | 是 |
+| `px_workflow_orchestration_releases` | 发布记录 | 是 |
+| `px_workflow_orchestration_module_configs` | 模块平台/企业配置真相 | 是 |
 | `px_workflow_orchestration_tenant_workflows` | 企业工作流副本头信息 | 是 |
 | `px_workflow_orchestration_tenant_workflow_versions` | 企业工作流版本快照 | 是 |
-| `px_workflow_orchestration_releases` | 发布记录与环境晋级记录 | 是 |
 | `px_workflow_orchestration_runs` | 运行实例头信息 | 是 |
 | `px_workflow_orchestration_node_runs` | 节点运行明细 | 是 |
-| `px_workflow_orchestration_artifacts` | Artifact 元数据与引用 | 是 |
 | `px_workflow_orchestration_checkpoints` | 恢复点与快照 | 是 |
 | `px_workflow_orchestration_events` | 运行事件流、人工接管、恢复记录 | 是 |
-| `px_workflow_orchestration_solution_bindings` | 行业方案与模板绑定 | 建议第一版做 |
-| `px_workflow_orchestration_eval_links` | 运行到评估集或基准记录的关联 | 可后置 |
-| `px_workflow_orchestration_daily_metrics` | 聚合指标与日报缓存 | 可后置 |
+| `px_workflow_orchestration_artifacts` | Artifact 元数据与引用 | 是 |
 
-### 6.3 不建议第一版单独建表的对象
+以下对象仍可继续作为规划，但到 2026-03-24 并未进入当前迁移链：
 
-以下对象第一版不建议单独落表：
+- 行业方案与模板绑定
+- 运行到评估集或基准记录的关联
+- 聚合指标与日报缓存
+
+### 6.3 当前不在迁移链中的对象
+
+以下对象当前不应被当成“已落地持久化真相”：
 
 | 对象 | 第一版建议 |
 |---|---|
-| 全局插件设置 | 用 `Plugin.config` |
-| 企业级模块设置 | 用 `ResourceTenantAssignment.config` |
+| 模块运行配置 schema | 不再用 manifest `config_schema` / `tenant_config_schema` |
+| 平台级模块设置 | 当前走 `ctx.get_config()` 与 `px_workflow_orchestration_module_configs` |
+| 企业级模块设置 | 当前走 `ctx.get_tenant_config()` 与 `px_workflow_orchestration_module_configs` |
 | 插件安装授权 | 用宿主插件授权与 scope 体系 |
 | 插件菜单权限 | 用宿主权限同步机制 |
 
@@ -648,9 +781,9 @@ extensions:
 
 | 权限 code | actions | 说明 |
 |---|---|---|
-| `orchestration_admin` | `list` `view` `configure` | 模块总览、配置与概况 |
-| `platform_template` | `list` `view` `create` `edit` `publish` `disable` | 平台模板管理 |
-| `release_ops` | `list` `view` `promote` `rollback` | 发布、回滚、环境晋级 |
+| `orchestration_admin` | `view` `configure` | 模块总览、指标与配置接口 |
+| `platform_template` | `list` `view` `create` `edit` `publish` | 平台模板管理 |
+| `release_ops` | `list` `view` `rollback` | 发布与回滚 |
 | `runtime_ops` | `list` `view` `replay` `recover` `terminate` | 全局运行处置 |
 
 ### 7.2 企业端插件权限
@@ -681,37 +814,26 @@ extensions:
 
 ```text
 /admin/plugins/workflow-orchestration
-├── dashboard                         模块首页
+├── (index)                           模块首页，承载 overview/metrics/settings 数据入口
 ├── templates                         模板列表
-├── templates/new                     新建模板
 ├── templates/:id                     模板详情
 ├── templates/:id/editor              模板编辑器
-├── templates/:id/versions            模板版本
 ├── releases                          发布中心
-├── releases/:id                      发布详情
-├── runtime                           全局运行中心
-├── runtime/:runId                    运行详情
-├── artifacts                         全局 Artifact 检索
-├── metrics                           指标与趋势
-└── settings                          模块设置
+└── runtime                           全局运行中心
 ```
 
 ### 8.2 企业端页面树
 
 ```text
 /tenant/plugins/workflow-orchestration
-├── home                              企业运营首页
-├── workflows                         我的工作流
-├── workflows/new                     新建简单工作流
+├── (index)                           企业首页
+├── workflows                         工作流中心
 ├── workflows/:id                     工作流详情
 ├── workflows/:id/editor              工作流编辑器
-├── workflows/:id/versions            工作流版本
 ├── runs                              运行列表
 ├── runs/:runId                       运行详情
 ├── artifacts                         Artifact 中心
-├── artifacts/:artifactId             Artifact 详情
-├── builder-capabilities              当前企业可用构建能力
-└── settings                          企业模块设置
+└── artifacts/:artifactId             Artifact 详情
 ```
 
 ### 8.3 第一版页面开放规则
@@ -720,6 +842,7 @@ extensions:
 
 - 模板编辑器在管理端完整开放
 - 企业端编辑器只开放 `tenant_template_editor` 和 `tenant_simple_builder`
+- `builder-capabilities` 当前是企业端 API，不是独立页面
 - 企业端审批中心第一版不重复造独立系统，可从运行详情深链到宿主审批页
 - 企业端首页重点展示“今日待处理”“运行异常”“待确认 Artifact”
 
@@ -742,6 +865,7 @@ extensions:
 | Method | Path | 权限 | 作用 |
 |---|---|---|---|
 | `GET` | `overview` | `orchestration_admin:view` | 模块首页概览 |
+| `GET` | `metrics` | `orchestration_admin:view` | 模块指标汇总 |
 | `GET` | `templates` | `platform_template:list` | 模板列表 |
 | `POST` | `templates` | `platform_template:create` | 新建模板 |
 | `GET` | `templates/{template_id}` | `platform_template:view` | 模板详情 |
@@ -750,13 +874,13 @@ extensions:
 | `POST` | `templates/{template_id}/publish` | `platform_template:publish` | 发布模板 |
 | `GET` | `releases` | `release_ops:list` | 发布记录列表 |
 | `POST` | `releases/{release_id}/rollback` | `release_ops:rollback` | 回滚 |
+| `GET` | `settings` | `orchestration_admin:view` | 读取模块配置 |
+| `PUT` | `settings` | `orchestration_admin:configure` | 更新模块配置 |
 | `GET` | `runs` | `runtime_ops:list` | 全局运行列表 |
 | `GET` | `runs/{run_id}` | `runtime_ops:view` | 运行详情 |
 | `POST` | `runs/{run_id}/replay` | `runtime_ops:replay` | 重放一条新运行 |
 | `POST` | `runs/{run_id}/recover` | `runtime_ops:recover` | 从检查点恢复 |
 | `POST` | `runs/{run_id}/terminate` | `runtime_ops:terminate` | 强制终止 |
-| `GET` | `metrics` | `orchestration_admin:view` | 模块指标 |
-| `PUT` | `settings` | `orchestration_admin:configure` | 模块配置 |
 
 ### 9.3 企业端 API 清单
 
@@ -784,7 +908,6 @@ extensions:
 | `GET` | `artifacts/{artifact_id}` | `artifact_center:view` | Artifact 详情 |
 | `POST` | `artifacts/{artifact_id}/feedback` | `artifact_center:feedback` | 提交反馈 |
 | `GET` | `artifacts/{artifact_id}/download` | `artifact_center:export` | 下载 Artifact |
-| `PUT` | `settings` | `workflow_center:view` | 企业模块设置 |
 
 ### 9.4 第一版不建议暴露的 API
 
@@ -801,14 +924,17 @@ extensions:
 
 ### 10.1 第一版建议任务
 
-建议至少实现以下插件任务：
+当前 manifest 已声明以下插件任务：
 
 | 任务名 | 作用 | 是否必做 |
 |---|---|---|
-| `run_timeout_sweeper` | 扫描超时运行并转异常状态 | 是 |
-| `run_retry_dispatcher` | 处理可自动重试的失败运行 | 建议做 |
-| `artifact_retention` | 清理过期 Artifact 内容文件 | 是 |
-| `metrics_aggregator` | 聚合每日运行与成本指标 | 可后置 |
+| `workflow_run_timeout_sweeper` | 扫描超时运行并转异常状态 | 是 |
+| `workflow_run_retry_dispatcher` | 处理可自动重试的失败运行 | 是 |
+| `workflow_artifact_retention` | 清理过期 Artifact 内容文件 | 是 |
+
+仍属规划但尚未进入当前 manifest 的任务：
+
+- `metrics_aggregator`
 
 ### 10.2 运行时状态推进原则
 
@@ -991,8 +1117,9 @@ extensions:
 - `plugin.yaml` 最终声明的 `extensions.api` 与实际 handler 文件一一对应
 - `plugin.yaml` 最终声明的 `extensions.frontend.pages` 覆盖所有可直接访问 URL
 - `frontend/src/index.ts` 已正确导出 `plugin.yaml` 引用的全部页面组件名
-- `frontend/src/api/index.ts` 已正确汇总 admin / tenant API 导出
-- `frontend/src/locales/index.ts` 已正确汇总 admin / tenant locale 注册
+- `frontend.dev.entry = src/index.ts` 与 `frontend.release.manifest = plugin.manifest.json` 均可被宿主解析
+- locale 注册与插件 `setup()` 链路可在真实宿主加载时生效，不要求必须存在 `frontend/src/locales/index.ts`
+- 如后续引入 `frontend/src/api/index.ts`、`frontend/src/locales/index.ts` 这类 barrel 文件，必须与真实导出保持同步；但它们不是当前必选装配前提
 - handoff 中要求回填到冻结文件的片段都已被集成人接入
 - 整个模块实现未向 `backend/app/**` 或主系统前端源码落任何业务文件
 

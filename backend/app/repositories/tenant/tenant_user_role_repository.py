@@ -1,8 +1,8 @@
 """
-企业用户角色仓储 / Tenant User Role Repository
+企业用户权限角色仓储 / Tenant User Permission Role Repository
 
-提供企业用户角色的数据访问操作（企业隔离），扁平结构无层级
-Provides tenant user role data access (tenant-isolated), flat structure without hierarchy.
+提供企业业务用户权限角色的数据访问操作（企业隔离），扁平结构无层级
+Provides tenant business-user permission role data access (tenant-isolated), flat structure without hierarchy.
 """
 
 from __future__ import annotations
@@ -15,9 +15,9 @@ from app.models.auth.tenant_user_role import TenantUserRole
 
 class TenantUserRoleRepository(TenantRepository[TenantUserRole]):
     """
-    企业用户角色仓储 / Tenant user role repository.
+    企业用户权限角色仓储 / Tenant user permission role repository.
 
-    提供企业用户角色特有的数据访问方法，自动过滤企业 ID
+    提供企业业务用户权限角色特有的数据访问方法，自动过滤企业 ID
     """
 
     model = TenantUserRole

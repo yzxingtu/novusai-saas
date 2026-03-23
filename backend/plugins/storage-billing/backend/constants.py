@@ -19,30 +19,18 @@ DEFAULT_PROVIDER_PROFILES: dict[str, dict[str, Any]] = {
         "enabled": False,
         "profile_code": "qiniu-default",
         "bill_source": "finance_api",
-        "access_key": "",
-        "secret_key": "",
         "account_identifier": "",
     },
     StorageProviderCodeEnum.ALIYUN_OSS.value: {
         "enabled": False,
         "profile_code": "aliyun-default",
         "bill_source": "bss_openapi",
-        "region": "",
-        "access_key_id": "",
-        "access_key_secret": "",
-        "bill_bucket": "",
-        "bill_prefix": "",
         "account_identifier": "",
     },
     StorageProviderCodeEnum.TENCENT_COS.value: {
         "enabled": False,
         "profile_code": "tencent-default",
         "bill_source": "describe_bill_detail",
-        "region": "",
-        "secret_id": "",
-        "secret_key": "",
-        "bill_bucket": "",
-        "bill_prefix": "",
         "account_identifier": "",
     },
 }
@@ -64,14 +52,6 @@ PROVIDER_REQUIRED_FIELDS_BY_BILL_SOURCE: dict[str, dict[str, list[str]]] = {
         ],
     },
     StorageProviderCodeEnum.ALIYUN_OSS.value: {
-        "oss_subscription": [
-            "profile_code",
-            "bill_source",
-            "region",
-            "access_key_id",
-            "access_key_secret",
-            "bill_bucket",
-        ],
         "bss_openapi": [
             "profile_code",
             "bill_source",
@@ -81,14 +61,6 @@ PROVIDER_REQUIRED_FIELDS_BY_BILL_SOURCE: dict[str, dict[str, list[str]]] = {
         ],
     },
     StorageProviderCodeEnum.TENCENT_COS.value: {
-        "cos_bill_bucket": [
-            "profile_code",
-            "bill_source",
-            "region",
-            "secret_id",
-            "secret_key",
-            "bill_bucket",
-        ],
         "describe_bill_detail": [
             "profile_code",
             "bill_source",
@@ -101,14 +73,27 @@ PROVIDER_REQUIRED_FIELDS_BY_BILL_SOURCE: dict[str, dict[str, list[str]]] = {
 
 PROVIDER_BILL_SOURCES: dict[str, list[str]] = {
     StorageProviderCodeEnum.QINIU_KODO.value: ["finance_api"],
-    StorageProviderCodeEnum.ALIYUN_OSS.value: ["oss_subscription", "bss_openapi"],
-    StorageProviderCodeEnum.TENCENT_COS.value: ["cos_bill_bucket", "describe_bill_detail"],
+    StorageProviderCodeEnum.ALIYUN_OSS.value: ["bss_openapi"],
+    StorageProviderCodeEnum.TENCENT_COS.value: ["describe_bill_detail"],
 }
 
 COLLECTOR_IMPLEMENTATION_STATUS: dict[str, bool] = {
     StorageProviderCodeEnum.QINIU_KODO.value: True,
     StorageProviderCodeEnum.ALIYUN_OSS.value: True,
     StorageProviderCodeEnum.TENCENT_COS.value: True,
+}
+
+DEFAULT_OFFICIAL_BILLING_LAG_DAYS = 2
+
+PROVIDER_DAILY_RECONCILIATION_RULES: dict[str, dict[str, Any]] = {
+    StorageProviderCodeEnum.ALIYUN_OSS.value: {
+        "official_billing_lag_days": 3,
+        "official_target_rule": "D-3",
+    },
+    StorageProviderCodeEnum.TENCENT_COS.value: {
+        "official_billing_lag_days": DEFAULT_OFFICIAL_BILLING_LAG_DAYS,
+        "official_target_rule": f"D-{DEFAULT_OFFICIAL_BILLING_LAG_DAYS}",
+    },
 }
 
 PROVIDER_IMPLEMENTED_BILL_SOURCES: dict[str, list[str]] = {
@@ -128,6 +113,8 @@ PROVIDER_BILL_SOURCE_CAPABILITIES: dict[str, dict[str, dict[str, Any]]] = {
             "scheduled_daily_supported": False,
             "supported_period_types": [StorageBillingPeriodTypeEnum.MONTHLY.value],
             "recommended_scope_types": ["account"],
+            "official_billing_lag_days": None,
+            "official_target_rule": "month+1 day 6",
             "capability_message": (
                 "Qiniu official billing is monthly-settled only. "
                 "Strict daily reconciliation is unsupported. "
@@ -136,17 +123,6 @@ PROVIDER_BILL_SOURCE_CAPABILITIES: dict[str, dict[str, dict[str, Any]]] = {
         },
     },
     StorageProviderCodeEnum.ALIYUN_OSS.value: {
-        "oss_subscription": {
-            "implemented": False,
-            "settlement_mode": "unsupported",
-            "settlement_cycle": StorageBillingPeriodTypeEnum.DAILY.value,
-            "strict_daily_reconciliation_supported": False,
-            "manual_pull_supported": False,
-            "scheduled_daily_supported": False,
-            "supported_period_types": [],
-            "recommended_scope_types": [],
-            "capability_message": "Aliyun OSS bill subscription ingestion is not implemented yet.",
-        },
         "bss_openapi": {
             "implemented": True,
             "settlement_mode": "strict_daily_reconciliation",
@@ -156,23 +132,15 @@ PROVIDER_BILL_SOURCE_CAPABILITIES: dict[str, dict[str, dict[str, Any]]] = {
             "scheduled_daily_supported": True,
             "supported_period_types": [StorageBillingPeriodTypeEnum.DAILY.value],
             "recommended_scope_types": ["bucket", "domain", "account", "tag"],
+            "official_billing_lag_days": 3,
+            "official_target_rule": "D-3",
             "capability_message": (
-                "Aliyun OSS official billing follows the strict daily D-2 reconciliation path."
+                "Aliyun OSS official billing follows the strict daily reconciliation path. "
+                "The scheduled default targets D-3 because split-item details can lag up to 72 hours."
             ),
         },
     },
     StorageProviderCodeEnum.TENCENT_COS.value: {
-        "cos_bill_bucket": {
-            "implemented": False,
-            "settlement_mode": "unsupported",
-            "settlement_cycle": StorageBillingPeriodTypeEnum.DAILY.value,
-            "strict_daily_reconciliation_supported": False,
-            "manual_pull_supported": False,
-            "scheduled_daily_supported": False,
-            "supported_period_types": [],
-            "recommended_scope_types": [],
-            "capability_message": "Tencent COS bill-bucket ingestion is not implemented yet.",
-        },
         "describe_bill_detail": {
             "implemented": True,
             "settlement_mode": "strict_daily_reconciliation",
@@ -182,8 +150,11 @@ PROVIDER_BILL_SOURCE_CAPABILITIES: dict[str, dict[str, dict[str, Any]]] = {
             "scheduled_daily_supported": True,
             "supported_period_types": [StorageBillingPeriodTypeEnum.DAILY.value],
             "recommended_scope_types": ["bucket", "domain", "account", "tag"],
+            "official_billing_lag_days": DEFAULT_OFFICIAL_BILLING_LAG_DAYS,
+            "official_target_rule": f"D-{DEFAULT_OFFICIAL_BILLING_LAG_DAYS}",
             "capability_message": (
-                "Tencent COS official billing follows the strict daily D-2 reconciliation path."
+                "Tencent COS official daily bills for yesterday are generated around 08:00, "
+                "so the fixed 03:00 reconciliation job uses the stable D-2 official bill window."
             ),
         },
     },
@@ -229,6 +200,8 @@ def get_provider_bill_source_capability(
             "scheduled_daily_supported": False,
             "supported_period_types": [],
             "recommended_scope_types": [],
+            "official_billing_lag_days": None,
+            "official_target_rule": "",
             "capability_message": "",
         }
 
@@ -238,3 +211,11 @@ def get_provider_bill_source_capability(
 
 def get_default_provider_profiles() -> dict[str, dict[str, Any]]:
     return deepcopy(DEFAULT_PROVIDER_PROFILES)
+
+
+def get_provider_daily_reconciliation_rule(provider: str) -> dict[str, Any]:
+    rule = PROVIDER_DAILY_RECONCILIATION_RULES.get(provider) or {
+        "official_billing_lag_days": None,
+        "official_target_rule": "",
+    }
+    return deepcopy(rule)

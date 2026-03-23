@@ -507,7 +507,7 @@ onMounted(() => {
               </div>
               <div class="rounded-xl border bg-accent/10 px-4 py-3">
                 <div class="text-xs text-muted-foreground">
-                  {{ $t(`${ADMIN_I18N_PREFIX}.common.channel`) }}
+                  {{ $t(`${ADMIN_I18N_PREFIX}.common.channelLabel`) }}
                 </div>
                 <div class="mt-2 text-sm font-medium text-foreground">
                   {{ template.latest_release.channel || $t(`${ADMIN_I18N_PREFIX}.common.notAvailable`) }}
@@ -515,7 +515,7 @@ onMounted(() => {
               </div>
               <div class="rounded-xl border bg-accent/10 px-4 py-3">
                 <div class="text-xs text-muted-foreground">
-                  {{ $t(`${ADMIN_I18N_PREFIX}.common.releaseScope`) }}
+                  {{ $t(`${ADMIN_I18N_PREFIX}.common.releaseScopeLabel`) }}
                 </div>
                 <div class="mt-2 text-sm font-medium text-foreground">
                   {{ getReleaseScopeText(template.latest_release.release_scope) }}

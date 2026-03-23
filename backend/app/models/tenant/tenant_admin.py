@@ -42,6 +42,8 @@ class TenantAdmin(TenantModel):
     __delete_deps__ = [
         DeletionDep("TenantAdminRole", "leader_id", DeletionStrategy.NULLIFY,
                     label_field="name", i18n_key="tenant_admin_role_leader"),
+        DeletionDep("TenantOrgNode", "leader_id", DeletionStrategy.NULLIFY,
+                    label_field="name", i18n_key="tenant_org_node_leader"),
     ]
 
     # 可过滤字段声明（注意：不包含 password_hash 等敏感字段）
@@ -55,6 +57,7 @@ class TenantAdmin(TenantModel):
         "is_owner": "is_owner",
         "nickname": "nickname",
         "role_id": "role_id",
+        "org_node_id": "org_node_id",
         "created_at": "created_at",
         "updated_at": "updated_at",
     }
@@ -124,6 +127,13 @@ class TenantAdmin(TenantModel):
     role_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("tenant_admin_roles.id"), nullable=True, comment="角色 ID"
     )
+    org_node_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("tenant_org_nodes.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="组织节点 ID",
+    )
 
     # 角色关系
     role: Mapped["TenantAdminRole | None"] = relationship(
@@ -131,6 +141,12 @@ class TenantAdmin(TenantModel):
         back_populates="admins",
         lazy="selectin",
         foreign_keys=[role_id],
+    )
+    org_node: Mapped["TenantOrgNode | None"] = relationship(
+        "TenantOrgNode",
+        back_populates="admins",
+        lazy="selectin",
+        foreign_keys=[org_node_id],
     )
 
     def __repr__(self) -> str:
@@ -156,6 +172,7 @@ class TenantAdmin(TenantModel):
 
 if TYPE_CHECKING:
     from app.models.auth.tenant_admin_role import TenantAdminRole
+    from app.models.org.tenant_org_node import TenantOrgNode
 
 
 __all__ = ["TenantAdmin"]

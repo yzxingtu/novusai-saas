@@ -6,105 +6,70 @@ import type { OrgNodeType } from '#/api/admin/organization';
 
 import { $t } from '#/locales';
 
-/** Dialog mode / 弹窗模式 */
 export type DialogMode = 'create' | 'edit';
 
-/** Data scope enum / 数据范围枚举 */
 export type DataScopeType =
   | 'all'
+  | 'custom'
   | 'dept_children'
   | 'dept_only'
-  | 'self'
-  | 'custom';
+  | 'self';
 
-/** Node form data / 节点表单数据 */
 export interface OrgNodeFormData {
-  /** Name / 名称 */
   name: string;
-  /** Description / 描述 */
   description?: string;
-  /** Node type / 节点类型 */
   type: OrgNodeType;
-  /** Whether adding members is allowed / 是否允许添加成员 */
   allowMembers: boolean;
-  /** Whether enabled / 是否启用 */
   isActive: boolean;
-  /** Sort order / 排序号 */
   sortOrder: number;
-  /** Permission ID list / 权限 ID 列表 */
-  permissionIds: number[];
-  /** Data scope / 数据范围 */
   dataScope: DataScopeType;
-  /** Custom department IDs (when dataScope=custom) / 自定义部门 ID 列表 */
   customDeptIds: number[];
 }
 
-/** Node Dialog Props / 节点弹窗 Props */
 export interface OrgNodeDialogProps {
-  /** Whether to show dialog / 是否显示弹窗 */
   open?: boolean;
-  /** Dialog mode: create/edit / 弹窗模式：创建/编辑 */
   mode?: DialogMode;
-  /** Parent node ID (used when creating) / 父节点 ID（创建时使用） */
   parentId?: null | number;
-  /** Parent node type (for restricting child node types) / 父节点类型（用于限制子节点类型） */
   parentType?: null | OrgNodeType;
-  /** Parent node name (for display) / 父节点名称（显示用） */
   parentName?: string;
-  /** Node ID being edited / 编辑的节点 ID */
   nodeId?: null | number;
-  /** Initial data when editing / 编辑时的初始数据 */
   initialData?: Partial<OrgNodeFormData>;
-  /** API prefix / API 前缀 */
   apiPrefix?: 'admin' | 'tenant';
 }
 
-/** Node Dialog Emits / 节点弹窗 Emits */
 export interface OrgNodeDialogEmits {
   (e: 'update:open', value: boolean): void;
   (e: 'success', node: { id: number; name: string; type: OrgNodeType }): void;
   (e: 'cancel'): void;
 }
 
-/** Node type option / 节点类型选项 */
 export interface NodeTypeOption {
   value: OrgNodeType;
   label: string;
   icon: string;
   description: string;
-  /** Whether disabled / 是否禁用 */
   disabled?: boolean;
 }
 
-/**
- * Get allowed child node types based on parent node type
- * 根据父节点类型获取允许的子节点类型
- * Rules / 规则：
- * - Root node (no parent): can create department, position, role / 根节点（无父节点）：可创建 department, position, role
- * - department: can create department, position / 可创建 department, position
- * - position: cannot create child nodes / 不能创建子节点
- * - role: can create role / 可创建 role
- */
+export interface LeaderScopeOption {
+  value: DataScopeType;
+  label: string;
+  description: string;
+}
+
 export function getAllowedChildTypes(
   parentType: null | OrgNodeType | undefined,
 ): OrgNodeType[] {
   if (!parentType) {
-    // Root node can create all types / 根节点可创建所有类型
-    return ['department', 'position', 'role'];
+    return ['department', 'position'];
   }
 
   switch (parentType) {
     case 'department': {
-      // Department can create departments and positions / 部门可创建部门和岗位
       return ['department', 'position'];
     }
     case 'position': {
-      // Position cannot create child nodes / 岗位不能创建子节点
       return [];
-    }
-    case 'role': {
-      // Role can only create roles / 角色只能创建角色
-      return ['role'];
     }
     default: {
       return [];
@@ -112,10 +77,6 @@ export function getAllowedChildTypes(
   }
 }
 
-/**
- * Get node type options list
- * 获取节点类型选项列表
- */
 export function getNodeTypeOptions(
   allowedTypes: OrgNodeType[],
 ): NodeTypeOption[] {
@@ -132,12 +93,6 @@ export function getNodeTypeOptions(
       icon: 'lucide:briefcase',
       description: $t('shared.orgNode.type.positionDesc'),
     },
-    {
-      value: 'role',
-      label: $t('shared.orgNode.type.role'),
-      icon: 'lucide:shield',
-      description: $t('shared.orgNode.type.roleDesc'),
-    },
   ];
 
   return allOptions.map((option) => ({
@@ -146,22 +101,12 @@ export function getNodeTypeOptions(
   }));
 }
 
-/**
- * Get default allowMembers value for a node type
- * 获取节点类型的默认 allowMembers 值
- */
 export function getDefaultAllowMembers(type: OrgNodeType): boolean {
   switch (type) {
     case 'department': {
-      // Department: do not allow adding members directly by default / 部门默认不允许直接添加成员
       return false;
     }
     case 'position': {
-      // Position: allows adding members / 岗位允许添加成员
-      return true;
-    }
-    case 'role': {
-      // Role: allows adding members / 角色允许添加成员
       return true;
     }
     default: {
@@ -170,7 +115,46 @@ export function getDefaultAllowMembers(type: OrgNodeType): boolean {
   }
 }
 
-/** Form validation rules / 表单验证规则 */
+export function getLeaderScopeOptions(): LeaderScopeOption[] {
+  return [
+    {
+      value: 'all',
+      label: $t('shared.orgNode.scope.all'),
+      description: $t('shared.orgNode.scope.allDesc'),
+    },
+    {
+      value: 'dept_children',
+      label: $t('shared.orgNode.scope.deptChildren'),
+      description: $t('shared.orgNode.scope.deptChildrenDesc'),
+    },
+    {
+      value: 'dept_only',
+      label: $t('shared.orgNode.scope.deptOnly'),
+      description: $t('shared.orgNode.scope.deptOnlyDesc'),
+    },
+    {
+      value: 'self',
+      label: $t('shared.orgNode.scope.self'),
+      description: $t('shared.orgNode.scope.selfDesc'),
+    },
+    {
+      value: 'custom',
+      label: $t('shared.orgNode.scope.custom'),
+      description: $t('shared.orgNode.scope.customDesc'),
+    },
+  ];
+}
+
+export function getLeaderScopeLabel(scope?: null | string): string {
+  const option = getLeaderScopeOptions().find((item) => item.value === scope);
+  return option?.label ?? $t('shared.orgNode.scope.unknown');
+}
+
+export function getLeaderScopeDescription(scope?: null | string): string {
+  const option = getLeaderScopeOptions().find((item) => item.value === scope);
+  return option?.description ?? $t('shared.orgNode.scope.unknownDesc');
+}
+
 export const formRules = {
   name: [
     {

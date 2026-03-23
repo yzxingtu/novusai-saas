@@ -10,8 +10,9 @@ Config / 配置项：
 - maintenance_message: str — Maintenance message / 维护提示信息
 """
 
-from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
+
+from app.core.response import error
 
 # Exempt paths: still accessible during maintenance / 豁免路径：维护模式下仍可访问
 _EXEMPT_PREFIXES = (
@@ -56,13 +57,11 @@ class MaintenanceMiddleware:
         # Check maintenance mode / 检查维护模式
         if await self._is_maintenance_mode():
             message = await self._get_maintenance_message()
-            response = JSONResponse(
+            response = error(
+                message=message,
+                code=5030,
+                data={"maintenance": True},
                 status_code=503,
-                content={
-                    "code": 5030,
-                    "message": message,
-                    "data": {"maintenance": True},
-                },
             )
             await response(scope, receive, send)
             return

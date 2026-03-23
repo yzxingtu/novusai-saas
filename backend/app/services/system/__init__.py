@@ -9,6 +9,9 @@ from importlib import import_module
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from app.services.system.admin_org_authority_service import AdminOrgAuthorityService
+    from app.services.system.admin_org_node_service import AdminOrgNodeService
+    from app.services.system.admin_permission_role_service import AdminPermissionRoleService
     from app.services.system.admin_role_service import AdminRoleService
     from app.services.system.admin_service import AdminService
     from app.services.system.attachment_service import AdminAttachmentService
@@ -30,8 +33,15 @@ if TYPE_CHECKING:
         TenantDomainTenantService,
     )
     from app.services.system.tenant_service import TenantService
+    from app.services.system.trace_lookup_service import (
+        TraceLookupResult,
+        TraceLookupService,
+    )
 
 _LAZY_EXPORTS = {
+    "AdminOrgAuthorityService": "app.services.system.admin_org_authority_service",
+    "AdminOrgNodeService": "app.services.system.admin_org_node_service",
+    "AdminPermissionRoleService": "app.services.system.admin_permission_role_service",
     "AdminRoleService": "app.services.system.admin_role_service",
     "AdminService": "app.services.system.admin_service",
     "AdminAttachmentService": "app.services.system.attachment_service",
@@ -47,6 +57,8 @@ _LAZY_EXPORTS = {
     "TenantDomainService": "app.services.system.tenant_domain_service",
     "TenantDomainTenantService": "app.services.system.tenant_domain_service",
     "TenantService": "app.services.system.tenant_service",
+    "TraceLookupResult": "app.services.system.trace_lookup_service",
+    "TraceLookupService": "app.services.system.trace_lookup_service",
 }
 
 __all__ = list(_LAZY_EXPORTS)

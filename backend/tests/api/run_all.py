@@ -10,11 +10,13 @@
     # 运行特定模块测试
     python -m tests.api.test_admin_auth
     python -m tests.api.test_admin_permissions
-    python -m tests.api.test_admin_roles
+    python -m tests.api.test_admin_permission_roles
+    python -m tests.api.test_admin_organization
     python -m tests.api.test_admin_admins
     python -m tests.api.test_admin_tenants
     python -m tests.api.test_tenant_auth
-    python -m tests.api.test_tenant_roles
+    python -m tests.api.test_tenant_permission_roles
+    python -m tests.api.test_tenant_organization
     python -m tests.api.test_tenant_admins
 
 环境变量配置:
@@ -38,28 +40,33 @@ def run_admin_tests() -> list[TestReport]:
     reports = []
 
     # Admin Auth
-    from tests.api.test_admin_auth import TestAdminAuth
-    test = TestAdminAuth()
+    from tests.api.test_admin_auth import ManualTestAdminAuth
+    test = ManualTestAdminAuth()
     reports.append(test.run_all())
 
     # Admin Permissions
-    from tests.api.test_admin_permissions import TestAdminPermissions
-    test = TestAdminPermissions()
+    from tests.api.test_admin_permissions import ManualTestAdminPermissions
+    test = ManualTestAdminPermissions()
     reports.append(test.run_all())
 
-    # Admin Roles
-    from tests.api.test_admin_roles import TestAdminRoles
-    test = TestAdminRoles()
+    # Admin Permission Roles
+    from tests.api.test_admin_permission_roles import ManualTestAdminPermissionRoles
+    test = ManualTestAdminPermissionRoles()
+    reports.append(test.run_all())
+
+    # Admin Organization
+    from tests.api.test_admin_organization import ManualTestAdminOrganization
+    test = ManualTestAdminOrganization()
     reports.append(test.run_all())
 
     # Admin Admins
-    from tests.api.test_admin_admins import TestAdminAdmins
-    test = TestAdminAdmins()
+    from tests.api.test_admin_admins import ManualTestAdminAdmins
+    test = ManualTestAdminAdmins()
     reports.append(test.run_all())
 
     # Admin Tenants
-    from tests.api.test_admin_tenants import TestAdminTenants
-    test = TestAdminTenants()
+    from tests.api.test_admin_tenants import ManualTestAdminTenants
+    test = ManualTestAdminTenants()
     reports.append(test.run_all())
 
     return reports
@@ -70,18 +77,23 @@ def run_tenant_tests() -> list[TestReport]:
     reports = []
 
     # Tenant Auth
-    from tests.api.test_tenant_auth import TestTenantAuth
-    test = TestTenantAuth()
+    from tests.api.test_tenant_auth import ManualTestTenantAuth
+    test = ManualTestTenantAuth()
     reports.append(test.run_all())
 
-    # Tenant Roles
-    from tests.api.test_tenant_roles import TestTenantRoles
-    test = TestTenantRoles()
+    # Tenant Permission Roles
+    from tests.api.test_tenant_permission_roles import ManualTestTenantPermissionRoles
+    test = ManualTestTenantPermissionRoles()
+    reports.append(test.run_all())
+
+    # Tenant Organization
+    from tests.api.test_tenant_organization import ManualTestTenantOrganization
+    test = ManualTestTenantOrganization()
     reports.append(test.run_all())
 
     # Tenant Admins
-    from tests.api.test_tenant_admins import TestTenantAdmins
-    test = TestTenantAdmins()
+    from tests.api.test_tenant_admins import ManualTestTenantAdmins
+    test = ManualTestTenantAdmins()
     reports.append(test.run_all())
 
     return reports
@@ -97,27 +109,27 @@ def print_summary(reports: list[TestReport]) -> int:
 
     print("\n")
     print("=" * 70)
-    print("📊 API 测试总体报告")
+    print("API TEST SUMMARY")
     print("=" * 70)
 
     for report in reports:
-        status = "✅" if report.failed == 0 else "❌"
+        status = "[OK]" if report.failed == 0 else "[FAIL]"
         print(f"{status} {report.module}: {report.passed}/{report.total} 通过 ({report.duration:.2f}s)")
 
     print("-" * 70)
-    print(f"📈 总计测试: {total_tests}")
-    print(f"✅ 通过: {total_passed}")
-    print(f"❌ 失败: {total_failed}")
-    print(f"⏭️  跳过: {total_skipped}")
-    print(f"⏱️  总耗时: {total_duration:.2f}s")
+    print(f"TOTAL TESTS: {total_tests}")
+    print(f"PASSED: {total_passed}")
+    print(f"FAILED: {total_failed}")
+    print(f"SKIPPED: {total_skipped}")
+    print(f"DURATION: {total_duration:.2f}s")
     print("=" * 70)
 
     if total_failed > 0:
-        print("\n❌ 有测试失败，详细信息如下：")
+        print("\nFAILED TEST DETAILS:")
         for report in reports:
             for result in report.results:
                 if result.status == TestStatus.FAILED:
-                    print(f"\n  📍 {report.module} > {result.name}")
+                    print(f"\n  {report.module} > {result.name}")
                     print(f"     {result.message}")
 
     return 1 if total_failed > 0 else 0
@@ -138,29 +150,29 @@ def main():
     )
     args = parser.parse_args()
 
-    print("🚀 开始 API 测试...")
-    print(f"📍 测试目标: {os.environ.get('TEST_API_BASE_URL', 'http://localhost:8000')}")
+    print("START API TESTS")
+    print(f"TARGET: {os.environ.get('TEST_API_BASE_URL', 'http://localhost:8000')}")
     print()
 
     reports = []
 
     if args.module in ("admin", "all"):
         print("=" * 70)
-        print("🔧 平台管理端测试")
+        print("ADMIN TESTS")
         print("=" * 70)
         admin_reports = run_admin_tests()
         for report in admin_reports:
-            report.print_summary()
+            report.print_summary(exit_on_failure=False)
         reports.extend(admin_reports)
 
     if args.module in ("tenant", "all"):
         print("\n")
         print("=" * 70)
-        print("🏢 企业管理端测试")
+        print("TENANT TESTS")
         print("=" * 70)
         tenant_reports = run_tenant_tests()
         for report in tenant_reports:
-            report.print_summary()
+            report.print_summary(exit_on_failure=False)
         reports.extend(tenant_reports)
 
     # 打印总体摘要

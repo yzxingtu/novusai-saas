@@ -11,8 +11,12 @@ import type { VbenFormSchema } from '#/adapter/form';
 import { z } from '#/adapter/form';
 import { $t } from '#/locales';
 
-/** Role tree API type / 角色树 API 类型 */
-export type RoleTreeApi = AnyPromiseFunction<any, any>;
+/** Org tree API type / 组织树 API 类型 */
+export type OrgTreeApi = AnyPromiseFunction<any, any>;
+export interface MemberRoleOption {
+  label: string;
+  value: number;
+}
 
 /**
  * Admin create/edit form Schema
@@ -26,10 +30,12 @@ export function useAdminFormSchema(options: {
   nodeId?: null | number;
   /** Org node name (for default display) / 组织节点名称（用于默认显示） */
   nodeName?: string;
-  /** Role tree API (for role selection) / 角色树 API（可选择角色） */
-  roleTreeApi?: RoleTreeApi;
+  /** Org tree API (for node selection) / 组织树 API（可选择节点） */
+  orgTreeApi?: OrgTreeApi;
+  /** Permission role options / 权限角色选项 */
+  roleOptions?: MemberRoleOption[];
 }): VbenFormSchema[] {
-  const { isEdit = false, nodeName, nodeId, roleTreeApi } = options;
+  const { isEdit = false, nodeName, nodeId, orgTreeApi, roleOptions = [] } = options;
 
   return [
     // === Basic Info / 基本信息 ===
@@ -109,38 +115,36 @@ export function useAdminFormSchema(options: {
       fieldName: 'phone',
       label: $t('admin.system.admin.phone'),
     },
-    // === Permission Settings / 权限设置 ===
+    // === Organization Assignment / 组织归属 ===
     {
       component: 'Divider',
       componentProps: {
         orientation: 'left',
       },
-      fieldName: 'divider_permission',
+      fieldName: 'divider_assignment',
       label: '',
       renderComponentContent: () => ({
-        default: () => $t('admin.common.permissionSettings'),
+        default: () => $t('shared.memberPanel.assignmentTitle'),
       }),
     },
-    // Role selection: if roleTreeApi provided, show selectable dropdown tree with current node selected; otherwise show read-only text
-    // 角色选择：若提供 roleTreeApi，则显示可选下拉树，默认选中当前节点；否则显示只读文本
-    ...(roleTreeApi
+    ...(orgTreeApi
       ? [
           {
             component: 'ApiTreeSelect',
             componentProps: {
-              api: roleTreeApi,
+              api: orgTreeApi,
               childrenField: 'children',
               labelField: 'name',
               valueField: 'id',
-              placeholder: $t('admin.system.admin.placeholder.selectRole'),
+              placeholder: $t('shared.memberPanel.selectOrgNode'),
               showSearch: true,
               treeNodeFilterProp: 'name',
               treeDefaultExpandAll: true,
               allowClear: true,
               style: { width: '100%' },
             },
-            fieldName: 'role_id',
-            label: $t('admin.system.admin.role'),
+            fieldName: 'org_node_id',
+            label: $t('shared.memberPanel.orgNode'),
             rules: 'required',
             defaultValue: nodeId ?? undefined,
           },
@@ -152,13 +156,27 @@ export function useAdminFormSchema(options: {
               componentProps: {
                 disabled: true,
               },
-              fieldName: 'role_display',
-              label: $t('admin.system.admin.role'),
+              fieldName: 'org_node_display',
+              label: $t('shared.memberPanel.orgNode'),
               defaultValue: nodeName,
-              help: $t('admin.system.admin.help.roleAutoBinding'),
+              help: $t('shared.memberPanel.orgNodeBound'),
             },
           ]
         : []),
+    {
+      component: 'Select',
+      componentProps: {
+        allowClear: true,
+        options: roleOptions,
+        optionFilterProp: 'label',
+        placeholder: $t('shared.memberPanel.selectPermissionRole'),
+        showSearch: true,
+        style: { width: '100%' },
+      },
+      fieldName: 'role_id',
+      label: $t('shared.memberPanel.permissionRole'),
+      help: $t('shared.memberPanel.permissionRoleHelp'),
+    },
     {
       component: 'RadioGroup',
       componentProps: {
@@ -185,11 +203,12 @@ export function useAdminFormSchema(options: {
 export function getAdminFormDefaults(
   nodeName?: string,
   nodeId?: null | number,
-): Record<string, any> {
+): Record<string, unknown> {
   return {
     is_active: true,
-    role_display: nodeName || $t('admin.common.notSelected'),
-    role_id: nodeId ?? undefined,
+    org_node_display: nodeName || $t('shared.common.notAssigned'),
+    org_node_id: nodeId ?? undefined,
+    role_id: undefined,
   };
 }
 

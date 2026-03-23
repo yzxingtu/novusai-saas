@@ -10,11 +10,11 @@ Ensures developers don't accidentally expose APIs without permissions.
 确保开发者不会因遗漏装饰器而导致 API 被无权限访问。
 """
 
-from starlette.responses import JSONResponse
 from starlette.routing import Match
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.i18n import _
+from app.core.response import error
 
 # Exempt path prefixes (not subject to access control) / 豁免路径前缀
 # Mainly for FastAPI built-in routes and static files / 主要用于内置路由和静态文件
@@ -81,13 +81,10 @@ class AccessControlMiddleware:
 
         if access_level is None:
             # No access level mark -> deny by default / 未标记 -> 默认拒绝
-            response = JSONResponse(
+            response = error(
+                message=_("rbac.endpoint_not_declared"),
+                code=4030,
                 status_code=403,
-                content={
-                    "code": 4030,
-                    "message": _("rbac.endpoint_not_declared"),
-                    "data": None,
-                },
             )
             await response(scope, receive, send)
             return

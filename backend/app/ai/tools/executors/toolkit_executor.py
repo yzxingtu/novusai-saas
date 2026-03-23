@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import ast
 import asyncio
+import contextvars
 import hashlib
 import importlib
 import importlib.util
@@ -382,8 +383,9 @@ class ToolkitExecutor(BaseToolExecutor):
             # sync methods run in thread pool to avoid blocking the event loop
             # sync 方法在线程池中执行，避免阻塞事件循环
             loop = asyncio.get_running_loop()
+            ctx = contextvars.copy_context()
             result_value = await loop.run_in_executor(
-                None, lambda: method(**arguments)
+                None, lambda: ctx.run(method, **arguments)
             )
 
         # 6. Convert to string / 转为字符串

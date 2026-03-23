@@ -1,12 +1,13 @@
 <script lang="ts" setup>
-import type { RoleTreeApi } from '../data';
+import type { MemberPanelMember } from '../types';
+import type { MemberRoleOption, OrgTreeApi } from '../data';
 
 /**
  * Admin Create/Edit Form Drawer
  * 管理员新建/编辑表单抽屉
  *
- * Uses custom submit logic for member CRUD (requires roleId parameter).
- * 使用自定义提交逻辑处理成员 CRUD（需要 roleId 参数）。
+ * Uses custom submit logic for member CRUD under the selected org node.
+ * 使用自定义提交逻辑处理当前组织节点下的成员 CRUD。
  */
 import type { adminApi, tenantApi } from '#/api';
 
@@ -24,24 +25,22 @@ import { toAttachmentImageUrl } from '#/utils/image';
 
 import { getAdminFormDefaults, useAdminFormSchema } from '../data';
 
-type OrgMember = adminApi.OrgMember | tenantApi.TenantOrgMember;
-
 const props = withDefaults(
   defineProps<{
     /** API prefix / API 前缀 */
     apiPrefix?: 'admin' | 'tenant';
-    /** Current node ID (used as role ID when creating) / 当前节点 ID */
+    /** Current node ID / 当前节点 ID */
     nodeId?: null | number;
     /** Node name (for display) / 节点名称 */
     nodeName?: string;
-    /** Role tree API (select roles in edit mode) / 角色树 API */
-    roleTreeApi?: RoleTreeApi;
+    /** Org tree API (select node in edit mode) / 组织树 API */
+    orgTreeApi?: OrgTreeApi;
   }>(),
   {
     nodeId: null,
     nodeName: '',
     apiPrefix: 'admin',
-    roleTreeApi: undefined,
+    orgTreeApi: undefined,
   },
 );
 const emits = defineEmits<{ success: [] }>();
@@ -106,6 +105,47 @@ function beforeAvatarUpload(file: File) {
 
 const isEdit = ref(false);
 const recordId = ref<number>();
+const sourceOrgNodeId = ref<null | number>(null);
+
+interface MemberFormValues {
+  email?: string;
+  is_active?: boolean;
+  nickname?: null | string;
+  org_node_id?: null | number;
+  password?: string;
+  phone?: null | string;
+  role_id?: null | number;
+  username?: string;
+}
+
+async function loadRoleOptions(
+  currentMember?: MemberPanelMember,
+): Promise<MemberRoleOption[]> {
+  const roles =
+    props.apiPrefix === 'tenant'
+      ? await tenant.getAllTenantPermissionRoleListApi()
+      : await admin.getAllPermissionRoleListApi();
+
+  const options = roles
+    .filter((role) => role.isActive)
+    .map((role) => ({
+      label: role.name,
+      value: role.id,
+    }));
+
+  if (
+    currentMember?.roleId &&
+    currentMember.roleName &&
+    !options.some((option) => option.value === currentMember.roleId)
+  ) {
+    options.unshift({
+      label: currentMember.roleName,
+      value: currentMember.roleId,
+    });
+  }
+
+  return options;
+}
 
 // Form / 表单
 const [Form, formApi] = useVbenForm({
@@ -118,7 +158,10 @@ const [Drawer, drawerApi] = useVbenDrawer({
     const { valid } = await formApi.validate();
     if (!valid) return;
 
-    const values = await formApi.getValues();
+    const values = (await formApi.getValues()) as MemberFormValues;
+    const selectedOrgNodeId =
+      values.org_node_id ?? sourceOrgNodeId.value ?? props.nodeId ?? null;
+    const selectedRoleId = values.role_id ?? null;
 
     // Build request body / 构造请求体
     const baseData = {
@@ -127,29 +170,29 @@ const [Drawer, drawerApi] = useVbenDrawer({
       nickname: values.nickname || null,
       is_active: values.is_active ?? true,
       ...(isEdit.value && avatarValue.value
-        ? { avatar: avatarValue.value }
-        : {}),
+          ? { avatar: avatarValue.value }
+          : {}),
     };
-
-    // Target role ID: prefer form-selected role_id, fallback to current node id / 目标角色ID
-    const targetRoleId =
-      ('role_id' in values ? (values.role_id as number) : null) ??
-      props.nodeId!;
 
     drawerApi.lock();
     try {
       if (isEdit.value && recordId.value) {
-        // Update member (supports role group change) / 更新成员（支持调整角色组）
+        const targetOrgNodeId = sourceOrgNodeId.value ?? props.nodeId;
+        if (typeof targetOrgNodeId !== 'number') {
+          message.error($t('shared.memberPanel.selectNodeFirst'));
+          drawerApi.unlock();
+          return;
+        }
+
+        // Update member under the selected org node / 更新当前组织节点下的成员
         const data = {
           ...baseData,
-          // If user changed role, pass role_id for backend to handle role switch / 若用户修改了角色，传递 role_id 参数
-          role_id:
-            ('role_id' in values ? (values.role_id as null | number) : null) ??
-            null,
+          org_node_id: selectedOrgNodeId,
+          role_id: selectedRoleId,
         };
         await (props.apiPrefix === 'tenant'
           ? tenant.updateTenantMemberApi(
-              props.nodeId!,
+              targetOrgNodeId,
               recordId.value,
               data as tenantApi.TenantUpdateMemberRequest,
               {
@@ -158,7 +201,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
               },
             )
           : admin.updateMemberApi(
-              props.nodeId!,
+              targetOrgNodeId,
               recordId.value,
               data as adminApi.UpdateMemberRequest,
               {
@@ -167,15 +210,23 @@ const [Drawer, drawerApi] = useVbenDrawer({
               },
             ));
       } else {
+        if (typeof selectedOrgNodeId !== 'number') {
+          message.error($t('shared.memberPanel.selectNodeFirst'));
+          drawerApi.unlock();
+          return;
+        }
+
         // Create member / 创建成员
         const data = {
           ...baseData,
           username: values.username,
           password: values.password,
+          org_node_id: selectedOrgNodeId,
+          role_id: selectedRoleId,
         };
         await (props.apiPrefix === 'tenant'
           ? tenant.createTenantMemberApi(
-              targetRoleId,
+              selectedOrgNodeId,
               data as tenantApi.TenantCreateMemberRequest,
               {
                 showSuccessMessage: true,
@@ -183,7 +234,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
               },
             )
           : admin.createMemberApi(
-              targetRoleId,
+              selectedOrgNodeId,
               data as adminApi.CreateMemberRequest,
               {
                 showSuccessMessage: true,
@@ -202,20 +253,29 @@ const [Drawer, drawerApi] = useVbenDrawer({
     if (!isOpen) return;
 
     const data = drawerApi.getData() as
-      | (OrgMember & { mode?: string })
+      | (MemberPanelMember & { mode?: string })
       | undefined;
     isEdit.value = data?.mode === 'edit';
     recordId.value = data?.id;
+    sourceOrgNodeId.value = data?.orgNodeId ?? props.nodeId ?? null;
 
     await formApi.resetForm();
+
+    let roleOptions: MemberRoleOption[] = [];
+    try {
+      roleOptions = await loadRoleOptions(data);
+    } catch {
+      roleOptions = [];
+    }
 
     // Update schema / 更新 schema
     formApi.setState({
       schema: useAdminFormSchema({
         isEdit: isEdit.value,
-        nodeName: props.nodeName,
-        nodeId: props.nodeId,
-        roleTreeApi: props.roleTreeApi,
+        nodeName: data?.orgNodeName ?? props.nodeName,
+        nodeId: data?.orgNodeId ?? props.nodeId,
+        orgTreeApi: props.orgTreeApi,
+        roleOptions,
       }),
     });
 
@@ -229,18 +289,16 @@ const [Drawer, drawerApi] = useVbenDrawer({
         email: data.email,
         nickname: data.nickname,
         is_active: data.isActive,
-        // If form has role_id field, set to data's role ID, otherwise fallback to display field / 若表单存在 role_id 字段，则设置
-        role_id:
-          ('roleId' in data ? (data.roleId as null | number) : null) ??
-          props.nodeId,
-        role_display:
-          data.roleName || props.nodeName || $t('admin.common.unassigned'),
+        org_node_id: data.orgNodeId ?? props.nodeId,
+        role_id: data.roleId,
+        org_node_display:
+          data.orgNodeName || props.nodeName || $t('shared.common.notAssigned'),
       });
     } else {
       avatarValue.value = '';
       currentNickname.value = '';
       currentUsername.value = '';
-      // Create mode defaults (current node selected as role, changeable via dropdown) / 新建模式默认值
+      // Create mode defaults / 新建模式默认值
       formApi.setValues(getAdminFormDefaults(props.nodeName, props.nodeId));
     }
   },
@@ -259,7 +317,7 @@ function openCreate() {
 }
 
 // Open edit form / 打开编辑表单
-function openEdit(record: OrgMember) {
+function openEdit(record: MemberPanelMember) {
   drawerApi.setData({ ...record, mode: 'edit' }).open();
 }
 

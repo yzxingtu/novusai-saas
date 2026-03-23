@@ -2,21 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import date
-
 from fastapi import Request
 
+from ..periods import parse_optional_billing_date, parse_optional_period_type
 from ..services.binding_service import StorageBillingBindingService
 from ..services.reconciliation_service import StorageBillingOverviewService
 
 
 async def get_current_statement(request: Request, ctx) -> dict:
     """Return current tenant statement snapshot. / 返回当前企业账单快照。"""
-    billing_date = None
-    period_type = request.query_params.get("period_type", "").strip() or None
-    raw_date = request.query_params.get("billing_date", "").strip()
-    if raw_date:
-        billing_date = date.fromisoformat(raw_date)
+    period_type = parse_optional_period_type(request.query_params.get("period_type"))
+    billing_date = parse_optional_billing_date(request.query_params.get("billing_date"))
 
     service = StorageBillingOverviewService.from_context(ctx)
     kwargs = {
@@ -48,11 +44,8 @@ async def list_statements(request: Request, ctx) -> dict:
 
 async def list_statement_charges(request: Request, ctx) -> dict:
     """Return tenant charges for a billing date. / 返回企业指定账期明细。"""
-    billing_date = None
-    period_type = request.query_params.get("period_type", "").strip() or None
-    raw_date = request.query_params.get("billing_date", "").strip()
-    if raw_date:
-        billing_date = date.fromisoformat(raw_date)
+    period_type = parse_optional_period_type(request.query_params.get("period_type"))
+    billing_date = parse_optional_billing_date(request.query_params.get("billing_date"))
 
     service = StorageBillingOverviewService.from_context(ctx)
     kwargs = {
@@ -66,11 +59,8 @@ async def list_statement_charges(request: Request, ctx) -> dict:
 
 async def export_statement_charges(request: Request, ctx):
     """Export tenant charges for a billing date. / 导出企业指定账期明细。"""
-    billing_date = None
-    period_type = request.query_params.get("period_type", "").strip() or None
-    raw_date = request.query_params.get("billing_date", "").strip()
-    if raw_date:
-        billing_date = date.fromisoformat(raw_date)
+    period_type = parse_optional_period_type(request.query_params.get("period_type"))
+    billing_date = parse_optional_billing_date(request.query_params.get("billing_date"))
 
     service = StorageBillingOverviewService.from_context(ctx)
     kwargs = {

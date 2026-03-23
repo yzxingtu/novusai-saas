@@ -2,6 +2,7 @@ import type { ApiEndpoint } from '#/api';
 
 import { getCurrentEndpoint } from '#/router/access';
 import { TokenStorage } from '#/store/shared/token-storage';
+import { ensureTraceIdHeader } from '#/utils/request/trace';
 
 const PLUGIN_ASSET_AUTH_COOKIE = 'novus_plugin_asset_token';
 const PLUGIN_ASSET_PREFIX = '/plugin-assets/';
@@ -122,7 +123,9 @@ export function getPluginAssetAuthHeaders(
   const endpoint = normalizedOptions.endpoint ?? getCurrentEndpoint();
   syncPluginAssetAuthCookie(endpoint);
   const token = TokenStorage.getToken(endpoint);
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+  ensureTraceIdHeader(headers);
+  return headers;
 }
 
 export function buildPluginAssetUrl(

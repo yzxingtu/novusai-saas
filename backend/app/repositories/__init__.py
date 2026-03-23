@@ -9,7 +9,8 @@ from app.repositories.system import AdminRepository, TenantRepository
 from app.repositories.tenant import (
     AttachmentRepository,
     TenantAdminRepository,
-    TenantRoleRepository,
+    TenantOrgNodeRepository,
+    TenantPermissionRoleRepository,
 )
 
 __all__ = [
@@ -19,5 +20,6 @@ __all__ = [
     # 企业级
     "AttachmentRepository",
     "TenantAdminRepository",
-    "TenantRoleRepository",
+    "TenantOrgNodeRepository",
+    "TenantPermissionRoleRepository",
 ]

@@ -4,6 +4,7 @@ import type {
   AdminRunDetail,
   AdminRunListQuery,
   AdminTemplateListQuery,
+  CreateAdminTemplatePayload,
   GlobalRunSummary,
   PaginatedResult,
   PublishTemplatePayload,
@@ -626,6 +627,54 @@ export async function getAdminTemplateDetailApi(
 ): Promise<WorkflowTemplateDetail> {
   const response = await requestClient.get<unknown>(
     `${PLUGIN_API_BASE}/templates/${templateId}`,
+  );
+  return normalizeTemplateDetail(toRecord(unwrapApiData(response)));
+}
+
+export async function createAdminTemplateApi(
+  payload: CreateAdminTemplatePayload,
+): Promise<WorkflowTemplateDetail> {
+  const body: Record<string, unknown> = {
+    code: payload.code,
+    name: payload.name,
+    description: payload.description ?? null,
+    category: payload.category ?? null,
+    status: payload.status ?? 'draft',
+    builder_surface: payload.builderSurface ?? 'platform_workflow_studio',
+    release_scope: payload.releaseScope ?? 'selected_tenants',
+    tags_json: payload.tagsJson ?? [],
+    metadata_json: payload.metadataJson ?? {},
+    risk_policy_json: payload.riskPolicyJson ?? {},
+    contract_summary_json: payload.contractSummaryJson ?? {},
+    default_trigger_json: payload.defaultTriggerJson ?? {},
+    snapshot: {
+      snapshot_version: payload.snapshot.snapshotVersion ?? '1.0.0',
+      workflow_schema_version:
+        payload.snapshot.workflowSchemaVersion ?? '1.0.0',
+      contract_refs: payload.snapshot.contractRefs ?? [],
+      control_envelope_schema: payload.snapshot.controlEnvelopeSchema ?? {},
+      graph: {
+        nodes: payload.snapshot.graph?.nodes ?? [],
+        edges: payload.snapshot.graph?.edges ?? [],
+      },
+      entrypoints: payload.snapshot.entrypoints ?? [],
+      defaults: payload.snapshot.defaults ?? {},
+      risk_policy_snapshot: payload.snapshot.riskPolicySnapshot ?? {},
+      trigger_snapshot: payload.snapshot.triggerSnapshot ?? {},
+      artifact_contracts: payload.snapshot.artifactContracts ?? [],
+      output_contracts: payload.snapshot.outputContracts ?? [],
+      builder_surface:
+        payload.snapshot.builderSurface ?? payload.builderSurface ?? 'platform_workflow_studio',
+      compiled_at: payload.snapshot.compiledAt ?? null,
+      compiled_by: payload.snapshot.compiledBy ?? null,
+    },
+    change_summary: payload.changeSummary ?? null,
+    release_notes: payload.releaseNotes ?? null,
+  };
+
+  const response = await requestClient.post<unknown>(
+    `${PLUGIN_API_BASE}/templates`,
+    body,
   );
   return normalizeTemplateDetail(toRecord(unwrapApiData(response)));
 }

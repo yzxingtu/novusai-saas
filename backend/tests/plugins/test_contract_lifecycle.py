@@ -216,6 +216,65 @@ class TestPluginMenuI18n:
         assert result[0].path == "/admin/plugins/demo-plugin/docs"
 
 
+class TestPluginPermissionI18n:
+    """插件动作权限 i18n 回退契约测试 / Plugin action permission i18n fallback tests."""
+
+    def test_permission_title_fallback_uses_manifest_name_by_locale(self):
+        from app.core.i18n import set_locale
+        from app.rbac.services.permission_service import PermissionService
+        from app.rbac.sync import PermissionSyncService
+
+        reg = ExtensionRegistry.get_instance()
+        try:
+            reg.register_permission(
+                plugin_name="demo-plugin",
+                code="docs",
+                name={"zh-CN": "文档管理", "en": "Documents"},
+                scope="admin",
+                actions=["view", "edit"],
+            )
+            i18n_key = PermissionSyncService._resolve_plugin_permission_name(
+                {"zh-CN": "文档管理", "en": "Documents"},
+                "plugin.demo-plugin.docs",
+                "view",
+            )
+
+            set_locale("zh_CN")
+            assert i18n_key == "demo_plugin.permission.docs.view"
+            assert PermissionService._translate_name(i18n_key) == "文档管理 - 查看"
+
+            set_locale("en")
+            assert PermissionService._translate_name(i18n_key) == "Documents - View"
+        finally:
+            reg.unregister_all("demo-plugin")
+            set_locale("zh_CN")
+
+    def test_permission_title_fallback_tolerates_unknown_action(self):
+        from app.core.i18n import set_locale
+        from app.rbac.services.permission_service import PermissionService
+
+        reg = ExtensionRegistry.get_instance()
+        try:
+            reg.register_permission(
+                plugin_name="demo-plugin",
+                code="docs",
+                name={"zh-CN": "文档管理", "en": "Documents"},
+                scope="admin",
+                actions=["archive_item"],
+            )
+
+            set_locale("en")
+            assert (
+                PermissionService._translate_name(
+                    "demo_plugin.permission.docs.archive_item"
+                )
+                == "Documents - Archive Item"
+            )
+        finally:
+            reg.unregister_all("demo-plugin")
+            set_locale("zh_CN")
+
+
 class TestPluginEventBusLifecycle:
     """PluginEventBus 注册/反注册契约"""
 
@@ -666,7 +725,7 @@ class TestSocketIONamespaceRegistry:
         import socketio
 
         # 确保 app.core.socketio_server 已导入，以便 monkeypatch 能解析路径
-        import app.core.socketio_server  # noqa: F401
+        import app.core.socketio_server as socketio_server_module
 
         from app.plugins.registry import ExtensionRegistry
 
@@ -682,10 +741,7 @@ class TestSocketIONamespaceRegistry:
                 self.namespace_handlers[str(ns)] = namespace_handler
 
         fake_sio = FakeSIO()
-        monkeypatch.setattr(
-            "app.core.socketio_server.get_sio",
-            lambda: fake_sio,
-        )
+        monkeypatch.setattr(socketio_server_module, "get_sio", lambda: fake_sio)
 
         reg = ExtensionRegistry.get_instance()
         reg.register_socketio(
@@ -794,3 +850,94 @@ class TestPluginAuthNamespaceWrapper:
         with pytest.raises(ConnectionRefusedError) as exc:
             await wrapper.on_connect("sid", {}, auth={"token": "invalid"})
         assert exc.value.args and exc.value.args[0] == "authentication_failed"
+
+    @pytest.mark.asyncio
+    async def test_trigger_event_restores_trace_from_plugin_session(self):
+        import socketio
+
+        from app.middleware.trace import trace_id_var
+        from app.plugins.sio_auth import PluginAuthNamespaceWrapper
+
+        class DelegateNamespace(socketio.AsyncNamespace):
+            def __init__(self):
+                super().__init__("/plugin/test/collab")
+
+            async def on_custom(self, sid, data):
+                return {
+                    "sid": sid,
+                    "payload": data,
+                    "seen_trace_id": trace_id_var.get(),
+                }
+
+        delegate = DelegateNamespace()
+        wrapper = PluginAuthNamespaceWrapper(
+            delegate=delegate,
+            plugin_name="test",
+            auth_scopes=["tenant_admin"],
+        )
+        wrapper._sid_sessions["sid-1"] = {
+            "user_id": 1,
+            "user_type": "tenant_admin",
+            "tenant_id": 9,
+            "username": "tester",
+            "plugin_name": "test",
+            "trace_id": "trace-plugin-session",
+        }
+
+        result = await wrapper.trigger_event(
+            "custom",
+            "sid-1",
+            {"hello": "world"},
+        )
+
+        assert result["sid"] == "sid-1"
+        assert result["payload"] == {"hello": "world"}
+        assert result["seen_trace_id"] == "trace-plugin-session"
+        assert trace_id_var.get() == ""
+
+    @pytest.mark.asyncio
+    async def test_trigger_event_prefers_payload_trace_and_updates_session(self):
+        import socketio
+        from unittest.mock import AsyncMock
+
+        from app.middleware.trace import trace_id_var
+        from app.plugins.sio_auth import PluginAuthNamespaceWrapper
+
+        class DelegateNamespace(socketio.AsyncNamespace):
+            def __init__(self):
+                super().__init__("/plugin/test/collab")
+
+            async def on_custom(self, sid, data):
+                return {
+                    "sid": sid,
+                    "payload": data,
+                    "seen_trace_id": trace_id_var.get(),
+                }
+
+        delegate = DelegateNamespace()
+        wrapper = PluginAuthNamespaceWrapper(
+            delegate=delegate,
+            plugin_name="test",
+            auth_scopes=["tenant_admin"],
+        )
+        wrapper.save_session = AsyncMock()
+        wrapper._sid_sessions["sid-2"] = {
+            "user_id": 2,
+            "user_type": "tenant_admin",
+            "tenant_id": 9,
+            "username": "tester",
+            "plugin_name": "test",
+            "trace_id": "trace-stale",
+        }
+
+        result = await wrapper.trigger_event(
+            "custom",
+            "sid-2",
+            {"hello": "world", "trace_id": "trace-from-payload"},
+        )
+
+        assert result["sid"] == "sid-2"
+        assert result["seen_trace_id"] == "trace-from-payload"
+        assert wrapper._sid_sessions["sid-2"]["trace_id"] == "trace-from-payload"
+        wrapper.save_session.assert_awaited_once()
+        assert trace_id_var.get() == ""

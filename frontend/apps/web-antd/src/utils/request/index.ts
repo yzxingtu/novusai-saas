@@ -59,6 +59,16 @@ export {
 } from './interceptors';
 
 export { getEndpointByUrl } from './endpoint';
+export {
+  formatAppErrorMessage,
+  isAppErrorInfo,
+  normalizeHttpError,
+  normalizeSseEventError,
+  normalizeSseTransportError,
+  toErrorWithAppError,
+} from './app-error';
+export { isDevErrorMode } from './app-env';
+export type { AppErrorInfo, AppErrorSource } from './app-error';
 
 export type { AuthHandler, MessageHandler, TokenGetter } from './interceptors';
 

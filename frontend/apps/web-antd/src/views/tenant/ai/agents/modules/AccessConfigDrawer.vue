@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { TenantPermissionRoleInfo } from '#/api/tenant/role';
+
 /**
  * 智能体访问与发布配置抽屉（企业端）
  * Agent access + tenant-user publication drawer
@@ -31,14 +33,19 @@ import {
   updateAgentAccessApi,
   updateAgentPublicationApi,
 } from '#/api/tenant/agents';
-import { getTenantRoleTreeApi } from '#/api/tenant/role';
+import { getAllTenantPermissionRoleListApi } from '#/api/tenant/role';
 import { getTenantUserRoleListApi } from '#/api/tenant/tenant-user-roles';
 import { getTenantUserListApi } from '#/api/tenant/tenant-users';
 import { $t } from '#/locales';
 
-import type { TenantRoleInfo } from '#/api/tenant/role';
-
 defineOptions({ name: 'AccessConfigDrawer' });
+
+interface PermissionRoleTreeNode {
+  disabled?: boolean;
+  key: number;
+  title: string;
+  value: number;
+}
 
 const PUB_ALL = 'all_users';
 const PUB_ROLES = 'tenant_user_roles';
@@ -57,7 +64,7 @@ const pubAccessType = ref<string>(PUB_ALL);
 const pubTenantUserRoleIds = ref<number[]>([]);
 const pubTenantUserIds = ref<number[]>([]);
 
-const tenantRoleTreeData = ref<Record<string, unknown>[]>([]);
+const tenantRoleTreeData = ref<PermissionRoleTreeNode[]>([]);
 const tenantRoleTreeLoading = ref(false);
 const tenantUserRoleOptions = ref<Array<{ label: string; value: number }>>([]);
 const tenantUserRoleLoading = ref(false);
@@ -79,9 +86,9 @@ const accessTypeOptions = computed(() => [
   },
 ]);
 
-/** TreeSelect / Select 可能返回 string，统一为 number，避免保存丢数据 */
+/** TreeSelect / Select 可能返回 string，统一为 number，避免保存丢数据 / TreeSelect and Select may return strings, normalize to numbers */
 function normalizeIdList(raw: unknown): number[] {
-  if (raw == null || !Array.isArray(raw)) return [];
+  if (raw === null || raw === undefined || !Array.isArray(raw)) return [];
   return raw
     .map((x) => (typeof x === 'string' ? Number.parseInt(x, 10) : Number(x)))
     .filter((n) => Number.isFinite(n) && n > 0);
@@ -90,24 +97,26 @@ function normalizeIdList(raw: unknown): number[] {
 function deriveTenantAdminRoleMode(
   ids: null | number[] | undefined,
 ): 'all' | 'specific' {
-  if (ids == null || ids.length === 0) return 'all';
+  if (ids === null || ids === undefined || ids.length === 0) return 'all';
   return 'specific';
 }
 
-function roleInfoToTreeData(roles: TenantRoleInfo[]): Record<string, unknown>[] {
+function roleInfoToTreeData(
+  roles: TenantPermissionRoleInfo[],
+): PermissionRoleTreeNode[] {
   return roles.map((r) => ({
+    disabled: !r.isActive,
     title: r.name,
     value: r.id,
     key: r.id,
-    children: r.children?.length ? roleInfoToTreeData(r.children) : undefined,
   }));
 }
 
-async function loadTenantRoleTree() {
+async function loadTenantPermissionRoles() {
   tenantRoleTreeLoading.value = true;
   try {
-    const tree = await getTenantRoleTreeApi();
-    tenantRoleTreeData.value = roleInfoToTreeData(tree);
+    const roles = await getAllTenantPermissionRoleListApi();
+    tenantRoleTreeData.value = roleInfoToTreeData(roles);
   } catch {
     /* interceptor */
   } finally {
@@ -152,7 +161,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
       if (data) {
         agentId.value = data.id;
         agentName.value = data.name;
-        await loadConfigs();
+        await Promise.all([loadTenantPermissionRoles(), loadConfigs()]);
       }
     }
   },
@@ -197,7 +206,9 @@ async function onSave() {
       tenantRoleMode.value === 'specific' &&
       normalizeIdList(tenantRoleIds.value).length === 0
     ) {
-      message.warning($t('tenant.ai.agent.access.messages.specificRolesRequired'));
+      message.warning(
+        $t('tenant.ai.agent.access.messages.specificRolesRequired'),
+      );
       return;
     }
 
@@ -231,7 +242,9 @@ async function onSave() {
           ? normalizeIdList(pubTenantUserRoleIds.value)
           : null,
       tenant_user_ids:
-        accessType === PUB_USERS ? normalizeIdList(pubTenantUserIds.value) : null,
+        accessType === PUB_USERS
+          ? normalizeIdList(pubTenantUserIds.value)
+          : null,
       org_node_ids: null,
     });
     message.success($t('tenant.ai.agent.access.messages.updateSuccess'));
@@ -253,7 +266,6 @@ watch(tenantRoleMode, (m) => {
 });
 
 onMounted(() => {
-  loadTenantRoleTree();
   loadTenantUserRoleOptions();
   loadTenantUserOptions();
 });
@@ -283,9 +295,9 @@ onMounted(() => {
           </p>
           <RadioGroup v-model:value="tenantRoleMode" class="mb-2">
             <Radio value="all">{{ $t('admin.ai.agent.roleMode.all') }}</Radio>
-            <Radio value="specific">{{
-              $t('admin.ai.agent.roleMode.specific')
-            }}</Radio>
+            <Radio value="specific">
+              {{ $t('admin.ai.agent.roleMode.specific') }}
+            </Radio>
           </RadioGroup>
           <TreeSelect
             v-if="tenantRoleMode === 'specific'"
@@ -300,6 +312,7 @@ onMounted(() => {
             allow-clear
             style="width: 100%"
             class="mt-2"
+            tree-default-expand-all
           />
         </div>
 
@@ -363,7 +376,6 @@ onMounted(() => {
             class="mt-2"
           />
         </div>
-
       </Form>
     </Spin>
   </Drawer>

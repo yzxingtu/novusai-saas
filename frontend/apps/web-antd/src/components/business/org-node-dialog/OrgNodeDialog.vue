@@ -4,7 +4,6 @@ import type { FormInstance, RadioChangeEvent } from 'ant-design-vue';
 import type { OrgNodeFormData } from './types';
 
 import type { OrgNodeType } from '#/api/admin/organization';
-import type { PermissionNode } from '#/components/business/permission-selector';
 
 import { computed, ref, watch } from 'vue';
 
@@ -12,8 +11,6 @@ import { IconifyIcon } from '@vben/icons';
 
 import {
   Alert,
-  Collapse,
-  CollapsePanel,
   Form,
   FormItem,
   Input,
@@ -29,48 +26,43 @@ import {
   TreeSelect,
 } from 'ant-design-vue';
 
-// Admin API
-import { getPermissionTreeApi as adminGetPermissionTreeApi } from '#/api/admin/permission';
 import {
-  createRoleApi as adminCreateRoleApi,
-  getRoleDetailApi as adminGetRoleDetailApi,
-  updateRoleApi as adminUpdateRoleApi,
-} from '#/api/admin/role';
-// Tenant API
-import { getTenantPermissionTreeApi } from '#/api/tenant/permission';
+  createOrganizationNodeApi,
+  getOrganizationNodeDetailApi,
+  getOrganizationTreeApi,
+  updateOrganizationNodeApi,
+} from '#/api/admin/organization';
 import {
-  createTenantRoleApi,
-  getTenantRoleDetailApi,
-  updateTenantRoleApi,
-} from '#/api/tenant/role';
-import { PermissionSelector } from '#/components/business/permission-selector';
+  createTenantOrganizationNodeApi,
+  getTenantOrganizationNodeDetailApi,
+  getTenantOrganizationTreeApi,
+  updateTenantOrganizationNodeApi,
+} from '#/api/tenant/organization';
 import { $t } from '#/locales';
 
-import type { DataScopeType } from './types';
 import {
   formRules,
   getAllowedChildTypes,
   getDefaultAllowMembers,
+  getLeaderScopeOptions,
   getNodeTypeOptions,
 } from './types';
 
+type DeptTreeOption = {
+  children?: DeptTreeOption[];
+  title: string;
+  value: number;
+};
+
 const props = withDefaults(
   defineProps<{
-    /** API prefix / API 前缀 */
     apiPrefix?: 'admin' | 'tenant';
-    /** Initial data for edit mode / 编辑时的初始数据 */
     initialData?: Partial<OrgNodeFormData>;
-    /** Dialog mode: create/edit / 弹窗模式 */
     mode?: 'create' | 'edit';
-    /** Node ID being edited / 编辑的节点 ID */
     nodeId?: null | number;
-    /** Whether to show dialog / 是否显示弹窗 */
     open?: boolean;
-    /** Parent node ID (used when creating) / 父节点 ID */
     parentId?: null | number;
-    /** Parent node name (for display) / 父节点名称 */
     parentName?: string;
-    /** Parent node type (for restricting child node types) / 父节点类型 */
     parentType?: null | OrgNodeType;
   }>(),
   {
@@ -91,36 +83,12 @@ const emit = defineEmits<{
   (e: 'update:open', value: boolean): void;
 }>();
 
-// Form ref / 表单引用
 const formRef = ref<FormInstance>();
-
-// State / 状态
 const loading = ref(false);
 const submitting = ref(false);
-const permissionLoading = ref(false);
-const permissionTree = ref<PermissionNode[]>([]);
 const deptTreeLoading = ref(false);
-type DeptTreeOption = {
-  title: string;
-  value: number;
-  children?: DeptTreeOption[];
-};
 const deptTreeData = ref<DeptTreeOption[]>([]);
 
-// Data scope options / 数据范围选项
-const DATA_SCOPE_OPTIONS: {
-  value: DataScopeType;
-  labelKey: string;
-  descKey: string;
-}[] = [
-  { value: 'all', labelKey: 'common.role.dataScopeAll', descKey: 'common.role.dataScopeAllDesc' },
-  { value: 'dept_children', labelKey: 'common.role.dataScopeDeptChildren', descKey: 'common.role.dataScopeDeptChildrenDesc' },
-  { value: 'dept_only', labelKey: 'common.role.dataScopeDeptOnly', descKey: 'common.role.dataScopeDeptOnlyDesc' },
-  { value: 'self', labelKey: 'common.role.dataScopeSelf', descKey: 'common.role.dataScopeSelfDesc' },
-  { value: 'custom', labelKey: 'common.role.dataScopeCustom', descKey: 'common.role.dataScopeCustomDesc' },
-];
-
-// Form data / 表单数据
 const formData = ref<OrgNodeFormData>({
   name: '',
   description: '',
@@ -128,22 +96,22 @@ const formData = ref<OrgNodeFormData>({
   allowMembers: false,
   isActive: true,
   sortOrder: 0,
-  permissionIds: [],
   dataScope: 'self',
   customDeptIds: [],
 });
 
-/** Whether to show custom dept selector / 是否显示自定义部门选择器 */
-const showCustomDeptSelector = computed(() => formData.value.dataScope === 'custom');
+const leaderScopeOptions = computed(() => getLeaderScopeOptions());
+const showCustomDeptSelector = computed(
+  () => formData.value.dataScope === 'custom',
+);
 
-/** Form rules with dynamic customDeptIds validation / 含 customDeptIds 动态校验的表单规则 */
-const formRulesWithDataScope = computed(() => ({
+const formRulesWithScope = computed(() => ({
   ...formRules,
   customDeptIds: [
     {
       validator: (_rule: unknown, value: number[]) => {
         if (formData.value.dataScope === 'custom' && (!value || value.length === 0)) {
-          return Promise.reject($t('common.role.customDeptRequired'));
+          return Promise.reject($t('shared.orgNode.validation.customScopeRequired'));
         }
         return Promise.resolve();
       },
@@ -152,56 +120,24 @@ const formRulesWithDataScope = computed(() => ({
   ],
 }));
 
-/** Load org tree for custom dept selection (department nodes only) / 加载组织树用于自定义部门选择 */
-async function loadDeptTree() {
-  deptTreeLoading.value = true;
-  try {
-    const treeApi =
-      props.apiPrefix === 'tenant'
-        ? (await import('#/api/tenant/role')).getTenantRoleTreeApi
-        : (await import('#/api/admin/role')).getRoleTreeApi;
-    const nodes = await treeApi();
-    // Build tree for TreeSelect: only department nodes (title, value) / 构建 TreeSelect 所需树结构
-    const buildTree = (
-      items: { id: number; name: string; type?: string; children?: unknown[] }[],
-    ): DeptTreeOption[] => {
-      return items
-        .filter((n) => n.type === 'department')
-        .map((n) => ({
-          title: n.name,
-          value: n.id,
-          children: n.children
-            ? buildTree(n.children as { id: number; name: string; type?: string; children?: unknown[] }[])
-            : undefined,
-        }));
-    };
-    deptTreeData.value = buildTree(nodes as { id: number; name: string; type?: string; children?: unknown[] }[]);
-  } catch {
-    deptTreeData.value = [];
-  } finally {
-    deptTreeLoading.value = false;
-  }
-}
-
-// Select API based on apiPrefix / 根据 apiPrefix 选择 API
 const api = computed(() => {
   if (props.apiPrefix === 'tenant') {
     return {
-      getPermissionTree: getTenantPermissionTreeApi,
-      getRoleDetail: getTenantRoleDetailApi,
-      createRole: createTenantRoleApi,
-      updateRole: updateTenantRoleApi,
+      createNode: createTenantOrganizationNodeApi,
+      getNodeDetail: getTenantOrganizationNodeDetailApi,
+      getTree: getTenantOrganizationTreeApi,
+      updateNode: updateTenantOrganizationNodeApi,
     };
   }
+
   return {
-    getPermissionTree: adminGetPermissionTreeApi,
-    getRoleDetail: adminGetRoleDetailApi,
-    createRole: adminCreateRoleApi,
-    updateRole: adminUpdateRoleApi,
+    createNode: createOrganizationNodeApi,
+    getNodeDetail: getOrganizationNodeDetailApi,
+    getTree: getOrganizationTreeApi,
+    updateNode: updateOrganizationNodeApi,
   };
 });
 
-/** Dialog title / 弹窗标题 */
 const dialogTitle = computed(() => {
   if (props.mode === 'edit') {
     return $t('shared.orgNode.editNode');
@@ -212,42 +148,59 @@ const dialogTitle = computed(() => {
   return $t('shared.orgNode.createRootNode');
 });
 
-/** Allowed child node types / 允许的子节点类型 */
 const allowedTypes = computed(() => {
   return props.mode === 'edit'
-    ? [formData.value.type] // Edit mode doesn't allow type change / 编辑模式不允许更改类型
+    ? [formData.value.type]
     : getAllowedChildTypes(props.parentType);
 });
 
-/** Node type options / 节点类型选项 */
-const typeOptions = computed(() => {
-  return getNodeTypeOptions(allowedTypes.value);
-});
+const typeOptions = computed(() => getNodeTypeOptions(allowedTypes.value));
+const canCreateChild = computed(() => allowedTypes.value.length > 0);
 
-/** Whether can create child node / 是否可以创建子节点 */
-const canCreateChild = computed(() => {
-  return allowedTypes.value.length > 0;
-});
-
-/** Load permission tree / 加载权限树 */
-async function loadPermissionTree() {
-  permissionLoading.value = true;
+async function loadDeptTree() {
+  deptTreeLoading.value = true;
   try {
-    permissionTree.value = await api.value.getPermissionTree();
+    const nodes = await api.value.getTree();
+    const buildTree = (
+      items: Array<{
+        children?: unknown[];
+        id: number;
+        name: string;
+        type?: string;
+      }>,
+    ): DeptTreeOption[] => {
+      return items
+        .filter((item) => item.type === 'department')
+        .map((item) => ({
+          title: item.name,
+          value: item.id,
+          children: item.children
+            ? buildTree(
+                item.children as Array<{
+                  children?: unknown[];
+                  id: number;
+                  name: string;
+                  type?: string;
+                }>,
+              )
+            : undefined,
+        }));
+    };
+
+    deptTreeData.value = buildTree(nodes as never);
   } catch {
-    permissionTree.value = [];
+    deptTreeData.value = [];
   } finally {
-    permissionLoading.value = false;
+    deptTreeLoading.value = false;
   }
 }
 
-/** Load node detail (edit mode) / 加载节点详情 */
 async function loadNodeDetail() {
   if (!props.nodeId) return;
 
   loading.value = true;
   try {
-    const detail = await api.value.getRoleDetail(props.nodeId);
+    const detail = await api.value.getNodeDetail(props.nodeId);
     formData.value = {
       name: detail.name,
       description: detail.description || '',
@@ -255,46 +208,38 @@ async function loadNodeDetail() {
       allowMembers: detail.allowMembers ?? true,
       isActive: detail.isActive,
       sortOrder: detail.sortOrder,
-      permissionIds: detail.permissionIds || [],
-      dataScope: (detail.dataScope as DataScopeType) || 'self',
+      dataScope: detail.dataScope || 'self',
       customDeptIds: detail.customDeptIds || [],
     };
-  } catch {
-    // Silent fail / 静默失败
   } finally {
     loading.value = false;
   }
 }
 
-/** Reset form / 重置表单 */
 function resetForm() {
+  const initialType = allowedTypes.value[0] || 'department';
   formData.value = {
     name: '',
     description: '',
-    type: allowedTypes.value[0] || 'department',
-    allowMembers: getDefaultAllowMembers(allowedTypes.value[0] || 'department'),
+    type: initialType,
+    allowMembers: getDefaultAllowMembers(initialType),
     isActive: true,
     sortOrder: 0,
-    permissionIds: [],
     dataScope: 'self',
     customDeptIds: [],
   };
   formRef.value?.resetFields();
 }
 
-/** Handle type change / 处理类型变更 */
 function handleTypeChange(type: OrgNodeType) {
-  // Auto-update allowMembers default / 自动更新 allowMembers 默认值
   formData.value.allowMembers = getDefaultAllowMembers(type);
 }
 
-/** Close dialog / 关闭弹窗 */
 function handleClose() {
   emit('update:open', false);
   emit('cancel');
 }
 
-/** Submit form / 提交表单 */
 async function handleSubmit() {
   try {
     await formRef.value?.validate();
@@ -311,18 +256,15 @@ async function handleSubmit() {
       allow_members: formData.value.allowMembers,
       is_active: formData.value.isActive,
       sort_order: formData.value.sortOrder,
-      permission_ids: formData.value.permissionIds,
       parent_id: props.mode === 'create' ? props.parentId : undefined,
       data_scope: formData.value.dataScope,
       custom_dept_ids:
-        formData.value.dataScope === 'custom' && formData.value.customDeptIds?.length
-          ? formData.value.customDeptIds
-          : undefined,
+        formData.value.dataScope === 'custom' ? formData.value.customDeptIds : undefined,
     };
 
     const result = await (props.mode === 'edit' && props.nodeId
-      ? api.value.updateRole(props.nodeId, requestData)
-      : api.value.createRole(requestData));
+      ? api.value.updateNode(props.nodeId, requestData)
+      : api.value.createNode(requestData));
 
     emit('success', {
       id: result.id,
@@ -330,45 +272,40 @@ async function handleSubmit() {
       type: result.type || 'role',
     });
     emit('update:open', false);
-  } catch {
-    // Error handled by request interceptor / 错误由请求拦截器处理
   } finally {
     submitting.value = false;
   }
 }
 
-// Watch dialog open / 监听弹窗打开
 watch(
   () => props.open,
-  (open) => {
-      if (open) {
-        // Load permission tree / 加载权限树
-        loadPermissionTree();
-        loadDeptTree();
+  async (open) => {
+    if (!open) return;
 
-        if (props.mode === 'edit' && props.nodeId) {
-        // Edit mode: load detail / 编辑模式加载详情
-        loadNodeDetail();
-      } else if (props.initialData) {
-        // Use initial data / 使用初始数据
-        formData.value = {
-          name: props.initialData.name || '',
-          description: props.initialData.description || '',
-          type: props.initialData.type || allowedTypes.value[0] || 'department',
-          allowMembers:
-            props.initialData.allowMembers ??
-            getDefaultAllowMembers(allowedTypes.value[0] || 'department'),
-          isActive: props.initialData.isActive ?? true,
-          sortOrder: props.initialData.sortOrder ?? 0,
-          permissionIds: props.initialData.permissionIds || [],
-          dataScope: (props.initialData.dataScope as DataScopeType) || 'self',
-          customDeptIds: props.initialData.customDeptIds || [],
-        };
-      } else {
-        // Reset form / 重置表单
-        resetForm();
-      }
+    await loadDeptTree();
+
+    if (props.mode === 'edit' && props.nodeId) {
+      await loadNodeDetail();
+      return;
     }
+
+    if (props.initialData) {
+      formData.value = {
+        name: props.initialData.name || '',
+        description: props.initialData.description || '',
+        type: props.initialData.type || allowedTypes.value[0] || 'department',
+        allowMembers:
+          props.initialData.allowMembers ??
+          getDefaultAllowMembers(allowedTypes.value[0] || 'department'),
+        isActive: props.initialData.isActive ?? true,
+        sortOrder: props.initialData.sortOrder ?? 0,
+        dataScope: props.initialData.dataScope || 'self',
+        customDeptIds: props.initialData.customDeptIds || [],
+      };
+      return;
+    }
+
+    resetForm();
   },
 );
 </script>
@@ -385,7 +322,6 @@ watch(
     @cancel="handleClose"
     @ok="handleSubmit"
   >
-    <!-- Cannot create child node hint / 不允许创建子节点提示 -->
     <Alert
       v-if="mode === 'create' && !canCreateChild"
       :message="$t('shared.orgNode.cannotCreateChild')"
@@ -395,22 +331,29 @@ watch(
       class="mb-4"
     />
 
+    <Alert
+      :message="$t('shared.orgNode.scopeHintTitle')"
+      :description="$t('shared.orgNode.scopeHintDescription')"
+      type="info"
+      show-icon
+      class="mb-4"
+    />
+
     <Spin :spinning="loading">
       <Form
         ref="formRef"
         :model="formData"
-        :rules="formRulesWithDataScope"
+        :rules="formRulesWithScope"
         layout="vertical"
         :disabled="mode === 'create' && !canCreateChild"
       >
-        <!-- Node type selection / 节点类型选择 -->
         <FormItem :label="$t('shared.orgNode.nodeType')" name="type" required>
           <RadioGroup
             v-model:value="formData.type"
             :disabled="mode === 'edit'"
             @change="
-              (e: RadioChangeEvent) =>
-                handleTypeChange(e.target.value as OrgNodeType)
+              (event: RadioChangeEvent) =>
+                handleTypeChange(event.target.value as OrgNodeType)
             "
           >
             <div class="grid grid-cols-3 gap-3">
@@ -452,7 +395,6 @@ watch(
           </RadioGroup>
         </FormItem>
 
-        <!-- Name / 名称 -->
         <FormItem :label="$t('shared.orgNode.name')" name="name" required>
           <Input
             v-model:value="formData.name"
@@ -462,7 +404,6 @@ watch(
           />
         </FormItem>
 
-        <!-- Description / 描述 -->
         <FormItem :label="$t('shared.orgNode.description')" name="description">
           <Textarea
             v-model:value="formData.description"
@@ -473,22 +414,16 @@ watch(
           />
         </FormItem>
 
-        <!-- Settings row / 设置行 -->
         <div class="grid grid-cols-3 gap-4">
-          <!-- Allow members / 是否允许成员 -->
           <FormItem
             :label="$t('shared.orgNode.allowMembers')"
             name="allowMembers"
           >
             <Switch v-model:checked="formData.allowMembers" />
           </FormItem>
-
-          <!-- Status / 状态 -->
           <FormItem :label="$t('shared.orgNode.isActive')" name="isActive">
             <Switch v-model:checked="formData.isActive" />
           </FormItem>
-
-          <!-- Sort order / 排序 -->
           <FormItem :label="$t('shared.orgNode.sortOrder')" name="sortOrder">
             <InputNumber
               v-model:value="formData.sortOrder"
@@ -499,73 +434,55 @@ watch(
           </FormItem>
         </div>
 
-        <!-- Permission assignment / 权限分配 -->
-        <Collapse class="mt-4" :bordered="false">
-          <CollapsePanel
-            key="permissions"
-            :header="$t('shared.orgNode.permissions')"
-          >
-            <template #extra>
-              <span class="text-sm text-gray-500">
-                {{
-                  $t('shared.orgNode.selectedCount', {
-                    count: formData.permissionIds.length,
-                  })
-                }}
-              </span>
-            </template>
-            <Spin :spinning="permissionLoading">
-              <PermissionSelector
-                v-model="formData.permissionIds"
-                :permissions="permissionTree"
-                :loading="permissionLoading"
-                :default-expanded-level="1"
-              />
-            </Spin>
-          </CollapsePanel>
+        <div class="rounded-lg border border-border/60 p-4">
+          <div class="mb-3">
+            <div class="text-sm font-medium text-foreground">
+              {{ $t('shared.orgNode.leaderScope') }}
+            </div>
+            <div class="mt-1 text-xs text-muted-foreground">
+              {{ $t('shared.orgNode.leaderScopeDescription') }}
+            </div>
+          </div>
 
-          <!-- Data scope / 数据范围 -->
-          <CollapsePanel key="dataScope" :header="$t('common.role.dataScope')">
-            <FormItem :label="$t('common.role.dataScope')" name="dataScope">
-              <Select
-                v-model:value="formData.dataScope"
-                :placeholder="$t('common.select')"
-                class="!w-full"
-              >
-                <SelectOption
-                  v-for="opt in DATA_SCOPE_OPTIONS"
-                  :key="opt.value"
-                  :value="opt.value"
-                  :label="$t(opt.labelKey)"
-                >
-                  <div>
-                    <span>{{ $t(opt.labelKey) }}</span>
-                    <span class="ml-2 text-xs text-muted-foreground">
-                      {{ $t(opt.descKey) }}
-                    </span>
-                  </div>
-                </SelectOption>
-              </Select>
-            </FormItem>
-            <FormItem
-              v-if="showCustomDeptSelector"
-              :label="$t('common.role.customDepts')"
-              name="customDeptIds"
+          <FormItem :label="$t('shared.orgNode.leaderScope')" name="dataScope">
+            <Select
+              v-model:value="formData.dataScope"
+              :placeholder="$t('shared.orgNode.selectLeaderScope')"
+              class="!w-full"
             >
-              <TreeSelect
-                v-model:value="formData.customDeptIds"
-                :tree-data="deptTreeData"
-                :loading="deptTreeLoading"
-                tree-checkable
-                multiple
-                allow-clear
-                show-checked-strategy="SHOW_CHILD"
-                :placeholder="$t('common.select')"
-                class="!w-full"
-              />
-            </FormItem>
-          </CollapsePanel>
-        </Collapse>
+              <SelectOption
+                v-for="option in leaderScopeOptions"
+                :key="option.value"
+                :value="option.value"
+              >
+                <div>
+                  <span>{{ option.label }}</span>
+                  <span class="ml-2 text-xs text-muted-foreground">
+                    {{ option.description }}
+                  </span>
+                </div>
+              </SelectOption>
+            </Select>
+          </FormItem>
+
+          <FormItem
+            v-if="showCustomDeptSelector"
+            :label="$t('shared.orgNode.customScopeNodes')"
+            name="customDeptIds"
+          >
+            <TreeSelect
+              v-model:value="formData.customDeptIds"
+              :tree-data="deptTreeData"
+              :loading="deptTreeLoading"
+              tree-checkable
+              multiple
+              allow-clear
+              show-checked-strategy="SHOW_CHILD"
+              :placeholder="$t('shared.orgNode.selectCustomScopeNodes')"
+              class="!w-full"
+            />
+          </FormItem>
+        </div>
       </Form>
     </Spin>
   </Modal>

@@ -1,10 +1,14 @@
-import type { UseMemberPanelOptions, UseMemberPanelReturn } from './types';
+import type {
+  MemberPanelMember,
+  UseMemberPanelOptions,
+  UseMemberPanelReturn,
+} from './types';
 
 /**
  * Member Panel Business Logic Composable
  * 成员面板业务逻辑 composable
  */
-import type { MemberListParams, OrgMember } from '#/api/admin/organization';
+import type { MemberListParams } from '#/api/admin/organization';
 import type { TenantMemberListParams } from '#/api/tenant/organization';
 
 import { ref, watch } from 'vue';
@@ -42,7 +46,7 @@ export function useMemberPanel(
   const { nodeId, apiPrefix = 'admin' } = options;
 
   // State / 状态
-  const members = ref<OrgMember[]>([]);
+  const members = ref<MemberPanelMember[]>([]);
   const loading = ref(false);
   const operating = ref(false);
   const error = ref<null | string>(null);
@@ -183,10 +187,10 @@ export function useMemberPanel(
    */
   async function removeMember(
     adminId: number,
-    targetRoleId?: number,
+    targetOrgNodeId?: number,
   ): Promise<boolean> {
-    // Prefer passed roleId, otherwise use currently selected node / 优先使用传入的 roleId，否则使用当前选中节点
-    const id = targetRoleId ?? nodeId();
+    // Prefer passed org node ID, otherwise use currently selected node / 优先使用传入的组织节点 ID，否则使用当前选中节点
+    const id = targetOrgNodeId ?? nodeId();
     if (!id) {
       message.error($t('shared.memberPanel.selectNodeFirst'));
       return false;
@@ -212,14 +216,14 @@ export function useMemberPanel(
    * Set leader
    * 设置负责人
    * @param adminId - Leader ID, pass null to cancel leader / 负责人 ID，传 null 取消负责人
-   * @param targetRoleId - Target node ID (optional, for cross-node leader setting) / 目标节点 ID（可选，用于跨节点设置负责人）
+   * @param targetOrgNodeId - Target node ID (optional, for cross-node leader setting) / 目标节点 ID（可选，用于跨节点设置负责人）
    */
   async function setLeader(
     adminId: null | number,
-    targetRoleId?: number,
+    targetOrgNodeId?: number,
   ): Promise<boolean> {
-    // Use targetRoleId if specified, otherwise use currently selected node / 如果指定了 targetRoleId 则使用它，否则使用当前选中的节点
-    const id = targetRoleId ?? nodeId();
+    // Use target org node ID if specified, otherwise use currently selected node / 如果指定了目标组织节点 ID 则使用它，否则使用当前选中的节点
+    const id = targetOrgNodeId ?? nodeId();
     if (!id) {
       message.error($t('shared.memberPanel.selectNodeFirst'));
       return false;
@@ -319,8 +323,8 @@ export function useMemberPanel(
     addMember,
     addMembers,
     removeMember,
-    setLeader: (adminId: null | number, targetRoleId?: number) =>
-      setLeader(adminId, targetRoleId),
+    setLeader: (adminId: null | number, targetOrgNodeId?: number) =>
+      setLeader(adminId, targetOrgNodeId),
     refresh,
     changePage,
     changePageSize,

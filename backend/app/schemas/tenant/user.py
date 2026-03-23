@@ -36,8 +36,10 @@ class TenantUserResponse(BaseSchema):
     gender: int = Field(0, description="性别: 0未知 1男 2女")
     is_active: bool = Field(..., description="是否激活")
     approval_status: str = Field("approved", description="审批状态")
-    role_id: int | None = Field(None, description="角色 ID")
-    role_name: str | None = Field(None, description="角色名称")
+    role_id: int | None = Field(None, description="权限角色 ID")
+    role_name: str | None = Field(None, description="权限角色名称")
+    org_node_id: int | None = Field(None, description="组织归属节点 ID")
+    org_node_name: str | None = Field(None, description="组织归属节点名称")
     last_login_at: datetime | None = Field(None, description="最后登录时间")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime | None = Field(None, description="更新时间")
@@ -52,7 +54,8 @@ class TenantUserCreateRequest(BaseSchema):
     phone: str | None = Field(None, description="手机号")
     nickname: str | None = Field(None, description="昵称")
     is_active: bool = Field(True, description="是否激活")
-    role_id: int | None = Field(None, description="角色 ID")
+    role_id: int | None = Field(None, description="权限角色 ID")
+    org_node_id: int | None = Field(None, description="组织归属节点 ID")
 
 
 class TenantUserUpdateRequest(BaseSchema):
@@ -63,7 +66,8 @@ class TenantUserUpdateRequest(BaseSchema):
     nickname: str | None = Field(None, description="昵称")
     avatar: str | None = Field(None, description="头像附件 ID（兼容旧 URL 值）")
     is_active: bool | None = Field(None, description="是否激活")
-    role_id: int | None = Field(None, description="角色 ID")
+    role_id: int | None = Field(None, description="权限角色 ID")
+    org_node_id: int | None = Field(None, description="组织归属节点 ID")
     gender: int | None = Field(None, ge=0, le=2, description="性别: 0未知 1男 2女")
 
 

@@ -21,6 +21,7 @@ from app.core.logging import LogManager
 from app.plugins.migration_paths import (
     build_migration_version_locations,
     purge_migration_bytecode,
+    should_purge_migration_bytecode_for_startup,
 )
 
 logger = LogManager.get_logger("db")
@@ -446,6 +447,49 @@ def _resolve_main_head_revision(cfg, main_revision_ids: set[str]) -> str | None:
     return str(main_heads[0])
 
 
+def resolve_expected_alembic_heads(
+    *,
+    alembic_ini: Path,
+    backend_dir: Path,
+    db_url: str,
+    version_locations: list[str],
+) -> list[str]:
+    """Resolve expected Alembic heads for current migration graph. / 解析当前迁移图的预期 heads。"""
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    cfg = Config(str(alembic_ini))
+    cfg.set_main_option("script_location", str(backend_dir / "migrations"))
+    cfg.set_main_option("sqlalchemy.url", db_url)
+    cfg.set_main_option("version_locations", "\n".join(version_locations))
+    return sorted(str(head) for head in ScriptDirectory.from_config(cfg).get_heads())
+
+
+def should_skip_migration_subprocess(
+    *,
+    current_stamps: list[str],
+    expected_heads: list[str],
+) -> tuple[bool, str]:
+    """Decide whether startup can skip Alembic subprocess. / 判断启动阶段是否可跳过 Alembic 子进程。"""
+    normalized_current = sorted({str(stamp) for stamp in current_stamps if str(stamp or "").strip()})
+    normalized_heads = sorted({str(head) for head in expected_heads if str(head or "").strip()})
+
+    if not normalized_heads:
+        return False, "expected heads unresolved"
+
+    if not normalized_current:
+        return False, "database has no alembic stamps yet"
+
+    if normalized_current != normalized_heads:
+        return (
+            False,
+            "database stamps differ from current heads "
+            f"(current={normalized_current}, expected={normalized_heads})",
+        )
+
+    return True, f"database already at current heads {normalized_heads}"
+
+
 def maybe_recover_missing_main_branch_stamp(
     *,
     cfg,
@@ -594,12 +638,32 @@ def run_migrations() -> bool:
             backend_dir=backend_dir,
             db_url=db_url,
         )
-        purged_bytecode = purge_migration_bytecode(version_locations)
-        if purged_bytecode:
+        if should_purge_migration_bytecode_for_startup(debug=settings.DEBUG):
+            purged_bytecode = purge_migration_bytecode(version_locations)
+            if purged_bytecode:
+                logger.info(
+                    "Purged {} cached migration bytecode file(s) before Alembic run",
+                    len(purged_bytecode),
+                )
+        else:
             logger.info(
-                "Purged {} cached migration bytecode file(s) before Alembic run",
-                len(purged_bytecode),
+                "Skipping migration bytecode purge during DEBUG startup to avoid reload interrupting Alembic"
             )
+
+        expected_heads = resolve_expected_alembic_heads(
+            alembic_ini=alembic_ini,
+            backend_dir=backend_dir,
+            db_url=db_url,
+            version_locations=version_locations,
+        )
+        current_stamps = _read_alembic_version_rows(db_url)
+        should_skip_upgrade, skip_reason = should_skip_migration_subprocess(
+            current_stamps=current_stamps,
+            expected_heads=expected_heads,
+        )
+        if should_skip_upgrade:
+            logger.info("Skipping Alembic subprocess: {}", skip_reason)
+            return True
 
         versions_path = str(backend_dir / "migrations" / "versions")
 

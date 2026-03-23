@@ -56,6 +56,12 @@ const bindings = computed(() => prerequisites.value?.bindings.items.filter((item
 const selectedAmount = computed(() => selectedStatement.value?.amount_total ?? '0');
 const selectedChargeCount = computed(() => selectedStatement.value?.charge_count ?? 0);
 const chargeTotal = computed(() => charges.value?.total ?? 0);
+const tenantCapabilityEntries = computed(() =>
+  Object.entries(prerequisites.value?.provider_capabilities ?? {}).map(([code, capability]) => ({
+    code,
+    ...capability,
+  })),
+);
 
 function providerLabel(code: string) {
   return $t(`plugin.storageBilling.common.provider.${code}`);
@@ -93,6 +99,52 @@ function chargeBasisLabel(basis: string) {
   const key = `plugin.storageBilling.common.chargeBasis.${basis}`;
   const translated = $t(key);
   return translated === key ? basis : translated;
+}
+
+function capabilityModeLabel(value?: string) {
+  if (!value) return '-';
+  const map: Record<string, string> = {
+    strict_daily_reconciliation: $t('plugin.storageBilling.common.capabilities.mode.strictDailyReconciliation'),
+    monthly_settled: $t('plugin.storageBilling.common.capabilities.mode.monthlySettled'),
+  };
+  return map[value] ?? value;
+}
+
+function capabilityCycleLabel(value?: string) {
+  if (!value) return '-';
+  const map: Record<string, string> = {
+    daily: $t('plugin.storageBilling.common.capabilities.cycle.daily'),
+    monthly: $t('plugin.storageBilling.common.capabilities.cycle.monthly'),
+  };
+  return map[value] ?? value;
+}
+
+function capabilityPeriodSummary(values?: string[]) {
+  if (!values?.length) return '-';
+  const map: Record<string, string> = {
+    daily: $t('plugin.storageBilling.common.periodType.daily'),
+    monthly: $t('plugin.storageBilling.common.periodType.monthly'),
+  };
+  return values.map((item) => map[item] ?? item).join(' / ');
+}
+
+function capabilityTargetRuleSummary(value?: string) {
+  if (!value) return '-';
+  const map: Record<string, string> = {
+    'per-provider': $t('plugin.storageBilling.common.capabilities.targetRule.perProvider'),
+  };
+  return map[value] ?? value;
+}
+
+function scopeTypeSummary(values?: string[]) {
+  if (!values?.length) return '-';
+  return values
+    .map((item) => $t(`plugin.storageBilling.admin.bindings.scope.${item}`))
+    .join(' / ');
+}
+
+function boolLabel(value?: boolean) {
+  return value ? $t('plugin.storageBilling.common.yes') : $t('plugin.storageBilling.common.no');
 }
 
 function formatBytes(value: number): string {
@@ -243,8 +295,13 @@ onMounted(() => void loadPage());
       <div class="grid">
         <Card :title="$t('plugin.storageBilling.tenant.prerequisites.title')">
           <Descriptions :column="1" bordered size="small">
-            <DescriptionsItem :label="$t('plugin.storageBilling.admin.overview.mode')">
+            <DescriptionsItem :label="$t('plugin.storageBilling.tenant.prerequisites.plan')">
               {{ prerequisites?.plan.name || '-' }}
+            </DescriptionsItem>
+            <DescriptionsItem :label="$t('plugin.storageBilling.tenant.prerequisites.featureEnabled')">
+              <Tag :color="prerequisites?.plan.storage_billing_enabled ? 'success' : 'orange'">
+                {{ boolLabel(prerequisites?.plan.storage_billing_enabled) }}
+              </Tag>
             </DescriptionsItem>
             <DescriptionsItem :label="$t('plugin.storageBilling.tenant.summary.currentDriver')">
               {{ prerequisites?.prerequisites.current_driver || '-' }}
@@ -254,6 +311,30 @@ onMounted(() => void loadPage());
                 <Tag v-for="item in prerequisites?.prerequisites.missing_reasons" :key="item" color="orange">
                   {{ reasonLabel(item) }}
                 </Tag>
+              </div>
+              <span v-else>{{ $t('plugin.storageBilling.tenant.prerequisites.none') }}</span>
+            </DescriptionsItem>
+            <DescriptionsItem :label="$t('plugin.storageBilling.tenant.prerequisites.providerCapabilities')">
+              <div v-if="tenantCapabilityEntries.length" class="capability-list">
+                <div v-for="item in tenantCapabilityEntries" :key="item.code" class="capability-card">
+                  <div class="capability-head">
+                    <strong>{{ providerLabel(item.code) }}</strong>
+                    <Space wrap size="small">
+                      <Tag v-if="item.manual_pull_supported" color="blue">{{ $t('plugin.storageBilling.common.capabilities.manualPullSupported') }}</Tag>
+                      <Tag v-if="item.strict_reconciliation_supported" color="success">{{ $t('plugin.storageBilling.common.capabilities.strictDailySupported') }}</Tag>
+                      <Tag v-if="item.scheduled_daily_supported" color="processing">{{ $t('plugin.storageBilling.common.capabilities.scheduledDailySupported') }}</Tag>
+                    </Space>
+                  </div>
+                  <div class="capability-meta">
+                    <span>{{ $t('plugin.storageBilling.tenant.prerequisites.mode') }}: {{ capabilityModeLabel(item.settlement_mode) }}</span>
+                    <span>{{ $t('plugin.storageBilling.tenant.prerequisites.cycle') }}: {{ capabilityCycleLabel(item.settlement_cycle) }}</span>
+                    <span>{{ $t('plugin.storageBilling.tenant.prerequisites.lagDays') }}: {{ item.official_billing_lag_days ?? '-' }}</span>
+                    <span>{{ $t('plugin.storageBilling.tenant.prerequisites.periodTypes') }}: {{ capabilityPeriodSummary(item.supported_period_types) }}</span>
+                    <span>{{ $t('plugin.storageBilling.tenant.prerequisites.targetRule') }}: {{ capabilityTargetRuleSummary(item.official_target_rule) }}</span>
+                    <span>{{ $t('plugin.storageBilling.tenant.prerequisites.recommendedScopes') }}: {{ scopeTypeSummary(item.recommended_scope_types) }}</span>
+                  </div>
+                  <div v-if="item.capability_message" class="subtle">{{ item.capability_message }}</div>
+                </div>
               </div>
               <span v-else>{{ $t('plugin.storageBilling.tenant.prerequisites.none') }}</span>
             </DescriptionsItem>
@@ -369,5 +450,9 @@ onMounted(() => void loadPage());
 .block{margin-bottom:20px}
 .block-xs{margin-bottom:8px}
 .subtle{color:#64748b;font-size:12px}
+.capability-list{display:grid;gap:12px}
+.capability-card{padding:12px;border-radius:14px;background:#f8fafc;border:1px solid rgba(148,163,184,.18)}
+.capability-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:8px}
+.capability-meta{display:grid;gap:6px;margin-bottom:8px;color:#334155;font-size:12px}
 @media (max-width:960px){.hero{flex-direction:column}.stats,.grid{grid-template-columns:1fr}}
 </style>

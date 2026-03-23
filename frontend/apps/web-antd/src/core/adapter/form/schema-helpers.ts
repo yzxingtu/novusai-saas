@@ -688,14 +688,15 @@ export function numberField(
 export function switchField(
   fieldName: string,
   label: string,
-  options: { defaultValue?: boolean } = {},
+  options: { defaultValue?: boolean; help?: string } = {},
 ): VbenFormSchema {
-  const { defaultValue = false } = options;
+  const { defaultValue = false, help } = options;
 
   return {
     component: 'Switch',
     defaultValue,
     fieldName,
+    ...(help ? { help } : {}),
     label,
   };
 }

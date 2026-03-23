@@ -49,14 +49,6 @@ config_schema:
               type: string
               enum: ["finance_api"]
               default: "finance_api"
-            access_key:
-              type: string
-              default: ""
-              x-encrypted: true
-            secret_key:
-              type: string
-              default: ""
-              x-encrypted: true
             account_identifier:
               type: string
               default: ""
@@ -71,25 +63,8 @@ config_schema:
               default: "aliyun-default"
             bill_source:
               type: string
-              enum: ["oss_subscription", "bss_openapi"]
+              enum: ["bss_openapi"]
               default: "bss_openapi"
-            region:
-              type: string
-              default: ""
-            access_key_id:
-              type: string
-              default: ""
-              x-encrypted: true
-            access_key_secret:
-              type: string
-              default: ""
-              x-encrypted: true
-            bill_bucket:
-              type: string
-              default: ""
-            bill_prefix:
-              type: string
-              default: ""
             account_identifier:
               type: string
               default: ""
@@ -103,26 +78,9 @@ config_schema:
               type: string
               default: "tencent-default"
             bill_source:
-              enum: ["cos_bill_bucket", "describe_bill_detail"]
+              enum: ["describe_bill_detail"]
               type: string
               default: "describe_bill_detail"
-            region:
-              type: string
-              default: ""
-            secret_id:
-              type: string
-              default: ""
-              x-encrypted: true
-            secret_key:
-              type: string
-              default: ""
-              x-encrypted: true
-            bill_bucket:
-              type: string
-              default: ""
-            bill_prefix:
-              type: string
-              default: ""
             account_identifier:
               type: string
               default: ""
@@ -243,7 +201,7 @@ extensions:
       - method: POST
         path: reconcile/run
         handler: "api.admin.run_reconciliation"
-        summary: "Trigger storage billing reconciliation placeholder run"
+        summary: "Trigger storage billing reconciliation run"
         auth: required
         permission: "billing_admin:reconcile"
       - method: POST
@@ -256,7 +214,7 @@ extensions:
       - method: GET
         path: statement/current
         handler: "api.tenant.get_current_statement"
-        summary: "Get current tenant storage billing statement placeholder"
+        summary: "Get current tenant storage billing statement"
         auth: required
         permission: "billing_portal:view"
       - method: GET

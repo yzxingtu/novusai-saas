@@ -51,6 +51,16 @@ def _serialize_plan(plan: TenantPlan) -> dict[str, Any]:
     }
 
 
+def _serialize_storage_config(storage_config) -> dict[str, Any]:
+    """Build a read-only storage config snapshot. / 构建只读存储配置快照。"""
+    return {
+        "driver": storage_config.driver,
+        "root_path": storage_config.root_path,
+        "base_url": storage_config.base_url,
+        "options": storage_config.options or {},
+    }
+
+
 class HostReadFacade:
     """
     Read-only facade exposed to plugin runtime.
@@ -204,11 +214,18 @@ class HostReadFacade:
             "tenant_id": tenant_id,
             "storage_mode": storage_mode,
             "apply_quota": bool(apply_quota),
-            "storage_config": {
-                "driver": storage_config.driver,
-                "root_path": storage_config.root_path,
-                "base_url": storage_config.base_url,
-                "options": storage_config.options or {},
-            },
+            "storage_config": _serialize_storage_config(storage_config),
         }
 
+    async def get_platform_storage_context(self) -> dict[str, Any]:
+        """
+        Resolve platform storage context snapshot.
+        / 解析平台对象存储上下文快照。
+        """
+        resolver = StorageConfigResolver(self._db)
+        storage_config = await resolver.resolve_platform_config()
+        return {
+            "storage_mode": "platform",
+            "apply_quota": True,
+            "storage_config": _serialize_storage_config(storage_config),
+        }

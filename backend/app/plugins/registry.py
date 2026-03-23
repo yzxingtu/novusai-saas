@@ -67,6 +67,21 @@ def _build_plugin_menu_action(scope_prefix: str, safe_name: str, name: str) -> s
     return f"{scope_prefix}.plugin.{compact}.{digest}"
 
 
+def _select_i18n_value(locale_titles: dict[str, str], locale: str) -> str | None:
+    """Select best-matching i18n value for current locale. / 按当前语言选择最佳匹配文案。"""
+    if locale in locale_titles:
+        return locale_titles[locale]
+    normalized = locale.replace("_", "-")
+    if normalized in locale_titles:
+        return locale_titles[normalized]
+    short = locale.split("_")[0]
+    if short in locale_titles:
+        return locale_titles[short]
+    if locale_titles:
+        return next(iter(locale_titles.values()))
+    return None
+
+
 @dataclass
 class RegisteredExtension:
     """Registered extension record / 已注册的扩展记录"""
@@ -129,6 +144,8 @@ class ExtensionRegistry:
         self._plugin_menus: dict[str, list[dict[str, Any]]] = {}
         # menu i18n fallback: plugin_name -> {i18n_key: {"zh-CN": "...", "en": "..."}} / 菜单 i18n 回退
         self._plugin_menu_titles: dict[str, dict[str, dict[str, str]]] = {}
+        # permission i18n fallback: plugin_name -> {i18n_key: {"zh-CN": "...", "en": "..."}} / 权限 i18n 回退
+        self._plugin_permission_titles: dict[str, dict[str, dict[str, str]]] = {}
 
     @classmethod
     def get_instance(cls) -> ExtensionRegistry:
@@ -380,6 +397,8 @@ class ExtensionRegistry:
         cron_expression: str | None = None,
         interval_seconds: int | None = None,
         queue: str = "default",
+        *,
+        register_schedule: bool = True,
     ) -> None:
         """
         Register scheduled task to Celery Beat.
@@ -406,39 +425,41 @@ class ExtensionRegistry:
             else:
                 celery_app.task(name=celery_task_name, queue=queue)(handler)
 
-        # Inject into beat_schedule / 注入 beat_schedule
         beat_key = f"plugin_{plugin_name}_{task_name}"
-        schedule_entry: dict[str, Any] = {
-            "task": celery_task_name,
-            "options": {"queue": queue},
-        }
 
-        if schedule_type == "cron" and cron_expression:
-            from celery.schedules import crontab
-            parts = cron_expression.strip().split()
-            if len(parts) == 5:
-                schedule_entry["schedule"] = crontab(
-                    minute=parts[0], hour=parts[1],
-                    day_of_month=parts[2], month_of_year=parts[3],
-                    day_of_week=parts[4],
-                )
+        if register_schedule:
+            # Inject into beat_schedule / 注入 beat_schedule
+            schedule_entry: dict[str, Any] = {
+                "task": celery_task_name,
+                "options": {"queue": queue},
+            }
+
+            if schedule_type == "cron" and cron_expression:
+                from celery.schedules import crontab
+                parts = cron_expression.strip().split()
+                if len(parts) == 5:
+                    schedule_entry["schedule"] = crontab(
+                        minute=parts[0], hour=parts[1],
+                        day_of_month=parts[2], month_of_year=parts[3],
+                        day_of_week=parts[4],
+                    )
+                else:
+                    logger.warning(
+                        "Plugin {} task {}: invalid cron '{}', skipping schedule",
+                        plugin_name, task_name, cron_expression,
+                    )
+            elif interval_seconds and interval_seconds > 0:
+                schedule_entry["schedule"] = float(interval_seconds)
             else:
                 logger.warning(
-                    "Plugin {} task {}: invalid cron '{}', skipping schedule",
-                    plugin_name, task_name, cron_expression,
+                    "Plugin {} task {}: no valid schedule, task registered but not scheduled",
+                    plugin_name, task_name,
                 )
-        elif interval_seconds and interval_seconds > 0:
-            schedule_entry["schedule"] = float(interval_seconds)
-        else:
-            logger.warning(
-                "Plugin {} task {}: no valid schedule, task registered but not scheduled",
-                plugin_name, task_name,
-            )
 
-        if "schedule" in schedule_entry:
-            if not celery_app.conf.beat_schedule:
-                celery_app.conf.beat_schedule = {}
-            celery_app.conf.beat_schedule[beat_key] = schedule_entry
+            if "schedule" in schedule_entry:
+                if not celery_app.conf.beat_schedule:
+                    celery_app.conf.beat_schedule = {}
+                celery_app.conf.beat_schedule[beat_key] = schedule_entry
 
         self._track(plugin_name, "task", beat_key, {
             "celery_task_name": celery_task_name,
@@ -534,6 +555,21 @@ class ExtensionRegistry:
             "scope": scope,
             "actions": actions or [],
         })
+        normalized_name: dict[str, str] = {}
+        if isinstance(name, dict):
+            normalized_name = {
+                str(k): str(v).strip()
+                for k, v in name.items()
+                if str(v or "").strip()
+            }
+        elif isinstance(name, str) and name.strip():
+            normalized_name = {"zh-CN": name.strip(), "en": name.strip()}
+        if normalized_name:
+            titles = self._plugin_permission_titles.setdefault(plugin_name, {})
+            safe_name = plugin_name.replace("-", "_")
+            base_code_prefix = f"plugin.{plugin_name}."
+            base_code = full_code[len(base_code_prefix):] if full_code.startswith(base_code_prefix) else code
+            titles[f"{safe_name}.permission.{base_code}"] = normalized_name
         logger.info(
             "Plugin {} registered permission: {}", plugin_name, full_code
         )
@@ -541,6 +577,15 @@ class ExtensionRegistry:
     def _unregister_permission(self, ext: RegisteredExtension) -> None:
         """Remove plugin permission registration / 移除插件权限注册"""
         self._plugin_permissions.pop(ext.key, None)
+        plugin_name = ext.plugin_name
+        if plugin_name in self._plugin_permission_titles:
+            safe_name = plugin_name.replace("-", "_")
+            base_code_prefix = f"plugin.{plugin_name}."
+            base_code = ext.key[len(base_code_prefix):] if ext.key.startswith(base_code_prefix) else ext.key
+            self._plugin_permission_titles[plugin_name].pop(
+                f"{safe_name}.permission.{base_code}",
+                None,
+            )
 
     def get_plugin_permissions(self, plugin_name: str | None = None) -> list[dict]:
         """Get plugin-registered permission list (for RBAC query) / 获取插件注册的权限列表"""
@@ -722,16 +767,38 @@ class ExtensionRegistry:
         for titles_map in self._plugin_menu_titles.values():
             if i18n_key in titles_map:
                 locale_titles = titles_map[i18n_key]
-                if locale in locale_titles:
-                    return locale_titles[locale]
-                normalized = locale.replace("_", "-")
-                if normalized in locale_titles:
-                    return locale_titles[normalized]
-                short = locale.split("_")[0]
-                if short in locale_titles:
-                    return locale_titles[short]
-                if locale_titles:
-                    return next(iter(locale_titles.values()))
+                return _select_i18n_value(locale_titles, locale)
+        return None
+
+    def resolve_plugin_permission_title(self, i18n_key: str) -> str | None:
+        """
+        Resolve plugin permission title by i18n key, using current request locale.
+        / 根据 i18n key 解析插件权限标题，使用当前请求语言。
+        """
+        from app.core.i18n import _, get_locale
+
+        locale = get_locale()
+        if ".permission." not in i18n_key:
+            return None
+
+        parts = i18n_key.split(".")
+        if len(parts) < 4 or parts[1] != "permission":
+            return None
+
+        base_key = ".".join(parts[:-1])
+        action = parts[-1]
+
+        for titles_map in self._plugin_permission_titles.values():
+            if base_key not in titles_map:
+                continue
+            base_title = _select_i18n_value(titles_map[base_key], locale)
+            if not base_title:
+                return None
+            action_key = f"rbac.action.{action}"
+            action_title = _(action_key)
+            if action_title == action_key:
+                action_title = action.replace("_", " ").replace("-", " ").strip().title()
+            return f"{base_title} - {action_title}"
         return None
 
     # ── 11. Socket.IO Namespace ──

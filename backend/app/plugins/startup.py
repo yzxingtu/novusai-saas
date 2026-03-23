@@ -453,12 +453,13 @@ async def restore_enabled_plugins(
                 )
 
             if run_heavy:
-                # Ensure Alembic migration has been executed (prevent plugin tables lost after DB rebuild)
-                # / 确保 Alembic 迁移已执行
-                migrations_dir = loader.plugins_dir / plugin.name / "backend" / "migrations" / "versions"
-                if migrations_dir.is_dir():
-                    await lifecycle.run_alembic_upgrade(plugin.name)
-
+                # Database startup already runs `alembic upgrade heads` with plugin
+                # version_locations injected, so plugin tables are ensured before
+                # restore_enabled_plugins() executes. Avoid spawning a second
+                # per-plugin Alembic subprocess here during startup restore.
+                # / 数据库启动阶段已经带插件 version_locations 执行全量 `upgrade heads`，
+                # / 进入 restore_enabled_plugins() 前插件表应已完成迁移；此处不再重复
+                # / 为每个插件启动一次 Alembic 子进程，避免开发态/Windows 下的冗余抖动。
                 # Restore periodic task DB rows so Celery Beat can still see plugin tasks after startup recovery.
                 # / 恢复插件定时任务 DB 记录，确保启动恢复后 Celery Beat 仍能看到任务。
                 if getattr(manifest.extensions, "tasks", None):

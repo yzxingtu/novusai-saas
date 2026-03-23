@@ -5,6 +5,8 @@
  * Data structures for conversation list, messages, tool calls, pending confirmation/consent.
  */
 
+import type { AppErrorInfo } from '#/utils/request';
+
 export interface ModelCapabilities {
   supports_vision: boolean;
   supports_audio?: boolean;
@@ -198,4 +200,6 @@ export interface ChatMessage {
   stoppedByUser?: boolean;
   /** Set when SSE onError (non-Abort); show retry button / 请求失败需重试 */
   requestFailedRetry?: boolean;
+  /** Structured error payload for UI rendering / 结构化错误对象，用于统一展示 */
+  error?: AppErrorInfo;
 }

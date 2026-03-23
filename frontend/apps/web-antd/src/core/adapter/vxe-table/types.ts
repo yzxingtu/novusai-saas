@@ -74,7 +74,7 @@ export type ToggleStatusConfig = Record<string, ToggleStatusApi>;
  * Conventions:
  * 约定：
  * - `list`: Required, list query API / 必填，列表查询 API
- * - `resource`: Required, resource path (e.g. '/admin/admins', '/tenant/roles'),
+ * - `resource`: Required, resource path (e.g. '/admin/admins', '/tenant/organization'),
  *   used to auto-construct DELETE requests: DELETE {resource}/{id}
  *   必填，资源路径，用于自动构造 DELETE 请求
  * - `toggles`: Optional, multiple quick toggle configs / 可选，多个快捷开关配置
@@ -86,7 +86,7 @@ export interface CrudApiConfig<T = any> {
   /**
    * Resource base path (required), used to auto-construct DELETE requests: DELETE {resource}/{id}
    * 资源基础路径（必填），用于自动构造 DELETE 请求：DELETE {resource}/{id}
-   * @example '/admin/admins', '/admin/tenants', '/tenant/roles'
+   * @example '/admin/admins', '/admin/tenants', '/tenant/organization'
    */
   resource: string;
 

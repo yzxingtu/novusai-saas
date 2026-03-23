@@ -162,6 +162,9 @@ function _registerStandalonePageRoutes(
       icon: item.icon,
       hideInMenu: true,
     };
+    if (Array.isArray(item.accessCodes) && item.accessCodes.length > 0) {
+      routeMeta.accessCodes = item.accessCodes;
+    }
     if (item.ai) {
       routeMeta.ai = {
         ...(item.ai.mode ? { mode: item.ai.mode } : {}),

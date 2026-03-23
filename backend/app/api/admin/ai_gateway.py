@@ -17,7 +17,7 @@ from app.configs.service import PLATFORM_TENANT_ID
 from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession
 from app.core.i18n import _
-from app.core.response import success
+from app.core.response import build_exception_debug, success
 from app.enums.rbac import PermissionScope
 from app.exceptions import (
     BusinessException,
@@ -93,7 +93,10 @@ class AdminAIGatewayController(GlobalController):
             except (AIGatewayError, RateLimitExceeded, QuotaExceeded, NotFoundException, BusinessException):
                 raise
             except Exception as e:
-                raise ExternalServiceException(message=_("ai.error.call_failed") + f": {str(e)}")
+                raise ExternalServiceException(
+                    message=_("ai.error.call_failed"),
+                    debug=build_exception_debug(e),
+                )
 
         @router.post("/chat/stream", summary="AI 聊天对话（流式 SSE）")
         @action_create("action.ai_gateway.chat_stream")
@@ -133,7 +136,10 @@ class AdminAIGatewayController(GlobalController):
             except (AIGatewayError, RateLimitExceeded, QuotaExceeded, NotFoundException, BusinessException):
                 raise
             except Exception as e:
-                raise ExternalServiceException(message=_("ai.error.call_failed") + f": {str(e)}")
+                raise ExternalServiceException(
+                    message=_("ai.error.call_failed"),
+                    debug=build_exception_debug(e),
+                )
 
         @router.post("/embedding", summary="文本向量化")
         @action_create("action.ai_gateway.embedding")
@@ -164,7 +170,10 @@ class AdminAIGatewayController(GlobalController):
             except (AIGatewayError, RateLimitExceeded, QuotaExceeded, NotFoundException, BusinessException):
                 raise
             except Exception as e:
-                raise ExternalServiceException(message=_("ai.error.embedding_failed") + f": {str(e)}")
+                raise ExternalServiceException(
+                    message=_("ai.error.embedding_failed"),
+                    debug=build_exception_debug(e),
+                )
 
         @router.post("/test", summary="测试模型连通性")
         @action_create("action.ai_gateway.test")
@@ -196,7 +205,10 @@ class AdminAIGatewayController(GlobalController):
             except (AIGatewayError, RateLimitExceeded, QuotaExceeded, NotFoundException, BusinessException):
                 raise
             except Exception as e:
-                raise ExternalServiceException(message=_("ai.error.test_failed") + f": {str(e)}")
+                raise ExternalServiceException(
+                    message=_("ai.error.test_failed"),
+                    debug=build_exception_debug(e),
+                )
 
 
 # 导出路由器 / Export router

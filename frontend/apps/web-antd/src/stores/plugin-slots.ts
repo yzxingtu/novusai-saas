@@ -42,6 +42,7 @@ export interface PluginSlotItem {
   component: unknown;
   icon?: string;
   title?: string;
+  accessCodes?: string[];
   sortOrder?: number;
   scope?: string;
   path?: string;
@@ -174,6 +175,13 @@ export const usePluginSlotsStore = defineStore('plugin-slots', () => {
             name: slot.name,
             component: comp,
             title: _resolveTitle(slot.title),
+            accessCodes:
+              Array.isArray(slot.access_codes) && slot.access_codes.length > 0
+                ? slot.access_codes.filter(
+                    (code): code is string =>
+                      typeof code === 'string' && code.trim().length > 0,
+                  )
+                : undefined,
             sortOrder: slot.sort_order ?? 100,
             scope: slot.scope,
             path: slot.path,

@@ -18,8 +18,9 @@ import time
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-from app.core.config import settings
+from app.core.i18n import _
 from app.core.logging import get_logger
+from app.core.response import build_exception_debug, error
 from app.plugins.runtime_gate import evaluate_plugin_runtime_gate
 from app.rbac.decorators import public
 
@@ -60,9 +61,10 @@ async def webhook_dispatcher(
             enforce_scope=False,
         )
         if not gate.allowed:
-            return JSONResponse(
+            return error(
+                message=f"Plugin '{plugin_name}' not found or disabled",
+                code=4040,
                 status_code=404,
-                content={"error": f"Plugin '{plugin_name}' not found or disabled"},
             )
 
         plugin_config = gate.config or {}
@@ -88,9 +90,10 @@ async def webhook_dispatcher(
             break
 
     if not matched_webhook:
-        return JSONResponse(
+        return error(
+            message=f"Webhook {method} /{path} not found",
+            code=4040,
             status_code=404,
-            content={"error": f"Webhook {method} /{path} not found"},
         )
 
     # 3. Origin verification / 来源验证
@@ -107,9 +110,10 @@ async def webhook_dispatcher(
                 "Webhook auth failed: {}/{} (type={})",
                 plugin_name, path, auth_type,
             )
-            return JSONResponse(
+            return error(
+                message="Webhook authentication failed",
+                code=4010,
                 status_code=401,
-                content={"error": "Webhook authentication failed"},
             )
     else:
         body = await request.body()
@@ -130,9 +134,10 @@ async def webhook_dispatcher(
         handler = handler_info.get("handler")
 
     if not handler:
-        return JSONResponse(
+        return error(
+            message="Webhook handler not available",
+            code=5000,
             status_code=500,
-            content={"error": "Webhook handler not available"},
         )
 
     try:
@@ -177,10 +182,11 @@ async def webhook_dispatcher(
             "Webhook handler error: {}/{}: {} ({}ms)",
             plugin_name, path, exc, duration_ms, exc_info=True,
         )
-        err_message = str(exc) if settings.DEBUG else "Internal server error"
-        return JSONResponse(
+        return error(
+            message=_("common.server_error"),
+            code=5000,
             status_code=500,
-            content={"error": err_message},
+            debug=build_exception_debug(exc),
         )
 
 

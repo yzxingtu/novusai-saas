@@ -15,9 +15,9 @@ from tests.api.config import config
 
 class TestStatus(Enum):
     """测试状态 / Test."""
-    PASSED = "✅ PASSED"
-    FAILED = "❌ FAILED"
-    SKIPPED = "⏭️ SKIPPED"
+    PASSED = "[PASS]"
+    FAILED = "[FAIL]"
+    SKIPPED = "[SKIP]"
 
 
 @dataclass
@@ -62,26 +62,27 @@ class TestReport:
     def add(self, result: TestResult) -> None:
         self.results.append(result)
 
-    def print_summary(self) -> None:
+    def print_summary(self, exit_on_failure: bool = True) -> int:
         """打印测试报告摘要 / Test."""
         print("\n" + "=" * 70)
-        print(f"📋 测试模块: {self.module}")
+        print(f"MODULE: {self.module}")
         print("=" * 70)
 
         for result in self.results:
             status_icon = result.status.value
             print(f"{status_icon} {result.name} ({result.duration:.2f}s)")
             if result.message:
-                print(f"   └─ {result.message}")
+                print(f"   -> {result.message}")
 
         print("-" * 70)
-        print(f"📊 总计: {self.total} | ✅ 通过: {self.passed} | ❌ 失败: {self.failed} | ⏭️ 跳过: {self.skipped}")
-        print(f"⏱️  耗时: {self.duration:.2f}s")
+        print(f"TOTAL: {self.total} | PASSED: {self.passed} | FAILED: {self.failed} | SKIPPED: {self.skipped}")
+        print(f"DURATION: {self.duration:.2f}s")
         print("=" * 70)
 
-        # 返回退出码
-        if self.failed > 0:
+        exit_code = 1 if self.failed > 0 else 0
+        if exit_on_failure and exit_code:
             sys.exit(1)
+        return exit_code
 
 
 class APIClient:
@@ -91,7 +92,7 @@ class APIClient:
         self.base_url = base_url or config.BASE_URL
         self.timeout = timeout or config.TIMEOUT
         self.token: str | None = None
-        self.client = httpx.Client(timeout=self.timeout)
+        self.client = httpx.Client(timeout=self.timeout, trust_env=False)
 
     def _get_headers(self, extra_headers: dict = None) -> dict:
         """获取请求头 / Get/return."""
@@ -239,6 +240,70 @@ class BaseAPITest:
         """运行测试（子类必须实现） / Test."""
         raise NotImplementedError("子类必须实现 _run_tests 方法")
 
+    def post_admin_login_request(self, username: str, password: str) -> httpx.Response:
+        """发送平台管理员登录请求 / Send platform admin login request."""
+        return self._post_login_request(
+            "/admin/auth/login",
+            {"username": username, "password": password},
+        )
+
+    def post_tenant_login_request(self, username: str, password: str) -> httpx.Response:
+        """发送企业管理员登录请求 / Send tenant admin login request."""
+        return self._post_login_request(
+            "/tenant/auth/login",
+            {"username": username, "password": password},
+        )
+
+    def _post_login_request(self, path: str, payload: dict[str, Any]) -> httpx.Response:
+        resp = self.client.post(path, data=payload)
+        if resp.status_code != 429:
+            return resp
+
+        try:
+            data = resp.json()
+        except Exception:
+            return resp
+
+        retry_after = data.get("retry_after")
+        if retry_after is None:
+            return resp
+
+        try:
+            wait_seconds = max(float(retry_after), 0.0)
+        except (TypeError, ValueError):
+            return resp
+
+        time.sleep(wait_seconds)
+        return self.client.post(path, data=payload)
+
+    def login_admin(self) -> dict[str, Any]:
+        """执行平台管理员登录 / Log in as platform admin."""
+        resp = self.post_admin_login_request(config.ADMIN_USERNAME, config.ADMIN_PASSWORD)
+        data = assert_success(resp, "平台管理员登录失败")
+        self._test_data["access_token"] = data["data"]["access_token"]
+        refresh_token = data["data"].get("refresh_token")
+        if refresh_token:
+            self._test_data["refresh_token"] = refresh_token
+        self.client.set_token(data["data"]["access_token"])
+        return data
+
+    def login_tenant_admin(self) -> dict[str, Any]:
+        """执行企业管理员登录 / Log in as tenant admin."""
+        if not config.TENANT_ADMIN_USERNAME or not config.TENANT_ADMIN_PASSWORD:
+            raise AssertionError("未配置企业管理员账号")
+
+        resp = self.post_tenant_login_request(
+            config.TENANT_ADMIN_USERNAME,
+            config.TENANT_ADMIN_PASSWORD,
+        )
+        data = assert_tenant_login_success(resp)
+        self._test_data["access_token"] = data["data"]["access_token"]
+        refresh_token = data["data"].get("refresh_token")
+        if refresh_token:
+            self._test_data["refresh_token"] = refresh_token
+        self.client.set_token(data["data"]["access_token"])
+        return data
+
 
 # ========== 断言辅助函数 ==========
 
@@ -265,6 +330,29 @@ def assert_success(response: httpx.Response, msg: str = None) -> dict:
             f"message: {data.get('message')}"
         )
     return data
+
+
+def assert_tenant_login_success(response: httpx.Response, msg: str = None) -> dict:
+    """断言企业登录成功，并在域名错误时给出明确提示 / Assert tenant login success with domain hint."""
+    try:
+        return assert_success(response, msg or "企业管理员登录失败")
+    except AssertionError as exc:
+        try:
+            data = response.json()
+        except Exception:
+            data = None
+
+        if (
+            isinstance(data, dict)
+            and data.get("code") == 4010
+            and "企业专属域名" in str(data.get("message", ""))
+        ):
+            raise AssertionError(
+                f"{msg or '企业管理员登录失败'}\n"
+                "当前 TEST_API_BASE_URL 必须使用企业专属域名，例如 http://ss.dakkii.cn:8000"
+            ) from exc
+
+        raise
 
 
 def assert_error(response: httpx.Response, expected_status: int = None, msg: str = None) -> dict:

@@ -116,13 +116,26 @@ class BaseTask(Task):
         # 从任务 headers 恢复 trace_id 用于日志关联
         req_headers = getattr(self.request, "headers", None) or {}
         tid = req_headers.get("trace_id") if isinstance(req_headers, dict) else None
-        if tid:
-            trace_id_var.set(tid)
+        trace_id_var.set(tid or "")
 
         self._start_time = time.monotonic()
         self._apply_db_config()
         logger.info(f"Task started: {self.name} [{task_id}]")
         self._record_task_log_start(task_id, args, kwargs)
+
+    def after_return(
+        self,
+        status: str,
+        retval: Any,
+        task_id: str,
+        args: tuple,
+        kwargs: dict,
+        einfo: Any,
+    ) -> None:
+        try:
+            super().after_return(status, retval, task_id, args, kwargs, einfo)
+        finally:
+            trace_id_var.set("")
 
     def _apply_db_config(self) -> None:
         """

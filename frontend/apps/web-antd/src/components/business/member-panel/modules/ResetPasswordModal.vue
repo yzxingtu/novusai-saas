@@ -22,19 +22,19 @@ import { useResetPasswordSchema } from '../data';
 interface ResetPasswordTarget {
   id: number;
   username: string;
-  roleId?: number;
+  orgNodeId?: null | number;
 }
 
 const props = withDefaults(
   defineProps<{
     /** API prefix / API 前缀 */
     apiPrefix?: 'admin' | 'tenant';
-    /** Role ID (required for org API calls) / 角色 ID */
-    roleId?: number;
+    /** Org node ID (required for org API calls) / 组织节点 ID */
+    orgNodeId?: number;
   }>(),
   {
     apiPrefix: 'admin',
-    roleId: undefined,
+    orgNodeId: undefined,
   },
 );
 
@@ -63,8 +63,8 @@ const [Modal, modalApi] = useVbenModal({
     try {
       const { new_password } = values;
       const adminId = adminData.value.id;
-      // Prefer passed roleId (member's role), fallback to props.roleId (current selected node) / 优先使用传入的 roleId
-      const roleId = adminData.value.roleId ?? props.roleId;
+      // Prefer passed org node ID, fallback to current selected node / 优先使用传入的组织节点 ID
+      const orgNodeId = adminData.value.orgNodeId ?? props.orgNodeId;
 
       const options = {
         showSuccessMessage: true,
@@ -72,34 +72,33 @@ const [Modal, modalApi] = useVbenModal({
       };
 
       if (props.apiPrefix === 'tenant') {
-        // Tenant side (requires roleId) / 企业端（目前需要 roleId）
-        // Note: When called from member panel, roleId should be passed via props. / 注意：从成员面板调用时，roleId 应由 props 传入
-        if (roleId) {
+        // Tenant side (requires org node ID) / 企业端（目前需要组织节点 ID）
+        if (orgNodeId) {
           await tenantApi.resetTenantMemberPasswordApi(
-            roleId,
+            orgNodeId,
             adminId,
             { new_password },
             options,
           );
         } else {
           message.error($t('common.error.missingRequiredParam'));
-          console.error('Missing roleId for tenant member password reset');
+          console.error('Missing orgNodeId for tenant member password reset');
           // Stop execution and keep modal open (choose not to throw, but logic is interrupted) / 停止执行并保持弹窗打开
           modalApi.unlock();
           return;
         }
       } else {
         // Platform side / 平台端
-        if (roleId) {
+        if (orgNodeId) {
           await adminApi.resetMemberPasswordApi(
-            roleId,
+            orgNodeId,
             adminId,
             { new_password },
             options,
           );
         } else {
           message.error($t('common.error.missingRequiredParam'));
-          console.error('Missing roleId for admin member password reset');
+          console.error('Missing orgNodeId for admin member password reset');
           modalApi.unlock();
           return;
         }

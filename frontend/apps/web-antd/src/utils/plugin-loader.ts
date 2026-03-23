@@ -215,10 +215,11 @@ async function loadPluginReleaseManifest(
       publicEndpoint: loadOptions.publicEndpoint,
     },
   );
+  const manifestHeaders = getPluginAssetAuthHeaders({
+    publicEndpoint: loadOptions.publicEndpoint,
+  });
   const response = await fetch(manifestUrl, {
-    headers: getPluginAssetAuthHeaders({
-      publicEndpoint: loadOptions.publicEndpoint,
-    }),
+    headers: manifestHeaders,
   });
 
   if (!response.ok) {

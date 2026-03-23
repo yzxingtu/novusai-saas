@@ -1,6 +1,8 @@
 """Test toolkit_executor.py / 测试"""
 
 import asyncio
+from contextvars import ContextVar
+from types import ModuleType
 
 import pytest
 
@@ -100,6 +102,34 @@ async def test_sync_method():
     assert result.success is True
     assert result.output == "HELLO"
     print("PASS: sync method")
+
+
+@pytest.mark.asyncio
+async def test_sync_method_preserves_contextvars_in_threadpool(monkeypatch):
+    shared_var: ContextVar[str] = ContextVar("shared_var", default="")
+
+    class Tools:
+        def sync_context(self) -> str:
+            return shared_var.get()
+
+    module = ModuleType("test_toolkit_context_module")
+    module.Tools = Tools
+    monkeypatch.setattr(
+        "app.ai.tools.executors.toolkit_executor._load_toolkit_module",
+        lambda source: module,
+    )
+
+    executor = ToolkitExecutor(sandbox_mode="inprocess")
+    defn = _make_definition("sync_context", "sync_context", is_async=False)
+    token = shared_var.set("trace-from-context")
+    try:
+        result = await executor.execute(defn, "call2_ctx", {})
+    finally:
+        shared_var.reset(token)
+
+    assert result.success is True
+    assert result.output == "trace-from-context"
+    print("PASS: sync contextvar propagation")
 
 
 @pytest.mark.asyncio

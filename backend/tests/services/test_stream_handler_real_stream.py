@@ -60,6 +60,7 @@ sys.modules.setdefault("app.core.socketio_server", _sio_mod)
 from app.ai.engine.stream_handler import StreamExecutionHandler
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse
+from app.middleware.trace import trace_id_var
 
 
 def _parse_sse_payload(raw: str) -> dict:
@@ -150,6 +151,13 @@ class _FakeEngine:
     @staticmethod
     def _messages_to_dicts(messages: list[ChatMessage]) -> list[dict]:
         return [asdict(m) for m in messages]
+
+
+class _BrokenStreamEngine(_FakeEngine):
+    async def _stream_llm_chunks(self, **kwargs):
+        _ = kwargs
+        raise RuntimeError("provider boom")
+        yield  # pragma: no cover
 
 
 def _build_handler(
@@ -255,6 +263,22 @@ async def test_stream_handler_disconnect_after_done_still_runs_on_complete():
     assert len(captured) == 1
     assert captured[0].success is True
     assert captured[0].output == "完成"
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_error_event_includes_trace_id():
+    handler = _build_handler(_BrokenStreamEngine())
+    token = trace_id_var.set("trace-stream-error")
+    try:
+        events: list[dict] = []
+        async for raw in handler.generate():
+            if raw.strip().startswith("data: {"):
+                events.append(_parse_sse_payload(raw))
+    finally:
+        trace_id_var.reset(token)
+
+    error_event = next(event for event in events if event.get("error") is True)
+    assert error_event["trace_id"] == "trace-stream-error"
 
 
 @pytest.mark.asyncio

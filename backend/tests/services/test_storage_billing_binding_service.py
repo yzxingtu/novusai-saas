@@ -184,3 +184,190 @@ async def test_get_tenant_prerequisites_reports_local_driver_not_billable():
     assert result["prerequisites"]["charge_local_storage"] is False
     assert result["prerequisites"]["ready"] is False
     assert "current_driver_not_billable" in result["prerequisites"]["missing_reasons"]
+
+
+@pytest.mark.asyncio
+async def test_get_tenant_prerequisites_reports_binding_provider_mismatch():
+    module = load_plugin_module("storage-billing", "services.binding_service")
+    models = load_plugin_module("storage-billing", "models.binding")
+    assert module is not None
+    assert models is not None
+
+    binding = models.StorageTenantBinding(
+        tenant_id=31,
+        provider_code="tencent-cos",
+        driver_code="tencent-cos",
+        provider_profile_code="tencent-default",
+        billing_mode="official_reconciled",
+        scope_type="bucket",
+        scope_value="tenant-31-bucket",
+        validation_status="valid",
+        validation_message="ok",
+        entitlement_snapshot_json={},
+        metadata_json={},
+        is_active=True,
+    )
+
+    plugin_db = AsyncMock()
+    plugin_db.execute = AsyncMock(return_value=_make_scalars_result([binding]))
+
+    ctx = MagicMock()
+    ctx.get_db = MagicMock(return_value=plugin_db)
+
+    host = MagicMock()
+    host.get_tenant_plan_snapshot = AsyncMock(
+        return_value={
+            "tenant_id": 31,
+            "tenant_code": "tenant-31",
+            "tenant_name": "Tenant 31",
+            "plan_id": 9,
+            "plan": {
+                "code": "plan_storage",
+                "name": "Storage Plan",
+                "features": {"storage_billing_enabled": True},
+            },
+        }
+    )
+    host.get_tenant_storage_context = AsyncMock(
+        return_value={"storage_config": {"driver": "aliyun-oss"}}
+    )
+    host.get_plugin_runtime_summary = AsyncMock(return_value=[])
+
+    service = module.StorageBillingBindingService(ctx, host_read=host)
+    result = await service.get_tenant_prerequisites(31)
+
+    assert result["prerequisites"]["ready"] is False
+    assert "binding_provider_mismatch" in result["prerequisites"]["missing_reasons"]
+    assert result["bindings"]["active_total"] == 1
+    assert result["bindings"]["matching_active_total"] == 0
+    assert result["bindings"]["ready_total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_get_tenant_prerequisites_reports_invalid_binding_for_current_driver():
+    module = load_plugin_module("storage-billing", "services.binding_service")
+    models = load_plugin_module("storage-billing", "models.binding")
+    assert module is not None
+    assert models is not None
+
+    binding = models.StorageTenantBinding(
+        tenant_id=32,
+        provider_code="aliyun-oss",
+        driver_code="aliyun-oss",
+        provider_profile_code="aliyun-default",
+        billing_mode="official_reconciled",
+        scope_type="bucket",
+        scope_value="tenant-32-bucket",
+        validation_status="invalid",
+        validation_message="profile mismatch",
+        entitlement_snapshot_json={},
+        metadata_json={},
+        is_active=True,
+    )
+
+    plugin_db = AsyncMock()
+    plugin_db.execute = AsyncMock(return_value=_make_scalars_result([binding]))
+
+    ctx = MagicMock()
+    ctx.get_db = MagicMock(return_value=plugin_db)
+
+    host = MagicMock()
+    host.get_tenant_plan_snapshot = AsyncMock(
+        return_value={
+            "tenant_id": 32,
+            "tenant_code": "tenant-32",
+            "tenant_name": "Tenant 32",
+            "plan_id": 9,
+            "plan": {
+                "code": "plan_storage",
+                "name": "Storage Plan",
+                "features": {"storage_billing_enabled": True},
+            },
+        }
+    )
+    host.get_tenant_storage_context = AsyncMock(
+        return_value={"storage_config": {"driver": "aliyun-oss"}}
+    )
+    host.get_plugin_runtime_summary = AsyncMock(return_value=[])
+
+    service = module.StorageBillingBindingService(ctx, host_read=host)
+    result = await service.get_tenant_prerequisites(32)
+
+    assert result["prerequisites"]["ready"] is False
+    assert "binding_invalid" in result["prerequisites"]["missing_reasons"]
+    assert result["bindings"]["matching_active_total"] == 1
+    assert result["bindings"]["ready_total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_get_tenant_prerequisites_is_ready_with_valid_matching_binding():
+    module = load_plugin_module("storage-billing", "services.binding_service")
+    models = load_plugin_module("storage-billing", "models.binding")
+    assert module is not None
+    assert models is not None
+
+    valid_matching_binding = models.StorageTenantBinding(
+        tenant_id=33,
+        provider_code="tencent-cos",
+        driver_code="tencent-cos",
+        provider_profile_code="tencent-default",
+        billing_mode="official_reconciled",
+        scope_type="bucket",
+        scope_value="tenant-33-bucket",
+        validation_status="valid",
+        validation_message="ok",
+        entitlement_snapshot_json={},
+        metadata_json={},
+        is_active=True,
+    )
+    unrelated_binding = models.StorageTenantBinding(
+        tenant_id=33,
+        provider_code="aliyun-oss",
+        driver_code="aliyun-oss",
+        provider_profile_code="aliyun-default",
+        billing_mode="official_reconciled",
+        scope_type="bucket",
+        scope_value="tenant-33-secondary",
+        validation_status="invalid",
+        validation_message="ignored",
+        entitlement_snapshot_json={},
+        metadata_json={},
+        is_active=True,
+    )
+
+    plugin_db = AsyncMock()
+    plugin_db.execute = AsyncMock(
+        return_value=_make_scalars_result([valid_matching_binding, unrelated_binding])
+    )
+
+    ctx = MagicMock()
+    ctx.get_db = MagicMock(return_value=plugin_db)
+
+    host = MagicMock()
+    host.get_tenant_plan_snapshot = AsyncMock(
+        return_value={
+            "tenant_id": 33,
+            "tenant_code": "tenant-33",
+            "tenant_name": "Tenant 33",
+            "plan_id": 9,
+            "plan": {
+                "code": "plan_storage",
+                "name": "Storage Plan",
+                "features": {"storage_billing_enabled": True},
+            },
+        }
+    )
+    host.get_tenant_storage_context = AsyncMock(
+        return_value={"storage_config": {"driver": "tencent-cos"}}
+    )
+    host.get_plugin_runtime_summary = AsyncMock(return_value=[])
+
+    service = module.StorageBillingBindingService(ctx, host_read=host)
+    result = await service.get_tenant_prerequisites(33)
+
+    assert result["prerequisites"]["ready"] is True
+    assert result["prerequisites"]["missing_reasons"] == []
+    assert result["bindings"]["active_total"] == 2
+    assert result["bindings"]["valid_active_total"] == 1
+    assert result["bindings"]["matching_active_total"] == 1
+    assert result["bindings"]["ready_total"] == 1

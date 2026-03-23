@@ -66,28 +66,35 @@
 
     "roles": {
       "_status": "部分使用",
-      "GET /admin/roles/{role_id}": "获取角色详情 [org-node-dialog.vue, permission-preview.vue]",
-      "POST /admin/roles": "创建角色 [org-node-dialog.vue]",
-      "PUT /admin/roles/{role_id}": "更新角色 [org-node-dialog.vue]",
-      "DELETE /admin/roles/{role_id}": "删除角色 [views/admin/system/organization/index.vue]",
-      "GET /admin/roles/tree": "获取角色树 [views/admin/system/organization/index.vue - member-panel]",
-      "GET /admin/roles/{role_id}/children": "获取子角色 [use-org-tree.ts 懒加载]",
+      "_note": "前端 role API 已切换到权限角色控制器 /admin/permission-roles/*",
+      "GET /admin/permission-roles/{role_id}": "获取权限角色详情 [org-node-dialog.vue, permission-preview.vue]",
+      "POST /admin/permission-roles": "创建权限角色 [org-node-dialog.vue]",
+      "PUT /admin/permission-roles/{role_id}": "更新权限角色 [org-node-dialog.vue]",
+      "DELETE /admin/permission-roles/{role_id}": "删除权限角色 [权限角色列表通用删除动作]",
       "_未使用": {
-        "GET /admin/roles": "获取角色列表（平铺）- 已定义但未使用",
-        "PUT /admin/roles/{role_id}/permissions": "分配角色权限 - 已定义但未使用（通过节点编辑弹窗设置）",
-        "PUT /admin/roles/{role_id}/move": "移动角色 - 已定义但未使用",
-        "GET /admin/roles/select": "获取角色下拉 - 已定义但未使用"
+        "GET /admin/permission-roles": "获取权限角色列表（平铺）- 已定义但当前前端未直接调用",
+        "PUT /admin/permission-roles/{role_id}/permissions": "分配角色权限 - API 已定义但当前前端未直接调用"
       }
     },
 
     "organization": {
       "_status": "全部使用中",
-      "_note": "use-org-tree.ts 和 use-member-panel.ts 使用",
-      "GET /admin/roles/organization": "获取组织架构根节点",
-      "GET /admin/roles/{role_id}/members": "获取节点成员列表（分页）",
-      "POST /admin/roles/{role_id}/members": "添加成员到节点",
-      "DELETE /admin/roles/{role_id}/members/{admin_id}": "从节点移除成员",
-      "PUT /admin/roles/{role_id}/leader": "设置节点负责人"
+      "_note": "org-tree、org-node-dialog、member-panel 与组织页共同使用",
+      "GET /admin/organization": "获取组织架构根节点 [use-org-tree.ts, use-codegen-apis.ts]",
+      "GET /admin/organization/tree": "获取完整组织树 [views/admin/system/organization/index.vue, org-node-dialog.vue]",
+      "GET /admin/organization/{org_node_id}": "获取组织节点详情 [views/admin/system/organization/index.vue, org-node-dialog.vue]",
+      "GET /admin/organization/{org_node_id}/children": "获取子节点 [use-org-tree.ts 懒加载]",
+      "POST /admin/organization": "创建组织节点 [org-node-dialog.vue]",
+      "PUT /admin/organization/{org_node_id}": "更新组织节点 [org-node-dialog.vue]",
+      "DELETE /admin/organization/{org_node_id}": "删除组织节点 [views/admin/system/organization/index.vue]",
+      "GET /admin/organization/{org_node_id}/members": "获取节点成员列表（分页） [member-panel/use-member-panel.ts]",
+      "POST /admin/organization/{org_node_id}/members": "添加已有管理员到节点 [member-panel/use-member-panel.ts]",
+      "POST /admin/organization/{org_node_id}/members/create": "在节点下创建管理员 [member-panel/AdminFormDrawer.vue]",
+      "PUT /admin/organization/{org_node_id}/members/{admin_id}": "更新成员的组织归属与权限角色 [member-panel/AdminFormDrawer.vue]",
+      "PUT /admin/organization/{org_node_id}/members/{admin_id}/reset-password": "重置节点成员密码 [member-panel/ResetPasswordModal.vue]",
+      "PUT /admin/organization/{org_node_id}/members/{admin_id}/status": "切换节点成员状态 [member-panel/use-member-panel.ts]",
+      "DELETE /admin/organization/{org_node_id}/members/{admin_id}": "从节点移除成员 [member-panel/use-member-panel.ts]",
+      "PUT /admin/organization/{org_node_id}/leader": "设置节点负责人 [member-panel/use-member-panel.ts]"
     },
 
     "permissions": {
@@ -136,27 +143,35 @@
 
     "roles": {
       "_status": "部分使用",
-      "GET /tenant/roles/{role_id}": "获取角色详情 [permission-preview.vue]",
-      "POST /tenant/roles": "创建角色 [org-node-dialog 通过 apiPrefix='tenant']",
-      "PUT /tenant/roles/{role_id}": "更新角色 [org-node-dialog]",
-      "DELETE /tenant/roles/{role_id}": "删除角色 [views/tenant/system/organization/index.vue]",
-      "GET /tenant/roles/tree": "获取角色树 [views/tenant/system/organization/index.vue]",
-      "GET /tenant/roles/{role_id}/children": "获取子角色 [use-org-tree.ts 懒加载]",
+      "_note": "前端 role API 已切换到权限角色控制器 /tenant/permission-roles/*",
+      "GET /tenant/permission-roles/{role_id}": "获取权限角色详情 [permission-preview.vue]",
+      "POST /tenant/permission-roles": "创建权限角色 [org-node-dialog 通过 tenant API]",
+      "PUT /tenant/permission-roles/{role_id}": "更新权限角色 [org-node-dialog.vue]",
+      "DELETE /tenant/permission-roles/{role_id}": "删除权限角色 [权限角色列表通用删除动作]",
       "_未使用": {
-        "GET /tenant/roles": "获取角色列表（平铺）- 已定义但未使用",
-        "PUT /tenant/roles/{role_id}/permissions": "分配角色权限 - 已定义但未使用",
-        "PUT /tenant/roles/{role_id}/move": "移动角色 - 已定义但未使用"
+        "GET /tenant/permission-roles": "获取权限角色列表（平铺）- 已定义但当前前端未直接调用",
+        "PUT /tenant/permission-roles/{role_id}/permissions": "分配角色权限 - API 已定义但当前前端未直接调用"
       }
     },
 
     "organization": {
       "_status": "全部使用中",
-      "_note": "use-org-tree.ts 和 use-member-panel.ts 使用",
-      "GET /tenant/roles/organization": "获取组织架构根节点",
-      "GET /tenant/roles/{role_id}/members": "获取节点成员列表（分页）",
-      "POST /tenant/roles/{role_id}/members": "添加成员到节点",
-      "DELETE /tenant/roles/{role_id}/members/{admin_id}": "从节点移除成员",
-      "PUT /tenant/roles/{role_id}/leader": "设置节点负责人"
+      "_note": "org-tree、org-node-dialog、member-panel、user-architecture 与组织页共同使用",
+      "GET /tenant/organization": "获取组织架构根节点 [use-org-tree.ts, use-codegen-apis.ts]",
+      "GET /tenant/organization/tree": "获取完整组织树 [views/tenant/system/organization/index.vue, org-node-dialog.vue, user-architecture/UserForm.vue]",
+      "GET /tenant/organization/{org_node_id}": "获取组织节点详情 [views/tenant/system/organization/index.vue, org-node-dialog.vue]",
+      "GET /tenant/organization/{org_node_id}/children": "获取子节点 [use-org-tree.ts 懒加载]",
+      "POST /tenant/organization": "创建组织节点 [org-node-dialog.vue]",
+      "PUT /tenant/organization/{org_node_id}": "更新组织节点 [org-node-dialog.vue]",
+      "DELETE /tenant/organization/{org_node_id}": "删除组织节点 [views/tenant/system/organization/index.vue]",
+      "GET /tenant/organization/{org_node_id}/members": "获取节点成员列表（分页） [member-panel/use-member-panel.ts]",
+      "POST /tenant/organization/{org_node_id}/members": "添加已有企业管理员到节点 [member-panel/use-member-panel.ts]",
+      "POST /tenant/organization/{org_node_id}/members/create": "在节点下创建企业管理员 [member-panel/AdminFormDrawer.vue]",
+      "PUT /tenant/organization/{org_node_id}/members/{admin_id}": "更新成员的组织归属与权限角色 [member-panel/AdminFormDrawer.vue]",
+      "PUT /tenant/organization/{org_node_id}/members/{admin_id}/reset-password": "重置节点成员密码 [member-panel/ResetPasswordModal.vue]",
+      "PUT /tenant/organization/{org_node_id}/members/{admin_id}/status": "切换节点成员状态 [member-panel/use-member-panel.ts]",
+      "DELETE /tenant/organization/{org_node_id}/members/{admin_id}": "从节点移除成员 [member-panel/use-member-panel.ts]",
+      "PUT /tenant/organization/{org_node_id}/leader": "设置节点负责人 [member-panel/use-member-panel.ts]"
     },
 
     "permissions": {
@@ -214,17 +229,14 @@
     "_description": "以下 API 在前端代码中已定义但未实际调用，后端可考虑删除或保留供将来使用",
     "admin": [
       "PUT /admin/auth/password（修改密码 - 修改密码页面未实现）",
-      "GET /admin/roles（获取角色列表平铺）",
-      "PUT /admin/roles/{role_id}/permissions（分配角色权限 - 权限在创建/编辑节点时设置）",
-      "PUT /admin/roles/{role_id}/move（移动角色）",
-      "GET /admin/roles/select（获取角色下拉选项）",
+      "GET /admin/permission-roles（获取权限角色列表平铺）",
+      "PUT /admin/permission-roles/{role_id}/permissions（分配角色权限）",
       "GET /admin/permissions/list（获取权限列表平铺）"
     ],
     "tenant": [
       "PUT /tenant/auth/password（修改密码 - 修改密码页面未实现）",
-      "GET /tenant/roles（获取角色列表平铺）",
-      "PUT /tenant/roles/{role_id}/permissions（分配角色权限）",
-      "PUT /tenant/roles/{role_id}/move（移动角色）",
+      "GET /tenant/permission-roles（获取权限角色列表平铺）",
+      "PUT /tenant/permission-roles/{role_id}/permissions（分配角色权限）",
       "GET /tenant/permissions/list（获取权限列表平铺）"
     ],
     "user": ["PUT /api/v1/auth/password（修改密码 - 修改密码页面未实现）"]

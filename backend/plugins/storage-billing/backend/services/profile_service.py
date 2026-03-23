@@ -26,32 +26,41 @@ _LEGACY_FLAT_FIELD_MAP: dict[str, dict[str, str]] = {
         "enabled": "qiniu_enabled",
         "profile_code": "qiniu_profile_code",
         "bill_source": "qiniu_bill_source",
-        "access_key": "qiniu_access_key",
-        "secret_key": "qiniu_secret_key",
         "account_identifier": "qiniu_account_identifier",
     },
     "aliyun-oss": {
         "enabled": "aliyun_enabled",
         "profile_code": "aliyun_profile_code",
         "bill_source": "aliyun_bill_source",
-        "region": "aliyun_region",
-        "access_key_id": "aliyun_access_key_id",
-        "access_key_secret": "aliyun_access_key_secret",
-        "bill_bucket": "aliyun_bill_bucket",
-        "bill_prefix": "aliyun_bill_prefix",
         "account_identifier": "aliyun_account_identifier",
     },
     "tencent-cos": {
         "enabled": "tencent_enabled",
         "profile_code": "tencent_profile_code",
         "bill_source": "tencent_bill_source",
-        "region": "tencent_region",
-        "secret_id": "tencent_secret_id",
-        "secret_key": "tencent_secret_key",
-        "bill_bucket": "tencent_bill_bucket",
-        "bill_prefix": "tencent_bill_prefix",
         "account_identifier": "tencent_account_identifier",
     },
+}
+
+_LEGACY_DEPRECATED_FLAT_KEYS = {
+    "qiniu_access_key",
+    "qiniu_secret_key",
+    "aliyun_region",
+    "aliyun_access_key_id",
+    "aliyun_access_key_secret",
+    "aliyun_bill_bucket",
+    "aliyun_bill_prefix",
+    "tencent_region",
+    "tencent_secret_id",
+    "tencent_secret_key",
+    "tencent_bill_bucket",
+    "tencent_bill_prefix",
+}
+
+_PROVIDER_HOST_FIELD_MAP: dict[str, list[str]] = {
+    "qiniu-kodo": ["access_key", "secret_key"],
+    "aliyun-oss": ["region", "access_key_id", "access_key_secret"],
+    "tencent-cos": ["region", "secret_id", "secret_key"],
 }
 
 
@@ -65,6 +74,44 @@ def _to_bool(value: Any, *, default: bool = False) -> bool:
     if isinstance(value, str):
         return value.strip().lower() in {"1", "true", "yes", "on"}
     return bool(value)
+
+
+def _plugin_profile_fields(provider: str) -> set[str]:
+    return set((DEFAULT_PROVIDER_PROFILES.get(provider) or {}).keys())
+
+
+def _sanitize_plugin_profile(provider: str, raw_profile: Mapping[str, Any] | None) -> dict[str, Any]:
+    result = dict(DEFAULT_PROVIDER_PROFILES.get(provider) or {})
+    payload = dict(raw_profile or {})
+    for field in _plugin_profile_fields(provider):
+        if field not in payload:
+            continue
+        value = payload.get(field)
+        if field == "enabled":
+            result[field] = _to_bool(value)
+            continue
+        if isinstance(value, str):
+            result[field] = value.strip()
+            continue
+        if value is None:
+            result[field] = ""
+            continue
+        result[field] = value
+
+    result["enabled"] = _to_bool(result.get("enabled"))
+    result["profile_code"] = _stringify(result.get("profile_code")) or _stringify(
+        DEFAULT_PROVIDER_PROFILES.get(provider, {}).get("profile_code")
+    )
+    result["bill_source"] = _stringify(result.get("bill_source")) or _stringify(
+        DEFAULT_PROVIDER_PROFILES.get(provider, {}).get("bill_source")
+    )
+    allowed_sources = PROVIDER_BILL_SOURCES.get(provider) or []
+    if allowed_sources and result["bill_source"] not in allowed_sources:
+        result["bill_source"] = (
+            _stringify(DEFAULT_PROVIDER_PROFILES.get(provider, {}).get("bill_source"))
+            or allowed_sources[0]
+        )
+    return result
 
 
 def _configured_secret_fields(provider: str, profile: dict[str, Any]) -> dict[str, bool]:
@@ -82,24 +129,22 @@ def _normalize_provider_profiles(raw_config: dict[str, Any] | None) -> dict[str,
 
     for provider in SUPPORTED_CLOUD_DRIVERS:
         current = dict(profiles.get(provider) or {})
+        allowed_fields = _plugin_profile_fields(provider)
         nested_profile = source_profiles.get(provider)
-        if isinstance(nested_profile, dict):
-            current.update(nested_profile)
+        if isinstance(nested_profile, Mapping):
+            for field in allowed_fields:
+                if field in nested_profile:
+                    current[field] = nested_profile.get(field)
 
         for field, legacy_key in (_LEGACY_FLAT_FIELD_MAP.get(provider) or {}).items():
-            if field in current and nested_profile is not None and field in nested_profile:
+            if field not in allowed_fields:
+                continue
+            if isinstance(nested_profile, Mapping) and field in nested_profile:
                 continue
             if legacy_key in raw:
                 current[field] = raw.get(legacy_key)
 
-        current["enabled"] = _to_bool(current.get("enabled"))
-        current["profile_code"] = _stringify(current.get("profile_code")) or _stringify(
-            DEFAULT_PROVIDER_PROFILES.get(provider, {}).get("profile_code")
-        )
-        current["bill_source"] = _stringify(current.get("bill_source")) or _stringify(
-            DEFAULT_PROVIDER_PROFILES.get(provider, {}).get("bill_source")
-        )
-        profiles[provider] = current
+        profiles[provider] = _sanitize_plugin_profile(provider, current)
 
     return profiles
 
@@ -109,38 +154,109 @@ def _merge_profile(
     current: dict[str, Any],
     incoming: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    result = dict(DEFAULT_PROVIDER_PROFILES.get(provider) or {})
-    result.update(current or {})
+    result = _sanitize_plugin_profile(provider, current)
     patch = dict(incoming or {})
-    secret_fields = set(PROVIDER_SECRET_FIELDS.get(provider) or [])
+    allowed_fields = _plugin_profile_fields(provider)
 
-    for key, value in patch.items():
+    for key in allowed_fields:
+        if key not in patch:
+            continue
+        value = patch.get(key)
         if key == "enabled":
             result[key] = _to_bool(value)
             continue
-
-        if key in secret_fields:
-            if value is None:
-                result[key] = ""
-            elif isinstance(value, str) and not value.strip():
-                continue
-            else:
-                result[key] = value.strip() if isinstance(value, str) else value
-            continue
-
         if isinstance(value, str):
             result[key] = value.strip()
-        else:
-            result[key] = value
+            continue
+        if value is None:
+            result[key] = ""
+            continue
+        result[key] = value
 
-    result["enabled"] = _to_bool(result.get("enabled"))
-    result["profile_code"] = _stringify(result.get("profile_code")) or _stringify(
-        DEFAULT_PROVIDER_PROFILES.get(provider, {}).get("profile_code")
-    )
-    result["bill_source"] = _stringify(result.get("bill_source")) or _stringify(
-        DEFAULT_PROVIDER_PROFILES.get(provider, {}).get("bill_source")
-    )
-    return result
+    return _sanitize_plugin_profile(provider, result)
+
+
+def _normalize_storage_context(raw_context: Mapping[str, Any] | None) -> dict[str, Any]:
+    payload = dict(raw_context or {})
+    raw_storage_config = payload.get("storage_config")
+    storage_config = dict(raw_storage_config or {}) if isinstance(raw_storage_config, Mapping) else {}
+    options = storage_config.get("options")
+    storage_config["options"] = dict(options or {}) if isinstance(options, Mapping) else {}
+    return {
+        "storage_mode": _stringify(payload.get("storage_mode")) or "platform",
+        "apply_quota": bool(payload.get("apply_quota", True)),
+        "storage_config": {
+            "driver": _stringify(storage_config.get("driver")),
+            "root_path": storage_config.get("root_path"),
+            "base_url": storage_config.get("base_url"),
+            "options": dict(storage_config.get("options") or {}),
+        },
+    }
+
+
+def _build_host_storage_runtime(
+    provider: str,
+    storage_context: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    normalized_context = _normalize_storage_context(storage_context)
+    storage_config = dict(normalized_context.get("storage_config") or {})
+    options = dict(storage_config.get("options") or {})
+    current_driver = _stringify(storage_config.get("driver"))
+    driver_match = bool(current_driver) and current_driver == provider
+
+    root_path = storage_config.get("root_path")
+    base_url = storage_config.get("base_url")
+    bucket_name = _stringify(options.get("bucket")) or _stringify(root_path)
+    region = _stringify(options.get("region"))
+    endpoint = _stringify(options.get("endpoint"))
+    prefix = _stringify(options.get("prefix"))
+
+    resolved_fields: dict[str, Any] = {}
+    if driver_match:
+        if provider == "qiniu-kodo":
+            resolved_fields = {
+                "access_key": _stringify(options.get("access_key")),
+                "secret_key": _stringify(options.get("secret_key")),
+            }
+        elif provider == "aliyun-oss":
+            resolved_fields = {
+                "region": region,
+                "access_key_id": _stringify(options.get("access_key_id")),
+                "access_key_secret": _stringify(options.get("access_key_secret")),
+            }
+        elif provider == "tencent-cos":
+            resolved_fields = {
+                "region": region,
+                "secret_id": _stringify(options.get("secret_id")),
+                "secret_key": _stringify(options.get("secret_key")),
+            }
+
+    host_fields = _PROVIDER_HOST_FIELD_MAP.get(provider) or []
+    host_field_status = {
+        field: bool(_stringify(resolved_fields.get(field)))
+        for field in host_fields
+    }
+
+    return {
+        **resolved_fields,
+        "active_storage_driver": current_driver,
+        "storage_driver_match": driver_match,
+        "host_credentials_configured": (
+            bool(host_fields) and driver_match and all(host_field_status.values())
+        ),
+        "storage_context": {
+            "source": "platform_storage",
+            "storage_mode": normalized_context.get("storage_mode"),
+            "current_driver": current_driver,
+            "driver_match": driver_match,
+            "bucket_name": bucket_name or None,
+            "root_path": root_path,
+            "base_url": base_url,
+            "region": region or None,
+            "endpoint": endpoint or None,
+            "prefix": prefix or None,
+        },
+    }
 
 
 def _build_runtime_profile(
@@ -148,15 +264,11 @@ def _build_runtime_profile(
     profile: dict[str, Any],
     *,
     driver_plugin_enabled: bool | None,
+    storage_context: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
-    runtime = dict(profile)
-    runtime["enabled"] = _to_bool(runtime.get("enabled"))
-    runtime["profile_code"] = _stringify(runtime.get("profile_code")) or _stringify(
-        DEFAULT_PROVIDER_PROFILES.get(provider, {}).get("profile_code")
-    )
-    runtime["bill_source"] = _stringify(runtime.get("bill_source")) or _stringify(
-        DEFAULT_PROVIDER_PROFILES.get(provider, {}).get("bill_source")
-    )
+    runtime = _sanitize_plugin_profile(provider, profile)
+    runtime.update(_build_host_storage_runtime(provider, storage_context))
+
     selected_bill_source = _stringify(runtime.get("bill_source"))
     runtime["driver_enabled"] = driver_plugin_enabled
     runtime["supported_bill_sources"] = list(PROVIDER_BILL_SOURCES.get(provider) or [])
@@ -187,6 +299,8 @@ def _build_runtime_profile(
     runtime["recommended_scope_types"] = list(
         capability.get("recommended_scope_types") or []
     )
+    runtime["official_billing_lag_days"] = capability.get("official_billing_lag_days")
+    runtime["official_target_rule"] = _stringify(capability.get("official_target_rule"))
     runtime["capability_message"] = _stringify(capability.get("capability_message"))
     runtime["implemented"] = bool(capability.get("implemented", False))
     return runtime
@@ -199,12 +313,9 @@ def _serialize_profile(
     include_secret_placeholders: bool,
 ) -> dict[str, Any]:
     payload = dict(runtime_profile)
-    if include_secret_placeholders:
-        for field in PROVIDER_SECRET_FIELDS.get(provider) or []:
-            payload[field] = ""
-    else:
-        for field in PROVIDER_SECRET_FIELDS.get(provider) or []:
-            payload.pop(field, None)
+    for field in PROVIDER_SECRET_FIELDS.get(provider) or []:
+        payload.pop(field, None)
+    _ = include_secret_placeholders
     return payload
 
 
@@ -213,11 +324,13 @@ def build_provider_validation(
     profile: dict[str, Any],
     *,
     driver_plugin_enabled: bool | None,
+    storage_context: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     runtime_profile = _build_runtime_profile(
         provider,
         profile,
         driver_plugin_enabled=driver_plugin_enabled,
+        storage_context=storage_context,
     )
     errors: list[str] = []
     warnings: list[str] = []
@@ -231,6 +344,9 @@ def build_provider_validation(
         errors.append(_("Unsupported provider."))
 
     if enabled:
+        if not bool(runtime_profile.get("storage_driver_match")):
+            errors.append(_("Current platform storage driver does not match this provider."))
+
         for field in required_fields:
             if not _stringify(runtime_profile.get(field)):
                 errors.append(_(f"Missing required field: {field}"))
@@ -284,7 +400,15 @@ def build_provider_validation(
         "recommended_scope_types": list(
             capability.get("recommended_scope_types") or []
         ),
+        "official_billing_lag_days": capability.get("official_billing_lag_days"),
+        "official_target_rule": _stringify(capability.get("official_target_rule")),
         "capability_message": _stringify(capability.get("capability_message")),
+        "active_storage_driver": _stringify(runtime_profile.get("active_storage_driver")),
+        "storage_driver_match": bool(runtime_profile.get("storage_driver_match")),
+        "host_credentials_configured": bool(
+            runtime_profile.get("host_credentials_configured", False)
+        ),
+        "storage_context": dict(runtime_profile.get("storage_context") or {}),
     }
 
 
@@ -338,6 +462,21 @@ class StorageBillingProviderProfileService:
 
         return result
 
+    async def _get_platform_storage_context(self) -> dict[str, Any]:
+        if self._host_read is None:
+            return _normalize_storage_context({})
+
+        reader = getattr(self._host_read, "get_platform_storage_context", None)
+        if callable(reader):
+            if inspect.iscoroutinefunction(reader):
+                payload = await reader()
+            else:
+                payload = reader()
+            if isinstance(payload, Mapping):
+                return _normalize_storage_context(payload)
+
+        return _normalize_storage_context({})
+
     async def _load_config(self) -> dict[str, Any]:
         get_config = getattr(self._ctx, "get_config", None)
         if not callable(get_config):
@@ -354,12 +493,14 @@ class StorageBillingProviderProfileService:
         current_config = await self._load_config()
         profiles = _normalize_provider_profiles(current_config)
         enabled_map = await self._get_driver_plugin_enabled_map()
+        platform_storage_context = await self._get_platform_storage_context()
 
         runtime_profiles = {
             provider: _build_runtime_profile(
                 provider,
                 profile,
                 driver_plugin_enabled=enabled_map.get(provider),
+                storage_context=platform_storage_context,
             )
             for provider, profile in profiles.items()
         }
@@ -378,6 +519,7 @@ class StorageBillingProviderProfileService:
                     provider,
                     profiles[provider],
                     driver_plugin_enabled=enabled_map.get(provider),
+                    storage_context=platform_storage_context,
                 )
                 for provider in SUPPORTED_CLOUD_DRIVERS
             },
@@ -415,7 +557,7 @@ class StorageBillingProviderProfileService:
             legacy_key
             for mapping in _LEGACY_FLAT_FIELD_MAP.values()
             for legacy_key in mapping.values()
-        }
+        } | set(_LEGACY_DEPRECATED_FLAT_KEYS)
         next_config = {
             key: value
             for key, value in current_config.items()
@@ -424,7 +566,7 @@ class StorageBillingProviderProfileService:
         next_config["providers"] = merged_profiles
 
         await self._ctx.update_config(next_config)
-        return await self._build_response(include_secret_placeholders=True)
+        return await self._build_response(include_secret_placeholders=False)
 
     async def validate_provider_profile(
         self,
@@ -445,22 +587,25 @@ class StorageBillingProviderProfileService:
             )
 
         enabled_map = await self._get_driver_plugin_enabled_map()
+        platform_storage_context = await self._get_platform_storage_context()
         validation = build_provider_validation(
             normalized_provider,
             profiles[normalized_provider],
             driver_plugin_enabled=enabled_map.get(normalized_provider),
+            storage_context=platform_storage_context,
         )
         runtime_profile = _build_runtime_profile(
             normalized_provider,
             profiles[normalized_provider],
             driver_plugin_enabled=enabled_map.get(normalized_provider),
+            storage_context=platform_storage_context,
         )
         return {
             **validation,
             "profile": _serialize_profile(
                 normalized_provider,
                 runtime_profile,
-                include_secret_placeholders=True,
+                include_secret_placeholders=False,
             ),
         }
 
@@ -470,10 +615,12 @@ class StorageBillingProviderProfileService:
         if normalized_provider not in profiles:
             raise BusinessException(message=_(f"Unsupported provider: {provider_code}"))
         enabled_map = await self._get_driver_plugin_enabled_map()
+        platform_storage_context = await self._get_platform_storage_context()
         return _build_runtime_profile(
             normalized_provider,
             profiles[normalized_provider],
             driver_plugin_enabled=enabled_map.get(normalized_provider),
+            storage_context=platform_storage_context,
         )
 
 

@@ -12,10 +12,8 @@ from urllib.parse import urlparse
 
 from sqlalchemy.exc import IntegrityError
 
-from app.ai.constants import OPENAI_COMPATIBLE_URL_SUFFIX_TO_WIRE_API
 from app.core.base_service import BaseService
 from app.core.i18n import _
-from app.enums.ai import ProviderTypeEnum
 from app.exceptions import ConflictException, NotFoundException, ValidationException
 from app.models.ai import AIProvider
 from app.repositories.ai import AIProviderRepository
@@ -26,6 +24,10 @@ from app.schemas.ai.provider import (
 
 
 _ALLOWED_PROVIDER_BASE_URL_SCHEMES = {"http", "https"}
+_FORBIDDEN_OPENAI_COMPATIBLE_BASE_URL_SUFFIXES = (
+    "/responses",
+    "/chat/completions",
+)
 
 
 class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
@@ -104,36 +106,26 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
         normalized = str(base_url or "").strip()
         if not normalized:
             return None
-        return normalized.rstrip("/")
+        return normalized
 
     @classmethod
-    def _normalize_connection_settings(
+    def _has_forbidden_openai_endpoint_suffix(cls, base_url: str) -> bool:
+        normalized_for_suffix_check = base_url.rstrip("/").lower()
+        return any(
+            normalized_for_suffix_check.endswith(suffix)
+            for suffix in _FORBIDDEN_OPENAI_COMPATIBLE_BASE_URL_SUFFIXES
+        )
+
+    @classmethod
+    def _validate_base_url(
         cls,
-        provider_type: str | None,
         base_url: str | None,
-        config: dict[str, Any] | None,
-    ) -> tuple[str | None, dict[str, Any] | None, bool]:
-        normalized_base_url = cls._clean_base_url(base_url)
-        normalized_config = dict(config) if isinstance(config, dict) else {}
-        config_changed = False
-
-        if (
-            provider_type == ProviderTypeEnum.OPENAI_COMPATIBLE.value
-            and normalized_base_url
-        ):
-            lower_base_url = normalized_base_url.lower()
-            for suffix, inferred_wire_api in OPENAI_COMPATIBLE_URL_SUFFIX_TO_WIRE_API.items():
-                if lower_base_url.endswith(suffix):
-                    stripped_base_url = normalized_base_url[:-len(suffix)].rstrip("/")
-                    if stripped_base_url:
-                        normalized_base_url = stripped_base_url
-                    if normalized_config.get("wire_api") != inferred_wire_api:
-                        normalized_config["wire_api"] = inferred_wire_api
-                        config_changed = True
-                    break
-
-        if normalized_base_url:
-            parsed = urlparse(normalized_base_url)
+        *,
+        provider_type: str | None = None,
+    ) -> str | None:
+        cleaned_base_url = cls._clean_base_url(base_url)
+        if cleaned_base_url:
+            parsed = urlparse(cleaned_base_url)
             if (
                 parsed.scheme.lower() not in _ALLOWED_PROVIDER_BASE_URL_SCHEMES
                 or not parsed.netloc
@@ -141,38 +133,33 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
                 raise ValidationException(
                     message=_("ai.error.provider_base_url_invalid")
                 )
-
-        return normalized_base_url, normalized_config or None, config_changed
+            if (
+                provider_type == "openai_compatible"
+                and cls._has_forbidden_openai_endpoint_suffix(cleaned_base_url)
+            ):
+                raise ValidationException(
+                    message=_("ai.error.provider_base_url_endpoint_not_allowed")
+                )
+        return cleaned_base_url
 
     @classmethod
-    def _normalize_provider_payload(
+    def _validate_provider_payload(
         cls,
         payload: dict[str, Any],
         *,
         existing_provider: AIProvider | None = None,
     ) -> dict[str, Any]:
-        normalized_payload = dict(payload)
-        if "base_url" not in normalized_payload:
-            return normalized_payload
-
-        provider_type = (
-            normalized_payload.get("type")
-            or getattr(existing_provider, "type", None)
-        )
-        config_source = (
-            normalized_payload.get("config")
-            if "config" in normalized_payload
-            else getattr(existing_provider, "config", None)
-        )
-        normalized_base_url, normalized_config, config_changed = cls._normalize_connection_settings(
-            provider_type=provider_type,
-            base_url=normalized_payload.get("base_url"),
-            config=config_source,
-        )
-        normalized_payload["base_url"] = normalized_base_url
-        if "config" in normalized_payload or config_changed:
-            normalized_payload["config"] = normalized_config
-        return normalized_payload
+        validated_payload = dict(payload)
+        if "base_url" in validated_payload:
+            provider_type = (
+                validated_payload.get("type")
+                or getattr(existing_provider, "type", None)
+            )
+            validated_payload["base_url"] = cls._validate_base_url(
+                validated_payload.get("base_url"),
+                provider_type=provider_type,
+            )
+        return validated_payload
 
     async def create_provider(
         self,
@@ -190,7 +177,7 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
         Raises:
             ConflictException: 代码已存在
         """
-        dump = self._normalize_provider_payload(data.model_dump())
+        dump = self._validate_provider_payload(data.model_dump())
 
         # 自动生成代码
         if not dump.get("code"):
@@ -234,7 +221,7 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
             raise NotFoundException(message=_("ai.error.provider_not_found"))
 
         # 检查代码是否与其他供应商冲突
-        update_data = self._normalize_provider_payload(
+        update_data = self._validate_provider_payload(
             data.model_dump(exclude_unset=True),
             existing_provider=provider,
         )

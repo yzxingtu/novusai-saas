@@ -5,13 +5,17 @@
 Provides standardized API response formats and wrapper methods.
 """
 
+import sys
+import traceback
 from datetime import datetime, timezone
 from typing import Any, Generic, TypeVar
 
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from app.core.config import settings
 from app.core.i18n import _
+from app.middleware.trace import trace_id_var
 
 
 def _serialize(data: Any) -> Any:
@@ -71,6 +75,127 @@ class PagedData(BaseModel, Generic[T]):
     pages: int = Field(default=0, description="总页数 / Total pages")
 
 
+def get_current_trace_id() -> str | None:
+    """Get current trace_id from ContextVar / 从 ContextVar 获取当前 trace_id"""
+    trace_id = trace_id_var.get().strip()
+    return trace_id or None
+
+
+def include_debug_payload() -> bool:
+    """Whether current environment should expose debug payload / 当前环境是否应暴露调试载荷"""
+    return bool(settings.DEBUG)
+
+
+def build_exception_debug(
+    exc: BaseException,
+    *,
+    detail: Any = None,
+    include_traceback: bool = True,
+) -> dict[str, Any]:
+    """
+    Build structured debug payload from exception / 从异常构建结构化 debug 载荷
+    """
+    debug: dict[str, Any] = {
+        "type": type(exc).__name__,
+        "detail": detail if detail is not None else str(exc),
+    }
+
+    if include_traceback and sys.exc_info()[0] is not None:
+        debug["traceback"] = traceback.format_exc()
+
+    return debug
+
+
+def build_error_payload(
+    *,
+    message: str | None = None,
+    code: int | str = 4000,
+    data: Any = None,
+    trace_id: str | None = None,
+    debug: Any = None,
+    extra: dict[str, Any] | None = None,
+    include_debug: bool | None = None,
+) -> dict[str, Any]:
+    """
+    Build unified error payload / 构建统一错误响应载荷
+    """
+    resolved_trace_id = trace_id or get_current_trace_id()
+    payload: dict[str, Any] = {
+        "code": code,
+        "message": message or _("common.failed"),
+        "data": _serialize(data),
+        "trace_id": resolved_trace_id,
+    }
+
+    if extra:
+        payload.update({key: _serialize(value) for key, value in extra.items()})
+
+    if include_debug is None:
+        include_debug = include_debug_payload()
+    if include_debug and debug is not None:
+        payload["debug"] = _serialize(debug)
+
+    return payload
+
+
+def build_error_event(
+    *,
+    code: int | str,
+    message: str | None = None,
+    data: Any = None,
+    trace_id: str | None = None,
+    debug: Any = None,
+    extra: dict[str, Any] | None = None,
+    include_debug: bool | None = None,
+) -> dict[str, Any]:
+    """
+    Build unified SSE/Socket error event payload / 构建统一 SSE/Socket 错误事件载荷
+    """
+    return {
+        "error": True,
+        **build_error_payload(
+            message=message,
+            code=code,
+            data=data,
+            trace_id=trace_id,
+            debug=debug,
+            extra=extra,
+            include_debug=include_debug,
+        ),
+    }
+
+
+def build_socket_connect_error(
+    reason: str,
+    *,
+    code: int | str,
+    message: str | None = None,
+    data: Any = None,
+    debug: Any = None,
+    extra: dict[str, Any] | None = None,
+    include_debug: bool | None = None,
+) -> ConnectionRefusedError:
+    """
+    Build Socket.IO connect refusal carrying structured data.
+    / 构建携带结构化数据的 Socket.IO 握手拒绝异常。
+    """
+    merged_extra = {"reason": reason}
+    if extra:
+        merged_extra.update(extra)
+
+    return ConnectionRefusedError(
+        reason,
+        build_error_payload(
+            message=message,
+            code=code,
+            data=data,
+            debug=debug,
+            extra=merged_extra,
+            include_debug=include_debug,
+        ),
+    )
+
+
 # ============================================
 # 响应封装函数 / Response Wrapper Functions
 # ============================================
@@ -107,6 +232,8 @@ def error(
     code: int = 4000,
     data: Any = None,
     status_code: int = 400,
+    debug: Any = None,
+    extra: dict[str, Any] | None = None,
 ) -> JSONResponse:
     """
     错误响应 / Error response
@@ -125,11 +252,13 @@ def error(
     """
     return JSONResponse(
         status_code=status_code,
-        content={
-            "code": code,
-            "message": message or _("common.failed"),
-            "data": data,
-        },
+        content=build_error_payload(
+            message=message,
+            code=code,
+            data=data,
+            debug=debug,
+            extra=extra,
+        ),
     )
 
 
@@ -335,6 +464,12 @@ def server_error(
 __all__ = [
     "ApiResponse",
     "PagedData",
+    "get_current_trace_id",
+    "include_debug_payload",
+    "build_exception_debug",
+    "build_error_payload",
+    "build_error_event",
+    "build_socket_connect_error",
     "success",
     "error",
     "created",

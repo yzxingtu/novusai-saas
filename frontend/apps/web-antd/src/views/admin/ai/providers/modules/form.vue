@@ -4,7 +4,7 @@
  */
 import type { AIProviderInfo } from '#/api/admin/ai';
 
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 import { message } from 'ant-design-vue';
 
@@ -15,13 +15,16 @@ import { $t } from '#/locales';
 
 import {
   getFormDefaults,
-  normalizeProviderBaseUrl,
+  hasForbiddenProviderEndpointSuffix,
+  normalizeProviderBaseUrlInput,
+  resolveProviderWireApi,
   useFormSchema,
 } from '../data';
 
 defineOptions({ name: 'AIProviderForm' });
 
 const emits = defineEmits<{ success: [] }>();
+const configSnapshot = ref<null | Record<string, unknown>>(null);
 
 const [Form, formApi] = useVbenForm({
   schema: useFormSchema(),
@@ -33,17 +36,32 @@ const { Drawer, isEdit } = useCrudDrawer<AIProviderInfo>({
   schema: (edit) => useFormSchema(edit),
   defaults: getFormDefaults,
   transform: (values, edit) => {
-    const { normalizedBaseUrl, wasEndpointNormalized } =
-      normalizeProviderBaseUrl(
-        typeof values.base_url === 'string' ? values.base_url : null,
+    const normalizedBaseUrl = normalizeProviderBaseUrlInput(
+      typeof values.base_url === 'string' ? values.base_url : null,
+    );
+    if (
+      hasForbiddenProviderEndpointSuffix(
+        normalizedBaseUrl,
         typeof values.type === 'string' ? values.type : null,
+      )
+    ) {
+      message.error(
+        $t('admin.ai.provider.validation.baseUrlEndpointNotAllowed'),
       );
-    if (wasEndpointNormalized && normalizedBaseUrl) {
-      message.warning(
-        $t('admin.ai.provider.messages.baseUrlAutoNormalized', {
-          baseUrl: normalizedBaseUrl,
-        }),
-      );
+      throw new Error('Provider base_url must not include endpoint path');
+    }
+
+    const effectiveWireApi = resolveProviderWireApi(
+      typeof values.type === 'string' ? values.type : null,
+      typeof values.wire_api === 'string' ? values.wire_api : null,
+    );
+
+    const nextConfig =
+      edit && configSnapshot.value ? { ...configSnapshot.value } : {};
+    if (values.type === 'openai_compatible') {
+      nextConfig.wire_api = effectiveWireApi || 'chat_completions';
+    } else {
+      delete nextConfig.wire_api;
     }
 
     const result: Record<string, unknown> = {
@@ -54,6 +72,7 @@ const { Drawer, isEdit } = useCrudDrawer<AIProviderInfo>({
       icon: values.icon || null,
       sort_order: values.sort_order ?? 0,
       is_active: values.is_active ?? true,
+      config: Object.keys(nextConfig).length > 0 ? nextConfig : null,
     };
     if (!edit) {
       result.code = values.code;
@@ -61,11 +80,20 @@ const { Drawer, isEdit } = useCrudDrawer<AIProviderInfo>({
     return result;
   },
   toFormValues: (data) => {
+    configSnapshot.value =
+      data.config && typeof data.config === 'object'
+        ? { ...data.config }
+        : null;
+    const effectiveWireApi = resolveProviderWireApi(
+      data.type,
+      typeof data.config?.wire_api === 'string' ? data.config.wire_api : null,
+    );
     return {
       name: data.name,
       code: data.code,
       type: data.type,
       base_url: data.base_url,
+      wire_api: effectiveWireApi || 'chat_completions',
       description: data.description,
       icon: data.icon,
       sort_order: data.sort_order,

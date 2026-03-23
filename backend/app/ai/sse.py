@@ -15,6 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.types import ChatChunk
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.core.response import build_error_event, build_exception_debug
+from app.middleware.trace import trace_id_var
 
 logger = LogManager.get_logger("ai.sse")
 
@@ -154,11 +156,14 @@ class SSEStreamingResponse:
         except Exception as e:
             # Stream error — do not record usage (token count may be incomplete) / 流式响应发生错误 — 不记录使用量（token 计数可能不完整）
             logger.error("SSE stream error: {}", str(e))
-            error_chunk = {
-                "error": True,
-                "message": str(e),
-            }
-            yield SSEChunkEncoder.encode(error_chunk)
+            yield SSEChunkEncoder.encode(
+                build_error_event(
+                    code="STREAM_ERROR",
+                    message=_("common.server_error"),
+                    debug=build_exception_debug(e),
+                    trace_id=trace_id_var.get() or None,
+                )
+            )
             yield SSEChunkEncoder.done()
 
         finally:

@@ -109,7 +109,7 @@ async def test_aliyun_adapter_reports_not_implemented_for_unsupported_bill_sourc
         module.BillingFetchRequest(
             billing_date=date(2026, 3, 21),
             driver_code="aliyun-oss",
-            profile={"bill_source": "oss_subscription", "access_key_id": "id", "access_key_secret": "secret"},
+            profile={"bill_source": "legacy_source", "access_key_id": "id", "access_key_secret": "secret"},
         )
     )
 

@@ -17,13 +17,23 @@ from fastapi.responses import StreamingResponse
 
 from app.ai.engine.types import ExecutionRequest, ExecutionResult
 from app.ai.sse import SSEChunkEncoder
+from app.core.i18n import _
 from app.core.logging import LogManager
+from app.core.response import build_error_event, build_exception_debug
+from app.middleware.trace import trace_id_var
 
 if TYPE_CHECKING:
     from app.ai.gateway import AIGateway
     from app.models.ai.agent import Agent
 
 logger = LogManager.get_logger("ai.engine.image_generation")
+
+
+def _trace_payload(data: dict) -> dict:
+    trace_id = trace_id_var.get()
+    if trace_id and "trace_id" not in data:
+        return {**data, "trace_id": trace_id}
+    return data
 
 
 class ImageGenerationEngine:
@@ -76,10 +86,13 @@ class ImageGenerationEngine:
                         break
 
                 if not prompt:
-                    yield SSEChunkEncoder.encode({
-                        "error": True,
-                        "message": "No prompt provided",
-                    })
+                    yield SSEChunkEncoder.encode(
+                        build_error_event(
+                            code="IMAGE_PROMPT_REQUIRED",
+                            message="No prompt provided",
+                            trace_id=trace_id_var.get() or None,
+                        )
+                    )
                     yield SSEChunkEncoder.done()
                     return
 
@@ -164,10 +177,12 @@ class ImageGenerationEngine:
 
                 # Completion event / 完成事件
                 yield SSEChunkEncoder.encode({
-                    "event": "done",
-                    "conversation_id": request.conversation_id,
-                    "total_tokens": 0,
-                    "duration_ms": duration_ms,
+                    **_trace_payload({
+                        "event": "done",
+                        "conversation_id": request.conversation_id,
+                        "total_tokens": 0,
+                        "duration_ms": duration_ms,
+                    }),
                     **extra_done_data,
                 })
                 yield SSEChunkEncoder.done()
@@ -178,10 +193,14 @@ class ImageGenerationEngine:
                     agent.id, str(exc), exc_info=True,
                 )
                 try:
-                    yield SSEChunkEncoder.encode({
-                        "error": True,
-                        "message": str(exc),
-                    })
+                    yield SSEChunkEncoder.encode(
+                        build_error_event(
+                            code="IMAGE_GENERATION_ERROR",
+                            message=_("common.server_error"),
+                            trace_id=trace_id_var.get() or None,
+                            debug=build_exception_debug(exc),
+                        )
+                    )
                     yield SSEChunkEncoder.done()
                 except Exception:
                     pass

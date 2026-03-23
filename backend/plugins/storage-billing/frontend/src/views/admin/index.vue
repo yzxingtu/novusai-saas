@@ -5,11 +5,16 @@ import type {
   BindingRecord,
   BindingScopeType,
   OverviewResponse,
+  PeriodType,
   ProviderCode,
   ProviderProfile,
+  ProviderRuntimeStorageSnapshot,
   ProviderValidation,
   ReconciliationChargeRow,
+  ReconciliationProviderPlan,
+  ReconciliationRequestedScope,
   ReconciliationRunChargeFilters,
+  ReconciliationRunChargeListResponse,
   ReconciliationProviderSummary,
   ReconciliationRun,
   ReconciliationRunDetailResponse,
@@ -59,17 +64,9 @@ import {
 defineOptions({ name: 'StorageBillingAdminPage' });
 
 type ProviderField =
-  | 'access_key'
-  | 'access_key_id'
-  | 'access_key_secret'
   | 'account_identifier'
-  | 'bill_bucket'
-  | 'bill_prefix'
   | 'bill_source'
-  | 'profile_code'
-  | 'region'
-  | 'secret_id'
-  | 'secret_key';
+  | 'profile_code';
 
 type BindingFormState = {
   account_identifier: string;
@@ -96,6 +93,12 @@ type AllocationAudit = {
   unmatched_item_samples: unknown[];
 };
 
+type ChargeFilterBadge = {
+  key: string;
+  label: string;
+  value: string;
+};
+
 const providers: ProviderCode[] = ['qiniu-kodo', 'aliyun-oss', 'tencent-cos'];
 const profileCodeMap: Record<ProviderCode, string> = {
   'qiniu-kodo': 'qiniu-default',
@@ -103,11 +106,10 @@ const profileCodeMap: Record<ProviderCode, string> = {
   'tencent-cos': 'tencent-default',
 };
 const profileFields: Record<ProviderCode, readonly ProviderField[]> = {
-  'qiniu-kodo': ['profile_code', 'bill_source', 'access_key', 'secret_key', 'account_identifier'],
-  'aliyun-oss': ['profile_code', 'bill_source', 'region', 'access_key_id', 'access_key_secret', 'bill_bucket', 'bill_prefix', 'account_identifier'],
-  'tencent-cos': ['profile_code', 'bill_source', 'region', 'secret_id', 'secret_key', 'bill_bucket', 'bill_prefix', 'account_identifier'],
+  'qiniu-kodo': ['profile_code', 'bill_source', 'account_identifier'],
+  'aliyun-oss': ['profile_code', 'bill_source', 'account_identifier'],
+  'tencent-cos': ['profile_code', 'bill_source', 'account_identifier'],
 };
-const secretFields = new Set<ProviderField>(['access_key', 'secret_key', 'access_key_id', 'access_key_secret', 'secret_id']);
 const RUN_HISTORY_LIMIT = 10;
 
 const overview = ref<null | OverviewResponse>(null);
@@ -125,7 +127,17 @@ const selectedRunDetail = ref<null | ReconciliationRunDetailResponse>(null);
 const runChargeLoading = ref(false);
 const runChargeExporting = ref(false);
 const qiniuBillingMonth = ref(new Date(Date.now() - 32 * 24 * 60 * 60 * 1000).toISOString().slice(0, 7));
+const qiniuMonthValid = computed(() => isValidYearMonth(qiniuBillingMonth.value));
+const qiniuMonthError = computed(() => {
+  if (!qiniuBillingMonth.value) return null;
+  return qiniuMonthValid.value ? null : $t('plugin.storageBilling.admin.actions.qiniuMonthlyInvalid');
+});
+const qiniuMonthStatus = computed(() => {
+  if (!qiniuBillingMonth.value) return undefined;
+  return qiniuMonthValid.value ? undefined : 'error';
+});
 const selectedRunCharges = ref<ReconciliationChargeRow[]>([]);
+const selectedRunChargeResponse = ref<null | ReconciliationRunChargeListResponse>(null);
 const runChargeFilters = reactive<{
   provider_code: string;
   source_id: null | number;
@@ -175,7 +187,20 @@ const chargeColumns = computed(() => [
   { key: 'amount_total', title: $t('plugin.storageBilling.admin.runs.charges.table.amount') },
   { key: 'currency', title: $t('plugin.storageBilling.admin.runs.charges.table.currency') },
 ]);
-const providerOptions = computed(() => providers.map((code) => ({ label: providerLabel(code), value: code })));
+const activeConfiguredProviderCode = computed<null | ProviderCode>(() => {
+  const rawDriver =
+    overview.value?.host_snapshot.active_storage_driver ??
+    overview.value?.host_snapshot.platform_storage_context?.storage_config?.driver ??
+    '';
+  const normalized = String(rawDriver || '').trim();
+  return providers.includes(normalized as ProviderCode) ? (normalized as ProviderCode) : null;
+});
+const visibleProviderCodes = computed<ProviderCode[]>(() =>
+  activeConfiguredProviderCode.value ? [activeConfiguredProviderCode.value] : [],
+);
+const providerOptions = computed(() =>
+  visibleProviderCodes.value.map((code) => ({ label: providerLabel(code), value: code })),
+);
 const modeOptions = computed(() => [
   { label: $t('plugin.storageBilling.admin.bindings.mode.official_reconciled'), value: 'official_reconciled' },
   { label: $t('plugin.storageBilling.admin.bindings.mode.official_pass_through'), value: 'official_pass_through' },
@@ -199,6 +224,10 @@ const currentScopeOptions = computed(() =>
 const modalTitle = computed(() => editingId.value === null ? $t('plugin.storageBilling.admin.bindingModal.createTitle') : $t('plugin.storageBilling.admin.bindingModal.editTitle'));
 const modalOkText = computed(() => editingId.value === null ? $t('plugin.storageBilling.admin.bindingModal.submitCreate') : $t('plugin.storageBilling.admin.bindingModal.submitUpdate'));
 const selectedRun = computed(() => selectedRunDetail.value?.run ?? null);
+const selectedRunProviderResults = computed<ReconciliationProviderSummary[]>(() => {
+  const providers = selectedRun.value?.summary?.providers;
+  return Array.isArray(providers) ? providers : [];
+});
 const auditedSources = computed(() =>
   (selectedRunDetail.value?.sources ?? []).filter((source) => hasAuditSamples(source)),
 );
@@ -230,6 +259,50 @@ const runChargeSourceOptions = computed(() =>
     value: source.id,
   })),
 );
+const runChargeActiveFilters = computed<ChargeFilterBadge[]>(() => {
+  const filters = selectedRunChargeResponse.value?.filters;
+  if (!filters || typeof filters !== 'object') {
+    return [];
+  }
+  return Object.entries(filters).flatMap(([key, rawValue]) => {
+    if (rawValue === undefined || rawValue === null || rawValue === '') {
+      return [];
+    }
+    if (key === 'provider_code' && typeof rawValue === 'string') {
+      return [{
+        key,
+        label: $t('plugin.storageBilling.admin.runs.charges.filterProvider'),
+        value: providerLabelFromAny(rawValue),
+      }];
+    }
+    if (key === 'source_id') {
+      const sourceId = normalizeNumber(rawValue);
+      if (sourceId === null) {
+        return [];
+      }
+      return [{
+        key,
+        label: $t('plugin.storageBilling.admin.runs.charges.filterSource'),
+        value: sourceById.value.get(sourceId)?.source_ref || `#${sourceId}`,
+      }];
+    }
+    if (key === 'tenant_id') {
+      const tenantId = normalizeNumber(rawValue);
+      return tenantId === null
+        ? []
+        : [{
+            key,
+            label: $t('plugin.storageBilling.admin.runs.charges.filterTenant'),
+            value: `#${tenantId}`,
+          }];
+    }
+    return [{
+      key,
+      label: key,
+      value: String(rawValue),
+    }];
+  });
+});
 
 function emptyProfile(code: ProviderCode): ProviderProfile {
   return { enabled: false, bill_source: '', profile_code: profileCodeMap[code], configured_fields: {}, configured_secret_fields: {}, required_fields: [], supported_bill_sources: [] };
@@ -280,14 +353,6 @@ function fieldLabel(field: ProviderField): string {
   return $t(`plugin.storageBilling.admin.field.${field}`);
 }
 
-function fieldRequired(code: ProviderCode, field: ProviderField): boolean {
-  return (validations[code].required_fields ?? []).includes(field);
-}
-
-function fieldConfigured(code: ProviderCode, field: ProviderField): boolean {
-  return Boolean(profiles[code].configured_fields?.[field] || profiles[code].configured_secret_fields?.[field]);
-}
-
 function prettyStatus(status: string): string {
   const normalized = (status || '').trim();
   const dictionary = new Set([
@@ -321,14 +386,220 @@ function profileWarnings(code: ProviderCode): string {
   return [...validations[code].errors, ...validations[code].warnings].join(' | ');
 }
 
-function providerCapabilityTags(code: ProviderCode): string[] {
-  return [
-    profiles[code].settlement_cycle ? `${profiles[code].settlement_cycle}` : '',
-    profiles[code].settlement_mode ? `${profiles[code].settlement_mode}` : '',
-    profiles[code].strict_reconciliation_supported ? 'strict_daily' : '',
-    profiles[code].manual_pull_supported ? 'manual_pull' : '',
-  ].filter(Boolean);
+function providerStorageContext(code: ProviderCode): ProviderRuntimeStorageSnapshot {
+  const profileContext = profiles[code].storage_context;
+  if (profileContext) {
+    return profileContext;
+  }
+  const platformContext = overview.value?.host_snapshot.platform_storage_context;
+  const storageConfig = platformContext?.storage_config;
+  return {
+    source: 'platform_storage',
+    storage_mode: platformContext?.storage_mode,
+    current_driver: overview.value?.host_snapshot.active_storage_driver ?? storageConfig?.driver ?? '',
+    driver_match: false,
+    bucket_name: String(storageConfig?.options?.bucket || storageConfig?.root_path || '').trim() || null,
+    root_path: storageConfig?.root_path ?? null,
+    base_url: storageConfig?.base_url ?? null,
+    region: String(storageConfig?.options?.region || '').trim() || null,
+    endpoint: String(storageConfig?.options?.endpoint || '').trim() || null,
+    prefix: String(storageConfig?.options?.prefix || '').trim() || null,
+  };
 }
+
+function providerStorageMatch(code: ProviderCode): boolean {
+  return Boolean(
+    validations[code].storage_driver_match ??
+      profiles[code].storage_driver_match ??
+      providerStorageContext(code).driver_match,
+  );
+}
+
+function providerStorageReady(code: ProviderCode): boolean {
+  return Boolean(
+    validations[code].host_credentials_configured ??
+      profiles[code].host_credentials_configured,
+  );
+}
+
+function providerRuntimeValue(value: null | string | undefined): string {
+  const normalized = String(value || '').trim();
+  return normalized || '-';
+}
+
+const YEAR_MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
+const BILLING_DATE_PATTERN = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+
+type CapabilitySummary = {
+  official_billing_lag_days?: null | number;
+  official_target_rule?: string;
+  recommended_scope_types: BindingScopeType[];
+  settlement_mode?: string;
+  settlement_cycle?: string;
+  supported_period_types: PeriodType[];
+  strict_reconciliation_supported?: boolean;
+  manual_pull_supported?: boolean;
+  scheduled_daily_supported?: boolean;
+};
+
+function isValidYearMonth(value: string): boolean {
+  return YEAR_MONTH_PATTERN.test(value);
+}
+
+function isValidBillingDate(value: string): boolean {
+  return BILLING_DATE_PATTERN.test(value);
+}
+
+function buildCapabilitySummary(code: ProviderCode): CapabilitySummary {
+  const overviewCaps = overview.value?.provider_capabilities?.[code];
+  const profileCaps = profiles[code];
+  const validationCaps = validations[code];
+  const supportedPeriods =
+    overviewCaps?.supported_period_types ??
+    profileCaps.supported_period_types ??
+    validationCaps.supported_period_types ??
+    [];
+  const recommendedScopes = unique([
+    ...((profileCaps.recommended_scope_types ?? []) as string[]),
+    ...((validationCaps.recommended_scope_types ?? []) as string[]),
+  ]).filter((item): item is BindingScopeType =>
+    ['bucket', 'domain', 'account', 'tag'].includes(item),
+  );
+
+  return {
+    settlement_mode:
+      overviewCaps?.settlement_mode ?? profileCaps.settlement_mode ?? validationCaps.settlement_mode,
+    settlement_cycle:
+      overviewCaps?.settlement_cycle ?? profileCaps.settlement_cycle ?? validationCaps.settlement_cycle,
+    official_billing_lag_days:
+      overviewCaps?.official_billing_lag_days ??
+      profileCaps.official_billing_lag_days ??
+      validationCaps.official_billing_lag_days,
+    official_target_rule:
+      overviewCaps?.official_target_rule ??
+      profileCaps.official_target_rule ??
+      validationCaps.official_target_rule,
+    recommended_scope_types: recommendedScopes,
+    supported_period_types: supportedPeriods as PeriodType[],
+    strict_reconciliation_supported:
+      overviewCaps?.strict_reconciliation_supported ??
+      profileCaps.strict_reconciliation_supported ??
+      validationCaps.strict_reconciliation_supported,
+    manual_pull_supported:
+      overviewCaps?.manual_pull_supported ??
+      profileCaps.manual_pull_supported ??
+      validationCaps.manual_pull_supported,
+    scheduled_daily_supported:
+      overviewCaps?.scheduled_daily_supported ??
+      profileCaps.scheduled_daily_supported ??
+      validationCaps.scheduled_daily_supported,
+  };
+}
+
+const providerCapabilitySummaries = computed<Record<ProviderCode, CapabilitySummary>>(() =>
+  Object.fromEntries(providers.map((code) => [code, buildCapabilitySummary(code)])) as Record<ProviderCode, CapabilitySummary>,
+);
+const manualBillingDate = ref('');
+const manualProviderCodes = ref<ProviderCode[]>([]);
+const manualBillingDateValid = computed(() => !manualBillingDate.value || isValidBillingDate(manualBillingDate.value));
+const manualBillingDateError = computed(() => {
+  if (!manualBillingDate.value) return null;
+  return manualBillingDateValid.value ? null : $t('plugin.storageBilling.admin.actions.dailyInvalid');
+});
+const manualBillingDateStatus = computed(() => {
+  if (!manualBillingDate.value) return undefined;
+  return manualBillingDateValid.value ? undefined : 'error';
+});
+const manualRunHelpText = computed(
+  () => manualBillingDateError.value || $t('plugin.storageBilling.admin.actions.triggerRunHint'),
+);
+
+function capabilityModeLabel(value?: string): string | null {
+  if (!value) return null;
+  const map: Record<string, string> = {
+    strict_daily_reconciliation: $t('plugin.storageBilling.common.capabilities.mode.strictDailyReconciliation'),
+    monthly_settled: $t('plugin.storageBilling.common.capabilities.mode.monthlySettled'),
+  };
+  return map[value] ?? value;
+}
+
+function capabilityCycleLabel(value?: string): string | null {
+  if (!value) return null;
+  const map: Record<string, string> = {
+    daily: $t('plugin.storageBilling.common.capabilities.cycle.daily'),
+    monthly: $t('plugin.storageBilling.common.capabilities.cycle.monthly'),
+  };
+  return map[value] ?? value;
+}
+
+function capabilityPeriodLabel(value?: PeriodType | string): string | null {
+  if (!value) return null;
+  const map: Record<PeriodType, string> = {
+    daily: $t('plugin.storageBilling.common.periodType.daily'),
+    monthly: $t('plugin.storageBilling.common.periodType.monthly'),
+  };
+  return map[value as PeriodType] ?? value;
+}
+
+function capabilityTargetRuleLabel(value?: string): string {
+  if (!value) return '-';
+  if (value === 'per-provider') {
+    return $t('plugin.storageBilling.common.capabilities.targetRule.perProvider');
+  }
+  return value;
+}
+
+function capabilityFlagLabel(key: 'strict' | 'manual' | 'scheduled'): string {
+  if (key === 'strict') {
+    return $t('plugin.storageBilling.common.capabilities.strictDailySupported');
+  }
+  if (key === 'manual') {
+    return $t('plugin.storageBilling.common.capabilities.manualPullSupported');
+  }
+  return $t('plugin.storageBilling.common.capabilities.scheduledDailySupported');
+}
+
+function providerCapabilitySummary(code: ProviderCode): CapabilitySummary {
+  return providerCapabilitySummaries.value[code];
+}
+
+function providerCapabilityTags(code: ProviderCode): string[] {
+  const summary = providerCapabilitySummary(code);
+  const tags: string[] = [];
+  if (summary.manual_pull_supported) {
+    tags.push(capabilityFlagLabel('manual'));
+  }
+  if (summary.strict_reconciliation_supported) {
+    tags.push(capabilityFlagLabel('strict'));
+  }
+  if (summary.scheduled_daily_supported) {
+    tags.push(capabilityFlagLabel('scheduled'));
+  }
+  return tags;
+}
+
+const reconciliationScheduleSummary = computed(() => {
+  const providerRules = overview.value?.reconciliation_schedule.provider_rules ?? {};
+  const entries = Object.entries(providerRules);
+  if (!entries.length) {
+    return capabilityTargetRuleLabel(
+      overview.value?.reconciliation_schedule.official_target_rule,
+    );
+  }
+  return entries
+    .map(([providerCode, rule]) => `${providerLabelFromAny(providerCode)} ${capabilityTargetRuleLabel(rule?.official_target_rule)}`)
+    .join(' / ');
+});
+const manualRunProviderOptions = computed(() =>
+  visibleProviderCodes.value
+    .filter((code) => providerCapabilitySummary(code).scheduled_daily_supported)
+    .map((code) => ({
+      label: providerLabel(code),
+      value: code,
+    })),
+);
+const hasVisibleProviders = computed(() => visibleProviderCodes.value.length > 0);
+const qiniuVisible = computed(() => visibleProviderCodes.value.includes('qiniu-kodo'));
 
 function billSourceOptions(code: ProviderCode): Array<{ label: string; value: string }> {
   return unique([...(profiles[code].supported_bill_sources ?? []), ...(validations[code].supported_bill_sources ?? []), profiles[code].bill_source]).map((item) => ({ label: item, value: item }));
@@ -417,8 +688,126 @@ function hasAuditSamples(source: ReconciliationSourceRecord): boolean {
   return audit.unmatched_item_samples.length > 0 || audit.ambiguous_item_samples.length > 0;
 }
 
+function normalizeNumber(value: unknown): null | number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function runRequestedScope(run: ReconciliationRun): ReconciliationRequestedScope {
+  return typeof run.requested_scope === 'object' && run.requested_scope !== null
+    ? run.requested_scope as ReconciliationRequestedScope
+    : {};
+}
+
+function stringifyScopeValue(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed || null;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  return null;
+}
+
+function scopeProviderCodes(scope: ReconciliationRequestedScope): string[] {
+  const raw = scope.provider_codes;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => stringifyScopeValue(item))
+    .filter((item): item is string => Boolean(item));
+}
+
+function scopeProviderPlans(scope: ReconciliationRequestedScope): ReconciliationProviderPlan[] {
+  const raw = scope.provider_plans;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => {
+      if (typeof item !== 'object' || item === null) return null;
+      const payload = item as Record<string, unknown>;
+      const providerCode = stringifyScopeValue(payload.provider_code);
+      const billingDate = stringifyScopeValue(payload.billing_date);
+      if (!providerCode || !billingDate) return null;
+      return {
+        billing_date: billingDate,
+        cron: stringifyScopeValue(payload.cron) ?? undefined,
+        local_time: stringifyScopeValue(payload.local_time) ?? undefined,
+        official_billing_lag_days: normalizeNumber(payload.official_billing_lag_days),
+        official_target_rule: stringifyScopeValue(payload.official_target_rule) ?? undefined,
+        provider_code: providerCode,
+      };
+    })
+    .filter((item): item is ReconciliationProviderPlan => Boolean(item));
+}
+
+function scopeProviderPlanSummary(scope: ReconciliationRequestedScope): string[] {
+  return scopeProviderPlans(scope)
+    .map((plan) => {
+      const label = providerLabelFromAny(plan.provider_code);
+      if (plan.official_target_rule) {
+        return `${label} ${plan.official_target_rule} (${plan.billing_date})`;
+      }
+      return `${label} (${plan.billing_date})`;
+    });
+}
+
+function selectedRunScopeSummary(run: ReconciliationRun): string {
+  const scope = runRequestedScope(run);
+  const parts: string[] = [];
+  const job = stringifyScopeValue(scope.job);
+  const billingDate = stringifyScopeValue(scope.billing_date);
+  const billingMonth = stringifyScopeValue(scope.billing_month);
+  const targetRule = stringifyScopeValue(scope.official_target_rule);
+  const lagDays = stringifyScopeValue(scope.official_billing_lag_days);
+  const scheduledProvider = stringifyScopeValue(scope.scheduled_provider_code);
+  const providerCodes = scopeProviderCodes(scope);
+  const providerPlans = scopeProviderPlanSummary(scope);
+
+  if (job) {
+    parts.push(`job=${job}`);
+  }
+  if (billingDate) {
+    parts.push(`billing_date=${billingDate}`);
+  }
+  if (billingMonth) {
+    parts.push(`billing_month=${billingMonth}`);
+  }
+  if (scheduledProvider) {
+    parts.push(`scheduled_provider=${providerLabelFromAny(scheduledProvider)}`);
+  }
+  if (providerCodes.length) {
+    parts.push(`providers=${providerCodes.map((code) => providerLabelFromAny(code)).join(', ')}`);
+  }
+  if (targetRule) {
+    parts.push(`rule=${targetRule}`);
+  }
+  if (lagDays) {
+    parts.push(`lag=${lagDays}`);
+  }
+  if (providerPlans.length) {
+    parts.push(`plans=${providerPlans.join(' / ')}`);
+  }
+  return parts.join(' | ') || '-';
+}
+
+function selectedRunScopePayload(run: ReconciliationRun): string {
+  return JSON.stringify(runRequestedScope(run), null, 2);
+}
+
 function resetForm(): void {
   Object.assign(form, emptyForm());
+  const defaultProvider = visibleProviderCodes.value[0];
+  if (defaultProvider) {
+    form.provider_code = defaultProvider;
+    handleProviderChange(defaultProvider);
+  }
 }
 
 function clearScopeFields(scopeType: BindingScopeType): void {
@@ -468,6 +857,7 @@ async function syncSelectedRun(nextRuns: ReconciliationRun[]): Promise<void> {
     selectedRunId.value = null;
     selectedRunDetail.value = null;
     selectedRunCharges.value = [];
+    selectedRunChargeResponse.value = null;
     resetRunChargeFiltersState();
     return;
   }
@@ -484,6 +874,7 @@ async function loadRunCharges(runId: number): Promise<void> {
       runId,
       currentRunChargeFilters(),
     );
+    selectedRunChargeResponse.value = runCharges;
     selectedRunCharges.value = runCharges.items ?? [];
   } finally {
     runChargeLoading.value = false;
@@ -505,6 +896,17 @@ async function loadAll(): Promise<void> {
     tenants.value = nextTenants;
     runs.value = nextRuns.items ?? nextOverview.ledger_snapshot.latest_runs ?? [];
     syncProfiles(nextProfiles);
+    if (visibleProviderCodes.value.length) {
+      if (!visibleProviderCodes.value.includes(form.provider_code)) {
+        form.provider_code = visibleProviderCodes.value[0];
+      }
+      manualProviderCodes.value = manualProviderCodes.value.filter((code) =>
+        visibleProviderCodes.value.includes(code),
+      );
+      handleProviderChange(form.provider_code);
+    } else {
+      manualProviderCodes.value = [];
+    }
     await syncSelectedRun(runs.value);
   } finally {
     loading.value = false;
@@ -521,6 +923,7 @@ async function loadRunDetail(runId: number): Promise<void> {
       getReconciliationRunChargesApi(runId),
     ]);
     selectedRunDetail.value = runDetail;
+    selectedRunChargeResponse.value = runCharges;
     selectedRunCharges.value = runCharges.items ?? [];
   } finally {
     runDetailLoading.value = false;
@@ -563,9 +966,17 @@ async function exportCurrentRunCharges(): Promise<void> {
 }
 
 async function saveProfiles(): Promise<void> {
+  if (!visibleProviderCodes.value.length) {
+    message.warning($t('plugin.storageBilling.admin.providers.noActiveDriver'));
+    return;
+  }
   saving.value = true;
   try {
-    const payload = await saveProviderProfilesApi({ providers: { 'qiniu-kodo': providerPayload('qiniu-kodo'), 'aliyun-oss': providerPayload('aliyun-oss'), 'tencent-cos': providerPayload('tencent-cos') } });
+    const payload = await saveProviderProfilesApi({
+      providers: Object.fromEntries(
+        visibleProviderCodes.value.map((code) => [code, providerPayload(code)]),
+      ),
+    });
     syncProfiles(payload);
     message.success($t('plugin.storageBilling.admin.messages.saved'));
   } finally {
@@ -620,11 +1031,29 @@ async function revalidateBinding(record: BindingRecord): Promise<void> {
 }
 
 function triggerRun(): void {
+  if (manualBillingDateError.value) {
+    message.error(manualBillingDateError.value);
+    return;
+  }
+
+  const payload: { billing_date?: string; provider_codes?: string[] } = {};
+  if (manualBillingDate.value) {
+    payload.billing_date = manualBillingDate.value;
+  }
+  if (manualProviderCodes.value.length) {
+    payload.provider_codes = [...manualProviderCodes.value];
+  }
+
+  const providerSummary = manualProviderCodes.value.length
+    ? manualProviderCodes.value.map((code) => providerLabel(code)).join(' / ')
+    : $t('plugin.storageBilling.admin.actions.providerAll');
+  const billingDateSummary = manualBillingDate.value || $t('plugin.storageBilling.admin.actions.dailyAuto');
+
   Modal.confirm({
     title: $t('plugin.storageBilling.admin.actions.triggerRun'),
-    content: $t('plugin.storageBilling.admin.actions.triggerRunHint'),
+    content: `${$t('plugin.storageBilling.admin.actions.triggerRunHint')} (${billingDateSummary} / ${providerSummary})`,
     onOk: async () => {
-      const result = await runReconciliationApi();
+      const result = await runReconciliationApi(payload);
       message.success($t('plugin.storageBilling.admin.messages.runTriggered'));
       await loadAll();
       const runId = Number((result.run as Record<string, unknown>)?.id ?? 0);
@@ -636,6 +1065,11 @@ function triggerRun(): void {
 }
 
 function triggerQiniuMonthlyRun(): void {
+  if (!qiniuMonthValid.value) {
+    message.error($t('plugin.storageBilling.admin.actions.qiniuMonthlyInvalid'));
+    return;
+  }
+
   Modal.confirm({
     title: $t('plugin.storageBilling.admin.actions.triggerQiniuMonthly'),
     content: `${$t('plugin.storageBilling.admin.actions.triggerQiniuMonthlyHint')} (${qiniuBillingMonth.value || '-'})`,
@@ -663,13 +1097,50 @@ onMounted(() => void loadAll());
           <h1>{{ $t('plugin.storageBilling.admin.page.title') }}</h1>
           <p>{{ $t('plugin.storageBilling.admin.page.subtitle') }}</p>
         </div>
-        <Space wrap>
-          <Button @click="loadAll">{{ $t('plugin.storageBilling.admin.actions.refresh') }}</Button>
-          <Button type="primary" @click="saveProfiles">{{ $t('plugin.storageBilling.admin.providers.save') }}</Button>
-          <Button @click="triggerRun">{{ $t('plugin.storageBilling.admin.actions.triggerRun') }}</Button>
-          <Input v-model:value="qiniuBillingMonth" class="toolbar-field" placeholder="YYYY-MM" />
-          <Button @click="triggerQiniuMonthlyRun">{{ $t('plugin.storageBilling.admin.actions.triggerQiniuMonthly') }}</Button>
-        </Space>
+        <div class="hero-actions">
+          <Space wrap class="toolbar-group">
+            <Button @click="loadAll">{{ $t('plugin.storageBilling.admin.actions.refresh') }}</Button>
+            <Button :disabled="!hasVisibleProviders" type="primary" @click="saveProfiles">{{ $t('plugin.storageBilling.admin.providers.save') }}</Button>
+          </Space>
+          <div class="toolbar-stack">
+            <Space wrap class="toolbar-group">
+              <Input
+                v-model:value="manualBillingDate"
+                class="toolbar-field"
+                :placeholder="$t('plugin.storageBilling.admin.actions.dailyPlaceholder')"
+                :status="manualBillingDateStatus"
+              />
+              <Select
+                v-model:value="manualProviderCodes"
+                class="toolbar-field toolbar-field-wide"
+                mode="multiple"
+                :options="manualRunProviderOptions"
+                :placeholder="$t('plugin.storageBilling.admin.actions.providerPlaceholder')"
+              />
+              <Button :disabled="!hasVisibleProviders" @click="triggerRun">{{ $t('plugin.storageBilling.admin.actions.triggerRun') }}</Button>
+            </Space>
+            <div class="toolbar-help" :class="{ 'toolbar-help-error': manualBillingDateError }">
+              {{ manualRunHelpText }}
+            </div>
+          </div>
+          <div v-if="qiniuVisible" class="toolbar-stack">
+            <Space wrap class="toolbar-group">
+              <Input
+                v-model:value="qiniuBillingMonth"
+                class="toolbar-field"
+                :placeholder="$t('plugin.storageBilling.admin.actions.qiniuMonthlyPlaceholder')"
+                :status="qiniuMonthStatus"
+              />
+              <Button @click="triggerQiniuMonthlyRun">{{ $t('plugin.storageBilling.admin.actions.triggerQiniuMonthly') }}</Button>
+            </Space>
+            <div class="toolbar-help" :class="{ 'toolbar-help-error': qiniuMonthError }">
+              {{ qiniuMonthError || $t('plugin.storageBilling.admin.actions.triggerQiniuMonthlyHint') }}
+            </div>
+          </div>
+          <div v-if="!hasVisibleProviders" class="toolbar-help toolbar-help-error">
+            {{ $t('plugin.storageBilling.admin.providers.noActiveDriver') }}
+          </div>
+        </div>
       </div>
 
       <div class="stats">
@@ -682,15 +1153,22 @@ onMounted(() => void loadAll());
       <Alert
         class="block"
         :message="$t('plugin.storageBilling.admin.hero.lag')"
-        :description="`${overview?.reconciliation_schedule.local_time ?? '03:00'} / ${overview?.reconciliation_schedule.official_target_rule ?? 'D-2'} / ${overview?.mode ?? '-'}`"
+        :description="`${overview?.reconciliation_schedule.local_time ?? '03:00'} / ${reconciliationScheduleSummary} / ${overview?.mode ?? '-'}`"
         show-icon
         type="info"
       />
 
       <Card :title="$t('plugin.storageBilling.admin.providers.title')" class="block">
         <div class="section-subtitle">{{ $t('plugin.storageBilling.admin.providers.subtitle') }}</div>
-        <div class="providers">
-          <Card v-for="code in providers" :key="code">
+        <Alert
+          v-if="!hasVisibleProviders"
+          class="block"
+          :message="$t('plugin.storageBilling.admin.providers.noActiveDriver')"
+          type="warning"
+          show-icon
+        />
+        <div v-else class="providers">
+          <Card v-for="code in visibleProviderCodes" :key="code">
             <template #title>
               <Space wrap>
                 <span>{{ providerLabel(code) }}</span>
@@ -714,23 +1192,111 @@ onMounted(() => void loadAll());
               :type="validations[code].errors.length ? 'error' : 'warning'"
               show-icon
             />
+            <div class="capability-grid">
+              <div class="capability-item">
+                <span class="capability-label">{{ $t('plugin.storageBilling.admin.providers.capabilities.mode') }}</span>
+                <strong>{{ capabilityModeLabel(providerCapabilitySummary(code).settlement_mode) || '-' }}</strong>
+              </div>
+              <div class="capability-item">
+                <span class="capability-label">{{ $t('plugin.storageBilling.admin.providers.capabilities.cycle') }}</span>
+                <strong>{{ capabilityCycleLabel(providerCapabilitySummary(code).settlement_cycle) || '-' }}</strong>
+              </div>
+              <div class="capability-item">
+                <span class="capability-label">{{ $t('plugin.storageBilling.admin.providers.capabilities.targetRule') }}</span>
+                <strong>{{ capabilityTargetRuleLabel(providerCapabilitySummary(code).official_target_rule) }}</strong>
+              </div>
+              <div class="capability-item">
+                <span class="capability-label">{{ $t('plugin.storageBilling.admin.providers.capabilities.lagDays') }}</span>
+                <strong>{{ providerCapabilitySummary(code).official_billing_lag_days ?? '-' }}</strong>
+              </div>
+              <div class="capability-item capability-item-wide">
+                <span class="capability-label">{{ $t('plugin.storageBilling.admin.providers.capabilities.periodTypes') }}</span>
+                <strong>
+                  {{
+                    providerCapabilitySummary(code).supported_period_types
+                      .map((item) => capabilityPeriodLabel(item) || item)
+                      .join(' / ') || '-'
+                  }}
+                </strong>
+              </div>
+              <div class="capability-item capability-item-wide">
+                <span class="capability-label">{{ $t('plugin.storageBilling.admin.providers.capabilities.recommendedScopes') }}</span>
+                <strong>
+                  {{
+                    providerCapabilitySummary(code).recommended_scope_types
+                      .map((item) => $t(`plugin.storageBilling.admin.bindings.scope.${item}`))
+                      .join(' / ') || '-'
+                  }}
+                </strong>
+              </div>
+            </div>
+            <Descriptions :column="2" class="provider-runtime" size="small">
+              <Descriptions.Item :label="$t('plugin.storageBilling.admin.providers.runtime.configSource')">
+                {{ $t('plugin.storageBilling.admin.providers.runtime.source.platform_storage') }}
+              </Descriptions.Item>
+              <Descriptions.Item :label="$t('plugin.storageBilling.admin.providers.runtime.currentDriver')">
+                {{ providerLabelFromAny(providerStorageContext(code).current_driver || '-') }}
+              </Descriptions.Item>
+              <Descriptions.Item :label="$t('plugin.storageBilling.admin.providers.runtime.driverMatch')">
+                <Tag :color="providerStorageMatch(code) ? 'success' : 'error'">
+                  {{
+                    $t(
+                      providerStorageMatch(code)
+                        ? 'plugin.storageBilling.admin.providers.runtime.match'
+                        : 'plugin.storageBilling.admin.providers.runtime.mismatch',
+                    )
+                  }}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item :label="$t('plugin.storageBilling.admin.providers.runtime.credentialStatus')">
+                <Tag :color="providerStorageReady(code) ? 'success' : 'warning'">
+                  {{
+                    $t(
+                      providerStorageReady(code)
+                        ? 'plugin.storageBilling.admin.providers.runtime.configured'
+                        : 'plugin.storageBilling.admin.providers.runtime.missing',
+                    )
+                  }}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item :label="$t('plugin.storageBilling.admin.providers.runtime.bucket')">
+                {{ providerRuntimeValue(providerStorageContext(code).bucket_name) }}
+              </Descriptions.Item>
+              <Descriptions.Item :label="$t('plugin.storageBilling.admin.providers.runtime.baseUrl')">
+                {{ providerRuntimeValue(providerStorageContext(code).base_url) }}
+              </Descriptions.Item>
+              <Descriptions.Item :label="$t('plugin.storageBilling.admin.providers.runtime.region')">
+                {{ providerRuntimeValue(providerStorageContext(code).region) }}
+              </Descriptions.Item>
+              <Descriptions.Item :label="$t('plugin.storageBilling.admin.providers.runtime.endpoint')">
+                {{ providerRuntimeValue(providerStorageContext(code).endpoint) }}
+              </Descriptions.Item>
+              <Descriptions.Item :label="$t('plugin.storageBilling.admin.providers.runtime.prefix')">
+                {{ providerRuntimeValue(providerStorageContext(code).prefix) }}
+              </Descriptions.Item>
+              <Descriptions.Item :label="$t('plugin.storageBilling.admin.providers.runtime.rootPath')">
+                {{ providerRuntimeValue(providerStorageContext(code).root_path) }}
+              </Descriptions.Item>
+            </Descriptions>
             <Form layout="vertical">
               <FormItem :label="$t('plugin.storageBilling.admin.field.enabled')"><Switch v-model:checked="profiles[code].enabled" /></FormItem>
               <FormItem v-for="field in profileFields[code]" :key="field" :label="fieldLabel(field)">
                 <template #extra>
                   <Space wrap>
-                    <Tag :color="fieldRequired(code, field) ? 'error' : 'default'">
-                      {{ fieldRequired(code, field) ? $t('plugin.storageBilling.admin.providers.required') : $t('plugin.storageBilling.admin.providers.optional') }}
+                    <Tag :color="(validations[code].required_fields ?? []).includes(field) ? 'error' : 'default'">
+                      {{
+                        (validations[code].required_fields ?? []).includes(field)
+                          ? $t('plugin.storageBilling.admin.providers.required')
+                          : $t('plugin.storageBilling.admin.providers.optional')
+                      }}
                     </Tag>
-                    <Tag v-if="secretFields.has(field) && fieldConfigured(code, field)" color="blue">{{ $t('plugin.storageBilling.admin.providers.secretConfigured') }}</Tag>
                   </Space>
                 </template>
                 <Select v-if="field === 'bill_source'" v-model:value="profiles[code][field]" :options="billSourceOptions(code)" />
                 <Input
                   v-else
                   v-model:value="profiles[code][field]"
-                  :placeholder="secretFields.has(field) && fieldConfigured(code, field) ? $t('plugin.storageBilling.admin.providers.secretKeep') : ''"
-                  :type="secretFields.has(field) ? 'password' : 'text'"
+                  type="text"
                 />
               </FormItem>
             </Form>
@@ -740,7 +1306,7 @@ onMounted(() => void loadAll());
       </Card>
 
       <Card :title="$t('plugin.storageBilling.admin.bindings.title')" class="block">
-        <template #extra><Button type="primary" @click="openCreate">{{ $t('plugin.storageBilling.admin.bindings.add') }}</Button></template>
+        <template #extra><Button :disabled="!hasVisibleProviders" type="primary" @click="openCreate">{{ $t('plugin.storageBilling.admin.bindings.add') }}</Button></template>
         <div class="section-subtitle">{{ $t('plugin.storageBilling.admin.bindings.subtitle') }}</div>
         <Table :columns="bindingColumns" :data-source="bindings" :locale="{ emptyText: $t('plugin.storageBilling.admin.bindings.empty') }" :pagination="false" row-key="id">
           <template #bodyCell="{ column, record }">
@@ -796,7 +1362,55 @@ onMounted(() => void loadAll());
               </Descriptions.Item>
               <Descriptions.Item :label="$t('plugin.storageBilling.admin.runs.detail.trigger')">{{ selectedRun.trigger_type }}</Descriptions.Item>
               <Descriptions.Item :label="$t('plugin.storageBilling.admin.runs.detail.statementCount')">{{ selectedRun.summary.statement_count ?? 0 }}</Descriptions.Item>
+              <Descriptions.Item :label="$t('plugin.storageBilling.admin.runs.detail.requestedScope')" :span="3">
+                <div class="run-scope-summary">{{ selectedRunScopeSummary(selectedRun) }}</div>
+                <Space v-if="scopeProviderCodes(runRequestedScope(selectedRun)).length" wrap class="run-scope-tags">
+                  <Tag
+                    v-for="providerCode in scopeProviderCodes(runRequestedScope(selectedRun))"
+                    :key="`scope-provider-${providerCode}`"
+                    color="blue"
+                  >
+                    {{ providerLabelFromAny(providerCode) }}
+                  </Tag>
+                </Space>
+                <div v-if="scopeProviderPlans(runRequestedScope(selectedRun)).length" class="run-plan-list">
+                  <div
+                    v-for="plan in scopeProviderPlans(runRequestedScope(selectedRun))"
+                    :key="`plan-${plan.provider_code}-${plan.billing_date}`"
+                    class="run-plan-card"
+                  >
+                    <Space wrap>
+                      <Tag color="blue">{{ providerLabelFromAny(plan.provider_code) }}</Tag>
+                      <Tag color="processing">{{ plan.billing_date }}</Tag>
+                      <Tag>{{ capabilityTargetRuleLabel(plan.official_target_rule) }}</Tag>
+                      <Tag>{{ $t('plugin.storageBilling.admin.runs.detail.lagDays') }} {{ plan.official_billing_lag_days ?? '-' }}</Tag>
+                    </Space>
+                  </div>
+                </div>
+                <details class="run-scope-details">
+                  <summary>{{ $t('plugin.storageBilling.admin.runs.detail.scopeToggle') }}</summary>
+                  <pre>{{ selectedRunScopePayload(selectedRun) }}</pre>
+                </details>
+              </Descriptions.Item>
             </Descriptions>
+
+            <div v-if="selectedRunProviderResults.length" class="run-provider-results">
+              <div
+                v-for="provider in selectedRunProviderResults"
+                :key="`provider-result-${provider.provider_code}`"
+                class="run-provider-card"
+              >
+                <Space wrap>
+                  <Tag :color="statusColor(provider.source_status)">
+                    {{ providerLabelFromAny(provider.provider_code) }}
+                  </Tag>
+                  <Tag>{{ prettyStatus(provider.source_status) }}</Tag>
+                  <Tag>{{ $t('plugin.storageBilling.admin.runs.audit.matched') }} {{ provider.matched_items ?? 0 }}</Tag>
+                  <Tag>{{ $t('plugin.storageBilling.admin.runs.detail.chargeItems') }} {{ provider.charge_item_count ?? 0 }}</Tag>
+                  <Tag>{{ $t('plugin.storageBilling.admin.runs.detail.writtenRows') }} {{ provider.written_charge_rows ?? 0 }}</Tag>
+                </Space>
+              </div>
+            </div>
 
             <Table :columns="sourceColumns" :data-source="selectedRunDetail?.sources ?? []" :locale="{ emptyText: $t('plugin.storageBilling.admin.runs.sources.empty') }" :pagination="false" row-key="id">
               <template #bodyCell="{ column, record }">
@@ -827,6 +1441,14 @@ onMounted(() => void loadAll());
             <Card class="run-charge-card" size="small">
               <template #title>{{ $t('plugin.storageBilling.admin.runs.charges.title') }}</template>
               <div class="section-subtitle">{{ $t('plugin.storageBilling.admin.runs.charges.subtitle') }}</div>
+              <Space wrap class="run-charge-summary">
+                <Tag color="blue">{{ $t('plugin.storageBilling.admin.runs.charges.rowTotal') }} {{ selectedRunChargeResponse?.total ?? selectedRunCharges.length }}</Tag>
+                <Tag color="cyan">{{ $t('plugin.storageBilling.admin.runs.charges.sourceTotal') }} {{ selectedRunChargeResponse?.source_total ?? (selectedRunDetail?.sources?.length ?? 0) }}</Tag>
+                <Tag v-if="!runChargeActiveFilters.length" color="default">{{ $t('plugin.storageBilling.admin.runs.charges.filterNone') }}</Tag>
+                <Tag v-for="filter in runChargeActiveFilters" :key="`charge-filter-${filter.key}`" color="processing">
+                  {{ filter.label }}: {{ filter.value }}
+                </Tag>
+              </Space>
               <Space wrap class="run-charge-toolbar">
                 <Select
                   v-model:value="runChargeFilters.provider_code"
@@ -902,7 +1524,15 @@ onMounted(() => void loadAll());
       <Modal v-model:open="bindingOpen" :confirm-loading="bindingLoading" :title="modalTitle" :ok-text="modalOkText" @ok="submitBinding" @cancel="resetForm">
         <Form layout="vertical">
           <FormItem :label="$t('plugin.storageBilling.admin.bindingForm.tenant')"><Select v-model:value="form.tenant_id" :options="tenants" :filter-option="false" show-search @search="searchTenants" /></FormItem>
-          <FormItem :label="$t('plugin.storageBilling.admin.bindingForm.provider')"><Select v-model:value="form.provider_code" :options="providerOptions" @change="handleProviderChange" /></FormItem>
+          <FormItem :label="$t('plugin.storageBilling.admin.bindingForm.provider')"><Select v-model:value="form.provider_code" :disabled="providerOptions.length <= 1" :options="providerOptions" @change="handleProviderChange" /></FormItem>
+          <Alert
+            v-if="form.provider_code === 'qiniu-kodo'"
+            class="block"
+            :message="$t('plugin.storageBilling.admin.bindingForm.qiniuRestrictionTitle')"
+            :description="$t('plugin.storageBilling.admin.bindingForm.qiniuRestrictionDesc')"
+            show-icon
+            type="info"
+          />
           <FormItem :label="$t('plugin.storageBilling.admin.bindingForm.mode')"><Select v-model:value="form.billing_mode" :options="currentModeOptions" /></FormItem>
           <FormItem :label="$t('plugin.storageBilling.admin.bindingForm.scopeType')"><Select v-model:value="form.scope_type" :options="currentScopeOptions" @change="clearScopeFields" /></FormItem>
           <FormItem v-if="form.scope_type === 'bucket'" :label="$t('plugin.storageBilling.admin.bindingForm.bucketName')"><Input v-model:value="form.bucket_name" :placeholder="$t('plugin.storageBilling.admin.bindingForm.scopePlaceholder.bucket')" /></FormItem>
@@ -925,14 +1555,34 @@ onMounted(() => void loadAll());
 .badge{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#b45309;margin-bottom:8px}
 .hero h1{margin:0 0 8px;font-size:28px}
 .hero p{margin:0;color:#475569;max-width:760px}
+.hero-actions{display:flex;flex-direction:column;gap:12px;min-width:320px}
+.toolbar-group{justify-content:flex-end}
+.toolbar-stack{display:flex;flex-direction:column;gap:6px}
+.toolbar-field{min-width:180px}
+.toolbar-field-wide{min-width:240px}
+.toolbar-help{font-size:12px;color:#64748b;max-width:360px}
+.toolbar-help-error{color:#dc2626}
 .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:20px}
 .block{margin-bottom:20px}
 .providers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 .section-subtitle,.muted{color:#64748b}
 .section-subtitle{margin-bottom:16px}
+.capability-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.capability-item{padding:12px;border-radius:14px;background:#f8fafc;border:1px solid rgba(148,163,184,.18)}
+.capability-item-wide{grid-column:1/-1}
+.provider-runtime{margin-bottom:16px;padding:12px;border-radius:14px;background:#f8fafc;border:1px solid rgba(148,163,184,.18)}
+.capability-label{display:block;margin-bottom:6px;font-size:12px;color:#64748b}
 .actions{display:flex;justify-content:flex-end}
 .empty{margin-top:12px}
 .run-detail{margin-top:16px}
+.run-scope-summary{line-height:1.6;color:#0f172a}
+.run-scope-tags{margin-top:8px}
+.run-plan-list,.run-provider-results{display:grid;gap:12px;margin-top:16px}
+.run-plan-card,.run-provider-card{padding:12px;border-radius:14px;background:#f8fafc;border:1px solid rgba(148,163,184,.18)}
+.run-scope-details{margin-top:8px}
+.run-scope-details summary{cursor:pointer;color:#64748b}
+.run-scope-details pre{margin:8px 0 0;padding:12px;border-radius:12px;background:#0f172a;color:#e2e8f0;overflow:auto;max-height:320px}
+.run-charge-summary{display:flex;margin:12px 0}
 .run-charge-toolbar{display:flex;margin-bottom:12px}
 .toolbar-field{min-width:180px}
 .toolbar-source{min-width:260px}
@@ -943,5 +1593,5 @@ onMounted(() => void loadAll());
 .audit-details summary{cursor:pointer;color:#0f172a;font-weight:600}
 .audit-details pre{margin-top:12px;padding:12px;border-radius:12px;background:#0f172a;color:#e2e8f0;overflow:auto;max-height:320px}
 @media (max-width:1200px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.providers{grid-template-columns:1fr}}
-@media (max-width:768px){.hero{flex-direction:column}.stats{grid-template-columns:1fr}}
+@media (max-width:768px){.hero{flex-direction:column}.hero-actions{min-width:0;width:100%}.stats{grid-template-columns:1fr}.capability-grid{grid-template-columns:1fr}}
 </style>

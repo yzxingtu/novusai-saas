@@ -19,6 +19,7 @@ const pluginAssetMocks = vi.hoisted(() => ({
   ),
   getPluginAssetAuthHeaders: vi.fn(() => ({
     Authorization: 'Bearer admin-token',
+    'X-Trace-ID': 'trace-plugin-manifest',
   })),
 }));
 
@@ -140,7 +141,10 @@ describe('plugin-loader', () => {
     expect(fetchMock).toHaveBeenCalledWith(
       '/plugin-assets/demo-plugin/manifests/release.json',
       {
-        headers: { Authorization: 'Bearer admin-token' },
+        headers: {
+          Authorization: 'Bearer admin-token',
+          'X-Trace-ID': 'trace-plugin-manifest',
+        },
       },
     );
 

@@ -53,9 +53,11 @@ from app.api.tenant.periodic_tasks import TenantPeriodicTaskController
 from app.api.tenant.periodic_tasks import router as periodic_tasks_router
 from app.api.tenant.permissions import TenantPermissionController
 from app.api.tenant.permissions import router as permissions_router
+from app.api.tenant.permission_roles import TenantPermissionRoleController
+from app.api.tenant.permission_roles import router as permission_roles_router
 from app.api.tenant.plugins import router as plugins_router
-from app.api.tenant.roles import TenantRoleController
-from app.api.tenant.roles import router as roles_router
+from app.api.tenant.organization import TenantOrganizationController
+from app.api.tenant.organization import router as organization_router
 from app.api.tenant.skill_packages import TenantSkillPackageController
 from app.api.tenant.skill_packages import router as skill_packages_router
 from app.api.tenant.tasks import TenantTaskLogController
@@ -77,7 +79,8 @@ tenant_router.include_router(attachments_router)
 tenant_router.include_router(domains_router)
 tenant_router.include_router(operation_logs_router)
 tenant_router.include_router(permissions_router)
-tenant_router.include_router(roles_router)
+tenant_router.include_router(permission_roles_router)
+tenant_router.include_router(organization_router)
 tenant_router.include_router(users_router)
 tenant_router.include_router(user_roles_router)
 tenant_router.include_router(tasks_router)
@@ -126,7 +129,8 @@ __all__ = [
     "TenantOperationLogController",
     "TenantPeriodicTaskController",
     "TenantPermissionController",
-    "TenantRoleController",
+    "TenantPermissionRoleController",
+    "TenantOrganizationController",
     "TenantTaskLogController",
     "TenantUserController",
     "TenantUserRoleController",

@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.core.deps import DbSession
+from app.core.response import get_current_trace_id
 from app.rbac.decorators import public
 
 router = APIRouter(tags=["Health Check"])
@@ -41,14 +42,15 @@ async def health_check(db: DbSession):
     all_ok = all(v == "ok" for v in checks.values())
     status_code = 200 if all_ok else 503
 
-    return JSONResponse(
-        status_code=status_code,
-        content={
-            "status": "ok" if all_ok else "error",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "checks": checks,
-        },
-    )
+    content = {
+        "status": "ok" if all_ok else "error",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "checks": checks,
+    }
+    if not all_ok:
+        content["trace_id"] = get_current_trace_id()
+
+    return JSONResponse(status_code=status_code, content=content)
 
 
 __all__ = ["router"]

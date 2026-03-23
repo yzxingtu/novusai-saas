@@ -102,7 +102,18 @@ class PermissionSyncService(LoggerMixin):
         Resolve plugin permission display name from i18n dict/string.
         / 从 i18n 字典或字符串解析插件权限名称。
         """
+        code_text = str(code or "").strip()
         suffix = f"{code}:{action}"
+        if code_text.startswith("plugin."):
+            parts = code_text.split(".", 2)
+            if len(parts) == 3:
+                plugin_name = parts[1]
+                resource_code = parts[2]
+                safe_name = plugin_name.replace("-", "_")
+                if isinstance(raw_name, str) and raw_name.strip():
+                    return f"{safe_name}.permission.{resource_code}.{action}"
+                if isinstance(raw_name, dict) and any(str(v or "").strip() for v in raw_name.values()):
+                    return f"{safe_name}.permission.{resource_code}.{action}"
         if isinstance(raw_name, str) and raw_name.strip():
             return f"{raw_name.strip()}:{action}"
         if isinstance(raw_name, dict):

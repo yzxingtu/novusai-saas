@@ -8,6 +8,8 @@ Provides tenant business user data access operations (tenant-isolated).
 from sqlalchemy import or_, select
 
 from app.core.base_repository import TenantRepository
+from app.models.auth.tenant_user_role import TenantUserRole
+from app.models.org import TenantOrgNode
 from app.models.tenant.tenant_user import TenantUser
 
 
@@ -23,7 +25,7 @@ class TenantUserRepository(TenantRepository[TenantUser]):
     _scope_fields = {
         "tenant": {
             "id", "username", "email", "phone",
-            "is_active", "nickname", "role_id", "gender",
+            "is_active", "nickname", "role_id", "org_node_id", "gender",
             "approval_status", "created_at", "updated_at",
             "last_login_at",
         },
@@ -104,6 +106,26 @@ class TenantUserRepository(TenantRepository[TenantUser]):
         if exclude_id:
             query = query.where(self.model.id != exclude_id)
 
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none() is not None
+
+    async def permission_role_exists(self, role_id: int) -> bool:
+        """检查权限角色是否存在（企业内） / Check whether permission role exists within tenant."""
+        query = select(TenantUserRole.id).where(
+            TenantUserRole.id == role_id,
+            TenantUserRole.tenant_id == self.tenant_id,
+            TenantUserRole.is_deleted.is_(False),
+        )
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none() is not None
+
+    async def org_node_exists(self, org_node_id: int) -> bool:
+        """检查组织节点是否存在（企业内） / Check whether org node exists within tenant."""
+        query = select(TenantOrgNode.id).where(
+            TenantOrgNode.id == org_node_id,
+            TenantOrgNode.tenant_id == self.tenant_id,
+            TenantOrgNode.is_deleted.is_(False),
+        )
         result = await self.db.execute(query)
         return result.scalar_one_or_none() is not None
 

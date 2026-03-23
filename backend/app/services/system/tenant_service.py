@@ -18,8 +18,8 @@ from app.core.logging import LogManager
 from app.core.security import get_password_hash
 from app.enums import ErrorCode, RoleType
 from app.exceptions import BusinessException, NotFoundException
-from app.models.auth.tenant_admin_role import TenantAdminRole
 from app.models.auth.tenant_user_role import TenantUserRole
+from app.models.org import TenantOrgNode
 from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_admin import TenantAdmin
 from app.models.tenant.tenant_plan import TenantPlan
@@ -267,7 +267,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         except Exception as e:
             logger.warning("Failed to send welcome notification: {}", str(e))
 
-    async def _create_tenant_root_node(self, tenant_id: int, tenant_name: str) -> TenantAdminRole:
+    async def _create_tenant_root_node(self, tenant_id: int, tenant_name: str) -> TenantOrgNode:
         """
         为企业创建组织架构根节点 / Create org root node for tenant.
 
@@ -278,7 +278,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         Returns:
             创建的根节点
         """
-        root_node = TenantAdminRole(
+        root_node = TenantOrgNode(
             tenant_id=tenant_id,
             name=tenant_name,
             code="tenant_root",
@@ -307,7 +307,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         username: str,
         email: str,
         password: str,
-        root_node: TenantAdminRole,
+        root_node: TenantOrgNode,
         phone: str | None = None,
     ) -> TenantAdmin:
         """
@@ -332,7 +332,8 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             password_hash=get_password_hash(password),
             is_active=True,
             is_owner=True,
-            role_id=root_node.id,
+            role_id=None,
+            org_node_id=root_node.id,
         )
 
         self.db.add(owner)

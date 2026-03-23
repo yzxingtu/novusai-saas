@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import type { TenantUserRoleInfo } from '#/api/tenant/tenant-user-roles';
 import type { TenantUserInfo } from '#/api/tenant/tenant-users';
+import type { OrgTreeNodeData } from '#/components/business/org-tree';
 
 import { computed, h, nextTick, onMounted, ref, watch } from 'vue';
 
@@ -8,7 +9,6 @@ import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
 import {
-  Badge,
   Button,
   Card,
   Empty,
@@ -56,6 +56,8 @@ import { $t } from '#/locales';
 import { usePresenceStore } from '#/store';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 
+import { OrgTreeNode, useOrgTree } from '#/components/business/org-tree';
+
 import {
   getRoleFormDefaults,
   getUserFormDefaults,
@@ -71,42 +73,66 @@ defineOptions({ name: 'TenantUserArchitecture' });
 
 const AI_PAGE_KEY = 'tenant.system.userArchitecture';
 
-// ============================================================
-// Left: Role list / 左侧角色列表
-// ============================================================
+const {
+  treeData,
+  loading: orgTreeLoading,
+  expandedIds,
+  loadRootNodes,
+  toggleExpand,
+  expandAll,
+  collapseAll,
+  isExpanded,
+  refresh: refreshOrgTree,
+} = useOrgTree({ apiPrefix: 'tenant', immediate: false });
 
-const ALL_USERS_ID = -1;
-
+const selectedOrgNode = ref<null | OrgTreeNodeData>(null);
 const roles = ref<TenantUserRoleInfo[]>([]);
 const rolesLoading = ref(false);
-const searchKeyword = ref('');
+const roleSearchKeyword = ref('');
 const selectedRole = ref<null | TenantUserRoleInfo>(null);
-const panelCollapsed = ref(false);
-const isAllUsersSelected = computed(
-  () => selectedRole.value?.id === ALL_USERS_ID,
-);
+const sidebarCollapsed = ref(false);
+const permissionDrawerVisible = ref(false);
+const currentPermissionRole = ref<null | TenantUserRoleInfo>(null);
+const roleDeleting = ref(false);
+const newPasswordRef = ref('');
+const confirmPasswordRef = ref('');
+const presenceStore = usePresenceStore();
 
 const filteredRoles = computed(() => {
-  if (!searchKeyword.value) return roles.value;
-  const kw = searchKeyword.value.toLowerCase();
+  if (!roleSearchKeyword.value) return roles.value;
+  const keyword = roleSearchKeyword.value.toLowerCase();
   return roles.value.filter(
-    (r) =>
-      r.name.toLowerCase().includes(kw) || r.code.toLowerCase().includes(kw),
+    (role) =>
+      role.name.toLowerCase().includes(keyword) ||
+      role.code.toLowerCase().includes(keyword),
   );
+});
+
+const orgFilterLabel = computed(() =>
+  selectedOrgNode.value?.name || $t('tenant.system.userArchitecture.allOrganizations'),
+);
+
+const roleFilterLabel = computed(() =>
+  selectedRole.value?.name ||
+  $t('tenant.system.userArchitecture.allPermissionRoles'),
+);
+
+const [RoleFormDrawer, roleFormApi] = useVbenDrawer({
+  connectedComponent: UserRoleFormComponent,
+  destroyOnClose: true,
 });
 
 async function loadRoles() {
   rolesLoading.value = true;
   try {
-    const res = await getTenantUserRoleListApi({
+    const response = await getTenantUserRoleListApi({
       'page[size]': 100,
       sort: 'sort_order',
     });
-    roles.value = res.items;
-    // If previously selected role still exists, update reference / 如果之前选中的角色仍然存在，更新引用
+    roles.value = response.items;
     if (selectedRole.value) {
-      const updated = roles.value.find((r) => r.id === selectedRole.value!.id);
-      selectedRole.value = updated || null;
+      selectedRole.value =
+        roles.value.find((role) => role.id === selectedRole.value?.id) || null;
     }
   } catch {
     roles.value = [];
@@ -115,18 +141,21 @@ async function loadRoles() {
   }
 }
 
+function handleSelectOrgNode(node: OrgTreeNodeData) {
+  selectedOrgNode.value = node;
+}
+
+function clearOrgFilter() {
+  selectedOrgNode.value = null;
+}
+
 function handleSelectRole(role: TenantUserRoleInfo) {
   selectedRole.value = role;
 }
 
-// ============================================================
-// Role CRUD drawer (useVbenDrawer) / 角色 CRUD 弹窗
-// ============================================================
-
-const [RoleFormDrawer, roleFormApi] = useVbenDrawer({
-  connectedComponent: UserRoleFormComponent,
-  destroyOnClose: true,
-});
+function clearRoleFilter() {
+  selectedRole.value = null;
+}
 
 function handleCreateRole() {
   roleFormApi
@@ -152,12 +181,6 @@ function handleEditRole(role: TenantUserRoleInfo) {
     .open();
 }
 
-// ============================================================
-// Role deletion / 角色删除
-// ============================================================
-
-const roleDeleting = ref(false);
-
 async function handleDeleteRole(role: TenantUserRoleInfo) {
   if (role.isSystem) {
     message.warning(
@@ -180,27 +203,15 @@ async function handleDeleteRole(role: TenantUserRoleInfo) {
   }
 }
 
-// ============================================================
-// Role status toggle / 角色状态切换
-// ============================================================
-
 async function handleToggleRoleStatus(role: TenantUserRoleInfo) {
-  const newStatus = !role.isActive;
   try {
-    await toggleTenantUserRoleStatusApi(role.id, newStatus);
+    await toggleTenantUserRoleStatusApi(role.id, !role.isActive);
     message.success($t('ui.actionMessage.operationSuccess'));
     await loadRoles();
   } catch {
-    // error handled by request client / 错误由请求拦截器处理
+    // Error handled by request client / 错误由请求拦截器处理
   }
 }
-
-// ============================================================
-// Permission assignment / 权限分配
-// ============================================================
-
-const permissionDrawerVisible = ref(false);
-const currentPermissionRole = ref<null | TenantUserRoleInfo>(null);
 
 function handleAssignPermissions(role: TenantUserRoleInfo) {
   currentPermissionRole.value = role;
@@ -211,32 +222,20 @@ function onPermissionSaved() {
   loadRoles();
 }
 
-// ============================================================
-// Right: User member table / 右侧用户成员表格
-// ============================================================
-
-/** Wrapper to match ToggleStatusApi signature / 包装以匹配 ToggleStatusApi 签名 */
 async function toggleUserStatus(id: number, data: Record<string, boolean>) {
   return toggleTenantUserStatusApi(id, !!data.is_active);
 }
 
-/** User list API with role_id filter (no filter for "all users") / 带 role_id 过滤的用户列表 API */
-function getUserListForRole(params: Record<string, unknown>) {
-  if (!selectedRole.value) {
-    return Promise.resolve({ items: [], total: 0, page: 1, page_size: 20 });
+function getUserListForFilters(params: Record<string, unknown>) {
+  const nextParams: Record<string, unknown> = { ...params };
+  if (selectedOrgNode.value?.id) {
+    nextParams['filter[org_node_id][eq]'] = selectedOrgNode.value.id;
   }
-  if (isAllUsersSelected.value) {
-    return getTenantUserListApi(params);
+  if (selectedRole.value?.id) {
+    nextParams['filter[role_id][eq]'] = selectedRole.value.id;
   }
-  return getTenantUserListApi({
-    ...params,
-    'filter[role_id][eq]': selectedRole.value.id,
-  });
+  return getTenantUserListApi(nextParams);
 }
-
-// ============================================================
-// User approval operations / 用户审批操作
-// ============================================================
 
 async function onApproveUser(row: TenantUserInfo) {
   try {
@@ -244,7 +243,7 @@ async function onApproveUser(row: TenantUserInfo) {
     message.success($t('tenant.system.user.messages.approveSuccess'));
     onMemberRefresh();
   } catch {
-    // error handled by request client / 错误由请求拦截器处理
+    // Error handled by request client / 错误由请求拦截器处理
   }
 }
 
@@ -254,7 +253,7 @@ async function onRejectUser(row: TenantUserInfo) {
     message.success($t('tenant.system.user.messages.rejectSuccess'));
     onMemberRefresh();
   } catch {
-    // error handled by request client / 错误由请求拦截器处理
+    // Error handled by request client / 错误由请求拦截器处理
   }
 }
 
@@ -270,7 +269,7 @@ async function handleBatchApprove() {
     clearSelection(memberGridApi?.grid);
     onMemberRefresh();
   } catch {
-    // error handled by request client / 错误由请求拦截器处理
+    // Error handled by request client / 错误由请求拦截器处理
   }
 }
 
@@ -286,12 +285,9 @@ async function handleBatchReject() {
     clearSelection(memberGridApi?.grid);
     onMemberRefresh();
   } catch {
-    // error handled by request client / 错误由请求拦截器处理
+    // Error handled by request client / 错误由请求拦截器处理
   }
 }
-
-const newPasswordRef = ref('');
-const confirmPasswordRef = ref('');
 
 async function onForceLogout(row: TenantUserInfo) {
   try {
@@ -315,8 +311,8 @@ async function onResetPassword(row: TenantUserInfo) {
         h(Input.Password, {
           placeholder: $t('tenant.system.user.newPassword'),
           value: newPasswordRef.value,
-          'onUpdate:value': (val: string) => {
-            newPasswordRef.value = val;
+          'onUpdate:value': (value: string) => {
+            newPasswordRef.value = value;
           },
         }),
         h(Input.Password, {
@@ -324,8 +320,8 @@ async function onResetPassword(row: TenantUserInfo) {
             'tenant.system.user.placeholder.inputNewPasswordConfirm',
           ),
           value: confirmPasswordRef.value,
-          'onUpdate:value': (val: string) => {
-            confirmPasswordRef.value = val;
+          'onUpdate:value': (value: string) => {
+            confirmPasswordRef.value = value;
           },
         }),
       ]),
@@ -358,7 +354,7 @@ const {
   aiPageKey: memberAiPageKey,
 } = useCrudPage<TenantUserInfo>({
   api: {
-    list: getUserListForRole,
+    list: getUserListForFilters,
     resource: '/tenant/users',
     toggles: { is_active: toggleUserStatus },
   },
@@ -379,60 +375,39 @@ const {
   },
 });
 
-/** Reload member table on role selection change (nextTick waits for Grid mount) / 角色选择变化时重新加载成员表 */
-watch(selectedRole, async () => {
-  await nextTick();
-  onMemberRefresh();
-});
-
-/** After member form success, also refresh role list (update memberCount) / 成员表单成功后刷新角色列表 */
 function onMemberFormSuccess() {
   onMemberRefresh();
   loadRoles();
+  refreshOrgTree();
 }
-
-// ============================================================
-// Role form drawer callback / 角色表单弹窗回调
-// ============================================================
 
 function onRoleFormSuccess() {
   loadRoles();
 }
 
-// ============================================================
-// Lifecycle / 生命周期
-// ============================================================
-
-const presenceStore = usePresenceStore();
+watch(
+  [() => selectedOrgNode.value?.id, () => selectedRole.value?.id],
+  async () => {
+    await nextTick();
+    onMemberRefresh();
+  },
+);
 
 onMounted(async () => {
-  await loadRoles();
-  // Select "All Users" by default / 默认选择"全部用户"
-  selectedRole.value = {
-    id: ALL_USERS_ID,
-    name: $t('tenant.system.userArchitecture.allUsers'),
-    code: 'all_users',
-    memberCount: 0,
-    isActive: true,
-    isSystem: false,
-    permissionsCount: 0,
-  } as TenantUserRoleInfo;
-  // Load business user online status / 加载业务用户在线状态
+  await Promise.all([loadRoles(), loadRootNodes()]);
+  expandAll();
   presenceStore.loadTenantUserPresence();
 });
-
-// ============================================================
-// AI Page Context
-// ============================================================
 
 usePageAIContext({
   pageKey: AI_PAGE_KEY,
   contextStrategy: 'extras',
   data: () => ({
-    role_search_keyword: searchKeyword.value || null,
-    roles_total: roles.value.length,
-    selected_role_id: selectedRole.value?.id ?? null,
-    selected_role_name: selectedRole.value?.name ?? null,
+    org_filter_id: selectedOrgNode.value?.id ?? null,
+    org_filter_name: selectedOrgNode.value?.name ?? null,
+    permission_role_filter_id: selectedRole.value?.id ?? null,
+    permission_role_filter_name: selectedRole.value?.name ?? null,
+    permission_roles_total: roles.value.length,
   }),
 });
 
@@ -441,30 +416,42 @@ usePageAIOperations({
   operationStrategy: 'append',
   operations: [
     createRefreshPageOperation({
-      name: 'refresh_roles',
-      action: loadRoles,
-      description: 'Refresh the role list',
+      name: 'refresh_filters',
+      action: async () => {
+        await Promise.all([refreshOrgTree(), loadRoles()]);
+        onMemberRefresh();
+      },
+      description: 'Refresh organization filters, permission roles, and user list',
+    }),
+    createKeywordSearchPageOperation({
+      label: $t('shared.pageOperation.searchByKeyword'),
+      description: 'Search permission roles by keyword',
+      keywordDescription: 'Permission role keyword',
+      normalize: (keyword) => keyword.toLowerCase(),
+      setKeyword: (keyword) => {
+        roleSearchKeyword.value = keyword;
+      },
     }),
     createPrefilledCreatePageOperation({
-      name: 'create_record',
-      description:
-        'Open the create role form and optionally pre-fill role fields',
+      name: 'create_permission_role',
+      label: $t('tenant.system.userArchitecture.createRole'),
+      description: 'Open the create permission-role form',
       params: {
         description: {
           type: 'string',
-          description: 'Role description',
+          description: 'Permission role description',
         },
         is_active: {
           type: 'boolean',
-          description: 'Whether the role should be active',
+          description: 'Whether the permission role should be active',
         },
         name: {
           type: 'string',
-          description: 'Role name',
+          description: 'Permission role name',
         },
         sort_order: {
           type: 'number',
-          description: 'Role sort order',
+          description: 'Permission role sort order',
         },
       },
       normalizeParams: (params) => {
@@ -493,62 +480,58 @@ usePageAIOperations({
           .open();
       },
     }),
-    createKeywordSearchPageOperation({
-      label: $t('shared.pageOperation.searchByKeyword'),
-      description: 'Search roles by name keyword',
-      keywordDescription: 'Role name keyword',
-      normalize: (keyword) => keyword.toLowerCase(),
-      setKeyword: (keyword) => {
-        searchKeyword.value = keyword;
-      },
-    }),
     createPrefilledCreatePageOperation({
-      name: 'add_member',
-      label: $t('tenant.system.userArchitecture.addMember'),
+      name: 'create_user',
+      label: $t('tenant.system.user.create'),
       description:
-        'Open the add member form and optionally pre-fill member fields',
+        'Open the create user form with optional org node and permission role defaults',
       params: {
         email: {
           type: 'string',
-          description: 'Member email',
+          description: 'User email',
         },
         is_active: {
           type: 'boolean',
-          description: 'Whether the member should be active',
+          description: 'Whether the user should be active',
         },
         nickname: {
           type: 'string',
-          description: 'Member nickname',
+          description: 'User nickname',
+        },
+        org_node_id: {
+          type: 'number',
+          description: 'Target org node ID',
         },
         phone: {
           type: 'string',
-          description: 'Member phone number',
+          description: 'User phone number',
         },
         role_id: {
           type: 'number',
-          description: 'Target role ID',
+          description: 'Permission role ID',
         },
         username: {
           type: 'string',
-          description: 'Member username',
+          description: 'Username',
         },
       },
       normalizeParams: (params) => {
-        const selectedRoleId =
-          selectedRole.value && !isAllUsersSelected.value
-            ? selectedRole.value.id
-            : undefined;
         return {
           ...(params?.email ? { email: params.email } : {}),
           ...(typeof params?.is_active === 'boolean'
             ? { is_active: params.is_active }
             : {}),
           ...(params?.nickname ? { nickname: params.nickname } : {}),
+          ...(typeof params?.org_node_id === 'number'
+            ? { org_node_id: params.org_node_id }
+            : selectedOrgNode.value?.id
+              ? { org_node_id: selectedOrgNode.value.id }
+              : {}),
           ...(params?.phone ? { phone: params.phone } : {}),
           ...(typeof params?.role_id === 'number'
             ? { role_id: params.role_id }
-            : selectedRoleId
-              ? { role_id: selectedRoleId }
+            : selectedRole.value?.id
+              ? { role_id: selectedRole.value.id }
               : {}),
           ...(params?.username ? { username: params.username } : {}),
         };
@@ -576,62 +559,64 @@ usePageAIOperations({
 <template>
   <Page auto-content-height>
     <div class="flex h-full gap-2 overflow-hidden lg:gap-4">
-      <!-- ==================== 左侧：角色列表 ==================== -->
       <div
         class="flex flex-shrink-0 flex-col overflow-hidden rounded-xl bg-card shadow-sm transition-all duration-300"
         :class="[
-          panelCollapsed ? 'w-12' : 'w-[280px] lg:w-[320px] xl:w-[360px]',
+          sidebarCollapsed ? 'w-12' : 'w-[320px] lg:w-[360px] xl:w-[400px]',
         ]"
       >
-        <!-- 工具栏 -->
         <div
           class="flex items-center justify-between border-b border-border/50 px-2 py-2 lg:px-4 lg:py-3"
         >
-          <div v-show="!panelCollapsed" class="flex min-w-0 items-center gap-2">
+          <div
+            v-show="!sidebarCollapsed"
+            class="flex min-w-0 items-center gap-2"
+          >
             <IconifyIcon
-              icon="lucide:network"
+              icon="lucide:git-merge"
               class="h-4 w-4 flex-shrink-0 text-primary lg:h-5 lg:w-5"
             />
             <span class="truncate text-sm font-medium lg:text-base">
-              {{ $t('tenant.system.userArchitecture.roleList') }}
+              {{ $t('tenant.system.userArchitecture.filterSidebarTitle') }}
             </span>
           </div>
-          <div class="flex items-center gap-0.5 lg:gap-1">
-            <template v-if="!panelCollapsed">
+          <div class="flex items-center gap-1">
+            <template v-if="!sidebarCollapsed">
               <Tooltip :title="$t('tenant.system.userArchitecture.refresh')">
                 <Button
                   type="text"
                   size="small"
-                  :loading="rolesLoading"
-                  @click="loadRoles"
+                  :loading="rolesLoading || orgTreeLoading"
+                  @click="
+                    () => {
+                      refreshOrgTree();
+                      loadRoles();
+                    }
+                  "
                 >
                   <template #icon>
-                    <IconifyIcon
-                      icon="lucide:refresh-cw"
-                      class="!text-xs lg:!text-sm"
-                    />
+                    <IconifyIcon icon="lucide:refresh-cw" />
                   </template>
                 </Button>
               </Tooltip>
-              <Button
-                v-access:code="['tenant_user_role:create']"
-                type="primary"
-                size="small"
-                class="!px-2 lg:!px-3"
-                @click="handleCreateRole"
-              >
-                <template #icon>
-                  <IconifyIcon icon="lucide:plus" />
-                </template>
-                <span class="hidden sm:inline">
-                  {{ $t('tenant.system.userArchitecture.createRole') }}
-                </span>
-              </Button>
+              <Tooltip :title="$t('tenant.system.organization.expandAll')">
+                <Button type="text" size="small" @click="expandAll">
+                  <template #icon>
+                    <IconifyIcon icon="lucide:unfold-vertical" />
+                  </template>
+                </Button>
+              </Tooltip>
+              <Tooltip :title="$t('tenant.system.organization.collapseAll')">
+                <Button type="text" size="small" @click="collapseAll">
+                  <template #icon>
+                    <IconifyIcon icon="lucide:fold-vertical" />
+                  </template>
+                </Button>
+              </Tooltip>
             </template>
-            <!-- 折叠/展开按钮 -->
             <Tooltip
               :title="
-                panelCollapsed
+                sidebarCollapsed
                   ? $t('tenant.system.userArchitecture.expandSidebar')
                   : $t('tenant.system.userArchitecture.collapseSidebar')
               "
@@ -639,12 +624,12 @@ usePageAIOperations({
               <Button
                 type="text"
                 size="small"
-                @click="panelCollapsed = !panelCollapsed"
+                @click="sidebarCollapsed = !sidebarCollapsed"
               >
                 <template #icon>
                   <IconifyIcon
                     :icon="
-                      panelCollapsed
+                      sidebarCollapsed
                         ? 'lucide:panel-left-open'
                         : 'lucide:panel-left-close'
                     "
@@ -655,539 +640,467 @@ usePageAIOperations({
           </div>
         </div>
 
-        <!-- 搜索框 -->
-        <div
-          v-show="!panelCollapsed"
-          class="border-b border-border/30 px-2 py-2 lg:px-3"
-        >
-          <Input
-            v-model:value="searchKeyword"
-            :placeholder="$t('tenant.system.userArchitecture.searchRole')"
-            allow-clear
+        <div v-show="!sidebarCollapsed" class="flex-1 overflow-y-auto p-3">
+          <Card
+            :title="$t('tenant.system.userArchitecture.orgFilterTitle')"
             size="small"
           >
-            <template #prefix>
-              <IconifyIcon icon="lucide:search" class="text-muted-foreground" />
+            <template #extra>
+              <Button type="link" size="small" @click="clearOrgFilter">
+                {{ $t('tenant.system.userArchitecture.clearOrgFilter') }}
+              </Button>
             </template>
-          </Input>
-        </div>
-
-        <!-- 角色列表 -->
-        <div v-show="!panelCollapsed" class="flex-1 overflow-y-auto p-2 lg:p-3">
-          <Spin :spinning="rolesLoading">
-            <div class="space-y-1">
-              <!-- 全部用户（虚拟选项） -->
-              <div
-                class="group cursor-pointer rounded-lg border border-transparent px-3 py-2.5 transition-all duration-150 hover:bg-accent/50"
-                :class="[
-                  isAllUsersSelected
-                    ? 'border-primary/30 bg-primary/5 shadow-sm'
-                    : '',
-                ]"
-                @click="
-                  selectedRole = {
-                    id: ALL_USERS_ID,
-                    name: $t('tenant.system.userArchitecture.allUsers'),
-                    code: 'all_users',
-                    memberCount: 0,
-                    isActive: true,
-                    isSystem: false,
-                    permissionsCount: 0,
-                  } as TenantUserRoleInfo
-                "
-              >
-                <div class="flex items-center gap-2.5">
-                  <div
-                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-accent"
-                  >
-                    <IconifyIcon
-                      icon="lucide:users"
-                      class="h-4 w-4 text-foreground"
-                    />
-                  </div>
-                  <div class="min-w-0 flex-1">
-                    <span class="truncate text-sm font-medium text-foreground">
-                      {{ $t('tenant.system.userArchitecture.allUsers') }}
-                    </span>
-                  </div>
-                </div>
+            <div
+              class="mb-3 cursor-pointer rounded-lg border px-3 py-2 transition"
+              :class="
+                !selectedOrgNode
+                  ? 'border-primary bg-primary/5'
+                  : 'border-border/60 hover:border-primary/20'
+              "
+              @click="clearOrgFilter"
+            >
+              <div class="flex items-center gap-2">
+                <IconifyIcon icon="lucide:building-2" class="size-4 text-primary" />
+                <span class="font-medium">
+                  {{ $t('tenant.system.userArchitecture.allOrganizations') }}
+                </span>
               </div>
-
-              <!-- 角色分隔线 -->
-              <div
-                v-if="filteredRoles.length > 0"
-                class="my-1 border-t border-border/30"
-              ></div>
-
-              <div
-                v-for="role in filteredRoles"
-                :key="role.id"
-                class="group cursor-pointer rounded-lg border border-transparent px-3 py-2.5 transition-all duration-150 hover:bg-accent/50"
-                :class="[
-                  selectedRole?.id === role.id
-                    ? 'border-primary/30 bg-primary/5 shadow-sm'
-                    : '',
-                ]"
-                @click="handleSelectRole(role)"
-              >
-                <div class="flex items-center gap-2.5">
-                  <div
-                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg"
-                    :class="role.isActive ? 'bg-primary/10' : 'bg-muted'"
-                  >
-                    <IconifyIcon
-                      icon="lucide:shield"
-                      class="h-4 w-4"
-                      :class="
-                        role.isActive ? 'text-primary' : 'text-muted-foreground'
-                      "
-                    />
-                  </div>
-                  <div class="min-w-0 flex-1">
-                    <div class="flex items-center gap-1.5">
-                      <span
-                        class="truncate text-sm font-medium text-foreground"
-                      >
-                        {{ role.name }}
-                      </span>
-                      <Tag
-                        v-if="role.isSystem"
-                        color="orange"
-                        class="!px-1 !text-[10px] !leading-tight"
-                      >
-                        {{ $t('tenant.system.userRole.isSystem') }}
-                      </Tag>
-                    </div>
-                    <div
-                      class="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground"
-                    >
-                      <code class="rounded bg-muted/70 px-1 text-[10px]">{{
-                        role.code
-                      }}</code>
-                      <span
-                        >{{ role.memberCount
-                        }}{{
-                          $t('tenant.system.userArchitecture.memberUnit')
-                        }}</span
-                      >
-                    </div>
-                  </div>
-                  <div class="flex-shrink-0">
-                    <span
-                      class="inline-block h-2 w-2 rounded-full"
-                      :class="
-                        role.isActive ? 'bg-success' : 'bg-muted-foreground/30'
-                      "
-                    ></span>
-                  </div>
-                </div>
+              <div class="mt-1 text-xs text-muted-foreground">
+                {{ $t('tenant.system.userArchitecture.allOrganizationsDesc') }}
               </div>
             </div>
-            <Empty
-              v-if="filteredRoles.length === 0 && searchKeyword"
-              :description="$t('tenant.system.userArchitecture.noRoles')"
-              class="py-8"
-            />
-          </Spin>
-        </div>
-
-        <!-- 折叠时显示图标 -->
-        <div
-          v-show="panelCollapsed"
-          class="flex flex-1 flex-col items-center gap-2 py-4"
-        >
-          <Tooltip
-            :title="$t('tenant.system.userArchitecture.roleList')"
-            placement="right"
-          >
-            <IconifyIcon icon="lucide:network" class="h-5 w-5 text-primary" />
-          </Tooltip>
-        </div>
-      </div>
-
-      <!-- ==================== 右侧：角色详情 + 用户成员 ==================== -->
-      <div
-        class="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl bg-card shadow-sm"
-      >
-        <!-- 未选中角色时的提示 -->
-        <div
-          v-if="!selectedRole"
-          class="flex flex-1 items-center justify-center text-muted-foreground"
-        >
-          <div class="px-4 text-center">
-            <IconifyIcon
-              icon="lucide:mouse-pointer-click"
-              class="mx-auto mb-3 h-12 w-12 opacity-30 lg:h-16 lg:w-16"
-            />
-            <p class="text-base lg:text-lg">
-              {{ $t('tenant.system.userArchitecture.selectRoleHint') }}
-            </p>
-            <p class="mt-1 text-xs lg:text-sm">
-              {{ $t('tenant.system.userArchitecture.selectRoleSubHint') }}
-            </p>
-          </div>
-        </div>
-
-        <!-- 选中角色时显示详情 + 成员表格 -->
-        <template v-else>
-          <!-- 全部用户头部 -->
-          <div
-            v-if="isAllUsersSelected"
-            class="border-b border-border/50 px-3 py-3 lg:px-6 lg:py-4"
-          >
-            <div class="flex min-w-0 items-center gap-2 lg:gap-3">
-              <div
-                class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-accent lg:h-12 lg:w-12"
-              >
-                <IconifyIcon
-                  icon="lucide:users"
-                  class="h-5 w-5 text-foreground lg:h-6 lg:w-6"
+            <Spin :spinning="orgTreeLoading">
+              <div v-if="treeData.length > 0" class="space-y-0.5">
+                <OrgTreeNode
+                  v-for="node in treeData"
+                  :key="node.id"
+                  :node="node"
+                  :level="0"
+                  :expanded-ids="expandedIds"
+                  :selected-id="selectedOrgNode?.id"
+                  :is-expanded="isExpanded"
+                  i18n-prefix="tenant"
+                  :show-actions="false"
+                  :show-permission-count="false"
+                  @toggle="toggleExpand"
+                  @select="handleSelectOrgNode"
                 />
               </div>
-              <div class="min-w-0 flex-1">
-                <h2 class="truncate text-base font-semibold lg:text-xl">
-                  {{ $t('tenant.system.userArchitecture.allUsers') }}
-                </h2>
-                <p class="mt-0.5 text-xs text-muted-foreground lg:text-sm">
-                  {{ $t('tenant.system.userArchitecture.allUsersDesc') }}
-                </p>
+              <Empty
+                v-else
+                :description="$t('tenant.system.organization.empty')"
+                class="py-6"
+              />
+            </Spin>
+          </Card>
+
+          <Card
+            class="mt-4"
+            :title="$t('tenant.system.userArchitecture.permissionRoleListTitle')"
+            size="small"
+          >
+            <template #extra>
+              <Button
+                v-access:code="['tenant_user_role:create']"
+                type="primary"
+                size="small"
+                @click="handleCreateRole"
+              >
+                <template #icon>
+                  <IconifyIcon icon="lucide:plus" />
+                </template>
+                {{ $t('tenant.system.userArchitecture.createRole') }}
+              </Button>
+            </template>
+            <Input
+              v-model:value="roleSearchKeyword"
+              :placeholder="$t('tenant.system.userArchitecture.searchRole')"
+              allow-clear
+              class="mb-3"
+            >
+              <template #prefix>
+                <IconifyIcon icon="lucide:search" class="text-muted-foreground" />
+              </template>
+            </Input>
+            <div
+              class="mb-2 cursor-pointer rounded-lg border px-3 py-2 transition"
+              :class="
+                !selectedRole
+                  ? 'border-primary bg-primary/5'
+                  : 'border-border/60 hover:border-primary/20'
+              "
+              @click="clearRoleFilter"
+            >
+              <div class="flex items-center gap-2">
+                <IconifyIcon icon="lucide:shield" class="size-4 text-primary" />
+                <span class="font-medium">
+                  {{ $t('tenant.system.userArchitecture.allPermissionRoles') }}
+                </span>
+              </div>
+              <div class="mt-1 text-xs text-muted-foreground">
+                {{ $t('tenant.system.userArchitecture.allPermissionRolesDesc') }}
               </div>
             </div>
-          </div>
-
-          <!-- 角色头部信息 -->
-          <div
-            v-else
-            class="border-b border-border/50 px-3 py-3 lg:px-6 lg:py-4"
-          >
-            <!-- 第一行：标题和操作按钮 -->
-            <div class="flex items-start justify-between gap-3">
-              <div class="flex min-w-0 items-center gap-2 lg:gap-3">
+            <Spin :spinning="rolesLoading">
+              <div v-if="filteredRoles.length > 0" class="space-y-2">
                 <div
-                  class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary/10 lg:h-12 lg:w-12"
+                  v-for="role in filteredRoles"
+                  :key="role.id"
+                  class="cursor-pointer rounded-lg border px-3 py-2 transition"
+                  :class="
+                    selectedRole?.id === role.id
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border/60 hover:border-primary/20'
+                  "
+                  @click="handleSelectRole(role)"
                 >
-                  <IconifyIcon
-                    icon="lucide:shield"
-                    class="h-5 w-5 text-primary lg:h-6 lg:w-6"
-                  />
-                </div>
-                <div class="min-w-0 flex-1">
-                  <div class="flex items-center gap-2">
-                    <h2 class="truncate text-base font-semibold lg:text-xl">
-                      {{ selectedRole.name }}
-                    </h2>
-                    <Tag
-                      :class="
-                        selectedRole.isActive
-                          ? 'border-success/30 bg-success/10 text-success'
-                          : ''
-                      "
-                      class="flex-shrink-0"
-                    >
+                  <div class="flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                      <div class="truncate font-medium">{{ role.name }}</div>
+                      <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <code class="rounded bg-muted px-1.5 py-0.5">{{ role.code }}</code>
+                        <span>
+                          {{ role.memberCount }}
+                          {{ $t('tenant.system.userArchitecture.memberUnit') }}
+                        </span>
+                      </div>
+                    </div>
+                    <Tag :color="role.isActive ? 'success' : 'default'">
                       {{
-                        selectedRole.isActive
+                        role.isActive
                           ? $t('tenant.system.userArchitecture.enabled')
                           : $t('tenant.system.userArchitecture.disabled')
                       }}
                     </Tag>
-                    <Tag v-if="selectedRole.isSystem" color="orange">
-                      {{ $t('tenant.system.userRole.isSystem') }}
-                    </Tag>
-                  </div>
-                  <div
-                    class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground lg:mt-1 lg:gap-x-3 lg:text-sm"
-                  >
-                    <code class="rounded bg-muted px-1.5 py-0.5 text-xs">{{
-                      selectedRole.code
-                    }}</code>
-                    <span>·</span>
-                    <span>
-                      {{ selectedRole.memberCount
-                      }}{{ $t('tenant.system.userArchitecture.memberUnit') }}
-                    </span>
-                    <span>·</span>
-                    <Badge
-                      v-if="selectedRole.permissionsCount > 0"
-                      :count="selectedRole.permissionsCount"
-                      :number-style="{ backgroundColor: 'var(--primary)' }"
-                    />
-                    <span v-else class="text-muted-foreground">
-                      {{ $t('tenant.system.userRole.noPermissions') }}
-                    </span>
                   </div>
                 </div>
               </div>
-              <div class="flex flex-shrink-0 gap-2">
-                <Tooltip
-                  :title="$t('tenant.system.userRole.assignPermissions')"
-                >
-                  <Button
-                    v-access:code="['tenant_user_role:assign_permissions']"
-                    size="small"
-                    @click="handleAssignPermissions(selectedRole)"
+              <Empty
+                v-else
+                :description="$t('tenant.system.userArchitecture.noRoles')"
+                class="py-6"
+              />
+            </Spin>
+          </Card>
+        </div>
+
+        <div
+          v-show="sidebarCollapsed"
+          class="flex flex-1 flex-col items-center gap-2 py-4"
+        >
+          <Tooltip
+            :title="$t('tenant.system.userArchitecture.filterSidebarTitle')"
+            placement="right"
+          >
+            <IconifyIcon icon="lucide:git-merge" class="h-5 w-5 text-primary" />
+          </Tooltip>
+        </div>
+      </div>
+
+      <div
+        class="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl bg-card shadow-sm"
+      >
+        <div class="border-b border-border/50 px-3 py-3 lg:px-6 lg:py-4">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div class="flex min-w-0 flex-1 flex-wrap gap-3">
+              <Card class="min-w-[220px] flex-1" size="small">
+                <div class="flex items-start gap-3">
+                  <div
+                    class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary"
                   >
-                    <template #icon>
-                      <IconifyIcon icon="lucide:shield-check" />
-                    </template>
-                  </Button>
-                </Tooltip>
-                <Switch
-                  v-access:code="['tenant_user_role:toggle']"
-                  :checked="selectedRole.isActive"
-                  size="small"
-                  @change="handleToggleRoleStatus(selectedRole)"
-                />
+                    <IconifyIcon icon="lucide:building-2" class="h-5 w-5" />
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <div class="text-xs text-muted-foreground">
+                      {{ $t('tenant.system.userArchitecture.orgFilterTitle') }}
+                    </div>
+                    <div class="truncate text-base font-semibold">
+                      {{ orgFilterLabel }}
+                    </div>
+                    <div class="mt-1 text-xs text-muted-foreground">
+                      {{
+                        selectedOrgNode?.description ||
+                        $t('tenant.system.userArchitecture.orgFilterHint')
+                      }}
+                    </div>
+                  </div>
+                </div>
+              </Card>
+
+              <Card class="min-w-[220px] flex-1" size="small">
+                <div class="flex items-start gap-3">
+                  <div
+                    class="flex h-10 w-10 items-center justify-center rounded-xl bg-warning/10 text-warning"
+                  >
+                    <IconifyIcon icon="lucide:shield" class="h-5 w-5" />
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <div class="text-xs text-muted-foreground">
+                      {{ $t('tenant.system.userArchitecture.permissionRoleListTitle') }}
+                    </div>
+                    <div class="truncate text-base font-semibold">
+                      {{ roleFilterLabel }}
+                    </div>
+                    <div class="mt-1 text-xs text-muted-foreground">
+                      {{
+                        selectedRole?.description ||
+                        $t('tenant.system.userArchitecture.permissionRoleHint')
+                      }}
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            <div
+              v-if="selectedRole"
+              class="flex flex-shrink-0 flex-wrap items-center gap-2"
+            >
+              <Tooltip :title="$t('tenant.system.userRole.assignPermissions')">
                 <Button
-                  v-access:code="['tenant_user_role:update']"
+                  v-access:code="['tenant_user_role:assign_permissions']"
                   size="small"
-                  @click="handleEditRole(selectedRole)"
+                  @click="handleAssignPermissions(selectedRole)"
                 >
                   <template #icon>
-                    <IconifyIcon icon="lucide:pencil" />
+                    <IconifyIcon icon="lucide:shield-check" />
                   </template>
-                  <span class="hidden sm:inline">{{
-                    $t('shared.common.edit')
-                  }}</span>
                 </Button>
+              </Tooltip>
+              <Switch
+                v-access:code="['tenant_user_role:toggle']"
+                :checked="selectedRole.isActive"
+                size="small"
+                @change="handleToggleRoleStatus(selectedRole)"
+              />
+              <Button
+                v-access:code="['tenant_user_role:update']"
+                size="small"
+                @click="handleEditRole(selectedRole)"
+              >
+                <template #icon>
+                  <IconifyIcon icon="lucide:pencil" />
+                </template>
+                {{ $t('shared.common.edit') }}
+              </Button>
+              <Popconfirm
+                :title="
+                  $t('tenant.system.userRole.messages.deleteConfirm', {
+                    name: selectedRole.name,
+                  })
+                "
+                :ok-text="$t('shared.common.confirm')"
+                :cancel-text="$t('shared.common.cancel')"
+                :ok-button-props="{ danger: true }"
+                @confirm="handleDeleteRole(selectedRole)"
+              >
+                <Button
+                  v-access:code="['tenant_user_role:delete']"
+                  danger
+                  size="small"
+                  :loading="roleDeleting"
+                  :disabled="selectedRole.isSystem"
+                >
+                  <template #icon>
+                    <IconifyIcon icon="lucide:trash-2" />
+                  </template>
+                  {{ $t('shared.common.delete') }}
+                </Button>
+              </Popconfirm>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex-1 overflow-hidden p-2 lg:p-4">
+          <Card class="h-full overflow-hidden" size="small">
+            <template #title>
+              <span class="text-sm lg:text-base">
+                {{ $t('tenant.system.userArchitecture.userListTitle') }}
+              </span>
+            </template>
+            <template #extra>
+              <div class="flex items-center gap-2">
+                <Tag color="blue">{{ orgFilterLabel }}</Tag>
+                <Tag color="gold">{{ roleFilterLabel }}</Tag>
                 <Popconfirm
-                  :title="
-                    $t('tenant.system.userRole.messages.deleteConfirm', {
-                      name: selectedRole.name,
-                    })
-                  "
+                  :title="$t('tenant.system.user.messages.batchApproveConfirm')"
+                  :ok-text="$t('shared.common.confirm')"
+                  :cancel-text="$t('shared.common.cancel')"
+                  @confirm="handleBatchApprove"
+                >
+                  <Button
+                    v-access:code="['tenant_user:approve']"
+                    size="small"
+                    type="primary"
+                    class="!border-success !bg-success hover:!bg-success/80"
+                  >
+                    <template #icon>
+                      <IconifyIcon icon="lucide:check-circle" />
+                    </template>
+                    {{ $t('tenant.system.user.batchApprove') }}
+                  </Button>
+                </Popconfirm>
+                <Popconfirm
+                  :title="$t('tenant.system.user.messages.batchRejectConfirm')"
                   :ok-text="$t('shared.common.confirm')"
                   :cancel-text="$t('shared.common.cancel')"
                   :ok-button-props="{ danger: true }"
-                  @confirm="handleDeleteRole(selectedRole)"
+                  @confirm="handleBatchReject"
                 >
                   <Button
-                    v-access:code="['tenant_user_role:delete']"
-                    danger
+                    v-access:code="['tenant_user:reject']"
                     size="small"
-                    :loading="roleDeleting"
-                    :disabled="selectedRole.isSystem"
+                    danger
                   >
                     <template #icon>
-                      <IconifyIcon icon="lucide:trash-2" />
+                      <IconifyIcon icon="lucide:x-circle" />
                     </template>
-                    <span class="hidden sm:inline">{{
-                      $t('shared.common.delete')
-                    }}</span>
+                    {{ $t('tenant.system.user.batchReject') }}
                   </Button>
                 </Popconfirm>
               </div>
-            </div>
+            </template>
 
-            <!-- 第二行：描述（内置角色用 i18n，与库中语言无关） -->
-            <div
-              v-if="selectedRole.description"
-              class="mt-2 rounded bg-muted/50 px-2 py-1.5 text-xs text-muted-foreground"
-            >
-              {{ selectedRole.description }}
-            </div>
-          </div>
-
-          <!-- 成员管理面板 -->
-          <div class="flex-1 overflow-hidden p-2 lg:p-4">
-            <Card class="h-full overflow-hidden" size="small">
-              <template #title>
-                <span class="text-sm lg:text-base">
-                  {{
-                    isAllUsersSelected
-                      ? $t('tenant.system.userArchitecture.allUsersListTitle')
-                      : $t('tenant.system.userArchitecture.memberTitle')
-                  }}
-                </span>
-              </template>
-              <template #extra>
+            <MemberFormDrawer @success="onMemberFormSuccess" />
+            <MemberGrid :checkbox-config="{ trigger: 'cell', highlight: true }">
+              <template #username_cell="{ row }">
                 <div class="flex items-center gap-2">
-                  <Popconfirm
-                    :title="
-                      $t('tenant.system.user.messages.batchApproveConfirm')
-                    "
-                    :ok-text="$t('shared.common.confirm')"
-                    :cancel-text="$t('shared.common.cancel')"
-                    @confirm="handleBatchApprove"
-                  >
-                    <Button
-                      v-access:code="['tenant_user:approve']"
-                      size="small"
-                      type="primary"
-                      class="!border-success !bg-success hover:!bg-success/80"
+                  <div class="relative flex-shrink-0">
+                    <div
+                      class="flex size-8 items-center justify-center rounded-lg"
+                      :class="row.isActive ? 'bg-primary/10' : 'bg-muted'"
                     >
-                      <template #icon>
-                        <IconifyIcon icon="lucide:check-circle" />
-                      </template>
-                      {{ $t('tenant.system.user.batchApprove') }}
-                    </Button>
-                  </Popconfirm>
-                  <Popconfirm
-                    :title="
-                      $t('tenant.system.user.messages.batchRejectConfirm')
-                    "
-                    :ok-text="$t('shared.common.confirm')"
-                    :cancel-text="$t('shared.common.cancel')"
-                    :ok-button-props="{ danger: true }"
-                    @confirm="handleBatchReject"
-                  >
-                    <Button
-                      v-access:code="['tenant_user:reject']"
-                      size="small"
-                      danger
+                      <IconifyIcon
+                        icon="lucide:user"
+                        class="size-4"
+                        :class="
+                          row.isActive
+                            ? 'text-primary'
+                            : 'text-muted-foreground'
+                        "
+                      />
+                    </div>
+                    <Tooltip
+                      :title="
+                        presenceStore.isOnline('tenant_user', row.id)
+                          ? $t('tenant.system.userArchitecture.online')
+                          : $t('tenant.system.userArchitecture.offline')
+                      "
                     >
-                      <template #icon>
-                        <IconifyIcon icon="lucide:x-circle" />
-                      </template>
-                      {{ $t('tenant.system.user.batchReject') }}
-                    </Button>
-                  </Popconfirm>
+                      <span
+                        class="absolute -bottom-0.5 -right-0.5 block size-2.5 rounded-full border-2 border-background"
+                        :class="
+                          presenceStore.isOnline('tenant_user', row.id)
+                            ? 'bg-green-500'
+                            : 'bg-muted-foreground/30'
+                        "
+                      ></span>
+                    </Tooltip>
+                  </div>
+                  <div class="flex min-w-0 flex-col">
+                    <span class="truncate font-medium text-foreground">
+                      {{ row.username }}
+                    </span>
+                    <span
+                      v-if="row.nickname"
+                      class="truncate text-xs text-muted-foreground"
+                    >
+                      {{ row.nickname }}
+                    </span>
+                  </div>
                 </div>
               </template>
-              <MemberFormDrawer @success="onMemberFormSuccess" />
-              <MemberGrid
-                :checkbox-config="{ trigger: 'cell', highlight: true }"
-              >
-                <template #username_cell="{ row }">
-                  <div class="flex items-center gap-2">
-                    <div class="relative flex-shrink-0">
-                      <div
-                        class="flex size-8 items-center justify-center rounded-lg"
-                        :class="row.isActive ? 'bg-primary/10' : 'bg-muted'"
-                      >
-                        <IconifyIcon
-                          icon="lucide:user"
-                          class="size-4"
-                          :class="
-                            row.isActive
-                              ? 'text-primary'
-                              : 'text-muted-foreground'
-                          "
-                        />
-                      </div>
-                      <Tooltip
-                        :title="
-                          presenceStore.isOnline('tenant_user', row.id)
-                            ? $t('tenant.system.userArchitecture.online')
-                            : $t('tenant.system.userArchitecture.offline')
-                        "
-                      >
-                        <span
-                          class="absolute -bottom-0.5 -right-0.5 block size-2.5 rounded-full border-2 border-background"
-                          :class="
-                            presenceStore.isOnline('tenant_user', row.id)
-                              ? 'bg-green-500'
-                              : 'bg-muted-foreground/30'
-                          "
-                        ></span>
-                      </Tooltip>
-                    </div>
-                    <div class="flex flex-col">
-                      <span class="font-medium text-foreground">
-                        {{ row.username }}
-                      </span>
-                      <span
-                        v-if="row.nickname"
-                        class="text-xs text-muted-foreground"
-                      >
-                        {{ row.nickname }}
-                      </span>
-                    </div>
-                  </div>
-                </template>
 
-                <template #approval_cell="{ row }">
-                  <div class="flex items-center gap-1">
-                    <Tag
-                      v-if="row.approvalStatus === 'approved'"
-                      color="success"
-                      class="!m-0"
-                    >
-                      {{ $t('tenant.system.user.approvalStatus.approved') }}
-                    </Tag>
-                    <Tag
-                      v-else-if="row.approvalStatus === 'rejected'"
-                      color="error"
-                      class="!m-0"
-                    >
-                      {{ $t('tenant.system.user.approvalStatus.rejected') }}
-                    </Tag>
-                    <template v-else-if="row.approvalStatus === 'pending'">
-                      <Tag color="warning" class="!m-0">
-                        {{ $t('tenant.system.user.approvalStatus.pending') }}
-                      </Tag>
-                      <Tooltip :title="$t('tenant.system.user.approve')">
-                        <Button
-                          v-access:code="['tenant_user:approve']"
-                          type="link"
-                          size="small"
-                          class="!p-0 !text-success"
-                          @click="onApproveUser(row)"
-                        >
-                          <template #icon>
-                            <IconifyIcon icon="lucide:check" class="!text-xs" />
-                          </template>
-                        </Button>
-                      </Tooltip>
-                      <Tooltip :title="$t('tenant.system.user.reject')">
-                        <Button
-                          v-access:code="['tenant_user:reject']"
-                          type="link"
-                          size="small"
-                          class="!p-0"
-                          danger
-                          @click="onRejectUser(row)"
-                        >
-                          <template #icon>
-                            <IconifyIcon icon="lucide:x" class="!text-xs" />
-                          </template>
-                        </Button>
-                      </Tooltip>
-                    </template>
-                  </div>
-                </template>
-
-                <template #status_cell="{ row }">
-                  <Switch
-                    v-access:code="['tenant_user:toggle']"
-                    :checked="row.isActive"
-                    size="small"
-                    @change="
-                      (checked: boolean | string | number) =>
-                        handleMemberToggleStatus(!!checked, row)
-                    "
-                  />
-                </template>
-
-                <template #lastLoginAt_cell="{ row }">
-                  <Tooltip
-                    v-if="row.lastLoginAt"
-                    :title="formatDate(row.lastLoginAt)"
+              <template #approval_cell="{ row }">
+                <div class="flex items-center gap-1">
+                  <Tag
+                    v-if="row.approvalStatus === 'approved'"
+                    color="success"
+                    class="!m-0"
                   >
-                    <span class="text-muted-foreground">
-                      {{ formatRelativeTime(row.lastLoginAt) }}
-                    </span>
-                  </Tooltip>
-                  <span v-else class="text-muted-foreground">-</span>
-                </template>
+                    {{ $t('tenant.system.user.approvalStatus.approved') }}
+                  </Tag>
+                  <Tag
+                    v-else-if="row.approvalStatus === 'rejected'"
+                    color="error"
+                    class="!m-0"
+                  >
+                    {{ $t('tenant.system.user.approvalStatus.rejected') }}
+                  </Tag>
+                  <template v-else-if="row.approvalStatus === 'pending'">
+                    <Tag color="warning" class="!m-0">
+                      {{ $t('tenant.system.user.approvalStatus.pending') }}
+                    </Tag>
+                    <Tooltip :title="$t('tenant.system.user.approve')">
+                      <Button
+                        v-access:code="['tenant_user:approve']"
+                        type="link"
+                        size="small"
+                        class="!p-0 !text-success"
+                        @click="onApproveUser(row)"
+                      >
+                        <template #icon>
+                          <IconifyIcon icon="lucide:check" class="!text-xs" />
+                        </template>
+                      </Button>
+                    </Tooltip>
+                    <Tooltip :title="$t('tenant.system.user.reject')">
+                      <Button
+                        v-access:code="['tenant_user:reject']"
+                        type="link"
+                        size="small"
+                        class="!p-0"
+                        danger
+                        @click="onRejectUser(row)"
+                      >
+                        <template #icon>
+                          <IconifyIcon icon="lucide:x" class="!text-xs" />
+                        </template>
+                      </Button>
+                    </Tooltip>
+                  </template>
+                </div>
+              </template>
 
-                <template #createdAt_cell="{ row }">
-                  <Tooltip :title="formatDate(row.createdAt)">
-                    <span class="text-muted-foreground">
-                      {{ formatRelativeTime(row.createdAt) }}
-                    </span>
-                  </Tooltip>
-                </template>
-              </MemberGrid>
-            </Card>
-          </div>
-        </template>
+              <template #status_cell="{ row }">
+                <Switch
+                  v-access:code="['tenant_user:toggle']"
+                  :checked="row.isActive"
+                  size="small"
+                  @change="
+                    (checked: boolean | string | number) =>
+                      handleMemberToggleStatus(!!checked, row)
+                  "
+                />
+              </template>
+
+              <template #lastLoginAt_cell="{ row }">
+                <Tooltip
+                  v-if="row.lastLoginAt"
+                  :title="formatDate(row.lastLoginAt)"
+                >
+                  <span class="text-muted-foreground">
+                    {{ formatRelativeTime(row.lastLoginAt) }}
+                  </span>
+                </Tooltip>
+                <span v-else class="text-muted-foreground">-</span>
+              </template>
+
+              <template #createdAt_cell="{ row }">
+                <Tooltip :title="formatDate(row.createdAt)">
+                  <span class="text-muted-foreground">
+                    {{ formatRelativeTime(row.createdAt) }}
+                  </span>
+                </Tooltip>
+              </template>
+            </MemberGrid>
+          </Card>
+        </div>
       </div>
     </div>
 
-    <!-- 角色表单弹窗 -->
     <RoleFormDrawer @success="onRoleFormSuccess" />
 
-    <!-- 权限分配抽屉 -->
     <PermissionDrawer
       v-model:open="permissionDrawerVisible"
       :role="currentPermissionRole"

@@ -1,8 +1,8 @@
 """
-企业用户角色管理 API（企业端） / Tenant User Role Management API (Tenant Side)
+企业用户权限角色管理 API（企业端） / Tenant User Permission Role API (Tenant Side)
 
-提供企业业务用户角色的 CRUD、权限分配、状态切换等接口
-Provides tenant user role CRUD, permission assignment, status toggle endpoints
+提供企业业务用户权限角色的 CRUD、权限分配、状态切换等接口
+Provides tenant business-user permission role CRUD, permission assignment, status toggle endpoints
 """
 
 from __future__ import annotations
@@ -77,7 +77,7 @@ def _serialize_role_detail(role) -> dict:
     ),
 )
 class TenantUserRoleController(TenantController):
-    """企业用户角色管理控制器 / Tenant User Role Management Controller"""
+    """企业用户权限角色管理控制器 / Tenant User Permission Role Management Controller"""
 
     prefix = "/user-roles"
     tags = ["Tenant User Role Management"]

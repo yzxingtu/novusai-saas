@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { PermissionRoleInfo } from '#/api/admin/role';
+
 /**
  * 智能体访问权限配置抽屉（管理端）
  * Agent access config drawer (admin)
@@ -6,7 +8,7 @@
  * 仅配置 admin_role_ids；企业端/用户端角色由企业管理员配置。
  * Configures admin_role_ids only; tenant/user roles configured by tenant admin.
  */
-import { computed, onMounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 
 import { useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -24,12 +26,17 @@ import {
 } from 'ant-design-vue';
 
 import { getAIAgentAccessApi, updateAIAgentAccessApi } from '#/api/admin/ai';
-import { getRoleTreeApi } from '#/api/admin/role';
+import { getAllPermissionRoleListApi } from '#/api/admin/role';
 import { $t } from '#/locales';
 
-import type { RoleInfo } from '#/api/admin/role';
-
 defineOptions({ name: 'AdminAccessConfigDrawer' });
+
+interface PermissionRoleTreeNode {
+  disabled?: boolean;
+  key: number;
+  title: string;
+  value: number;
+}
 
 const agentId = ref(0);
 const agentName = ref('');
@@ -39,23 +46,35 @@ const saving = ref(false);
 const adminRoleMode = ref<'all' | 'specific'>('all');
 const adminRoleIds = ref<number[]>([]);
 
-const roleTreeData = ref<Record<string, unknown>[]>([]);
+const roleTreeData = ref<PermissionRoleTreeNode[]>([]);
 const roleTreeLoading = ref(false);
 
-function roleInfoToTreeData(roles: RoleInfo[]): Record<string, unknown>[] {
+/** TreeSelect may return string values, normalize to numbers / TreeSelect 可能返回字符串值，统一转换为数字 */
+function normalizeIdList(raw: unknown): number[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) =>
+      typeof item === 'string' ? Number.parseInt(item, 10) : Number(item),
+    )
+    .filter((item) => Number.isFinite(item) && item > 0);
+}
+
+function roleInfoToTreeData(
+  roles: PermissionRoleInfo[],
+): PermissionRoleTreeNode[] {
   return roles.map((r) => ({
+    disabled: !r.isActive,
     title: r.name,
     value: r.id,
     key: r.id,
-    children: r.children?.length ? roleInfoToTreeData(r.children) : undefined,
   }));
 }
 
-async function loadRoleTree() {
+async function loadPermissionRoles() {
   roleTreeLoading.value = true;
   try {
-    const tree = await getRoleTreeApi();
-    roleTreeData.value = roleInfoToTreeData(tree);
+    const roles = await getAllPermissionRoleListApi();
+    roleTreeData.value = roleInfoToTreeData(roles);
   } catch {
     // error handled by global interceptor / 错误由请求拦截器处理
   } finally {
@@ -73,7 +92,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
       if (data) {
         agentId.value = data.id;
         agentName.value = data.name;
-        await loadAccessConfig();
+        await Promise.all([loadPermissionRoles(), loadAccessConfig()]);
       }
     }
   },
@@ -88,7 +107,7 @@ function idsToMode(ids: null | number[]): 'all' | 'specific' {
 }
 
 function modeToIds(mode: 'all' | 'specific', ids: number[]): null | number[] {
-  return mode === 'all' ? null : ids;
+  return mode === 'all' ? null : normalizeIdList(ids);
 }
 
 async function loadAccessConfig() {
@@ -96,7 +115,7 @@ async function loadAccessConfig() {
   try {
     const config = await getAIAgentAccessApi(agentId.value);
     adminRoleMode.value = idsToMode(config.admin_role_ids ?? null);
-    adminRoleIds.value = config.admin_role_ids ?? [];
+    adminRoleIds.value = normalizeIdList(config.admin_role_ids ?? []);
   } catch {
     // error handled by global interceptor / 错误由请求拦截器处理
   } finally {
@@ -118,10 +137,6 @@ async function onSave() {
     saving.value = false;
   }
 }
-
-onMounted(() => {
-  loadRoleTree();
-});
 </script>
 
 <template>
@@ -139,11 +154,15 @@ onMounted(() => {
         <div class="mb-4 rounded-lg border border-border/60 p-4">
           <div class="mb-3 flex items-center gap-2">
             <IconifyIcon icon="lucide:shield" class="size-4 text-primary" />
-            <span class="text-sm font-medium">{{ $t('admin.ai.agent.adminRoleAccess') }}</span>
+            <span class="text-sm font-medium">{{
+              $t('admin.ai.agent.adminRoleAccess')
+            }}</span>
           </div>
           <RadioGroup v-model:value="adminRoleMode" class="mb-2">
             <Radio value="all">{{ $t('admin.ai.agent.roleMode.all') }}</Radio>
-            <Radio value="specific">{{ $t('admin.ai.agent.roleMode.specific') }}</Radio>
+            <Radio value="specific">
+              {{ $t('admin.ai.agent.roleMode.specific') }}
+            </Radio>
           </RadioGroup>
           <TreeSelect
             v-if="adminRoleMode === 'specific'"
@@ -156,6 +175,7 @@ onMounted(() => {
             allow-clear
             style="width: 100%"
             class="mt-2"
+            tree-default-expand-all
           />
         </div>
 

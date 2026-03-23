@@ -21,6 +21,7 @@ export interface TenantUserCreateRequest {
   phone?: null | string;
   nickname?: null | string;
   is_active?: boolean;
+  org_node_id?: null | number;
   role_id?: null | number;
 }
 
@@ -31,6 +32,7 @@ export interface TenantUserUpdateRequest {
   nickname?: null | string;
   avatar?: null | string;
   is_active?: boolean | null;
+  org_node_id?: null | number;
   role_id?: null | number;
   gender?: null | number;
 }
@@ -52,6 +54,8 @@ export interface TenantUserInfoRaw {
   gender: number;
   is_active: boolean;
   approval_status: string;
+  org_node_id?: null | number;
+  org_node_name?: null | string;
   role_id?: null | number;
   role_name?: null | string;
   last_login_at?: null | string;
@@ -71,6 +75,8 @@ export interface TenantUserInfo {
   gender: number;
   isActive: boolean;
   approvalStatus: string;
+  orgNodeId?: null | number;
+  orgNodeName?: null | string;
   roleId?: null | number;
   roleName?: null | string;
   lastLoginAt?: null | string;
@@ -103,6 +109,8 @@ function transformUserInfo(raw: TenantUserInfoRaw): TenantUserInfo {
     gender: raw.gender,
     isActive: raw.is_active,
     approvalStatus: raw.approval_status,
+    orgNodeId: raw.org_node_id,
+    orgNodeName: raw.org_node_name,
     roleId: raw.role_id,
     roleName: raw.role_name,
     lastLoginAt: raw.last_login_at,

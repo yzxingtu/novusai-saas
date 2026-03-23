@@ -76,6 +76,10 @@ vi.mock('#/composables/use-ai-page-policy', () => ({
   currentPageAIExecutionPolicy,
 }));
 
+vi.mock('#/composables/use-socketio', () => ({
+  getSocketTraceId: () => 'socket-trace-1',
+}));
+
 vi.mock('@vben/locales', () => ({
   $t: (key: string) => key,
 }));
@@ -134,6 +138,7 @@ describe('usePageOperationChannel', () => {
     expect(reconnectJoins[0]?.[1]).toEqual({
       page_key: 'admin.ai.agents',
       page_session_id: 'page-session-1',
+      trace_id: 'socket-trace-1',
     });
 
     emit.mockClear();
@@ -142,6 +147,7 @@ describe('usePageOperationChannel', () => {
     expect(emit).toHaveBeenCalledWith('page_session_join', {
       page_key: 'admin.ai.agents',
       page_session_id: 'page-session-1',
+      trace_id: 'socket-trace-1',
     });
 
     scope.stop();
@@ -165,10 +171,12 @@ describe('usePageOperationChannel', () => {
 
     expect(emit).toHaveBeenNthCalledWith(1, 'page_session_leave', {
       page_session_id: 'page-session-1',
+      trace_id: 'socket-trace-1',
     });
     expect(emit).toHaveBeenNthCalledWith(2, 'page_session_join', {
       page_key: 'admin.ai.agents',
       page_session_id: 'page-session-2',
+      trace_id: 'socket-trace-1',
     });
 
     emit.mockClear();
@@ -177,6 +185,7 @@ describe('usePageOperationChannel', () => {
     expect(unregisterHandler).toHaveBeenCalledOnce();
     expect(emit).toHaveBeenCalledWith('page_session_leave', {
       page_session_id: 'page-session-2',
+      trace_id: 'socket-trace-1',
     });
   });
 
@@ -226,6 +235,7 @@ describe('usePageOperationChannel', () => {
         error_type: 'disabled_by_policy',
         invoke_id: 'op-1',
         success: false,
+        trace_id: 'socket-trace-1',
       }),
     );
 
@@ -264,6 +274,7 @@ describe('usePageOperationChannel', () => {
         error_type: 'page_key_mismatch',
         invoke_id: 'op-mismatch',
         success: false,
+        trace_id: 'socket-trace-1',
       }),
     );
 
@@ -338,11 +349,13 @@ describe('usePageOperationChannel', () => {
       invoke_id: 'dup-1',
       message: 'Refreshed once',
       success: true,
+      trace_id: 'socket-trace-1',
     });
     expect(resultEvents[1]?.[1]).toMatchObject({
       invoke_id: 'dup-1',
       message: 'Refreshed once',
       success: true,
+      trace_id: 'socket-trace-1',
     });
 
     scope.stop();

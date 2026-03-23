@@ -16,7 +16,10 @@ from typing import Any
 
 from fastapi.responses import StreamingResponse
 
+from app.core.i18n import _
 from app.core.logging import LogManager
+from app.core.response import build_error_event, build_exception_debug
+from app.middleware.trace import trace_id_var
 
 logger = LogManager.get_logger("app")
 
@@ -117,9 +120,13 @@ class SSEFormatter:
 
     @staticmethod
     def format_error(
-        code: str,
+        code: int | str,
         message: str,
         event_id: str | None = None,
+        *,
+        data: Any = None,
+        debug: Any = None,
+        extra: dict[str, Any] | None = None,
     ) -> str:
         """
         格式化错误事件 / Format error event
@@ -132,15 +139,42 @@ class SSEFormatter:
         Returns:
             SSE 格式字符串 / SSE formatted string
         """
-        error_data = {
-            "error": True,
-            "code": code,
-            "message": message,
-        }
+        error_data = build_error_event(
+            code=code,
+            message=message,
+            data=data,
+            debug=debug,
+            extra=extra,
+            trace_id=trace_id_var.get() or None,
+        )
         return SSEFormatter.format_event(
             event=SSEEvent.ERROR,
             data=error_data,
             event_id=event_id,
+        )
+
+    @staticmethod
+    def format_exception(
+        code: int | str,
+        message: str,
+        exc: BaseException,
+        event_id: str | None = None,
+        *,
+        data: Any = None,
+        extra: dict[str, Any] | None = None,
+        include_traceback: bool = True,
+    ) -> str:
+        """Format structured exception event / 格式化结构化异常事件"""
+        return SSEFormatter.format_error(
+            code=code,
+            message=message,
+            event_id=event_id,
+            data=data,
+            debug=build_exception_debug(
+                exc,
+                include_traceback=include_traceback,
+            ),
+            extra=extra,
         )
 
     @staticmethod
@@ -240,9 +274,10 @@ async def _wrap_generator_with_keepalive(
     except Exception as e:
         # 发生错误，发送错误事件 / Error occurred, send error event
         logger.error("Generator error: {}", str(e))
-        yield SSEFormatter.format_error(
+        yield SSEFormatter.format_exception(
             code="STREAM_ERROR",
-            message=str(e),
+            message=_("common.server_error"),
+            exc=e,
         )
         yield SSEFormatter.format_done()
         raise

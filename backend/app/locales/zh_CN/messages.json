@@ -804,6 +804,7 @@
       "model_code_exists": "模型代码已存在",
       "provider_code_exists": "供应商代码已存在",
       "provider_base_url_invalid": "供应商 API 地址格式无效，请使用以 http:// 或 https:// 开头的完整地址",
+      "provider_base_url_endpoint_not_allowed": "OpenAI 兼容供应商的 API 地址不能包含 /responses 或 /chat/completions，请只填写基础地址并单独选择 API 协议",
       "api_key_not_found": "API Key 不存在",
       "api_key_owner_required": "部分企业（selected_tenants）作用域必须选择归属企业 / Owner tenant is required for selected_tenants scope",
       "api_key_owner_forbidden": "当前作用域下归属企业必须为空 / Owner tenant must be empty for this scope",
@@ -1018,7 +1019,26 @@
     "invalid_permission": "无效的权限代码",
     "permission_not_found": "权限不存在",
     "cannot_access_resource": "无权访问该资源",
-    "insufficient_privileges": "权限级别不足"
+    "insufficient_privileges": "权限级别不足",
+    "action": {
+      "configure": "配置",
+      "copy": "复制",
+      "create": "创建",
+      "edit": "编辑",
+      "execute": "执行",
+      "export": "导出",
+      "feedback": "反馈",
+      "list": "列表",
+      "pause": "暂停",
+      "publish": "发布",
+      "recover": "恢复",
+      "replay": "重放",
+      "resume": "继续",
+      "retry": "重试",
+      "rollback": "回滚",
+      "terminate": "终止",
+      "view": "查看"
+    }
   },
   "permission": {
     "read": "查看",
@@ -1050,7 +1070,17 @@
       "create_member": "创建成员",
       "update_member": "更新成员",
       "reset_password": "重置密码",
-      "toggle_status": "切换状态"
+      "toggle_status": "切换状态",
+      "update_authority": "更新组织权限范围"
+    },
+    "permission_role": {
+      "list": "查看权限角色列表",
+      "detail": "查看权限角色详情",
+      "create": "创建权限角色",
+      "update": "更新权限角色",
+      "delete": "删除权限角色",
+      "assign_permissions": "分配权限角色权限",
+      "effective_permissions": "查看权限角色有效权限"
     },
     "admin": {
       "list": "查看管理员列表",
@@ -1619,7 +1649,9 @@
     "status_updated": "用户状态更新成功",
     "approved": "用户审批通过",
     "rejected": "用户审批拒绝",
-    "not_pending": "用户不在待审批状态"
+    "not_pending": "用户不在待审批状态",
+    "permission_role_not_found": "权限角色不存在",
+    "org_node_not_found": "组织节点不存在"
   },
   "tenant_user_role": {
     "not_found": "用户角色不存在",

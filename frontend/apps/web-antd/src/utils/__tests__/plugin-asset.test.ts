@@ -60,8 +60,9 @@ describe('plugin-asset', () => {
   it('exposes authorization header for authenticated plugin fetches', () => {
     TokenStorage.setToken('admin', 'admin-token');
 
-    expect(getPluginAssetAuthHeaders('admin')).toEqual({
+    expect(getPluginAssetAuthHeaders('admin')).toMatchObject({
       Authorization: 'Bearer admin-token',
+      'X-Trace-ID': expect.any(String),
     });
   });
 

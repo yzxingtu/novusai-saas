@@ -41,7 +41,12 @@ class TraceIdMiddleware:
 
         # Read or generate trace_id / 读取或生成 trace_id
         headers = dict(scope.get("headers", []))
-        tid = headers.get(b"x-trace-id", b"").decode("utf-8") or str(uuid.uuid4())
+        raw_tid = headers.get(b"x-trace-id", b"")
+        try:
+            tid = raw_tid.decode("utf-8").strip() if raw_tid else ""
+        except UnicodeDecodeError:
+            tid = ""
+        tid = tid or str(uuid.uuid4())
         trace_id_var.set(tid)
 
         # Ensure scope has state (for AuditLogMiddleware etc.) / 确保 scope 有 state

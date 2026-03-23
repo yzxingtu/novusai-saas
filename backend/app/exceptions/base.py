@@ -32,6 +32,8 @@ class AppException(Exception):
         code: int | None = None,
         status_code: int | None = None,
         data: Any = None,
+        debug: Any = None,
+        extra: dict[str, Any] | None = None,
     ):
         """
         Initialize exception.
@@ -49,15 +51,25 @@ class AppException(Exception):
         self.code = code or self.__class__.code
         self.status_code = status_code or self.__class__.status_code
         self.data = data
+        self.debug = debug
+        self.extra = extra or {}
         super().__init__(self.message)
+
+    def get_extra_payload(self) -> dict[str, Any]:
+        """Extra payload appended to response body / 追加到响应体的额外字段"""
+        return dict(self.extra)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to response dict / 转换为响应字典"""
-        return {
-            "code": self.code,
-            "message": self.message,
-            "data": self.data,
-        }
+        from app.core.response import build_error_payload
+
+        return build_error_payload(
+            message=self.message,
+            code=self.code,
+            data=self.data,
+            debug=self.debug,
+            extra=self.get_extra_payload(),
+        )
 
 
 class ValidationException(AppException):
@@ -173,11 +185,11 @@ class DependencyBlockedException(BusinessException):
         super().__init__(message=message)
         self.dependencies = dependencies or []
 
-    def to_dict(self) -> dict[str, Any]:
-        """Override serialization with dependencies field / 重写序列化，携带 dependencies 字段"""
-        base = super().to_dict()
-        base["dependencies"] = self.dependencies
-        return base
+    def get_extra_payload(self) -> dict[str, Any]:
+        """Expose dependencies as top-level field / 将依赖详情暴露为顶层字段"""
+        payload = super().get_extra_payload()
+        payload["dependencies"] = self.dependencies
+        return payload
 
 
 class RateLimitException(AppException):

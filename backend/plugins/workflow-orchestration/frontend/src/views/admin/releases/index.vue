@@ -121,13 +121,13 @@ const tableColumns = computed(() => [
     width: 160,
   },
   {
-    title: $t(`${ADMIN_I18N_PREFIX}.common.releaseScope`),
+    title: $t(`${ADMIN_I18N_PREFIX}.common.releaseScopeLabel`),
     dataIndex: 'release_scope',
     key: 'release_scope',
     width: 180,
   },
   {
-    title: $t(`${ADMIN_I18N_PREFIX}.common.channel`),
+    title: $t(`${ADMIN_I18N_PREFIX}.common.channelLabel`),
     dataIndex: 'channel',
     key: 'channel',
     width: 140,

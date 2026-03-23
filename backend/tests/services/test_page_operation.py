@@ -798,6 +798,7 @@ class TestInvokePageOperation:
         import asyncio
 
         from app.sio.page_session import _pending_invocations, invoke_page_operation
+        from app.middleware.trace import trace_id_var
 
         async def fake_emit(event, data, room=None, namespace=None):
             invoke_id = data["invoke_id"]
@@ -814,17 +815,23 @@ class TestInvokePageOperation:
 
         _mock_sio_instance.emit = AsyncMock(side_effect=fake_emit)
 
-        await invoke_page_operation(
-            page_session_id="ps-ns",
-            page_key="tenant.dashboard",
-            operation_name="refresh",
-            namespace="/tenant",
-            timeout=5,
-        )
+        token = trace_id_var.set("trace-page-invoke")
+        try:
+            await invoke_page_operation(
+                page_session_id="ps-ns",
+                page_key="tenant.dashboard",
+                operation_name="refresh",
+                namespace="/tenant",
+                timeout=5,
+            )
+        finally:
+            trace_id_var.reset(token)
 
         assert _mock_sio_instance.emit.call_count == 1
         ns = _mock_sio_instance.emit.call_args.kwargs.get("namespace")
         assert ns == "/tenant"
+        payload = _mock_sio_instance.emit.call_args.args[1]
+        assert payload["trace_id"] == "trace-page-invoke"
 
     @pytest.mark.asyncio
     async def test_cleanup_after_timeout(self):
@@ -1051,6 +1058,49 @@ class TestPageSessionMixin:
         mixin.cleanup_page_sessions_for_disconnect("sid-1")
 
         assert get_active_session_id(7, "admin.ai.agents", "platform_admin") is None
+
+    @pytest.mark.asyncio
+    async def test_generic_trigger_event_binds_trace_context(self):
+        """非 page_session 自定义事件也应自动绑定 trace 上下文。"""
+        import socketio
+
+        from app.middleware.trace import trace_id_var
+        from app.sio.page_session import PageSessionMixin
+
+        class TestNamespace(PageSessionMixin, socketio.AsyncNamespace):
+            def __init__(self):
+                super().__init__("/admin")
+
+            async def on_custom_event(self, sid: str, data: dict | None = None):
+                return {
+                    "sid": sid,
+                    "seen_trace_id": trace_id_var.get(),
+                    "trace_id": (data or {}).get("trace_id"),
+                }
+
+        ns = TestNamespace()
+        ns.save_session = AsyncMock()
+        ns.get_session = AsyncMock(side_effect=RuntimeError("session unavailable"))
+        ns._sid_sessions = {
+            "sid-1": {
+                "user_id": 1,
+                "user_type": "admin",
+                "trace_id": "trace-old",
+            }
+        }
+
+        result = await ns.trigger_event(
+            "custom_event",
+            "sid-1",
+            {"trace_id": "trace-custom"},
+        )
+
+        assert result["sid"] == "sid-1"
+        assert result["trace_id"] == "trace-custom"
+        assert result["seen_trace_id"] == "trace-custom"
+        assert ns._sid_sessions["sid-1"]["trace_id"] == "trace-custom"
+        ns.save_session.assert_awaited_once()
+        assert trace_id_var.get() == ""
 
 
 # ========================================

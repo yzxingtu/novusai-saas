@@ -14,6 +14,7 @@ from tests.api.base import (
     assert_error,
     assert_has_keys,
     assert_success,
+    assert_tenant_login_success,
     config,
 )
 
@@ -56,10 +57,7 @@ class ManualTestTenantAuth(BaseAPITest):
 
     def test_login_success(self) -> None:
         """测试正确凭据登录 / Test."""
-        resp = self.client.post("/tenant/auth/login", data={
-            "username": config.TENANT_ADMIN_USERNAME,
-            "password": config.TENANT_ADMIN_PASSWORD,
-        })
+        resp = self.post_tenant_login_request(config.TENANT_ADMIN_USERNAME, config.TENANT_ADMIN_PASSWORD)
         data = assert_success(resp, "登录失败")
         assert_has_keys(data["data"], ["access_token", "refresh_token", "token_type"])
 
@@ -70,10 +68,7 @@ class ManualTestTenantAuth(BaseAPITest):
 
     def test_login_wrong_password(self) -> None:
         """测试错误密码登录 / Test."""
-        resp = self.client.post("/tenant/auth/login", data={
-            "username": config.TENANT_ADMIN_USERNAME,
-            "password": "wrong_password",
-        })
+        resp = self.post_tenant_login_request(config.TENANT_ADMIN_USERNAME, "wrong_password")
         assert_error(resp, 401, "应返回 401 错误")
 
     def test_get_me_authenticated(self) -> None:
@@ -139,17 +134,7 @@ class ManualTestTenantAuth(BaseAPITest):
 
     def _do_login(self) -> None:
         """执行登录 / Description."""
-        if not config.TENANT_ADMIN_USERNAME or not config.TENANT_ADMIN_PASSWORD:
-            raise AssertionError("未配置企业管理员账号")
-
-        resp = self.client.post("/tenant/auth/login", data={
-            "username": config.TENANT_ADMIN_USERNAME,
-            "password": config.TENANT_ADMIN_PASSWORD,
-        })
-        data = resp.json()
-        self._test_data["access_token"] = data["data"]["access_token"]
-        self._test_data["refresh_token"] = data["data"]["refresh_token"]
-        self.client.set_token(data["data"]["access_token"])
+        self.login_tenant_admin()
 
 
 if __name__ == "__main__":

@@ -22,8 +22,13 @@ import type { ApiEndpoint, RequestOptions } from './types';
 
 import axios from 'axios';
 
-import { generateUUID } from '#/utils/common';
 import { isAuthError } from './error-codes';
+import { ensureTraceIdHeader } from './trace';
+import { isDevErrorMode } from './app-env';
+import {
+  formatAppErrorMessage,
+  normalizeHttpError,
+} from './app-error';
 
 // ============================================================
 // Type definitions / 类型定义
@@ -77,6 +82,70 @@ function formatToken(token: null | string): null | string {
   return token ? `Bearer ${token}` : null;
 }
 
+function showServerErrorNotification(
+  message: string,
+  traceId: string,
+  debugMessage: string | undefined,
+  messageHandler: MessageHandler,
+) {
+  const detailNodes: any[] = [h('span', message)];
+
+  if (traceId) {
+    detailNodes.push(
+      h('div', { class: 'flex items-center gap-2' }, [
+        h(
+          'span',
+          { class: 'text-gray-500 text-sm' },
+          `${messageHandler.t('common.http.traceId')}: ${traceId}`,
+        ),
+        h(
+          Button,
+          {
+            size: 'small',
+            type: 'link',
+            onClick: () => {
+              navigator.clipboard
+                .writeText(traceId)
+                .then(() =>
+                  messageHandler.showMessage(
+                    'success',
+                    messageHandler.t('common.http.copied'),
+                  ),
+                )
+                .catch(() =>
+                  messageHandler.showMessage(
+                    'error',
+                    messageHandler.t('common.http.copyFailed'),
+                  ),
+                );
+            },
+          },
+          () => messageHandler.t('common.http.copyTraceId'),
+        ),
+      ]),
+    );
+  }
+
+  if (isDevErrorMode() && debugMessage) {
+    detailNodes.push(
+      h(
+        'pre',
+        {
+          class:
+            'max-h-40 overflow-auto rounded bg-black/5 p-2 text-xs text-red-500 whitespace-pre-wrap break-all',
+        },
+        debugMessage,
+      ),
+    );
+  }
+
+  notification.error({
+    message,
+    description: h('div', { class: 'flex flex-col gap-2' }, detailNodes),
+    duration: 0,
+  });
+}
+
 // ============================================================
 // Request interceptor / 请求拦截器
 // ============================================================
@@ -96,7 +165,7 @@ export function createRequestInterceptor(
       const options = config?.__options || {};
 
       // 0. 注入 X-Trace-ID（用于请求关联与问题反馈）/ Inject for request correlation
-      config.headers['X-Trace-ID'] = generateUUID();
+      ensureTraceIdHeader(config.headers as never);
 
       // 1. 重复请求取消
       if (options.cancelDuplicateRequest !== false) {
@@ -369,40 +438,43 @@ export function createErrorMessageInterceptor(messageHandler: MessageHandler) {
 
       const config = error.config as ExtendedConfig;
       const options = config?.__options || {};
+      const appError = normalizeHttpError(error, messageHandler.t);
 
       // 网络错误
       const errStr = error?.toString?.() ?? '';
       if (errStr.includes('Network Error')) {
         if (options.showErrorMessage !== false) {
-          messageHandler.showMessage(
-            'error',
-            messageHandler.t('common.http.networkError'),
-          );
+          messageHandler.showMessage('error', formatAppErrorMessage(appError, messageHandler.t));
         }
-        return Promise.reject(error);
+        return Promise.reject(Object.assign(error, { appError }));
       }
 
       // 超时错误
       if (error?.message?.includes?.('timeout')) {
         if (options.showErrorMessage !== false) {
-          messageHandler.showMessage(
-            'error',
-            messageHandler.t('common.http.requestTimeout'),
-          );
+          messageHandler.showMessage('error', formatAppErrorMessage(appError, messageHandler.t));
         }
-        return Promise.reject(error);
+        return Promise.reject(Object.assign(error, { appError }));
       }
 
       // 如果有业务错误消息，跳过 HTTP 错误消息（已由 BusinessErrorInterceptor 处理）
       const responseData = error?.response?.data;
+      const status = error?.response?.status;
       const hasBusinessMessage =
         responseData?.message || responseData?.error || responseData?.msg;
       if (hasBusinessMessage) {
-        return Promise.reject(error);
+        if (status >= 500 && options.showErrorMessage !== false) {
+          showServerErrorNotification(
+            appError.message,
+            appError.traceId || '',
+            appError.debugMessage,
+            messageHandler,
+          );
+        }
+        return Promise.reject(Object.assign(error, { appError }));
       }
 
       // HTTP 状态码错误（仅当没有业务错误消息时显示）
-      const status = error?.response?.status;
       if (status && options.showErrorMessage !== false) {
         const statusMessages: Record<number, string> = {
           400: 'common.http.badRequest',
@@ -418,58 +490,29 @@ export function createErrorMessageInterceptor(messageHandler: MessageHandler) {
         const messageKey =
           statusMessages[status] || 'common.http.internalServerError';
         const msg = messageHandler.t(messageKey);
+        const displayError = {
+          ...appError,
+          message: appError.message || msg,
+        };
 
         // 5xx: use notification with trace ID and copy button (non-closing)
         // 5xx：使用 notification 展示追踪 ID 与复制按钮（不自动关闭）
         if (status >= 500) {
-          const traceId =
-            (error?.response?.headers?.['x-trace-id'] as string) ||
-            (error?.response?.headers?.['X-Trace-ID'] as string) ||
-            '';
-          const description =
-            traceId
-              ? h('div', { class: 'flex flex-col gap-2' }, [
-                  h('span', msg),
-                  h('div', { class: 'flex items-center gap-2' }, [
-                    h('span', { class: 'text-gray-500 text-sm' }, `${messageHandler.t('common.http.traceId')}: ${traceId}`),
-                    h(
-                      Button,
-                      {
-                        size: 'small',
-                        type: 'link',
-                        onClick: () => {
-                          navigator.clipboard
-                            .writeText(traceId)
-                            .then(() =>
-                              messageHandler.showMessage(
-                                'success',
-                                messageHandler.t('common.http.copied'),
-                              ),
-                            )
-                            .catch(() =>
-                              messageHandler.showMessage(
-                                'error',
-                                messageHandler.t('common.http.copyFailed'),
-                              ),
-                            );
-                        },
-                      },
-                      () => messageHandler.t('common.http.copyTraceId'),
-                    ),
-                  ]),
-                ])
-              : msg;
-          notification.error({
-            message: msg,
-            description,
-            duration: 0,
-          });
+          showServerErrorNotification(
+            displayError.message,
+            displayError.traceId || '',
+            displayError.debugMessage,
+            messageHandler,
+          );
         } else {
-          messageHandler.showMessage('error', msg);
+          messageHandler.showMessage(
+            'error',
+            formatAppErrorMessage(displayError, messageHandler.t),
+          );
         }
       }
 
-      return Promise.reject(error);
+      return Promise.reject(Object.assign(error, { appError }));
     },
   };
 }
@@ -493,17 +536,20 @@ export function createBusinessErrorInterceptor(messageHandler: MessageHandler) {
       const config = error.config as ExtendedConfig;
       const options = config?.__options || {};
       const responseData = error?.response?.data;
+      const status = error?.response?.status;
+      const appError = normalizeHttpError(error, messageHandler.t);
 
       // 显示业务错误消息
       if (options.showCodeMessage !== false && responseData) {
-        const errorMessage =
-          responseData.message || responseData.error || responseData.msg;
-        if (errorMessage) {
-          messageHandler.showMessage('error', errorMessage);
+        if (appError.message && (!status || status < 500)) {
+          messageHandler.showMessage(
+            'error',
+            formatAppErrorMessage(appError, messageHandler.t),
+          );
         }
       }
 
-      return Promise.reject(error);
+      return Promise.reject(Object.assign(error, { appError }));
     },
   };
 }

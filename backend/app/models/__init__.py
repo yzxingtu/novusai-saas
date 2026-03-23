@@ -57,6 +57,14 @@ from app.models.auth import (
 )
 from app.models.common.notification import Notification
 from app.models.common.notification_preference import NotificationPreference
+from app.models.org import (
+    AdminOrgNode,
+    AdminOrgScopePolicy,
+    AdminOrgScopeTarget,
+    TenantOrgNode,
+    TenantOrgScopePolicy,
+    TenantOrgScopeTarget,
+)
 
 # 通知模型 / Notification models
 from app.models.common.notification_template import NotificationTemplate
@@ -121,6 +129,13 @@ __all__ = [
     "tenant_admin_role_permissions",
     "TenantUserRole",
     "tenant_user_role_permissions",
+    # Organization / 组织架构
+    "AdminOrgNode",
+    "AdminOrgScopePolicy",
+    "AdminOrgScopeTarget",
+    "TenantOrgNode",
+    "TenantOrgScopePolicy",
+    "TenantOrgScopeTarget",
     # AI
     "AIProvider",
     "AIModel",

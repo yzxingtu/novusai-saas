@@ -22,6 +22,9 @@ As of 2026-03-24, the current repository truth is:
 - plugin code, migrations, admin frontend, tenant frontend, and plugin-local frontend entry/build scaffold are present
 - targeted host regression fixes for manifest sync, paid license activation flow, plugin menu action compaction, DEBUG license fallback hardening, and permission-sync savepoint protection are present
 - targeted host and plugin regression tests relevant to this operator path are green
+- most remaining work for real usage is operational, but two non-operational truths still matter:
+  - module settings payload must be read as plugin-owned config truth, not as host generic plugin config truth
+  - runtime execution truth should be taken from `backend/plugins/workflow-orchestration/backend/runtime/constants.py`, not older planning docs
 - the remaining work for real usage is primarily operational:
   - ensure the plugin DB row is in the right state
   - ensure the target tenant is assigned
@@ -34,6 +37,7 @@ Critical nuance:
 - if your backend server is already running in another process, that server process still needs a restart/reload or an in-process admin API enable there
 - for migration inspection and repair, use `python -m app.cli db ...` instead of raw `python -m alembic ...`
 - raw `python -m alembic current|upgrade heads` can miss plugin revision paths and produce a misleading `Can't locate revision identified by 'wo_002_wf_ver_nullable_fix'` error even when the real startup path is healthy
+- startup restore now also re-syncs plugin periodic tasks into `periodic_tasks`, so post-restart Beat visibility is no longer limited to the original `enable` process
 
 ## Acceptance Target
 
@@ -138,8 +142,9 @@ This step is required if your API server was already running before step 3.
 Expected after restart:
 
 - startup runs `restore_enabled_plugins()`
-- startup then re-syncs plugin permissions
-- plugin frontend slots and runtime API routes become available in that server process
+- enabled plugin runtime API routes and frontend slots become available in that server process
+- startup also re-syncs plugin periodic tasks into `periodic_tasks`
+- restart itself does not imply a fresh permission sync; permissions should already have been persisted by manifest sync / enable flow
 
 If you skip this step, DB may say `enabled` while the live server still behaves as if the plugin were not loaded.
 
@@ -241,7 +246,7 @@ Likely causes:
 
 - target tenant was not assigned
 - tenant runtime gate denied due to inactive license or scope
-- plugin permissions were not re-synced in the live server process after restart
+- manifest sync / enable flow did not persist the expected permission or menu rows
 
 ### Symptom: plugin page route mounts but component fails to render
 

@@ -32,6 +32,7 @@ from app.services.tenant.tenant_user_service import TenantUserService
 
 def _serialize_user(user) -> dict:
     """序列化用户信息 / Serialize user info"""
+    org_node = getattr(user, "org_node", None)
     return {
         "id": user.id,
         "tenant_id": user.tenant_id,
@@ -45,6 +46,8 @@ def _serialize_user(user) -> dict:
         "approval_status": user.approval_status,
         "role_id": user.role_id,
         "role_name": user.role.name if user.role else None,
+        "org_node_id": getattr(user, "org_node_id", None),
+        "org_node_name": getattr(org_node, "name", None),
         "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
         "created_at": user.created_at.isoformat() if user.created_at else None,
         "updated_at": user.updated_at.isoformat() if user.updated_at else None,
@@ -124,7 +127,8 @@ class TenantUserController(TenantController):
                 phone=data.phone,
                 nickname=data.nickname,
                 is_active=data.is_active,
-                role_id=data.role_id if hasattr(data, "role_id") else None,
+                role_id=data.role_id,
+                org_node_id=data.org_node_id,
             )
 
             return created(data=_serialize_user(user))

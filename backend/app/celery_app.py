@@ -13,8 +13,25 @@ from kombu import Exchange, Queue
 from app.ai.adapters import AdapterRegistry
 from app.ai.adapters.openai_adapter import OpenAIAdapter
 from app.core.config import settings
+from app.core.logging import LogManager
+from app.middleware.trace import trace_id_var
 
 celery_app = Celery("novusai")
+logger = LogManager.get_logger("queue")
+
+_original_send_task = celery_app.send_task
+
+
+def _send_task_with_trace(*args, **kwargs):
+    headers = dict(kwargs.get("headers") or {})
+    trace_id = trace_id_var.get()
+    if trace_id and not headers.get("trace_id"):
+        headers["trace_id"] = trace_id
+        kwargs = {**kwargs, "headers": headers}
+    return _original_send_task(*args, **kwargs)
+
+
+celery_app.send_task = _send_task_with_trace  # type: ignore[method-assign]
 
 # ========================================
 # Broker & Backend
@@ -95,7 +112,77 @@ def _import_task_modules():
             __import__(module)
 
 
+def _bootstrap_enabled_plugin_queue_extensions() -> None:
+    """
+    Register enabled plugin tasks/consumers for worker and beat processes.
+    / 为 worker 与 beat 进程注册已启用插件的任务与消费者。
+
+    Celery processes do not go through FastAPI lifespan startup, so plugin queue
+    extensions must be restored separately here. Only queue-executable
+    extensions are registered; beat schedule remains DB-driven.
+    / Celery 进程不经过 FastAPI lifespan，因此需要在这里单独恢复插件队列扩展。
+    这里只注册可执行队列扩展，不向 in-memory beat_schedule 注入插件周期任务。
+    """
+    try:
+        from sqlalchemy import select
+
+        from app.core.database import sync_session_factory
+        from app.enums.plugin import PluginStatusEnum
+        from app.models.system.plugin import Plugin
+        from app.plugins._extension_registrar import register_queue_extensions
+        from app.plugins.loader import PluginLoader
+        from app.plugins.registry import ExtensionRegistry
+
+        session = sync_session_factory()
+        try:
+            result = session.execute(
+                select(Plugin.name).where(
+                    Plugin.status == PluginStatusEnum.ENABLED.value,
+                    Plugin.is_deleted.is_(False),
+                )
+            )
+            plugin_names = [str(row[0]) for row in result.all() if row and row[0]]
+        finally:
+            session.close()
+
+        if not plugin_names:
+            return
+
+        loader = PluginLoader()
+        registry = ExtensionRegistry.get_instance()
+        restored_count = 0
+
+        for plugin_name in plugin_names:
+            try:
+                manifest = loader.load_manifest(plugin_name)
+                if not manifest.extensions.tasks and not manifest.extensions.consumers:
+                    continue
+                register_queue_extensions(
+                    registry,
+                    manifest,
+                    plugin_name,
+                    register_schedule=False,
+                    record_failures=False,
+                )
+                restored_count += 1
+            except Exception as exc:
+                logger.warning(
+                    "Celery plugin queue bootstrap skipped {}: {}",
+                    plugin_name,
+                    exc,
+                )
+
+        if restored_count:
+            logger.info(
+                "Celery plugin queue bootstrap restored {} plugin(s)",
+                restored_count,
+            )
+    except Exception as exc:
+        logger.warning("Celery plugin queue bootstrap failed: {}", exc)
+
+
 _import_task_modules()
+_bootstrap_enabled_plugin_queue_extensions()
 
 # ========================================
 # AI Adapter Registration (Worker process doesn't go through main.py lifespan)

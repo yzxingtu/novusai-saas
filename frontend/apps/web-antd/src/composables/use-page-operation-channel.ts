@@ -30,6 +30,7 @@ import { getActivePageSessionId } from '#/composables/use-page-session';
 import { useSocketIOStore } from '#/store';
 import { useAIPanelStore } from '#/store/shared/ai-panel';
 import { filterPageOperationsByPolicy } from '#/utils/ai-page-capabilities';
+import { getSocketTraceId } from '#/composables/use-socketio';
 
 /** Operation invoke event from backend / 后端下发的操作调用事件 */
 export interface PageOperationInvokeEvent {
@@ -45,6 +46,8 @@ export interface PageOperationInvokeEvent {
   requires_confirmation: boolean;
   /** Tool call ID for associating confirmation card with chat message / 工具调用 ID，用于将确认卡片关联到聊天消息 */
   tool_call_id?: string;
+  /** Trace ID supplied by backend invoke (propagated back on result) / 后端传来的 trace_id，回传时优先使用 */
+  trace_id?: string;
 }
 
 /** Operation result sent back to backend / 回传给后端的操作结果 */
@@ -59,6 +62,8 @@ export interface PageOperationResultEvent {
   data?: Record<string, unknown>;
   /** Failure reason type / 失败原因类型 */
   error_type?: string;
+  /** Trace ID for correlation / 用于链路关联的 trace_id */
+  trace_id?: string;
 }
 
 /** Currently joined page_session room (per composable instance) / 当前已加入的 page_session room */
@@ -148,13 +153,16 @@ function emitResult(
   invokeId: string,
   result: { success: boolean; message: string; data?: Record<string, unknown> },
   errorType?: string,
+  traceId?: string,
 ): void {
+  const resolvedTraceId = traceId || getSocketTraceId();
   const payload = {
     invoke_id: invokeId,
     success: result.success,
     message: result.message,
     data: result.data,
     ...(errorType ? { error_type: errorType } : {}),
+    ...(resolvedTraceId ? { trace_id: resolvedTraceId } : {}),
   } satisfies PageOperationResultEvent;
   rememberInvokeResult(payload);
   socketIOStore.emit('page_operation_result', payload);
@@ -189,7 +197,7 @@ export function usePageOperationChannel(): void {
     const errorType = result.success
       ? undefined
       : (result.error_type ?? 'execution_failed');
-    emitResult(socketIOStore, event.invoke_id, result, errorType);
+    emitResult(socketIOStore, event.invoke_id, result, errorType, event.trace_id);
   }
 
   const aiPanelStore = useAIPanelStore();
@@ -244,6 +252,7 @@ export function usePageOperationChannel(): void {
           message: $t('shared.pageOperation.msg.confirmationTimedOut'),
         },
         'timeout',
+        event.trace_id,
       );
     } else if (result) {
       if (CHAIN_TRIGGER_OPS.has(event.operation_name)) {
@@ -259,6 +268,7 @@ export function usePageOperationChannel(): void {
           message: $t('shared.pageOperation.msg.userCancelled'),
         },
         'user_cancelled',
+        event.trace_id,
       );
     }
   }
@@ -309,6 +319,7 @@ export function usePageOperationChannel(): void {
               }),
             },
             'page_key_mismatch',
+            event.trace_id,
           );
           return;
         }
@@ -337,6 +348,7 @@ export function usePageOperationChannel(): void {
                 }),
               },
               'disabled_by_policy',
+              event.trace_id,
             );
             return;
           }
@@ -355,6 +367,7 @@ export function usePageOperationChannel(): void {
               }),
             },
             'not_registered',
+            event.trace_id,
           );
           return;
         }
@@ -406,6 +419,7 @@ export function usePageOperationChannel(): void {
             message: msg,
           },
           'internal_error',
+          event.trace_id,
         );
       }
     })();
@@ -428,6 +442,7 @@ export function usePageOperationChannel(): void {
     if (!currentJoinedRoom) return;
     socketIOStore.emit('page_session_leave', {
       page_session_id: currentJoinedRoom,
+      trace_id: getSocketTraceId(),
     });
     clearChainConfirmed();
     currentJoinedRoom = '';
@@ -448,6 +463,7 @@ export function usePageOperationChannel(): void {
     socketIOStore.emit('page_session_join', {
       page_session_id: pageSessionId,
       page_key: pageKey,
+      trace_id: getSocketTraceId(),
     });
     currentJoinedRoom = pageSessionId;
   }

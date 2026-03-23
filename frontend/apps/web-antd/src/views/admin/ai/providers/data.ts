@@ -23,57 +23,83 @@ import { $t } from '#/locales';
 /** 缓存适配器类型列表 / Cached adapter type list */
 const adapterTypesCache = ref<AdapterTypeInfo[]>([]);
 
-/** Must match backend `OPENAI_COMPATIBLE_URL_SUFFIX_TO_WIRE_API` (app/ai/constants.py) / 须与后端常量一致 */
-const OPENAI_COMPATIBLE_ENDPOINT_SUFFIXES = [
-  ['/responses', 'responses'],
-  ['/chat/completions', 'chat_completions'],
+export type OpenAICompatibleWireApi = 'chat_completions' | 'responses';
+const OPENAI_COMPATIBLE_FORBIDDEN_BASE_URL_SUFFIXES = [
+  '/responses',
+  '/chat/completions',
 ] as const;
 
-export function normalizeProviderBaseUrl(
+function normalizeWireApi(
+  wireApi: null | string | undefined,
+): null | OpenAICompatibleWireApi {
+  const normalizedValue = String(wireApi || '')
+    .trim()
+    .toLowerCase()
+    .replaceAll('-', '_');
+  if (
+    normalizedValue === 'responses' ||
+    normalizedValue === 'chat_completions'
+  ) {
+    return normalizedValue;
+  }
+  return null;
+}
+
+export function normalizeProviderBaseUrlInput(
+  baseUrl: null | string | undefined,
+): null | string {
+  const trimmedBaseUrl = typeof baseUrl === 'string' ? baseUrl.trim() : '';
+  return trimmedBaseUrl || null;
+}
+
+export function hasForbiddenProviderEndpointSuffix(
   baseUrl: null | string | undefined,
   providerType: null | string | undefined,
-): {
-  inferredWireApi: null | string;
-  normalizedBaseUrl: null | string;
-  wasEndpointNormalized: boolean;
-} {
-  const trimmedBaseUrl = typeof baseUrl === 'string' ? baseUrl.trim() : '';
-  if (!trimmedBaseUrl) {
-    return {
-      inferredWireApi: null,
-      normalizedBaseUrl: null,
-      wasEndpointNormalized: false,
-    };
-  }
-
-  const normalizedBaseUrl = trimmedBaseUrl.replace(/\/+$/, '');
+): boolean {
   if (providerType !== 'openai_compatible') {
-    return {
-      inferredWireApi: null,
-      normalizedBaseUrl,
-      wasEndpointNormalized: false,
-    };
+    return false;
   }
-
-  const lowerBaseUrl = normalizedBaseUrl.toLowerCase();
-  for (const [suffix, wireApi] of OPENAI_COMPATIBLE_ENDPOINT_SUFFIXES) {
-    if (lowerBaseUrl.endsWith(suffix)) {
-      const strippedBaseUrl = normalizedBaseUrl
-        .slice(0, -suffix.length)
-        .replace(/\/+$/, '');
-      return {
-        inferredWireApi: wireApi,
-        normalizedBaseUrl: strippedBaseUrl || normalizedBaseUrl,
-        wasEndpointNormalized: true,
-      };
-    }
+  const normalizedBaseUrl = normalizeProviderBaseUrlInput(baseUrl);
+  if (!normalizedBaseUrl) {
+    return false;
   }
+  const normalizedForSuffixCheck = normalizedBaseUrl
+    .toLowerCase()
+    .replace(/\/+$/, '');
+  return OPENAI_COMPATIBLE_FORBIDDEN_BASE_URL_SUFFIXES.some((suffix) =>
+    normalizedForSuffixCheck.endsWith(suffix),
+  );
+}
 
-  return {
-    inferredWireApi: null,
-    normalizedBaseUrl,
-    wasEndpointNormalized: false,
-  };
+export function resolveProviderWireApi(
+  providerType: null | string | undefined,
+  wireApi?: null | string,
+): null | OpenAICompatibleWireApi {
+  const normalizedWireApi = normalizeWireApi(wireApi);
+  if (providerType !== 'openai_compatible') {
+    return null;
+  }
+  return normalizedWireApi || 'chat_completions';
+}
+
+export function getProviderWireApiOptions() {
+  return [
+    {
+      label: $t('admin.ai.provider.wireApiOptions.chat_completions'),
+      value: 'chat_completions',
+    },
+    {
+      label: $t('admin.ai.provider.wireApiOptions.responses'),
+      value: 'responses',
+    },
+  ];
+}
+
+export function getProviderWireApiText(
+  wireApi: null | string | undefined,
+): string {
+  const normalizedWireApi = normalizeWireApi(wireApi) || 'chat_completions';
+  return $t(`admin.ai.provider.wireApiOptions.${normalizedWireApi}`);
 }
 
 function isValidProviderBaseUrl(value: string): boolean {
@@ -246,11 +272,26 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
         .union([z.string(), z.undefined()])
         .refine(
           (value: string | undefined) =>
-            value === undefined || value === '' || isValidProviderBaseUrl(value),
+            value === undefined ||
+            value === '' ||
+            isValidProviderBaseUrl(value),
           { message: $t('admin.ai.provider.validation.baseUrlInvalid') },
         ),
       help: $t('admin.ai.provider.help.baseUrl'),
     } as VbenFormSchema,
+    {
+      ...select('wire_api', $t('admin.ai.provider.wireApi'), {
+        options: getProviderWireApiOptions(),
+        placeholder: $t('admin.ai.provider.placeholder.selectWireApi'),
+        required: true,
+      }),
+      dependencies: {
+        triggerFields: ['type'],
+        show: (values: Record<string, unknown>) =>
+          values.type === 'openai_compatible',
+      },
+      help: $t('admin.ai.provider.help.wireApi'),
+    },
     textareaField('description', $t('admin.ai.provider.description'), {
       placeholder: $t('admin.ai.provider.placeholder.inputDescription'),
     }),
@@ -274,6 +315,7 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
 export function getFormDefaults(): Record<string, unknown> {
   return {
     type: 'openai_compatible',
+    wire_api: 'chat_completions',
     is_active: true,
     sort_order: 0,
   };

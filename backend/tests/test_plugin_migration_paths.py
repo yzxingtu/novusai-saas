@@ -9,10 +9,12 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, text
 
+from app.core.database import should_skip_migration_subprocess
 from app.plugins.migration_paths import (
     build_migration_version_locations,
     get_db_registered_plugin_names,
     purge_migration_bytecode,
+    should_purge_migration_bytecode_for_startup,
 )
 
 
@@ -155,6 +157,31 @@ def test_purge_migration_bytecode_removes_cached_files(tmp_path: Path) -> None:
     assert keep_txt.exists()
 
 
+def test_should_purge_migration_bytecode_for_startup_skips_debug_mode() -> None:
+    assert should_purge_migration_bytecode_for_startup(debug=True) is False
+    assert should_purge_migration_bytecode_for_startup(debug=False) is True
+
+
+def test_should_skip_migration_subprocess_when_db_already_at_heads() -> None:
+    skip, reason = should_skip_migration_subprocess(
+        current_stamps=["wo_002", "main_123"],
+        expected_heads=["main_123", "wo_002"],
+    )
+
+    assert skip is True
+    assert "already at current heads" in reason
+
+
+def test_should_skip_migration_subprocess_when_db_stamps_differ() -> None:
+    skip, reason = should_skip_migration_subprocess(
+        current_stamps=["main_123"],
+        expected_heads=["main_123", "wo_002"],
+    )
+
+    assert skip is False
+    assert "differ from current heads" in reason
+
+
 def test_storage_billing_plugin_revisions_load_via_alembic(tmp_path: Path) -> None:
     backend_dir = Path(__file__).resolve().parents[1]
     db_path = tmp_path / "plugins.sqlite"
@@ -170,8 +197,17 @@ def test_storage_billing_plugin_revisions_load_via_alembic(tmp_path: Path) -> No
     cfg.set_main_option("version_locations", "\n".join(version_locations))
 
     script = ScriptDirectory.from_config(cfg)
+    storage_billing_revision_ids = {
+        "sb_001_init",
+        "sb_002_bindings",
+        "sb_003_period_fields",
+    }
+    storage_billing_heads = {
+        head for head in script.get_heads() if str(head).startswith("sb_")
+    }
 
-    assert "sb_002_bindings" in script.get_heads()
+    assert storage_billing_heads
+    assert storage_billing_heads.issubset(storage_billing_revision_ids)
 
 
 def test_plugin_branch_labels_are_unique_across_revision_map() -> None:

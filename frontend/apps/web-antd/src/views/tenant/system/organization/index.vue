@@ -1,21 +1,17 @@
 <!-- eslint-disable vue/html-closing-bracket-newline -->
 <script lang="ts" setup>
-import type { TenantRoleType } from '#/api/tenant/role';
-/**
- * Tenant organization management page
- * 企业端组织架构管理页面
- * Left org tree + right detail/member panel
- * 左侧组织树 + 右侧详情/成员面板
- */
+import type {
+  TenantOrgNodeInfo,
+  TenantOrgNodeType,
+} from '#/api/tenant/organization';
 import type { OrgTreeNodeData } from '#/components/business/org-tree';
 
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
 import {
-  Badge,
   Button,
   Card,
   Empty,
@@ -26,12 +22,19 @@ import {
   Tooltip,
 } from 'ant-design-vue';
 
-import { deleteTenantRoleApi, getTenantRoleTreeApi } from '#/api/tenant/role';
+import {
+  deleteTenantOrganizationNodeApi,
+  getTenantOrganizationTreeApi,
+  getTenantOrganizationNodeDetailApi,
+} from '#/api/tenant/organization';
 import { MemberPanel } from '#/components/business/member-panel';
 import { OrgNodeDialog } from '#/components/business/org-node-dialog';
+import {
+  getLeaderScopeDescription,
+  getLeaderScopeLabel,
+} from '#/components/business/org-node-dialog/types';
 import { OrgTreeNode, useOrgTree } from '#/components/business/org-tree';
 import { NODE_TYPE_CONFIG } from '#/components/business/org-tree/types';
-import { PermissionPreview } from '#/components/business/permission-preview';
 import {
   createCreateRecordPageOperation,
   createOpenCurrentPageOperation,
@@ -45,11 +48,8 @@ import {
 import { $t } from '#/locales';
 
 defineOptions({ name: 'TenantOrganization' });
-const AI_PAGE_KEY = 'tenant.system.organization';
 
-// ============================================================
-// Org tree management / 组织树管理
-// ============================================================
+const AI_PAGE_KEY = 'tenant.system.organization';
 
 const {
   treeData,
@@ -62,49 +62,52 @@ const {
   isExpanded,
   refresh: refreshTree,
   removeNode,
+  updateNode,
 } = useOrgTree({ apiPrefix: 'tenant', immediate: false });
 
-// ============================================================
-// Selected node state / 选中节点状态
-// ============================================================
-
 const selectedNode = ref<null | OrgTreeNodeData>(null);
-
-/** Left tree panel collapsed state / 左侧树面板折叠状态 */
+const selectedNodeDetail = ref<null | TenantOrgNodeInfo>(null);
 const treeCollapsed = ref(false);
-
-/** Type config of the selected node / 选中节点的类型配置 */
-const selectedNodeTypeConfig = computed(() => {
-  if (!selectedNode.value) return null;
-  return NODE_TYPE_CONFIG[selectedNode.value.type];
-});
-
-/** Handle node selection / 处理节点选中 */
-function handleNodeSelect(node: OrgTreeNodeData) {
-  selectedNode.value = node;
-}
-
-// ============================================================
-// Right panel display mode / 右侧面板显示模式
-// ============================================================
-
-/** Get translated label for node type / 获取节点类型的翻译标签 */
-function getNodeTypeLabel(type: string) {
-  return $t(`tenant.system.${type}`);
-}
-
-// ============================================================
-// Node dialog management / 节点弹窗管理
-// ============================================================
+const deleting = ref(false);
+const detailLoading = ref(false);
 
 const nodeDialogOpen = ref(false);
 const nodeDialogMode = ref<'create' | 'edit'>('create');
 const nodeDialogParentId = ref<null | number>(null);
-const nodeDialogParentType = ref<null | TenantRoleType>(null);
+const nodeDialogParentType = ref<null | TenantOrgNodeType>(null);
 const nodeDialogParentName = ref('');
 const nodeDialogNodeId = ref<null | number>(null);
 
-/** Create root node / 创建根节点 */
+const activeNode = computed(() => selectedNodeDetail.value ?? selectedNode.value);
+const selectedNodeTypeConfig = computed(() => {
+  if (!activeNode.value) return null;
+  return NODE_TYPE_CONFIG[activeNode.value.type];
+});
+
+const leaderDisplayName = computed(() => {
+  const leader = activeNode.value?.leader;
+  if (!leader) return '';
+  return leader.nickname || leader.real_name || leader.username;
+});
+
+const leaderScopeLabel = computed(() =>
+  getLeaderScopeLabel(activeNode.value?.dataScope),
+);
+
+const leaderScopeDescription = computed(() =>
+  getLeaderScopeDescription(activeNode.value?.dataScope),
+);
+
+function getNodeTypeLabel(type?: string) {
+  return type
+    ? $t(`tenant.system.organization.nodeType.${type}`)
+    : $t('shared.common.unknown');
+}
+
+function handleNodeSelect(node: OrgTreeNodeData) {
+  selectedNode.value = node;
+}
+
 function handleCreateRoot() {
   nodeDialogMode.value = 'create';
   nodeDialogParentId.value = null;
@@ -114,8 +117,7 @@ function handleCreateRoot() {
   nodeDialogOpen.value = true;
 }
 
-/** Create child node under selected node / 在选中节点下创建子节点 */
-function handleAddChild(node: OrgTreeNodeData, _type: TenantRoleType) {
+function handleAddChild(node: OrgTreeNodeData, _type: TenantOrgNodeType) {
   nodeDialogMode.value = 'create';
   nodeDialogParentId.value = node.id;
   nodeDialogParentType.value = node.type;
@@ -124,8 +126,7 @@ function handleAddChild(node: OrgTreeNodeData, _type: TenantRoleType) {
   nodeDialogOpen.value = true;
 }
 
-/** Edit node / 编辑节点 */
-function handleEditNode(node: OrgTreeNodeData) {
+function handleEditNode(node: OrgTreeNodeData | TenantOrgNodeInfo) {
   nodeDialogMode.value = 'edit';
   nodeDialogParentId.value = node.parentId ?? null;
   nodeDialogParentType.value = null;
@@ -134,18 +135,38 @@ function handleEditNode(node: OrgTreeNodeData) {
   nodeDialogOpen.value = true;
 }
 
-/** Node saved successfully / 节点保存成功 */
-function handleNodeSaved() {
-  refreshTree();
+async function loadSelectedNodeDetail(nodeId: number) {
+  detailLoading.value = true;
+  try {
+    const detail = await getTenantOrganizationNodeDetailApi(nodeId);
+    selectedNodeDetail.value = detail;
+    updateNode(nodeId, {
+      allowMembers: detail.allowMembers,
+      code: detail.code,
+      dataScope: detail.dataScope,
+      description: detail.description,
+      isActive: detail.isActive,
+      leader: detail.leader,
+      leaderId: detail.leaderId,
+      memberCount: detail.memberCount,
+      sortOrder: detail.sortOrder,
+      type: detail.type,
+    });
+  } catch {
+    selectedNodeDetail.value = null;
+  } finally {
+    detailLoading.value = false;
+  }
 }
 
-// ============================================================
-// Delete node / 删除节点
-// ============================================================
+async function handleNodeSaved() {
+  await refreshTree();
+  if (selectedNode.value?.id) {
+    await loadSelectedNodeDetail(selectedNode.value.id);
+  }
+}
 
-const deleting = ref(false);
-
-async function handleDeleteNode(node: OrgTreeNodeData) {
+async function handleDeleteNode(node: OrgTreeNodeData | TenantOrgNodeInfo) {
   if (node.hasChildren || node.memberCount > 0) {
     message.warning(
       $t('tenant.system.organization.messages.deleteHasChildren'),
@@ -155,11 +176,12 @@ async function handleDeleteNode(node: OrgTreeNodeData) {
 
   deleting.value = true;
   try {
-    await deleteTenantRoleApi(node.id);
+    await deleteTenantOrganizationNodeApi(node.id);
     message.success($t('tenant.system.organization.messages.deleteSuccess'));
     removeNode(node.id);
     if (selectedNode.value?.id === node.id) {
       selectedNode.value = null;
+      selectedNodeDetail.value = null;
     }
   } catch {
     message.error($t('shared.common.deleteFailed'));
@@ -168,22 +190,26 @@ async function handleDeleteNode(node: OrgTreeNodeData) {
   }
 }
 
-// ============================================================
-// Member panel events / 成员面板事件
-// ============================================================
-
-function handleMemberPanelRefresh() {
-  // Refresh tree to update member count / 刷新树以更新成员计数
-  refreshTree();
+async function handleMemberPanelRefresh() {
+  await refreshTree();
+  if (selectedNode.value?.id) {
+    await loadSelectedNodeDetail(selectedNode.value.id);
+  }
 }
 
-// ============================================================
-// Lifecycle / 生命周期
-// ============================================================
+watch(
+  () => selectedNode.value?.id,
+  async (nodeId) => {
+    if (!nodeId) {
+      selectedNodeDetail.value = null;
+      return;
+    }
+    await loadSelectedNodeDetail(nodeId);
+  },
+);
 
 onMounted(async () => {
   const firstNode = await loadRootNodes();
-  // Auto-select the first root node / 自动选择第一个根节点
   if (firstNode) {
     selectedNode.value = firstNode;
   }
@@ -196,10 +222,11 @@ usePageAIContext({
   data: () => ({
     expanded_count: expandedIds.value.size,
     root_node_count: treeData.value.length,
-    selected_node_code: selectedNode.value?.code ?? null,
-    selected_node_id: selectedNode.value?.id ?? null,
-    selected_node_name: selectedNode.value?.name ?? null,
-    selected_node_type: selectedNode.value?.type ?? null,
+    selected_node_code: activeNode.value?.code ?? null,
+    selected_node_id: activeNode.value?.id ?? null,
+    selected_node_name: activeNode.value?.name ?? null,
+    selected_node_scope: activeNode.value?.dataScope ?? null,
+    selected_node_type: activeNode.value?.type ?? null,
   }),
 });
 
@@ -211,6 +238,9 @@ usePageAIOperations({
       name: 'refresh_tree',
       action: async () => {
         await refreshTree();
+        if (selectedNode.value?.id) {
+          await loadSelectedNodeDetail(selectedNode.value.id);
+        }
       },
       description: 'Refresh the organization tree',
     }),
@@ -224,7 +254,7 @@ usePageAIOperations({
     createSimplePageOperation({
       name: 'expand_all_nodes',
       label: $t('tenant.system.organization.expandAll'),
-      description: 'Expand all loaded organization nodes / 展开全部已加载组织节点',
+      description: 'Expand all loaded organization nodes',
       readonly: true,
       action: async () => {
         expandAll();
@@ -236,7 +266,7 @@ usePageAIOperations({
     createSimplePageOperation({
       name: 'collapse_all_nodes',
       label: $t('tenant.system.organization.collapseAll'),
-      description: 'Collapse all organization nodes / 收起全部组织节点',
+      description: 'Collapse all organization nodes',
       readonly: true,
       action: async () => {
         collapseAll();
@@ -248,18 +278,16 @@ usePageAIOperations({
     createOpenCurrentPageOperation({
       name: 'edit_selected_node',
       label: $t('shared.pageOperation.editRecord'),
-      description:
-        'Open the edit dialog for the currently selected organization node / 打开当前选中组织节点的编辑弹窗',
-      available: () => !!selectedNode.value,
+      description: 'Open the edit dialog for the selected organization node',
+      available: () => !!activeNode.value,
       open: async () => {
-        handleEditNode(selectedNode.value!);
+        handleEditNode(activeNode.value!);
       },
     }),
     createOpenCurrentPageOperation({
       name: 'create_child_node',
       label: $t('tenant.system.organization.addChild'),
-      description:
-        'Open the create-child dialog for the currently selected organization node / 为当前选中组织节点打开新建子节点弹窗',
+      description: 'Open the create-child dialog for the selected node',
       available: () => !!selectedNode.value,
       open: async () => {
         handleAddChild(selectedNode.value!, selectedNode.value!.type);
@@ -272,14 +300,12 @@ usePageAIOperations({
 <template>
   <Page auto-content-height>
     <div class="flex h-full gap-2 overflow-hidden lg:gap-4">
-      <!-- Left: Org tree / 左侧：组织树 -->
       <div
         class="flex flex-shrink-0 flex-col overflow-hidden rounded-xl bg-card shadow-sm transition-all duration-300"
         :class="[
           treeCollapsed ? 'w-12' : 'w-[320px] lg:w-[380px] xl:w-[440px]',
         ]"
       >
-        <!-- Toolbar / 工具栏 -->
         <div
           class="flex items-center justify-between border-b border-border/50 px-2 py-2 lg:px-4 lg:py-3"
         >
@@ -343,7 +369,6 @@ usePageAIOperations({
                 }}</span>
               </Button>
             </template>
-            <!-- 折叠/展开按钮 -->
             <Tooltip
               :title="
                 treeCollapsed
@@ -370,7 +395,6 @@ usePageAIOperations({
           </div>
         </div>
 
-        <!-- 树形列表 -->
         <div v-show="!treeCollapsed" class="flex-1 overflow-y-auto p-2 lg:p-3">
           <Spin :spinning="treeLoading">
             <div v-if="treeData.length > 0" class="space-y-0.5">
@@ -382,6 +406,7 @@ usePageAIOperations({
                 :expanded-ids="expandedIds"
                 :selected-id="selectedNode?.id"
                 :is-expanded="isExpanded"
+                :show-permission-count="false"
                 i18n-prefix="tenant"
                 @toggle="toggleExpand"
                 @select="handleNodeSelect"
@@ -397,7 +422,7 @@ usePageAIOperations({
             />
           </Spin>
         </div>
-        <!-- 折叠时显示图标 -->
+
         <div
           v-show="treeCollapsed"
           class="flex flex-1 flex-col items-center gap-2 py-4"
@@ -411,11 +436,9 @@ usePageAIOperations({
         </div>
       </div>
 
-      <!-- Right: Detail/member panel / 右侧：详情/成员面板 -->
       <div
         class="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl bg-card shadow-sm"
       >
-        <!-- Hint when no node selected / 未选中节点时的提示 -->
         <div
           v-if="!selectedNode"
           class="flex flex-1 items-center justify-center text-muted-foreground"
@@ -434,70 +457,63 @@ usePageAIOperations({
           </div>
         </div>
 
-        <!-- Show details when node selected / 选中节点时显示详情 -->
         <template v-else>
-          <!-- Node header + basic info / 节点头部信息 + 基本信息 -->
           <div class="border-b border-border/50 px-3 py-3 lg:px-6 lg:py-4">
-            <!-- Row 1: Title and action buttons / 第一行：标题和操作按钮 -->
             <div class="flex items-start justify-between gap-3">
               <div class="flex min-w-0 items-center gap-2 lg:gap-3">
                 <div
                   class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary/10 lg:h-12 lg:w-12"
                 >
                   <IconifyIcon
-                    :icon="selectedNodeTypeConfig?.icon || 'lucide:folder'"
+                    :icon="selectedNodeTypeConfig?.icon || 'lucide:folder-tree'"
                     class="h-5 w-5 text-primary lg:h-6 lg:w-6"
                   />
                 </div>
                 <div class="min-w-0 flex-1">
                   <div class="flex items-center gap-2">
                     <h2 class="truncate text-base font-semibold lg:text-xl">
-                      {{ selectedNode.name }}
+                      {{ activeNode?.name }}
                     </h2>
                     <Tag
                       :class="
-                        selectedNode.isActive
+                        activeNode?.isActive
                           ? 'border-success/30 bg-success/10 text-success'
                           : ''
                       "
                       class="flex-shrink-0"
                     >
                       {{
-                        selectedNode.isActive
+                        activeNode?.isActive
                           ? $t('tenant.system.organization.enabled')
                           : $t('tenant.system.organization.disabled')
                       }}
                     </Tag>
+                    <Tag color="blue">
+                      {{ getNodeTypeLabel(activeNode?.type) }}
+                    </Tag>
                   </div>
                   <div
-                    class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground lg:mt-1 lg:gap-x-3 lg:text-sm"
+                    class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground lg:text-sm"
                   >
-                    <span>{{
-                      getNodeTypeLabel(selectedNodeTypeConfig?.label || '')
-                    }}</span>
-                    <span>·</span>
-                    <span
-                      >{{ selectedNode.memberCount
-                      }}{{ $t('tenant.system.organization.memberUnit') }}</span
-                    >
-                    <template v-if="selectedNode.leader">
-                      <span>·</span>
-                      <span class="flex items-center gap-1">
-                        <IconifyIcon
-                          icon="lucide:crown"
-                          class="h-3 w-3 text-warning"
-                        />
-                        {{
-                          selectedNode.leader.nickname ||
-                          selectedNode.leader.username
-                        }}
-                      </span>
-                    </template>
+                    <code class="rounded bg-muted px-1.5 py-0.5 text-xs">{{
+                      activeNode?.code
+                    }}</code>
+                    <span>
+                      {{ activeNode?.memberCount
+                      }}{{ $t('tenant.system.organization.memberUnit') }}
+                    </span>
+                    <span v-if="leaderDisplayName" class="flex items-center gap-1">
+                      <IconifyIcon
+                        icon="lucide:crown"
+                        class="h-3.5 w-3.5 text-warning"
+                      />
+                      {{ leaderDisplayName }}
+                    </span>
                   </div>
                 </div>
               </div>
               <div class="flex flex-shrink-0 gap-2">
-                <Button size="small" @click="handleEditNode(selectedNode)">
+                <Button size="small" @click="handleEditNode(activeNode!)">
                   <template #icon>
                     <IconifyIcon icon="lucide:pencil" />
                   </template>
@@ -506,13 +522,11 @@ usePageAIOperations({
                   }}</span>
                 </Button>
                 <Popconfirm
-                  :title="
-                    $t('tenant.system.organization.messages.deleteConfirm')
-                  "
+                  :title="$t('tenant.system.organization.messages.deleteConfirm')"
                   :ok-text="$t('shared.common.confirm')"
                   :cancel-text="$t('shared.common.cancel')"
                   :ok-button-props="{ danger: true }"
-                  @confirm="handleDeleteNode(selectedNode)"
+                  @confirm="handleDeleteNode(activeNode!)"
                 >
                   <Button danger size="small" :loading="deleting">
                     <template #icon>
@@ -525,79 +539,145 @@ usePageAIOperations({
                 </Popconfirm>
               </div>
             </div>
-
-            <!-- Row 2: Basic info details / 第二行：基本信息详情 -->
             <div
-              class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground lg:text-sm"
+              v-if="activeNode?.description"
+              class="mt-3 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground"
             >
-              <!-- Code / 编码 -->
-              <code class="rounded bg-muted px-1.5 py-0.5 text-xs">{{
-                selectedNode.code
-              }}</code>
-              <!-- Allow members / 允许成员 -->
-              <span class="flex items-center gap-1">
-                {{ $t('tenant.system.organization.node.allowMembers') }}:
-                <Badge
-                  :status="selectedNode.allowMembers ? 'success' : 'default'"
-                  :text="
-                    selectedNode.allowMembers
-                      ? $t('tenant.system.organization.yes')
-                      : $t('tenant.system.organization.no')
-                  "
-                />
-              </span>
-              <!-- Sort order / 排序号 -->
-              <span
-                >{{ $t('tenant.system.organization.node.sortOrder') }}:
-                {{ selectedNode.sortOrder }}</span
-              >
-              <!-- Permission count / 权限数 -->
-              <PermissionPreview
-                :node-id="selectedNode.id"
-                :permissions-count="selectedNode.permissionsCount ?? 0"
-                api-prefix="tenant"
-              />
-              <!-- Created at / 创建时间 -->
-              <span
-                >{{ $t('shared.common.createdAt') }}:
-                {{ selectedNode.createdAt }}</span
-              >
-            </div>
-
-            <!-- Row 3: Description (if any) / 第三行：描述（如果有） -->
-            <div
-              v-if="selectedNode.description"
-              class="mt-2 rounded bg-muted/50 px-2 py-1.5 text-xs text-muted-foreground"
-            >
-              {{ selectedNode.description }}
+              {{ activeNode.description }}
             </div>
           </div>
 
-          <!-- Member management panel / 成员管理面板 -->
-          <div class="flex-1 overflow-hidden p-2 lg:p-4">
-            <Card class="h-full overflow-hidden" size="small">
-              <template #title>
-                <span class="text-sm lg:text-base">{{
-                  $t('tenant.system.organization.member.title')
-                }}</span>
-              </template>
-              <MemberPanel
-                :node-id="selectedNode.id"
-                :node-name="selectedNode.name"
-                :allow-members="selectedNode.allowMembers"
-                :leader-id="selectedNode.leaderId"
-                :role-tree-api="getTenantRoleTreeApi"
-                api-prefix="tenant"
-                :show-online-status="true"
-                @refresh="handleMemberPanelRefresh"
-              />
-            </Card>
+          <div class="flex-1 overflow-y-auto p-2 lg:p-4">
+            <Spin :spinning="detailLoading">
+              <div class="grid gap-4 xl:grid-cols-3">
+                <Card :title="$t('tenant.system.organization.basicInfo')" size="small">
+                  <div class="space-y-3 text-sm">
+                    <div class="flex items-center justify-between gap-4">
+                      <span class="text-muted-foreground">{{
+                        $t('tenant.system.organization.node.code')
+                      }}</span>
+                      <code class="rounded bg-muted px-1.5 py-0.5 text-xs">{{
+                        activeNode?.code
+                      }}</code>
+                    </div>
+                    <div class="flex items-center justify-between gap-4">
+                      <span class="text-muted-foreground">{{
+                        $t('tenant.system.organization.node.type')
+                      }}</span>
+                      <span>{{ getNodeTypeLabel(activeNode?.type) }}</span>
+                    </div>
+                    <div class="flex items-center justify-between gap-4">
+                      <span class="text-muted-foreground">{{
+                        $t('tenant.system.organization.node.allowMembers')
+                      }}</span>
+                      <span>{{
+                        activeNode?.allowMembers
+                          ? $t('tenant.system.organization.yes')
+                          : $t('tenant.system.organization.no')
+                      }}</span>
+                    </div>
+                    <div class="flex items-center justify-between gap-4">
+                      <span class="text-muted-foreground">{{
+                        $t('tenant.system.organization.node.sortOrder')
+                      }}</span>
+                      <span>{{ activeNode?.sortOrder }}</span>
+                    </div>
+                    <div class="flex items-center justify-between gap-4">
+                      <span class="text-muted-foreground">{{
+                        $t('tenant.system.organization.memberCount')
+                      }}</span>
+                      <span>{{ activeNode?.memberCount }}</span>
+                    </div>
+                  </div>
+                </Card>
+
+                <Card
+                  :title="$t('tenant.system.organization.leaderCardTitle')"
+                  size="small"
+                >
+                  <div class="flex h-full flex-col justify-between gap-3">
+                    <div class="flex items-start gap-3">
+                      <div
+                        class="flex h-10 w-10 items-center justify-center rounded-xl bg-warning/10 text-warning"
+                      >
+                        <IconifyIcon icon="lucide:crown" class="h-5 w-5" />
+                      </div>
+                      <div class="min-w-0 flex-1">
+                        <div class="text-sm font-medium">
+                          {{
+                            leaderDisplayName ||
+                            $t('tenant.system.organization.noLeaderAssigned')
+                          }}
+                        </div>
+                        <div class="mt-1 text-xs text-muted-foreground">
+                          {{
+                            activeNode?.leader?.username ||
+                            $t('tenant.system.organization.noLeaderHint')
+                          }}
+                        </div>
+                      </div>
+                    </div>
+                    <div class="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                      {{ $t('tenant.system.organization.leaderCardDescription') }}
+                    </div>
+                  </div>
+                </Card>
+
+                <Card
+                  :title="$t('tenant.system.organization.scopeCardTitle')"
+                  size="small"
+                >
+                  <div class="space-y-3 text-sm">
+                    <div class="flex items-center justify-between gap-4">
+                      <span class="text-muted-foreground">{{
+                        $t('tenant.system.organization.scopeMode')
+                      }}</span>
+                      <Tag color="processing">{{ leaderScopeLabel }}</Tag>
+                    </div>
+                    <div class="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                      {{ leaderScopeDescription }}
+                    </div>
+                    <div
+                      v-if="(activeNode?.customDeptIds?.length || 0) > 0"
+                      class="flex items-center justify-between gap-4"
+                    >
+                      <span class="text-muted-foreground">{{
+                        $t('tenant.system.organization.scopeTargetCount')
+                      }}</span>
+                      <span>{{ activeNode?.customDeptIds?.length }}</span>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+
+              <Card class="mt-4 h-[520px] overflow-hidden" size="small">
+                <template #title>
+                  <span class="text-sm lg:text-base">{{
+                    $t('tenant.system.organization.member.title')
+                  }}</span>
+                </template>
+                <template #extra>
+                  <span class="text-xs text-muted-foreground">
+                    {{ $t('tenant.system.organization.memberCardDescription') }}
+                  </span>
+                </template>
+                <MemberPanel
+                  :node-id="selectedNode.id"
+                  :node-name="selectedNode.name"
+                  :allow-members="activeNode?.allowMembers"
+                  :leader-id="activeNode?.leaderId"
+                  :org-tree-api="getTenantOrganizationTreeApi"
+                  api-prefix="tenant"
+                  :show-online-status="true"
+                  @refresh="handleMemberPanelRefresh"
+                />
+              </Card>
+            </Spin>
           </div>
         </template>
       </div>
     </div>
 
-    <!-- Node edit dialog / 节点编辑弹窗 -->
     <OrgNodeDialog
       v-model:open="nodeDialogOpen"
       :mode="nodeDialogMode"

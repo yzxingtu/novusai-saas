@@ -32,6 +32,7 @@
     "code": "供应商代码",
     "type": "供应商类型",
     "baseUrl": "API 地址",
+    "wireApi": "API 协议",
     "description": "描述",
     "icon": "图标",
     "isActive": "启用状态",
@@ -45,7 +46,12 @@
       "inputCode": "请输入供应商代码",
       "selectType": "请选择供应商类型",
       "inputBaseUrl": "请输入 API 地址",
+      "selectWireApi": "请选择 API 协议",
       "inputDescription": "请输入描述"
+    },
+    "wireApiOptions": {
+      "chat_completions": "Chat Completions",
+      "responses": "Responses"
     },
     "type_options": {
       "openai_compatible": "OpenAI 兼容",
@@ -61,10 +67,12 @@
       "searchTip": "输入关键词搜索图标"
     },
     "validation": {
-      "baseUrlInvalid": "请输入以 http:// 或 https:// 开头的有效 API 地址"
+      "baseUrlInvalid": "请输入以 http:// 或 https:// 开头的有效 API 地址",
+      "baseUrlEndpointNotAllowed": "OpenAI 兼容供应商的 API 地址不能包含 /responses 或 /chat/completions，请只填写基础地址并单独选择 API 协议"
     },
     "help": {
-      "baseUrl": "供应商的 API 基础地址，如 https://api.openai.com/v1。请不要拼接 /responses 或 /chat/completions；若误填完整接口，保存时会自动纠正",
+      "baseUrl": "供应商的 API 基础地址，如 https://api.openai.com/v1。请不要拼接 /responses 或 /chat/completions，地址与协议请分别配置",
+      "wireApi": "OpenAI 兼容供应商的调用协议。若供应商明确要求 Responses API，请在这里显式选择 Responses",
       "type": "当前仅支持 OpenAI 兼容格式。大多数 AI 服务（包括 Anthropic、Azure）都兼容此格式",
       "isActive": "禁用后该供应商下的所有模型将不可用，已有的 API 调用会失败"
     },
@@ -77,8 +85,7 @@
       "toggleSuccess": "供应商状态已更新",
       "confirmEnable": "确认启用此供应商？",
       "confirmDisable": "确认禁用此供应商？禁用后该供应商下的所有 AI 调用将失败",
-      "deleteSuccess": "供应商删除成功",
-      "baseUrlAutoNormalized": "已自动将 API 地址纠正为基础地址：{baseUrl}"
+      "deleteSuccess": "供应商删除成功"
     }
   },
   "model": {

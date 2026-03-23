@@ -22,7 +22,6 @@ from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
 from app.ai.adapters.base import BaseAdapter
 from app.ai.utils.chat_attachment_media import resolve_image_url_for_llm
-from app.ai.constants import OPENAI_COMPATIBLE_URL_SUFFIX_TO_WIRE_API
 from app.ai.exceptions import AIGatewayError, convert_openai_error
 from app.ai.tools.security import SSRFBlockedError, UrlValidator
 from app.ai.types import (
@@ -95,7 +94,7 @@ class OpenAIAdapter(BaseAdapter):
 
         provider_config = self.config.get("provider_config")
         self.provider_config = provider_config.copy() if isinstance(provider_config, dict) else {}
-        self.base_url, inferred_wire_api = self._normalize_base_url(base_url)
+        self.base_url = self._clean_base_url(base_url)
 
         # Initialize OpenAI client / 初始化 OpenAI 客户端
         client_kwargs = {"api_key": api_key}
@@ -103,47 +102,16 @@ class OpenAIAdapter(BaseAdapter):
             client_kwargs["base_url"] = self.base_url
 
         self.client = AsyncOpenAI(**client_kwargs)
-        self.wire_api = self._resolve_wire_api(
-            self.provider_config.get("wire_api"),
-            inferred_wire_api=inferred_wire_api,
-        )
+        self.wire_api = self._resolve_wire_api(self.provider_config.get("wire_api"))
 
-    def _normalize_base_url(self, base_url: str | None) -> tuple[str | None, str | None]:
-        normalized = str(base_url or "").strip()
-        if not normalized:
-            return None, None
+    def _clean_base_url(self, base_url: str | None) -> str | None:
+        cleaned_base_url = str(base_url or "").strip()
+        return cleaned_base_url or None
 
-        normalized = normalized.rstrip("/")
-        lower_normalized = normalized.lower()
-        for suffix, inferred_wire_api in OPENAI_COMPATIBLE_URL_SUFFIX_TO_WIRE_API.items():
-            if lower_normalized.endswith(suffix):
-                stripped_base_url = normalized[: -len(suffix)].rstrip("/")
-                if stripped_base_url:
-                    logger.warning(
-                        "AI provider base_url includes endpoint path; normalized base_url from {} to {} and inferred wire_api={}",
-                        normalized,
-                        stripped_base_url,
-                        inferred_wire_api,
-                    )
-                    return stripped_base_url, inferred_wire_api
-                return normalized, inferred_wire_api
-
-        return normalized, None
-
-    def _resolve_wire_api(self, wire_api: Any, *, inferred_wire_api: str | None = None) -> str:
+    def _resolve_wire_api(self, wire_api: Any) -> str:
         configured_wire_api = str(wire_api or "").strip()
         if configured_wire_api:
-            normalized_wire_api = self._normalize_wire_api(configured_wire_api)
-            if inferred_wire_api and normalized_wire_api != inferred_wire_api:
-                logger.warning(
-                    "AI provider wire_api overrides inferred endpoint: configured={} inferred={}",
-                    normalized_wire_api,
-                    inferred_wire_api,
-                )
-            return normalized_wire_api
-
-        if inferred_wire_api:
-            return self._normalize_wire_api(inferred_wire_api)
+            return self._normalize_wire_api(configured_wire_api)
         return self._normalize_wire_api(None)
 
     def _get_effective_base_url(self) -> str:
@@ -1380,4 +1348,3 @@ class OpenAIAdapter(BaseAdapter):
 __all__ = [
     "OpenAIAdapter",
 ]
-

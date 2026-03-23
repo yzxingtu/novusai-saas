@@ -6,6 +6,19 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { novusPluginsLoader } from '../../../build/vite-plugin-novus-plugins';
 
+function invokePluginHook<TArgs extends unknown[], TResult>(
+  hook:
+    | ((...args: TArgs) => TResult)
+    | { handler: (...args: TArgs) => TResult }
+    | undefined,
+  ...args: TArgs
+): TResult | undefined {
+  if (!hook) {
+    return undefined;
+  }
+  return typeof hook === 'function' ? hook(...args) : hook.handler(...args);
+}
+
 function createPluginFixture(): { cleanup: () => void; pluginsDir: string; srcEntry: string } {
   const root = mkdtempSync(join(tmpdir(), 'novus-plugin-dev-'));
   const pluginsDir = join(root, 'backend', 'plugins');
@@ -86,7 +99,11 @@ describe('vite-plugin-novus-plugins', () => {
     cleanups.push(fixture.cleanup);
 
     const plugin = novusPluginsLoader({ pluginsDir: fixture.pluginsDir });
-    const configResult = plugin.config?.({}, { command: 'serve', mode: 'development' });
+    const configResult = invokePluginHook(
+      plugin.config,
+      {},
+      { command: 'serve', mode: 'development' },
+    );
 
     expect(configResult).toEqual({
       optimizeDeps: {
@@ -105,7 +122,7 @@ describe('vite-plugin-novus-plugins', () => {
     cleanups.push(fixture.cleanup);
 
     const plugin = novusPluginsLoader({ pluginsDir: fixture.pluginsDir });
-    plugin.configResolved?.({
+    invokePluginHook(plugin.configResolved, {
       build: { outDir: 'dist' },
       command: 'serve',
       logger: {
@@ -123,7 +140,7 @@ describe('vite-plugin-novus-plugins', () => {
       .mockResolvedValue({ code: 'export const DemoPage = {};' });
     const watcherAdd = vi.fn();
 
-    plugin.configureServer?.({
+    invokePluginHook(plugin.configureServer, {
       middlewares: {
         use(handler: typeof middleware) {
           middleware = handler;
@@ -174,7 +191,7 @@ describe('vite-plugin-novus-plugins', () => {
     rmSync(fixture.srcEntry);
 
     const plugin = novusPluginsLoader({ pluginsDir: fixture.pluginsDir });
-    plugin.configResolved?.({
+    invokePluginHook(plugin.configResolved, {
       build: { outDir: 'dist' },
       command: 'serve',
       logger: {
@@ -190,7 +207,7 @@ describe('vite-plugin-novus-plugins', () => {
     const transformRequest = vi.fn();
     const next = vi.fn();
 
-    plugin.configureServer?.({
+    invokePluginHook(plugin.configureServer, {
       middlewares: {
         use(handler: typeof middleware) {
           middleware = handler;

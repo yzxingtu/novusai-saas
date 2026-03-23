@@ -175,3 +175,21 @@ def purge_migration_bytecode(
                 )
 
     return removed_paths
+
+
+def should_purge_migration_bytecode_for_startup(*, debug: bool) -> bool:
+    """
+    Decide whether startup should purge migration bytecode.
+    / 判断启动阶段是否应清理迁移字节码。
+
+    In local DEBUG mode this app starts with reload enabled. Deleting ``.pyc``
+    files under migration directories can trigger a file-watch reload and
+    interrupt the Alembic subprocess mid-startup on Windows. To keep startup
+    stable, DEBUG startup skips the purge and only keeps the purge for
+    non-debug paths such as production boot or explicit CLI migration runs.
+    / 本项目本地 DEBUG 启动默认开启 reload。若在启动阶段删除迁移目录下的
+    ``.pyc``，可能触发文件监听重载，在 Windows 开发环境中打断 Alembic
+    子进程。为保证启动稳定，DEBUG 启动跳过该清理；非 DEBUG 路径（如生产启
+    动或显式 CLI 迁移）仍保留清理能力。
+    """
+    return not debug

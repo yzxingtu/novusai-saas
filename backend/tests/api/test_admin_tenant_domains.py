@@ -363,7 +363,7 @@ class ManualTestAdminTenantDomains(BaseAPITest):
             "username": config.ADMIN_USERNAME,
             "password": config.ADMIN_PASSWORD,
         })
-        data = resp.json()
+        data = assert_success(resp, "平台管理员登录失败")
         self.client.set_token(data["data"]["access_token"])
 
     def _create_test_tenant(self) -> None:
@@ -376,9 +376,7 @@ class ManualTestAdminTenantDomains(BaseAPITest):
             "plan": "basic",
             "quota": {"max_users": 100},
         })
-        data = resp.json()
-        if data.get("code") != 0:
-            raise AssertionError(f"创建测试企业失败: {data.get('message')}")
+        data = assert_success(resp, "创建测试企业失败")
 
         self._test_data["created_tenant_id"] = data["data"]["id"]
         self._test_data["created_tenant_code"] = data["data"]["code"]

@@ -69,6 +69,27 @@ Additional host truths discovered during that validation:
   - `backend/app/api/admin/plugins.py`
   - `backend/app/main.py`
 
+## Latest Follow-up
+
+Additional code-level reconciliation was completed on 2026-03-24:
+
+- plugin startup restore now re-syncs plugin periodic tasks into `periodic_tasks`, so Celery Beat can still see workflow-orchestration tasks after process restart:
+  - `backend/app/plugins/startup.py`
+  - `backend/tests/test_plugin_startup_restore_modes.py`
+- workflow-orchestration module settings no longer report already-delivered capabilities as deferred:
+  - removed stale deferred flags for `runtime_state_machine`, `tenant_runtime_routes`, and `frontend_pages`
+  - current deferred list now only keeps host settings UI and hosted trigger execution entrypoints
+  - files:
+    - `backend/plugins/workflow-orchestration/backend/models/presets.py`
+    - `backend/plugins/workflow-orchestration/backend/tests/runtime/test_module_config_truth.py`
+
+Residual truth after this follow-up:
+
+- plugin frontend pages, menu grouping, locale registration, and tenant/admin routes are already on the real runtime path
+- plugin admin API permission gating is already closed at dispatcher level and now follows host admin RBAC
+- startup restore covers enabled-plugin migration replay and periodic-task re-sync, but does not itself imply a fresh permission re-sync
+- workflow runtime/model enum naming drift still exists; current execution truth lives in `backend/plugins/workflow-orchestration/backend/runtime/constants.py`, while `backend/plugins/workflow-orchestration/backend/models/enums.py` remains a partial historical subset
+
 Targeted regression validation after these host fixes:
 
 - `pytest backend/tests/test_plugin_lifecycle_license_gate.py backend/tests/test_plugin_license_verification_policy.py backend/tests/test_plugin_cli_operator_flow.py backend/tests/test_plugin_menu_action_compaction.py -q`
@@ -96,9 +117,12 @@ Targeted regression validation after these host fixes:
 
 ## Findings
 
-### F1. Host startup still auto-loads every repo plugin migration, not just installed/enabled plugins
+### F1. Historical blocker: host startup previously auto-loaded every repo plugin migration
 
-Current host startup migration bootstrap scans `backend/plugins/*/backend/migrations/versions` and injects every discovered path into `version_locations`.
+Original problem before the later host migration standardization:
+
+- startup and migration bootstrap used repo-wide plugin discovery semantics
+- this could make a source-only plugin influence migration graph resolution too early
 
 Impact:
 
@@ -109,13 +133,14 @@ Impact:
 Relevant files:
 
 - `backend/app/core/database.py`
-- `backend/app/plugins/startup.py`
+- `backend/app/plugins/migration_paths.py`
 - `backend/app/plugins/lifecycle.py`
+- `backend/migrations/env.py`
 
 Status:
 
-- identified
-- intentionally not changed in this round because it requires host-level platform behavior changes, not plugin-only changes
+- resolved later in this audit sequence by switching migration path resolution to DB-registered plugins
+- current operator path should be read from the "Late Update" section, not from this historical finding heading
 
 ### F2. Raw Alembic CLI and startup/plugin lifecycle do not resolve the same revision graph
 
