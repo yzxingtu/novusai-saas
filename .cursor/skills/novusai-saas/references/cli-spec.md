@@ -32,6 +32,7 @@ novusai = "app.cli:cli"
 | `novusai plugin` | create, validate, build, pack, list, cleanup, sync-manifest, activate-license, enable, assign-tenant | 插件管理 |
 | `novusai license` | generate, verify, keygen | License 管理 |
 | `novusai codegen` | generate, preview, validate, rollback, versions, restore, list, show, import, export, delete, duplicate, presets, init, history, download | 代码生成器 |
+| `novusai trace` | show | 根据 `trace_id` 查询操作日志与文件日志上下文 |
 | `novusai check` | all, db, redis, celery | 环境连通性检查 |
 | `novusai info` | - | 版本/环境/配置摘要 |
 
@@ -146,7 +147,34 @@ novusai check redis
 novusai check celery
 ```
 
-### 3.8 novusai info
+### 3.8 novusai trace
+
+```bash
+novusai trace show <trace_id> [--source auto|db|logs|all] [--json]
+                    [--context 20] [--max-blocks 10] [--since-hours 72]
+                    [--no-redact] [--unsafe]
+```
+
+- 用途：根据 `trace_id` 聚合两类信息
+  - `system.operation_logs` 中的同 trace 审计日志
+  - `LOG_DIR` 下 `*.log*` 中的命中日志块
+- `--source auto` 默认值：
+  - 先尝试 DB + 日志
+  - 若 DB lookup 异常，则自动回退到仅日志文件扫描
+- `--context`：命中行前后文
+- `--max-blocks`：最多返回多少段日志块
+- `--since-hours`：只扫描最近 N 小时修改过的日志文件；传 `<=0` 取消时间过滤
+- `--json`：输出 JSON，适合脚本、工单系统或自动化采集
+- `--no-redact`：关闭脱敏
+- 生产 / 预发环境中，若要关闭脱敏，必须同时满足：
+  - `--unsafe`
+  - `NOVUSAI_ALLOW_UNSAFE_TRACE=1`
+- 退出码约定：
+  - `0`：找到命中
+  - `1`：未找到命中
+  - `2`：unsafe 输出被阻断
+
+### 3.9 novusai info
 
 ```bash
 novusai info

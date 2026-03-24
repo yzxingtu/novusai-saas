@@ -182,12 +182,33 @@ export interface ReconciliationRunChargeFilters {
   tenant_id?: number;
 }
 
+export interface ChargeRowDetailItem {
+  account_identifier?: null | string;
+  amount_total?: string;
+  bucket_name?: null | string;
+  charge_basis?: string;
+  currency?: string;
+  details_json?: Record<string, unknown>;
+  domain_name?: null | string;
+  resource_id?: null | string;
+  resource_name?: null | string;
+  tag_values?: Record<string, unknown>;
+  usage_bytes?: number;
+}
+
+export interface ChargeRowDetails {
+  binding_ids?: number[];
+  item_count?: number;
+  items?: ChargeRowDetailItem[];
+  scope_values?: string[];
+}
+
 export interface ReconciliationChargeRow {
   amount_total: string;
   billing_date: string;
   charge_basis: string;
   currency: string;
-  details?: Record<string, unknown>;
+  details?: ChargeRowDetails;
   driver_code: string;
   id: number;
   period_end?: string;
@@ -391,7 +412,7 @@ export interface TenantStatementChargeRow {
   billing_date: string;
   charge_basis: string;
   currency: string;
-  details?: Record<string, unknown>;
+  details?: ChargeRowDetails;
   driver_code?: string;
   id?: number;
   period_end?: string;
@@ -451,6 +472,7 @@ export interface TenantPrerequisitesResponse {
     plan_id?: number;
     storage_billing_enabled: boolean;
   };
+  platform_storage_context?: StorageContextSnapshot;
   prerequisites: {
     charge_local_storage: boolean;
     current_driver: string;
@@ -458,6 +480,8 @@ export interface TenantPrerequisitesResponse {
     feature_enabled: boolean;
     missing_reasons: string[];
     ready: boolean;
+    tenant_effective_driver?: string;
+    tenant_storage_mode?: string;
   };
   provider_profiles: ProviderProfilesResponse;
   provider_capabilities?: Record<string, ProviderCapabilitySnapshot>;

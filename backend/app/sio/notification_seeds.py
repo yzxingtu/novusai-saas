@@ -21,7 +21,7 @@ logger = LogManager.get_logger("app")
 # title_template / body_template support {variable} placeholders, rendered by NotificationService._render_template
 # title_template / body_template 支持 {variable} 占位符，由 NotificationService._render_template 渲染
 SEED_TEMPLATES: list[dict] = [
-    # ===== system (7) =====
+    # ===== system (7) / 系统类 7 条 =====
     {
         "code": "system.announcement",
         "category": "system",
@@ -78,7 +78,7 @@ SEED_TEMPLATES: list[dict] = [
         "channels": ["inbox", "email"],
         "priority": "high",
     },
-    # ===== ai (5) =====
+    # ===== ai (5) / AI 类 5 条 =====
     {
         "code": "ai.batch_progress",
         "category": "ai",
@@ -127,7 +127,7 @@ SEED_TEMPLATES: list[dict] = [
         "channels": ["ws", "inbox", "email", "webhook"],
         "priority": "high",
     },
-    # ===== task (1) =====
+    # ===== task (1) / 任务类 1 条 =====
     {
         "code": "task.failed",
         "category": "task",
@@ -136,7 +136,7 @@ SEED_TEMPLATES: list[dict] = [
         "channels": ["ws", "inbox"],
         "priority": "high",
     },
-    # ===== biz (7) =====
+    # ===== biz (7) / 业务类 7 条 =====
     {
         "code": "biz.plugin_installed",
         "category": "biz",

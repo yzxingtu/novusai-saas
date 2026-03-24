@@ -74,13 +74,13 @@ def run_alembic_downgrade(plugin_name: str, plugin_safe: str) -> None:
         text=True,
     )
     if r.returncode == 0:
-        print(f"  ✅ Alembic downgrade OK  →  plugin_{plugin_safe} 表已删除")
+        print(f"  [OK] Alembic downgrade OK -> plugin_{plugin_safe} tables removed")
     else:
         stderr = r.stderr.strip()[-600:]
         if "already at base" in stderr or "No such revision" in stderr:
-            print(f"  ℹ️  Alembic: 已在 base（插件表本来就不存在）")
+            print("  [INFO] Alembic already at base")
         else:
-            print(f"  ⚠️  Alembic downgrade warning:\n{stderr}")
+            print(f"  [WARN] Alembic downgrade warning:\n{stderr}")
 
 
 def connect():
@@ -102,14 +102,14 @@ def execute_step(cur, conn, sql: str, label: str) -> None:
         cur.execute(sql)
         count = cur.rowcount
         conn.commit()
-        print(f"  ✅  {label}: {count} row(s) deleted")
+        print(f"  [OK]  {label}: {count} row(s) deleted")
     except Exception as exc:
         conn.rollback()
         # 表不存在时静默跳过（插件从未安装时正常）
         if "does not exist" in str(exc) or "relation" in str(exc).lower():
-            print(f"  ℹ️  {label}: table/relation not found (skipped)")
+            print(f"  [INFO]  {label}: table/relation not found (skipped)")
         else:
-            print(f"  ⚠️  {label}: {exc}")
+            print(f"  [WARN]  {label}: {exc}")
 
 
 def clean_db(plugin_name: str, plugin_safe: str, revision_ids: list[str] | None) -> None:
@@ -233,12 +233,12 @@ def clean_filesystem(plugin_name: str) -> None:
         path_native = path.replace("/", "\\") if "\\" in PROJECT_ROOT_STR else path
         if os.path.isdir(path_native):
             shutil.rmtree(path_native, ignore_errors=True)
-            print(f"  🗑️  Removed dir:  {label}")
+            print(f"  [DEL] Removed dir:  {label}")
         elif os.path.isfile(path_native):
             os.remove(path_native)
-            print(f"  🗑️  Removed file: {label}")
+            print(f"  [DEL] Removed file: {label}")
         else:
-            print(f"  ℹ️  Not found:    {label}")
+            print(f"  [INFO] Not found:    {label}")
 
 
 if __name__ == "__main__":
@@ -258,10 +258,10 @@ if __name__ == "__main__":
     try:
         clean_db(plugin_name, plugin_safe, revision_ids)
     except ImportError:
-        print("  ⚠️  psycopg2 未安装，请手动执行以下 SQL：")
+        print("  [WARN] psycopg2 not installed, run the SQL below manually:")
         print(build_manual_sql(plugin_name, plugin_safe, revision_ids))
     except Exception as exc:
-        print(f"  ❌ DB cleanup error: {exc}")
+        print(f"  [ERROR] DB cleanup error: {exc}")
         import traceback
         traceback.print_exc()
 
@@ -269,10 +269,9 @@ if __name__ == "__main__":
     try:
         clean_filesystem(plugin_name)
     except Exception as exc:
-        print(f"  ⚠️  Filesystem cleanup warning: {exc}")
+        print(f"  [WARN] Filesystem cleanup warning: {exc}")
 
     print(f"\n{'=' * 50}")
-    print("  清理完成 — 现在可以重新安装/测试插件了")
-    print("  重新安装: 在管理端插件页面执行「安装」")
-    print("  重建前端: cd frontend && npm install && npx vite build")
+    print("  Cleanup completed")
+    print("  You can now reinstall or retest the plugin if needed")
     print(f"{'=' * 50}\n")

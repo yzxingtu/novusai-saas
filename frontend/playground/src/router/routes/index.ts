@@ -16,6 +16,7 @@ const dynamicRouteFiles = import.meta.glob('./modules/**/*.ts', {
 const dynamicRoutes: RouteRecordRaw[] = mergeRouteModules(dynamicRouteFiles);
 
 /** 外部路由列表，访问这些页面可以不需要Layout，可能用于内嵌在别的系统(不会显示在菜单中) */
+// 外部与静态路由合并（注释样例）/ Merge external & static modules (commented sample)
 // const externalRoutes: RouteRecordRaw[] = mergeRouteModules(externalRouteFiles);
 // const staticRoutes: RouteRecordRaw[] = mergeRouteModules(staticRouteFiles);
 const staticRoutes: RouteRecordRaw[] = [];

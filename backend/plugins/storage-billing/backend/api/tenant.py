@@ -13,6 +13,8 @@ async def get_current_statement(request: Request, ctx) -> dict:
     """Return current tenant statement snapshot. / 返回当前企业账单快照。"""
     period_type = parse_optional_period_type(request.query_params.get("period_type"))
     billing_date = parse_optional_billing_date(request.query_params.get("billing_date"))
+    binding_service = StorageBillingBindingService.from_context(ctx)
+    await binding_service.ensure_tenant_billing_ready(ctx.get_current_tenant_id())
 
     service = StorageBillingOverviewService.from_context(ctx)
     kwargs = {
@@ -34,6 +36,8 @@ async def list_statements(request: Request, ctx) -> dict:
         limit = int(raw_limit)
     except (TypeError, ValueError):
         limit = 30
+    binding_service = StorageBillingBindingService.from_context(ctx)
+    await binding_service.ensure_tenant_billing_ready(ctx.get_current_tenant_id())
 
     service = StorageBillingOverviewService.from_context(ctx)
     return await service.list_tenant_statements(
@@ -46,6 +50,8 @@ async def list_statement_charges(request: Request, ctx) -> dict:
     """Return tenant charges for a billing date. / 返回企业指定账期明细。"""
     period_type = parse_optional_period_type(request.query_params.get("period_type"))
     billing_date = parse_optional_billing_date(request.query_params.get("billing_date"))
+    binding_service = StorageBillingBindingService.from_context(ctx)
+    await binding_service.ensure_tenant_billing_ready(ctx.get_current_tenant_id())
 
     service = StorageBillingOverviewService.from_context(ctx)
     kwargs = {
@@ -61,6 +67,8 @@ async def export_statement_charges(request: Request, ctx):
     """Export tenant charges for a billing date. / 导出企业指定账期明细。"""
     period_type = parse_optional_period_type(request.query_params.get("period_type"))
     billing_date = parse_optional_billing_date(request.query_params.get("billing_date"))
+    binding_service = StorageBillingBindingService.from_context(ctx)
+    await binding_service.ensure_tenant_billing_ready(ctx.get_current_tenant_id())
 
     service = StorageBillingOverviewService.from_context(ctx)
     kwargs = {

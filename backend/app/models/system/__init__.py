@@ -16,12 +16,13 @@ from app.models.system.config import (
 )
 from app.models.system.email_log import EmailLog
 from app.models.system.operation_log import OperationLog
-from app.models.system.periodic_task import PeriodicTask
 from app.models.system.plugin import Plugin
 from app.models.system.plugin_license import PluginLicense
 from app.models.system.plugin_version import PluginVersion
 from app.models.system.resource_tenant_assignment import ResourceTenantAssignment
-from app.models.system.task_log import TaskLog
+from app.models.system.task_definition import TaskDefinition
+from app.models.system.task_run import TaskRun
+from app.models.system.tenant_task_binding import TenantTaskBinding
 
 __all__ = [
     "Admin",
@@ -31,8 +32,9 @@ __all__ = [
     "SystemConfig",
     "SystemConfigValue",
     "OperationLog",
-    "TaskLog",
-    "PeriodicTask",
+    "TaskDefinition",
+    "TenantTaskBinding",
+    "TaskRun",
     "SystemAgentAssignment",
     "EmailLog",
     "Plugin",

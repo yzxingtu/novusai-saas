@@ -77,7 +77,6 @@ from app.models.system import (
     CodegenConfig,
     CodegenConfigVersion,
     OperationLog,
-    PeriodicTask,
     Plugin,
     PluginLicense,
     PluginVersion,
@@ -86,7 +85,9 @@ from app.models.system import (
     SystemConfig,
     SystemConfigGroup,
     SystemConfigValue,
-    TaskLog,
+    TaskDefinition,
+    TaskRun,
+    TenantTaskBinding,
 )
 
 # 系统模型（补充）/ System models (supplement)
@@ -111,8 +112,9 @@ __all__ = [
     "SystemConfig",
     "SystemConfigValue",
     "OperationLog",
-    "TaskLog",
-    "PeriodicTask",
+    "TaskDefinition",
+    "TenantTaskBinding",
+    "TaskRun",
     # 企业级 / Tenant
     "Tenant",
     "TenantAdmin",
@@ -122,7 +124,7 @@ __all__ = [
     "TenantPlan",
     "tenant_plan_permissions",
     "Attachment",
-    # RBAC / RBAC
+    # RBAC / 基于角色的访问控制
     "Permission",
     "AdminRole",
     "admin_role_permissions",
@@ -138,14 +140,14 @@ __all__ = [
     "TenantOrgNode",
     "TenantOrgScopePolicy",
     "TenantOrgScopeTarget",
-    # AI
+    # AI / 模型与用量等 AI 基础表
     "AIProvider",
     "AIModel",
     "ProviderApiKey",
     "AICallLog",
     "TenantModelRateLimit",
     "TenantQuota",
-    # 智能体
+    # 智能体 / Agents
     "Agent",
     "AgentConversation",
     "ConversationMessage",

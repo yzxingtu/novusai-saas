@@ -58,11 +58,11 @@ async function handleLogin(values: Record<string, unknown>) {
   );
 
   if (result.userInfo) {
-    // 登录成功，authLogin 内部已处理 setLoginExpired(false)
+    // 登录成功，authLogin 内部已处理 setLoginExpired(false) / Login OK; expired flag cleared in authLogin
     return;
   }
 
-  // 登录失败：若后端要求验证码，关闭弹窗并跳转完整登录页
+  // 登录失败：若后端要求验证码，关闭弹窗并跳转完整登录页 / Captcha required → full login page
   if (result.captchaRequired) {
     accessStore.setLoginExpired(false);
     router.push(getLoginPath(endpoint.value));

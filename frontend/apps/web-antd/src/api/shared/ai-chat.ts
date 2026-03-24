@@ -82,7 +82,7 @@ export interface SSEOptions {
 
 type ChatUploadEndpoint = 'admin' | 'tenant' | 'user';
 
-// ============ API Functions ============
+// ============ API Functions / 接口函数 ============
 
 function chatBaseUrl(apiPrefix: string): string {
   return `${apiPrefix}/ai/agent-chat`;
@@ -333,7 +333,7 @@ export async function routeMessageApi(
   );
 }
 
-// ============ Agent KB Bindings ============
+// ============ Agent KB Bindings / 智能体知识库绑定 ============
 
 export interface ChatKBBindingInfo {
   id: number;

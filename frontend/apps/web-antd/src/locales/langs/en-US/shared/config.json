@@ -12,29 +12,34 @@
   },
   "group": {
     "platform_general": "General Settings",
+    "platform_domain": "Domain Settings",
     "platform_security": "Security Settings",
     "platform_email": "Email Settings",
     "platform_ssl": "SSL Certificate Management",
     "platform_ai_toolkit": "AI Toolkit & Page Context",
     "tenant_appearance": "Appearance",
     "tenant_general": "Security",
-    "tenant_features": "Members"
+    "tenant_registration": "Registration & Legal",
+    "tenant_features": "Member Features"
   },
   "group_desc": {
     "platform_general": "Site info, maintenance mode, etc.",
+    "platform_domain": "Tenant domain suffix and custom-domain verification settings",
     "platform_security": "Password policy, login security, etc.",
     "platform_email": "SMTP email delivery configuration",
     "platform_ssl": "ACME certificate issuance, DNS provider, renewal policy",
     "platform_ai_toolkit": "Toolkit security policies, resource limits, and AI chat page-context size limits",
     "tenant_appearance": "Logo, login page branding",
     "tenant_general": "Login security, password policy, session settings",
-    "tenant_features": "Registration, notifications, file upload and other member features"
+    "tenant_registration": "User registration flow, default role, privacy policy and terms settings",
+    "tenant_features": "Notifications, profile editing, file upload and other member feature toggles"
   },
   "platform": {
     "site_name": "Site Name",
     "site_description": "Site Description",
     "site_logo": "Site Logo",
     "site_favicon": "Site Favicon",
+    "logo_dark": "Site Dark Logo",
     "site_copyright": "Copyright",
     "site_icp": "ICP Number",
     "maintenance_mode": "Maintenance Mode",
@@ -109,10 +114,12 @@
   "tenant": {
     "tenant_logo": "Tenant Logo",
     "tenant_favicon": "Tenant Favicon",
+    "tenant_logo_dark": "Tenant Dark Logo",
     "tenant_login_bg": "Login Background",
     "tenant_login_title": "Login Title",
     "tenant_login_subtitle": "Login Subtitle",
     "tenant_footer_copyright": "Footer Copyright",
+    "tenant_icp": "ICP Filing Number",
     "tenant_captcha_enabled": "Enable Captcha",
     "tenant_login_methods": "Login Methods",
     "tenant_login_max_attempts": "Max Login Attempts",
@@ -129,7 +136,9 @@
     "tenant_file_upload": "File Upload"
   },
   "tenant_desc": {
-    "tenant_logo": "Logo displayed in tenant admin panel"
+    "tenant_logo": "Logo displayed in tenant admin panel",
+    "tenant_logo_dark": "Preferred tenant logo when dark theme is active",
+    "tenant_icp": "Tenant-specific filing number; falls back to the platform default when empty"
   },
   "tenant_options": {
     "tenant_login_methods": {

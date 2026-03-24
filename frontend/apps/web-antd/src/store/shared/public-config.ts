@@ -18,10 +18,12 @@ import {
   getPlatformPublicConfigApi,
   getTenantPublicConfigApi,
 } from '#/api/public/config';
+import { overridesPreferences } from '#/preferences';
 import {
   ensureCaptchaPluginReady,
   fallbackToBuiltinCaptcha,
 } from '#/utils/captcha-plugin';
+import { mergeBrandConfig } from '#/utils/public-branding';
 
 /**
  * Update page head info (Favicon, Meta Description)
@@ -55,6 +57,11 @@ function updateHead(brand: BrandConfig) {
 
 const BRAND_CONFIG_CACHE_KEY = '__applied_brand_config__';
 
+const DEFAULT_BRAND_CONFIG: BrandConfig = {
+  copyright: overridesPreferences.copyright.companyName,
+  siteName: overridesPreferences.app.name,
+};
+
 /**
  * Apply brand config to global preferences / 应用品牌配置到全局偏好设置
  *
@@ -68,7 +75,11 @@ function applyBrandConfig(brand: BrandConfig) {
   updatePreferences({
     app: { name: brand.siteName },
     logo: { source: brand.logo, sourceDark: brand.logoDark },
-    copyright: { companyName: brand.copyright, icp: brand.icp },
+    copyright: {
+      companyName: brand.copyright,
+      companySiteLink: '',
+      icp: brand.icp,
+    },
   });
 
   const brandSnapshot = JSON.stringify({
@@ -88,6 +99,36 @@ function applyBrandConfig(brand: BrandConfig) {
   }
 
   updateHead(brand);
+}
+
+function resetHead(): void {
+  const favicon = document.querySelector(
+    "link[rel~='icon']",
+  ) as HTMLLinkElement | null;
+  if (favicon) {
+    favicon.remove();
+  }
+
+  const description = document.querySelector(
+    "meta[name='description']",
+  ) as HTMLMetaElement | null;
+  if (description) {
+    description.remove();
+  }
+}
+
+function resetAppliedBrandConfig(): void {
+  updatePreferences({
+    app: { name: DEFAULT_BRAND_CONFIG.siteName },
+    logo: { source: undefined, sourceDark: undefined },
+    copyright: {
+      companyName: DEFAULT_BRAND_CONFIG.copyright,
+      companySiteLink: '',
+      icp: '',
+    },
+  });
+  localStorage.removeItem(BRAND_CONFIG_CACHE_KEY);
+  resetHead();
 }
 
 async function prepareTenantCaptchaPlugin(
@@ -140,6 +181,11 @@ interface PublicConfigState {
 interface LoadTenantConfigOptions {
   /** Skip domain guard when domain detection already proved the host is tenant-facing. / 已确认当前域名属于企业侧时跳过域名守卫 */
   skipDomainCheck?: boolean;
+}
+
+interface LoadPlatformConfigOptions {
+  /** Apply brand config after loading / 加载后是否应用品牌配置 */
+  applyBrand?: boolean;
 }
 
 // ============================================================
@@ -288,21 +334,35 @@ export const usePublicConfigStore = defineStore('publicConfig', {
      * Load platform public config (called only on first access)
      * 加载平台公开配置（仅首次访问时调用）
      */
-    async loadPlatformConfig(): Promise<null | PlatformPublicConfig> {
+    async loadPlatformConfig(
+      options: LoadPlatformConfigOptions = {},
+    ): Promise<null | PlatformPublicConfig> {
+      const { applyBrand = true } = options;
       // If already loaded, return cached / 如果已加载，返回缓存
       if (this.platformConfigLoaded && this.platformConfig) {
+        if (applyBrand) {
+          applyBrandConfig(this.platformConfig.brand);
+        }
         return this.platformConfig;
       }
 
       // Deduplicate: reuse in-flight request / 去重：复用正在进行的请求
       if (_platformConfigPromise) {
-        return _platformConfigPromise;
+        const config = await _platformConfigPromise;
+        if (config && applyBrand) {
+          applyBrandConfig(config.brand);
+        }
+        return config;
       }
 
       _platformConfigPromise = this._doLoadPlatformConfig();
-      return _platformConfigPromise.finally(() => {
+      const config = await _platformConfigPromise.finally(() => {
         _platformConfigPromise = null;
       });
+      if (config && applyBrand) {
+        applyBrandConfig(config.brand);
+      }
+      return config;
     },
 
     async _doLoadPlatformConfig(): Promise<null | PlatformPublicConfig> {
@@ -318,9 +378,6 @@ export const usePublicConfigStore = defineStore('publicConfig', {
         }
         this.platformConfig = config;
         this.platformConfigLoaded = true;
-
-        // Apply brand config / 应用品牌配置
-        applyBrandConfig(config.brand);
 
         return config;
       } catch (error) {
@@ -376,15 +433,22 @@ export const usePublicConfigStore = defineStore('publicConfig', {
       this.error = null;
 
       try {
+        const platformConfig =
+          this.platformConfig ??
+          (await this.loadPlatformConfig({ applyBrand: false }));
         const config = await prepareTenantCaptchaPlugin(
           await getTenantPublicConfigApi(),
         );
-        this.tenantConfig = config;
+        const mergedConfig: TenantPublicConfig = {
+          ...config,
+          brand: mergeBrandConfig(platformConfig?.brand, config.brand),
+        };
+        this.tenantConfig = mergedConfig;
         this.tenantConfigLoaded = true;
 
-        applyBrandConfig(config.brand);
+        applyBrandConfig(mergedConfig.brand);
 
-        return config;
+        return mergedConfig;
       } catch (error) {
         this.error =
           error instanceof Error ? error.message : 'Failed to load config';
@@ -436,7 +500,9 @@ export const usePublicConfigStore = defineStore('publicConfig', {
       }
 
       // ── Layer 2: Platform public config API / 平台公开配置 API ───────────
-      const platformConfig = await this.loadPlatformConfig();
+      const platformConfig = await this.loadPlatformConfig({
+        applyBrand: false,
+      });
       if (platformConfig) {
         // 2a: Check platformDomains list / 检查 platformDomains 列表
         const apiDomains = platformConfig.platformDomains.map((d) =>
@@ -445,6 +511,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
         if (apiDomains.includes(hostname.toLowerCase())) {
           this.isDomainTenantDomain = false;
           this.isDomainDetected = true;
+          applyBrandConfig(platformConfig.brand);
           return;
         }
 
@@ -466,9 +533,12 @@ export const usePublicConfigStore = defineStore('publicConfig', {
         );
         this.isDomainTenantDomain = true;
         if (!this.tenantConfig) {
-          this.tenantConfig = tenantConfig;
+          this.tenantConfig = {
+            ...tenantConfig,
+            brand: mergeBrandConfig(platformConfig?.brand, tenantConfig.brand),
+          };
           this.tenantConfigLoaded = true;
-          applyBrandConfig(tenantConfig.brand);
+          applyBrandConfig(this.tenantConfig.brand);
         }
         this.isDomainDetected = true;
       } catch (error) {
@@ -482,10 +552,16 @@ export const usePublicConfigStore = defineStore('publicConfig', {
           // Tenant not found → platform domain / 企业不存在
           this.isDomainTenantDomain = false;
           this.isDomainDetected = true;
+          if (platformConfig) {
+            applyBrandConfig(platformConfig.brand);
+          }
         } else if (httpStatus && httpStatus >= 400 && httpStatus < 500) {
           // Other client errors (e.g. 403) also mark as non-tenant domain / 其他客户端错误
           this.isDomainTenantDomain = false;
           this.isDomainDetected = true;
+          if (platformConfig) {
+            applyBrandConfig(platformConfig.brand);
+          }
         }
         // Network/500 errors: isDomainDetected stays false, retry on next nav / 网络错误不标记
       }
@@ -498,6 +574,11 @@ export const usePublicConfigStore = defineStore('publicConfig', {
       this.platformConfig = null;
       this.platformConfigLoaded = false;
       localStorage.removeItem(BRAND_CONFIG_CACHE_KEY);
+      if (this.tenantConfigLoaded && this.tenantConfig) {
+        applyBrandConfig(this.tenantConfig.brand);
+        return;
+      }
+      resetAppliedBrandConfig();
     },
 
     /**
@@ -507,6 +588,11 @@ export const usePublicConfigStore = defineStore('publicConfig', {
       this.tenantConfig = null;
       this.tenantConfigLoaded = false;
       localStorage.removeItem(BRAND_CONFIG_CACHE_KEY);
+      if (this.platformConfigLoaded && this.platformConfig) {
+        applyBrandConfig(this.platformConfig.brand);
+        return;
+      }
+      resetAppliedBrandConfig();
     },
 
     /**
@@ -527,6 +613,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
       this.isDomainTenantDomain = null;
       this.isDomainDetected = false;
       localStorage.removeItem(BRAND_CONFIG_CACHE_KEY);
+      resetAppliedBrandConfig();
     },
 
     /**

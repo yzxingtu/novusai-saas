@@ -138,7 +138,7 @@ class FormStateTrackerImpl {
           validationErrors = { _form: $t('shared.pageOperation.msg.formHasValidationErrors') };
         }
       } catch {
-        // Validation may throw if form is not ready
+        // Validation may throw if form is not ready / 表单未就绪时 validate 可能抛错
       }
     }
 

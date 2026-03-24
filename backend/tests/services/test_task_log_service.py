@@ -91,9 +91,9 @@ class TestTaskLogViewRouting:
 class TestTaskLogRepositoryFilters:
     @pytest.mark.asyncio
     async def test_query_list_excludes_selected_task_names(self, mock_db):
-        from app.repositories.system.task_log_repository import TaskLogRepository
+        from app.repositories.system.task_run_repository import TaskRunRepository
 
-        repo = TaskLogRepository(mock_db)
+        repo = TaskRunRepository(mock_db)
         mock_db.execute.side_effect = [
             make_scalar_result(0),
             make_scalars_result([]),
@@ -115,9 +115,9 @@ class TestTaskLogRepositoryFilters:
 
     @pytest.mark.asyncio
     async def test_query_list_includes_selected_task_names(self, mock_db):
-        from app.repositories.system.task_log_repository import TaskLogRepository
+        from app.repositories.system.task_run_repository import TaskRunRepository
 
-        repo = TaskLogRepository(mock_db)
+        repo = TaskRunRepository(mock_db)
         mock_db.execute.side_effect = [
             make_scalar_result(0),
             make_scalars_result([]),

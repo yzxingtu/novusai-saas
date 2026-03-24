@@ -3,8 +3,8 @@ Notification auto-cleanup scheduled task / 通知自动清理定时任务
 
 Cleans up expired notifications (physical delete) based on platform config notification_retention_days.
 根据平台配置 notification_retention_days 清理过期通知（物理删除）。
-Registered to the scheduling system via the periodic_tasks page.
-通过 periodic_tasks 页面注册到调度系统。
+Registered to the scheduling system via task definitions.
+通过任务定义注册到调度系统。
 """
 
 import contextlib

@@ -416,7 +416,7 @@ function isAgentSwitch(idx: number): boolean {
   return false;
 }
 
-// ============ Agent Router ============
+// ============ Agent Router / 智能体路由 ============
 
 const { routing, routeMessage } = useAgentRouter({
   apiPrefix: toRef(props, 'apiPrefix'),
@@ -1372,7 +1372,7 @@ function onStartNewChatWithAgent(agentId: number) {
   );
 }
 
-// ============ Panel Controls ============
+// ============ Panel Controls / 面板控制 ============
 
 const panelRef = ref<HTMLElement | null>(null);
 
@@ -1626,9 +1626,15 @@ function onDragStart(e: MouseEvent) {
 
 // ============ External message handling / 外部消息处理 ============
 
+const hasQueuedConversationRestore = computed(
+  () =>
+    typeof props.pendingConversationId === 'number' &&
+    Number.isFinite(props.pendingConversationId),
+);
+
 const hasQueuedExternalContext = computed(() => {
   const queuedMessage = props.pendingMessage?.trim();
-  return Boolean(props.pendingConversationId) || Boolean(queuedMessage);
+  return hasQueuedConversationRestore.value || Boolean(queuedMessage);
 });
 
 const applyingExternalContext = ref(false);
@@ -1691,13 +1697,17 @@ watch(
         !hasQueuedExternalContext.value &&
         (activeConversationId.value !== null || chatMessages.value.length > 0);
 
-      if (shouldResumeExistingConversation) {
+      if (
+        shouldResumeExistingConversation ||
+        hasQueuedConversationRestore.value
+      ) {
         manualNewConversationAgentId.value = null;
       } else {
         manualNewConversationAgentId.value = pendingId ?? null;
         // Only clear state when this open action is explicitly starting a
-        // new routed conversation or restoring queued external context.
-        // 仅在显式开启新路由会话或恢复排队的外部上下文时清空状态 / see conditions above
+        // fresh routed conversation; queued conversation restore will own
+        // the state transition to avoid clearing restored history in a race.
+        // 仅在显式开启全新路由会话时清空状态；恢复排队会话由恢复逻辑接管，避免竞态下把历史清空
         startNewConversation(true);
       }
       showHistory.value = false;
@@ -1764,8 +1774,11 @@ onMounted(() => {
   loadSavedWidth();
   if (aiPanelStore.visible) {
     aiPanelStore.clearResolvedPageOps?.();
-    loadAgents();
-    loadConversations();
+    void (async () => {
+      await loadAgents();
+      await loadConversations();
+      await applyExternalContext();
+    })();
   }
   document.addEventListener('mousedown', onDocumentClick);
 });

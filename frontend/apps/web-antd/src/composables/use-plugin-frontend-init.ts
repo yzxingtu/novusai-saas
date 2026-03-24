@@ -172,7 +172,7 @@ async function syncPluginFrontendState(
       try {
         await existing;
       } catch {
-        // Let the caller retry with a fresh pass after the in-flight sync settles.
+        // Let the caller retry with a fresh pass after the in-flight sync settles. / 同步结束后由调用方重试
       }
 
       if (!forceRefresh) {

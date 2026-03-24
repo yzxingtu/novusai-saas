@@ -18,13 +18,13 @@ function generateMenus(
   routes: RouteRecordRaw[],
   router: Router,
 ): MenuRecordRaw[] {
-  // 将路由列表转换为一个以 name 为键的对象映射
+  // 将路由列表转换为一个以 name 为键的对象映射 / name → resolved path from router
   const finalRoutesMap: { [key: string]: string } = Object.fromEntries(
     router.getRoutes().map(({ name, path }) => [name, path]),
   );
 
   let menus = mapTree<ExRouteRecordRaw, MenuRecordRaw>(routes, (route) => {
-    // 获取最终的路由路径
+    // 获取最终的路由路径 / Prefer registered path over static path
     const path = finalRoutesMap[route.name as string] ?? route.path ?? '';
 
     const {
@@ -45,15 +45,15 @@ function generateMenus(
       title = '',
     } = meta;
 
-    // 确保菜单名称不为空
+    // 确保菜单名称不为空 / Fallback title from route name
     const name = (title || routeName || '') as string;
 
-    // 处理子菜单
+    // 处理子菜单 / Hide or map children
     const resultChildren = hideChildrenInMenu
       ? []
       : ((children as MenuRecordRaw[]) ?? []);
 
-    // 设置子菜单的父子关系
+    // 设置子菜单的父子关系 / parent chain for breadcrumbs
     if (resultChildren.length > 0) {
       resultChildren.forEach((child) => {
         child.parents = [...(route.parents ?? []), path];
@@ -61,7 +61,7 @@ function generateMenus(
       });
     }
 
-    // 确定最终路径
+    // 确定最终路径 / External link or redirect when children hidden
     const resultPath = hideChildrenInMenu ? redirect || path : link || path;
 
     return {
@@ -80,10 +80,10 @@ function generateMenus(
     };
   });
 
-  // 对菜单进行排序，避免order=0时被替换成999的问题
+  // 对菜单进行排序，避免order=0时被替换成999的问题 / sortTree with stable default order 999
   menus = sortTree(menus, (a, b) => (a?.order ?? 999) - (b?.order ?? 999));
 
-  // 过滤掉隐藏的菜单项
+  // 过滤掉隐藏的菜单项 / Drop hideInMenu
   return filterTree(menus, (menu) => !!menu.show);
 }
 

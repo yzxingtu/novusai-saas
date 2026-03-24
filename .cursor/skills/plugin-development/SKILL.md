@@ -5,6 +5,23 @@ description: NovusAI 插件开发技能。用于修改 plugin.yaml、前端 runt
 
 # 插件开发技能
 
+## 先读最小手册
+
+开始任何插件开发、修复、审计之前，先读：
+
+- `.cursor/ai-plugin-minimum-playbook.md`
+
+这份最小手册优先解决 AI 最容易复发的错误：
+
+- 菜单不显示
+- 菜单未翻译
+- 页面能看到但进不去
+- 切语言后标题不更新
+- public asset 错端加载
+- release 打包后白屏
+
+如果最小手册与本技能正文冲突，以最小手册和 `.cursor/rules/plugin-system.md` 为准。
+
 ## 何时使用
 
 - 新建或重构 `backend/plugins/{plugin-name}/`
@@ -64,6 +81,7 @@ description: NovusAI 插件开发技能。用于修改 plugin.yaml、前端 runt
 - `publicEndpoint` 不是通用 side 选择器。
 - public asset 请求不得带 `Authorization` 头。
 - public asset 侧必须清理历史 `novus_plugin_asset_token` cookie。
+- 只要 public asset 请求仍携带历史 cookie，或响应没有主动清 cookie，都按未收口处理。
 - 如果调用方传入预前缀路径，路径必须与当前 `pluginName`、当前 scope 对齐；不对齐时必须 fail-close。
 
 ### 4. release manifest
@@ -73,6 +91,10 @@ description: NovusAI 插件开发技能。用于修改 plugin.yaml、前端 runt
 - release 契约文件固定为 `frontend/dist/plugin.manifest.json`。
 - `/plugins/slots` 返回的前端 slot 必须携带 `frontend_runtime`。
 - manifest 中声明的组件名，必须由插件前端入口真实导出。
+- install / enable / sync-manifest 运行时同样要校验：
+  - `pages[*].title` / `pages[*].menu.title` locale 完整
+  - 若 `frontend.dev.entry` 存在，则必须含 canonical locale prefix
+  - 若 `frontend.dev.entry` 存在，则必须导出 manifest 声明组件
 - 声明了 `release.manifest` 却没有产出 `frontend/dist/plugin.manifest.json`，按失败处理，不得降级启用。
 - `pack --source` 不是 release 验收，必须跑 `validate -> build -> pack --release`。
 
@@ -97,6 +119,7 @@ description: NovusAI 插件开发技能。用于修改 plugin.yaml、前端 runt
 - 插件前端至少注册一个 canonical prefix：
   - `plugin.{manifest-name}`
 - legacy alias 只允许兼容，不能只有 alias 没有 canonical。
+- 只有当前代码仍在消费 legacy key 时，才允许保留 alias；一旦源码已迁到 canonical prefix，就必须删除 alias 注册，避免兼容层长期滞留。
 - 切语言后必须同步验证：
   - sidebar
   - breadcrumb
@@ -171,14 +194,15 @@ description: NovusAI 插件开发技能。用于修改 plugin.yaml、前端 runt
 
 ### 浏览器
 
-- 从菜单进入插件页
-- 直接输入插件 URL 进入
-- 插件页硬刷新
+- 按矩阵跑，不要只跑一条 happy path：
+  - scope：`admin` / `tenant` / `public`
+  - 进入方式：菜单进入 / direct URL / 硬刷新
+  - 权限状态：正常 / 撤权 / 插件禁用或 runtime gate fail-close
+  - 资产模式：`/plugin-assets/...` / `/plugin-public-assets/...`
 - 切换语言后检查 sidebar / breadcrumb / tab / `document.title`
-- 分别验证 admin 与 tenant scope
 - 验证普通插件页资源只命中 `/plugin-assets/...`
 - 验证 public captcha 只命中 `/plugin-public-assets/...` 且不带 `Authorization`
-- 验证禁用插件、撤销权限、runtime gate fail-close 后入口一起失效
+- 验证 public 资源响应会主动清理历史 cookie
 
 ## 明确禁止
 

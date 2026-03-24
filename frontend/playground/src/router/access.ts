@@ -31,9 +31,9 @@ async function generateAccess(options: GenerateMenuAndRoutesOptions) {
       });
       return await getAllMenusApi();
     },
-    // 可以指定没有权限跳转403页面
+    // 可以指定没有权限跳转403页面 / Forbidden route component (403)
     forbiddenComponent,
-    // 如果 route.meta.menuVisibleWithForbidden = true
+    // 如果 route.meta.menuVisibleWithForbidden = true / Show in menu but forbid access when true
     layoutMap,
     pageMap,
   });

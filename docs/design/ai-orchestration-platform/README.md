@@ -118,21 +118,6 @@
 38. [38-integrator-final-merge-report-template-20260323.md](./38-integrator-final-merge-report-template-20260323.md)
     提供 `integrator` 最终集成报告模板，用于统一记录合并顺序、共享文件接入、迁移、验证结果、冲突裁决和遗留问题。
 
-39. [39-orchestration-module-pluginization-strategy-20260323.md](./39-orchestration-module-pluginization-strategy-20260323.md)
-    基于现有插件系统能力核查，明确“任务编排 / 工作流能力”如何做成可安装、可授权、可禁用、可卸载的可选产品模块，并给出平台内核、产品模块插件、行业方案插件三层分工。
-
-40. [40-workflow-orchestration-product-module-implementation-checklist-20260323.md](./40-workflow-orchestration-product-module-implementation-checklist-20260323.md)
-    把任务编排模块插件继续下沉为可研发实施的清单，覆盖插件目录、`plugin.yaml` 草案、数据表、权限、页面树、API、后台任务、零宿主落地约束、能力裁剪、研发阶段和验收标准。
-
-41. [41-workflow-orchestration-module-4-agent-execution-plan-20260323.md](./41-workflow-orchestration-module-4-agent-execution-plan-20260323.md)
-    把任务编排模块插件进一步拆成可直接分发给 4 个 AI 的并行执行方案，明确文件所有权、冻结文件、集成顺序，并配套 `41-workflow-orchestration-delivery-kit-20260323/` 下的专属 prompt 与 handoff 模板。
-
-42. [42-workflow-orchestration-comprehensive-audit-20260323.md](./42-workflow-orchestration-comprehensive-audit-20260323.md)
-    对任务编排模块插件首轮实现与宿主集成进行全面审计，记录真实阻塞、宿主侧修复、验证结果与当前剩余风险。
-
-43. [43-workflow-orchestration-live-smoke-and-acceptance-runbook-20260324.md](./43-workflow-orchestration-live-smoke-and-acceptance-runbook-20260324.md)
-    把任务编排模块插件当前真实状态收敛为一份可执行的 live smoke 与验收手册，覆盖 CLI 操作顺序、重启语义、tenant 赋权、`/tenant/plugins/slots` 验证、页面入口和失败矩阵。
-
 ## 已确认原则
 
 - 行业解决方案中心并入插件市场，以插件形式安装和授权。
@@ -167,7 +152,6 @@
 - 平台对外开放能力必须继续继承租户、权限、配额、风险和审计治理，开放入口不等于治理降级。
 - 推荐决策能力应成为平台内核，默认输出带证据和假设的决策草案，而不是直接自动执行结论。
 - 市场对象必须分层治理，公共市场、定向分发和企业私有模板库不得混为一谈。
-- 任务编排能力应作为可选 `product_module_plugin` 交付，不要求所有企业默认开通；行业方案插件可以通过依赖关系挂载到该模块之上。
 
 ## 第一阶段收口说明
 

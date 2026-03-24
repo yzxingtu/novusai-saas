@@ -70,6 +70,13 @@ const captchaProvider = computed(() => {
   return publicConfigStore.platformCaptcha?.provider ?? 'image';
 });
 
+const loginSubtitle = computed(() => {
+  return (
+    publicConfigStore.platformBrand?.siteDescription ||
+    $t('admin.auth.subtitle')
+  );
+});
+
 // Refresh captcha / 刷新验证码
 function refreshCaptcha() {
   captchaRef.value?.refresh();
@@ -138,7 +145,7 @@ async function handleLogin(values: Record<string, unknown>) {
       :show-remember-me="false"
       :show-third-party-login="false"
       :title="$t('admin.auth.welcomeBack')"
-      :sub-title="$t('admin.auth.subtitle')"
+      :sub-title="loginSubtitle"
       @submit="handleLogin"
     >
       <!-- Captcha slot / 验证码插槽 -->

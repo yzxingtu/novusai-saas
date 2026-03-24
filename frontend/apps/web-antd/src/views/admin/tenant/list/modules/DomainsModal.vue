@@ -40,7 +40,7 @@ import DomainsDetailDrawer from './DomainsDetailDrawer.vue';
 import DomainsDnsGuideModal from './DomainsDnsGuideModal.vue';
 import DomainsSslDrawer from './DomainsSslDrawer.vue';
 
-// Emits
+// Emits / 组件事件
 const emits = defineEmits<{
   success: [];
 }>();
@@ -69,7 +69,7 @@ const title = computed(() =>
     : $t('admin.tenant.domain.title'),
 );
 
-// Modal
+// Modal / 弹窗
 const [Modal, modalApi] = useVbenModal({
   async onOpenChange(isOpen) {
     if (isOpen) {

@@ -38,7 +38,7 @@ import { showRequestError } from '#/utils/error-helpers';
 
 defineOptions({ name: 'TenantAITablePolicies' });
 
-// ============ State ============
+// ============ State / 状态 ============
 
 const loading = ref(false);
 const policies = ref<EffectiveTablePolicy[]>([]);
@@ -68,7 +68,7 @@ async function loadPolicies() {
 
 onMounted(loadPolicies);
 
-// ============ Override Drawer ============
+// ============ Override Drawer / 覆盖配置抽屉 ============
 
 const drawerVisible = ref(false);
 const editingPolicy = ref<EffectiveTablePolicy | null>(null);
@@ -122,7 +122,7 @@ async function resetOverride(policy: EffectiveTablePolicy) {
   });
 }
 
-// ============ Table Columns ============
+// ============ Table Columns / 表格列 ============
 
 const columns = [
   {

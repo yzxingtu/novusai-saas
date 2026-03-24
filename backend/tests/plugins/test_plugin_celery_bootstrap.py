@@ -40,7 +40,7 @@ def test_celery_bootstrap_registers_enabled_plugin_queue_extensions_without_sche
 
     class _FakeResult:
         def all(self):
-            return [("workflow-orchestration",)]
+            return [("storage-billing",)]
 
     class _FakeSession:
         def execute(self, _stmt):
@@ -95,6 +95,6 @@ def test_celery_bootstrap_registers_enabled_plugin_queue_extensions_without_sche
     celery_module._bootstrap_enabled_plugin_queue_extensions()
 
     assert len(captured) == 1
-    assert captured[0]["plugin_name"] == "workflow-orchestration"
+    assert captured[0]["plugin_name"] == "storage-billing"
     assert captured[0]["register_schedule"] is False
     assert captured[0]["record_failures"] is False

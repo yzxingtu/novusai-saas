@@ -81,19 +81,19 @@ async def test_tenant_plugin_slots_hide_pages_without_current_permission(
     grouped = _empty_slot_groups()
     grouped["pages"] = [
         {
-            "plugin_name": "workflow-orchestration",
-            "name": "workflow-home",
-            "path": "/tenant/plugins/workflow-orchestration",
+            "plugin_name": "alpha-plugin",
+            "name": "alpha-home",
+            "path": "/tenant/plugins/alpha-plugin",
             "access_codes": [
-                "menu:tenant.plugin_workflow_orchestration_workflow-home"
+                "menu:tenant.plugin_alpha_plugin_alpha-home"
             ],
         },
         {
-            "plugin_name": "storage-billing",
-            "name": "storage-billing-home",
-            "path": "/tenant/plugins/storage-billing",
+            "plugin_name": "beta-plugin",
+            "name": "beta-home",
+            "path": "/tenant/plugins/beta-plugin",
             "access_codes": [
-                "menu:tenant.plugin_storage_billing_storage-billing-home"
+                "menu:tenant.plugin_beta_plugin_beta-home"
             ],
         },
     ]
@@ -107,7 +107,7 @@ async def test_tenant_plugin_slots_hide_pages_without_current_permission(
             tenant_id: int,
         ) -> set[str]:
             assert tenant_id == 42
-            return {"storage-billing", "workflow-orchestration"}
+            return {"alpha-plugin", "beta-plugin"}
 
     monkeypatch.setattr(
         "app.services.system.plugin_service.PluginService",
@@ -121,7 +121,7 @@ async def test_tenant_plugin_slots_hide_pages_without_current_permission(
         "app.rbac.services.permission_service.PermissionService.get_tenant_admin_permissions",
         AsyncMock(
             return_value={
-                "menu:tenant.plugin_workflow_orchestration_workflow-home",
+                "menu:tenant.plugin_alpha_plugin_alpha-home",
             }
         ),
     )
@@ -135,11 +135,11 @@ async def test_tenant_plugin_slots_hide_pages_without_current_permission(
     assert result["code"] == 0
     assert result["data"]["pages"] == [
         {
-            "plugin_name": "workflow-orchestration",
-            "name": "workflow-home",
-            "path": "/tenant/plugins/workflow-orchestration",
+            "plugin_name": "alpha-plugin",
+            "name": "alpha-home",
+            "path": "/tenant/plugins/alpha-plugin",
             "access_codes": [
-                "menu:tenant.plugin_workflow_orchestration_workflow-home"
+                "menu:tenant.plugin_alpha_plugin_alpha-home"
             ],
         }
     ]
@@ -154,19 +154,19 @@ async def test_tenant_plugin_list_hides_plugins_without_current_permission(
     grouped = _empty_slot_groups()
     grouped["pages"] = [
         {
-            "plugin_name": "workflow-orchestration",
-            "name": "workflow-home",
-            "path": "/tenant/plugins/workflow-orchestration",
+            "plugin_name": "alpha-plugin",
+            "name": "alpha-home",
+            "path": "/tenant/plugins/alpha-plugin",
             "access_codes": [
-                "menu:tenant.plugin_workflow_orchestration_workflow-home"
+                "menu:tenant.plugin_alpha_plugin_alpha-home"
             ],
         },
         {
-            "plugin_name": "storage-billing",
-            "name": "storage-billing-home",
-            "path": "/tenant/plugins/storage-billing",
+            "plugin_name": "beta-plugin",
+            "name": "beta-home",
+            "path": "/tenant/plugins/beta-plugin",
             "access_codes": [
-                "menu:tenant.plugin_storage_billing_storage-billing-home"
+                "menu:tenant.plugin_beta_plugin_beta-home"
             ],
         },
     ]
@@ -180,7 +180,7 @@ async def test_tenant_plugin_list_hides_plugins_without_current_permission(
             tenant_id: int,
         ) -> set[str]:
             assert tenant_id == 42
-            return {"storage-billing", "workflow-orchestration"}
+            return {"alpha-plugin", "beta-plugin"}
 
     monkeypatch.setattr(
         "app.services.system.plugin_service.PluginService",
@@ -194,7 +194,7 @@ async def test_tenant_plugin_list_hides_plugins_without_current_permission(
         "app.rbac.services.permission_service.PermissionService.get_tenant_admin_permissions",
         AsyncMock(
             return_value={
-                "menu:tenant.plugin_workflow_orchestration_workflow-home",
+                "menu:tenant.plugin_alpha_plugin_alpha-home",
             }
         ),
     )
@@ -203,8 +203,8 @@ async def test_tenant_plugin_list_hides_plugins_without_current_permission(
     db.execute = AsyncMock(
         return_value=_ExecuteResult(
             [
-                _PluginRow("workflow-orchestration"),
-                _PluginRow("storage-billing"),
+                _PluginRow("alpha-plugin"),
+                _PluginRow("beta-plugin"),
             ]
         )
     )
@@ -216,9 +216,7 @@ async def test_tenant_plugin_list_hides_plugins_without_current_permission(
     )
 
     assert result["code"] == 0
-    assert [item["name"] for item in result["data"]["items"]] == [
-        "workflow-orchestration"
-    ]
+    assert [item["name"] for item in result["data"]["items"]] == ["alpha-plugin"]
     assert result["data"]["total"] == 1
 
 
@@ -231,19 +229,19 @@ async def test_admin_plugin_slots_hide_pages_without_current_permission(
     grouped = _empty_slot_groups()
     grouped["pages"] = [
         {
-            "plugin_name": "workflow-orchestration",
-            "name": "workflow-admin-home",
-            "path": "/admin/plugins/workflow-orchestration",
+            "plugin_name": "alpha-plugin",
+            "name": "alpha-admin-home",
+            "path": "/admin/plugins/alpha-plugin",
             "access_codes": [
-                "menu:admin.plugin_workflow_orchestration_workflow-admin-home"
+                "menu:admin.plugin_alpha_plugin_alpha-admin-home"
             ],
         },
         {
-            "plugin_name": "storage-billing",
-            "name": "storage-billing-admin-home",
-            "path": "/admin/plugins/storage-billing",
+            "plugin_name": "beta-plugin",
+            "name": "beta-admin-home",
+            "path": "/admin/plugins/beta-plugin",
             "access_codes": [
-                "menu:admin.plugin_storage_billing_storage-billing-admin-home"
+                "menu:admin.plugin_beta_plugin_beta-admin-home"
             ],
         },
     ]
@@ -257,7 +255,7 @@ async def test_admin_plugin_slots_hide_pages_without_current_permission(
         AsyncMock(
             side_effect=lambda *args, **kwargs: SimpleNamespace(
                 allowed=(kwargs.get("plugin_name") or args[1])
-                in {"storage-billing", "workflow-orchestration"}
+                in {"alpha-plugin", "beta-plugin"}
             )
         ),
     )
@@ -265,7 +263,7 @@ async def test_admin_plugin_slots_hide_pages_without_current_permission(
         "app.rbac.services.permission_service.PermissionService.get_admin_permissions",
         AsyncMock(
             return_value={
-                "menu:admin.plugin_workflow_orchestration_workflow-admin-home",
+                "menu:admin.plugin_alpha_plugin_alpha-admin-home",
             }
         ),
     )
@@ -279,11 +277,11 @@ async def test_admin_plugin_slots_hide_pages_without_current_permission(
     assert result["code"] == 0
     assert result["data"]["pages"] == [
         {
-            "plugin_name": "workflow-orchestration",
-            "name": "workflow-admin-home",
-            "path": "/admin/plugins/workflow-orchestration",
+            "plugin_name": "alpha-plugin",
+            "name": "alpha-admin-home",
+            "path": "/admin/plugins/alpha-plugin",
             "access_codes": [
-                "menu:admin.plugin_workflow_orchestration_workflow-admin-home"
+                "menu:admin.plugin_alpha_plugin_alpha-admin-home"
             ],
         }
     ]

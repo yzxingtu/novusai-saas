@@ -158,7 +158,7 @@ async function getTenantVideoModelOptions() {
   }
 }
 
-// ============ 分块策略 / 检索模式选项 ============
+// ============ 分块策略 / Chunking & retrieval mode ============
 
 function getChunkStrategyOptions() {
   return [

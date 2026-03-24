@@ -154,7 +154,7 @@ function onConfirmSwitch() {
 /** Navigate to migration management page / 跳转到迁移管理页 */
 function onGoMigrate(source: string, target: string) {
   router.push({
-    path: '/admin/system/storage-migration',
+    path: '/admin/plugins/storage-migration',
     query: { source, target },
   });
 }

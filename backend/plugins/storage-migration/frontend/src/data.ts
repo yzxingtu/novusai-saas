@@ -46,6 +46,18 @@ export function getStatusText(status: string): string {
   return $t(`plugin.storage-migration.task.status.${status}`);
 }
 
+export function getScopeText(scope: null | string | undefined): string {
+  const normalized = String(scope || 'all').trim();
+  if (!normalized || normalized === 'all') {
+    return $t('plugin.storage-migration.scope.all');
+  }
+  if (normalized.startsWith('tenant:')) {
+    const tenantId = normalized.split(':', 2)[1] || '-';
+    return $t('plugin.storage-migration.scope.tenant', { id: tenantId });
+  }
+  return normalized;
+}
+
 // ============ Drivers / 存储驱动 ============
 
 function translateDriverDisplayName(
@@ -81,6 +93,15 @@ export function getProgressPercent(task: MigrationTask): number {
 }
 
 export const ACTIVE_STATUSES = ['running', 'paused', 'rolling_back'];
+
+export function hasCleanupResult(task: MigrationTask): boolean {
+  return Boolean(
+    task.source_cleanup_started_at ||
+      task.source_cleanup_completed_at ||
+      task.source_cleanup_deleted_files > 0 ||
+      task.source_cleanup_error_count > 0,
+  );
+}
 
 // ============ Table Columns / 表格列 ============
 

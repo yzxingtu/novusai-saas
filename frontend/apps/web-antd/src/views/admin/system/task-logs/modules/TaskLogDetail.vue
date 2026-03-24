@@ -13,7 +13,12 @@ import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
-import { getQueueColor, getStatusColor } from '../data';
+import {
+  getQueueColor,
+  getRunKindText,
+  getStatusColor,
+  getTriggerSourceText,
+} from '../data';
 
 defineOptions({ name: 'TaskLogDetail' });
 
@@ -47,6 +52,15 @@ const { Drawer, detailData: detail } = useCrudDrawer<TaskLogDetailInfo>({
             </code>
           </DescriptionsItem>
           <DescriptionsItem
+            v-if="detail.handlerPath"
+            :label="$t('admin.system.taskLog.handlerPath')"
+            :span="2"
+          >
+            <code class="break-all rounded bg-accent px-1 py-0.5 text-xs">
+              {{ detail.handlerPath }}
+            </code>
+          </DescriptionsItem>
+          <DescriptionsItem
             :label="$t('admin.system.taskLog.taskId')"
             :span="2"
           >
@@ -71,6 +85,18 @@ const { Drawer, detailData: detail } = useCrudDrawer<TaskLogDetailInfo>({
           </DescriptionsItem>
           <DescriptionsItem :label="$t('admin.system.taskLog.retryCount')">
             {{ detail.retryCount }}
+          </DescriptionsItem>
+          <DescriptionsItem
+            v-if="detail.triggerSource"
+            :label="$t('admin.system.taskLog.triggerSource')"
+          >
+            {{ getTriggerSourceText(detail.triggerSource) }}
+          </DescriptionsItem>
+          <DescriptionsItem
+            v-if="detail.runKind"
+            :label="$t('admin.system.taskLog.runKind')"
+          >
+            {{ getRunKindText(detail.runKind) }}
           </DescriptionsItem>
           <DescriptionsItem :label="$t('admin.system.taskLog.durationMs')">
             <span
@@ -104,13 +130,20 @@ const { Drawer, detailData: detail } = useCrudDrawer<TaskLogDetailInfo>({
           <DescriptionsItem :label="$t('admin.system.taskLog.finishedAt')">
             {{ detail.finishedAt ? formatDate(detail.finishedAt) : '-' }}
           </DescriptionsItem>
+          <DescriptionsItem
+            v-if="detail.traceId"
+            :label="$t('admin.system.taskLog.traceId')"
+          >
+            <code class="break-all rounded bg-accent px-1 py-0.5 text-xs">
+              {{ detail.traceId }}
+            </code>
+          </DescriptionsItem>
         </Descriptions>
       </div>
 
-      <Divider class="!my-4" />
-
       <!-- 参数信息 -->
-      <div class="mb-4">
+      <div v-if="detail.args || detail.kwargs" class="mb-4">
+        <Divider class="!my-4" />
         <div class="mb-2 flex items-center gap-2 text-base font-medium">
           <IconifyIcon icon="lucide:braces" class="text-primary" />
           {{ $t('admin.system.taskLog.paramsInfo') }}

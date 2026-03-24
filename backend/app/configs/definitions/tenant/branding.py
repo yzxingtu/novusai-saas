@@ -34,6 +34,17 @@ TENANT_FAVICON = ConfigMeta(
     sort_order=20,
 )
 
+# Tenant dark logo / 企业深色 Logo
+TENANT_LOGO_DARK = ConfigMeta(
+    key="tenant_logo_dark",
+    name_key="config.tenant.logo_dark.name",
+    description_key="config.tenant.logo_dark.desc",
+    scope=ConfigScope.ALL_TENANTS,
+    value_type=ConfigValueType.IMAGE,
+    default_value="",
+    sort_order=25,
+)
+
 # Login page background image / 登录页背景图
 TENANT_LOGIN_BG = ConfigMeta(
     key="tenant_login_bg",
@@ -92,6 +103,20 @@ TENANT_FOOTER_COPYRIGHT = ConfigMeta(
     sort_order=80,
 )
 
+# ICP filing number / ICP 备案号
+TENANT_ICP = ConfigMeta(
+    key="tenant_icp",
+    name_key="config.tenant.icp.name",
+    description_key="config.tenant.icp.desc",
+    scope=ConfigScope.ALL_TENANTS,
+    value_type=ConfigValueType.STRING,
+    default_value="",
+    validation_rules=[
+        max_length(100, "validation.max_length"),
+    ],
+    sort_order=90,
+)
+
 
 # ==========================================
 # Register configs to group / 注册配置到分组
@@ -100,18 +125,22 @@ TENANT_FOOTER_COPYRIGHT = ConfigMeta(
 TENANT_APPEARANCE_GROUP.configs = [
     TENANT_LOGO,
     TENANT_FAVICON,
+    TENANT_LOGO_DARK,
     TENANT_LOGIN_BG,
     TENANT_LOGIN_TITLE,
     TENANT_LOGIN_SUBTITLE,
     TENANT_FOOTER_COPYRIGHT,
+    TENANT_ICP,
 ]
 
 
 __all__ = [
     "TENANT_LOGO",
     "TENANT_FAVICON",
+    "TENANT_LOGO_DARK",
     "TENANT_LOGIN_BG",
     "TENANT_LOGIN_TITLE",
     "TENANT_LOGIN_SUBTITLE",
     "TENANT_FOOTER_COPYRIGHT",
+    "TENANT_ICP",
 ]

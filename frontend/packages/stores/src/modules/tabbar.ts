@@ -121,23 +121,23 @@ export const useTabbarStore = defineStore('core-tabbar', {
 
       if (tabIndex === -1) {
         const maxCount = preferences.tabbar.maxCount;
-        // 获取动态路由打开数，超过 0 即代表需要控制打开数
+        // 获取动态路由打开数，超过 0 即代表需要控制打开数 / Route meta maxNumOfOpenTab
         const maxNumOfOpenTab = (routeTab?.meta?.maxNumOfOpenTab ??
           -1) as number;
-        // 如果动态路由层级大于 0 了，那么就要限制该路由的打开数限制了
-        // 获取到已经打开的动态路由数, 判断是否大于某一个值
+        // 如果动态路由层级大于 0 了，那么就要限制该路由的打开数限制了 / Cap duplicate route tabs
+        // 获取到已经打开的动态路由数, 判断是否大于某一个值 / Count same-name tabs
         if (
           maxNumOfOpenTab > 0 &&
           this.tabs.filter((tab) => tab.name === routeTab.name).length >=
             maxNumOfOpenTab
         ) {
-          // 关闭第一个
+          // 关闭第一个 / Evict oldest same-name tab
           const index = this.tabs.findIndex(
             (item) => item.name === routeTab.name,
           );
           index !== -1 && this.tabs.splice(index, 1);
         } else if (maxCount > 0 && this.tabs.length >= maxCount) {
-          // 关闭第一个
+          // 关闭第一个 / Evict first non-affix when global max reached
           const index = this.tabs.findIndex(
             (item) =>
               !Reflect.has(item.meta, 'affixTab') || !item.meta.affixTab,
@@ -146,7 +146,7 @@ export const useTabbarStore = defineStore('core-tabbar', {
         }
         this.tabs.push(tab);
       } else {
-        // 页面已经存在，不重复添加选项卡，只更新选项卡参数
+        // 页面已经存在，不重复添加选项卡，只更新选项卡参数 / Merge meta on duplicate key
         const currentTab = toRaw(this.tabs)[tabIndex];
         const mergedTab = {
           ...currentTab,
@@ -249,7 +249,7 @@ export const useTabbarStore = defineStore('core-tabbar', {
      */
     async closeTab(tab: TabDefinition, router: Router) {
       const { currentRoute } = router;
-      // 关闭不是激活选项卡
+      // 关闭不是激活选项卡 / Close background tab without navigation
       if (getTabKey(currentRoute.value) !== getTabKeyFromTab(tab)) {
         this._close(tab);
         this.updateCacheTabs();
@@ -262,11 +262,11 @@ export const useTabbarStore = defineStore('core-tabbar', {
       const before = this.getTabs[index - 1];
       const after = this.getTabs[index + 1];
 
-      // 下一个tab存在，跳转到下一个
+      // 下一个tab存在，跳转到下一个 / Prefer next neighbor
       if (after) {
         this._close(tab);
         await this._goToTab(after, router);
-        // 上一个tab存在，跳转到上一个
+        // 上一个tab存在，跳转到上一个 / Else previous neighbor
       } else if (before) {
         this._close(tab);
         await this._goToTab(before, router);
@@ -324,13 +324,13 @@ export const useTabbarStore = defineStore('core-tabbar', {
       const oldTab = this.tabs[index];
       tab.meta.affixTab = true;
       tab.meta.title = oldTab?.meta?.title as string;
-      // this.addTab(tab);
+      // this.addTab(tab); / 原样例保留 / legacy sample
       this.tabs.splice(index, 1, tab);
-      // 过滤固定tabs，后面更改affixTabOrder的值的话可能会有问题，目前行464排序affixTabs没有设置值
+      // 过滤固定tabs，后面更改affixTabOrder的值的话可能会有问题，目前行464排序affixTabs没有设置值 / Reorder affix subset (affixTabOrder caveat)
       const affixTabs = this.tabs.filter((tab) => isAffixTab(tab));
-      // 获得固定tabs的index
+      // 获得固定tabs的index / Index within affix list
       const newIndex = affixTabs.findIndex((item) => equalTab(item, tab));
-      // 交换位置重新排序
+      // 交换位置重新排序 / Move tab next to other affix tabs
       await this.sortTabs(index, newIndex);
     },
 
@@ -338,8 +338,8 @@ export const useTabbarStore = defineStore('core-tabbar', {
      * 刷新标签页
      */
     async refresh(router: Router | string) {
-      // 如果是Router路由，那么就根据当前路由刷新
-      // 如果是string字符串，为路由名称，则定向刷新指定标签页，不能是当前路由名称，否则不会刷新
+      // 如果是Router路由，那么就根据当前路由刷新 / Router → refresh active route
+      // 如果是string字符串，为路由名称，则定向刷新指定标签页，不能是当前路由名称，否则不会刷新 / string name → refreshByName
       if (typeof router === 'string') {
         return await this.refreshByName(router);
       }
@@ -430,6 +430,9 @@ export const useTabbarStore = defineStore('core-tabbar', {
     setUpdateTime() {
       this.updateTime = Date.now();
     },
+    touchTabs() {
+      this.tabs = [...this.tabs];
+    },
     /**
      * @zh_CN 设置标签页顺序
      * @param oldIndex
@@ -467,13 +470,13 @@ export const useTabbarStore = defineStore('core-tabbar', {
       const oldTab = this.tabs[index];
       tab.meta.affixTab = false;
       tab.meta.title = oldTab?.meta?.title as string;
-      // this.addTab(tab);
+      // this.addTab(tab); / 原样例保留 / legacy sample
       this.tabs.splice(index, 1, tab);
-      // 过滤固定tabs，后面更改affixTabOrder的值的话可能会有问题，目前行464排序affixTabs没有设置值
+      // 过滤固定tabs，后面更改affixTabOrder的值的话可能会有问题，目前行464排序affixTabs没有设置值 / Reorder after unpin (affixTabOrder caveat)
       const affixTabs = this.tabs.filter((tab) => isAffixTab(tab));
-      // 获得固定tabs的index,使用固定tabs的下一个位置也就是活动tabs的第一个位置
+      // 获得固定tabs的索引,使用固定tabs的下一个位置也就是活动tabs的第一个位置 / Insert after last affix
       const newIndex = affixTabs.length;
-      // 交换位置重新排序
+      // 交换位置重新排序 / Move to normal tab region
       await this.sortTabs(index, newIndex);
     },
     /**
@@ -483,7 +486,7 @@ export const useTabbarStore = defineStore('core-tabbar', {
       const cacheMap = new Set<string>();
 
       for (const tab of this.tabs) {
-        // 跳过不需要持久化的标签页
+        // 跳过不需要持久化的标签页 / Skip routes without keepAlive
         const keepAlive = tab.meta?.keepAlive;
         if (!keepAlive) {
           continue;
@@ -525,7 +528,7 @@ export const useTabbarStore = defineStore('core-tabbar', {
     },
   },
   persist: [
-    // tabs不需要保存在localStorage
+    // tabs不需要保存在localStorage / Use sessionStorage for tab list
     {
       pick: ['tabs'],
       storage: sessionStorage,
@@ -552,7 +555,7 @@ export const useTabbarStore = defineStore('core-tabbar', {
   }),
 });
 
-// 解决热更新问题
+// 解决热更新问题 / Pinia HMR accept
 const hot = import.meta.hot;
 if (hot) {
   hot.accept(acceptHMRUpdate(useTabbarStore, hot));
@@ -611,7 +614,7 @@ function getTabKey(tab: RouteLocationNormalized | RouteRecordNormalized) {
     meta: { fullPathKey } = {},
     query = {},
   } = tab as RouteLocationNormalized;
-  // pageKey可能是数组（查询参数重复时可能出现）
+  // pageKey可能是数组（查询参数重复时可能出现）/ Duplicate query keys → array
   const pageKey = Array.isArray(query.pageKey)
     ? query.pageKey[0]
     : query.pageKey;

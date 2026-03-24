@@ -5,7 +5,7 @@ import { computed } from 'vue';
 
 import { cn } from '@vben-core/shared/utils';
 
-import { SelectGroup } from 'reka-ui';
+import { SelectGroup as RekaSelectGroup } from 'reka-ui';
 
 const props = defineProps<SelectGroupProps & { class?: any }>();
 
@@ -17,7 +17,10 @@ const delegatedProps = computed(() => {
 </script>
 
 <template>
-  <SelectGroup :class="cn('w-full p-1', props.class)" v-bind="delegatedProps">
+  <RekaSelectGroup
+    :class="cn('w-full p-1', props.class)"
+    v-bind="delegatedProps"
+  >
     <slot></slot>
-  </SelectGroup>
+  </RekaSelectGroup>
 </template>

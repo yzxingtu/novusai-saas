@@ -96,27 +96,27 @@ const [Form, formApi] = useVbenForm({
   showDefaultActions: false,
 });
 
-// 测试 validateAndSubmitForm（验证并提交）
+// 测试 validateAndSubmitForm（验证并提交）/ Test validate then submit
 async function testValidateAndSubmit() {
   await formApi.validateAndSubmitForm();
 }
 
-// 测试 validate（手动验证整个表单）
+// 测试 validate（手动验证整个表单）/ Test validate whole form
 async function testValidate() {
   await formApi.validate();
 }
 
-// 测试 validateField（验证单个字段）
+// 测试 validateField（验证单个字段）/ Test single-field validate
 async function testValidateField() {
   await formApi.validateField('username');
 }
 
-// 切换滚动功能
+// 切换滚动功能 / Toggle scrollToFirstError
 function toggleScrollToError() {
   formApi.setState({ scrollToFirstError: scrollEnabled.value });
 }
 
-// 填充部分数据测试
+// 填充部分数据测试 / Prefill subset of fields for testing
 async function fillPartialData() {
   await formApi.resetForm();
   await formApi.setFieldValue('username', '测试用户');

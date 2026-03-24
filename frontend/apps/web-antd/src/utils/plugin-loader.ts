@@ -505,11 +505,11 @@ export async function loadPluginComponents(
     normalizedLoadOptions,
   );
 
-  // 已缓存
+  // 已缓存 / Cache hit
   const cached = loadedPlugins.get(cacheKey);
   if (cached) return cached;
 
-  // 正在加载中
+  // 正在加载中 / In-flight load
   const existing = loadingPromises.get(cacheKey);
   if (existing) return existing;
 

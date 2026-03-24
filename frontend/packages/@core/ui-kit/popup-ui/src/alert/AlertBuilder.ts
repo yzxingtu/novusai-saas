@@ -42,7 +42,7 @@ export function vbenAlert(
       if (isString(arg1)) {
         options.title = arg1;
       } else if (!isString(arg1)) {
-        // 如果第二个参数是对象，则合并到选项中
+        // 如果第二个参数是对象，则合并到选项中 / Merge arg1 object into options
         Object.assign(options, arg1);
       }
     }
@@ -50,26 +50,26 @@ export function vbenAlert(
     if (arg2 && !isString(arg2)) {
       Object.assign(options, arg2);
     }
-    // 创建容器元素
+    // 创建容器元素 / Mount target div
     const container = document.createElement('div');
     document.body.append(container);
 
-    // 创建一个引用，用于在回调中访问实例
+    // 创建一个引用，用于在回调中访问实例 / Ref for teardown + alerts list
     const alertRef = { container, instance: null as any };
 
     const props: AlertProps & Recordable<any> = {
       onClosed: (isConfirm: boolean) => {
-        // 移除组件实例以及创建的所有dom（恢复页面到打开前的状态）
-        // 从alerts数组中移除该实例
+        // 移除组件实例以及创建的所有dom（恢复页面到打开前的状态）/ Teardown vnode + DOM
+        // 从alerts数组中移除该实例 / Drop from stack
         alerts.value = alerts.value.filter((item) => item !== alertRef);
 
-        // 从DOM中移除容器
+        // 从DOM中移除容器 / Remove portal root
         render(null, container);
         if (container.parentNode) {
           container.remove();
         }
 
-        // 解析 Promise，传递用户操作结果
+        // 解析 Promise，传递用户操作结果 / Resolve or reject caller promise
         if (isConfirm) {
           resolve();
         } else {
@@ -81,16 +81,16 @@ export function vbenAlert(
       title: options.title ?? $t.value('prompt'),
     };
 
-    // 创建Alert组件的VNode
+    // 创建Alert组件的VNode / Build Alert vnode
     const vnode = h(Alert, props);
 
-    // 渲染组件到容器
+    // 渲染组件到容器 / Mount into body container
     render(vnode, container);
 
-    // 保存组件实例引用
+    // 保存组件实例引用 / Keep proxy for advanced use
     alertRef.instance = vnode.component?.proxy as Component;
 
-    // 将实例和容器添加到alerts数组中
+    // 将实例和容器添加到alerts数组中 / Track for clearAllAlerts
     alerts.value.push(alertRef);
   });
 }
@@ -151,7 +151,7 @@ export async function vbenPrompt<T = any>(
   const modelPropName = _modelPropName || 'modelValue';
   const componentProps = { ..._componentProps };
 
-  // 每次渲染时都会重新计算的内容函数
+  // 每次渲染时都会重新计算的内容函数 / Rebuild prompt body each render
   const contentRenderer = () => {
     const currentProps = {
       ...componentProps,
@@ -161,18 +161,18 @@ export async function vbenPrompt<T = any>(
       },
     };
 
-    // 设置当前值
+    // 设置当前值 / modelValue on props (above)
 
-    // 设置更新处理函数
+    // 设置更新处理函数 / onUpdate bound in currentProps
 
-    // 创建输入组件
+    // 创建输入组件 / Custom field or default Input
     inputComponentRef.value = h(
       _component || Input,
       currentProps,
       componentSlots,
     );
 
-    // 返回包含静态内容和输入组件的数组
+    // 返回包含静态内容和输入组件的数组 / Stack description + control
     return h(
       'div',
       { class: 'flex flex-col gap-2' },
@@ -190,7 +190,7 @@ export async function vbenPrompt<T = any>(
         });
       }
     },
-    // 使用函数形式，每次渲染都会重新计算内容
+    // 使用函数形式，每次渲染都会重新计算内容 / Functional content for v-model sync
     content: contentRenderer,
     contentMasking: true,
     async onOpened() {
@@ -236,7 +236,7 @@ export async function vbenPrompt<T = any>(
 
 export function clearAllAlerts() {
   alerts.value.forEach((alert) => {
-    // 从DOM中移除容器
+    // 从DOM中移除容器 / Unmount every stacked alert
     render(null, alert.container);
     if (alert.container.parentNode) {
       alert.container.remove();

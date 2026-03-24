@@ -7,7 +7,6 @@ import pytest
 from fastapi import APIRouter
 
 from app.api.admin.periodic_tasks import router as admin_periodic_tasks_router
-from app.api.tenant.periodic_tasks import router as tenant_periodic_tasks_router
 from app.core.recycle_bin import (
     register_admin_recycle_bin_routes,
     register_tenant_recycle_bin_routes,
@@ -112,17 +111,6 @@ def test_admin_recycle_bin_static_batch_routes_precede_dynamic_item_routes() -> 
     assert paths.index("/recycle-bin/batch") < paths.index("/recycle-bin/{item_id}")
     assert paths.index("/recycle-bin/batch-restore") < paths.index(
         "/recycle-bin/{item_id}/restore"
-    )
-
-
-def test_tenant_periodic_task_controller_registers_recycle_bin_before_task_id_routes() -> None:
-    paths = [route.path for route in tenant_periodic_tasks_router.routes]
-
-    assert paths.index("/periodic-tasks/recycle-bin") < paths.index(
-        "/periodic-tasks/{task_id}"
-    )
-    assert paths.index("/periodic-tasks/recycle-bin/count") < paths.index(
-        "/periodic-tasks/{task_id}"
     )
 
 

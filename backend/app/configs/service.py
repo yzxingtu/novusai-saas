@@ -567,9 +567,17 @@ class ConfigService:
                     SystemConfig.key == key,
                     SystemConfig.is_deleted.is_(False),
                 )
-            )
+            ).order_by(SystemConfig.id.asc()).limit(2)
         )
-        config_id = result.scalar_one_or_none()
+        ids = list(result.scalars().all())
+        config_id = ids[0] if ids else None
+        if len(ids) > 1:
+            logger.warning(
+                "Duplicate system_configs detected for key='{}', using id={} and ignoring {} extra row(s)",
+                key,
+                config_id,
+                len(ids) - 1,
+            )
         _config_id_cache[key] = (config_id, now)
         return config_id
 

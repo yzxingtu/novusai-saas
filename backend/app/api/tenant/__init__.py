@@ -49,8 +49,6 @@ from app.api.tenant.preferences import router as preferences_router
 from app.api.tenant.notifications import router as notifications_router
 from app.api.tenant.operation_logs import TenantOperationLogController
 from app.api.tenant.operation_logs import router as operation_logs_router
-from app.api.tenant.periodic_tasks import TenantPeriodicTaskController
-from app.api.tenant.periodic_tasks import router as periodic_tasks_router
 from app.api.tenant.permissions import TenantPermissionController
 from app.api.tenant.permissions import router as permissions_router
 from app.api.tenant.permission_roles import TenantPermissionRoleController
@@ -60,8 +58,6 @@ from app.api.tenant.organization import TenantOrganizationController
 from app.api.tenant.organization import router as organization_router
 from app.api.tenant.skill_packages import TenantSkillPackageController
 from app.api.tenant.skill_packages import router as skill_packages_router
-from app.api.tenant.tasks import TenantTaskLogController
-from app.api.tenant.tasks import router as tasks_router
 from app.api.tenant.user_roles import TenantUserRoleController
 from app.api.tenant.user_roles import router as user_roles_router
 from app.api.tenant.users import TenantUserController
@@ -83,8 +79,6 @@ tenant_router.include_router(permission_roles_router)
 tenant_router.include_router(organization_router)
 tenant_router.include_router(users_router)
 tenant_router.include_router(user_roles_router)
-tenant_router.include_router(tasks_router)
-tenant_router.include_router(periodic_tasks_router)
 # AI 网关相关 / AI gateway
 tenant_router.include_router(ai_config_router)
 tenant_router.include_router(ai_gateway_router)
@@ -127,11 +121,9 @@ __all__ = [
     "TenantAttachmentController",
     "TenantDomainController",
     "TenantOperationLogController",
-    "TenantPeriodicTaskController",
     "TenantPermissionController",
     "TenantPermissionRoleController",
     "TenantOrganizationController",
-    "TenantTaskLogController",
     "TenantUserController",
     "TenantUserRoleController",
     # AI 网关 / AI gateway

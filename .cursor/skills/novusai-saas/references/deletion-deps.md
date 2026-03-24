@@ -41,7 +41,7 @@ class MyModel(BaseModel):
 - `label_field`: 用于前端展示的字段（默认 `"name"`）
 - `i18n_key`: 前端 `common.dependency.model.{i18n_key}` 的翻译 key
 
-**示例：AIModel 与知识库可选模型**  
+**示例：AIModel 与知识库可选模型**
 删除 AIModel 时，引用其作为 `audio_model_id` / `video_model_id` 的知识库将对应字段置为 NULL（NULLIFY）；前端需在 `common.dependency.model` 中提供 `knowledge_base_audio`、`knowledge_base_video` 展示名称。
 
 ---

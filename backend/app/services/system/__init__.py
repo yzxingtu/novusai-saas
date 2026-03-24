@@ -19,7 +19,8 @@ if TYPE_CHECKING:
         OperationLogService,
         create_log_async,
     )
-    from app.services.system.periodic_task_service import PeriodicTaskService
+    from app.services.system.task_binding_service import TaskBindingService
+    from app.services.system.task_definition_service import TaskDefinitionService
     from app.services.system.system_log_service import (
         LogCategoryInfo,
         LogContentPage,
@@ -28,6 +29,7 @@ if TYPE_CHECKING:
     )
     from app.services.system.task_log_service import TaskLogService
     from app.services.system.task_manager_service import TaskManagerService
+    from app.services.system.task_run_service import TaskRunService
     from app.services.system.tenant_domain_service import (
         TenantDomainService,
         TenantDomainTenantService,
@@ -47,13 +49,15 @@ _LAZY_EXPORTS = {
     "AdminAttachmentService": "app.services.system.attachment_service",
     "OperationLogService": "app.services.system.operation_log_service",
     "create_log_async": "app.services.system.operation_log_service",
-    "PeriodicTaskService": "app.services.system.periodic_task_service",
+    "TaskBindingService": "app.services.system.task_binding_service",
+    "TaskDefinitionService": "app.services.system.task_definition_service",
     "LogCategoryInfo": "app.services.system.system_log_service",
     "LogContentPage": "app.services.system.system_log_service",
     "LogFileInfo": "app.services.system.system_log_service",
     "SystemLogService": "app.services.system.system_log_service",
     "TaskLogService": "app.services.system.task_log_service",
     "TaskManagerService": "app.services.system.task_manager_service",
+    "TaskRunService": "app.services.system.task_run_service",
     "TenantDomainService": "app.services.system.tenant_domain_service",
     "TenantDomainTenantService": "app.services.system.tenant_domain_service",
     "TenantService": "app.services.system.tenant_service",

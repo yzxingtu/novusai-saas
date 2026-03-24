@@ -317,17 +317,17 @@ def _parse_type(yaml_type: str) -> tuple[str, dict[str, Any]]:
     base = yaml_type
     params: dict[str, Any] = {}
 
-    # String(N)
+    # String(N) / 定长字符串类型
     m = re.match(r"^String\s*\(\s*(\d+)\s*\)$", yaml_type, re.I)
     if m:
         return "String", {"length": int(m.group(1))}
 
-    # Decimal(P,S)
+    # Decimal(P,S) / 定点小数精度与标度
     m = re.match(r"^Decimal\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)$", yaml_type, re.I)
     if m:
         return "Decimal", {"precision": int(m.group(1)), "scale": int(m.group(2))}
 
-    # ForeignKey(table)
+    # ForeignKey(table) / 外键引用表名
     m = re.match(r"^ForeignKey\s*\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)$", yaml_type, re.I)
     if m:
         return "ForeignKey", {"table": m.group(1)}

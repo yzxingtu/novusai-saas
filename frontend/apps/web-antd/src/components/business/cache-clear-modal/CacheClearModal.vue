@@ -92,7 +92,7 @@ const totalSizeHuman = computed(() => {
 });
 
 // ============================================================
-// Helpers
+// Helpers / 辅助函数
 // ============================================================
 
 function formatBytes(bytes: number): string {

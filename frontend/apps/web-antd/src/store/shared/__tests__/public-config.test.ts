@@ -36,7 +36,15 @@ vi.mock('#/utils/captcha-plugin', () => ({
 
 function createPlatformConfig(): PlatformPublicConfig {
   return {
-    brand: { siteName: 'NovusAI Platform' },
+    brand: {
+      copyright: 'Platform Copyright',
+      favicon: '/platform.ico',
+      icp: 'ICP 123456',
+      logo: '/platform-logo.png',
+      logoDark: '/platform-logo-dark.png',
+      siteDescription: 'Platform Description',
+      siteName: 'NovusAI Platform',
+    },
     domain: { suffix: '.novus.local', verificationPrefix: '_novus' },
     login: {
       allowedMethods: ['password'],
@@ -58,7 +66,10 @@ function createPlatformConfig(): PlatformPublicConfig {
 
 function createTenantConfig(): TenantPublicConfig {
   return {
-    brand: { siteName: 'Acme Tenant' },
+    brand: {
+      siteDescription: 'Tenant Description',
+      siteName: 'Acme Tenant',
+    },
     domain: { suffix: '.novus.local', verificationPrefix: '_novus' },
     login: {
       allowedMethods: ['password'],
@@ -112,5 +123,78 @@ describe('usePublicConfigStore tenant config guard', () => {
     expect(getTenantPublicConfigApi).toHaveBeenCalledTimes(1);
     expect(result?.tenantCode).toBe('acme');
     expect(store.tenantConfigLoaded).toBe(true);
+  });
+
+  it('merges tenant brand fields with platform brand before applying preferences', async () => {
+    const store = usePublicConfigStore();
+    getTenantPublicConfigApi.mockResolvedValueOnce({
+      ...createTenantConfig(),
+      brand: {
+        siteDescription: 'Tenant Description',
+      },
+    });
+
+    const result = await store.loadTenantConfig({ skipDomainCheck: true });
+
+    expect(result?.brand.siteName).toBe('NovusAI Platform');
+    expect(result?.brand.logo).toBe('/platform-logo.png');
+    expect(result?.brand.logoDark).toBe('/platform-logo-dark.png');
+    expect(result?.brand.favicon).toBe('/platform.ico');
+    expect(result?.brand.copyright).toBe('Platform Copyright');
+    expect(result?.brand.icp).toBe('ICP 123456');
+    expect(updatePreferences).toHaveBeenCalledWith(
+      expect.objectContaining({
+        app: { name: 'NovusAI Platform' },
+        copyright: expect.objectContaining({
+          companyName: 'Platform Copyright',
+          companySiteLink: '',
+          icp: 'ICP 123456',
+        }),
+        logo: expect.objectContaining({
+          source: '/platform-logo.png',
+          sourceDark: '/platform-logo-dark.png',
+        }),
+      }),
+    );
+  });
+
+  it('applies platform favicon and meta description to the page head', async () => {
+    const store = usePublicConfigStore();
+
+    await store.loadPlatformConfig();
+
+    const favicon = document.querySelector(
+      "link[rel~='icon']",
+    ) as HTMLLinkElement | null;
+    const description = document.querySelector(
+      "meta[name='description']",
+    ) as HTMLMetaElement | null;
+
+    expect(favicon?.href).toContain('/platform.ico');
+    expect(description?.content).toBe('Platform Description');
+  });
+
+  it('restores default branding when all public configs are reset', async () => {
+    const store = usePublicConfigStore();
+
+    await store.loadPlatformConfig();
+    updatePreferences.mockClear();
+
+    store.resetAll();
+
+    expect(updatePreferences).toHaveBeenCalledWith(
+      expect.objectContaining({
+        app: { name: 'NovusAI SaaS' },
+        copyright: expect.objectContaining({
+          companyName: 'NovusAI',
+          companySiteLink: '',
+          icp: '',
+        }),
+        logo: expect.objectContaining({
+          source: undefined,
+          sourceDark: undefined,
+        }),
+      }),
+    );
   });
 });

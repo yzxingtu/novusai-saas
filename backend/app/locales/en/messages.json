@@ -1358,6 +1358,7 @@
       "list": "View Periodic Task List",
       "create": "Create Periodic Task",
       "detail": "View Periodic Task Detail",
+      "bindings": "View and sync periodic task tenant bindings",
       "update": "Update Periodic Task",
       "delete": "Delete Periodic Task",
       "toggle": "Enable/Disable Periodic Task",
@@ -2241,9 +2242,17 @@
         "name": "Site Logo",
         "desc": "Logo image displayed in page header"
       },
+      "logo_dark": {
+        "name": "Site Dark Logo",
+        "desc": "Preferred site logo when dark theme is active"
+      },
       "site_favicon": {
         "name": "Site Favicon",
         "desc": "Small icon displayed in browser tab"
+      },
+      "logo_dark": {
+        "name": "Site Dark Logo",
+        "desc": "Preferred site logo when dark theme is active"
       },
       "site_copyright": {
         "name": "Copyright Notice",
@@ -3146,6 +3155,10 @@
   "enum.agent_model.memory_disabled_by_tenant": "Memory Disabled by Tenant",
   "config.group.platform_ai_memory.name": "AI Memory",
   "config.group.platform_ai_memory.desc": "Platform memory default switch settings",
+  "config.group.platform_domain.name": "Domain Settings",
+  "config.group.platform_domain.desc": "Tenant domain suffix and custom-domain verification settings",
+  "config.group.tenant_registration.name": "Registration & Legal",
+  "config.group.tenant_registration.desc": "User registration flow, default role, privacy policy and terms settings",
   "config.platform.platform_default_memory_enabled.name": "Default Memory Enabled",
   "config.platform.platform_default_memory_enabled.desc": "Default memory switch for all agents",
   "config.platform.memory_extraction_provider.name": "Memory Extraction Provider",
@@ -3158,8 +3171,6 @@
       "disabled": "Memory Disabled"
     }
   },
-  "config.tenant.user_registration_enabled.name": "User Registration",
-  "config.tenant.user_registration_enabled.desc": "Allow users to self-register",
   "config.tenant.user_login_captcha_enabled.name": "User Login CAPTCHA",
   "config.tenant.user_login_captcha_enabled.desc": "Require CAPTCHA verification during user login",
   "config.tenant.user_login_captcha_enable_threshold.name": "User Login CAPTCHA Threshold",
@@ -3168,8 +3179,6 @@
   "config.tenant.user_registration_captcha_enabled.desc": "Require CAPTCHA verification during registration",
   "config.tenant.user_default_active.name": "Default Active",
   "config.tenant.user_default_active.desc": "Activate user accounts immediately after registration",
-  "config.tenant.user_require_approval.name": "Require Approval",
-  "config.tenant.user_require_approval.desc": "Require admin approval before user accounts are activated",
   "config.tenant.user_default_role_id.name": "Default User Role",
   "config.tenant.user_default_role_id.desc": "Role automatically assigned to newly registered users. Select 'No Role' to leave users without a role",
   "config.tenant.user_default_role_id.option_none": "No Role",
@@ -3178,6 +3187,10 @@
   "enum.ai_model.max_output_tokens": "Max Output Tokens",
   "config.platform.ai_page_context_max_bytes.name": "Chat Page Context Max Bytes",
   "config.platform.ai_page_context_max_bytes.desc": "Maximum bytes allowed for page_context.page_data in AI chat/router requests. Default is 8192; this is a page-context budget, not a model input/output token limit",
+  "config.tenant.logo_dark.name": "Tenant Dark Logo",
+  "config.tenant.logo_dark.desc": "Preferred tenant logo in dark theme; falls back to the platform default when empty",
+  "config.tenant.icp.name": "ICP Filing Number",
+  "config.tenant.icp.desc": "Tenant-specific filing number; falls back to the platform default when empty",
   "config.tenant.user_privacy_policy_url.name": "Privacy Policy URL",
   "config.tenant.user_privacy_policy_url.desc": "Link to the privacy policy shown on the registration page. Leave empty to hide.",
   "config.tenant.user_terms_url.name": "Terms of Service URL",

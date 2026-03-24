@@ -48,7 +48,7 @@ function getRowWireApi(row: AIProviderInfo) {
 }
 
 // ============================================================
-// Status toggle
+// Status toggle / 状态开关
 // ============================================================
 
 function onToggleActive(row: AIProviderInfo) {

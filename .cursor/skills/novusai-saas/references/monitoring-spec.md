@@ -9,6 +9,7 @@
 - Service 里优先使用 `LoggerMixin` / `self.logger`，其他模块用 `get_logger(__name__)`；禁止直接 `from loguru import logger` 或 `print()`。
 - `TraceIdMiddleware`（`backend/app/middleware/trace.py`）在 HTTP + WebSocket 请求/响应里注入 `X-Trace-ID`，记录到 `trace_id_var`，LogManager 的 patcher 会自动将其加入每条日志。
 - 所有 5xx 错误由前端 `notification.error()` 展示，响应里必须回传 `X-Trace-ID` 以便用户复制，前端不可自动消失。
+- CLI 侧已提供 `novusai trace show <trace_id>`，通过 `TraceLookupService` 聚合 `operation_logs` 与文件日志，是当前仓库里 trace 级排障的标准入口。
 
 ## 二、系统日志管理
 
@@ -34,7 +35,26 @@
 - 同步上下文（如 Celery Worker）如果需要发 Socket.IO 事件，应走 `app/core/sio_bridge.py`：`sio_emit_sync`/`notify_*_sync()` 复用 RedisManager，避免直接 import AsyncServer。
 - `notify_sync()` 也从 `trace_id_var` 提取 trace_id，确保通知链路的日志能关联到原始请求。
 
-## 六、指标埋点指引
+## 六、Trace CLI 查询能力
+
+当前仓库已落地：
+
+```bash
+novusai trace show <trace_id> [--source auto|db|logs|all] [--json]
+```
+
+- 默认 `--source auto`
+- 默认 `--context 20`
+- 默认 `--max-blocks 10`
+- 默认 `--since-hours 72`
+- 输出包含：
+  - `primary_error`
+  - `operation_logs`
+  - `log_matches`
+  - `summary`
+- 生产 / 预发环境默认强制脱敏；如需未脱敏输出，必须同时满足 `--unsafe` 与 `NOVUSAI_ALLOW_UNSAFE_TRACE=1`
+
+## 七、指标埋点指引
 
 - 当前主干仓库没有统一的 `app/core/metrics.py`，也没有可确认存在的 `/admin/monitoring/*` 管理端监控路由。
 - 如果未来需要新增 Prometheus / OpenTelemetry / 自定义计数器，请遵循：
@@ -43,7 +63,7 @@
   - 同步更新规则文档与可观测性入口
 - 不要在文档里虚构尚未落地的 `/metrics` 白名单、Grafana iframe、Dashboard 页面或 `monitoring/index.vue`。
 
-## 七、扩展性规则
+## 八、扩展性规则
 
 - 新增监控路径（AI、Celery、WebSocket）必须同步更新 `trace-and-monitoring` 规则、`monitoring-spec` 文档、以及能观察到的数据端点（`system_logs`、`ai_health`、`ws/presence`）中的一项。
 - 监控相关的配置文档（如 `configs/definitions/platform_monitoring.py`）应只在 admin scope 里暴露，避免租户或 user 端访问。

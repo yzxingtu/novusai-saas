@@ -21,18 +21,18 @@ describe('dateUtils', () => {
   const sampleTimestamp = Date.parse(sampleISO);
 
   beforeEach(() => {
-    // 重置时区
+    // 重置时区 / Reset tz before each case
     dayjs.tz.setDefault();
-    setCurrentTimezone(); // 重置为系统默认
+    setCurrentTimezone(); // 重置为系统默认 / back to system default
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  // ===============================
-  // formatDate
-  // ===============================
+  // =============================== / section
+  // formatDate / 日期格式化
+  // =============================== / section
   describe('formatDate', () => {
     it('should format a valid ISO date string', () => {
       const formatted = formatDate(sampleISO, 'YYYY/MM/DD');
@@ -68,9 +68,9 @@ describe('dateUtils', () => {
     });
   });
 
-  // ===============================
-  // formatDateTime
-  // ===============================
+  // =============================== / section
+  // formatDateTime / 日期时间格式化
+  // =============================== / section
   describe('formatDateTime', () => {
     it('should format date into full datetime', () => {
       const result = formatDateTime(sampleISO);
@@ -78,9 +78,9 @@ describe('dateUtils', () => {
     });
   });
 
-  // ===============================
-  // isDate
-  // ===============================
+  // =============================== / section
+  // isDate / Date 类型判断
+  // =============================== / section
   describe('isDate', () => {
     it('should return true for Date instances', () => {
       expect(isDate(new Date())).toBe(true);
@@ -93,9 +93,9 @@ describe('dateUtils', () => {
     });
   });
 
-  // ===============================
-  // isDayjsObject
-  // ===============================
+  // =============================== / section
+  // isDayjsObject / dayjs 实例判断
+  // =============================== / section
   describe('isDayjsObject', () => {
     it('should return true for dayjs objects', () => {
       expect(isDayjsObject(dayjs())).toBe(true);
@@ -107,9 +107,9 @@ describe('dateUtils', () => {
     });
   });
 
-  // ===============================
-  // getSystemTimezone
-  // ===============================
+  // =============================== / section
+  // getSystemTimezone / 系统时区
+  // =============================== / section
   describe('getSystemTimezone', () => {
     it('should return a valid IANA timezone string', () => {
       const tz = getSystemTimezone();
@@ -118,9 +118,9 @@ describe('dateUtils', () => {
     });
   });
 
-  // ===============================
-  // setCurrentTimezone / getCurrentTimezone
-  // ===============================
+  // =============================== / section
+  // setCurrentTimezone / getCurrentTimezone / 当前时区读写
+  // =============================== / section
   describe('setCurrentTimezone & getCurrentTimezone', () => {
     it('should set and retrieve the current timezone', () => {
       setCurrentTimezone('Asia/Shanghai');
@@ -136,7 +136,7 @@ describe('dateUtils', () => {
     it('should update dayjs default timezone', () => {
       setCurrentTimezone('America/New_York');
       const d = dayjs('2024-01-01T00:00:00Z');
-      // 校验时区转换生效（小时变化）
+      // 校验时区转换生效（小时变化）/ Expect hour shift after tz apply
       expect(d.tz().format('HH')).not.toBe('00');
     });
   });

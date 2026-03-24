@@ -31,6 +31,44 @@ const selectedPeriodType = ref('');
 const selectedStatement = ref<null | TenantStatementSummary>(null);
 const charges = ref<null | TenantStatementChargesResponse>(null);
 const chargeRows = computed<TenantStatementChargeRow[]>(() => charges.value?.items ?? []);
+const tenantReady = computed(() => Boolean(prerequisites.value?.prerequisites.ready));
+const currentStatement = computed<null | TenantStatementSummary>(
+  () => selectedStatement.value ?? statement.value?.statement ?? null,
+);
+
+type SharedAccessApi = {
+  getAccessCodes?: () => string[];
+  hasAccessByCodes?: (codes: string[]) => boolean;
+};
+
+function getSharedAccess(): SharedAccessApi | undefined {
+  return (window as unknown as { NovusPluginShared?: SharedAccessApi }).NovusPluginShared;
+}
+
+function hasAccess(codes: string[]): boolean {
+  const shared = getSharedAccess();
+  if (typeof shared?.hasAccessByCodes === 'function') {
+    return shared.hasAccessByCodes(codes);
+  }
+  if (typeof shared?.getAccessCodes !== 'function') {
+    return codes.length === 0;
+  }
+  const accessCodes = shared.getAccessCodes() ?? [];
+  if (accessCodes.includes('*')) {
+    return true;
+  }
+  return codes.some((code) => accessCodes.includes(code));
+}
+
+const canViewPortal = computed(() =>
+  hasAccess(['plugin.storage-billing.billing_portal:view']),
+);
+const canViewStatementCharges = computed(() =>
+  hasAccess(['plugin.storage-billing.billing_statement:list']),
+);
+const canExportStatementCharges = computed(() =>
+  hasAccess(['plugin.storage-billing.billing_statement:export']),
+);
 
 const bindingColumns = computed(() => [
   { title: $t('plugin.storage-billing.admin.bindings.table.provider'), key: 'provider' },
@@ -47,21 +85,26 @@ const statementColumns = computed(() => [
 const chargeColumns = computed(() => [
   { title: $t('plugin.storage-billing.tenant.charges.table.provider'), key: 'provider_code' },
   { title: $t('plugin.storage-billing.tenant.charges.table.chargeBasis'), key: 'charge_basis' },
+  { title: $t('plugin.storage-billing.tenant.charges.table.scopeValues'), key: 'scope_values' },
+  { title: $t('plugin.storage-billing.tenant.charges.table.itemCount'), key: 'item_count' },
   { title: $t('plugin.storage-billing.tenant.charges.table.usage'), key: 'usage_bytes' },
   { title: $t('plugin.storage-billing.tenant.charges.table.amount'), key: 'amount_total' },
   { title: $t('plugin.storage-billing.tenant.charges.table.currency'), key: 'currency' },
 ]);
 
 const bindings = computed(() => prerequisites.value?.bindings.items.filter((item) => item.is_active) ?? []);
-const selectedAmount = computed(() => selectedStatement.value?.amount_total ?? '0');
-const selectedChargeCount = computed(() => selectedStatement.value?.charge_count ?? 0);
+const selectedAmount = computed(() => currentStatement.value?.amount_total ?? '0');
+const selectedChargeCount = computed(() => currentStatement.value?.charge_count ?? 0);
 const chargeTotal = computed(() => charges.value?.total ?? 0);
-const tenantCapabilityEntries = computed(() =>
-  Object.entries(prerequisites.value?.provider_capabilities ?? {}).map(([code, capability]) => ({
-    code,
-    ...capability,
-  })),
-);
+const tenantCapabilityEntries = computed(() => {
+  const currentDriver = prerequisites.value?.prerequisites.current_driver || '';
+  return Object.entries(prerequisites.value?.provider_capabilities ?? {})
+    .filter(([code]) => !currentDriver || code === currentDriver)
+    .map(([code, capability]) => ({
+      code,
+      ...capability,
+    }));
+});
 
 function providerLabel(code: string) {
   return $t(`plugin.storage-billing.common.provider.${code}`);
@@ -99,6 +142,19 @@ function chargeBasisLabel(basis: string) {
   const key = `plugin.storage-billing.common.chargeBasis.${basis}`;
   const translated = $t(key);
   return translated === key ? basis : translated;
+}
+
+function chargeScopeSummary(row: TenantStatementChargeRow): string {
+  const scopeValues = Array.isArray(row.details?.scope_values)
+    ? row.details.scope_values.filter((value): value is string => Boolean(value))
+    : [];
+  return scopeValues.length ? scopeValues.join(' / ') : '-';
+}
+
+function chargeItemCount(row: TenantStatementChargeRow): number {
+  const rawValue = row.details?.item_count;
+  const normalized = Number(rawValue);
+  return Number.isFinite(normalized) ? normalized : 0;
 }
 
 function capabilityModeLabel(value?: string) {
@@ -178,6 +234,19 @@ async function loadChargesForDate(
   billingDate: string,
   periodType?: string,
 ) {
+  if (!tenantReady.value) {
+    selectedBillingDate.value = '';
+    selectedPeriodType.value = '';
+    selectedStatement.value = null;
+    charges.value = null;
+    return;
+  }
+
+  if (!canViewStatementCharges.value) {
+    charges.value = null;
+    return;
+  }
+
   if (!billingDate) {
     selectedBillingDate.value = '';
     selectedPeriodType.value = '';
@@ -206,7 +275,7 @@ async function loadChargesForDate(
 }
 
 async function exportCurrentCharges(): Promise<void> {
-  if (!selectedBillingDate.value) {
+  if (!selectedBillingDate.value || !canExportStatementCharges.value) {
     return;
   }
   exportLoading.value = true;
@@ -227,22 +296,52 @@ async function exportCurrentCharges(): Promise<void> {
 }
 
 async function loadPage() {
+  if (!canViewPortal.value) {
+    prerequisites.value = null;
+    statement.value = null;
+    recentStatements.value = [];
+    selectedBillingDate.value = '';
+    selectedPeriodType.value = '';
+    selectedStatement.value = null;
+    charges.value = null;
+    return;
+  }
   loading.value = true;
   try {
-    const [p, s, listData] = await Promise.all([
-      getTenantPrerequisitesApi(),
+    const p = await getTenantPrerequisitesApi();
+    prerequisites.value = p;
+
+    if (!p.prerequisites.ready) {
+      statement.value = null;
+      recentStatements.value = [];
+      selectedBillingDate.value = '';
+      selectedPeriodType.value = '';
+      selectedStatement.value = null;
+      charges.value = null;
+      return;
+    }
+
+    const [s, listData] = await Promise.all([
       getCurrentStatementApi(),
       getTenantStatementsApi(30),
     ]);
-    prerequisites.value = p;
     statement.value = s;
     recentStatements.value = listData.items;
 
     const initialDate = resolveInitialBillingDate(s, listData.items);
-    await loadChargesForDate(
-      initialDate,
-      s?.statement?.period_type || listData.items[0]?.period_type,
+    selectedStatement.value = s.statement ?? null;
+    selectedBillingDate.value = initialDate;
+    selectedPeriodType.value = String(
+      s?.statement?.period_type || listData.items[0]?.period_type || '',
     );
+    charges.value = null;
+
+    if (canViewStatementCharges.value) {
+      await loadChargesForDate(
+        initialDate,
+        s?.statement?.period_type || listData.items[0]?.period_type,
+      );
+    }
   } finally {
     loading.value = false;
   }
@@ -341,21 +440,21 @@ onMounted(() => void loadPage());
           </Descriptions>
         </Card>
 
-        <Card :title="$t('plugin.storage-billing.tenant.statement.title')">
-          <Descriptions v-if="selectedStatement" :column="1" bordered size="small">
-            <DescriptionsItem :label="$t('plugin.storage-billing.tenant.statement.amount')">{{ selectedStatement.amount_total }}</DescriptionsItem>
-            <DescriptionsItem :label="$t('plugin.storage-billing.tenant.statement.currency')">{{ selectedStatement.currency }}</DescriptionsItem>
-            <DescriptionsItem :label="$t('plugin.storage-billing.tenant.statement.billingDate')">{{ statementPeriodLabel(selectedStatement) }}</DescriptionsItem>
-            <DescriptionsItem :label="$t('plugin.storage-billing.tenant.statement.chargeCount')">{{ selectedStatement.charge_count }}</DescriptionsItem>
+        <Card v-if="tenantReady && canViewPortal" :title="$t('plugin.storage-billing.tenant.statement.title')">
+          <Descriptions v-if="currentStatement" :column="1" bordered size="small">
+            <DescriptionsItem :label="$t('plugin.storage-billing.tenant.statement.amount')">{{ currentStatement.amount_total }}</DescriptionsItem>
+            <DescriptionsItem :label="$t('plugin.storage-billing.tenant.statement.currency')">{{ currentStatement.currency }}</DescriptionsItem>
+            <DescriptionsItem :label="$t('plugin.storage-billing.tenant.statement.billingDate')">{{ statementPeriodLabel(currentStatement) }}</DescriptionsItem>
+            <DescriptionsItem :label="$t('plugin.storage-billing.tenant.statement.chargeCount')">{{ currentStatement.charge_count }}</DescriptionsItem>
             <DescriptionsItem :label="$t('plugin.storage-billing.tenant.summary.statementStatus')">
-              <Tag :color="statusColor(selectedStatement.status)">{{ statusLabel(selectedStatement.status) }}</Tag>
+              <Tag :color="statusColor(currentStatement.status)">{{ statusLabel(currentStatement.status) }}</Tag>
             </DescriptionsItem>
           </Descriptions>
           <Empty v-else :description="statement?.message || $t('plugin.storage-billing.tenant.statement.empty')" />
         </Card>
       </div>
 
-      <Card :title="$t('plugin.storage-billing.tenant.statements.title')" class="block">
+      <Card v-if="tenantReady && canViewPortal" :title="$t('plugin.storage-billing.tenant.statements.title')" class="block">
         <template #extra>
           <span class="subtle">{{ $t('plugin.storage-billing.tenant.statements.subtitle') }}</span>
         </template>
@@ -368,7 +467,7 @@ onMounted(() => void loadPage());
           size="small"
         >
           <template #bodyCell="{ column, record }">
-              <template v-if="column.key === 'billing_date'">{{ statementPeriodLabel(record) }}</template>
+            <template v-if="column.key === 'billing_date'">{{ statementPeriodLabel(record) }}</template>
             <template v-else-if="column.key === 'amount_total'">{{ record.amount_total }}</template>
             <template v-else-if="column.key === 'charge_count'">{{ record.charge_count }}</template>
             <template v-else-if="column.key === 'status'">
@@ -377,7 +476,7 @@ onMounted(() => void loadPage());
               </Tag>
             </template>
             <template v-else-if="column.key === 'actions'">
-              <Button size="small" type="link" @click="loadChargesForDate(record.billing_date, record.period_type)">
+              <Button v-if="canViewStatementCharges" size="small" type="link" @click="loadChargesForDate(record.billing_date, record.period_type)">
                 {{ $t('plugin.storage-billing.tenant.statements.table.view') }}
               </Button>
             </template>
@@ -385,13 +484,14 @@ onMounted(() => void loadPage());
         </Table>
       </Card>
 
-      <Card :title="$t('plugin.storage-billing.tenant.charges.title')" class="block">
+      <Card v-if="tenantReady && canViewStatementCharges" :title="$t('plugin.storage-billing.tenant.charges.title')" class="block">
         <template #extra>
           <Space>
-            <Tag color="blue">{{ $t('plugin.storage-billing.tenant.statement.billingDate') }}: {{ statementPeriodLabel(selectedStatement) }}</Tag>
+            <Tag color="blue">{{ $t('plugin.storage-billing.tenant.statement.billingDate') }}: {{ statementPeriodLabel(currentStatement) }}</Tag>
             <Tag color="purple">{{ $t('plugin.storage-billing.tenant.charges.total') }}: {{ chargeTotal }}</Tag>
             <Button
-              :disabled="!selectedBillingDate"
+              v-if="canExportStatementCharges"
+              :disabled="!tenantReady || !selectedBillingDate"
               :loading="exportLoading"
               size="small"
               @click="exportCurrentCharges"
@@ -418,9 +518,11 @@ onMounted(() => void loadPage());
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'provider_code'">{{ providerLabel(record.provider_code) }}</template>
               <template v-else-if="column.key === 'charge_basis'">{{ chargeBasisLabel(record.charge_basis) }}</template>
+              <template v-else-if="column.key === 'scope_values'">{{ chargeScopeSummary(record) }}</template>
+              <template v-else-if="column.key === 'item_count'">{{ chargeItemCount(record) }}</template>
               <template v-else-if="column.key === 'usage_bytes'">{{ formatBytes(record.usage_bytes || 0) }}</template>
               <template v-else-if="column.key === 'amount_total'">{{ record.amount_total }}</template>
-              <template v-else-if="column.key === 'currency'">{{ record.currency || selectedStatement?.currency || '-' }}</template>
+              <template v-else-if="column.key === 'currency'">{{ record.currency || currentStatement?.currency || '-' }}</template>
             </template>
           </Table>
         </Spin>

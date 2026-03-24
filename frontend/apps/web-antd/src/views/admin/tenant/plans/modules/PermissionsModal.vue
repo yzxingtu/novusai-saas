@@ -20,7 +20,7 @@ import { $t } from '#/locales';
 
 type TenantPlanInfo = adminApi.TenantPlanInfo;
 
-// Emits
+// Emits / 组件事件
 const emits = defineEmits<{
   success: [];
 }>();

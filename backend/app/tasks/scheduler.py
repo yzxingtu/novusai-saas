@@ -14,11 +14,18 @@ import time
 from celery import __version__ as celery_version
 from celery.beat import PersistentScheduler
 from celery.schedules import crontab
+from sqlalchemy import exists, select
 
 from app.celery_app import celery_app
 from app.core.database import sync_session_factory
 from app.core.logging import LogManager
-from app.models.system.periodic_task import PeriodicTask
+from app.enums.common import ResourceScopeEnum
+from app.models.system.task_definition import TaskDefinition
+from app.models.system.tenant_task_binding import TenantTaskBinding
+from app.tasks.task_scheduling import (
+    TASK_DEFINITION_WRAPPER,
+    TENANT_BINDING_WRAPPER,
+)
 
 logger = LogManager.get_logger("queue")
 
@@ -38,49 +45,129 @@ def parse_cron_expression(expression: str) -> crontab:
     )
 
 
-def _build_periodic_schedule(tasks: list[PeriodicTask]) -> dict[str, dict]:
-    schedule: dict[str, dict] = {}
-    for task in tasks:
-        entry = {
-            "task": task.task_path,
-            "args": list(task.args.values()) if task.args else (),
-            "kwargs": task.kwargs or {},
-        }
+def _apply_schedule_config(
+    entry: dict[str, object],
+    *,
+    schedule_type: str | None,
+    cron_expression: str | None,
+    interval_seconds: int | None,
+) -> bool:
+    if schedule_type == "cron" and cron_expression:
+        entry["schedule"] = parse_cron_expression(cron_expression)
+        return True
+    if schedule_type == "interval" and interval_seconds:
+        entry["schedule"] = float(interval_seconds)
+        return True
+    return False
 
-        if task.schedule_type == "cron" and task.cron_expression:
-            entry["schedule"] = parse_cron_expression(task.cron_expression)
-        elif task.schedule_type == "interval" and task.interval_seconds:
-            entry["schedule"] = float(task.interval_seconds)
-        else:
+
+def _build_task_definition_schedule(
+    definitions: list[TaskDefinition],
+) -> dict[str, dict]:
+    schedule: dict[str, dict] = {}
+    for definition in definitions:
+        entry: dict[str, object] = {
+            "task": TASK_DEFINITION_WRAPPER,
+            "args": (definition.id,),
+            "kwargs": {},
+            "options": {"queue": "scheduled"},
+        }
+        if not _apply_schedule_config(
+            entry,
+            schedule_type=definition.default_schedule_type,
+            cron_expression=definition.default_cron_expression,
+            interval_seconds=definition.default_interval_seconds,
+        ):
             logger.warning(
-                f"Skipping periodic task '{task.name}': invalid schedule configuration"
+                "Skipping task definition '{}' due to missing schedule config",
+                definition.code,
             )
             continue
-
-        schedule[task.name] = entry
-        logger.info(
-            f"Loaded periodic task: {task.name} -> {task.task_path} "
-            f"({task.schedule_type})"
-        )
+        schedule[f"task_definition:{definition.id}:{definition.code}"] = entry
     return schedule
 
 
-def load_periodic_tasks_from_db(
+def _build_tenant_task_binding_schedule(
+    bindings: list[tuple[TenantTaskBinding, TaskDefinition]],
+) -> dict[str, dict]:
+    schedule: dict[str, dict] = {}
+    for binding, definition in bindings:
+        entry: dict[str, object] = {
+            "task": TENANT_BINDING_WRAPPER,
+            "args": (binding.id,),
+            "kwargs": {},
+            "options": {"queue": "scheduled"},
+        }
+        schedule_type = (
+            binding.schedule_type_override or definition.default_schedule_type
+        )
+        cron_expression = (
+            binding.cron_expression_override or definition.default_cron_expression
+        )
+        interval_seconds = (
+            binding.interval_seconds_override
+            if binding.interval_seconds_override is not None
+            else definition.default_interval_seconds
+        )
+        if not _apply_schedule_config(
+            entry,
+            schedule_type=schedule_type,
+            cron_expression=cron_expression,
+            interval_seconds=interval_seconds,
+        ):
+            logger.warning(
+                "Skipping tenant task binding '{}' due to missing schedule config",
+                binding.id,
+            )
+            continue
+        schedule[
+            f"tenant_task_binding:{binding.id}:{binding.tenant_id}:{definition.code}"
+        ] = entry
+    return schedule
+
+
+def load_task_schedules_from_db(
     *,
     return_none_on_error: bool = False,
 ) -> dict | None:
-    """Load periodic tasks from DB and return schedule dict / 从数据库加载定时任务并返回调度配置字典"""
+    """Load task schedules from DB and return schedule dict / 从数据库加载任务调度并返回调度配置字典"""
     session = sync_session_factory()
     try:
-        tasks = (
-            session.query(PeriodicTask)
+        task_definitions = (
+            session.query(TaskDefinition)
             .filter(
-                PeriodicTask.is_active.is_(True),  # noqa: E712
-                PeriodicTask.is_deleted.is_(False),  # noqa: E712
+                TaskDefinition.is_enabled.is_(True),  # noqa: E712
+                TaskDefinition.is_deleted.is_(False),  # noqa: E712
+                TaskDefinition.owner_tenant_id.is_(None),
+                TaskDefinition.scope == ResourceScopeEnum.ADMIN_ONLY.value,
+                ~exists(
+                    select(TenantTaskBinding.id).where(
+                        TenantTaskBinding.task_definition_id == TaskDefinition.id,
+                        TenantTaskBinding.is_enabled.is_(True),  # noqa: E712
+                        TenantTaskBinding.is_deleted.is_(False),  # noqa: E712
+                    )
+                ),
             )
             .all()
         )
-        return _build_periodic_schedule(tasks)
+        tenant_bindings = (
+            session.query(TenantTaskBinding, TaskDefinition)
+            .join(
+                TaskDefinition,
+                TaskDefinition.id == TenantTaskBinding.task_definition_id,
+            )
+            .filter(
+                TenantTaskBinding.is_enabled.is_(True),  # noqa: E712
+                TenantTaskBinding.is_deleted.is_(False),  # noqa: E712
+                TaskDefinition.is_enabled.is_(True),  # noqa: E712
+                TaskDefinition.is_deleted.is_(False),  # noqa: E712
+            )
+            .all()
+        )
+        return {
+            **_build_task_definition_schedule(task_definitions),
+            **_build_tenant_task_binding_schedule(tenant_bindings),
+        }
     except Exception as e:
         logger.error(f"Failed to load periodic tasks from DB: {e}")
         if return_none_on_error:
@@ -159,7 +246,7 @@ class ReloadingPersistentScheduler(PersistentScheduler):
 
         self._last_db_schedule_reload_at = now
 
-        db_schedule = load_periodic_tasks_from_db(return_none_on_error=True)
+        db_schedule = load_task_schedules_from_db(return_none_on_error=True)
         if db_schedule is None:
             return
 
@@ -186,9 +273,9 @@ class ReloadingPersistentScheduler(PersistentScheduler):
             )
 
 
-def setup_periodic_tasks() -> None:
-    """Register DB periodic tasks to Celery Beat schedule / 将数据库定时任务注册到 Celery Beat 调度"""
-    db_schedule = load_periodic_tasks_from_db() or {}
+def setup_task_schedules() -> None:
+    """Register DB task schedules to Celery Beat / 将数据库任务调度注册到 Celery Beat。"""
+    db_schedule = load_task_schedules_from_db() or {}
 
     beat_schedule = (
         {**celery_app.conf.beat_schedule} if celery_app.conf.beat_schedule else {}
@@ -203,5 +290,5 @@ def setup_periodic_tasks() -> None:
 
 def refresh_schedule() -> None:
     """Refresh periodic task schedule from DB / 从数据库刷新定时任务调度"""
-    setup_periodic_tasks()
+    setup_task_schedules()
     logger.info("Periodic task schedule refreshed from DB")

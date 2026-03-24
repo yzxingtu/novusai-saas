@@ -168,6 +168,15 @@ function setupAccessGuard(router: Router) {
     const isPlatformDomain =
       publicConfigStore.isDomainDetected &&
       publicConfigStore.isDomainTenantDomain === false;
+    const isTenantDomain =
+      publicConfigStore.isDomainDetected &&
+      publicConfigStore.isDomainTenantDomain === true;
+    if (currentEndpoint === 'admin' && isTenantDomain) {
+      const tenantTarget = TokenStorage.getToken('tenant')
+        ? normalizeEndpointNavigationPath(HOME_PATHS.tenant, 'tenant')
+        : LOGIN_PATHS.tenant;
+      return { path: tenantTarget, replace: true };
+    }
     if (currentEndpoint === 'user' && isPlatformDomain) {
       return { path: '/', replace: true };
     }

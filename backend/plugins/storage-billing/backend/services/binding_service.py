@@ -216,6 +216,11 @@ class StorageBillingBindingService:
     async def get_tenant_prerequisites(self, tenant_id: int) -> dict[str, Any]:
         tenant_snapshot = await self._get_tenant_snapshot(tenant_id)
         storage_context = await self._get_tenant_storage_context(tenant_id)
+        platform_storage_context = await self._get_platform_storage_context()
+        billing_storage_context = self._resolve_billing_storage_context(
+            storage_context,
+            platform_storage_context,
+        )
         provider_profiles = await self._profile_service.list_provider_profiles()
 
         result = await self._db.execute(
@@ -232,9 +237,16 @@ class StorageBillingBindingService:
 
         plan = dict(tenant_snapshot.get("plan") or {})
         features = dict(plan.get("features") or {})
-        storage_config = dict(storage_context.get("storage_config") or {})
-        current_driver = _stringify(storage_config.get("driver"))
+        tenant_storage_mode = _stringify(storage_context.get("storage_mode")) or "platform"
+        tenant_storage_config = dict(storage_context.get("storage_config") or {})
+        tenant_effective_driver = _stringify(tenant_storage_config.get("driver"))
+        billing_storage_config = dict(billing_storage_context.get("storage_config") or {})
+        current_driver = _stringify(billing_storage_config.get("driver"))
         feature_enabled = _to_bool(features.get("storage_billing_enabled"))
+        provider_map = dict(provider_profiles.get("providers") or {})
+        validation_map = dict(provider_profiles.get("validations") or {})
+        current_provider_profile = dict(provider_map.get(current_driver) or {})
+        current_provider_validation = dict(validation_map.get(current_driver) or {})
         active_bindings = [item for item in bindings if item["is_active"]]
         valid_active_bindings = [
             item
@@ -253,17 +265,59 @@ class StorageBillingBindingService:
         missing_reasons: list[str] = []
         if not feature_enabled:
             missing_reasons.append("plan_feature_disabled")
-        if current_driver in EXCLUDED_DRIVERS:
+        if tenant_storage_mode != "platform":
+            missing_reasons.append("tenant_not_using_platform_storage")
+        elif not current_driver:
+            missing_reasons.append("current_driver_unsupported")
+        elif current_driver in EXCLUDED_DRIVERS:
             missing_reasons.append("current_driver_not_billable")
         elif current_driver and current_driver not in SUPPORTED_CLOUD_DRIVERS:
             missing_reasons.append("current_driver_unsupported")
-        if not active_bindings:
-            missing_reasons.append("binding_missing")
-        elif current_driver in SUPPORTED_CLOUD_DRIVERS:
-            if not matching_active_bindings:
+        elif current_driver:
+            if not _to_bool(current_provider_profile.get("enabled")):
+                missing_reasons.append("provider_profile_disabled")
+            elif list(current_provider_validation.get("errors") or []):
+                missing_reasons.append("provider_profile_invalid")
+            elif (
+                current_provider_profile.get("driver_enabled") is False
+                or current_provider_validation.get("driver_enabled") is False
+            ):
+                missing_reasons.append("driver_plugin_disabled")
+            elif not active_bindings:
+                missing_reasons.append("binding_missing")
+            elif not matching_active_bindings:
                 missing_reasons.append("binding_provider_mismatch")
             elif not valid_matching_bindings:
                 missing_reasons.append("binding_invalid")
+        elif not active_bindings:
+            missing_reasons.append("binding_missing")
+
+        provider_capabilities = {
+            provider: {
+                "settlement_mode": dict(profile).get("settlement_mode"),
+                "settlement_cycle": dict(profile).get("settlement_cycle"),
+                "strict_reconciliation_supported": dict(profile).get(
+                    "strict_reconciliation_supported"
+                ),
+                "manual_pull_supported": dict(profile).get("manual_pull_supported"),
+                "scheduled_daily_supported": dict(profile).get(
+                    "scheduled_daily_supported"
+                ),
+                "supported_period_types": list(
+                    dict(profile).get("supported_period_types") or []
+                ),
+                "official_billing_lag_days": dict(profile).get(
+                    "official_billing_lag_days"
+                ),
+                "official_target_rule": dict(profile).get("official_target_rule"),
+                "capability_message": dict(profile).get("capability_message"),
+                "recommended_scope_types": list(
+                    dict(profile).get("recommended_scope_types") or []
+                ),
+            }
+            for provider, profile in dict(provider_profiles.get("providers") or {}).items()
+            if current_driver and provider == current_driver
+        }
 
         return {
             "ok": True,
@@ -275,32 +329,9 @@ class StorageBillingBindingService:
                 "storage_billing_enabled": feature_enabled,
             },
             "storage_context": storage_context,
+            "platform_storage_context": platform_storage_context,
             "provider_profiles": provider_profiles,
-            "provider_capabilities": {
-                provider: {
-                    "settlement_mode": dict(profile).get("settlement_mode"),
-                    "settlement_cycle": dict(profile).get("settlement_cycle"),
-                    "strict_reconciliation_supported": dict(profile).get(
-                        "strict_reconciliation_supported"
-                    ),
-                    "manual_pull_supported": dict(profile).get("manual_pull_supported"),
-                    "scheduled_daily_supported": dict(profile).get(
-                        "scheduled_daily_supported"
-                    ),
-                    "supported_period_types": list(
-                        dict(profile).get("supported_period_types") or []
-                    ),
-                    "official_billing_lag_days": dict(profile).get(
-                        "official_billing_lag_days"
-                    ),
-                    "official_target_rule": dict(profile).get("official_target_rule"),
-                    "capability_message": dict(profile).get("capability_message"),
-                    "recommended_scope_types": list(
-                        dict(profile).get("recommended_scope_types") or []
-                    ),
-                }
-                for provider, profile in dict(provider_profiles.get("providers") or {}).items()
-            },
+            "provider_capabilities": provider_capabilities,
             "bindings": {
                 "items": bindings,
                 "total": len(bindings),
@@ -314,10 +345,29 @@ class StorageBillingBindingService:
                 "feature_enabled": feature_enabled,
                 "current_driver": current_driver,
                 "current_driver_billable": current_driver in SUPPORTED_CLOUD_DRIVERS,
+                "tenant_effective_driver": tenant_effective_driver,
+                "tenant_storage_mode": tenant_storage_mode,
                 "charge_local_storage": False,
                 "missing_reasons": missing_reasons,
             },
         }
+
+    async def ensure_tenant_billing_ready(self, tenant_id: int) -> dict[str, Any]:
+        result = await self.get_tenant_prerequisites(tenant_id)
+        prerequisites = dict(result.get("prerequisites") or {})
+        if prerequisites.get("ready"):
+            return result
+
+        raise BusinessException(
+            message=_("Storage billing is not ready for the current tenant."),
+            data={
+                "current_driver": prerequisites.get("current_driver"),
+                "missing_reasons": list(prerequisites.get("missing_reasons") or []),
+                "tenant_effective_driver": prerequisites.get("tenant_effective_driver"),
+                "tenant_id": tenant_id,
+                "tenant_storage_mode": prerequisites.get("tenant_storage_mode"),
+            },
+        )
 
     async def _maybe_refresh(self, instance: StorageTenantBinding) -> None:
         refresh = getattr(self._db, "refresh", None)
@@ -389,10 +439,36 @@ class StorageBillingBindingService:
         reader = getattr(self._host_read, "get_tenant_storage_context", None)
         if not callable(reader):
             return {}
-        payload = await reader(tenant_id)
+        payload = reader(tenant_id)
+        if inspect.isawaitable(payload):
+            payload = await payload
         if not isinstance(payload, Mapping):
             return {}
         return dict(payload)
+
+    async def _get_platform_storage_context(self) -> dict[str, Any]:
+        if self._host_read is None:
+            return {}
+        reader = getattr(self._host_read, "get_platform_storage_context", None)
+        if not callable(reader):
+            return {}
+        payload = reader()
+        if inspect.isawaitable(payload):
+            payload = await payload
+        if not isinstance(payload, Mapping):
+            return {}
+        return dict(payload)
+
+    @staticmethod
+    def _resolve_billing_storage_context(
+        tenant_storage_context: Mapping[str, Any] | None,
+        platform_storage_context: Mapping[str, Any] | None,
+    ) -> dict[str, Any]:
+        _ = tenant_storage_context
+        # Phase-1 billing is defined against platform-managed storage only. The
+        # tenant storage context decides eligibility, but the driver used for
+        # readiness/validation must stay aligned with reconciliation.
+        return dict(platform_storage_context or {})
 
     async def _validate_binding_data(
         self,
@@ -420,12 +496,26 @@ class StorageBillingBindingService:
         errors.extend(profile_validation["errors"])
         warnings.extend(profile_validation["warnings"])
 
-        storage_context = await self._get_tenant_storage_context(data["tenant_id"])
-        current_driver = _stringify(dict(storage_context.get("storage_config") or {}).get("driver"))
-        if current_driver in EXCLUDED_DRIVERS:
-            warnings.append(_("Local storage is not billable and will not produce official charges."))
+        tenant_storage_context = await self._get_tenant_storage_context(data["tenant_id"])
+        tenant_storage_mode = _stringify(tenant_storage_context.get("storage_mode")) or "platform"
+        platform_storage_context = await self._get_platform_storage_context()
+        billing_storage_context = self._resolve_billing_storage_context(
+            tenant_storage_context,
+            platform_storage_context,
+        )
+        current_driver = _stringify(
+            dict(billing_storage_context.get("storage_config") or {}).get("driver")
+        )
+        if tenant_storage_mode != "platform":
+            errors.append(_("Tenant is not using platform-managed storage."))
+        elif not current_driver:
+            errors.append(_("Current platform storage driver is unsupported."))
+        elif current_driver in EXCLUDED_DRIVERS:
+            errors.append(_("Current platform storage driver is not billable."))
+        elif current_driver and current_driver not in SUPPORTED_CLOUD_DRIVERS:
+            errors.append(_("Current platform storage driver is unsupported."))
         elif current_driver and current_driver != data["provider_code"]:
-            warnings.append(_("Tenant current storage driver does not match the billing binding provider."))
+            errors.append(_("Tenant current storage driver does not match the billing binding provider."))
 
         if (
             data["provider_code"] == StorageProviderCodeEnum.QINIU_KODO.value

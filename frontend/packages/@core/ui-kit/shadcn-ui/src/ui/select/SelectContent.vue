@@ -6,7 +6,7 @@ import { computed } from 'vue';
 import { cn } from '@vben-core/shared/utils';
 
 import {
-  SelectContent,
+  SelectContent as RekaSelectContent,
   SelectPortal,
   SelectViewport,
   useForwardPropsEmits,
@@ -38,7 +38,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
 
 <template>
   <SelectPortal>
-    <SelectContent
+    <RekaSelectContent
       v-bind="{ ...forwarded, ...$attrs }"
       :class="
         cn(
@@ -62,6 +62,6 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
         <slot></slot>
       </SelectViewport>
       <SelectScrollDownButton />
-    </SelectContent>
+    </RekaSelectContent>
   </SelectPortal>
 </template>

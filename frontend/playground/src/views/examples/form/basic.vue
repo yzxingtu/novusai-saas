@@ -18,7 +18,7 @@ import DocButton from '../doc-button.vue';
 
 const keyword = ref('');
 const fetching = ref(false);
-// 模拟远程获取数据
+// 模拟远程获取数据 / Mock remote fetch
 function fetchRemoteOptions({ keyword = '选项' }: Record<string, any>) {
   fetching.value = true;
   return new Promise((resolve) => {
@@ -34,84 +34,84 @@ function fetchRemoteOptions({ keyword = '选项' }: Record<string, any>) {
 }
 
 const [BaseForm, baseFormApi] = useVbenForm({
-  // 所有表单项共用，可单独在表单内覆盖
+  // 所有表单项共用，可单独在表单内覆盖 / Shared field defaults; override per field
   commonConfig: {
-    // 在label后显示一个冒号
+    // 在label后显示一个冒号 / Colon after label
     colon: true,
-    // 所有表单项
+    // 所有表单项 / Default props for all fields
     componentProps: {
       class: 'w-full',
     },
   },
   fieldMappingTime: [['rangePicker', ['startTime', 'endTime'], 'YYYY-MM-DD']],
-  // 提交函数
+  // 提交函数 / Submit handler
   handleSubmit: onSubmit,
   handleValuesChange(_values, fieldsChanged) {
     message.info(`表单以下字段发生变化：${fieldsChanged.join('，')}`);
   },
 
-  // 垂直布局，label和input在不同行，值为vertical
-  // 水平布局，label和input在同一行
+  // 垂直布局，label和input在不同行，值为vertical / vertical: label and input on separate rows
+  // 水平布局，label和input在同一行 / horizontal: label and input on one row
   layout: 'horizontal',
   schema: [
     {
-      // 组件需要在 #/adapter.ts内注册，并加上类型
+      // 组件需要在 #/adapter.ts内注册，并加上类型 / Register in adapter + types
       component: 'Input',
-      // 对应组件的参数
+      // 对应组件的参数 / Props passed to the component
       componentProps: {
         placeholder: '请输入用户名',
       },
-      // 字段名
+      // 字段名 / Field name (form key)
       fieldName: 'username',
-      // 界面显示的label
+      // 界面显示的label / Visible label
       label: '字符串',
       rules: 'required',
     },
     {
-      // 组件需要在 #/adapter.ts内注册，并加上类型
+      // 组件需要在 #/adapter.ts内注册，并加上类型 / Register in adapter + types
       component: 'ApiSelect',
-      // 对应组件的参数
+      // 对应组件的参数 / Props passed to the component
       componentProps: {
-        // 菜单接口转options格式
+        // 菜单接口转options格式 / Map menu API to options
         afterFetch: (data: { name: string; path: string }[]) => {
           return data.map((item: any) => ({
             label: item.name,
             value: item.path,
           }));
         },
-        // 菜单接口
+        // 菜单接口 / Menu API
         api: getAllMenusApi,
         autoSelect: 'first',
       },
-      // 字段名
+      // 字段名 / Field name (form key)
       fieldName: 'api',
-      // 界面显示的label
+      // 界面显示的label / Visible label
       label: 'ApiSelect',
     },
     {
       component: 'ApiSelect',
-      // 对应组件的参数
+      // 对应组件的参数 / Props passed to the component
       componentProps: () => {
         return {
           api: fetchRemoteOptions,
-          // 禁止本地过滤
+          // 禁止本地过滤 / Disable client-side filtering
           filterOption: false,
-          // 如果正在获取数据，使用插槽显示一个loading
+          // 如果正在获取数据，使用插槽显示一个loading / Show loading via slot while fetching
           notFoundContent: fetching.value ? undefined : null,
-          // 搜索词变化时记录下来， 使用useDebounceFn防抖。
+          // 搜索词变化时记录下来， 使用useDebounceFn防抖。 / Debounce search with useDebounceFn
           onSearch: useDebounceFn((value: string) => {
             keyword.value = value;
           }, 300),
-          // 远程搜索参数。当搜索词变化时，params也会更新
+          // 远程搜索参数。当搜索词变化时，params也会更新 / Remote params refresh with keyword
           params: {
             keyword: keyword.value || undefined,
           },
           showSearch: true,
         };
       },
-      // 字段名
+      // 字段名 / Field name (form key)
       fieldName: 'remoteSearch',
-      // 界面显示的label
+      // 界面显示的label / Visible label
       label: '远程搜索',
       renderComponentContent: () => {
         return {
@@ -122,18 +122,18 @@ const [BaseForm, baseFormApi] = useVbenForm({
     },
     {
       component: 'ApiTreeSelect',
-      // 对应组件的参数
+      // 对应组件的参数 / Props passed to the component
       componentProps: {
-        // 菜单接口
+        // 菜单接口 / Menu API
         api: getAllMenusApi,
-        // 菜单接口转options格式
+        // 菜单接口转options格式 / Map menu API to tree fields
         labelField: 'name',
         valueField: 'path',
         childrenField: 'children',
       },
-      // 字段名
+      // 字段名 / Field name (form key)
       fieldName: 'apiTree',
-      // 界面显示的label
+      // 界面显示的label / Visible label
       label: 'ApiTreeSelect',
     },
     {
@@ -336,17 +336,17 @@ const [BaseForm, baseFormApi] = useVbenForm({
     {
       component: 'Upload',
       componentProps: {
-        // 更多属性见：https://ant.design/components/upload-cn
+        // 更多属性见：https://ant.design/components/upload-cn / See Ant Design Upload docs
         accept: '.png,.jpg,.jpeg',
-        // 自动携带认证信息
+        // 自动携带认证信息 / Attach auth headers in customRequest
         customRequest: upload_file,
         disabled: false,
         maxCount: 1,
-        // 单位：MB
+        // 单位：MB / Max size in MB
         maxSize: 2,
         multiple: false,
         showUploadList: true,
-        // 上传列表的内建样式，支持四种基本样式 text, picture, picture-card 和 picture-circle
+        // 上传列表的内建样式，支持四种基本样式 text, picture, picture-card 和 picture-circle / listType variants
         listType: 'picture-card',
       },
       fieldName: 'files',
@@ -359,7 +359,7 @@ const [BaseForm, baseFormApi] = useVbenForm({
       rules: 'selectRequired',
     },
   ],
-  // 大屏一行显示3个，中屏一行显示2个，小屏一行显示1个
+  // 大屏一行显示3个，中屏一行显示2个，小屏一行显示1个 / Responsive grid: 1 / 2 / 3 cols
   wrapperClass: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3',
 });
 
@@ -383,7 +383,7 @@ function onSubmit(values: Record<string, any>) {
     });
     return;
   }
-  // 如果需要可提交前替换为需要的urls
+  // 如果需要可提交前替换为需要的urls / Replace files with final URLs before submit
   values.files = doneFiles.map((file) => file.response?.url || file.url);
   message.success({
     content: `form values: ${JSON.stringify(values)}`,
@@ -392,7 +392,7 @@ function onSubmit(values: Record<string, any>) {
 
 function handleSetFormValue() {
   /**
-   * 设置表单值(多个)
+   * 设置表单值(多个) / Set multiple field values
    */
   baseFormApi.setValues({
     checkboxGroup: ['1'],
@@ -418,7 +418,7 @@ function handleSetFormValue() {
     username: '1',
   });
 
-  // 设置单个表单值
+  // 设置单个表单值 / Set a single field value
   baseFormApi.setFieldValue('checkbox', true);
 }
 </script>

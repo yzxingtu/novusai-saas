@@ -48,7 +48,7 @@ export const AUDIO_EXTENSIONS = new Set(['aac', 'flac', 'm4a', 'mp3', 'wav']);
 /** Archive file extensions / 压缩包文件扩展名 */
 export const ARCHIVE_EXTENSIONS = new Set(['7z', 'gz', 'rar', 'tar', 'zip']);
 
-// ============ Platform Default Rules ============
+// ============ Platform Default Rules / 平台默认上传规则 ============
 
 /**
  * Default allowed extensions (synced with backend platform_storage_allowed_extensions)

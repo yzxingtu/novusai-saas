@@ -9,7 +9,7 @@ import type { AttachmentInfo } from '#/types/attachment';
 import { searchInput, select } from '#/core/adapter/form/schema-helpers';
 import { $t } from '#/locales';
 
-// ============ 工具函数 ============
+// ============ 工具函数 / Helpers ============
 
 /** 文件分类颜色映射 / File category color mapping */
 export function getCategoryColor(
@@ -75,7 +75,7 @@ export function getVisibilityOptions() {
   ];
 }
 
-// ============ 列定义 ============
+// ============ 列定义 / Columns ============
 
 type OnActionClickFn = (
   code: string,
@@ -184,7 +184,7 @@ export function useColumns(
   ];
 }
 
-// ============ 搜索表单 ============
+// ============ 搜索表单 / Search form ============
 
 /**
  * 搜索表单 Schema（企业端不需要企业筛选）

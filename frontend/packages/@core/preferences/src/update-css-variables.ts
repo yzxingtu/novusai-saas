@@ -10,7 +10,7 @@ import { BUILT_IN_THEME_PRESETS } from './constants';
  * @param preferences - 当前偏好设置对象，它的主题值将被用来设置文档的主题。
  */
 function updateCSSVariables(preferences: Preferences) {
-  // 当修改到颜色变量时，更新 css 变量
+  // 当修改到颜色变量时，更新 css 变量 / Sync theme tokens to :root
   const root = document.documentElement;
   if (!root) {
     return;
@@ -20,13 +20,13 @@ function updateCSSVariables(preferences: Preferences) {
 
   const { builtinType, mode, radius } = theme;
 
-  // html 设置 dark 类
+  // html 设置 dark 类 / Toggle .dark on html
   if (Reflect.has(theme, 'mode')) {
     const dark = isDarkTheme(mode);
     root.classList.toggle('dark', dark);
   }
 
-  // html 设置 data-theme=[builtinType]
+  // html 设置 data-theme=[builtinType] / Built-in preset id on html
   if (Reflect.has(theme, 'builtinType')) {
     const rootTheme = root.dataset.theme;
     if (rootTheme !== builtinType) {
@@ -34,7 +34,7 @@ function updateCSSVariables(preferences: Preferences) {
     }
   }
 
-  // 获取当前的内置主题
+  // 获取当前的内置主题 / Resolve preset by type
   const currentBuiltType = [...BUILT_IN_THEME_PRESETS].find(
     (item) => item.type === builtinType,
   );
@@ -43,14 +43,14 @@ function updateCSSVariables(preferences: Preferences) {
 
   if (currentBuiltType) {
     const isDark = isDarkTheme(preferences.theme.mode);
-    // 设置不同主题的主要颜色
+    // 设置不同主题的主要颜色 / Pick dark/light primary from preset
     const color = isDark
       ? currentBuiltType.darkPrimaryColor || currentBuiltType.primaryColor
       : currentBuiltType.primaryColor;
     builtinTypeColorPrimary = color || currentBuiltType.color;
   }
 
-  // 如果内置主题颜色和自定义颜色都不存在，则不更新主题颜色
+  // 如果内置主题颜色和自定义颜色都不存在，则不更新主题颜色 / Skip color pass if nothing to apply
   if (
     builtinTypeColorPrimary ||
     Reflect.has(theme, 'colorPrimary') ||
@@ -58,16 +58,16 @@ function updateCSSVariables(preferences: Preferences) {
     Reflect.has(theme, 'colorSuccess') ||
     Reflect.has(theme, 'colorWarning')
   ) {
-    // preferences.theme.colorPrimary = builtinTypeColorPrimary || colorPrimary;
+    // preferences.theme.colorPrimary = builtinTypeColorPrimary || colorPrimary; / 旧赋值示例 / legacy sample
     updateMainColorVariables(preferences);
   }
 
-  // 更新圆角
+  // 更新圆角 / --radius rem
   if (Reflect.has(theme, 'radius')) {
     document.documentElement.style.setProperty('--radius', `${radius}rem`);
   }
 
-  // 更新字体大小
+  // 更新字体大小 / Base & menu font CSS vars
   if (Reflect.has(theme, 'fontSize')) {
     const fontSize = theme.fontSize;
     document.documentElement.style.setProperty(
@@ -99,7 +99,7 @@ function updateMainColorVariables(preference: Preferences) {
     { alias: 'destructive', color: colorDestructive, name: 'red' },
   ]);
 
-  // 要设置的 CSS 变量映射
+  // 要设置的 CSS 变量映射 / generator output → semantic tokens
   const colorMappings = {
     '--green-500': '--success',
     '--primary-500': '--primary',
@@ -107,7 +107,7 @@ function updateMainColorVariables(preference: Preferences) {
     '--yellow-500': '--warning',
   };
 
-  // 统一处理颜色变量的更新
+  // 统一处理颜色变量的更新 / Apply HSL vars to documentElement
   Object.entries(colorMappings).forEach(([sourceVar, targetVar]) => {
     const colorValue = colorVariables[sourceVar];
     if (colorValue) {

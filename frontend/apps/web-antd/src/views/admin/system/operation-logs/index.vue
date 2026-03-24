@@ -111,7 +111,7 @@ async function loadOperators() {
       },
     ]);
   } catch {
-    // ignore
+    // ignore / 忽略非关键错误
   }
 }
 

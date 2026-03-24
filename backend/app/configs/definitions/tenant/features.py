@@ -12,28 +12,6 @@ from app.enums.config import ConfigScope, ConfigValueType
 # User management features / 用户管理功能
 # ==========================================
 
-# Allow user self-registration / 允许用户自助注册
-TENANT_ALLOW_REGISTRATION = ConfigMeta(
-    key="tenant_allow_registration",
-    name_key="config.tenant.allow_registration.name",
-    description_key="config.tenant.allow_registration.desc",
-    scope=ConfigScope.ALL_TENANTS,
-    value_type=ConfigValueType.BOOLEAN,
-    default_value=True,
-    sort_order=10,
-)
-
-# New user requires approval / 新用户需要审批
-TENANT_REGISTRATION_APPROVAL = ConfigMeta(
-    key="tenant_registration_approval",
-    name_key="config.tenant.registration_approval.name",
-    description_key="config.tenant.registration_approval.desc",
-    scope=ConfigScope.ALL_TENANTS,
-    value_type=ConfigValueType.BOOLEAN,
-    default_value=False,
-    sort_order=20,
-)
-
 # Allow user profile editing / 允许用户修改个人资料
 TENANT_ALLOW_PROFILE_EDIT = ConfigMeta(
     key="tenant_allow_profile_edit",
@@ -42,7 +20,7 @@ TENANT_ALLOW_PROFILE_EDIT = ConfigMeta(
     scope=ConfigScope.ALL_TENANTS,
     value_type=ConfigValueType.BOOLEAN,
     default_value=True,
-    sort_order=30,
+    sort_order=10,
 )
 
 
@@ -58,7 +36,7 @@ TENANT_EMAIL_NOTIFICATION = ConfigMeta(
     scope=ConfigScope.ALL_TENANTS,
     value_type=ConfigValueType.BOOLEAN,
     default_value=True,
-    sort_order=40,
+    sort_order=20,
 )
 
 # Enable SMS notifications / 启用短信通知
@@ -70,7 +48,7 @@ TENANT_SMS_NOTIFICATION = ConfigMeta(
     value_type=ConfigValueType.BOOLEAN,
     default_value=False,
     is_visible=False,
-    sort_order=50,
+    sort_order=30,
 )
 
 
@@ -87,7 +65,7 @@ TENANT_API_ACCESS = ConfigMeta(
     value_type=ConfigValueType.BOOLEAN,
     default_value=True,
     is_visible=False,
-    sort_order=60,
+    sort_order=40,
 )
 
 # Enable file upload / 启用文件上传
@@ -98,7 +76,7 @@ TENANT_FILE_UPLOAD = ConfigMeta(
     scope=ConfigScope.ALL_TENANTS,
     value_type=ConfigValueType.BOOLEAN,
     default_value=True,
-    sort_order=70,
+    sort_order=50,
 )
 
 
@@ -107,8 +85,6 @@ TENANT_FILE_UPLOAD = ConfigMeta(
 # ==========================================
 
 TENANT_FEATURES_GROUP.configs = [
-    TENANT_ALLOW_REGISTRATION,
-    TENANT_REGISTRATION_APPROVAL,
     TENANT_ALLOW_PROFILE_EDIT,
     TENANT_EMAIL_NOTIFICATION,
     TENANT_SMS_NOTIFICATION,
@@ -118,8 +94,6 @@ TENANT_FEATURES_GROUP.configs = [
 
 
 __all__ = [
-    "TENANT_ALLOW_REGISTRATION",
-    "TENANT_REGISTRATION_APPROVAL",
     "TENANT_ALLOW_PROFILE_EDIT",
     "TENANT_EMAIL_NOTIFICATION",
     "TENANT_SMS_NOTIFICATION",

@@ -15,6 +15,7 @@ import { Drawer, Dropdown, Tooltip } from 'ant-design-vue';
 import ReLoginForm from '#/components/business/re-login-form/ReLoginForm.vue';
 import { $t } from '#/locales';
 import { useMultiAuthStore, usePresenceStore, usePublicConfigStore, useSocketIOStore } from '#/store';
+import { resolveCopyrightDisplay } from '#/utils/public-branding';
 
 defineOptions({ name: 'UserLayout' });
 
@@ -27,7 +28,7 @@ const publicConfigStore = usePublicConfigStore();
 const socketIOStore = useSocketIOStore();
 const presenceStore = usePresenceStore();
 
-// 域名感知品牌
+// 域名感知品牌 / Domain-aware branding
 const isTenantDomain = computed(() => publicConfigStore.isDomainTenantDomain);
 
 const brandLogo = computed(() => {
@@ -105,8 +106,9 @@ function handleDropdownClick({ key }: { key: string }) {
 }
 
 const isLoggedIn = computed(() => !!userStore.userInfo?.username);
-
-const year = computed(() => new Date().getFullYear());
+const footerBranding = computed(() =>
+  resolveCopyrightDisplay(preferences.copyright),
+);
 
 watch(
   () => route.path,
@@ -123,7 +125,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-  // Socket.IO disconnect handled by logout flow
+  // Socket.IO disconnect handled by logout flow / 断开连接由登出流程处理
 });
 </script>
 
@@ -297,9 +299,13 @@ onBeforeUnmount(() => {
 
     <!-- Footer -->
     <footer
+      v-if="footerBranding.visible"
       class="flex items-center justify-center border-t border-border px-4 py-4 text-xs text-muted-foreground"
     >
-      <span>&copy; {{ year }} {{ brandName }}</span>
+      <span>
+        {{ footerBranding.companyName }}
+        <span v-if="footerBranding.meta">{{ footerBranding.meta }}</span>
+      </span>
     </footer>
 
     <!-- 登录过期弹窗 / Login expired modal -->

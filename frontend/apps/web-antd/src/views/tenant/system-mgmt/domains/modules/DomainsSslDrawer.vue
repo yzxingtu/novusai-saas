@@ -61,7 +61,7 @@ const title = computed(() =>
     : $t('tenant.system.domain.ssl.title'),
 );
 
-// Drawer
+// Drawer / 抽屉
 const [Drawer, drawerApi] = useVbenDrawer({
   async onOpenChange(isOpen) {
     if (isOpen) {

@@ -68,7 +68,7 @@ export function useTabsViewScroll(props: TabsProps) {
     await nextTick();
     scrollToActiveIntoView();
 
-    // 监听大小变化
+    // 监听大小变化 / ResizeObserver for viewport width
     resizeObserver?.disconnect();
     resizeObserver = new ResizeObserver(
       useDebounceFn((_entries: ResizeObserverEntry[]) => {
@@ -80,7 +80,7 @@ export function useTabsViewScroll(props: TabsProps) {
 
     tabItemCount = props.tabs?.length || 0;
     mutationObserver?.disconnect();
-    // 使用 MutationObserver 仅监听子节点数量变化
+    // 使用 MutationObserver 仅监听子节点数量变化 / Observe tab DOM count
     mutationObserver = new MutationObserver(() => {
       const count = viewportEl.querySelectorAll(
         `div[data-tab-item="true"]`,
@@ -96,7 +96,7 @@ export function useTabsViewScroll(props: TabsProps) {
       }
     });
 
-    // 配置为仅监听子节点的添加和移除
+    // 配置为仅监听子节点的添加和移除 / childList only
     mutationObserver.observe(viewportEl, {
       attributes: false,
       childList: true,
@@ -144,7 +144,7 @@ export function useTabsViewScroll(props: TabsProps) {
 
   function handleWheel({ deltaY }: WheelEvent) {
     scrollViewportEl.value?.scrollBy({
-      // behavior: 'smooth',
+      // behavior: 'smooth', / 可选平滑 / optional smooth (commented)
       left: deltaY * 3,
     });
   }
@@ -152,7 +152,7 @@ export function useTabsViewScroll(props: TabsProps) {
   watch(
     () => props.active,
     async () => {
-      // 200为了等待 tab 切换动画完成
+      // 200ms 等 tab 切换动画（已注释 setTimeout）/ Wait transition; optional delay commented
       // setTimeout(() => {
       scrollToActiveIntoView();
       // }, 300);
@@ -162,6 +162,7 @@ export function useTabsViewScroll(props: TabsProps) {
     },
   );
 
+  // 可选：tabs 数量变化时重算滚动条（已注释）/ Optional watch tabs length (commented)
   // watch(
   //   () => props.tabs?.length,
   //   async () => {

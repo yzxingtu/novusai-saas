@@ -37,7 +37,7 @@ function onViewDetail(row: TenantAICallLogInfo) {
   detailOpen.value = true;
 }
 
-// Quick status filter
+// Quick status filter / 快捷状态筛选
 const activeFilter = ref<'all' | 'failed' | 'success'>('all');
 
 function applyQuickFilter(filter: 'all' | 'failed' | 'success') {

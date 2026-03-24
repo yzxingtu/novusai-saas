@@ -16,6 +16,18 @@
 - 企业隔离任务使用 `TenantTask`，调用时必须显式传 `tenant_id`
 - 常用队列：`default`、`high_priority`、`ai_gateway`、`scheduled`、`notification`
 
+## AI 调用日志与账本
+
+- AI 调用日志默认不是在 HTTP 进程内直接 INSERT，而是通过 `CallLogService.log_call_async()` 投递到 `tasks.ai.log_ai_call`
+- `tasks.ai.log_ai_call` 固定消费 `ai_gateway` 队列；调用日志页无数据但对话成功时，先查 worker 是否真的消费该队列
+- 调用日志与用量统计的事实表是 `AICallLog` / `ai_call_logs`；不要再按旧 `ai_usage_stats` 心智排查
+- `billing_context`、账本快照列、任务签名一旦变更，**API 与 Worker 必须同版本并重启 Worker**
+- 若出现 `unexpected keyword billing_context`、日志页为空、统计无数据，优先怀疑：
+  - Worker 仍跑旧代码
+  - `ai_gateway` 队列无人消费
+  - `task_logs` 中 `tasks.ai.log_ai_call` 失败
+- 流式对话的调用日志通常在生成器尾部入队；客户端提前断开导致尾部逻辑未跑完时，允许出现“回答成功但无日志”的现象，先查流式生命周期，再怀疑 DB
+
 ## 定时任务
 
 - 管理端可运维的定时任务统一落 `periodic_tasks` 表
@@ -75,3 +87,4 @@
 - [../skills/novusai-saas/references/email-spec.md](../skills/novusai-saas/references/email-spec.md)
 - [../skills/websocket-guide/SKILL.md](../skills/websocket-guide/SKILL.md)
 - [../skills/novusai-saas/references/token-force-logout-spec.md](../skills/novusai-saas/references/token-force-logout-spec.md)
+- [../skills/ai-call-log-usage-ledger/SKILL.md](../skills/ai-call-log-usage-ledger/SKILL.md)

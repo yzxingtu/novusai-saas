@@ -15,11 +15,15 @@ export function normalizeRouteTitleLocaleMap(
   }
 
   const normalizedEntries = Object.entries(value).filter(
-    ([key, item]): item is string =>
-      typeof key === 'string' &&
-      key.trim().length > 0 &&
-      typeof item === 'string' &&
-      item.trim().length > 0,
+    (entry): entry is [string, string] => {
+      const [key, item] = entry;
+      return (
+        typeof key === 'string' &&
+        key.trim().length > 0 &&
+        typeof item === 'string' &&
+        item.trim().length > 0
+      );
+    },
   );
   if (normalizedEntries.length === 0) {
     return undefined;

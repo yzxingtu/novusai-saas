@@ -10,6 +10,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.config import settings
 from app.plugins.exceptions import PluginManifestError
+from app.plugins.frontend_contract_checks import (
+    collect_frontend_component_export_contract_errors,
+    collect_frontend_i18n_contract_errors,
+    collect_frontend_locale_prefix_contract_issues,
+)
 
 
 class PluginReleaseManifest(BaseModel):
@@ -108,26 +113,71 @@ def validate_runtime_frontend_contract(plugin_root: Path, manifest: Any) -> dict
     if not has_frontend_extensions(manifest):
         return {"has_frontend": False, "mode": "none"}
 
-    if settings.DEBUG:
-        frontend = _get_frontend_decl(manifest)
-        dev = frontend.get("dev", {})
-        dev_entry = _resolve_frontend_relative_file(
-            plugin_root,
-            str(dev.get("entry") or "src/index.ts"),
-            field_name="frontend.dev.entry",
+    frontend = _get_frontend_decl(manifest)
+    plugin_name = _get_manifest_name(manifest)
+    frontend_i18n_errors, expected_locales = collect_frontend_i18n_contract_errors(
+        manifest
+    )
+    if frontend_i18n_errors:
+        raise PluginManifestError(
+            message=(
+                "Frontend page/menu i18n contract invalid: "
+                + "; ".join(frontend_i18n_errors)
+            ),
         )
+
+    runtime_warnings: list[str] = []
+    dev = frontend.get("dev", {})
+    dev_entry = _resolve_frontend_relative_file(
+        plugin_root,
+        str(dev.get("entry") or "src/index.ts"),
+        field_name="frontend.dev.entry",
+    )
+    if dev_entry is not None and dev_entry.is_file():
+        entry_source = dev_entry.read_text(encoding="utf-8", errors="ignore")
+        locale_prefix_errors, locale_prefix_warnings = (
+            collect_frontend_locale_prefix_contract_issues(
+                plugin_name,
+                entry_source,
+            )
+        )
+        if locale_prefix_errors:
+            raise PluginManifestError(
+                message=(
+                    "Frontend locale namespace invalid: "
+                    + "; ".join(locale_prefix_errors)
+                ),
+            )
+        component_export_errors = collect_frontend_component_export_contract_errors(
+            frontend,
+            entry_source,
+        )
+        if component_export_errors:
+            raise PluginManifestError(
+                message=(
+                    "Frontend component export contract invalid: "
+                    + "; ".join(component_export_errors)
+                ),
+            )
+        runtime_warnings.extend(locale_prefix_warnings)
+
+    if settings.DEBUG:
         if dev_entry is not None and dev_entry.is_file():
             return {
                 "has_frontend": True,
                 "mode": "dev_source",
                 "dev_entry": dev_entry,
+                "expected_locales": expected_locales,
+                "warnings": runtime_warnings,
             }
 
     release_manifest = load_release_manifest(plugin_root, manifest, strict=True)
     return {
         "has_frontend": True,
         "mode": "release",
+        "expected_locales": expected_locales,
         "release_manifest": release_manifest,
+        "warnings": runtime_warnings,
     }
 
 
@@ -178,6 +228,14 @@ def _get_custom_ext_decl(manifest: Any) -> list[dict[str, Any]]:
         if isinstance(custom, list):
             return [item for item in custom if isinstance(item, dict)]
     return []
+
+
+def _get_manifest_name(manifest: Any) -> str:
+    if hasattr(manifest, "name"):
+        return str(getattr(manifest, "name") or "").strip()
+    if isinstance(manifest, dict):
+        return str(manifest.get("name") or "").strip()
+    return ""
 
 
 def _resolve_frontend_relative_file(

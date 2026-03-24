@@ -46,30 +46,3 @@ class TestOwnerTenantScopeCompatibility:
         forced_filters = mock_query_deleted.await_args.kwargs["forced_filters"]
         assert forced_filters[0].field == "owner_tenant_id"
         assert forced_filters[0].value == 1
-
-    @pytest.mark.asyncio
-    async def test_query_deleted_injects_owner_tenant_id_filter_for_tenant_periodic_task_repository(
-        self,
-        mock_db,
-    ):
-        from app.core.base_repository import BaseRepository
-        from app.repositories.tenant.periodic_task_repository import (
-            TenantPeriodicTaskRepository,
-        )
-        from app.schemas.common.query import QuerySpec
-
-        repo = TenantPeriodicTaskRepository(mock_db, tenant_id=1)
-
-        with patch.object(
-            BaseRepository,
-            "query_deleted",
-            new=AsyncMock(return_value=([], 0)),
-        ) as mock_query_deleted:
-            await repo.query_deleted(
-                spec=QuerySpec(),
-                delete_level="tenant",
-            )
-
-        forced_filters = mock_query_deleted.await_args.kwargs["forced_filters"]
-        assert forced_filters[0].field == "owner_tenant_id"
-        assert forced_filters[0].value == 1

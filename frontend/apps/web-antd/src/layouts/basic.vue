@@ -18,7 +18,6 @@ import {
 } from '@vben/layouts';
 import { preferences, updatePreferences } from '@vben/preferences';
 import { useAccessStore, useTabbarStore, useUserStore } from '@vben/stores';
-import { resolveRouteMetaTitle } from '@vben/utils';
 
 import { message, Popover, Tooltip } from 'ant-design-vue';
 
@@ -51,6 +50,7 @@ import {
 import { useUserPreferenceStore } from '#/store/shared';
 import { usePluginSlotsStore } from '#/stores/plugin-slots';
 import { getEndpointFromPath } from '#/utils';
+import { syncLocaleNavigation } from './locale-navigation-sync';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -66,6 +66,9 @@ const preferenceStore = useUserPreferenceStore();
 const { destroyWatermark, updateWatermark } = useWatermark();
 const { refresh } = useRefresh();
 const cacheClearModalRef = ref<InstanceType<typeof CacheClearModal>>();
+let localeSyncTask: null | Promise<void> = null;
+let localeSyncQueued = false;
+let lastSyncedLocale = String(preferences.app.locale || '');
 
 // ============ Preference Sync / 偏好同步 ============
 const { initSnapshot, skipSync } = usePreferenceSync();
@@ -89,7 +92,7 @@ const apiPrefix = computed(() => {
   return '/tenant';
 });
 
-// ============ Endpoint Indicator ============
+// ============ Endpoint Indicator / 当前端点标识 ============
 
 const isAdminEndpoint = computed(() => apiPrefix.value === '/admin');
 
@@ -190,6 +193,19 @@ watch(
   },
 );
 
+watch(
+  () => preferences.app.locale,
+  (newLocale, oldLocale) => {
+    const nextLocale = String(newLocale || '');
+    if (!oldLocale || nextLocale === String(oldLocale)) {
+      return;
+    }
+    void syncLocaleDrivenState(nextLocale).catch((error) => {
+      console.warn('[BasicLayout] locale sync failed:', error);
+    });
+  },
+);
+
 onMounted(async () => {
   updatePreferences({ copyright: { settingShow: false } });
 
@@ -257,94 +273,74 @@ async function handleLogout() {
  * 语言切换时重新加载菜单
  */
 async function handleLocaleChange() {
-  // 显示加载提示 / loading toast
-  const hideLoading = message.loading({
-    content: $t('common.loadingMenu'),
-    duration: 0,
+  await syncLocaleDrivenState(String(preferences.app.locale || ''), {
+    showLoading: true,
   });
+}
 
-  try {
-    // 获取当前端类型 / resolve endpoint
-    const currentEndpoint = getEndpointFromPath(router.currentRoute.value.path);
-    const userRoles = userStore.userInfo?.roles ?? [];
+async function syncLocaleDrivenState(
+  targetLocale: string,
+  options: { showLoading?: boolean } = {},
+) {
+  if (!targetLocale) {
+    return;
+  }
 
-    // 重新获取菜单和路由 / rebuild access
-    const { accessibleMenus, accessibleRoutes } = await generateAccess(
-      {
-        roles: userRoles,
+  if (localeSyncTask) {
+    localeSyncQueued = true;
+    await localeSyncTask;
+    if (targetLocale === lastSyncedLocale) {
+      return;
+    }
+  }
+
+  if (targetLocale === lastSyncedLocale) {
+    return;
+  }
+
+  localeSyncTask = (async () => {
+    const hideLoading = options.showLoading
+      ? message.loading({
+          content: $t('common.loadingMenu'),
+          duration: 0,
+        })
+      : () => {};
+
+    try {
+      const currentEndpoint = getEndpointFromPath(router.currentRoute.value.path);
+      const userRoles = userStore.userInfo?.roles ?? [];
+
+      await syncLocaleNavigation({
+        accessStore,
+        endpoint: currentEndpoint,
+        generateAccess,
+        hasLocaleKey: $te,
+        locale: targetLocale,
+        refreshPluginSlots,
         router,
         routes: accessRoutes,
-      },
-      currentEndpoint,
-    );
+        tabbarStore,
+        translate: $t,
+        userRoles,
+      });
+      lastSyncedLocale = targetLocale;
+    } finally {
+      hideLoading();
+    }
+  })();
 
-    // 更新菜单和路由 / apply menus + routes
-    accessStore.setAccessMenus(accessibleMenus);
-    accessStore.setAccessRoutes(accessibleRoutes);
-    await refreshPluginSlots(currentEndpoint, router, { reloadAssets: false });
-
-    // 更新所有已打开的 tabs 的 title / retitle open tabs
-    updateAllTabsTitles();
-    await refreshCurrentRouteMatch();
+  try {
+    await localeSyncTask;
   } finally {
-    hideLoading();
-  }
-}
-
-/**
- * 更新所有已打开 tabs 的 title
- */
-function updateAllTabsTitles() {
-  const tabs = tabbarStore.getTabs;
-  const routes = router.getRoutes();
-
-  // 创建路由路径到 meta 的映射 / path → route meta map
-  const routeMetaMap = new Map<string, Record<string, unknown>>();
-  for (const route of routes) {
-    if (route.meta) {
-      routeMetaMap.set(route.path, route.meta as Record<string, unknown>);
-    }
-  }
-
-  // 更新每个 tab 的 title / sync tab meta.title
-  for (const tab of tabs) {
-    const routeMeta = routeMetaMap.get(tab.path);
-    const newTitle = resolveRouteMetaTitle(routeMeta, {
-      hasLocaleKey: $te,
-      locale: preferences.app.locale,
-      translate: $t,
-    });
-    if (newTitle && tab.meta) {
-      tab.meta.title = newTitle;
-      tab.meta.titleLocaleMap = routeMeta?.titleLocaleMap as
-        | Record<string, string>
-        | undefined;
-    }
-  }
-
-  // 触发 tabbarStore 更新 / bump tabbar version
-  tabbarStore.setUpdateTime();
-}
-
-async function refreshCurrentRouteMatch() {
-  const currentRoute = router.currentRoute.value;
-  const routeTarget = currentRoute.name
-    ? {
-        hash: currentRoute.hash,
-        name: currentRoute.name,
-        params: currentRoute.params,
-        query: currentRoute.query,
+    localeSyncTask = null;
+    if (localeSyncQueued) {
+      localeSyncQueued = false;
+      const latestLocale = String(preferences.app.locale || '');
+      if (latestLocale && latestLocale !== lastSyncedLocale) {
+        await syncLocaleDrivenState(latestLocale);
       }
-    : {
-        hash: currentRoute.hash,
-        path: currentRoute.path,
-        query: currentRoute.query,
-      };
-
-  await router.replace({
-    ...routeTarget,
-    force: true,
-  });
+    }
+  }
 }
 
 /**

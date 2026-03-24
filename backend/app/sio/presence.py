@@ -19,7 +19,7 @@ logger = LogManager.get_logger("app")
 PRESENCE_KEY_PREFIX = "presence:"
 
 # Presence Hash TTL (seconds) — prevents stale data after worker crash / Presence Hash TTL（秒）— 防止 worker 崩溃后 stale 数据永久残留
-PRESENCE_TTL = 86400  # 24 小时
+PRESENCE_TTL = 86400  # 24 小时 / 24 hours
 
 # Lua: atomically increment connection count and refresh Hash TTL, return new value / Lua: 原子递增连接数并刷新 Hash TTL，返回新值
 _LUA_INCR = """

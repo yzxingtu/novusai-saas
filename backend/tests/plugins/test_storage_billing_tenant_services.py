@@ -43,6 +43,9 @@ async def test_storage_billing_tenant_endpoints_delegate_to_service(monkeypatch)
     )
 
     binding_service = AsyncMock()
+    binding_service.ensure_tenant_billing_ready = AsyncMock(
+        return_value={"prerequisites": {"ready": True}}
+    )
     binding_service.get_tenant_prerequisites = AsyncMock(
         return_value={
             "ok": True,
@@ -87,6 +90,7 @@ async def test_storage_billing_tenant_endpoints_delegate_to_service(monkeypatch)
     prereq_result = await module.get_prerequisites(prereq_request, ctx)
 
     assert current_result["statement"]["id"] == 1
+    assert binding_service.ensure_tenant_billing_ready.await_count == 4
     overview_service.build_tenant_statement.assert_awaited_once_with(
         tenant_id=9,
         billing_date=date(2026, 3, 22),
@@ -131,6 +135,9 @@ async def test_storage_billing_tenant_endpoints_forward_period_type(monkeypatch)
     )
 
     binding_service = AsyncMock()
+    binding_service.ensure_tenant_billing_ready = AsyncMock(
+        return_value={"prerequisites": {"ready": True}}
+    )
     binding_service.get_tenant_prerequisites = AsyncMock(return_value={"ok": True})
 
     overview_factory = MagicMock()
@@ -172,6 +179,41 @@ async def test_storage_billing_tenant_endpoints_forward_period_type(monkeypatch)
         billing_date=date(2026, 3, 22),
         period_type="monthly",
     )
+    assert binding_service.ensure_tenant_billing_ready.await_count == 3
+
+
+@pytest.mark.asyncio
+async def test_storage_billing_tenant_endpoints_block_when_prerequisites_not_ready(monkeypatch) -> None:
+    module = load_plugin_module("storage-billing", "api.tenant")
+    assert module is not None
+
+    overview_service = AsyncMock()
+    overview_factory = MagicMock()
+    overview_factory.from_context.return_value = overview_service
+    monkeypatch.setattr(module, "StorageBillingOverviewService", overview_factory)
+
+    binding_service = AsyncMock()
+    binding_service.ensure_tenant_billing_ready = AsyncMock(
+        side_effect=BusinessException(
+            message="Storage billing is not ready for the current tenant.",
+            data={"missing_reasons": ["provider_profile_disabled"]},
+        )
+    )
+    binding_factory = MagicMock()
+    binding_factory.from_context.return_value = binding_service
+    monkeypatch.setattr(module, "StorageBillingBindingService", binding_factory)
+
+    ctx = MagicMock()
+    ctx.get_current_tenant_id.return_value = 9
+    ctx.get_request_id.return_value = "req-tenant-blocked"
+
+    request = MagicMock()
+    request.query_params = {}
+
+    with pytest.raises(BusinessException, match="not ready"):
+        await module.get_current_statement(request, ctx)
+
+    overview_factory.from_context.assert_not_called()
 
 
 @pytest.mark.asyncio

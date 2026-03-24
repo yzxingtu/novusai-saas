@@ -25,7 +25,7 @@
 
 ### 2.1 入参
 
-- `_convert_messages(..., supports_vision=True, supports_audio=False, supports_video=False)`  
+- `_convert_messages(..., supports_vision=True, supports_audio=False, supports_video=False)`
   由调用方根据**当前使用的 chat 模型**的 `supports_vision` / `supports_audio` / `supports_video` 传入，不从请求体猜测。
 
 - `chat()` / `stream_chat()` 内从 `kwargs` 中 `pop` 上述三个标志并传入 `_convert_messages`，不把标志传给下游 API。

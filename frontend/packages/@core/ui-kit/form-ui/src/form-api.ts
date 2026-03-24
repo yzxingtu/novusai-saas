@@ -51,7 +51,7 @@ function getDefaultState(): VbenFormProps {
 }
 
 export class FormApi {
-  // private api: Pick<VbenFormProps, 'handleReset' | 'handleSubmit'>;
+  // private api: Pick<VbenFormProps, 'handleReset' | 'handleSubmit'>; / 旧设计注释 / legacy typed api
   public form = {} as FormActions;
   isMounted = false;
 
@@ -65,7 +65,7 @@ export class FormApi {
    */
   private componentRefMap: Map<string, unknown> = new Map();
 
-  // 最后一次点击提交时的表单值
+  // 最后一次点击提交时的表单值 / Snapshot from last submit click
   private latestSubmissionValues: null | Recordable<any> = null;
 
   private prevState: null | VbenFormProps = null;
@@ -272,7 +272,7 @@ export class FormApi {
       `[name="${firstErrorFieldName}"]`,
     ) as HTMLElement;
 
-    // 如果通过 name 属性找不到，尝试通过组件引用查找, 正常情况下不会走到这，怕哪天 vee-validate 改了 name 属性有个兜底的
+    // 如果通过 name 属性找不到，尝试通过组件引用查找, 正常情况下不会走到这，怕哪天 vee-validate 改了 name 属性有个兜底的 / Fallback: field component $el
     if (!el) {
       const componentRef = this.getFieldComponentRef(firstErrorFieldName);
       if (componentRef && componentRef.$el instanceof HTMLElement) {
@@ -281,7 +281,7 @@ export class FormApi {
     }
 
     if (el) {
-      // 滚动到错误字段，添加一些偏移量以确保字段完全可见
+      // 滚动到错误字段，添加一些偏移量以确保字段完全可见 / Center in viewport
       el.scrollIntoView({
         behavior: 'smooth',
         block: 'center',
@@ -365,7 +365,7 @@ export class FormApi {
 
   unmount() {
     this.form?.resetForm?.();
-    // this.state = null;
+    // this.state = null; / 旧重置方式 / legacy reset
     this.latestSubmissionValues = null;
     this.isMounted = false;
     this.stateHandler.reset();
@@ -448,7 +448,7 @@ export class FormApi {
 
   private async getForm() {
     if (!this.isMounted) {
-      // 等待form挂载
+      // 等待form挂载 / Wait until <VbenForm> ready
       await this.stateHandler.waitForCondition();
     }
     if (!this.form?.meta) {
@@ -468,11 +468,11 @@ export class FormApi {
         if (Array.isArray(value)) {
           return value.join(sep);
         } else if (typeof value === 'string') {
-          // 处理空字符串的情况
+          // 处理空字符串的情况 / '' → []
           if (value === '') {
             return [];
           }
-          // 处理复杂分隔符的情况
+          // 处理复杂分隔符的情况 / Regex-escape custom sep
           const escapedSeparator = sep.replaceAll(
             /[.*+?^${}()|[\]\\]/g,
             String.raw`\$&`,
@@ -484,7 +484,7 @@ export class FormApi {
       });
     };
 
-    // 处理简单数组格式 ['field1', 'field2', ';'] 或 ['field1', 'field2']
+    // 处理简单数组格式 ['field1', 'field2', ';'] 或 ['field1', 'field2'] / Flat string[] config
     if (arrayToStringFields.every((item) => typeof item === 'string')) {
       const lastItem =
         arrayToStringFields[arrayToStringFields.length - 1] || '';
@@ -497,11 +497,11 @@ export class FormApi {
       return;
     }
 
-    // 处理嵌套数组格式 [['field1'], ';']
+    // 处理嵌套数组格式 [['field1'], ';'] / Per-group [fields, sep]
     arrayToStringFields.forEach((fieldConfig) => {
       if (Array.isArray(fieldConfig)) {
         const [fields, separator = ','] = fieldConfig;
-        // 根据类型定义，fields 应该始终是字符串数组
+        // 根据类型定义，fields 应该始终是字符串数组 / fields must be string[]
         if (!Array.isArray(fields)) {
           console.warn(
             `Invalid field configuration: fields should be an array of strings, got ${typeof fields}`,
@@ -527,13 +527,13 @@ export class FormApi {
         if (startTimeKey && endTimeKey && values[field] === null) {
           Reflect.deleteProperty(values, startTimeKey);
           Reflect.deleteProperty(values, endTimeKey);
-          // delete values[startTimeKey];
-          // delete values[endTimeKey];
+          // delete values[startTimeKey]; / 旧写法保留 / legacy
+          // delete values[endTimeKey]; / 旧写法保留 / legacy
         }
 
         if (!values[field]) {
           Reflect.deleteProperty(values, field);
-          // delete values[field];
+          // delete values[field]; / 旧写法保留 / legacy
           return;
         }
 
@@ -556,7 +556,7 @@ export class FormApi {
             ? formatDate(endTime, endTimeFormat)
             : undefined;
         }
-        // delete values[field];
+        // delete values[field]; / 旧写法保留 / legacy
         Reflect.deleteProperty(values, field);
       },
     );
@@ -581,7 +581,7 @@ export class FormApi {
   private updateState() {
     const currentSchema = this.state?.schema ?? [];
     const prevSchema = this.prevState?.schema ?? [];
-    // 进行了删除schema操作
+    // 进行了删除schema操作 / Schema shrunk → clear removed fields
     if (currentSchema.length < prevSchema.length) {
       const currentFields = new Set(
         currentSchema.map((item) => item.fieldName),

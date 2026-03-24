@@ -4,8 +4,6 @@
  */
 import type { RouteRecordRaw } from 'vue-router';
 
-import { $t } from '#/locales';
-
 const UserLayout = () => import('#/layouts/user.vue');
 
 /** User main layout routes / 用户端主布局路由 */
@@ -27,7 +25,7 @@ const mainRoutes: RouteRecordRaw = {
         affixTab: true,
         icon: 'lucide:home',
         ignoreAccess: true,
-        title: $t('user.home.title'),
+        title: 'user.home.title',
       },
     },
     {
@@ -36,7 +34,7 @@ const mainRoutes: RouteRecordRaw = {
       component: () => import('#/views/user/agents/index.vue'),
       meta: {
         icon: 'lucide:sparkles',
-        title: $t('user.agents.title'),
+        title: 'user.agents.title',
       },
     },
     {
@@ -45,7 +43,7 @@ const mainRoutes: RouteRecordRaw = {
       component: () => import('#/views/user/ai-chat/index.vue'),
       meta: {
         icon: 'lucide:bot',
-        title: $t('user.aiChat.title'),
+        title: 'user.aiChat.title',
       },
     },
     {
@@ -54,7 +52,7 @@ const mainRoutes: RouteRecordRaw = {
       component: () => import('#/views/user/help/index.vue'),
       meta: {
         icon: 'lucide:life-buoy',
-        title: $t('user.helpCenter.title'),
+        title: 'user.helpCenter.title',
       },
     },
     {
@@ -64,7 +62,7 @@ const mainRoutes: RouteRecordRaw = {
       redirect: '/settings/profile',
       meta: {
         icon: 'lucide:settings',
-        title: $t('user.settings.title'),
+        title: 'user.settings.title',
       },
       children: [
         {
@@ -73,7 +71,7 @@ const mainRoutes: RouteRecordRaw = {
           component: () => import('#/views/user/profile/index.vue'),
           meta: {
             icon: 'lucide:user',
-            title: $t('user.profile.title'),
+            title: 'user.profile.title',
           },
         },
         {
@@ -83,7 +81,7 @@ const mainRoutes: RouteRecordRaw = {
             import('#/views/user/profile/change-password.vue'),
           meta: {
             hideInMenu: true,
-            title: $t('user.profile.changePassword'),
+            title: 'user.profile.changePassword',
           },
         },
         // UserPreferences route removed — personal preferences handled via Vben gear sidebar

@@ -390,7 +390,7 @@ export function useCommandBar(options: UseCommandBarOptions) {
   }
 
   return {
-    // State
+    // State / 状态
     open,
     inputText,
     mode,
@@ -406,7 +406,7 @@ export function useCommandBar(options: UseCommandBarOptions) {
     menuSearchResults,
     getMenuBreadcrumb,
 
-    // Actions
+    // Actions / 动作
     show,
     hide,
     toggle,

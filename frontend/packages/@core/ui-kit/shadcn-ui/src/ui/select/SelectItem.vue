@@ -7,7 +7,7 @@ import { cn } from '@vben-core/shared/utils';
 
 import { Check } from 'lucide-vue-next';
 import {
-  SelectItem,
+  SelectItem as RekaSelectItem,
   SelectItemIndicator,
   SelectItemText,
   useForwardProps,
@@ -25,7 +25,7 @@ const forwardedProps = useForwardProps(delegatedProps);
 </script>
 
 <template>
-  <SelectItem
+  <RekaSelectItem
     v-bind="forwardedProps"
     :class="
       cn(
@@ -43,5 +43,5 @@ const forwardedProps = useForwardProps(delegatedProps);
     <SelectItemText>
       <slot></slot>
     </SelectItemText>
-  </SelectItem>
+  </RekaSelectItem>
 </template>

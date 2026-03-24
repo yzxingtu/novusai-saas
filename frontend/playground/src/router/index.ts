@@ -10,14 +10,14 @@ import { createRouterGuard } from './guard';
 import { routes } from './routes';
 
 /**
- *  @zh_CN 创建vue-router实例
+ *  @zh_CN 创建vue-router实例 / Create Vue Router instance
  */
 const router = createRouter({
   history:
     import.meta.env.VITE_ROUTER_HISTORY === 'hash'
       ? createWebHashHistory(import.meta.env.VITE_BASE)
       : createWebHistory(import.meta.env.VITE_BASE),
-  // 应该添加到路由的初始路由列表。
+  // 应该添加到路由的初始路由列表。 / Initial route records
   routes,
   scrollBehavior: (to, _from, savedPosition) => {
     if (savedPosition) {
@@ -31,7 +31,7 @@ const router = createRouter({
 
 const resetRoutes = () => resetStaticRoutes(router, routes);
 
-// 创建路由守卫
+// 创建路由守卫 / Register navigation guards
 createRouterGuard(router);
 
 export { resetRoutes, router };

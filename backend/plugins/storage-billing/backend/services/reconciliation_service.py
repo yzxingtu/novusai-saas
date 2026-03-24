@@ -197,6 +197,14 @@ def _stringify(value: Any) -> str:
     return str(value or "").strip()
 
 
+def _to_bool(value: Any, *, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
 def _serialize_charge_item(item: BillingChargeItem) -> dict[str, Any]:
     return {
         "charge_basis": item.charge_basis,
@@ -479,6 +487,69 @@ def _serialize_daily_charge_csv_row(
         "item_count": details.get("item_count", ""),
         "details_json": details,
     }
+
+
+def _serialize_allocation_row_snapshot(
+    *,
+    tenant_id: int,
+    charge_basis: str,
+    currency: str,
+    usage_bytes: int,
+    amount_total: Decimal,
+    details: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "tenant_id": tenant_id,
+        "charge_basis": charge_basis,
+        "currency": currency,
+        "usage_bytes": usage_bytes,
+        "amount_total": _serialize_decimal(amount_total),
+        "details": dict(details or {}),
+    }
+
+
+def _hydrate_snapshot_charge_row(
+    source: StorageProviderBillSource,
+    payload: Mapping[str, Any],
+) -> StorageTenantDailyCharge:
+    period_type, billing_date, period_start, period_end = _normalize_period_fields(
+        billing_date=source.billing_date,
+        period_type=getattr(source, "period_type", None),
+        period_start=getattr(source, "period_start", None),
+        period_end=getattr(source, "period_end", None),
+    )
+    row = StorageTenantDailyCharge(
+        tenant_id=int(payload.get("tenant_id") or 0),
+        period_type=period_type,
+        billing_date=billing_date,
+        period_start=period_start,
+        period_end=period_end,
+        provider_code=source.provider_code,
+        driver_code=source.driver_code,
+        charge_basis=_stringify(payload.get("charge_basis")),
+        usage_bytes=int(payload.get("usage_bytes") or 0),
+        amount_total=Decimal(str(payload.get("amount_total") or "0")),
+        currency=_stringify(payload.get("currency")) or source.currency,
+        source_id=source.id,
+        details_json=dict(payload.get("details") or {}),
+    )
+    row.id = None
+    row.statement_id = None
+    return row
+
+
+def _sort_charge_rows(rows: list[StorageTenantDailyCharge]) -> list[StorageTenantDailyCharge]:
+    return sorted(
+        rows,
+        key=lambda row: (
+            -(row.amount_total or Decimal("0")),
+            -(row.usage_bytes or 0),
+            row.tenant_id,
+            row.provider_code,
+            row.charge_basis,
+            row.id or 0,
+        ),
+    )
 
 
 def _content_disposition_attachment(filename: str) -> str:
@@ -846,9 +917,9 @@ class StorageBillingOverviewService:
             "total": len(rows),
             "summary": _summarize_daily_charges(rows),
             "message": (
-                "Tenant daily charges loaded from plugin-owned ledger."
+                "Tenant charge rows loaded from plugin-owned ledger."
                 if rows
-                else "No tenant daily charges were generated for this billing date."
+                else "No tenant charge rows were generated for this billing date."
             ),
         }
 
@@ -1284,6 +1355,13 @@ class StorageBillingReconciliationService:
         if not source_map:
             return run, {}, []
 
+        snapshot_rows = self._load_snapshot_charge_rows(
+            list(source_map.values()),
+            tenant_id=tenant_id,
+        )
+        if snapshot_rows is not None:
+            return run, source_map, _sort_charge_rows(snapshot_rows)
+
         charge_stmt = select(StorageTenantDailyCharge).where(
             StorageTenantDailyCharge.is_deleted.is_(False),
             StorageTenantDailyCharge.source_id.in_(list(source_map)),
@@ -1300,6 +1378,32 @@ class StorageBillingReconciliationService:
         )
         rows = (await self._db.execute(charge_stmt)).scalars().all()
         return run, source_map, rows
+
+    def _load_snapshot_charge_rows(
+        self,
+        sources: list[StorageProviderBillSource],
+        *,
+        tenant_id: int | None = None,
+    ) -> list[StorageTenantDailyCharge] | None:
+        snapshot_rows: list[StorageTenantDailyCharge] = []
+        snapshot_available = True
+
+        for source in sources:
+            raw_payload = dict(source.raw_payload_json or {})
+            if "allocation_rows" not in raw_payload:
+                snapshot_available = False
+                break
+            for item in list(raw_payload.get("allocation_rows") or []):
+                if not isinstance(item, Mapping):
+                    continue
+                row = _hydrate_snapshot_charge_row(source, item)
+                if tenant_id is not None and row.tenant_id != tenant_id:
+                    continue
+                snapshot_rows.append(row)
+
+        if not snapshot_available:
+            return None
+        return snapshot_rows
 
     async def list_run_charges(
         self,
@@ -1484,10 +1588,11 @@ class StorageBillingReconciliationService:
                 "unmatched_item_samples": [],
                 "ambiguous_item_samples": [],
             }
-            if result.source_status in {
+            should_rebuild_live_charges = result.source_status in {
                 StorageBillingSourceStatusEnum.FETCHED.value,
                 StorageBillingSourceStatusEnum.EMPTY.value,
-            }:
+            }
+            if should_rebuild_live_charges:
                 allocation_result = await self._replace_daily_charges_for_source(
                     source_row=source_row,
                     charge_items=result.charge_items,
@@ -1498,19 +1603,16 @@ class StorageBillingReconciliationService:
                     "ambiguous_items": allocation_result["ambiguous_items"],
                     "written_charge_rows": allocation_result["written_charge_rows"],
                 }
-                source_row.raw_payload_json = {
-                    **dict(source_row.raw_payload_json or {}),
-                    "allocation_summary": allocation_summary,
-                    "allocation_audit": {
-                        "unmatched_item_samples": list(
-                            allocation_result.get("unmatched_item_samples") or []
-                        ),
-                        "ambiguous_item_samples": list(
-                            allocation_result.get("ambiguous_item_samples") or []
-                        ),
-                    },
-                }
-                await self._db.flush()
+                if (
+                    source_row.source_status == StorageBillingSourceStatusEnum.FETCHED.value
+                    and (
+                        allocation_result["unmatched_items"] > 0
+                        or allocation_result["ambiguous_items"] > 0
+                    )
+                ):
+                    source_row.source_status = (
+                        StorageBillingSourceStatusEnum.COMPLETED_WITH_GAPS.value
+                    )
             else:
                 allocation_summary = {
                     "matched_items": allocation_result["matched_items"],
@@ -1518,11 +1620,35 @@ class StorageBillingReconciliationService:
                     "ambiguous_items": allocation_result["ambiguous_items"],
                     "written_charge_rows": allocation_result["written_charge_rows"],
                 }
+            source_row.raw_payload_json = {
+                **dict(source_row.raw_payload_json or {}),
+                "allocation_summary": allocation_summary,
+                "allocation_rows": list(allocation_result.get("allocation_rows") or []),
+                "allocation_audit": {
+                    "unmatched_item_samples": list(
+                        allocation_result.get("unmatched_item_samples") or []
+                    ),
+                    "ambiguous_item_samples": list(
+                        allocation_result.get("ambiguous_item_samples") or []
+                    ),
+                },
+            }
+            if should_rebuild_live_charges:
+                await self._db.flush()
+                await self._rebuild_provider_live_charges_for_run_scope(
+                    run_id=run.id,
+                    provider_code=source_row.provider_code,
+                    period_type=result_period_type,
+                    billing_date=result_billing_date,
+                    period_start=result_period_start,
+                    period_end=result_period_end,
+                )
+                await self._db.flush()
 
             provider_summaries.append(
                 {
                     "provider_code": result.provider_code,
-                    "source_status": result.source_status,
+                    "source_status": source_row.source_status,
                     "charge_item_count": len(result.charge_items),
                     **allocation_summary,
                 }
@@ -1541,7 +1667,10 @@ class StorageBillingReconciliationService:
             run.status = StorageBillingRunStatusEnum.SKIPPED.value
         elif status_counter.get(StorageBillingSourceStatusEnum.FAILED.value, 0):
             run.status = StorageBillingRunStatusEnum.FAILED.value
-        elif status_counter.get(StorageBillingSourceStatusEnum.NOT_IMPLEMENTED.value, 0):
+        elif status_counter.get(StorageBillingSourceStatusEnum.NOT_IMPLEMENTED.value, 0) or status_counter.get(
+            StorageBillingSourceStatusEnum.COMPLETED_WITH_GAPS.value,
+            0,
+        ):
             run.status = StorageBillingRunStatusEnum.COMPLETED_WITH_GAPS.value
         else:
             run.status = StorageBillingRunStatusEnum.COMPLETED.value
@@ -1810,6 +1939,10 @@ class StorageBillingReconciliationService:
                 )
             )
         ).scalars().all()
+        bindings = await self._filter_live_eligible_bindings(
+            bindings,
+            provider_code=source_row.provider_code,
+        )
 
         aggregated: dict[tuple[int, str, str], dict[str, Any]] = {}
         matched_items = 0
@@ -1862,6 +1995,12 @@ class StorageBillingReconciliationService:
             current["items"].append(_serialize_charge_item(item))
 
         for value in aggregated.values():
+            row_details = {
+                "binding_ids": sorted(value["binding_ids"]),
+                "scope_values": sorted(value["scope_values"]),
+                "item_count": len(value["items"]),
+                "items": value["items"],
+            }
             self._db.add(
                 StorageTenantDailyCharge(
                     tenant_id=value["tenant_id"],
@@ -1876,14 +2015,10 @@ class StorageBillingReconciliationService:
                     amount_total=value["amount_total"],
                     currency=value["currency"],
                     source_id=source_row.id,
-                    details_json={
-                        "binding_ids": sorted(value["binding_ids"]),
-                        "scope_values": sorted(value["scope_values"]),
-                        "item_count": len(value["items"]),
-                        "items": value["items"],
-                    },
+                    details_json=row_details,
                 )
             )
+            value["details"] = row_details
 
         await self._db.flush()
         return {
@@ -1891,9 +2026,182 @@ class StorageBillingReconciliationService:
             "unmatched_items": unmatched_items,
             "ambiguous_items": ambiguous_items,
             "written_charge_rows": len(aggregated),
+            "allocation_rows": [
+                _serialize_allocation_row_snapshot(
+                    tenant_id=value["tenant_id"],
+                    charge_basis=value["charge_basis"],
+                    currency=value["currency"],
+                    usage_bytes=value["usage_bytes"],
+                    amount_total=value["amount_total"],
+                    details=dict(value.get("details") or {}),
+                )
+                for value in aggregated.values()
+            ],
             "unmatched_item_samples": unmatched_item_samples,
             "ambiguous_item_samples": ambiguous_item_samples,
         }
+
+    async def _rebuild_provider_live_charges_for_run_scope(
+        self,
+        *,
+        run_id: int,
+        provider_code: str,
+        period_type: str,
+        billing_date: date,
+        period_start: date,
+        period_end: date,
+    ) -> None:
+        sources = (
+            await self._db.execute(
+                select(StorageProviderBillSource).where(
+                    StorageProviderBillSource.run_id == run_id,
+                    StorageProviderBillSource.provider_code == provider_code,
+                    StorageProviderBillSource.period_type == period_type,
+                    StorageProviderBillSource.billing_date == billing_date,
+                    StorageProviderBillSource.is_deleted.is_(False),
+                ).order_by(StorageProviderBillSource.id)
+            )
+        ).scalars().all()
+
+        existing_rows = (
+            await self._db.execute(
+                select(StorageTenantDailyCharge).where(
+                    StorageTenantDailyCharge.provider_code == provider_code,
+                    StorageTenantDailyCharge.period_type == period_type,
+                    StorageTenantDailyCharge.billing_date == billing_date,
+                    StorageTenantDailyCharge.is_deleted.is_(False),
+                )
+            )
+        ).scalars().all()
+        for row in existing_rows:
+            await self._db.delete(row)
+
+        merged: dict[tuple[int, str, str], dict[str, Any]] = {}
+        for source in sources:
+            raw_payload = dict(source.raw_payload_json or {})
+            for item in list(raw_payload.get("allocation_rows") or []):
+                if not isinstance(item, Mapping):
+                    continue
+                tenant_id = int(item.get("tenant_id") or 0)
+                charge_basis = _stringify(item.get("charge_basis"))
+                currency = _stringify(item.get("currency")) or source.currency
+                if tenant_id <= 0 or not charge_basis or not currency:
+                    continue
+                details = dict(item.get("details") or {})
+                key = (tenant_id, charge_basis, currency)
+                current = merged.setdefault(
+                    key,
+                    {
+                        "tenant_id": tenant_id,
+                        "charge_basis": charge_basis,
+                        "currency": currency,
+                        "usage_bytes": 0,
+                        "amount_total": Decimal("0"),
+                        "binding_ids": set(),
+                        "scope_values": set(),
+                        "source_ids": set(),
+                        "items": [],
+                    },
+                )
+                current["usage_bytes"] += int(item.get("usage_bytes") or 0)
+                current["amount_total"] += Decimal(str(item.get("amount_total") or "0"))
+                current["binding_ids"].update(details.get("binding_ids") or [])
+                current["scope_values"].update(details.get("scope_values") or [])
+                current["source_ids"].add(source.id)
+                current["items"].extend(list(details.get("items") or []))
+
+        driver_code = _stringify(sources[0].driver_code) if sources else provider_code
+        for value in merged.values():
+            self._db.add(
+                StorageTenantDailyCharge(
+                    tenant_id=value["tenant_id"],
+                    period_type=period_type,
+                    billing_date=billing_date,
+                    period_start=period_start,
+                    period_end=period_end,
+                    provider_code=provider_code,
+                    driver_code=driver_code,
+                    charge_basis=value["charge_basis"],
+                    usage_bytes=value["usage_bytes"],
+                    amount_total=value["amount_total"],
+                    currency=value["currency"],
+                    source_id=None,
+                    details_json={
+                        "binding_ids": sorted(value["binding_ids"]),
+                        "scope_values": sorted(value["scope_values"]),
+                        "source_ids": sorted(item for item in value["source_ids"] if item is not None),
+                        "item_count": len(value["items"]),
+                        "items": list(value["items"]),
+                    },
+                )
+            )
+
+    async def _filter_live_eligible_bindings(
+        self,
+        bindings: list[StorageTenantBinding],
+        *,
+        provider_code: str,
+    ) -> list[StorageTenantBinding]:
+        if not bindings:
+            return []
+        if self._host_read is None:
+            return list(bindings)
+
+        platform_storage_context = await _read_platform_storage_context(self._host_read)
+        active_storage_driver = _stringify(
+            dict(platform_storage_context.get("storage_config") or {}).get("driver")
+        )
+        if (
+            not active_storage_driver
+            or active_storage_driver in EXCLUDED_DRIVERS
+            or active_storage_driver not in SUPPORTED_CLOUD_DRIVERS
+            or active_storage_driver != _stringify(provider_code)
+        ):
+            return []
+
+        snapshot_reader = getattr(self._host_read, "get_tenant_plan_snapshot", None)
+        storage_reader = getattr(self._host_read, "get_tenant_storage_context", None)
+        if not callable(snapshot_reader) or not callable(storage_reader):
+            return list(bindings)
+
+        tenant_snapshot_cache: dict[int, dict[str, Any]] = {}
+        tenant_storage_cache: dict[int, dict[str, Any]] = {}
+        eligible: list[StorageTenantBinding] = []
+
+        for binding in bindings:
+            tenant_id = int(binding.tenant_id or 0)
+            if tenant_id <= 0:
+                continue
+
+            if tenant_id not in tenant_snapshot_cache:
+                tenant_snapshot = snapshot_reader(tenant_id)
+                if inspect.isawaitable(tenant_snapshot):
+                    tenant_snapshot = await tenant_snapshot
+                tenant_snapshot_cache[tenant_id] = (
+                    dict(tenant_snapshot) if isinstance(tenant_snapshot, Mapping) else {}
+                )
+
+            snapshot = tenant_snapshot_cache[tenant_id]
+            features = dict(dict(snapshot.get("plan") or {}).get("features") or {})
+            if not _to_bool(features.get("storage_billing_enabled")):
+                continue
+
+            if tenant_id not in tenant_storage_cache:
+                tenant_storage = storage_reader(tenant_id)
+                if inspect.isawaitable(tenant_storage):
+                    tenant_storage = await tenant_storage
+                tenant_storage_cache[tenant_id] = (
+                    dict(tenant_storage) if isinstance(tenant_storage, Mapping) else {}
+                )
+
+            tenant_storage_context = tenant_storage_cache[tenant_id]
+            tenant_storage_mode = _stringify(tenant_storage_context.get("storage_mode")) or "platform"
+            if tenant_storage_mode != "platform":
+                continue
+
+            eligible.append(binding)
+
+        return eligible
 
     def _match_bindings(
         self,

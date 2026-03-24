@@ -31,10 +31,10 @@ def _send_task_with_trace(*args, **kwargs):
     return _original_send_task(*args, **kwargs)
 
 
-celery_app.send_task = _send_task_with_trace  # type: ignore[method-assign]
+celery_app.send_task = _send_task_with_trace  # type: ignore[method-assign] / 忽略 send_task 赋值类型
 
 # ========================================
-# Broker & Backend
+# Broker & Backend / 消息代理与结果后端
 # ========================================
 celery_app.conf.broker_url = settings.celery_broker_url
 celery_app.conf.result_backend = settings.celery_result_backend
@@ -91,6 +91,7 @@ celery_app.conf.task_routes = {
 # ========================================
 celery_app.conf.include = [
     "app.tasks.scheduled",
+    "app.tasks.task_scheduling",
     "app.tasks.recycle_bin",
     "app.tasks.upload_cleanup",
     "app.tasks.ai_health_check",
@@ -197,13 +198,13 @@ celery_app.conf.result_expires = 3600
 celery_app.conf.task_ignore_result = False
 
 # ========================================
-# Beat Scheduling (driven by database periodic_tasks table)
-# Beat 调度（由数据库 periodic_tasks 表驱动）
+# Beat Scheduling (driven by task_definitions / tenant_task_bindings tables)
+# Beat 调度（由 task_definitions / tenant_task_bindings 表驱动）
 # ========================================
 # app.conf.beat_schedule is reserved for static/in-memory entries only.
-# DB-driven periodic tasks are loaded by ReloadingPersistentScheduler so Beat
+# DB-driven task definitions are loaded by ReloadingPersistentScheduler so Beat
 # can recover automatically after transient DB outages.
 # app.conf.beat_schedule 仅保留静态/内存型调度项。
-# 数据库定时任务由 ReloadingPersistentScheduler 动态加载，避免 Beat 在数据库短暂不可用时永久空跑。
+# 数据库任务定义由 ReloadingPersistentScheduler 动态加载，避免 Beat 在数据库短暂不可用时永久空跑。
 celery_app.conf.beat_schedule = {}
 celery_app.conf.beat_scheduler = "app.tasks.scheduler:ReloadingPersistentScheduler"

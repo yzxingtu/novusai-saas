@@ -354,7 +354,7 @@ export const useNotificationStore = defineStore('notification', () => {
     try {
       useNotificationToast().clearAll();
     } catch {
-      // 静默
+      // 静默 / Swallow toast clear errors
     }
   }
 

@@ -6,8 +6,12 @@ import { LanguageToggle, ThemeToggle } from '@vben/layouts';
 import { preferences, updatePreferences, usePreferences } from '@vben/preferences';
 
 import { $t } from '#/locales';
+import { usePublicConfigStore } from '#/store';
+import { resolveCopyrightDisplay } from '#/utils/public-branding';
 
 defineOptions({ name: 'AdminAuthLayout' });
+
+const publicConfigStore = usePublicConfigStore();
 
 onMounted(() => {
   updatePreferences({
@@ -18,6 +22,14 @@ onMounted(() => {
 const appName = computed(() => preferences.app.name);
 const logo = computed(() => preferences.logo.source);
 const logoDark = computed(() => preferences.logo.sourceDark);
+const siteDescription = computed(
+  () =>
+    publicConfigStore.platformBrand?.siteDescription ||
+    $t('authentication.platformAdminDesc'),
+);
+const footerBranding = computed(() =>
+  resolveCopyrightDisplay(preferences.copyright),
+);
 
 const { isDark } = usePreferences();
 
@@ -82,7 +94,7 @@ const logoSrc = computed(() => {
           {{ $t('authentication.platformAdmin') }}
         </h2>
         <p class="mb-12 text-base leading-relaxed text-white/60">
-          {{ $t('authentication.platformAdminDesc') }}
+          {{ siteDescription }}
         </p>
 
         <!-- Feature list -->
@@ -166,11 +178,11 @@ const logoSrc = computed(() => {
 
       <!-- Copyright -->
       <div
-        v-if="preferences.copyright.enable"
+        v-if="footerBranding.visible"
         class="text-muted-foreground absolute bottom-4 text-center text-xs"
       >
-        {{ preferences.copyright.companyName }}
-        {{ preferences.copyright.companySiteLink }}
+        {{ footerBranding.companyName }}
+        <span v-if="footerBranding.meta">{{ footerBranding.meta }}</span>
       </div>
     </div>
   </div>

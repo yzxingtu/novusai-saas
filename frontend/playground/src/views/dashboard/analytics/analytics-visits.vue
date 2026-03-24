@@ -20,7 +20,7 @@ onMounted(() => {
     series: [
       {
         barMaxWidth: 80,
-        // color: '#4f69fd',
+        // color: '#4f69fd', / 可选：自定义柱色 / optional bar color
         data: [
           3000, 2000, 3333, 5000, 3200, 4200, 3200, 2100, 3000, 5100, 6000,
           3200, 4800,
@@ -31,7 +31,7 @@ onMounted(() => {
     tooltip: {
       axisPointer: {
         lineStyle: {
-          // color: '#4f69fd',
+          // color: '#4f69fd', / 可选：指示线颜色 / optional pointer line color
           width: 1,
         },
       },

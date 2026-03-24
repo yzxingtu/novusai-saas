@@ -34,6 +34,7 @@ import { message } from 'ant-design-vue';
 import type {
   AgentChatRequestBody,
   ChatKBBindingInfo,
+  ConversationDetailResponse,
   MemoryState,
   PageContext,
   RawMessageItem,
@@ -169,6 +170,8 @@ export function useAIChat(options: UseAIChatOptions) {
   /** Request sequence guard: prevents stale async responses from overriding latest state / 请求序号防护：避免旧异步响应覆盖最新状态 */
   let conversationsRequestSeq = 0;
   let messagesRequestSeq = 0;
+  const INTERRUPTED_HISTORY_SYNC_ATTEMPTS = 3;
+  const INTERRUPTED_HISTORY_SYNC_RETRY_DELAY_MS = 300;
 
   async function loadConversations() {
     const reqSeq = ++conversationsRequestSeq;
@@ -202,6 +205,86 @@ export function useAIChat(options: UseAIChatOptions) {
         conversationsLoading.value = false;
       }
     }
+  }
+
+  function applyConversationDetailState(
+    convId: number,
+    res: ConversationDetailResponse,
+    mergedMessages = mergeMessagesForDisplay(res.message_list ?? []),
+  ) {
+    if (res.agent_id) {
+      selectedAgentId.value = res.agent_id;
+      activeConversationAgentId.value = res.agent_id;
+    }
+
+    const agentId = selectedAgentId.value;
+    if (agentId) {
+      ensureAgentVarsLoaded(agentId);
+    }
+
+    chatMessages.value = mergedMessages;
+    lastMemoryUpdated.value = mergedMessages.some((m) => m.memoryUpdated);
+    try {
+      const stored = sessionStorage.getItem(`ai_trust_session_${convId}`);
+      trustSession.value = stored === '1';
+    } catch {
+      trustSession.value = false;
+    }
+    scrollToBottom(true);
+  }
+
+  async function syncConversationAfterInterrupt(
+    convId: number,
+    minimumMessageCount: number,
+  ) {
+    await loadConversations();
+    if (activeConversationId.value !== convId) {
+      return;
+    }
+
+    const prefix = unref(options.apiPrefix) as string;
+    let fallbackMerged: ChatMessage[] | null = null;
+    let fallbackResponse: ConversationDetailResponse | null = null;
+
+    for (let attempt = 0; attempt < INTERRUPTED_HISTORY_SYNC_ATTEMPTS; attempt++) {
+      const res = await getChatConversationMessagesApi(prefix, convId);
+      if (activeConversationId.value !== convId) {
+        return;
+      }
+
+      const merged = mergeMessagesForDisplay(res.message_list ?? []);
+      fallbackResponse = res;
+      fallbackMerged = merged;
+
+      if (minimumMessageCount <= 0 || merged.length >= minimumMessageCount) {
+        applyConversationDetailState(convId, res, merged);
+        return;
+      }
+
+      if (attempt < INTERRUPTED_HISTORY_SYNC_ATTEMPTS - 1) {
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, INTERRUPTED_HISTORY_SYNC_RETRY_DELAY_MS);
+        });
+      }
+    }
+
+    if (
+      !fallbackResponse ||
+      !fallbackMerged ||
+      activeConversationId.value !== convId
+    ) {
+      return;
+    }
+
+    if (
+      minimumMessageCount > 0 &&
+      fallbackMerged.length < minimumMessageCount &&
+      chatMessages.value.length >= minimumMessageCount
+    ) {
+      return;
+    }
+
+    applyConversationDetailState(convId, fallbackResponse, fallbackMerged);
   }
 
   /**
@@ -281,30 +364,7 @@ export function useAIChat(options: UseAIChatOptions) {
       ) {
         return;
       }
-
-      if (res.agent_id) {
-        selectedAgentId.value = res.agent_id;
-        activeConversationAgentId.value = res.agent_id;
-      }
-
-      // Pre-load variables for the agent from localStorage / 从 localStorage 预载智能体变量
-      const agentId = selectedAgentId.value;
-      if (agentId) {
-        ensureAgentVarsLoaded(agentId);
-      }
-
-      const merged = mergeMessagesForDisplay(res.message_list ?? []);
-      chatMessages.value = merged;
-      // Restore lastMemoryUpdated from historical messages / 从历史消息恢复记忆更新标记
-      lastMemoryUpdated.value = merged.some((m) => m.memoryUpdated);
-      // Restore trust-session preference for this conversation (persisted per convId) / 按会话恢复信任本会话选项
-      try {
-        const stored = sessionStorage.getItem(`ai_trust_session_${convId}`);
-        trustSession.value = stored === '1';
-      } catch {
-        trustSession.value = false;
-      }
-      scrollToBottom(true);
+      applyConversationDetailState(convId, res);
     } catch {
       // handled by interceptor / 错误由请求拦截器处理
     }
@@ -793,6 +853,8 @@ export function useAIChat(options: UseAIChatOptions) {
   const messagesContainer = ref<HTMLElement | null>(null);
 
   let streamAbortController: AbortController | null = null;
+  type StreamAbortReason = 'context_switch' | 'none' | 'user';
+  let activeStreamLifecycle: null | { abortReason: StreamAbortReason } = null;
 
   /**
    * Abort active SSE stream; call before switching agent/conversation or closing panel.
@@ -800,6 +862,11 @@ export function useAIChat(options: UseAIChatOptions) {
    */
   function abortActiveStream(markStoppedByUser = false): void {
     if (streamAbortController) {
+      if (activeStreamLifecycle) {
+        activeStreamLifecycle.abortReason = markStoppedByUser
+          ? 'user'
+          : 'context_switch';
+      }
       streamAbortController.abort();
       streamAbortController = null;
     }
@@ -1350,8 +1417,17 @@ export function useAIChat(options: UseAIChatOptions) {
     streaming.value = true;
     const sseBuffer = { value: '' };
     streamAbortController = new AbortController();
+    const requestAbortController = streamAbortController;
+    const streamLifecycle = { abortReason: 'none' as StreamAbortReason };
+    activeStreamLifecycle = streamLifecycle;
     const assistantIdx = chatMessages.value.length - 1;
+    const interruptedHistoryBaseline = chatMessages.value.length;
     let doneAbortTimer: ReturnType<typeof setTimeout> | null = null;
+    let didReceiveDoneEvent = false;
+    let didSseEnd = false;
+    let hasReceivedStreamPayload = false;
+    let shouldSyncInterruptedConversation = false;
+    let streamConversationId = activeConversationId.value;
 
     function finalizeMessage() {
       const msg = chatMessages.value[assistantIdx];
@@ -1395,6 +1471,7 @@ export function useAIChat(options: UseAIChatOptions) {
     function handleSsePayload(data: string) {
       if (data === '[DONE]') return;
       try {
+        hasReceivedStreamPayload = true;
         const event = JSON.parse(data) as Record<string, unknown> & {
           event?: string;
           delta?: string;
@@ -1524,7 +1601,8 @@ export function useAIChat(options: UseAIChatOptions) {
               event.event === 'conversation' &&
               event.conversation_id
             ) {
-              activeConversationId.value = event.conversation_id as number;
+              streamConversationId = event.conversation_id as number;
+              activeConversationId.value = streamConversationId;
               activeConversationAgentId.value = targetAgentId;
             } else if (
               event.event === 'action_buttons' &&
@@ -1546,10 +1624,12 @@ export function useAIChat(options: UseAIChatOptions) {
               msg.content += event.delta as string;
               scrollToBottom();
             } else if (event.event === 'done') {
+              didReceiveDoneEvent = true;
               msg.tokenUsage = (event.total_tokens as number) || 0;
               msg.durationMs = (event.duration_ms as number) || 0;
               if (event.conversation_id) {
-                activeConversationId.value = event.conversation_id as number;
+                streamConversationId = event.conversation_id as number;
+                activeConversationId.value = streamConversationId;
                 activeConversationAgentId.value = targetAgentId;
               }
               if (event.memory_updated) {
@@ -1571,9 +1651,14 @@ export function useAIChat(options: UseAIChatOptions) {
               }, 2000);
             } else if (event.error) {
               if (event.conversation_id) {
-                activeConversationId.value = event.conversation_id as number;
+                streamConversationId = event.conversation_id as number;
+                activeConversationId.value = streamConversationId;
                 activeConversationAgentId.value = targetAgentId;
               }
+              shouldSyncInterruptedConversation =
+                shouldSyncInterruptedConversation ||
+                hasReceivedStreamPayload ||
+                streamConversationId != null;
               applyAssistantError(msg, normalizeSseEventError(event, $t));
             }
           }
@@ -1623,6 +1708,7 @@ export function useAIChat(options: UseAIChatOptions) {
             await parseSSEEvents(rawChunk, sseBuffer, handleSsePayload);
           },
           async onEnd() {
+            didSseEnd = true;
             if (doneAbortTimer) {
               clearTimeout(doneAbortTimer);
               doneAbortTimer = null;
@@ -1635,6 +1721,8 @@ export function useAIChat(options: UseAIChatOptions) {
             if ((appError.raw as { name?: string } | undefined)?.name === 'AbortError') {
               return;
             }
+            shouldSyncInterruptedConversation =
+              shouldSyncInterruptedConversation || hasReceivedStreamPayload;
             const msg = chatMessages.value[assistantIdx];
             applyAssistantError(msg, appError);
             finalizeMessage();
@@ -1644,9 +1732,25 @@ export function useAIChat(options: UseAIChatOptions) {
     } catch (err: unknown) {
       // sendChatStreamApi throws on non-2xx; sse.ts does not call onError for HTTP errors / 非 2xx 抛错，sse 层未必走 onError
       const normalizedError = normalizeSseTransportError(err, $t);
+      if (
+        (normalizedError.raw as { name?: string } | undefined)?.name ===
+        'AbortError'
+      ) {
+        shouldSyncInterruptedConversation =
+          shouldSyncInterruptedConversation ||
+          streamLifecycle.abortReason === 'user';
+      } else {
+        shouldSyncInterruptedConversation =
+          shouldSyncInterruptedConversation || hasReceivedStreamPayload;
+      }
       const msg = chatMessages.value[assistantIdx];
-      applyAssistantError(msg, normalizedError);
-      finalizeMessage();
+      if (
+        (normalizedError.raw as { name?: string } | undefined)?.name !==
+        'AbortError'
+      ) {
+        applyAssistantError(msg, normalizedError);
+        finalizeMessage();
+      }
     } finally {
       if (doneAbortTimer) {
         clearTimeout(doneAbortTimer);
@@ -1654,9 +1758,28 @@ export function useAIChat(options: UseAIChatOptions) {
       }
       sending.value = false;
       streaming.value = false;
-      streamAbortController = null;
+      if (streamAbortController === requestAbortController) {
+        streamAbortController = null;
+      }
+      if (activeStreamLifecycle === streamLifecycle) {
+        activeStreamLifecycle = null;
+      }
       userScrolledUp.value = false;
       finalizeMessage();
+
+      const interruptedConversationId = streamConversationId;
+      const shouldSyncConversationHistory =
+        !didReceiveDoneEvent &&
+        interruptedConversationId != null &&
+        (streamLifecycle.abortReason === 'user' ||
+          shouldSyncInterruptedConversation ||
+          didSseEnd);
+      if (shouldSyncConversationHistory) {
+        await syncConversationAfterInterrupt(
+          interruptedConversationId,
+          interruptedHistoryBaseline,
+        );
+      }
 
       // Send deferred auto-confirm (trustSession approved during active stream) / 流式中自动同意后延迟补发确认消息
       if (_deferredAutoConfirm && inputMessage.value.trim()) {

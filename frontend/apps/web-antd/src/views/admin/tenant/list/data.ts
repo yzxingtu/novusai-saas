@@ -130,7 +130,7 @@ export function useColumns<T = TenantInfo>(
   ];
 }
 
-// ============ 业务预设 ============
+// ============ 业务预设 / Business presets ============
 
 /** 套餐选择器 / Plan selector */
 function planSelect(

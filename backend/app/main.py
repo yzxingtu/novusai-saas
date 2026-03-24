@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     - startup: Executes on application startup / 应用启动时执行
     - shutdown: Executes on application shutdown / 应用关闭时执行
     """
-    # ========== Startup ==========
+    # ========== Startup / 启动 ==========
     # Initialize logging system / 初始化日志系统
     init_logging()
     logger = get_logger(__name__)
@@ -308,7 +308,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             # Phase 2: Restore (owner heavy restore + other workers in-process registration only)
             # Phase 2: 恢复（owner 重恢复 + 其他 worker 仅本进程注册）
             _restore_lock_key = "plugin:startup:restore_lock"
-            _restore_lock_ttl = 900  # 覆盖迁移/依赖补装的最长路径
+            _restore_lock_ttl = 900  # 覆盖迁移/依赖补装的最长路径 / Max seconds for migrations or dep reinstall
             _restore_owner = str(__import__("uuid").uuid4())
             _restore_redis = None
             _restore_locked = False
@@ -424,7 +424,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     yield
 
-    # ========== Shutdown ==========
+    # ========== Shutdown / 关闭 ==========
     logger = get_logger(__name__)
     logger.info(f"Shutting down {settings.APP_NAME}")
 
@@ -657,9 +657,9 @@ def create_application() -> FastAPI:
         plugin_public_api_router,
         plugin_tenant_api_router,
     )
-    app.include_router(plugin_api_router, prefix="/admin")          # /admin/plugins/{name}/api/*
-    app.include_router(plugin_tenant_api_router, prefix="/tenant")  # /tenant/plugins/{name}/api/*
-    app.include_router(plugin_public_api_router, prefix="/api/public")  # /api/public/plugins/{name}/api/*
+    app.include_router(plugin_api_router, prefix="/admin")          # /admin/plugins/{name}/api/* / 平台端插件 API 路径模板
+    app.include_router(plugin_tenant_api_router, prefix="/tenant")  # /tenant/plugins/{name}/api/* / 企业端插件 API 路径模板
+    app.include_router(plugin_public_api_router, prefix="/api/public")  # /api/public/plugins/{name}/api/* / 公开插件 API 路径模板
 
     # Register plugin Webhook dispatcher (/webhooks/plugins/{name}/{path}) — bypasses auth middleware
     # 注册插件 Webhook 分发器 (/webhooks/plugins/{name}/{path}) — 不走认证中间件

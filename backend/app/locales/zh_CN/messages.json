@@ -1358,6 +1358,7 @@
       "list": "查看定时任务列表",
       "create": "创建定时任务",
       "detail": "查看定时任务详情",
+      "bindings": "查看和同步定时任务企业绑定",
       "update": "编辑定时任务",
       "delete": "删除定时任务",
       "toggle": "启用/禁用定时任务",
@@ -2250,9 +2251,17 @@
         "name": "站点 Logo",
         "desc": "显示在页面顶部的 Logo 图片"
       },
+      "logo_dark": {
+        "name": "站点深色 Logo",
+        "desc": "深色主题下优先显示的站点 Logo"
+      },
       "site_favicon": {
         "name": "站点图标",
         "desc": "显示在浏览器标签页的小图标"
+      },
+      "logo_dark": {
+        "name": "站点深色 Logo",
+        "desc": "深色主题下优先显示的站点 Logo"
       },
       "site_copyright": {
         "name": "版权信息",
@@ -3163,8 +3172,6 @@
       "disabled": "记忆已禁用"
     }
   },
-  "config.tenant.user_registration_enabled.name": "用户注册",
-  "config.tenant.user_registration_enabled.desc": "是否允许用户自助注册",
   "config.tenant.user_login_captcha_enabled.name": "用户登录验证码",
   "config.tenant.user_login_captcha_enabled.desc": "用户端登录时是否需要验证码验证",
   "config.tenant.user_login_captcha_enable_threshold.name": "用户登录验证码阈值",
@@ -3173,16 +3180,22 @@
   "config.tenant.user_registration_captcha_enabled.desc": "注册时是否需要验证码验证",
   "config.tenant.user_default_active.name": "默认激活",
   "config.tenant.user_default_active.desc": "注册后立即激活用户账户",
-  "config.tenant.user_require_approval.name": "需要审批",
-  "config.tenant.user_require_approval.desc": "用户注册后需要管理员审批才能激活",
   "config.tenant.user_default_role_id.name": "默认用户角色",
   "config.tenant.user_default_role_id.desc": "新注册用户自动分配的角色，选择「不分配角色」则用户注册后无角色",
   "config.tenant.user_default_role_id.option_none": "不分配角色",
   "enum.agent_model.max_tokens": "最大输出 Token",
   "agent.version.field.max_tokens": "最大输出 Token",
   "enum.ai_model.max_output_tokens": "最大输出 Token",
+  "config.group.platform_domain.name": "域名设置",
+  "config.group.platform_domain.desc": "企业默认域名后缀与自定义域名验证配置",
+  "config.group.tenant_registration.name": "注册与协议",
+  "config.group.tenant_registration.desc": "用户注册流程、默认角色、隐私政策和服务条款配置",
   "config.platform.ai_page_context_max_bytes.name": "聊天页面上下文最大字节数",
   "config.platform.ai_page_context_max_bytes.desc": "限制前端发送到 AI 聊天/路由接口的 page_context.page_data 最大字节数，默认 8192；这是页面上下文预算，不是模型输入或输出 token 限制",
+  "config.tenant.logo_dark.name": "企业深色 Logo",
+  "config.tenant.logo_dark.desc": "深色主题下优先显示的企业 Logo，留空时回退平台默认值",
+  "config.tenant.icp.name": "ICP备案号",
+  "config.tenant.icp.desc": "企业自己的备案号；为空时沿用平台默认备案号",
   "config.tenant.user_privacy_policy_url.name": "隐私政策链接",
   "config.tenant.user_privacy_policy_url.desc": "注册页面显示的隐私政策链接地址，留空则不显示",
   "config.tenant.user_terms_url.name": "服务条款链接",

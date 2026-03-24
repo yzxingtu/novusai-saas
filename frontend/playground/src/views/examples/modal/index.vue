@@ -26,12 +26,12 @@ import SharedDataDemo from './shared-data-demo.vue';
 defineOptions({ name: 'ModalExample' });
 
 const [BaseModal, baseModalApi] = useVbenModal({
-  // 连接抽离的组件
+  // 连接抽离的组件 / Wired remote modal body component
   connectedComponent: BaseDemo,
 });
 
 const [InContentModal, inContentModalApi] = useVbenModal({
-  // 连接抽离的组件
+  // 连接抽离的组件 / Wired remote modal body component
   connectedComponent: InContentModalDemo,
 });
 
@@ -107,7 +107,7 @@ function handleUpdateTitle() {
 function openFormModal() {
   formModalApi
     .setData({
-      // 表单值
+      // 表单值 / Initial form values
       values: { field1: 'abc', field2: '123' },
     })
     .open();
@@ -123,7 +123,7 @@ function openAlert() {
 }
 
 onBeforeUnmount(() => {
-  // 清除所有弹窗
+  // 清除所有弹窗 / Clear stacked alerts on unmount
   clearAllAlerts();
 });
 
@@ -131,7 +131,7 @@ function openConfirm() {
   confirm({
     beforeClose({ isConfirm }) {
       if (!isConfirm) return;
-      // 这里可以做一些异步操作
+      // 这里可以做一些异步操作 / Async work before close (demo)
       return new Promise((resolve) => {
         setTimeout(() => {
           resolve(true);

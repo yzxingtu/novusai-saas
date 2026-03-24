@@ -1,6 +1,6 @@
 # storage-billing 官方对账实施规范
 
-更新时间：2026-03-24
+更新时间：2026-03-25
 
 ## 1. 文档目的
 
@@ -65,6 +65,8 @@
 - 当套餐未开启该 feature 时：
   - 企业端不展示可计费账单能力。
   - 管理端仍可维护全局 provider profile 与对账任务，但不应将其解释为租户已具备可见性。
+- `plugin.yaml` 当前保留 `scope: all_tenants`，仅表示插件存在 tenant-side route surface，不表示所有企业默认可见。
+- `plugin.yaml -> extensions.custom[type=tenant_menu_policy].data.grant_mode=manual_entitlement` 当前只是为了关闭生命周期 auto-grant；租户实际可见性与权限授予以套餐 feature 同步结果为准。
 
 ## 6. 宿主对象存储配置规则
 
@@ -95,6 +97,8 @@
 - 触发官方账单拉取
 - 记录 source rows、run rows、charge rows、statement rows
 - 生成租户账单与导出 CSV
+- 当前 `charge rows` 定义为“按 tenant + provider + charge_basis + currency 聚合后的账单行”，不是独立资源级 line-item 表
+- 当前资源级原始账单项保存在 `StorageTenantDailyCharge.details_json.items`，用于导出与后续深挖，不应在文案里误称为“资源级明细表”
 - 输出前置校验结果
 
 `storage-billing` 插件不负责：
@@ -186,6 +190,7 @@ provider 规则：
 - Provider 配置区只显示当前 active provider
 - Provider 配置区展示宿主运行时快照为只读信息
 - 表单只允许编辑 `enabled`、`profile_code`、`bill_source`、`account_identifier`
+- 只有具备 `billing_admin:configure` 时才允许请求企业下拉选项；`billing_admin:view` 首屏不得依赖宿主 `tenant:select`
 - 不得出现 `oss_subscription`、`cos_bill_bucket` 这类未落地 source
 - 不得出现 `bill_bucket`、`bill_prefix` 这类已废弃字段
 
@@ -193,6 +198,13 @@ provider 规则：
 
 - 仅当套餐 feature 与运行时前置条件同时满足时，账单页面才进入 ready 状态
 - 对账未就绪时，必须返回结构化 missing reasons
+- `billing_portal:view` 只负责账单门户与当前账单摘要可见
+- `billing_statement:list` 只负责账期账单行可见；缺少该权限时，当前账单摘要不得被前端误清空
+- 插件页面首屏请求前必须先通过 `window.NovusPluginShared.getAccessCodes()` / `hasAccessByCodes()` 做权限 gating；shared access bridge 缺失时应 fail-close
+- 页面内 CTA 必须同时按权限与当前 ready 状态 gating，不能只凭菜单可见性放行
+- 租户端当前展示的是聚合账单行，不得在标题、副标题、按钮、表头里把它写成“资源级费用明细”
+- 若要展示更细粒度信息，允许展示 `scope_values`、`item_count` 与导出 CSV 中的 `details_json`
+- 若产品未来要求真正资源级明细，必须新增独立 line-item 数据模型，而不是继续复用当前聚合 charge rows
 - missing reasons 需覆盖：
   - feature 未开启
   - 当前 driver 不可计费
@@ -200,6 +212,15 @@ provider 规则：
   - 缺少可用 provider profile
   - 缺少有效绑定
   - 当前绑定与 active provider 不匹配
+
+### 11.3 插件声明契约
+
+- `plugin.yaml` 是页面、菜单、标题、权限和前端入口的唯一声明源
+- 页面标题只来自 `extensions.frontend.pages[*].title`
+- 菜单标题只来自 `extensions.frontend.pages[*].menu.title`
+- 插件内部文案必须注册 canonical locale prefix `plugin.storage-billing`
+- 禁止把插件菜单标题写回宿主 `menu.json`
+- 生产态前端入口只认 `extensions.frontend.release.manifest`
 
 ## 12. 运行时数据流
 
@@ -217,6 +238,11 @@ flowchart LR
   H --> I["charge rows / statements"]
   I --> J["租户账单页面 / CSV 导出"]
 ```
+
+补充说明：
+
+- `StorageProviderBillSource.raw_payload_json.allocation_rows` 是 run detail 的 source 级快照来源，用于避免 rerun 后历史 run 明细漂移
+- `StorageTenantDailyCharge` 是基于当前 authoritative run sources 重建的 live projection，用于 tenant statement、当前账单页和导出
 
 ## 13. 关键校验清单
 
@@ -244,8 +270,12 @@ flowchart LR
 
 最低验证基线：
 
+- `novusai plugin validate backend/plugins/storage-billing`
+- `novusai plugin build backend/plugins/storage-billing`
+- `novusai plugin pack backend/plugins/storage-billing --release`
 - `pytest backend/tests/services/test_storage_billing_provider_profile_service.py backend/tests/plugins/test_storage_billing_admin_services.py backend/tests/services/test_storage_billing_binding_service.py backend/tests/services/test_storage_billing_reconciliation_service.py -q`
 - `npm run build` in `backend/plugins/storage-billing/frontend`
+- 浏览器矩阵至少覆盖：菜单进入、direct URL、硬刷新、切语言、普通插件页资源路径只命中 `/plugin-assets/...`
 
 说明：
 

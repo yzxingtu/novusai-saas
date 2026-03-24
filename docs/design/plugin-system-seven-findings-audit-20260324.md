@@ -33,7 +33,7 @@
 - 证据：
   - tenant 菜单树来自套餐/角色有效权限，见 [permission_service.py](/E:/git_clone/novusai-saas-yudi/backend/app/rbac/services/permission_service.py#L973)
   - tenant 插件 slots 来自 runtime gate 可见性过滤，见 [plugin_service.py](/E:/git_clone/novusai-saas-yudi/backend/app/services/system/plugin_service.py#L481) 和 [plugins.py](/E:/git_clone/novusai-saas-yudi/backend/app/api/tenant/plugins.py#L80)
-  - 插件页面路由还会额外写入 `accessCodes` 并受前端守卫限制，见 [_extension_registrar.py](/E:/git_clone/novusai-saas-yudi/backend/app/plugins/_extension_registrar.py#L70) 和 [guard.ts](/E:/git_clone/novusai-saas-yudi/frontend/apps/web-antd/src/router/guard.ts#L108)
+  - 插件页面路由还会额外写入 `accessCodes` 并受前端守卫限制，见 [\_extension_registrar.py](/E:/git_clone/novusai-saas-yudi/backend/app/plugins/_extension_registrar.py#L70) 和 [guard.ts](/E:/git_clone/novusai-saas-yudi/frontend/apps/web-antd/src/router/guard.ts#L108)
 - 判断：
   - tenant 链路没有 single source of truth，是系统性不一致。
 
@@ -61,7 +61,7 @@
   - `sync_plugin_permissions()` 先选第一个 admin/tenant 插件菜单作为默认父菜单，见 [sync.py](/E:/git_clone/novusai-saas-yudi/backend/app/rbac/sync.py#L395)
   - 该方法随后将插件动作权限统一挂载到默认父菜单，见 [sync.py](/E:/git_clone/novusai-saas-yudi/backend/app/rbac/sync.py#L419)
   - 菜单树逻辑会根据操作权限的 `parent_id` 自动补出父菜单和祖先菜单，见 [permission_service.py](/E:/git_clone/novusai-saas-yudi/backend/app/rbac/services/permission_service.py#L945)
-  - `workflow-orchestration` 这类多页面插件最容易受到影响，见 [plugin.yaml](/E:/git_clone/novusai-saas-yudi/backend/plugins/workflow-orchestration/plugin.yaml#L366) 和 [plugin.yaml](/E:/git_clone/novusai-saas-yudi/backend/plugins/workflow-orchestration/plugin.yaml#L453)
+  - 多页面、带父子菜单层级的复杂插件最容易受到影响。
 - 判断：
   - 当前 RBAC 桥接只适配“单根菜单插件”，对复杂插件不成立。
 
@@ -75,14 +75,9 @@
 - 证据：
   - 宿主标准 locale 只加载 `./langs/**/*.json`，见 [locales/index.ts](/E:/git_clone/novusai-saas-yudi/frontend/apps/web-antd/src/locales/index.ts#L26)
   - 插件 locale 必须依赖 `registerLocale()` 在运行时注入，见 [plugin-shared.ts](/E:/git_clone/novusai-saas-yudi/frontend/apps/web-antd/src/utils/plugin-shared.ts#L201)
-  - plugin slots 在取数时会直接把多语言 title 解析成单字符串，见 [plugin-slots.ts](/E:/git_clone/novusai-saas-yudi/frontend/apps/web-antd/src/stores/plugin-slots.ts#L237)
-  - 切换语言时只重建菜单，不刷新插件 slots / 动态路由标题，见 [basic.vue](/E:/git_clone/novusai-saas-yudi/frontend/apps/web-antd/src/layouts/basic.vue#L255)
-  - 当前插件存在多套并行命名空间：
-    - 脚手架模板：`plugin.{name}`，见 [plugin_cli.py](/E:/git_clone/novusai-saas-yudi/backend/scripts/plugin_cli.py#L196)
-    - `storage-billing`：`plugin.storageBilling`，见 [index.ts](/E:/git_clone/novusai-saas-yudi/backend/plugins/storage-billing/frontend/src/index.ts#L25)
-    - `workflow-orchestration`：`plugin.workflowOrchestration.admin/tenant`，见 [index.ts](/E:/git_clone/novusai-saas-yudi/backend/plugins/workflow-orchestration/frontend/src/index.ts#L30)
-    - `weather-widget`：`plugin.weather-widget`，见 [index.ts](/E:/git_clone/novusai-saas-yudi/backend/plugins/weather-widget/frontend/src/index.ts#L23)
-    - `storage-migration`：兼容旧前缀 `admin.storageMigration`，见 [index.ts](/E:/git_clone/novusai-saas-yudi/backend/plugins/storage-migration/frontend/src/index.ts#L20)
+  - plugin slots 现在会保留 `titleLocaleMap`，但历史上这里曾把多语言 title 过早压平成单字符串；当前实现位于 [plugin-slots.ts](/E:/git_clone/novusai-saas-yudi/frontend/apps/web-antd/src/stores/plugin-slots.ts#L262)
+  - 切换语言时宿主现在会重建菜单、刷新插件 slots、重算 tab 与当前路由标题，相关入口见 [basic.vue](/E:/git_clone/novusai-saas-yudi/frontend/apps/web-antd/src/layouts/basic.vue#L259) 和 [use-plugin-frontend-init.ts](/E:/git_clone/novusai-saas-yudi/frontend/apps/web-antd/src/composables/use-plugin-frontend-init.ts#L251)
+  - 当前审计重点已从“仓库里存在多套并行命名空间”收敛为“install/enable/sync-manifest/runtime 是否强制 canonical prefix + page/menu i18n fail-close”，相关校验入口见 [frontend_contract.py](/E:/git_clone/novusai-saas-yudi/backend/app/plugins/frontend_contract.py#L116) 和 [frontend_contract_checks.py](/E:/git_clone/novusai-saas-yudi/backend/app/plugins/frontend_contract_checks.py#L190)
 - 判断：
   - 多语言不是插件作者偶尔漏写，而是系统没有提供稳定的一致契约。
 

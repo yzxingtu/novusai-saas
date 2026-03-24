@@ -39,7 +39,7 @@ async function loadMessages(lang: SupportedLanguagesType) {
 }
 
 /**
- * 加载第三方组件库的语言包
+ * 加载第三方组件库的语言包 / Load third-party (Ant Design, etc.) locales
  * @param lang
  */
 async function loadThirdPartyMessage(lang: SupportedLanguagesType) {
@@ -47,7 +47,7 @@ async function loadThirdPartyMessage(lang: SupportedLanguagesType) {
 }
 
 /**
- * 加载dayjs的语言包
+ * 加载dayjs的语言包 / Load dayjs locale
  * @param lang
  */
 async function loadDayjsLocale(lang: SupportedLanguagesType) {
@@ -61,7 +61,7 @@ async function loadDayjsLocale(lang: SupportedLanguagesType) {
       locale = await import('dayjs/locale/zh-cn');
       break;
     }
-    // 默认使用英语
+    // 默认使用英语 / Default to English locale
     default: {
       locale = await import('dayjs/locale/en');
     }
@@ -74,7 +74,7 @@ async function loadDayjsLocale(lang: SupportedLanguagesType) {
 }
 
 /**
- * 加载antd的语言包
+ * 加载antd的语言包 / Load Ant Design Vue locale
  * @param lang
  */
 async function loadAntdLocale(lang: SupportedLanguagesType) {

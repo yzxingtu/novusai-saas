@@ -752,7 +752,7 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     openRecycleBin,
     recycleBinRef,
 
-    // AI / AI
+    // AI / 页面 AI 能力
     aiPageKey,
   };
 }

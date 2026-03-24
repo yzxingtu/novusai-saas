@@ -143,6 +143,14 @@ export interface DomainConfig {
   verificationPrefix: string;
 }
 
+export interface StoragePublicConfig {
+  allowedExtensions?: string;
+  baseUrl?: string;
+  chunkSizeMb?: number;
+  driver?: string;
+  maxFileSizeMb?: number;
+}
+
 /** Runtime limits / 运行时限制 */
 export interface RuntimeLimitsConfig {
   /** Hard limit for page_context.page_data bytes / page_context.page_data 硬限制 */
@@ -163,6 +171,8 @@ export interface PlatformPublicConfig {
   domain: DomainConfig;
   /** Runtime limits / 运行时限制 */
   runtimeLimits?: RuntimeLimitsConfig;
+  /** Public storage config / 公开存储配置 */
+  storage?: StoragePublicConfig;
   /** Platform admin domain list (for domain detection) / 平台管理端域名列表 */
   platformDomains: string[];
 }
@@ -187,6 +197,8 @@ export interface TenantPublicConfig {
   domain: DomainConfig;
   /** Runtime limits / 运行时限制 */
   runtimeLimits?: RuntimeLimitsConfig;
+  /** Public storage config / 公开存储配置 */
+  storage?: StoragePublicConfig;
   /** Feature toggles / 功能开关 */
   features?: Record<string, boolean>;
   /** Registration privacy policy URL / 注册页隐私政策链接 */
@@ -230,6 +242,15 @@ interface PlatformPublicConfigRaw {
     page_context_max_bytes?: number;
   };
 
+  // Storage / 存储
+  storage?: {
+    allowed_extensions?: string;
+    base_url?: string;
+    chunk_size_mb?: number;
+    driver?: string;
+    max_file_size_mb?: number;
+  };
+
   // Maintenance / 维护模式
   maintenance_mode?: boolean;
   maintenance_message?: string;
@@ -263,10 +284,12 @@ interface TenantPublicConfigRaw {
   // Brand (backend returns these field names from TenantPublicConfig schema) / 品牌字段（与后端 schema 一致）
   logo_url?: string;
   favicon_url?: string;
+  logo_dark_url?: string;
   login_bg?: string;
   login_title?: string;
   login_subtitle?: string;
   footer_copyright?: string;
+  icp?: string;
 
   // Domain / 企业域名
   subdomain?: string;
@@ -356,7 +379,7 @@ function transformPlatformConfig(
     login: {
       captcha: {
         enabled: raw.login_captcha_enabled ?? false,
-        type: raw.captcha_type ?? 'image',
+        type: raw.captcha_provider ?? raw.captcha_type ?? 'image',
         difficulty: raw.captcha_difficulty ?? 'medium',
         failedThreshold: raw.captcha_enable_threshold_admin ?? 0,
         provider: raw.captcha_provider ?? 'image',
@@ -391,6 +414,15 @@ function transformPlatformConfig(
       suffix: raw.tenant_domain_suffix ?? '',
       verificationPrefix: raw.domain_verification_prefix ?? '',
     },
+    storage: raw.storage
+      ? {
+          allowedExtensions: raw.storage.allowed_extensions,
+          baseUrl: raw.storage.base_url,
+          chunkSizeMb: raw.storage.chunk_size_mb,
+          driver: raw.storage.driver,
+          maxFileSizeMb: raw.storage.max_file_size_mb,
+        }
+      : undefined,
     runtimeLimits:
       raw.runtime_limits?.page_context_max_bytes != null
         ? {
@@ -407,12 +439,14 @@ function transformTenantConfig(raw: TenantPublicConfigRaw): TenantPublicConfig {
     tenantCode: raw.tenant_code,
     tenantName: raw.tenant_name,
     brand: {
-      siteName: raw.login_title || raw.tenant_name,
+      siteName: raw.login_title || undefined,
       siteDescription: raw.login_subtitle,
       logo: attachmentIdToUrl(raw.logo_url),
+      logoDark: attachmentIdToUrl(raw.logo_dark_url),
       favicon: attachmentIdToUrl(raw.favicon_url),
       loginBg: attachmentIdToUrl(raw.login_bg),
       copyright: raw.footer_copyright,
+      icp: raw.icp,
     },
     login: {
       captcha: {
@@ -450,6 +484,15 @@ function transformTenantConfig(raw: TenantPublicConfigRaw): TenantPublicConfig {
       suffix: '',
       verificationPrefix: '',
     },
+    storage: raw.storage
+      ? {
+          allowedExtensions: raw.storage.allowed_extensions,
+          baseUrl: raw.storage.base_url,
+          chunkSizeMb: raw.storage.chunk_size_mb,
+          driver: raw.storage.driver,
+          maxFileSizeMb: raw.storage.max_file_size_mb,
+        }
+      : undefined,
     runtimeLimits:
       raw.runtime_limits?.page_context_max_bytes != null
         ? {

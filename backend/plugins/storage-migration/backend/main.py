@@ -15,15 +15,28 @@ class StorageMigrationPlugin(PluginBase):
         logger = ctx.get_logger()
         logger.info("Storage migration plugin enabled")
 
-        # Recover interrupted tasks: after server restart no background / 恢复中断任务：重启后内存无后台
-        # coroutine is running, so mark 'running' tasks as 'paused'. / 协程，将 running 任务标为 paused
+        # Recover interrupted tasks on process restart.
+        # Running migrations can be resumed safely, but interrupted rollbacks
+        # require manual verification before another destructive action.
         try:
             db = ctx.get_db()
             result = await db.execute(
-                text("""UPDATE px_storage_migration_tasks / 迁移
-                    SET status = 'paused', updated_at = now(),
-                        error_message = 'Interrupted by server restart'
-                    WHERE status = 'running'"""),
+                text(
+                    """
+                    UPDATE px_storage_migration_tasks
+                    SET status = CASE
+                            WHEN status = 'running' THEN 'paused'
+                            ELSE 'failed'
+                        END,
+                        updated_at = now(),
+                        error_message = CASE
+                            WHEN status = 'running'
+                                THEN 'Interrupted by server restart; review and resume when ready'
+                            ELSE 'Rollback interrupted by server restart; verify data before retrying rollback'
+                        END
+                    WHERE status IN ('running', 'rolling_back')
+                    """
+                ),
             )
             if result.rowcount > 0:
                 await db.commit()

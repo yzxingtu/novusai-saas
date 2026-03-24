@@ -258,7 +258,7 @@ const RULES: InferRule[] = [
     },
   },
 
-  // -- URL / Email / Phone（IR-3/4/5）/ URL, Email, Phone --
+  // -- URL / Email / Phone（IR-3/4/5）/ 链接、邮箱、电话字段 --
   { pattern: /(url|link|href|website|homepage)$/i, config: { type: 'String', component: 'input', listVisible: true } },
   { pattern: /(email|mail)$/i, config: { type: 'String', component: 'input', queryType: 'ilike', listVisible: true, filterable: true } },
   { pattern: /(phone|mobile|tel|cellphone)$/i, config: { type: 'String', component: 'input', listVisible: true, filterable: true } },

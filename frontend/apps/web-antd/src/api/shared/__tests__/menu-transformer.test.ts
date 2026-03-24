@@ -26,18 +26,16 @@ describe('menu-transformer', () => {
   it('includes menu code in extracted permissions for plugin route access', () => {
     const permissions = extractPermissionsFromMenus([
       {
-        code: 'menu:tenant.plugin_workflow_orchestration_templates',
+        code: 'menu:tenant.plugin_storage_billing_storage-billing-home',
         name: '模板管理',
-        path: '/tenant/plugins/workflow-orchestration/templates',
-        permissions: ['plugin.workflow-orchestration.platform_template:list'],
+        path: '/tenant/plugins/storage-billing',
+        permissions: ['plugin.storage-billing.billing_portal:view'],
       },
     ]);
 
     expect(permissions).toContain(
-      'menu:tenant.plugin_workflow_orchestration_templates',
+      'menu:tenant.plugin_storage_billing_storage-billing-home',
     );
-    expect(permissions).toContain(
-      'plugin.workflow-orchestration.platform_template:list',
-    );
+    expect(permissions).toContain('plugin.storage-billing.billing_portal:view');
   });
 });

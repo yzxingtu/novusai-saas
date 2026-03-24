@@ -126,11 +126,11 @@ watch(activeView, () => {
           <template #taskName_cell="{ row }">
             <div class="flex flex-col gap-0.5">
               <span class="font-medium text-foreground">
-                {{ getTaskShortName(row.taskName) }}
+                {{ getTaskShortName(row.handlerPath || row.taskName) }}
               </span>
               <Tooltip :title="row.taskId">
                 <span class="truncate text-xs text-muted-foreground">
-                  {{ row.taskName }}
+                  {{ row.handlerPath || row.taskName }}
                 </span>
               </Tooltip>
             </div>

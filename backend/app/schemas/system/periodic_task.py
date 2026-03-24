@@ -100,9 +100,31 @@ class PeriodicTaskToggleRequest(BaseSchema):
     is_active: bool = Field(..., description="是否启用")
 
 
+class PeriodicTaskBindingResponse(BaseSchema):
+    """定时任务企业绑定响应 / Periodic task tenant binding response."""
+
+    id: int = Field(..., description="绑定 ID")
+    tenant_id: int = Field(..., description="企业 ID")
+    tenant_name: str | None = Field(None, description="企业名称")
+    is_enabled: bool = Field(True, description="是否启用")
+    schedule_type_override: str | None = Field(None, description="覆盖调度类型")
+    cron_expression_override: str | None = Field(None, description="覆盖 Cron 表达式")
+    interval_seconds_override: int | None = Field(None, description="覆盖间隔秒数")
+    last_run_at: datetime | None = Field(None, description="上次执行时间")
+    next_run_at: datetime | None = Field(None, description="下次执行时间")
+
+
+class PeriodicTaskBindingSyncRequest(BaseSchema):
+    """定时任务企业绑定同步请求 / Periodic task tenant binding sync request."""
+
+    tenant_ids: list[int] = Field(default_factory=list, description="企业 ID 列表")
+
+
 __all__ = [
     "PeriodicTaskResponse",
     "PeriodicTaskCreateRequest",
     "PeriodicTaskUpdateRequest",
     "PeriodicTaskToggleRequest",
+    "PeriodicTaskBindingResponse",
+    "PeriodicTaskBindingSyncRequest",
 ]

@@ -180,7 +180,7 @@ void showScrollToTop;
 void scrollToBottom;
 void scrollToTop;
 
-// ============ Sidebar ============
+// ============ Sidebar / 侧栏 ============
 
 const mobileSidebarOpen = ref(false);
 const conversationSearch = ref('');

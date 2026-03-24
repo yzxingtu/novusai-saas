@@ -158,18 +158,15 @@ def register_all_extensions(
         Number of successfully registered extension points / 注册成功的扩展点数量（registry.get_registered_count）
     """
     # ── T13: Idempotency guarantee (clean-slate strategy) / 幂等性保证（clean-slate 策略）──
-    # Clear old registrations first, then re-register all extension points.
-    # Ensures no duplicate injections when enable/restore is executed repeatedly.
-    # unregister_all is a no-op when plugin_name has no registrations, safely idempotent.
-    # / 先清除旧注册，再重新注册所有扩展点。
-    # 确保 enable/restore 重复执行时不会产生重复注入。
-    # unregister_all 在 plugin_name 无注册时为 no-op，安全幂等。
+    # Clear old registrations first, then re-register all extension points. / 先清除旧注册，再重新注册所有扩展点。
+    # Ensures no duplicate injections when enable/restore is executed repeatedly. / 确保 enable/restore 重复执行时不产生重复注入。
+    # unregister_all is a no-op when plugin_name has no registrations, safely idempotent. / 无历史注册时 unregister_all 为空操作，幂等安全。
     registry.unregister_all(plugin_name)
 
     ext: ExtensionsSchema = manifest.extensions
     _failed_extensions[plugin_name] = []
 
-    # Skills（resolver + executor）
+    # Skills（resolver + executor）/ 技能（解析器 + 执行器）
     for skill_ext in ext.skills:
         resolver_func = (
             _load_handler(plugin_name, skill_ext.entry_point + ".resolve")
@@ -184,7 +181,7 @@ def register_all_extensions(
         elif skill_ext.entry_point:
             _record_failure(plugin_name, "skill", skill_ext.entry_point)
 
-    # Adapters
+    # Adapters / 适配器
     for adapter_ext in ext.adapters:
         adapter_cls = _load_handler(plugin_name, adapter_ext.entry_point)
         if adapter_cls:
@@ -194,7 +191,7 @@ def register_all_extensions(
         else:
             _record_failure(plugin_name, "adapter", adapter_ext.entry_point)
 
-    # Storage Drivers
+    # Storage Drivers / 存储驱动
     for storage_ext in ext.storage_drivers:
         driver_cls = _load_handler(plugin_name, storage_ext.entry_point)
         if driver_cls:
@@ -202,7 +199,7 @@ def register_all_extensions(
         else:
             _record_failure(plugin_name, "storage_driver", storage_ext.entry_point)
 
-    # Hooks
+    # Hooks / 钩子
     for hook in ext.hooks:
         handler = _load_handler(plugin_name, hook.handler)
         if handler:
@@ -212,7 +209,7 @@ def register_all_extensions(
         else:
             _record_failure(plugin_name, "hook", hook.handler)
 
-    # Events
+    # Events / 事件
     for event in ext.events:
         handler = _load_handler(plugin_name, event.handler)
         if handler:
@@ -220,7 +217,7 @@ def register_all_extensions(
         else:
             _record_failure(plugin_name, "event", event.handler)
 
-    # Webhooks
+    # Webhooks / Webhook 回调
     for webhook in ext.webhooks:
         handler = _load_handler(plugin_name, webhook.handler)
         if handler:
@@ -239,21 +236,21 @@ def register_all_extensions(
         record_failures=True,
     )
 
-    # Notifications
+    # Notifications / 通知
     for notif_ext in ext.notifications:
         registry.register_notification(
             plugin_name, notif_ext.code,
             notif_ext.title, notif_ext.channels, notif_ext.category,
         )
 
-    # Permissions
+    # Permissions / 权限
     for perm_ext in ext.permissions:
         registry.register_permission(
             plugin_name, perm_ext.code,
             perm_ext.name, perm_ext.scope, perm_ext.actions,
         )
 
-    # Socket.IO Namespaces
+    # Socket.IO Namespaces / Socket.IO 命名空间
     for sio_ext in ext.socketio:
         handler_class = _load_handler(plugin_name, sio_ext.handler)
         if handler_class:

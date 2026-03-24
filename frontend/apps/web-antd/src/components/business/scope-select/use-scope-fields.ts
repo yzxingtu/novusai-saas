@@ -98,9 +98,9 @@ export function useScopeFields(
   if (scopeHelp) {
     scopeSchema.help = scopeHelp;
   }
-  // Always set dependencies.disabled (even when scopeDisabled=false) so that
-  // when the schema switches from locked→unlocked the Vben dependency watcher
-  // calls resetConditionState() and clears the stale isDisabled=true state.
+  // Always set dependencies.disabled (even when scopeDisabled=false) so that / 始终设置 dependencies.disabled
+  // when the schema switches from locked→unlocked the Vben dependency watcher / 以便 locked→unlocked 时 Vben 依赖监听
+  // calls resetConditionState() and clears the stale isDisabled=true state. / 触发 resetConditionState 清除陈旧禁用态
   scopeSchema.dependencies = {
     triggerFields: ['_mode'],
     disabled:

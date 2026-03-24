@@ -35,19 +35,19 @@ def test_plugin_sync_manifest_command_uses_service(monkeypatch) -> None:
 
         async def sync_manifest(self, plugin_id: int):
             calls["sync_plugin_id"] = plugin_id
-            return SimpleNamespace(name="workflow-orchestration", version="1.0.0")
+            return SimpleNamespace(name="storage-billing", version="1.0.0")
 
     _install_fake_service(monkeypatch, _FakeService)
 
     runner = CliRunner()
     result = runner.invoke(
         cli,
-        ["plugin", "sync-manifest", "--plugin", "workflow-orchestration"],
+        ["plugin", "sync-manifest", "--plugin", "storage-billing"],
     )
 
     assert result.exit_code == 0
-    assert "Manifest synced: workflow-orchestration@1.0.0" in result.output
-    assert calls["plugin_name"] == "workflow-orchestration"
+    assert "Manifest synced: storage-billing@1.0.0" in result.output
+    assert calls["plugin_name"] == "storage-billing"
     assert calls["sync_plugin_id"] == 7
 
 
@@ -75,14 +75,14 @@ def test_plugin_activate_license_command_uses_service(monkeypatch) -> None:
             "plugin",
             "activate-license",
             "--plugin",
-            "workflow-orchestration",
+            "storage-billing",
             "--key",
             "NOVUS-test-key",
         ],
     )
 
     assert result.exit_code == 0
-    assert "License activated: workflow-orchestration" in result.output
+    assert "License activated: storage-billing" in result.output
     assert calls["activate_args"] == (8, "NOVUS-test-key")
 
 
@@ -116,11 +116,11 @@ def test_plugin_enable_command_uses_service(monkeypatch) -> None:
     runner = CliRunner()
     result = runner.invoke(
         cli,
-        ["plugin", "enable", "--plugin", "workflow-orchestration"],
+        ["plugin", "enable", "--plugin", "storage-billing"],
     )
 
     assert result.exit_code == 0
-    assert "Plugin enabled: workflow-orchestration" in result.output
+    assert "Plugin enabled: storage-billing" in result.output
     assert "restart it or use the admin API enable path" in result.output
     assert calls["enable_plugin_id"] == 9
     assert init_calls == ["init", "close"]
@@ -151,7 +151,7 @@ def test_plugin_assign_tenant_command_uses_service(monkeypatch) -> None:
             "plugin",
             "assign-tenant",
             "--plugin",
-            "workflow-orchestration",
+            "storage-billing",
             "--tenant-id",
             "11",
             "--tenant-id",
@@ -160,7 +160,7 @@ def test_plugin_assign_tenant_command_uses_service(monkeypatch) -> None:
     )
 
     assert result.exit_code == 0
-    assert "Assigned 2 tenant(s): workflow-orchestration" in result.output
+    assert "Assigned 2 tenant(s): storage-billing" in result.output
     assert calls["assign_args"] == (10, [11, 12])
 
 

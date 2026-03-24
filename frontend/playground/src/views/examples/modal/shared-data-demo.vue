@@ -13,7 +13,7 @@ const [Modal, modalApi] = useVbenModal({
   },
   onConfirm() {
     message.info('onConfirm');
-    // modalApi.close();
+    // modalApi.close(); / 演示可在此关闭 / demo: close here if needed
   },
   onOpenChange(isOpen: boolean) {
     if (isOpen) {

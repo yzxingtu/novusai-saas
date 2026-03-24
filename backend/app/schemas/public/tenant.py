@@ -30,10 +30,12 @@ class TenantPublicConfig(BaseSchema):
     # 品牌设置 / Branding
     logo_url: str | None = Field(None, description="Logo URL")
     favicon_url: str | None = Field(None, description="Favicon URL")
+    logo_dark_url: str | None = Field(None, description="Dark Logo URL")
     login_bg: str | None = Field(None, description="登录页背景图")
     login_title: str | None = Field(None, description="登录页标题")
     login_subtitle: str | None = Field(None, description="登录页副标题")
     footer_copyright: str | None = Field(None, description="页脚版权")
+    icp: str | None = Field(None, description="ICP备案号")
 
     # 登录设置 / Login settings
     captcha_enabled: bool = Field(False, description="是否启用验证码")

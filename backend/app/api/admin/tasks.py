@@ -57,6 +57,71 @@ class AdminTaskController(GlobalController):
     tags = ["Task Management"]
     service_class = TaskLogService
 
+    @staticmethod
+    def _serialize_task_run(task_run) -> dict:
+        args_summary = task_run.args_summary or {}
+        args = None
+        kwargs = None
+        if isinstance(args_summary, dict):
+            args = args_summary.get("args")
+            kwargs = args_summary.get("kwargs")
+
+        return TaskLogResponse(
+            id=task_run.id,
+            task_id=task_run.celery_task_id,
+            task_name=task_run.task_name_snapshot,
+            handler_path=task_run.handler_path_snapshot,
+            queue=task_run.queue,
+            status=task_run.status,
+            args=args,
+            kwargs=kwargs,
+            result=task_run.result_summary,
+            error_message=task_run.error_message_public
+            or task_run.error_message_internal,
+            trigger_source=task_run.trigger_source,
+            run_kind=task_run.run_kind,
+            trace_id=task_run.trace_id,
+            started_at=task_run.started_at,
+            finished_at=task_run.finished_at,
+            duration_ms=task_run.duration_ms,
+            retry_count=task_run.retry_count,
+            tenant_id=task_run.effective_tenant_id,
+            created_at=task_run.created_at,
+        ).model_dump()
+
+    @staticmethod
+    def _serialize_task_run_detail(task_run) -> dict:
+        args_summary = task_run.args_summary or {}
+        args = None
+        kwargs = None
+        if isinstance(args_summary, dict):
+            args = args_summary.get("args")
+            kwargs = args_summary.get("kwargs")
+
+        return TaskLogDetailResponse(
+            id=task_run.id,
+            task_id=task_run.celery_task_id,
+            task_name=task_run.task_name_snapshot,
+            handler_path=task_run.handler_path_snapshot,
+            queue=task_run.queue,
+            status=task_run.status,
+            args=args,
+            kwargs=kwargs,
+            result=task_run.result_summary,
+            error_message=task_run.error_message_public
+            or task_run.error_message_internal,
+            trigger_source=task_run.trigger_source,
+            run_kind=task_run.run_kind,
+            trace_id=task_run.trace_id,
+            started_at=task_run.started_at,
+            finished_at=task_run.finished_at,
+            duration_ms=task_run.duration_ms,
+            retry_count=task_run.retry_count,
+            tenant_id=task_run.effective_tenant_id,
+            created_at=task_run.created_at,
+            traceback=task_run.traceback_internal,
+        ).model_dump()
+
     def _register_routes(self) -> None:
         router = self.router
 
@@ -75,10 +140,7 @@ class AdminTaskController(GlobalController):
             service = self.get_service(db)
             items, total = await service.query_list_by_view(query, view=view)
             return paginated(
-                items=[
-                    TaskLogResponse.model_validate(item, from_attributes=True)
-                    for item in items
-                ],
+                items=[self._serialize_task_run(item) for item in items],
                 total=total,
                 page=query.page,
                 page_size=query.size,
@@ -131,11 +193,7 @@ class AdminTaskController(GlobalController):
 
                 raise NotFoundException(message=_("task_log.error.not_found"))
 
-            return success(
-                data=TaskLogDetailResponse.model_validate(
-                    task_log, from_attributes=True
-                ).model_dump()
-            )
+            return success(data=self._serialize_task_run_detail(task_log))
 
         @router.post("/{task_log_id}/retry", summary="重试任务")
         @action_update("action.task_log.retry")
@@ -153,14 +211,17 @@ class AdminTaskController(GlobalController):
 
                 raise NotFoundException(message=_("task_log.error.not_found"))
 
+            args_summary = task_log.args_summary or {}
+            args = None
+            kwargs = None
+            if isinstance(args_summary, dict):
+                args = args_summary.get("args")
+                kwargs = args_summary.get("kwargs")
+
             new_task_id = TaskManagerService.retry_task(
-                task_name=task_log.task_name,
-                args=task_log.args
-                if isinstance(task_log.args, list)
-                else list(task_log.args.values())
-                if isinstance(task_log.args, dict)
-                else None,
-                kwargs=task_log.kwargs,
+                task_name=task_log.handler_path_snapshot,
+                args=args if isinstance(args, list) else None,
+                kwargs=kwargs if isinstance(kwargs, dict) else None,
                 queue=body.queue if body and body.queue else task_log.queue,
             )
             return success(data={"new_task_id": new_task_id})
@@ -180,7 +241,7 @@ class AdminTaskController(GlobalController):
 
                 raise NotFoundException(message=_("task_log.error.not_found"))
 
-            TaskManagerService.cancel_task(task_log.task_id)
+            TaskManagerService.cancel_task(task_log.celery_task_id)
             return success(message=_("common.operation_success"))
 
 

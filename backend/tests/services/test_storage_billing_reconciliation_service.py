@@ -243,7 +243,7 @@ async def test_reconciliation_service_marks_completed_with_gaps_for_not_implemen
     )
     monkeypatch.setattr(
         service,
-        "rebuild_tenant_statements_for_billing_date",
+        "rebuild_tenant_statements_for_period",
         AsyncMock(return_value=0),
     )
 
@@ -733,13 +733,16 @@ async def test_reconciliation_run_includes_allocation_summary(monkeypatch) -> No
     )
     monkeypatch.setattr(
         service,
-        "rebuild_tenant_statements_for_billing_date",
+        "rebuild_tenant_statements_for_period",
         AsyncMock(return_value=0),
     )
 
     result = await service.run_daily_reconciliation(date(2026, 3, 25))
 
+    assert result["run"]["status"] == "completed_with_gaps"
+    assert result["run"]["summary"]["source_status_counts"] == {"completed_with_gaps": 1}
     provider_summary = result["run"]["summary"]["providers"][0]
+    assert provider_summary["source_status"] == "completed_with_gaps"
     assert provider_summary["matched_items"] == 2
     assert provider_summary["unmatched_items"] == 1
     assert provider_summary["ambiguous_items"] == 1
@@ -755,6 +758,267 @@ async def test_reconciliation_run_includes_allocation_summary(monkeypatch) -> No
     audit = allocation_payload["allocation_audit"]
     assert audit["unmatched_item_samples"] == []
     assert audit["ambiguous_item_samples"] == []
+
+
+@pytest.mark.asyncio
+async def test_replace_daily_charges_filters_bindings_for_tenants_no_longer_eligible() -> None:
+    module = load_plugin_module("storage-billing", "services.reconciliation_service")
+    model_module = load_plugin_module("storage-billing", "models")
+    provider_base = load_plugin_module("storage-billing", "providers.base")
+    assert module is not None
+    assert model_module is not None
+    assert provider_base is not None
+
+    source_row = model_module.StorageProviderBillSource(
+        run_id=1,
+        provider_code="tencent-cos",
+        driver_code="tencent-cos",
+        billing_date=date(2026, 3, 25),
+        source_status="fetched",
+    )
+    source_row.id = 66
+
+    binding = model_module.StorageTenantBinding(
+        tenant_id=501,
+        provider_code="tencent-cos",
+        driver_code="tencent-cos",
+        provider_profile_code="tencent-default",
+        billing_mode="official_reconciled",
+        scope_type="bucket",
+        scope_value="tenant-501-bucket",
+        bucket_name="tenant-501-bucket",
+        validation_status="valid",
+        entitlement_snapshot_json={},
+        metadata_json={},
+        is_active=True,
+    )
+    binding.id = 88
+
+    charge_item = provider_base.BillingChargeItem(
+        charge_basis="egress_traffic",
+        amount_total=Decimal("0.330000"),
+        usage_bytes=256,
+        currency="CNY",
+        bucket_name="tenant-501-bucket",
+        resource_name="tenant-501-bucket",
+        details_json={"bucket_aliases": ["tenant-501-bucket"]},
+    )
+
+    db = AsyncMock()
+    db.execute = AsyncMock(
+        side_effect=[
+            _make_scalars_result([]),
+            _make_scalars_result([binding]),
+        ]
+    )
+    db.delete = AsyncMock()
+    db.flush = AsyncMock()
+    db.add = MagicMock()
+
+    host = MagicMock()
+    host.get_platform_storage_context = AsyncMock(
+        return_value={"storage_mode": "platform", "storage_config": {"driver": "tencent-cos"}}
+    )
+    host.get_tenant_plan_snapshot = AsyncMock(
+        return_value={
+            "tenant_id": 501,
+            "plan": {"features": {"storage_billing_enabled": False}},
+        }
+    )
+    host.get_tenant_storage_context = AsyncMock(
+        return_value={"storage_mode": "platform", "storage_config": {"driver": "tencent-cos"}}
+    )
+
+    service = module.StorageBillingReconciliationService(db, host_read=host)
+    summary = await service._replace_daily_charges_for_source(
+        source_row=source_row,
+        charge_items=[charge_item],
+    )
+
+    assert summary["matched_items"] == 0
+    assert summary["unmatched_items"] == 1
+    db.add.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_reconciliation_service_rebuilds_live_charges_from_run_source_snapshots() -> None:
+    module = load_plugin_module("storage-billing", "services.reconciliation_service")
+    models = load_plugin_module("storage-billing", "models")
+    assert module is not None
+    assert models is not None
+
+    source_a = models.StorageProviderBillSource(
+        run_id=91,
+        provider_code="aliyun-oss",
+        driver_code="aliyun-oss",
+        period_type="daily",
+        billing_date=date(2026, 3, 25),
+        period_start=date(2026, 3, 25),
+        period_end=date(2026, 3, 25),
+        source_status="completed_with_gaps",
+        raw_payload_json={
+            "allocation_rows": [
+                {
+                    "tenant_id": 501,
+                    "charge_basis": "egress_traffic",
+                    "currency": "CNY",
+                    "usage_bytes": 128,
+                    "amount_total": "0.300000",
+                    "details": {
+                        "binding_ids": [11],
+                        "scope_values": ["bucket-a"],
+                        "item_count": 1,
+                        "items": [{"bucket_name": "bucket-a"}],
+                    },
+                }
+            ]
+        },
+    )
+    source_a.id = 301
+
+    source_b = models.StorageProviderBillSource(
+        run_id=91,
+        provider_code="aliyun-oss",
+        driver_code="aliyun-oss",
+        period_type="daily",
+        billing_date=date(2026, 3, 25),
+        period_start=date(2026, 3, 25),
+        period_end=date(2026, 3, 25),
+        source_status="fetched",
+        raw_payload_json={
+            "allocation_rows": [
+                {
+                    "tenant_id": 501,
+                    "charge_basis": "egress_traffic",
+                    "currency": "CNY",
+                    "usage_bytes": 256,
+                    "amount_total": "0.700000",
+                    "details": {
+                        "binding_ids": [12],
+                        "scope_values": ["bucket-b"],
+                        "item_count": 2,
+                        "items": [{"bucket_name": "bucket-b"}, {"bucket_name": "bucket-b-2"}],
+                    },
+                }
+            ]
+        },
+    )
+    source_b.id = 302
+
+    stale_row = models.StorageTenantDailyCharge(
+        tenant_id=999,
+        period_type="daily",
+        billing_date=date(2026, 3, 25),
+        provider_code="aliyun-oss",
+        driver_code="aliyun-oss",
+        charge_basis="egress_traffic",
+        usage_bytes=1,
+        amount_total=Decimal("0.010000"),
+        currency="CNY",
+        source_id=123,
+        details_json={},
+    )
+    stale_row.id = 401
+
+    db = AsyncMock()
+    db.execute = AsyncMock(
+        side_effect=[
+            _make_scalars_result([source_a, source_b]),
+            _make_scalars_result([stale_row]),
+        ]
+    )
+    db.delete = AsyncMock()
+    db.flush = AsyncMock()
+    db.add = MagicMock()
+
+    service = module.StorageBillingReconciliationService(db, host_read=None)
+    await service._rebuild_provider_live_charges_for_run_scope(
+        run_id=91,
+        provider_code="aliyun-oss",
+        period_type="daily",
+        billing_date=date(2026, 3, 25),
+        period_start=date(2026, 3, 25),
+        period_end=date(2026, 3, 25),
+    )
+
+    db.delete.assert_awaited_once_with(stale_row)
+    written_row = db.add.call_args.args[0]
+    assert written_row.tenant_id == 501
+    assert written_row.source_id is None
+    assert written_row.usage_bytes == 384
+    assert written_row.amount_total == Decimal("1.000000")
+    assert written_row.details_json["binding_ids"] == [11, 12]
+    assert written_row.details_json["scope_values"] == ["bucket-a", "bucket-b"]
+    assert written_row.details_json["source_ids"] == [301, 302]
+    assert written_row.details_json["item_count"] == 3
+
+
+@pytest.mark.asyncio
+async def test_list_run_charges_uses_source_snapshots_when_live_rows_are_missing() -> None:
+    module = load_plugin_module("storage-billing", "services.reconciliation_service")
+    models = load_plugin_module("storage-billing", "models")
+    assert module is not None
+    assert models is not None
+
+    run = models.StorageBillingRun(
+        billing_date=date(2026, 3, 25),
+        period_type="daily",
+        period_start=date(2026, 3, 25),
+        period_end=date(2026, 3, 25),
+        status="completed_with_gaps",
+        trigger_type="manual",
+    )
+    run.id = 92
+
+    source = models.StorageProviderBillSource(
+        run_id=92,
+        provider_code="tencent-cos",
+        driver_code="tencent-cos",
+        period_type="daily",
+        billing_date=date(2026, 3, 25),
+        period_start=date(2026, 3, 25),
+        period_end=date(2026, 3, 25),
+        source_status="completed_with_gaps",
+        source_ref="snapshot:2026-03-25",
+        raw_payload_json={
+            "allocation_rows": [
+                {
+                    "tenant_id": 601,
+                    "charge_basis": "egress_traffic",
+                    "currency": "CNY",
+                    "usage_bytes": 1024,
+                    "amount_total": "2.500000",
+                    "details": {
+                        "binding_ids": [31],
+                        "scope_values": ["tenant-601-bucket"],
+                        "item_count": 2,
+                        "items": [{"bucket_name": "tenant-601-bucket"}],
+                    },
+                }
+            ]
+        },
+    )
+    source.id = 501
+    source.source_key = "sbs-snapshot-501"
+
+    db = AsyncMock()
+    db.execute = AsyncMock(
+        side_effect=[
+            _make_scalar_one_or_none_result(run),
+            _make_scalars_result([source]),
+        ]
+    )
+
+    service = module.StorageBillingReconciliationService(db, host_read=None)
+    result = await service.list_run_charges(run_id=92)
+
+    assert result["total"] == 1
+    assert result["items"][0]["tenant_id"] == 601
+    assert result["items"][0]["source_id"] == 501
+    assert result["items"][0]["source_key"] == "sbs-snapshot-501"
+    assert result["items"][0]["source_status"] == "completed_with_gaps"
+    assert result["items"][0]["details"]["scope_values"] == ["tenant-601-bucket"]
+    assert result["summary"]["amount_total"] == "2.500000"
 
 
 @pytest.mark.asyncio

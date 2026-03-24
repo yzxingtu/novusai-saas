@@ -37,7 +37,7 @@ onMounted(() => {
           },
         },
         itemStyle: {
-          // borderColor: '#fff',
+          // borderColor: '#fff', / 可选：扇区描边 / optional pie slice border
           borderRadius: 10,
           borderWidth: 2,
         },

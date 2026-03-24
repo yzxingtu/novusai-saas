@@ -36,7 +36,7 @@ import CallLogDetail from './modules/detail.vue';
 
 defineOptions({ name: 'AICallLogList' });
 
-// ========== 统计摘要 ==========
+// ========== 统计摘要 / Stats summary ==========
 
 const summaryLoading = ref(false);
 const summaryData = ref({
@@ -110,7 +110,7 @@ async function loadSummary() {
 
 onMounted(loadSummary);
 
-// ========== 详情抽屉 ==========
+// ========== 详情抽屉 / Detail drawer ==========
 
 const detailOpen = ref(false);
 const detailLogId = ref<null | number>(null);
@@ -120,7 +120,7 @@ function onViewDetail(row: AICallLogInfo) {
   detailOpen.value = true;
 }
 
-// ========== Grid ==========
+// ========== Grid / 表格 ==========
 
 const { Grid, onRefresh } = useCrudPage<AICallLogInfo>({
   api: {

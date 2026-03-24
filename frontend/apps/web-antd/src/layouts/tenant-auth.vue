@@ -7,6 +7,7 @@ import { preferences, updatePreferences, usePreferences } from '@vben/preference
 
 import { $t } from '#/locales';
 import { usePublicConfigStore } from '#/store/shared/public-config';
+import { resolveCopyrightDisplay } from '#/utils/public-branding';
 
 defineOptions({ name: 'TenantAuthLayout' });
 
@@ -24,6 +25,9 @@ const logoDark = computed(() => preferences.logo.sourceDark);
 const loginBg = computed(() => publicConfigStore.tenantBrand?.loginBg);
 const siteDescription = computed(
   () => publicConfigStore.tenantBrand?.siteDescription,
+);
+const footerBranding = computed(() =>
+  resolveCopyrightDisplay(preferences.copyright),
 );
 
 const { isDark } = usePreferences();
@@ -65,11 +69,11 @@ const logoSrc = computed(() => {
 
       <!-- Copyright -->
       <div
-        v-if="preferences.copyright.enable"
+        v-if="footerBranding.visible"
         class="text-muted-foreground absolute bottom-4 text-center text-xs"
       >
-        {{ preferences.copyright.companyName }}
-        {{ preferences.copyright.companySiteLink }}
+        {{ footerBranding.companyName }}
+        <span v-if="footerBranding.meta">{{ footerBranding.meta }}</span>
       </div>
     </div>
 

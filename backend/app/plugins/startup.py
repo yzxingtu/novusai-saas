@@ -500,10 +500,10 @@ async def restore_enabled_plugins(
                 # / 数据库启动阶段已经带插件 version_locations 执行全量 `upgrade heads`，
                 # / 进入 restore_enabled_plugins() 前插件表应已完成迁移；此处不再重复
                 # / 为每个插件启动一次 Alembic 子进程，避免开发态/Windows 下的冗余抖动。
-                # Restore periodic task DB rows so Celery Beat can still see plugin tasks after startup recovery.
-                # / 恢复插件定时任务 DB 记录，确保启动恢复后 Celery Beat 仍能看到任务。
+                # Restore plugin task definitions so Celery Beat can still see plugin tasks after startup recovery.
+                # / 恢复插件任务定义记录，确保启动恢复后 Celery Beat 仍能看到任务。
                 if getattr(manifest.extensions, "tasks", None):
-                    await lifecycle._sync_plugin_periodic_tasks(
+                    await lifecycle._sync_plugin_task_definitions(
                         plugin.name,
                         manifest.extensions.tasks,
                     )

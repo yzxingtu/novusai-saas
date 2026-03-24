@@ -25,7 +25,7 @@ import { formatDate } from '#/utils/common';
 
 import DomainsDnsGuideModal from './DomainsDnsGuideModal.vue';
 
-// Emits
+// Emits / 组件事件
 const emits = defineEmits<{
   success: [];
 }>();
@@ -41,7 +41,7 @@ const editRemark = ref('');
 // Child component refs / 子组件引用
 const dnsGuideModalRef = ref<InstanceType<typeof DomainsDnsGuideModal>>();
 
-// Drawer
+// Drawer / 抽屉
 const [Drawer, drawerApi] = useVbenDrawer({
   async onOpenChange(isOpen) {
     if (isOpen) {

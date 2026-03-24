@@ -15,8 +15,8 @@ interface HoverDelayOptions {
   leaveDelay?: (() => number) | number;
 }
 
-const DEFAULT_LEAVE_DELAY = 500; // 鼠标离开延迟时间，默认为 500ms
-const DEFAULT_ENTER_DELAY = 0; // 鼠标进入延迟时间，默认为 0（立即响应）
+const DEFAULT_LEAVE_DELAY = 500; // 鼠标离开延迟时间，默认为 500ms / default leave debounce
+const DEFAULT_ENTER_DELAY = 0; // 鼠标进入延迟时间，默认为 0（立即响应）/ default enter debounce
 
 /**
  * 监测鼠标是否在元素内部，如果在元素内部则返回 true，否则返回 false
@@ -28,7 +28,7 @@ export function useHoverToggle(
   refElement: Arrayable<MaybeElementRef> | Ref<HTMLElement[] | null>,
   delay: (() => number) | HoverDelayOptions | number = DEFAULT_LEAVE_DELAY,
 ) {
-  // 兼容旧版本API
+  // 兼容旧版本API / Normalize number|fn to { enterDelay, leaveDelay }
   const normalizedOptions: HoverDelayOptions =
     typeof delay === 'number' || isFunction(delay)
       ? { enterDelay: DEFAULT_ENTER_DELAY, leaveDelay: delay }
@@ -43,18 +43,18 @@ export function useHoverToggle(
   const leaveTimer = ref<ReturnType<typeof setTimeout> | undefined>();
   const hoverScopes = ref<ReturnType<typeof effectScope>[]>([]);
 
-  // 使用计算属性包装 refElement，使其响应式变化
+  // 使用计算属性包装 refElement，使其响应式变化 / Normalize targets to array
   const refs = computed(() => {
     const raw = unref(refElement);
     if (raw === null) return [];
     return Array.isArray(raw) ? raw : [raw];
   });
-  // 存储所有 hover 状态
+  // 存储所有 hover 状态 / Per-element hover refs
   const isHovers = ref<Array<Ref<boolean>>>([]);
 
-  // 更新 hover 监听的函数
+  // 更新 hover 监听的函数 / Rebind useElementHover per target
   function updateHovers() {
-    // 停止并清理之前的作用域
+    // 停止并清理之前的作用域 / Tear down old effect scopes
     hoverScopes.value.forEach((scope) => scope.stop());
     hoverScopes.value = [];
 
@@ -67,7 +67,7 @@ export function useHoverToggle(
         return ele instanceof Element ? ele : (ele?.$el as Element);
       });
 
-      // 为每个元素创建独立的作用域
+      // 为每个元素创建独立的作用域 / Isolate hover subscriptions
       const scope = effectScope();
       const hoverRef = scope.run(() => useElementHover(eleRef)) || ref(false);
       hoverScopes.value.push(scope);
@@ -76,7 +76,7 @@ export function useHoverToggle(
     });
   }
 
-  // 监听元素数量变化，避免过度执行
+  // 监听元素数量变化，避免过度执行 / Only recount list length
   const elementsCount = computed(() => {
     const raw = unref(refElement);
     if (raw === null) return 0;
@@ -106,7 +106,7 @@ export function useHoverToggle(
     clearTimers();
 
     if (val) {
-      // 鼠标进入
+      // 鼠标进入 / Enter delay branch
       const enterDelay = normalizedOptions.enterDelay ?? DEFAULT_ENTER_DELAY;
       const delayTime = isFunction(enterDelay) ? enterDelay() : enterDelay;
 
@@ -119,7 +119,7 @@ export function useHoverToggle(
         }, delayTime);
       }
     } else {
-      // 鼠标离开
+      // 鼠标离开 / Leave delay branch
       const leaveDelay = normalizedOptions.leaveDelay ?? DEFAULT_LEAVE_DELAY;
       const delayTime = isFunction(leaveDelay) ? leaveDelay() : leaveDelay;
 
@@ -153,9 +153,9 @@ export function useHoverToggle(
 
   onUnmounted(() => {
     clearTimers();
-    // 停止监听器
+    // 停止监听器 / Stop count watcher
     stopWatcher();
-    // 停止所有剩余的作用域
+    // 停止所有剩余的作用域 / Stop hover scopes
     hoverScopes.value.forEach((scope) => scope.stop());
   });
 

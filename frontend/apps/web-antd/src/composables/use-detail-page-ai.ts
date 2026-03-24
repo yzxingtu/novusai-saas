@@ -75,7 +75,7 @@ export function useDetailPageAi(opts: DetailPageAiOptions): void {
 
   const operations: PageOperation[] = [];
 
-  // ── 1. refresh_detail ──
+  // ── 1. refresh_detail / 刷新详情 ──
   if (!isDisabled('refresh_detail')) {
     operations.push({
       name: 'refresh_detail',
@@ -90,7 +90,7 @@ export function useDetailPageAi(opts: DetailPageAiOptions): void {
     });
   }
 
-  // ── 2. navigate_back ──
+  // ── 2. navigate_back / 返回列表 ──
   if (!isDisabled('navigate_back') && backRoute) {
     operations.push({
       name: 'navigate_back',

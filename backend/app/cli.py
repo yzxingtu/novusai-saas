@@ -1082,7 +1082,7 @@ def codegen_cmd() -> None:
     pass
 
 
-# ----- 核心命令 -----
+# ----- 核心命令 / Core commands -----
 
 
 @codegen_cmd.command("generate")
@@ -1605,7 +1605,7 @@ def codegen_rollback(
         _rb_lock.release()
 
 
-# ----- 配置管理 -----
+# ----- 配置管理 / Configuration -----
 
 
 @codegen_cmd.command("versions")
@@ -2029,7 +2029,7 @@ def codegen_db_import(table: str, output: str | None) -> None:
         click.echo(out)
 
 
-# ----- 辅助 -----
+# ----- 辅助 / Utilities -----
 
 
 @codegen_cmd.group("presets", help="Preset discovery / 预设发现")

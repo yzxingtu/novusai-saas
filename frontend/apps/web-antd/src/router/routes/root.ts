@@ -1,6 +1,5 @@
 import type { RouteRecordRaw } from 'vue-router';
 
-import { $t } from '#/locales';
 import { usePublicConfigStore } from '#/store';
 
 const rootGatewayRoute: RouteRecordRaw = {
@@ -11,7 +10,7 @@ const rootGatewayRoute: RouteRecordRaw = {
     hideInBreadcrumb: true,
     hideInMenu: true,
     hideInTab: true,
-    title: $t('public.platformHome.title'),
+    title: 'public.platformHome.title',
   },
   beforeEnter: async (to) => {
     const publicConfigStore = usePublicConfigStore();

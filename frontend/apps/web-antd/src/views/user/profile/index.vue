@@ -124,7 +124,7 @@ async function handleSaveProfile() {
     syncFormFromProfile(data);
     message.success($t('user.profile.messages.updateSuccess'));
 
-    // Update userStore so navbar reflects changes
+    // Update userStore so navbar reflects changes / 同步 userStore 以更新导航栏
     if (userStore.userInfo) {
       userStore.setUserInfo({
         ...userStore.userInfo,
@@ -150,7 +150,7 @@ async function handleAvatarUpload(file: File) {
     if (!attachmentId) throw new Error('Upload failed');
     formState.avatarId = attachmentId;
 
-    // save immediately
+    // save immediately / 立即保存
     const data = await updateUserProfileApi({ avatar: attachmentId });
     profile.value = data;
 

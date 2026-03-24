@@ -550,11 +550,16 @@ describe('AIChatSlidePanel (component mount)', () => {
 
     await flushPromises();
 
+    expect(startNewConversationMock).not.toHaveBeenCalled();
     expect(loadConversationMessagesMock).toHaveBeenCalledWith(10);
     expect(sendMessageMock).toHaveBeenCalledWith({ pageContext: null });
-    expect(
-      loadConversationMessagesMock.mock.invocationCallOrder[0],
-    ).toBeLessThan(sendMessageMock.mock.invocationCallOrder[0]);
+    const loadInvocationOrder =
+      loadConversationMessagesMock.mock.invocationCallOrder[0];
+    const sendInvocationOrder = sendMessageMock.mock.invocationCallOrder[0];
+
+    expect(loadInvocationOrder).toBeDefined();
+    expect(sendInvocationOrder).toBeDefined();
+    expect(loadInvocationOrder!).toBeLessThan(sendInvocationOrder!);
 
     wrapper.unmount();
   });

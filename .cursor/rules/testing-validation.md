@@ -55,6 +55,18 @@
 - 新增列表：至少验证筛选、分页、权限按钮显示
 - 新增上传下载：至少验证上传成功、下载成功、权限或可见性正确
 - 新增插件页：至少验证菜单注册、页面加载、权限与卸载后回收
+- 若改动涉及错误响应、`trace_id` 传播、操作日志或日志写入链路，至少验证一次：
+  - 前端错误提示里能看到 `trace_id`
+  - 用该 `trace_id` 执行 `novusai trace show <trace_id>` 能查到对应上下文
+  - 如处于生产 / 预发语义验证，默认验证脱敏输出，不把 `--no-redact` 当常规流程
+- 若改动涉及请求错误 owner、`showRequestError`、`getErrorMessage`、`normalizeHttpError` 或历史软失败接口治理，至少验证一次：
+  - 同一失败不会出现双重提示
+  - 页面本地 `catch` 已正确关闭 `showErrorMessage` / `showCodeMessage`
+  - 历史 `200 + success=false` 接口不会继续复制扩散到新接口
+- 若改动涉及 AI 调用日志、`billing_context`、`call_log_service`、`tasks.ai.log_ai_call`、`ai_gateway` 队列，至少验证一次：
+  - 管理端或企业端调用日志页能查到新记录
+  - `task_logs` 中无 `unexpected keyword billing_context` 等任务签名错误
+  - Worker 已按新代码重启，且实际消费 `ai_gateway`
 
 ## 插件浏览器回归最低矩阵
 

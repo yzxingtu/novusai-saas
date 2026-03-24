@@ -8,7 +8,7 @@ import { getAIModelSelectApi } from '#/api/admin/ai';
 import { useScopeFields } from '#/components/business/scope-select/use-scope-fields';
 import { $t } from '#/locales';
 
-// ============ 类型辅助（系统/自定义）============
+// ============ 类型辅助（系统/自定义）/ Type helpers ============
 
 export function getTypeOptions() {
   return [
@@ -35,7 +35,7 @@ function getChatModelSelectApi(params?: Record<string, unknown>) {
   return getAIModelSelectApi({ ...params, type: 'chat' });
 }
 
-// ============ 表单默认值 ============
+// ============ 表单默认值 / Form defaults ============
 
 function getOwnerTypeOptions() {
   return [
@@ -148,7 +148,7 @@ export function getExecutionModeText(mode: string | undefined): string {
   }
 }
 
-// ============ 编辑表单 ============
+// ============ 编辑表单 / Edit form schema ============
 
 /**
  * 编辑表单 Schema

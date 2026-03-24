@@ -35,7 +35,7 @@ const gridOptions: VxeGridProps<RowType> = {
 
 const [Grid, gridApi] = useVbenVxeGrid({ gridOptions } as any);
 
-// 模拟行数据
+// 模拟行数据 / Generate mock rows for virtual scroll demo
 const loadList = (size = 200) => {
   try {
     const dataList: RowType[] = [];
@@ -50,7 +50,7 @@ const loadList = (size = 200) => {
     gridApi.setGridOptions({ data: dataList });
   } catch (error) {
     console.error('Failed to load data:', error);
-    // Implement user-friendly error handling
+    // Implement user-friendly error handling / 在此接入用户可见错误提示 / surface errors to UI
   }
 };
 

@@ -39,7 +39,7 @@ logger = get_logger(__name__)
 # / NovusAI 平台 Ed25519 公钥（Base64 编码）
 # 私钥仅在 License 生成工具中保留，不入代码库
 # 如需替换，通过环境变量 NOVUSAI_LICENSE_PUBLIC_KEY 覆盖
-_DEFAULT_PUBLIC_KEY_B64 = ""  # 部署时配置
+_DEFAULT_PUBLIC_KEY_B64 = ""  # 部署时配置 / set in deployment
 
 _LICENSE_STATE_RANK = {"active": 0, "expired": 1, "revoked": 2}
 _TRIAL = PluginLicenseTypeEnum.TRIAL.value

@@ -1,7 +1,7 @@
 """Platform general settings config items / 平台通用设置配置项
 
-Includes site basic info, maintenance mode, etc.
-包含站点基本信息、维护模式等配置
+Includes site basic info and maintenance mode.
+包含站点基本信息与维护模式配置
 """
 
 from app.configs.definitions.groups import PLATFORM_GENERAL_GROUP
@@ -64,6 +64,17 @@ SITE_FAVICON = ConfigMeta(
     sort_order=40,
 )
 
+# Site dark logo / 站点深色 Logo
+LOGO_DARK = ConfigMeta(
+    key="logo_dark",
+    name_key="config.platform.logo_dark.name",
+    description_key="config.platform.logo_dark.desc",
+    scope=ConfigScope.ADMIN_ONLY,
+    value_type=ConfigValueType.IMAGE,
+    default_value="",
+    sort_order=45,
+)
+
 # Copyright info / 版权信息
 SITE_COPYRIGHT = ConfigMeta(
     key="site_copyright",
@@ -88,44 +99,6 @@ SITE_ICP = ConfigMeta(
     default_value="",
     sort_order=60,
 )
-
-
-# ==========================================
-# Tenant domain config / 企业域名配置
-# ==========================================
-
-# Tenant default domain suffix / 企业默认域名后缀
-TENANT_DOMAIN_SUFFIX = ConfigMeta(
-    key="tenant_domain_suffix",
-    name_key="config.platform.tenant_domain_suffix.name",
-    description_key="config.platform.tenant_domain_suffix.desc",
-    scope=ConfigScope.ADMIN_ONLY,
-    value_type=ConfigValueType.STRING,
-    default_value=".app.novusai.com",
-    is_required=True,
-    validation_rules=[
-        min_length(3, "validation.min_length"),
-        max_length(100, "validation.max_length"),
-    ],
-    sort_order=70,
-)
-
-# Domain verification DNS prefix / 域名验证 DNS 前缀
-DOMAIN_VERIFICATION_PREFIX = ConfigMeta(
-    key="domain_verification_prefix",
-    name_key="config.platform.domain_verification_prefix.name",
-    description_key="config.platform.domain_verification_prefix.desc",
-    scope=ConfigScope.ADMIN_ONLY,
-    value_type=ConfigValueType.STRING,
-    default_value="_novusai-verification",
-    validation_rules=[
-        min_length(1, "validation.min_length"),
-        max_length(50, "validation.max_length"),
-    ],
-    sort_order=80,
-)
-
-
 # ==========================================
 # Maintenance mode / 维护模式
 # ==========================================
@@ -168,10 +141,9 @@ PLATFORM_GENERAL_GROUP.configs = [
     SITE_DESCRIPTION,
     SITE_LOGO,
     SITE_FAVICON,
+    LOGO_DARK,
     SITE_COPYRIGHT,
     SITE_ICP,
-    TENANT_DOMAIN_SUFFIX,
-    DOMAIN_VERIFICATION_PREFIX,
     MAINTENANCE_MODE,
     MAINTENANCE_MESSAGE,
 ]
@@ -182,10 +154,9 @@ __all__ = [
     "SITE_DESCRIPTION",
     "SITE_LOGO",
     "SITE_FAVICON",
+    "LOGO_DARK",
     "SITE_COPYRIGHT",
     "SITE_ICP",
-    "TENANT_DOMAIN_SUFFIX",
-    "DOMAIN_VERIFICATION_PREFIX",
     "MAINTENANCE_MODE",
     "MAINTENANCE_MESSAGE",
 ]

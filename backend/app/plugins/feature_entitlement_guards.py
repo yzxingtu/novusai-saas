@@ -11,6 +11,7 @@ from typing import Any
 
 from sqlalchemy import select
 
+from app.configs.service import ConfigService
 from app.core.database import async_session_factory
 from app.enums.plugin import PluginStatusEnum
 from app.models.system.plugin import Plugin
@@ -76,6 +77,16 @@ async def _get_active_feature_plan_summaries(feature_flag: str) -> list[dict[str
         return plans
 
 
+async def _get_platform_storage_driver() -> str:
+    async with async_session_factory() as db:
+        config_service = ConfigService(db)
+        driver = await config_service.get_platform_config(
+            "platform_storage_driver",
+            default="local",
+        )
+        return str(driver or "").strip()
+
+
 async def _storage_billing_plan_preflight(payload) -> dict[str, Any] | None:
     features = dict(payload.get("features") or {})
     if not _is_flag_enabled(features.get(STORAGE_BILLING_FEATURE)):
@@ -83,7 +94,9 @@ async def _storage_billing_plan_preflight(payload) -> dict[str, Any] | None:
 
     tracked_plugins = [STORAGE_BILLING_PLUGIN, *STORAGE_BILLING_DRIVER_PLUGINS]
     status_map = await _get_plugin_status_map(tracked_plugins)
+    platform_storage_driver = await _get_platform_storage_driver()
     storage_billing_status = status_map.get(STORAGE_BILLING_PLUGIN, "")
+    platform_driver_status = status_map.get(platform_storage_driver, "")
     enabled_driver_plugins = [
         name
         for name in STORAGE_BILLING_DRIVER_PLUGINS
@@ -103,6 +116,37 @@ async def _storage_billing_plan_preflight(payload) -> dict[str, Any] | None:
             },
         }
 
+    if platform_storage_driver not in STORAGE_BILLING_DRIVER_PLUGINS:
+        return {
+            "allowed": False,
+            "reason_code": "storage_billing_platform_driver_not_billable",
+            "message": (
+                "Storage billing feature requires the platform storage driver "
+                "to be one of: qiniu-kodo, aliyun-oss, tencent-cos."
+            ),
+            "details": {
+                "platform_storage_driver": platform_storage_driver or "missing",
+                "required_any_plugins": list(STORAGE_BILLING_DRIVER_PLUGINS),
+            },
+        }
+
+    if platform_driver_status != PluginStatusEnum.ENABLED.value:
+        return {
+            "allowed": False,
+            "reason_code": "storage_billing_platform_driver_plugin_unavailable",
+            "message": (
+                "Storage billing feature requires the plugin for the current "
+                "platform storage driver to be enabled."
+            ),
+            "details": {
+                "platform_storage_driver": platform_storage_driver,
+                "platform_driver_plugin_status": platform_driver_status or "missing",
+                "required_plugin": platform_storage_driver,
+                "required_any_plugins": list(STORAGE_BILLING_DRIVER_PLUGINS),
+                "enabled_driver_plugins": enabled_driver_plugins,
+            },
+        }
+
     if not enabled_driver_plugins:
         return {
             "allowed": False,
@@ -115,6 +159,7 @@ async def _storage_billing_plan_preflight(payload) -> dict[str, Any] | None:
                 "required_plugin": STORAGE_BILLING_PLUGIN,
                 "required_any_plugins": list(STORAGE_BILLING_DRIVER_PLUGINS),
                 "plugin_status": storage_billing_status,
+                "platform_storage_driver": platform_storage_driver,
                 "enabled_driver_plugins": enabled_driver_plugins,
             },
         }
@@ -144,6 +189,26 @@ async def _feature_managed_lifecycle_guard(payload) -> dict[str, Any] | None:
         }
 
     status_map = await _get_plugin_status_map(STORAGE_BILLING_DRIVER_PLUGINS)
+    platform_storage_driver = await _get_platform_storage_driver()
+    if (
+        plugin_name == platform_storage_driver
+        and platform_storage_driver in STORAGE_BILLING_DRIVER_PLUGINS
+    ):
+        return {
+            "allowed": False,
+            "reason_code": "storage_billing_active_platform_driver_blocked",
+            "message": (
+                "The current platform storage driver cannot be disabled or "
+                "uninstalled while active plans still enable storage billing."
+            ),
+            "details": {
+                "feature_flag": STORAGE_BILLING_FEATURE,
+                "platform_storage_driver": platform_storage_driver,
+                "active_plan_ids": [item["plan_id"] for item in active_plans],
+                "active_plan_count": len(active_plans),
+            },
+        }
+
     other_enabled_drivers = [
         name
         for name in STORAGE_BILLING_DRIVER_PLUGINS

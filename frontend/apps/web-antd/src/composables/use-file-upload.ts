@@ -51,7 +51,7 @@ export function useFileUpload() {
       maxSizeMb = PLATFORM_MAX_FILE_SIZE_MB,
     } = rules;
 
-    // 1. Extension check
+    // 1. Extension check / 扩展名校验
     if (!isExtensionAllowed(file.name, allowedExtensions, deniedExtensions)) {
       const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
       const msg = $t('common.uploadValidation.extensionNotAllowed', {

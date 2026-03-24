@@ -57,7 +57,7 @@ async function handleUpload(file: File) {
   return false;
 }
 
-// ========== Text Input ==========
+// ========== Text Input / 文本输入 ==========
 const textTitle = ref('');
 const textContent = ref('');
 const textSubmitting = ref(false);
@@ -85,7 +85,7 @@ async function handleSubmitText() {
   }
 }
 
-// ========== Q&A / 问答 ==========
+// ========== Q&A (pairs) / 问答 ==========
 const qaQuestion = ref('');
 const qaAnswer = ref('');
 const qaSubmitting = ref(false);
@@ -113,7 +113,7 @@ async function handleSubmitQA() {
   }
 }
 
-// ========== URL Import ==========
+// ========== URL Import / URL 导入 ==========
 const urlInput = ref('');
 const urlSubmitting = ref(false);
 

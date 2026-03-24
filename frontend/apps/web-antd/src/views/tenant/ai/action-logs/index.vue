@@ -33,7 +33,7 @@ import {
 
 defineOptions({ name: 'TenantAIActionLogList' });
 
-// ============ 统计 ============
+// ============ 统计 / Statistics ============
 
 const stats = ref<ActionLogStats>({
   total: 0,
@@ -51,7 +51,7 @@ async function fetchStats() {
   try {
     stats.value = await getActionLogStatsApi();
   } catch {
-    // ignore
+    // ignore / 忽略统计拉取失败
   }
 }
 
@@ -75,7 +75,7 @@ onMounted(() => {
   loadStats();
 });
 
-// ============ 列表 ============
+// ============ 列表 / List ============
 
 const { Grid, onRefresh } = useCrudPage<ActionLogItem>({
   api: {

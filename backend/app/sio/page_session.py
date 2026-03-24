@@ -39,11 +39,11 @@ logger = LogManager.get_logger("app")
 # invoke_id → Future mapping, for awaiting frontend result callback / invoke_id → Future 映射，用于等待前端回传结果
 _pending_invocations: dict[str, asyncio.Future[dict[str, Any]]] = {}
 
-# (scope, user_id, page_key) -> {page_session_id: last_seen_monotonic}
-# scope: "/admin" | "/tenant" | "/user" (Socket.IO namespace)
+# (scope, user_id, page_key) -> {page_session_id: last_seen_monotonic} / 复合键 → 会话 ID → 最后活跃单调时间戳
+# scope: "/admin" | "/tenant" | "/user" (Socket.IO namespace) / 作用域：管理端/企业端/用户端（Socket.IO 命名空间）
 _active_sessions: dict[tuple[str, int, str], dict[str, float]] = {}
 
-# (scope, sid) -> {(active_key, page_session_id)}, for precise cleanup on leave/disconnect
+# (scope, sid) -> {(active_key, page_session_id)}, for precise cleanup on leave/disconnect / 连接维度索引，便于离开/断开时精确清理
 _sid_active_sessions: dict[tuple[str, str], set[tuple[tuple[str, int, str], str]]] = {}
 
 # Default operation timeout (seconds) / 默认操作超时（秒）
@@ -131,7 +131,7 @@ def _user_role_to_scope(user_role: str) -> str:
         return "/tenant"
     if user_role == "tenant_user":
         return "/user"
-    return "/tenant"  # default
+    return "/tenant"  # default / 缺省走企业端命名空间
 
 
 def get_active_session_id(user_id: int | None, page_key: str, user_role: str = "tenant_admin") -> str | None:
@@ -236,7 +236,7 @@ class PageSessionMixin:
     """
 
     async def trigger_event(
-        self: socketio.AsyncNamespace,  # type: ignore[override]
+        self: socketio.AsyncNamespace,  # type: ignore[override] / 忽略与基类签名差异
         event: str,
         *args: Any,
     ) -> Any:
@@ -268,7 +268,7 @@ class PageSessionMixin:
         return await super().trigger_event(event, *args)
 
     async def get_socket_session_with_fallback(
-        self: socketio.AsyncNamespace,  # type: ignore[override]
+        self: socketio.AsyncNamespace,  # type: ignore[override] / 忽略与基类签名差异
         sid: str,
     ) -> dict[str, Any] | None:
         """Get Socket.IO session with backup fallback / 获取 Socket.IO session，失败时回退备份。"""
@@ -285,7 +285,7 @@ class PageSessionMixin:
         return None
 
     async def bind_socket_trace(
-        self: socketio.AsyncNamespace,  # type: ignore[override]
+        self: socketio.AsyncNamespace,  # type: ignore[override] / 忽略与基类签名差异
         sid: str,
         payload: dict[str, Any] | None = None,
         default_trace_id: str | None = None,
@@ -311,7 +311,7 @@ class PageSessionMixin:
         return updated_session
 
     async def on_page_session_join(
-        self: socketio.AsyncNamespace,  # type: ignore[override]
+        self: socketio.AsyncNamespace,  # type: ignore[override] / 忽略与基类签名差异
         sid: str,
         data: dict[str, Any] | None = None,
     ) -> dict[str, Any] | None:
@@ -324,7 +324,7 @@ class PageSessionMixin:
             room = f"page_session:{page_session_id}"
             await self.enter_room(sid, room)
 
-            # Track active session for executor to recover stale session after reconnect
+            # Track active session for executor to recover stale session after reconnect / 追踪活跃会话供执行器在重连后恢复过期会话
             page_key = (data.get("page_key") or "").strip()[:128]
             if page_key:
                 try:
@@ -358,7 +358,7 @@ class PageSessionMixin:
             trace_id_var.set("")
 
     async def on_page_session_leave(
-        self: socketio.AsyncNamespace,  # type: ignore[override]
+        self: socketio.AsyncNamespace,  # type: ignore[override] / 忽略与基类签名差异
         sid: str,
         data: dict[str, Any] | None = None,
     ) -> dict[str, Any] | None:
@@ -371,7 +371,7 @@ class PageSessionMixin:
             room = f"page_session:{page_session_id}"
             await self.leave_room(sid, room)
 
-            # Remove from active session tracking for this socket only
+            # Remove from active session tracking for this socket only / 仅从此 socket 的活跃会话索引中移除
             scope = self.namespace or "/tenant"
             _remove_sid_active_sessions(scope, sid, page_session_id)
 
@@ -391,7 +391,7 @@ class PageSessionMixin:
             trace_id_var.set("")
 
     def cleanup_page_sessions_for_disconnect(
-        self: socketio.AsyncNamespace,  # type: ignore[override]
+        self: socketio.AsyncNamespace,  # type: ignore[override] / 忽略与基类签名差异
         sid: str,
     ) -> None:
         """Clean page_session tracking for a disconnected socket / 清理断线 socket 的 page_session 追踪。"""
@@ -399,7 +399,7 @@ class PageSessionMixin:
         _remove_sid_active_sessions(scope, sid)
 
     async def on_page_operation_result(
-        self: socketio.AsyncNamespace,  # type: ignore[override]
+        self: socketio.AsyncNamespace,  # type: ignore[override] / 忽略与基类签名差异
         sid: str,
         data: dict[str, Any] | None = None,
     ) -> dict[str, Any] | None:

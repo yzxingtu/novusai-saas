@@ -1051,10 +1051,10 @@ class PluginLifecycle:
         if ext.notifications:
             await self._sync_plugin_notification_templates(plugin_name, ext.notifications)
 
-        # M50-T2: Periodic task DB sync — enable Celery Beat to schedule plugin tasks / 周期任务 DB 同步
-        # / M50-T2: 定时任务 DB 同步 — 使 Celery Beat 可正常调度插件任务
+        # M50-T2: Task definition DB sync — enable Celery Beat to schedule plugin tasks / 任务定义 DB 同步
+        # / M50-T2: 任务定义 DB 同步 — 使 Celery Beat 可正常调度插件任务
         if ext.tasks:
-            await self._sync_plugin_periodic_tasks(plugin_name, ext.tasks)
+            await self._sync_plugin_task_definitions(plugin_name, ext.tasks)
 
         await emitter.emit_step("extensions", "success", f"Registered {registry.get_registered_count(plugin_name)} extension(s)")
 
@@ -1256,10 +1256,10 @@ class PluginLifecycle:
         # / 禁用不卸载依赖 — 依赖仅在 uninstall 时清理
         # 这样用户重新启用时无需等待重新安装
 
-        # M50-T2: Mark plugin periodic tasks as inactive / 标记插件周期任务为非活跃，Beat 下次刷新后停止调度
-        # / M50-T2: 将插件定时任务标记为非活跃，Celery Beat 下次刺新后自动停止调度
+        # M50-T2: Mark plugin task definitions as inactive / 标记插件任务定义为非活跃，Beat 下次刷新后停止调度
+        # / M50-T2: 将插件任务定义标记为非活跃，Celery Beat 下次刷新后自动停止调度
         await emitter.emit_step("tasks", "running", "Deactivating scheduled tasks...")
-        await self._deactivate_plugin_periodic_tasks(plugin_name)
+        await self._deactivate_plugin_task_definitions(plugin_name)
         await emitter.emit_step("tasks", "success", "Scheduled tasks deactivated")
 
         # Update status / 更新状态
@@ -1450,7 +1450,7 @@ class PluginLifecycle:
         operator_id: int | None = None,
     ) -> None:
         """Uninstall plugin implementation (14-step cleanup) / 卸载插件实现（14 步清理）"""
-        _ = confirm_data_delete
+        _confirm_data_delete = confirm_data_delete
         from sqlalchemy import delete, select
 
         from app.models.system.plugin import Plugin as PluginModel
@@ -1548,10 +1548,10 @@ class PluginLifecycle:
         await self._delete_plugin_notification_templates(plugin_name)
         await emitter.emit_step("cleanup_notifications", "success", "Notification templates removed")
 
-        # 5.2 Delete plugin periodic task records (M50-T2) / 删除插件定时任务记录（M50-T2）
-        await emitter.emit_step("cleanup_tasks", "running", "Removing periodic tasks...")
-        await self._delete_plugin_periodic_tasks(plugin_name)
-        await emitter.emit_step("cleanup_tasks", "success", "Periodic tasks removed")
+        # 5.2 Delete plugin task definition records (M50-T2) / 删除插件任务定义记录（M50-T2）
+        await emitter.emit_step("cleanup_tasks", "running", "Removing task definitions...")
+        await self._delete_plugin_task_definitions(plugin_name)
+        await emitter.emit_step("cleanup_tasks", "success", "Task definitions removed")
 
         # 6-8. Remove AI features / 移除 AI features
         await emitter.emit_step("cleanup_ai_features", "running", "Removing AI features...")
@@ -2317,15 +2317,15 @@ class PluginLifecycle:
         py_rel = Path("Scripts/python.exe" if _IS_WINDOWS else "bin/python")
         candidates: list[Path] = []
 
-        # 1) Active virtual env declared by environment.
+        # 1) Active virtual env declared by environment. / 环境变量声明的活动虚拟环境
         venv = os.environ.get("VIRTUAL_ENV")
         if venv:
             candidates.append(Path(venv) / py_rel)
 
-        # 2) Project-local .venv (backend/.venv).
+        # 2) Project-local .venv (backend/.venv). / 项目内 .venv
         candidates.append((PLUGINS_DIR.parent / ".venv") / py_rel)
 
-        # 3) Derive venv root from runtime site-packages paths.
+        # 3) Derive venv root from runtime site-packages paths. / 由 site-packages 反推 venv 根
         path_sources: list[str] = []
         with suppress(Exception):
             path_sources.extend(site.getsitepackages())
@@ -2339,7 +2339,7 @@ class PluginLifecycle:
             except Exception:
                 continue
 
-        # Keep order, drop duplicates/non-existing.
+        # Keep order, drop duplicates/non-existing. / 保序去重并跳过不存在路径
         seen: set[str] = set()
         existing: list[Path] = []
         for cand in candidates:
@@ -2380,7 +2380,7 @@ class PluginLifecycle:
         cargo_bin_name = "cargo.exe" if _IS_WINDOWS else "cargo"
         candidate_dirs: list[Path] = []
 
-        # 1) Standard rustup/cargo home
+        # 1) Standard rustup/cargo home / 标准 rustup 安装目录
         home_cargo_bin = Path.home() / ".cargo" / "bin"
         candidate_dirs.append(home_cargo_bin)
 
@@ -2388,7 +2388,7 @@ class PluginLifecycle:
         if cargo_home:
             candidate_dirs.append(Path(cargo_home) / "bin")
 
-        # 2) Some build tools (maturin/puccinialin) bootstrap rustup into cache dirs.
+        # 2) Some build tools (maturin/puccinialin) bootstrap rustup into cache dirs. / 部分构建工具把 rustup 装到缓存目录
         local_app_data = env.get("LOCALAPPDATA")
         if local_app_data:
             cache_root = Path(local_app_data) / "puccinialin" / "puccinialin" / "Cache"
@@ -3329,39 +3329,36 @@ command.downgrade(cfg, {f"{branch_label}@base"!r})
             )
 
     # ================================================================
-    # Periodic task DB sync (M50-T2) / 定时任务 DB 同步
+    # Task definition DB sync (M50-T2) / 任务定义 DB 同步
     # ================================================================
 
-    async def _sync_plugin_periodic_tasks(
+    async def _sync_plugin_task_definitions(
         self,
         plugin_name: str,
         tasks: list,
     ) -> None:
         """
-        Upsert periodic tasks to periodic_tasks table on plugin enable.
-        / 插件启用时将定时任务 upsert 到 periodic_tasks 表。
+        Upsert plugin schedules to task_definitions on plugin enable.
+        / 插件启用时将插件定时任务 upsert 到 task_definitions 表。
 
-        Celery Beat reads DB via scheduler.load_periodic_tasks_from_db();
-        in-memory beat_schedule is only valid for the current process, DB records needed after restart.
-        / Celery Beat 通过 scheduler.load_periodic_tasks_from_db() 读取 DB；
-        内存 beat_schedule 仅当前进程有效，重启后需要 DB 中的记录。
+        Celery Beat reads schedules from task_definitions;
+        plugin-managed tasks are represented as non-editable plugin definitions.
+        / Celery Beat 通过 task_definitions 读取调度；
+        插件管理任务以不可编辑的插件任务定义方式表达。
         """
         from sqlalchemy import select
 
         from app.enums.common import ResourceScopeEnum
         from app.enums.task import ScheduleTypeEnum
-        from app.models.system.periodic_task import PeriodicTask
+        from app.models.system.task_definition import TaskDefinition
 
         synced = 0
         for task_ext in tasks:
-            task_name = f"plugin.{plugin_name}.{task_ext.name}"
-            task_path = task_name  # Celery task name == DB task_path
-
-            # Include soft-deleted records too, to avoid INSERT triggering uq_periodic_tasks_name_tenant UNIQUE conflict
-            # / 包含软删除的记录也查出，避免 INSERT 触发 uq_periodic_tasks_name_tenant UNIQUE 冲突
+            task_code = f"plugin.{plugin_name}.{task_ext.name}"
+            handler_path = task_code
             result = await self._db.execute(
-                select(PeriodicTask).where(
-                    PeriodicTask.name == task_name,
+                select(TaskDefinition).where(
+                    TaskDefinition.code == task_code,
                 )
             )
             existing = result.scalar_one_or_none()
@@ -3369,28 +3366,39 @@ command.downgrade(cfg, {f"{branch_label}@base"!r})
             schedule_type = task_ext.schedule_type or ScheduleTypeEnum.INTERVAL.value
 
             if existing:
-                # Already exists (including soft-deleted) → restore + update
-                # / 已存在（含软删除）→ 恢复 + 更新
                 existing.is_deleted = False
                 existing.deleted_at = None
-                existing.is_active = True
-                existing.schedule_type = schedule_type
-                existing.cron_expression = task_ext.cron_expression
-                existing.interval_seconds = task_ext.interval_seconds
-                existing.task_path = task_path
+                existing.is_enabled = True
+                existing.name = task_code
+                existing.handler_path = handler_path
+                existing.definition_type = "plugin"
+                existing.category = "plugin"
+                existing.scope = ResourceScopeEnum.ADMIN_ONLY.value
+                existing.default_schedule_type = schedule_type
+                existing.default_cron_expression = task_ext.cron_expression
+                existing.default_interval_seconds = task_ext.interval_seconds
+                existing.default_queue = "scheduled"
+                existing.is_system_builtin = True
+                existing.is_editable = False
+                existing.is_deletable = False
                 if task_ext.description:
                     existing.description = task_ext.description
             else:
-                self._db.add(PeriodicTask(
-                    name=task_name,
-                    task_path=task_path,
-                    schedule_type=schedule_type,
-                    cron_expression=task_ext.cron_expression,
-                    interval_seconds=task_ext.interval_seconds,
-                    is_active=True,
+                self._db.add(TaskDefinition(
+                    code=task_code,
+                    name=task_code,
+                    definition_type="plugin",
+                    handler_path=handler_path,
+                    category="plugin",
+                    default_schedule_type=schedule_type,
+                    default_cron_expression=task_ext.cron_expression,
+                    default_interval_seconds=task_ext.interval_seconds,
+                    default_queue="scheduled",
+                    is_enabled=True,
                     scope=ResourceScopeEnum.ADMIN_ONLY.value,
-                    is_locked=True,   # Plugin-managed tasks cannot be manually deleted / 插件管理的任务不允许手动删除
-                    is_editable=False,  # Can toggle enable but not edit schedule / 可切换启用但不允许编辑调度
+                    is_system_builtin=True,
+                    is_editable=False,
+                    is_deletable=False,
                     description=task_ext.description or "",
                 ))
             synced += 1
@@ -3408,22 +3416,22 @@ command.downgrade(cfg, {f"{branch_label}@base"!r})
                     plugin_name, exc,
                 )
             logger.info(
-                "Plugin {}: synced {} periodic task(s) to DB",
+                "Plugin {}: synced {} task definition(s) to DB",
                 plugin_name, synced,
             )
 
-    async def _deactivate_plugin_periodic_tasks(self, plugin_name: str) -> None:
-        """On disable: mark plugin periodic tasks as inactive (keep DB records) / 禁用时将插件定时任务标记为非活跃（保留 DB 记录）"""
+    async def _deactivate_plugin_task_definitions(self, plugin_name: str) -> None:
+        """On disable: mark plugin task definitions inactive. / 禁用时将插件任务定义标记为非活跃。"""
         from sqlalchemy import update
 
-        from app.models.system.periodic_task import PeriodicTask
+        from app.models.system.task_definition import TaskDefinition
 
         _escaped_name = plugin_name.replace("_", "\\_").replace("%", "\\%")
         result = await self._db.execute(
-            update(PeriodicTask).where(
-                PeriodicTask.name.like(f"plugin.{_escaped_name}.%", escape="\\"),
-                PeriodicTask.is_deleted.is_(False),
-            ).values(is_active=False)
+            update(TaskDefinition).where(
+                TaskDefinition.code.like(f"plugin.{_escaped_name}.%", escape="\\"),
+                TaskDefinition.is_deleted.is_(False),
+            ).values(is_enabled=False)
         )
         if result.rowcount:
             await self._db.flush()
@@ -3436,20 +3444,20 @@ command.downgrade(cfg, {f"{branch_label}@base"!r})
                     plugin_name, exc,
                 )
             logger.info(
-                "Plugin {}: deactivated {} periodic task(s)",
+                "Plugin {}: deactivated {} task definition(s)",
                 plugin_name, result.rowcount,
             )
 
-    async def _delete_plugin_periodic_tasks(self, plugin_name: str) -> None:
-        """Hard-delete plugin periodic task DB records on uninstall / 卸载时硬删除插件定时任务 DB 记录"""
+    async def _delete_plugin_task_definitions(self, plugin_name: str) -> None:
+        """Hard-delete plugin task definitions on uninstall / 卸载时硬删除插件任务定义 DB 记录"""
         from sqlalchemy import delete
 
-        from app.models.system.periodic_task import PeriodicTask
+        from app.models.system.task_definition import TaskDefinition
 
         _escaped_name = plugin_name.replace("_", "\\_").replace("%", "\\%")
         result = await self._db.execute(
-            delete(PeriodicTask).where(
-                PeriodicTask.name.like(f"plugin.{_escaped_name}.%", escape="\\"),
+            delete(TaskDefinition).where(
+                TaskDefinition.code.like(f"plugin.{_escaped_name}.%", escape="\\"),
             )
         )
         if result.rowcount:
@@ -3463,7 +3471,7 @@ command.downgrade(cfg, {f"{branch_label}@base"!r})
                     plugin_name, exc,
                 )
             logger.info(
-                "Plugin {}: deleted {} periodic task(s) from DB",
+                "Plugin {}: deleted {} task definition(s) from DB",
                 plugin_name, result.rowcount,
             )
 

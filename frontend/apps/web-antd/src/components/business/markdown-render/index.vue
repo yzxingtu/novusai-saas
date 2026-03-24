@@ -78,7 +78,7 @@ const md = new MarkdownIt({
         const highlighted = hljs.highlight(str, { language: lang }).value;
         return buildCodeBlock(highlighted, langLabel);
       } catch {
-        // fallback
+        // fallback / 高亮失败则走下方自动检测
       }
     }
     // Auto-detect / 自动检测

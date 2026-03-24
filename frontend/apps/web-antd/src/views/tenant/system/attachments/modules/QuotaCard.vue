@@ -20,7 +20,7 @@ async function loadQuota() {
   try {
     quota.value = await getStorageQuotaApi();
   } catch {
-    // ignore
+    // ignore / 忽略非关键错误
   } finally {
     loading.value = false;
   }

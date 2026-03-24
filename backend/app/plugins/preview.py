@@ -23,6 +23,7 @@ from app.plugins.dependencies import (
     normalize_plugin_dependencies,
     normalize_python_package_name,
 )
+from app.plugins.frontend_contract_checks import collect_frontend_i18n_warnings
 from app.plugins.loader import PluginLoader
 
 logger = get_logger(__name__)
@@ -93,61 +94,6 @@ def _iter_locale_candidates(locale: str | None) -> list[str]:
         _push(fallback)
 
     return candidates
-
-
-def _expected_i18n_locales(*values: object) -> list[str]:
-    locales: list[str] = []
-    for value in values:
-        if not isinstance(value, dict):
-            continue
-        for locale, text in value.items():
-            if not isinstance(text, str) or not text.strip():
-                continue
-            canonical = _canonical_locale(locale)
-            if canonical and canonical not in locales:
-                locales.append(canonical)
-    return locales or ["zh-CN", "en"]
-
-
-def _missing_i18n_locales(value: object, expected_locales: list[str]) -> list[str]:
-    if not expected_locales:
-        return []
-    if not isinstance(value, dict):
-        return expected_locales.copy()
-
-    present = {
-        _canonical_locale(locale)
-        for locale, text in value.items()
-        if isinstance(text, str) and text.strip()
-    }
-    return [locale for locale in expected_locales if locale not in present]
-
-
-def _collect_frontend_i18n_warnings(manifest) -> list[str]:
-    warnings: list[str] = []
-    expected_locales = _expected_i18n_locales(
-        getattr(manifest, "display_name", None),
-        getattr(manifest, "description", None),
-    )
-    pages = getattr(getattr(manifest.extensions, "frontend", None), "pages", []) or []
-    for index, page in enumerate(pages):
-        missing_page_locales = _missing_i18n_locales(page.title, expected_locales)
-        if missing_page_locales:
-            warnings.append(
-                "Frontend page title i18n incomplete: "
-                f"pages[{index}].title missing {', '.join(missing_page_locales)}"
-            )
-        menu = getattr(page, "menu", None)
-        if menu is None or getattr(menu, "title", None) is None:
-            continue
-        missing_menu_locales = _missing_i18n_locales(menu.title, expected_locales)
-        if missing_menu_locales:
-            warnings.append(
-                "Frontend menu title i18n incomplete: "
-                f"pages[{index}].menu.title missing {', '.join(missing_menu_locales)}"
-            )
-    return warnings
-
 
 def resolve_i18n(text: dict[str, str] | str, locale: str | None = None) -> str:
     """Resolve multilingual text to a single-language string / 将多语言文本解析为单语言字符串"""
@@ -330,7 +276,7 @@ async def generate_preview(
 
     # Warnings / 警告
     warnings: list[str] = []
-    warnings.extend(_collect_frontend_i18n_warnings(manifest))
+    warnings.extend(collect_frontend_i18n_warnings(manifest))
     if conflicts:
         warnings.append(f"Detected {len(conflicts)} conflict(s) with existing extensions")
     if python_dependency_states:

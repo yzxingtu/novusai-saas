@@ -13,7 +13,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
   },
   onConfirm() {
     message.info('onConfirm');
-    // drawerApi.close();
+    // drawerApi.close(); / 演示可在此关闭 / demo: close here if needed
   },
   onOpenChange(isOpen: boolean) {
     if (isOpen) {

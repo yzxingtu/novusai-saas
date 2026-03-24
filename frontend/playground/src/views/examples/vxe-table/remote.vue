@@ -54,7 +54,7 @@ const gridOptions: VxeGridProps<RowType> = {
   toolbarConfig: {
     custom: true,
     export: true,
-    // import: true,
+    // import: true, / 可选：开启导入 / optional: enable import toolbar
     refresh: true,
     zoom: true,
   },

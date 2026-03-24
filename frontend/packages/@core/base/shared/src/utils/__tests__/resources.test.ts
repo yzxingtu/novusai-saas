@@ -7,7 +7,7 @@ const testJsPath =
 
 describe('loadScript', () => {
   beforeEach(() => {
-    // 每个测试前清空 head，保证环境干净
+    // 每个测试前清空 head，保证环境干净 / Clean document.head
     document.head.innerHTML = '';
   });
 
@@ -20,10 +20,10 @@ describe('loadScript', () => {
     ) as HTMLScriptElement;
     expect(script).toBeTruthy();
 
-    // 模拟加载成功
+    // 模拟加载成功 / Fire load event
     script.dispatchEvent(new Event('load'));
 
-    // 等待 promise resolve
+    // 等待 promise resolve / Async loader resolves
     await expect(promise).resolves.toBeUndefined();
   });
 
@@ -33,13 +33,13 @@ describe('loadScript', () => {
     existing.src = 'bar.js';
     document.head.append(existing);
 
-    // 再次调用
+    // 再次调用 / Second loadScript same src
     const promise = loadScript('bar.js');
 
-    // 立即 resolve
+    // 立即 resolve / Resolves without second tag
     await expect(promise).resolves.toBeUndefined();
 
-    // head 中只保留一个
+    // head 中只保留一个 / Single script node
     const scripts = document.head.querySelectorAll('script[src="bar.js"]');
     expect(scripts).toHaveLength(1);
   });
@@ -52,7 +52,7 @@ describe('loadScript', () => {
     ) as HTMLScriptElement;
     expect(script).toBeTruthy();
 
-    // 模拟加载失败
+    // 模拟加载失败 / Fire error event
     script.dispatchEvent(new Event('error'));
 
     await expect(promise).rejects.toThrow('Failed to load script: error.js');
@@ -73,7 +73,7 @@ describe('loadScript', () => {
     await expect(p1).resolves.toBeUndefined();
     await expect(p2).resolves.toBeUndefined();
 
-    // 只插入一次
+    // 只插入一次 / Dedupe concurrent loads
     const scripts = document.head.querySelectorAll(
       `script[src="${testJsPath}"]`,
     );

@@ -47,14 +47,14 @@ const md = new MarkdownIt({ html: true, breaks: true });
  */
 function normalizeHtmlForMatch(html: string): string {
   let s = html.trim();
-  // Decode common entities
+  // Decode common entities / 解码常见 HTML 实体
   s = s
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/g, "'")
     .replace(/&amp;/gi, '&')
     .replace(/&lt;/gi, '<')
     .replace(/&gt;/gi, '>');
-  // Normalize JSON/backslash escaping that LLM may produce
+  // Normalize JSON/backslash escaping that LLM may produce / 规范化 LLM 可能输出的 JSON 反斜杠转义
   s = s.replace(/\\"/g, '"').replace(/\\&quot;/g, '"').replace(/\\\\&quot;/g, '"');
   return s;
 }

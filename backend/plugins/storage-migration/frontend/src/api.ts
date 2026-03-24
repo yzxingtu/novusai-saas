@@ -156,6 +156,7 @@ export function rollbackMigrationTaskApi(taskId: number) {
         reverted_files: number;
         status: string;
         task_id: number;
+        target_delete_errors?: number;
       }>(res),
     );
 }

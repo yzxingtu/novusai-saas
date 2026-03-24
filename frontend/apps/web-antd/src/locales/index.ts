@@ -74,7 +74,7 @@ async function loadDayjsLocale(lang: SupportedLanguagesType) {
       localeName = 'zh-cn';
       break;
     }
-    // 默认使用英语
+    // 默认使用英语 / Default to English
     default: {
       await import('dayjs/locale/en');
       localeName = 'en';

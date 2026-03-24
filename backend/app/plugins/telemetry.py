@@ -136,7 +136,7 @@ async def get_stats(plugin_name: str, days: int = 30) -> dict:
             seen_types: set[str] = set()
             for field_name in fields:
                 if field_name.startswith("type:") and field_name.endswith(":calls"):
-                    ext = field_name[5:-6]  # strip "type:" and ":calls"
+                    ext = field_name[5:-6]  # strip "type:" and ":calls" / 去掉 type: 与 :calls 缀
                     seen_types.add(ext)
 
             for ext in seen_types:

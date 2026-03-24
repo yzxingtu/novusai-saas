@@ -40,7 +40,7 @@ function dismiss() {
   try {
     localStorage.setItem(props.storageKey, '1');
   } catch {
-    // storage unavailable
+    // storage unavailable / localStorage 不可用
   }
 }
 
@@ -50,7 +50,7 @@ function showGuide() {
   try {
     localStorage.removeItem(props.storageKey);
   } catch {
-    // storage unavailable
+    // storage unavailable / localStorage 不可用
   }
 }
 

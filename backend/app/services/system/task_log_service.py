@@ -8,11 +8,9 @@ Provides task log business logic.
 from datetime import datetime
 from typing import Literal
 
-from app.core.base_model import utc_now
 from app.core.base_service import GlobalService
-from app.enums.task import TaskStatusEnum
-from app.models.system.task_log import TaskLog
-from app.repositories.system.task_log_repository import TaskLogRepository
+from app.models.system.task_run import TaskRun
+from app.repositories.system.task_run_repository import TaskRunRepository
 from app.schemas.common.query import FilterRule, QuerySpec
 
 TaskLogListView = Literal["all", "execution", "internal"]
@@ -24,13 +22,13 @@ HIGH_FREQUENCY_INTERNAL_TASK_NAMES: tuple[str, ...] = (
 )
 
 
-class TaskLogService(GlobalService[TaskLog, TaskLogRepository]):
+class TaskLogService(GlobalService[TaskRun, TaskRunRepository]):
     """
     任务日志服务 / Task log service.
     """
 
-    model = TaskLog
-    repository_class = TaskLogRepository
+    model = TaskRun
+    repository_class = TaskRunRepository
 
     async def query_list_by_view(
         self,
@@ -38,7 +36,7 @@ class TaskLogService(GlobalService[TaskLog, TaskLogRepository]):
         view: TaskLogListView = "all",
         scope: str | None = None,
         forced_filters: list[FilterRule] | None = None,
-    ) -> tuple[list[TaskLog], int]:
+    ) -> tuple[list[TaskRun], int]:
         if view == "all":
             return await self.query_list(
                 spec=spec,
@@ -59,94 +57,6 @@ class TaskLogService(GlobalService[TaskLog, TaskLogRepository]):
             forced_filters=forced_filters,
             include_task_names=include_task_names,
             exclude_task_names=exclude_task_names,
-        )
-
-    async def record_start(
-        self,
-        task_id: str,
-        task_name: str,
-        queue: str = "default",
-        args: dict | None = None,
-        kwargs: dict | None = None,
-        tenant_id: int | None = None,
-    ) -> TaskLog:
-        return await self.create(
-            {
-                "task_id": task_id,
-                "task_name": task_name,
-                "queue": queue,
-                "status": TaskStatusEnum.RUNNING.value,
-                "args": args,
-                "kwargs": kwargs,
-                "started_at": utc_now(),
-                "tenant_id": tenant_id,
-            }
-        )
-
-    async def record_success(
-        self,
-        task_id: str,
-        result: dict | None = None,
-        duration_ms: int | None = None,
-    ) -> TaskLog | None:
-        log = await self.repo.get_by_task_id(task_id)
-        if log is None:
-            return None
-        now = utc_now()
-        update_data = {
-            "status": TaskStatusEnum.SUCCESS.value,
-            "result": result,
-            "finished_at": now,
-        }
-        if duration_ms is not None:
-            update_data["duration_ms"] = duration_ms
-        elif log.started_at:
-            update_data["duration_ms"] = int(
-                (now - log.started_at).total_seconds() * 1000
-            )
-        return await self.update(log.id, update_data)
-
-    async def record_failure(
-        self,
-        task_id: str,
-        error_message: str,
-        traceback_str: str | None = None,
-        duration_ms: int | None = None,
-    ) -> TaskLog | None:
-        log = await self.repo.get_by_task_id(task_id)
-        if log is None:
-            return None
-        now = utc_now()
-        update_data: dict = {
-            "status": TaskStatusEnum.FAILED.value,
-            "error_message": error_message,
-            "traceback": traceback_str,
-            "finished_at": now,
-        }
-        if duration_ms is not None:
-            update_data["duration_ms"] = duration_ms
-        elif log.started_at:
-            update_data["duration_ms"] = int(
-                (now - log.started_at).total_seconds() * 1000
-            )
-        return await self.update(log.id, update_data)
-
-    async def record_retry(
-        self,
-        task_id: str,
-        retry_count: int,
-        error_message: str,
-    ) -> TaskLog | None:
-        log = await self.repo.get_by_task_id(task_id)
-        if log is None:
-            return None
-        return await self.update(
-            log.id,
-            {
-                "status": TaskStatusEnum.RETRYING.value,
-                "retry_count": retry_count,
-                "error_message": error_message,
-            },
         )
 
     async def get_dashboard_stats(

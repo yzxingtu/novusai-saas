@@ -73,6 +73,11 @@
 - `/plugins/slots` 返回的前端 slot 必须携带 `frontend_runtime`。
 - manifest 中声明的组件名必须由插件入口真实导出。
 - manifest 中声明的 JS / CSS / assets 必须真实存在。
+- install / enable / sync-manifest 运行时必须与 CLI validate 共享同一套前端契约校验：
+  - `pages[*].title`
+  - `pages[*].menu.title`
+  - `frontend.dev.entry` 的 canonical locale prefix
+  - `frontend.dev.entry` 对 manifest 声明组件的真实导出
 - 声明了 `release.manifest` 却没有产出 release 文件时，必须 fail-close。
 
 ## 二、审计清单
@@ -119,6 +124,7 @@
 - `document.title` 是否走可重算标题
 - 页面主标题是否走同一套 locale 来源
 - `registerLocale()` 是否只承担插件内部文案，不再承担菜单标题
+- 是否仍存在只消费 legacy alias、未迁到 canonical prefix 的插件
 
 ### 5. release 审计
 
@@ -142,6 +148,8 @@
 - CTA 仅按状态显示，未校验目标权限
 - 切语言后 sidebar 与 breadcrumb / tab / `document.title` 不一致
 - 声明了 `release.manifest` 但缺少 `frontend/dist/plugin.manifest.json`
+- install / enable / sync-manifest 与 CLI validate 仍不是同一套 fail-close 校验
+- public 资源请求或响应未能证明历史 `novus_plugin_asset_token` cookie 被主动清理
 
 ## 四、最小回归清单
 
@@ -153,9 +161,11 @@
 
 ### 浏览器功能回归
 
-- 从菜单进入插件页
-- 直接输入插件 URL 进入插件页
-- 插件页硬刷新
+- 按矩阵跑：
+  - scope：`admin` / `tenant` / `public`
+  - 进入方式：菜单进入 / 直接 URL / 硬刷新
+  - 权限状态：正常 / 撤权 / 插件禁用或 runtime gate fail-close
+  - 资产模式：`/plugin-assets/...` / `/plugin-public-assets/...`
 - 从 admin 端验证一次
 - 从 tenant 端验证一次
 - 若有 public 入口，再验证 public 流程
@@ -181,6 +191,7 @@
 - 普通插件页网络请求只能命中 `/plugin-assets/...`
 - public captcha 网络请求只能命中 `/plugin-public-assets/...`
 - public captcha 请求头不含 `Authorization`
+- public captcha 响应必须能看到历史 `novus_plugin_asset_token` cookie 被主动清理
 - 切换 runtime contract 后，网络面板能看到重新拉取对应 manifest / bundle，而不是静默复用旧产物
 
 ## 五、建议记录格式

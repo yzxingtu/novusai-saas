@@ -16,12 +16,16 @@ export interface TaskLogInfo {
   id: number;
   taskId: string;
   taskName: string;
+  handlerPath: null | string;
   queue: string;
   status: string;
-  args: null | Record<string, unknown>;
+  args: null | Record<string, unknown> | unknown[];
   kwargs: null | Record<string, unknown>;
   result: null | Record<string, unknown>;
   errorMessage: null | string;
+  triggerSource: null | string;
+  runKind: null | string;
+  traceId: null | string;
   startedAt: null | string;
   finishedAt: null | string;
   durationMs: null | number;

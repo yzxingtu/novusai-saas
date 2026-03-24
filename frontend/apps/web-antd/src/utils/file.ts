@@ -86,7 +86,7 @@ export function getFileIcon(
     case 'wmv': {
       return 'lucide:video';
     }
-    // 代码
+    // 代码 / Code-like extensions
     case 'bat':
     case 'c':
     case 'cpp':

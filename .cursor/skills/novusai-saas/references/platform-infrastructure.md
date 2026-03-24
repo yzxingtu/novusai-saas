@@ -189,10 +189,10 @@ class MyService(TenantService):
         item = await self.repo.get(id)
         if not item:
             raise NotFoundException(_("item.not_found"))
-        
+
         if item.status == "locked":
             raise BusinessException(_("item.is_locked"))
-        
+
         if await self.repo.exists_by_name(item.name):
             raise ConflictException(_("item.name_exists"))
 ```
@@ -252,7 +252,7 @@ from app.enums.log import LogCategoryEnum
 
 class MyService(TenantService, LoggerMixin):
     _log_category = LogCategoryEnum.AUTH  # 可选：指定分类
-    
+
     async def process(self):
         self.logger.info("Processing...")  # 自动延迟加载
 
@@ -303,8 +303,8 @@ await requestClient.requestSSE('/tenant/ai/agent-chat/1/chat/stream', null, {
 });
 
 // POST SSE（常用于 AI 对话）
-await requestClient.postSSE('/tenant/ai/agent-chat/1/chat/stream', 
-    { message: "Hello", conversation_id: 123 }, 
+await requestClient.postSSE('/tenant/ai/agent-chat/1/chat/stream',
+    { message: "Hello", conversation_id: 123 },
     {
         onMessage: (chunk) => { /* 处理流式数据 */ },
         onEnd: () => { /* 完成 */ },
@@ -365,12 +365,12 @@ controller.abort();  // 自动取消，不触发 onError
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # ... 现有启动步骤 ...
-    
+
     # 新增：初始化你的服务（在 Redis 之后）
     await MyService.init()
-    
+
     yield
-    
+
     # 新增：关闭你的服务（在 Redis 之前）
     await MyService.close()
 ```
@@ -399,19 +399,19 @@ storage/
 class StorageDriver(ABC):
     async def put(self, path: str, content: bytes, **kwargs) -> str:
         """上传文件，返回存储路径"""
-    
+
     async def get(self, path: str) -> bytes:
         """获取文件内容"""
-    
+
     async def delete(self, path: str) -> bool:
         """删除文件"""
-    
+
     async def exists(self, path: str) -> bool:
         """检查文件是否存在"""
-    
+
     async def url(self, path: str, expires: int = 3600) -> str:
         """生成临时访问 URL"""
-    
+
     async def size(self, path: str) -> int:
         """获取文件大小"""
 ```

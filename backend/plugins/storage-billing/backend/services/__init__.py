@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
-from importlib import import_module
-from typing import Any
+from .binding_service import StorageBillingBindingService
+from .profile_service import StorageBillingProviderProfileService
+from .reconciliation_service import (
+    StorageBillingOverviewService,
+    StorageBillingReconciliationService,
+)
 
 __all__ = [
     "StorageBillingBindingService",
@@ -11,15 +15,3 @@ __all__ = [
     "StorageBillingProviderProfileService",
     "StorageBillingReconciliationService",
 ]
-
-
-def __getattr__(name: str) -> Any:
-    if name == "StorageBillingBindingService":
-        return import_module(".binding_service", __name__).StorageBillingBindingService
-    if name == "StorageBillingProviderProfileService":
-        return import_module(".profile_service", __name__).StorageBillingProviderProfileService
-    if name == "StorageBillingOverviewService":
-        return import_module(".reconciliation_service", __name__).StorageBillingOverviewService
-    if name == "StorageBillingReconciliationService":
-        return import_module(".reconciliation_service", __name__).StorageBillingReconciliationService
-    raise AttributeError(name)

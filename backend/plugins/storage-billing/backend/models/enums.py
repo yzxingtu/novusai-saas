@@ -21,6 +21,7 @@ class StorageBillingRunStatusEnum(StrEnum):
 class StorageBillingSourceStatusEnum(StrEnum):
     PENDING = "pending"
     FETCHED = "fetched"
+    COMPLETED_WITH_GAPS = "completed_with_gaps"
     EMPTY = "empty"
     SKIPPED = "skipped"
     FAILED = "failed"

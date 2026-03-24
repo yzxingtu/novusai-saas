@@ -110,7 +110,7 @@ async function handleSaveBasic() {
       phone: form.value.phone || null,
     });
 
-    // sync to userStore
+    // sync to userStore / 同步到 userStore
     if (userStore.userInfo) {
       userStore.setUserInfo({
         ...userStore.userInfo,
@@ -163,7 +163,7 @@ async function handleAvatarUpload(file: File) {
     if (!attachmentId) throw new Error('Upload failed');
     form.value.avatar = attachmentId;
 
-    // save immediately
+    // save immediately / 立即保存
     await updateTenantProfileApi({ avatar: attachmentId });
 
     if (userStore.userInfo) {

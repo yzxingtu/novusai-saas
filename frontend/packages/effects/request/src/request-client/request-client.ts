@@ -43,26 +43,26 @@ class RequestClient {
   public download: FileDownloader['download'];
 
   public readonly instance: AxiosInstance;
-  // 是否正在刷新token
+  // 是否正在刷新 token / Refresh-in-flight flag
   public isRefreshing = false;
   public postSSE: SSE['postSSE'];
-  // 刷新token队列
+  // 刷新 token 队列 / Queued callbacks after refresh
   public refreshTokenQueue: ((token: string) => void)[] = [];
   public requestSSE: SSE['requestSSE'];
   public upload: FileUploader['upload'];
 
   /**
-   * 构造函数，用于创建Axios实例
-   * @param options - Axios请求配置，可选
+   * 构造函数，用于创建 Axios 实例 / Construct axios-backed client
+   * @param options Axios 请求配置（可选）/ optional axios config
    */
   constructor(options: RequestClientOptions = {}) {
-    // 合并默认配置和传入的配置
+    // 合并默认配置和传入的配置 / Merge defaults with caller options
     const defaultConfig: RequestClientOptions = {
       headers: {
         'Content-Type': 'application/json;charset=utf-8',
       },
       responseReturn: 'raw',
-      // 默认超时时间
+      // 默认超时时间 / Default request timeout (ms)
       timeout: 10_000,
     };
     const { ...axiosConfig } = options;
@@ -74,27 +74,27 @@ class RequestClient {
 
     bindMethods(this);
 
-    // 实例化拦截器管理器
+    // 实例化拦截器管理器 / Axios interceptors
     const interceptorManager = new InterceptorManager(this.instance);
     this.addRequestInterceptor =
       interceptorManager.addRequestInterceptor.bind(interceptorManager);
     this.addResponseInterceptor =
       interceptorManager.addResponseInterceptor.bind(interceptorManager);
 
-    // 实例化文件上传器
+    // 实例化文件上传器 / Multipart upload helper
     const fileUploader = new FileUploader(this);
     this.upload = fileUploader.upload.bind(fileUploader);
-    // 实例化文件下载器
+    // 实例化文件下载器 / Blob download helper
     const fileDownloader = new FileDownloader(this);
     this.download = fileDownloader.download.bind(fileDownloader);
-    // 实例化SSE模块
+    // 实例化 SSE 模块 / Server-Sent Events helpers
     const sse = new SSE(this);
     this.postSSE = sse.postSSE.bind(sse);
     this.requestSSE = sse.requestSSE.bind(sse);
   }
 
   /**
-   * DELETE请求方法
+   * DELETE 请求 / HTTP DELETE
    */
   public delete<T = any>(
     url: string,
@@ -104,21 +104,21 @@ class RequestClient {
   }
 
   /**
-   * GET请求方法
+   * GET 请求 / HTTP GET
    */
   public get<T = any>(url: string, config?: RequestClientConfig): Promise<T> {
     return this.request<T>(url, { ...config, method: 'GET' });
   }
 
   /**
-   * 获取基础URL
+   * 获取基础 URL / Axios baseURL
    */
   public getBaseUrl() {
     return this.instance.defaults.baseURL;
   }
 
   /**
-   * POST请求方法
+   * POST 请求 / HTTP POST
    */
   public post<T = any>(
     url: string,
@@ -129,7 +129,7 @@ class RequestClient {
   }
 
   /**
-   * PUT请求方法
+   * PUT 请求 / HTTP PUT
    */
   public put<T = any>(
     url: string,
@@ -140,7 +140,7 @@ class RequestClient {
   }
 
   /**
-   * 通用的请求方法
+   * 通用请求 / Low-level request wrapper
    */
   public async request<T>(
     url: string,

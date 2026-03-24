@@ -858,6 +858,8 @@ class AdminPluginController(GlobalController):
         ):
             service = self.get_service(db)
             plugin = await service.get_by_id(plugin_id)
+            if plugin is None:
+                return deleted(message=f"Plugin #{plugin_id} already removed")
             plugin_display = plugin.display_name or plugin.name
             plugin_version = plugin.version or "1.0.0"
 
@@ -1000,7 +1002,7 @@ class AdminPluginController(GlobalController):
                             ext.notifications,
                         )
                     if ext.tasks:
-                        await lifecycle._sync_plugin_periodic_tasks(
+                        await lifecycle._sync_plugin_task_definitions(
                             plugin.name,
                             ext.tasks,
                         )

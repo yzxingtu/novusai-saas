@@ -37,7 +37,7 @@ export interface PeriodicTaskInfoRaw {
   description: null | string;
   created_at: string;
   scope: null | string;
-  tenant_id: null | number;
+  owner_tenant_id: null | number;
   is_locked: boolean;
   is_editable: boolean;
   max_retries: number;
@@ -45,6 +45,18 @@ export interface PeriodicTaskInfoRaw {
   timeout: null | number;
   notify_on_failure: boolean;
   notify_emails: null | string;
+}
+
+export interface PeriodicTaskBindingInfo {
+  id: number;
+  tenant_id: number;
+  tenant_name: null | string;
+  is_enabled: boolean;
+  schedule_type_override: null | string;
+  cron_expression_override: null | string;
+  interval_seconds_override: null | number;
+  last_run_at: null | string;
+  next_run_at: null | string;
 }
 
 // ============================================================
@@ -65,7 +77,7 @@ function transformPeriodicTaskInfo(raw: PeriodicTaskInfoRaw): PeriodicTaskInfo {
     description: raw.description,
     createdAt: raw.created_at,
     scope: raw.scope,
-    tenantId: raw.tenant_id,
+    tenantId: raw.owner_tenant_id,
     isLocked: raw.is_locked,
     isEditable: raw.is_editable,
     maxRetries: raw.max_retries,
@@ -195,4 +207,38 @@ export async function triggerPeriodicTaskApi(
     options,
   );
   return { triggeredTaskId: raw.triggered_task_id };
+}
+
+/**
+ * Get periodic task tenant bindings / 获取定时任务企业绑定
+ * GET /admin/periodic-tasks/{id}/bindings
+ */
+export async function getPeriodicTaskBindingsApi(
+  id: number,
+  options?: ApiRequestOptions,
+): Promise<PeriodicTaskBindingInfo[]> {
+  return await requestClient.get<PeriodicTaskBindingInfo[]>(
+    `${API_PREFIX}/${id}/bindings`,
+    options,
+  );
+}
+
+/**
+ * Sync periodic task tenant bindings / 同步定时任务企业绑定
+ * PUT /admin/periodic-tasks/{id}/bindings
+ */
+export async function syncPeriodicTaskBindingsApi(
+  id: number,
+  tenantIds: number[],
+  options?: ApiRequestOptions,
+): Promise<{ added: number; removed: number; reenabled: number }> {
+  return await requestClient.put<{
+    added: number;
+    removed: number;
+    reenabled: number;
+  }>(
+    `${API_PREFIX}/${id}/bindings`,
+    { tenant_ids: tenantIds },
+    options,
+  );
 }

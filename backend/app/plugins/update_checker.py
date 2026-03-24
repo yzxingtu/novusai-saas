@@ -37,9 +37,9 @@ async def check_updates(db: AsyncSession) -> list[dict]:
     # Check cache / 检查缓存
     cached = _update_cache.get(_CACHE_KEY)
     if cached:
-        cache_time, cache_data = cached  # type: ignore
+        cache_time, cache_data = cached  # type: ignore / 缓存元组结构
         if time.time() - cache_time < _CACHE_TTL:
-            return cache_data  # type: ignore
+            return cache_data  # type: ignore / 缓存命中直接返回
 
     from sqlalchemy import select
 

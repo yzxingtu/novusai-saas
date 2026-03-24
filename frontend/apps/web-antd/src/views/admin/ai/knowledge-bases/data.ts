@@ -89,7 +89,7 @@ async function getVideoModelSelectApi(
   return res;
 }
 
-// ============ 表单默认值 ============
+// ============ 表单默认值 / Form defaults ============
 
 export function getFormDefaults() {
   return {
@@ -108,7 +108,7 @@ export function getFormDefaults() {
   };
 }
 
-// ============ 搜索表单 ============
+// ============ 搜索表单 / Search form ============
 
 export function useGridFormSchema(): VbenFormSchema[] {
   return [
@@ -122,7 +122,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
   ];
 }
 
-// ============ 编辑表单 ============
+// ============ 编辑表单 / Edit form ============
 
 export function useFormSchema(isEdit = false): VbenFormSchema[] {
   const schemas: VbenFormSchema[] = [

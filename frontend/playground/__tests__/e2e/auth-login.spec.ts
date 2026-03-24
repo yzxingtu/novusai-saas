@@ -8,12 +8,12 @@ test.beforeEach(async ({ page }) => {
 
 test.describe('Auth Login Page Tests', () => {
   test('check title and page elements', async ({ page }) => {
-    // 获取页面标题并断言标题包含 'Novusai Saas'
+    // 获取页面标题并断言标题包含 'Novusai Saas' / Assert document title contains app name
     const title = await page.title();
     expect(title).toContain('Novusai Saas');
   });
 
-  // 测试用例: 成功登录
+  // 测试用例: 成功登录 / E2E: login with valid credentials
   test('should successfully login with valid credentials', async ({ page }) => {
     await authLogin(page);
   });

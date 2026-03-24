@@ -39,7 +39,7 @@ import { $t } from '#/locales';
 defineOptions({ name: 'TenantAIUsage' });
 const AI_PAGE_KEY = 'tenant.ai.usage';
 
-// ============ 日期范围 ============
+// ============ 日期范围 / Date range ============
 
 type DateRange = [Dayjs, Dayjs];
 
@@ -88,7 +88,7 @@ async function refreshUsageData() {
   await loadCharts();
 }
 
-// ============ 数据加载 ============
+// ============ 数据加载 / Data loading ============
 
 const loading = ref(false);
 const summary = ref<null | TenantAIUsageSummary>(null);
@@ -176,7 +176,7 @@ function accessChannelLabel(channel: null | string | undefined): string {
 
 onMounted(loadSummary);
 
-// ============ ECharts ============
+// ============ ECharts / 图表 ============
 
 const callChartRef = ref<EchartsUIType>();
 const modelChartRef = ref<EchartsUIType>();

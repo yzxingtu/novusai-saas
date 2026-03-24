@@ -296,7 +296,7 @@ tools_schema = skill_result.to_openai_tools()
   ├── registerPageContext(key, resolver)
   ├── registerPageOperations(key, operations)  ← 含 handler 回调
   └── route.meta.ai = { mode, pageContextKey }
- 
+
 用户发消息
   → resolvePageContext() → page_context
   → POST /chat/stream { page_context, page_session_id }

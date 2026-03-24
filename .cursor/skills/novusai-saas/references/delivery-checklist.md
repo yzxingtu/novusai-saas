@@ -57,15 +57,20 @@
 - [ ] 5xx 或统一错误弹窗路径仍能展示 trace_id
 - [ ] `v-html` 绑定值已净化
 - [ ] 事件监听没有退化成属性赋值式写法
+- [ ] 请求错误只有一个前端展示 owner；若页面本地展示，已关闭 `showErrorMessage` / `showCodeMessage`
+- [ ] 新接口没有继续引入 `200 + success=false + error/message/errors` 作为常规失败契约
 
 ## AI、WebSocket 与 trace_id
 
 - [ ] 请求失败路径没有绕开统一错误处理
 - [ ] trace_id 在日志、错误响应与前端展示链路上是一致的
 - [ ] dev / prod 对错误详情和 trace_id 的展示差异符合当前规范
+- [ ] 至少拿一个真实 `trace_id` 跑过 `novusai trace show <trace_id>`，确认 CLI 仍能查到上下文
+- [ ] 若验证生产 / 预发语义，默认检查脱敏输出；只有确有必要时才走 `--unsafe` + `NOVUSAI_ALLOW_UNSAFE_TRACE=1`
 - [ ] 页面感知改动已验证 `page_key`、确认流和超时路径
 - [ ] AI 工具执行日志、页面操作日志或调用日志没有漏打
 - [ ] 流式对话、异常中断和供应商报错路径已做回归
+- [ ] 若改动涉及 `call_log_service` / `billing_context` / `tasks.ai.log_ai_call`，已确认 `AICallLog` 仍正常落库，且 Worker 已按新代码重启
 
 ## 回归与交付
 

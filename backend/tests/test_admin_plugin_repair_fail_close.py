@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from app.api.admin.plugins import AdminPluginController, MenuOverrideItem
 from app.core.config import settings
+from app.core.response import deleted
 from app.exceptions.base import BusinessException
 from app.enums.plugin import PluginStatusEnum
 
@@ -68,7 +69,7 @@ async def test_admin_repair_extension_load_failure_disables_permissions_and_unre
         _install_python_deps=AsyncMock(return_value=[]),
         _restore_plugin_permissions=AsyncMock(),
         _sync_plugin_notification_templates=AsyncMock(),
-        _sync_plugin_periodic_tasks=AsyncMock(),
+        _sync_plugin_task_definitions=AsyncMock(),
         run_alembic_upgrade=AsyncMock(),
         _set_plugin_permissions_enabled=AsyncMock(),
     )
@@ -148,7 +149,7 @@ async def test_admin_repair_unexpected_failure_still_fail_closes_runtime(
         _install_python_deps=AsyncMock(return_value=[]),
         _restore_plugin_permissions=AsyncMock(),
         _sync_plugin_notification_templates=AsyncMock(),
-        _sync_plugin_periodic_tasks=AsyncMock(),
+        _sync_plugin_task_definitions=AsyncMock(),
         run_alembic_upgrade=AsyncMock(),
         _set_plugin_permissions_enabled=AsyncMock(),
     )
@@ -221,3 +222,25 @@ def test_menu_override_item_rejects_invalid_parent_characters() -> None:
             parent="system maintenance",
             tenant_parent="tenant_root",
         )
+
+
+@pytest.mark.asyncio
+async def test_admin_uninstall_returns_deleted_when_plugin_already_removed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(AdminPluginController, "_instance", None)
+    monkeypatch.setattr(AdminPluginController, "_router", None)
+
+    service = SimpleNamespace(get_by_id=AsyncMock(return_value=None))
+    monkeypatch.setattr(AdminPluginController, "get_service", lambda self, db: service)
+
+    endpoint = _get_endpoint("/plugins/{plugin_id}", "DELETE")
+    response = await endpoint(
+        1089,
+        AsyncMock(),
+        SimpleNamespace(id=1),
+        False,
+        False,
+    )
+
+    assert response == deleted(message="Plugin #1089 already removed")

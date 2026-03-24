@@ -14,7 +14,7 @@ const routes: RouteRecordRaw[] = [
     name: 'Demos',
     path: '/demos',
     children: [
-      // 权限控制
+      // 权限控制 / Access control demos
       {
         meta: {
           icon: 'mdi:shield-key-outline',
@@ -85,7 +85,7 @@ const routes: RouteRecordRaw[] = [
           },
         ],
       },
-      // 功能
+      // 功能 / Feature demos
       {
         meta: {
           icon: 'mdi:feature-highlight',
@@ -159,7 +159,7 @@ const routes: RouteRecordRaw[] = [
                 component: () =>
                   import('#/views/demos/features/hide-menu-children/parent.vue'),
                 meta: {
-                  // hideInMenu: true,
+                  // hideInMenu: true, / 可选：隐藏父级菜单项 / optional: hide parent in menu
                   title: $t('demos.features.hideChildrenInMenu'),
                 },
               },
@@ -261,7 +261,7 @@ const routes: RouteRecordRaw[] = [
           },
         ],
       },
-      // 面包屑导航
+      // 面包屑导航 / Breadcrumb demos
       {
         name: 'BreadcrumbDemos',
         path: '/demos/breadcrumb',
@@ -311,7 +311,7 @@ const routes: RouteRecordRaw[] = [
           },
         ],
       },
-      // 缺省页
+      // 缺省页 / Fallback pages
       {
         meta: {
           icon: 'mdi:lightbulb-error-outline',
@@ -359,7 +359,7 @@ const routes: RouteRecordRaw[] = [
           },
         ],
       },
-      // 菜单徽标
+      // 菜单徽标 / Menu badge demos
       {
         meta: {
           badgeType: 'dot',
@@ -403,7 +403,7 @@ const routes: RouteRecordRaw[] = [
           },
         ],
       },
-      // 菜单激活图标
+      // 菜单激活图标 / Active menu icon demos
       {
         meta: {
           activeIcon: 'fluent-emoji:radioactive',
@@ -425,7 +425,7 @@ const routes: RouteRecordRaw[] = [
           },
         ],
       },
-      // 外部链接
+      // 外部链接 / External links & iframe
       {
         meta: {
           icon: 'ic:round-settings-input-composite',
@@ -460,7 +460,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   icon: 'devicon:tailwindcss',
                   iframeSrc: 'https://tailwindcss.com/',
-                  // keepAlive: true,
+                  // keepAlive: true, / 可选：缓存 iframe 页 / optional: keep iframe alive
                   title: 'Tailwindcss',
                 },
               },
@@ -498,7 +498,7 @@ const routes: RouteRecordRaw[] = [
           },
         ],
       },
-      // 嵌套菜单
+      // 嵌套菜单 / Nested menu demos
       {
         meta: {
           icon: 'ic:round-menu',

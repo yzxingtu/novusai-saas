@@ -28,6 +28,7 @@ import {
   useGridFormSchema,
 } from './data';
 import Form from './modules/PeriodicTaskForm.vue';
+import TaskBindingDrawer from './modules/TaskBindingDrawer.vue';
 import TaskLogListDrawer from './modules/TaskLogListDrawer.vue';
 
 defineOptions({ name: 'SystemPeriodicTaskList' });
@@ -37,11 +38,18 @@ type PeriodicTaskInfo = adminApi.PeriodicTaskInfo;
 const [TaskLogListDrawerComp, taskLogDrawerApi] = useVbenDrawer({
   connectedComponent: TaskLogListDrawer,
 });
+const [TaskBindingDrawerComp, taskBindingDrawerApi] = useVbenDrawer({
+  connectedComponent: TaskBindingDrawer,
+});
 
 function onViewLogs(row: PeriodicTaskInfo) {
   taskLogDrawerApi
     .setData({ taskPath: row.taskPath, taskName: row.name })
     .open();
+}
+
+function onManageBindings(row: PeriodicTaskInfo) {
+  taskBindingDrawerApi.setData({ id: row.id, name: row.name }).open();
 }
 
 async function onTriggerTask(row: PeriodicTaskInfo) {
@@ -83,6 +91,7 @@ const { Grid, FormDrawer, onRefresh } =
     customActions: {
       trigger: onTriggerTask,
       logs: onViewLogs,
+      bindings: onManageBindings,
     },
     ai: {
       formSchema: (isEdit?: boolean) => useFormSchema(Boolean(isEdit)),
@@ -94,6 +103,7 @@ const { Grid, FormDrawer, onRefresh } =
   <Page auto-content-height content-class="flex flex-col gap-4">
     <FormDrawer @success="onRefresh" />
     <TaskLogListDrawerComp />
+    <TaskBindingDrawerComp @success="onRefresh" />
 
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>

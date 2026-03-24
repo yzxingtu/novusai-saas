@@ -28,7 +28,7 @@ def _build_scheduler(
         except StopIteration:
             return last_value
 
-    monkeypatch.setattr("app.tasks.scheduler.load_periodic_tasks_from_db", fake_loader)
+    monkeypatch.setattr("app.tasks.scheduler.load_task_schedules_from_db", fake_loader)
 
     scheduler = ReloadingPersistentScheduler(
         app=app,

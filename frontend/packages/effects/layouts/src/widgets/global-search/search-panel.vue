@@ -77,45 +77,45 @@ function highlightMatch(text: string, keyword: string): string {
 
 const handleSearch = useThrottleFn(search, 200);
 
-// 搜索函数，用于根据搜索关键词查找匹配的菜单项
+// 搜索函数，用于根据搜索关键词查找匹配的菜单项 / Filter menu tree by keyword
 function search(searchKey: string) {
-  // 去除搜索关键词的前后空格
+  // 去除搜索关键词的前后空格 / Trim query
   searchKey = searchKey.trim();
 
-  // 如果搜索关键词为空，清空搜索结果并返回
+  // 如果搜索关键词为空，清空搜索结果并返回 / Empty query clears results
   if (!searchKey) {
     searchResults.value = [];
     return;
   }
 
-  // 使用搜索关键词创建正则表达式
+  // 使用搜索关键词创建正则表达式 / Build fuzzy regex
   const reg = createSearchReg(searchKey);
 
-  // 初始化结果数组
+  // 初始化结果数组 / Matches accumulator
   const results: MenuRecordRaw[] = [];
 
-  // 遍历搜索项
+  // 遍历搜索项 / Walk flattened menu items
   traverseTreeValues(searchItems.value, (item) => {
-    // 如果菜单项的名称匹配正则表达式，将其添加到结果数组中
+    // 如果菜单项的名称匹配正则表达式，将其添加到结果数组中 / Name match
     if (reg.test(item.name?.toLowerCase())) {
       results.push(item);
     }
   });
 
-  // 更新搜索结果
+  // 更新搜索结果 / Publish matches
   searchResults.value = results;
 
-  // 如果有搜索结果，设置索引为 0
+  // 如果有搜索结果，设置索引为 0 / Reset highlight when non-empty
   if (results.length > 0) {
     activeIndex.value = 0;
   }
 
-  // 赋值索引为 0
+  // 赋值索引为 0 / Always reset active row (including empty)
   activeIndex.value = 0;
 }
 
-// When the keyboard up and down keys move to an invisible place
-// the scroll bar needs to scroll automatically
+// When the keyboard up and down keys move to an invisible place / 键盘上下项滚入可视区
+// the scroll bar needs to scroll automatically / Auto-scroll list on arrow keys
 function scrollIntoView() {
   const element = document.querySelector(
     `[data-search-item="${activeIndex.value}"]`,
@@ -126,7 +126,7 @@ function scrollIntoView() {
   }
 }
 
-// enter keyboard event
+// enter keyboard event / Enter 打开选中项 / open active item on Enter
 async function handleEnter() {
   if (searchResults.value.length === 0) {
     return;
@@ -149,7 +149,7 @@ async function handleEnter() {
   }
 }
 
-// Arrow key up
+// Arrow key up / 上一条 / previous result
 function handleUp() {
   if (searchResults.value.length === 0) {
     return;
@@ -161,7 +161,7 @@ function handleUp() {
   scrollIntoView();
 }
 
-// Arrow key down
+// Arrow key down / 下一条 / next result
 function handleDown() {
   if (searchResults.value.length === 0) {
     return;
@@ -173,13 +173,13 @@ function handleDown() {
   scrollIntoView();
 }
 
-// close search modal
+// close search modal / 关闭搜索面板
 function handleClose() {
   searchResults.value = [];
   emit('close');
 }
 
-// Activate when the mouse moves to a certain line
+// Activate when the mouse moves to a certain line / 悬停高亮行 / hover highlights row
 function handleMouseenter(e: MouseEvent) {
   const index = (e.target as HTMLElement)?.dataset.index;
   activeIndex.value = Number(index);
@@ -195,7 +195,7 @@ function removeItem(index: number) {
   scrollIntoView();
 }
 
-// 存储所有需要转义的特殊字符
+// 存储所有需要转义的特殊字符 / Regex special chars to escape
 const code = new Set([
   '$',
   '(',
@@ -213,20 +213,20 @@ const code = new Set([
   '}',
 ]);
 
-// 转换函数，用于转义特殊字符
+// 转换函数，用于转义特殊字符 / Escape one char for RegExp source
 function transform(c: string) {
-  // 如果字符在特殊字符列表中，返回转义后的字符
-  // 如果不在，返回字符本身
+  // 如果字符在特殊字符列表中，返回转义后的字符 / Escape specials
+  // 如果不在，返回字符本身 / Passthrough otherwise
   return code.has(c) ? `\\${c}` : c;
 }
 
-// 创建搜索正则表达式
+// 创建搜索正则表达式 / Loose-order substring regex
 function createSearchReg(key: string) {
-  // 将输入的字符串拆分为单个字符
-  // 对每个字符进行转义
-  // 然后用'.*'连接所有字符，创建正则表达式
+  // 将输入的字符串拆分为单个字符 / Per-char
+  // 对每个字符进行转义 / Escape each
+  // 然后用'.*'连接所有字符，创建正则表达式 / Join with .*
   const keys = [...key].map((item) => transform(item)).join('.*');
-  // 返回创建的正则表达式
+  // 返回创建的正则表达式 / Case-insensitive match elsewhere
   return new RegExp(`.*${keys}.*`);
 }
 

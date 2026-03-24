@@ -251,7 +251,7 @@ function ensureAIConversationBridge(): void {
     );
     aiConversationBridgeInitialized = true;
   } catch {
-    // Store may not be ready during very early bootstrap.
+    // Store may not be ready during very early bootstrap. / 极早启动时 Store 可能未就绪
   }
 }
 

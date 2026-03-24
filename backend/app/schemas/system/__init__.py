@@ -51,6 +51,8 @@ from app.schemas.system.operation_log import (
     OperatorSelectItem,
 )
 from app.schemas.system.periodic_task import (
+    PeriodicTaskBindingResponse,
+    PeriodicTaskBindingSyncRequest,
     PeriodicTaskCreateRequest,
     PeriodicTaskResponse,
     PeriodicTaskToggleRequest,
@@ -164,4 +166,6 @@ __all__ = [
     "PeriodicTaskCreateRequest",
     "PeriodicTaskUpdateRequest",
     "PeriodicTaskToggleRequest",
+    "PeriodicTaskBindingResponse",
+    "PeriodicTaskBindingSyncRequest",
 ]

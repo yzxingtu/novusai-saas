@@ -59,7 +59,7 @@ function onToggleActive(row: AITablePolicyInfo) {
         message.success($t('common.success'));
         onRefresh();
       } catch {
-        // handled by interceptor
+        // handled by interceptor / 错误由请求拦截器处理
       }
     },
   });
@@ -74,7 +74,7 @@ async function onToggleCrud(
     await updateAITablePolicyApi(row.id, { [field]: newValue });
     row[field] = newValue;
   } catch {
-    // handled by interceptor
+    // handled by interceptor / 错误由请求拦截器处理
   }
 }
 
@@ -106,7 +106,7 @@ async function onSync() {
       try {
         await performSyncPolicies();
       } catch {
-        // handled by interceptor
+        // handled by interceptor / 错误由请求拦截器处理
       }
     },
   });

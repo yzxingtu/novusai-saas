@@ -2,8 +2,6 @@ import type { RouteRecordRaw } from 'vue-router';
 
 import { LOGIN_PATH } from '@vben/constants';
 
-import { $t } from '#/locales';
-
 const AuthPageLayout = () => import('#/layouts/auth.vue');
 /** Global 404 page / 全局 404 页面 */
 const fallbackNotFoundRoute: RouteRecordRaw = {
@@ -49,7 +47,7 @@ const coreRoutes: RouteRecordRaw[] = [
         path: 'login',
         component: () => import('#/views/user/authentication/login.vue'),
         meta: {
-          title: $t('page.auth.login'),
+          title: 'page.auth.login',
         },
       },
       {
@@ -57,7 +55,7 @@ const coreRoutes: RouteRecordRaw[] = [
         path: 'code-login',
         component: () => import('#/views/user/authentication/code-login.vue'),
         meta: {
-          title: $t('page.auth.codeLogin'),
+          title: 'page.auth.codeLogin',
         },
       },
       {
@@ -66,7 +64,7 @@ const coreRoutes: RouteRecordRaw[] = [
         component: () =>
           import('#/views/user/authentication/qrcode-login.vue'),
         meta: {
-          title: $t('page.auth.qrcodeLogin'),
+          title: 'page.auth.qrcodeLogin',
         },
       },
       {
@@ -75,7 +73,7 @@ const coreRoutes: RouteRecordRaw[] = [
         component: () =>
           import('#/views/user/authentication/forget-password.vue'),
         meta: {
-          title: $t('page.auth.forgetPassword'),
+          title: 'page.auth.forgetPassword',
         },
       },
       {
@@ -83,7 +81,7 @@ const coreRoutes: RouteRecordRaw[] = [
         path: 'register',
         component: () => import('#/views/user/authentication/register.vue'),
         meta: {
-          title: $t('page.auth.register'),
+          title: 'page.auth.register',
         },
       },
       {
@@ -92,7 +90,7 @@ const coreRoutes: RouteRecordRaw[] = [
         component: () =>
           import('#/views/user/authentication/legal-document.vue'),
         meta: {
-          title: $t('user.auth.privacyPolicy'),
+          title: 'user.auth.privacyPolicy',
           /** 使用认证布局的「文档全宽」模式，避免挤在 420px 登录卡片内 */
           authDocumentPage: true,
         },
@@ -103,7 +101,7 @@ const coreRoutes: RouteRecordRaw[] = [
         component: () =>
           import('#/views/user/authentication/legal-document.vue'),
         meta: {
-          title: $t('user.auth.termsOfService'),
+          title: 'user.auth.termsOfService',
           authDocumentPage: true,
         },
       },

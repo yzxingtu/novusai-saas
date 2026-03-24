@@ -9,7 +9,7 @@ import { searchInput, select } from '#/adapter/form';
 import { getTenantSelectApi } from '#/api/admin/tenant';
 import { $t } from '#/locales';
 
-// ============ 工具函数 ============
+// ============ 工具函数 / Helpers ============
 
 /**
  * 获取文件分类颜色
@@ -112,7 +112,7 @@ export function getVisibilityOptions(): { label: string; value: string }[] {
   ];
 }
 
-// ============ 表格列定义 ============
+// ============ 表格列定义 / Table columns ============
 
 /**
  * 表格列定义
@@ -232,7 +232,7 @@ export function useColumns<T = AttachmentInfo>(
   ];
 }
 
-// ============ 搜索表单 ============
+// ============ 搜索表单 / Search form ============
 
 /** 企业选择器（搜索） / Tenant selector (search) */
 function tenantSelect(

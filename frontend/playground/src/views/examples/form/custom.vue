@@ -10,23 +10,23 @@ import { useVbenForm, z } from '#/adapter/form';
 import TwoFields from './modules/two-fields.vue';
 
 const [Form] = useVbenForm({
-  // 所有表单项共用，可单独在表单内覆盖
+  // 所有表单项共用，可单独在表单内覆盖 / Shared field defaults; override per field
   commonConfig: {
-    // 所有表单项
+    // 所有表单项 / Default props for all fields
     componentProps: {
       class: 'w-full',
     },
     labelClass: 'w-2/6',
   },
   fieldMappingTime: [['field4', ['phoneType', 'phoneNumber'], null]],
-  // 提交函数
+  // 提交函数 / Submit handler
   handleSubmit: onSubmit,
-  // 垂直布局，label和input在不同行，值为vertical
-  // 水平布局，label和input在同一行
+  // 垂直布局，label和input在不同行，值为vertical / vertical layout
+  // 水平布局，label和input在同一行 / horizontal layout
   layout: 'horizontal',
   schema: [
     {
-      // 组件需要在 #/adapter.ts内注册，并加上类型
+      // 组件需要在 #/adapter.ts内注册，并加上类型 / Register in adapter + types
       component: 'Input',
       fieldName: 'field',
       label: '自定义后缀',
@@ -71,12 +71,12 @@ const [Form] = useVbenForm({
           message: '　　　　　　　输入手机号码',
         })
         .refine((v) => v[1]?.match(/^1[3-9]\d{9}$/), {
-          // 使用全角空格占位，将错误提示文字挤到手机号码输入框的下面
+          // 使用全角空格占位，将错误提示文字挤到手机号码输入框的下面 / Full-width spaces align error under phone input
           message: '　　　　　　　号码格式不正确',
         }),
     },
   ],
-  // 中屏一行显示2个，小屏一行显示1个
+  // 中屏一行显示2个，小屏一行显示1个 / md: 2 cols, default 1 col
   wrapperClass: 'grid-cols-1 md:grid-cols-2',
 });
 

@@ -23,8 +23,8 @@ from app.plugins.dependencies import (
 I18nText = dict[str, str]
 """Multilingual text, e.g. {"zh-CN": "CRM 管理", "en": "CRM Management"}. / 多语言文本。"""
 
-# Plugin manifest menu/slot scope = endpoint side, not ResourceScopeEnum.
-# Only canonical values are accepted; legacy aliases are no longer tolerated.
+# Plugin manifest menu/slot scope = endpoint side, not ResourceScopeEnum. / 插件菜单/插槽 scope 表端侧，非 ResourceScopeEnum
+# Only canonical values are accepted; legacy aliases are no longer tolerated. / 仅接受规范取值，不再兼容历史别名
 _VALID_PLUGIN_ENDPOINT_SCOPES = frozenset({"admin", "tenant", "both", ""})
 _VALID_PLUGIN_PERMISSION_EXT_SCOPES = frozenset({"admin", "tenant", "both"})
 
@@ -1014,7 +1014,7 @@ class PluginManifest(BaseModel):
     # ── Extensions / 扩展点 ──
     extensions: ExtensionsSchema = Field(default_factory=ExtensionsSchema)
 
-    # ── AI ──
+    # ── AI / 智能体依赖与能力 ──
     ai_requirements: AIRequirementsSchema = Field(
         default_factory=AIRequirementsSchema,
     )

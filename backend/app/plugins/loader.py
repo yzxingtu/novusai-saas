@@ -79,7 +79,7 @@ class PluginLoader:
                 message=f"Plugin '{plugin_name}' not found: {yaml_path} does not exist",
             )
 
-        _MAX_MANIFEST_SIZE = 1 * 1024 * 1024  # 1 MB
+        _MAX_MANIFEST_SIZE = 1 * 1024 * 1024  # 1 MB / manifest 单文件大小上限
         file_size = yaml_path.stat().st_size
         if file_size > _MAX_MANIFEST_SIZE:
             raise PluginManifestError(
@@ -226,7 +226,7 @@ class PluginLoader:
                 return path.read_text(encoding="utf-8")
         return None
 
-    # ── 5. i18n / 国际化 ──
+    # ── 5. i18n (locales) / 国际化 ──
 
     def load_locales(self, plugin_name: str) -> dict[str, dict]:
         """
@@ -242,7 +242,7 @@ class PluginLoader:
 
         result: dict[str, dict] = {}
         for json_file in sorted(locales_dir.glob("*.json")):
-            lang_code = json_file.stem  # "zh-CN" from "zh-CN.json"
+            lang_code = json_file.stem  # "zh-CN" from "zh-CN.json" / 语言码取文件名 stem
             try:
                 with open(json_file, encoding="utf-8") as f:
                     data = json.load(f)

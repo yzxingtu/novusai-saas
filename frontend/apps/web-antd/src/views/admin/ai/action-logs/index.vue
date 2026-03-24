@@ -61,7 +61,7 @@ interface PayloadEntry {
   valueText: string;
 }
 
-// ============ 详情抽屉 ============
+// ============ 详情抽屉 / Detail drawer ============
 
 const detailOpen = ref(false);
 const detailLoading = ref(false);
@@ -186,7 +186,7 @@ const responsePayloadText = computed(() =>
 );
 const errorPayloadText = computed(() => detailData.value?.error_message?.trim() ?? '');
 
-// ============ 列表 ============
+// ============ 列表 / List ============
 
 const { Grid } = useCrudPage<AdminActionLogItem>({
   api: {

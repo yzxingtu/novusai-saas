@@ -25,9 +25,10 @@ async function generateAccessible(
   const { router } = options;
 
   options.routes = cloneDeep(options.routes);
-  // 生成路由
+  // 生成路由 / Build accessible route tree
   const accessibleRoutes = await generateRoutes(mode, options);
 
+  // 多端根路由前缀 / Multi-endpoint: pick parent root from first dynamic path (/admin, /tenant, /)
   // Multi-endpoint support: determine the correct parent root route based on
   // the dynamic routes' path prefix. For /admin/* routes use AdminRoot,
   // for /tenant/* routes use TenantRoot, otherwise use the default root at '/'.
@@ -63,7 +64,7 @@ async function generateAccessible(
     return { ...route, children: cleanedChildren };
   }
 
-  // 动态添加到router实例内
+  // 动态添加到 router 实例内 / Register dynamic routes
   accessibleRoutes.forEach((route) => {
     if (root && !route.meta?.noBasicLayout) {
       // 为了兼容之前的版本用法，如果包含子路由，则将component移除，以免出现多层BasicLayout
@@ -71,19 +72,19 @@ async function generateAccessible(
       if (route.children && route.children.length > 0) {
         delete route.component;
       }
-      // 无 component 且无子路由（如插件菜单）: 跳过向 router 注册。
+      // 无 component 且无子路由（如插件菜单）：跳过向 router 注册 / Skip bare group nodes
       const isComponentlessLeaf =
         !route.component && (!route.children || route.children.length === 0);
       if (isComponentlessLeaf) {
         return;
       }
 
-      // 向 router 注册时，用剔除了无 component 叶子节点的副本
+      // 向 router 注册时，用剔除了无 component 叶子节点的副本 / Sanitized tree for addRoute
       const routeForRouter = stripComponentlessLeaves(route);
 
-      // 根据router name判断，如果路由已经存在，则不再添加
+      // 根据 router name 判断，如果路由已经存在，则更新而非重复添加 / Upsert by name
       if (names?.includes(route.name)) {
-        // 找到已存在的路由索引并更新，不更新会造成切换用户时，一级目录未更新，homePath 在二级目录导致的404问题
+        // 找到已存在的路由索引并更新；否则切换用户时一级菜单 stale 会 404 / Replace child at index
         const index = root.children?.findIndex(
           (item) => item.name === route.name,
         );
@@ -105,7 +106,7 @@ async function generateAccessible(
     router.addRoute(root);
   }
 
-  // 生成菜单
+  // 生成菜单 / Sidebar menus from raw routes
   const accessibleMenus = generateMenus(accessibleRoutes, options.router);
 
   return { accessibleMenus, accessibleRoutes };
@@ -153,7 +154,7 @@ async function generateRoutes(
    * 2. 将懒加载的组件名称修改为当前路由的名称（如果启用了keep-alive的话）
    */
   resultRoutes = mapTree(resultRoutes, (route) => {
-    // 重新包装component，使用与路由名称相同的name以支持keep-alive的条件缓存。
+    // 重新包装 component，使用与路由名称相同的 name 以支持 keep-alive 条件缓存 / Align component name for KeepAlive
     if (
       route.meta?.keepAlive &&
       isFunction(route.component) &&
@@ -175,13 +176,13 @@ async function generateRoutes(
       };
     }
 
-    // 如果有redirect或者没有子路由，则直接返回
+    // 如果有 redirect 或者没有子路由，则直接返回 / No redirect inference needed
     if (route.redirect || !route.children || route.children.length === 0) {
       return route;
     }
     const firstChild = route.children[0];
 
-    // 如果子路由不是以/开头，则直接返回,这种情况需要计算全部父级的path才能得出正确的path，这里不做处理
+    // 子路由非绝对路径则跳过（需拼接父 path）/ Skip relative child paths
     if (!firstChild?.path || !firstChild.path.startsWith('/')) {
       return route;
     }

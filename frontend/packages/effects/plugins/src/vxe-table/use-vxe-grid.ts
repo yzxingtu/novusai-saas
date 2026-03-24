@@ -23,7 +23,7 @@ export function useVbenVxeGrid<
   T extends Record<string, any> = any,
   D extends BaseFormComponentType = BaseFormComponentType,
 >(options: VxeGridProps<T, D>) {
-  // const IS_REACTIVE = isReactive(options);
+  // const IS_REACTIVE = isReactive(options); / 可选响应式 / optional reactive options (commented)
   const api = new VxeGridApi(options);
   const extendedApi: ExtendedVxeGridApi<T, D> = api as ExtendedVxeGridApi<T, D>;
   extendedApi.useStore = (selector) => {
@@ -43,17 +43,17 @@ export function useVbenVxeGrid<
       inheritAttrs: false,
       slots: Object as SlotsType<
         {
-          // 表格标题
+          // 表格标题 / Table title slot
           'table-title': undefined;
-          // 工具栏左侧部分
+          // 工具栏左侧部分 / Toolbar left actions
           'toolbar-actions': VxeGridSlotTypes.DefaultSlotParams<T>;
-          // 工具栏右侧部分
+          // 工具栏右侧部分 / Toolbar right tools
           'toolbar-tools': VxeGridSlotTypes.DefaultSlotParams<T>;
         } & FilteredSlots<T>
       >,
     },
   );
-  // Add reactivity support
+  // 可选：响应式 options 同步 / Optional reactive options → setState (commented)
   // if (IS_REACTIVE) {
   //   watch(
   //     () => options,

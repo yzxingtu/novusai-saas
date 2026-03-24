@@ -116,7 +116,7 @@ async function loadDocuments() {
     startWsListener();
     fetchInitialProgress();
   } catch {
-    // handled by interceptor / 错误由请求拦截器处理 by global interceptor / 错误由请求拦截器处理
+    // handled by interceptor / 错误由请求拦截器处理
   } finally {
     loading.value = false;
   }
@@ -253,7 +253,7 @@ async function fetchInitialProgress() {
         doc.status = prog.stage;
       }
     } catch {
-      // ignore
+      // ignore / 忽略单条进度拉取失败
     }
   }
 }

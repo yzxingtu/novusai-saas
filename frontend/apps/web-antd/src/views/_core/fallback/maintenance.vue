@@ -20,16 +20,16 @@ const publicConfigStore = usePublicConfigStore();
 
 const maintenanceMessage = computed(() => {
   return (
-    publicConfigStore.platformConfig?.maintenance?.message ||
     publicConfigStore.tenantConfig?.maintenance?.message ||
+    publicConfigStore.platformConfig?.maintenance?.message ||
     $t('common.maintenance.defaultMessage')
   );
 });
 
 const siteName = computed(() => {
   return (
-    publicConfigStore.platformConfig?.brand?.siteName ||
     publicConfigStore.tenantConfig?.brand?.siteName ||
+    publicConfigStore.platformConfig?.brand?.siteName ||
     import.meta.env.VITE_APP_TITLE ||
     'NovusAI'
   );
@@ -37,14 +37,31 @@ const siteName = computed(() => {
 
 const refreshInterval = ref<ReturnType<typeof setInterval>>();
 
-onMounted(() => {
-  // Silently check maintenance status every 30 seconds / 每 30 秒静默检查维护状态
-  refreshInterval.value = setInterval(async () => {
-    publicConfigStore.resetPlatformConfig();
-    const config = await publicConfigStore.loadPlatformConfig();
+async function refreshMaintenanceStatus() {
+  await publicConfigStore.detectDomainType().catch(() => {});
+
+  if (publicConfigStore.isDomainTenantDomain) {
+    publicConfigStore.resetTenantConfig();
+    const config = await publicConfigStore.loadTenantConfig({
+      skipDomainCheck: true,
+    });
     if (config && !config.maintenance.enabled) {
       window.location.reload();
     }
+    return;
+  }
+
+  publicConfigStore.resetPlatformConfig();
+  const config = await publicConfigStore.loadPlatformConfig();
+  if (config && !config.maintenance.enabled) {
+    window.location.reload();
+  }
+}
+
+onMounted(() => {
+  void publicConfigStore.detectDomainType().catch(() => {});
+  refreshInterval.value = setInterval(() => {
+    void refreshMaintenanceStatus();
   }, 30_000);
 });
 

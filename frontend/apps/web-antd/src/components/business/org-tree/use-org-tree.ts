@@ -162,7 +162,7 @@ export function useOrgTree(options: UseOrgTreeOptions = {}): UseOrgTreeReturn {
     const node = findNode(treeData.value, nodeId);
     if (!node || node.loaded) return;
 
-    // Set loading state
+    // Set loading state / 设置加载中
     treeData.value = cloneAndUpdate(treeData.value, nodeId, (n) => ({
       ...n,
       loading: true,

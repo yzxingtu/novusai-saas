@@ -35,7 +35,7 @@ All endpoints are admin-only, accessed via:
 2. Go to **System Settings > Storage** in admin panel
 3. Use **Impact Analysis** to check files before switching
 4. Create a migration task specifying source and target drivers
-5. Monitor progress in the migration management page
+5. Open **Admin > System Management > Storage Migration** to monitor progress
 6. After completion, optionally clean up source files
 
 ## Requirements

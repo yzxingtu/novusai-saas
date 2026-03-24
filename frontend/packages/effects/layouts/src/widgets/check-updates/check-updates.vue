@@ -6,9 +6,9 @@ import { $t } from '@vben/locales';
 import { useVbenModal } from '@vben-core/popup-ui';
 
 interface Props {
-  // 轮询时间，分钟
+  // 轮询时间，分钟 / Poll interval in minutes
   checkUpdatesInterval?: number;
-  // 检查更新的地址
+  // 检查更新的地址 / Version probe URL (HEAD)
   checkUpdateUrl?: string;
 }
 
@@ -31,7 +31,7 @@ const [UpdateNoticeModal, modalApi] = useVbenModal({
   onConfirm() {
     lastVersionTag.value = currentVersionTag.value;
     window.location.reload();
-    // handleSubmitLogout();
+    // handleSubmitLogout(); / 可选先登出再刷新 / optional logout before reload
   },
 });
 
@@ -64,7 +64,7 @@ async function checkForUpdates() {
     return;
   }
 
-  // 首次运行时不提示更新
+  // 首次运行时不提示更新 / Baseline etag on first run
   if (!lastVersionTag.value) {
     lastVersionTag.value = versionTag;
     return;
@@ -85,7 +85,7 @@ function start() {
     return;
   }
 
-  // 每 checkUpdatesInterval(默认值为1) 分钟检查一次
+  // 每 checkUpdatesInterval（默认 1）分钟检查一次 / Interval poll
   timer.value = setInterval(
     checkForUpdates,
     props.checkUpdatesInterval * 60 * 1000,

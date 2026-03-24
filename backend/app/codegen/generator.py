@@ -30,12 +30,12 @@ class GeneratedFile:
 
     path: str
     content: str
-    action: str  # create | create_if_missing | append | merge_json | register_route
-    appended_content: str | None = None  # for append
-    insert_before_last_marker: str | None = None  # for append: insert before last occurrence instead of EOF
-    merged_keys: list[str] | None = None  # for merge_json
-    route_meta: dict | None = None  # for register_route: {scope, resource}
-    model_meta: dict | None = None  # for register_model: {module, resource}
+    action: str  # create | create_if_missing | append | merge_json | register_route / 写盘动作
+    appended_content: str | None = None  # for append / 追加模式下的片段
+    insert_before_last_marker: str | None = None  # for append: insert before last occurrence instead of EOF / 追加时在末标记前插入而非 EOF
+    merged_keys: list[str] | None = None  # for merge_json / merge_json 要合并的键
+    route_meta: dict | None = None  # for register_route: {scope, resource} / 注册路由元数据
+    model_meta: dict | None = None  # for register_model: {module, resource} / 注册模型元数据
 
 
 @dataclass
@@ -72,7 +72,7 @@ def _detect_scenario(parsed: ParsedConfig) -> str:
         return "B"
     if has_tenant and not has_admin:
         return "C"
-    # has_admin and has_tenant but not cross_tenant -> dual tenant-isolated
+    # has_admin and has_tenant but not cross_tenant -> dual tenant-isolated / 含 admin 与 tenant 且非跨租户 → 双端租户隔离
     if has_admin and has_tenant:
         return "D"
     return "A"
@@ -131,7 +131,7 @@ class CodeGenerator:
         if not val:
             return val
         s = str(val)
-        # Replace JSON tokens (not inside strings) - use regex word boundaries
+        # Replace JSON tokens (not inside strings) - use regex word boundaries / 替换 JSON 字面量（非字符串内），用单词边界正则
         s = re.sub(r"\btrue\b", "True", s)
         s = re.sub(r"\bfalse\b", "False", s)
         s = re.sub(r"\bnull\b", "None", s)
@@ -216,15 +216,15 @@ class CodeGenerator:
             return table_name
         t = str(table_name)
         if t.endswith("ies") and len(t) > 3 and t[-4] not in "aeiou":
-            return t[:-3] + "y"  # categories -> category
+            return t[:-3] + "y"  # categories -> category / -ies 变 -y
         if t.endswith("es") and len(t) > 2:
-            # addresses -> address, boxes -> box
+            # addresses -> address, boxes -> box / 去 -es 类尾缀
             if t.endswith("ses") or t.endswith("xes") or t.endswith("ches") or t.endswith("shes"):
-                return t[:-2]  # boxes -> box, addresses -> address
-            if t.endswith("ies"):  # already handled
+                return t[:-2]  # boxes -> box, addresses -> address / 去掉末尾 es
+            if t.endswith("ies"):  # already handled / 已由 -ies 分支处理
                 pass
         if t.endswith("s") and not t.endswith("ss"):
-            return t[:-1]  # tags -> tag, permissions -> permission
+            return t[:-1]  # tags -> tag, permissions -> permission / 去尾单 s
         return t
 
     @staticmethod
@@ -292,7 +292,7 @@ class CodeGenerator:
                 if isinstance(item, dict) and item.get("model"):
                     deps_out.append(item)
                 elif isinstance(item, str) and item.strip():
-                    # "tenant" -> Tenant, tenant_id / model name + FK column
+                    # "tenant" -> Tenant, tenant_id / 模型名 PascalCase + 外键列
                     pascal = "".join(w.capitalize() for w in item.strip().replace("-", "_").split("_"))
                     fk_col = CodeGenerator._model_to_fk(pascal)
                     deps_out.append({"model": pascal, "fk_field": fk_col, "strategy": "BLOCK"})

@@ -60,7 +60,7 @@ export const authenticateResponseInterceptor = ({
   return {
     rejected: async (error) => {
       const { config, response } = error;
-      // 如果不是 401 错误，直接抛出异常
+      // 如果不是 401 错误，直接抛出异常 / Non-401 → bubble error
       if (response?.status !== 401) {
         throw error;
       }
@@ -70,7 +70,7 @@ export const authenticateResponseInterceptor = ({
         await doReAuthenticate();
         throw error;
       }
-      // 如果正在刷新 token，则将请求加入队列，等待刷新完成
+      // 如果正在刷新 token，则将请求加入队列，等待刷新完成 / Serialize during refresh
       if (client.isRefreshing) {
         return new Promise((resolve) => {
           client.refreshTokenQueue.push((newToken: string) => {
@@ -80,22 +80,22 @@ export const authenticateResponseInterceptor = ({
         });
       }
 
-      // 标记开始刷新 token
+      // 标记开始刷新 token / Refresh lock on
       client.isRefreshing = true;
-      // 标记当前请求为重试请求，避免无限循环
+      // 标记当前请求为重试请求，避免无限循环 / Retry flag prevents loops
       config.__isRetryRequest = true;
 
       try {
         const newToken = await doRefreshToken();
 
-        // 处理队列中的请求
+        // 处理队列中的请求 / Flush queued requests
         client.refreshTokenQueue.forEach((callback) => callback(newToken));
-        // 清空队列
+        // 清空队列 / Clear queue
         client.refreshTokenQueue = [];
 
         return client.request(error.config.url, { ...error.config });
       } catch (refreshError) {
-        // 如果刷新 token 失败，处理错误（如强制登出或跳转登录页面）
+        // 如果刷新 token 失败，处理错误（如强制登出或跳转登录页面）/ Refresh failed → re-auth
         client.refreshTokenQueue.forEach((callback) => callback(''));
         client.refreshTokenQueue = [];
         console.error('Refresh token failed, please login again.');

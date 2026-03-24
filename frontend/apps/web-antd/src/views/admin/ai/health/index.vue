@@ -19,7 +19,7 @@ import { toAttachmentImageUrl } from '#/utils/image';
 
 defineOptions({ name: 'AIHealthMonitor' });
 
-// ========== 声明式列表管理 + 30秒自动刷新 ==========
+// ========== 声明式列表管理 + 30秒自动刷新 / Declarative list + 30s refresh ==========
 const healthSummary = ref({ degraded: 0, healthy: 0, unavailable: 0 });
 
 const {
@@ -50,7 +50,7 @@ const {
   },
 });
 
-// ========== 概览计数 ==========
+// ========== 概览计数 / Overview counts ==========
 watchEffect(() => {
   const all = statuses.value;
   healthSummary.value = {
@@ -70,7 +70,7 @@ const unavailableCount = computed(
   () => statuses.value.filter((s) => !s.is_available).length,
 );
 
-// ========== 辅助 ==========
+// ========== 辅助 / Helpers ==========
 function getStatusColor(status: AIHealthStatus): string {
   if (status.is_healthy && status.is_available) return 'success';
   if (!status.is_healthy && status.is_available) return 'warning';

@@ -65,7 +65,7 @@ const loading = ref(false);
 const errorMsg = ref('');
 
 // ============================================================
-// Methods
+// Methods / 方法
 // ============================================================
 
 let _fetchPromise: Promise<void> | null = null;

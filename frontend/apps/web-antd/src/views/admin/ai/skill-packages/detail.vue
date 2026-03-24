@@ -417,7 +417,7 @@ async function handleToggleSkillStatus(skill: AdminSkillInfo) {
     message.success($t('admin.ai.skill.messages.toggleSuccess'));
     await Promise.all([loadPackage(), loadSkills(), loadResolvedTools()]);
   } catch {
-    // handled by interceptor
+    // handled by interceptor / 错误由请求拦截器处理
   }
 }
 
@@ -427,7 +427,7 @@ async function handleDeleteSkill(skill: AdminSkillInfo) {
     message.success($t('shared.common.deleteSuccess'));
     await Promise.all([loadPackage(), loadSkills(), loadResolvedTools()]);
   } catch {
-    // handled by interceptor
+    // handled by interceptor / 错误由请求拦截器处理
   }
 }
 
@@ -440,7 +440,7 @@ async function handleSaveValves() {
     await loadValves();
     message.success($t('admin.ai.skillPackage.valves.saveSuccess'));
   } catch {
-    // handled by interceptor
+    // handled by interceptor / 错误由请求拦截器处理
   } finally {
     valvesSaving.value = false;
   }

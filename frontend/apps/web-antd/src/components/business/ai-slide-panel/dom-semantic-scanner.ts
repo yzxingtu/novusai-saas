@@ -85,7 +85,7 @@ export function scanDomSemantics(): DomSnapshot | null {
     }
   });
 
-  // 3. Forms (labels only, no values)
+  // 3. Forms (labels only, no values) / 表单仅采集标签不含值
   const forms: DomSnapshot['forms'] = [];
   const formEls = document.querySelectorAll('form, .ant-form');
   formEls.forEach((formEl) => {
@@ -115,7 +115,7 @@ export function scanDomSemantics(): DomSnapshot | null {
     }
   });
 
-  // 5. Tabs
+  // 5. Tabs / 页签
   const tabs: DomSnapshot['tabs'] = [];
   document.querySelectorAll('.ant-tabs-tab').forEach((tabEl) => {
     const label = textOf(tabEl);

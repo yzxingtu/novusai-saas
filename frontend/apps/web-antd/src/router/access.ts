@@ -122,7 +122,7 @@ async function generateAccess(
         content: `${$t('common.loadingMenu')}...`,
         duration: 1.5,
       });
-      // 获取菜单和权限码
+      // 获取菜单和权限码 / Fetch menus and permission codes
       const { menus, permissions } = await menuApi();
       // Merge with codes already set by fetchUserInfo (e.g. super admin `*`) / 与 fetchUserInfo 已写入的权限合并（如超管 `*`），避免被菜单提取列表覆盖丢失
       const prev = accessStore.accessCodes;

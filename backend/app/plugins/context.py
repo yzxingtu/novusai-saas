@@ -61,7 +61,7 @@ class RequestContext:
 
     tenant_id: int | None = None
     user_id: int | None = None
-    user_role: str = ""  # "admin" / "tenant_admin" / "tenant_user"
+    user_role: str = ""  # "admin" / "tenant_admin" / "tenant_user" / 用户角色取值示例
     permissions: list[str] = field(default_factory=list)
     request_id: str = ""
 
@@ -485,8 +485,8 @@ class PluginContext:
 
         try:
             addr = ipaddress.ip_address(host)
-            # IPv4-mapped IPv6 (e.g., ::ffff:127.0.0.1) — Python's is_loopback/is_private
-            # returns False for these, so we unwrap to the embedded IPv4 address first.
+            # IPv4-mapped IPv6 (e.g., ::ffff:127.0.0.1) — Python's is_loopback/is_private / IPv4 映射 IPv6 需先解包
+            # returns False for these, so we unwrap to the embedded IPv4 address first. / 否则 is_private 等会误判
             if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped is not None:
                 addr = addr.ipv4_mapped
             if (
@@ -501,9 +501,9 @@ class PluginContext:
                     message=f"SSRF blocked: plugin http_request cannot access private/reserved IP '{host}'",
                 )
         except ValueError:
-            # host is a domain name (not an IP literal) — allow it
-            # Note: DNS rebinding attacks are still possible; for stronger protection
-            # use an egress proxy with IP-level filtering at the network layer.
+            # host is a domain name (not an IP literal) — allow it / 非 IP 字面量则视为域名放行
+            # Note: DNS rebinding attacks are still possible; for stronger protection / 注意 DNS 重绑定风险
+            # use an egress proxy with IP-level filtering at the network layer. / 强防护需出口代理做 IP 层过滤
             blocked_domains = ("localhost", "metadata.google.internal")
             if host.lower() in blocked_domains or host.lower().endswith(".local"):
                 raise PluginSecurityError(

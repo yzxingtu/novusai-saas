@@ -83,7 +83,7 @@ const sortedFields = computed(() => {
       isRequired: required.has(key),
     }))
     .toSorted((a, b) => {
-      // required first, then alphabetical
+      // required first, then alphabetical / 必填优先再按字母序
       if (a.isRequired !== b.isRequired) return a.isRequired ? -1 : 1;
       return a.key.localeCompare(b.key);
     });
@@ -98,7 +98,7 @@ async function open() {
     schema.value = res.valves_schema || null;
     const saved = (res.valves_config || {}) as Record<string, unknown>;
 
-    // Initialize form: merge defaults + saved values
+    // Initialize form: merge defaults + saved values / 表单初值：默认合并已保存
     const initial: Record<string, unknown> = {};
     if (schema.value?.properties) {
       for (const [key, prop] of Object.entries(schema.value.properties)) {

@@ -35,7 +35,7 @@ const props = withDefaults(defineProps<Props>(), {
   columns: undefined,
 });
 
-// Emit for parent to know if restored
+// Emit for parent to know if restored / 通知父组件已恢复
 const emit = defineEmits<{
   (e: 'restored'): void;
 }>();

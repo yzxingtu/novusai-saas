@@ -85,7 +85,7 @@ async function onDownload() {
   }
 }
 
-// Reset detail when drawer closes
+// Reset detail when drawer closes / 关闭抽屉时重置详情
 watch(
   () => drawerApi.getData(),
   () => {

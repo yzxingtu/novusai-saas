@@ -227,19 +227,19 @@ def check_plugin_trial_expirations(self: BaseTask) -> dict:
 
 @register_task(
     queue="scheduled",
-    description="Clean up expired task logs (retain 30 days) / 清理过期任务日志（保留 30 天）",
+    description="Clean up expired task runs (retain 30 days) / 清理过期任务运行记录（保留 30 天）",
     max_retries=1,
 )
 def clean_expired_task_logs(self: BaseTask) -> dict:
     session = None
     try:
-        from app.models.system.task_log import TaskLog
+        from app.models.system.task_run import TaskRun
 
         session = sync_session_factory()
         cutoff = utc_now() - timedelta(days=30)
         result = (
-            session.query(TaskLog)
-            .filter(TaskLog.created_at < cutoff)
+            session.query(TaskRun)
+            .filter(TaskRun.created_at < cutoff)
             .update({"is_deleted": True})
         )
         session.commit()

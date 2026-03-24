@@ -1,6 +1,6 @@
 # Trace ID 与日志规范
 
-本文档覆盖：trace_id 请求追踪中间件、日志注入、前端 header、Celery 传播、WebSocket 覆盖、Loguru 日志分类器使用方式。
+本文档覆盖：trace_id 请求追踪中间件、日志注入、前端 header、Celery 传播、WebSocket 覆盖、Loguru 日志分类器使用方式，以及通过 CLI 按 trace_id 查询错误上下文。
 
 ---
 
@@ -41,7 +41,49 @@ Socket.IO 请求不走 HTTP 中间件，在 namespace 的 `connect` 事件中自
 
 ---
 
-## 六、Loguru 日志分类器
+## 六、CLI 按 trace_id 查错误
+
+统一排障入口：
+
+```bash
+novusai trace show <trace_id>
+```
+
+常用形式：
+
+```bash
+novusai trace show 6fc9fce4-f918-4d1e-bf04-62ce988b8564
+novusai trace show 6fc9fce4-f918-4d1e-bf04-62ce988b8564 --source logs
+novusai trace show 6fc9fce4-f918-4d1e-bf04-62ce988b8564 --source db --json
+novusai trace show 6fc9fce4-f918-4d1e-bf04-62ce988b8564 --context 50 --max-blocks 20 --since-hours 0
+```
+
+实际行为：
+
+- `TraceLookupService` 聚合两类来源：
+  - `operation_logs` 表中的同 trace 审计记录
+  - `LOG_DIR` 下 `*.log*` 文件中的 `[trace_id=xxx]` 命中块
+- `--source auto` 为默认值：优先查 DB + 日志；若 DB lookup 失败则自动回退到日志扫描
+- `primary_error` 会优先挑含 `Traceback`、`ERROR`、`CRITICAL` 的主错误块
+- 退出码约定：
+  - `0`：找到命中
+  - `1`：未找到命中
+  - `2`：unsafe 输出被阻断
+
+生产安全边界：
+
+- 默认输出会脱敏 token、password、cookie、dsn、authorization 等敏感内容
+- 在 `production` / `staging` 环境中，`--no-redact` 默认被阻止
+- 只有同时满足 `--unsafe` 和 `NOVUSAI_ALLOW_UNSAFE_TRACE=1` 才允许未脱敏输出
+
+补充入口：
+
+- admin / tenant 操作日志接口支持 `filter[trace_id]=xxx` 精确筛选
+- 页面、工单或告警文案里只要向人暴露 `trace_id`，就应默认假设后续排查走 `novusai trace show`
+
+---
+
+## 七、Loguru 日志分类器
 
 与旧 API 完全一致，必须通过 `app.core.logging` 暴露的封装使用：
 
@@ -60,7 +102,7 @@ logger.info("message")
 
 ---
 
-## 七、5xx 错误弹窗
+## 八、5xx 错误弹窗
 
 - 5xx 错误使用 `notification.error()` 替代 `message.error()`
 - 显示追踪 ID（从响应 header `X-Trace-ID` 读取）
@@ -68,7 +110,7 @@ logger.info("message")
 
 ---
 
-## 八、前端请求错误展示规则
+## 九、前端请求错误展示规则
 
 ### 1. 错误展示只能有一个 owner
 

@@ -465,8 +465,8 @@ def _get_plugin_loader():
     from app.plugins.loader import PluginLoader
 
     if not hasattr(_get_plugin_loader, "_instance"):
-        _get_plugin_loader._instance = PluginLoader()  # type: ignore[attr-defined]
-    return _get_plugin_loader._instance  # type: ignore[attr-defined]
+        _get_plugin_loader._instance = PluginLoader()  # type: ignore[attr-defined] / 函数对象挂实例
+    return _get_plugin_loader._instance  # type: ignore[attr-defined] / 同上
 
 
 def _handler_accepts_param(handler: Callable[..., object], param_name: str) -> bool:

@@ -15,6 +15,7 @@ import { usePreferences } from '@vben/preferences';
 
 import { $t } from '#/locales';
 import { usePublicConfigStore } from '#/store';
+import { resolveCopyrightDisplay } from '#/utils/public-branding';
 
 const publicConfigStore = usePublicConfigStore();
 const { isDark } = usePreferences();
@@ -25,11 +26,13 @@ const isLegalDocumentPage = computed(
   () => route.meta.authDocumentPage === true,
 );
 
-onMounted(() => {
-  publicConfigStore.loadPlatformConfig();
+onMounted(async () => {
+  await publicConfigStore.detectDomainType().catch(() => {});
   if (publicConfigStore.isDomainTenantDomain) {
-    publicConfigStore.loadTenantConfig();
+    await publicConfigStore.loadTenantConfig();
+    return;
   }
+  await publicConfigStore.loadPlatformConfig();
 });
 
 const isTenantDomain = computed(() => publicConfigStore.isDomainTenantDomain);
@@ -55,6 +58,10 @@ const siteName = computed(() => {
   }
   return preferences.app.name || 'NovusAI';
 });
+
+const footerBranding = computed(() =>
+  resolveCopyrightDisplay(preferences.copyright),
+);
 </script>
 
 <template>
@@ -151,11 +158,11 @@ const siteName = computed(() => {
 
     <!-- Copyright -->
     <div
-      v-if="preferences.copyright.enable"
+      v-if="footerBranding.visible"
       class="text-muted-foreground absolute bottom-4 left-0 right-0 text-center text-xs"
     >
-      {{ preferences.copyright.companyName }}
-      {{ preferences.copyright.companySiteLink }}
+      {{ footerBranding.companyName }}
+      <span v-if="footerBranding.meta">{{ footerBranding.meta }}</span>
     </div>
   </div>
 </template>

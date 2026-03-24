@@ -360,7 +360,7 @@ export interface UseCrudListReturn<T extends object = Record<string, unknown>> {
   openRecycleBin: () => void;
   recycleBinCount: Ref<number>;
 
-  // === AI ===
+  // === AI / 智能体集成 ===
   /** Resolved AI page key (for ref-mode form integration) / 解析后的 AI 页面标识 */
   aiPageKey: string | undefined;
 
@@ -993,7 +993,7 @@ export function useCrudList<T extends object = Record<string, unknown>>(
     openRecycleBin,
     recycleBinCount,
 
-    // AI / AI
+    // AI / 页面 AI 能力
     aiPageKey: resolvedAiPageKey,
 
     // Utilities / 辅助

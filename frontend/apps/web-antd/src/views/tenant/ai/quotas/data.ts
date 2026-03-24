@@ -84,7 +84,7 @@ export function getQuotaTypeText(type: string | undefined): string {
   }
 }
 
-// ============ 配额表单 ============
+// ============ 配额表单 / Quota form ============
 
 /**
  * 配额表单 Schema
@@ -139,7 +139,7 @@ export function getQuotaFormDefaults(): Record<string, unknown> {
   };
 }
 
-// ============ 速率限制表单 ============
+// ============ 速率限制表单 / Rate limit form ============
 
 /**
  * 速率限制表单 Schema

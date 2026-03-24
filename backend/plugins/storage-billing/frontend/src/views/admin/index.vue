@@ -304,6 +304,40 @@ const runChargeActiveFilters = computed<ChargeFilterBadge[]>(() => {
   });
 });
 
+type SharedAccessApi = {
+  getAccessCodes?: () => string[];
+  hasAccessByCodes?: (codes: string[]) => boolean;
+};
+
+function getSharedAccess(): SharedAccessApi | undefined {
+  return (window as unknown as { NovusPluginShared?: SharedAccessApi }).NovusPluginShared;
+}
+
+function hasAccess(codes: string[]): boolean {
+  const shared = getSharedAccess();
+  if (typeof shared?.hasAccessByCodes === 'function') {
+    return shared.hasAccessByCodes(codes);
+  }
+  if (typeof shared?.getAccessCodes !== 'function') {
+    return codes.length === 0;
+  }
+  const accessCodes = shared.getAccessCodes() ?? [];
+  if (accessCodes.includes('*')) {
+    return true;
+  }
+  return codes.some((code) => accessCodes.includes(code));
+}
+
+const canViewAdmin = computed(() =>
+  hasAccess(['plugin.storage-billing.billing_admin:view']),
+);
+const canConfigureAdmin = computed(() =>
+  hasAccess(['plugin.storage-billing.billing_admin:configure']),
+);
+const canReconcileAdmin = computed(() =>
+  hasAccess(['plugin.storage-billing.billing_admin:reconcile']),
+);
+
 function emptyProfile(code: ProviderCode): ProviderProfile {
   return { enabled: false, bill_source: '', profile_code: profileCodeMap[code], configured_fields: {}, configured_secret_fields: {}, required_fields: [], supported_bill_sources: [] };
 }
@@ -868,6 +902,11 @@ async function syncSelectedRun(nextRuns: ReconciliationRun[]): Promise<void> {
 }
 
 async function loadRunCharges(runId: number): Promise<void> {
+  if (!canViewAdmin.value) {
+    selectedRunChargeResponse.value = null;
+    selectedRunCharges.value = [];
+    return;
+  }
   runChargeLoading.value = true;
   try {
     const runCharges = await getReconciliationRunChargesApi(
@@ -882,18 +921,30 @@ async function loadRunCharges(runId: number): Promise<void> {
 }
 
 async function loadAll(): Promise<void> {
+  if (!canViewAdmin.value) {
+    overview.value = null;
+    bindings.value = [];
+    tenants.value = [];
+    runs.value = [];
+    bindingOpen.value = false;
+    selectedRunId.value = null;
+    selectedRunDetail.value = null;
+    selectedRunChargeResponse.value = null;
+    selectedRunCharges.value = [];
+    return;
+  }
   loading.value = true;
   try {
     const [nextOverview, nextProfiles, nextBindings, nextTenants, nextRuns] = await Promise.all([
       getOverviewApi(),
       listProviderProfilesApi(),
       listBindingsApi(),
-      getTenantSelectOptionsApi(),
+      Promise.resolve([] as TenantSelectOption[]),
       listReconciliationRunsApi(RUN_HISTORY_LIMIT),
     ]);
     overview.value = nextOverview;
     bindings.value = nextBindings.items ?? [];
-    tenants.value = nextTenants;
+    tenants.value = canConfigureAdmin.value ? nextTenants : [];
     runs.value = nextRuns.items ?? nextOverview.ledger_snapshot.latest_runs ?? [];
     syncProfiles(nextProfiles);
     if (visibleProviderCodes.value.length) {
@@ -914,6 +965,7 @@ async function loadAll(): Promise<void> {
 }
 
 async function loadRunDetail(runId: number): Promise<void> {
+  if (!canViewAdmin.value) return;
   runDetailLoading.value = true;
   selectedRunId.value = runId;
   resetRunChargeFiltersState();
@@ -931,13 +983,15 @@ async function loadRunDetail(runId: number): Promise<void> {
 }
 
 async function applyRunChargeFilters(): Promise<void> {
-  if (!selectedRunId.value) return;
+  if (!selectedRunId.value || !canViewAdmin.value) return;
   await loadRunCharges(selectedRunId.value);
 }
 
 async function resetRunChargeFilters(): Promise<void> {
-  if (!selectedRunId.value) {
+  if (!canViewAdmin.value || !selectedRunId.value) {
     resetRunChargeFiltersState();
+    selectedRunChargeResponse.value = null;
+    selectedRunCharges.value = [];
     return;
   }
   resetRunChargeFiltersState();
@@ -945,7 +999,7 @@ async function resetRunChargeFilters(): Promise<void> {
 }
 
 async function exportCurrentRunCharges(): Promise<void> {
-  if (!selectedRunId.value) return;
+  if (!selectedRunId.value || !canViewAdmin.value) return;
   runChargeExporting.value = true;
   try {
     const blob = await exportReconciliationRunChargesCsvApi(
@@ -966,6 +1020,7 @@ async function exportCurrentRunCharges(): Promise<void> {
 }
 
 async function saveProfiles(): Promise<void> {
+  if (!canConfigureAdmin.value) return;
   if (!visibleProviderCodes.value.length) {
     message.warning($t('plugin.storage-billing.admin.providers.noActiveDriver'));
     return;
@@ -985,6 +1040,7 @@ async function saveProfiles(): Promise<void> {
 }
 
 async function validateProvider(code: ProviderCode): Promise<void> {
+  if (!canConfigureAdmin.value) return;
   const result = await validateProviderProfileApi(code, providerPayload(code));
   Object.assign(profiles[code], { ...profiles[code], ...result.profile });
   Object.assign(validations[code], { ...validations[code], ...result });
@@ -992,16 +1048,23 @@ async function validateProvider(code: ProviderCode): Promise<void> {
 }
 
 async function searchTenants(keyword: string): Promise<void> {
+  if (!canConfigureAdmin.value) {
+    tenants.value = [];
+    return;
+  }
   tenants.value = await getTenantSelectOptionsApi(keyword.trim());
 }
 
-function openCreate(): void {
+async function openCreate(): Promise<void> {
+  if (!canConfigureAdmin.value) return;
   editingId.value = null;
   resetForm();
+  tenants.value = await getTenantSelectOptionsApi();
   bindingOpen.value = true;
 }
 
 function openEdit(record: BindingRecord): void {
+  if (!canConfigureAdmin.value) return;
   editingId.value = record.id;
   Object.assign(form, emptyForm(), { tenant_id: record.tenant_id, provider_code: record.provider_code, billing_mode: record.billing_mode, scope_type: record.scope_type, bucket_name: record.bucket_name ?? '', domain_name: record.domain_name ?? '', account_identifier: record.account_identifier ?? '', tag_key: record.tag_key ?? '', tag_value: record.tag_value ?? '', is_active: record.is_active });
   if (!tenants.value.some((item) => item.value === record.tenant_id)) tenants.value = [...tenants.value, { label: `#${record.tenant_id}`, value: record.tenant_id }];
@@ -1009,6 +1072,7 @@ function openEdit(record: BindingRecord): void {
 }
 
 async function submitBinding(): Promise<void> {
+  if (!canConfigureAdmin.value) return;
   if (!form.tenant_id) {
     message.warning($t('plugin.storage-billing.admin.bindingForm.selectTenant'));
     return;
@@ -1025,12 +1089,14 @@ async function submitBinding(): Promise<void> {
 }
 
 async function revalidateBinding(record: BindingRecord): Promise<void> {
+  if (!canConfigureAdmin.value) return;
   const result = await validateBindingApi(record.id);
   message[result.validation.validation_status === 'valid' ? 'success' : 'warning'](result.validation.validation_message || $t('plugin.storage-billing.admin.messages.bindingValidated'));
   await loadAll();
 }
 
 function triggerRun(): void {
+  if (!canReconcileAdmin.value) return;
   if (manualBillingDateError.value) {
     message.error(manualBillingDateError.value);
     return;
@@ -1065,6 +1131,7 @@ function triggerRun(): void {
 }
 
 function triggerQiniuMonthlyRun(): void {
+  if (!canReconcileAdmin.value) return;
   if (!qiniuMonthValid.value) {
     message.error($t('plugin.storage-billing.admin.actions.qiniuMonthlyInvalid'));
     return;
@@ -1100,7 +1167,7 @@ onMounted(() => void loadAll());
         <div class="hero-actions">
           <Space wrap class="toolbar-group">
             <Button @click="loadAll">{{ $t('plugin.storage-billing.admin.actions.refresh') }}</Button>
-            <Button :disabled="!hasVisibleProviders" type="primary" @click="saveProfiles">{{ $t('plugin.storage-billing.admin.providers.save') }}</Button>
+            <Button v-if="canConfigureAdmin" :disabled="!hasVisibleProviders" type="primary" @click="saveProfiles">{{ $t('plugin.storage-billing.admin.providers.save') }}</Button>
           </Space>
           <div class="toolbar-stack">
             <Space wrap class="toolbar-group">
@@ -1117,7 +1184,7 @@ onMounted(() => void loadAll());
                 :options="manualRunProviderOptions"
                 :placeholder="$t('plugin.storage-billing.admin.actions.providerPlaceholder')"
               />
-              <Button :disabled="!hasVisibleProviders" @click="triggerRun">{{ $t('plugin.storage-billing.admin.actions.triggerRun') }}</Button>
+              <Button v-if="canReconcileAdmin" :disabled="!hasVisibleProviders" @click="triggerRun">{{ $t('plugin.storage-billing.admin.actions.triggerRun') }}</Button>
             </Space>
             <div class="toolbar-help" :class="{ 'toolbar-help-error': manualBillingDateError }">
               {{ manualRunHelpText }}
@@ -1131,7 +1198,7 @@ onMounted(() => void loadAll());
                 :placeholder="$t('plugin.storage-billing.admin.actions.qiniuMonthlyPlaceholder')"
                 :status="qiniuMonthStatus"
               />
-              <Button @click="triggerQiniuMonthlyRun">{{ $t('plugin.storage-billing.admin.actions.triggerQiniuMonthly') }}</Button>
+              <Button v-if="canReconcileAdmin" @click="triggerQiniuMonthlyRun">{{ $t('plugin.storage-billing.admin.actions.triggerQiniuMonthly') }}</Button>
             </Space>
             <div class="toolbar-help" :class="{ 'toolbar-help-error': qiniuMonthError }">
               {{ qiniuMonthError || $t('plugin.storage-billing.admin.actions.triggerQiniuMonthlyHint') }}
@@ -1300,13 +1367,13 @@ onMounted(() => void loadAll());
                 />
               </FormItem>
             </Form>
-            <div class="actions"><Button @click="validateProvider(code)">{{ $t('plugin.storage-billing.admin.providers.validate') }}</Button></div>
+            <div v-if="canConfigureAdmin" class="actions"><Button @click="validateProvider(code)">{{ $t('plugin.storage-billing.admin.providers.validate') }}</Button></div>
           </Card>
         </div>
       </Card>
 
       <Card :title="$t('plugin.storage-billing.admin.bindings.title')" class="block">
-        <template #extra><Button :disabled="!hasVisibleProviders" type="primary" @click="openCreate">{{ $t('plugin.storage-billing.admin.bindings.add') }}</Button></template>
+        <template #extra><Button v-if="canConfigureAdmin" :disabled="!hasVisibleProviders" type="primary" @click="openCreate">{{ $t('plugin.storage-billing.admin.bindings.add') }}</Button></template>
         <div class="section-subtitle">{{ $t('plugin.storage-billing.admin.bindings.subtitle') }}</div>
         <Table :columns="bindingColumns" :data-source="bindings" :locale="{ emptyText: $t('plugin.storage-billing.admin.bindings.empty') }" :pagination="false" row-key="id">
           <template #bodyCell="{ column, record }">
@@ -1316,7 +1383,7 @@ onMounted(() => void loadAll());
             <template v-else-if="column.key === 'scope'"><Space wrap><Tag color="blue">{{ $t(`plugin.storage-billing.admin.bindings.scope.${record.scope_type}`) }}</Tag><span>{{ scopeValue(record) }}</span></Space></template>
             <template v-else-if="column.key === 'status'"><Tag :color="statusColor(record.validation_status)">{{ prettyStatus(record.validation_status) }}</Tag></template>
             <template v-else-if="column.key === 'message'"><span class="muted">{{ record.validation_message || '-' }}</span></template>
-            <template v-else-if="column.key === 'actions'"><Space wrap><Button size="small" @click="openEdit(record)">{{ $t('plugin.storage-billing.admin.bindings.edit') }}</Button><Button size="small" @click="revalidateBinding(record)">{{ $t('plugin.storage-billing.admin.bindings.revalidate') }}</Button></Space></template>
+            <template v-else-if="column.key === 'actions'"><Space v-if="canConfigureAdmin" wrap><Button size="small" @click="openEdit(record)">{{ $t('plugin.storage-billing.admin.bindings.edit') }}</Button><Button size="small" @click="revalidateBinding(record)">{{ $t('plugin.storage-billing.admin.bindings.revalidate') }}</Button></Space></template>
           </template>
         </Table>
         <div v-if="!bindings.length" class="empty"><Empty :description="$t('plugin.storage-billing.admin.bindings.empty')" /></div>
@@ -1338,7 +1405,7 @@ onMounted(() => void loadAll());
             </template>
             <template v-else-if="column.key === 'finished_at'">{{ formatTimestamp(record.completed_at) }}</template>
             <template v-else-if="column.key === 'actions'">
-              <Button size="small" @click="loadRunDetail(record.id)">{{ $t('plugin.storage-billing.admin.runs.view') }}</Button>
+              <Button v-if="canViewAdmin" size="small" @click="loadRunDetail(record.id)">{{ $t('plugin.storage-billing.admin.runs.view') }}</Button>
             </template>
           </template>
         </Table>
@@ -1348,6 +1415,7 @@ onMounted(() => void loadAll());
           <template #title>{{ $t('plugin.storage-billing.admin.runs.detailTitle') }} · {{ selectedRun.period_label || selectedRun.billing_date }}</template>
           <template #extra>
             <Button
+              v-if="canViewAdmin"
               :loading="runChargeExporting"
               size="small"
               @click="exportCurrentRunCharges"

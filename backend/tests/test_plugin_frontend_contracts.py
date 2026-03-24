@@ -19,7 +19,8 @@ def _manifest_with_frontend() -> dict:
     return {
         "name": "demo-plugin",
         "version": "1.0.0",
-        "display_name": {"en": "Demo Plugin"},
+        "display_name": {"zh-CN": "演示插件", "en": "Demo Plugin"},
+        "description": {"zh-CN": "演示插件", "en": "Demo Plugin"},
         "scope": "all_tenants",
         "extensions": {
             "frontend": {
@@ -29,9 +30,9 @@ def _manifest_with_frontend() -> dict:
                         "path": "/admin/plugins/demo-plugin/page",
                         "component": "DemoPage",
                         "scope": "admin",
-                        "title": {"en": "Demo"},
+                        "title": {"zh-CN": "演示页面", "en": "Demo"},
                         "menu": {
-                            "title": {"en": "Demo"},
+                            "title": {"zh-CN": "演示页面", "en": "Demo"},
                         },
                     }
                 ],
@@ -48,7 +49,10 @@ def test_validate_runtime_frontend_contract_prefers_dev_source_in_debug(
 ) -> None:
     plugin_root = tmp_path / "demo-plugin"
     (plugin_root / "frontend" / "src").mkdir(parents=True)
-    (plugin_root / "frontend" / "src" / "index.ts").write_text("export {};\n", encoding="utf-8")
+    (plugin_root / "frontend" / "src" / "index.ts").write_text(
+        "export const DemoPage = {};\n",
+        encoding="utf-8",
+    )
 
     monkeypatch.setattr("app.plugins.frontend_contract.settings.DEBUG", True, raising=False)
 
@@ -101,7 +105,7 @@ def test_has_frontend_extensions_true_when_only_dev_release_declared() -> None:
     manifest = {
         "name": "demo-plugin",
         "version": "1.0.0",
-        "display_name": {"en": "Demo Plugin"},
+        "display_name": {"zh-CN": "演示插件", "en": "Demo Plugin"},
         "scope": "all_tenants",
         "extensions": {
             "frontend": {
@@ -112,3 +116,109 @@ def test_has_frontend_extensions_true_when_only_dev_release_declared() -> None:
     }
 
     assert has_frontend_extensions(manifest) is True
+
+
+def test_validate_runtime_frontend_contract_rejects_missing_page_and_menu_locales(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    plugin_root = tmp_path / "demo-plugin"
+    (plugin_root / "frontend" / "src").mkdir(parents=True)
+    (plugin_root / "frontend" / "src" / "index.ts").write_text(
+        "export const DemoPage = {};\n",
+        encoding="utf-8",
+    )
+    manifest = _manifest_with_frontend()
+    page = manifest["extensions"]["frontend"]["pages"][0]
+    page["title"] = {"zh-CN": "演示页面"}
+    page["menu"]["title"] = {"en": "Demo"}
+
+    monkeypatch.setattr("app.plugins.frontend_contract.settings.DEBUG", True, raising=False)
+
+    with pytest.raises(PluginManifestError) as exc:
+        validate_runtime_frontend_contract(plugin_root, manifest)
+
+    message = str(exc.value)
+    assert "frontend.pages[0].title missing locale(s): en" in message
+    assert "frontend.pages[0].menu.title missing locale(s): zh-CN" in message
+
+
+def test_validate_runtime_frontend_contract_rejects_non_canonical_locale_prefix(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    plugin_root = tmp_path / "demo-plugin"
+    (plugin_root / "frontend" / "src").mkdir(parents=True)
+    (plugin_root / "frontend" / "src" / "index.ts").write_text(
+        """
+export function setup() {
+  const shared = window.NovusPluginShared;
+  if (shared?.registerLocale) {
+    shared.registerLocale('zh-CN', 'plugin.demoPlugin', {});
+    shared.registerLocale('en', 'plugin.demoPlugin', {});
+  }
+}
+
+export const DemoPage = {};
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr("app.plugins.frontend_contract.settings.DEBUG", True, raising=False)
+
+    with pytest.raises(PluginManifestError, match="canonical prefix 'plugin.demo-plugin'"):
+        validate_runtime_frontend_contract(plugin_root, _manifest_with_frontend())
+
+
+def test_validate_runtime_frontend_contract_accepts_helper_wrapped_locale_prefixes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    plugin_root = tmp_path / "demo-plugin"
+    (plugin_root / "frontend" / "src").mkdir(parents=True)
+    (plugin_root / "frontend" / "src" / "index.ts").write_text(
+        """
+const ROOT_LOCALE_PREFIX = 'plugin.demo-plugin.admin';
+const LEGACY_LOCALE_PREFIX = 'plugin.demoPlugin.admin';
+
+function registerLocaleGroup(prefix) {
+  const shared = window.NovusPluginShared;
+  shared?.registerLocale?.('zh-CN', prefix, {});
+  shared?.registerLocale?.('en', prefix, {});
+}
+
+export function setup() {
+  registerLocaleGroup(ROOT_LOCALE_PREFIX);
+  registerLocaleGroup(LEGACY_LOCALE_PREFIX);
+}
+
+export const DemoPage = {};
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr("app.plugins.frontend_contract.settings.DEBUG", True, raising=False)
+
+    result = validate_runtime_frontend_contract(plugin_root, _manifest_with_frontend())
+
+    assert result["mode"] == "dev_source"
+    assert any("plugin.demoPlugin.admin" in warning for warning in result["warnings"])
+
+
+def test_validate_runtime_frontend_contract_rejects_missing_declared_component_export(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    plugin_root = tmp_path / "demo-plugin"
+    (plugin_root / "frontend" / "src").mkdir(parents=True)
+    (plugin_root / "frontend" / "src" / "index.ts").write_text(
+        "export const OtherPage = {};\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr("app.plugins.frontend_contract.settings.DEBUG", True, raising=False)
+
+    with pytest.raises(PluginManifestError, match="frontend dev entry does not export declared component 'DemoPage'"):
+        validate_runtime_frontend_contract(plugin_root, _manifest_with_frontend())

@@ -18,7 +18,7 @@ const fetcher = async (page: Ref<number>): Promise<IProducts> => {
 
 const page = ref(1);
 const { data, error, isError, isPending, isPlaceholderData } = useQuery({
-  // The data from the last successful fetch is available while new data is being requested.
+  // The data from the last successful fetch is available while new data is being requested. / 分页时保留上一页数据 / keep previous page while fetching
   placeholderData: keepPreviousData,
   queryFn: () => fetcher(page),
   queryKey: ['products', page],

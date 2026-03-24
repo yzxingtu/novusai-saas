@@ -14,10 +14,31 @@ tags: ["storage", "migration", "admin", "tools"]
 
 capabilities:
   - db:own_tables
+  - platform:read
   - storage:read
   - storage:write
 
+db_table_prefixes:
+  - px_storage_migration_
+
 extensions:
+  permissions:
+    - code: storage_migration
+      name:
+        zh-CN: "存储迁移任务"
+        en: "Storage Migration Task"
+      scope: admin
+      actions:
+        - view
+        - analyze
+        - create
+        - pause
+        - resume
+        - cancel
+        - retry
+        - rollback
+        - cleanup
+
   api:
     admin_routes:
       - method: GET
@@ -25,51 +46,61 @@ extensions:
         handler: "api.handlers.get_impact_analysis"
         summary: "Get impact analysis before storage switch"
         auth: required
+        permission: "storage_migration:analyze"
       - method: POST
         path: tasks
         handler: "api.handlers.create_migration_task"
         summary: "Create a new migration task"
         auth: required
+        permission: "storage_migration:create"
       - method: GET
         path: tasks
         handler: "api.handlers.list_migration_tasks"
         summary: "List migration tasks"
         auth: required
+        permission: "storage_migration:view"
       - method: GET
         path: "tasks/{task_id}"
         handler: "api.handlers.get_migration_task"
         summary: "Get migration task detail"
         auth: required
+        permission: "storage_migration:view"
       - method: POST
         path: "tasks/{task_id}/pause"
         handler: "api.handlers.pause_migration_task"
         summary: "Pause a running migration task"
         auth: required
+        permission: "storage_migration:pause"
       - method: POST
         path: "tasks/{task_id}/resume"
         handler: "api.handlers.resume_migration_task"
         summary: "Resume a paused migration task"
         auth: required
+        permission: "storage_migration:resume"
       - method: POST
         path: "tasks/{task_id}/cancel"
         handler: "api.handlers.cancel_migration_task"
         summary: "Cancel a migration task"
         auth: required
+        permission: "storage_migration:cancel"
       - method: POST
         path: "tasks/{task_id}/retry-failed"
         handler: "api.handlers.retry_failed_files"
         summary: "Retry failed files in a migration task"
         auth: required
+        permission: "storage_migration:retry"
       - method: POST
         path: "tasks/{task_id}/rollback"
         handler: "api.handlers.rollback_migration_task"
         summary: "Rollback a completed migration task"
         auth: required
+        permission: "storage_migration:rollback"
       - method: DELETE
         path: "tasks/{task_id}/source-files"
         handler: "api.handlers.cleanup_source_files"
         summary: "Delete source files after successful migration"
         auth: required
+        permission: "storage_migration:cleanup"
     tenant_routes: []
     public_routes: []
 
@@ -83,6 +114,8 @@ extensions:
         title:
           zh-CN: "存储迁移"
           en: "Storage Migration"
+        access_codes:
+          - "plugin.storage-migration.storage_migration:view"
         menu:
           icon: "lucide:hard-drive-download"
           parent: system_mgmt

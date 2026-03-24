@@ -29,14 +29,6 @@ PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 _PLUGIN_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
-_REGISTER_LOCALE_CALL_PATTERN = re.compile(
-    r"registerLocale\(\s*['\"][^'\"]+['\"]\s*,\s*(?P<prefix>['\"][^'\"]+['\"]|[A-Za-z_][A-Za-z0-9_]*)",
-)
-_LOCALE_PREFIX_CONST_PATTERN = re.compile(
-    r"\bconst\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*['\"](?P<value>[^'\"]+)['\"]",
-)
-
-
 # ============================================================
 # create — 生成插件骨架
 # ============================================================
@@ -434,82 +426,12 @@ def _manifest_has_frontend_extensions(manifest_data: dict) -> bool:
     return bool(has_frontend_extensions(manifest_data or {}))
 
 
-def _canonical_manifest_locale(locale: str) -> str:
-    normalized = (locale or "").strip().replace("_", "-")
-    lowered = normalized.lower()
-    if lowered.startswith("zh"):
-        return "zh-CN"
-    if lowered.startswith("en"):
-        return "en"
-    return normalized
-
-
-def _collect_manifest_locales(*values: object) -> list[str]:
-    locales: list[str] = []
-    for value in values:
-        if not isinstance(value, dict):
-            continue
-        for locale, text in value.items():
-            if not isinstance(text, str) or not text.strip():
-                continue
-            canonical = _canonical_manifest_locale(locale)
-            if canonical and canonical not in locales:
-                locales.append(canonical)
-    return locales or ["zh-CN", "en"]
-
-
-def _missing_manifest_locales(value: object, expected_locales: list[str]) -> list[str]:
-    if not expected_locales:
-        return []
-    if not isinstance(value, dict):
-        return expected_locales.copy()
-
-    present = {
-        _canonical_manifest_locale(locale)
-        for locale, text in value.items()
-        if isinstance(text, str) and text.strip()
-    }
-    return [locale for locale in expected_locales if locale not in present]
-
-
 def _collect_frontend_i18n_contract_errors(manifest_data: dict) -> tuple[list[str], list[str]]:
-    frontend = (manifest_data.get("extensions") or {}).get("frontend") or {}
-    pages = frontend.get("pages") or []
-    expected_locales = _collect_manifest_locales(
-        manifest_data.get("display_name"),
-        manifest_data.get("description"),
+    from app.plugins.frontend_contract_checks import (
+        collect_frontend_i18n_contract_errors,
     )
-    errors: list[str] = []
 
-    for index, page in enumerate(pages):
-        missing_page_locales = _missing_manifest_locales(
-            page.get("title"),
-            expected_locales,
-        )
-        if missing_page_locales:
-            errors.append(
-                "frontend.pages[{index}].title missing locale(s): {locales}".format(
-                    index=index,
-                    locales=", ".join(missing_page_locales),
-                )
-            )
-
-        menu = page.get("menu") or {}
-        if not isinstance(menu, dict) or "title" not in menu:
-            continue
-        missing_menu_locales = _missing_manifest_locales(
-            menu.get("title"),
-            expected_locales,
-        )
-        if missing_menu_locales:
-            errors.append(
-                "frontend.pages[{index}].menu.title missing locale(s): {locales}".format(
-                    index=index,
-                    locales=", ".join(missing_menu_locales),
-                )
-            )
-
-    return errors, expected_locales
+    return collect_frontend_i18n_contract_errors(manifest_data)
 
 
 def _collect_unsupported_manifest_contract_errors(manifest_data: dict) -> list[str]:
@@ -551,13 +473,12 @@ def _collect_missing_i18n_locales(
     *,
     required_locales: tuple[str, ...] = ("zh-CN", "en"),
 ) -> list[str]:
-    if not isinstance(value, dict):
-        return []
-    return [
-        locale
-        for locale in required_locales
-        if not isinstance(value.get(locale), str) or not value.get(locale, "").strip()
-    ]
+    from app.plugins.frontend_contract_checks import collect_missing_i18n_locales
+
+    return collect_missing_i18n_locales(
+        value,
+        required_locales=required_locales,
+    )
 
 
 def _has_local_frontend_dependency(package_data: dict, package_name: str) -> bool:
@@ -569,118 +490,51 @@ def _has_local_frontend_dependency(package_data: dict, package_name: str) -> boo
 
 
 def _extract_frontend_locale_prefixes(entry_content: str) -> list[str]:
-    prefixes: list[str] = []
-    prefix_constants = {
-        match.group("name"): match.group("value")
-        for match in _LOCALE_PREFIX_CONST_PATTERN.finditer(entry_content or "")
-    }
+    from app.plugins.frontend_contract_checks import extract_frontend_locale_prefixes
 
-    for match in _REGISTER_LOCALE_CALL_PATTERN.finditer(entry_content or ""):
-        raw_prefix = (match.group("prefix") or "").strip()
-        if not raw_prefix:
-            continue
-        if raw_prefix.startswith(("'", '"')) and raw_prefix.endswith(("'", '"')):
-            value = raw_prefix[1:-1]
-        else:
-            value = prefix_constants.get(raw_prefix, "")
-        value = value.strip()
-        if value and value not in prefixes:
-            prefixes.append(value)
-
-    for value in prefix_constants.values():
-        normalized = value.strip()
-        if normalized.startswith("plugin.") and normalized not in prefixes:
-            prefixes.append(normalized)
-
-    return prefixes
+    return extract_frontend_locale_prefixes(entry_content)
 
 
 def _collect_frontend_locale_prefix_contract_issues(
     plugin_name: str,
     entry_content: str,
 ) -> tuple[list[str], list[str]]:
-    canonical_root = f"plugin.{plugin_name}"
-    prefixes = _extract_frontend_locale_prefixes(entry_content)
-    if not prefixes:
-        return [], []
+    from app.plugins.frontend_contract_checks import (
+        collect_frontend_locale_prefix_contract_issues,
+    )
 
-    errors: list[str] = []
-    warnings: list[str] = []
-    canonical_prefixes = [
-        prefix
-        for prefix in prefixes
-        if prefix == canonical_root or prefix.startswith(f"{canonical_root}.")
-    ]
-    compatibility_aliases = [
-        prefix
-        for prefix in prefixes
-        if prefix not in canonical_prefixes
-    ]
-
-    if not canonical_prefixes:
-        errors.append(
-            "frontend registerLocale() should use canonical prefix "
-            f"'{canonical_root}' or its child namespaces; found: "
-            + ", ".join(prefixes)
-        )
-
-    for prefix in compatibility_aliases:
-        warnings.append(
-            "frontend locale alias prefix detected: "
-            f"{prefix} (canonical: {canonical_root})"
-        )
-
-    return errors, warnings
+    return collect_frontend_locale_prefix_contract_issues(
+        plugin_name,
+        entry_content,
+    )
 
 
 def _collect_declared_frontend_component_names(frontend: object) -> list[str]:
-    names: list[str] = []
+    from app.plugins.frontend_contract_checks import (
+        collect_declared_frontend_component_names,
+    )
 
-    def _visit(node: object) -> None:
-        if isinstance(node, dict):
-            component = node.get("component")
-            if isinstance(component, str):
-                normalized = component.strip()
-                if normalized and normalized not in names:
-                    names.append(normalized)
-            for key, child in node.items():
-                if key in {"dev", "release"}:
-                    continue
-                _visit(child)
-            return
-
-        if isinstance(node, list):
-            for child in node:
-                _visit(child)
-
-    _visit(frontend)
-    return names
+    return collect_declared_frontend_component_names(frontend)
 
 
 def _entry_source_exports_symbol(entry_source: str, symbol: str) -> bool:
-    escaped = re.escape(symbol)
-    patterns = (
-        rf"\bexport\s+const\s+{escaped}\b",
-        rf"\bexport\s+(?:async\s+)?function\s+{escaped}\b",
-        rf"\bexport\s+class\s+{escaped}\b",
-        rf"\bexport\s*\{{[^}}]*\b{escaped}\b[^}}]*\}}",
-    )
-    return any(re.search(pattern, entry_source, flags=re.S) for pattern in patterns)
+    from app.plugins.frontend_contract_checks import entry_source_exports_symbol
+
+    return entry_source_exports_symbol(entry_source, symbol)
 
 
 def _collect_frontend_component_export_contract_errors(
     frontend: dict,
     entry_source: str,
 ) -> list[str]:
-    errors: list[str] = []
-    for component_name in _collect_declared_frontend_component_names(frontend):
-        if _entry_source_exports_symbol(entry_source, component_name):
-            continue
-        errors.append(
-            "frontend dev entry does not export declared component "
-            f"'{component_name}'"
-        )
-    return errors
+    from app.plugins.frontend_contract_checks import (
+        collect_frontend_component_export_contract_errors,
+    )
+
+    return collect_frontend_component_export_contract_errors(
+        frontend,
+        entry_source,
+    )
 
 
 def _load_plugin_manifest_for_cli(plugin_dir: Path):

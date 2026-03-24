@@ -73,6 +73,10 @@ async def get_tenant_public_config(request: Request, db: DbSession):
         tenant_id=tenant.id,
         group_code="tenant_appearance",
     )
+    registration_config = await config_service.get_tenant_configs_by_group(
+        tenant_id=tenant.id,
+        group_code="tenant_registration",
+    )
     feature_config = await config_service.get_tenant_configs_by_group(
         tenant_id=tenant.id,
         group_code="tenant_features",
@@ -81,7 +85,13 @@ async def get_tenant_public_config(request: Request, db: DbSession):
         tenant_id=tenant.id,
         group_code="tenant_storage",
     )
-    configs = {**general_config, **appearance_config, **feature_config, **storage_config}
+    configs = {
+        **general_config,
+        **appearance_config,
+        **registration_config,
+        **feature_config,
+        **storage_config,
+    }
 
     # 加载平台品牌配置（用于企业未设置时的 fallback） / Load platform brand config (fallback when tenant not configured)
     platform_general_config = await config_service.get_platform_configs_by_group(
@@ -123,9 +133,11 @@ async def get_tenant_public_config(request: Request, db: DbSession):
     # 品牌 fallback：企业未设置 → 平台默认 / Brand fallback: tenant not set → platform default
     logo_url = configs.get("tenant_logo") or platform_general_config.get("site_logo") or ""
     favicon_url = configs.get("tenant_favicon") or platform_general_config.get("site_favicon") or ""
+    logo_dark_url = configs.get("tenant_logo_dark") or platform_general_config.get("logo_dark") or ""
     login_title = configs.get("tenant_login_title") or platform_general_config.get("site_name") or ""
     login_subtitle = configs.get("tenant_login_subtitle") or platform_general_config.get("site_description") or ""
     footer_copyright = configs.get("tenant_footer_copyright") or platform_general_config.get("site_copyright") or ""
+    icp = configs.get("tenant_icp") or platform_general_config.get("site_icp") or ""
     login_bg = configs.get("tenant_login_bg") or ""
 
     privacy_html = configs.get("user_privacy_policy_html") or ""
@@ -146,10 +158,12 @@ async def get_tenant_public_config(request: Request, db: DbSession):
             tenant_name=tenant.name,
             logo_url=logo_url,
             favicon_url=favicon_url,
+            logo_dark_url=logo_dark_url,
             login_bg=login_bg,
             login_title=login_title,
             login_subtitle=login_subtitle,
             footer_copyright=footer_copyright,
+            icp=icp,
             captcha_enabled=configs.get("tenant_captcha_enabled", False),
             user_login_captcha_enabled=configs.get(
                 "user_login_captcha_enabled",
@@ -209,11 +223,11 @@ async def get_tenant_legal_privacy(request: Request, db: DbSession):
             detail=_("tenant.not_found"),
         )
     config_service = ConfigService(db)
-    feature_config = await config_service.get_tenant_configs_by_group(
+    registration_config = await config_service.get_tenant_configs_by_group(
         tenant.id,
-        "tenant_features",
+        "tenant_registration",
     )
-    raw = feature_config.get("user_privacy_policy_html") or ""
+    raw = registration_config.get("user_privacy_policy_html") or ""
     html = str(raw).strip()
     if not tenant_legal_html_has_meaningful_body(html):
         raise HTTPException(
@@ -238,11 +252,11 @@ async def get_tenant_legal_terms(request: Request, db: DbSession):
             detail=_("tenant.not_found"),
         )
     config_service = ConfigService(db)
-    feature_config = await config_service.get_tenant_configs_by_group(
+    registration_config = await config_service.get_tenant_configs_by_group(
         tenant.id,
-        "tenant_features",
+        "tenant_registration",
     )
-    raw = feature_config.get("user_terms_html") or ""
+    raw = registration_config.get("user_terms_html") or ""
     html = str(raw).strip()
     if not tenant_legal_html_has_meaningful_body(html):
         raise HTTPException(

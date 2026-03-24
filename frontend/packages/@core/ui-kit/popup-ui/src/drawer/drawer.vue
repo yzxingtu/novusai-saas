@@ -55,7 +55,7 @@ const id = useId();
 provide('DISMISSABLE_DRAWER_ID', id);
 
 const wrapperRef = ref<HTMLElement>();
-void wrapperRef.value; // Reserved for scroll behavior
+void wrapperRef.value; // 预留滚动行为 / Reserved for scroll behavior
 const { $t } = useSimpleLocale();
 const { isMobile } = useIsMobile();
 
@@ -91,6 +91,7 @@ const {
   zIndex,
 } = usePriorityValues(props, state);
 
+// 可选：加载时滚回顶部（已注释）/ Optional scroll-to-top on loading (commented)
 // watch(
 //   () => showLoading.value,
 //   (v) => {
@@ -104,10 +105,10 @@ const {
 // );
 
 /**
- * 在开启keepAlive情况下 直接通过浏览器按钮/手势等返回 不会关闭弹窗
+ * 在开启 keepAlive 时，浏览器返回/手势不会自动关抽屉 / With keepAlive, back gesture may not close drawer
  */
 onDeactivated(() => {
-  // 如果弹窗没有被挂载到内容区域，则关闭弹窗
+  // 若未挂到主内容区则主动关闭 / Close when not appendToMain
   if (!appendToMain.value) {
     props.drawerApi?.close();
   }
@@ -123,7 +124,7 @@ function escapeKeyDown(e: KeyboardEvent) {
     e.preventDefault();
   }
 }
-// pointer-down-outside
+// pointer-down-outside：点击遮罩外 / Dismiss via pointer outside overlay
 function pointerDownOutside(e: Event) {
   const target = e.target as HTMLElement;
   const dismissableDrawer = target?.dataset.dismissableDrawer;
@@ -154,9 +155,9 @@ const getAppendTo = computed(() => {
 });
 
 /**
- * destroyOnClose功能完善
+ * destroyOnClose 与首次挂载 / destroyOnClose + first-open tracking
  */
-// 是否打开过
+// 是否打开过 / Has been opened once (for forceMount)
 const hasOpened = ref(false);
 const isClosed = ref(true);
 watch(

@@ -88,7 +88,7 @@ async function loadData() {
     const savedDriver =
       (configData.tenant_storage_driver as string) || undefined;
 
-    // If saved driver's plugin is not available, clear selection
+    // If saved driver's plugin is not available, clear selection / 插件不可用时清空已选驱动
     const driverInfo = driversData.find(
       (d: StorageDriverInfo) => d.name === savedDriver,
     );

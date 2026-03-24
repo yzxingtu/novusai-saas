@@ -90,6 +90,11 @@ class TestTenantPlanPreflightRegistry:
             "_get_plugin_status_map",
             fake_get_plugin_status_map,
         )
+        monkeypatch.setattr(
+            guard_module,
+            "_get_platform_storage_driver",
+            AsyncMock(return_value="local"),
+        )
 
         result = await run_tenant_plan_preflight(
             {
@@ -103,8 +108,160 @@ class TestTenantPlanPreflightRegistry:
         )
 
         assert result["allowed"] is False
-        assert result["reason_code"] == "storage_billing_missing_cloud_storage_plugin"
+        assert result["reason_code"] == "storage_billing_platform_driver_not_billable"
 
+    @pytest.mark.asyncio
+    async def test_runner_allows_billable_platform_driver_when_plugin_and_driver_exist(self, monkeypatch):
+        from app.plugins import feature_entitlement_guards as guard_module
+
+        TenantPlanPreflightRegistry.reset()
+
+        async def fake_get_plugin_status_map(_plugin_names):
+            return {
+                "storage-billing": "enabled",
+                "tencent-cos": "enabled",
+            }
+
+        monkeypatch.setattr(
+            guard_module,
+            "_get_plugin_status_map",
+            fake_get_plugin_status_map,
+        )
+        monkeypatch.setattr(
+            guard_module,
+            "_get_platform_storage_driver",
+            AsyncMock(return_value="tencent-cos"),
+        )
+
+        result = await run_tenant_plan_preflight(
+            {
+                "operation": "plan_create",
+                "plan_id": None,
+                "tenant_id": None,
+                "features": {"storage_billing_enabled": True},
+                "quota": {},
+                "context": {},
+            }
+        )
+
+        assert result["allowed"] is True
+
+    @pytest.mark.asyncio
+    async def test_runner_blocks_when_current_platform_driver_plugin_is_disabled(self, monkeypatch):
+        from app.plugins import feature_entitlement_guards as guard_module
+
+        TenantPlanPreflightRegistry.reset()
+
+        async def fake_get_plugin_status_map(_plugin_names):
+            return {
+                "storage-billing": "enabled",
+                "tencent-cos": "disabled",
+                "aliyun-oss": "enabled",
+            }
+
+        monkeypatch.setattr(
+            guard_module,
+            "_get_plugin_status_map",
+            fake_get_plugin_status_map,
+        )
+        monkeypatch.setattr(
+            guard_module,
+            "_get_platform_storage_driver",
+            AsyncMock(return_value="tencent-cos"),
+        )
+
+        result = await run_tenant_plan_preflight(
+            {
+                "operation": "plan_create",
+                "plan_id": None,
+                "tenant_id": None,
+                "features": {"storage_billing_enabled": True},
+                "quota": {},
+                "context": {},
+            }
+        )
+
+        assert result["allowed"] is False
+        assert result["reason_code"] == "storage_billing_platform_driver_plugin_unavailable"
+
+    @pytest.mark.asyncio
+    async def test_lifecycle_guard_blocks_disabling_active_platform_driver(self, monkeypatch):
+        from app.plugins import feature_entitlement_guards as guard_module
+
+        monkeypatch.setattr(
+            guard_module,
+            "_get_active_feature_plan_summaries",
+            AsyncMock(
+                return_value=[
+                    {
+                        "plan_id": 12,
+                        "plan_name": "Storage Billing Plan",
+                        "features": {"storage_billing_enabled": True},
+                    }
+                ]
+            ),
+        )
+        monkeypatch.setattr(
+            guard_module,
+            "_get_plugin_status_map",
+            AsyncMock(
+                return_value={
+                    "tencent-cos": "enabled",
+                    "aliyun-oss": "enabled",
+                }
+            ),
+        )
+        monkeypatch.setattr(
+            guard_module,
+            "_get_platform_storage_driver",
+            AsyncMock(return_value="tencent-cos"),
+        )
+
+        result = await guard_module._feature_managed_lifecycle_guard(
+            {"plugin_name": "tencent-cos"}
+        )
+
+        assert result is not None
+        assert result["allowed"] is False
+        assert result["reason_code"] == "storage_billing_active_platform_driver_blocked"
+
+    @pytest.mark.asyncio
+    async def test_runner_blocks_when_platform_driver_plugin_is_not_enabled(self, monkeypatch):
+        from app.plugins import feature_entitlement_guards as guard_module
+
+        TenantPlanPreflightRegistry.reset()
+
+        async def fake_get_plugin_status_map(_plugin_names):
+            return {
+                "storage-billing": "enabled",
+                "aliyun-oss": "enabled",
+                "tencent-cos": "disabled",
+            }
+
+        monkeypatch.setattr(
+            guard_module,
+            "_get_plugin_status_map",
+            fake_get_plugin_status_map,
+        )
+        monkeypatch.setattr(
+            guard_module,
+            "_get_platform_storage_driver",
+            AsyncMock(return_value="tencent-cos"),
+        )
+
+        result = await run_tenant_plan_preflight(
+            {
+                "operation": "plan_create",
+                "plan_id": None,
+                "tenant_id": None,
+                "features": {"storage_billing_enabled": True},
+                "quota": {},
+                "context": {},
+            }
+        )
+
+        assert result["allowed"] is False
+        assert result["reason_code"] == "storage_billing_platform_driver_plugin_unavailable"
 
 class TestTenantPlanServicePreflight:
 

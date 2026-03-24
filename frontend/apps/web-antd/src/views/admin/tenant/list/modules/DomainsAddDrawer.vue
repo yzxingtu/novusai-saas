@@ -15,7 +15,7 @@ import { inputField, textareaField } from '#/adapter/form';
 import { adminApi as admin } from '#/api';
 import { $t } from '#/locales';
 
-// Emits
+// Emits / 组件事件
 const emits = defineEmits<{
   success: [domain: TenantDomainInfo];
 }>();
@@ -42,7 +42,7 @@ function useFormSchema() {
   ];
 }
 
-// Form API
+// Form API / 表单 API
 const [FormComponent, formApi] = useVbenForm({
   commonConfig: {
     componentProps: { class: 'w-full' },
@@ -52,7 +52,7 @@ const [FormComponent, formApi] = useVbenForm({
   showDefaultActions: false,
 });
 
-// Drawer
+// Drawer / 抽屉
 const [Drawer, drawerApi] = useVbenDrawer({
   onConfirm: onSubmit,
   onOpenChange(isOpen) {

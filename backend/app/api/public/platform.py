@@ -21,6 +21,9 @@ async def get_platform_public_config(db: DbSession):
     general_config = await config_service.get_platform_configs_by_group(
         group_code="platform_general",
     )
+    domain_config = await config_service.get_platform_configs_by_group(
+        group_code="platform_domain",
+    )
     security_config = await config_service.get_platform_configs_by_group(
         group_code="platform_security",
     )
@@ -30,7 +33,13 @@ async def get_platform_public_config(db: DbSession):
     storage_config = await config_service.get_platform_configs_by_group(
         group_code="platform_storage",
     )
-    configs = {**general_config, **security_config, **ai_toolkit_config, **storage_config}
+    configs = {
+        **general_config,
+        **domain_config,
+        **security_config,
+        **ai_toolkit_config,
+        **storage_config,
+    }
 
     captcha_plugin = await resolve_public_captcha_plugin_bundle(
         db,
@@ -45,6 +54,7 @@ async def get_platform_public_config(db: DbSession):
             site_name=configs.get("site_name"),
             site_description=configs.get("site_description"),
             site_logo=configs.get("site_logo"),
+            logo_dark=configs.get("logo_dark"),
             site_favicon=configs.get("site_favicon"),
             site_copyright=configs.get("site_copyright"),
             site_icp=configs.get("site_icp"),

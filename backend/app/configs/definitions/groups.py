@@ -37,6 +37,16 @@ PLATFORM_SECURITY_GROUP = ConfigGroupMeta(
     sort_order=20,
 )
 
+# Domain settings group / 域名设置分组
+PLATFORM_DOMAIN_GROUP = ConfigGroupMeta(
+    code="platform_domain",
+    name_key="config.group.platform_domain.name",
+    description_key="config.group.platform_domain.desc",
+    scope=ConfigScope.ADMIN_ONLY,
+    icon="lucide:globe-2",
+    sort_order=15,
+)
+
 # Email settings group / 邮件设置分组
 PLATFORM_EMAIL_GROUP = ConfigGroupMeta(
     code="platform_email",
@@ -89,6 +99,16 @@ TENANT_FEATURES_GROUP = ConfigGroupMeta(
     description_key="config.group.tenant_features.desc",
     scope=ConfigScope.ALL_TENANTS,
     icon="lucide:users",
+    sort_order=40,
+)
+
+# Tenant registration settings group / 企业注册设置分组
+TENANT_REGISTRATION_GROUP = ConfigGroupMeta(
+    code="tenant_registration",
+    name_key="config.group.tenant_registration.name",
+    description_key="config.group.tenant_registration.desc",
+    scope=ConfigScope.ALL_TENANTS,
+    icon="lucide:user-plus",
     sort_order=30,
 )
 
@@ -98,7 +118,7 @@ TENANT_STORAGE_GROUP = ConfigGroupMeta(
     description_key="config.group.tenant_storage.desc",
     scope=ConfigScope.ALL_TENANTS,
     icon="lucide:database",
-    sort_order=40,
+    sort_order=50,
 )
 
 
@@ -149,6 +169,7 @@ PLATFORM_AI_MEMORY_GROUP = ConfigGroupMeta(
 # All platform config groups / 所有平台配置分组
 PLATFORM_CONFIG_GROUPS = [
     PLATFORM_GENERAL_GROUP,
+    PLATFORM_DOMAIN_GROUP,
     PLATFORM_SECURITY_GROUP,
     PLATFORM_EMAIL_GROUP,
     PLATFORM_STORAGE_GROUP,
@@ -162,6 +183,7 @@ PLATFORM_CONFIG_GROUPS = [
 TENANT_CONFIG_GROUPS = [
     TENANT_GENERAL_GROUP,
     TENANT_APPEARANCE_GROUP,
+    TENANT_REGISTRATION_GROUP,
     TENANT_FEATURES_GROUP,
     TENANT_STORAGE_GROUP,
 ]
@@ -173,6 +195,7 @@ ALL_CONFIG_GROUPS = PLATFORM_CONFIG_GROUPS + TENANT_CONFIG_GROUPS
 __all__ = [
     # Platform groups / 平台分组
     "PLATFORM_GENERAL_GROUP",
+    "PLATFORM_DOMAIN_GROUP",
     "PLATFORM_SECURITY_GROUP",
     "PLATFORM_EMAIL_GROUP",
     "PLATFORM_STORAGE_GROUP",
@@ -184,6 +207,7 @@ __all__ = [
     # Tenant groups / 企业分组
     "TENANT_GENERAL_GROUP",
     "TENANT_APPEARANCE_GROUP",
+    "TENANT_REGISTRATION_GROUP",
     "TENANT_FEATURES_GROUP",
     "TENANT_STORAGE_GROUP",
     "TENANT_CONFIG_GROUPS",

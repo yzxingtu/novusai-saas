@@ -193,7 +193,7 @@ function goToDetail(pkg: AdminSkillPackageInfo) {
   router.push(`/admin/ai/skill-packages/${pkg.id}`);
 }
 
-// ==================== 导出 / 导入 ====================
+// ==================== 导出 / Import & export ====================
 
 async function onExportPackage(pkg: AdminSkillPackageInfo) {
   try {

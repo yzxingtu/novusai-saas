@@ -174,7 +174,7 @@ class ExtensionRegistry:
             RegisteredExtension(plugin_name, ext_type, key, ref)
         )
 
-    # ── 1. Adapter ──
+    # ── 1. Adapter / 适配器 ──
 
     def register_adapter(
         self, plugin_name: str, provider_type: str, adapter_class: type
@@ -193,7 +193,7 @@ class ExtensionRegistry:
 
         AdapterRegistry.unregister(ext.key)
 
-    # ── 2. Hook ──
+    # ── 2. Hook / 钩子 ──
 
     def register_hook(
         self,
@@ -217,7 +217,7 @@ class ExtensionRegistry:
 
         HookRegistry.get_instance().unregister(ext.key, ext.ref)
 
-    # ── 3. Storage Driver ──
+    # ── 3. Storage Driver / 存储驱动 ──
 
     def register_storage_driver(
         self, plugin_name: str, driver_class: type
@@ -237,7 +237,7 @@ class ExtensionRegistry:
 
         storage_manager.unregister_driver(ext.key)
 
-    # ── 4. Skill ──
+    # ── 4. Skill / 技能 ──
 
     def register_skill(
         self,
@@ -293,7 +293,7 @@ class ExtensionRegistry:
         """Get plugin tool executor instance (lookup by plugin name) / 获取插件工具执行器实例"""
         return self._plugin_executors.get(plugin_name)
 
-    # ── 5. Event ──
+    # ── 5. Event / 事件 ──
 
     def register_event(
         self, plugin_name: str, event_type_name: str, handler: Callable
@@ -338,7 +338,7 @@ class ExtensionRegistry:
             raise PluginError(message=f"Unknown event type: {name}")
         return cls
 
-    # ── 6. Webhook ──
+    # ── 6. Webhook / Webhook 回调 ──
 
     def register_webhook(
         self,
@@ -386,7 +386,7 @@ class ExtensionRegistry:
             result.update(webhooks)
         return result
 
-    # ── 7. Task ──
+    # ── 7. Task / 异步任务 ──
 
     def register_task(
         self,
@@ -474,14 +474,14 @@ class ExtensionRegistry:
         """Remove plugin scheduled task from Celery Beat / 从 Celery Beat 移除插件定时任务"""
         try:
             from app.celery_app import celery_app
-            beat_key = ext.key  # plugin_{name}_{task_name}
+            beat_key = ext.key  # plugin_{name}_{task_name} / Celery Beat 调度键
             if celery_app.conf.beat_schedule and beat_key in celery_app.conf.beat_schedule:
                 del celery_app.conf.beat_schedule[beat_key]
                 logger.info("Removed beat schedule: {}", beat_key)
         except Exception as exc:
             logger.warning("Failed to unregister task {}: {}", ext.key, exc)
 
-    # ── 8. Notification ──
+    # ── 8. Notification / 通知 ──
 
     def register_notification(
         self,
@@ -525,7 +525,7 @@ class ExtensionRegistry:
         """Get plugin-registered notification template (for notification service query) / 获取插件注册的通知模板"""
         return self._plugin_notifications.get(code)
 
-    # ── 9. Permission ──
+    # ── 9. Permission / 权限 ──
 
     def register_permission(
         self,
@@ -596,7 +596,7 @@ class ExtensionRegistry:
             ]
         return list(self._plugin_permissions.values())
 
-    # ── 10. Menu ──
+    # ── 10. Menu / 菜单 ──
 
     def register_menu(
         self,
@@ -801,7 +801,7 @@ class ExtensionRegistry:
             return f"{base_title} - {action_title}"
         return None
 
-    # ── 11. Socket.IO Namespace ──
+    # ── 11. Socket.IO Namespace / Socket.IO 命名空间 ──
 
     def register_socketio(
         self,
@@ -871,7 +871,7 @@ class ExtensionRegistry:
                 "Failed to unregister socketio namespace {}: {}", ext.key, exc
             )
 
-    # ── 12. Frontend Slot ──
+    # ── 12. Frontend Slot / 前端插槽 ──
 
     def register_frontend_slot(
         self,
@@ -911,7 +911,7 @@ class ExtensionRegistry:
     def _unregister_frontend_slot(self, ext: RegisteredExtension) -> None:
         """Remove plugin frontend slot registration / 移除插件前端插槽注册"""
         plugin_name = ext.plugin_name
-        key = ext.key  # "slot_type:name"
+        key = ext.key  # "slot_type:name" / 插槽去重键
         if plugin_name in self._plugin_frontend_slots:
             self._plugin_frontend_slots[plugin_name] = [
                 s for s in self._plugin_frontend_slots[plugin_name]
@@ -944,7 +944,7 @@ class ExtensionRegistry:
                     continue
                 if scope:
                     slot_scope = slot.get("scope", "")
-                    # Filter by endpoint side (admin / tenant / user / both / empty)
+                    # Filter by endpoint side (admin / tenant / user / both / empty) / 按管理端/企业端等过滤插槽
                     if scope == "admin" and slot_scope == "tenant":
                         continue
                     elif scope == "tenant" and slot_scope == "admin":
@@ -1091,7 +1091,7 @@ class ExtensionRegistry:
                     return plugin_name
         return None
 
-    # ── 13. Consumer ──
+    # ── 13. Consumer / 消费者 ──
 
     def register_consumer(
         self,
@@ -1155,7 +1155,7 @@ class ExtensionRegistry:
             celery_task_name,
         )
 
-    # ── 14. Middleware ──
+    # ── 14. Middleware / 中间件 ──
 
     def register_middleware(
         self,
@@ -1218,7 +1218,7 @@ class ExtensionRegistry:
         result.sort(key=lambda x: x.get("priority", 50))
         return result
 
-    # ── 15. Custom Extension ──
+    # ── 15. Custom Extension / 自定义扩展 ──
 
     def register_custom(
         self,

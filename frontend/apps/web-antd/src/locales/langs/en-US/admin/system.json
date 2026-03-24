@@ -321,6 +321,7 @@
     "detail": "Task Detail",
     "taskName": "Task Name",
     "taskId": "Task ID",
+    "handlerPath": "Handler Path",
     "queue": "Queue",
     "duration": "Duration",
     "durationMs": "Duration (ms)",
@@ -337,6 +338,8 @@
     "retry": "Retry",
     "cancel": "Cancel",
     "tenantName": "Tenant",
+    "triggerSource": "Trigger Source",
+    "runKind": "Run Kind",
     "basicInfo": "Basic Info",
     "timeInfo": "Time Info",
     "paramsInfo": "Parameters",
@@ -346,6 +349,17 @@
       "execution": "Execution",
       "internal": "Internal High-Frequency",
       "all": "All"
+    },
+    "triggerSourceValues": {
+      "scheduler": "Scheduler",
+      "admin_manual": "Admin Manual",
+      "tenant_manual": "Tenant Manual",
+      "system_recovery": "System Recovery"
+    },
+    "runKindValues": {
+      "platform": "Platform Task",
+      "tenant_binding": "Tenant Binding",
+      "on_demand": "On Demand"
     },
     "status": {
       "label": "Status",
@@ -383,7 +397,9 @@
       "send_notification_email": "Notification Email",
       "log_ai_call": "AI Call Logging",
       "process_document": "Knowledge Base Document Processing",
-      "sync_litellm_registry": "LiteLLM + LLMRing Multi-Source Model Registry Sync"
+      "sync_litellm_registry": "LiteLLM + LLMRing Multi-Source Model Registry Sync",
+      "run_task_definition": "Task Definition Dispatch",
+      "run_tenant_task_binding": "Tenant Task Binding Dispatch"
     },
     "queueNames": {
       "default": "Default",
@@ -422,6 +438,9 @@
     "description": "Description",
     "trigger": "Trigger Now",
     "viewLogs": "Logs",
+    "manageBindings": "Tenant Bindings",
+    "bindingTitle": "Tenant Bindings: {name}",
+    "bindingHelp": "Choose which tenants enable this task definition. Saving will sync tenant bindings.",
     "executionLogs": "Execution Logs",
     "totalLogs": "{count} records",
     "noLogs": "No execution logs yet",
@@ -464,6 +483,7 @@
       "createSuccess": "Created successfully",
       "updateSuccess": "Updated successfully",
       "deleteSuccess": "Deleted successfully",
+      "bindingSaveSuccess": "Tenant bindings saved",
       "deleteConfirm": "Are you sure you want to delete periodic task \"{name}\"?",
       "triggerSuccess": "Task triggered successfully",
       "triggerConfirm": "Are you sure you want to trigger this task now?",

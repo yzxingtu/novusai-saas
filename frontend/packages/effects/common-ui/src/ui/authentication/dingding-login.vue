@@ -11,9 +11,9 @@ import { loadScript } from '@vben-core/shared/utils';
 interface Props {
   clientId: string;
   corpId: string;
-  // 登录回调地址
+  // 登录回调地址 / OAuth redirect URI (full URL)
   redirectUri?: string;
-  // 是否内嵌二维码登录
+  // 是否内嵌二维码登录 / Use embedded QR in modal
   isQrCode?: boolean;
 }
 
@@ -45,7 +45,7 @@ const getRedirectUri = () => {
 const handleQrCodeLogin = async () => {
   const { clientId, corpId } = props;
   if (!(window as any).DTFrameLogin) {
-    // 二维码登录 加载资源
+    // 二维码登录 加载资源 / Load DingTalk H5 login script
     await loadScript(
       'https://g.alicdn.com/dingding/h5-dingtalk-login/0.21.0/ddlogin.js',
     );
@@ -57,7 +57,7 @@ const handleQrCodeLogin = async () => {
       height: 300,
     },
     {
-      // 注意：redirect_uri 需为完整URL，扫码后钉钉会带code跳转到这里
+      // 注意：redirect_uri 需为完整URL，扫码后钉钉会带code跳转到这里 / Must be absolute URL for code callback
       redirect_uri: encodeURIComponent(getRedirectUri()),
       client_id: clientId,
       scope: 'openid corpid',
@@ -68,7 +68,7 @@ const handleQrCodeLogin = async () => {
     },
     (loginResult: any) => {
       const { redirectUrl } = loginResult;
-      // 这里可以直接进行重定向
+      // 这里可以直接进行重定向 / Follow DingTalk redirect URL
       window.location.href = redirectUrl;
     },
     (errorMsg: string) => {
@@ -81,7 +81,7 @@ const handleQrCodeLogin = async () => {
 const handleLogin = () => {
   const { clientId, corpId, isQrCode } = props;
   if (isQrCode) {
-    // 内嵌二维码登录
+    // 内嵌二维码登录 / Open QR modal
     modalApi.open();
   } else {
     window.location.href = `https://login.dingtalk.com/oauth2/auth?redirect_uri=${encodeURIComponent(getRedirectUri())}&response_type=code&client_id=${clientId}&scope=openid&corpid=${corpId}&prompt=consent`;

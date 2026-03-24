@@ -460,6 +460,42 @@ export const DemoPage = {};
     assert "canonical: plugin.demo-plugin" in out
 
 
+def test_cmd_validate_accepts_helper_wrapped_canonical_locale_prefix(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    plugin_dir = _write_plugin(tmp_path, with_release=True)
+    (plugin_dir / "frontend" / "src" / "index.ts").write_text(
+        """
+const ADMIN_LOCALE_PREFIX = 'plugin.demo-plugin.admin';
+const LEGACY_ADMIN_LOCALE_PREFIX = 'plugin.demoPlugin.admin';
+
+function registerLocaleGroup(prefix) {
+  const shared = window.NovusPluginShared;
+  shared?.registerLocale?.('zh-CN', prefix, {});
+  shared?.registerLocale?.('en', prefix, {});
+}
+
+export function setup() {
+  registerLocaleGroup(ADMIN_LOCALE_PREFIX);
+  registerLocaleGroup(LEGACY_ADMIN_LOCALE_PREFIX);
+}
+
+export const DemoPage = {};
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
+
+    assert exc.value.code == 0
+    out = capsys.readouterr().out
+    assert "frontend locale namespace covers canonical root: plugin.demo-plugin" in out
+    assert "frontend locale alias prefix detected: plugin.demoPlugin.admin" in out
+
+
 def test_cmd_validate_treats_captcha_provider_as_frontend_plugin(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

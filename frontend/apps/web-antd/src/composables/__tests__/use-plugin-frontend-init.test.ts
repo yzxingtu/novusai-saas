@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const slotStore = {
   clearAll: vi.fn(),
-  fetchSlots: vi.fn(async () => {}),
+  fetchSlots: vi.fn(async () => ({ pageFailures: [] as never[] })),
   headerWidgets: [] as Array<Record<string, unknown>>,
   floatingPanels: [] as Array<Record<string, unknown>>,
   dashboardWidgets: [] as Array<Record<string, unknown>>,
@@ -54,7 +54,7 @@ const createRouterStub = (overrides: Partial<RouterStub> = {}): RouterStub => ({
 });
 
 const PLUGIN_ROUTE_NAME =
-  'plugin-workflow-orchestration-workflow-orchestration-admin-templates';
+  'plugin-storage-billing-storage-billing-admin-home';
 const EMPTY_FETCH_RESULT = { pageFailures: [] };
 
 describe('use-plugin-frontend-init', () => {
@@ -70,12 +70,12 @@ describe('use-plugin-frontend-init', () => {
     slotStore.notificationUI = [];
     slotStore.pages = [
       {
-        accessCodes: ['plugin.workflow-orchestration.platform_template:list'],
-        component: { name: 'WorkflowOrchestrationAdminTemplateListPage' },
-        name: 'workflow-orchestration-admin-templates',
-        path: '/admin/plugins/workflow-orchestration/templates',
-        pluginName: 'workflow-orchestration',
-        title: 'Templates',
+        accessCodes: ['plugin.storage-billing.billing_admin:view'],
+        component: { name: 'StorageBillingAdminHomePage' },
+        name: 'storage-billing-admin-home',
+        path: '/admin/plugins/storage-billing',
+        pluginName: 'storage-billing',
+        title: 'Storage Billing',
       },
     ];
   });
@@ -106,9 +106,9 @@ describe('use-plugin-frontend-init', () => {
     expect(addedRoutes).toHaveLength(1);
     expect(addedRoutes[0]?.parent).toBe('AdminRoot');
     expect(addedRoutes[0]?.route.meta).toMatchObject({
-      accessCodes: ['plugin.workflow-orchestration.platform_template:list'],
+      accessCodes: ['plugin.storage-billing.billing_admin:view'],
       hideInMenu: true,
-      title: 'Templates',
+      title: 'Storage Billing',
     });
   });
 
@@ -138,7 +138,7 @@ describe('use-plugin-frontend-init', () => {
   it('removes conflicting placeholder routes before registering plugin routes', async () => {
     const placeholderRoute = {
       name: 'placeholder-route',
-      path: '/admin/plugins/workflow-orchestration/templates',
+      path: '/admin/plugins/storage-billing',
     };
     const router = createRouterStub({
       getRoutes: vi.fn(() => [placeholderRoute]),
@@ -156,7 +156,7 @@ describe('use-plugin-frontend-init', () => {
     let resolveFetch: ((value: typeof EMPTY_FETCH_RESULT) => void) | undefined;
     slotStore.fetchSlots.mockImplementation(
       () =>
-        new Promise((resolve) => {
+        new Promise<typeof EMPTY_FETCH_RESULT>((resolve) => {
           resolveFetch = resolve;
         }),
     );
@@ -224,7 +224,7 @@ describe('use-plugin-frontend-init', () => {
     resetPluginRoutesReady(router as never);
 
     expect(router.removeRoute).toHaveBeenCalledWith(PLUGIN_ROUTE_NAME);
-    expect(unloadPluginMock).toHaveBeenCalledWith('workflow-orchestration', {
+    expect(unloadPluginMock).toHaveBeenCalledWith('storage-billing', {
       endpoint: 'admin',
     });
 

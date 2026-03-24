@@ -224,7 +224,7 @@ const {
   contentClass,
 } = toRefs(props);
 
-// states
+// states / 拖拽与层级等响应式状态 / drag & z-index state
 const active = ref(false);
 const zIndex = ref<null | number>(null);
 const parentWidth = ref<null | number>(null);
@@ -236,7 +236,7 @@ const bottom = ref<null | number>(null);
 
 const aspectFactor = ref<null | number>(null);
 
-// state end
+// state end / 几何边距初值结束 / end layout inset block
 
 const stickDrag = ref(false);
 const bodyDrag = ref(false);
@@ -317,7 +317,7 @@ const rectCorrectionByLimit = (rect: {
   newRight: number;
   newTop: number;
 }) => {
-  // const { limits } = this;
+  // const { limits } = this; / Options API 遗留 / legacy options API
   let { newRight, newLeft, newBottom, newTop } = rect;
 
   type RectRange = {
@@ -348,7 +348,7 @@ const rectCorrectionByAspectRatio = (rect: {
   newTop: number;
 }) => {
   let { newLeft, newRight, newTop, newBottom } = rect;
-  // const { parentWidth, parentHeight, currentStick, aspectFactor, dimensionsBeforeMove } = this;
+  // const { parentWidth, parentHeight, currentStick, aspectFactor, dimensionsBeforeMove } = this; / 遗留解构示例 / legacy destructuring
 
   let newWidth = parentWidth.value! - newLeft - newRight;
   let newHeight = parentHeight.value! - newTop - newBottom;
@@ -473,6 +473,7 @@ const stickMove = (delta: { x: number; y: number }) => {
 
 const stickUp = () => {
   stickDrag.value = false;
+  // 注释：整对象重置示例 / Commented full replace sample
   // dimensionsBeforeMove.value = {
   //   pointerX: 0,
   //   pointerY: 0,
@@ -512,7 +513,7 @@ const calcDragLimitation = () => {
 };
 
 const calcResizeLimits = () => {
-  // const { aspectFactor, width, height, bottom, top, left, right } = this;
+  // const { aspectFactor, width, height, bottom, top, left, right } = this; / 遗留解构示例 / legacy destructuring
 
   const parentLim = parentLimitation.value ? 0 : null;
 
@@ -690,7 +691,7 @@ const bodyUp = () => {
   emit('dragging', rect.value);
   emit('dragstop', rect.value);
 
-  // dimensionsBeforeMove.value = { pointerX: 0, pointerY: 0, x: 0, y: 0, w: 0, h: 0 };
+  // dimensionsBeforeMove.value = { pointerX: 0, pointerY: 0, x: 0, y: 0, w: 0, h: 0 }; / 单行重置示例 / one-line reset sample
   Object.assign(dimensionsBeforeMove.value, {
     pointerX: 0,
     pointerY: 0,
@@ -736,7 +737,7 @@ const move = (ev: MouseEvent & TouchEvent) => {
 
   ev.stopPropagation();
 
-  // touches 兼容性代码
+  // touches 兼容性代码 / TouchEvent fallback when pageX missing
   const pageX = ev.pageX === undefined ? ev.touches![0]!.pageX : ev.pageX;
   const pageY = ev.pageY === undefined ? ev.touches![0]!.pageY : ev.pageY;
 
@@ -764,7 +765,7 @@ const move = (ev: MouseEvent & TouchEvent) => {
 
         break;
       }
-      // No default
+      // No default / axis 为 both 时两轴可动 / both axes when not x|y
     }
     bodyMove(delta);
   }

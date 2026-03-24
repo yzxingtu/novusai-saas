@@ -29,9 +29,9 @@ export function checkPermission(
 ): boolean {
   // 无权限码要求（undefined 或空数组），默认有权限 / no codes → allow
   if (!codes || (Array.isArray(codes) && codes.length === 0)) return true;
-  // 超级管理员拥有所有权限
+  // 超级管理员拥有所有权限 / Super admin wildcard grants all
   if (userCodes.includes('*')) return true;
-  // 正常权限检查
+  // 正常权限检查 / Standard code list check
   const codeList = Array.isArray(codes) ? codes : [codes];
   return codeList.some((code) => userCodes.includes(code));
 }
@@ -61,7 +61,7 @@ export function useAccess() {
    * @returns Whether the user has the specified permissions / 是否拥有指定权限
    */
   function hasAccessByCodes(codes: string[]): boolean {
-    // 超级管理员拥有所有权限
+    // 超级管理员拥有所有权限 / super-admin bypass
     if (isSuperAdmin.value) {
       return true;
     }

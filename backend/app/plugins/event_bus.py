@@ -38,7 +38,7 @@ logger = get_logger(__name__)
 _DEFAULT_HANDLER_TIMEOUT = 30.0
 
 # Max payload size (bytes, rough estimate) / 最大 payload 大小（字节，粗略估算）
-_MAX_PAYLOAD_SIZE = 1_048_576  # 1 MB
+_MAX_PAYLOAD_SIZE = 1_048_576  # 1 MB / 约 1MB 上限
 
 
 class PluginEventBus:

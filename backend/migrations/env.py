@@ -28,8 +28,9 @@ from app.models import (
     SystemConfig,
     SystemConfigValue,
     OperationLog,
-    TaskLog,
-    PeriodicTask,
+    TaskDefinition,
+    TenantTaskBinding,
+    TaskRun,
     SystemAgentAssignment,
     # 企业级模型
     Tenant,

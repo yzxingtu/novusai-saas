@@ -85,7 +85,7 @@ async function loadAvatarMap() {
     }
     avatarMap.value = map;
   } catch {
-    // ignore
+    // ignore / 忽略非关键错误
   }
 }
 

@@ -72,6 +72,7 @@
 - 动态菜单标题由后端权限系统负责翻译，前端不要重复维护宿主菜单多语言
 - 图标统一遵循本地图标规范，禁止依赖线上 Iconify API
 - 页面 AI 操作优先复用平台 helper，不重新手写一套注册流程
+- 请求错误只能有一个前端展示 owner；历史 `200 + success=false` 接口不应继续扩散为常规 HTTP 契约
 
 详见：
 
@@ -134,6 +135,7 @@
 - 业务通知统一经 `NotificationService`
 - Socket.IO namespace 固定为 `/admin` / `/tenant` / `/user`
 - Celery 侧推送统一用 `sio_bridge.*_sync()`
+- AI 调用日志默认通过 `log_call_async -> tasks.ai.log_ai_call -> ai_gateway` 异步落库；涉及 `billing_context` 或任务签名改动后必须重启 Worker
 
 详见：
 
@@ -162,6 +164,7 @@
 - 新增或重构 Service 必须补测试
 - 浏览器验证优先 `chrome-devtools`，上传流程再用 `playwright`
 - 所有请求链路应自动携带 `X-Trace-ID`
+- 拿到 `trace_id` 后，默认排查入口是 `novusai trace show <trace_id>`，不是人工全库翻日志
 - AI 工具与页面操作审计统一写入 `AIActionLog`
 - 当前主干监控以日志、trace_id、AI 健康、WebSocket presence 为主
 - 若新增 Prometheus 指标，定义在所属模块旁并用 `try/except` 包裹

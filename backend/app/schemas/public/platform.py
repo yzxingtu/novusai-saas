@@ -33,6 +33,7 @@ class PlatformPublicConfig(BaseSchema):
     site_name: str = Field(..., description="站点名称")
     site_description: str | None = Field(None, description="站点描述")
     site_logo: str | None = Field(None, description="站点 Logo")
+    logo_dark: str | None = Field(None, description="站点深色 Logo")
     site_favicon: str | None = Field(None, description="站点 Favicon")
     site_copyright: str | None = Field(None, description="版权信息")
     site_icp: str | None = Field(None, description="ICP 备案号")

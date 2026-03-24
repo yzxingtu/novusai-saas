@@ -109,7 +109,7 @@ async function hashLargeFile(
     throw new DOMException('Hash computation aborted', 'AbortError');
   }
 
-  // 合并所有块
+  // 合并所有块 / merge chunks
   const merged = new Uint8Array(totalSize);
   let pos = 0;
   for (const chunk of chunks) {
@@ -119,7 +119,7 @@ async function hashLargeFile(
 
   onProgress?.(90);
 
-  // 计算哈希
+  // 计算哈希 / Compute SHA-256 digest
   const hashBuffer = await crypto.subtle.digest('SHA-256', merged.buffer);
   onProgress?.(100);
 
@@ -158,14 +158,14 @@ export async function computeFileHash(
 ): Promise<string> {
   const { onProgress, signal } = options ?? {};
 
-  // crypto.subtle 仅在安全上下文（HTTPS / localhost）可用
-  // 非安全上下文返回空串，调用方应跳过预检直接上传
+  // crypto.subtle 仅在安全上下文（HTTPS / localhost）可用 / needs secure context
+  // 非安全上下文返回空串，调用方应跳过预检直接上传 / empty hash → skip precheck
   if (!globalThis.crypto?.subtle) {
     onProgress?.(100);
     return '';
   }
 
-  // 空文件直接返回空内容的 SHA-256
+  // 空文件直接返回空内容的 SHA-256 / empty file known digest
   if (file.size === 0) {
     onProgress?.(100);
     return 'sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';

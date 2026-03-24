@@ -22,7 +22,7 @@ const md = new MarkdownIt({
   html: false,
   linkify: true,
   breaks: true,
-  // Ensure headings and lists produce proper block-level HTML for TipTap
+  // Ensure headings and lists produce proper block-level HTML for TipTap / 保证标题与列表为块级 HTML 供 TipTap
   typographer: false,
 });
 
@@ -147,7 +147,7 @@ export function useEditorAI(editorRef: ShallowRef<Editor | undefined>) {
     let content: string;
     if (withFormat) {
       const rawHtml = md.render(aiResult.value);
-      // Remove newlines between tags so TipTap does not create extra blank paragraphs
+      // Remove newlines between tags so TipTap does not create extra blank paragraphs / 去掉标签间换行避免多余空段
       content = rawHtml.replace(/>\s+</g, '><').trim();
     } else {
       content = aiResult.value;

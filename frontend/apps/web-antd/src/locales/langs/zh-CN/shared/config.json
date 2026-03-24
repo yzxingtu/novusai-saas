@@ -12,29 +12,34 @@
   },
   "group": {
     "platform_general": "通用设置",
+    "platform_domain": "域名设置",
     "platform_security": "安全设置",
     "platform_email": "邮件设置",
     "platform_ssl": "SSL 证书管理",
     "platform_ai_toolkit": "AI Toolkit 与页面上下文",
     "tenant_appearance": "外观设置",
     "tenant_general": "安全设置",
-    "tenant_features": "会员设置"
+    "tenant_registration": "注册与协议",
+    "tenant_features": "会员功能"
   },
   "group_desc": {
     "platform_general": "站点基本信息、维护模式等配置",
+    "platform_domain": "企业默认域名后缀、自定义域名验证前缀等配置",
     "platform_security": "密码策略、登录安全等配置",
     "platform_email": "SMTP 邮件发送配置",
     "platform_ssl": "ACME 证书签发、DNS 提供商、续期策略配置",
     "platform_ai_toolkit": "Toolkit 安全策略、资源限制，以及 AI 聊天页面上下文大小限制",
     "tenant_appearance": "Logo、登录页品牌设置",
     "tenant_general": "登录安全、密码策略、会话设置",
-    "tenant_features": "注册、通知、文件上传等会员功能开关"
+    "tenant_registration": "用户注册流程、默认角色、隐私政策和服务条款配置",
+    "tenant_features": "通知、资料编辑、文件上传等会员功能开关"
   },
   "platform": {
     "site_name": "站点名称",
     "site_description": "站点描述",
     "site_logo": "站点 Logo",
     "site_favicon": "站点图标",
+    "logo_dark": "站点深色 Logo",
     "site_copyright": "版权信息",
     "site_icp": "ICP 备案号",
     "maintenance_mode": "维护模式",
@@ -109,10 +114,12 @@
   "tenant": {
     "tenant_logo": "企业 Logo",
     "tenant_favicon": "企业图标",
+    "tenant_logo_dark": "企业深色 Logo",
     "tenant_login_bg": "登录页背景",
     "tenant_login_title": "登录页标题",
     "tenant_login_subtitle": "登录页副标题",
     "tenant_footer_copyright": "页脚版权",
+    "tenant_icp": "ICP备案号",
     "tenant_captcha_enabled": "启用验证码",
     "tenant_login_methods": "登录方式",
     "tenant_login_max_attempts": "登录失败锁定次数",
@@ -129,7 +136,9 @@
     "tenant_file_upload": "文件上传"
   },
   "tenant_desc": {
-    "tenant_logo": "企业管理后台显示的 Logo"
+    "tenant_logo": "企业管理后台显示的 Logo",
+    "tenant_logo_dark": "深色主题下优先显示的企业 Logo",
+    "tenant_icp": "企业自己的备案号；为空时沿用平台默认备案号"
   },
   "tenant_options": {
     "tenant_login_methods": {

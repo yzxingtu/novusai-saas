@@ -4,8 +4,8 @@ display_name:
   zh-CN: "对象存储对账计费"
   en: "Storage Billing Reconciliation"
 description:
-  zh-CN: "独立的对象存储对账计费插件，负责按官方账单口径归集七牛云、阿里云 OSS、腾讯云 COS 的云端流量费用，并按套餐 feature 控制企业侧可见性。"
-  en: "Standalone storage billing reconciliation plugin that aggregates official traffic charges from Qiniu Kodo, Alibaba Cloud OSS, and Tencent Cloud COS, with tenant visibility controlled by plan features."
+  zh-CN: "独立的对象存储对账计费插件，只对使用管理端统一对象存储的企业按官方账单口径归集七牛云、阿里云 OSS、腾讯云 COS 的云端费用，并按套餐 feature 控制企业侧可见性。"
+  en: "Standalone storage billing reconciliation plugin that bills only tenants using platform-managed object storage, aggregating official cloud charges from Qiniu Kodo, Alibaba Cloud OSS, and Tencent Cloud COS with tenant visibility controlled by plan features."
 author: "NovusAI"
 icon: ""
 scope: all_tenants
@@ -91,12 +91,14 @@ extensions:
   custom:
     - type: tenant_menu_policy
       name: feature_managed_entitlement
-      description: "Tenant entitlement is managed by host plan features instead of lifecycle auto-grant."
+      description: "Tenant visibility is controlled by host plan features and runtime prerequisites; grant_mode only suppresses lifecycle auto-grant."
       data:
         grant_mode: manual_entitlement
+        entitlement_source: plan_feature
+        tenant_visibility: feature_managed_prerequisites_gate
     - type: billing_scope
       name: official_bill_only
-      description: "Only official provider bills are billable; local storage is excluded."
+      description: "Only official bills for platform-managed object storage are billable; tenant self-managed or local storage is excluded."
       data:
         supported_drivers:
           - qiniu-kodo
@@ -105,6 +107,7 @@ extensions:
         excluded_drivers:
           - local
         reconciliation_mode: official_bill_alignment
+        storage_mode: platform_managed_only
 
   permissions:
     - code: billing_admin
@@ -230,7 +233,7 @@ extensions:
         handler: "api.tenant.list_statement_charges"
         summary: "List tenant storage billing charge rows for a billing date"
         auth: required
-        permission: "billing_portal:view"
+        permission: "billing_statement:list"
       - method: GET
         path: statement/charges/export
         handler: "api.tenant.export_statement_charges"

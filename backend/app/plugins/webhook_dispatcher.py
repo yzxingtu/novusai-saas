@@ -259,7 +259,7 @@ async def _verify_webhook_auth(
         # Same handling as hmac / 与 hmac 相同处理
         return await _verify_webhook_auth("hmac", auth_config, plugin_config, request, body)
 
-    # unknown auth type → fail-close
+    # unknown auth type → fail-close / 未知认证类型则拒绝（fail-close）
     logger.warning(
         "Webhook auth: unknown auth_type '{}', denying request",
         auth_type,

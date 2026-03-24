@@ -2,6 +2,19 @@
  * Storage Migration Plugin - Type definitions
  */
 
+export interface NovusPluginSharedAPI {
+  registerLocale?: (
+    locale: string,
+    prefix: string,
+    messages: Record<string, unknown>,
+  ) => void;
+  getAccessCodes?: () => string[];
+  hasAccessByCodes?: (
+    codes: string | string[] | undefined,
+    options?: { mode?: 'all' | 'any' },
+  ) => boolean;
+}
+
 export interface StorageDriverInfo {
   name: string;
   display_name: string;
@@ -30,6 +43,10 @@ export interface MigrationTask {
   error_message: string | null;
   started_at: string | null;
   completed_at: string | null;
+  source_cleanup_started_at: string | null;
+  source_cleanup_completed_at: string | null;
+  source_cleanup_deleted_files: number;
+  source_cleanup_error_count: number;
   created_by: number;
   created_at: string;
   updated_at: string;

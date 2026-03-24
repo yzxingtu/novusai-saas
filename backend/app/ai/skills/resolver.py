@@ -429,7 +429,7 @@ class SkillResolver:
             ))
 
     # ======================================== / 上文为英文说明 / English above
-    # Toolkit Skill
+    # Toolkit Skill / Toolkit 技能
     # ========================================
 
     def _resolve_toolkit(

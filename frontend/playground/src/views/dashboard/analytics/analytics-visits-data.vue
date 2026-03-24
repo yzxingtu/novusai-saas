@@ -64,7 +64,7 @@ onMounted(() => {
           },
         ],
         itemStyle: {
-          // borderColor: '#fff',
+          // borderColor: '#fff', / 可选：雷达图描边 / optional radar border color
           borderRadius: 10,
           borderWidth: 2,
         },

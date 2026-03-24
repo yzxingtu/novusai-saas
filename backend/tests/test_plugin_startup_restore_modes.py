@@ -107,7 +107,7 @@ async def test_restore_owner_mode_runs_heavy_and_mutates_status(
         def __init__(self, _db):
             self.run_alembic_upgrade = AsyncMock()
             self._restore_plugin_permissions = AsyncMock()
-            self._sync_plugin_periodic_tasks = AsyncMock()
+            self._sync_plugin_task_definitions = AsyncMock()
             self._set_plugin_permissions_enabled = AsyncMock()
             lifecycle_instances.append(self)
 
@@ -146,7 +146,7 @@ async def test_restore_owner_mode_runs_heavy_and_mutates_status(
         plugin.name,
         auto_grant_plans=True,
     )
-    lifecycle._sync_plugin_periodic_tasks.assert_awaited_once()
+    lifecycle._sync_plugin_task_definitions.assert_awaited_once()
     lifecycle._set_plugin_permissions_enabled.assert_not_awaited()
     registry.unregister_all.assert_not_called()
 
@@ -522,7 +522,7 @@ async def test_restore_marks_error_when_heavy_restore_step_fails(
     class _Lifecycle:
         def __init__(self, _db):
             self.run_alembic_upgrade = AsyncMock()
-            self._sync_plugin_periodic_tasks = AsyncMock(
+            self._sync_plugin_task_definitions = AsyncMock(
                 side_effect=RuntimeError("heavy restore boom")
             )
             self._set_plugin_permissions_enabled = AsyncMock()
@@ -564,7 +564,7 @@ async def test_restore_marks_error_when_heavy_restore_step_fails(
     assert len(lifecycle_instances) == 1
     lifecycle = lifecycle_instances[0]
     lifecycle.run_alembic_upgrade.assert_not_awaited()
-    lifecycle._sync_plugin_periodic_tasks.assert_awaited_once()
+    lifecycle._sync_plugin_task_definitions.assert_awaited_once()
     lifecycle._set_plugin_permissions_enabled.assert_awaited_once_with(plugin.name, False)
     register_all_extensions.assert_not_called()
     registry.unregister_all.assert_called_once_with(plugin.name)

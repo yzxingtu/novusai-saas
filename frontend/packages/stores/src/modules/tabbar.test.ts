@@ -129,6 +129,23 @@ describe('useAccessStore', () => {
     expect(store.affixTabs).toContainEqual(affixTab);
   });
 
+  it('touchTabs keeps existing tab state while replacing the tabs array', () => {
+    const store = useTabbarStore();
+    store.addTab({
+      fullPath: '/plugin',
+      meta: { title: 'Storage Billing' },
+      name: 'PluginTab',
+      path: '/plugin',
+    } as any);
+
+    const originalTabs = store.tabs;
+    store.touchTabs();
+
+    expect(store.tabs).toHaveLength(1);
+    expect(store.tabs[0]?.meta?.title).toBe('Storage Billing');
+    expect(store.tabs).not.toBe(originalTabs);
+  });
+
   it('navigates to a specific tab', async () => {
     const store = useTabbarStore();
     const tab: any = { meta: {}, name: 'Dashboard', path: '/dashboard' };

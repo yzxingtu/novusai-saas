@@ -702,7 +702,7 @@ function getFormDefaults(): Record<string, unknown> {
     email_max_recipients: 5,
     email_require_confirmation: true,
     email_allow_cc: true,
-    // code_execution defaults
+    // code_execution defaults / 代码执行类型默认配置
     code_language: 'python',
     code_memory_limit_mb: 256,
     code_allowed_modules:

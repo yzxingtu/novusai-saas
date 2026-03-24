@@ -23,7 +23,7 @@ class _ScalarResult:
 async def test_create_trial_license_rejects_paid_plugin_when_trial_disabled() -> None:
     plugin = SimpleNamespace(
         id=7,
-        name="workflow-orchestration",
+        name="example-paid-plugin",
         pricing_type="paid",
         manifest={
             "pricing": {

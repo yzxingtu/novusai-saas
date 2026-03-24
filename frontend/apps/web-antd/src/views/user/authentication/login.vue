@@ -12,6 +12,7 @@ import { Button, Form, FormItem, Input, InputPassword } from 'ant-design-vue';
 import { CaptchaProvider } from '#/components/business/captcha';
 import { $t } from '#/locales';
 import { useMultiAuthStore, usePublicConfigStore } from '#/store';
+import { shouldRequestTenantPublicConfig } from '#/utils/public-config-domain';
 
 defineOptions({ name: 'UserLogin' });
 
@@ -27,8 +28,18 @@ const formState = reactive({
   username: '',
 });
 
-onMounted(() => {
-  publicConfigStore.loadTenantConfig();
+onMounted(async () => {
+  await publicConfigStore.detectDomainType().catch(() => {});
+  if (
+    shouldRequestTenantPublicConfig(
+      publicConfigStore.isDomainDetected,
+      publicConfigStore.isDomainTenantDomain,
+    )
+  ) {
+    await publicConfigStore.loadTenantConfig();
+    return;
+  }
+  await publicConfigStore.loadPlatformConfig();
 });
 
 const showCaptcha = computed(() => publicConfigStore.shouldShowUserCaptcha);
@@ -48,6 +59,13 @@ const captchaDifficulty = computed((): CaptchaDifficulty => {
 
 const captchaProvider = computed(() => {
   return publicConfigStore.tenantCaptcha?.provider ?? 'image';
+});
+
+const loginSubtitle = computed(() => {
+  return (
+    publicConfigStore.tenantBrand?.siteDescription ||
+    $t('user.auth.subtitle')
+  );
 });
 
 function refreshCaptcha() {
@@ -104,7 +122,7 @@ async function handleLogin() {
         {{ $t('user.auth.welcomeBack') }}
       </h1>
       <p class="mt-1 text-sm text-muted-foreground">
-        {{ $t('user.auth.subtitle') }}
+        {{ loginSubtitle }}
       </p>
     </div>
 

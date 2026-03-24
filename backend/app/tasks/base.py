@@ -15,7 +15,6 @@ from celery import Task
 from sqlalchemy.orm import Session
 
 from app.celery_app import celery_app
-from app.core.config import settings
 from app.middleware.trace import trace_id_var
 from app.core.base_model import utc_now
 from app.core.database import sync_session_factory
@@ -30,50 +29,69 @@ def get_task_registry() -> dict[str, dict[str, Any]]:
     return _task_registry
 
 
-# Cache periodic_tasks config to avoid DB query on every task execution / 缓存 periodic_tasks 配置，避免每次任务执行都查 DB
-_periodic_task_config_cache: dict[str, dict[str, Any]] = {}
-
-
-def _load_periodic_task_config(task_path: str) -> dict[str, Any]:
-    """
-    从 periodic_tasks 表加载任务配置 / Load task config from periodic_tasks table.
-
-    Results are cached in memory; DB is queried only once per Worker lifecycle.
-    结果缓存在内存中，Worker 生命周期内只查一次 DB。
-    """
-    if task_path in _periodic_task_config_cache:
-        return _periodic_task_config_cache[task_path]
-
+def _load_task_definition_config(
+    task_definition_id: int,
+    binding_id: int | None = None,
+) -> dict[str, Any]:
     config: dict[str, Any] = {}
     session = None
     try:
-        from app.models.system.periodic_task import PeriodicTask
+        from app.models.system.task_definition import TaskDefinition
+        from app.models.system.tenant_task_binding import TenantTaskBinding
 
         session = sync_session_factory()
-        task = (
-            session.query(PeriodicTask)
+        definition = (
+            session.query(TaskDefinition)
             .filter(
-                PeriodicTask.task_path == task_path,
-                PeriodicTask.is_deleted.is_(False),
+                TaskDefinition.id == task_definition_id,
+                TaskDefinition.is_deleted.is_(False),
             )
             .first()
         )
-        if task:
+        binding = None
+        if binding_id is not None:
+            binding = (
+                session.query(TenantTaskBinding)
+                .filter(
+                    TenantTaskBinding.id == binding_id,
+                    TenantTaskBinding.is_deleted.is_(False),
+                )
+                .first()
+            )
+
+        if definition:
             config = {
-                "max_retries": task.max_retries,
-                "retry_delay": task.retry_delay,
-                "timeout": task.timeout,
-                "notify_on_failure": task.notify_on_failure,
-                "notify_emails": task.notify_emails,
-                "task_name": task.name,
+                "max_retries": definition.max_retries,
+                "retry_delay": definition.retry_delay,
+                "timeout": definition.timeout,
+                "notify_on_failure": definition.notify_on_failure,
+                "notify_emails": definition.notify_emails,
+                "task_name": definition.name,
+                "task_definition_id": definition.id,
+                "binding_id": binding.id if binding else None,
+                "schedule_type": (
+                    binding.schedule_type_override
+                    if binding and binding.schedule_type_override
+                    else definition.default_schedule_type
+                ),
+                "cron_expression": (
+                    binding.cron_expression_override
+                    if binding and binding.cron_expression_override
+                    else definition.default_cron_expression
+                ),
+                "interval_seconds": (
+                    binding.interval_seconds_override
+                    if binding and binding.interval_seconds_override is not None
+                    else definition.default_interval_seconds
+                ),
             }
     except Exception as e:
-        logger.warning(f"Failed to load periodic task config for {task_path}: {e}")
+        logger.warning(
+            f"Failed to load task definition config for {task_definition_id}: {e}"
+        )
     finally:
         if session:
             session.close()
-
-    _periodic_task_config_cache[task_path] = config
     return config
 
 
@@ -83,8 +101,8 @@ class BaseTask(Task):
 
     Automatically logs, handles retries and error callbacks.
     自动记录日志、处理重试和错误回调。
-    Dynamically reads max_retries / retry_delay / timeout config from periodic_tasks table.
-    动态从 periodic_tasks 表读取 max_retries / retry_delay / timeout 配置。
+    Dynamically reads max_retries / retry_delay / timeout config from task_definitions.
+    动态从 task_definitions 读取 max_retries / retry_delay / timeout 配置。
     """
 
     abstract = True
@@ -121,7 +139,7 @@ class BaseTask(Task):
         self._start_time = time.monotonic()
         self._apply_db_config()
         logger.info(f"Task started: {self.name} [{task_id}]")
-        self._record_task_log_start(task_id, args, kwargs)
+        self._record_task_run_start(task_id, args, kwargs)
 
     def after_return(
         self,
@@ -139,11 +157,26 @@ class BaseTask(Task):
 
     def _apply_db_config(self) -> None:
         """
-        从 periodic_tasks 表动态加载配置并覆盖 Celery 参数 / Dynamically load config from periodic_tasks and override Celery params.
+        从 task_definitions 动态加载配置并覆盖 Celery 参数 / Dynamically load config from task_definitions and override Celery params.
 
         DB config takes priority over @register_task hardcoded values.
         """
-        config = _load_periodic_task_config(self.name)
+        headers = getattr(self.request, "headers", None) or {}
+        config: dict[str, Any] = {}
+        if isinstance(headers, dict) and headers.get("task_definition_id"):
+            try:
+                task_definition_id = int(headers["task_definition_id"])
+                binding_id = (
+                    int(headers["binding_id"])
+                    if headers.get("binding_id") not in (None, "", "null")
+                    else None
+                )
+                config = _load_task_definition_config(
+                    task_definition_id,
+                    binding_id,
+                )
+            except (TypeError, ValueError):
+                config = {}
         if not config:
             return
         self._db_config = config
@@ -167,7 +200,7 @@ class BaseTask(Task):
             f"Task succeeded: {self.name} [{task_id}] "
             f"elapsed={elapsed:.2f}s"
         )
-        self._record_task_log_success(task_id, retval, elapsed)
+        self._record_task_run_success(task_id, retval, elapsed)
         self._update_periodic_task_timestamps()
 
     def on_failure(self, exc: Exception, task_id: str, args: tuple, kwargs: dict, einfo: Any) -> None:
@@ -177,7 +210,7 @@ class BaseTask(Task):
             f"Task failed: {self.name} [{task_id}] "
             f"elapsed={elapsed:.2f}s error={exc!r}"
         )
-        self._record_task_log_failure(task_id, exc, einfo, elapsed)
+        self._record_task_run_failure(task_id, exc, einfo, elapsed)
         self._update_periodic_task_timestamps()
         self._notify_failure(task_id, exc)
 
@@ -187,14 +220,14 @@ class BaseTask(Task):
             f"Task retrying: {self.name} [{task_id}] "
             f"retry={self.request.retries}/{self.max_retries} error={exc!r}"
         )
-        self._record_task_log_retry(task_id, exc)
+        self._record_task_run_retry(task_id, exc)
 
     def _notify_failure(self, task_id: str, exc: Exception) -> None:
         """
         Task failure notification hook / 任务失败通知钩子。
 
-        Decides whether to send notification based on periodic_tasks table's notify_on_failure config.
-        根据 periodic_tasks 表的 notify_on_failure 配置决定是否发送通知。
+        Decides whether to send notification based on task_definitions notify_on_failure config.
+        根据 task_definitions 的 notify_on_failure 配置决定是否发送通知。
         Currently supported: log recording. Reserved: WebSocket push, email notification.
         当前支持：日志记录。预留接口：WebSocket 实时推送、邮件通知
         """
@@ -204,15 +237,14 @@ class BaseTask(Task):
         task_name = self._db_config.get("task_name", self.name)
         notify_emails = self._db_config.get("notify_emails", "")
 
-        # 1. Record notification log / 记录通知日志
         logger.warning(
             "Task failure notification: task={} task_id={} error={} emails={}",
             task_name, task_id, str(exc)[:200], notify_emails or "(none)",
         )
 
-        # 2. Socket.IO real-time push (via sio_bridge sync publish) / Socket.IO 实时推送（通过 sio_bridge 同步发布）
         try:
             from app.core.sio_bridge import notify_admins_sync
+
             notify_admins_sync({
                 "type": "task.failed",
                 "category": "task",
@@ -224,7 +256,6 @@ class BaseTask(Task):
         except Exception as ws_err:
             logger.warning("Failed to send WS task failure notification: {}", str(ws_err))
 
-        # 3. Email notification (via unified notification system) / 邮件通知（通过统一通知系统）
         if notify_emails:
             try:
                 from app.services.common.email_templates import (
@@ -258,136 +289,224 @@ class BaseTask(Task):
     def get_db_session(self) -> Session:
         return sync_session_factory()
 
-    # ── Task Log Recording (sync) / 任务日志记录（同步） ──────────────────────────
+    # ── Task Run Recording (sync) / 任务运行记录（同步） ────────────────────────
 
-    def _record_task_log_start(
+    def _get_task_run_context(self) -> dict[str, Any] | None:
+        """Extract task-run metadata from Celery headers. / 从 Celery headers 中提取任务运行上下文。"""
+        headers = getattr(self.request, "headers", None) or {}
+        if not isinstance(headers, dict):
+            return None
+
+        task_code = headers.get("task_code_snapshot")
+        if not task_code:
+            return None
+
+        def _to_int(value: Any) -> int | None:
+            if value in (None, "", "null"):
+                return None
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return None
+
+        return {
+            "task_definition_id": _to_int(headers.get("task_definition_id")),
+            "binding_id": _to_int(headers.get("binding_id")),
+            "task_code_snapshot": str(task_code),
+            "task_name_snapshot": str(
+                headers.get("task_name_snapshot") or self.name
+            ),
+            "handler_path_snapshot": str(
+                headers.get("handler_path_snapshot") or self.name
+            ),
+            "trigger_source": str(
+                headers.get("trigger_source") or "scheduler"
+            ),
+            "run_kind": str(headers.get("run_kind") or "platform"),
+            "owner_tenant_id": _to_int(headers.get("owner_tenant_id")),
+            "effective_tenant_id": _to_int(headers.get("effective_tenant_id")),
+        }
+
+    def _summarize_payload(self, value: Any) -> str | None:
+        """Create a concise summary string for logs. / 为日志生成精简摘要文本。"""
+        if value is None:
+            return None
+        if isinstance(value, dict):
+            if "error" in value:
+                return str(value["error"])[:500]
+            text = str(value)
+            return text[:500]
+        text = str(value)
+        return text[:500] if text else None
+
+    def _record_task_run_start(
         self, task_id: str, args: tuple, kwargs: dict,
     ) -> None:
-        """Insert a TaskLog row when task starts. / 任务启动时插入 TaskLog 记录。"""
+        """Insert a TaskRun row when the actual task starts. / 真实任务启动时插入 TaskRun。"""
+        context = self._get_task_run_context()
+        if not context:
+            return
+
         session = None
         try:
-            from app.models.system.task_log import TaskLog
+            from app.models.system.task_run import TaskRun
 
             session = sync_session_factory()
             queue = getattr(self, "queue", "default") or "default"
-            tenant_id = kwargs.get("tenant_id") if kwargs else None
-
-            # Serialize args/kwargs safely / 安全序列化 args/kwargs
             safe_args = self._safe_json(list(args)) if args else None
             safe_kwargs = self._safe_json(dict(kwargs)) if kwargs else None
+            args_summary = None
+            if safe_args is not None or safe_kwargs is not None:
+                args_summary = {"args": safe_args, "kwargs": safe_kwargs}
 
-            log = TaskLog(
-                task_id=task_id,
-                task_name=self.name,
+            run = TaskRun(
+                celery_task_id=task_id,
+                task_definition_id=context["task_definition_id"],
+                binding_id=context["binding_id"],
+                task_code_snapshot=context["task_code_snapshot"],
+                task_name_snapshot=context["task_name_snapshot"],
+                handler_path_snapshot=context["handler_path_snapshot"],
+                trigger_source=context["trigger_source"],
+                run_kind=context["run_kind"],
+                owner_tenant_id=context["owner_tenant_id"],
+                effective_tenant_id=context["effective_tenant_id"],
                 queue=queue,
                 status="running",
-                args=safe_args,
-                kwargs=safe_kwargs,
+                args_summary=args_summary,
+                trace_id=trace_id_var.get() or None,
                 started_at=utc_now(),
-                tenant_id=tenant_id,
             )
-            session.add(log)
+            session.add(run)
             session.commit()
         except Exception as e:
-            logger.warning(f"Failed to record task log start: {e}")
+            logger.warning(f"Failed to record task run start: {e}")
             if session:
                 session.rollback()
         finally:
             if session:
                 session.close()
 
-    def _record_task_log_success(
+    def _record_task_run_success(
         self, task_id: str, retval: Any, elapsed: float,
     ) -> None:
-        """Update TaskLog to SUCCESS. / 更新 TaskLog 为成功状态。"""
+        """Update TaskRun to SUCCESS. / 更新 TaskRun 为成功状态。"""
+        context = self._get_task_run_context()
+        if not context:
+            return
+
         session = None
         try:
-            from app.models.system.task_log import TaskLog
+            from app.models.system.task_run import TaskRun
 
             session = sync_session_factory()
-            log = (
-                session.query(TaskLog)
-                .filter(TaskLog.task_id == task_id)
+            run = (
+                session.query(TaskRun)
+                .filter(TaskRun.celery_task_id == task_id)
                 .first()
             )
-            if log:
-                log.status = "success"
-                log.result = self._safe_json(retval)
-                log.finished_at = utc_now()
-                log.duration_ms = int(elapsed * 1000)
+            if run:
+                run.status = "success"
+                run.result_summary = self._safe_json(retval)
+                run.summary = self._summarize_payload(retval)
+                run.finished_at = utc_now()
+                run.duration_ms = int(elapsed * 1000)
+                run.trace_id = trace_id_var.get() or run.trace_id
                 session.commit()
         except Exception as e:
-            logger.warning(f"Failed to record task log success: {e}")
+            logger.warning(f"Failed to record task run success: {e}")
             if session:
                 session.rollback()
         finally:
             if session:
                 session.close()
 
-    def _record_task_log_failure(
+    def _record_task_run_failure(
         self, task_id: str, exc: Exception, einfo: Any, elapsed: float,
     ) -> None:
-        """Update or create TaskLog as FAILED. / 更新或创建失败状态的 TaskLog。"""
+        """Update or create failed TaskRun. / 更新或创建失败 TaskRun。"""
+        context = self._get_task_run_context()
+        if not context:
+            return
+
         session = None
         try:
-            from app.models.system.task_log import TaskLog
+            from app.models.system.task_run import TaskRun
 
             session = sync_session_factory()
-            log = (
-                session.query(TaskLog)
-                .filter(TaskLog.task_id == task_id)
+            run = (
+                session.query(TaskRun)
+                .filter(TaskRun.celery_task_id == task_id)
                 .first()
             )
             now = utc_now()
-            if log:
-                log.status = "failed"
-                log.error_message = str(exc)[:2000]
-                log.traceback = str(einfo)[:5000] if einfo else None
-                log.finished_at = now
-                log.duration_ms = int(elapsed * 1000)
+            if run:
+                run.status = "failed"
+                run.summary = str(exc)[:500]
+                run.error_message_public = str(exc)[:500]
+                run.error_message_internal = str(exc)[:2000]
+                run.traceback_internal = str(einfo)[:5000] if einfo else None
+                run.finished_at = now
+                run.duration_ms = int(elapsed * 1000)
+                run.trace_id = trace_id_var.get() or run.trace_id
             else:
-                # Create a new failure record if before_start failed to create log / before_start 未能创建日志时，直接新建一条失败记录
-                queue = getattr(self, "queue", "default") or "default"
-                log = TaskLog(
-                    task_id=task_id,
-                    task_name=self.name,
-                    queue=queue,
+                run = TaskRun(
+                    celery_task_id=task_id,
+                    task_definition_id=context["task_definition_id"],
+                    binding_id=context["binding_id"],
+                    task_code_snapshot=context["task_code_snapshot"],
+                    task_name_snapshot=context["task_name_snapshot"],
+                    handler_path_snapshot=context["handler_path_snapshot"],
+                    trigger_source=context["trigger_source"],
+                    run_kind=context["run_kind"],
+                    owner_tenant_id=context["owner_tenant_id"],
+                    effective_tenant_id=context["effective_tenant_id"],
+                    queue=getattr(self, "queue", "default") or "default",
                     status="failed",
-                    error_message=str(exc)[:2000],
-                    traceback=str(einfo)[:5000] if einfo else None,
+                    summary=str(exc)[:500],
+                    error_message_public=str(exc)[:500],
+                    error_message_internal=str(exc)[:2000],
+                    traceback_internal=str(einfo)[:5000] if einfo else None,
+                    trace_id=trace_id_var.get() or None,
                     started_at=now,
                     finished_at=now,
                     duration_ms=int(elapsed * 1000),
                 )
-                session.add(log)
+                session.add(run)
             session.commit()
         except Exception as e:
-            logger.warning(f"Failed to record task log failure: {e}")
+            logger.warning(f"Failed to record task run failure: {e}")
             if session:
                 session.rollback()
         finally:
             if session:
                 session.close()
 
-    def _record_task_log_retry(self, task_id: str, exc: Exception) -> None:
-        """Update TaskLog to RETRYING. / 更新 TaskLog 为重试状态。"""
+    def _record_task_run_retry(self, task_id: str, exc: Exception) -> None:
+        """Update TaskRun to RETRYING. / 更新 TaskRun 为重试状态。"""
+        context = self._get_task_run_context()
+        if not context:
+            return
+
         session = None
         try:
-            from app.models.system.task_log import TaskLog
+            from app.models.system.task_run import TaskRun
 
             session = sync_session_factory()
-            log = (
-                session.query(TaskLog)
-                .filter(TaskLog.task_id == task_id)
+            run = (
+                session.query(TaskRun)
+                .filter(TaskRun.celery_task_id == task_id)
                 .first()
             )
-            if log:
-                log.status = "retrying"
-                log.retry_count = getattr(self.request, "retries", 0)
-                log.error_message = str(exc)[:2000]
+            if run:
+                run.status = "retrying"
+                run.summary = str(exc)[:500]
+                run.error_message_public = str(exc)[:500]
+                run.error_message_internal = str(exc)[:2000]
+                run.retry_count = getattr(self.request, "retries", 0)
+                run.trace_id = trace_id_var.get() or run.trace_id
                 session.commit()
         except Exception as e:
-            logger.warning(f"Failed to record task log retry: {e}")
+            logger.warning(f"Failed to record task run retry: {e}")
             if session:
                 session.rollback()
         finally:
@@ -407,47 +526,105 @@ class BaseTask(Task):
             return None
 
     def _update_periodic_task_timestamps(self) -> None:
-        """Update last_run_at and next_run_at in periodic_tasks table / 更新 periodic_tasks 表中的 last_run_at 和 next_run_at"""
+        """Update last_run_at and next_run_at in task definitions / 更新 task_definition / binding 的执行时间。"""
         session = None
         try:
             from datetime import timedelta
 
-            from app.models.system.periodic_task import PeriodicTask
+            from app.models.system.task_definition import TaskDefinition
+            from app.models.system.tenant_task_binding import TenantTaskBinding
 
             session = sync_session_factory()
-            task = (
-                session.query(PeriodicTask)
-                .filter(
-                    PeriodicTask.task_path == self.name,
-                    PeriodicTask.is_deleted.is_(False),
-                )
-                .first()
-            )
-            if not task:
-                return
-
             now = utc_now()
-            task.last_run_at = now
+            headers = getattr(self.request, "headers", None) or {}
 
-            # Calculate next_run_at / 计算 next_run_at
-            if task.schedule_type == "cron" and task.cron_expression:
+            def _compute_next_run(
+                schedule_type: str | None,
+                cron_expression: str | None,
+                interval_seconds: int | None,
+            ):
+                if schedule_type == "cron" and cron_expression:
+                    try:
+                        from celery.schedules import crontab
+
+                        parts = cron_expression.strip().split()
+                        if len(parts) == 5:
+                            schedule = crontab(
+                                minute=parts[0],
+                                hour=parts[1],
+                                day_of_month=parts[2],
+                                month_of_year=parts[3],
+                                day_of_week=parts[4],
+                            )
+                            remaining = schedule.remaining_estimate(now)
+                            return now + remaining
+                    except Exception:
+                        return None
+                if schedule_type == "interval" and interval_seconds:
+                    return now + timedelta(seconds=interval_seconds)
+                return None
+
+            updated_new_model = False
+            if isinstance(headers, dict) and headers.get("task_definition_id"):
                 try:
-                    from celery.schedules import crontab
-                    parts = task.cron_expression.strip().split()
-                    if len(parts) == 5:
-                        schedule = crontab(
-                            minute=parts[0],
-                            hour=parts[1],
-                            day_of_month=parts[2],
-                            month_of_year=parts[3],
-                            day_of_week=parts[4],
+                    task_definition_id = int(headers["task_definition_id"])
+                    binding_id = (
+                        int(headers["binding_id"])
+                        if headers.get("binding_id") not in (None, "", "null")
+                        else None
+                    )
+                    definition = (
+                        session.query(TaskDefinition)
+                        .filter(
+                            TaskDefinition.id == task_definition_id,
+                            TaskDefinition.is_deleted.is_(False),
                         )
-                        remaining = schedule.remaining_estimate(now)
-                        task.next_run_at = now + remaining  # remaining is timedelta / 剩余为 timedelta
-                except Exception:
-                    pass
-            elif task.schedule_type == "interval" and task.interval_seconds:
-                task.next_run_at = now + timedelta(seconds=task.interval_seconds)
+                        .first()
+                    )
+                    binding = None
+                    if binding_id is not None:
+                        binding = (
+                            session.query(TenantTaskBinding)
+                            .filter(
+                                TenantTaskBinding.id == binding_id,
+                                TenantTaskBinding.is_deleted.is_(False),
+                            )
+                            .first()
+                        )
+                    if definition:
+                        schedule_type = definition.default_schedule_type
+                        cron_expression = definition.default_cron_expression
+                        interval_seconds = definition.default_interval_seconds
+                        if binding:
+                            schedule_type = (
+                                binding.schedule_type_override or schedule_type
+                            )
+                            cron_expression = (
+                                binding.cron_expression_override or cron_expression
+                            )
+                            interval_seconds = (
+                                binding.interval_seconds_override
+                                if binding.interval_seconds_override is not None
+                                else interval_seconds
+                            )
+                            binding.last_run_at = now
+                            binding.next_run_at = _compute_next_run(
+                                schedule_type,
+                                cron_expression,
+                                interval_seconds,
+                            )
+                        definition.last_run_at = now
+                        definition.next_run_at = _compute_next_run(
+                            schedule_type,
+                            cron_expression,
+                            interval_seconds,
+                        )
+                        updated_new_model = True
+                except (TypeError, ValueError):
+                    updated_new_model = False
+
+            if not updated_new_model:
+                return
 
             session.commit()
             logger.info(f"Updated periodic task timestamps: {self.name}")
@@ -521,6 +698,7 @@ def register_task(
             "queue": queue,
             "max_retries": max_retries,
             "module": func.__module__,
+            "base": base.__name__,
         }
 
         return registered_task

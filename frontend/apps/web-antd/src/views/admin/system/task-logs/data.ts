@@ -78,6 +78,16 @@ export function getResultSummary(
   return { text: JSON.stringify(r), type: 'info' };
 }
 
+export function getTriggerSourceText(source: null | string | undefined): string {
+  if (!source) return '-';
+  return $t(`admin.system.taskLog.triggerSourceValues.${source}`, source);
+}
+
+export function getRunKindText(kind: null | string | undefined): string {
+  if (!kind) return '-';
+  return $t(`admin.system.taskLog.runKindValues.${kind}`, kind);
+}
+
 /**
  * 获取任务状态颜色
  */

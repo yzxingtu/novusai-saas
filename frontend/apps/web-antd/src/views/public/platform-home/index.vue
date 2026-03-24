@@ -7,6 +7,7 @@ import { preferences } from '@vben/preferences';
 
 import { $t } from '#/locales';
 import { usePublicConfigStore } from '#/store';
+import { resolveCopyrightDisplay } from '#/utils/public-branding';
 
 defineOptions({ name: 'PlatformPublicHome' });
 
@@ -26,6 +27,10 @@ const brandDescription = computed(() => {
 const brandLogo = computed(() => {
   return publicConfigStore.platformBrand?.logo || preferences.logo.source;
 });
+
+const footerBranding = computed(() =>
+  resolveCopyrightDisplay(preferences.copyright),
+);
 
 const capabilityCards = computed(() => {
   return [
@@ -334,5 +339,13 @@ onMounted(async () => {
         </div>
       </section>
     </main>
+
+    <footer
+      v-if="footerBranding.visible"
+      class="border-t border-border/70 px-4 py-4 text-center text-xs text-muted-foreground sm:px-6 lg:px-8"
+    >
+      {{ footerBranding.companyName }}
+      <span v-if="footerBranding.meta">{{ footerBranding.meta }}</span>
+    </footer>
   </div>
 </template>

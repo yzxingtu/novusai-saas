@@ -4,8 +4,6 @@
  */
 import type { RouteRecordRaw } from 'vue-router';
 
-import { $t } from '#/locales';
-
 const AuthPageLayout = () => import('#/layouts/admin-auth.vue');
 const BasicLayout = () => import('#/layouts/basic.vue');
 
@@ -25,7 +23,7 @@ const authRoutes: RouteRecordRaw = {
       path: '/admin/login',
       component: () => import('#/views/admin/authentication/login.vue'),
       meta: {
-        title: $t('page.auth.login'),
+        title: 'page.auth.login',
       },
     },
   ],
@@ -50,7 +48,7 @@ const mainRoutes: RouteRecordRaw = {
       meta: {
         affixTab: true,
         icon: 'lucide:layout-dashboard',
-        title: $t('page.dashboard.title'),
+        title: 'page.dashboard.title',
         ai: { mode: 'context_only' as const },
       },
     },
@@ -61,7 +59,7 @@ const mainRoutes: RouteRecordRaw = {
       component: () => import('#/views/admin/analytics/index.vue'),
       meta: {
         icon: 'lucide:bar-chart-3',
-        title: $t('admin.analytics.title'),
+        title: 'admin.analytics.title',
         ai: { mode: 'context_only' as const },
       },
     },
@@ -72,31 +70,31 @@ const mainRoutes: RouteRecordRaw = {
       component: () => import('#/views/admin/ai/skill-packages/detail.vue'),
       meta: {
         hideInMenu: true,
-        title: $t('admin.ai.skillPackage.detail.title'),
+        title: 'admin.ai.skillPackage.detail.title',
         activePath: '/admin/ai/skill-packages',
         ai: { pageContextKey: 'admin.ai.skill-packages.detail' },
       },
     },
-    // 智能体详情页
+    // 智能体详情页 / Agent detail page
     {
       name: 'AdminAIAgentDetail',
       path: 'ai/agents/:id',
       component: () => import('#/views/admin/ai/agents/detail.vue'),
       meta: {
         hideInMenu: true,
-        title: $t('admin.ai.agent.detail.title'),
+        title: 'admin.ai.agent.detail.title',
         activePath: '/admin/ai/agents',
         ai: { pageContextKey: 'admin.ai.agents.detail' },
       },
     },
-    // 插件市场页：后端不注册此路由
+    // 插件市场页：后端不注册此路由 / Plugin marketplace (not from backend menu)
     {
       name: 'AdminPluginMarketplace',
       path: 'plugins/marketplace',
       component: () => import('#/views/admin/plugins/marketplace/index.vue'),
       meta: {
         hideInMenu: true,
-        title: $t('admin.plugin.marketplace.title'),
+        title: 'admin.plugin.marketplace.title',
         activePath: '/admin/plugins',
       },
     },
@@ -108,7 +106,7 @@ const mainRoutes: RouteRecordRaw = {
       component: () => import('#/views/admin/system/codegen/index.vue'),
       meta: {
         hideInProduction: true,
-        title: $t('admin.system.codegen.name'),
+        title: 'admin.system.codegen.name',
         activePath: '/admin/system/codegen',
         accessCodes: ['action.codegen.list'],
       },
@@ -120,7 +118,7 @@ const mainRoutes: RouteRecordRaw = {
       meta: {
         hideInMenu: true,
         hideInProduction: true,
-        title: $t('admin.system.codegen.builderNew'),
+        title: 'admin.system.codegen.builderNew',
         activePath: '/admin/system/codegen',
         accessCodes: ['action.codegen.create', 'action.codegen.options'],
         accessCodesMode: 'all',
@@ -133,7 +131,7 @@ const mainRoutes: RouteRecordRaw = {
       meta: {
         hideInMenu: true,
         hideInProduction: true,
-        title: $t('admin.system.codegen.builderEdit'),
+        title: 'admin.system.codegen.builderEdit',
         activePath: '/admin/system/codegen',
         accessCodes: [
           'action.codegen.detail',
@@ -150,7 +148,7 @@ const mainRoutes: RouteRecordRaw = {
       component: () => import('#/views/admin/profile/index.vue'),
       meta: {
         hideInMenu: true,
-        title: $t('page.auth.profile'),
+        title: 'page.auth.profile',
       },
     },
     // 全局偏好设置由后端动态菜单注册，无需静态路由

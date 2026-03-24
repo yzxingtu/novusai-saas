@@ -37,10 +37,10 @@ async function bootstrap(namespace: string) {
   // 设置控制台过滤器，过滤框架的组件错误输出 / filter noisy framework console errors
   setupConsoleFilter();
 
-  // 修复 Ant Design Tabs 的 aria-hidden 警告
+  // 修复 Ant Design Tabs 的 aria-hidden 警告 / Fix Ant Design Tabs aria-hidden warning
   setupAriaHiddenFix();
 
-  // 初始化组件适配器
+  // 初始化组件适配器 / Init component adapter
   await initComponentAdapter();
 
   // 初始化表单组件 / init form setup

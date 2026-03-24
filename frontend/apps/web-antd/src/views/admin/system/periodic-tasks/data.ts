@@ -228,13 +228,19 @@ export function useColumns<T = PeriodicTaskInfo>(
             text: $t('admin.system.periodicTask.viewLogs'),
             icon: 'lucide:scroll-text',
           },
+          {
+            code: 'bindings',
+            text: $t('admin.system.periodicTask.manageBindings'),
+            icon: 'lucide:building-2',
+            accessCodes: ['periodic_task:bindings'],
+          },
           'delete',
         ],
       },
       field: 'operation',
       fixed: 'right',
       title: $t('admin.common.operation'),
-      width: 160,
+      width: 220,
     },
   ];
 }
@@ -336,6 +342,7 @@ export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
     ...useScopeFields({
       allowedScopes: ['admin_only', 'all_tenants'],
       showTenantId: true,
+      tenantIdField: 'owner_tenant_id',
     }),
 
     dividerField(

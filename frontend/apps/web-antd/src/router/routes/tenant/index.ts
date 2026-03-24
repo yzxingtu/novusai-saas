@@ -4,8 +4,6 @@
  */
 import type { RouteRecordRaw } from 'vue-router';
 
-import { $t } from '#/locales';
-
 const AuthPageLayout = () => import('#/layouts/tenant-auth.vue');
 const BasicLayout = () => import('#/layouts/basic.vue');
 
@@ -14,7 +12,7 @@ const authRoutes: RouteRecordRaw = {
   component: AuthPageLayout,
   meta: {
     hideInTab: true,
-    title: $t('page.tenant.authentication'),
+    title: 'page.tenant.authentication',
   },
   name: 'TenantAuthentication',
   path: '/tenant/auth',
@@ -25,7 +23,7 @@ const authRoutes: RouteRecordRaw = {
       path: '/tenant/login',
       component: () => import('#/views/tenant/authentication/login.vue'),
       meta: {
-        title: $t('page.auth.login'),
+        title: 'page.auth.login',
       },
     },
     {
@@ -33,7 +31,7 @@ const authRoutes: RouteRecordRaw = {
       path: '/tenant/impersonate',
       component: () => import('#/views/tenant/authentication/impersonate.vue'),
       meta: {
-        title: $t('page.auth.impersonate'),
+        title: 'page.auth.impersonate',
       },
     },
   ],
@@ -44,7 +42,7 @@ const mainRoutes: RouteRecordRaw = {
   component: BasicLayout,
   meta: {
     hideInBreadcrumb: true,
-    title: $t('page.tenant.root'),
+    title: 'page.tenant.root',
   },
   name: 'TenantRoot',
   path: '/tenant',
@@ -58,7 +56,7 @@ const mainRoutes: RouteRecordRaw = {
       meta: {
         affixTab: true,
         icon: 'lucide:layout-dashboard',
-        title: $t('page.dashboard.title'),
+        title: 'page.dashboard.title',
         ai: { mode: 'context_only' as const },
       },
     },
@@ -69,18 +67,18 @@ const mainRoutes: RouteRecordRaw = {
       component: () => import('#/views/tenant/analytics/index.vue'),
       meta: {
         icon: 'lucide:bar-chart-3',
-        title: $t('tenant.analytics.title'),
+        title: 'tenant.analytics.title',
         ai: { mode: 'context_only' as const },
       },
     },
-    // 智能体详情页
+    // 智能体详情页 / Agent detail page
     {
       name: 'TenantAIAgentDetail',
       path: 'ai/agents/:id',
       component: () => import('#/views/tenant/ai/agents/detail.vue'),
       meta: {
         hideInMenu: true,
-        title: $t('tenant.ai.agent.detail.title'),
+        title: 'tenant.ai.agent.detail.title',
         activePath: '/tenant/ai/agents',
         ai: { pageContextKey: 'tenant.ai.agents.detail' },
       },
@@ -91,7 +89,7 @@ const mainRoutes: RouteRecordRaw = {
       component: () => import('#/views/tenant/ai/skill-packages/detail.vue'),
       meta: {
         hideInMenu: true,
-        title: $t('tenant.ai.skillPackage.detail.title'),
+        title: 'tenant.ai.skillPackage.detail.title',
         activePath: '/tenant/ai/skill-packages',
         ai: { pageContextKey: 'tenant.ai.skill-packages.detail' },
       },
@@ -103,7 +101,7 @@ const mainRoutes: RouteRecordRaw = {
       component: () => import('#/views/tenant/profile/index.vue'),
       meta: {
         hideInMenu: true,
-        title: $t('page.auth.profile'),
+        title: 'page.auth.profile',
       },
     },
     // 全局偏好设置由后端动态菜单注册，无需静态路由

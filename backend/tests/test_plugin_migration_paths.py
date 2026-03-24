@@ -61,12 +61,12 @@ def test_get_db_registered_plugin_names_ignores_soft_deleted_rows(tmp_path: Path
     db_url = _prepare_plugin_db(
         tmp_path,
         [
-            {"name": "workflow-orchestration", "is_deleted": False},
+            {"name": "storage-billing", "is_deleted": False},
             {"name": "weather-widget", "is_deleted": True},
         ],
     )
 
-    assert get_db_registered_plugin_names(db_url=db_url) == ["workflow-orchestration"]
+    assert get_db_registered_plugin_names(db_url=db_url) == ["storage-billing"]
 
 
 def test_build_migration_version_locations_uses_db_registered_plugins_only(

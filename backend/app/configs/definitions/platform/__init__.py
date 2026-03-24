@@ -8,6 +8,7 @@ Import all platform config modules to trigger config registration.
 from app.configs.definitions.platform import (
     ai_memory,
     ai_toolkit,
+    domain,
     email,
     general,
     security,
@@ -18,6 +19,7 @@ from app.configs.definitions.platform import (
 
 __all__ = [
     "general",
+    "domain",
     "security",
     "email",
     "storage",

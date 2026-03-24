@@ -53,6 +53,11 @@
 - `/plugins/slots` 返回的每个前端 slot 都必须携带 `frontend_runtime`。
 - manifest 中声明的 JS / CSS / assets 必须真实存在。
 - manifest 中声明的组件名必须由插件前端入口真实导出。
+- install / enable / sync-manifest 运行时不得只做“弱校验”，必须同步 fail-close 校验：
+  - `pages[*].title`
+  - `pages[*].menu.title`
+  - `frontend.dev.entry` 的 canonical locale prefix
+  - `frontend.dev.entry` 对 manifest 声明组件的真实导出
 - 声明了 `release.manifest` 却没有产出 release 文件，必须 fail-close。
 
 ## Rule 6: menu / page / runtime gate 是三层闭环
@@ -86,6 +91,7 @@
 - `registerLocale()` 只影响插件内部文案，不负责菜单标题系统。
 - 插件前端至少注册一个 canonical prefix：
   - `plugin.{manifest-name}`
+- legacy alias 只能作为兼容层，不能成为唯一来源。
 - 切语言后必须同步刷新：
   - sidebar
   - breadcrumb
@@ -117,19 +123,22 @@
 - 是否保留 `titleLocaleMap`
 - 是否保证切语言后 breadcrumb / tab / `document.title` 同步更新
 - 是否真实产出 `frontend/dist/plugin.manifest.json`
+- install / enable / sync-manifest 是否与 CLI validate 共享同一套前端契约校验
+- repo 内是否仍存在只消费 legacy alias、未迁到 canonical prefix 的插件
 
 ## Rule 11: 浏览器回归清单
 
-每次涉及插件菜单、页面、权限、标题、loader、asset 的改动，至少跑：
+每次涉及插件菜单、页面、权限、标题、loader、asset 的改动，至少按矩阵跑：
 
-- 从菜单进入插件页
-- 直接输入插件 URL
-- 插件页硬刷新
-- 切换语言后检查 sidebar / breadcrumb / tab / `document.title`
-- 分别验证 admin 与 tenant
-- 检查普通插件页网络请求只命中 `/plugin-assets/...`
-- 检查 public captcha 网络请求只命中 `/plugin-public-assets/...`
+- scope：`admin` / `tenant` / `public`
+- 进入方式：菜单进入 / direct URL / 硬刷新
+- 权限状态：正常 / 撤权 / 插件禁用或 runtime gate fail-close
+- 资产模式：`/plugin-assets/...` / `/plugin-public-assets/...`
+- 切语言后检查 sidebar / breadcrumb / tab / `document.title`
+- 确认普通插件页网络只命中 `/plugin-assets/...`
+- 确认 public captcha 网络只命中 `/plugin-public-assets/...`
 - 确认 public 请求不带 `Authorization`
+- 确认 public 响应会主动清理历史 `novus_plugin_asset_token` cookie；若浏览器侧未能证明这一点，按未收口处理
 - 禁用插件或撤销权限后，确认菜单、页面、CTA 一起消失或禁用
 
 ## Rule 12: 禁止事项

@@ -19,8 +19,8 @@ when the corresponding system event fires.
 
 Handler signature / handler 签名:
   async def on_tenant_created(**context) -> dict:
-      # context contains event-related data (see each point's context description)
-      return context  # must return context (can be modified)
+      # context contains event-related data (see each point's context description) / context 含事件相关字段
+      return context  # must return context (can be modified) / 必须返回 context，可修改后回传
 """
 
 from __future__ import annotations

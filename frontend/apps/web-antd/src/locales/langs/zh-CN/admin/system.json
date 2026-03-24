@@ -321,6 +321,7 @@
     "detail": "任务详情",
     "taskName": "任务名称",
     "taskId": "任务 ID",
+    "handlerPath": "处理器路径",
     "queue": "队列",
     "duration": "耗时",
     "durationMs": "耗时(毫秒)",
@@ -337,6 +338,8 @@
     "retry": "重试",
     "cancel": "取消",
     "tenantName": "所属企业",
+    "triggerSource": "触发来源",
+    "runKind": "运行类型",
     "basicInfo": "基本信息",
     "timeInfo": "时间信息",
     "paramsInfo": "参数信息",
@@ -346,6 +349,17 @@
       "execution": "任务执行",
       "internal": "高频内部",
       "all": "全部"
+    },
+    "triggerSourceValues": {
+      "scheduler": "调度触发",
+      "admin_manual": "管理端手动触发",
+      "tenant_manual": "企业端手动触发",
+      "system_recovery": "系统恢复"
+    },
+    "runKindValues": {
+      "platform": "平台任务",
+      "tenant_binding": "企业绑定任务",
+      "on_demand": "按需任务"
     },
     "status": {
       "label": "状态",
@@ -383,7 +397,9 @@
       "send_notification_email": "通知邮件发送",
       "log_ai_call": "AI 调用日志记录",
       "process_document": "知识库文档处理",
-      "sync_litellm_registry": "LiteLLM + LLMRing 多源模型注册表同步"
+      "sync_litellm_registry": "LiteLLM + LLMRing 多源模型注册表同步",
+      "run_task_definition": "任务定义分发",
+      "run_tenant_task_binding": "企业任务绑定分发"
     },
     "queueNames": {
       "default": "默认队列",
@@ -422,6 +438,9 @@
     "description": "描述",
     "trigger": "立即触发",
     "viewLogs": "执行日志",
+    "manageBindings": "企业绑定",
+    "bindingTitle": "企业绑定: {name}",
+    "bindingHelp": "选择哪些企业启用这个定时任务定义。保存后会同步企业绑定关系。",
     "executionLogs": "执行日志",
     "totalLogs": "共 {count} 条记录",
     "noLogs": "暂无执行日志",
@@ -464,6 +483,7 @@
       "createSuccess": "创建成功",
       "updateSuccess": "更新成功",
       "deleteSuccess": "删除成功",
+      "bindingSaveSuccess": "企业绑定已保存",
       "deleteConfirm": "确定要删除定时任务 \"{name}\" 吗？",
       "triggerSuccess": "任务已触发",
       "triggerConfirm": "确定要立即触发此任务吗？",
