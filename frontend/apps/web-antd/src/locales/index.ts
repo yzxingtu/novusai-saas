@@ -8,6 +8,7 @@ import { ref } from 'vue';
 
 import {
   $t,
+  $te,
   setupI18n as coreSetup,
   loadLocalesMapFromDir,
 } from '@vben/locales';
@@ -61,26 +62,25 @@ async function loadThirdPartyMessage(lang: SupportedLanguagesType) {
  * @param lang
  */
 async function loadDayjsLocale(lang: SupportedLanguagesType) {
-  let locale;
+  let localeName: 'en' | 'zh-cn';
   switch (lang) {
     case 'en-US': {
-      locale = await import('dayjs/locale/en');
+      await import('dayjs/locale/en');
+      localeName = 'en';
       break;
     }
     case 'zh-CN': {
-      locale = await import('dayjs/locale/zh-cn');
+      await import('dayjs/locale/zh-cn');
+      localeName = 'zh-cn';
       break;
     }
     // 默认使用英语
     default: {
-      locale = await import('dayjs/locale/en');
+      await import('dayjs/locale/en');
+      localeName = 'en';
     }
   }
-  if (locale) {
-    dayjs.locale(locale);
-  } else {
-    console.error(`Failed to load dayjs locale for ${lang}`);
-  }
+  dayjs.locale(localeName);
 }
 
 /**
@@ -109,4 +109,4 @@ async function setupI18n(app: App, options: LocaleSetupOptions = {}) {
   });
 }
 
-export { $t, antdLocale, setupI18n };
+export { $t, $te, antdLocale, setupI18n };

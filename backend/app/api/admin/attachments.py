@@ -13,7 +13,7 @@ from app.core.base_controller import GlobalController
 from app.core.base_schema import PageResponse
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
-from app.core.response import deleted, success
+from app.core.response import build_public_error_text, deleted, success
 from app.enums.attachment import AttachmentSource, AttachmentVisibility
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
@@ -210,7 +210,7 @@ class AdminAttachmentController(GlobalController):
                         result["attachment"], from_attributes=True
                     ),
                     url=result["url"],
-                    used_bytes=0,  # 平台端不追踪配额
+                    used_bytes=0,  # 平台端不追踪配额 / Admin: no quota tracking
                 ),
                 message=_("file.upload_success"),
             )
@@ -271,7 +271,10 @@ class AdminAttachmentController(GlobalController):
                     items.append(BatchUploadItem(
                         filename=f.filename or "unnamed",
                         success=False,
-                        error=str(exc),
+                        error=build_public_error_text(
+                            exc,
+                            fallback_message=_("common.server_error"),
+                        ),
                     ))
             success_count = sum(1 for i in items if i.success)
             return success(

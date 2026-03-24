@@ -9,6 +9,23 @@ const PLUGIN_ASSET_PREFIX = '/plugin-assets/';
 const PLUGIN_PUBLIC_ASSET_PREFIX = '/plugin-public-assets/';
 const PLUGIN_ICON_PREFIX = '/plugin-icons/';
 type PublicPluginAssetEndpoint = 'admin' | 'tenant' | 'user';
+type PluginAssetScopeOptions = Pick<
+  BuildPluginAssetUrlOptions,
+  'endpoint' | 'publicEndpoint'
+>;
+
+type ParsedPluginAssetRoute =
+  | {
+      kind: 'auth';
+      normalized: string;
+      pluginName: string;
+    }
+  | {
+      kind: 'public';
+      normalized: string;
+      pluginName: string;
+      publicEndpoint: PublicPluginAssetEndpoint;
+    };
 
 export interface BuildPluginAssetUrlOptions {
   cacheBust?: boolean;
@@ -25,32 +42,139 @@ function isExternalAssetUrl(url: string): boolean {
   );
 }
 
+function getPluginAssetBaseOrigin(): string {
+  if (typeof window === 'undefined') {
+    return 'http://localhost';
+  }
+  return window.location.origin || 'http://localhost';
+}
+
+function isPublicPluginAssetEndpoint(
+  value: string,
+): value is PublicPluginAssetEndpoint {
+  return value === 'admin' || value === 'tenant' || value === 'user';
+}
+
+function normalizePluginAssetScopeOptions<T extends PluginAssetScopeOptions>(
+  options: T,
+): T {
+  if (options.endpoint && options.publicEndpoint) {
+    throw new Error(
+      'Plugin asset scope must use either endpoint or publicEndpoint, not both',
+    );
+  }
+  return options;
+}
+
+function parsePrefixedPluginAssetRoute(
+  assetPath: string,
+): null | ParsedPluginAssetRoute {
+  const parsed = new URL(assetPath, getPluginAssetBaseOrigin());
+  const normalized = `${parsed.pathname}${parsed.search}${parsed.hash}`;
+
+  if (parsed.pathname.startsWith(PLUGIN_PUBLIC_ASSET_PREFIX)) {
+    const [publicEndpoint, pluginName] = parsed.pathname
+      .slice(PLUGIN_PUBLIC_ASSET_PREFIX.length)
+      .split('/');
+    if (!publicEndpoint || !pluginName) {
+      throw new Error(`Invalid public plugin asset path '${assetPath}'`);
+    }
+    if (!isPublicPluginAssetEndpoint(publicEndpoint)) {
+      throw new Error(
+        `Invalid public plugin asset endpoint '${publicEndpoint}' in '${assetPath}'`,
+      );
+    }
+    return {
+      kind: 'public',
+      normalized,
+      pluginName,
+      publicEndpoint,
+    };
+  }
+
+  if (parsed.pathname.startsWith(PLUGIN_ASSET_PREFIX)) {
+    const [pluginName] = parsed.pathname
+      .slice(PLUGIN_ASSET_PREFIX.length)
+      .split('/');
+    if (!pluginName) {
+      throw new Error(`Invalid plugin asset path '${assetPath}'`);
+    }
+    return {
+      kind: 'auth',
+      normalized,
+      pluginName,
+    };
+  }
+
+  return null;
+}
+
+function validatePrefixedPluginAssetRoute(
+  pluginName: string,
+  assetPath: string,
+  route: ParsedPluginAssetRoute,
+  options: PluginAssetScopeOptions,
+): string {
+  if (route.pluginName !== pluginName) {
+    throw new Error(
+      `Plugin asset path '${assetPath}' does not match plugin '${pluginName}'`,
+    );
+  }
+
+  if (route.kind === 'public') {
+    if (!options.publicEndpoint) {
+      throw new Error(
+        `Plugin asset path '${assetPath}' requires publicEndpoint='${route.publicEndpoint}'`,
+      );
+    }
+    if (options.publicEndpoint !== route.publicEndpoint) {
+      throw new Error(
+        `Plugin asset path '${assetPath}' does not match publicEndpoint '${options.publicEndpoint}'`,
+      );
+    }
+    return route.normalized;
+  }
+
+  if (options.publicEndpoint) {
+    throw new Error(
+      `Authenticated plugin asset path '${assetPath}' cannot be loaded with publicEndpoint '${options.publicEndpoint}'`,
+    );
+  }
+
+  return route.normalized;
+}
+
 function normalizePluginAssetPath(
   pluginName: string,
   assetPath: string,
-  publicEndpoint?: PublicPluginAssetEndpoint,
+  options: PluginAssetScopeOptions,
 ): string {
   const raw = (assetPath || '').trim();
   if (!raw) {
-    if (publicEndpoint) {
-      return `${PLUGIN_PUBLIC_ASSET_PREFIX}${publicEndpoint}/${pluginName}/`;
+    if (options.publicEndpoint) {
+      return `${PLUGIN_PUBLIC_ASSET_PREFIX}${options.publicEndpoint}/${pluginName}/`;
     }
     return `/plugin-assets/${pluginName}/`;
   }
   if (isExternalAssetUrl(raw)) {
     return raw;
   }
-  if (raw.startsWith(PLUGIN_PUBLIC_ASSET_PREFIX)) {
-    return raw;
-  }
-  if (raw.startsWith('/plugin-assets/')) {
-    return raw;
+  const prefixedRoute = parsePrefixedPluginAssetRoute(raw);
+  if (prefixedRoute) {
+    return validatePrefixedPluginAssetRoute(
+      pluginName,
+      raw,
+      prefixedRoute,
+      options,
+    );
   }
   if (raw.startsWith('/')) {
-    return raw;
+    throw new Error(
+      `Absolute plugin asset path '${assetPath}' must use /plugin-assets/... or /plugin-public-assets/...`,
+    );
   }
-  if (publicEndpoint) {
-    return `${PLUGIN_PUBLIC_ASSET_PREFIX}${publicEndpoint}/${pluginName}/${raw.replace(/^\/+/, '')}`;
+  if (options.publicEndpoint) {
+    return `${PLUGIN_PUBLIC_ASSET_PREFIX}${options.publicEndpoint}/${pluginName}/${raw.replace(/^\/+/, '')}`;
   }
   return `/plugin-assets/${pluginName}/${raw.replace(/^\/+/, '')}`;
 }
@@ -81,13 +205,56 @@ function syncPluginAssetAuthCookie(endpoint: ApiEndpoint): void {
   }
 
   const token = TokenStorage.getToken(endpoint);
-  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
   if (!token) {
-    document.cookie = `${PLUGIN_ASSET_AUTH_COOKIE}=; Max-Age=0; Path=/; SameSite=Lax${secure}`;
+    clearPluginAssetAuthCookie();
     return;
   }
 
+  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+  // eslint-disable-next-line unicorn/no-document-cookie
   document.cookie = `${PLUGIN_ASSET_AUTH_COOKIE}=${encodeURIComponent(token)}; Path=/; SameSite=Lax${secure}`;
+}
+
+function getPluginAssetCookieDomainVariants(hostname: string): string[] {
+  const normalizedHost = hostname.trim().toLowerCase();
+  if (
+    !normalizedHost ||
+    normalizedHost === 'localhost' ||
+    /^[\d.]+$/.test(normalizedHost)
+  ) {
+    return [];
+  }
+
+  const segments = normalizedHost.split('.').filter(Boolean);
+  const variants = new Set<string>([normalizedHost]);
+  for (let index = 1; index < segments.length - 1; index += 1) {
+    variants.add(segments.slice(index).join('.'));
+  }
+  return [...variants];
+}
+
+function clearPluginAssetAuthCookie(): void {
+  if (typeof document === 'undefined') {
+    return;
+  }
+
+  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+  const domains = getPluginAssetCookieDomainVariants(window.location.hostname);
+  const paths = [
+    '/',
+    '/plugin-assets',
+    '/plugin-icons',
+    '/plugin-public-assets',
+  ];
+
+  for (const path of paths) {
+    // eslint-disable-next-line unicorn/no-document-cookie
+    document.cookie = `${PLUGIN_ASSET_AUTH_COOKIE}=; Max-Age=0; Path=${path}; SameSite=Lax${secure}`;
+    for (const domain of domains) {
+      // eslint-disable-next-line unicorn/no-document-cookie
+      document.cookie = `${PLUGIN_ASSET_AUTH_COOKIE}=; Max-Age=0; Path=${path}; Domain=${domain}; SameSite=Lax${secure}`;
+    }
+  }
 }
 
 function appendQueryParams(
@@ -112,18 +279,27 @@ function appendQueryParams(
 }
 
 export function getPluginAssetAuthHeaders(
-  options: ApiEndpoint | { endpoint?: ApiEndpoint; publicEndpoint?: PublicPluginAssetEndpoint } = getCurrentEndpoint(),
+  options:
+    | ApiEndpoint
+    | {
+        endpoint?: ApiEndpoint;
+        publicEndpoint?: PublicPluginAssetEndpoint;
+      } = getCurrentEndpoint(),
 ): HeadersInit {
-  const normalizedOptions =
-    typeof options === 'string' ? { endpoint: options } : options;
+  const normalizedOptions = normalizePluginAssetScopeOptions(
+    typeof options === 'string' ? { endpoint: options } : options,
+  );
   if (normalizedOptions.publicEndpoint) {
+    clearPluginAssetAuthCookie();
     return {};
   }
 
   const endpoint = normalizedOptions.endpoint ?? getCurrentEndpoint();
   syncPluginAssetAuthCookie(endpoint);
   const token = TokenStorage.getToken(endpoint);
-  const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+  const headers: Record<string, string> = token
+    ? { Authorization: `Bearer ${token}` }
+    : {};
   ensureTraceIdHeader(headers);
   return headers;
 }
@@ -133,22 +309,24 @@ export function buildPluginAssetUrl(
   assetPath: string,
   options: BuildPluginAssetUrlOptions = {},
 ): string {
+  const normalizedOptions = normalizePluginAssetScopeOptions(options);
   const normalized = normalizePluginAssetPath(
     pluginName,
     assetPath,
-    options.publicEndpoint,
+    normalizedOptions,
   );
   if (isExternalAssetUrl(normalized)) {
     return normalized;
   }
 
-  if (options.publicEndpoint) {
-    return appendQueryParams(normalized, options);
+  if (normalizedOptions.publicEndpoint) {
+    clearPluginAssetAuthCookie();
+    return appendQueryParams(normalized, normalizedOptions);
   }
 
-  const endpoint = options.endpoint ?? getCurrentEndpoint();
+  const endpoint = normalizedOptions.endpoint ?? getCurrentEndpoint();
   syncPluginAssetAuthCookie(endpoint);
-  return appendQueryParams(normalized, options);
+  return appendQueryParams(normalized, normalizedOptions);
 }
 
 export function buildPluginIconUrl(

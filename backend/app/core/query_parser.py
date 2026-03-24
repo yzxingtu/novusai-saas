@@ -98,7 +98,7 @@ def parse_query_spec(request: Request) -> QuerySpec:
             sort = [s.strip() for s in value.split(",") if s.strip()]
             continue
 
-        # 解析分页参数
+        # 解析分页参数 / Parse JSON:API page[number] / page[size]
         if key == PAGE_NUMBER_KEY:
             try:
                 page = max(1, int(value))

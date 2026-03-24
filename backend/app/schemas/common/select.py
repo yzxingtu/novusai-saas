@@ -5,15 +5,15 @@
 Provides unified response format for frontend remote select components, supports list and tree structures.
 
 使用示例:
-    # 列表模式（默认）
+    # 列表模式（默认） / List mode (default)
     GET /api/roles/select
     -> {"items": [{"label": "角色1", "value": 1}, ...]}
 
-    # 树型模式
+    # 树型模式 / Tree mode
     GET /api/roles/select?tree=true
     -> {"items": [{"label": "研发部", "value": 1, "children": [...]}]}
 
-    # 懒加载模式（获取指定父节点的子节点）
+    # 懒加载模式（获取指定父节点的子节点） / Lazy load (children of parent)
     GET /api/roles/select?tree=true&parent_id=1
     -> {"items": [{"label": "前端组", "value": 2, "is_leaf": true}, ...]}
 """
@@ -44,7 +44,7 @@ class SelectOption(BaseModel):
     disabled: bool = False
     """是否禁用 / Whether disabled"""
 
-    # ========== 树型扩展字段 ==========
+    # ========== 树型扩展字段 ========== / Tree extra fields
     children: list[SelectOption] | None = Field(default=None)
     """子节点列表（仅 tree=true 时返回）/ Children (when tree=true)"""
 
@@ -61,7 +61,7 @@ class SelectResponse(BaseModel):
     items: list[SelectOption]
     """选项列表（列表模式或树型模式）/ Option list (list or tree mode)"""
 
-    # ========== 分页字段（仅分页模式返回） ==========
+    # ========== 分页字段（仅分页模式返回） ========== / Pagination fields
     total: int | None = None
     """总记录数（仅分页模式返回）/ Total count (when paginated)"""
 

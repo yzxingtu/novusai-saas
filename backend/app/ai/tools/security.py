@@ -135,9 +135,9 @@ class InputValidator:
 
 # Sensitive data regex patterns / 敏感数据正则模式
 _SENSITIVE_PATTERNS = [
-    # API Key / Token patterns
+    # API Key / Token patterns / 上文为英文说明 / English above
     (re.compile(r'(?i)(api[_-]?key|token|secret|password|passwd|authorization)\s*[:=]\s*["\']?([a-zA-Z0-9_\-/.]{8,})["\']?'), r'\1=***MASKED***'),
-    # Bearer Token pattern
+    # Bearer Token pattern / 上文为英文说明 / English above
     (re.compile(r'(?i)bearer\s+[a-zA-Z0-9_\-/.]{8,}'), 'Bearer ***MASKED***'),
     # Common key formats (sk-xxx, pk-xxx) / 常见 Key 格式
     (re.compile(r'\b(sk|pk|ak)[_-][a-zA-Z0-9]{16,}\b'), '***MASKED_KEY***'),
@@ -453,7 +453,7 @@ class EmailRateLimiter:
     PREFIX = "ai:email_rate:"
     DEFAULT_MAX_PER_HOUR = 50
     MAX_RECIPIENTS = 10
-    MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024  # 5MB
+    MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024  # 5MB  # 补充说明 / note
     TTL = 3600  # 1 hour / 1 小时
 
     @staticmethod

@@ -30,7 +30,7 @@ const defaultImportmapOptions: ImportmapPluginOptions = {
     { name: 'vue' },
     { name: 'pinia' },
     { name: 'vue-router' },
-    // { name: 'vue-i18n' },
+    // { name: 'vue-i18n' }, / 默认不通过 importmap 引入 / omit from importmap
     { name: 'dayjs' },
     { name: 'vue-demi' },
   ],

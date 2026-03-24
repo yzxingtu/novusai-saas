@@ -15,7 +15,7 @@ const allowedScopes = [
   'other',
 ];
 
-// precomputed scope
+// precomputed scope / 根据 git 状态预填 scope
 const scopeComplete = execSync('git status --porcelain || true')
   .toString()
   .trim()
@@ -41,11 +41,11 @@ const userConfig = {
       s: 'style: update code format',
     },
     allowCustomIssuePrefixs: false,
-    // scopes: [...scopes, 'mock'],
+    // scopes: [...scopes, 'mock'], / 可选扩展 scope（已注释）
     allowEmptyIssuePrefixs: false,
     customScopesAlign: scopeComplete ? 'bottom' : 'top',
     defaultScope: scopeComplete,
-    // English
+    // English / 追加英文 commit type 选项
     typesAppend: [
       { name: 'workflow: workflow improvements', value: 'workflow' },
       { name: 'types:    type definition file changes', value: 'types' },

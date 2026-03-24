@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 try:
     import alibabacloud_oss_v2 as oss
 except ModuleNotFoundError as exc:  # pragma: no cover - exercised via runtime config
-    oss = None  # type: ignore[assignment]
+    oss = None  # type: ignore[assignment]  # 可选 SDK / optional SDK
     _OSS_IMPORT_ERROR = exc
 else:
     _OSS_IMPORT_ERROR = None
@@ -76,7 +76,7 @@ class OssStorageDriver(StorageDriver):
         "required": ["root_path", "access_key_id", "access_key_secret"],
     }
 
-    MAX_PROCESS_SIZE = 20 * 1024 * 1024  # 20MB
+    MAX_PROCESS_SIZE = 20 * 1024 * 1024  # 20MB / 图像处理上限约 20MB
 
     def __init__(self, config: StorageConfig):
         super().__init__(config)

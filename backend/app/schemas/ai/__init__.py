@@ -41,30 +41,30 @@ from app.schemas.ai.provider import (
 )
 
 __all__ = [
-    # Provider
+    # Provider / 供应商
     "AIProviderCreate",
     "AIProviderUpdate",
     "AIProviderResponse",
-    # Model
+    # Model / 模型
     "AIModelCreate",
     "AIModelUpdate",
     "AIModelResponse",
-    # API Key
+    # API Key / API 密钥
     "ProviderApiKeyCreate",
     "ProviderApiKeyUpdate",
     "ProviderApiKeyResponse",
-    # Call Log
+    # Call Log / 调用日志
     "AICallLogResponse",
     "AICallLogSummary",
-    # Agent
+    # Agent / 智能体
     "AgentCreate",
     "AgentUpdate",
     "AgentResponse",
     "AgentListItem",
-    # ConversationMessage
+    # ConversationMessage / 会话消息
     "ConversationMessageCreate",
     "ConversationMessageResponse",
-    # BatchRun
+    # BatchRun / 批量运行
     "BatchRunCreate",
     "BatchRunResponse",
     "BatchRunProgress",

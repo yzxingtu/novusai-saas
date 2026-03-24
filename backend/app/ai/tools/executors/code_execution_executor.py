@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.core.logging import LogManager
+from app.core.response import build_public_error_text
 
 if TYPE_CHECKING:
     from app.ai.tools.types import ExecutionContext
@@ -24,7 +25,7 @@ if TYPE_CHECKING:
 logger = LogManager.get_logger("ai.tool.code_execution")
 
 # Security limits / 安全限制
-_MAX_OUTPUT_SIZE = 50_000  # 50KB
+_MAX_OUTPUT_SIZE = 50_000  # 50KB / 最大输出约 50KB
 _DEFAULT_TIMEOUT = 30
 _DEFAULT_MEMORY_LIMIT_MB = 256
 
@@ -218,7 +219,14 @@ class CodeExecutionExecutor(BaseToolExecutor):
                         tool_call_id=tool_call_id,
                         name=definition.name,
                         success=False,
-                        error=f"Execution error: {error_msg}" + (f"\nPartial output: {partial}" if partial else ""),
+                        error=build_public_error_text(
+                            message="Code execution failed",
+                            detail=(
+                                f"{error_msg}\nPartial output: {partial}"
+                                if partial
+                                else error_msg
+                            ),
+                        ),
                         duration_ms=duration_ms,
                     )
             except json.JSONDecodeError:
@@ -230,7 +238,10 @@ class CodeExecutionExecutor(BaseToolExecutor):
                     tool_call_id=tool_call_id,
                     name=definition.name,
                     success=False,
-                    error=f"Execution failed: {error[:1000]}",
+                    error=build_public_error_text(
+                        message="Code execution failed",
+                        detail=error[:1000],
+                    ),
                     duration_ms=duration_ms,
                 )
 
@@ -241,7 +252,10 @@ class CodeExecutionExecutor(BaseToolExecutor):
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=False,
-                error=f"Execution error: {str(exc)}",
+                error=build_public_error_text(
+                    message="Code execution failed",
+                    exc=exc,
+                ),
                 duration_ms=duration_ms,
             )
 

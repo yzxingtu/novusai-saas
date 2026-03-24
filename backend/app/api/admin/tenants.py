@@ -14,7 +14,7 @@ from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.logging import ImpersonateLoggerMixin
 from app.core.recycle_bin import register_admin_recycle_bin_routes
-from app.core.response import success
+from app.core.response import build_inline_error_result, success
 from app.core.security import (
     IMPERSONATE_TOKEN_EXPIRE_SECONDS,
     TOKEN_SCOPE_TENANT_ADMIN,
@@ -57,7 +57,7 @@ _audit_helper = _ImpersonateAuditLogger()
 
 @permission_resource(
     resource="tenant",
-    name="menu.admin.tenant",  # i18n key
+    name="menu.admin.tenant",  # i18n key / 菜单 i18n 键名
     scope=PermissionScope.ADMIN,
     parent_resource="platform_mgmt",
     menu=MenuConfig(
@@ -549,10 +549,11 @@ class AdminTenantController(GlobalController):
             from app.storage.base import StorageConfig
 
             if driver == "local":
-                return success(data={
-                    "success": False,
-                    "errors": [_("config.storage.local_not_allowed_for_tenant")],
-                })
+                return success(
+                    data=build_inline_error_result(
+                        _("config.storage.local_not_allowed_for_tenant"),
+                    )
+                )
 
             try:
                 sc = StorageConfig(
@@ -567,14 +568,20 @@ class AdminTenantController(GlobalController):
                 await drv.put(test_key, test_content, mime_type="text/plain")
                 exists = await drv.exists(test_key)
                 if not exists:
-                    return success(data={
-                        "success": False,
-                        "errors": [_("config.storage.test_file_not_found")],
-                    })
+                    return success(
+                        data=build_inline_error_result(
+                            _("config.storage.test_file_not_found"),
+                        )
+                    )
                 await drv.delete(test_key)
                 return success(data={"success": True})
             except Exception as e:
-                return success(data={"success": False, "errors": [str(e)]})
+                return success(
+                    data=build_inline_error_result(
+                        e,
+                        fallback_message=_("common.server_error"),
+                    )
+                )
 
         @router.put("/{tenant_id}/reset-owner-password", summary="重置企业超级管理员密码")
         @permission_action("reset_owner_password", "action.tenant.reset_owner_password")

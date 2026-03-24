@@ -94,8 +94,8 @@ MEMORY_CHANNEL_SYSTEM = "system"
 # Session Memory Storage (Redis) / 会话记忆存储（Redis）
 # ============================================
 
-# Key pattern:
-# mem:sess:{tenant_id}:{channel}:{source}:{agent_id}:{user_id}:{conversation_id}
+# Key pattern / Key 模式
+# mem:sess:{tenant_id}:{channel}:{source}:{agent_id}:{user_id}:{conversation_id} / 占位：租户、渠道、来源、智能体、用户、会话 ID
 SESSION_MEMORY_KEY_PREFIX = "mem:sess:"
 
 # Session memory TTL (seconds), for fallback cleanup / 会话记忆 TTL（秒），用于兜底清理

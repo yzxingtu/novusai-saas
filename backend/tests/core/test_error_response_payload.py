@@ -3,6 +3,7 @@ import json
 from app.core.config import settings
 from app.core.response import (
     build_exception_debug,
+    build_public_error_text,
     build_socket_connect_error,
     error,
 )
@@ -70,3 +71,35 @@ def test_socket_connect_error_carries_structured_payload() -> None:
     assert exc.error_args["data"]["reason"] == "token_expired"
     assert exc.error_args["data"]["message"] == "Token has expired"
     assert exc.error_args["data"]["debug"]["detail"] == "expired"
+
+
+def test_build_public_error_text_hides_detail_in_production_mode() -> None:
+    original_debug = settings.DEBUG
+    token = trace_id_var.set("trace-public-prod")
+    settings.DEBUG = False
+    try:
+        text = build_public_error_text(
+            message="Request failed",
+            exc=RuntimeError("secret detail"),
+        )
+    finally:
+        settings.DEBUG = original_debug
+        trace_id_var.reset(token)
+
+    assert text == "Request failed [trace_id=trace-public-prod]"
+
+
+def test_build_public_error_text_includes_detail_in_debug_mode() -> None:
+    original_debug = settings.DEBUG
+    token = trace_id_var.set("trace-public-debug")
+    settings.DEBUG = True
+    try:
+        text = build_public_error_text(
+            message="Request failed",
+            exc=RuntimeError("secret detail"),
+        )
+    finally:
+        settings.DEBUG = original_debug
+        trace_id_var.reset(token)
+
+    assert text == "Request failed: secret detail [trace_id=trace-public-debug]"

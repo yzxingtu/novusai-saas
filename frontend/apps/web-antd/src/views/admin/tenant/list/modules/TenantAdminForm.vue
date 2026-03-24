@@ -11,6 +11,7 @@ import { Button, Drawer, Form, FormItem, Input, message } from 'ant-design-vue';
 
 import { createTenantAdminApi, updateTenantAdminApi } from '#/api/admin/tenant';
 import { $t } from '#/locales';
+import { showRequestError } from '#/utils/error-helpers';
 
 defineOptions({ name: 'TenantAdminForm' });
 
@@ -91,8 +92,8 @@ async function handleSubmit() {
     }
     visible.value = false;
     emit('success');
-  } catch {
-    message.error($t('common.requestFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.requestFailed');
   } finally {
     loading.value = false;
   }

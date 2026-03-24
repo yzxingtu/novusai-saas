@@ -30,6 +30,7 @@ from collections.abc import Callable
 from typing import Any
 
 from app.core.logging import get_logger
+from app.core.response import resolve_public_error_message
 
 logger = get_logger(__name__)
 
@@ -222,7 +223,11 @@ class PluginEventBus:
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 failed += 1
-                err_msg = f"{subs[i].plugin_name}: {result}"
+                public_error = resolve_public_error_message(
+                    result,
+                    fallback_message="Plugin event handler failed",
+                )
+                err_msg = f"{subs[i].plugin_name}: {public_error}"
                 errors.append(err_msg)
                 logger.warning(
                     "PluginEventBus: handler failed for '{}' (plugin={}): {}",

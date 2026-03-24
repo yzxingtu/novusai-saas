@@ -134,7 +134,7 @@ export function useCommandBar(options: UseCommandBarOptions) {
     return item.parent ? (pathToNameMap.get(item.parent) || '') : '';
   }
 
-  // ==================== 计算属性 ====================
+  // ==================== 计算属性 / computed ====================
 
   /** Filtered agent list by @mention query / @mention 过滤后的智能体列表 */
   const filteredAgents = computed(() => {
@@ -161,7 +161,7 @@ export function useCommandBar(options: UseCommandBarOptions) {
     normalizeStarterQuestions(selectedAgent.value?.suggested_questions),
   );
 
-  // ==================== 打开/关闭 ====================
+  // ==================== 打开/关闭 / open & close ====================
 
   /**
    * Show Command Bar / 显示 Command Bar
@@ -201,14 +201,14 @@ export function useCommandBar(options: UseCommandBarOptions) {
     }
   }
 
-  // ==================== 快捷键 ====================
+  // ==================== 快捷键 / hotkeys ====================
 
   /**
    * Handle keydown event / 处理按键事件
    * @param e KeyboardEvent
    */
   function _handleKeydown(e: KeyboardEvent) {
-    // Ctrl+K (or Cmd+K on macOS)
+    // Ctrl+K (or Cmd+K on macOS) / 打开命令面板快捷键
     if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
       e.preventDefault();
       e.stopPropagation();
@@ -232,7 +232,7 @@ export function useCommandBar(options: UseCommandBarOptions) {
     document.removeEventListener('keydown', _handleKeydown, { capture: true });
   });
 
-  // ==================== 智能体列表 ====================
+  // ==================== 智能体列表 / agents ====================
 
   /**
    * Load agent list / 加载智能体列表
@@ -259,7 +259,7 @@ export function useCommandBar(options: UseCommandBarOptions) {
     await loadAgents();
   }
 
-  // ==================== 最近对话 ====================
+  // ==================== 最近对话 / recent chats ====================
 
   /**
    * Load recent conversation list / 加载最近对话列表
@@ -287,11 +287,11 @@ export function useCommandBar(options: UseCommandBarOptions) {
       const conv = recentConversations.value.find((c) => c.id === convId);
       if (conv) conv.title = title || null;
     } catch {
-      // handled by interceptor
+      // handled by interceptor / 错误由请求拦截器处理
     }
   }
 
-  // ==================== @mention ====================
+  // ==================== @mention / @提及 ====================
 
   /**
    * Enter @mention mode / 进入 @mention 模式

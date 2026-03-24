@@ -26,8 +26,8 @@ try:
     import boto3
     from botocore.exceptions import ClientError
 except ModuleNotFoundError:
-    boto3 = None  # type: ignore[assignment]
-    ClientError = Exception  # type: ignore[assignment,misc]
+    boto3 = None  # type: ignore[assignment]  # 可选 SDK / optional SDK
+    ClientError = Exception  # type: ignore[assignment,misc]  # 占位异常类型 / stub error type
 
 
 def _require_boto3():

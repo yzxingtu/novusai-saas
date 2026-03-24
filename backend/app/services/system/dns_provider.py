@@ -69,7 +69,7 @@ class CloudflareDnsProvider(DnsProvider):
             "Content-Type": "application/json",
         }
 
-        # 先删除同名旧记录（避免重复）
+        # 先删除同名旧记录（避免重复） / Delete same-name DNS records first (avoid duplicates)
         await self.delete_txt_record(record_name, record_value)
 
         async with httpx.AsyncClient(timeout=30) as client:

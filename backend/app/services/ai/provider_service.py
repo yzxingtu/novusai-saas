@@ -179,15 +179,15 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
         """
         dump = self._validate_provider_payload(data.model_dump())
 
-        # 自动生成代码
+        # 自动生成代码 / Auto-generate code
         if not dump.get("code"):
             dump["code"] = await self._generate_unique_code(data.name)
         else:
-            # 手动指定时仍校验唯一性
+            # 手动指定时仍校验唯一性 / Manual code still uniqueness-checked
             if await self.repo.get_by_code(dump["code"]):
                 raise ConflictException(message=_("ai.error.provider_code_exists"))
 
-        # 创建供应商
+        # 创建供应商 / Create provider
         provider = AIProvider(**dump)
         self.db.add(provider)
         try:
@@ -220,7 +220,7 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
         if not provider:
             raise NotFoundException(message=_("ai.error.provider_not_found"))
 
-        # 检查代码是否与其他供应商冲突
+        # 检查代码是否与其他供应商冲突 / Check code conflicts with other providers
         update_data = self._validate_provider_payload(
             data.model_dump(exclude_unset=True),
             existing_provider=provider,
@@ -230,7 +230,7 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
             if existing and existing.id != id:
                 raise ConflictException(message=_("ai.error.provider_code_exists"))
 
-        # 更新字段
+        # 更新字段 / Update fields
         provider.update_from_dict(update_data)
         await self.db.flush()
         return provider

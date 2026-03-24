@@ -36,12 +36,12 @@ const emit = defineEmits<{ success: [] }>();
 const KB_ACCEPT =
   '.pdf,.docx,.txt,.md,.csv,.xlsx,.html,.htm,.pptx,.jpg,.jpeg,.png,.webp,.gif';
 
-// ========== Modal visibility ==========
+// ========== Modal visibility / 弹窗显隐 ==========
 const textModalVisible = ref(false);
 const qaModalVisible = ref(false);
 const urlModalVisible = ref(false);
 
-// ========== File Upload ==========
+// ========== File Upload / 文件上传 ==========
 const uploading = ref(false);
 
 async function handleUpload(file: File) {
@@ -85,7 +85,7 @@ async function handleSubmitText() {
   }
 }
 
-// ========== Q&A ==========
+// ========== Q&A / 问答 ==========
 const qaQuestion = ref('');
 const qaAnswer = ref('');
 const qaSubmitting = ref(false);
@@ -145,7 +145,7 @@ async function handleSubmitUrls() {
   }
 }
 
-// ========== Q&A Batch Import ==========
+// ========== Q&A Batch Import / 问答批量导入 ==========
 const qaBatchUploading = ref(false);
 
 async function handleQABatchUpload(file: File) {

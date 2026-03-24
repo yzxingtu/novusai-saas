@@ -27,11 +27,11 @@
 
 ## 数据权限过滤
 
-- 需要行级过滤的模型声明 `__data_permission__ = True`
-- Model 必须具备 `created_by` 和 `dept_id`
-- 创建时由 `TenantRepository.create()` 自动填充 `created_by` / `dept_id`
-- 读操作由 Repository 自动走 `DataPermissionFilter`
-- 当 `data_permission_ctx` 不存在时，不强行套过滤条件
+- 需要行级过滤的模型要么显式声明 `__data_permission__ = True`，要么提供标准归属字段（`created_by`、`org_node_id`、`dept_id` 或通过 `__data_permission_creator_field__` / `__data_permission_parent_model__` 指定的字段），`BaseRepository.is_data_permission_enabled()` 会自动检测并启用过滤。
+- 创建记录时，`BaseRepository._apply_data_permission_create_defaults()`（`TenantRepository` 等子类都会调用）会从 `data_permission_ctx` 中把 `current_user_id`、`primary_org_id`、`primary_department_id` 等值写入 `created_by`、`org_node_id`、`dept_id`（字段存在时），无需业务层重复处理。
+- 所有查询路径（`get_list`、`query_list`、`get_by_id`、`query_select_options` 等）在构建查询前都会调用 `_apply_data_permission_if_needed()` / `DataPermissionFilter`，它根据 `data_permission_ctx` 中的 `scope_mode`、`max_data_scope`、`effective_scope_org_ids`、`custom_org_ids`、`primary_org_id`、`primary_department_id` 等值生成额外的 `WHERE` 条件。
+- `PermissionMiddleware` 通过 `OrgAuthorityResolver` 在每次请求开始时填充 `data_permission_ctx`，用户的 `DataScope`、可见 / 可管理组织、custom 组织列表都会被同步；公开接口、后台任务或无上下文时候 `data_permission_ctx` 为空，过滤器会返回 `None`（等同于 `DataScope.ALL`）。
+- 若模型存在 `__data_permission_parent_model__`，过滤器会递归构造父级条件以保证上下游关系一致。
 
 ## 禁止事项
 
@@ -41,6 +41,6 @@
 
 ## 参考
 
-- `../skills/novusai-saas/references/rbac-permission-spec.md`
-- `../skills/novusai-saas/references/data-permission-spec.md`
+- [../skills/novusai-saas/references/rbac-permission-spec.md](../skills/novusai-saas/references/rbac-permission-spec.md)
+- [../skills/novusai-saas/references/data-permission-spec.md](../skills/novusai-saas/references/data-permission-spec.md)
 - [menu-i18n.md](menu-i18n.md)

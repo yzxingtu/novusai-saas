@@ -699,10 +699,21 @@ class TestInvokePageOperation:
     """invoke_page_operation 工具函数测试 / Test."""
 
     @pytest.fixture(autouse=True)
-    def _reset_mock_sio(self):
+    def _reset_mock_sio(self, monkeypatch: pytest.MonkeyPatch):
         """每个测试前重置全局 mock sio / Test."""
+        from app.sio import page_session
+
         _mock_sio_instance.reset_mock()
         _mock_sio_instance.emit = AsyncMock()
+        page_session._pending_invocations.clear()
+
+        socketio_server = sys.modules["app.core.socketio_server"]
+        monkeypatch.setattr(socketio_server, "get_sio", lambda: _mock_sio_instance)
+        monkeypatch.setattr(socketio_server, "sio", _mock_sio_instance, raising=False)
+
+        yield
+
+        page_session._pending_invocations.clear()
 
     @pytest.mark.asyncio
     async def test_success_with_future_result(self):
@@ -925,6 +936,7 @@ class TestPageSessionMixin:
         """page_operation_result → Future 被 resolve / page_operation_result → Future..."""
         import asyncio
 
+        from app.middleware.trace import trace_id_var
         from app.sio.page_session import PageSessionMixin, _pending_invocations
 
         mixin = PageSessionMixin()
@@ -933,18 +945,22 @@ class TestPageSessionMixin:
         loop = asyncio.get_running_loop()
         future = loop.create_future()
         _pending_invocations["inv-result"] = future
-
-        await mixin.on_page_operation_result(
-            "sid-1",
-            {
-                "invoke_id": "inv-result",
-                "success": True,
-                "message": "Done",
-            },
-        )
+        token = trace_id_var.set("trace-page-result")
+        try:
+            await mixin.on_page_operation_result(
+                "sid-1",
+                {
+                    "invoke_id": "inv-result",
+                    "success": True,
+                    "message": "Done",
+                },
+            )
+        finally:
+            trace_id_var.reset(token)
 
         assert future.done()
         assert future.result()["success"] is True
+        assert future.result()["trace_id"]
         # cleanup
         _pending_invocations.pop("inv-result", None)
 
@@ -992,6 +1008,26 @@ class TestPageSessionMixin:
 
         expected_room = f"page_session:{long_id[:64]}"
         mixin.enter_room.assert_called_once_with("sid-1", expected_room)
+
+    @pytest.mark.asyncio
+    async def test_bind_socket_trace_normalizes_trace_id_length(self):
+        """Socket trace_id 应统一截断到 64，避免跨链路不一致。"""
+        from app.middleware.trace import trace_id_var
+        from app.sio.page_session import PageSessionMixin
+
+        mixin = PageSessionMixin()
+        mixin.save_session = AsyncMock()
+        mixin.get_session = AsyncMock(return_value={"trace_id": "trace-old"})
+        mixin._sid_sessions = {}
+
+        long_trace_id = "t" * 100
+        try:
+            session = await mixin.bind_socket_trace("sid-1", {"trace_id": long_trace_id})
+            assert trace_id_var.get() == long_trace_id[:64]
+            assert session["trace_id"] == long_trace_id[:64]
+            assert mixin._sid_sessions["sid-1"]["trace_id"] == long_trace_id[:64]
+        finally:
+            trace_id_var.set("")
 
     @pytest.mark.asyncio
     async def test_active_session_fallback_returns_none_when_multiple_tabs_are_active(
@@ -1101,6 +1137,38 @@ class TestPageSessionMixin:
         assert ns._sid_sessions["sid-1"]["trace_id"] == "trace-custom"
         ns.save_session.assert_awaited_once()
         assert trace_id_var.get() == ""
+
+    @pytest.mark.asyncio
+    async def test_page_session_join_returns_structured_error_payload_on_failure(self):
+        """page_session_join 出错时应返回结构化错误而不是裸异常。"""
+        from app.sio.page_session import PageSessionMixin
+
+        mixin = PageSessionMixin()
+        mixin.namespace = "/admin"
+        mixin.enter_room = AsyncMock(side_effect=RuntimeError("join failed"))
+
+        result = await mixin.on_page_session_join("sid-1", {"page_session_id": "ps-join"})
+
+        assert result["error"] is True
+        assert result["code"] == "SOCKET_EVENT_ERROR"
+        assert result["trace_id"]
+
+    @pytest.mark.asyncio
+    async def test_page_operation_result_returns_structured_error_payload_when_trace_binding_fails(self):
+        """page_operation_result 自身异常时也应返回统一错误结构。"""
+        from app.sio.page_session import PageSessionMixin
+
+        mixin = PageSessionMixin()
+        mixin.namespace = "/admin"
+        mixin.bind_socket_trace = AsyncMock(side_effect=RuntimeError("trace bind failed"))
+
+        result = await mixin.on_page_operation_result(
+            "sid-1",
+            {"invoke_id": "inv-bad", "success": True},
+        )
+
+        assert result["error"] is True
+        assert result["code"] == "SOCKET_EVENT_ERROR"
 
 
 # ========================================

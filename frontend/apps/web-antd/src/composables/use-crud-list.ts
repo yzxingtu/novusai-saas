@@ -62,6 +62,8 @@ import {
 import { useRoute } from 'vue-router';
 
 import { useVbenDrawer, useVbenModal } from '@vben/common-ui';
+import { preferences } from '@vben/preferences';
+import { resolveRouteMetaTitle } from '@vben/utils';
 
 import { message, Modal } from 'ant-design-vue';
 
@@ -75,12 +77,12 @@ import {
   showDependencyBlockModal,
   showDependencyPreviewModal,
 } from '#/components/business/dependency-block-modal/service';
-import { $t } from '#/locales';
+import { $t, $te } from '#/locales';
 import { buildTablePolicySupportData } from '#/utils/ai-page-capabilities';
 import {
   getErrorData,
-  getErrorMessage,
   getErrorStatus,
+  showRequestError,
 } from '#/utils/error-helpers';
 import { requestClient } from '#/utils/request';
 
@@ -674,8 +676,14 @@ export function useCrudList<T extends object = Record<string, unknown>>(
       rowKeyField: keyField,
     });
 
-    const routeTitle = route.meta?.title as string | undefined;
-    const entityName = aiConfig.entityName ?? routeTitle ?? '';
+    const resolveEntityName = () =>
+      aiConfig.entityName ??
+      resolveRouteMetaTitle(route.meta, {
+        hasLocaleKey: $te,
+        locale: preferences.app.locale,
+        translate: $t,
+      }) ??
+      '';
     const entityDescription = aiConfig.entityDescription;
     const formPurpose = aiConfig.formPurpose;
     const contextExtras = aiConfig.contextExtras;
@@ -686,7 +694,7 @@ export function useCrudList<T extends object = Record<string, unknown>>(
     cleanupAiOps = appendPageOperations(pageKey, standardOps);
     cleanupAiContextBase = registerPageContext(pageKey, () => ({
       page_key: pageKey,
-      page_title: entityName || routeTitle || pageKey,
+      page_title: resolveEntityName() || pageKey,
       page_data: {
         resource: api.resource,
       },
@@ -716,7 +724,7 @@ export function useCrudList<T extends object = Record<string, unknown>>(
           ...pagination,
           total: total.value,
           list_count: rows.length,
-          ...(entityName ? { entity_name: entityName } : {}),
+          ...(resolveEntityName() ? { entity_name: resolveEntityName() } : {}),
           ...(entityDescription
             ? { entity_description: entityDescription }
             : {}),
@@ -772,7 +780,7 @@ export function useCrudList<T extends object = Record<string, unknown>>(
       } catch (error: unknown) {
         const status = getErrorStatus(error);
         if (status !== 404) {
-          message.error(getErrorMessage(error, 'common.deleteFailed'));
+          showRequestError(error, 'common.deleteFailed');
           return;
         }
       }
@@ -815,7 +823,7 @@ export function useCrudList<T extends object = Record<string, unknown>>(
           displayName,
         );
       } else {
-        message.error(getErrorMessage(error, 'common.deleteFailed'));
+        showRequestError(error, 'common.deleteFailed');
       }
     } finally {
       setProcessing(rowId, false);

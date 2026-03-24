@@ -19,6 +19,9 @@
 运行：pytest tests/plugins/test_contract_lifecycle.py -v
 """
 
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
 import pytest
 
 from app.plugins.event_bus import PluginEventBus
@@ -27,6 +30,17 @@ from app.plugins.registry import ExtensionRegistry
 
 def _noop_handler(_event_name: str, _payload: dict) -> None:
     """测试用空处理器，避免 lambda 触发 lint 警告。 / Test."""
+
+
+class _ScalarsResult:
+    def __init__(self, items):
+        self._items = items
+
+    def scalars(self):
+        return self
+
+    def all(self):
+        return self._items
 
 
 @pytest.fixture(autouse=True)
@@ -273,6 +287,132 @@ class TestPluginPermissionI18n:
         finally:
             reg.unregister_all("demo-plugin")
             set_locale("zh_CN")
+
+
+class TestTenantMenuRuntimeVisibility:
+    @pytest.mark.asyncio
+    async def test_tenant_admin_menus_filter_out_runtime_invisible_plugin_menus(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from app.enums.rbac import PermissionScope
+        from app.rbac.services.permission_service import PermissionService
+
+        db = AsyncMock()
+        service = PermissionService(db)
+
+        root_menu = SimpleNamespace(
+            id=10,
+            code="menu:tenant.platform_root",
+            name="menu.tenant.root",
+            type="menu",
+            parent_id=None,
+            sort_order=1,
+            icon=None,
+            path="/tenant",
+            component=None,
+            hidden=False,
+        )
+        visible_plugin_menu = SimpleNamespace(
+            id=11,
+            code="menu:tenant.plugin_visible_plugin_home",
+            name="visible_plugin.home.title",
+            type="menu",
+            parent_id=10,
+            sort_order=10,
+            icon=None,
+            path="/tenant/plugins/visible-plugin/home",
+            component="VisiblePluginHomePage",
+            hidden=False,
+        )
+        hidden_plugin_menu = SimpleNamespace(
+            id=12,
+            code="menu:tenant.plugin_hidden_plugin_home",
+            name="hidden_plugin.home.title",
+            type="menu",
+            parent_id=10,
+            sort_order=20,
+            icon=None,
+            path="/tenant/plugins/hidden-plugin/home",
+            component="HiddenPluginHomePage",
+            hidden=False,
+        )
+        visible_op = SimpleNamespace(
+            id=13,
+            code="plugin.visible_plugin.home.view",
+            name="visible_plugin.permission.home.view",
+            type="operation",
+            parent_id=11,
+            sort_order=1,
+            icon=None,
+            path=None,
+            component=None,
+            hidden=False,
+        )
+        hidden_op = SimpleNamespace(
+            id=14,
+            code="plugin.hidden_plugin.home.view",
+            name="hidden_plugin.permission.home.view",
+            type="operation",
+            parent_id=12,
+            sort_order=1,
+            icon=None,
+            path=None,
+            component=None,
+            hidden=False,
+        )
+
+        all_permissions = [
+            root_menu,
+            visible_plugin_menu,
+            hidden_plugin_menu,
+            visible_op,
+            hidden_op,
+        ]
+        user_permissions = [
+            visible_plugin_menu,
+            hidden_plugin_menu,
+            visible_op,
+            hidden_op,
+        ]
+
+        service.get_enabled_permissions_by_scope = AsyncMock(return_value=all_permissions)
+        service.get_tenant_admin_effective_permission_ids = AsyncMock(
+            return_value={11, 12, 13, 14}
+        )
+        db.execute = AsyncMock(return_value=_ScalarsResult(user_permissions))
+
+        class _PluginService:
+            def __init__(self, _db):
+                self._db = _db
+
+            async def get_tenant_visible_plugin_names(self, tenant_id: int) -> set[str]:
+                assert tenant_id == 42
+                return {"visible-plugin"}
+
+        monkeypatch.setattr(
+            "app.services.system.plugin_service.PluginService",
+            _PluginService,
+        )
+
+        tenant_admin = SimpleNamespace(tenant_id=42, role_id=7)
+
+        menus = await service.get_tenant_admin_menus(tenant_admin)
+        menu_paths: set[str] = set()
+
+        def _collect(nodes):
+            for node in nodes:
+                if node.path:
+                    menu_paths.add(node.path)
+                _collect(node.children)
+
+        _collect(menus)
+
+        assert "/tenant/plugins/visible-plugin/home" in menu_paths
+        assert "/tenant/plugins/hidden-plugin/home" not in menu_paths
+        service.get_enabled_permissions_by_scope.assert_awaited_once_with(
+            PermissionScope.TENANT.value
+        )
 
 
 class TestPluginEventBusLifecycle:

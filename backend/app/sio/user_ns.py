@@ -10,6 +10,7 @@ Handles connection auth, room management, and online status broadcast.
 import uuid
 
 import socketio
+from socketio.exceptions import ConnectionRefusedError as SocketConnectionRefusedError
 
 from app.core.logging import LogManager
 from app.middleware.trace import trace_id_var
@@ -148,7 +149,7 @@ class UserNamespace(PageSessionMixin, socketio.AsyncNamespace):
                 "SIO /user connected: sid={} user_id={} tenant_id={} username={} connections={}",
                 sid, user_id, tenant_id, username, connections,
             )
-        except ConnectionRefusedError:
+        except SocketConnectionRefusedError:
             raise
         except Exception as exc:
             logger.error("SIO /user connect failed: sid={} error={}", sid, exc, exc_info=True)

@@ -7,18 +7,25 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.data_permission import (
+    apply_data_permission_if_needed,
+    enrich_create_data_with_data_permission,
+)
+
 
 async def list_folders(
     db: AsyncSession, tenant_id: int,
 ) -> list[dict[str, Any]]:
     from ..models.folder import NovusdocFolder
 
-    result = await db.execute(
+    stmt = apply_data_permission_if_needed(
         select(NovusdocFolder).where(
             NovusdocFolder.tenant_id == tenant_id,
             NovusdocFolder.is_deleted.is_(False),
-        ).order_by(NovusdocFolder.sort_order, NovusdocFolder.name)
+        ).order_by(NovusdocFolder.sort_order, NovusdocFolder.name),
+        NovusdocFolder,
     )
+    result = await db.execute(stmt)
     folders = result.scalars().all()
     return [
         {
@@ -36,11 +43,19 @@ async def create_folder(
 ) -> dict[str, Any]:
     from ..models.folder import NovusdocFolder
 
+    create_payload = {
+        "tenant_id": tenant_id,
+        "name": data["name"],
+        "parent_id": data.get("parent_id"),
+        "sort_order": data.get("sort_order", 0),
+    }
+    if data.get("created_by") is not None:
+        create_payload["created_by"] = data["created_by"]
     folder = NovusdocFolder(
-        tenant_id=tenant_id,
-        name=data["name"],
-        parent_id=data.get("parent_id"),
-        sort_order=data.get("sort_order", 0),
+        **enrich_create_data_with_data_permission(
+            NovusdocFolder,
+            create_payload,
+        )
     )
     db.add(folder)
     await db.flush()
@@ -53,13 +68,15 @@ async def update_folder(
 ) -> dict[str, Any] | None:
     from ..models.folder import NovusdocFolder
 
-    result = await db.execute(
+    stmt = apply_data_permission_if_needed(
         select(NovusdocFolder).where(
             NovusdocFolder.id == folder_id,
             NovusdocFolder.tenant_id == tenant_id,
             NovusdocFolder.is_deleted.is_(False),
-        )
+        ),
+        NovusdocFolder,
     )
+    result = await db.execute(stmt)
     folder = result.scalar_one_or_none()
     if not folder:
         return None
@@ -80,13 +97,15 @@ async def delete_folder(
 ) -> bool:
     from ..models.folder import NovusdocFolder
 
-    result = await db.execute(
+    stmt = apply_data_permission_if_needed(
         select(NovusdocFolder).where(
             NovusdocFolder.id == folder_id,
             NovusdocFolder.tenant_id == tenant_id,
             NovusdocFolder.is_deleted.is_(False),
-        )
+        ),
+        NovusdocFolder,
     )
+    result = await db.execute(stmt)
     folder = result.scalar_one_or_none()
     if not folder:
         return False

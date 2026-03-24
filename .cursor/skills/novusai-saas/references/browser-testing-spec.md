@@ -2,6 +2,14 @@
 
 > 使用 MCP 浏览器工具进行前端页面功能验证时，遵循以下规范。
 
+## 目录
+
+- [〇、MCP 工具优先级](#〇mcp-工具优先级)
+- [一、环境信息](#一环境信息)
+- [二、登录凭据](#二登录凭据)
+- [三、测试步骤规范](#三测试步骤规范)
+- [四、注意事项](#四注意事项)
+
 ## 〇、MCP 工具优先级
 
 | 优先级 | 工具 | 说明 |
@@ -36,11 +44,11 @@
 
 ### 企业端（Tenant）
 
-**开发环境下，企业端通过企业专属域名直接登录。**
+开发环境下企业端和管理端同样跑在 `localhost:5666`，登录路径固定为 `/tenant/login`。
 
 | 字段 | 值 |
 |------|-----|
-| 登录页 | `http://ss.dakkii.cn:5666/tenant/login` |
+| 登录页 | `http://localhost:5666/tenant/login` |
 | 用户名 | `adminsss` |
 | 密码 | `admin123456` |
 
@@ -72,7 +80,7 @@
 
 **chrome-devtools（首选）：**
 ```
-1. navigate_page(type="url", url="http://ss.dakkii.cn:5666/tenant/login")
+1. navigate_page(type="url", url="http://localhost:5666/tenant/login")
 2. take_snapshot → 获取页面快照，找到输入框 uid
 3. fill(uid=用户名uid, value="adminsss") + fill(uid=密码uid, value="admin123456")
 4. click(uid=登录按钮uid)
@@ -81,7 +89,7 @@
 
 **playwright（备选）：**
 ```
-1. browser_navigate → http://ss.dakkii.cn:5666/tenant/login
+1. browser_navigate → http://localhost:5666/tenant/login
 2. browser_snapshot → 获取页面快照
 3. browser_fill_form → 填入用户名 adminsss 和密码 admin123456
 4. browser_click → 点击登录按钮

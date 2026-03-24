@@ -153,7 +153,7 @@ class PageContextExecutor(BaseToolExecutor):
             if form_is_open:
                 parts.append("Form Status: OPEN (use get_form_state to inspect current values)")
 
-            # Present visual_state concisely
+            # Present visual_state concisely / 上文为英文说明 / English above
             visual = page_data.get("visual_state")
             if visual and isinstance(visual, dict):
                 vs_parts = [f"URL: {visual.get('url', '')}"]
@@ -172,7 +172,7 @@ class PageContextExecutor(BaseToolExecutor):
                             vs_parts.append("Drawer: open")
                 parts.append(f"Visual: {' | '.join(vs_parts)}")
 
-            # Present list_summary if available
+            # Present list_summary if available / 上文为英文说明 / English above
             list_summary = page_data.get("list_summary")
             if list_summary and isinstance(list_summary, dict):
                 total_rows = list_summary.get("total_rows", 0)

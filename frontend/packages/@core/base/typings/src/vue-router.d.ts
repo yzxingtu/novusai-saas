@@ -24,6 +24,16 @@ interface AIPageMeta {
 
 interface RouteMeta {
   /**
+   * 需要具备的权限码（静态路由守卫使用）
+   * @default []
+   */
+  accessCodes?: string[];
+  /**
+   * 权限码判定模式：`any` 任意一项满足，`all` 需要全部满足
+   * @default 'any'
+   */
+  accessCodesMode?: 'all' | 'any';
+  /**
    * 激活图标（菜单/tab）
    */
   activeIcon?: string;
@@ -42,20 +52,16 @@ interface RouteMeta {
    */
   affixTabOrder?: number;
   /**
+   * 页面级 AI 策略（与 RBAC 权限共同控制 AI 入口可见性）
+   *
+   * 未声明时默认为 { mode: 'context_only' }
+   */
+  ai?: AIPageMeta;
+  /**
    * 需要特定的角色标识才可以访问
    * @default []
    */
   authority?: string[];
-  /**
-   * 需要具备的权限码（静态路由守卫使用）
-   * @default []
-   */
-  accessCodes?: string[];
-  /**
-   * 权限码判定模式：`any` 任意一项满足，`all` 需要全部满足
-   * @default 'any'
-   */
-  accessCodesMode?: 'all' | 'any';
   /**
    * 徽标
    */
@@ -152,13 +158,10 @@ interface RouteMeta {
    * 标题名称
    */
   title: string;
-
   /**
-   * 页面级 AI 策略（与 RBAC 权限共同控制 AI 入口可见性）
-   *
-   * 未声明时默认为 { mode: 'context_only' }
+   * 路由标题多语言映射（用于插件等运行时动态标题）
    */
-  ai?: AIPageMeta;
+  titleLocaleMap?: Record<string, string>;
 }
 
 // 定义递归类型以将 RouteRecordRaw 的 component 属性更改为 string

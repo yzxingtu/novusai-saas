@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from fastapi import Request
+from starlette.responses import Response
 from sqlalchemy import select
 
 from app.captcha.runtime import resolve_public_captcha_plugin_bundle
@@ -36,6 +37,53 @@ class PluginAssetAccessResult:
 
 
 PLUGIN_ASSET_TOKEN_COOKIE = "novus_plugin_asset_token"
+PLUGIN_ASSET_COOKIE_PATHS = (
+    "/",
+    "/plugin-assets",
+    "/plugin-icons",
+    "/plugin-public-assets",
+)
+
+
+def _get_cookie_domain_variants(hostname: str) -> list[str]:
+    """Resolve cookie domain variants for cleanup. / 解析 Cookie 清理需要覆盖的域名变体。"""
+    normalized_host = (hostname or "").strip().lower()
+    if (
+        not normalized_host
+        or normalized_host == "localhost"
+        or normalized_host.replace(".", "").isdigit()
+    ):
+        return []
+
+    segments = [segment for segment in normalized_host.split(".") if segment]
+    variants: list[str] = [normalized_host]
+    for index in range(1, len(segments) - 1):
+        candidate = ".".join(segments[index:])
+        if candidate not in variants:
+            variants.append(candidate)
+    return variants
+
+
+def clear_plugin_asset_access_cookie(response: Response, request: Request) -> None:
+    """Expire historical asset auth cookies on public asset responses. / 在公开资源响应上清理历史鉴权 Cookie。"""
+    secure = request.url.scheme == "https"
+    domains = _get_cookie_domain_variants(request.url.hostname or "")
+
+    for path in PLUGIN_ASSET_COOKIE_PATHS:
+        response.delete_cookie(
+            PLUGIN_ASSET_TOKEN_COOKIE,
+            path=path,
+            secure=secure,
+            samesite="lax",
+        )
+        for domain in domains:
+            response.delete_cookie(
+                PLUGIN_ASSET_TOKEN_COOKIE,
+                path=path,
+                domain=domain,
+                secure=secure,
+                samesite="lax",
+            )
 
 
 def extract_plugin_asset_access_token(request: Request) -> str | None:

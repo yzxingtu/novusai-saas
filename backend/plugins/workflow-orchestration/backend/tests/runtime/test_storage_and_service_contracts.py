@@ -80,6 +80,183 @@ async def test_get_builder_capabilities_exposes_items(load_plugin_backend_module
 
 
 @pytest.mark.asyncio
+async def test_serialize_copyable_template_returns_template_catalog_shape(
+    load_plugin_backend_module,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service_module = load_plugin_backend_module("services.tenant_workflow_service")
+    service = service_module.TenantWorkflowService(object(), tenant_id=7)
+
+    template = SimpleNamespace(
+        id=12,
+        code="brand_review_flow",
+        name="Brand Review",
+        description="Review brand assets before publishing.",
+        category="operations",
+        status="published",
+        builder_surface="tenant_template_editor",
+        release_scope="platform_catalog",
+        tags_json=["review"],
+        latest_version_no=4,
+        current_published_version_id=17,
+        published_at="2026-03-24T01:00:00+00:00",
+        updated_at="2026-03-24T02:00:00+00:00",
+    )
+
+    async def fake_resolve_template_snapshot(_template):
+        return {
+            "nodes": [
+                {"id": "n1", "name": "Collect"},
+                {"id": "n2", "name": "Review"},
+            ],
+            "edges": [{"source": "n1", "target": "n2"}],
+        }
+
+    async def fake_current_template_version_label(_template):
+        return "v4"
+
+    def fake_first_attr(obj, keys, default=None):
+        for key in keys:
+            if hasattr(obj, key):
+                return getattr(obj, key)
+        return default
+
+    runtime_stub = {
+        "model_access": SimpleNamespace(
+            first_attr=fake_first_attr,
+            try_resolve_model=lambda _name: None,
+        ),
+        "serializer": SimpleNamespace(to_iso=lambda value: value),
+    }
+
+    monkeypatch.setattr(
+        service,
+        "_resolve_template_snapshot",
+        fake_resolve_template_snapshot,
+    )
+    monkeypatch.setattr(
+        service,
+        "_current_template_version_label",
+        fake_current_template_version_label,
+    )
+    monkeypatch.setattr(service_module, "_runtime", lambda name: runtime_stub[name])
+
+    payload = await service.serialize_copyable_template(template)
+
+    assert payload["id"] == 12
+    assert payload["name"] == "Brand Review"
+    assert payload["published_version"] == "v4"
+    assert payload["current_published_version_id"] == 17
+    assert payload["node_count"] == 2
+    assert payload["edge_count"] == 1
+    assert payload["can_copy"] is True
+    assert payload["release_scope"] == "platform_catalog"
+
+
+@pytest.mark.asyncio
+async def test_copy_from_template_uses_current_published_version_lock(
+    load_plugin_backend_module,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service_module = load_plugin_backend_module("services.tenant_workflow_service")
+    service = service_module.TenantWorkflowService(object(), tenant_id=7)
+
+    class FakeValidationError(Exception):
+        pass
+
+    template = SimpleNamespace(
+        id=12,
+        name="Brand Review",
+        description="Review brand assets before publishing.",
+        mode="deterministic",
+        latest_release_id=33,
+        current_published_version_id=17,
+    )
+
+    async def fake_get_copyable_template(template_id: int):
+        assert template_id == 12
+        return template
+
+    captured_snapshot_call: dict[str, int] = {}
+    captured_payload: dict[str, object] = {}
+
+    async def fake_resolve_template_snapshot(_template, template_version_id=None):
+        captured_snapshot_call["template_version_id"] = template_version_id
+        return {"nodes": [], "edges": []}
+
+    async def fake_create_workflow(payload):
+        captured_payload.update(payload)
+        return {"id": 99}
+
+    def fake_first_attr(obj, keys, default=None):
+        for key in keys:
+            if hasattr(obj, key):
+                return getattr(obj, key)
+        return default
+
+    monkeypatch.setattr(service, "_get_copyable_template", fake_get_copyable_template)
+    monkeypatch.setattr(service, "_resolve_template_snapshot", fake_resolve_template_snapshot)
+    monkeypatch.setattr(service, "create_workflow", fake_create_workflow)
+    monkeypatch.setattr(
+        service_module,
+        "_runtime",
+        lambda name: {
+            "errors": SimpleNamespace(WorkflowValidationError=FakeValidationError),
+            "model_access": SimpleNamespace(first_attr=fake_first_attr),
+        }[name],
+    )
+
+    result = await service.copy_from_template(
+        {"template_id": 12, "template_version_id": 17}
+    )
+
+    assert result["id"] == 99
+    assert captured_snapshot_call["template_version_id"] == 17
+    assert captured_payload["source_template_id"] == 12
+    assert captured_payload["source_release_id"] == 33
+
+
+@pytest.mark.asyncio
+async def test_copy_from_template_rejects_version_mismatch(
+    load_plugin_backend_module,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service_module = load_plugin_backend_module("services.tenant_workflow_service")
+    service = service_module.TenantWorkflowService(object(), tenant_id=7)
+
+    class FakeValidationError(Exception):
+        pass
+
+    template = SimpleNamespace(
+        id=12,
+        current_published_version_id=17,
+    )
+
+    async def fake_get_copyable_template(template_id: int):
+        assert template_id == 12
+        return template
+
+    def fake_first_attr(obj, keys, default=None):
+        for key in keys:
+            if hasattr(obj, key):
+                return getattr(obj, key)
+        return default
+
+    monkeypatch.setattr(service, "_get_copyable_template", fake_get_copyable_template)
+    monkeypatch.setattr(
+        service_module,
+        "_runtime",
+        lambda name: {
+            "errors": SimpleNamespace(WorkflowValidationError=FakeValidationError),
+            "model_access": SimpleNamespace(first_attr=fake_first_attr),
+        }[name],
+    )
+
+    with pytest.raises(FakeValidationError):
+        await service.copy_from_template({"template_id": 12, "template_version_id": 99})
+
+
+@pytest.mark.asyncio
 async def test_get_tenant_run_detail_flattens_nested_payload(load_plugin_backend_module, monkeypatch: pytest.MonkeyPatch) -> None:
     service_module = load_plugin_backend_module("services.run_query_service")
     service = service_module.RunQueryService(object(), tenant_id=3)
@@ -181,7 +358,7 @@ async def test_get_tenant_home_returns_frontend_ready_shape(load_plugin_backend_
 async def test_artifact_retention_uses_per_tenant_storage(load_plugin_backend_module, monkeypatch: pytest.MonkeyPatch) -> None:
     artifact_service_module = load_plugin_backend_module("services.artifact_service")
 
-    # Fakes
+    # Fakes / 测试替身
     class FakeColumn:
         def is_not(self, _value):
             return self
@@ -218,7 +395,7 @@ async def test_artifact_retention_uses_per_tenant_storage(load_plugin_backend_mo
 
         async def execute(self, stmt):
             self.calls += 1
-            # first call -> artifacts, second -> run lookup
+            # first call -> artifacts, second -> run lookup / 首次查 artifacts，二次查 run
             if self.calls == 1:
                 return FakeResult(artifacts)
             return FakeResult(runs)
@@ -250,7 +427,7 @@ async def test_artifact_retention_uses_per_tenant_storage(load_plugin_backend_mo
         for k, v in values.items():
             setattr(obj, k, v)
 
-    # Patch runtime dependencies
+    # Patch runtime dependencies / 替换运行时依赖
     runtime_stub = {
         "executor": SimpleNamespace(create_event_instance=lambda *args, **kwargs: None),
         "model_access": SimpleNamespace(
@@ -272,7 +449,7 @@ async def test_artifact_retention_uses_per_tenant_storage(load_plugin_backend_mo
         def where(self, *_args, **_kwargs):
             return self
 
-    # select() is only used as an identity for FakeDB; bypass SQLAlchemy expectations
+    # select() is only used as an identity for FakeDB; bypass SQLAlchemy expectations / FakeDB 占位，绕过 ORM
     monkeypatch.setattr(artifact_service_module, "select", lambda *_args, **_kwargs: FakeSelect())
     monkeypatch.setattr(artifact_service_module, "_runtime", fake_runtime)
 

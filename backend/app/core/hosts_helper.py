@@ -7,7 +7,7 @@ Automatically manages tenant domain mappings in hosts file under DEBUG mode.
 Supports Windows / macOS / Linux. Never triggered in production (DEBUG=false).
 
 标记格式 / Entry format:
-    127.0.0.1  demo.app.local  # NovusAI-Dev
+    127.0.0.1  demo.app.local  # NovusAI-Dev / NovusAI 本地开发标记
 
 CLI 用法 / CLI usage (in backend/ dir, requires admin/sudo):
     python -m app.core.hosts_helper add demo.app.local

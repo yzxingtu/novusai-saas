@@ -30,7 +30,7 @@ _ATTACHMENT_URL_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Max image body when resolving for LLM (bytes)
+# Max image body when resolving for LLM (bytes) / 上文为英文说明 / English above
 _IMAGE_MAX_BYTES: int = 20 * 1024 * 1024
 _FETCH_TIMEOUT_SEC: float = 45.0
 
@@ -85,7 +85,7 @@ async def _read_attachment_bytes_via_db(
         elif token:
             await svc.validate_access(att, token)
         elif tenant_id is not None:
-            # Private, no JWT: scoped get_attachment already matched tenant
+            # Private, no JWT: scoped get_attachment already matched tenant / 上文为英文说明 / English above
             pass
         else:
             await svc.validate_access(att, None)
@@ -200,7 +200,7 @@ async def resolve_image_url_for_llm(
     if not url:
         return None
 
-    # Relative app path → internal HTTP (public files or URL with token)
+    # Relative app path → internal HTTP (public files or URL with token) / 上文为英文说明 / English above
     if url.startswith("/"):
         base = (settings.APP_INTERNAL_BASE_URL or "").strip().rstrip("/")
         if base:

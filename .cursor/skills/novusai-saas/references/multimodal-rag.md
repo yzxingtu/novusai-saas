@@ -276,7 +276,7 @@ kb_chunk_strategy: null | string
 ## 十三、迁移文件
 
 ```
-20260228_0bc08d7f8260_add_vision_model_id_and_extract_images_to_knowledge_bases.py
+20260228_0bc08d7f8260_add_vision_model_id_and_extract_images_.py
 ```
 
 - 新增 `knowledge_bases.vision_model_id`（FK → ai_models，ON DELETE SET NULL）
@@ -298,4 +298,4 @@ kb_chunk_strategy: null | string
 | `backend/app/ai/rag_injector.py` | Agent 级 RAG 注入（多 KB 校验 + 运行时 rag_config） |
 | `backend/app/models/ai/knowledge_base.py` | KnowledgeBase ORM（vision_model_id / extract_images） |
 | `backend/app/schemas/ai/knowledge_base.py` | 知识库 Schema（含新字段） |
-| `backend/migrations/versions/20260228_0bc08d7f8260_*.py` | Alembic 迁移文件 |
+| `backend/migrations/versions/20260228_0bc08d7f8260_add_vision_model_id_and_extract_images_.py` | Alembic 迁移文件 |

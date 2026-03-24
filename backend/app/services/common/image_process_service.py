@@ -67,7 +67,7 @@ class ImageProcessService:
             ),
             "cache_ttl": int(await self.config_service.get_platform_config(
                 "platform_image_cache_ttl_days", default=7
-            )) * 86400,  # 转换为秒
+            )) * 86400,  # 转换为秒 / policy guard
             "max_width": await self.config_service.get_platform_config(
                 "platform_image_max_width", default=4096
             ),
@@ -94,13 +94,13 @@ class ImageProcessService:
         支持预设和自定义参数混合使用，自定义参数优先级更高
         参数会根据平台配置进行限制
         """
-        # 获取平台配置
+        # 获取平台配置 / Fetch platform config
         config = await self.get_config()
         max_width = int(config["max_width"])
         max_height = int(config["max_height"])
         default_quality = int(config["default_quality"])
 
-        # 如果指定了预设，先加载预设值
+        # 如果指定了预设，先加载预设值 / If preset given, load preset values first
         if preset and preset in PRESETS:
             preset_config = PRESETS[preset]
             params = ImageProcessParams(
@@ -113,7 +113,7 @@ class ImageProcessService:
         else:
             params = ImageProcessParams(quality=default_quality)
 
-        # 自定义参数覆盖预设值
+        # 自定义参数覆盖预设值 / Custom params override preset values
         if width is not None:
             params.width = min(width, max_width)
         if height is not None:
@@ -125,7 +125,7 @@ class ImageProcessService:
         if mode is not None:
             params.mode = mode
 
-        # 确保尺寸不超过配置限制
+        # 确保尺寸不超过配置限制 / Ensure dimensions within configured limits
         if params.width and params.width > max_width:
             params.width = max_width
         if params.height and params.height > max_height:
@@ -220,13 +220,13 @@ class ImageProcessService:
         try:
             storage_config = await self._resolve_storage_config(attachment)
         except Exception:
-            # Config resolution failed — try direct CDN URL fallback
+            # Config resolution failed — try direct CDN URL fallback / 配置解析失败回退 CDN / config resolution CDN fallback
             direct = self._build_direct_cdn_url(attachment)
             if direct:
                 return direct
             raise
 
-        # Config driver doesn't match attachment driver — direct URL fallback
+        # Config driver doesn't match attachment driver — direct URL fallback / 驱动不一致回退直链 / driver mismatch direct URL
         if storage_config.driver != attachment.driver:
             direct = self._build_direct_cdn_url(attachment)
             if direct:
@@ -245,7 +245,7 @@ class ImageProcessService:
             )
             return url
 
-        # 本地处理，返回图片数据
+        # 本地处理，返回图片数据 / Local processing returns image bytes
         result = await driver.get_processed_image(attachment.path, params)
         if result is None:
             # 无需处理，返回原始 URL

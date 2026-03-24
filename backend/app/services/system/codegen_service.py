@@ -210,8 +210,8 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         Create minimal instance for preview/validate without DB.
         """
         instance = cls.__new__(cls)
-        instance.db = None  # type: ignore[assignment]
-        instance.repo = None  # type: ignore[assignment]
+        instance.db = None  # type: ignore[assignment]  # 类型存根 / typing stub
+        instance.repo = None  # type: ignore[assignment]  # 类型存根 / typing stub
         return instance
 
     async def get_by_resource(self, resource: str) -> CodegenConfig | None:
@@ -564,7 +564,7 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
             },
         )
 
-    # ==================== Preview / Generate / Rollback / Validate ====================
+    # ==================== Preview / Generate / Rollback / Validate ==================== / 预览生成回滚校验 / preview generate rollback validate
 
     def validate(
         self,
@@ -606,7 +606,7 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
             ):
                 safe_msg = _("codegen.validation.parse_error")
             else:
-                safe_msg = str(e)[:200]  # 短错误可保留，截断防泄露
+                safe_msg = str(e)[:200]  # 短错误可保留，截断防泄露 / policy guard
             return {
                 "valid": False,
                 "errors": [
@@ -829,7 +829,7 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         if result.success:
             format_code(root, files)
 
-        # CLI generate from YAML: auto-save to DB so config appears in Web UI
+        # CLI generate from YAML: auto-save to DB so config appears in Web UI / CLI 生成并落库 / CLI generate persists to DB
         if (
             result.success
             and config_id is None

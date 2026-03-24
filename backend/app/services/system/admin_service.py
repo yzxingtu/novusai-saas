@@ -102,21 +102,21 @@ class AdminService(GlobalService[Admin, AdminRepository]):
         Raises:
             BusinessException: 用户名/邮箱/手机号已存在
         """
-        # 检查用户名是否已存在
+        # 检查用户名是否已存在 / Check username exists
         if await self.repo.username_exists(username):
             raise BusinessException(
                 message=_("admin.username_exists"),
                 code=ErrorCode.ADMIN_USERNAME_EXISTS,
             )
 
-        # 检查邮箱是否已存在
+        # 检查邮箱是否已存在 / Check email exists
         if await self.repo.email_exists(email):
             raise BusinessException(
                 message=_("admin.email_exists"),
                 code=ErrorCode.ADMIN_EMAIL_EXISTS,
             )
 
-        # 检查手机号是否已存在
+        # 检查手机号是否已存在 / Check phone exists
         if phone and await self.repo.phone_exists(phone):
             raise BusinessException(
                 message=_("admin.phone_exists"),
@@ -126,7 +126,7 @@ class AdminService(GlobalService[Admin, AdminRepository]):
         await self._validate_permission_role(role_id)
         await self._validate_org_node(org_node_id)
 
-        # 创建管理员
+        # 创建管理员 / Create admin
         data = {
             "username": username,
             "email": email,
@@ -166,7 +166,7 @@ class AdminService(GlobalService[Admin, AdminRepository]):
                 message=_("admin.not_found"),
             )
 
-        # 检查邮箱是否已被其他管理员使用
+        # 检查邮箱是否已被其他管理员使用 / Check email used by other admin
         if (
             "email" in data
             and data["email"]
@@ -177,7 +177,7 @@ class AdminService(GlobalService[Admin, AdminRepository]):
                 code=ErrorCode.ADMIN_EMAIL_EXISTS,
             )
 
-        # 检查手机号是否已被其他管理员使用
+        # 检查手机号是否已被其他管理员使用 / Check phone used by other admin
         if (
             "phone" in data
             and data["phone"]
@@ -194,10 +194,10 @@ class AdminService(GlobalService[Admin, AdminRepository]):
         if "org_node_id" in data:
             await self._validate_org_node(data["org_node_id"])
 
-        # 移除不允许直接更新的字段
+        # 移除不允许直接更新的字段 / Remove fields not directly updatable
         data.pop("password", None)
         data.pop("password_hash", None)
-        data.pop("username", None)  # 用户名不允许修改
+        data.pop("username", None)  # 用户名不允许修改 / policy guard
 
         result = await self.update(admin_id, data)
         if not result:
@@ -231,14 +231,14 @@ class AdminService(GlobalService[Admin, AdminRepository]):
                 message=_("admin.not_found"),
             )
 
-        # 验证旧密码
+        # 验证旧密码 / Validate old password
         if not verify_password(old_password, admin.password_hash):
             raise BusinessException(
                 message=_("admin.password_incorrect"),
                 code=ErrorCode.OLD_PASSWORD_INCORRECT,
             )
 
-        # 更新密码
+        # 更新密码 / Update password
         await self.update(admin_id, {
             "password_hash": get_password_hash(new_password),
         })
@@ -269,7 +269,7 @@ class AdminService(GlobalService[Admin, AdminRepository]):
                 message=_("admin.not_found"),
             )
 
-        # 更新密码
+        # 更新密码 / Update password
         await self.update(admin_id, {
             "password_hash": get_password_hash(new_password),
         })

@@ -6,12 +6,29 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Table, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.base_model import BaseModel
+from app.core.base_model import Base, BaseModel
 from app.core.deletion import DeletionDep, DeletionStrategy
 from app.enums.role import DataScope, RoleType
+
+admin_org_node_permissions = Table(
+    "admin_org_node_permissions",
+    Base.metadata,
+    Column(
+        "org_node_id",
+        Integer,
+        ForeignKey("admin_org_nodes.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "permission_id",
+        Integer,
+        ForeignKey("permissions.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+)
 
 
 class AdminOrgNode(BaseModel):
@@ -127,6 +144,11 @@ class AdminOrgNode(BaseModel):
         lazy="selectin",
         cascade="all, delete-orphan",
     )
+    permissions: Mapped[list["Permission"]] = relationship(
+        "Permission",
+        secondary=admin_org_node_permissions,
+        lazy="selectin",
+    )
 
     @property
     def children_count(self) -> int:
@@ -182,7 +204,16 @@ class AdminOrgNode(BaseModel):
 
     @property
     def permissions_count(self) -> int:
-        return 0
+        permissions = self.__dict__.get("permissions")
+        if permissions is None:
+            return int(getattr(self, "_permissions_count", 0))
+        return len(
+            [
+                permission
+                for permission in permissions
+                if permission.is_enabled and not permission.is_deleted
+            ]
+        )
 
     @property
     def scope_mode(self) -> str:
@@ -269,6 +300,7 @@ class AdminOrgScopeTarget(BaseModel):
 
 
 if TYPE_CHECKING:
+    from app.models.auth.permission import Permission
     from app.models.system.admin import Admin
 
 
@@ -276,4 +308,5 @@ __all__ = [
     "AdminOrgNode",
     "AdminOrgScopePolicy",
     "AdminOrgScopeTarget",
+    "admin_org_node_permissions",
 ]

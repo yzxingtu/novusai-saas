@@ -464,7 +464,6 @@
       "noSkills": "No skills in this package",
       "ragHint": "Agent-level RAG config is the runtime retrieval entry point. Multi-KB retrieval recalls per knowledge base first, then fuses the results.",
       "knowledgeBases": "Knowledge Bases",
-      "noKnowledgeBases": "No knowledge bases bound",
       "kbWeight": "Weight",
       "kbEnabled": "Enabled",
       "kbDocCount": "Documents",
@@ -472,8 +471,6 @@
       "kbEmbeddingDimensions": "Vector Dimensions",
       "kbChunkStrategy": "Chunk Strategy",
       "kbWeightFusionHint": "Weight now participates in multi-KB fusion as a prior signal and does not hard override relevance.",
-      "selectKnowledgeBase": "Select knowledge base",
-      "bindKnowledgeBase": "Bind",
       "uploadAvatar": "Upload avatar",
       "removeAvatar": "Remove avatar",
       "knowledgeBasesGlobalHint": "Bindings here are platform-global: every tenant that can use this agent will include these knowledge bases in chat RAG by default. A tenant may opt out per knowledge base on the tenant console; that only affects that tenant and does not change this configuration."
@@ -606,6 +603,30 @@
       "manageBindings": "Manage skill bindings",
       "selectedCount": "{count} selected"
     },
+    "kbPicker": {
+      "title": "Select knowledge base bindings",
+      "subtitle": "Search candidate knowledge bases by name, description, and scope, then save the agent's binding set in one pass.",
+      "searchPlaceholder": "Search knowledge base name, description, or ID",
+      "scopeFilter": "Filter by scope",
+      "refresh": "Refresh",
+      "candidates": "Available knowledge bases",
+      "selected": "Selected knowledge bases",
+      "scopes": "Scopes",
+      "matches": "Matches",
+      "filtered": "Filters applied",
+      "resultSummary": "{count} matched knowledge bases across {scopes} scopes",
+      "candidateHint": "Browse candidate knowledge bases on the left. Click the whole row to select or deselect. There are {count} matches right now.",
+      "selectedBadge": "Selected",
+      "selectionSummary": "{count} knowledge bases / {scopes} scopes",
+      "selectionHint": "Selected knowledge bases stay here, and confirming will replace the current binding set as a whole.",
+      "detailEmptyHint": "This agent currently has no knowledge base bindings. Use the button above to filter candidates by scope and save them in one pass.",
+      "replaceNotice": "Saving will replace the current knowledge base bindings as a whole, so confirm the list on the right before continuing.",
+      "emptyCandidates": "No matching knowledge bases",
+      "emptySelected": "No knowledge bases selected",
+      "remove": "Remove",
+      "manageBindings": "Manage knowledge base bindings",
+      "selectedCount": "{count} selected"
+    },
     "quotaConfig": {
       "conversationsPerDay": "Daily Conversation Limit",
       "tokensPerDay": "Daily Token Limit",
@@ -647,7 +668,7 @@
       "selectOrgNodes": "Select organization nodes",
       "inputUserIds": "Enter user IDs, separated by commas",
       "inputRoleIds": "Enter role IDs, separated by commas",
-      "selectRoles": "Select roles",
+      "selectRoles": "Select organization nodes",
       "inputTemperature": "0-2, higher values produce more random output",
       "inputMaxTokens": "Per-reply max generated tokens (output only)",
       "inputTopP": "0-1, used together with temperature"
@@ -698,12 +719,12 @@
     "orgNodes": "Organization Nodes",
     "specificUsers": "Specific Users",
     "roleAccess": "Role Access Control",
-    "adminRoleAccess": "Admin Role Access",
+    "adminRoleAccess": "Admin Organization Access",
     "tenantRoleAccess": "Tenant Role Access",
     "userRoleAccess": "User Role Access",
     "roleMode": {
       "all": "All Allowed",
-      "specific": "Specific Roles"
+      "specific": "Specific Organization Nodes"
     },
     "visibility_options": {
       "public": "Public",
@@ -728,8 +749,8 @@
       "accessUpdated": "Access config updated",
       "visibilityPublicHint": "All users can see and use this agent",
       "visibilityPrivateHint": "Only authorized users can see and use this agent",
-      "accessRoleHint": "Control which admins can use this agent by role. Select 'All Allowed' to not restrict by role.",
-      "noAdminAccess": "This agent's target audience does not include admin portal. No admin role config needed."
+      "accessRoleHint": "Control which admins can use this agent by organization node. Select 'All Allowed' to remove organization-based restrictions.",
+      "noAdminAccess": "This agent's target audience does not include admin portal. No admin organization-node config is needed."
     }
   },
   "conversation": {

@@ -37,5 +37,5 @@ description: NovusAI 会话记忆技能。当需要开发或审查 AI Chat 会�
 
 ## 参考
 
-- `../novusai-saas/references/session-memory-spec.md`
-- `../novusai-saas/references/ai-module.md`
+- [../novusai-saas/references/session-memory-spec.md](../novusai-saas/references/session-memory-spec.md)
+- [../novusai-saas/references/ai-module.md](../novusai-saas/references/ai-module.md)

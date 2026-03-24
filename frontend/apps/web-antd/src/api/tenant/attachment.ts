@@ -592,7 +592,7 @@ export async function smartUploadFile(
       try {
         await cancelChunkUploadApi(upload_id);
       } catch {
-        // ignore
+        // ignore / 忽略非关键错误
       }
       throw new Error('Upload cancelled');
     }

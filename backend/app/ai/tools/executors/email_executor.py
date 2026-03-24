@@ -15,6 +15,7 @@ from app.configs.service import PLATFORM_TENANT_ID
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.core.logging import LogManager
+from app.core.response import build_public_error_text
 
 if TYPE_CHECKING:
     from app.ai.tools.types import ExecutionContext
@@ -138,7 +139,7 @@ class EmailToolExecutor(BaseToolExecutor):
                     tool_call_id=tool_call_id,
                     name=definition.name,
                     success=False,
-                    error=str(e),
+                    error=build_public_error_text(message=str(e)),
                 )
 
             from app.tasks.email import send_email_task
@@ -179,7 +180,10 @@ class EmailToolExecutor(BaseToolExecutor):
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=False,
-                error=f"Email send failed: {str(exc)}",
+                error=build_public_error_text(
+                    message="Email send failed",
+                    exc=exc,
+                ),
                 duration_ms=duration_ms,
             )
 

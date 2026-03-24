@@ -92,7 +92,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         统一上传入口 / Unified upload entry.
         """
         await self._ensure_upload_enabled()
-        # 验证文件类型
+        # 验证文件类型 / Validate file type
         validation_result = await self._file_validator.validate_for_tenant(
             self.tenant_id, filename, file_size
         )
@@ -102,9 +102,9 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         temp_path, size, file_hash = await self._save_to_temp(content)
         actual_size = file_size or size
 
-        # 检查配额
+        # 检查配额 / Check quota
         await self._check_quota(actual_size)
-        # Hash de-duplication must stay visibility-scoped; public/private records cannot be reused interchangeably.
+        # Hash de-duplication must stay visibility-scoped; public/private records cannot be reused interchangeably. / 秒传按可见性隔离 / hash dedupe visibility scoped
         existing = await self.repo.get_by_hash(
             file_hash,
             driver=storage_config.driver,
@@ -187,7 +187,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
                 "used_bytes": await self.repo.sum_size(),
             }
 
-        # 文件不存在时才检查配额（秒传不消耗新空间）
+        # 文件不存在时才检查配额（秒传不消耗新空间） / Check quota only when file is new (instant upload uses no extra space)
         await self._check_quota(size)
         return {
             "exists": False,
@@ -213,7 +213,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         初始化分片上传会话 / Initialize chunk upload session.
         """
         await self._ensure_upload_enabled()
-        # 验证文件类型
+        # 验证文件类型 / Validate file type
         validation_result = await self._file_validator.validate_for_tenant(
             self.tenant_id, filename, total_size
         )
@@ -383,7 +383,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         tenant = await self._get_tenant()
         quota_service = QuotaService(self.db, tenant)
 
-        # 单文件大小：取套餐和系统配置中更严格的那个
+        # 单文件大小：取套餐和系统配置中更严格的那个 / Per-file size: stricter of plan vs system config
         plan_limit_mb = quota_service.get_quota_value("max_file_size_mb", 0)
 
         from app.configs.service import ConfigService, PLATFORM_TENANT_ID
@@ -394,7 +394,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
             ) or 100
         )
 
-        # 确定有效限制（0 表示无限制，取非零中更小的）
+        # 确定有效限制（0 表示无限制，取非零中更小的） / Resolve effective limit (0 = unlimited; pick min non-zero)
         limits = [v for v in (plan_limit_mb, platform_limit_mb) if v > 0]
         effective_limit_mb = min(limits) if limits else 0
 
@@ -407,7 +407,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
                     detail=f"File size {file_size_mb:.1f}MB exceeds limit {effective_limit_mb}MB",
                 )
 
-        # 存储总量全局检查
+        # 存储总量全局检查 / Storage total quota check
         current_bytes = await self.repo.sum_size()
         storage_check = await quota_service.check_storage_quota(
             additional_bytes=additional_bytes,
@@ -629,7 +629,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
         session = await anyio.to_thread.run_sync(_read)
 
-        # 企业隔离校验：确保当前企业只能操作自己的上传会话
+        # 企业隔离校验：确保当前企业只能操作自己的上传会话 / Tenant isolation: only this tenant may touch its upload sessions
         session_tenant_id = session.get("tenant_id")
         if session_tenant_id is not None and int(session_tenant_id) != self.tenant_id:
             raise BusinessException(
@@ -739,7 +739,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
             await result
 
     # ========================================
-    # 附件管理方法
+    # 附件管理方法 / Attachment admin methods
     # ========================================
 
     async def delete(self, id: int, soft: bool = True) -> bool:

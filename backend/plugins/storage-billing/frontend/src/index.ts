@@ -22,6 +22,10 @@ export function setup(): void {
     return;
   }
 
+  shared.registerLocale('zh-CN', 'plugin.storage-billing', zhCN);
+  shared.registerLocale('zh', 'plugin.storage-billing', zhCN);
+  shared.registerLocale('en-US', 'plugin.storage-billing', enUS);
+  shared.registerLocale('en', 'plugin.storage-billing', enUS);
   shared.registerLocale('zh-CN', 'plugin.storageBilling', zhCN);
   shared.registerLocale('zh', 'plugin.storageBilling', zhCN);
   shared.registerLocale('en-US', 'plugin.storageBilling', enUS);

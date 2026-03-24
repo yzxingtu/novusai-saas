@@ -45,7 +45,7 @@ class AIProvider(BaseModel):
         "extra": ["code"],
     }
 
-    # 允许前端筛选的字段
+    # 允许前端筛选的字段 / Fields exposed for list filtering
     __filterable__ = {
         "id": "id",
         "name": "name",
@@ -55,7 +55,7 @@ class AIProvider(BaseModel):
         "created_at": "created_at",
     }
 
-    # 允许排序的字段（用于前端排序）
+    # 允许排序的字段（用于前端排序） / Sortable columns for UI
     __sortable__ = {
         "id": "id",
         "name": "name",
@@ -65,7 +65,7 @@ class AIProvider(BaseModel):
         "created_at": "created_at",
     }
 
-    # 基本信息
+    # 基本信息 / Basic info
     name: Mapped[str] = mapped_column(
         String(100),
         index=True,
@@ -78,7 +78,7 @@ class AIProvider(BaseModel):
         comment=_("enum.ai_provider.code")
     )
 
-    # 供应商类型
+    # 供应商类型 / Provider kind
     type: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
@@ -86,14 +86,14 @@ class AIProvider(BaseModel):
         comment=_("enum.ai_provider.type")
     )
 
-    # API 基础地址
+    # API 基础地址 / API base URL
     base_url: Mapped[str | None] = mapped_column(
         String(500),
         nullable=True,
         comment=_("enum.ai_provider.base_url")
     )
 
-    # 描述信息
+    # 描述信息 / Description
     description: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
@@ -107,7 +107,7 @@ class AIProvider(BaseModel):
         comment=_("enum.ai_provider.icon")
     )
 
-    # 是否启用
+    # 是否启用 / Active flag
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         default=True,
@@ -115,25 +115,26 @@ class AIProvider(BaseModel):
         comment=_("enum.ai_provider.is_active")
     )
 
-    # 排序
+    # 排序 / Sort order
     sort_order: Mapped[int] = mapped_column(
         Integer,
         default=0,
         comment=_("enum.ai_provider.sort_order")
     )
 
-    # 供应商特定配置（JSON 格式）
-    # 例如：超时时间、重试次数、特殊请求头等
+    # 供应商特定配置（JSON 格式） / Provider-specific JSON
+    # 例如：超时时间、重试次数、特殊请求头等 / e.g. timeout, retries, headers
     config: Mapped[dict | None] = mapped_column(
         JSON,
         nullable=True,
         comment=_("enum.ai_provider.config")
     )
 
-    # ==================== 关系 ====================
+    # ==================== 关系 ==================== / Relationships
 
-    # 关联的模型列表
-    # noload 避免与 AIModel.provider(selectin) 形成双向 selectin 死循环
+    # 关联的模型列表 / Child models
+    # noload 避免与 AIModel.provider(selectin) 形成双向 selectin 死循环 /
+    # noload avoids bidirectional selectin cycles with AIModel.provider
     models = relationship(
         "AIModel",
         back_populates="provider",

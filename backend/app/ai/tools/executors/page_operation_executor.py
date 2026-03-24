@@ -114,7 +114,7 @@ class PageOperationExecutor(BaseToolExecutor):
                 error_type="vision_not_supported",
             )
 
-        # Resolve page_session_id: prefer fresh from active tracking (recover after reconnect)
+        # Resolve page_session_id: prefer fresh from active tracking (recover after reconnect) / 上文为英文说明 / English above
         from app.sio.page_session import get_active_session_id, invoke_page_operation
 
         session_id = None
@@ -250,7 +250,7 @@ class PageOperationExecutor(BaseToolExecutor):
                 if len(data_str) <= 4000:
                     output += f"\nData: {data_str}"
                 elif operation_name == "get_editor_html" and "html" in result_data:
-                    # Large document: still expose html so LLM can use it for replace_section old_html
+                    # Large document: still expose html so LLM can use it for replace_section old_html / 上文为英文说明 / English above
                     html_content = result_data.get("html", "") or ""
                     max_html_chars = 12000
                     if len(html_content) > max_html_chars:
@@ -262,7 +262,7 @@ class PageOperationExecutor(BaseToolExecutor):
                     )
                     output += f"\n{hint}\nHTML:\n{html_content}"
                     output += "\n[Do NOT echo this HTML to the user. Use it internally for replace_section, then respond in natural language.]"
-                # Agent Loop guidance: suggest next step based on context_diff
+                # Agent Loop guidance: suggest next step based on context_diff / 上文为英文说明 / English above
                 context_diff = result_data.get("context_diff", {})
                 if context_diff.get("form_opened"):
                     output += (

@@ -11,6 +11,7 @@ from typing import Any
 from app.ai.types import ChatMessage
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.core.response import build_public_error_text
 from app.models.ai.agent import Agent
 
 from .base import BaseEngine, log_user_type_for_call_log
@@ -120,7 +121,10 @@ class TaskEngine(BaseEngine):
             )
             return ExecutionResult(
                 success=False,
-                error=str(exc),
+                error=build_public_error_text(
+                    message=_("common.server_error"),
+                    exc=exc,
+                ),
                 duration_ms=duration_ms,
             )
 

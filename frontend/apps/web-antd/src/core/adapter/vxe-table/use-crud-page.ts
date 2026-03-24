@@ -35,12 +35,18 @@ import type {
   UseCrudPageOptions,
 } from './types';
 
+import type {
+  DeletePreviewResult,
+  DependencyGroup,
+} from '#/components/business/dependency-block-modal/service';
 import type { FormPopupApi } from '#/composables/use-ai-operations';
 
 import { defineComponent, h, onBeforeUnmount, ref } from 'vue';
 import { useRoute } from 'vue-router';
 
 import { useVbenDrawer, useVbenModal } from '@vben/common-ui';
+import { preferences } from '@vben/preferences';
+import { resolveRouteMetaTitle } from '@vben/utils';
 
 import { message, Modal } from 'ant-design-vue';
 
@@ -50,10 +56,6 @@ import {
 } from '#/components/business/ai-slide-panel';
 import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
-import type {
-  DeletePreviewResult,
-  DependencyGroup,
-} from '#/components/business/dependency-block-modal/service';
 import {
   showDependencyBlockModal,
   showDependencyPreviewModal,
@@ -66,12 +68,12 @@ import {
   extractFormParams,
 } from '#/composables/use-ai-operations';
 import { formStateTracker } from '#/composables/use-form-state-tracker';
-import { $t } from '#/locales';
+import { $t, $te } from '#/locales';
 import { buildTablePolicySupportData } from '#/utils/ai-page-capabilities';
 import {
   getErrorData,
-  getErrorMessage,
   getErrorStatus,
+  showRequestError,
 } from '#/utils/error-helpers';
 import { requestClient } from '#/utils/request';
 
@@ -257,7 +259,7 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
       } catch (error: unknown) {
         const status = getErrorStatus(error);
         if (status !== 404) {
-          message.error(getErrorMessage(error, 'common.deleteFailed'));
+          showRequestError(error, 'common.deleteFailed');
           return;
         }
       }
@@ -306,7 +308,7 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
           displayName,
         );
       } else {
-        message.error(getErrorMessage(error, 'common.deleteFailed'));
+        showRequestError(error, 'common.deleteFailed');
       }
     } finally {
       setProcessing(row.id, false);
@@ -599,8 +601,14 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
   let cleanupAiContextExtras: (() => void) | null = null;
 
   if (aiConfig && aiPageKey) {
-    const routeTitle = route.meta?.title as string | undefined;
-    const entityName = aiConfig.entityName ?? routeTitle ?? '';
+    const resolveEntityName = () =>
+      aiConfig.entityName ??
+      resolveRouteMetaTitle(route.meta, {
+        hasLocaleKey: $te,
+        locale: preferences.app.locale,
+        translate: $t,
+      }) ??
+      '';
     const formFieldDescriptors = aiConfig.formSchema
       ? extractFormParams(aiConfig.formSchema(false))
       : undefined;
@@ -651,7 +659,7 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     cleanupAiOps = appendPageOperations(aiPageKey, standardOps);
     cleanupAiContextBase = registerPageContext(aiPageKey, () => ({
       page_key: aiPageKey,
-      page_title: entityName || routeTitle || aiPageKey,
+      page_title: resolveEntityName() || aiPageKey,
       page_data: {
         resource: api.resource,
       },
@@ -680,7 +688,7 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
           ...pagination,
           total: aiTotalRows.value,
           list_count: aiCurrentRows.value.length,
-          ...(entityName ? { entity_name: entityName } : {}),
+          ...(resolveEntityName() ? { entity_name: resolveEntityName() } : {}),
           ...(aiConfig.entityDescription
             ? { entity_description: aiConfig.entityDescription }
             : {}),

@@ -34,6 +34,7 @@ import {
   upsertTablePolicyOverrideApi,
 } from '#/api/tenant/ai';
 import { $t } from '#/locales';
+import { showRequestError } from '#/utils/error-helpers';
 
 defineOptions({ name: 'TenantAITablePolicies' });
 
@@ -58,8 +59,8 @@ async function loadPolicies() {
   try {
     const res = await getTenantTablePoliciesApi();
     policies.value = res || [];
-  } catch {
-    message.error($t('common.requestFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.requestFailed');
   } finally {
     loading.value = false;
   }
@@ -98,8 +99,8 @@ async function saveOverride() {
     message.success($t('tenant.ai.tablePolicy.messages.overrideSuccess'));
     drawerVisible.value = false;
     await loadPolicies();
-  } catch {
-    message.error($t('common.requestFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.requestFailed');
   } finally {
     saving.value = false;
   }
@@ -114,8 +115,8 @@ async function resetOverride(policy: EffectiveTablePolicy) {
         await removeTablePolicyOverrideApi(policy.id);
         message.success($t('tenant.ai.tablePolicy.messages.resetSuccess'));
         await loadPolicies();
-      } catch {
-        message.error($t('common.requestFailed'));
+      } catch (error) {
+        showRequestError(error, 'common.requestFailed');
       }
     },
   });

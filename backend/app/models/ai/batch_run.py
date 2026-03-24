@@ -25,6 +25,8 @@ class BatchRun(TenantModel):
     """
 
     __tablename__ = "batch_runs"
+    __data_permission__ = True
+    __data_permission_creator_scope__ = "tenant_admin"
 
     __ai_policy__ = {
         "label": "批量任务",
@@ -32,7 +34,7 @@ class BatchRun(TenantModel):
         "allow_read": True,
     }
 
-    # 允许前端筛选的字段
+    # 允许前端筛选的字段 / Fields exposed for list filtering
     __filterable__ = {
         "id": "id",
         "agent_id": "agent_id",
@@ -41,7 +43,7 @@ class BatchRun(TenantModel):
         "created_at": "created_at",
     }
 
-    # 允许排序的字段
+    # 允许排序的字段 / Sortable columns for UI
     __sortable__ = {
         "id": "id",
         "created_at": "created_at",
@@ -49,7 +51,7 @@ class BatchRun(TenantModel):
         "total_items": "total_items",
     }
 
-    # ==================== 关联 ====================
+    # ==================== 关联 ==================== / Associations
 
     agent_id: Mapped[int] = mapped_column(
         Integer,
@@ -64,7 +66,7 @@ class BatchRun(TenantModel):
         comment=_("enum.batch_run.created_by"),
     )
 
-    # ==================== 状态 ====================
+    # ==================== 状态 ==================== / Status
 
     status: Mapped[str] = mapped_column(
         String(20),
@@ -74,7 +76,7 @@ class BatchRun(TenantModel):
         comment=_("enum.batch_run.status"),
     )
 
-    # ==================== 进度 ====================
+    # ==================== 进度 ==================== / Progress
 
     total_items: Mapped[int] = mapped_column(
         Integer,
@@ -101,7 +103,7 @@ class BatchRun(TenantModel):
         comment=_("enum.batch_run.max_workers"),
     )
 
-    # ==================== 结果 ====================
+    # ==================== 结果 ==================== / Results payload
 
     results: Mapped[list | None] = mapped_column(
         JSON,
@@ -119,7 +121,7 @@ class BatchRun(TenantModel):
         comment=_("enum.batch_run.input_items"),
     )
 
-    # ==================== Celery ====================
+    # ==================== Celery ==================== / Celery 异步任务
 
     celery_task_id: Mapped[str | None] = mapped_column(
         String(64),
@@ -127,7 +129,7 @@ class BatchRun(TenantModel):
         comment=_("enum.batch_run.celery_task_id"),
     )
 
-    # ==================== 时间 ====================
+    # ==================== 时间 ==================== / Timestamps
 
     started_at: Mapped[datetime | None] = mapped_column(
         DateTime,
@@ -140,14 +142,14 @@ class BatchRun(TenantModel):
         comment=_("enum.batch_run.completed_at"),
     )
 
-    # ==================== 复合索引 ====================
+    # ==================== 复合索引 ==================== / Composite indexes
 
     __table_args__ = (
         Index("ix_batch_runs_tenant_agent", "tenant_id", "agent_id"),
         Index("ix_batch_runs_tenant_status", "tenant_id", "status"),
     )
 
-    # ==================== 关系 ====================
+    # ==================== 关系 ==================== / Relationships
 
     agent = relationship(
         "Agent",

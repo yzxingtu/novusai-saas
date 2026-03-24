@@ -10,7 +10,8 @@
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.3",
     "typescript": "^5.8.3",
-    "vite": "^6.3.5"
+    "vite": "^6.3.5",
+    "vue": "^3.5.0"
   },
   "peerDependencies": {
     "ant-design-vue": "^4.2.0",

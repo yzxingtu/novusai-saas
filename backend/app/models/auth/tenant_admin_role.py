@@ -14,7 +14,7 @@ from app.core.base_model import Base, TenantModel
 from app.core.deletion import DeletionDep, DeletionStrategy
 from app.enums.role import DataScope, RoleType
 
-# 角色-权限关联表（多对多）
+# 角色-权限关联表（多对多） / Role–permission M2M link table
 tenant_admin_role_permissions = Table(
     "tenant_admin_role_permissions",
     Base.metadata,
@@ -50,7 +50,7 @@ class TenantAdminRole(TenantModel):
                     label_field="name", i18n_key="tenant_admin_role"),
     ]
 
-    # 可过滤字段声明
+    # 可过滤字段声明 / Declares filterable fields
     __filterable__ = {
         "id": "id",
         "tenant_id": "tenant_id",
@@ -68,13 +68,13 @@ class TenantAdminRole(TenantModel):
         "updated_at": "updated_at",
     }
 
-    # 下拉选项配置
+    # 下拉选项配置 / Select dropdown config
     __selectable__ = {
         "label": "name",
         "value": "id",
         "search": ["name", "code"],
         "extra": ["code", "type", "level"],
-        # 树型配置
+        # 树型配置 / Tree config
         "tree": {
             "parent_field": "parent_id",
             "children_field": "children",
@@ -82,111 +82,111 @@ class TenantAdminRole(TenantModel):
         },
     }
 
-    # 排序配置
+    # 排序配置 / Sort order config
     __sortable__ = {
-        "field": "sort_order",      # 排序字段名
-        "step": 1000,               # 排序步长
-        "scope_fields": ["tenant_id", "parent_id"],  # 企业内同级排序
+        "field": "sort_order",      # 排序字段名 / Sort field name
+        "step": 1000,               # 排序步长 / Sort step
+        "scope_fields": ["tenant_id", "parent_id"],  # 企业内同级排序 / Sibling sort within tenant
     }
 
-    # 角色名称
+    # 角色名称 / Display name
     name: Mapped[str] = mapped_column(
-        String(50), comment="角色名称"
+        String(50), comment="角色名称 / Role display name",
     )
 
-    # 角色代码（企业内唯一）
+    # 角色代码（企业内唯一） / Role code (unique per tenant)
     code: Mapped[str] = mapped_column(
-        String(50), index=True, comment="角色代码"
+        String(50), index=True, comment="角色代码 / Role code",
     )
 
-    # 角色描述
+    # 角色描述 / Description
     description: Mapped[str | None] = mapped_column(
-        Text, nullable=True, comment="角色描述"
+        Text, nullable=True, comment="角色描述 / Description",
     )
 
-    # 是否系统内置（内置角色不可删除）
+    # 是否系统内置（内置角色不可删除） / System role (non-deletable)
     is_system: Mapped[bool] = mapped_column(
-        Boolean, default=False, comment="是否系统内置"
+        Boolean, default=False, comment="是否系统内置 / System-defined role",
     )
 
-    # 是否启用
+    # 是否启用 / Active flag
     is_active: Mapped[bool] = mapped_column(
-        Boolean, default=True, comment="是否启用"
+        Boolean, default=True, comment="是否启用 / Active",
     )
 
-    # 排序
+    # 排序 / Sort order
     sort_order: Mapped[int] = mapped_column(
-        Integer, default=0, comment="排序"
+        Integer, default=0, comment="排序 / Sort order",
     )
 
-    # ========== 层级结构字段 ==========
-    # 父角色 ID
+    # ========== 层级结构字段 ========== / Hierarchy fields
+    # 父角色 ID / Parent role id
     parent_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("tenant_admin_roles.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
-        comment="父角色 ID"
+        comment="父角色 ID / Parent role id",
     )
 
-    # 层级路径（物化路径，如 /1/3/7/）
+    # 层级路径（物化路径，如 /1/3/7/） / Materialized path
     path: Mapped[str | None] = mapped_column(
         String(500),
         nullable=True,
         index=True,
-        comment="层级路径"
+        comment="层级路径 / Hierarchy path",
     )
 
-    # 层级深度（根节点为 1）
+    # 层级深度（根节点为 1） / Depth (root = 1)
     level: Mapped[int] = mapped_column(
         Integer,
         default=1,
-        comment="层级深度"
+        comment="层级深度 / Depth",
     )
 
-    # ========== 组织架构字段 ==========
-    # 节点类型（部门/岗位/角色）
+    # ========== 组织架构字段 ========== / Org node fields
+    # 节点类型（部门/岗位/角色） / Node kind
     type: Mapped[str] = mapped_column(
         String(20),
         default=RoleType.ROLE.value,
         index=True,
-        comment="节点类型: department/position/role"
+        comment="节点类型: department/position/role / Node type",
     )
 
-    # 是否允许添加成员
+    # 是否允许添加成员 / Allow assigning members
     allow_members: Mapped[bool] = mapped_column(
         Boolean,
         default=True,
-        comment="是否允许添加成员"
+        comment="是否允许添加成员 / Allow members",
     )
 
-    # 负责人 ID（仅部门类型可设置）
+    # 负责人 ID（仅部门类型可设置） / Leader user id
     leader_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("tenant_admins.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
-        comment="负责人 ID"
+        comment="负责人 ID / Leader id",
     )
 
-    # ========== 数据权限字段 ==========
+    # ========== 数据权限字段 ========== / Data permission fields
     # 数据范围（用于行级数据过滤） / Data scope for row-level filtering
     data_scope: Mapped[str] = mapped_column(
         String(20),
         default=DataScope.SELF_ONLY.value,
         index=True,
-        comment="数据范围: all/dept_children/dept_only/self/custom"
+        comment="数据范围: all/dept_children/dept_only/self/custom / Data scope",
     )
 
     # 自定义部门 ID 列表（当 data_scope=custom 时生效） / Custom department IDs (when data_scope=custom)
     custom_dept_ids: Mapped[list | None] = mapped_column(
         JSON,
         nullable=True,
-        comment="自定义部门 ID 列表 [1,2,3]"
+        comment="自定义部门 ID 列表 [1,2,3] / Custom dept id list",
     )
 
-    # ========== 关联关系 ==========
-    # 父角色关系（自引用）
+    # ========== 关联关系 ========== / Relationships
+    # 父角色关系（自引用） / Parent role (self-ref)
     parent: Mapped["TenantAdminRole | None"] = relationship(
         "TenantAdminRole",
         remote_side="TenantAdminRole.id",
@@ -194,21 +194,21 @@ class TenantAdminRole(TenantModel):
         lazy="selectin",
     )
 
-    # 子角色关系（自引用）
+    # 子角色关系（自引用） / Child roles (self-ref)
     children: Mapped[list["TenantAdminRole"]] = relationship(
         "TenantAdminRole",
         back_populates="parent",
         lazy="selectin",
     )
 
-    # 关联权限（多对多）
+    # 关联权限（多对多） / Linked permissions (M2M)
     permissions: Mapped[list["Permission"]] = relationship(
         "Permission",
         secondary=tenant_admin_role_permissions,
         lazy="selectin",
     )
 
-    # 关联企业管理员（一对多）- 节点成员
+    # 关联企业管理员（一对多）- 节点成员 / Tenant admins on this node (1-N)
     admins: Mapped[list["TenantAdmin"]] = relationship(
         "TenantAdmin",
         back_populates="role",
@@ -216,7 +216,7 @@ class TenantAdminRole(TenantModel):
         foreign_keys="TenantAdmin.role_id",
     )
 
-    # 负责人关系
+    # 负责人关系 / Leader relationship
     leader: Mapped["TenantAdmin | None"] = relationship(
         "TenantAdmin",
         foreign_keys=[leader_id],
@@ -284,9 +284,9 @@ class TenantAdminRole(TenantModel):
         """
         if not self.path:
             return []
-        # path 格式为 /1/3/7/，解析出 [1, 3, 7]
+        # path 格式为 /1/3/7/，解析出 [1, 3, 7] / Parse path segments
         parts = [p for p in self.path.strip('/').split('/') if p]
-        # 排除自身 ID
+        # 排除自身 ID / Exclude self id
         return [int(p) for p in parts if int(p) != self.id]
 
 if TYPE_CHECKING:

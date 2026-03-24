@@ -18,7 +18,7 @@ import { markRaw, ref } from 'vue';
  */
 import { defineStore } from 'pinia';
 
-// ── 类型定义 ──
+// ── 类型定义 / Types ──
 
 /** 编辑器扩展声明（Tiptap Extension / ProseMirror Plugin 等） / Editor extension item */
 export interface EditorExtensionItem {
@@ -83,13 +83,20 @@ export interface ExtensionConflict {
   reason: string;
 }
 
+export interface PluginExtensionsSnapshot {
+  conflicts: ExtensionConflict[];
+  editorCommands: EditorCommandItem[];
+  editorExtensions: EditorExtensionItem[];
+  editorPanels: EditorPanelItem[];
+}
+
 export const usePluginExtensionsStore = defineStore('plugin-extensions', () => {
   const editorExtensions = ref<EditorExtensionItem[]>([]);
   const editorPanels = ref<EditorPanelItem[]>([]);
   const editorCommands = ref<EditorCommandItem[]>([]);
   const conflicts = ref<ExtensionConflict[]>([]);
 
-  // ── 编辑器扩展 ──
+  // ── 编辑器扩展 / Editor extensions ──
 
   function registerEditorExtension(item: EditorExtensionItem): boolean {
     const existing = editorExtensions.value.find((e) => e.id === item.id);
@@ -99,7 +106,7 @@ export const usePluginExtensionsStore = defineStore('plugin-extensions', () => {
       const existingPriority = existing.priority ?? 100;
       const newPriority = item.priority ?? 100;
       if (newPriority < existingPriority) {
-        // 新的优先级更高，替换
+        // 新的优先级更高，替换 / higher priority wins, replace
         editorExtensions.value = editorExtensions.value.filter(
           (e) => e.id !== item.id,
         );
@@ -128,7 +135,7 @@ export const usePluginExtensionsStore = defineStore('plugin-extensions', () => {
     return true;
   }
 
-  // ── 编辑器面板 ──
+  // ── 编辑器面板 / Editor panels ──
 
   function registerEditorPanel(item: EditorPanelItem): boolean {
     const existing = editorPanels.value.find((e) => e.id === item.id);
@@ -166,7 +173,7 @@ export const usePluginExtensionsStore = defineStore('plugin-extensions', () => {
     return true;
   }
 
-  // ── 命令 ──
+  // ── 命令 / Commands ──
 
   function registerCommand(item: EditorCommandItem): boolean {
     const existing = editorCommands.value.find((e) => e.id === item.id);
@@ -203,7 +210,7 @@ export const usePluginExtensionsStore = defineStore('plugin-extensions', () => {
     return true;
   }
 
-  // ── 查询 ──
+  // ── 查询 / Query ──
 
   function getExtensionsByGroup(group: string): EditorExtensionItem[] {
     return editorExtensions.value.filter((e) => e.group === group);
@@ -226,7 +233,7 @@ export const usePluginExtensionsStore = defineStore('plugin-extensions', () => {
     return cmd.execute(...args);
   }
 
-  // ── 生命周期 ──
+  // ── 生命周期 / Lifecycle ──
 
   function unregisterPlugin(pluginName: string) {
     editorExtensions.value = editorExtensions.value.filter(
@@ -250,23 +257,41 @@ export const usePluginExtensionsStore = defineStore('plugin-extensions', () => {
     conflicts.value = [];
   }
 
+  function captureSnapshot(): PluginExtensionsSnapshot {
+    return {
+      conflicts: [...conflicts.value],
+      editorCommands: [...editorCommands.value],
+      editorExtensions: [...editorExtensions.value],
+      editorPanels: [...editorPanels.value],
+    };
+  }
+
+  function restoreSnapshot(snapshot: PluginExtensionsSnapshot) {
+    editorExtensions.value = [...snapshot.editorExtensions];
+    editorPanels.value = [...snapshot.editorPanels];
+    editorCommands.value = [...snapshot.editorCommands];
+    conflicts.value = [...snapshot.conflicts];
+  }
+
   return {
-    // state
+    // state / 状态
     editorExtensions,
     editorPanels,
     editorCommands,
     conflicts,
-    // register
+    // register / 注册
     registerEditorExtension,
     registerEditorPanel,
     registerCommand,
-    // query
+    // query / 查询
     getExtensionsByGroup,
     getPanelsByPosition,
     getCommandsByGroup,
     executeCommand,
-    // lifecycle
+    // lifecycle / 生命周期
     unregisterPlugin,
     clearAll,
+    captureSnapshot,
+    restoreSnapshot,
   };
 });

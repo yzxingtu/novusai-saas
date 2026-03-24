@@ -50,7 +50,7 @@ class Admin(BaseModel):
 
     __sortable__ = ["id", "username", "email", "nickname", "is_active", "created_at", "updated_at", "last_login_at"]
 
-    # 下拉选项配置
+    # 下拉选项配置 / Select dropdown config
     __selectable__ = {
         "label": "username",
         "value": "id",
@@ -58,7 +58,7 @@ class Admin(BaseModel):
         "extra": ["nickname", "avatar"],
     }
 
-    # 基本信息
+    # 基本信息 / Basic identity
     username: Mapped[str] = mapped_column(
         String(50), unique=True, index=True, comment="用户名"
     )
@@ -69,12 +69,12 @@ class Admin(BaseModel):
         String(20), unique=True, index=True, nullable=True, comment="手机号"
     )
 
-    # 认证信息
+    # 认证信息 / Credentials
     password_hash: Mapped[str] = mapped_column(
         String(255), comment="密码哈希"
     )
 
-    # 管理员状态
+    # 管理员状态 / Admin status flags
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, comment="是否激活"
     )
@@ -82,7 +82,7 @@ class Admin(BaseModel):
         Boolean, default=False, comment="是否超级管理员（最高权限）"
     )
 
-    # 个人资料
+    # 个人资料 / Profile
     nickname: Mapped[str | None] = mapped_column(
         String(100), nullable=True, comment="昵称"
     )
@@ -90,7 +90,7 @@ class Admin(BaseModel):
         String(500), nullable=True, comment="头像附件 ID（兼容旧 URL 值）"
     )
 
-    # 登录信息
+    # 登录信息 / Login audit
     last_login_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, comment="最后登录时间"
     )
@@ -98,7 +98,7 @@ class Admin(BaseModel):
         String(50), nullable=True, comment="最后登录 IP"
     )
 
-    # 登录安全信息
+    # 登录安全信息 / Login security counters
     login_fail_count: Mapped[int] = mapped_column(
         Integer, default=0, comment="登录失败次数"
     )
@@ -109,7 +109,7 @@ class Admin(BaseModel):
         DateTime(timezone=True), nullable=True, comment="账户锁定到期时间"
     )
 
-    # 角色关联（平台角色）
+    # 角色关联（平台角色） / Role linkage (platform role)
     role_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("admin_roles.id"), nullable=True, comment="角色 ID"
     )
@@ -121,7 +121,7 @@ class Admin(BaseModel):
         comment="组织节点 ID",
     )
 
-    # 角色关系
+    # 角色关系 / ORM relationships
     role: Mapped["AdminRole | None"] = relationship(
         "AdminRole",
         back_populates="admins",
@@ -148,10 +148,16 @@ class Admin(BaseModel):
         Returns:
             是否拥有该权限
         """
-        # 超级管理员拥有所有权限
+        # 超级管理员拥有所有权限 / Super admin bypass
         if self.is_super:
             return True
-        # 检查角色权限
+        if self.org_node:
+            return any(
+                permission.code == permission_code
+                for permission in self.org_node.permissions
+                if permission.is_enabled and not permission.is_deleted
+            )
+        # 检查角色权限 / Check role permissions
         if self.role:
             return self.role.has_permission(permission_code)
         return False

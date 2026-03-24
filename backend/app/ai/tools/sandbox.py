@@ -35,6 +35,7 @@ from app.ai.tools.security import (
 from app.ai.tools.types import ExecutionContext, ToolDefinition, ToolResult
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.core.response import build_public_error_text
 from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
 from app.enums.agent import ToolTypeEnum
 from app.enums.common import UserRoleEnum
@@ -47,7 +48,7 @@ if TYPE_CHECKING:
 
 logger = LogManager.get_logger("ai.tool.sandbox")
 
-# Heuristic mapping: params key signatures -> probable operation_name.
+# Heuristic mapping: params key signatures -> probable operation_name. / 上文为英文说明 / English above
 # Used when LLM omits operation_name in parallel tool calls.
 _PARAM_KEY_TO_OP: list[tuple[frozenset[str], str]] = [
     (frozenset({"title"}), "update_title"),
@@ -283,7 +284,7 @@ class ToolSandbox:
         # 1. Find tool definition / 查找工具定义
         definition = self._find_definition(name, definitions)
 
-        # 1.1 Redirect: LLM may call an operation name directly as a tool
+        # 1.1 Redirect: LLM may call an operation name directly as a tool / 上文为英文说明 / English above
         # (e.g. "get_editor_text" instead of invoke_page_operation).
         # When the name matches an available page operation, rewrite to
         # invoke_page_operation transparently.
@@ -334,7 +335,7 @@ class ToolSandbox:
                     underlying,
                 )
 
-        # For invoke_page_operation: top-level whitelist, auto-fill page_key,
+        # For invoke_page_operation: top-level whitelist, auto-fill page_key, / 上文为英文说明 / English above
         # return actionable error when operation_name absent or unknown fields present.
         if name == "invoke_page_operation":
             # Top-level field whitelist: reject unknown keys to avoid content/old_html/new_html
@@ -367,7 +368,7 @@ class ToolSandbox:
 
             if not (arguments.get("operation_name") or "").strip():
                 nested_params: dict[str, Any] = arguments.get("params") or {}
-                # operation_name must be at top level, not inside params
+                # operation_name must be at top level, not inside params / 上文为英文说明 / English above
                 if "operation_name" in nested_params:
                     return ToolResult(
                         tool_call_id=tool_call_id,
@@ -451,7 +452,7 @@ class ToolSandbox:
                 tool_call_id=tool_call_id,
                 name=name,
                 success=False,
-                error=str(sec_err),
+                error=build_public_error_text(message=str(sec_err)),
             )
 
         # 2. Publish request event / 发布请求事件
@@ -537,7 +538,10 @@ class ToolSandbox:
                 tool_call_id=tool_call_id,
                 name=name,
                 success=False,
-                error=str(val_exc),
+                error=build_public_error_text(
+                    message=_("tool.error.validation_failed", name=name),
+                    exc=val_exc,
+                ),
             )
 
         # 6. Execute under timeout control (prefer tool-specific timeout, fallback to global) / 超时控制下执行
@@ -547,7 +551,7 @@ class ToolSandbox:
                 executor.execute(definition, tool_call_id, arguments, context=context),
                 timeout=tool_timeout,
             )
-            # Ensure result.name is always set (some executors omit it in error paths)
+            # Ensure result.name is always set (some executors omit it in error paths) / 上文为英文说明 / English above
             if not result.name:
                 result.name = name
         except asyncio.TimeoutError:
@@ -577,7 +581,10 @@ class ToolSandbox:
                 tool_call_id=tool_call_id,
                 name=name,
                 success=False,
-                error=str(exc),
+                error=build_public_error_text(
+                    message=_("common.server_error"),
+                    exc=exc,
+                ),
                 duration_ms=duration_ms,
             )
 

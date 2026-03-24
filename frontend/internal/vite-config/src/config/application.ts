@@ -68,7 +68,7 @@ function defineApplicationConfig(userConfigPromise?: DefineApplicationOptions) {
       esbuild: {
         drop: isBuild
           ? [
-              // 'console',
+              // 'console', / 生产可移除 console（已注释）/ strip console (off)
               'debugger',
             ]
           : [],
@@ -79,7 +79,7 @@ function defineApplicationConfig(userConfigPromise?: DefineApplicationOptions) {
         host: true,
         port,
         warmup: {
-          // 预热文件
+          // 预热文件 / dev warmup targets
           clientFiles: [
             './index.html',
             './src/bootstrap.ts',
@@ -111,7 +111,7 @@ function createCssOptions(injectGlobalScss = true): CSSOptions {
               }
               return content;
             },
-            // api: 'modern',
+            // api: 'modern', / Sass modern API（已注释）/ modern compiler API
           },
         }
       : {},

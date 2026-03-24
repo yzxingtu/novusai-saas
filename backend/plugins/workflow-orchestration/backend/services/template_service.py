@@ -31,6 +31,13 @@ from ..schemas.template import (
     WorkflowTemplateNodeResponseSchema,
     WorkflowTemplateVersionSchema,
 )
+from ._data_scope import (
+    apply_artifact_data_scope,
+    apply_model_scope,
+    apply_release_data_scope,
+    apply_run_data_scope,
+    apply_template_scope,
+)
 
 _TEMPLATE_FILTERS = {
     "code": WorkflowTemplate.code,
@@ -175,7 +182,14 @@ def _validate_template_payload(
 
 
 async def _get_template_or_raise(db, template_id: int) -> WorkflowTemplate:
-    template = await db.get(WorkflowTemplate, template_id)
+    template = (
+        await db.execute(
+            apply_model_scope(
+                select(WorkflowTemplate).where(WorkflowTemplate.id == template_id),
+                WorkflowTemplate,
+            )
+        )
+    ).scalar_one_or_none()
     if not template or template.is_deleted:
         raise NotFoundException(message=_("Workflow template not found."))
     return template
@@ -187,7 +201,15 @@ async def _get_template_version_or_raise(
     template_id: int,
     version_id: int,
 ) -> WorkflowTemplateVersion:
-    version = await db.get(WorkflowTemplateVersion, version_id)
+    version = (
+        await db.execute(
+            apply_template_scope(
+                select(WorkflowTemplateVersion).where(WorkflowTemplateVersion.id == version_id),
+                WorkflowTemplate,
+                WorkflowTemplateVersion.template_id,
+            )
+        )
+    ).scalar_one_or_none()
     if not version or version.is_deleted or version.template_id != template_id:
         raise NotFoundException(message=_("Workflow template version not found."))
     return version
@@ -265,10 +287,14 @@ async def _create_template_version(
 ) -> WorkflowTemplateVersion:
     existing_versions = (
         await db.execute(
-            select(WorkflowTemplateVersion).where(
-                WorkflowTemplateVersion.template_id == template.id,
-                WorkflowTemplateVersion.is_deleted.is_(False),
-                WorkflowTemplateVersion.is_latest.is_(True),
+            apply_template_scope(
+                select(WorkflowTemplateVersion).where(
+                    WorkflowTemplateVersion.template_id == template.id,
+                    WorkflowTemplateVersion.is_deleted.is_(False),
+                    WorkflowTemplateVersion.is_latest.is_(True),
+                ),
+                type(template),
+                WorkflowTemplateVersion.template_id,
             )
         )
     ).scalars().all()
@@ -315,7 +341,10 @@ async def _ensure_template_code_available(db, code: str, *, exclude_id: int | No
 
 async def list_templates(db, query_spec: QuerySpec | None = None) -> dict[str, Any]:
     query = query_spec or QuerySpec()
-    stmt = select(WorkflowTemplate).where(WorkflowTemplate.is_deleted.is_(False))
+    stmt = apply_model_scope(
+        select(WorkflowTemplate).where(WorkflowTemplate.is_deleted.is_(False)),
+        WorkflowTemplate,
+    )
     stmt = _apply_filters(stmt, query, _TEMPLATE_FILTERS)
     total_stmt = select(func.count()).select_from(stmt.order_by(None).subquery())
     total = int((await db.execute(total_stmt)).scalar_one() or 0)
@@ -419,28 +448,60 @@ async def get_template_detail(db, template_id: int) -> dict[str, Any]:
 
     latest_version = None
     if template.latest_version_id:
-        version = await db.get(WorkflowTemplateVersion, template.latest_version_id)
+        version = (
+            await db.execute(
+                apply_template_scope(
+                    select(WorkflowTemplateVersion).where(
+                        WorkflowTemplateVersion.id == template.latest_version_id
+                    ),
+                    type(template),
+                    WorkflowTemplateVersion.template_id,
+                )
+            )
+        ).scalar_one_or_none()
         if version and not version.is_deleted:
             latest_version = _serialize_template_version(version)
 
     published_version = None
     if template.current_published_version_id:
-        version = await db.get(WorkflowTemplateVersion, template.current_published_version_id)
+        version = (
+            await db.execute(
+                apply_template_scope(
+                    select(WorkflowTemplateVersion).where(
+                        WorkflowTemplateVersion.id == template.current_published_version_id
+                    ),
+                    type(template),
+                    WorkflowTemplateVersion.template_id,
+                )
+            )
+        ).scalar_one_or_none()
         if version and not version.is_deleted:
             published_version = _serialize_template_version(version)
 
     latest_release = None
     if template.latest_release_id:
-        release = await db.get(WorkflowRelease, template.latest_release_id)
+        release = (
+            await db.execute(
+                apply_release_data_scope(
+                    select(WorkflowRelease).where(WorkflowRelease.id == template.latest_release_id),
+                    WorkflowRelease,
+                    type(template),
+                )
+            )
+        ).scalar_one_or_none()
         if release and not release.is_deleted:
             latest_release = WorkflowReleaseSchema.model_validate(release).model_dump()
 
     version_count = int(
         (
             await db.execute(
-                select(func.count(WorkflowTemplateVersion.id)).where(
-                    WorkflowTemplateVersion.template_id == template_id,
-                    WorkflowTemplateVersion.is_deleted.is_(False),
+                apply_template_scope(
+                    select(func.count(WorkflowTemplateVersion.id)).where(
+                        WorkflowTemplateVersion.template_id == template_id,
+                        WorkflowTemplateVersion.is_deleted.is_(False),
+                    ),
+                    type(template),
+                    WorkflowTemplateVersion.template_id,
                 )
             )
         ).scalar_one()
@@ -530,13 +591,14 @@ async def list_template_versions(
     template_id: int,
     query_spec: QuerySpec | None = None,
 ) -> dict[str, Any]:
-    await _get_template_or_raise(db, template_id)
+    template = await _get_template_or_raise(db, template_id)
     query = query_spec or QuerySpec()
 
     stmt = select(WorkflowTemplateVersion).where(
         WorkflowTemplateVersion.template_id == template_id,
         WorkflowTemplateVersion.is_deleted.is_(False),
     )
+    stmt = apply_template_scope(stmt, type(template), WorkflowTemplateVersion.template_id)
     stmt = _apply_filters(stmt, query, _VERSION_FILTERS)
     total_stmt = select(func.count()).select_from(stmt.order_by(None).subquery())
     total = int((await db.execute(total_stmt)).scalar_one() or 0)
@@ -562,8 +624,11 @@ async def get_template_overview_stats(db) -> dict[str, Any]:
     total_templates = int(
         (
             await db.execute(
-                select(func.count(WorkflowTemplate.id)).where(
-                    WorkflowTemplate.is_deleted.is_(False)
+                apply_model_scope(
+                    select(func.count(WorkflowTemplate.id)).where(
+                        WorkflowTemplate.is_deleted.is_(False)
+                    ),
+                    WorkflowTemplate,
                 )
             )
         ).scalar_one()
@@ -572,12 +637,15 @@ async def get_template_overview_stats(db) -> dict[str, Any]:
 
     status_rows = (
         await db.execute(
-            select(
-                WorkflowTemplate.status,
-                func.count(WorkflowTemplate.id),
+            apply_model_scope(
+                select(
+                    WorkflowTemplate.status,
+                    func.count(WorkflowTemplate.id),
+                )
+                .where(WorkflowTemplate.is_deleted.is_(False))
+                .group_by(WorkflowTemplate.status),
+                WorkflowTemplate,
             )
-            .where(WorkflowTemplate.is_deleted.is_(False))
-            .group_by(WorkflowTemplate.status)
         )
     ).all()
     status_counts = {row[0]: int(row[1]) for row in status_rows}
@@ -585,8 +653,12 @@ async def get_template_overview_stats(db) -> dict[str, Any]:
     version_count = int(
         (
             await db.execute(
-                select(func.count(WorkflowTemplateVersion.id)).where(
-                    WorkflowTemplateVersion.is_deleted.is_(False)
+                apply_template_scope(
+                    select(func.count(WorkflowTemplateVersion.id)).where(
+                        WorkflowTemplateVersion.is_deleted.is_(False)
+                    ),
+                    WorkflowTemplate,
+                    WorkflowTemplateVersion.template_id,
                 )
             )
         ).scalar_one()
@@ -595,7 +667,12 @@ async def get_template_overview_stats(db) -> dict[str, Any]:
     run_count = int(
         (
             await db.execute(
-                select(func.count(WorkflowRun.id)).where(WorkflowRun.is_deleted.is_(False))
+                apply_run_data_scope(
+                    select(func.count(WorkflowRun.id)).where(WorkflowRun.is_deleted.is_(False)),
+                    WorkflowRun,
+                    template_model=WorkflowTemplate,
+                    template_id_column=WorkflowRun.workflow_template_id,
+                )
             )
         ).scalar_one()
         or 0
@@ -603,8 +680,16 @@ async def get_template_overview_stats(db) -> dict[str, Any]:
     artifact_count = int(
         (
             await db.execute(
-                select(func.count(WorkflowArtifact.id)).where(
-                    WorkflowArtifact.is_deleted.is_(False)
+                apply_artifact_data_scope(
+                    select(func.count(WorkflowArtifact.id))
+                    .join(WorkflowRun, WorkflowArtifact.run_id == WorkflowRun.id)
+                    .where(
+                        WorkflowArtifact.is_deleted.is_(False),
+                        WorkflowRun.is_deleted.is_(False),
+                    ),
+                    WorkflowArtifact,
+                    WorkflowRun,
+                    template_model=WorkflowTemplate,
                 )
             )
         ).scalar_one()

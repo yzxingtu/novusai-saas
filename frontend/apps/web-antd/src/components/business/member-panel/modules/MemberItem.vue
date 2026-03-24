@@ -26,6 +26,8 @@ const props = withDefaults(
     showActions?: boolean;
     /** Whether to show online status indicator / 是否显示在线状态指示器 */
     showOnlineStatus?: boolean;
+    /** Whether to show organization node / 是否显示组织节点 */
+    showOrgNode?: boolean;
   }>(),
   {
     apiPrefix: 'admin',
@@ -34,6 +36,7 @@ const props = withDefaults(
     online: false,
     showActions: true,
     showOnlineStatus: false,
+    showOrgNode: false,
   },
 );
 
@@ -55,6 +58,10 @@ const displayName = computed(() => {
 const avatarText = computed(() => {
   const name = displayName.value;
   return name.charAt(0).toUpperCase();
+});
+
+const showOrgNodeTag = computed(() => {
+  return props.showOrgNode && Boolean(props.member.orgNodeName);
 });
 
 /** Handle remove member / 处理移除成员 */
@@ -154,23 +161,16 @@ function handleForceLogout() {
         </Tooltip>
       </div>
       <div class="mt-1 flex flex-wrap items-center gap-2">
-        <Tag class="flex-shrink-0 !border-sky-200 !bg-sky-50 !text-sky-700">
+        <Tag
+          v-if="showOrgNodeTag"
+          class="flex-shrink-0 !border-sky-200 !bg-sky-50 !text-sky-700"
+        >
           <template #icon>
             <IconifyIcon icon="lucide:building-2" class="mr-1" />
           </template>
           {{
             `${$t('shared.memberPanel.orgNode')}: ${
               member.orgNodeName || $t('shared.common.notAssigned')
-            }`
-          }}
-        </Tag>
-        <Tag class="flex-shrink-0 !border-primary/30 !bg-primary/10 !text-primary">
-          <template #icon>
-            <IconifyIcon icon="lucide:shield" class="mr-1" />
-          </template>
-          {{
-            `${$t('shared.memberPanel.permissionRole')}: ${
-              member.roleName || $t('shared.common.notAssigned')
             }`
           }}
         </Tag>
@@ -226,7 +226,7 @@ function handleForceLogout() {
             <Button
               type="text"
               size="small"
-              class="hover:!text-destructive hover:!bg-destructive/10"
+              class="hover:!bg-destructive/10 hover:!text-destructive"
             >
               <template #icon>
                 <IconifyIcon icon="lucide:log-out" />

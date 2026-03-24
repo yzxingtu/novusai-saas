@@ -9,6 +9,11 @@ from app.core.base_model import utc_now
 from app.core.i18n import _
 from app.core.logging import get_logger
 from app.plugins.module_loader import load_plugin_module
+from ._data_scope import (
+    apply_artifact_data_scope,
+    apply_run_data_scope,
+    apply_tenant_workflow_scope,
+)
 
 PLUGIN_NAME = "workflow-orchestration"
 logger = get_logger(__name__)
@@ -32,12 +37,28 @@ class ArtifactService:
         query = _runtime("query")
 
         artifact_model = model_access.resolve_model("execution_artifact")
+        workflow_model = model_access.try_resolve_model("tenant_workflow")
+        run_model = model_access.try_resolve_model("workflow_run")
         page, page_size = query.parse_page(query_params)
         allowed_fields = model_access.model_field_names(artifact_model)
 
         list_stmt = select(artifact_model)
         count_stmt = select(func.count()).select_from(artifact_model)
         list_stmt, count_stmt = self._apply_tenant_scope(list_stmt, count_stmt, artifact_model)
+        list_stmt = apply_artifact_data_scope(
+            list_stmt,
+            artifact_model,
+            run_model,
+            tenant_id=self.tenant_id,
+            workflow_model=workflow_model,
+        )
+        count_stmt = apply_artifact_data_scope(
+            count_stmt,
+            artifact_model,
+            run_model,
+            tenant_id=self.tenant_id,
+            workflow_model=workflow_model,
+        )
 
         parsed_filters = query.parse_filters(query_params, allowed_fields)
         list_stmt = query.apply_filters(list_stmt, artifact_model, parsed_filters)
@@ -63,7 +84,10 @@ class ArtifactService:
         artifact = await self._get_artifact(artifact_id)
         payload = await self._serialize_artifact_payload(artifact)
         payload["download_available"] = bool(
-            payload.get("storage_path") or payload.get("storage_uri") or payload.get("content_text") or payload.get("content_json")
+            payload.get("storage_path")
+            or payload.get("storage_uri")
+            or payload.get("content_text")
+            or payload.get("content_json")
         )
         return payload
 
@@ -158,6 +182,8 @@ class ArtifactService:
         model_access = _runtime("model_access")
 
         artifact_model = model_access.resolve_model("execution_artifact")
+        workflow_model = model_access.try_resolve_model("tenant_workflow")
+        run_model = model_access.try_resolve_model("workflow_run")
         expires_field = None
         for field_name in ("expires_at", "retention_until"):
             if hasattr(artifact_model, field_name):
@@ -168,6 +194,13 @@ class ArtifactService:
 
         stmt = select(artifact_model).where(expires_field.is_not(None), expires_field <= utc_now())
         stmt, _ = self._apply_tenant_scope(stmt, None, artifact_model)
+        stmt = apply_artifact_data_scope(
+            stmt,
+            artifact_model,
+            run_model,
+            tenant_id=self.tenant_id,
+            workflow_model=workflow_model,
+        )
         expired_artifacts = list((await self.db.execute(stmt)).scalars().all())
 
         deleted_ids: list[int] = []
@@ -217,12 +250,17 @@ class ArtifactService:
         model_access = _runtime("model_access")
 
         artifact_model = model_access.resolve_model("execution_artifact")
-        stmt = select(artifact_model).where(artifact_model.id == artifact_id)
+        workflow_model = model_access.try_resolve_model("tenant_workflow")
         run_model = model_access.try_resolve_model("workflow_run")
-        if self.tenant_id is not None and run_model is not None and not hasattr(artifact_model, "tenant_id"):
-            stmt = stmt.join(run_model, artifact_model.run_id == run_model.id).where(run_model.tenant_id == self.tenant_id)
-        elif self.tenant_id is not None and hasattr(artifact_model, "tenant_id"):
-            stmt = stmt.where(artifact_model.tenant_id == self.tenant_id)
+        stmt = select(artifact_model).where(artifact_model.id == artifact_id)
+        stmt, _ = self._apply_tenant_scope(stmt, None, artifact_model)
+        stmt = apply_artifact_data_scope(
+            stmt,
+            artifact_model,
+            run_model,
+            tenant_id=self.tenant_id,
+            workflow_model=workflow_model,
+        )
         artifact = (await self.db.execute(stmt)).scalar_one_or_none()
         if artifact is None:
             raise errors.WorkflowNotFoundError(
@@ -234,10 +272,25 @@ class ArtifactService:
         if self.tenant_id is None:
             return list_stmt, count_stmt
         model_access = _runtime("model_access")
+        workflow_model = model_access.try_resolve_model("tenant_workflow")
         if hasattr(artifact_model, "tenant_id"):
             list_stmt = list_stmt.where(artifact_model.tenant_id == self.tenant_id)
             if count_stmt is not None:
                 count_stmt = count_stmt.where(artifact_model.tenant_id == self.tenant_id)
+            if workflow_model is not None and hasattr(artifact_model, "workflow_id"):
+                list_stmt = apply_tenant_workflow_scope(
+                    list_stmt,
+                    workflow_model,
+                    self.tenant_id,
+                    workflow_id_column=artifact_model.workflow_id,
+                )
+                if count_stmt is not None:
+                    count_stmt = apply_tenant_workflow_scope(
+                        count_stmt,
+                        workflow_model,
+                        self.tenant_id,
+                        workflow_id_column=artifact_model.workflow_id,
+                    )
             return list_stmt, count_stmt
 
         run_model = model_access.try_resolve_model("workflow_run")
@@ -262,6 +315,7 @@ class ArtifactService:
             return artifact_tid
 
         run_model = model_access.try_resolve_model("workflow_run")
+        workflow_model = model_access.try_resolve_model("tenant_workflow")
         if run_model is None:
             return None
 
@@ -269,7 +323,12 @@ class ArtifactService:
         if not run_id:
             return None
 
-        run_stmt = select(run_model).where(run_model.id == run_id)
+        run_stmt = apply_run_data_scope(
+            select(run_model).where(run_model.id == run_id),
+            run_model,
+            tenant_id=self.tenant_id,
+            workflow_model=workflow_model,
+        )
         run_row = (await self.db.execute(run_stmt)).scalar_one_or_none()
         return model_access.first_attr(run_row, ("tenant_id",), None) if run_row is not None else None
 

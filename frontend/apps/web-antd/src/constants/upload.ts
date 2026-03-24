@@ -10,7 +10,7 @@
  * The runtime rules can be overridden via GET /attachments/upload-rules API.
  */
 
-// ============ Extension Sets ============
+// ============ Extension Sets / 扩展名集合 ============
 
 /** Image file extensions / 图片文件扩展名 */
 export const IMAGE_EXTENSIONS = new Set([
@@ -85,7 +85,7 @@ export const PLATFORM_DENIED_EXTENSIONS = new Set([
 /** Default max file size in MB (synced with backend platform_storage_max_file_size_mb) / 默认最大文件大小(MB) */
 export const PLATFORM_MAX_FILE_SIZE_MB = 100;
 
-// ============ AI Chat Specific ============
+// ============ AI Chat Specific / AI 对话上传 ============
 
 /**
  * AI Chat accepted extensions for the file picker `accept` attribute / AI 对话文件选择器 accept 扩展名
@@ -114,7 +114,7 @@ export const CHAT_ACCEPT_ATTRIBUTE = buildAcceptAttribute(
   CHAT_ACCEPTED_EXTENSIONS,
 );
 
-// ============ Validation Helpers ============
+// ============ Validation Helpers / 校验辅助 ============
 
 /**
  * Check if a filename has an allowed extension / 检查文件名扩展名是否允许

@@ -94,7 +94,7 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
                 )
             return
 
-        # 非「平台功能分配」且未指定企业：仅校验存在 + 已发布（兼容其它调用方）
+        # 非「平台功能分配」且未指定企业：仅校验存在 + 已发布（兼容其它调用方） / Non platform-feature assignment and no tenant: only verify exists + published (compat)
         if tenant_id is None:
             return
 
@@ -179,7 +179,7 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
                 update_data["description"] = global_default.description
             return await self.update(existing.id, update_data)
 
-        # Verify the feature_code exists as a global default
+        # Verify the feature_code exists as a global default / 校验全局默认特性码 / verify global feature code
         global_default = await self.repo.get_by_feature_code(feature_code)
         if not global_default:
             raise NotFoundException(
@@ -197,7 +197,7 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
                 "is_active": True,
             })
         except IntegrityError:
-            # 并发竞态：另一个请求已创建覆盖，回退后重试更新路径
+            # 并发竞态：另一个请求已创建覆盖，回退后重试更新路径 / Concurrency: another request created override; retry update path
             await self.repo.db.rollback()
             existing = await self.repo.get_tenant_override(feature_code, tenant_id)
             if existing:

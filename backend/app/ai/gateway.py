@@ -42,6 +42,7 @@ from app.configs.service import PLATFORM_TENANT_ID
 from app.core.config import settings
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.core.response import build_public_error_text
 from app.enums.ai import CallStatusEnum, RequestTypeEnum
 from app.enums.log import UserTypeEnum as LogUserTypeEnum
 from app.exceptions import BusinessException, NotFoundException
@@ -1250,7 +1251,10 @@ class AIGateway:
             return TestModelResult(
                 connected=False,
                 latency_ms=latency_ms,
-                error=str(e),
+                error=build_public_error_text(
+                    message=_("ai.request_failed"),
+                    exc=e,
+                ),
                 model=model_code,
                 provider=provider.code,
             )

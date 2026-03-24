@@ -42,7 +42,7 @@ class NotificationService:
         self.db = db
 
     # ========================================
-    # 投递
+    # 投递 / Deliver
     # ========================================
 
     async def send(
@@ -77,7 +77,7 @@ class NotificationService:
         """
         from app.services.common.channels import get_channel
 
-        # 检查通知系统总开关
+        # 检查通知系统总开关 / Check notification master switch
         try:
             from app.sio.ws_config import get_ws_config
             notification_enabled = await get_ws_config("notification_enabled")
@@ -86,13 +86,13 @@ class NotificationService:
         except Exception:
             pass
 
-        # 查询模板
+        # 查询模板 / Query template
         template = await self._get_template(template_code)
         if not template:
             logger.warning("Notification template not found: {}", template_code)
             return 0
 
-        # 渲染标题和正文
+        # 渲染标题和正文 / Render title and body
         title = self._render_template(template.title_template, data)
         body = self._render_template(template.body_template, data) if template.body_template else None
         template_channels = template.channels or ["ws", "inbox"]
@@ -119,7 +119,7 @@ class NotificationService:
             else:
                 pref = {}
 
-            # 遍历模板定义的渠道
+            # 遍历模板定义的渠道 / Iterate channels defined on template
             for channel_code in template_channels:
                 # 用户偏好检查（force 模式全部允许）
                 if not force:
@@ -128,7 +128,7 @@ class NotificationService:
                     if not pref.get(pref_key, default_enabled):
                         continue
 
-                # 获取渠道实例
+                # 获取渠道实例 / Resolve channel instance
                 channel = get_channel(channel_code)
                 if not channel:
                     continue
@@ -137,7 +137,7 @@ class NotificationService:
                 if not force and not channel_enabled_cache.get(channel_code, False):
                     continue
 
-                # 投递
+                # 投递 / Deliver
                 await channel.deliver(
                     db=self.db,
                     user_type=user_type,
@@ -166,7 +166,7 @@ class NotificationService:
         return sent
 
     # ========================================
-    # 查询
+    # 查询 / Query
     # ========================================
 
     async def get_notifications(
@@ -194,11 +194,11 @@ class NotificationService:
         if is_read is not None:
             conditions.append(Notification.is_read == is_read)
 
-        # 总数
+        # 总数 / Total count
         count_q = select(func.count(Notification.id)).where(and_(*conditions))
         total = (await self.db.execute(count_q)).scalar() or 0
 
-        # 列表
+        # 列表 / List
         offset = (page - 1) * page_size
         q = (
             select(Notification)
@@ -227,7 +227,7 @@ class NotificationService:
         return (await self.db.execute(q)).scalar() or 0
 
     # ========================================
-    # 操作
+    # 操作 / Operations
     # ========================================
 
     async def mark_read(
@@ -291,7 +291,7 @@ class NotificationService:
         return result.rowcount > 0
 
     # ========================================
-    # 内部方法
+    # 内部方法 / Internal methods
     # ========================================
 
     async def _get_template(self, code: str) -> NotificationTemplate | None:
@@ -366,7 +366,7 @@ class NotificationService:
 
             max_per_user = int(max_per_user)
 
-            # 查询当前通知总数
+            # 查询当前通知总数 / Query current notification total
             count_q = select(func.count(Notification.id)).where(
                 Notification.recipient_type == recipient_type,
                 Notification.recipient_id == recipient_id,
@@ -377,7 +377,7 @@ class NotificationService:
             if total <= max_per_user:
                 return
 
-            # 超出限制，删除最早的已读通知（优先清理已读的）
+            # 超出限制，删除最早的已读通知（优先清理已读的） / Over limit: drop oldest read notifications first
             overflow = total - max_per_user
             oldest_q = (
                 select(Notification.id)
@@ -419,7 +419,7 @@ class NotificationService:
 
 
 # ============================================
-# 便捷函数
+# 便捷函数 / Convenience functions
 # ============================================
 
 async def notify(

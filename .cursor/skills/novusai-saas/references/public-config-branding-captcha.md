@@ -67,9 +67,12 @@
 
 因此：
 
-- 平台域名禁止当作 tenant/user 端主域
+- 平台域名禁止当作用户端主域
 - 企业域名禁止直接渲染 admin 端入口
 - 业务代码不要把 `tenant_code` 当成前端主判定条件
+- `loadTenantConfig()` 只能在 `detectDomainType()` 已确认 tenant/custom domain 后触发
+- 平台域名下的 `/tenant/*` 管理路由是合法场景，但登录前不能无条件请求 `/api/public/tenant/config`
+- tenant/custom domain 才允许把 tenant public config 作为品牌、验证码、注册开关的真相来源
 
 ---
 
@@ -108,8 +111,8 @@
 
 ### 企业端
 
-- `layouts/tenant-auth.vue` 读取企业品牌
-- 登录页使用企业验证码配置
+- 平台域名下的 tenant admin 登录前页面使用平台 public config
+- tenant/custom domain 下的 tenant 登录前页面才读取 tenant public config 与企业验证码配置
 
 ### 平台端
 
@@ -119,6 +122,7 @@
 
 - 登录前页面必须以公开配置为真相来源
 - 登录后后台页面的品牌展示也应复用已应用的 `preferences`
+- 不要因为前端路径是 `/tenant/*` 就假定当前 host 一定存在 tenant context
 
 ---
 
@@ -215,6 +219,7 @@
 
 - [ ] 登录前页面是否只使用公开配置接口
 - [ ] 是否统一通过 `usePublicConfigStore` 加载与识别域名
+- [ ] 是否保证 `loadTenantConfig()` 只在 tenant/custom domain 场景触发
 - [ ] 是否通过品牌注入更新 Vben preferences，而不是页面局部硬编码
 - [ ] 是否统一使用 `CaptchaProvider`
 - [ ] 新验证码类型是否走前后端 registry，而不是页面条件分支

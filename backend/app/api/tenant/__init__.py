@@ -107,7 +107,7 @@ tenant_router.include_router(ai_table_policies_router)
 tenant_router.include_router(skill_packages_router)
 # WebSocket 在线状态 / WebSocket online status
 tenant_router.include_router(ws_router)
-# 通知
+# 通知 / Notifications
 tenant_router.include_router(notifications_router)
 # 通知偏好 / Notification preferences
 tenant_router.include_router(notification_preferences_router)

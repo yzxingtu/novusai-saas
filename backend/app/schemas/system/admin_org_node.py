@@ -45,6 +45,7 @@ class AdminOrgNodeResponse(BaseSchema):
     leader_id: int | None = Field(None, description="Leader admin ID")
     leader: AdminOrgNodeLeaderResponse | None = Field(None, description="Leader info")
     member_count: int = Field(0, description="Direct member count")
+    permissions_count: int = Field(0, description="Direct permission count")
     data_scope: str = Field(
         DataScope.DEPT_AND_CHILDREN.value,
         description="Organization data scope",
@@ -59,6 +60,9 @@ class AdminOrgNodeResponse(BaseSchema):
 
 class AdminOrgNodeDetailResponse(AdminOrgNodeResponse):
     """Admin organization node detail response / 管理后台组织节点详情响应"""
+
+    permission_ids: list[int] = Field(default_factory=list, description="Assigned permission IDs")
+    permission_codes: list[str] = Field(default_factory=list, description="Assigned permission codes")
 
 
 class AdminOrgNodeTreeNode(AdminOrgNodeResponse):
@@ -85,6 +89,10 @@ class AdminOrgNodeCreateRequest(BaseSchema):
         None,
         description="Custom organization node IDs when data_scope=custom",
     )
+    permission_ids: list[int] | None = Field(
+        None,
+        description="Assigned permission IDs",
+    )
 
 
 class AdminOrgNodeUpdateRequest(BaseSchema):
@@ -101,6 +109,10 @@ class AdminOrgNodeUpdateRequest(BaseSchema):
     custom_dept_ids: list[int] | None = Field(
         None,
         description="Custom organization node IDs when data_scope=custom",
+    )
+    permission_ids: list[int] | None = Field(
+        None,
+        description="Assigned permission IDs",
     )
 
 
@@ -141,7 +153,6 @@ class AdminOrgNodeCreateMemberRequest(BaseSchema):
     phone: str | None = Field(None, description="Phone")
     nickname: str | None = Field(None, description="Nickname")
     is_active: bool = Field(True, description="Whether the admin is active")
-    role_id: int | None = Field(None, description="Permission role ID")
 
 
 class AdminOrgNodeUpdateMemberRequest(BaseSchema):
@@ -153,7 +164,6 @@ class AdminOrgNodeUpdateMemberRequest(BaseSchema):
     avatar: str | None = Field(None, description="Avatar")
     is_active: bool | None = Field(None, description="Whether the admin is active")
     org_node_id: int | None = Field(None, description="New organization node ID")
-    role_id: int | None = Field(None, description="Permission role ID")
 
 
 class AdminOrgNodeResetPasswordRequest(BaseSchema):

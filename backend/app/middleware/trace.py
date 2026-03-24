@@ -16,6 +16,42 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 # ContextVar for async context propagation / 用于异步上下文传播的 ContextVar
 trace_id_var: ContextVar[str] = ContextVar("trace_id", default="")
+TRACE_ID_MAX_LENGTH = 64
+
+
+def _coerce_trace_id_text(value: object | None) -> str:
+    """Normalize raw trace_id input into plain text / 将原始 trace_id 输入规整为纯文本。"""
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        try:
+            text = value.decode("utf-8", errors="ignore")
+        except Exception:
+            return ""
+    else:
+        text = str(value)
+    return text.replace("\r", "").replace("\n", "").replace("\x00", "").strip()
+
+
+def extract_optional_trace_id(value: object | None) -> str | None:
+    """Return normalized trace_id or None / 返回归一化后的 trace_id，不存在则返回 None。"""
+    text = _coerce_trace_id_text(value)
+    if not text:
+        return None
+    return text[:TRACE_ID_MAX_LENGTH]
+
+
+def normalize_trace_id(
+    value: object | None,
+    *,
+    default: object | None = None,
+) -> str:
+    """Normalize trace_id and always return a usable value / 归一化 trace_id，并保证返回可用值。"""
+    return (
+        extract_optional_trace_id(value)
+        or extract_optional_trace_id(default)
+        or str(uuid.uuid4())
+    )
 
 
 class TraceIdMiddleware:
@@ -41,12 +77,8 @@ class TraceIdMiddleware:
 
         # Read or generate trace_id / 读取或生成 trace_id
         headers = dict(scope.get("headers", []))
-        raw_tid = headers.get(b"x-trace-id", b"")
-        try:
-            tid = raw_tid.decode("utf-8").strip() if raw_tid else ""
-        except UnicodeDecodeError:
-            tid = ""
-        tid = tid or str(uuid.uuid4())
+        raw_tid = headers.get(b"x-trace-id")
+        tid = normalize_trace_id(raw_tid)
         trace_id_var.set(tid)
 
         # Ensure scope has state (for AuditLogMiddleware etc.) / 确保 scope 有 state

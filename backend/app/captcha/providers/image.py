@@ -24,7 +24,7 @@ from typing import Any
 try:
     from captcha.image import ImageCaptcha
 except Exception:
-    ImageCaptcha = None  # type: ignore
+    ImageCaptcha = None  # type: ignore / 可选依赖缺失时忽略类型
 from app.captcha.provider import (
     CaptchaChallenge,
     CaptchaVerificationResult,

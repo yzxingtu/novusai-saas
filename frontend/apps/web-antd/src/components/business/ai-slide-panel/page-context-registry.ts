@@ -222,7 +222,7 @@ export function resolvePageContext(
     }
   }
 
-  // Fallback: iterate all resolvers, return the last non-null result (with extras merged)
+  // Fallback: iterate all resolvers, return the last non-null result (with extras merged) / 遍历解析器取最后非空
   let result: PageContextData | null = null;
   let resultKey: string | null = null;
   for (const [registeredKey, resolver] of registry) {

@@ -20,7 +20,7 @@ import { clearCacheApi, getCacheSummaryApi } from '#/api/admin/cache';
 import { $t } from '#/locales';
 
 // ============================================================
-// Types
+// Types / 类型
 // ============================================================
 
 interface CacheItem {
@@ -55,7 +55,7 @@ const PREF_KEY_SUFFIXES = [
 ];
 
 // ============================================================
-// State
+// State / 状态
 // ============================================================
 
 const router = useRouter();
@@ -116,7 +116,7 @@ function isPrefKey(key: string): boolean {
 }
 
 // ============================================================
-// Selection
+// Selection / 选择
 // ============================================================
 
 function toggleCategory(category: string) {
@@ -239,7 +239,7 @@ function clearFrontendCategory(category: FrontendCategory) {
         const tabbarStore = useTabbarStore();
         tabbarStore.$reset();
       } catch {
-        // tabbar store may not be initialized
+        // tabbar store may not be initialized / tabbar 可能未初始化
       }
       break;
     }
@@ -247,7 +247,7 @@ function clearFrontendCategory(category: FrontendCategory) {
 }
 
 // ============================================================
-// Load & Clear
+// Load & Clear / 加载与清理
 // ============================================================
 
 async function loadSummary() {
@@ -263,7 +263,7 @@ async function loadSummary() {
       backendItems.value = [];
     }
     frontendItems.value = scanFrontendCaches();
-    // default select all
+    // default select all / 默认全选
     selectedCategories.value = new Set(allItems.value.map((c) => c.category));
   } catch {
     message.error($t('admin.system.cache.clearFailed'));

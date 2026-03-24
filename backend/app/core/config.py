@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     # ========================================
     APP_NAME: str = "NovusAI SaaS"
     APP_VERSION: str = "0.1.0"
-    APP_ENV: str = "development"  # development, staging, production
+    APP_ENV: str = "development"  # development, staging, production / 运行环境
     DEBUG: bool = False
 
     # 时区配置（用于后端和数据库） / Timezone config (for backend and database)
@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     # 安全配置 / Security Configuration
     # ========================================
     SECRET_KEY: str = "your-secret-key-change-in-production"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours / 访问令牌过期（分钟）
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     ALGORITHM: str = "HS256"
 
@@ -218,7 +218,7 @@ class Settings(BaseSettings):
     # 插件市场配置 / Plugin Marketplace Configuration
     # ========================================
     PLUGIN_REGISTRY_URL: str = ""
-    PLUGIN_REGISTRY_MIRROR: str = "github"  # github / gitee
+    PLUGIN_REGISTRY_MIRROR: str = "github"  # github / gitee / 插件市场镜像源
     GITHUB_PROXY: str = ""
     GITHUB_TOKEN: str = ""
     GITEE_TOKEN: str = ""

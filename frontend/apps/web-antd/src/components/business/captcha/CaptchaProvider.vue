@@ -65,7 +65,7 @@ const resolvedComponent = computed(() => {
   if (props.provider !== 'image') {
     console.warn(`[CaptchaProvider] provider "${props.provider}" not registered, falling back to CaptchaImageForm`);
   }
-  // Fallback to image if provider not registered
+  // Fallback to image if provider not registered / 未注册插件则回退图片验证码
   return CaptchaImageForm;
 });
 

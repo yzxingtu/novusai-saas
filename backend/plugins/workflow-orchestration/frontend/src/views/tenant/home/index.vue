@@ -5,6 +5,18 @@ import {
   getTenantBuilderCapabilitiesApi,
   getTenantHomeApi,
 } from '../../../api/tenant';
+import {
+  TENANT_WORKFLOW_AI_CONVERSATION_SCOPE,
+  buildPrompt,
+  openWorkflowAIPanel,
+  useWorkflowPageAI,
+} from '../../../shared/ai';
+import {
+  TENANT_BUILDER_CAPABILITY_ACCESS_CODES,
+  TENANT_HOME_PAGE_ACCESS_CODES,
+  TENANT_WORKFLOW_CREATE_PAGE_ACCESS_CODES,
+  WORKFLOW_ACCESS_CODES,
+} from '../../../shared/access';
 import type {
   TenantBuilderCapability,
   TenantHomePayload,
@@ -19,10 +31,14 @@ defineOptions({
   name: 'WorkflowOrchestrationTenantHome',
 });
 
+const TENANT_HOME_PAGE_KEY = 'tenant.workflow_orchestration.home';
+
 const {
   formatNumber,
   formatPercent,
   formatRelativeTime,
+  hasAccess,
+  hasAnyAccess,
   labelForArtifactStatus,
   labelForCapability,
   labelForRisk,
@@ -36,9 +52,33 @@ const {
   toneForRunStatus,
   toneForWorkflowStatus,
 } = useTenantOrchestration();
+const permissionDeniedMessage = t(
+  'plugin.workflow-orchestration.tenant.common.messages.permissionDenied',
+);
+const canAccessTenantHomePage = hasAnyAccess(TENANT_HOME_PAGE_ACCESS_CODES);
+const canLoadTenantHome = canAccessTenantHomePage;
+const canReadBuilderCapabilities =
+  canLoadTenantHome &&
+  hasAnyAccess(TENANT_BUILDER_CAPABILITY_ACCESS_CODES);
+const canOpenCreateGuide = hasAnyAccess(TENANT_WORKFLOW_CREATE_PAGE_ACCESS_CODES);
+const canOpenWorkflowCenter = hasAccess(
+  WORKFLOW_ACCESS_CODES.WORKFLOW_CENTER_LIST,
+);
+const canOpenWorkflowDetail = hasAccess(
+  WORKFLOW_ACCESS_CODES.WORKFLOW_CENTER_VIEW,
+);
+const canOpenRuns = hasAccess(WORKFLOW_ACCESS_CODES.WORKFLOW_RUN_LIST);
+const canOpenRunDetail = hasAccess(WORKFLOW_ACCESS_CODES.WORKFLOW_RUN_VIEW);
+const canOpenArtifactCenter = hasAccess(
+  WORKFLOW_ACCESS_CODES.ARTIFACT_CENTER_LIST,
+);
+const canOpenArtifactDetail = hasAccess(
+  WORKFLOW_ACCESS_CODES.ARTIFACT_CENTER_VIEW,
+);
 
 const loading = ref(true);
 const errorMessage = ref('');
+const ideaDraft = ref('');
 const home = ref<TenantHomePayload>({
   alerts: [],
   highlightedWorkflows: [],
@@ -49,28 +89,34 @@ const home = ref<TenantHomePayload>({
 });
 const capabilities = ref<TenantBuilderCapability[]>([]);
 
+const starterPromptKeys = [
+  'campaignReview',
+  'customerSupport',
+  'riskFollowup',
+] as const;
+
 const defaultStats = computed<TenantHomeStatCard[]>(() => [
   {
     code: 'pending_approvals',
-    label: t('plugin.workflowOrchestration.tenant.home.metrics.pendingApprovals'),
+    label: t('plugin.workflow-orchestration.tenant.home.metrics.pendingApprovals'),
     tone: 'warning',
     value: home.value.summary?.pendingApprovals ?? 0,
   },
   {
     code: 'failed_runs',
-    label: t('plugin.workflowOrchestration.tenant.home.metrics.failedRuns'),
+    label: t('plugin.workflow-orchestration.tenant.home.metrics.failedRuns'),
     tone: 'danger',
     value: home.value.summary?.failedRuns ?? 0,
   },
   {
     code: 'pending_artifacts',
-    label: t('plugin.workflowOrchestration.tenant.home.metrics.pendingArtifacts'),
+    label: t('plugin.workflow-orchestration.tenant.home.metrics.pendingArtifacts'),
     tone: 'info',
     value: home.value.summary?.pendingArtifacts ?? 0,
   },
   {
     code: 'active_workflows',
-    label: t('plugin.workflowOrchestration.tenant.home.metrics.activeWorkflows'),
+    label: t('plugin.workflow-orchestration.tenant.home.metrics.activeWorkflows'),
     tone: 'success',
     value: home.value.summary?.activeWorkflows ?? 0,
   },
@@ -93,7 +139,7 @@ const boundaryItems = computed(() => {
       enabled: capabilityMap.value.get('tenant_simple_builder')?.enabled ?? false,
       hint:
         capabilityMap.value.get('tenant_simple_builder')?.reason ??
-        t('plugin.workflowOrchestration.tenant.capability.hints.tenant_simple_builder'),
+        t('plugin.workflow-orchestration.tenant.capability.hints.tenant_simple_builder'),
     },
     {
       code: 'tenant_template_editor',
@@ -101,14 +147,14 @@ const boundaryItems = computed(() => {
         capabilityMap.value.get('tenant_template_editor')?.enabled ?? false,
       hint:
         capabilityMap.value.get('tenant_template_editor')?.reason ??
-        t('plugin.workflowOrchestration.tenant.capability.hints.tenant_template_editor'),
+        t('plugin.workflow-orchestration.tenant.capability.hints.tenant_template_editor'),
     },
     {
       code: 'agentic_builder',
       enabled: capabilityMap.value.get('agentic_builder')?.enabled ?? false,
       hint:
         capabilityMap.value.get('agentic_builder')?.reason ??
-        t('plugin.workflowOrchestration.tenant.capability.hints.agentic_builder'),
+        t('plugin.workflow-orchestration.tenant.capability.hints.agentic_builder'),
     },
   ];
 });
@@ -120,13 +166,30 @@ const lockedBoundaryCodes = [
 ];
 
 async function loadPage(): Promise<void> {
+  if (!canLoadTenantHome) {
+    loading.value = false;
+    errorMessage.value = '';
+    home.value = {
+      alerts: [],
+      highlightedWorkflows: [],
+      latestArtifacts: [],
+      latestRuns: [],
+      stats: [],
+      todos: [],
+    };
+    capabilities.value = [];
+    return;
+  }
+
   loading.value = true;
   errorMessage.value = '';
 
   try {
     const [homePayload, capabilityPayload] = await Promise.all([
       getTenantHomeApi(),
-      getTenantBuilderCapabilitiesApi(),
+      canReadBuilderCapabilities
+        ? getTenantBuilderCapabilitiesApi()
+        : Promise.resolve([] as TenantBuilderCapability[]),
     ]);
     home.value = homePayload;
     capabilities.value =
@@ -137,11 +200,118 @@ async function loadPage(): Promise<void> {
     errorMessage.value =
       error instanceof Error
         ? error.message
-        : t('plugin.workflowOrchestration.tenant.common.messages.loadFailed');
+        : t('plugin.workflow-orchestration.tenant.common.messages.loadFailed');
   } finally {
     loading.value = false;
   }
 }
+
+function openCreateGuide(): void {
+  if (!canOpenCreateGuide) {
+    errorMessage.value = permissionDeniedMessage;
+    return;
+  }
+  navigateTo('workflows/new');
+}
+
+function buildPlannerPrompt(seed?: string): string {
+  const normalizedSeed = seed?.trim() || ideaDraft.value.trim();
+  return buildPrompt([
+    t('plugin.workflow-orchestration.tenant.home.ai.systemLead'),
+    normalizedSeed
+      ? t('plugin.workflow-orchestration.tenant.home.ai.userIdea', {
+          idea: normalizedSeed,
+        })
+      : t('plugin.workflow-orchestration.tenant.home.ai.emptyIdea'),
+    t('plugin.workflow-orchestration.tenant.home.ai.outputContract'),
+  ]);
+}
+
+function openAIPlanner(seed?: string): void {
+  openWorkflowAIPanel({
+    conversationScope: TENANT_WORKFLOW_AI_CONVERSATION_SCOPE,
+    message: buildPlannerPrompt(seed),
+    pageKey: TENANT_HOME_PAGE_KEY,
+  });
+}
+
+useWorkflowPageAI({
+  conversationScope: TENANT_WORKFLOW_AI_CONVERSATION_SCOPE,
+  pageKey: TENANT_HOME_PAGE_KEY,
+  buildContext: () => ({
+    entityDescription: t('plugin.workflow-orchestration.tenant.home.ai.pageDescription'),
+    entityTitle: t('plugin.workflow-orchestration.tenant.home.title'),
+    entityType: 'workflow_orchestration_tenant_home',
+    pageData: {
+      active_workflows: home.value.summary?.activeWorkflows ?? 0,
+      failed_runs: home.value.summary?.failedRuns ?? 0,
+      idea_draft: ideaDraft.value,
+      pending_approvals: home.value.summary?.pendingApprovals ?? 0,
+      todo_count: home.value.todos?.length ?? 0,
+    },
+    pageTitle: t('plugin.workflow-orchestration.tenant.home.title'),
+  }),
+  operations: [
+    {
+      name: 'open_tenant_workflow_create_guide',
+      label: t('plugin.workflow-orchestration.tenant.home.ai.operations.openCreateGuide.label'),
+      description: t(
+        'plugin.workflow-orchestration.tenant.home.ai.operations.openCreateGuide.description',
+      ),
+      readonly: true,
+      handler: async () => {
+        if (!canOpenCreateGuide) {
+          return {
+            success: false,
+            message: permissionDeniedMessage,
+          };
+        }
+        openCreateGuide();
+        return {
+          success: true,
+          message: t(
+            'plugin.workflow-orchestration.tenant.home.ai.operations.openCreateGuide.success',
+          ),
+        };
+      },
+    },
+    {
+      name: 'open_tenant_home_ai_planner',
+      label: t('plugin.workflow-orchestration.tenant.home.ai.operations.openAI.label'),
+      description: t('plugin.workflow-orchestration.tenant.home.ai.operations.openAI.description'),
+      readonly: true,
+      params: {
+        idea: {
+          description: t(
+            'plugin.workflow-orchestration.tenant.home.ai.operations.openAI.ideaDescription',
+          ),
+          required: false,
+          type: 'string',
+        },
+      },
+      handler: async (params: Record<string, unknown>) => {
+        openAIPlanner(typeof params.idea === 'string' ? params.idea : undefined);
+        return {
+          success: true,
+          message: t('plugin.workflow-orchestration.tenant.home.ai.operations.openAI.success'),
+        };
+      },
+    },
+    {
+      name: 'refresh_tenant_home',
+      label: t('plugin.workflow-orchestration.tenant.home.ai.operations.refresh.label'),
+      description: t('plugin.workflow-orchestration.tenant.home.ai.operations.refresh.description'),
+      readonly: true,
+      handler: async () => {
+        await loadPage();
+        return {
+          success: true,
+          message: t('plugin.workflow-orchestration.tenant.home.ai.operations.refresh.success'),
+        };
+      },
+    },
+  ],
+});
 
 onMounted(() => {
   void loadPage();
@@ -150,30 +320,164 @@ onMounted(() => {
 
 <template>
   <ConsoleShell
-    :description="t('plugin.workflowOrchestration.tenant.home.description')"
-    :eyebrow="t('plugin.workflowOrchestration.tenant.home.eyebrow')"
-    :title="t('plugin.workflowOrchestration.tenant.home.title')"
+    :description="t('plugin.workflow-orchestration.tenant.home.description')"
+    :eyebrow="t('plugin.workflow-orchestration.tenant.home.eyebrow')"
+    :title="t('plugin.workflow-orchestration.tenant.home.title')"
   >
     <template #actions>
       <button
+        v-if="canAccessTenantHomePage && canOpenRuns"
         class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-sky-200 hover:text-sky-700"
         @click="navigateTo('runs')"
       >
-        {{ t('plugin.workflowOrchestration.tenant.common.actions.openRuns') }}
+        {{ t('plugin.workflow-orchestration.tenant.common.actions.openRuns') }}
       </button>
       <button
-        class="inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
-        @click="navigateTo('workflows')"
+        v-if="canAccessTenantHomePage"
+        class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-sky-200 hover:text-sky-700"
+        @click="openAIPlanner()"
       >
-        {{ t('plugin.workflowOrchestration.tenant.common.actions.openWorkflows') }}
+        {{ t('plugin.workflow-orchestration.tenant.home.actions.askAI') }}
+      </button>
+      <button
+        v-if="canAccessTenantHomePage && canOpenCreateGuide"
+        class="inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+        @click="openCreateGuide()"
+      >
+        {{ t('plugin.workflow-orchestration.tenant.home.actions.createWorkflow') }}
       </button>
     </template>
 
+    <EmptyState
+      v-if="!canAccessTenantHomePage"
+      :title="permissionDeniedMessage"
+    />
+    <template v-else>
     <section
       v-if="errorMessage"
       class="rounded-3xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700"
-    >
-      {{ errorMessage }}
+      >
+        {{ errorMessage }}
+      </section>
+
+    <section class="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+      <article class="relative overflow-hidden rounded-[30px] border border-white/70 bg-white/95 p-6 shadow-sm">
+        <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.14),transparent_50%),radial-gradient(circle_at_bottom_right,rgba(15,23,42,0.08),transparent_55%)]" />
+        <div class="relative space-y-5">
+          <div class="space-y-2">
+            <span class="inline-flex rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
+              {{ t('plugin.workflow-orchestration.tenant.home.ai.badge') }}
+            </span>
+            <h2 class="text-2xl font-semibold tracking-tight text-slate-950">
+              {{ t('plugin.workflow-orchestration.tenant.home.ai.title') }}
+            </h2>
+            <p class="max-w-2xl text-sm leading-6 text-slate-600">
+              {{ t('plugin.workflow-orchestration.tenant.home.ai.description') }}
+            </p>
+          </div>
+
+          <label class="block space-y-2">
+            <span class="text-sm font-medium text-slate-700">
+              {{ t('plugin.workflow-orchestration.tenant.home.ai.inputLabel') }}
+            </span>
+            <textarea
+              v-model="ideaDraft"
+              class="min-h-[132px] w-full rounded-3xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+              :placeholder="t('plugin.workflow-orchestration.tenant.home.ai.placeholder')"
+            />
+          </label>
+
+          <div class="flex flex-wrap gap-3">
+            <button
+              class="inline-flex items-center rounded-full bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
+              type="button"
+              @click="openAIPlanner()"
+            >
+              {{ t('plugin.workflow-orchestration.tenant.home.actions.askAI') }}
+            </button>
+            <button
+              v-if="canOpenCreateGuide"
+              class="inline-flex items-center rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+              type="button"
+              @click="openCreateGuide()"
+            >
+              {{ t('plugin.workflow-orchestration.tenant.home.actions.createWorkflow') }}
+            </button>
+            <button
+              v-if="canOpenWorkflowCenter"
+              class="inline-flex items-center rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+              type="button"
+              @click="navigateTo('workflows')"
+            >
+              {{ t('plugin.workflow-orchestration.tenant.common.actions.openWorkflows') }}
+            </button>
+          </div>
+
+          <div class="grid gap-3 md:grid-cols-3">
+            <button
+              v-for="promptKey in starterPromptKeys"
+              :key="promptKey"
+              class="rounded-3xl border border-white/70 bg-white/90 px-4 py-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-sky-200 hover:bg-sky-50/70"
+              type="button"
+              @click="openAIPlanner(t(`plugin.workflow-orchestration.tenant.home.ai.starters.${promptKey}.prompt`))"
+            >
+              <div class="text-sm font-semibold text-slate-900">
+                {{ t(`plugin.workflow-orchestration.tenant.home.ai.starters.${promptKey}.title`) }}
+              </div>
+              <div class="mt-2 text-xs leading-5 text-slate-500">
+                {{ t(`plugin.workflow-orchestration.tenant.home.ai.starters.${promptKey}.description`) }}
+              </div>
+            </button>
+          </div>
+        </div>
+      </article>
+
+      <article class="rounded-[30px] border border-white/70 bg-white/95 p-6 shadow-sm">
+        <div class="space-y-2">
+          <h2 class="text-xl font-semibold text-slate-950">
+            {{ t('plugin.workflow-orchestration.tenant.home.steps.title') }}
+          </h2>
+          <p class="text-sm leading-6 text-slate-600">
+            {{ t('plugin.workflow-orchestration.tenant.home.steps.description') }}
+          </p>
+        </div>
+
+        <div class="mt-5 space-y-3">
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+            <div class="text-xs font-semibold uppercase tracking-[0.24em] text-sky-600">
+              01
+            </div>
+            <div class="mt-2 text-sm font-semibold text-slate-900">
+              {{ t('plugin.workflow-orchestration.tenant.home.steps.create.title') }}
+            </div>
+            <div class="mt-1 text-sm leading-6 text-slate-600">
+              {{ t('plugin.workflow-orchestration.tenant.home.steps.create.description') }}
+            </div>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+            <div class="text-xs font-semibold uppercase tracking-[0.24em] text-sky-600">
+              02
+            </div>
+            <div class="mt-2 text-sm font-semibold text-slate-900">
+              {{ t('plugin.workflow-orchestration.tenant.home.steps.publish.title') }}
+            </div>
+            <div class="mt-1 text-sm leading-6 text-slate-600">
+              {{ t('plugin.workflow-orchestration.tenant.home.steps.publish.description') }}
+            </div>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+            <div class="text-xs font-semibold uppercase tracking-[0.24em] text-sky-600">
+              03
+            </div>
+            <div class="mt-2 text-sm font-semibold text-slate-900">
+              {{ t('plugin.workflow-orchestration.tenant.home.steps.run.title') }}
+            </div>
+            <div class="mt-1 text-sm leading-6 text-slate-600">
+              {{ t('plugin.workflow-orchestration.tenant.home.steps.run.description') }}
+            </div>
+          </div>
+        </div>
+      </article>
     </section>
 
     <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -198,7 +502,7 @@ onMounted(() => {
             </p>
           </div>
           <StatusPill
-            :label="t(`plugin.workflowOrchestration.tenant.common.tones.${card.tone ?? 'info'}`)"
+            :label="t(`plugin.workflow-orchestration.tenant.common.tones.${card.tone ?? 'info'}`)"
             :tone="card.tone ?? 'info'"
           />
         </div>
@@ -228,17 +532,18 @@ onMounted(() => {
         <div class="flex items-center justify-between gap-3">
           <div>
             <h2 class="text-lg font-semibold text-slate-900">
-              {{ t('plugin.workflowOrchestration.tenant.home.sections.todayTodo') }}
+              {{ t('plugin.workflow-orchestration.tenant.home.sections.todayTodo') }}
             </h2>
             <p class="mt-1 text-sm text-slate-500">
-              {{ t('plugin.workflowOrchestration.tenant.home.sections.todayTodoHint') }}
+              {{ t('plugin.workflow-orchestration.tenant.home.sections.todayTodoHint') }}
             </p>
           </div>
           <button
+            v-if="canOpenRuns"
             class="text-sm font-medium text-sky-700 transition hover:text-sky-800"
             @click="navigateTo('runs')"
           >
-            {{ t('plugin.workflowOrchestration.tenant.common.actions.viewAll') }}
+            {{ t('plugin.workflow-orchestration.tenant.common.actions.viewAll') }}
           </button>
         </div>
 
@@ -259,12 +564,12 @@ onMounted(() => {
                   {{ todo.title }}
                 </p>
                 <StatusPill
-                  :label="t(`plugin.workflowOrchestration.tenant.common.todoCategory.${todo.category}`)"
+                  :label="t(`plugin.workflow-orchestration.tenant.common.todoCategory.${todo.category}`)"
                   tone="info"
                 />
                 <StatusPill
                   v-if="todo.severity"
-                  :label="t(`plugin.workflowOrchestration.tenant.common.severity.${todo.severity}`)"
+                  :label="t(`plugin.workflow-orchestration.tenant.common.severity.${todo.severity}`)"
                   :tone="todo.severity === 'high' ? 'danger' : todo.severity === 'medium' ? 'warning' : 'info'"
                 />
               </div>
@@ -279,7 +584,7 @@ onMounted(() => {
                   {{ formatRelativeTime(todo.dueAt) }}
                 </span>
                 <span>
-                  {{ todo.actionLabel || t('plugin.workflowOrchestration.tenant.common.actions.handleNow') }}
+                  {{ todo.actionLabel || t('plugin.workflow-orchestration.tenant.common.actions.handleNow') }}
                 </span>
               </div>
             </div>
@@ -287,18 +592,18 @@ onMounted(() => {
         </div>
         <EmptyState
           v-else
-          :description="t('plugin.workflowOrchestration.tenant.home.empty.todoDescription')"
-          :title="t('plugin.workflowOrchestration.tenant.home.empty.todoTitle')"
+          :description="t('plugin.workflow-orchestration.tenant.home.empty.todoDescription')"
+          :title="t('plugin.workflow-orchestration.tenant.home.empty.todoTitle')"
         />
       </article>
 
       <article class="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-sm">
         <div>
           <h2 class="text-lg font-semibold text-slate-900">
-            {{ t('plugin.workflowOrchestration.tenant.home.sections.boundary') }}
+            {{ t('plugin.workflow-orchestration.tenant.home.sections.boundary') }}
           </h2>
           <p class="mt-1 text-sm text-slate-500">
-            {{ t('plugin.workflowOrchestration.tenant.home.sections.boundaryHint') }}
+            {{ t('plugin.workflow-orchestration.tenant.home.sections.boundaryHint') }}
           </p>
         </div>
 
@@ -318,7 +623,7 @@ onMounted(() => {
                 </p>
               </div>
               <StatusPill
-                :label="t(`plugin.workflowOrchestration.tenant.capability.state.${item.enabled ? 'enabled' : 'disabled'}`)"
+                :label="t(`plugin.workflow-orchestration.tenant.capability.state.${item.enabled ? 'enabled' : 'disabled'}`)"
                 :tone="item.enabled ? 'success' : 'neutral'"
               />
             </div>
@@ -327,14 +632,14 @@ onMounted(() => {
 
         <div class="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
           <p class="text-sm font-semibold text-amber-900">
-            {{ t('plugin.workflowOrchestration.tenant.home.sections.lockedTitle') }}
+            {{ t('plugin.workflow-orchestration.tenant.home.sections.lockedTitle') }}
           </p>
           <ul class="mt-3 space-y-2 text-sm text-amber-800">
             <li
               v-for="code in lockedBoundaryCodes"
               :key="code"
             >
-              {{ t(`plugin.workflowOrchestration.tenant.capability.locked.${code}`) }}
+              {{ t(`plugin.workflow-orchestration.tenant.capability.locked.${code}`) }}
             </li>
           </ul>
         </div>
@@ -346,17 +651,18 @@ onMounted(() => {
         <div class="flex items-center justify-between gap-3">
           <div>
             <h2 class="text-lg font-semibold text-slate-900">
-              {{ t('plugin.workflowOrchestration.tenant.home.sections.highlightedWorkflows') }}
+              {{ t('plugin.workflow-orchestration.tenant.home.sections.highlightedWorkflows') }}
             </h2>
             <p class="mt-1 text-sm text-slate-500">
-              {{ t('plugin.workflowOrchestration.tenant.home.sections.highlightedWorkflowsHint') }}
+              {{ t('plugin.workflow-orchestration.tenant.home.sections.highlightedWorkflowsHint') }}
             </p>
           </div>
           <button
+            v-if="canOpenWorkflowCenter"
             class="text-sm font-medium text-sky-700 transition hover:text-sky-800"
             @click="navigateTo('workflows')"
           >
-            {{ t('plugin.workflowOrchestration.tenant.common.actions.openWorkflows') }}
+            {{ t('plugin.workflow-orchestration.tenant.common.actions.openWorkflows') }}
           </button>
         </div>
 
@@ -367,13 +673,14 @@ onMounted(() => {
           <button
             v-for="workflow in home.highlightedWorkflows"
             :key="workflow.id"
-            class="flex w-full flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 text-left transition hover:border-sky-200 hover:bg-sky-50/60"
+            class="flex w-full flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 text-left transition hover:border-sky-200 hover:bg-sky-50/60 disabled:cursor-not-allowed disabled:opacity-70"
+            :disabled="!canOpenWorkflowDetail"
             @click="navigateTo(`workflows/${workflow.id}`)"
           >
             <div class="flex flex-wrap items-start justify-between gap-3">
               <div class="space-y-2">
                 <p class="text-sm font-semibold text-slate-900">
-                  {{ workflow.name || t('plugin.workflowOrchestration.tenant.workflow.untitled') }}
+                  {{ workflow.name || t('plugin.workflow-orchestration.tenant.workflow.untitled') }}
                 </p>
                 <div class="flex flex-wrap items-center gap-2">
                   <StatusPill
@@ -394,15 +701,15 @@ onMounted(() => {
             <div class="grid gap-3 text-sm text-slate-600 sm:grid-cols-3">
               <div>
                 <p class="text-xs uppercase tracking-wide text-slate-400">
-                  {{ t('plugin.workflowOrchestration.tenant.workflow.fields.version') }}
+                  {{ t('plugin.workflow-orchestration.tenant.workflow.fields.version') }}
                 </p>
                 <p class="mt-1 font-medium text-slate-900">
-                  {{ workflow.currentVersion || t('plugin.workflowOrchestration.tenant.common.placeholders.empty') }}
+                  {{ workflow.currentVersion || t('plugin.workflow-orchestration.tenant.common.placeholders.empty') }}
                 </p>
               </div>
               <div>
                 <p class="text-xs uppercase tracking-wide text-slate-400">
-                  {{ t('plugin.workflowOrchestration.tenant.workflow.fields.successRate7d') }}
+                  {{ t('plugin.workflow-orchestration.tenant.workflow.fields.successRate7d') }}
                 </p>
                 <p class="mt-1 font-medium text-slate-900">
                   {{ formatPercent(workflow.successRate7d) }}
@@ -410,7 +717,7 @@ onMounted(() => {
               </div>
               <div>
                 <p class="text-xs uppercase tracking-wide text-slate-400">
-                  {{ t('plugin.workflowOrchestration.tenant.workflow.fields.pendingApprovals') }}
+                  {{ t('plugin.workflow-orchestration.tenant.workflow.fields.pendingApprovals') }}
                 </p>
                 <p class="mt-1 font-medium text-slate-900">
                   {{ formatNumber(workflow.pendingApprovals ?? 0) }}
@@ -421,14 +728,21 @@ onMounted(() => {
         </div>
         <EmptyState
           v-else
-          :description="t('plugin.workflowOrchestration.tenant.home.empty.workflowDescription')"
-          :title="t('plugin.workflowOrchestration.tenant.home.empty.workflowTitle')"
+          :description="t('plugin.workflow-orchestration.tenant.home.empty.workflowDescription')"
+          :title="t('plugin.workflow-orchestration.tenant.home.empty.workflowTitle')"
         >
           <button
+            v-if="canOpenCreateGuide"
             class="inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
-            @click="navigateTo('workflows')"
+            @click="openCreateGuide()"
           >
-            {{ t('plugin.workflowOrchestration.tenant.common.actions.openWorkflows') }}
+            {{ t('plugin.workflow-orchestration.tenant.home.actions.createWorkflow') }}
+          </button>
+          <button
+            class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-sky-200 hover:text-sky-700"
+            @click="openAIPlanner()"
+          >
+            {{ t('plugin.workflow-orchestration.tenant.home.actions.askAI') }}
           </button>
         </EmptyState>
       </article>
@@ -437,17 +751,18 @@ onMounted(() => {
         <div class="flex items-center justify-between gap-3">
           <div>
             <h2 class="text-lg font-semibold text-slate-900">
-              {{ t('plugin.workflowOrchestration.tenant.home.sections.opsStream') }}
+              {{ t('plugin.workflow-orchestration.tenant.home.sections.opsStream') }}
             </h2>
             <p class="mt-1 text-sm text-slate-500">
-              {{ t('plugin.workflowOrchestration.tenant.home.sections.opsStreamHint') }}
+              {{ t('plugin.workflow-orchestration.tenant.home.sections.opsStreamHint') }}
             </p>
           </div>
           <button
+            v-if="canOpenArtifactCenter"
             class="text-sm font-medium text-sky-700 transition hover:text-sky-800"
             @click="navigateTo('artifacts')"
           >
-            {{ t('plugin.workflowOrchestration.tenant.common.actions.openArtifacts') }}
+            {{ t('plugin.workflow-orchestration.tenant.common.actions.openArtifacts') }}
           </button>
         </div>
 
@@ -455,13 +770,14 @@ onMounted(() => {
           <div>
             <div class="mb-3 flex items-center justify-between gap-3">
               <h3 class="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
-                {{ t('plugin.workflowOrchestration.tenant.home.sections.latestRuns') }}
+                {{ t('plugin.workflow-orchestration.tenant.home.sections.latestRuns') }}
               </h3>
               <button
+                v-if="canOpenRuns"
                 class="text-xs font-medium text-sky-700 transition hover:text-sky-800"
                 @click="navigateTo('runs')"
               >
-                {{ t('plugin.workflowOrchestration.tenant.common.actions.viewAll') }}
+                {{ t('plugin.workflow-orchestration.tenant.common.actions.viewAll') }}
               </button>
             </div>
             <div
@@ -471,15 +787,16 @@ onMounted(() => {
               <button
                 v-for="run in home.latestRuns.slice(0, 3)"
                 :key="run.id"
-                class="flex w-full items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:border-sky-200 hover:bg-sky-50/60"
+                class="flex w-full items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:border-sky-200 hover:bg-sky-50/60 disabled:cursor-not-allowed disabled:opacity-70"
+                :disabled="!canOpenRunDetail"
                 @click="navigateTo(`runs/${run.id}`)"
               >
                 <div class="min-w-0 space-y-1">
                   <p class="truncate text-sm font-semibold text-slate-900">
-                    {{ run.name || t('plugin.workflowOrchestration.tenant.run.untitled') }}
+                    {{ run.name || t('plugin.workflow-orchestration.tenant.run.untitled') }}
                   </p>
                   <p class="truncate text-xs text-slate-500">
-                    {{ run.workflowName || t('plugin.workflowOrchestration.tenant.common.placeholders.empty') }}
+                    {{ run.workflowName || t('plugin.workflow-orchestration.tenant.common.placeholders.empty') }}
                   </p>
                 </div>
                 <div class="flex flex-col items-end gap-2">
@@ -495,21 +812,22 @@ onMounted(() => {
             </div>
             <EmptyState
               v-else
-              :description="t('plugin.workflowOrchestration.tenant.home.empty.runDescription')"
-              :title="t('plugin.workflowOrchestration.tenant.home.empty.runTitle')"
+              :description="t('plugin.workflow-orchestration.tenant.home.empty.runDescription')"
+              :title="t('plugin.workflow-orchestration.tenant.home.empty.runTitle')"
             />
           </div>
 
           <div>
             <div class="mb-3 flex items-center justify-between gap-3">
               <h3 class="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
-                {{ t('plugin.workflowOrchestration.tenant.home.sections.latestArtifacts') }}
+                {{ t('plugin.workflow-orchestration.tenant.home.sections.latestArtifacts') }}
               </h3>
               <button
+                v-if="canOpenArtifactCenter"
                 class="text-xs font-medium text-sky-700 transition hover:text-sky-800"
                 @click="navigateTo('artifacts')"
               >
-                {{ t('plugin.workflowOrchestration.tenant.common.actions.viewAll') }}
+                {{ t('plugin.workflow-orchestration.tenant.common.actions.viewAll') }}
               </button>
             </div>
             <div
@@ -519,12 +837,13 @@ onMounted(() => {
               <button
                 v-for="artifact in home.latestArtifacts.slice(0, 3)"
                 :key="artifact.id"
-                class="flex w-full flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-sky-200 hover:bg-sky-50/60"
+                class="flex w-full flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-sky-200 hover:bg-sky-50/60 disabled:cursor-not-allowed disabled:opacity-70"
+                :disabled="!canOpenArtifactDetail"
                 @click="navigateTo(`artifacts/${artifact.id}`)"
               >
                 <div class="flex items-center justify-between gap-3">
                   <p class="truncate text-sm font-semibold text-slate-900">
-                    {{ artifact.title || t('plugin.workflowOrchestration.tenant.artifact.untitled') }}
+                    {{ artifact.title || t('plugin.workflow-orchestration.tenant.artifact.untitled') }}
                   </p>
                   <StatusPill
                     :label="labelForArtifactStatus(artifact.status)"
@@ -538,15 +857,15 @@ onMounted(() => {
                   {{ artifact.previewText }}
                 </p>
                 <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                  <span>{{ artifact.workflowName || t('plugin.workflowOrchestration.tenant.common.placeholders.empty') }}</span>
+                  <span>{{ artifact.workflowName || t('plugin.workflow-orchestration.tenant.common.placeholders.empty') }}</span>
                   <span>{{ formatRelativeTime(artifact.updatedAt) }}</span>
                 </div>
               </button>
             </div>
             <EmptyState
               v-else
-              :description="t('plugin.workflowOrchestration.tenant.home.empty.artifactDescription')"
-              :title="t('plugin.workflowOrchestration.tenant.home.empty.artifactTitle')"
+              :description="t('plugin.workflow-orchestration.tenant.home.empty.artifactDescription')"
+              :title="t('plugin.workflow-orchestration.tenant.home.empty.artifactTitle')"
             />
           </div>
         </div>
@@ -560,10 +879,10 @@ onMounted(() => {
       <div class="flex items-center justify-between gap-3">
         <div>
           <h2 class="text-lg font-semibold text-slate-900">
-            {{ t('plugin.workflowOrchestration.tenant.home.sections.alerts') }}
+            {{ t('plugin.workflow-orchestration.tenant.home.sections.alerts') }}
           </h2>
           <p class="mt-1 text-sm text-slate-500">
-            {{ t('plugin.workflowOrchestration.tenant.home.sections.alertsHint') }}
+            {{ t('plugin.workflow-orchestration.tenant.home.sections.alertsHint') }}
           </p>
         </div>
       </div>
@@ -590,7 +909,7 @@ onMounted(() => {
                 {{ alert.title }}
               </p>
               <StatusPill
-                :label="t(`plugin.workflowOrchestration.tenant.common.severity.${alert.level}`)"
+                :label="t(`plugin.workflow-orchestration.tenant.common.severity.${alert.level}`)"
                 :tone="alert.level === 'critical' || alert.level === 'high' ? 'danger' : alert.level === 'medium' ? 'warning' : 'info'"
               />
             </div>
@@ -604,5 +923,6 @@ onMounted(() => {
         </button>
       </div>
     </section>
+    </template>
   </ConsoleShell>
 </template>

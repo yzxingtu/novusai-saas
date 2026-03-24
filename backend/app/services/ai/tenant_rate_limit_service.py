@@ -58,7 +58,7 @@ class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRate
         model_rpm = getattr(model, "rpm_limit", None)
         model_tpm = getattr(model, "tpm_limit", None)
 
-        # 先查企业配置
+        # 先查企业配置 / Read tenant config first
         tenant_limit = await self.get_rate_limit(model_id)
 
         if tenant_limit and tenant_limit.is_active:
@@ -95,7 +95,7 @@ class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRate
                 "model_default_tpm_limit": model_tpm,
             }
 
-        # 如果企业没配置，查模型默认值
+        # 如果企业没配置，查模型默认值 / If tenant has no config, use model defaults
         if model:
             return {
                 "rpm_limit": model_rpm,
@@ -107,7 +107,7 @@ class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRate
                 "model_default_tpm_limit": model_tpm,
             }
 
-        # 都没有配置
+        # 都没有配置 / Neither side configured
         return {
             "rpm_limit": None,
             "tpm_limit": None,

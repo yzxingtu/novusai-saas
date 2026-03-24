@@ -55,7 +55,7 @@ class KnowledgeDocument(TenantModel):
     # 覆盖 TenantModel 的 tenant_id：允许 NULL（全局/管理端 KB 文档无企业归属）
     tenant_id = Column(Integer, nullable=True, index=True, comment="企业ID")
 
-    # 允许前端筛选的字段
+    # 允许前端筛选的字段 / Fields exposed for list filtering
     __filterable__ = {
         "id": "id",
         "knowledge_base_id": "knowledge_base_id",
@@ -66,7 +66,7 @@ class KnowledgeDocument(TenantModel):
         "created_at": "created_at",
     }
 
-    # 允许排序的字段
+    # 允许排序的字段 / Sortable columns for UI
     __sortable__ = {
         "id": "id",
         "file_name": "file_name",
@@ -77,7 +77,7 @@ class KnowledgeDocument(TenantModel):
         "updated_at": "updated_at",
     }
 
-    # ==================== 关联 ====================
+    # ==================== 关联 ==================== / Associations
 
     knowledge_base_id: Mapped[int] = mapped_column(
         Integer,
@@ -93,7 +93,7 @@ class KnowledgeDocument(TenantModel):
         comment=_("knowledge_base.document_model.attachment_id"),
     )
 
-    # ==================== 文件信息 ====================
+    # ==================== 文件信息 ==================== / File info
 
     file_name: Mapped[str] = mapped_column(
         String(500),
@@ -118,7 +118,7 @@ class KnowledgeDocument(TenantModel):
         comment=_("knowledge_base.document_model.file_hash"),
     )
 
-    # ==================== 文档来源元数据 ====================
+    # ==================== 文档来源元数据 ==================== / Source metadata
 
     source_url: Mapped[str | None] = mapped_column(
         Text,
@@ -131,7 +131,7 @@ class KnowledgeDocument(TenantModel):
         comment=_("knowledge_base.document_model.metadata_extra"),
     )
 
-    # ==================== 处理状态 ====================
+    # ==================== 处理状态 ==================== / Processing state
 
     status: Mapped[str] = mapped_column(
         String(20),
@@ -157,7 +157,7 @@ class KnowledgeDocument(TenantModel):
         comment=_("knowledge_base.document_model.retry_count"),
     )
 
-    # ==================== 统计 ====================
+    # ==================== 统计 ==================== / Stats
 
     chunk_count: Mapped[int] = mapped_column(
         Integer,
@@ -178,7 +178,7 @@ class KnowledgeDocument(TenantModel):
         comment=_("knowledge_base.document_model.char_count"),
     )
 
-    # ==================== 处理时间 ====================
+    # ==================== 处理时间 ==================== / Processing timestamps
 
     processing_started_at: Mapped[datetime | None] = mapped_column(
         DateTime,
@@ -191,7 +191,7 @@ class KnowledgeDocument(TenantModel):
         comment=_("knowledge_base.document_model.processing_completed_at"),
     )
 
-    # ==================== 复合索引 ====================
+    # ==================== 复合索引 ==================== / Composite indexes
 
     __table_args__ = (
         Index("ix_doc_kb_status", "knowledge_base_id", "status"),
@@ -201,7 +201,7 @@ class KnowledgeDocument(TenantModel):
         ),
     )
 
-    # ==================== 关系 ====================
+    # ==================== 关系 ==================== / Relationships
 
     knowledge_base = relationship(
         "KnowledgeBase",

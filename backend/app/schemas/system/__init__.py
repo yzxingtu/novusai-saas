@@ -91,14 +91,14 @@ from app.schemas.system.tenant import (
 )
 
 __all__ = [
-    # Admin
+    # Admin / 平台管理员
     "AdminLoginRequest",
     "AdminResponse",
     "AdminCreateRequest",
     "AdminUpdateRequest",
     "AdminChangePasswordRequest",
     "AdminUpdateProfileRequest",
-    # Role
+    # Role / 角色与组织
     "AdminOrgNodeResponse",
     "AdminOrgNodeDetailResponse",
     "AdminOrgNodeTreeNode",
@@ -132,7 +132,7 @@ __all__ = [
     "AdminRoleResetPasswordRequest",
     "AdminRoleToggleStatusRequest",
     "AdminRoleMemberResponse",
-    # Tenant
+    # Tenant / 企业
     "TenantResponse",
     "TenantStorageStats",
     "TenantCreateRequest",
@@ -141,25 +141,25 @@ __all__ = [
     "TenantImpersonateRequest",
     "TenantImpersonateResponse",
     "TenantResetOwnerPasswordRequest",
-    # OperationLog
+    # OperationLog / 操作日志
     "OperationLogResponse",
     "OperationLogListResponse",
     "OperatorSelectItem",
     "OperationLogDeleteRequest",
     "LogStatsItem",
     "LogStatsResponse",
-    # TaskLog
+    # TaskLog / 任务日志
     "TaskLogResponse",
     "TaskLogDetailResponse",
     "TaskStatsResponse",
     "TaskRetryRequest",
     "ActiveTaskResponse",
-    # Cache
+    # Cache / 缓存
     "CacheCategorySummary",
     "CacheSummaryResponse",
     "CacheClearRequest",
     "CacheClearResponse",
-    # PeriodicTask
+    # PeriodicTask / 周期任务
     "PeriodicTaskResponse",
     "PeriodicTaskCreateRequest",
     "PeriodicTaskUpdateRequest",

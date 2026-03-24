@@ -14,7 +14,7 @@ from app.core.base_schema import (
 )
 from app.core.i18n import _
 # ============================================
-# Shared field mixins
+# Shared field mixins / 共享字段混入
 # ============================================
 
 class _AgentOptionalFields(BaseModel):
@@ -36,7 +36,7 @@ class _AgentOptionalFields(BaseModel):
 
 
 # ============================================
-# Tenant schemas
+# Tenant schemas / 企业端 Schema
 # ============================================
 
 class AgentCreate(_AgentOptionalFields, BaseCreateSchema):
@@ -61,13 +61,13 @@ class AgentUpdate(_AgentOptionalFields, BaseUpdateSchema):
     system_prompt: str | None = Field(None, description=_("enum.agent_model.system_prompt"))
     model_id: int | None = Field(None, description=_("enum.agent_model.model_id"))
     temperature: float | None = Field(None, ge=0.0, le=2.0, description=_("enum.agent_model.temperature"))
-    # NOTE: status removed - use publish/rollback endpoints to change status
+    # NOTE: status removed - use publish/rollback endpoints to change status / 已移除 status，请用发布/回滚接口变更状态
     execution_mode: str | None = Field(None, description=_("enum.agent_model.execution_mode"))
     visibility: str | None = Field(None, description=_("enum.agent_model.visibility"))
 
 
 # ============================================
-# Admin schemas
+# Admin schemas / 管理端 Schema
 # ============================================
 
 class AdminAgentCreate(_AgentOptionalFields, BaseCreateSchema):
@@ -128,7 +128,7 @@ class AgentResponse(_AgentOptionalFields, TenantResponseSchema):
     owner_tenant_id: int | None = Field(None, description="Owner tenant ID")
     scope: str = Field(..., description="Resource scope ResourceScopeEnum")
     is_system: bool = Field(False, description=_("enum.agent_model.is_system"))
-    # 关联字段
+    # 关联字段 / Related fields
     model_name: str | None = Field(None, description=_("enum.agent_model.model_name"))
     model_code: str | None = Field(None, description=_("enum.agent_model.model_code"))
     effective_memory_enabled: bool | None = Field(

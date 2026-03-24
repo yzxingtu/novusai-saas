@@ -5,8 +5,8 @@ import type {
   WorkflowTemplateSummary,
 } from '../../../types/admin';
 
-import { computed, onMounted, reactive, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -31,6 +31,12 @@ import {
   listAdminTemplatesApi,
   publishAdminTemplateApi,
 } from '../../../api/admin';
+import {
+  ADMIN_WORKFLOW_AI_CONVERSATION_SCOPE,
+  buildPrompt,
+  openWorkflowAIPanel,
+  useWorkflowPageAI,
+} from '../../../shared/ai';
 import { formatCompactNumber, formatDateTime } from '../shared/format';
 import { usePaginatedCollection } from '../shared/use-paginated-collection';
 
@@ -51,7 +57,10 @@ import { $t } from '@novus/plugin-shared';
 
 defineOptions({ name: 'WorkflowOrchestrationAdminTemplates' });
 
+const ADMIN_TEMPLATES_PAGE_KEY = 'admin.workflow_orchestration.templates';
+
 const router = useRouter();
+const route = useRoute();
 const publishingId = ref<null | number>(null);
 const searchKeyword = ref('');
 const createModalOpen = ref(false);
@@ -193,6 +202,26 @@ function openEditor(templateId: number) {
   router.push(buildAdminPath(`templates/${templateId}/editor`));
 }
 
+function buildPlannerPrompt(seed?: string): string {
+  return buildPrompt([
+    $t(`${ADMIN_I18N_PREFIX}.home.ai.systemLead`),
+    seed?.trim()
+      ? $t(`${ADMIN_I18N_PREFIX}.home.ai.userIdea`, {
+          idea: seed.trim(),
+        })
+      : $t(`${ADMIN_I18N_PREFIX}.home.ai.emptyIdea`),
+    $t(`${ADMIN_I18N_PREFIX}.home.ai.outputContract`),
+  ]);
+}
+
+function openAIPlanner(seed?: string): void {
+  openWorkflowAIPanel({
+    conversationScope: ADMIN_WORKFLOW_AI_CONVERSATION_SCOPE,
+    message: buildPlannerPrompt(seed || searchKeyword.value),
+    pageKey: ADMIN_TEMPLATES_PAGE_KEY,
+  });
+}
+
 function resetCreateForm() {
   createForm.name = '';
   createForm.code = '';
@@ -203,6 +232,21 @@ function resetCreateForm() {
 function openCreateModal() {
   resetCreateForm();
   createModalOpen.value = true;
+}
+
+async function maybeOpenCreateFromRoute() {
+  if (route.query.create !== '1') {
+    return;
+  }
+
+  openCreateModal();
+  await router.replace({
+    path: route.path,
+    query: {
+      ...route.query,
+      create: undefined,
+    },
+  });
 }
 
 function closeCreateModal() {
@@ -295,7 +339,7 @@ async function submitCreateTemplate() {
     message.success($t(`${ADMIN_I18N_PREFIX}.templates.create.success`));
     createModalOpen.value = false;
     resetCreateForm();
-    await router.push(buildAdminPath(`templates/${template.id}/editor`));
+    await router.push(buildAdminPath(`templates/${template.id}`));
   } catch (error) {
     message.error(getCreateErrorMessage(error));
   } finally {
@@ -322,10 +366,94 @@ function confirmPublish(row: WorkflowTemplateSummary) {
   });
 }
 
+useWorkflowPageAI({
+  conversationScope: ADMIN_WORKFLOW_AI_CONVERSATION_SCOPE,
+  pageKey: ADMIN_TEMPLATES_PAGE_KEY,
+  buildContext: () => ({
+    entityDescription: buildPrompt([
+      $t(`${ADMIN_I18N_PREFIX}.templates.subtitle`),
+      $t(`${ADMIN_I18N_PREFIX}.templates.contractNotice.description`),
+    ]),
+    entityTitle: $t(`${ADMIN_I18N_PREFIX}.templates.title`),
+    entityType: 'workflow_orchestration_admin_template_list',
+    pageData: {
+      builder_surface: collection.query.value.builderSurface || null,
+      keyword: searchKeyword.value.trim() || null,
+      release_scope: collection.query.value.releaseScope || null,
+      status: collection.query.value.status || null,
+      total_templates: collection.total.value,
+      visible_templates: collection.items.value.length,
+    },
+    pageTitle: $t(`${ADMIN_I18N_PREFIX}.templates.title`),
+  }),
+  operations: [
+    {
+      name: 'open_admin_template_create_modal',
+      label: $t(`${ADMIN_I18N_PREFIX}.home.ai.operations.openTemplateCreate.label`),
+      description: $t(
+        `${ADMIN_I18N_PREFIX}.home.ai.operations.openTemplateCreate.description`,
+      ),
+      readonly: true,
+      handler: async () => {
+        openCreateModal();
+        return {
+          success: true,
+          message: $t(
+            `${ADMIN_I18N_PREFIX}.home.ai.operations.openTemplateCreate.success`,
+          ),
+        };
+      },
+    },
+    {
+      name: 'open_admin_templates_ai_planner',
+      label: $t(`${ADMIN_I18N_PREFIX}.home.ai.operations.openAI.label`),
+      description: $t(`${ADMIN_I18N_PREFIX}.home.ai.operations.openAI.description`),
+      readonly: true,
+      params: {
+        idea: {
+          description: $t(
+            `${ADMIN_I18N_PREFIX}.home.ai.operations.openAI.ideaDescription`,
+          ),
+          required: false,
+          type: 'string',
+        },
+      },
+      handler: async (params: Record<string, unknown>) => {
+        openAIPlanner(typeof params.idea === 'string' ? params.idea : undefined);
+        return {
+          success: true,
+          message: $t(`${ADMIN_I18N_PREFIX}.home.ai.operations.openAI.success`),
+        };
+      },
+    },
+    {
+      name: 'refresh_admin_templates',
+      label: $t(`${ADMIN_I18N_PREFIX}.home.ai.operations.refresh.label`),
+      description: $t(`${ADMIN_I18N_PREFIX}.home.ai.operations.refresh.description`),
+      readonly: true,
+      handler: async () => {
+        await collection.load();
+        return {
+          success: true,
+          message: $t(`${ADMIN_I18N_PREFIX}.home.ai.operations.refresh.success`),
+        };
+      },
+    },
+  ],
+});
+
 onMounted(() => {
   searchKeyword.value = collection.query.value.keyword ?? '';
   void collection.load();
+  void maybeOpenCreateFromRoute();
 });
+
+watch(
+  () => route.query.create,
+  () => {
+    void maybeOpenCreateFromRoute();
+  },
+);
 </script>
 
 <template>
@@ -350,6 +478,12 @@ onMounted(() => {
           </div>
 
           <div class="flex items-center gap-2">
+            <Button @click="openAIPlanner()">
+              <template #icon>
+                <IconifyIcon icon="lucide:sparkles" />
+              </template>
+              {{ $t(`${ADMIN_I18N_PREFIX}.home.actions.askAI`) }}
+            </Button>
             <Button type="primary" @click="openCreateModal">
               <template #icon>
                 <IconifyIcon icon="lucide:plus" />
@@ -390,6 +524,23 @@ onMounted(() => {
       show-icon
       type="info"
     />
+
+    <section class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
+      <div class="rounded-2xl border bg-card px-5 py-4 shadow-sm">
+        <div class="text-sm font-medium text-foreground">
+          {{ $t(`${ADMIN_I18N_PREFIX}.home.steps.create.title`) }}
+        </div>
+        <div class="mt-1 text-sm leading-6 text-muted-foreground">
+          {{ $t(`${ADMIN_I18N_PREFIX}.home.steps.create.description`) }}
+        </div>
+      </div>
+      <Button class="h-auto rounded-2xl px-5 py-3" @click="openAIPlanner()">
+        {{ $t(`${ADMIN_I18N_PREFIX}.home.actions.askAI`) }}
+      </Button>
+      <Button class="h-auto rounded-2xl px-5 py-3" type="primary" @click="openCreateModal">
+        {{ $t(`${ADMIN_I18N_PREFIX}.templates.create.action`) }}
+      </Button>
+    </section>
 
     <Card :body-style="{ padding: '18px' }">
       <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -536,7 +687,16 @@ onMounted(() => {
 
         <template #emptyText>
           <div class="py-10">
-            <Empty :description="$t(`${ADMIN_I18N_PREFIX}.common.emptyState`)" />
+            <Empty :description="$t(`${ADMIN_I18N_PREFIX}.common.emptyState`)">
+              <div class="mt-4 flex flex-wrap justify-center gap-3">
+                <Button @click="openAIPlanner()">
+                  {{ $t(`${ADMIN_I18N_PREFIX}.home.actions.askAI`) }}
+                </Button>
+                <Button type="primary" @click="openCreateModal">
+                  {{ $t(`${ADMIN_I18N_PREFIX}.templates.create.action`) }}
+                </Button>
+              </div>
+            </Empty>
           </div>
         </template>
       </Table>

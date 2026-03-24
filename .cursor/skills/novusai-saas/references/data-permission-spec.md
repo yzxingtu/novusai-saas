@@ -20,24 +20,27 @@
 
 ## 二、Model 启用方式
 
-在 Model 上声明 `__data_permission__ = True` 才启用，默认不启用：
+在 Model 上声明 `__data_permission__ = True` 才显式启用，默认不启用。但 `BaseRepository.is_data_permission_enabled()` 在模型上发现 `__data_permission_parent_model__` 或常用归属字段（`org_node_id`、`dept_id`、`created_by`、`__data_permission_creator_field__`）时也会自动启用过滤，无需额外声明。例如，只需提供这些字段即可被默认视为受组织约束的数据表。
 
 ```python
 class MyModel(TenantModel):
     __data_permission__ = True
     created_by = Column(Integer, nullable=True, comment="创建者 ID")
     dept_id = Column(Integer, nullable=True, comment="部门 ID")
+    org_node_id = Column(Integer, nullable=True, comment="组织节点 ID")
 ```
 
-**前置条件**：Model 必须有 `created_by` 和 `dept_id` 字段。
+**前置条件**：Model 必须至少定义 `created_by`/`org_node_id`/`dept_id` 中的一个字段（可以通过 `__data_permission_creator_field__` 自定义），否则自动检测无法确定归属；若使用 `__data_permission_parent_model__`，则要同步保证父模型也支持数据权限过滤。
 
 ---
 
 ## 三、created_by / dept_id 自动填充
 
-`TenantRepository.create()` 对声明 `__data_permission__ = True` 的 Model 自动注入：
-- `created_by` ← `data_permission_ctx["current_user_id"]`
-- `dept_id` ← `data_permission_ctx["primary_department_id"]`
+`TenantRepository.create()` 对支持数据权限的 Model 自动注入上下文字段，`BaseRepository._apply_data_permission_create_defaults()` 会在：
+ - `created_by` 缺失时写入 `current_user_id`
+ - `org_node_id`/`dept_id` 缺失时写入 `primary_org_id`/`primary_department_id`
+ - `__data_permission_creator_scope_field__` 在模型存在且上下文有 `current_user_scope` 时也会填充 scope
+数据来自 `PermissionMiddleware` 预先设置的 `data_permission_ctx`，几乎无需业务层手动传参。
 
 ---
 
@@ -80,7 +83,7 @@ class MyModel(TenantModel):
 **推荐优先接入**：TenantUser、业务订单/工单类 Model、知识库/智能体等企业资源（若需部门隔离）。
 
 **接入步骤**：
-1. 确保 Model 有 `created_by`、`dept_id` 字段（可 nullable）
+1. 确保 Model 至少包含 `created_by`、`dept_id` 或 `org_node_id` 其中一个字段（可 nullable），也可以通过 `__data_permission_creator_field__` 或 `__data_permission_parent_model__` 显式指定关联字段
 2. 在 Model 类上声明 `__data_permission__ = True`
 3. 新增 Alembic 迁移添加上述字段（若尚无）
 4. 创建时 `TenantRepository.create()` 自动填充，无需 Service 手动传入

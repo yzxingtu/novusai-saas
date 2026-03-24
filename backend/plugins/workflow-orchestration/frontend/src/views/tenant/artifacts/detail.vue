@@ -8,6 +8,16 @@ import {
   submitTenantArtifactFeedbackApi,
 } from '../../../api/tenant';
 import type { TenantArtifactDetail } from '../../../types/tenant';
+import {
+  TENANT_WORKFLOW_AI_CONVERSATION_SCOPE,
+  buildPrompt,
+  openWorkflowAIPanel,
+  useWorkflowPageAI,
+} from '../../../shared/ai';
+import {
+  TENANT_ARTIFACT_DETAIL_PAGE_ACCESS_CODES,
+  WORKFLOW_ACCESS_CODES,
+} from '../../../shared/access';
 import ConsoleShell from '../shared/ConsoleShell.vue';
 import EmptyState from '../shared/EmptyState.vue';
 import StatusPill from '../shared/StatusPill.vue';
@@ -17,11 +27,16 @@ defineOptions({
   name: 'WorkflowOrchestrationTenantArtifactDetail',
 });
 
+const TENANT_ARTIFACT_DETAIL_PAGE_KEY =
+  'tenant.workflow_orchestration.artifacts.detail';
+
 const route = useRoute();
 const {
   formatBytes,
   formatDateTime,
   formatRelativeTime,
+  hasAccess,
+  hasAnyAccess,
   labelForArtifactStatus,
   labelForArtifactType,
   navigateTo,
@@ -30,6 +45,22 @@ const {
   t,
   toneForArtifactStatus,
 } = useTenantOrchestration();
+const permissionDeniedMessage = t(
+  'plugin.workflow-orchestration.tenant.common.messages.permissionDenied',
+);
+const canAccessArtifactDetailPage = hasAnyAccess(
+  TENANT_ARTIFACT_DETAIL_PAGE_ACCESS_CODES,
+);
+const canViewWorkflowDetail = hasAccess(
+  WORKFLOW_ACCESS_CODES.WORKFLOW_CENTER_VIEW,
+);
+const canViewRunDetail = hasAccess(WORKFLOW_ACCESS_CODES.WORKFLOW_RUN_VIEW);
+const canDownloadArtifact = hasAccess(
+  WORKFLOW_ACCESS_CODES.ARTIFACT_CENTER_EXPORT,
+);
+const canSubmitArtifactFeedback = hasAccess(
+  WORKFLOW_ACCESS_CODES.ARTIFACT_CENTER_FEEDBACK,
+);
 
 const artifact = ref<TenantArtifactDetail | null>(null);
 const loading = ref(true);
@@ -64,11 +95,46 @@ const prettyJson = computed(() => {
     : '';
 });
 
+function buildArtifactPlannerSeed(): string | undefined {
+  const parts = [
+    artifact.value?.title?.trim(),
+    artifact.value?.workflowName?.trim(),
+    artifact.value?.type?.trim(),
+    artifact.value?.status?.trim(),
+    artifact.value?.previewText?.trim(),
+  ].filter((part): part is string => Boolean(part && part.trim()));
+
+  return parts.length > 0 ? parts.join('\n') : undefined;
+}
+
+function openAIPlanner(seed?: string): void {
+  openWorkflowAIPanel({
+    conversationScope: TENANT_WORKFLOW_AI_CONVERSATION_SCOPE,
+    message: buildPrompt([
+      t('plugin.workflow-orchestration.tenant.artifact.ai.systemLead'),
+      seed?.trim()
+        ? t('plugin.workflow-orchestration.tenant.artifact.ai.userIdea', {
+            idea: seed.trim(),
+          })
+        : t('plugin.workflow-orchestration.tenant.artifact.ai.emptyIdea'),
+      t('plugin.workflow-orchestration.tenant.artifact.ai.outputContract'),
+    ]),
+    pageKey: TENANT_ARTIFACT_DETAIL_PAGE_KEY,
+  });
+}
+
 const downloadState = computed(() => {
+  if (!canDownloadArtifact) {
+    return {
+      enabled: false,
+      reason: permissionDeniedMessage,
+    };
+  }
+
   if (!artifact.value) {
     return {
       enabled: false,
-      reason: t('plugin.workflowOrchestration.tenant.common.messages.downloadUnavailable'),
+      reason: t('plugin.workflow-orchestration.tenant.common.messages.downloadUnavailable'),
     };
   }
 
@@ -80,7 +146,7 @@ const downloadState = computed(() => {
   if (!downloadAvailable) {
     return {
       enabled: false,
-      reason: t('plugin.workflowOrchestration.tenant.common.messages.downloadUnavailable'),
+      reason: t('plugin.workflow-orchestration.tenant.common.messages.downloadUnavailable'),
     };
   }
 
@@ -100,13 +166,20 @@ const downloadState = computed(() => {
 
   return {
     enabled: false,
-    reason: t('plugin.workflowOrchestration.tenant.artifact.empty.downloadDisabled'),
+    reason: t('plugin.workflow-orchestration.tenant.artifact.empty.downloadDisabled'),
   };
 });
 
 async function loadArtifact(): Promise<void> {
+  if (!canAccessArtifactDetailPage) {
+    artifact.value = null;
+    errorMessage.value = permissionDeniedMessage;
+    loading.value = false;
+    return;
+  }
+
   if (!artifactId.value) {
-    errorMessage.value = t('plugin.workflowOrchestration.tenant.common.messages.invalidRoute');
+    errorMessage.value = t('plugin.workflow-orchestration.tenant.common.messages.invalidRoute');
     loading.value = false;
     return;
   }
@@ -120,7 +193,7 @@ async function loadArtifact(): Promise<void> {
     errorMessage.value =
       error instanceof Error
         ? error.message
-        : t('plugin.workflowOrchestration.tenant.common.messages.loadFailed');
+        : t('plugin.workflow-orchestration.tenant.common.messages.loadFailed');
   } finally {
     loading.value = false;
   }
@@ -150,18 +223,23 @@ async function downloadArtifact(): Promise<void> {
     errorMessage.value =
       error instanceof Error
         ? error.message
-        : t('plugin.workflowOrchestration.tenant.common.messages.actionFailed');
+        : t('plugin.workflow-orchestration.tenant.common.messages.actionFailed');
   } finally {
     downloading.value = false;
   }
 }
 
 async function submitFeedback(): Promise<void> {
+  if (!canSubmitArtifactFeedback) {
+    errorMessage.value = permissionDeniedMessage;
+    return;
+  }
+
   if (!artifact.value?.id || artifact.value.canFeedback === false) {
     return;
   }
   if (!feedbackComment.value.trim()) {
-    errorMessage.value = t('plugin.workflowOrchestration.tenant.artifact.validation.commentRequired');
+    errorMessage.value = t('plugin.workflow-orchestration.tenant.artifact.validation.commentRequired');
     return;
   }
 
@@ -179,11 +257,148 @@ async function submitFeedback(): Promise<void> {
     errorMessage.value =
       error instanceof Error
         ? error.message
-        : t('plugin.workflowOrchestration.tenant.common.messages.actionFailed');
+        : t('plugin.workflow-orchestration.tenant.common.messages.actionFailed');
   } finally {
     submittingFeedback.value = false;
   }
 }
+
+useWorkflowPageAI({
+  conversationScope: TENANT_WORKFLOW_AI_CONVERSATION_SCOPE,
+  pageKey: TENANT_ARTIFACT_DETAIL_PAGE_KEY,
+  buildContext: () => ({
+    entityDescription: t(
+      'plugin.workflow-orchestration.tenant.artifact.detailDescription',
+    ),
+    entityTitle:
+      artifact.value?.title
+      || t('plugin.workflow-orchestration.tenant.artifact.untitled'),
+    entityType: 'workflow_orchestration_tenant_artifact_detail',
+    pageData: {
+      approval_status: artifact.value?.approvalStatus ?? null,
+      artifact_id: artifactId.value,
+      can_download: downloadState.value.enabled,
+      can_feedback: artifact.value?.canFeedback ?? null,
+      run_id: artifact.value?.runId ?? null,
+      status: artifact.value?.status ?? null,
+      type: artifact.value?.type ?? null,
+      workflow_id: artifact.value?.workflowId ?? null,
+      workflow_name: artifact.value?.workflowName ?? null,
+    },
+    pageTitle:
+      artifact.value?.title
+      || t('plugin.workflow-orchestration.tenant.artifact.untitled'),
+  }),
+  operations: [
+    {
+      name: 'open_workflow_from_artifact_detail',
+      label: t(
+        'plugin.workflow-orchestration.tenant.artifact.ai.operations.openWorkflows.label',
+      ),
+      description: t(
+        'plugin.workflow-orchestration.tenant.artifact.ai.operations.openWorkflows.description',
+      ),
+      readonly: true,
+      handler: async () => {
+        if (artifact.value?.workflowId && canViewWorkflowDetail) {
+          navigateTo(`workflows/${artifact.value.workflowId}`);
+        } else if (hasAccess(WORKFLOW_ACCESS_CODES.WORKFLOW_CENTER_LIST)) {
+          navigateTo('workflows');
+        } else {
+          return {
+            success: false,
+            message: permissionDeniedMessage,
+          };
+        }
+        return {
+          success: true,
+          message: t(
+            'plugin.workflow-orchestration.tenant.artifact.ai.operations.openWorkflows.success',
+          ),
+        };
+      },
+    },
+    {
+      name: 'open_run_from_artifact_detail',
+      label: t(
+        'plugin.workflow-orchestration.tenant.artifact.ai.operations.openRuns.label',
+      ),
+      description: t(
+        'plugin.workflow-orchestration.tenant.artifact.ai.operations.openRuns.description',
+      ),
+      readonly: true,
+      handler: async () => {
+        if (artifact.value?.runId && canViewRunDetail) {
+          navigateTo(`runs/${artifact.value.runId}`);
+        } else if (hasAccess(WORKFLOW_ACCESS_CODES.WORKFLOW_RUN_LIST)) {
+          navigateTo('runs');
+        } else {
+          return {
+            success: false,
+            message: permissionDeniedMessage,
+          };
+        }
+        return {
+          success: true,
+          message: t(
+            'plugin.workflow-orchestration.tenant.artifact.ai.operations.openRuns.success',
+          ),
+        };
+      },
+    },
+    {
+      name: 'open_artifact_ai_assistant_from_detail',
+      label: t(
+        'plugin.workflow-orchestration.tenant.artifact.ai.operations.openAI.label',
+      ),
+      description: t(
+        'plugin.workflow-orchestration.tenant.artifact.ai.operations.openAI.description',
+      ),
+      readonly: true,
+      params: {
+        idea: {
+          description: t(
+            'plugin.workflow-orchestration.tenant.artifact.ai.operations.openAI.ideaDescription',
+          ),
+          required: false,
+          type: 'string',
+        },
+      },
+      handler: async (params: Record<string, unknown>) => {
+        openAIPlanner(
+          typeof params.idea === 'string'
+            ? params.idea
+            : buildArtifactPlannerSeed(),
+        );
+        return {
+          success: true,
+          message: t(
+            'plugin.workflow-orchestration.tenant.artifact.ai.operations.openAI.success',
+          ),
+        };
+      },
+    },
+    {
+      name: 'refresh_artifact_detail',
+      label: t(
+        'plugin.workflow-orchestration.tenant.artifact.ai.operations.refresh.label',
+      ),
+      description: t(
+        'plugin.workflow-orchestration.tenant.artifact.ai.operations.refresh.description',
+      ),
+      readonly: true,
+      handler: async () => {
+        await loadArtifact();
+        return {
+          success: true,
+          message: t(
+            'plugin.workflow-orchestration.tenant.artifact.ai.operations.refresh.success',
+          ),
+        };
+      },
+    },
+  ],
+});
 
 watch(
   () => route.params.artifactId,
@@ -198,38 +413,51 @@ watch(
 
 <template>
   <ConsoleShell
-    :description="artifact?.previewText || t('plugin.workflowOrchestration.tenant.artifact.detailDescription')"
-    :eyebrow="t('plugin.workflowOrchestration.tenant.artifact.eyebrow')"
-    :title="artifact?.title || t('plugin.workflowOrchestration.tenant.artifact.untitled')"
+    :description="artifact?.previewText || t('plugin.workflow-orchestration.tenant.artifact.detailDescription')"
+    :eyebrow="t('plugin.workflow-orchestration.tenant.artifact.eyebrow')"
+    :title="artifact?.title || t('plugin.workflow-orchestration.tenant.artifact.untitled')"
   >
     <template #actions>
       <button
-        v-if="artifact?.workflowId"
+        v-if="canAccessArtifactDetailPage"
+        class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-sky-200 hover:text-sky-700"
+        @click="openAIPlanner(buildArtifactPlannerSeed())"
+      >
+        {{ t('plugin.workflow-orchestration.tenant.artifact.actions.askAI') }}
+      </button>
+      <button
+        v-if="artifact?.workflowId && canViewWorkflowDetail"
         class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
         @click="navigateTo(`workflows/${artifact.workflowId}`)"
       >
-        {{ t('plugin.workflowOrchestration.tenant.common.actions.viewWorkflow') }}
+        {{ t('plugin.workflow-orchestration.tenant.common.actions.viewWorkflow') }}
       </button>
       <button
-        v-if="artifact?.runId"
+        v-if="artifact?.runId && canViewRunDetail"
         class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
         @click="navigateTo(`runs/${artifact.runId}`)"
       >
-        {{ t('plugin.workflowOrchestration.tenant.common.actions.viewRun') }}
+        {{ t('plugin.workflow-orchestration.tenant.common.actions.viewRun') }}
       </button>
       <button
+        v-if="canAccessArtifactDetailPage && canDownloadArtifact"
         class="inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
         :disabled="downloading || !downloadState.enabled"
         @click="downloadArtifact"
       >
         {{
           downloading
-            ? t('plugin.workflowOrchestration.tenant.common.messages.processing')
-            : t('plugin.workflowOrchestration.tenant.common.actions.download')
+            ? t('plugin.workflow-orchestration.tenant.common.messages.processing')
+            : t('plugin.workflow-orchestration.tenant.common.actions.download')
         }}
       </button>
     </template>
 
+    <EmptyState
+      v-if="!canAccessArtifactDetailPage"
+      :title="permissionDeniedMessage"
+    />
+    <template v-else>
     <section
       v-if="errorMessage"
       class="rounded-3xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700"
@@ -270,39 +498,39 @@ watch(
           <dl class="mt-5 grid gap-3 text-sm text-slate-600 sm:grid-cols-2 xl:grid-cols-3">
             <div class="rounded-2xl bg-slate-50 px-4 py-3">
               <dt class="text-xs uppercase tracking-wide text-slate-400">
-                {{ t('plugin.workflowOrchestration.tenant.artifact.fields.workflowName') }}
+                {{ t('plugin.workflow-orchestration.tenant.artifact.fields.workflowName') }}
               </dt>
               <dd class="mt-1 font-medium text-slate-900">
-                {{ artifact.workflowName || t('plugin.workflowOrchestration.tenant.common.placeholders.empty') }}
+                {{ artifact.workflowName || t('plugin.workflow-orchestration.tenant.common.placeholders.empty') }}
               </dd>
             </div>
             <div class="rounded-2xl bg-slate-50 px-4 py-3">
               <dt class="text-xs uppercase tracking-wide text-slate-400">
-                {{ t('plugin.workflowOrchestration.tenant.artifact.fields.runId') }}
+                {{ t('plugin.workflow-orchestration.tenant.artifact.fields.runId') }}
               </dt>
               <dd class="mt-1 font-medium text-slate-900">
-                {{ artifact.runId ?? t('plugin.workflowOrchestration.tenant.common.placeholders.empty') }}
+                {{ artifact.runId ?? t('plugin.workflow-orchestration.tenant.common.placeholders.empty') }}
               </dd>
             </div>
             <div class="rounded-2xl bg-slate-50 px-4 py-3">
               <dt class="text-xs uppercase tracking-wide text-slate-400">
-                {{ t('plugin.workflowOrchestration.tenant.artifact.fields.sourceVersion') }}
+                {{ t('plugin.workflow-orchestration.tenant.artifact.fields.sourceVersion') }}
               </dt>
               <dd class="mt-1 font-medium text-slate-900">
-                {{ artifact.sourceVersion || t('plugin.workflowOrchestration.tenant.common.placeholders.empty') }}
+                {{ artifact.sourceVersion || t('plugin.workflow-orchestration.tenant.common.placeholders.empty') }}
               </dd>
             </div>
             <div class="rounded-2xl bg-slate-50 px-4 py-3">
               <dt class="text-xs uppercase tracking-wide text-slate-400">
-                {{ t('plugin.workflowOrchestration.tenant.artifact.fields.sourceNodeName') }}
+                {{ t('plugin.workflow-orchestration.tenant.artifact.fields.sourceNodeName') }}
               </dt>
               <dd class="mt-1 font-medium text-slate-900">
-                {{ artifact.sourceNodeName || t('plugin.workflowOrchestration.tenant.common.placeholders.empty') }}
+                {{ artifact.sourceNodeName || t('plugin.workflow-orchestration.tenant.common.placeholders.empty') }}
               </dd>
             </div>
             <div class="rounded-2xl bg-slate-50 px-4 py-3">
               <dt class="text-xs uppercase tracking-wide text-slate-400">
-                {{ t('plugin.workflowOrchestration.tenant.artifact.fields.sizeBytes') }}
+                {{ t('plugin.workflow-orchestration.tenant.artifact.fields.sizeBytes') }}
               </dt>
               <dd class="mt-1 font-medium text-slate-900">
                 {{ formatBytes(artifact.sizeBytes) }}
@@ -310,7 +538,7 @@ watch(
             </div>
             <div class="rounded-2xl bg-slate-50 px-4 py-3">
               <dt class="text-xs uppercase tracking-wide text-slate-400">
-                {{ t('plugin.workflowOrchestration.tenant.artifact.fields.updatedAt') }}
+                {{ t('plugin.workflow-orchestration.tenant.artifact.fields.updatedAt') }}
               </dt>
               <dd class="mt-1 font-medium text-slate-900">
                 {{ formatRelativeTime(artifact.updatedAt) }}
@@ -327,10 +555,10 @@ watch(
 
           <div class="mt-5 rounded-3xl border border-slate-200 bg-slate-50 px-5 py-4">
             <h2 class="text-sm font-semibold text-slate-900">
-              {{ t('plugin.workflowOrchestration.tenant.artifact.sections.adoption') }}
+              {{ t('plugin.workflow-orchestration.tenant.artifact.sections.adoption') }}
             </h2>
             <p class="mt-2 text-sm leading-6 text-slate-600">
-              {{ artifact.adoptionSummary || t('plugin.workflowOrchestration.tenant.artifact.empty.adoptionDescription') }}
+              {{ artifact.adoptionSummary || t('plugin.workflow-orchestration.tenant.artifact.empty.adoptionDescription') }}
             </p>
           </div>
         </article>
@@ -338,10 +566,10 @@ watch(
         <article class="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-sm">
           <div>
             <h2 class="text-lg font-semibold text-slate-900">
-              {{ t('plugin.workflowOrchestration.tenant.artifact.sections.preview') }}
+              {{ t('plugin.workflow-orchestration.tenant.artifact.sections.preview') }}
             </h2>
             <p class="mt-1 text-sm text-slate-500">
-              {{ t('plugin.workflowOrchestration.tenant.artifact.sections.previewHint') }}
+              {{ t('plugin.workflow-orchestration.tenant.artifact.sections.previewHint') }}
             </p>
           </div>
 
@@ -351,8 +579,8 @@ watch(
           >{{ previewText }}</pre>
           <EmptyState
             v-else
-            :description="t('plugin.workflowOrchestration.tenant.artifact.empty.previewDescription')"
-            :title="t('plugin.workflowOrchestration.tenant.artifact.empty.previewTitle')"
+            :description="t('plugin.workflow-orchestration.tenant.artifact.empty.previewDescription')"
+            :title="t('plugin.workflow-orchestration.tenant.artifact.empty.previewTitle')"
           />
         </article>
       </section>
@@ -361,10 +589,10 @@ watch(
         <article class="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-sm">
           <div>
             <h2 class="text-lg font-semibold text-slate-900">
-              {{ t('plugin.workflowOrchestration.tenant.artifact.sections.structuredData') }}
+              {{ t('plugin.workflow-orchestration.tenant.artifact.sections.structuredData') }}
             </h2>
             <p class="mt-1 text-sm text-slate-500">
-              {{ t('plugin.workflowOrchestration.tenant.artifact.sections.structuredDataHint') }}
+              {{ t('plugin.workflow-orchestration.tenant.artifact.sections.structuredDataHint') }}
             </p>
           </div>
 
@@ -374,25 +602,25 @@ watch(
           >{{ prettyJson }}</pre>
           <EmptyState
             v-else
-            :description="t('plugin.workflowOrchestration.tenant.artifact.empty.jsonDescription')"
-            :title="t('plugin.workflowOrchestration.tenant.artifact.empty.jsonTitle')"
+            :description="t('plugin.workflow-orchestration.tenant.artifact.empty.jsonDescription')"
+            :title="t('plugin.workflow-orchestration.tenant.artifact.empty.jsonTitle')"
           />
         </article>
 
         <article class="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-sm">
           <div>
             <h2 class="text-lg font-semibold text-slate-900">
-              {{ t('plugin.workflowOrchestration.tenant.artifact.sections.traceability') }}
+              {{ t('plugin.workflow-orchestration.tenant.artifact.sections.traceability') }}
             </h2>
             <p class="mt-1 text-sm text-slate-500">
-              {{ t('plugin.workflowOrchestration.tenant.artifact.sections.traceabilityHint') }}
+              {{ t('plugin.workflow-orchestration.tenant.artifact.sections.traceabilityHint') }}
             </p>
           </div>
 
           <dl class="mt-5 grid gap-3 text-sm text-slate-600">
             <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
               <dt class="text-xs uppercase tracking-wide text-slate-400">
-                {{ t('plugin.workflowOrchestration.tenant.artifact.fields.createdAt') }}
+                {{ t('plugin.workflow-orchestration.tenant.artifact.fields.createdAt') }}
               </dt>
               <dd class="mt-1 font-medium text-slate-900">
                 {{ formatDateTime(artifact.createdAt) }}
@@ -400,23 +628,23 @@ watch(
             </div>
             <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
               <dt class="text-xs uppercase tracking-wide text-slate-400">
-                {{ t('plugin.workflowOrchestration.tenant.artifact.fields.mimeType') }}
+                {{ t('plugin.workflow-orchestration.tenant.artifact.fields.mimeType') }}
               </dt>
               <dd class="mt-1 font-medium text-slate-900">
-                {{ artifact.mimeType || t('plugin.workflowOrchestration.tenant.common.placeholders.empty') }}
+                {{ artifact.mimeType || t('plugin.workflow-orchestration.tenant.common.placeholders.empty') }}
               </dd>
             </div>
             <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
               <dt class="text-xs uppercase tracking-wide text-slate-400">
-                {{ t('plugin.workflowOrchestration.tenant.artifact.fields.downloadFilename') }}
+                {{ t('plugin.workflow-orchestration.tenant.artifact.fields.downloadFilename') }}
               </dt>
               <dd class="mt-1 font-medium text-slate-900">
-                {{ artifact.downloadFilename || t('plugin.workflowOrchestration.tenant.common.placeholders.empty') }}
+                {{ artifact.downloadFilename || t('plugin.workflow-orchestration.tenant.common.placeholders.empty') }}
               </dd>
             </div>
             <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
               <dt class="text-xs uppercase tracking-wide text-slate-400">
-                {{ t('plugin.workflowOrchestration.tenant.artifact.fields.feedbackCount') }}
+                {{ t('plugin.workflow-orchestration.tenant.artifact.fields.feedbackCount') }}
               </dt>
               <dd class="mt-1 font-medium text-slate-900">
                 {{ artifact.feedback?.length ?? artifact.feedbackCount ?? 0 }}
@@ -430,62 +658,67 @@ watch(
         <article class="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-sm">
           <div>
             <h2 class="text-lg font-semibold text-slate-900">
-              {{ t('plugin.workflowOrchestration.tenant.artifact.sections.feedback') }}
+              {{ t('plugin.workflow-orchestration.tenant.artifact.sections.feedback') }}
             </h2>
             <p class="mt-1 text-sm text-slate-500">
-              {{ t('plugin.workflowOrchestration.tenant.artifact.sections.feedbackHint') }}
+              {{ t('plugin.workflow-orchestration.tenant.artifact.sections.feedbackHint') }}
             </p>
           </div>
 
           <div class="mt-5 grid gap-4">
             <label class="space-y-2 text-sm text-slate-600">
-              <span>{{ t('plugin.workflowOrchestration.tenant.artifact.fields.rating') }}</span>
+              <span>{{ t('plugin.workflow-orchestration.tenant.artifact.fields.rating') }}</span>
               <select
                 v-model="feedbackRating"
                 class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
-                :disabled="submittingFeedback || artifact.canFeedback === false"
+                :disabled="submittingFeedback || !canSubmitArtifactFeedback || artifact.canFeedback === false"
               >
                 <option :value="null">
-                  {{ t('plugin.workflowOrchestration.tenant.artifact.placeholders.rating') }}
+                  {{ t('plugin.workflow-orchestration.tenant.artifact.placeholders.rating') }}
                 </option>
                 <option
                   v-for="rating in ratingOptions"
                   :key="rating"
                   :value="rating"
                 >
-                  {{ t('plugin.workflowOrchestration.tenant.artifact.ratingOption', { rating }) }}
+                  {{ t('plugin.workflow-orchestration.tenant.artifact.ratingOption', { rating }) }}
                 </option>
               </select>
             </label>
 
             <label class="space-y-2 text-sm text-slate-600">
-              <span>{{ t('plugin.workflowOrchestration.tenant.artifact.fields.feedbackComment') }}</span>
+              <span>{{ t('plugin.workflow-orchestration.tenant.artifact.fields.feedbackComment') }}</span>
               <textarea
                 v-model="feedbackComment"
                 class="min-h-36 w-full rounded-3xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
-                :disabled="submittingFeedback || artifact.canFeedback === false"
-                :placeholder="t('plugin.workflowOrchestration.tenant.artifact.placeholders.feedbackComment')"
+                :disabled="submittingFeedback || !canSubmitArtifactFeedback || artifact.canFeedback === false"
+                :placeholder="t('plugin.workflow-orchestration.tenant.artifact.placeholders.feedbackComment')"
               />
             </label>
           </div>
 
           <p
-            v-if="artifact.canFeedback === false"
+            v-if="!canSubmitArtifactFeedback || artifact.canFeedback === false"
             class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
           >
-            {{ t('plugin.workflowOrchestration.tenant.artifact.empty.feedbackDisabled') }}
+            {{
+              !canSubmitArtifactFeedback
+                ? permissionDeniedMessage
+                : t('plugin.workflow-orchestration.tenant.artifact.empty.feedbackDisabled')
+            }}
           </p>
 
           <div class="mt-5">
             <button
+              v-if="canSubmitArtifactFeedback"
               class="inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
               :disabled="submittingFeedback || artifact.canFeedback === false"
               @click="submitFeedback"
             >
               {{
                 submittingFeedback
-                  ? t('plugin.workflowOrchestration.tenant.common.messages.processing')
-                  : t('plugin.workflowOrchestration.tenant.common.actions.submitFeedback')
+                  ? t('plugin.workflow-orchestration.tenant.common.messages.processing')
+                  : t('plugin.workflow-orchestration.tenant.common.actions.submitFeedback')
               }}
             </button>
           </div>
@@ -494,10 +727,10 @@ watch(
         <article class="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-sm">
           <div>
             <h2 class="text-lg font-semibold text-slate-900">
-              {{ t('plugin.workflowOrchestration.tenant.artifact.sections.feedbackHistory') }}
+              {{ t('plugin.workflow-orchestration.tenant.artifact.sections.feedbackHistory') }}
             </h2>
             <p class="mt-1 text-sm text-slate-500">
-              {{ t('plugin.workflowOrchestration.tenant.artifact.sections.feedbackHistoryHint') }}
+              {{ t('plugin.workflow-orchestration.tenant.artifact.sections.feedbackHistoryHint') }}
             </p>
           </div>
 
@@ -513,7 +746,7 @@ watch(
               <div class="flex flex-wrap items-center justify-between gap-3">
                 <div class="space-y-1">
                   <p class="text-sm font-semibold text-slate-900">
-                    {{ item.createdBy || t('plugin.workflowOrchestration.tenant.common.placeholders.empty') }}
+                    {{ item.createdBy || t('plugin.workflow-orchestration.tenant.common.placeholders.empty') }}
                   </p>
                   <p class="text-xs text-slate-500">
                     {{ formatDateTime(item.createdAt) }}
@@ -522,21 +755,21 @@ watch(
                 <StatusPill
                   :label="
                     item.rating != null
-                      ? t('plugin.workflowOrchestration.tenant.artifact.ratingBadge', { rating: item.rating })
-                      : t('plugin.workflowOrchestration.tenant.artifact.noRating')
+                      ? t('plugin.workflow-orchestration.tenant.artifact.ratingBadge', { rating: item.rating })
+                      : t('plugin.workflow-orchestration.tenant.artifact.noRating')
                   "
                   :tone="item.rating != null && item.rating >= 4 ? 'success' : item.rating != null && item.rating <= 2 ? 'warning' : 'neutral'"
                 />
               </div>
               <p class="mt-3 text-sm leading-6 text-slate-600">
-                {{ item.comment || t('plugin.workflowOrchestration.tenant.common.placeholders.empty') }}
+                {{ item.comment || t('plugin.workflow-orchestration.tenant.common.placeholders.empty') }}
               </p>
             </div>
           </div>
           <EmptyState
             v-else
-            :description="t('plugin.workflowOrchestration.tenant.artifact.empty.feedbackDescription')"
-            :title="t('plugin.workflowOrchestration.tenant.artifact.empty.feedbackTitle')"
+            :description="t('plugin.workflow-orchestration.tenant.artifact.empty.feedbackDescription')"
+            :title="t('plugin.workflow-orchestration.tenant.artifact.empty.feedbackTitle')"
           />
         </article>
       </section>
@@ -544,8 +777,9 @@ watch(
 
     <EmptyState
       v-else
-      :description="t('plugin.workflowOrchestration.tenant.artifact.empty.detailDescription')"
-      :title="t('plugin.workflowOrchestration.tenant.artifact.empty.detailTitle')"
+      :description="t('plugin.workflow-orchestration.tenant.artifact.empty.detailDescription')"
+      :title="t('plugin.workflow-orchestration.tenant.artifact.empty.detailTitle')"
     />
+    </template>
   </ConsoleShell>
 </template>

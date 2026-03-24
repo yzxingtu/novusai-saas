@@ -148,7 +148,7 @@ async function toggleStatus() {
     const res = await updateDoc(doc.value.id, { status: newStatus });
     doc.value = { ...doc.value, ...res.document };
   } catch {
-    // fail silently
+    // fail silently / 静默失败
   }
 }
 

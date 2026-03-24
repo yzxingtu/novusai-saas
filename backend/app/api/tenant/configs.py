@@ -24,7 +24,7 @@ from app.configs.service import ConfigService
 from app.core.base_controller import TenantController
 from app.core.deps import ActiveTenantAdmin, DbSession
 from app.core.i18n import _
-from app.core.response import success
+from app.core.response import build_inline_error_result, success
 from app.enums.config import ConfigScope
 from app.enums.error_code import ErrorCode
 from app.enums.rbac import PermissionScope
@@ -176,7 +176,7 @@ def _translate_config_item(config: dict) -> ConfigItemResponse:
 
 @permission_resource(
     resource="tenant_config",
-    name="menu.tenant.tenant_config",  # i18n key
+    name="menu.tenant.tenant_config",  # i18n key / 国际化键名
     scope=PermissionScope.TENANT,
     parent_resource="system_mgmt",
     menu=MenuConfig(
@@ -528,7 +528,7 @@ class TenantConfigController(TenantController):
                     code=ErrorCode.INVALID_PARAMETER,
                 )
 
-            # Check allowed drivers
+            # Check allowed drivers / 校验平台允许的驱动白名单
             if driver:
                 allowed = await config_service.get_platform_config(
                     "platform_storage_allowed_custom_drivers",
@@ -601,7 +601,7 @@ class TenantConfigController(TenantController):
                     code=ErrorCode.INVALID_PARAMETER,
                 )
 
-            # Check allowed drivers
+            # Check allowed drivers / 校验平台允许的驱动白名单
             allowed = await config_service.get_platform_config(
                 "platform_storage_allowed_custom_drivers",
                 default=["aliyun-oss", "qiniu-kodo", "tencent-cos", "s3"],
@@ -625,16 +625,22 @@ class TenantConfigController(TenantController):
                 await drv.put(test_key, test_content, mime_type="text/plain")
                 exists = await drv.exists(test_key)
                 if not exists:
-                    return success(data={
-                        "success": False,
-                        "errors": [_("config.storage.test_file_not_found")],
-                    })
+                    return success(
+                        data=build_inline_error_result(
+                            _("config.storage.test_file_not_found"),
+                        )
+                    )
                 await drv.delete(test_key)
                 return success(data={"success": True})
             except BusinessException:
                 raise
             except Exception as e:
-                return success(data={"success": False, "errors": [str(e)]})
+                return success(
+                    data=build_inline_error_result(
+                        e,
+                        fallback_message=_("common.server_error"),
+                    )
+                )
 
         @router.get("/storage/drivers", summary="获取企业允许的存储驱动列表")
         @action_read("action.tenant_config.groups")
@@ -661,7 +667,7 @@ class TenantConfigController(TenantController):
 
             known_plugin_drivers = await _get_known_plugin_storage_drivers(db)
             all_drivers = storage_manager.get_all_driver_info_list(known_plugin_drivers)
-            # Filter to allowed + exclude local
+            # Filter to allowed + exclude local / 过滤白名单并排除 local
             filtered = [
                 d for d in all_drivers
                 if d["name"] in allowed and d["name"] != "local"

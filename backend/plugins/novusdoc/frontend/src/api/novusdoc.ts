@@ -24,7 +24,7 @@ function resolveBase(): string {
     : '/tenant/plugins/novusdoc/api';
 }
 
-// ── Documents ─────────────────────────────────────────────
+// ── Documents / 文档 ─────────────────────────────────────
 
 interface ListDocsResult {
   items: DocItem[];
@@ -74,7 +74,7 @@ export async function deleteDoc(docId: number, tenantId?: number): Promise<void>
   await getClient().delete(`${base}/docs/${docId}${q}`);
 }
 
-// ── Folders ───────────────────────────────────────────────
+// ── Folders / 文件夹 ──────────────────────────────────────
 
 export async function listFolders(tenantId?: number): Promise<{ items: Folder[]; total: number }> {
   const base = resolveBase();
@@ -100,7 +100,7 @@ export async function deleteFolder(folderId: number, tenantId?: number): Promise
   await getClient().delete(`${base}/folders/${folderId}${q}`);
 }
 
-// ── Tags ──────────────────────────────────────────────────
+// ── Tags / 标签 ───────────────────────────────────────────
 
 export async function listTags(tenantId?: number): Promise<{ items: Tag[]; total: number }> {
   const base = resolveBase();
@@ -120,7 +120,7 @@ export async function deleteTag(tagId: number, tenantId?: number): Promise<void>
   await getClient().delete(`${base}/tags/${tagId}${q}`);
 }
 
-// ── Search ────────────────────────────────────────────────
+// ── Search / 搜索 ─────────────────────────────────────────
 
 export async function searchDocs(query: string, params?: { page?: number; size?: number; tenant_id?: number }): Promise<{ items: DocItem[]; total: number }> {
   const base = resolveBase();
@@ -132,7 +132,7 @@ export async function searchDocs(query: string, params?: { page?: number; size?:
   return getClient().get<{ items: DocItem[]; total: number }>(`${base}/search?${q.toString()}`);
 }
 
-// ── Export ─────────────────────────────────────────────────
+// ── Export / 导出 ────────────────────────────────────────
 
 export function getExportUrl(docId: number, format: 'html' | 'md' | 'pdf' = 'html', tenantId?: number): string {
   const base = resolveBase();

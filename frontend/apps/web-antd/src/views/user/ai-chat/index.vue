@@ -77,7 +77,7 @@ const initialConversationId = ref<number | undefined>(
 const lastAppliedPrompt = ref('');
 const routeReady = ref(false);
 
-// ============ Chat Logic ============
+// ============ Chat Logic / 对话逻辑 ============
 
 const chat = useAIChat({
   apiPrefix: API_PREFIX,
@@ -247,7 +247,7 @@ const exportMenuItems = computed(() => [
   },
 ]);
 
-// ============ Conversation handlers ============
+// ============ Conversation handlers / 会话操作 ============
 
 function onSelectConversation(convId: number) {
   void loadConversationMessages(convId);
@@ -312,7 +312,7 @@ function onSelectAgent(agentId: number) {
   });
 }
 
-// ============ Memory ============
+// ============ Memory / 会话记忆 ============
 
 const showMemoryPanel = ref(false);
 
@@ -340,7 +340,7 @@ function onClearMemory() {
   });
 }
 
-// ============ Welcome & Suggested Questions ============
+// ============ Welcome & Suggested Questions / 欢迎语与推荐问 ============
 
 const starterAgent = computed(
   () => mentionedAgent.value ?? selectedAgent.value ?? null,
@@ -465,7 +465,7 @@ function askSuggested(question: string) {
   handleSendClick();
 }
 
-// ============ Image Preview ============
+// ============ Image Preview / 图片预览 ============
 
 const previewImageUrl = ref('');
 const previewImageVisible = ref(false);
@@ -475,13 +475,13 @@ function openImagePreview(url: string) {
   previewImageVisible.value = true;
 }
 
-// ============ Copy ============
+// ============ Copy / 复制 ============
 
 async function onCopyMessage(content: string) {
   await copyMessage(content);
 }
 
-// ============ Send (no routing for user side) ============
+// ============ Send (no routing for user side) / 发送（用户端无路由） ============
 
 function handleSendClick() {
   const mentionTarget = mentionedAgent.value;
@@ -527,7 +527,7 @@ function handleKeyDown(e: KeyboardEvent) {
   }
 }
 
-// ============ Agent Switch Detection ============
+// ============ Agent Switch Detection / 智能体切换检测 ============
 
 function isAgentSwitch(idx: number): boolean {
   const msg = chatMessages.value[idx];
@@ -541,7 +541,7 @@ function isAgentSwitch(idx: number): boolean {
   return false;
 }
 
-// ============ Input Variables Modal ============
+// ============ Input Variables Modal / 输入变量弹窗 ============
 
 const varsModalVisible = ref(false);
 const varsFormValues = reactive<Record<string, string>>({});
@@ -596,7 +596,7 @@ function onVarsCancel() {
   pendingSendState.value = null;
 }
 
-// ============ Watchers ============
+// ============ Watchers / 侦听器 ============
 
 watch(selectedAgentId, (agentId) => {
   if (agentId) {
@@ -617,7 +617,7 @@ watch(selectedAgentId, (agentId) => {
   }
 });
 
-// ============ Lifecycle ============
+// ============ Lifecycle / 生命周期 ============
 
 onMounted(async () => {
   initialAgentId.value = parsePositiveQueryNumber(route.query.agentId);

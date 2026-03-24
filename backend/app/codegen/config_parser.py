@@ -31,7 +31,7 @@ RESERVED_NAMES = frozenset(
     }
 )
 
-# 字段名格式：小写字母开头，仅小写字母、数字、下划线
+# 字段名格式：小写字母开头，仅小写字母、数字、下划线 / Field name: [a-z] start, then [a-z0-9_] only
 FIELD_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 
 # module/resource 格式：小写字母、数字、下划线 / module/resource: [a-z0-9_]

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { transformMenuData } from '../menu-transformer';
+import {
+  extractPermissionsFromMenus,
+  transformMenuData,
+} from '../menu-transformer';
 
 describe('menu-transformer', () => {
   it('does not resolve plugin standalone page menus as host view components', () => {
@@ -18,5 +21,23 @@ describe('menu-transformer', () => {
 
     expect(menu?.path).toBe('/admin/plugins/novusdoc');
     expect(menu?.component).toBeUndefined();
+  });
+
+  it('includes menu code in extracted permissions for plugin route access', () => {
+    const permissions = extractPermissionsFromMenus([
+      {
+        code: 'menu:tenant.plugin_workflow_orchestration_templates',
+        name: '模板管理',
+        path: '/tenant/plugins/workflow-orchestration/templates',
+        permissions: ['plugin.workflow-orchestration.platform_template:list'],
+      },
+    ]);
+
+    expect(permissions).toContain(
+      'menu:tenant.plugin_workflow_orchestration_templates',
+    );
+    expect(permissions).toContain(
+      'plugin.workflow-orchestration.platform_template:list',
+    );
   });
 });

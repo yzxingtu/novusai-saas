@@ -2,6 +2,18 @@
 
 本文档覆盖：多企业体系、认证与依赖注入、异常体系、日志系统、SSE 流式请求、应用启动流程、存储系统、配置系统、前端业务组件。
 
+## 目录
+
+- [一、多企业体系](#一多企业体系)
+- [二、认证与依赖注入](#二认证与依赖注入)
+- [三、异常体系](#三异常体系)
+- [四、日志系统](#四日志系统)
+- [五、SSE 流式请求（前端）](#五sse-流式请求前端)
+- [六、应用启动流程](#六应用启动流程)
+- [七、存储系统](#七存储系统)
+- [八、配置系统](#八配置系统)
+- [九、前端业务组件清单](#九前端业务组件清单)
+
 ---
 
 ## 一、多企业体系
@@ -329,7 +341,7 @@ controller.abort();  // 自动取消，不触发 onError
 1. init_logging()              → 日志系统初始化（LogManager）
 2. init_database()             → 数据库初始化
    ├── check_and_create_db()   → 检查/创建数据库
-   ├── alembic upgrade head    → 执行数据库迁移
+   ├── alembic upgrade heads   → 执行数据库迁移
    └── 验证异步连接             → SELECT 1
 3. sync_permissions()          → 从代码扫描 Controller 权限装饰器 → 同步到 permissions 表
 4. sync_config_to_db()         → ConfigRegistry 元数据 → 同步到 system_configs 表
@@ -438,43 +450,39 @@ url = await driver.url(path, expires=3600)
 ### 8.2 定义配置项
 
 ```python
-# backend/app/configs/definitions/platform_basic.py
+# backend/app/configs/definitions/platform/general.py
 
-from app.configs.meta import ConfigMeta, ConfigGroupMeta
-from app.enums.config import ConfigScope, ConfigType
+from app.configs.definitions.groups import PLATFORM_GENERAL_GROUP
+from app.configs.meta import ConfigMeta, max_length, min_length
+from app.enums.config import ConfigScope, ConfigValueType
 
-platform_basic_group = ConfigGroupMeta(
-    code="platform_basic",
-    name="基础设置",
-    scope=ConfigScope.PLATFORM,
-    sort_order=1,
-    configs=[
-        ConfigMeta(
-            key="site_name",
-            name="站点名称",
-            type=ConfigType.STRING,
-            default="NovusAI",
-            description="站点显示名称",
-        ),
-        ConfigMeta(
-            key="max_upload_size",
-            name="最大上传大小(MB)",
-            type=ConfigType.NUMBER,
-            default=10,
-        ),
+SITE_NAME = ConfigMeta(
+    key="site_name",
+    name_key="config.platform.site_name.name",
+    description_key="config.platform.site_name.desc",
+    scope=ConfigScope.ADMIN_ONLY,
+    value_type=ConfigValueType.STRING,
+    default_value="NovusAI SaaS",
+    is_required=True,
+    validation_rules=[
+        min_length(1, "validation.min_length"),
+        max_length(100, "validation.max_length"),
     ],
+    sort_order=10,
 )
+
+PLATFORM_GENERAL_GROUP.configs = [SITE_NAME]
 ```
 
 ### 8.3 注册和使用
 
 ```python
-# 注册（在 configs/__init__.py 中）
-from app.configs.registry import config_registry
-config_registry.register_group(platform_basic_group)
+# 注册（在 backend/app/configs/definitions/__init__.py 中统一导入并 register_all_configs）
+from app.configs.definitions import register_all_configs
+register_all_configs()
 
 # 读取配置值（在 Service 中）
-from app.services.common.config_service import ConfigService
+from app.configs.service import ConfigService
 config_service = ConfigService(db)
 site_name = await config_service.get_value("site_name")
 ```
@@ -483,8 +491,8 @@ site_name = await config_service.get_value("site_name")
 
 | 作用域 | 说明 | 管理端点 |
 |--------|------|----------|
-| `PLATFORM` | 全平台配置 | admin 端管理 |
-| `TENANT` | 企业级配置（每个企业独立值） | tenant 端管理 |
+| `ADMIN_ONLY` | 平台配置 | admin 端管理 |
+| `ALL_TENANTS` | 企业级配置（每个企业独立值） | tenant 端管理 |
 
 ---
 

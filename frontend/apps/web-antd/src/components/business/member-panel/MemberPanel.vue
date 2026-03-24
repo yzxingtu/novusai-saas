@@ -24,6 +24,7 @@ import { forceLogoutTenantAdminApi } from '#/api/admin/tenant';
 import { getTenantAdminInfoApi } from '#/api/tenant/auth';
 import { $t } from '#/locales';
 import { usePresenceStore } from '#/store';
+import { showRequestError } from '#/utils/error-helpers';
 
 import AdminFormDrawer from './modules/AdminFormDrawer.vue';
 import MemberItem from './modules/MemberItem.vue';
@@ -144,6 +145,16 @@ const leaderInfo = computed(() => {
   return members.value.find((m) => m.isLeader);
 });
 
+const showOrgNodeTag = computed(() => {
+  if (!includeDescendants.value) return false;
+  const orgNodeKeys = new Set(
+    members.value.map(
+      (member) => `${member.orgNodeId ?? 'none'}:${member.orgNodeName ?? ''}`,
+    ),
+  );
+  return orgNodeKeys.size > 1;
+});
+
 /** Open create member drawer / 打开创建成员抽屉 */
 function handleOpenCreateDrawer() {
   adminFormDrawerRef.value?.openCreate();
@@ -181,11 +192,15 @@ async function handleForceLogout(member: MemberPanelMember) {
       }
       await forceLogoutTenantAdminApi(tenantId, member.id);
     }
-    message.success($t('common.auth.forceLogoutSuccess', { name: member.nickname || member.username }));
+    message.success(
+      $t('common.auth.forceLogoutSuccess', {
+        name: member.nickname || member.username,
+      }),
+    );
     await refresh();
     emit('refresh');
-  } catch {
-    message.error($t('common.requestFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.requestFailed');
   }
 }
 
@@ -195,7 +210,9 @@ async function handleMemberSuccess() {
   emit('refresh');
 }
 
-function toOptionalNodeId(nodeId: null | number | undefined): number | undefined {
+function toOptionalNodeId(
+  nodeId: null | number | undefined,
+): number | undefined {
   return typeof nodeId === 'number' ? nodeId : undefined;
 }
 
@@ -375,6 +392,7 @@ onMounted(() => {
                 :member="leaderInfo"
                 :is-leader="true"
                 :show-online-status="showOnlineStatus"
+                :show-org-node="showOrgNodeTag"
                 :online="isMemberOnline(leaderInfo.id)"
                 @edit="handleEditMember"
                 @force-logout="handleForceLogout"
@@ -400,6 +418,7 @@ onMounted(() => {
               :member="member"
               :is-leader="member.isLeader"
               :show-online-status="showOnlineStatus"
+              :show-org-node="showOrgNodeTag"
               :online="isMemberOnline(member.id)"
               @edit="handleEditMember"
               @force-logout="handleForceLogout"

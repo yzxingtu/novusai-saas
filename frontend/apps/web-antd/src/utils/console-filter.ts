@@ -9,7 +9,7 @@
  * 避免干扰开发体验
  */
 
-// Save the original console.error method
+// Save the original console.error method / 保留原始 console.error
 const originalConsoleError = console.error;
 
 /**
@@ -41,12 +41,12 @@ export function setupAriaHiddenFix(): void {
       }
 
       const target = mutation.target as HTMLElement;
-      // Check if it's the Tabs' more button
+      // Check if it's the Tabs' more button / 是否为 Tabs「更多」按钮
       if (!target.classList?.contains('ant-tabs-nav-more')) {
         continue;
       }
 
-      // Remove aria-hidden attribute when the button is expanded
+      // Remove aria-hidden attribute when the button is expanded / 展开时移除 aria-hidden
       if (target.getAttribute('aria-expanded') === 'true') {
         target.removeAttribute('aria-hidden');
       }
@@ -75,7 +75,7 @@ export function setupAriaHiddenFix(): void {
  * 避免给开发者造成困扰。
  */
 const FILTERED_ERROR_PATTERNS = [
-  // Framework's route component invalid error - already handled in menu-transformer
+  // Framework's route component invalid error - already handled in menu-transformer / 路由无效错误已由 menu-transformer 处理
   /route component is invalid:/i,
 ];
 
@@ -89,7 +89,7 @@ const FILTERED_ERROR_PATTERNS = [
  */
 export function setupConsoleFilter(): void {
   console.error = (...args: any[]) => {
-    // Check if the first argument matches a filtered pattern
+    // Check if the first argument matches a filtered pattern / 首参是否命中过滤规则
     const firstArg = args[0];
     if (typeof firstArg === 'string') {
       for (const pattern of FILTERED_ERROR_PATTERNS) {
@@ -100,7 +100,7 @@ export function setupConsoleFilter(): void {
       }
     }
 
-    // 其他错误正常输出
+    // 其他错误正常输出 / passthrough other errors
     originalConsoleError.apply(console, args);
   };
 }

@@ -42,7 +42,7 @@ class Skill(TenantModel):
         comment="企业ID（过渡期可继承自技能包）"
     )
 
-    # 允许前端筛选的字段
+    # 允许前端筛选的字段 / Fields exposed for list filtering
     __filterable__ = {
         "id": "id",
         "name": "name",
@@ -55,7 +55,7 @@ class Skill(TenantModel):
         "created_at": "created_at",
     }
 
-    # 允许排序的字段
+    # 允许排序的字段 / Sortable columns for UI
     __sortable__ = {
         "id": "id",
         "name": "name",
@@ -64,14 +64,14 @@ class Skill(TenantModel):
         "updated_at": "updated_at",
     }
 
-    # 下拉选择配置
+    # 下拉选择配置 / Select dropdown config
     __selectable__ = {
         "label": "name",
         "value": "id",
         "search": ["name"],
     }
 
-    # ==================== 所属技能包 ====================
+    # ==================== 所属技能包 ==================== / Owning package
 
     package_id: Mapped[int] = mapped_column(
         Integer,
@@ -81,7 +81,7 @@ class Skill(TenantModel):
         comment=_("skill.field.package_id"),
     )
 
-    # ==================== 基本信息 ====================
+    # ==================== 基本信息 ==================== / Basic info
 
     name: Mapped[str] = mapped_column(
         String(100),
@@ -107,7 +107,7 @@ class Skill(TenantModel):
         comment=_("skill.field.avatar"),
     )
 
-    # ==================== 类型 ====================
+    # ==================== 类型 ==================== / Type and source
 
     type: Mapped[str] = mapped_column(
         String(30),
@@ -153,7 +153,7 @@ class Skill(TenantModel):
         comment="Readonly managed skill / 只读托管技能",
     )
 
-    # ==================== 类型特定配置 ====================
+    # ==================== 类型特定配置 ==================== / Type-specific JSON
 
     config: Mapped[dict | None] = mapped_column(
         JSON,
@@ -162,7 +162,7 @@ class Skill(TenantModel):
         comment=_("skill.field.config"),
     )
 
-    # ==================== Toolkit 字段 ====================
+    # ==================== Toolkit 字段 ==================== / Toolkit payload
 
     toolkit_content: Mapped[str | None] = mapped_column(
         Text,
@@ -177,7 +177,7 @@ class Skill(TenantModel):
         comment=_("skill.field.toolkit_meta"),
     )
 
-    # ==================== Schema 定义 ====================
+    # ==================== Schema 定义 ==================== / IO schemas
 
     input_schema: Mapped[dict | None] = mapped_column(
         JSON,
@@ -192,7 +192,7 @@ class Skill(TenantModel):
         comment=_("skill.field.output_schema"),
     )
 
-    # ==================== 系统标记 ====================
+    # ==================== 系统标记 ==================== / System flags
 
     is_system: Mapped[bool] = mapped_column(
         Boolean,
@@ -202,7 +202,7 @@ class Skill(TenantModel):
         comment=_("skill.field.is_system"),
     )
 
-    # ==================== 状态与排序 ====================
+    # ==================== 状态与排序 ==================== / Status and order
 
     is_active: Mapped[bool] = mapped_column(
         Boolean,
@@ -223,7 +223,7 @@ class Skill(TenantModel):
         comment=_("skill.field.timeout"),
     )
 
-    # ==================== 关系 ====================
+    # ==================== 关系 ==================== / Relationships
 
     package = relationship(
         "SkillPackage",
@@ -248,7 +248,7 @@ class Skill(TenantModel):
         lazy="noload",
     )
 
-    # ==================== 复合索引 ====================
+    # ==================== 复合索引 ==================== / Composite indexes
 
     __table_args__ = (
         Index("ix_skills_tenant_type", "tenant_id", "type"),

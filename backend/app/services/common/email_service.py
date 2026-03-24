@@ -67,7 +67,7 @@ class SmtpConfig:
 
     host: str
     port: int
-    encryption: str  # none / ssl / tls
+    encryption: str  # 传输加密 none / ssl / tls / transport encryption
     username: str
     password: str
     from_address: str
@@ -75,9 +75,9 @@ class SmtpConfig:
     enabled: bool
 
 
-# 安全限制常量
+# 安全限制常量 / Safety limit constants
 MAX_RECIPIENTS = 50
-MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024  # 10MB
+MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024  # 上限约 10MB / ~10MB cap
 _EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$")
 
 
@@ -121,7 +121,7 @@ class EmailService:
         """
         config = await self._load_smtp_config()
 
-        # 检查邮件功能开关
+        # 检查邮件功能开关 / Check mail feature enabled
         if not config.enabled:
             logger.info("Email sending disabled, skipping")
             return EmailResult(
@@ -130,7 +130,7 @@ class EmailService:
                 recipients=message.to,
             )
 
-        # 校验必要配置
+        # 校验必要配置 / Validate required config
         missing = []
         if not config.host:
             missing.append("smtp_host")
@@ -146,7 +146,7 @@ class EmailService:
                 error=error_msg,
             )
 
-        # 校验收件人
+        # 校验收件人 / Validate recipients
         if not message.to:
             return EmailResult(
                 success=False,
@@ -155,7 +155,7 @@ class EmailService:
                 error=_("email.error.no_recipients"),
             )
 
-        # 安全校验：收件人数量
+        # 安全校验：收件人数量 / Safety check: recipient count
         all_recipients = message.to + message.cc + message.bcc
         if len(all_recipients) > MAX_RECIPIENTS:
             return EmailResult(
@@ -166,7 +166,7 @@ class EmailService:
                         max=MAX_RECIPIENTS, got=len(all_recipients)),
             )
 
-        # 安全校验：邮箱格式
+        # 安全校验：邮箱格式 / Safety check: email format
         invalid = [addr for addr in all_recipients if not _is_valid_email(addr)]
         if invalid:
             return EmailResult(
@@ -176,7 +176,7 @@ class EmailService:
                 error=_("email.error.invalid_email", addresses=", ".join(invalid)),
             )
 
-        # 安全校验：附件大小
+        # 安全校验：附件大小 / Safety check: attachment size
         if message.attachments:
             total_size = sum(len(a.content) for a in message.attachments)
             if total_size > MAX_ATTACHMENT_SIZE:
@@ -191,7 +191,7 @@ class EmailService:
         # 构建 MIME 邮件
         mime_msg = self._build_mime_message(message, config)
 
-        # 发送
+        # 发送 / Send
         try:
             self._smtp_send(config, mime_msg, all_recipients)
             logger.info(
@@ -252,7 +252,7 @@ class EmailService:
         elif message.text_body:
             msg.attach(MIMEText(message.text_body, "plain", "utf-8"))
 
-        # 附件
+        # 附件 / Attachments
         for attachment in message.attachments:
             part = MIMEApplication(attachment.content)
             part.add_header(
@@ -328,12 +328,12 @@ def send_email_sync(
 
         all_recipients = to + (cc or []) + (bcc or [])
 
-        # 安全校验：收件人数量
+        # 安全校验：收件人数量 / Safety check: recipient count
         if len(all_recipients) > MAX_RECIPIENTS:
             return EmailResult(success=False, message="too_many_recipients", recipients=to,
                                error=f"Too many recipients: {len(all_recipients)} > {MAX_RECIPIENTS}")
 
-        # 安全校验：邮箱格式
+        # 安全校验：邮箱格式 / Safety check: email format
         invalid = [addr for addr in all_recipients if not _is_valid_email(addr)]
         if invalid:
             return EmailResult(success=False, message="invalid_email", recipients=to,
@@ -386,12 +386,12 @@ def _load_smtp_config_sync(session: Any) -> SmtpConfig:
             import json
             with contextlib.suppress(json.JSONDecodeError, TypeError):
                 val = json.loads(val)
-            # 布尔值处理
+            # 布尔值处理 / Boolean coercion
             if isinstance(val, bool):
                 return val
             if isinstance(val, str) and val.lower() in ("true", "false"):
                 return val.lower() == "true"
-            # 数字处理
+            # 数字处理 / Numeric coercion
             if isinstance(val, (int, float)):
                 return val
             if isinstance(val, str):

@@ -24,7 +24,9 @@ db_table_prefixes:
   - px_storage_billing_
 
 dependencies:
-  python: []
+  python:
+    - "httpx>=0.26.0"
+    - "aliyun-python-sdk-core>=2.16.0"
   plugins: []
 
 pricing:

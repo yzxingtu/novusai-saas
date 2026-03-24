@@ -74,6 +74,7 @@ def _serialize_org_node(org_node) -> AdminOrgNodeResponse:
         leader_id=getattr(org_node, "leader_id", None),
         leader=_serialize_leader(getattr(org_node, "leader", None)),
         member_count=getattr(org_node, "member_count", 0),
+        permissions_count=getattr(org_node, "permissions_count", 0),
         data_scope=getattr(org_node, "scope_mode", None) or "dept_children",
         custom_dept_ids=getattr(org_node, "custom_org_node_ids", None),
         created_at=org_node.created_at,
@@ -82,7 +83,16 @@ def _serialize_org_node(org_node) -> AdminOrgNodeResponse:
 
 
 def _serialize_org_node_detail(org_node) -> AdminOrgNodeDetailResponse:
-    return AdminOrgNodeDetailResponse(**_serialize_org_node(org_node).model_dump())
+    permissions = [
+        permission
+        for permission in getattr(org_node, "permissions", [])
+        if permission.is_enabled and not permission.is_deleted
+    ]
+    return AdminOrgNodeDetailResponse(
+        **_serialize_org_node(org_node).model_dump(),
+        permission_ids=[permission.id for permission in permissions],
+        permission_codes=[permission.code for permission in permissions],
+    )
 
 
 def _serialize_org_tree(org_nodes: list) -> list[dict]:
@@ -109,7 +119,6 @@ def _serialize_org_tree(org_nodes: list) -> list[dict]:
 
 def _serialize_member(member) -> AdminOrgNodeMemberResponse:
     org_relation = getattr(member, "org_node", None)
-    permission_role = getattr(member, "role", None)
     is_leader = org_relation is not None and getattr(org_relation, "leader_id", None) == member.id
     return AdminOrgNodeMemberResponse(
         id=member.id,
@@ -120,12 +129,8 @@ def _serialize_member(member) -> AdminOrgNodeMemberResponse:
         is_active=member.is_active,
         is_leader=is_leader,
         joined_at=member.created_at,
-        role_id=getattr(member, "role_id", None),
-        role_name=getattr(permission_role, "name", None),
         org_node_id=getattr(member, "org_node_id", None),
         org_node_name=getattr(org_relation, "name", None),
-        permission_role_id=getattr(member, "role_id", None),
-        permission_role_name=getattr(permission_role, "name", None),
         created_at=member.created_at,
         updated_at=member.updated_at,
     )
@@ -404,7 +409,6 @@ class AdminOrganizationController(GlobalController):
                     phone=data.phone,
                     nickname=data.nickname,
                     is_active=data.is_active,
-                    role_id=data.role_id,
                 )
                 await db.commit()
                 return success(data=_serialize_member(admin), message=_("role.member_created"))
@@ -425,7 +429,6 @@ class AdminOrganizationController(GlobalController):
             if data.org_node_id is not None:
                 await self._require_manage(db, current_admin, data.org_node_id)
             try:
-                update_permission_role = "role_id" in data.model_fields_set
                 admin = await AdminOrgNodeService(db).update_member(
                     org_node_id=org_node_id,
                     admin_id=admin_id,
@@ -435,8 +438,6 @@ class AdminOrganizationController(GlobalController):
                     avatar=data.avatar,
                     is_active=data.is_active,
                     new_org_node_id=data.org_node_id,
-                    role_id=data.role_id,
-                    update_permission_role=update_permission_role,
                 )
                 await db.commit()
                 return success(data=_serialize_member(admin), message=_("role.member_updated"))

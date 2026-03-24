@@ -14,6 +14,11 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.data_permission import (
+    apply_data_permission_if_needed,
+    enrich_create_data_with_data_permission,
+)
+
 PLATFORM_TENANT_ID = 0
 
 
@@ -33,8 +38,14 @@ async def list_documents(
         NovusdocDocument.is_deleted.is_(False),
     ]
 
-    query = select(NovusdocDocument).where(*base)
-    count_query = select(func.count()).select_from(NovusdocDocument).where(*base)
+    query = apply_data_permission_if_needed(
+        select(NovusdocDocument).where(*base),
+        NovusdocDocument,
+    )
+    count_query = apply_data_permission_if_needed(
+        select(func.count()).select_from(NovusdocDocument).where(*base),
+        NovusdocDocument,
+    )
 
     if folder_id is not None:
         query = query.where(NovusdocDocument.folder_id == folder_id)
@@ -65,13 +76,15 @@ async def get_document(
 ) -> dict[str, Any] | None:
     from ..models.document import NovusdocDocument
 
-    result = await db.execute(
+    stmt = apply_data_permission_if_needed(
         select(NovusdocDocument).where(
             NovusdocDocument.id == doc_id,
             NovusdocDocument.tenant_id == tenant_id,
             NovusdocDocument.is_deleted.is_(False),
-        )
+        ),
+        NovusdocDocument,
     )
+    result = await db.execute(stmt)
     doc = result.scalar_one_or_none()
     return _doc_to_dict(doc, include_content=True) if doc else None
 
@@ -81,16 +94,23 @@ async def create_document(
 ) -> dict[str, Any]:
     from ..models.document import NovusdocDocument
 
-    doc = NovusdocDocument(
-        tenant_id=tenant_id,
-        title=data.get("title", "Untitled"),
-        content=data.get("content"),
-        content_text=data.get("content_text", ""),
-        word_count=data.get("word_count", 0),
-        folder_id=data.get("folder_id"),
-        status=data.get("status", "draft"),
-        created_by=data.get("created_by"),
+    create_payload = {
+        "tenant_id": tenant_id,
+        "title": data.get("title", "Untitled"),
+        "content": data.get("content"),
+        "content_text": data.get("content_text", ""),
+        "word_count": data.get("word_count", 0),
+        "folder_id": data.get("folder_id"),
+        "status": data.get("status", "draft"),
+    }
+    if data.get("created_by") is not None:
+        create_payload["created_by"] = data["created_by"]
+
+    create_data = enrich_create_data_with_data_permission(
+        NovusdocDocument,
+        create_payload,
     )
+    doc = NovusdocDocument(**create_data)
     db.add(doc)
     await db.flush()
     await db.refresh(doc)
@@ -102,13 +122,15 @@ async def update_document(
 ) -> dict[str, Any] | None:
     from ..models.document import NovusdocDocument
 
-    result = await db.execute(
+    stmt = apply_data_permission_if_needed(
         select(NovusdocDocument).where(
             NovusdocDocument.id == doc_id,
             NovusdocDocument.tenant_id == tenant_id,
             NovusdocDocument.is_deleted.is_(False),
-        )
+        ),
+        NovusdocDocument,
     )
+    result = await db.execute(stmt)
     doc = result.scalar_one_or_none()
     if not doc:
         return None
@@ -128,13 +150,15 @@ async def delete_document(
 ) -> bool:
     from ..models.document import NovusdocDocument
 
-    result = await db.execute(
+    stmt = apply_data_permission_if_needed(
         select(NovusdocDocument).where(
             NovusdocDocument.id == doc_id,
             NovusdocDocument.tenant_id == tenant_id,
             NovusdocDocument.is_deleted.is_(False),
-        )
+        ),
+        NovusdocDocument,
     )
+    result = await db.execute(stmt)
     doc = result.scalar_one_or_none()
     if not doc:
         return False

@@ -80,7 +80,7 @@ export function downloadBlob(blob: Blob, options: DownloadOptions): void {
   const { filename, mimeType } = options;
   const finalMimeType = getMimeType(filename, mimeType);
 
-  // 创建带正确 MIME 类型的 Blob
+  // 创建带正确 MIME 类型的 Blob / normalize Blob MIME
   const finalBlob =
     blob.type === finalMimeType
       ? blob
@@ -97,7 +97,7 @@ export function downloadBlob(blob: Blob, options: DownloadOptions): void {
   link.click();
   link.remove();
 
-  // 释放 URL 对象
+  // 释放 URL 对象 / revoke object URL
   setTimeout(() => URL.revokeObjectURL(url), 100);
 }
 
@@ -151,25 +151,25 @@ export function downloadCsv(
   if (data.length === 0) {
     csvContent = '';
   } else if (Array.isArray(data[0])) {
-    // 二维数组
+    // 二维数组 / 2D rows
     csvContent = (data as unknown[][])
       .map((row) => row.map((cell) => escapeCsvCell(cell)).join(','))
       .join('\n');
   } else {
-    // 对象数组
+    // 对象数组 / object rows
     const objData = data as Record<string, unknown>[];
     const keys = headers || Object.keys(objData[0] || {});
 
-    // 表头
+    // 表头 / CSV header row
     csvContent = `${keys.map((key) => escapeCsvCell(key)).join(',')}\n`;
 
-    // 数据行
+    // 数据行 / data rows
     csvContent += objData
       .map((row) => keys.map((key) => escapeCsvCell(row[key])).join(','))
       .join('\n');
   }
 
-  // 添加 BOM 以支持 Excel 正确显示中文
+  // 添加 BOM 以支持 Excel 正确显示中文 / UTF-8 BOM for Excel
   const bom = '\uFEFF';
   downloadText(bom + csvContent, { filename, mimeType: 'text/csv' });
 }
@@ -183,7 +183,7 @@ function escapeCsvCell(value: unknown): string {
 
   const str = String(value);
 
-  // 如果包含逗号、双引号或换行，需要用双引号包裹并转义内部双引号
+  // 如果包含逗号、双引号或换行，需要用双引号包裹并转义内部双引号 / RFC4180 quoting
   if (str.includes(',') || str.includes('"') || str.includes('\n')) {
     return `"${str.replaceAll('"', '""')}"`;
   }
@@ -199,7 +199,7 @@ function escapeCsvCell(value: unknown): string {
  * @param options - Download configuration / 下载配置
  */
 export function downloadBase64(base64: string, options: DownloadOptions): void {
-  // 移除 data URL 前缀（如果有）
+  // 移除 data URL 前缀（如果有）/ strip data: prefix
   const base64Data = base64.includes(',')
     ? (base64.split(',')[1] ?? base64)
     : base64;
@@ -207,7 +207,7 @@ export function downloadBase64(base64: string, options: DownloadOptions): void {
   const { filename, mimeType } = options;
   const finalMimeType = getMimeType(filename, mimeType);
 
-  // 解码 Base64
+  // 解码 Base64 / atob to bytes
   const binaryString = atob(base64Data);
   const bytes = new Uint8Array(binaryString.length);
   for (let i = 0; i < binaryString.length; i++) {
@@ -258,7 +258,7 @@ export function download(
   } else if (data instanceof ArrayBuffer) {
     downloadArrayBuffer(data, options);
   } else if (typeof data === 'string') {
-    // 检查是否为 Base64
+    // 检查是否为 Base64 / detect base64 payload
     if (
       data.startsWith('data:') ||
       /^[A-Z0-9+/=]+$/i.test(data.slice(0, 100))
@@ -268,17 +268,17 @@ export function download(
       downloadText(data, options);
     }
   } else if (Array.isArray(data)) {
-    // 数组数据
+    // 数组数据 / tabular export
     if (ext === 'csv') {
       downloadCsv(data, filename);
     } else if (ext === 'json') {
       downloadJson(data, filename);
     } else {
-      // 默认转为 JSON
+      // 默认转为 JSON / default JSON export
       downloadJson(data, filename);
     }
   } else {
-    // 其他对象转为 JSON
+    // 其他对象转为 JSON / object → JSON
     downloadJson(data, filename);
   }
 }

@@ -14,7 +14,6 @@ import { IconifyIcon } from '@vben/icons';
 import {
   Alert,
   Button,
-  message,
   Select as ASelect,
   Tag as ATag,
 } from 'ant-design-vue';
@@ -40,6 +39,7 @@ import {
   parseStarterQuestionsInput,
 } from '#/utils/ai-starter-questions';
 import { getSkillTypeColor } from '#/utils/ai-helpers';
+import { showRequestError } from '#/utils/error-helpers';
 
 import { getFormDefaults, useFormSchema } from '../data';
 
@@ -148,7 +148,7 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } =
           await batchBindAIAgentSkillsApi(agentId, payload);
         } catch (error) {
           console.error('[AdminAgentForm] batchBind skills', error);
-          message.error($t('common.saveFailed'));
+          showRequestError(error, 'common.saveFailed');
         }
       }
       emits('success');
@@ -163,7 +163,7 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } =
         skillDrafts.value = grantsToDrafts(grants);
       } catch (error) {
         console.error('[AdminAgentForm] load agent skills', error);
-        message.error($t('common.loadFailed'));
+        showRequestError(error, 'common.loadFailed');
         skillDrafts.value = [];
       }
       return agent;

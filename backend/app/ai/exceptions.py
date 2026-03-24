@@ -281,7 +281,7 @@ def convert_openai_error(
                 **kwargs,
             )
         return ProviderError(
-            message=str(error),
+            message=_("ai.request_failed"),
             error_code=getattr(error, "code", None),
             **kwargs,
         )
@@ -296,14 +296,14 @@ def convert_openai_error(
                 **kwargs,
             )
         return ProviderError(
-            message=str(error),
+            message=_("ai.request_failed"),
             error_code=str(status),
             **kwargs,
         )
 
     # Fallback: wrap unknown exception as ProviderError / 兜底：未知异常包装为 ProviderError
     return ProviderError(
-        message=str(error),
+        message=_("ai.request_failed"),
         **kwargs,
     )
 

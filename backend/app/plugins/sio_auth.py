@@ -14,10 +14,11 @@ import uuid
 from typing import Any
 
 import socketio
+from socketio.exceptions import ConnectionRefusedError as SocketConnectionRefusedError
 
 from app.core.logging import LogManager
 from app.core.response import build_error_event, build_exception_debug
-from app.middleware.trace import trace_id_var
+from app.middleware.trace import extract_optional_trace_id, normalize_trace_id, trace_id_var
 from app.sio.error_utils import socket_connect_refusal
 
 logger = LogManager.get_logger("plugin.sio")
@@ -35,11 +36,7 @@ def _extract_trace_id(payload: dict[str, Any] | None = None) -> str | None:
     """Extract a safe trace id from plugin Socket.IO payload / 从插件 Socket.IO 载荷提取安全 trace id。"""
     if not isinstance(payload, dict):
         return None
-    trace_id = payload.get("trace_id")
-    if trace_id is None:
-        return None
-    value = str(trace_id).strip()
-    return value[:128] if value else None
+    return extract_optional_trace_id(payload.get("trace_id"))
 
 
 class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
@@ -99,7 +96,7 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
         6. Save session, join rooms / 保存 session，加入 rooms
         7. Delegate to plugin handler's on_connect (if any) / 委托给插件 handler
         """
-        trace_id = _extract_trace_id(auth) or str(uuid.uuid4())
+        trace_id = normalize_trace_id(_extract_trace_id(auth), default=str(uuid.uuid4()))
         trace_id_var.set(trace_id)
         try:
             # 1. WS master switch / WS 总开关
@@ -260,7 +257,7 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
             # / 委托给插件 handler
             if hasattr(self._delegate, "on_connect"):
                 await self._delegate.on_connect(sid, environ, auth)
-        except ConnectionRefusedError:
+        except SocketConnectionRefusedError:
             raise
         except Exception as exc:
             logger.error(
@@ -281,7 +278,9 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
         if not session:
             with contextlib.suppress(Exception):
                 session = await self.get_session(sid)
-        trace_id_var.set((session or {}).get("trace_id") or str(uuid.uuid4()))
+        trace_id_var.set(
+            normalize_trace_id((session or {}).get("trace_id"), default=str(uuid.uuid4()))
+        )
         try:
             if session:
                 user_id = session.get("user_id")
@@ -335,7 +334,7 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
             with contextlib.suppress(Exception):
                 session = await self.get_session(sid)
 
-        trace_id = (
+        trace_id = normalize_trace_id(
             _extract_trace_id(payload)
             or (session or {}).get("trace_id")
             or str(uuid.uuid4())

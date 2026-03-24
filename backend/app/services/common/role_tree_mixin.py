@@ -16,10 +16,10 @@ if TYPE_CHECKING:
     from app.models.auth.permission import Permission
     from app.models.auth.tenant_admin_role import TenantAdminRole
 
-# 角色类型变量
+# 角色类型变量 / Role type variable
 RoleType = TypeVar("RoleType", bound="AdminRole | TenantAdminRole")
 
-# 最大层级深度限制
+# 最大层级深度限制 / Max hierarchy depth
 MAX_ROLE_DEPTH = 10
 
 
@@ -42,7 +42,7 @@ class RoleTreeMixin(Generic[RoleType]):
     repo: Any  # RoleRepository 实例
     db: Any    # AsyncSession 实例
 
-    # ========== 树形结构查询 ==========
+    # ========== 树形结构查询 / Tree queries ==========
 
     async def get_tree(
         self,
@@ -57,13 +57,13 @@ class RoleTreeMixin(Generic[RoleType]):
         Returns:
             树形结构列表，每个节点包含 children 字段
         """
-        # 获取所有角色（平铺）
+        # 获取所有角色（平铺） / Load flat role list
         if parent_id is None:
             roles = await self.repo.get_tree()
         else:
             roles = await self.repo.get_tree(parent_id=parent_id)
 
-        # 构建树形结构
+        # 构建树形结构 / Build nested children
         return self._build_tree_structure(roles)
 
     def _build_tree_structure(
@@ -82,22 +82,22 @@ class RoleTreeMixin(Generic[RoleType]):
         if not roles:
             return []
 
-        # 建立 id -> role 的映射
+        # 建立 id -> role 的映射 / Index by id
         role_map: dict[int, dict[str, Any]] = {}
         for role in roles:
             role_dict = self._role_to_dict(role)
             role_dict["children"] = []
             role_map[role.id] = role_dict
 
-        # 构建父子关系
+        # 构建父子关系 / Link parent → children
         tree: list[dict[str, Any]] = []
         for role in roles:
             role_dict = role_map[role.id]
             if role.parent_id is None or role.parent_id not in role_map:
-                # 顶级节点
+                # 顶级节点 / Root node
                 tree.append(role_dict)
             else:
-                # 子节点
+                # 子节点 / Child node
                 parent_dict = role_map[role.parent_id]
                 parent_dict["children"].append(role_dict)
 
@@ -167,7 +167,7 @@ class RoleTreeMixin(Generic[RoleType]):
         """
         return await self.repo.get_descendants(role_id)
 
-    # ========== 节点移动 ==========
+    # ========== 节点移动 / Move node ==========
 
     async def move_node(
         self,
@@ -188,23 +188,23 @@ class RoleTreeMixin(Generic[RoleType]):
             NotFoundException: 角色不存在
             BusinessException: 循环引用或深度超限
         """
-        # 获取要移动的角色
+        # 获取要移动的角色 / Load role to move
         role = await self.repo.get_by_id(role_id)
         if not role:
             raise NotFoundException(message=_("role.not_found"))
 
-        # 不能将自己设为父角色
+        # 不能将自己设为父角色 / Cannot parent self
         if new_parent_id == role_id:
             raise BusinessException(
                 message=_("role.cannot_set_self_as_parent"),
                 code=ErrorCode.ROLE_CANNOT_SET_SELF_AS_PARENT,
             )
 
-        # 如果新父级与当前父级相同，无需操作
+        # 如果新父级与当前父级相同，无需操作 / No-op if parent unchanged
         if role.parent_id == new_parent_id:
             return role
 
-        # 获取新父角色信息
+        # 获取新父角色信息 / Resolve new parent
         new_parent = None
         new_parent_path = ""
         new_parent_level = 0
@@ -217,7 +217,7 @@ class RoleTreeMixin(Generic[RoleType]):
             new_parent_path = new_parent.path or f"/{new_parent_id}/"
             new_parent_level = new_parent.level or 1
 
-            # 检测循环引用：新父角色不能是当前角色的后代
+            # 检测循环引用：新父角色不能是当前角色的后代 / Prevent cycle: parent not under self
             descendant_ids = await self.repo.get_descendant_ids(role_id)
             if new_parent_id in descendant_ids:
                 raise BusinessException(
@@ -225,11 +225,11 @@ class RoleTreeMixin(Generic[RoleType]):
                     code=ErrorCode.ROLE_CIRCULAR_REFERENCE,
                 )
 
-        # 计算新的层级深度
+        # 计算新的层级深度 / New depth from parent
         new_level = self._calculate_level(new_parent_level)
 
-        # 检查深度限制
-        # 需要考虑该角色下的子树深度
+        # 检查深度限制 / Enforce max depth (include subtree)
+        # 需要考虑该角色下的子树深度 / Account for descendants under this role
         max_descendant_depth = await self._get_max_descendant_depth(role_id)
         total_depth = new_level + max_descendant_depth
         if total_depth > MAX_ROLE_DEPTH:
@@ -238,10 +238,10 @@ class RoleTreeMixin(Generic[RoleType]):
                 code=ErrorCode.ROLE_MAX_DEPTH_EXCEEDED,
             )
 
-        # 计算新 path
+        # 计算新 path / New materialized path
         new_path = self._build_path(new_parent_path if new_parent_id else None, role_id)
 
-        # 更新当前角色
+        # 更新当前角色 / Persist moved node
         old_path = role.path or f"/{role_id}/"
 
         await self.repo.update(role_id, {
@@ -250,10 +250,10 @@ class RoleTreeMixin(Generic[RoleType]):
             "level": new_level,
         })
 
-        # 更新所有后代的 path 和 level
+        # 更新所有后代的 path 和 level / Fix descendants after move
         await self._update_descendants_path(role_id, old_path, new_path, new_level)
 
-        # 刷新并返回更新后的角色
+        # 刷新并返回更新后的角色 / Reload role
         return await self.repo.get_by_id(role_id)
 
     async def _get_max_descendant_depth(self, role_id: int) -> int:
@@ -300,10 +300,10 @@ class RoleTreeMixin(Generic[RoleType]):
         descendants = await self.repo.get_descendants(role_id)
 
         for desc in descendants:
-            # 计算新 path: 替换前缀
+            # 计算新 path: 替换前缀 / Rewrite path prefix
             desc_new_path = desc.path.replace(old_path, new_path, 1) if desc.path else None
 
-            # 计算新 level: 基于深度差
+            # 计算新 level: 基于深度差 / Shift level by delta
             level_diff = new_level - (await self.repo.get_by_id(role_id)).level
             desc_new_level = (desc.level or 1) + level_diff
 
@@ -312,7 +312,7 @@ class RoleTreeMixin(Generic[RoleType]):
                 "level": desc_new_level,
             })
 
-    # ========== 权限继承 ==========
+    # ========== 权限继承 / Permission inheritance ==========
 
     async def get_effective_permissions(self, role_id: int) -> list["Permission"]:
         """
@@ -326,7 +326,7 @@ class RoleTreeMixin(Generic[RoleType]):
         Returns:
             有效权限列表（去重）
         """
-        # 获取当前角色
+        # 获取当前角色 / Load role
         role = await self.repo.get_by_id(role_id)
         if not role:
             raise NotFoundException(message=_("role.not_found"))
@@ -335,12 +335,12 @@ class RoleTreeMixin(Generic[RoleType]):
         permission_ids: set[int] = set()
         permissions_map: dict[int, Permission] = {}
 
-        # 自身权限
+        # 自身权限 / Direct grants
         for perm in role.permissions:
             permission_ids.add(perm.id)
             permissions_map[perm.id] = perm
 
-        # 祖先权限
+        # 祖先权限 / Inherited from ancestors
         ancestors = await self.repo.get_ancestors(role_id)
         for ancestor in ancestors:
             for perm in ancestor.permissions:
@@ -386,7 +386,7 @@ class RoleTreeMixin(Generic[RoleType]):
         effective_permissions = await self.get_effective_permissions(role_id)
         return any(p.code == permission_code for p in effective_permissions)
 
-    # ========== 辅助方法 ==========
+    # ========== 辅助方法 / Helpers ==========
 
     def _build_path(self, parent_path: str | None, role_id: int) -> str:
         """
@@ -435,7 +435,7 @@ class RoleTreeMixin(Generic[RoleType]):
         if parent_id is None:
             return None, 0
 
-        # 不能将自己设为父角色
+        # 不能将自己设为父角色 / Cannot parent self (create/update guard)
         if exclude_id and parent_id == exclude_id:
             raise BusinessException(
                 message=_("role.cannot_set_self_as_parent"),
@@ -446,7 +446,7 @@ class RoleTreeMixin(Generic[RoleType]):
         if not parent:
             raise NotFoundException(message=_("role.parent_not_found"))
 
-        # 如果是更新操作，检查循环引用
+        # 如果是更新操作，检查循环引用 / On update, block cycles via parent
         if exclude_id:
             descendant_ids = await self.repo.get_descendant_ids(exclude_id)
             if parent_id in descendant_ids:

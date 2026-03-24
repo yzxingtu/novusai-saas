@@ -3,6 +3,12 @@ import { computed, onMounted, ref } from 'vue';
 
 import { listTenantArtifactsApi } from '../../../api/tenant';
 import type { TenantArtifactSummary } from '../../../types/tenant';
+import {
+  TENANT_WORKFLOW_AI_CONVERSATION_SCOPE,
+  buildPrompt,
+  openWorkflowAIPanel,
+  useWorkflowPageAI,
+} from '../../../shared/ai';
 import ConsoleShell from '../shared/ConsoleShell.vue';
 import EmptyState from '../shared/EmptyState.vue';
 import StatusPill from '../shared/StatusPill.vue';
@@ -11,6 +17,8 @@ import { useTenantOrchestration } from '../shared/use-tenant-orchestration';
 defineOptions({
   name: 'WorkflowOrchestrationTenantArtifactList',
 });
+
+const TENANT_ARTIFACT_LIST_PAGE_KEY = 'tenant.workflow_orchestration.artifacts';
 
 const {
   formatBytes,
@@ -54,6 +62,22 @@ const totalPages = computed(() => {
   return Math.max(1, Math.ceil(total.value / size.value));
 });
 
+function openAIPlanner(seed?: string): void {
+  openWorkflowAIPanel({
+    conversationScope: TENANT_WORKFLOW_AI_CONVERSATION_SCOPE,
+    message: buildPrompt([
+      t('plugin.workflow-orchestration.tenant.artifact.ai.systemLead'),
+      seed?.trim()
+        ? t('plugin.workflow-orchestration.tenant.artifact.ai.userIdea', {
+            idea: seed.trim(),
+          })
+        : t('plugin.workflow-orchestration.tenant.artifact.ai.emptyIdea'),
+      t('plugin.workflow-orchestration.tenant.artifact.ai.outputContract'),
+    ]),
+    pageKey: TENANT_ARTIFACT_LIST_PAGE_KEY,
+  });
+}
+
 async function loadArtifacts(): Promise<void> {
   loading.value = true;
   errorMessage.value = '';
@@ -73,7 +97,7 @@ async function loadArtifacts(): Promise<void> {
     errorMessage.value =
       error instanceof Error
         ? error.message
-        : t('plugin.workflowOrchestration.tenant.common.messages.loadFailed');
+        : t('plugin.workflow-orchestration.tenant.common.messages.loadFailed');
   } finally {
     loading.value = false;
   }
@@ -95,49 +119,166 @@ function resetFilters(): void {
 onMounted(() => {
   void loadArtifacts();
 });
+
+useWorkflowPageAI({
+  conversationScope: TENANT_WORKFLOW_AI_CONVERSATION_SCOPE,
+  pageKey: TENANT_ARTIFACT_LIST_PAGE_KEY,
+  buildContext: () => ({
+    entityDescription: t(
+      'plugin.workflow-orchestration.tenant.artifact.ai.pageDescription',
+    ),
+    entityTitle: t('plugin.workflow-orchestration.tenant.artifact.listTitle'),
+    entityType: 'workflow_orchestration_tenant_artifact_list',
+    pageData: {
+      active_status_filter: selectedStatus.value || null,
+      active_type_filter: selectedType.value || null,
+      keyword: keyword.value,
+      total_items: total.value,
+      visible_artifacts: artifacts.value.slice(0, 6).map((artifact) => ({
+        id: artifact.id,
+        title: artifact.title,
+        status: artifact.status ?? null,
+        type: artifact.type ?? null,
+        workflow_name: artifact.workflowName ?? null,
+      })),
+    },
+    pageTitle: t('plugin.workflow-orchestration.tenant.artifact.listTitle'),
+  }),
+  operations: [
+    {
+      name: 'open_tenant_run_center',
+      label: t('plugin.workflow-orchestration.tenant.artifact.ai.operations.openRuns.label'),
+      description: t(
+        'plugin.workflow-orchestration.tenant.artifact.ai.operations.openRuns.description',
+      ),
+      readonly: true,
+      handler: async () => {
+        navigateTo('runs');
+        return {
+          success: true,
+          message: t(
+            'plugin.workflow-orchestration.tenant.artifact.ai.operations.openRuns.success',
+          ),
+        };
+      },
+    },
+    {
+      name: 'open_tenant_workflow_center_from_artifacts',
+      label: t(
+        'plugin.workflow-orchestration.tenant.artifact.ai.operations.openWorkflows.label',
+      ),
+      description: t(
+        'plugin.workflow-orchestration.tenant.artifact.ai.operations.openWorkflows.description',
+      ),
+      readonly: true,
+      handler: async () => {
+        navigateTo('workflows');
+        return {
+          success: true,
+          message: t(
+            'plugin.workflow-orchestration.tenant.artifact.ai.operations.openWorkflows.success',
+          ),
+        };
+      },
+    },
+    {
+      name: 'open_tenant_artifact_ai_assistant',
+      label: t(
+        'plugin.workflow-orchestration.tenant.artifact.ai.operations.openAI.label',
+      ),
+      description: t(
+        'plugin.workflow-orchestration.tenant.artifact.ai.operations.openAI.description',
+      ),
+      readonly: true,
+      params: {
+        idea: {
+          description: t(
+            'plugin.workflow-orchestration.tenant.artifact.ai.operations.openAI.ideaDescription',
+          ),
+          required: false,
+          type: 'string',
+        },
+      },
+      handler: async (params: Record<string, unknown>) => {
+        openAIPlanner(typeof params.idea === 'string' ? params.idea : undefined);
+        return {
+          success: true,
+          message: t(
+            'plugin.workflow-orchestration.tenant.artifact.ai.operations.openAI.success',
+          ),
+        };
+      },
+    },
+    {
+      name: 'refresh_tenant_artifact_center',
+      label: t(
+        'plugin.workflow-orchestration.tenant.artifact.ai.operations.refresh.label',
+      ),
+      description: t(
+        'plugin.workflow-orchestration.tenant.artifact.ai.operations.refresh.description',
+      ),
+      readonly: true,
+      handler: async () => {
+        await loadArtifacts();
+        return {
+          success: true,
+          message: t(
+            'plugin.workflow-orchestration.tenant.artifact.ai.operations.refresh.success',
+          ),
+        };
+      },
+    },
+  ],
+});
 </script>
 
 <template>
   <ConsoleShell
-    :description="t('plugin.workflowOrchestration.tenant.artifact.listDescription')"
-    :eyebrow="t('plugin.workflowOrchestration.tenant.artifact.eyebrow')"
-    :title="t('plugin.workflowOrchestration.tenant.artifact.listTitle')"
+    :description="t('plugin.workflow-orchestration.tenant.artifact.listDescription')"
+    :eyebrow="t('plugin.workflow-orchestration.tenant.artifact.eyebrow')"
+    :title="t('plugin.workflow-orchestration.tenant.artifact.listTitle')"
   >
     <template #actions>
       <button
         class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
         @click="navigateTo('runs')"
       >
-        {{ t('plugin.workflowOrchestration.tenant.common.actions.openRuns') }}
+        {{ t('plugin.workflow-orchestration.tenant.common.actions.openRuns') }}
+      </button>
+      <button
+        class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-sky-200 hover:text-sky-700"
+        @click="openAIPlanner()"
+      >
+        {{ t('plugin.workflow-orchestration.tenant.artifact.actions.askAI') }}
       </button>
       <button
         class="inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
         @click="navigateTo('workflows')"
       >
-        {{ t('plugin.workflowOrchestration.tenant.common.actions.openWorkflows') }}
+        {{ t('plugin.workflow-orchestration.tenant.common.actions.openWorkflows') }}
       </button>
     </template>
 
     <section class="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-sm">
       <div class="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_repeat(3,minmax(0,0.5fr))]">
         <label class="space-y-2 text-sm text-slate-600">
-          <span>{{ t('plugin.workflowOrchestration.tenant.artifact.filters.keyword') }}</span>
+          <span>{{ t('plugin.workflow-orchestration.tenant.artifact.filters.keyword') }}</span>
           <input
             v-model="keyword"
             class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
-            :placeholder="t('plugin.workflowOrchestration.tenant.artifact.placeholders.keyword')"
+            :placeholder="t('plugin.workflow-orchestration.tenant.artifact.placeholders.keyword')"
             @keyup.enter="applyFilters"
           />
         </label>
 
         <label class="space-y-2 text-sm text-slate-600">
-          <span>{{ t('plugin.workflowOrchestration.tenant.artifact.filters.status') }}</span>
+          <span>{{ t('plugin.workflow-orchestration.tenant.artifact.filters.status') }}</span>
           <select
             v-model="selectedStatus"
             class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
           >
             <option value="">
-              {{ t('plugin.workflowOrchestration.tenant.common.filters.allStatus') }}
+              {{ t('plugin.workflow-orchestration.tenant.common.filters.allStatus') }}
             </option>
             <option
               v-for="status in statusOptions"
@@ -150,13 +291,13 @@ onMounted(() => {
         </label>
 
         <label class="space-y-2 text-sm text-slate-600">
-          <span>{{ t('plugin.workflowOrchestration.tenant.artifact.filters.type') }}</span>
+          <span>{{ t('plugin.workflow-orchestration.tenant.artifact.filters.type') }}</span>
           <select
             v-model="selectedType"
             class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
           >
             <option value="">
-              {{ t('plugin.workflowOrchestration.tenant.common.filters.allArtifactTypes') }}
+              {{ t('plugin.workflow-orchestration.tenant.common.filters.allArtifactTypes') }}
             </option>
             <option
               v-for="type in typeOptions"
@@ -173,13 +314,13 @@ onMounted(() => {
             class="inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
             @click="applyFilters"
           >
-            {{ t('plugin.workflowOrchestration.tenant.common.actions.applyFilters') }}
+            {{ t('plugin.workflow-orchestration.tenant.common.actions.applyFilters') }}
           </button>
           <button
             class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
             @click="resetFilters"
           >
-            {{ t('plugin.workflowOrchestration.tenant.common.actions.resetFilters') }}
+            {{ t('plugin.workflow-orchestration.tenant.common.actions.resetFilters') }}
           </button>
         </div>
       </div>
@@ -216,7 +357,7 @@ onMounted(() => {
         <div class="flex items-start justify-between gap-4">
           <div class="space-y-2">
             <h2 class="text-lg font-semibold text-slate-900">
-              {{ artifact.title || t('plugin.workflowOrchestration.tenant.artifact.untitled') }}
+              {{ artifact.title || t('plugin.workflow-orchestration.tenant.artifact.untitled') }}
             </h2>
             <div class="flex flex-wrap items-center gap-2">
               <StatusPill
@@ -233,7 +374,7 @@ onMounted(() => {
             class="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
             @click="navigateTo(`artifacts/${artifact.id}`)"
           >
-            {{ t('plugin.workflowOrchestration.tenant.common.actions.openDetail') }}
+            {{ t('plugin.workflow-orchestration.tenant.common.actions.openDetail') }}
           </button>
         </div>
 
@@ -247,29 +388,29 @@ onMounted(() => {
           v-else
           class="text-sm leading-6 text-slate-500"
         >
-          {{ t('plugin.workflowOrchestration.tenant.artifact.empty.previewDescription') }}
+          {{ t('plugin.workflow-orchestration.tenant.artifact.empty.previewDescription') }}
         </p>
 
         <dl class="grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
           <div class="rounded-2xl bg-slate-50 px-4 py-3">
             <dt class="text-xs uppercase tracking-wide text-slate-400">
-              {{ t('plugin.workflowOrchestration.tenant.artifact.fields.workflowName') }}
+              {{ t('plugin.workflow-orchestration.tenant.artifact.fields.workflowName') }}
             </dt>
             <dd class="mt-1 font-medium text-slate-900">
-              {{ artifact.workflowName || t('plugin.workflowOrchestration.tenant.common.placeholders.empty') }}
+              {{ artifact.workflowName || t('plugin.workflow-orchestration.tenant.common.placeholders.empty') }}
             </dd>
           </div>
           <div class="rounded-2xl bg-slate-50 px-4 py-3">
             <dt class="text-xs uppercase tracking-wide text-slate-400">
-              {{ t('plugin.workflowOrchestration.tenant.artifact.fields.sourceVersion') }}
+              {{ t('plugin.workflow-orchestration.tenant.artifact.fields.sourceVersion') }}
             </dt>
             <dd class="mt-1 font-medium text-slate-900">
-              {{ artifact.sourceVersion || t('plugin.workflowOrchestration.tenant.common.placeholders.empty') }}
+              {{ artifact.sourceVersion || t('plugin.workflow-orchestration.tenant.common.placeholders.empty') }}
             </dd>
           </div>
           <div class="rounded-2xl bg-slate-50 px-4 py-3">
             <dt class="text-xs uppercase tracking-wide text-slate-400">
-              {{ t('plugin.workflowOrchestration.tenant.artifact.fields.sizeBytes') }}
+              {{ t('plugin.workflow-orchestration.tenant.artifact.fields.sizeBytes') }}
             </dt>
             <dd class="mt-1 font-medium text-slate-900">
               {{ formatBytes(artifact.sizeBytes) }}
@@ -277,7 +418,7 @@ onMounted(() => {
           </div>
           <div class="rounded-2xl bg-slate-50 px-4 py-3">
             <dt class="text-xs uppercase tracking-wide text-slate-400">
-              {{ t('plugin.workflowOrchestration.tenant.artifact.fields.updatedAt') }}
+              {{ t('plugin.workflow-orchestration.tenant.artifact.fields.updatedAt') }}
             </dt>
             <dd class="mt-1 font-medium text-slate-900">
               {{ formatRelativeTime(artifact.updatedAt) }}
@@ -291,14 +432,14 @@ onMounted(() => {
             class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
             @click="navigateTo(`workflows/${artifact.workflowId}`)"
           >
-            {{ t('plugin.workflowOrchestration.tenant.common.actions.viewWorkflow') }}
+            {{ t('plugin.workflow-orchestration.tenant.common.actions.viewWorkflow') }}
           </button>
           <button
             v-if="artifact.runId"
             class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
             @click="navigateTo(`runs/${artifact.runId}`)"
           >
-            {{ t('plugin.workflowOrchestration.tenant.common.actions.viewRun') }}
+            {{ t('plugin.workflow-orchestration.tenant.common.actions.viewRun') }}
           </button>
         </div>
       </article>
@@ -306,14 +447,26 @@ onMounted(() => {
 
     <EmptyState
       v-else
-      :description="t('plugin.workflowOrchestration.tenant.artifact.empty.description')"
-      :title="t('plugin.workflowOrchestration.tenant.artifact.empty.title')"
+      :description="t('plugin.workflow-orchestration.tenant.artifact.empty.description')"
+      :title="t('plugin.workflow-orchestration.tenant.artifact.empty.title')"
     >
+      <button
+        class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+        @click="navigateTo('workflows')"
+      >
+        {{ t('plugin.workflow-orchestration.tenant.common.actions.openWorkflows') }}
+      </button>
       <button
         class="inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
         @click="navigateTo('runs')"
       >
-        {{ t('plugin.workflowOrchestration.tenant.common.actions.openRuns') }}
+        {{ t('plugin.workflow-orchestration.tenant.common.actions.openRuns') }}
+      </button>
+      <button
+        class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-sky-200 hover:text-sky-700"
+        @click="openAIPlanner()"
+      >
+        {{ t('plugin.workflow-orchestration.tenant.artifact.actions.askAI') }}
       </button>
     </EmptyState>
 
@@ -323,7 +476,7 @@ onMounted(() => {
     >
       <p class="text-sm text-slate-500">
         {{
-          t('plugin.workflowOrchestration.tenant.common.pagination.summary', {
+          t('plugin.workflow-orchestration.tenant.common.pagination.summary', {
             page,
             total,
             totalPages,
@@ -339,7 +492,7 @@ onMounted(() => {
             void loadArtifacts();
           "
         >
-          {{ t('plugin.workflowOrchestration.tenant.common.actions.previousPage') }}
+          {{ t('plugin.workflow-orchestration.tenant.common.actions.previousPage') }}
         </button>
         <button
           class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
@@ -349,7 +502,7 @@ onMounted(() => {
             void loadArtifacts();
           "
         >
-          {{ t('plugin.workflowOrchestration.tenant.common.actions.nextPage') }}
+          {{ t('plugin.workflow-orchestration.tenant.common.actions.nextPage') }}
         </button>
       </div>
     </section>

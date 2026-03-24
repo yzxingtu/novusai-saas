@@ -17,25 +17,32 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import json
 import re
 from collections.abc import Callable
 from functools import lru_cache
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
+from starlette.responses import Response as StarletteResponse
 
 from app.core.config import settings
 from app.core.deps import ActiveAdmin, ActiveTenantAdmin, DbSession
 from app.core.i18n import _
 from app.core.logging import get_logger
-from app.core.response import build_exception_debug, error, success
+from app.core.response import (
+    build_exception_debug,
+    error,
+    resolve_public_error_message,
+    success,
+)
 from app.core.security import (
     TOKEN_SCOPE_ADMIN,
     TOKEN_SCOPE_TENANT_ADMIN,
 )
-from app.middleware.trace import trace_id_var
+from app.middleware.trace import normalize_trace_id, trace_id_var
 from app.exceptions.base import AppException
 from app.plugins.module_loader import load_plugin_handler
 from app.plugins.runtime_gate import evaluate_plugin_runtime_gate
@@ -49,6 +56,101 @@ logger = get_logger(__name__)
 plugin_api_router = APIRouter(tags=["插件 API"])
 plugin_tenant_api_router = APIRouter(tags=["插件 API (企业)"])
 plugin_public_api_router = APIRouter(tags=["插件 API (公开)"])
+_SAFE_PLUGIN_ERROR_CODES = {4001, 4010, 4030, 4031, 4040}
+
+
+def _default_plugin_error_code(status_code: int) -> int:
+    return {
+        400: 4001,
+        401: 4010,
+        403: 4030,
+        404: 4040,
+        409: 4090,
+        422: 4220,
+        429: 4290,
+        502: 5020,
+        503: 5030,
+    }.get(status_code, 5000 if status_code >= 500 else 4220)
+
+
+def _default_plugin_status_code(code: int) -> int:
+    return {
+        4001: 400,
+        4010: 401,
+        4030: 403,
+        4031: 403,
+        4040: 404,
+        4090: 409,
+        4220: 422,
+        4221: 422,
+        4290: 429,
+        5000: 500,
+        5001: 500,
+        5020: 502,
+        5030: 503,
+    }.get(code, 500 if code >= 5000 else 422)
+
+
+def _normalize_plugin_error_code(code: Any, status_code: int) -> int:
+    try:
+        return int(code)
+    except (TypeError, ValueError):
+        return _default_plugin_error_code(status_code)
+
+
+def _resolve_plugin_error_message(
+    error_message: str | None,
+    *,
+    code: int,
+    status_code: int,
+) -> str:
+    raw_message = str(error_message or "").strip()
+    if code >= 5000 or status_code >= 500:
+        return resolve_public_error_message(
+            raw_message,
+            fallback_message=_("common.server_error"),
+        )
+    if code not in _SAFE_PLUGIN_ERROR_CODES:
+        return resolve_public_error_message(
+            raw_message,
+            fallback_message=_("common.invalid_request"),
+        )
+    return raw_message or _("common.invalid_request")
+
+
+def _extract_json_response_payload(response: StarletteResponse) -> dict[str, Any] | None:
+    content_type = response.headers.get("content-type", "")
+    body = getattr(response, "body", None)
+    if not body or "json" not in content_type.lower():
+        return None
+    try:
+        payload = json.loads(body)
+    except (TypeError, ValueError, UnicodeDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _raise_plugin_response_error(response: StarletteResponse) -> None:
+    status_code = int(getattr(response, "status_code", 500) or 500)
+    payload = _extract_json_response_payload(response) or {}
+    code = _normalize_plugin_error_code(payload.get("code"), status_code)
+    data = payload.get("data")
+    extra = {
+        key: value
+        for key, value in payload.items()
+        if key not in {"code", "message", "data", "trace_id", "debug", "error"}
+    }
+    raise AppException(
+        message=_resolve_plugin_error_message(
+            payload.get("message") or payload.get("error"),
+            code=code,
+            status_code=status_code,
+        ),
+        code=code,
+        status_code=status_code,
+        data=data,
+        extra=extra or None,
+    )
 
 
 async def _dispatch_plugin_api(
@@ -167,11 +269,11 @@ async def _dispatch_plugin_api(
         )
 
     # Create PluginContext (including RequestContext) / 创建 PluginContext（含 RequestContext）
-    request_trace_id = (
-        request.headers.get("x-trace-id", "")
-        or getattr(request.state, "trace_id", "")
+    request_trace_id = normalize_trace_id(
+        getattr(request.state, "trace_id", None)
         or trace_id_var.get()
-        or request.headers.get("x-request-id", "")
+        or request.headers.get("x-trace-id", "")
+        or request.headers.get("x-request-id", ""),
     )
     ctx = _build_plugin_context(
         plugin_name=plugin_name,
@@ -211,28 +313,29 @@ async def _dispatch_plugin_api(
 
         # Pass through directly when handler returns a Response object (JSONResponse / StreamingResponse, etc.)
         # / handler 返回 Response 对象时直接透传（JSONResponse / StreamingResponse 等）
-        from starlette.responses import Response as StarletteResponse
         if isinstance(result, StarletteResponse):
+            if int(getattr(result, "status_code", 200) or 200) >= 400:
+                _raise_plugin_response_error(result)
             return result
         # Convert to error response when handler returns dict containing 'error'
         # / handler 返回含 error 的 dict 时转为错误响应
         if isinstance(result, dict) and "error" in result:
-            code = result.get("code", 4220)
+            code = _normalize_plugin_error_code(
+                result.get("code"),
+                int(result.get("status_code") or 422),
+            )
             status_code = result.get("status_code")
             if status_code is None:
-                status_code = {
-                    4001: 400,
-                    4010: 401,
-                    4030: 403,
-                    4031: 403,
-                    4040: 404,
-                    5000: 500,
-                    5001: 500,
-                }.get(code, 422)
+                status_code = _default_plugin_status_code(code)
+            error_message = _resolve_plugin_error_message(
+                str(result["error"]),
+                code=code,
+                status_code=int(status_code),
+            )
             # Raise exception to ensure get_db triggers rollback, preventing commit after plugin write failure
             # / 以异常返回错误，确保 get_db 触发 rollback，避免插件写入后逻辑失败仍被 commit
             raise AppException(
-                message=str(result["error"]),
+                message=error_message,
                 code=code,
                 status_code=status_code,
             )

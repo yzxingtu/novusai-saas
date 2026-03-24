@@ -32,7 +32,7 @@ import { requestClient } from '#/utils/request';
 import { extractFormParams } from './use-ai-operations';
 import { formStateTracker } from './use-form-state-tracker';
 
-// ============ 字段映射工具函数 ============
+// ============ 字段映射工具函数 / field mapping helpers ============
 
 /** snake_case 转 camelCase / Convert snake_case to camelCase */
 function snakeToCamel(str: string): string {
@@ -68,7 +68,7 @@ function createTransform(
     const result: Record<string, any> = {};
     for (const field of fields) {
       const value = values[field];
-      // 空字符串转为 null
+      // 空字符串转为 null / empty string → null
       result[field] = value === '' || value === undefined ? null : value;
     }
     return result;
@@ -203,7 +203,7 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
 
   let aiPageKey = staticAiPageKey;
 
-  // 如果提供了 fields，自动生成 transform 和 toFormValues
+  // 如果提供了 fields，自动生成 transform 和 toFormValues / auto-build from fields
   const transform =
     customTransform ?? (fields ? createTransform(fields) : (v: any) => v);
   const toFormValues =
@@ -218,7 +218,7 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
 
   const isEdit = computed(() => mode.value === 'edit');
 
-  // 防抖状态
+  // 防抖状态 / submit debounce guard
   const isSubmitting = ref(false);
 
   async function doSubmit() {
@@ -272,7 +272,7 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
         return;
       }
 
-      // 从 drawerApi 获取数据
+      // 从 drawerApi 获取数据 / read drawer payload
       const data = drawerApi.getData() as
         | (T & {
             [key: string]: any;
@@ -296,24 +296,24 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
       }
       rowData.value = data as T;
 
-      // 重置表单
+      // 重置表单 / reset form
       await formApi?.resetForm();
 
-      // 执行 onOpen（如加载远程数据）
+      // 执行 onOpen（如加载远程数据）/ run onOpen hook
       await onOpen?.();
 
-      // 更新 schema
+      // 更新 schema / refresh schema
       if (schema && formApi) {
         formApi.setState({ schema: schema(isEdit.value) });
       }
       await nextTick();
 
-      // 执行 afterOpen（如更新下拉选项）
+      // 执行 afterOpen（如更新下拉选项）/ run afterOpen hook
       await afterOpen?.(formApi, isEdit.value);
 
-      // 填充表单数据
+      // 填充表单数据 / hydrate form values
       if (isEdit.value || mode.value === 'view') {
-        // 编辑或查看模式：优先调用详情 API 获取完整数据
+        // 编辑或查看模式：优先调用详情 API 获取完整数据 / fetch detail in edit/view
         let fetchedData: T | undefined = data as T;
         if (detailApi && recordId.value) {
           try {
@@ -321,7 +321,7 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
             fetchedData = await detailApi(recordId.value);
             detailData.value = fetchedData;
           } catch {
-            // 详情加载失败，回退到行数据
+            // 详情加载失败，回退到行数据 / fallback to row on detail error
             fetchedData = data as T;
           } finally {
             drawerApi.setState({ loading: false });
@@ -330,14 +330,14 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
         if (toFormValues && fetchedData && formApi) {
           formApi.setValues(toFormValues(fetchedData));
         }
-        // Apply AI overrides after API data so they take precedence
+        // Apply AI overrides after API data so they take precedence / AI 覆盖优先生效
         const editOverrides = data?._overrides;
         if (editOverrides && formApi && Object.keys(editOverrides).length > 0) {
           await nextTick();
           formApi.setValues(editOverrides);
         }
       } else {
-        // 新建模式：优先使用 _defaults（从 useCrudPage 传入），否则使用本地 defaults 配置
+        // 新建模式：优先使用 _defaults（从 useCrudPage 传入），否则使用本地 defaults 配置 / create defaults
         const defaultValues =
           data?._defaults ??
           (typeof defaults === 'function' ? defaults() : defaults);
@@ -355,7 +355,7 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
         try {
           initialValues = await formApi.getValues();
         } catch {
-          // Form may not be fully ready
+          // Form may not be fully ready / 表单可能尚未就绪
         }
         const trackableApi = {
           getValues: () => formApi.getValues() as Promise<Record<string, unknown>>,

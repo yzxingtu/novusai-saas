@@ -32,6 +32,7 @@ from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ExecutionContext, ToolDefinition, ToolResult
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.core.response import build_public_error_text
 from app.enums.agent import (
     ActionLevelEnum,
     ActionStatusEnum,
@@ -48,11 +49,11 @@ from app.services.ai.action_log_service import write_ai_action_log
 from app.services.ai.agent_service import AdminAgentService, AgentService
 
 if TYPE_CHECKING:
-    pass  # ExecutionContext already imported above
+    pass  # ExecutionContext already imported above  # 补充说明 / note
 
 logger = LogManager.get_logger("ai.tool.crud")
 
-# Only canonical ResourceScopeEnum values are accepted; no legacy aliases
+# Only canonical ResourceScopeEnum values are accepted; no legacy aliases / 上文为英文说明 / English above
 _RESOURCE_SCOPE_NORMALIZE: dict[str, str] = {
     e.value: e.value for e in ResourceScopeEnum
 }
@@ -404,7 +405,7 @@ _SYSTEM_MANAGED_COLUMNS: set[str] = {
     "tenant_id", "is_deleted", "deleted_at", "delete_level",
     "created_at", "updated_at",
 }
-# Columns never required from user (auto-generated or always injected)
+# Columns never required from user (auto-generated or always injected) / 上文为英文说明 / English above
 _CREATE_SKIP_REQUIRED: frozenset[str] = frozenset({
     "id", "created_at", "updated_at", "tenant_id", "is_deleted", "deleted_at",
 })
@@ -504,7 +505,7 @@ async def _audit_log(
         logger.warning("Failed to write audit log: {}", str(exc))
 
 
-# ============================================
+# ============================================ / 上文为英文说明 / English above
 # CreateRecordExecutor
 # ============================================
 
@@ -625,7 +626,7 @@ class CreateRecordExecutor(BaseToolExecutor):
                 output=json.dumps(preview, ensure_ascii=False, default=str),
             )
 
-        # Agents table: use service layer instead of raw SQL
+        # Agents table: use service layer instead of raw SQL / 上文为英文说明 / English above
         if table_name == "agents":
             try:
                 async with context.db.begin_nested():
@@ -638,7 +639,12 @@ class CreateRecordExecutor(BaseToolExecutor):
                     success=False, error=str(exc),
                 )
                 return ToolResult.error_result(
-                    tool_call_id, str(exc), name=definition.name,
+                    tool_call_id,
+                    build_public_error_text(
+                        message="Create record failed",
+                        exc=exc,
+                    ),
+                    name=definition.name,
                 )
 
         # Serialize JSON values (dict/list -> JSON strings, for asyncpg binding)
@@ -686,12 +692,17 @@ class CreateRecordExecutor(BaseToolExecutor):
                     f"Missing required field '{col_name}' for table '{table_name}'. "
                     f"Please include '{col_name}' in the data parameter."
                 )
+            else:
+                error_msg = build_public_error_text(
+                    message="Create record failed",
+                    exc=exc,
+                )
             return ToolResult.error_result(
                 tool_call_id, error_msg, name=_name,
             )
 
 
-# ============================================
+# ============================================ / 上文为英文说明 / English above
 # UpdateRecordExecutor
 # ============================================
 
@@ -876,11 +887,16 @@ class UpdateRecordExecutor(BaseToolExecutor):
                 success=False, error=str(exc),
             )
             return ToolResult.error_result(
-                tool_call_id, str(exc), name=_name,
+                tool_call_id,
+                build_public_error_text(
+                    message="Update record failed",
+                    exc=exc,
+                ),
+                name=_name,
             )
 
 
-# ============================================
+# ============================================ / 上文为英文说明 / English above
 # DeleteRecordExecutor
 # ============================================
 
@@ -1040,7 +1056,12 @@ class DeleteRecordExecutor(BaseToolExecutor):
                 success=False, error=str(exc),
             )
             return ToolResult.error_result(
-                tool_call_id, str(exc), name=_name,
+                tool_call_id,
+                build_public_error_text(
+                    message="Delete record failed",
+                    exc=exc,
+                ),
+                name=_name,
             )
 
 

@@ -220,7 +220,7 @@ class ExecutionContext:
     db: AsyncSession | None = None
     consented_actions: set[str] = field(
         default_factory=set
-    )  # "read:agents", "create:agents"
+    )  # "read:agents", "create:agents" / 示例：已同意的 action 权限串
     skill_id: int | None = None
     variables: dict[str, Any] = field(default_factory=dict)
     page_session_id: str | None = None

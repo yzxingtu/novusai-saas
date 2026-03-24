@@ -8,6 +8,7 @@ import { Input, message, Modal } from 'ant-design-vue';
 
 import { updateTenantAdminApi } from '#/api/admin/tenant';
 import { $t } from '#/locales';
+import { showRequestError } from '#/utils/error-helpers';
 
 defineOptions({ name: 'TenantAdminResetPwdModal' });
 
@@ -47,8 +48,8 @@ async function handleSubmit() {
     });
     message.success($t('admin.tenant.messages.resetPasswordSuccess'));
     visible.value = false;
-  } catch {
-    message.error($t('common.requestFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.requestFailed');
   } finally {
     loading.value = false;
   }

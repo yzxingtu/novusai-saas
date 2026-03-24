@@ -10,7 +10,7 @@ interface LintCommandOptions {
 }
 
 async function runLint({ format }: LintCommandOptions) {
-  // process.env.FORCE_COLOR = '3';
+  // process.env.FORCE_COLOR = '3'; / 可选：强制彩色（已注释）
 
   if (format) {
     await execaCommand(`stylelint "**/*.{vue,css,less,scss}" --cache --fix`, {

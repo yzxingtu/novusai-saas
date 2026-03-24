@@ -3,7 +3,8 @@
 > 用户端是面向 C 端业务用户的前端 + 后端体系，与 admin/tenant 端有显著架构差异。本文档覆盖 UserLayout、认证流程、RBAC、响应式设计等用户端专属规范。
 >
 > 现状说明：
-> - 当前前端静态主路由为 `/`、`/ai-chat`、`/settings/*`，`/home` 仅保留为兼容 alias
+> - 当前 **tenant 域名下** 的前端静态主路由为 `/`、`/agents`、`/ai-chat`、`/help`、`/settings/*`，`/home` 仅保留为兼容 alias
+> - 平台域名下的 `/` 是 `PlatformPublicHome` 公共网关，仅在 tenant 域名场景才重定向到 `UserHome`
 > - 认证页使用共享 `/auth/*` 路由
 > - 后端 `user_menus.py` 仍保留 legacy `dashboard` 资源码，用于兼容历史菜单资源；但规范路由与组件落点已对齐 `/`
 > - 新增能力时，不要继续扩散旧命名；优先以 `router/routes/user/index.ts`、`views/user/*` 为前端落点真相
@@ -64,8 +65,12 @@ frontend/apps/web-antd/src/
 │   └── user-auth.vue      ← 用户端认证布局（左品牌区 + 右表单区）
 ├── router/routes/
 │   ├── core.ts            ← `/auth/*` 共享认证路由
-│   └── user/index.ts      ← 用户端静态主路由（/、/ai-chat、/settings/*；/home 为 alias）
+│   └── user/index.ts      ← 用户端静态主路由（/、/agents、/ai-chat、/help、/settings/*；/home 为 alias）
 ├── views/user/
+│   ├── agents/
+│   │   └── index.vue
+│   ├── help/
+│   │   └── index.vue
 │   ├── home/
 │   │   └── index.vue
 │   ├── ai-chat/

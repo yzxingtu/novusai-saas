@@ -32,7 +32,7 @@ logger = LogManager.get_logger("ai.data_intelligence")
 
 @dataclass
 class SQLValidationResult:
-    """SQL validation result / SQL 校验结果"""  # 校验结果
+    """SQL validation result / SQL 校验结果"""  # 校验结果 / validation outcome
 
     passed: bool
     violations: list[str] = field(default_factory=list)
@@ -93,7 +93,7 @@ _TABLE_REF_PATTERN = re.compile(
     r"""
     (?:FROM|JOIN)\s+           # FROM 或 JOIN 关键字
     (?:ONLY\s+)?               # 可选 ONLY
-    (\w+)                      # 表名（捕获组）
+    (\w+)                      # 表名（捕获组） / table name (capture group)
     (?:                        # 可选别名（避免吞掉 JOIN/WHERE 等关键字）
       \s+
       (?!
@@ -145,7 +145,7 @@ def extract_table_names(sql: str) -> set[str]:
     return tables
 
 
-# ============================================
+# ============================================ / 上文为英文说明 / English above
 # SQLSafetyValidator
 # ============================================
 

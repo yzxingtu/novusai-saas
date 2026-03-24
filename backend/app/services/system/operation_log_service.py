@@ -20,7 +20,7 @@ from app.repositories.system.operation_log_repository import OperationLogReposit
 from app.schemas.common.query import QuerySpec
 
 
-# 日志辅助类（用于模块级函数中的日志记录）
+# 日志辅助类（用于模块级函数中的日志记录） / Log helper for module-level logging
 class _ModuleLogger(LoggerMixin):
     """operation_log_service 模块日志器 / operation_log_service module logger."""
     pass
@@ -218,7 +218,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
             end_date=end_date,
         )
 
-    # ==================== 基于权限的查询方法 ====================
+    # ==================== 基于权限的查询方法 ==================== / ==================== Permission-scoped query methods ====================
 
     async def query_admin_logs_by_permission(
         self,
@@ -239,7 +239,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
             (日志列表, 总数)
         """
         if admin.is_super:
-            # 超级管理员可查看所有平台端日志
+            # 超级管理员可查看所有平台端日志 / Super admin can view all platform logs
             return await self.repo.query_admin_logs_with_hierarchy(
                 spec=spec,
                 is_super=True,
@@ -273,7 +273,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
             (日志列表, 总数)
         """
         if tenant_admin.is_owner:
-            # 企业所有者可查看本企业所有日志
+            # 企业所有者可查看本企业所有日志 / Tenant owner can view all logs for this tenant
             return await self.repo.query_tenant_logs_with_hierarchy(
                 tenant_id=tenant_admin.tenant_id,
                 spec=spec,
@@ -449,7 +449,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
             )
         )
 
-        # 按用户类型过滤
+        # 按用户类型过滤 / Filter by user type
         if user_type:
             base_q = base_q.where(OperationLog.user_type == user_type)
 
@@ -462,12 +462,12 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
                 )
             )
 
-        # 统计总数
+        # 统计总数 / Count total
         count_subq = base_q.subquery()
         count_q = select(func.count()).select_from(count_subq)
         total = (await self.db.execute(count_q)).scalar() or 0
 
-        # 分页
+        # 分页 / Pagination
         offset = (page - 1) * page_size
         paginated_q = base_q.offset(offset).limit(page_size)
 
@@ -505,7 +505,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         from app.models.auth.admin_role import AdminRole
         from app.models.system.admin import Admin as AdminModel
 
-        # 总是包含自己
+        # 总是包含自己 / Always include self
         user_ids = [admin.id]
 
         visible_org_ids = await AdminOrgAuthorityService(self.db, admin).get_visible_org_node_ids()
@@ -544,7 +544,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
 
         from app.models.tenant.tenant_admin import TenantAdmin as TenantAdminModel
 
-        # 总是包含自己
+        # 总是包含自己 / Always include self
         user_ids = [tenant_admin.id]
 
         visible_org_ids = await TenantOrgAuthorityService(self.db, tenant_admin).get_visible_org_node_ids()
@@ -564,7 +564,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         return user_ids
 
 
-# ==================== 异步写入工具函数 ====================
+# ==================== 异步写入工具函数 ==================== / ==================== Async write helpers ====================
 
 async def _write_log_async(log_data: dict[str, Any]) -> None:
     """
@@ -594,8 +594,8 @@ async def _write_log_async(log_data: dict[str, Any]) -> None:
             await service.create_log(**log_data)
             await db.commit()
     except Exception as e:
-        # 日志写入失败不应影响主业务
-        # 记录到文件日志
+        # 日志写入失败不应影响主业务 / Log write failure must not break main flow
+        # 记录到文件日志 / Write to file log
         _module_logger.logger.error(f"Failed to write operation log: {e}")
 
 
@@ -741,12 +741,12 @@ def create_log_async(
         "trace_id": trace_id,
     }
 
-    # 获取当前事件循环并创建任务
+    # 获取当前事件循环并创建任务 / Get running event loop and schedule task
     try:
         loop = asyncio.get_running_loop()
         loop.create_task(_write_log_async(log_data))
     except RuntimeError:
-        # 如果没有运行的事件循环，同步执行（不常见）
+        # 如果没有运行的事件循环，同步执行（不常见） / If no running event loop, run synchronously (rare)
         asyncio.run(_write_log_async(log_data))
 
 

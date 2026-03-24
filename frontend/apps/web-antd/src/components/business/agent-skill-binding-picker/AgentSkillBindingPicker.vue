@@ -26,6 +26,7 @@ import { getSkillBindingSelectApi } from '#/api/admin/skills';
 import { getSkillPackageSelectApi } from '#/api/admin/skill-packages';
 import { $t } from '#/locales';
 import { getSkillTypeColor } from '#/utils/ai-helpers';
+import { getErrorMessage, showRequestError } from '#/utils/error-helpers';
 
 import {
   type AgentSkillBindingDraftItem,
@@ -219,10 +220,10 @@ async function fetchCandidates(resetPage: boolean) {
     total.value = res.total ?? 0;
   } catch (error) {
     console.error('[AgentSkillBindingPicker]', error);
-    skillsError.value = $t('common.loadFailed');
+    skillsError.value = getErrorMessage(error, 'common.loadFailed');
     candidateItems.value = [];
     total.value = 0;
-    message.error($t('common.loadFailed'));
+    message.error(skillsError.value);
   } finally {
     skillsLoading.value = false;
   }
@@ -273,7 +274,7 @@ async function loadPackages(reset: boolean) {
     packageHasMore.value = Boolean(res.has_more ?? pg * ps < t);
   } catch (error) {
     console.error('[AgentSkillBindingPicker]', error);
-    message.error($t('common.loadFailed'));
+    showRequestError(error, 'common.loadFailed');
   } finally {
     pkgLoading.value = false;
   }

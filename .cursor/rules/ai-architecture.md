@@ -34,7 +34,7 @@
 - **权限/菜单端别**：`PermissionScope`（admin/tenant/user/both），与资源作用域无关
 - `is_system=True` → 不可删除/禁用
 - 技能授权通过 `AgentSkillGrant`（Agent 直接授权 Skill），禁止使用废弃的 `tool_bindings` JSON 字段
-- `routing_config`（JSON）：多模型路由 → 详见 `references/ai-routing.md`
+- `routing_config`（JSON）：多模型路由 → 详见 [../skills/novusai-saas/references/ai-routing.md](../skills/novusai-saas/references/ai-routing.md)
 
 ## 三、Agent↔Skill 绑定规则
 
@@ -50,7 +50,7 @@
 - SkillPackage 是**归组 / 来源 / 目录**单元，不是运行时自动绑定单元
 - `SkillPackage` / `Skill` 的**目录可见性与归属**主要由 **`tenant_id`、`package_id`、Skill 的 `tenant_id`（归属列）及仓储层过滤**表达；**`ResourceScopeEnum` 只适用于带 `scope` 列的其它资源，不得直接套用到 `skill_packages` / `skills`**。**运行时是否给某个 Agent 生效，只看 `AgentSkillGrant`**
 - **前端入口**：管理端使用 `/admin/ai/skill-packages`；企业端允许只读目录 `/tenant/ai/skill-packages`，但禁止 tenant 侧 SkillPackage CRUD / valves 编辑 / 包级运行绑定
-- **7 种技能类型**：`toolkit` / `knowledge_base` / `data_intelligence` / `builtin` / `http` / `email` / `code_execution`
+- **6 种 SkillTypeEnum 技能类型**：`toolkit` / `data_intelligence` / `builtin` / `http` / `email` / `code_execution`，`knowledge_base` 类型已退役，相关功能由 `AgentKnowledgeBaseBinding` + `Agent.rag_config` 直接管理。
 - **SkillResolver** 是唯一合法的 Skill→ToolDefinition 转换器，禁止使用 `ToolRegistry`
 
 ### Toolkit 安全扫描

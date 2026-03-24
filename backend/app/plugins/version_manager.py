@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 from app.core.base_model import utc_now
 from app.core.logging import get_logger
+from app.core.response import resolve_public_error_message
 from app.enums.plugin import PluginStatusEnum, PluginVersionStatusEnum
 from app.plugins.exceptions import PluginError, PluginNotFoundError, PluginSecurityError
 from app.plugins.loader import PLUGINS_DIR
@@ -228,7 +229,10 @@ class VersionManager:
                     with contextlib.suppress(Exception):
                         await lifecycle._enable_impl(plugin_id)
             raise PluginError(
-                message=f"Upgrade failed for '{plugin_name}': {exc}",
+                message=resolve_public_error_message(
+                    exc,
+                    fallback_message=f"Upgrade failed for '{plugin_name}'",
+                ),
             )
 
     async def rollback(self, plugin_id: int, target_version: str) -> None:

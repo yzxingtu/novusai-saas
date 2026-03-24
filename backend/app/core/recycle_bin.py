@@ -9,7 +9,7 @@ Provides standardized recycle bin API endpoint registration for Controllers.
 
     class TenantAgentController(TenantController):
         def _register_routes(self) -> None:
-            # ... 其他路由 ...
+            # 省略其他路由 / omit other routes
             register_tenant_recycle_bin_routes(
                 router=self.router,
                 service_class=AgentService,
@@ -21,7 +21,7 @@ Provides standardized recycle bin API endpoint registration for Controllers.
 
     class AdminAgentController(GlobalController):
         def _register_routes(self) -> None:
-            # ... 其他路由 ...
+            # 省略其他路由 / omit other routes
             register_admin_recycle_bin_routes(
                 router=self.router,
                 service_class=AgentService,

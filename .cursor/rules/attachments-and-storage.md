@@ -178,5 +178,5 @@ Controller (UploadFile)
 
 ## 参考
 
-- `../skills/novusai-saas/references/download-spec.md`
-- `../skills/novusai-saas/references/platform-infrastructure.md`
+- [../skills/novusai-saas/references/download-spec.md](../skills/novusai-saas/references/download-spec.md)
+- [../skills/novusai-saas/references/platform-infrastructure.md](../skills/novusai-saas/references/platform-infrastructure.md)

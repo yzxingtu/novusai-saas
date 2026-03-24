@@ -71,7 +71,7 @@ _AUDIO_MIME_TO_OPENAI_FORMAT: dict[str, str] = {
 # Fetch timeout (seconds) and max size for audio URL → bytes
 # 音频 URL 拉取超时（秒）与最大字节数
 _AUDIO_FETCH_TIMEOUT_SEC: float = 30.0
-_AUDIO_MAX_BYTES: int = 25 * 1024 * 1024  # 25 MB
+_AUDIO_MAX_BYTES: int = 25 * 1024 * 1024  # 25 MB  # 补充说明 / note
 
 _RESPONSES_REASONING_SUMMARY_MODEL_PREFIXES: tuple[str, ...] = (
     "gpt-5",
@@ -572,7 +572,7 @@ class OpenAIAdapter(BaseAdapter):
                         yield ChatChunk(delta=delta)
                     continue
 
-                # Some OpenAI-compatible proxies end the text stream with this event and never send
+                # Some OpenAI-compatible proxies end the text stream with this event and never send / 上文为英文说明 / English above
                 # response.completed — align with raw SSE clients that treat the stream as done here.
                 if event_type == "response.output_text.done":
                     text = getattr(event, "text", None) or ""
@@ -987,7 +987,7 @@ class OpenAIAdapter(BaseAdapter):
         if not url or not url.strip():
             return None
         url = url.strip()
-        # data URL: data:audio/xxx;base64,<b64>
+        # data URL: data:audio/xxx;base64,<b64> / 上文为英文说明 / English above
         if url.startswith("data:audio"):
             match = re.match(r"data:audio/[^;]+;base64,(.+)", url, re.DOTALL)
             if match:

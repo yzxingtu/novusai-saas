@@ -224,7 +224,7 @@ class CodegenWorkbenchSummarySchema(BaseModel):
 
 
 # ============================================================
-# Preview / Generate / Rollback / Validation / DB Introspect
+# 预览 / 生成 / 回滚 / 校验 / DB 内省 / Preview / Generate / Rollback / Validation / DB Introspect
 # ============================================================
 
 

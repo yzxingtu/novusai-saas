@@ -50,6 +50,8 @@ def _snapshot_hash_from_context(context) -> str:
 
 class TenantWorkflow(BaseModel):
     __tablename__ = "px_workflow_orchestration_tenant_workflows"
+    __data_permission__ = True
+    __data_permission_creator_scope__ = "tenant_admin"
     __table_args__ = (
         UniqueConstraint(
             "tenant_id",
@@ -121,6 +123,10 @@ class TenantWorkflow(BaseModel):
 
 class TenantWorkflowVersion(BaseModel):
     __tablename__ = "px_workflow_orchestration_tenant_workflow_versions"
+    __data_permission__ = True
+    __data_permission_creator_scope__ = "tenant_admin"
+    __data_permission_parent_model__ = TenantWorkflow
+    __data_permission_parent_key__ = "workflow_id"
     __table_args__ = (
         UniqueConstraint(
             "workflow_id",
@@ -173,6 +179,10 @@ class TenantWorkflowVersion(BaseModel):
 
 class WorkflowRun(BaseModel):
     __tablename__ = "px_workflow_orchestration_runs"
+    __data_permission__ = True
+    __data_permission_creator_field__ = "initiated_by"
+    __data_permission_creator_scope_field__ = "started_by_type"
+    __data_permission_creator_scopes__ = ["tenant_admin", "tenant_user"]
     __table_args__ = (
         UniqueConstraint("code", name="uq_px_workflow_orchestration_runs_code"),
         Index(
@@ -276,6 +286,10 @@ class WorkflowRun(BaseModel):
 
 class WorkflowNodeRun(BaseModel):
     __tablename__ = "px_workflow_orchestration_node_runs"
+    __data_permission__ = True
+    __data_permission_creator_scope__ = "tenant_admin"
+    __data_permission_parent_model__ = WorkflowRun
+    __data_permission_parent_key__ = "run_id"
     __table_args__ = (
         UniqueConstraint(
             "run_id",
@@ -329,6 +343,10 @@ class WorkflowNodeRun(BaseModel):
 
 class WorkflowCheckpoint(BaseModel):
     __tablename__ = "px_workflow_orchestration_checkpoints"
+    __data_permission__ = True
+    __data_permission_creator_scope__ = "tenant_admin"
+    __data_permission_parent_model__ = WorkflowRun
+    __data_permission_parent_key__ = "run_id"
     __table_args__ = (
         UniqueConstraint(
             "resume_token",
@@ -371,6 +389,10 @@ class WorkflowCheckpoint(BaseModel):
 
 class WorkflowEvent(BaseModel):
     __tablename__ = "px_workflow_orchestration_events"
+    __data_permission__ = True
+    __data_permission_creator_scope__ = "tenant_admin"
+    __data_permission_parent_model__ = WorkflowRun
+    __data_permission_parent_key__ = "run_id"
     __table_args__ = (
         Index(
             "ix_px_workflow_orchestration_events_run_type",
@@ -411,6 +433,10 @@ class WorkflowEvent(BaseModel):
 
 class WorkflowArtifact(BaseModel):
     __tablename__ = "px_workflow_orchestration_artifacts"
+    __data_permission__ = True
+    __data_permission_creator_scope__ = "tenant_admin"
+    __data_permission_parent_model__ = WorkflowRun
+    __data_permission_parent_key__ = "run_id"
     __table_args__ = (
         UniqueConstraint("code", name="uq_px_workflow_orchestration_artifacts_code"),
         Index(

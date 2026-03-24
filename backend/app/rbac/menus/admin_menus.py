@@ -34,7 +34,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     # ========================================
     PermissionMeta(
         code="menu:admin.dashboard",
-        name="menu.admin.dashboard",  # i18n key
+        name="menu.admin.dashboard",  # i18n key / 国际化键名
         type=PermissionType.MENU,
         scope=PermissionScope.ADMIN,
         resource="menu",
@@ -50,7 +50,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     # ========================================
     PermissionMeta(
         code="menu:admin.system",
-        name="menu.admin.system",  # i18n key
+        name="menu.admin.system",  # i18n key / 国际化键名
         type=PermissionType.MENU,
         scope=PermissionScope.ADMIN,
         resource="menu",
@@ -69,7 +69,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     # ========================================
     PermissionMeta(
         code="menu:admin.tenant_mgmt",
-        name="menu.admin.tenant_mgmt",  # i18n key
+        name="menu.admin.tenant_mgmt",  # i18n key / 国际化键名
         type=PermissionType.MENU,
         scope=PermissionScope.ADMIN,
         resource="menu",
@@ -86,7 +86,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     # ========================================
     PermissionMeta(
         code="menu:admin.system_mgmt",
-        name="menu.admin.system_mgmt",  # i18n key
+        name="menu.admin.system_mgmt",  # i18n key / 国际化键名
         type=PermissionType.MENU,
         scope=PermissionScope.ADMIN,
         resource="menu",
@@ -102,7 +102,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     # ---- Global Preferences (leaf menu) / 偏好设置（叶子菜单） ----
     PermissionMeta(
         code="menu:admin.global_preferences",
-        name="menu.admin.global_preferences",  # i18n key
+        name="menu.admin.global_preferences",  # i18n key / 国际化键名
         type=PermissionType.MENU,
         scope=PermissionScope.ADMIN,
         resource="menu",
@@ -119,7 +119,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     # ========================================
     PermissionMeta(
         code="menu:admin.ai_mgmt",
-        name="menu.admin.ai_mgmt",  # i18n key
+        name="menu.admin.ai_mgmt",  # i18n key / 国际化键名
         type=PermissionType.MENU,
         scope=PermissionScope.ADMIN,
         resource="menu",
@@ -132,7 +132,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     # ---- Infrastructure (sub-directory) / 基础设施（子目录） ----
     PermissionMeta(
         code="menu:admin.ai_infra",
-        name="menu.admin.ai_infra",  # i18n key
+        name="menu.admin.ai_infra",  # i18n key / 国际化键名
         type=PermissionType.MENU,
         scope=PermissionScope.ADMIN,
         resource="menu",
@@ -151,7 +151,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     # ---- AI Apps (sub-directory, unified name with tenant) / 智能应用（子目录，与企业端统一名称） ----
     PermissionMeta(
         code="menu:admin.ai_app",
-        name="menu.admin.ai_app",  # i18n key
+        name="menu.admin.ai_app",  # i18n key / 国际化键名
         type=PermissionType.MENU,
         scope=PermissionScope.ADMIN,
         resource="menu",
@@ -170,7 +170,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     # ---- Data Analytics (sub-directory, unified name with tenant) / 数据分析（子目录，与企业端统一名称） ----
     PermissionMeta(
         code="menu:admin.ai_ops",
-        name="menu.admin.ai_ops",  # i18n key
+        name="menu.admin.ai_ops",  # i18n key / 国际化键名
         type=PermissionType.MENU,
         scope=PermissionScope.ADMIN,
         resource="menu",

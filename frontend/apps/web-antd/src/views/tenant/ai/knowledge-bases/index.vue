@@ -52,7 +52,7 @@ function isTenantManageableKb(row: KnowledgeBaseItem): boolean {
   return row.tenant_id !== null;
 }
 
-// ========== 声明式 CRUD ==========
+// ========== 声明式 CRUD / declarative CRUD ==========
 const {
   list,
   total,
@@ -183,7 +183,7 @@ const {
   },
 });
 
-// ========== 回收站 ==========
+// ========== 回收站 / recycle bin ==========
 const recycleBinRef = ref<null | { deletedCount: number; open: () => void }>(
   null,
 );
@@ -192,7 +192,7 @@ function openRecycleBin() {
   recycleBinRef.value?.open();
 }
 
-// ========== KnowledgeBaseForm (ref 模式) ==========
+// ========== KnowledgeBaseForm (ref 模式) / form by ref ==========
 const kbFormRef = ref<InstanceType<typeof KnowledgeBaseForm>>();
 
 function openKnowledgeBaseCreate(defaults: Record<string, unknown> = {}) {
@@ -208,7 +208,7 @@ function onCreateKB() {
   openKnowledgeBaseCreate();
 }
 
-// ========== 详情抽屉 ==========
+// ========== 详情抽屉 / detail drawer ==========
 const [DetailDrawer, detailDrawerApi] = useVbenDrawer({
   connectedComponent: KnowledgeBaseDetail,
 });
@@ -227,7 +227,7 @@ function findKnowledgeBaseById(id: number): KnowledgeBaseItem | null {
   return list.value.find((item) => item.id === id) ?? null;
 }
 
-// ========== 搜索 ==========
+// ========== 搜索 / search ==========
 function doSearch() {
   const params: Record<string, unknown> = {};
   if (searchKeyword.value.trim()) {
@@ -236,7 +236,7 @@ function doSearch() {
   onSearch(params);
 }
 
-// ========== 菜单操作 ==========
+// ========== 菜单操作 / row menu actions ==========
 function onMenuClick(key: number | string, row: KnowledgeBaseItem) {
   if (String(key) === 'detail') {
     onDetail(row);

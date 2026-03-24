@@ -7,12 +7,24 @@ import { useRouter } from 'vue-router';
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Alert, Button, Card, Empty, Spin, Tag } from 'ant-design-vue';
+import { Button, Card, Empty, Input, Spin, Tag } from 'ant-design-vue';
 
 import { getAdminOverviewApi } from '../../../api/admin';
+import {
+  ADMIN_WORKFLOW_AI_CONVERSATION_SCOPE,
+  buildPrompt,
+  openWorkflowAIPanel,
+  useWorkflowPageAI,
+} from '../../../shared/ai';
+import {
+  ADMIN_HOME_PAGE_ACCESS_CODES,
+  WORKFLOW_ACCESS_CODES,
+  hasAllPluginAccess,
+  hasAnyPluginAccess,
+  hasPluginAccess,
+} from '../../../shared/access';
 import { formatCompactNumber, formatDateTime } from '../shared/format';
-
-import { builderSurfaceCards, homeQuickLinks } from './data';
+import { ADMIN_I18N_PREFIX, buildAdminPath } from '../shared/constants';
 
 import { getReleaseStatusColor, getReleaseStatusText } from '../releases/data';
 import { getRunStatusColor, getRunStatusText } from '../runtime/data';
@@ -20,10 +32,11 @@ import {
   getTemplateStatusColor,
   getTemplateStatusText,
 } from '../templates/data';
-import { ADMIN_I18N_PREFIX } from '../shared/constants';
 import { $t } from '@novus/plugin-shared';
 
 defineOptions({ name: 'WorkflowOrchestrationAdminHome' });
+
+const ADMIN_HOME_PAGE_KEY = 'admin.workflow_orchestration.home';
 
 interface StatusBucketItem {
   color: string;
@@ -33,14 +46,49 @@ interface StatusBucketItem {
 }
 
 const router = useRouter();
-
 const loading = ref(false);
+const errorMessage = ref('');
 const overview = ref<AdminOverviewResponse | null>(null);
+const intentDraft = ref('');
+const canAccessAdminHomePage = hasAnyPluginAccess(ADMIN_HOME_PAGE_ACCESS_CODES);
+const canLoadOverview = canAccessAdminHomePage;
+const canOpenTemplates = hasPluginAccess(
+  WORKFLOW_ACCESS_CODES.ADMIN_PLATFORM_TEMPLATE_LIST,
+);
+const canCreateTemplate = hasAllPluginAccess([
+  WORKFLOW_ACCESS_CODES.ADMIN_PLATFORM_TEMPLATE_LIST,
+  WORKFLOW_ACCESS_CODES.ADMIN_PLATFORM_TEMPLATE_CREATE,
+]);
+const canOpenReleases = hasPluginAccess(
+  WORKFLOW_ACCESS_CODES.ADMIN_RELEASE_OPS_LIST,
+);
+const canOpenRuntime = hasPluginAccess(
+  WORKFLOW_ACCESS_CODES.ADMIN_RUNTIME_OPS_LIST,
+);
+
+const starterPromptKeys = [
+  'contentReview',
+  'opsApproval',
+  'runtimeRepair',
+] as const;
 
 async function loadOverview() {
+  if (!canLoadOverview) {
+    overview.value = null;
+    errorMessage.value = '';
+    loading.value = false;
+    return;
+  }
+
   loading.value = true;
+  errorMessage.value = '';
   try {
     overview.value = await getAdminOverviewApi();
+  } catch (error: unknown) {
+    errorMessage.value =
+      error instanceof Error
+        ? error.message
+        : $t(`${ADMIN_I18N_PREFIX}.common.emptyState`);
   } finally {
     loading.value = false;
   }
@@ -129,18 +177,216 @@ const runtimeStatusBuckets = computed(() =>
   ),
 );
 
-const artifactStatusBuckets = computed(() =>
-  Object.entries(runtimeSummary.value?.artifact_status_counts ?? {})
-    .map(([key, count]) => ({
-      key,
-      count,
-    }))
-    .sort((left, right) => right.count - left.count),
-);
+const resourceCards = computed(() => [
+  {
+    allowed: canOpenTemplates,
+    key: 'templates',
+    ctaLabel: $t(`${ADMIN_I18N_PREFIX}.home.resources.templates.action`),
+    description: $t(`${ADMIN_I18N_PREFIX}.home.resources.templates.description`),
+    facts: [
+      {
+        label: $t(`${ADMIN_I18N_PREFIX}.home.templateFacts.totalVersions`),
+        value: formatCompactNumber(templateSummary.value?.total_versions),
+      },
+      {
+        label: $t(`${ADMIN_I18N_PREFIX}.home.templateFacts.totalRuns`),
+        value: formatCompactNumber(templateSummary.value?.total_runs),
+      },
+      {
+        label: $t(`${ADMIN_I18N_PREFIX}.home.templateFacts.totalArtifacts`),
+        value: formatCompactNumber(templateSummary.value?.total_artifacts),
+      },
+    ],
+    icon: 'lucide:copy-plus',
+    path: buildAdminPath('templates'),
+    statusBuckets: templateStatusBuckets.value,
+    title: $t(`${ADMIN_I18N_PREFIX}.home.resources.templates.title`),
+  },
+  {
+    allowed: canOpenReleases,
+    key: 'releases',
+    ctaLabel: $t(`${ADMIN_I18N_PREFIX}.home.resources.releases.action`),
+    description: $t(`${ADMIN_I18N_PREFIX}.home.resources.releases.description`),
+    facts: [
+      {
+        label: $t(`${ADMIN_I18N_PREFIX}.home.releaseFacts.latestPublishedAt`),
+        value: formatDateTime(releaseSummary.value?.latest_published_at),
+      },
+      {
+        label: $t(`${ADMIN_I18N_PREFIX}.home.metrics.releases`),
+        value: formatCompactNumber(releaseSummary.value?.total_releases),
+      },
+    ],
+    icon: 'lucide:rocket',
+    path: buildAdminPath('releases'),
+    statusBuckets: releaseStatusBuckets.value,
+    title: $t(`${ADMIN_I18N_PREFIX}.home.resources.releases.title`),
+  },
+  {
+    allowed: canOpenRuntime,
+    key: 'runtime',
+    ctaLabel: $t(`${ADMIN_I18N_PREFIX}.home.resources.runtime.action`),
+    description: $t(`${ADMIN_I18N_PREFIX}.home.resources.runtime.description`),
+    facts: [
+      {
+        label: $t(`${ADMIN_I18N_PREFIX}.home.runtimeFacts.runStatuses`),
+        value: formatCompactNumber(runtimeStatusBuckets.value.length),
+      },
+      {
+        label: $t(`${ADMIN_I18N_PREFIX}.home.runtimeFacts.artifactStatuses`),
+        value: formatCompactNumber(
+          Object.keys(runtimeSummary.value?.artifact_status_counts ?? {}).length,
+        ),
+      },
+    ],
+    icon: 'lucide:activity',
+    path: buildAdminPath('runtime'),
+    statusBuckets: runtimeStatusBuckets.value,
+    title: $t(`${ADMIN_I18N_PREFIX}.home.resources.runtime.title`),
+  },
+].filter((section) => section.allowed));
 
-function goTo(path: string) {
-  router.push(path);
+async function openTemplateCreate() {
+  if (!canCreateTemplate) {
+    errorMessage.value = $t(`${ADMIN_I18N_PREFIX}.common.permissionDenied`);
+    return;
+  }
+  await router.push({
+    path: buildAdminPath('templates'),
+    query: { create: '1' },
+  });
 }
+
+function openPath(path: string) {
+  void router.push(path);
+}
+
+function buildPlannerPrompt(seed?: string): string {
+  const normalizedSeed = seed?.trim() || intentDraft.value.trim();
+  return buildPrompt([
+    $t(`${ADMIN_I18N_PREFIX}.home.ai.systemLead`),
+    normalizedSeed
+      ? $t(`${ADMIN_I18N_PREFIX}.home.ai.userIdea`, {
+          idea: normalizedSeed,
+        })
+      : $t(`${ADMIN_I18N_PREFIX}.home.ai.emptyIdea`),
+    $t(`${ADMIN_I18N_PREFIX}.home.ai.outputContract`),
+  ]);
+}
+
+function openAIPlanner(seed?: string) {
+  openWorkflowAIPanel({
+    conversationScope: ADMIN_WORKFLOW_AI_CONVERSATION_SCOPE,
+    message: buildPlannerPrompt(seed),
+    pageKey: ADMIN_HOME_PAGE_KEY,
+  });
+}
+
+useWorkflowPageAI({
+  conversationScope: ADMIN_WORKFLOW_AI_CONVERSATION_SCOPE,
+  pageKey: ADMIN_HOME_PAGE_KEY,
+  buildContext: () => ({
+    entityDescription: $t(`${ADMIN_I18N_PREFIX}.home.ai.pageDescription`),
+    entityTitle: $t(`${ADMIN_I18N_PREFIX}.home.title`),
+    entityType: 'workflow_orchestration_admin_home',
+    pageData: {
+      failed_runs: runtimeSummary.value?.run_status_counts?.failed ?? 0,
+      intent_draft: intentDraft.value,
+      release_total: releaseSummary.value?.total_releases ?? 0,
+      template_total: templateSummary.value?.total_templates ?? 0,
+    },
+    pageTitle: $t(`${ADMIN_I18N_PREFIX}.home.title`),
+  }),
+  operations: [
+    {
+      name: 'open_admin_template_create',
+      label: $t(`${ADMIN_I18N_PREFIX}.home.ai.operations.openTemplateCreate.label`),
+      description: $t(
+        `${ADMIN_I18N_PREFIX}.home.ai.operations.openTemplateCreate.description`,
+      ),
+      readonly: true,
+      handler: async () => {
+        if (!canCreateTemplate) {
+          return {
+            success: false,
+            message: $t(`${ADMIN_I18N_PREFIX}.common.permissionDenied`),
+          };
+        }
+        await openTemplateCreate();
+        return {
+          success: true,
+          message: $t(
+            `${ADMIN_I18N_PREFIX}.home.ai.operations.openTemplateCreate.success`,
+          ),
+        };
+      },
+    },
+    {
+      name: 'open_admin_home_ai_planner',
+      label: $t(`${ADMIN_I18N_PREFIX}.home.ai.operations.openAI.label`),
+      description: $t(`${ADMIN_I18N_PREFIX}.home.ai.operations.openAI.description`),
+      readonly: true,
+      params: {
+        idea: {
+          description: $t(
+            `${ADMIN_I18N_PREFIX}.home.ai.operations.openAI.ideaDescription`,
+          ),
+          required: false,
+          type: 'string',
+        },
+      },
+      handler: async (params: Record<string, unknown>) => {
+        openAIPlanner(typeof params.idea === 'string' ? params.idea : undefined);
+        return {
+          success: true,
+          message: $t(`${ADMIN_I18N_PREFIX}.home.ai.operations.openAI.success`),
+        };
+      },
+    },
+    {
+      name: 'open_admin_runtime_center',
+      label: $t(`${ADMIN_I18N_PREFIX}.home.ai.operations.openRuntime.label`),
+      description: $t(
+        `${ADMIN_I18N_PREFIX}.home.ai.operations.openRuntime.description`,
+      ),
+      readonly: true,
+      handler: async () => {
+        if (!canOpenRuntime) {
+          return {
+            success: false,
+            message: $t(`${ADMIN_I18N_PREFIX}.common.permissionDenied`),
+          };
+        }
+        openPath(buildAdminPath('runtime'));
+        return {
+          success: true,
+          message: $t(`${ADMIN_I18N_PREFIX}.home.ai.operations.openRuntime.success`),
+        };
+      },
+    },
+    ...(canLoadOverview
+      ? [
+          {
+            name: 'refresh_admin_workbench',
+            label: $t(`${ADMIN_I18N_PREFIX}.home.ai.operations.refresh.label`),
+            description: $t(
+              `${ADMIN_I18N_PREFIX}.home.ai.operations.refresh.description`,
+            ),
+            readonly: true,
+            handler: async () => {
+              await loadOverview();
+              return {
+                success: true,
+                message: $t(
+                  `${ADMIN_I18N_PREFIX}.home.ai.operations.refresh.success`,
+                ),
+              };
+            },
+          },
+        ]
+      : []),
+  ],
+});
 
 onMounted(() => {
   void loadOverview();
@@ -149,11 +395,12 @@ onMounted(() => {
 
 <template>
   <Page auto-content-height content-class="flex flex-col gap-4">
-    <section class="relative overflow-hidden rounded-2xl border bg-card shadow-sm">
-      <div class="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-primary/5" />
-      <div class="relative flex flex-col gap-4 p-5">
-        <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div class="space-y-2">
+    <template v-if="canAccessAdminHomePage">
+    <section class="relative overflow-hidden rounded-[28px] border bg-card shadow-sm">
+      <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.16),transparent_48%),radial-gradient(circle_at_bottom_right,rgba(15,23,42,0.08),transparent_52%)]" />
+      <div class="relative grid gap-4 p-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+        <div class="space-y-5">
+          <div class="space-y-3">
             <div
               class="inline-flex items-center gap-2 rounded-full border bg-background/85 px-3 py-1 text-xs text-muted-foreground"
             >
@@ -161,132 +408,160 @@ onMounted(() => {
               {{ $t(`${ADMIN_I18N_PREFIX}.home.badge`) }}
             </div>
             <div>
-              <h1 class="text-xl font-semibold text-foreground md:text-2xl">
+              <h1 class="text-2xl font-semibold text-foreground md:text-3xl">
                 {{ $t(`${ADMIN_I18N_PREFIX}.home.title`) }}
               </h1>
-              <p class="mt-1 max-w-3xl text-sm text-muted-foreground">
+              <p class="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
                 {{ $t(`${ADMIN_I18N_PREFIX}.home.subtitle`) }}
               </p>
             </div>
           </div>
 
-          <Button :loading="loading" @click="loadOverview">
-            <template #icon>
-              <IconifyIcon icon="lucide:refresh-cw" />
-            </template>
-            {{ $t(`${ADMIN_I18N_PREFIX}.common.refresh`) }}
-          </Button>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3 lg:grid-cols-6">
-          <div
-            v-for="card in summaryCards"
-            :key="card.key"
-            class="rounded-xl border bg-background/80 p-3"
-          >
-            <div class="flex items-center gap-2 text-xs text-muted-foreground">
-              <IconifyIcon :icon="card.icon" class="h-3.5 w-3.5" />
-              <span>{{ card.label }}</span>
+          <div class="rounded-[26px] border bg-background/85 p-4">
+            <div class="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
+              <IconifyIcon icon="lucide:sparkles" class="h-4 w-4 text-primary" />
+              {{ $t(`${ADMIN_I18N_PREFIX}.home.ai.cardTitle`) }}
             </div>
-            <div class="mt-2 text-lg font-semibold text-foreground">
-              {{ card.value }}
+            <Input.TextArea
+              v-model:value="intentDraft"
+              :auto-size="{ minRows: 4, maxRows: 7 }"
+              :placeholder="$t(`${ADMIN_I18N_PREFIX}.home.ai.placeholder`)"
+            />
+            <div class="mt-4 flex flex-wrap gap-3">
+              <Button type="primary" @click="openAIPlanner()">
+                <template #icon>
+                  <IconifyIcon icon="lucide:message-square-plus" />
+                </template>
+                {{ $t(`${ADMIN_I18N_PREFIX}.home.actions.askAI`) }}
+              </Button>
+              <Button v-if="canCreateTemplate" @click="openTemplateCreate">
+                <template #icon>
+                  <IconifyIcon icon="lucide:copy-plus" />
+                </template>
+                {{ $t(`${ADMIN_I18N_PREFIX}.home.actions.createTemplate`) }}
+              </Button>
+              <Button v-if="canLoadOverview" @click="loadOverview">
+                <template #icon>
+                  <IconifyIcon icon="lucide:refresh-cw" />
+                </template>
+                {{ $t(`${ADMIN_I18N_PREFIX}.common.refresh`) }}
+              </Button>
             </div>
           </div>
+
+          <div class="grid gap-3 md:grid-cols-3">
+            <button
+              v-for="promptKey in starterPromptKeys"
+              :key="promptKey"
+              class="rounded-3xl border bg-background/85 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/5"
+              type="button"
+              @click="openAIPlanner($t(`${ADMIN_I18N_PREFIX}.home.ai.starters.${promptKey}.prompt`))"
+            >
+              <div class="text-sm font-medium text-foreground">
+                {{ $t(`${ADMIN_I18N_PREFIX}.home.ai.starters.${promptKey}.title`) }}
+              </div>
+              <div class="mt-2 text-xs leading-5 text-muted-foreground">
+                {{ $t(`${ADMIN_I18N_PREFIX}.home.ai.starters.${promptKey}.description`) }}
+              </div>
+            </button>
+          </div>
         </div>
+
+        <Card :body-style="{ padding: '20px' }">
+          <template #title>
+            <div class="flex items-center gap-2">
+              <IconifyIcon icon="lucide:list-checks" class="h-4 w-4 text-primary" />
+              {{ $t(`${ADMIN_I18N_PREFIX}.home.steps.title`) }}
+            </div>
+          </template>
+
+          <div class="space-y-3">
+            <div class="rounded-2xl border bg-accent/10 p-4">
+              <div class="text-xs font-semibold uppercase tracking-[0.24em] text-primary">
+                01
+              </div>
+              <div class="mt-2 text-sm font-medium text-foreground">
+                {{ $t(`${ADMIN_I18N_PREFIX}.home.steps.create.title`) }}
+              </div>
+              <div class="mt-1 text-xs leading-5 text-muted-foreground">
+                {{ $t(`${ADMIN_I18N_PREFIX}.home.steps.create.description`) }}
+              </div>
+            </div>
+            <div class="rounded-2xl border bg-accent/10 p-4">
+              <div class="text-xs font-semibold uppercase tracking-[0.24em] text-primary">
+                02
+              </div>
+              <div class="mt-2 text-sm font-medium text-foreground">
+                {{ $t(`${ADMIN_I18N_PREFIX}.home.steps.publish.title`) }}
+              </div>
+              <div class="mt-1 text-xs leading-5 text-muted-foreground">
+                {{ $t(`${ADMIN_I18N_PREFIX}.home.steps.publish.description`) }}
+              </div>
+            </div>
+            <div class="rounded-2xl border bg-accent/10 p-4">
+              <div class="text-xs font-semibold uppercase tracking-[0.24em] text-primary">
+                03
+              </div>
+              <div class="mt-2 text-sm font-medium text-foreground">
+                {{ $t(`${ADMIN_I18N_PREFIX}.home.steps.runtime.title`) }}
+              </div>
+              <div class="mt-1 text-xs leading-5 text-muted-foreground">
+                {{ $t(`${ADMIN_I18N_PREFIX}.home.steps.runtime.description`) }}
+              </div>
+            </div>
+          </div>
+        </Card>
       </div>
     </section>
 
-    <Alert
-      :message="$t(`${ADMIN_I18N_PREFIX}.home.contractNotice.title`)"
-      :description="$t(`${ADMIN_I18N_PREFIX}.home.contractNotice.description`)"
-      show-icon
-      type="info"
-    />
+    <section
+      v-if="errorMessage"
+      class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+    >
+      {{ errorMessage }}
+    </section>
 
-    <div class="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(340px,0.7fr)]">
-      <Card :body-style="{ padding: '18px' }">
-        <template #title>
-          <div class="flex items-center gap-2">
-            <IconifyIcon icon="lucide:panel-top-open" class="h-4 w-4 text-primary" />
-            {{ $t(`${ADMIN_I18N_PREFIX}.home.quickLinks.title`) }}
-          </div>
-        </template>
-
-        <div class="grid gap-3 md:grid-cols-3">
-          <button
-            v-for="link in homeQuickLinks"
-            :key="link.key"
-            class="rounded-2xl border bg-accent/10 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/5"
-            type="button"
-            @click="goTo(link.path)"
-          >
-            <div class="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
-              <IconifyIcon :icon="link.icon" class="h-5 w-5 text-primary" />
-            </div>
-            <div class="text-sm font-medium text-foreground">
-              {{ $t(`${ADMIN_I18N_PREFIX}.${link.titleKey}`) }}
-            </div>
-            <div class="mt-1 text-xs leading-5 text-muted-foreground">
-              {{ $t(`${ADMIN_I18N_PREFIX}.${link.descriptionKey}`) }}
-            </div>
-          </button>
+    <div class="grid grid-cols-2 gap-3 lg:grid-cols-6">
+      <div
+        v-for="card in summaryCards"
+        :key="card.key"
+        class="rounded-2xl border bg-card p-4 shadow-sm"
+      >
+        <div class="flex items-center gap-2 text-xs text-muted-foreground">
+          <IconifyIcon :icon="card.icon" class="h-3.5 w-3.5" />
+          <span>{{ card.label }}</span>
         </div>
-      </Card>
-
-      <Card :body-style="{ padding: '18px' }">
-        <template #title>
-          <div class="flex items-center gap-2">
-            <IconifyIcon icon="lucide:layers-3" class="h-4 w-4 text-primary" />
-            {{ $t(`${ADMIN_I18N_PREFIX}.home.builderSurfaces.title`) }}
-          </div>
-        </template>
-
-        <div class="space-y-3">
-          <div
-            v-for="surface in builderSurfaceCards"
-            :key="surface.code"
-            class="rounded-xl border bg-accent/10 p-3"
-          >
-            <div class="flex items-start gap-3">
-              <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-                <IconifyIcon :icon="surface.icon" class="h-4 w-4 text-primary" />
-              </div>
-              <div class="min-w-0 flex-1">
-                <div class="flex items-center gap-2">
-                  <span class="text-sm font-medium text-foreground">
-                    {{ $t(`${ADMIN_I18N_PREFIX}.${surface.titleKey}`) }}
-                  </span>
-                  <Tag color="default" class="!m-0">
-                    {{ $t(`${ADMIN_I18N_PREFIX}.home.builderSurfaces.notExposed`) }}
-                  </Tag>
-                </div>
-                <p class="mt-1 text-xs leading-5 text-muted-foreground">
-                  {{ $t(`${ADMIN_I18N_PREFIX}.${surface.descriptionKey}`) }}
-                </p>
-              </div>
-            </div>
-          </div>
+        <div class="mt-3 text-xl font-semibold text-foreground">
+          {{ card.value }}
         </div>
-      </Card>
+      </div>
     </div>
 
     <Spin :spinning="loading">
       <div class="grid gap-4 xl:grid-cols-3">
-        <Card :body-style="{ padding: '18px' }">
+        <Card
+          v-for="section in resourceCards"
+          :key="section.key"
+          :body-style="{ padding: '18px' }"
+        >
           <template #title>
             <div class="flex items-center gap-2">
-              <IconifyIcon icon="lucide:copy" class="h-4 w-4 text-primary" />
-              {{ $t(`${ADMIN_I18N_PREFIX}.home.sections.templates`) }}
+              <IconifyIcon :icon="section.icon" class="h-4 w-4 text-primary" />
+              {{ section.title }}
             </div>
           </template>
 
-          <div v-if="templateStatusBuckets.length === 0" class="py-8">
+          <p class="text-sm leading-6 text-muted-foreground">
+            {{ section.description }}
+          </p>
+
+          <div v-if="section.statusBuckets.length === 0" class="py-8">
             <Empty :description="$t(`${ADMIN_I18N_PREFIX}.common.emptyState`)" />
           </div>
-          <div v-else class="space-y-4">
+          <div v-else class="mt-4 space-y-4">
             <div class="flex flex-wrap gap-2">
               <Tag
-                v-for="item in templateStatusBuckets"
+                v-for="item in section.statusBuckets"
                 :key="item.key"
                 :color="item.color"
                 class="!m-0"
@@ -294,112 +569,34 @@ onMounted(() => {
                 {{ item.label }} · {{ formatCompactNumber(item.count) }}
               </Tag>
             </div>
-            <div class="grid gap-3 md:grid-cols-3">
-              <div class="rounded-xl border bg-accent/10 px-4 py-3">
-                <div class="text-xs text-muted-foreground">
-                  {{ $t(`${ADMIN_I18N_PREFIX}.home.templateFacts.totalVersions`) }}
-                </div>
-                <div class="mt-2 text-sm font-medium text-foreground">
-                  {{ formatCompactNumber(templateSummary?.total_versions) }}
-                </div>
-              </div>
-              <div class="rounded-xl border bg-accent/10 px-4 py-3">
-                <div class="text-xs text-muted-foreground">
-                  {{ $t(`${ADMIN_I18N_PREFIX}.home.templateFacts.totalRuns`) }}
-                </div>
-                <div class="mt-2 text-sm font-medium text-foreground">
-                  {{ formatCompactNumber(templateSummary?.total_runs) }}
-                </div>
-              </div>
-              <div class="rounded-xl border bg-accent/10 px-4 py-3">
-                <div class="text-xs text-muted-foreground">
-                  {{ $t(`${ADMIN_I18N_PREFIX}.home.templateFacts.totalArtifacts`) }}
-                </div>
-                <div class="mt-2 text-sm font-medium text-foreground">
-                  {{ formatCompactNumber(templateSummary?.total_artifacts) }}
-                </div>
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        <Card :body-style="{ padding: '18px' }">
-          <template #title>
-            <div class="flex items-center gap-2">
-              <IconifyIcon icon="lucide:rocket" class="h-4 w-4 text-primary" />
-              {{ $t(`${ADMIN_I18N_PREFIX}.home.sections.releases`) }}
-            </div>
-          </template>
-
-          <div v-if="releaseStatusBuckets.length === 0" class="py-8">
-            <Empty :description="$t(`${ADMIN_I18N_PREFIX}.common.emptyState`)" />
-          </div>
-          <div v-else class="space-y-4">
-            <div class="flex flex-wrap gap-2">
-              <Tag
-                v-for="item in releaseStatusBuckets"
-                :key="item.key"
-                :color="item.color"
-                class="!m-0"
+            <div class="grid gap-3">
+              <div
+                v-for="fact in section.facts"
+                :key="fact.label"
+                class="rounded-2xl border bg-accent/10 px-4 py-3"
               >
-                {{ item.label }} · {{ formatCompactNumber(item.count) }}
-              </Tag>
-            </div>
-            <div class="rounded-xl border bg-accent/10 px-4 py-3">
-              <div class="text-xs text-muted-foreground">
-                {{ $t(`${ADMIN_I18N_PREFIX}.home.releaseFacts.latestPublishedAt`) }}
-              </div>
-              <div class="mt-2 text-sm font-medium text-foreground">
-                {{ formatDateTime(releaseSummary?.latest_published_at) }}
+                <div class="text-xs text-muted-foreground">
+                  {{ fact.label }}
+                </div>
+                <div class="mt-2 text-sm font-medium text-foreground">
+                  {{ fact.value }}
+                </div>
               </div>
             </div>
           </div>
-        </Card>
 
-        <Card :body-style="{ padding: '18px' }">
-          <template #title>
-            <div class="flex items-center gap-2">
-              <IconifyIcon icon="lucide:activity" class="h-4 w-4 text-primary" />
-              {{ $t(`${ADMIN_I18N_PREFIX}.home.sections.runtime`) }}
-            </div>
-          </template>
-
-          <div v-if="runtimeStatusBuckets.length === 0" class="py-8">
-            <Empty :description="$t(`${ADMIN_I18N_PREFIX}.common.emptyState`)" />
-          </div>
-          <div v-else class="space-y-4">
-            <div class="space-y-2">
-              <div class="text-xs text-muted-foreground">
-                {{ $t(`${ADMIN_I18N_PREFIX}.home.runtimeFacts.runStatuses`) }}
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <Tag
-                  v-for="item in runtimeStatusBuckets"
-                  :key="item.key"
-                  :color="item.color"
-                  class="!m-0"
-                >
-                  {{ item.label }} · {{ formatCompactNumber(item.count) }}
-                </Tag>
-              </div>
-            </div>
-            <div class="space-y-2">
-              <div class="text-xs text-muted-foreground">
-                {{ $t(`${ADMIN_I18N_PREFIX}.home.runtimeFacts.artifactStatuses`) }}
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <Tag
-                  v-for="item in artifactStatusBuckets"
-                  :key="item.key"
-                  class="!m-0"
-                >
-                  {{ item.key }} · {{ formatCompactNumber(item.count) }}
-                </Tag>
-              </div>
-            </div>
+          <div class="mt-5">
+            <Button block @click="openPath(section.path)">
+              {{ section.ctaLabel }}
+            </Button>
           </div>
         </Card>
       </div>
     </Spin>
+    </template>
+
+    <Card v-else :body-style="{ padding: '32px' }">
+      <Empty :description="$t(`${ADMIN_I18N_PREFIX}.common.permissionDenied`)" />
+    </Card>
   </Page>
 </template>

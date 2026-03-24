@@ -36,6 +36,6 @@ description: NovusAI AI 写作技能。当需要开发或修复富文本编辑�
 
 ## 参考
 
-- `../novusai-saas/references/ai-writing-spec.md`
-- `../novusai-saas/references/ai-module.md`
-- `../session-memory/SKILL.md`（若问题涉及“为什么写作场景不落会话记忆”）
+- [../novusai-saas/references/ai-writing-spec.md](../novusai-saas/references/ai-writing-spec.md)
+- [../novusai-saas/references/ai-module.md](../novusai-saas/references/ai-module.md)
+- [../session-memory/SKILL.md](../session-memory/SKILL.md)（若问题涉及“为什么写作场景不落会话记忆”）

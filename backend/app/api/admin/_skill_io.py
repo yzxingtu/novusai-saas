@@ -16,6 +16,7 @@ from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.i18n import _
+from app.core.response import build_public_error_text
 from app.models.ai.skill import Skill
 
 # 导出字段白名单 / Export field whitelist
@@ -177,7 +178,9 @@ async def import_skills(
                 existing_names[name] = skill
                 created += 1
         except Exception as exc:
-            errors.append(f"{name}: {str(exc)}")
+            errors.append(
+                f"{name}: {build_public_error_text(exc=exc, message=_('common.server_error'))}"
+            )
 
     await db.flush()
 

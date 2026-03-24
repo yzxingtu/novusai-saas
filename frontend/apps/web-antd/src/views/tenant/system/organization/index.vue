@@ -213,7 +213,6 @@ onMounted(async () => {
   if (firstNode) {
     selectedNode.value = firstNode;
   }
-  expandAll();
 });
 
 usePageAIContext({

@@ -91,7 +91,7 @@ class AdminAIHealthController(GlobalController):
             """
             history = await FailoverService.get_provider_health_history(
                 provider_id=provider_id,
-                limit=288,  # 24h * 12 (every 5 min)
+                limit=288,  # 24h * 12 (every 5 min) / 24 小时 × 12 条（每 5 分钟采样）
             )
             return success(data=history, message=_("common.success"))
 

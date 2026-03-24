@@ -151,10 +151,10 @@ export class RequestClient {
   constructor(options: RequestClientOptions = {}) {
     const { baseURL, timeout = 10_000, headers = {}, ...restOptions } = options;
 
-    // 合并默认选项
+    // 合并默认选项 / merge default request options
     this.defaultOptions = { ...DEFAULT_OPTIONS, ...restOptions };
 
-    // 创建 Axios 实例
+    // 创建 Axios 实例 / create axios instance
     this.instance = axios.create({
       baseURL,
       timeout,
@@ -169,7 +169,7 @@ export class RequestClient {
       ),
     });
 
-    // 绑定方法
+    // 绑定方法 / bind HTTP helpers to instance
     this.bindMethods();
   }
 
@@ -177,7 +177,7 @@ export class RequestClient {
   public addPending(config: InternalAxiosRequestConfig) {
     const key = getPendingKey(config);
     if (this.pendingMap.has(key)) {
-      // 取消之前的请求
+      // 取消之前的请求 / abort prior duplicate
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const controller = this.pendingMap.get(key)!;
       controller.abort();
@@ -248,10 +248,10 @@ export class RequestClient {
         } as any),
       });
 
-      // 检查响应是否为错误（某些后端返回 JSON 错误而不是 Blob）
+      // 检查响应是否为错误（某些后端返回 JSON 错误而不是 Blob）/ JSON error masquerading as blob
       const blob = response.data as Blob;
       if (blob.type === 'application/json') {
-        // 解析 JSON 错误
+        // 解析 JSON 错误 / parse error JSON
         const text = await blob.text();
         const errorData = JSON.parse(text);
         const wrappedError = {
@@ -266,7 +266,7 @@ export class RequestClient {
 
       return response.data;
     } catch (error: any) {
-      // 显示友好的错误提示
+      // 显示友好的错误提示 / user-facing download error
       if (this.showMessage) {
         const appError = normalizeHttpError(
           error,
@@ -358,7 +358,7 @@ export class RequestClient {
     const headers = { ...(config.headers || {}) };
     ensureTraceIdHeader(headers);
 
-    // 合并选项
+    // 合并选项 / merge per-request options
     const options: Required<RequestOptions> = {
       ...this.defaultOptions,
       ...config,
@@ -396,12 +396,12 @@ export class RequestClient {
         ? `${baseUrl.replace(/\/+$/, '')}/${url.replace(/^\/+/, '')}`
         : url;
 
-      // 构建请求头
+      // 构建请求头 / SSE fetch headers
       const headers = new Headers();
       headers.set('Accept', 'text/event-stream');
       headers.set('Content-Type', 'application/json');
 
-      // 添加 Token
+      // 添加 Token / attach Bearer
       if (this.getToken) {
         const endpoint = getEndpointByUrl(url);
         const token = this.getToken(endpoint);
@@ -410,13 +410,13 @@ export class RequestClient {
         }
       }
 
-      // 合并自定义 headers
+      // 合并自定义 headers / merge caller headers
       if (fetchOptions?.headers) {
         new Headers(fetchOptions.headers).forEach((v, k) => headers.set(k, v));
       }
       ensureTraceIdHeader(headers);
 
-      // 准备请求体
+      // 准备请求体 / serialize body
       let body: BodyInit | null = null;
       if (data && fetchOptions?.method !== 'GET') {
         body = typeof data === 'string' ? data : JSON.stringify(data);
@@ -431,12 +431,12 @@ export class RequestClient {
       });
 
       if (!response.ok) {
-        // 尝试解析响应体并归一化错误对象
+        // 尝试解析响应体并归一化错误对象 / parse error JSON if any
         let responseBody: Record<string, unknown> | null = null;
         try {
           responseBody = await response.json();
         } catch {
-          // ignore JSON parse errors
+          // ignore JSON parse errors / 非 JSON 则忽略解析失败
         }
         const normalized = normalizeHttpError(
           {
@@ -474,17 +474,17 @@ export class RequestClient {
         await Promise.resolve(onMessage?.(content));
       }
     } catch (error: any) {
-      // 检查是否为取消操作
+      // 检查是否为取消操作 / user abort
       if (error.name === 'AbortError') {
-        // 请求被取消，不触发错误回调
+        // 请求被取消，不触发错误回调 / silent on cancel
         return;
       }
       const appError = normalizeSseTransportError(error, this.t);
-      // 触发错误回调
+      // 触发错误回调 / delegate to onError
       if (onError) {
         onError(toErrorWithAppError(appError));
       } else {
-        // 没有错误回调时抛出错误
+        // 没有错误回调时抛出错误 / rethrow if no handler
         throw toErrorWithAppError(appError);
       }
     }

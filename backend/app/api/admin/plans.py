@@ -12,8 +12,9 @@ from app.core.base_schema import PageResponse
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.recycle_bin import register_admin_recycle_bin_routes
-from app.core.response import success
+from app.core.response import build_exception_debug, resolve_public_error_message, success
 from app.enums.rbac import PermissionScope
+from app.exceptions.base import AppException
 from app.exceptions import NotFoundException
 from app.rbac.decorators import (
     MenuConfig,
@@ -56,7 +57,7 @@ def _translate_permission_name(name: str) -> str:
 
 @permission_resource(
     resource="tenant_plan",
-    name="menu.admin.tenant_plan",  # i18n key
+    name="menu.admin.tenant_plan",  # i18n key / 菜单 i18n 键名
     scope=PermissionScope.ADMIN,
     parent_resource="platform_mgmt",
     menu=MenuConfig(
@@ -313,10 +314,14 @@ class AdminPlanController(GlobalController):
                 )
 
             except ValueError as e:
-                from fastapi import HTTPException, status
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=str(e),
+                raise AppException(
+                    message=resolve_public_error_message(
+                        e,
+                        fallback_message=_("common.invalid_request"),
+                    ),
+                    code=4001,
+                    status_code=400,
+                    debug=build_exception_debug(e),
                 )
 
         @router.put("/{plan_id}", summary="更新套餐")

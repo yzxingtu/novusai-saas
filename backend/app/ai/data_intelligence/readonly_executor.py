@@ -113,7 +113,7 @@ def _mask_row(row: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
 
 
 # ============================================
-# ReadOnlyExecutor
+# ReadOnlyExecutor / 只读执行器
 # ============================================
 
 class ReadOnlyExecutor:

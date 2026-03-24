@@ -135,7 +135,7 @@
 
 ### 文档与 i18n
 
-- [ ] deletion-deps.md 与前端 common.dependency.model 的 knowledge_base_audio、knowledge_base_video 等 key 已配置
+- [ ] [deletion-deps.md](deletion-deps.md) 与前端 `common.dependency.model` 的 `knowledge_base_audio`、`knowledge_base_video` 等 key 已配置
 - [ ] 知识库相关 locale（admin/tenant）含 vision/audio/video 的 field 与 help 文案
 
 ---

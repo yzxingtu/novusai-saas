@@ -19,6 +19,21 @@ class BatchRunRepository(TenantRepository[BatchRun]):
 
     model = BatchRun
 
+    @staticmethod
+    def _sanitize_create_data(data: dict) -> dict:
+        payload = dict(data)
+        if payload.get("created_by") is None:
+            payload.pop("created_by", None)
+        return payload
+
+    async def create(self, data: dict) -> BatchRun:
+        return await super().create(self._sanitize_create_data(data))
+
+    async def create_many(self, data_list: list[dict]) -> list[BatchRun]:
+        return await super().create_many([
+            self._sanitize_create_data(data) for data in data_list
+        ])
+
     async def get_by_agent(
         self,
         agent_id: int,
@@ -49,6 +64,7 @@ class BatchRunRepository(TenantRepository[BatchRun]):
             .offset(skip)
             .limit(limit)
         )
+        stmt = self._apply_data_permission_if_needed(stmt)
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
@@ -85,6 +101,9 @@ class BatchRunRepository(TenantRepository[BatchRun]):
             )
             .values(**values)
         )
+        permission_condition = self._build_data_permission_condition()
+        if permission_condition is not None:
+            stmt = stmt.where(permission_condition)
         await self.db.execute(stmt)
         await self.db.flush()
 
@@ -105,6 +124,7 @@ class BatchRunRepository(TenantRepository[BatchRun]):
             )
             .order_by(BatchRun.created_at.desc())
         )
+        stmt = self._apply_data_permission_if_needed(stmt)
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 

@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.requests import Request
 
 from app.core.security import TOKEN_SCOPE_ADMIN
@@ -231,6 +232,91 @@ async def test_dispatch_raises_app_exception_on_handler_runtime_error(
     assert getattr(exc_info.value, "status_code", None) == 500
     assert str(exc_info.value) == "服务器内部错误"
     assert "boom" not in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_dispatch_raises_app_exception_on_error_json_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = {
+        "extensions": {
+            "api": {
+                "admin_routes": [
+                    {"path": "ping", "method": "GET", "handler": "handlers.demo.ping"},
+                ],
+                "tenant_routes": [],
+                "public_routes": [],
+            }
+        }
+    }
+    db = AsyncMock()
+
+    def _handler(request=None, ctx=None):  # noqa: ANN001
+        _ = (request, ctx)
+        return JSONResponse(
+            status_code=500,
+            content={"code": 5000, "message": "raw plugin traceback"},
+        )
+
+    monkeypatch.setattr(
+        "app.plugins.api_dispatcher.evaluate_plugin_runtime_gate",
+        AsyncMock(return_value=_gate_result(manifest)),
+    )
+    monkeypatch.setattr("app.plugins.api_dispatcher.load_plugin_handler", lambda *_: _handler)
+    monkeypatch.setattr("app.plugins.api_dispatcher._build_plugin_context", lambda **_: _CtxWithoutCap())
+    monkeypatch.setattr("app.plugins.api_dispatcher.settings.DEBUG", False, raising=False)
+
+    request = _build_request(path="/admin/plugins/demo/api/ping")
+    with pytest.raises(Exception) as exc_info:
+        await _dispatch_plugin_api(
+            plugin_name="demo",
+            path="ping",
+            request=request,
+            db=db,
+        )
+
+    assert getattr(exc_info.value, "code", None) == 5000
+    assert getattr(exc_info.value, "status_code", None) == 500
+    assert str(exc_info.value) == "服务器内部错误"
+
+
+@pytest.mark.asyncio
+async def test_dispatch_allows_success_streaming_response_passthrough(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = {
+        "extensions": {
+            "api": {
+                "admin_routes": [
+                    {"path": "ping", "method": "GET", "handler": "handlers.demo.ping"},
+                ],
+                "tenant_routes": [],
+                "public_routes": [],
+            }
+        }
+    }
+    db = AsyncMock()
+
+    def _handler(request=None, ctx=None):  # noqa: ANN001
+        _ = (request, ctx)
+        return StreamingResponse(iter([b"ok"]), media_type="text/plain")
+
+    monkeypatch.setattr(
+        "app.plugins.api_dispatcher.evaluate_plugin_runtime_gate",
+        AsyncMock(return_value=_gate_result(manifest)),
+    )
+    monkeypatch.setattr("app.plugins.api_dispatcher.load_plugin_handler", lambda *_: _handler)
+    monkeypatch.setattr("app.plugins.api_dispatcher._build_plugin_context", lambda **_: _CtxWithoutCap())
+
+    response = await _dispatch_plugin_api(
+        plugin_name="demo",
+        path="ping",
+        request=_build_request(path="/admin/plugins/demo/api/ping"),
+        db=db,
+    )
+
+    assert isinstance(response, StreamingResponse)
+    assert response.status_code == 200
 
 
 @pytest.mark.asyncio

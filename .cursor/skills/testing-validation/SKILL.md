@@ -35,7 +35,15 @@ description: NovusAI 测试与验证技能。当需要为 Service 编写单元�
 - 上传能成功，下载能触发，权限或可见性正确
 - 插件页面在启用、禁用、卸载后都符合预期
 
+## 插件专项回归
+
+- 至少验证菜单显示、直接进入、硬刷新、卸载后回收
+- 至少验证切语言后 sidebar、breadcrumb、document.title、页面主标题同步更新
+- 至少检查 network：普通插件页面只出现 `/plugin-assets/...`，公开 captcha 才出现 `/plugin-public-assets/...`
+- 平台域名下访问 `/tenant/*` 管理页面时，确认没有再打 `/api/public/tenant/config`
+- 若出现“菜单能显示但页面不能用”，先同时核对 route access、首屏 API 权限、页面内按钮/动作权限
+
 ## 参考
 
-- `../novusai-saas/references/testing-spec.md`
-- `../novusai-saas/references/browser-testing-spec.md`
+- [../novusai-saas/references/testing-spec.md](../novusai-saas/references/testing-spec.md)
+- [../novusai-saas/references/browser-testing-spec.md](../novusai-saas/references/browser-testing-spec.md)

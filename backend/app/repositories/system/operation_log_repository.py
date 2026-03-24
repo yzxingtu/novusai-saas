@@ -29,7 +29,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
 
     # 按 scope 限制可过滤字段
     _scope_fields = {
-        # 平台管理员可过滤的字段
+        # 平台管理员可过滤的字段 / Admin filterable fields
         "admin": {
             "id", "trace_id", "tenant_id", "user_type", "user_id", "username",
             "module", "action", "resource", "method", "path",
@@ -72,7 +72,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
         Returns:
             (日志列表, 总数)
         """
-        # 强制添加企业过滤
+        # 强制添加企业过滤 / Force tenant filter
         tenant_filter = FilterRule(field="tenant_id", value=tenant_id)
 
         return await self.query_list(
@@ -236,14 +236,14 @@ class OperationLogRepository(BaseRepository[OperationLog]):
         Returns:
             (日志列表, 总数)
         """
-        # 强制只查看平台端日志
+        # 强制只查看平台端日志 / Restrict to admin-side logs
         user_type_filter = FilterRule(
             field="user_type",
             value=UserTypeEnum.ADMIN.value,
         )
         forced_filters = [user_type_filter]
 
-        # 非超管需要限制只能看下属的日志
+        # 非超管需要限制只能看下属的日志 / Non-super: subordinates only
         if not is_super and subordinate_user_ids is not None:
             user_id_filter = FilterRule(
                 field="user_id",
@@ -279,7 +279,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
         Returns:
             (日志列表, 总数)
         """
-        # 强制企业隔离
+        # 强制企业隔离 / Enforce tenant isolation
         tenant_filter = FilterRule(field="tenant_id", value=tenant_id)
 
         # 限制只查看企业端日志（tenant_admin / tenant_user）
@@ -295,7 +295,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
 
         forced_filters = [tenant_filter, user_type_filter]
 
-        # 非所有者需要限制只能看下属的日志
+        # 非所有者需要限制只能看下属的日志 / Non-owner: subordinates only
         if not is_owner and subordinate_user_ids is not None:
             user_id_filter = FilterRule(
                 field="user_id",

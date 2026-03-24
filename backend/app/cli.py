@@ -1008,9 +1008,17 @@ def trace_show(
         )
         return result.to_dict()
 
-    payload = _run_async(
-        _lookup_logs_only() if source == "logs" else _lookup_with_db()
-    )
+    async def _lookup_auto() -> dict:
+        if source == "logs":
+            return await _lookup_logs_only()
+        try:
+            return await _lookup_with_db()
+        except Exception:
+            if source != "auto":
+                raise
+            return await _lookup_logs_only()
+
+    payload = _run_async(_lookup_auto())
     found = bool(payload.get("operation_logs") or payload.get("log_matches"))
 
     if output_json:

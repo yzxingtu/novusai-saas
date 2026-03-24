@@ -13,9 +13,10 @@ from sqlalchemy.orm import selectinload
 from app.core.base_service import GlobalService
 from app.core.i18n import _
 from app.enums import ErrorCode, RoleType
+from app.enums.rbac import PermissionScope
 from app.enums.role import DataScope
 from app.exceptions import BusinessException, NotFoundException
-from app.models.auth.admin_role import AdminRole
+from app.models.auth.permission import Permission
 from app.models.org.admin_org_node import (
     AdminOrgNode,
     AdminOrgScopePolicy,
@@ -52,18 +53,25 @@ class AdminOrgNodeService(GlobalService[AdminOrgNode, AdminOrgNodeRepository], R
     def _generate_org_node_code(self) -> str:
         return f"org_{uuid.uuid4().hex[:12]}"
 
-    async def _validate_permission_role(self, role_id: int | None) -> None:
-        if role_id is None:
-            return
+    async def _normalize_permission_ids(self, permission_ids: list[int] | None) -> list[int]:
+        if not permission_ids:
+            return []
+
+        deduped = list(dict.fromkeys(permission_ids))
         result = await self.db.execute(
-            select(AdminRole.id).where(
-                AdminRole.id == role_id,
-                AdminRole.type == RoleType.ROLE.value,
-                AdminRole.is_deleted.is_(False),
+            select(Permission.id).where(
+                Permission.id.in_(deduped),
+                Permission.scope.in_(
+                    [PermissionScope.ADMIN.value, PermissionScope.BOTH.value]
+                ),
+                Permission.is_deleted.is_(False),
             )
         )
-        if result.scalar_one_or_none() is None:
-            raise NotFoundException(message=_("role.not_found"))
+        existing_ids = set(result.scalars().all())
+        missing_ids = [item for item in deduped if item not in existing_ids]
+        if missing_ids:
+            raise NotFoundException(message=_("permission.not_found"))
+        return deduped
 
     async def _normalize_custom_target_ids(self, org_node_ids: list[int] | None) -> list[int]:
         if not org_node_ids:
@@ -118,6 +126,32 @@ class AdminOrgNodeService(GlobalService[AdminOrgNode, AdminOrgNodeRepository], R
                 )
         await self.db.flush()
 
+    async def _assign_permissions(
+        self,
+        org_node: AdminOrgNode,
+        permission_ids: list[int] | None,
+    ) -> None:
+        normalized_permission_ids = await self._normalize_permission_ids(permission_ids)
+        if not normalized_permission_ids:
+            org_node.permissions = []
+            await self.db.flush()
+            return
+
+        result = await self.db.execute(
+            select(Permission).where(
+                Permission.id.in_(normalized_permission_ids),
+                Permission.is_deleted.is_(False),
+            )
+        )
+        permissions = list(result.scalars().all())
+        permission_map = {permission.id: permission for permission in permissions}
+        org_node.permissions = [
+            permission_map[permission_id]
+            for permission_id in normalized_permission_ids
+            if permission_id in permission_map
+        ]
+        await self.db.flush()
+
     async def create_org_node(
         self,
         name: str,
@@ -130,6 +164,7 @@ class AdminOrgNodeService(GlobalService[AdminOrgNode, AdminOrgNodeRepository], R
         allow_members: bool = True,
         data_scope: str = DataScope.DEPT_AND_CHILDREN.value,
         custom_dept_ids: list[int] | None = None,
+        permission_ids: list[int] | None = None,
     ) -> AdminOrgNode:
         self._validate_org_node_type(type)
         parent_path, parent_level = await self.validate_parent(parent_id)
@@ -171,6 +206,7 @@ class AdminOrgNodeService(GlobalService[AdminOrgNode, AdminOrgNodeRepository], R
             data_scope or DataScope.DEPT_AND_CHILDREN.value,
             custom_dept_ids,
         )
+        await self._assign_permissions(org_node, permission_ids)
         await self.db.refresh(org_node)
         return await self.repo.get_with_members(org_node.id)
 
@@ -187,6 +223,7 @@ class AdminOrgNodeService(GlobalService[AdminOrgNode, AdminOrgNodeRepository], R
 
         scope_mode = data.pop("data_scope", None)
         custom_org_node_ids = data.pop("custom_dept_ids", None)
+        permission_ids = data.pop("permission_ids", None)
 
         if "type" in data and data["type"] is not None:
             self._validate_org_node_type(data["type"])
@@ -227,6 +264,8 @@ class AdminOrgNodeService(GlobalService[AdminOrgNode, AdminOrgNodeRepository], R
                 scope_mode or org_node.scope_mode,
                 custom_org_node_ids if custom_org_node_ids is not None else org_node.custom_org_node_ids,
             )
+        if permission_ids is not None:
+            await self._assign_permissions(org_node, permission_ids)
 
         return await self.repo.get_with_members(org_node_id)
 
@@ -321,7 +360,6 @@ class AdminOrgNodeService(GlobalService[AdminOrgNode, AdminOrgNodeRepository], R
         phone: str | None = None,
         nickname: str | None = None,
         is_active: bool = True,
-        role_id: int | None = None,
     ) -> Admin:
         org_node = await self.repo.get_by_id(org_node_id)
         if not org_node:
@@ -332,7 +370,6 @@ class AdminOrgNodeService(GlobalService[AdminOrgNode, AdminOrgNodeRepository], R
                 code=ErrorCode.ROLE_CANNOT_ADD_MEMBER,
             )
 
-        await self._validate_permission_role(role_id)
         admin = await AdminService(self.db).create_admin(
             username=username,
             email=email,
@@ -341,7 +378,6 @@ class AdminOrgNodeService(GlobalService[AdminOrgNode, AdminOrgNodeRepository], R
             nickname=nickname,
             is_active=is_active,
             is_super=False,
-            role_id=role_id,
             org_node_id=org_node_id,
         )
         return await self._load_member_detail(admin.id)
@@ -356,8 +392,6 @@ class AdminOrgNodeService(GlobalService[AdminOrgNode, AdminOrgNodeRepository], R
         avatar: str | None = None,
         is_active: bool | None = None,
         new_org_node_id: int | None = None,
-        role_id: int | None = None,
-        update_permission_role: bool = False,
     ) -> Admin:
         _, admin = await self._require_member_in_scope(org_node_id, admin_id)
 
@@ -380,12 +414,8 @@ class AdminOrgNodeService(GlobalService[AdminOrgNode, AdminOrgNodeRepository], R
                 raise BusinessException(
                     message=_("role.cannot_add_member"),
                     code=ErrorCode.ROLE_CANNOT_ADD_MEMBER,
-                )
+            )
             update_data["org_node_id"] = new_org_node_id
-        if update_permission_role:
-            if role_id is not None:
-                await self._validate_permission_role(role_id)
-            update_data["role_id"] = role_id
 
         updated = await AdminService(self.db).update_admin(admin.id, update_data)
         return await self._load_member_detail(updated.id)

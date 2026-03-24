@@ -28,6 +28,8 @@ interface PermissionNode {
 const props = defineProps<{
   /** API prefix: admin or tenant / API 前缀 */
   apiPrefix?: 'admin' | 'tenant';
+  /** Source entity type / 数据来源类型 */
+  source?: 'org-node' | 'role';
   /** Node ID / 节点 ID */
   nodeId: number;
   /** Permission count / 权限数量 */
@@ -53,7 +55,11 @@ async function loadPermissions() {
   try {
     let permIds: number[] = [];
 
-    if (props.apiPrefix === 'tenant') {
+    if (props.apiPrefix === 'admin' && props.source === 'org-node') {
+      const detail = await admin.getOrganizationNodeDetailApi(props.nodeId);
+      permIds = detail.permissionIds || [];
+      permissionTree.value = await admin.getPermissionTreeApi();
+    } else if (props.apiPrefix === 'tenant') {
       // Tenant API / 企业端 API
       const detail = await tenant.getTenantRoleDetailApi(props.nodeId);
       // Prefer permissionIds, otherwise extract from permissions / 优先使用 permissionIds
@@ -61,11 +67,8 @@ async function loadPermissions() {
         detail.permissionIds || detail.permissions?.map((p) => p.id) || [];
       permissionTree.value = await tenant.getTenantPermissionTreeApi();
     } else {
-      // Platform API / 平台端 API
-      const detail = await admin.getRoleDetailApi(props.nodeId);
-      permIds =
-        detail.permissionIds || detail.permissions?.map((p) => p.id) || [];
-      permissionTree.value = await admin.getPermissionTreeApi();
+      permIds = [];
+      permissionTree.value = [];
     }
 
     permissionIdSet.value = new Set(permIds);
@@ -190,10 +193,11 @@ function handleOpenChange(visible: boolean) {
 
 // Reset state when nodeId changes / 当 nodeId 变化时重置状态
 watch(
-  () => props.nodeId,
+  () => [props.nodeId, props.permissionsCount, props.source],
   () => {
     permissionIdSet.value = new Set();
     permissionTree.value = [];
+    expandedKeys.value = [];
   },
 );
 </script>
@@ -222,7 +226,7 @@ watch(
         <!-- Empty state / 空状态 -->
         <Empty
           v-else-if="filteredTreeData.length === 0"
-          :description="$t('admin.system.role.noPermissions')"
+          :description="$t('shared.orgNode.noPermissions')"
           :image="Empty.PRESENTED_IMAGE_SIMPLE"
         />
         <!-- Permission tree / 权限树 -->

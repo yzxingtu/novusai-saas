@@ -137,12 +137,12 @@ class ConversationMessageRepository(TenantRepository[ConversationMessage]):
             ConversationMessage.content.ilike(f"%{escaped}%"),
         )
 
-        # 总数
+        # 总数 / Total count
         count_stmt = select(func.count(ConversationMessage.id)).where(base_cond)
         count_result = await self.db.execute(count_stmt)
         total = count_result.scalar() or 0
 
-        # 列表
+        # 列表 / List rows
         stmt = (
             select(ConversationMessage)
             .where(base_cond)
@@ -170,7 +170,7 @@ class ConversationMessageRepository(TenantRepository[ConversationMessage]):
         Returns:
             ConversationMessage 列表（按 sequence 升序）
         """
-        # 先取最新 N 条（倒序），再翻转为正序
+        # 先取最新 N 条（倒序），再翻转为正序 / Fetch latest N desc then reverse to asc
         stmt = (
             select(ConversationMessage)
             .where(

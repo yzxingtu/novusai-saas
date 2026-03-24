@@ -402,7 +402,7 @@ def _annotation_to_json_type(annotation: ast.expr) -> str:
     if isinstance(annotation, ast.Constant):
         return _TYPE_MAP.get(str(annotation.value), "string")
 
-    # Optional[X] = Union[X, None], List[X], Dict[K, V], Union[X, Y, ...]
+    # Optional[X] = Union[X, None], List[X], Dict[K, V], Union[X, Y, ...] / 常见 typing 形态（Optional/Union/List/Dict）
     if isinstance(annotation, ast.Subscript) and isinstance(annotation.value, ast.Name):
         outer = annotation.value.id
         if outer == "Optional":

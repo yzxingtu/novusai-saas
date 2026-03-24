@@ -14,9 +14,9 @@ from app.services.tenant.attachment_download_service import AttachmentDownloadSe
 
 router = APIRouter(prefix="/attachments", tags=["公开附件 / Public Attachments"])
 
-# In-memory IP rate limiter for image processing
+# In-memory IP rate limiter for image processing / 内存 IP 限流（图片处理）
 _image_rate_buckets: dict[str, list[float]] = defaultdict(list)
-_IMAGE_RATE_WINDOW = 60  # seconds
+_IMAGE_RATE_WINDOW = 60  # seconds / 窗口秒数
 _last_eviction = 0.0
 
 
@@ -25,7 +25,7 @@ def _check_image_rate_limit(client_ip: str, limit: int = 60) -> bool:
     now = time.monotonic()
     cutoff = now - _IMAGE_RATE_WINDOW
 
-    # Periodic eviction of stale IPs (every 5 minutes)
+    # Periodic eviction of stale IPs (every 5 minutes) / 定期清理过期 IP（每 5 分钟）
     if now - _last_eviction > 300:
         stale = [ip for ip, ts in _image_rate_buckets.items() if not ts or ts[-1] < cutoff]
         for ip in stale:
@@ -56,17 +56,18 @@ async def access_attachment(
     attachment = await service.get_attachment(attachment_id)
     await service.validate_access(attachment, token)
 
-    # Local files: stream directly from disk
+    # Local files: stream directly from disk / 本地文件直读磁盘
     if attachment.driver == "local":
         await service.record_download(attachment)
         return await service.get_download_response(attachment, preview=preview)
 
-    # Cloud files: generate redirect URL
+    # Cloud files: generate redirect URL / 云端生成重定向 URL
     url = await service.get_redirect_url(attachment, expires=3600, preview=preview)
 
     # Guard against self-redirect loop: if _get_access_url fell back to
     # an API proxy URL (private file with config mismatch), return 404
     # instead of redirecting to ourselves.
+    # / 防止自跳转：回退到 API 代理 URL 时返回 404，避免重定向到自身
     if url.startswith("/api/"):
         return error(
             message="File storage config unavailable",
@@ -123,7 +124,7 @@ async def get_processed_image(
     if sign or exp:
         AttachmentDownloadService.verify_access_sign(attachment_id, exp, sign)
 
-    # IP rate limiting (read configurable limit)
+    # IP rate limiting (read configurable limit) / IP 限流（读取配置上限）
     from app.configs.service import ConfigService
     config_svc = ConfigService(db)
     rate_limit = int(await config_svc.get_platform_config(

@@ -341,7 +341,7 @@ class AdminCodegenController(GlobalController):
                 message=_("common.updated"),
             )
 
-        # ========== 元数据 ==========
+        # ========== 元数据 ========== / Metadata
         @router.get("/types", summary=_("codegen.api.types"))
         @action_read("action.codegen.types")
         async def get_types(request: Request, current_admin: ActiveAdmin):
@@ -542,7 +542,7 @@ class AdminCodegenController(GlobalController):
             data = service.import_from_table(table_name)
             return success(data=data)
 
-        # ========== 核心操作 ==========
+        # ========== 核心操作 ========== / Core operations
         @router.post("/validate", summary=_("codegen.api.validate"))
         @action_read("action.codegen.validate")
         async def validate_config(
@@ -741,7 +741,7 @@ class AdminCodegenController(GlobalController):
             ]
             return success(data=data)
 
-        # ========== 回滚 ==========
+        # ========== 回滚 ========== / Rollback
         @router.delete("/configs/{id}/rollback", summary=_("codegen.api.rollback"))
         @action_delete("action.codegen.rollback")
         async def rollback_config(

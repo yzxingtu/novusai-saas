@@ -29,6 +29,12 @@ import {
   listAdminTemplateVersionsApi,
   publishAdminTemplateApi,
 } from '../../../api/admin';
+import {
+  ADMIN_WORKFLOW_AI_CONVERSATION_SCOPE,
+  buildPrompt,
+  openWorkflowAIPanel,
+  useWorkflowPageAI,
+} from '../../../shared/ai';
 import { formatCompactNumber, formatDateTime } from '../shared/format';
 
 import {
@@ -47,6 +53,9 @@ import { ADMIN_I18N_PREFIX, buildAdminPath } from '../shared/constants';
 import { $t } from '@novus/plugin-shared';
 
 defineOptions({ name: 'WorkflowOrchestrationAdminTemplateDetail' });
+
+const ADMIN_TEMPLATE_DETAIL_PAGE_KEY =
+  'admin.workflow_orchestration.templates.detail';
 
 interface CapabilityGroup {
   category: string;
@@ -298,6 +307,58 @@ function openEditor() {
   router.push(buildAdminPath(`templates/${templateId.value}/editor`));
 }
 
+function buildPlannerPrompt(seed?: string): string {
+  return buildPrompt([
+    $t(`${ADMIN_I18N_PREFIX}.home.ai.systemLead`),
+    seed?.trim()
+      ? $t(`${ADMIN_I18N_PREFIX}.home.ai.userIdea`, {
+          idea: seed.trim(),
+        })
+      : $t(`${ADMIN_I18N_PREFIX}.home.ai.emptyIdea`),
+    $t(`${ADMIN_I18N_PREFIX}.home.ai.outputContract`),
+  ]);
+}
+
+function openAIPlanner(seed?: string): void {
+  openWorkflowAIPanel({
+    conversationScope: ADMIN_WORKFLOW_AI_CONVERSATION_SCOPE,
+    message: buildPlannerPrompt(seed),
+    pageKey: ADMIN_TEMPLATE_DETAIL_PAGE_KEY,
+  });
+}
+
+async function publishTemplate(): Promise<{ message: string; success: boolean }> {
+  if (!templateId.value || !template.value) {
+    return {
+      success: false,
+      message: $t(`${ADMIN_I18N_PREFIX}.templates.detail.invalidTemplate`),
+    };
+  }
+
+  publishing.value = true;
+  try {
+    await publishAdminTemplateApi(
+      templateId.value,
+      buildTemplatePublishPayload(template.value),
+    );
+    await loadPage();
+    return {
+      success: true,
+      message: $t(`${ADMIN_I18N_PREFIX}.templates.publish.success`),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error instanceof Error && error.message
+          ? error.message
+          : $t(`${ADMIN_I18N_PREFIX}.common.publish`),
+    };
+  } finally {
+    publishing.value = false;
+  }
+}
+
 function confirmPublish() {
   if (!templateId.value || !template.value) {
     return;
@@ -309,20 +370,84 @@ function confirmPublish() {
       name: template.value.name,
     }),
     onOk: async () => {
-      publishing.value = true;
-      try {
-        await publishAdminTemplateApi(
-          templateId.value,
-          buildTemplatePublishPayload(template.value),
-        );
+      const result = await publishTemplate();
+      if (result.success) {
         message.success($t(`${ADMIN_I18N_PREFIX}.templates.publish.success`));
-        await loadPage();
-      } finally {
-        publishing.value = false;
+        return;
       }
+      throw new Error(result.message);
     },
   });
 }
+
+useWorkflowPageAI({
+  conversationScope: ADMIN_WORKFLOW_AI_CONVERSATION_SCOPE,
+  pageKey: ADMIN_TEMPLATE_DETAIL_PAGE_KEY,
+  buildContext: () => ({
+    entityDescription: $t(
+      `${ADMIN_I18N_PREFIX}.templates.detail.contractNotice.description`,
+    ),
+    entityTitle:
+      template.value?.name || $t(`${ADMIN_I18N_PREFIX}.templates.detail.badge`),
+    entityType: 'workflow_orchestration_admin_template_detail',
+    pageData: {
+      builder_surface: template.value?.builder_surface ?? null,
+      latest_version:
+        template.value?.latest_version?.version_label
+        || template.value?.latest_version_label
+        || null,
+      published_version:
+        template.value?.published_version?.version_label || null,
+      release_scope: template.value?.release_scope ?? null,
+      status: template.value?.status ?? null,
+      template_id: templateId.value,
+      version_count: template.value?.version_count ?? versions.value.length,
+    },
+    pageTitle:
+      template.value?.name || $t(`${ADMIN_I18N_PREFIX}.templates.detail.badge`),
+  }),
+  operations: [
+    {
+      name: 'open_admin_template_editor',
+      label: $t(`${ADMIN_I18N_PREFIX}.common.editor`),
+      description: $t(
+        `${ADMIN_I18N_PREFIX}.templates.detail.contractNotice.description`,
+      ),
+      readonly: true,
+      handler: async () => {
+        openEditor();
+        return {
+          success: true,
+          message: $t(`${ADMIN_I18N_PREFIX}.common.editor`),
+        };
+      },
+    },
+    {
+      name: 'publish_admin_template',
+      label: $t(`${ADMIN_I18N_PREFIX}.common.publish`),
+      description: template.value
+        ? $t(`${ADMIN_I18N_PREFIX}.templates.publish.confirmContent`, {
+            name: template.value.name,
+          })
+        : $t(`${ADMIN_I18N_PREFIX}.common.publish`),
+      readonly: false,
+      handler: publishTemplate,
+    },
+    {
+      name: 'refresh_admin_template_detail',
+      label: $t(`${ADMIN_I18N_PREFIX}.home.ai.operations.refresh.label`),
+      description: $t(`${ADMIN_I18N_PREFIX}.home.ai.operations.refresh.description`),
+      readonly: true,
+      handler: async () => {
+        await loadPage();
+        return {
+          success: true,
+          message: $t(`${ADMIN_I18N_PREFIX}.home.ai.operations.refresh.success`),
+        };
+      },
+    },
+  ],
+});
 
 watch(
   () => route.params.id,
@@ -388,6 +513,12 @@ onMounted(() => {
                     <IconifyIcon icon="lucide:arrow-left" />
                   </template>
                   {{ $t(`${ADMIN_I18N_PREFIX}.common.backToList`) }}
+                </Button>
+                <Button @click="openAIPlanner()">
+                  <template #icon>
+                    <IconifyIcon icon="lucide:sparkles" />
+                  </template>
+                  {{ $t(`${ADMIN_I18N_PREFIX}.home.actions.askAI`) }}
                 </Button>
                 <Button @click="openEditor">
                   <template #icon>

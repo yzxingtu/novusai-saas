@@ -152,7 +152,7 @@ export interface PermissionSelectorProps {
   /**
    * 默认展开层级
    * Default expansion level
-   * @default 2
+   * @default 0
    */
   defaultExpandedLevel?: number;
 

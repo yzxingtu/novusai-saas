@@ -40,10 +40,10 @@ class AgentKnowledgeBaseBinding(TenantModel):
         Integer,
         nullable=True,
         index=True,
-        comment="企业ID（跟随 Agent 的 tenant_id）"
+        comment="企业ID（跟随 Agent 的 tenant_id） / Tenant id (mirrors Agent)"
     )
 
-    # ==================== 关联 ====================
+    # ==================== 关联 ==================== / Associations
 
     agent_id: Mapped[int] = mapped_column(
         Integer,
@@ -60,7 +60,7 @@ class AgentKnowledgeBaseBinding(TenantModel):
         comment=_("agent_kb_binding.field.knowledge_base_id"),
     )
 
-    # ==================== 绑定配置 ====================
+    # ==================== 绑定配置 ==================== / Binding options
 
     weight: Mapped[float] = mapped_column(
         Float,
@@ -81,7 +81,7 @@ class AgentKnowledgeBaseBinding(TenantModel):
         comment=_("agent_kb_binding.field.sort_order"),
     )
 
-    # ==================== 约束与索引 ====================
+    # ==================== 约束与索引 ==================== / Constraints and indexes
 
     __table_args__ = (
         UniqueConstraint(
@@ -94,7 +94,7 @@ class AgentKnowledgeBaseBinding(TenantModel):
         ),
     )
 
-    # ==================== 关系 ====================
+    # ==================== 关系 ==================== / Relationships
 
     agent = relationship(
         "Agent",

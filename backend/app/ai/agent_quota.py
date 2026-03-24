@@ -642,7 +642,7 @@ class AgentConcurrencyLimiter:
 
     PREFIX = "ai:agent_concurrency:"
     PREFIX_TENANT = "ai:agent_concurrency:tenant:"
-    LOCK_TTL = 300  # 5 分钟自动过期
+    LOCK_TTL = 300  # 5 分钟自动过期 / 5-minute TTL auto-expiry
 
     # Lua script: atomic cleanup-expired → check-count → add-token
     # Lua 脚本：原子化 清理过期 → 检查计数 → 添加令牌

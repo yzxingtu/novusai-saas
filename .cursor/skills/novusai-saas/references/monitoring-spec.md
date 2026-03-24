@@ -1,116 +1,49 @@
-# 可观测性监控规范 / Observability Monitoring Specification
+# 可观测性与监控规范 / Observability & Monitoring Specification
 
-> Prometheus + Grafana 可观测性集成，仅限平台管理端（Admin）。
+> 本规范总结当前仓库实际存在的可观测性管道（日志、系统日志 API、AI 健康/Rosputin、WebSocket 在线度）以及 Trace ID 传播/指标埋点的落地方式。
 
----
+## 一、日志体系
 
-## 一、架构概览
+- `app/core/logging.py` 通过 `LogManager` 统一配置 Loguru：默认控制台 + 本地文件（app.log、error.log、db.log 等），格式里自带 `[trace_id=xxx]`。
+- `LogCategoryEnum` 确保不同模块写入不同日志文件（app / error / db / queue / task / captcha / storage / auth / impersonate）。
+- Service 里优先使用 `LoggerMixin` / `self.logger`，其他模块用 `get_logger(__name__)`；禁止直接 `from loguru import logger` 或 `print()`。
+- `TraceIdMiddleware`（`backend/app/middleware/trace.py`）在 HTTP + WebSocket 请求/响应里注入 `X-Trace-ID`，记录到 `trace_id_var`，LogManager 的 patcher 会自动将其加入每条日志。
+- 所有 5xx 错误由前端 `notification.error()` 展示，响应里必须回传 `X-Trace-ID` 以便用户复制，前端不可自动消失。
 
-```
-Backend (FastAPI)
-  ├── app/core/metrics.py         # 自定义 Prometheus 指标定义
-  ├── app/middleware/metrics.py   # HTTP 请求指标中间件 + /metrics 端点
-  └── app/api/admin/monitoring.py # /admin/monitoring/* 管理端 API
+## 二、系统日志管理
 
-Prometheus → 抓取 /metrics (15s) → 存储时序
-Grafana   → 连接 Prometheus → 预置 Dashboard 可视化
-Admin 前端 → 实时概览(metrics-summary) + Grafana iframe 嵌入
-```
+- `backend/app/services/system/system_log_service.py` 聚合日志分类统计、文件列表、内容分页、下载/删除，避免前端直接读磁盘。
+- `backend/app/api/admin/system_logs.py` 对应 `GET /admin/system-logs/*` 接口暴露统计、分类、分页内容、文件下载和删除，权限由 `system_log` 资源控制。
+- 任何前端调试页面（例如 `/admin/system-mgmt/system-logs`）必须通过上述 API 获取信息，不允许前端直接访问 `logs/` 目录。
 
-**端隔离**：监控功能仅注册在 Admin 端，Tenant 和 User 端不暴露任何监控路由/菜单/API。
+## 三、AI 运行态健康监控
 
----
+- `app.ai.failover.FailoverService` 从 Redis（`ai:provider:{id}:health` / `ai:provider:{id}:health_history`）读取每个 provider 的健康度，并判断是否切换备用模型。
+- `backend/app/api/admin/ai_health.py` 将这些健康度和历史展示给平台管理员（`GET /admin/ai/health`、`GET /admin/ai/health/{provider_id}/history`）。
+- Health 数据的记录点在 Celery 异常捕获/AI Gateway 调用失败路径里写入 Redis（见 `app/tasks/ssl_tasks.py`、`app/tasks/base.py`等），这些记录宜包 `try/except` 防止影响主流程。
 
-## 二、自定义业务指标
+## 四、WebSocket 在线度与 presence
 
-定义于 `app/core/metrics.py`：
+- `app/sio/presence.py` 维护 Redis Hash，`PresenceManager` 提供 `set_online`/`set_offline`/`get_online_details` 等接口。
+- API `GET /admin/ws/presence`、`GET /admin/ws/presence/tenant/{tenant_id}`、`GET /tenant/ws/presence`、`GET /tenant/ws/presence/users` 供页面初始化拉取在线 ID 列表与连接数；数据以 `details` 字典返回（key 是 `user_id`）。
+- WebSocket 连接/断开处（`app/sio/*_ns.py`）必须调用 `PresenceManager`，确保 Redis 数据始终与 `AsyncServer` 的 sid 对齐。
 
-| 指标名 | 类型 | 标签 | 埋点位置 |
-|--------|------|------|----------|
-| `novusai_ai_calls_total` | Counter | provider, model, status | AIGateway.chat/embedding/stream_chat |
-| `novusai_ai_tokens_total` | Counter | provider, model, direction | AIGateway 成功回调 |
-| `novusai_ai_latency_seconds` | Histogram | provider, model | AIGateway 成功/失败 |
-| `novusai_celery_tasks_total` | Counter | task_name, status | BaseTask.on_success/on_failure |
-| `novusai_celery_queue_length` | Gauge | queue_name | 后台 15s 采样任务 |
-| `novusai_active_websockets` | Gauge | namespace | Socket.IO on_connect/on_disconnect |
-| `novusai_active_tenants` | Gauge | - | 后台 15s 采样任务 |
-| `novusai_db_pool_size` | Gauge | state | 后台 15s 采样任务 |
+## 五、Trace ID 在 Celery / sync 场景的传播
 
----
+- Celery 任务使用 `BaseTask`（`app/tasks/base.py`）自带 `trace_id` header 传播，`before_start`/`after_return` 里自动调用 `trace_id_var.set()`。
+- 同步上下文（如 Celery Worker）如果需要发 Socket.IO 事件，应走 `app/core/sio_bridge.py`：`sio_emit_sync`/`notify_*_sync()` 复用 RedisManager，避免直接 import AsyncServer。
+- `notify_sync()` 也从 `trace_id_var` 提取 trace_id，确保通知链路的日志能关联到原始请求。
 
-## 三、配置项
+## 六、指标埋点指引
 
-`app/core/config.py`：
+- 当前主干仓库没有统一的 `app/core/metrics.py`，也没有可确认存在的 `/admin/monitoring/*` 管理端监控路由。
+- 如果未来需要新增 Prometheus / OpenTelemetry / 自定义计数器，请遵循：
+  - 指标定义紧邻实际业务模块
+  - 指标调用必须包 `try/except`
+  - 同步更新规则文档与可观测性入口
+- 不要在文档里虚构尚未落地的 `/metrics` 白名单、Grafana iframe、Dashboard 页面或 `monitoring/index.vue`。
 
-| 配置 | 类型 | 说明 |
-|------|------|------|
-| `METRICS_ENABLED` | bool | 是否启用指标采集与 /metrics |
-| `GRAFANA_URL` | str | Grafana 访问地址 |
-| `GRAFANA_EMBED_URL` | str | iframe 嵌入 URL（含 dashboard ID） |
-| `METRICS_ALLOWED_IPS` | str | Prometheus 拉取白名单（逗号分隔，空=允许所有） |
+## 七、扩展性规则
 
----
-
-## 四、API 端点
-
-| 路径 | 认证 | 说明 |
-|------|------|------|
-| `GET /metrics` | IP 白名单 | Prometheus 拉取（根路径） |
-| `GET /admin/monitoring/metrics` | Admin | Prometheus 格式（管理端） |
-| `GET /admin/monitoring/metrics-summary` | Admin | JSON 关键指标摘要 |
-| `GET /admin/monitoring/grafana-config` | Admin | Grafana 嵌入配置 |
-
----
-
-## 五、埋点规范
-
-### 5.1 AIGateway
-
-- 成功：`ai_calls_total.labels(..., status="success").inc()`；`ai_tokens_total`；`ai_latency_seconds.observe()`
-- 失败：`ai_calls_total.labels(..., status="failure").inc()`；`ai_latency_seconds.observe()`
-- 所有指标调用需包 `try/except`，避免影响主流程
-
-### 5.2 Celery
-
-- `BaseTask.on_success`：`celery_tasks_total.labels(task_name=..., status="success").inc()`
-- `BaseTask.on_failure`：`celery_tasks_total.labels(..., status="failure").inc()`
-
-### 5.3 Socket.IO
-
-- `on_connect`（认证成功后）：`active_websockets.labels(namespace="admin"|"tenant"|"user").inc()`
-- `on_disconnect`（有 session 时）：`active_websockets.labels(...).dec()`
-
-### 5.4 采样 Gauge
-
-- `celery_queue_length`、`db_pool_size`、`active_tenants` 由 lifespan 后台任务每 15s 调用 `MonitoringService.get_metrics_summary()`，再通过 `update_sampled_gauges()` 写入。
-
----
-
-## 六、Docker 部署
-
-`docker-compose.dev.yml` 包含：
-
-- **prometheus**：抓取 `host.docker.internal:8000/metrics`
-- **grafana**：自动配置 Prometheus 数据源 + 预置 Dashboard
-
-预置 Dashboard 位于 `deploy/grafana/dashboards/`：
-- Overview：请求 QPS、延迟、错误率、WebSocket
-- AI Gateway：AI 调用量、Token、延迟、成功率
-- Infrastructure：Celery 队列、任务率、DB 连接池、WebSocket 分布
-
----
-
-## 七、前端页面
-
-- 路径：`/admin/system-maintenance/monitoring`
-- 组件：`views/admin/system/monitoring/index.vue`
-- Tab：实时概览（5s 轮询 metrics-summary）、Grafana 嵌入、告警规则占位
-- i18n：`admin.system.monitoring.*`
-
----
-
-## 八、权限
-
-- 资源：`system_monitoring`
-- 父资源：`system_maintenance`
-- 操作：`action.system_monitoring.metrics`、`metrics_summary`、`grafana_config`
+- 新增监控路径（AI、Celery、WebSocket）必须同步更新 `trace-and-monitoring` 规则、`monitoring-spec` 文档、以及能观察到的数据端点（`system_logs`、`ai_health`、`ws/presence`）中的一项。
+- 监控相关的配置文档（如 `configs/definitions/platform_monitoring.py`）应只在 admin scope 里暴露，避免租户或 user 端访问。

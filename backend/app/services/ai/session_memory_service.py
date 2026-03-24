@@ -376,7 +376,7 @@ class SessionMemoryService:
         if ok:
             return latest
 
-        # 冲突重试一次
+        # 冲突重试一次 / Retry once on conflict
         expected_retry = int(latest.get("version", 0))
         _, final_state = await self.update_state_cas(
             channel=channel,

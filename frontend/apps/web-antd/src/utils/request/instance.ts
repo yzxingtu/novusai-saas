@@ -95,7 +95,7 @@ async function doReAuthenticate() {
   console.warn('Access token or refresh token is invalid or expired.');
   const accessStore = useAccessStore();
 
-  // 根据当前路由获取端类型
+  // 根据当前路由获取端类型 / resolve endpoint from current route
   const currentPath = window.location.pathname;
   const endpoint = resolveEndpointByPath(currentPath, window.location.hostname);
   const isPublicRootPath =
@@ -110,10 +110,10 @@ async function doReAuthenticate() {
     preferences.app.loginExpiredMode === 'modal' &&
     accessStore.isAccessChecked
   ) {
-    // 弹窗模式
+    // 弹窗模式 / login-expired modal
     accessStore.setLoginExpired(true);
   } else {
-    // 重定向模式
+    // 重定向模式 / redirect to login
     const loginPath = LOGIN_PATHS[endpoint];
     if (isPublicRootPath) {
       return;
@@ -219,7 +219,7 @@ function createConfiguredClient(
   client.setI18n(messageHandler.t);
 
   if (withInterceptors) {
-    // 请求拦截器
+    // 请求拦截器 / request interceptors
     client.addRequestInterceptor(
       createRequestInterceptor(
         client,
@@ -237,7 +237,7 @@ function createConfiguredClient(
       createSuccessMessageInterceptor(messageHandler),
     );
 
-    // 响应拦截器：数据格式解析
+    // 响应拦截器：数据格式解析 / response: unwrap { code, data }
     client.addResponseInterceptor(
       createResponseDataInterceptor(0, 'code', 'data'),
     );
@@ -252,7 +252,7 @@ function createConfiguredClient(
       ),
     );
 
-    // 响应拦截器：业务错误消息
+    // 响应拦截器：业务错误消息 / response: business error toast
     client.addResponseInterceptor(
       createBusinessErrorInterceptor(messageHandler),
     );

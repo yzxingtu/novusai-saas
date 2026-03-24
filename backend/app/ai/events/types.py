@@ -135,7 +135,7 @@ class QuotaWarning(BaseEvent):
 class QuotaExceeded(BaseEvent):
     """Quota exceeded event / 配额超限事件"""
     agent_id: int = 0
-    quota_type: str = ""  # soft / hard
+    quota_type: str = ""  # soft / hard / 软或硬配额
 
 
 # ============================================
@@ -268,7 +268,7 @@ class PluginUninstalled(BaseEvent):
 class KnowledgeBaseUpdated(BaseEvent):
     """Knowledge base updated event / 知识库更新事件"""
     knowledge_base_id: int = 0
-    action: str = ""  # created / updated / deleted
+    action: str = ""  # created / updated / deleted / 创建或更新或删除
 
 
 @dataclass

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.core.response import build_public_error_text
 from app.enums.agent import SkillTypeEnum
 from app.models.ai.skill import Skill
 
@@ -59,7 +60,10 @@ async def test_skill(db: AsyncSession, skill: Skill) -> dict[str, Any]:
         )
         return {
             "success": False,
-            "message": str(exc),
+            "message": build_public_error_text(
+                exc=exc,
+                message=_("common.server_error"),
+            ),
             "details": None,
         }
 
@@ -99,7 +103,10 @@ async def _test_data_intelligence(
     except Exception as exc:
         return {
             "success": False,
-            "message": _("skill.test.di_error", error=str(exc)),
+            "message": _("skill.test.di_error", error=build_public_error_text(
+                exc=exc,
+                message=_("common.server_error"),
+            )),
             "details": None,
         }
 
@@ -190,7 +197,10 @@ async def _test_toolkit(
     except Exception as exc:
         return {
             "success": False,
-            "message": _("skill.test.toolkit_error", error=str(exc)),
+            "message": _("skill.test.toolkit_error", error=build_public_error_text(
+                exc=exc,
+                message=_("common.server_error"),
+            )),
             "details": None,
         }
 
@@ -228,7 +238,10 @@ async def _test_http(
     except Exception as exc:
         return {
             "success": False,
-            "message": _("skill.test.http_error", error=str(exc)),
+            "message": _("skill.test.http_error", error=build_public_error_text(
+                exc=exc,
+                message=_("common.server_error"),
+            )),
             "details": {"url": url, "method": method},
         }
 
@@ -280,7 +293,10 @@ async def _test_email(
     except Exception as exc:
         return {
             "success": False,
-            "message": _("skill.test.email_error", error=str(exc)),
+            "message": _("skill.test.email_error", error=build_public_error_text(
+                exc=exc,
+                message=_("common.server_error"),
+            )),
             "details": None,
         }
 

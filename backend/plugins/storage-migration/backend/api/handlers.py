@@ -15,24 +15,24 @@ def _get_raw_db(ctx: object):
 
     Migration plugin needs cross-table access (attachments + plugin tables).
     The raw session is used instead of PluginDbProxy which restricts to px_* tables."""
-    return ctx._db  # type: ignore[attr-defined]
+    return ctx._db  # type: ignore[attr-defined]  # PluginContext._db / 内部会话
 
 
 def _get_user_id(ctx: object) -> int:
     """Extract current user ID via PluginContext public API. / 接口/处理器"""
-    uid = ctx.get_current_user_id()  # type: ignore[attr-defined]
+    uid = ctx.get_current_user_id()  # type: ignore[attr-defined]  # 插件上下文 API / plugin API
     return uid or 0
 
 
 def _safe_int(value: object, default: int) -> int:
     """Safely parse an integer value, returning default on failure. / 获取/返回"""
     try:
-        return int(value)  # type: ignore[arg-type]
+        return int(value)  # type: ignore[arg-type]  # 宽松入参 / loose input
     except (TypeError, ValueError):
         return default
 
 
-# ── Impact Analysis ────────────────────────────────────────────
+# ── Impact Analysis / 影响分析 ───────────────────────────────────
 
 
 async def get_impact_analysis(request: Request, ctx: object) -> JSONResponse:
@@ -55,7 +55,7 @@ async def get_impact_analysis(request: Request, ctx: object) -> JSONResponse:
     return result
 
 
-# ── Task CRUD ──────────────────────────────────────────────────
+# ── Task CRUD / 任务增删改查 ─────────────────────────────────────
 
 
 async def create_migration_task(request: Request, ctx: object) -> JSONResponse:
@@ -105,7 +105,7 @@ async def create_migration_task(request: Request, ctx: object) -> JSONResponse:
             content={"code": 4220, "message": result["error"]},
         )
 
-    # Auto-start the migration task
+    # Auto-start the migration task / 创建后自动启动迁移
     start_result = await service.start_task(result["task_id"])
     result["status"] = start_result.get("status", "pending")
 
@@ -152,7 +152,7 @@ async def get_migration_task(request: Request, ctx: object) -> JSONResponse:
             content={"code": 4040, "message": "Task not found"},
         )
 
-    # Optionally include logs
+    # Optionally include logs / 可选附带分页日志
     log_status = request.query_params.get("log_status")
     log_page = _safe_int(
         request.query_params.get("log_page[number]") or request.query_params.get("log_page"),
@@ -172,7 +172,7 @@ async def get_migration_task(request: Request, ctx: object) -> JSONResponse:
     return task
 
 
-# ── Task Control ───────────────────────────────────────────────
+# ── Task Control / 任务控制 ────────────────────────────────────
 
 
 async def pause_migration_task(request: Request, ctx: object) -> JSONResponse:
@@ -242,7 +242,7 @@ async def cancel_migration_task(request: Request, ctx: object) -> JSONResponse:
     return result
 
 
-# ── Retry & Rollback ──────────────────────────────────────────
+# ── Retry & Rollback / 重试与回滚 ───────────────────────────────
 
 
 async def retry_failed_files(request: Request, ctx: object) -> JSONResponse:

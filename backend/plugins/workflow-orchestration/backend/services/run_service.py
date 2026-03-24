@@ -9,6 +9,7 @@ from app.core.i18n import _
 from app.core.logging import get_logger
 from app.middleware.trace import trace_id_var
 from app.plugins.module_loader import load_plugin_module
+from ._data_scope import apply_run_data_scope, apply_run_related_scope, apply_tenant_workflow_scope
 
 PLUGIN_NAME = "workflow-orchestration"
 logger = get_logger(__name__)
@@ -46,8 +47,7 @@ class RunService:
         run_model = model_access.resolve_model("workflow_run")
 
         stmt = select(workflow_model).where(workflow_model.id == workflow_id)
-        if self.tenant_id is not None:
-            stmt = stmt.where(workflow_model.tenant_id == self.tenant_id)
+        stmt = apply_tenant_workflow_scope(stmt, workflow_model, self.tenant_id)
         workflow = (await self.db.execute(stmt)).scalar_one_or_none()
         if workflow is None:
             raise errors.WorkflowNotFoundError(
@@ -234,10 +234,15 @@ class RunService:
 
     async def _get_run(self, run_id: int) -> Any:
         errors = _runtime("errors")
-        run_model = _runtime("model_access").resolve_model("workflow_run")
-        stmt = select(run_model).where(run_model.id == run_id)
-        if self.tenant_id is not None:
-            stmt = stmt.where(run_model.tenant_id == self.tenant_id)
+        model_access = _runtime("model_access")
+        run_model = model_access.resolve_model("workflow_run")
+        workflow_model = model_access.try_resolve_model("tenant_workflow")
+        stmt = apply_run_data_scope(
+            select(run_model).where(run_model.id == run_id),
+            run_model,
+            tenant_id=self.tenant_id,
+            workflow_model=workflow_model,
+        )
         run = (await self.db.execute(stmt)).scalar_one_or_none()
         if run is None:
             raise errors.WorkflowNotFoundError(
@@ -248,10 +253,19 @@ class RunService:
     async def _list_node_runs(self, run_id: int) -> list[Any]:
         model_access = _runtime("model_access")
         node_model = model_access.try_resolve_model("workflow_node_run")
-        if node_model is None:
+        run_model = model_access.try_resolve_model("workflow_run")
+        workflow_model = model_access.try_resolve_model("tenant_workflow")
+        if node_model is None or run_model is None:
             return []
         stmt = select(node_model).where(node_model.run_id == run_id)
         stmt = stmt.order_by(getattr(node_model, "created_at", node_model.id))
+        stmt = apply_run_related_scope(
+            stmt,
+            node_model.run_id,
+            run_model,
+            tenant_id=self.tenant_id,
+            workflow_model=workflow_model,
+        )
         return list((await self.db.execute(stmt)).scalars().all())
 
     async def _resolve_executable_version(
@@ -266,11 +280,21 @@ class RunService:
         if version_model is None:
             return None, None
 
+        workflow_model = model_access.try_resolve_model("tenant_workflow") or type(
+            workflow
+        )
+        workflow_id = model_access.first_attr(workflow, ("id",))
+
         if preferred_version_id:
-            workflow_id = model_access.first_attr(workflow, ("id",))
             stmt = select(version_model).where(
                 version_model.id == preferred_version_id,
                 version_model.workflow_id == workflow_id,
+            )
+            stmt = apply_tenant_workflow_scope(
+                stmt,
+                workflow_model,
+                self.tenant_id,
+                workflow_id_column=version_model.workflow_id,
             )
             preferred = (await self.db.execute(stmt)).scalar_one_or_none()
             if preferred is not None:
@@ -281,12 +305,16 @@ class RunService:
 
         version_id = model_access.first_attr(workflow, ("active_version_id", "latest_version_id"))
         if version_id:
-            stmt = select(version_model).where(version_model.id == version_id)
+            stmt = apply_tenant_workflow_scope(
+                select(version_model).where(version_model.id == version_id),
+                workflow_model,
+                self.tenant_id,
+                workflow_id_column=version_model.workflow_id,
+            )
             version = (await self.db.execute(stmt)).scalar_one_or_none()
             if version is not None:
                 return version, model_access.first_attr(version, ("id",))
 
-        workflow_id = model_access.first_attr(workflow, ("id",))
         if workflow_id is None:
             return None, None
 
@@ -296,6 +324,12 @@ class RunService:
         stmt = stmt.order_by(
             getattr(version_model, "version_no", version_model.id).desc(),
         ).limit(1)
+        stmt = apply_tenant_workflow_scope(
+            stmt,
+            workflow_model,
+            self.tenant_id,
+            workflow_id_column=version_model.workflow_id,
+        )
         version = (await self.db.execute(stmt)).scalar_one_or_none()
         if version is None:
             return None, None

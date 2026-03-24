@@ -24,6 +24,8 @@ import sys
 import types
 from typing import Any
 
+from app.core.response import build_public_error_text
+
 
 def _apply_resource_limits(memory_mb: int = 256) -> None:
     """Set resource limits (Unix systems only) / 设置资源限制（仅 Unix 系统）"""
@@ -69,7 +71,10 @@ def _inject_valves(
         tools_instance.valves = valves_instance
         return None
     except Exception as exc:
-        return str(exc)
+        return build_public_error_text(
+            message="Valves config injection failed",
+            exc=exc,
+        )
 
 
 def _to_string(value: Any) -> str:
@@ -92,7 +97,12 @@ def main() -> None:
         raw = sys.stdin.read()
         params = json.loads(raw)
     except (json.JSONDecodeError, Exception) as exc:
-        _write_error(f"Invalid input: {exc}")
+        _write_error(
+            build_public_error_text(
+                message="Invalid sandbox input",
+                exc=exc,
+            )
+        )
         return
 
     # Set resource limits (read memory limit from parameters) / 设置资源限制（从参数中读取内存限制）
@@ -149,7 +159,12 @@ def main() -> None:
         _write_result(output)
 
     except Exception as exc:
-        _write_error(str(exc))
+        _write_error(
+            build_public_error_text(
+                message="Toolkit sandbox execution failed",
+                exc=exc,
+            )
+        )
 
 
 def _write_result(output: str) -> None:

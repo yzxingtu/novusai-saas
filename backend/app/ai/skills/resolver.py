@@ -428,7 +428,7 @@ class SkillResolver:
                 source_skill_type=skill.type,
             ))
 
-    # ========================================
+    # ======================================== / 上文为英文说明 / English above
     # Toolkit Skill
     # ========================================
 
@@ -487,7 +487,7 @@ class SkillResolver:
             skill.name, len(tool_defs),
         )
 
-    # ========================================
+    # ======================================== / 上文为英文说明 / English above
     # Builtin Skill
     # ========================================
 
@@ -544,7 +544,7 @@ class SkillResolver:
                 source_skill_type=skill.type,
             ))
 
-    # ========================================
+    # ======================================== / 上文为英文说明 / English above
     # HTTP/Webhook Skill
     # ========================================
 
@@ -650,7 +650,7 @@ class SkillResolver:
             skill.name, method, url, len(params),
         )
 
-    # ========================================
+    # ======================================== / 上文为英文说明 / English above
     # Email Skill
     # ========================================
 
@@ -738,7 +738,7 @@ class SkillResolver:
 
         logger.debug("Email skill '{}' resolved", skill.name)
 
-    # ========================================
+    # ======================================== / 上文为英文说明 / English above
     # Code Execution Skill
     # ========================================
 

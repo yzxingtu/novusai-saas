@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.config import settings
 from app.plugins.exceptions import PluginManifestError
@@ -15,7 +15,9 @@ from app.plugins.exceptions import PluginManifestError
 class PluginReleaseManifest(BaseModel):
     """Compiled frontend release manifest. / 编译后的前端发布清单。"""
 
-    format: str = Field(default="novus.plugin.release.v1")
+    model_config = ConfigDict(extra="forbid")
+
+    format: Literal["novus.plugin.release.v1"] = Field(default="novus.plugin.release.v1")
     entry: str = Field(default="index.js")
     global_var: str
     css: list[str] = Field(default_factory=list)
@@ -30,6 +32,8 @@ def default_plugin_global_var(plugin_name: str) -> str:
 def has_frontend_extensions(manifest: Any) -> bool:
     """Whether plugin declares any frontend capability. / 插件是否声明了任何前端能力。"""
     frontend = _get_frontend_decl(manifest)
+    if frontend.get("dev") or frontend.get("release"):
+        return True
     has_standard_frontend = any(
         (
             frontend.get("pages"),
@@ -254,4 +258,15 @@ def _assert_release_files_exist(
         if css_path is None or not css_path.is_file():
             raise PluginManifestError(
                 message=f"Frontend release css missing: frontend/dist/{css_file}",
+            )
+
+    for asset_file in release_manifest.assets:
+        asset_path = _resolve_frontend_dist_relative_file(
+            plugin_root,
+            asset_file,
+            field_name="plugin.manifest.assets",
+        )
+        if asset_path is None or not asset_path.is_file():
+            raise PluginManifestError(
+                message=f"Frontend release asset missing: frontend/dist/{asset_file}",
             )

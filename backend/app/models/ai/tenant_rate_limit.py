@@ -28,7 +28,7 @@ class TenantModelRateLimit(TenantModel):
         "allow_read": True,
     }
 
-    # 允许前端筛选的字段
+    # 允许前端筛选的字段 / Fields exposed for list filtering
     __filterable__ = {
         "id": "id",
         "tenant_id": "tenant_id",
@@ -37,7 +37,7 @@ class TenantModelRateLimit(TenantModel):
         "created_at": "created_at",
     }
 
-    # 允许排序的字段
+    # 允许排序的字段 / Sortable columns for UI
     __sortable__ = {
         "id": "id",
         "created_at": "created_at",
@@ -68,7 +68,7 @@ class TenantModelRateLimit(TenantModel):
         comment=_("enum.tenant_rate_limit.tpm_limit")
     )
 
-    # 是否启用
+    # 是否启用 / Enabled flag
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         default=True,
@@ -76,14 +76,14 @@ class TenantModelRateLimit(TenantModel):
         comment=_("enum.tenant_rate_limit.is_active")
     )
 
-    # 备注说明
+    # 备注说明 / Notes
     description: Mapped[str | None] = mapped_column(
         String(500),
         nullable=True,
         comment=_("enum.tenant_rate_limit.description")
     )
 
-    # ==================== 关系 ====================
+    # ==================== 关系 ==================== / Relationships
 
     # 关联的 AI 模型
     model = relationship(

@@ -65,7 +65,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
             visibility=attachment.visibility,
         )
 
-    # ========== 上传方法 ==========
+    # ========== 上传方法 ========== / ========== Upload methods ==========
 
     async def upload_file(
         self,
@@ -102,7 +102,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         Returns:
             上传结果
         """
-        # 验证文件类型
+        # 验证文件类型 / Validate file type
         validation_result = await self._file_validator.validate_for_platform(
             filename, file_size
         )
@@ -111,7 +111,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         storage_config = await self._resolve_platform_storage_config()
         temp_path, _size, file_hash = await self._save_to_temp(content)
 
-        # 检查同企业是否已存在相同哈希的文件（同时匹配当前存储驱动与可见性）
+        # 检查同企业是否已存在相同哈希的文件（同时匹配当前存储驱动与可见性） / Check duplicate hash in same tenant (driver + visibility)
         existing = await self.repo.get_by_hash(
             file_hash,
             tenant_id=tenant_id,
@@ -212,7 +212,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         """
         初始化分片上传会话 / Initialize chunk upload session.
         """
-        # 验证文件类型
+        # 验证文件类型 / Validate file type
         validation_result = await self._file_validator.validate_for_platform(
             filename, total_size
         )
@@ -285,7 +285,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         storage_config = await self._resolve_platform_storage_config()
         tenant_id = int(session["tenant_id"])
 
-        # 检查是否已存在（同时匹配当前存储驱动与可见性）
+        # 检查是否已存在（同时匹配当前存储驱动与可见性） / Check exists (driver + visibility)
         existing = await self.repo.get_by_hash(
             file_hash,
             tenant_id=tenant_id,
@@ -342,7 +342,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         """
         await self._remove_session(upload_id)
 
-    # ========== 私有方法 ==========
+    # ========== 私有方法 ========== / ========== Private methods ==========
 
     async def _resolve_platform_storage_config(self) -> StorageConfig:
         """
@@ -352,7 +352,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
             "platform_storage_driver", default="local"
         )
         if str(driver) == "local":
-            # 本地存储使用硬编码路径
+            # 本地存储使用硬编码路径 / Local storage uses hardcoded paths
             from app.storage import LOCAL_STORAGE_ROOT
             root_path = str(LOCAL_STORAGE_ROOT)
         else:
@@ -592,7 +592,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
             "progress": percent,
         }
 
-    # ========== 管理方法 ==========
+    # ========== 管理方法 ========== / ========== Admin methods ==========
 
     async def delete(self, id: int, soft: bool = True) -> bool:
         """

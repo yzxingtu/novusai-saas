@@ -68,6 +68,9 @@ export function extractPermissionsFromMenus(
 
   function traverse(items: BackendMenuItemRaw[]) {
     for (const item of items) {
+      if (typeof item.code === 'string' && item.code.trim().length > 0) {
+        permissions.add(item.code.trim());
+      }
       // Extract current menu's permission codes / 提取当前菜单的权限码
       if (item.permissions && Array.isArray(item.permissions)) {
         for (const code of item.permissions) {

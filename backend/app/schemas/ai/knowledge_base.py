@@ -136,7 +136,7 @@ class KnowledgeBaseResponse(TenantResponseSchema):
     total_chunks: int = Field(..., description=_("knowledge_base.model.total_chunks"))
     total_size_bytes: int = Field(..., description=_("knowledge_base.model.total_size_bytes"))
     status: str = Field(..., description=_("knowledge_base.model.status"))
-    # 关联字段
+    # 关联字段 / Related fields
     embedding_model_name: str | None = Field(None, description=_("knowledge_base.model.embedding_model_name"))
     vision_model_name: str | None = Field(None, description=_("knowledge_base.model.vision_model_name"))
     audio_model_name: str | None = Field(None, description=_("knowledge_base.model.audio_model_name"))

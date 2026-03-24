@@ -7,6 +7,13 @@ from sqlalchemy import func, select
 from app.core.i18n import _
 from app.core.logging import get_logger
 from app.plugins.module_loader import load_plugin_module
+from ._data_scope import (
+    apply_artifact_data_scope,
+    apply_model_scope,
+    apply_run_data_scope,
+    apply_run_related_scope,
+    apply_tenant_workflow_scope,
+)
 
 PLUGIN_NAME = "workflow-orchestration"
 logger = get_logger(__name__)
@@ -24,6 +31,26 @@ class RunQueryService:
         self.db = db
         self.tenant_id = tenant_id
 
+    def _apply_run_scope(self, stmt: Any, run_model: Any, model_access: Any) -> Any:
+        workflow_model = model_access.try_resolve_model("tenant_workflow")
+        return apply_run_data_scope(
+            stmt,
+            run_model,
+            tenant_id=self.tenant_id,
+            workflow_model=workflow_model,
+        )
+
+    def _apply_artifact_scope(self, stmt: Any, artifact_model: Any, model_access: Any) -> Any:
+        workflow_model = model_access.try_resolve_model("tenant_workflow")
+        run_model = model_access.try_resolve_model("workflow_run")
+        return apply_artifact_data_scope(
+            stmt,
+            artifact_model,
+            run_model,
+            tenant_id=self.tenant_id,
+            workflow_model=workflow_model,
+        )
+
     async def list_runs(self, query_params: Any) -> dict[str, Any]:
         model_access = _runtime("model_access")
         query = _runtime("query")
@@ -36,8 +63,16 @@ class RunQueryService:
         page, page_size = query.parse_page(query_params)
         allowed_fields = model_access.model_field_names(run_model)
 
-        list_stmt = select(run_model).where(*base_filters)
-        count_stmt = select(func.count()).select_from(run_model).where(*base_filters)
+        list_stmt = self._apply_run_scope(
+            select(run_model).where(*base_filters),
+            run_model,
+            model_access,
+        )
+        count_stmt = self._apply_run_scope(
+            select(func.count()).select_from(run_model).where(*base_filters),
+            run_model,
+            model_access,
+        )
 
         parsed_filters = query.parse_filters(query_params, allowed_fields)
         list_stmt = query.apply_filters(list_stmt, run_model, parsed_filters)
@@ -77,9 +112,11 @@ class RunQueryService:
         serializer = _runtime("serializer")
 
         run_model = model_access.resolve_model("workflow_run")
-        stmt = select(run_model).where(run_model.id == run_id)
-        if self.tenant_id is not None:
-            stmt = stmt.where(run_model.tenant_id == self.tenant_id)
+        stmt = self._apply_run_scope(
+            select(run_model).where(run_model.id == run_id),
+            run_model,
+            model_access,
+        )
         run = (await self.db.execute(stmt)).scalar_one_or_none()
         if run is None:
             raise errors.WorkflowNotFoundError(
@@ -143,15 +180,8 @@ class RunQueryService:
         }
 
         recent_runs = []
-        model_access = _runtime("model_access")
         for run in await self._recent_runs():
-            run_id = model_access.first_attr(run, ("id",))
-            recent_runs.append(
-                await self._serialize_run_record(
-                    run,
-                    node_runs=await self._list_node_runs(run_id),
-                )
-            )
+            recent_runs.append(await self._serialize_run_record(run))
 
         recent_artifacts = [
             await self._serialize_artifact_record(artifact)
@@ -186,6 +216,16 @@ class RunQueryService:
             .where(node_model.run_id == run_id)
             .order_by(getattr(node_model, "created_at", node_model.id))
         )
+        run_model = model_access.try_resolve_model("workflow_run")
+        workflow_model = model_access.try_resolve_model("tenant_workflow")
+        if run_model is not None:
+            stmt = apply_run_related_scope(
+                stmt,
+                node_model.run_id,
+                run_model,
+                tenant_id=self.tenant_id,
+                workflow_model=workflow_model,
+            )
         return list((await self.db.execute(stmt)).scalars().all())
 
     async def _list_checkpoints(self, run_id: int) -> list[Any]:
@@ -198,6 +238,16 @@ class RunQueryService:
             .where(checkpoint_model.run_id == run_id)
             .order_by(getattr(checkpoint_model, "created_at", checkpoint_model.id).desc())
         )
+        run_model = model_access.try_resolve_model("workflow_run")
+        workflow_model = model_access.try_resolve_model("tenant_workflow")
+        if run_model is not None:
+            stmt = apply_run_related_scope(
+                stmt,
+                checkpoint_model.run_id,
+                run_model,
+                tenant_id=self.tenant_id,
+                workflow_model=workflow_model,
+            )
         return list((await self.db.execute(stmt)).scalars().all())
 
     async def _list_events(self, run_id: int) -> list[Any]:
@@ -210,6 +260,16 @@ class RunQueryService:
             .where(event_model.run_id == run_id)
             .order_by(getattr(event_model, "occurred_at", getattr(event_model, "created_at", event_model.id)), event_model.id)
         )
+        run_model = model_access.try_resolve_model("workflow_run")
+        workflow_model = model_access.try_resolve_model("tenant_workflow")
+        if run_model is not None:
+            stmt = apply_run_related_scope(
+                stmt,
+                event_model.run_id,
+                run_model,
+                tenant_id=self.tenant_id,
+                workflow_model=workflow_model,
+            )
         return list((await self.db.execute(stmt)).scalars().all())
 
     async def _list_artifacts(self, run_id: int) -> list[Any]:
@@ -220,8 +280,16 @@ class RunQueryService:
         stmt = (
             select(artifact_model)
             .where(artifact_model.run_id == run_id)
-            .order_by(getattr(artifact_model, "ready_at", getattr(artifact_model, "created_at", artifact_model.id)).desc(), artifact_model.id.desc())
+            .order_by(
+                getattr(
+                    artifact_model,
+                    "ready_at",
+                    getattr(artifact_model, "created_at", artifact_model.id),
+                ).desc(),
+                artifact_model.id.desc(),
+            )
         )
+        stmt = self._apply_artifact_scope(stmt, artifact_model, model_access)
         return list((await self.db.execute(stmt)).scalars().all())
 
     async def _resolve_run_snapshot(self, run: Any) -> dict[str, Any]:
@@ -234,8 +302,14 @@ class RunQueryService:
 
         workflow_version_id = model_access.first_attr(run, ("workflow_version_id",))
         version_model = model_access.try_resolve_model("tenant_workflow_version")
-        if workflow_version_id and version_model is not None:
-            stmt = select(version_model).where(version_model.id == workflow_version_id)
+        workflow_model = model_access.try_resolve_model("tenant_workflow")
+        if workflow_version_id and version_model is not None and workflow_model is not None:
+            stmt = apply_tenant_workflow_scope(
+                select(version_model).where(version_model.id == workflow_version_id),
+                workflow_model,
+                self.tenant_id,
+                workflow_id_column=version_model.workflow_id,
+            )
             version = (await self.db.execute(stmt)).scalar_one_or_none()
             if version is not None:
                 snapshot = graph.extract_snapshot(version)
@@ -247,11 +321,20 @@ class RunQueryService:
             workflow_model = model_access.try_resolve_model("tenant_workflow")
             if workflow_model is not None:
                 stmt = select(workflow_model).where(workflow_model.id == workflow_id)
+                stmt = apply_tenant_workflow_scope(stmt, workflow_model, self.tenant_id)
                 workflow = (await self.db.execute(stmt)).scalar_one_or_none()
                 if workflow is not None:
-                    active_version_id = model_access.first_attr(workflow, ("active_version_id", "latest_version_id"))
+                    active_version_id = model_access.first_attr(
+                        workflow,
+                        ("active_version_id", "latest_version_id"),
+                    )
                     if active_version_id and version_model is not None:
-                        version_stmt = select(version_model).where(version_model.id == active_version_id)
+                        version_stmt = apply_tenant_workflow_scope(
+                            select(version_model).where(version_model.id == active_version_id),
+                            workflow_model,
+                            self.tenant_id,
+                            workflow_id_column=version_model.workflow_id,
+                        )
                         version = (await self.db.execute(version_stmt)).scalar_one_or_none()
                         if version is not None:
                             snapshot = graph.extract_snapshot(version)
@@ -265,9 +348,11 @@ class RunQueryService:
         run_model = model_access.try_resolve_model("workflow_run")
         if run_model is None:
             return 0
-        stmt = select(func.count()).select_from(run_model)
-        if self.tenant_id is not None:
-            stmt = stmt.where(run_model.tenant_id == self.tenant_id)
+        stmt = self._apply_run_scope(
+            select(func.count()).select_from(run_model),
+            run_model,
+            model_access,
+        )
         for field, values in (criteria or {}).items():
             if hasattr(run_model, field):
                 stmt = stmt.where(getattr(run_model, field).in_(values))
@@ -278,7 +363,11 @@ class RunQueryService:
         workflow_model = model_access.try_resolve_model("tenant_workflow")
         if workflow_model is None or self.tenant_id is None:
             return 0
-        stmt = select(func.count()).select_from(workflow_model).where(workflow_model.tenant_id == self.tenant_id)
+        stmt = apply_tenant_workflow_scope(
+            select(func.count()).select_from(workflow_model).where(workflow_model.tenant_id == self.tenant_id),
+            workflow_model,
+            self.tenant_id,
+        )
         for field, values in (criteria or {}).items():
             if hasattr(workflow_model, field):
                 stmt = stmt.where(getattr(workflow_model, field).in_(values))
@@ -289,13 +378,11 @@ class RunQueryService:
         artifact_model = model_access.try_resolve_model("execution_artifact")
         if artifact_model is None:
             return 0
-        stmt = select(func.count()).select_from(artifact_model)
-        if self.tenant_id is not None and hasattr(artifact_model, "tenant_id"):
-            stmt = stmt.where(artifact_model.tenant_id == self.tenant_id)
-        elif self.tenant_id is not None:
-            run_model = model_access.try_resolve_model("workflow_run")
-            if run_model is not None:
-                stmt = stmt.join(run_model, artifact_model.run_id == run_model.id).where(run_model.tenant_id == self.tenant_id)
+        stmt = self._apply_artifact_scope(
+            select(func.count()).select_from(artifact_model),
+            artifact_model,
+            model_access,
+        )
         for field, values in (criteria or {}).items():
             if hasattr(artifact_model, field):
                 stmt = stmt.where(getattr(artifact_model, field).in_(values))
@@ -306,9 +393,7 @@ class RunQueryService:
         run_model = model_access.try_resolve_model("workflow_run")
         if run_model is None:
             return []
-        stmt = select(run_model)
-        if self.tenant_id is not None:
-            stmt = stmt.where(run_model.tenant_id == self.tenant_id)
+        stmt = self._apply_run_scope(select(run_model), run_model, model_access)
         stmt = stmt.order_by(getattr(run_model, "updated_at", run_model.id).desc()).limit(5)
         return list((await self.db.execute(stmt)).scalars().all())
 
@@ -318,13 +403,14 @@ class RunQueryService:
         if artifact_model is None:
             return []
         stmt = select(artifact_model)
-        if self.tenant_id is not None and hasattr(artifact_model, "tenant_id"):
-            stmt = stmt.where(artifact_model.tenant_id == self.tenant_id)
-        elif self.tenant_id is not None:
-            run_model = model_access.try_resolve_model("workflow_run")
-            if run_model is not None:
-                stmt = stmt.join(run_model, artifact_model.run_id == run_model.id).where(run_model.tenant_id == self.tenant_id)
-        stmt = stmt.order_by(getattr(artifact_model, "ready_at", getattr(artifact_model, "updated_at", artifact_model.id)).desc()).limit(5)
+        stmt = self._apply_artifact_scope(stmt, artifact_model, model_access)
+        stmt = stmt.order_by(
+            getattr(
+                artifact_model,
+                "ready_at",
+                getattr(artifact_model, "updated_at", artifact_model.id),
+            ).desc(),
+        ).limit(5)
         return list((await self.db.execute(stmt)).scalars().all())
 
     async def _serialize_run_record(
@@ -341,7 +427,9 @@ class RunQueryService:
         node_runs = node_runs or []
         artifacts = artifacts if artifacts is not None else await self._list_artifacts(run_id)
         payload = serializer.serialize_run(run, node_runs=node_runs)
-        workflow_name = await self._resolve_workflow_name(model_access.first_attr(run, ("workflow_id", "tenant_workflow_id")))
+        workflow_name = await self._resolve_workflow_name(
+            model_access.first_attr(run, ("workflow_id", "tenant_workflow_id")),
+        )
         workflow_name = workflow_name or model_access.first_attr(run, ("workflow_name", "template_name"))
         payload.update(
             {
@@ -366,19 +454,37 @@ class RunQueryService:
         source_node_name = None
 
         run_model = model_access.try_resolve_model("workflow_run")
+        workflow_model = model_access.try_resolve_model("tenant_workflow")
         if run_model is not None and run_id is not None:
-            run_stmt = select(run_model).where(run_model.id == run_id)
+            run_stmt = apply_run_data_scope(
+                select(run_model).where(run_model.id == run_id),
+                run_model,
+                tenant_id=self.tenant_id,
+                workflow_model=workflow_model,
+            )
             run = (await self.db.execute(run_stmt)).scalar_one_or_none()
             if run is not None:
-                workflow_name = await self._resolve_workflow_name(model_access.first_attr(run, ("workflow_id", "tenant_workflow_id")))
+                workflow_name = await self._resolve_workflow_name(
+                    model_access.first_attr(run, ("workflow_id", "tenant_workflow_id")),
+                )
                 run_name = serializer.serialize_run(run).get("name")
 
         node_model = model_access.try_resolve_model("workflow_node_run")
-        if node_model is not None and node_run_id is not None:
+        if node_model is not None and node_run_id is not None and run_model is not None:
             node_stmt = select(node_model).where(node_model.id == node_run_id)
+            node_stmt = apply_run_related_scope(
+                node_stmt,
+                node_model.run_id,
+                run_model,
+                tenant_id=self.tenant_id,
+                workflow_model=workflow_model,
+            )
             node_run = (await self.db.execute(node_stmt)).scalar_one_or_none()
             if node_run is not None:
-                source_node_name = model_access.first_attr(node_run, ("node_label", "node_name", "node_key"))
+                source_node_name = model_access.first_attr(
+                    node_run,
+                    ("node_label", "node_name", "node_key"),
+                )
 
         payload.update(
             {
@@ -398,7 +504,11 @@ class RunQueryService:
         workflow_model = model_access.try_resolve_model("tenant_workflow")
         if workflow_model is None:
             return None
-        stmt = select(workflow_model).where(workflow_model.id == workflow_id)
+        stmt = apply_tenant_workflow_scope(
+            select(workflow_model).where(workflow_model.id == workflow_id),
+            workflow_model,
+            self.tenant_id,
+        )
         workflow = (await self.db.execute(stmt)).scalar_one_or_none()
         if workflow is None:
             return None
@@ -422,7 +532,10 @@ class RunQueryService:
             return explicit
         if any(model_access.first_attr(node, ("status",)) == "failed_terminal" for node in node_runs):
             return "high"
-        if any(model_access.first_attr(node, ("status",)) in {"waiting_human", "waiting_approval", "waiting_input"} for node in node_runs):
+        if any(
+            model_access.first_attr(node, ("status",)) in {"waiting_human", "waiting_approval", "waiting_input"}
+            for node in node_runs
+        ):
             return "medium"
         return "low" if node_runs else None
 
@@ -518,6 +631,7 @@ class RunQueryService:
             .order_by(getattr(workflow_model, "updated_at", workflow_model.id).desc())
             .limit(limit)
         )
+        stmt = apply_tenant_workflow_scope(stmt, workflow_model, self.tenant_id)
         workflows = (await self.db.execute(stmt)).scalars().all()
         workflow_service_module = load_plugin_module(PLUGIN_NAME, "services.tenant_workflow_service")
         if workflow_service_module is None:

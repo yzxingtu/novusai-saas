@@ -18,7 +18,7 @@ from app.configs.service import ConfigService
 from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession
 from app.core.i18n import _
-from app.core.response import success
+from app.core.response import build_inline_error_result, success
 from app.enums.config import ConfigScope
 from app.enums.error_code import ErrorCode
 from app.enums.rbac import PermissionScope
@@ -129,14 +129,14 @@ def _inject_legacy_select_option(config: dict) -> dict:
 
 @permission_resource(
     resource="platform_config",
-    name="menu.admin.platform_config",  # i18n key
+    name="menu.admin.platform_config",  # i18n key / 国际化键名
     scope=PermissionScope.ADMIN,
     parent_resource="system_config",
     menu=MenuConfig(
         icon="lucide:settings",
         path="/system/configs",
         component="system/configs/List",
-        parent="system_mgmt",  # 父菜单: 系统管理
+        parent="system_mgmt",  # 父菜单: 系统管理 / Parent menu: system management
         sort_order=50,
     ),
 )
@@ -432,14 +432,20 @@ class AdminConfigController(GlobalController):
                 )
                 exists = await drv.exists(test_key)
                 if not exists:
-                    return success(data={
-                        "success": False,
-                        "errors": [_("config.storage.test_file_not_found")],
-                    })
+                    return success(
+                        data=build_inline_error_result(
+                            _("config.storage.test_file_not_found"),
+                        )
+                    )
                 await drv.delete(test_key)
                 return success(data={"success": True})
             except Exception as e:
-                return success(data={"success": False, "errors": [str(e)]})
+                return success(
+                    data=build_inline_error_result(
+                        e,
+                        fallback_message=_("common.server_error"),
+                    )
+                )
 
         @router.get("/storage/drivers", summary="获取可用存储驱动列表")
         @action_read("action.platform_config.read")

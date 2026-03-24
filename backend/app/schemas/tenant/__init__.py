@@ -87,14 +87,14 @@ from app.schemas.tenant.user import (
 )
 
 __all__ = [
-    # TenantAdmin
+    # TenantAdmin / 企业管理员
     "TenantAdminLoginRequest",
     "TenantAdminResponse",
     "TenantAdminCreateRequest",
     "TenantAdminUpdateRequest",
     "TenantAdminChangePasswordRequest",
     "TenantAdminUpdateProfileRequest",
-    # TenantUser
+    # TenantUser / 企业用户
     "TenantUserLoginRequest",
     "TenantUserResponse",
     "TenantUserCreateRequest",
@@ -104,7 +104,7 @@ __all__ = [
     "TenantUserProfileUpdateRequest",
     "ForgotPasswordRequest",
     "ResetPasswordRequest",
-    # TenantOrgNode
+    # TenantOrgNode / 企业组织节点
     "TenantOrgNodeResponse",
     "TenantOrgNodeDetailResponse",
     "TenantOrgNodeCreateRequest",
@@ -120,19 +120,19 @@ __all__ = [
     "TenantOrgNodeMemberResponse",
     "TenantOrgNodeLeaderResponse",
     "TenantOrgNodeType",
-    # TenantPermissionRole
+    # TenantPermissionRole / 企业权限角色
     "TenantPermissionRoleResponse",
     "TenantPermissionRoleDetailResponse",
     "TenantPermissionRoleCreateRequest",
     "TenantPermissionRoleUpdateRequest",
     "TenantPermissionRolePermissionsRequest",
-    # TenantUserRole
+    # TenantUserRole / 企业用户角色
     "TenantUserRoleResponse",
     "TenantUserRoleDetailResponse",
     "TenantUserRoleCreateRequest",
     "TenantUserRoleUpdateRequest",
     "TenantUserRolePermissionsRequest",
-    # Domain
+    # Domain / 域名
     "TenantDomainSimpleResponse",
     "TenantDomainVerificationInfo",
     "TenantDomainResponse",
@@ -144,7 +144,7 @@ __all__ = [
     "TenantDomainCreateRequest",
     "TenantDomainUpdateRequest",
     "TenantDomainVerifyRequest",
-    # Plan
+    # Plan / 套餐
     "QuotaSchema",
     "FeaturesSchema",
     "TenantPlanResponse",
@@ -154,7 +154,7 @@ __all__ = [
     "TenantPlanUpdateRequest",
     "TenantPlanPermissionsRequest",
     "AttachmentAccessUrlResponse",
-    # SSL
+    # SSL / 证书
     "SslCertificateResponse",
     "SslCertificateUploadRequest",
     "SslAutoRenewRequest",

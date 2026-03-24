@@ -156,10 +156,26 @@
       "codeHelp": "Role code is unique within the tenant and cannot be changed after creation",
       "codeCreate": "Role code will be used for permission identification",
       "systemRoleHelp": "System built-in roles cannot be deleted or have their code changed"
+    },
+    "permissionTypes": {
+      "api": "API",
+      "button": "Button",
+      "menu": "Menu",
+      "operation": "Operation"
     }
   },
   "userArchitecture": {
     "title": "User Architecture",
+    "filterSidebarTitle": "Organization & Role Filters",
+    "orgFilterTitle": "Organization Filter",
+    "clearOrgFilter": "Clear Org Filter",
+    "allOrganizations": "All Organizations",
+    "allOrganizationsDesc": "View users across all organizations without organization filtering",
+    "orgFilterHint": "After selecting an organization, only users in that node and its descendants are shown",
+    "permissionRoleListTitle": "Permission Roles",
+    "allPermissionRoles": "All Permission Roles",
+    "allPermissionRolesDesc": "View users across all permission roles without role filtering",
+    "permissionRoleHint": "After selecting a permission role, only users under that role are shown",
     "roleList": "Role List",
     "selectRoleHint": "Please select a role from the left",
     "selectRoleSubHint": "View role details and manage members after selection",
@@ -180,7 +196,40 @@
     "offline": "Offline",
     "allUsers": "All Users",
     "allUsersDesc": "View all users in this tenant, regardless of role",
-    "allUsersListTitle": "User List"
+    "allUsersListTitle": "User List",
+    "userListTitle": "User List",
+    "orgColumn": "Organization",
+    "permissionRoleColumn": "Permission Role",
+    "orgField": "Organization",
+    "orgFieldHelp": "Assign the user's organization node for organization filtering and data ownership",
+    "permissionRoleField": "Permission Role",
+    "permissionRoleHelp": "Permission roles determine visible menus and actions in the tenant console",
+    "selectOrgPlaceholder": "Please select an organization node",
+    "selectPermissionRolePlaceholder": "Please select a permission role",
+    "unassignedOrg": "Unassigned Organization",
+    "unassignedPermissionRole": "Unassigned Permission Role",
+    "aiOperations": {
+      "refreshFiltersDesc": "Refresh organization filters, permission roles, and user list",
+      "searchRoleDesc": "Search permission roles by keyword",
+      "searchRoleKeyword": "Permission role keyword",
+      "createRoleDesc": "Open the create permission-role form",
+      "createRoleParams": {
+        "description": "Permission role description",
+        "isActive": "Whether the permission role should be active",
+        "name": "Permission role name",
+        "sortOrder": "Permission role sort order"
+      },
+      "createUserDesc": "Open the create user form with optional org node and permission role defaults",
+      "createUserParams": {
+        "email": "User email",
+        "isActive": "Whether the user should be active",
+        "nickname": "User nickname",
+        "orgNodeId": "Target organization node ID",
+        "phone": "User phone number",
+        "roleId": "Permission role ID",
+        "username": "Username"
+      }
+    }
   },
   "configs": {
     "title": "System Configs",
@@ -376,6 +425,14 @@
     "selectNodeHint": "Please select a node from the left",
     "selectNodeSubHint": "You can view details and manage members after selection",
     "basicInfo": "Basic Info",
+    "leaderCardTitle": "Leader",
+    "leaderCardDescription": "The leader owns this organization node and inherits the data visibility scope configured for it.",
+    "scopeCardTitle": "Data Scope",
+    "scopeMode": "Scope Mode",
+    "scopeTargetCount": "Custom Nodes",
+    "noLeaderAssigned": "No leader assigned",
+    "noLeaderHint": "Assign a leader to control table visibility through this node.",
+    "memberCardDescription": "Members from the current node and descendants are shown by default. You can switch to the current node only.",
     "permissionInfo": "Permission Info",
     "assignedPermissions": "Assigned Permissions",
     "editPermissionHint": "Click edit button to modify permission assignment",

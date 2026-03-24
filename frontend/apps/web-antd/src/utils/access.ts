@@ -27,7 +27,7 @@ export function checkPermission(
   codes: string | string[] | undefined,
   userCodes: string[],
 ): boolean {
-  // 无权限码要求（undefined 或空数组），默认有权限
+  // 无权限码要求（undefined 或空数组），默认有权限 / no codes → allow
   if (!codes || (Array.isArray(codes) && codes.length === 0)) return true;
   // 超级管理员拥有所有权限
   if (userCodes.includes('*')) return true;

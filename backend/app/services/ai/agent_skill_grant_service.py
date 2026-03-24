@@ -32,8 +32,8 @@ class AgentSkillGrantService:
             from app.repositories.ai.skill_repository import AdminSkillRepository
 
             self.grant_repo = AgentSkillGrantRepository(db, None)
-            self.skill_repo = AdminSkillRepository(db)  # type: ignore[assignment]
-            self.agent_repo = AdminAgentRepository(db)  # type: ignore[assignment]
+            self.skill_repo = AdminSkillRepository(db)  # type: ignore[assignment]  # 类型存根 / typing stub
+            self.agent_repo = AdminAgentRepository(db)  # type: ignore[assignment]  # 类型存根 / typing stub
 
     def _grant_to_item(self, grant: AgentSkillGrant) -> dict[str, Any]:
         """Serialize a grant row with joined skill/package metadata."""

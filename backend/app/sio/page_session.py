@@ -32,7 +32,7 @@ import socketio
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.core.response import build_error_event, build_error_payload, build_exception_debug
-from app.middleware.trace import trace_id_var
+from app.middleware.trace import extract_optional_trace_id, normalize_trace_id, trace_id_var
 
 logger = LogManager.get_logger("app")
 
@@ -55,11 +55,7 @@ def _extract_trace_id(payload: dict[str, Any] | None = None) -> str | None:
     """Extract a safe trace id from Socket.IO payload / 从 Socket.IO 载荷提取安全 trace id。"""
     if not isinstance(payload, dict):
         return None
-    trace_id = payload.get("trace_id")
-    if trace_id is None:
-        return None
-    value = str(trace_id).strip()
-    return value[:128] if value else None
+    return extract_optional_trace_id(payload.get("trace_id"))
 
 
 def _socket_event_error_payload(
@@ -102,6 +98,29 @@ def _page_operation_error_result(
         "error_type": error_type,
         **payload,
     }
+
+
+def _handle_socket_event_failure(
+    *,
+    namespace: str | None,
+    event: str,
+    sid: str,
+    exc: Exception,
+) -> dict[str, Any]:
+    logger.error(
+        "SIO {} event failed: event={} sid={} error={}",
+        namespace,
+        event,
+        sid,
+        exc,
+        exc_info=True,
+    )
+    return _socket_event_error_payload(
+        code="SOCKET_EVENT_ERROR",
+        message=_("common.server_error"),
+        debug=build_exception_debug(exc),
+        extra={"event": event},
+    )
 
 
 def _user_role_to_scope(user_role: str) -> str:
@@ -232,27 +251,19 @@ class PageSessionMixin:
         }:
             sid = str(args[0]) if args else ""
             payload = args[1] if len(args) > 1 and isinstance(args[1], dict) else None
-            if sid:
-                await self.bind_socket_trace(sid, payload)
-                try:
-                    return await super().trigger_event(event, *args)
-                except Exception as exc:
-                    logger.error(
-                        "SIO {} event failed: event={} sid={} error={}",
-                        self.namespace,
-                        event,
-                        sid,
-                        exc,
-                        exc_info=True,
-                    )
-                    return _socket_event_error_payload(
-                        code="SOCKET_EVENT_ERROR",
-                        message=_("common.server_error"),
-                        debug=build_exception_debug(exc),
-                        extra={"event": event},
-                    )
-                finally:
-                    trace_id_var.set("")
+            try:
+                if sid:
+                    await self.bind_socket_trace(sid, payload)
+                return await super().trigger_event(event, *args)
+            except Exception as exc:
+                return _handle_socket_event_failure(
+                    namespace=self.namespace,
+                    event=event,
+                    sid=sid,
+                    exc=exc,
+                )
+            finally:
+                trace_id_var.set("")
 
         return await super().trigger_event(event, *args)
 
@@ -281,11 +292,10 @@ class PageSessionMixin:
     ) -> dict[str, Any] | None:
         """Bind current Socket.IO event to trace context / 将当前 Socket.IO 事件绑定到 trace 上下文。"""
         session = await self.get_socket_session_with_fallback(sid)
-        trace_id = (
+        trace_id = normalize_trace_id(
             _extract_trace_id(payload)
             or (session or {}).get("trace_id")
             or default_trace_id
-            or str(uuid.uuid4())
         )
         trace_id_var.set(trace_id)
 
@@ -304,10 +314,10 @@ class PageSessionMixin:
         self: socketio.AsyncNamespace,  # type: ignore[override]
         sid: str,
         data: dict[str, Any] | None = None,
-    ) -> None:
+    ) -> dict[str, Any] | None:
         """Frontend requests to join page_session room / 前端请求加入 page_session 房间"""
-        session = await self.bind_socket_trace(sid, data)
         try:
+            session = await self.bind_socket_trace(sid, data)
             if not data or not data.get("page_session_id"):
                 return
             page_session_id = str(data["page_session_id"])[:64]
@@ -336,6 +346,14 @@ class PageSessionMixin:
                 "SIO {} sid={} joined room {}",
                 self.namespace, sid, room,
             )
+            return None
+        except Exception as exc:
+            return _handle_socket_event_failure(
+                namespace=self.namespace,
+                event="page_session_join",
+                sid=sid,
+                exc=exc,
+            )
         finally:
             trace_id_var.set("")
 
@@ -343,10 +361,10 @@ class PageSessionMixin:
         self: socketio.AsyncNamespace,  # type: ignore[override]
         sid: str,
         data: dict[str, Any] | None = None,
-    ) -> None:
+    ) -> dict[str, Any] | None:
         """Frontend requests to leave page_session room / 前端请求离开 page_session 房间"""
-        await self.bind_socket_trace(sid, data)
         try:
+            await self.bind_socket_trace(sid, data)
             if not data or not data.get("page_session_id"):
                 return
             page_session_id = str(data["page_session_id"])[:64]
@@ -360,6 +378,14 @@ class PageSessionMixin:
             logger.debug(
                 "SIO {} sid={} left room {}",
                 self.namespace, sid, room,
+            )
+            return None
+        except Exception as exc:
+            return _handle_socket_event_failure(
+                namespace=self.namespace,
+                event="page_session_leave",
+                sid=sid,
+                exc=exc,
             )
         finally:
             trace_id_var.set("")
@@ -376,21 +402,49 @@ class PageSessionMixin:
         self: socketio.AsyncNamespace,  # type: ignore[override]
         sid: str,
         data: dict[str, Any] | None = None,
-    ) -> None:
+    ) -> dict[str, Any] | None:
         """Frontend returns operation execution result / 前端回传操作执行结果"""
         _sid = sid  # noqa: F841
-        await self.bind_socket_trace(sid, data)
+        invoke_id = ""
         try:
+            await self.bind_socket_trace(sid, data)
             if not data or not data.get("invoke_id"):
                 return
-            invoke_id = data["invoke_id"]
+            invoke_id = str(data["invoke_id"])
             future = _pending_invocations.get(invoke_id)
             if future and not future.done():
-                future.set_result(data)
+                result_payload = dict(data)
+                if not result_payload.get("trace_id"):
+                    result_payload["trace_id"] = normalize_trace_id(
+                        trace_id_var.get() or invoke_id,
+                        default=invoke_id,
+                    )
+                future.set_result(result_payload)
                 logger.debug(
                     "SIO {} page_operation:result received invoke_id={} success={}",
                     self.namespace, invoke_id, data.get("success"),
                 )
+            return None
+        except Exception as exc:
+            future = _pending_invocations.get(invoke_id) if invoke_id else None
+            if future and not future.done():
+                with contextlib.suppress(Exception):
+                    future.set_result(
+                        _page_operation_error_result(
+                            invoke_id=invoke_id,
+                            error_type="internal_error",
+                            message=_("common.server_error"),
+                            code="PAGE_OPERATION_RESULT_ERROR",
+                            debug=build_exception_debug(exc),
+                            extra={"event": "page_operation_result"},
+                        )
+                    )
+            return _handle_socket_event_failure(
+                namespace=self.namespace,
+                event="page_operation_result",
+                sid=sid,
+                exc=exc,
+            )
         finally:
             trace_id_var.set("")
 
@@ -446,7 +500,7 @@ async def invoke_page_operation(
     # Construct invoke event data / 构造 invoke 事件数据
     invoke_data: dict[str, Any] = {
         "invoke_id": invoke_id,
-        "trace_id": trace_id_var.get() or invoke_id,
+        "trace_id": normalize_trace_id(trace_id_var.get() or invoke_id, default=invoke_id),
         "page_key": page_key,
         "operation_name": operation_name,
         "params": params or {},

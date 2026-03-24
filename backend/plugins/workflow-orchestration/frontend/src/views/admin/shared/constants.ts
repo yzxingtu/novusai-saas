@@ -1,5 +1,5 @@
 export const ADMIN_BASE_PATH = '/admin/plugins/workflow-orchestration';
-export const ADMIN_I18N_PREFIX = 'plugin.workflowOrchestration.admin';
+export const ADMIN_I18N_PREFIX = 'plugin.workflow-orchestration.admin';
 
 export function buildAdminPath(segment = ''): string {
   const normalized = segment.replace(/^\/+/, '');

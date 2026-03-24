@@ -67,8 +67,6 @@ from app.api.admin.periodic_tasks import AdminPeriodicTaskController
 from app.api.admin.periodic_tasks import router as periodic_tasks_router
 from app.api.admin.permissions import AdminPermissionController
 from app.api.admin.permissions import router as permissions_router
-from app.api.admin.permission_roles import AdminPermissionRoleController
-from app.api.admin.permission_roles import router as permission_roles_router
 from app.api.admin.plans import AdminPlanController
 from app.api.admin.plans import router as plans_router
 from app.api.admin.plugins import AdminPluginController
@@ -106,7 +104,6 @@ admin_router.include_router(auth_router)
 admin_router.include_router(dashboard_router)
 admin_router.include_router(analytics_router)
 admin_router.include_router(permissions_router)
-admin_router.include_router(permission_roles_router)
 admin_router.include_router(organization_router)
 admin_router.include_router(users_router)
 admin_router.include_router(tenants_router)
@@ -172,7 +169,6 @@ __all__ = [
     "admin_router",
     # 导出控制器类，确保权限装饰器被执行 / Export controller classes to ensure permission decorators are executed
     "AdminPermissionController",
-    "AdminPermissionRoleController",
     "AdminOrganizationController",
     "AdminTenantController",
     "AdminTenantDomainController",

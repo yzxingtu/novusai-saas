@@ -19,7 +19,7 @@ class AgentKBBindingRepository(TenantRepository[AgentKnowledgeBaseBinding]):
     model = AgentKnowledgeBaseBinding
 
     def __init__(self, db, tenant_id: int | None):
-        super().__init__(db, tenant_id)  # type: ignore[arg-type]
+        super().__init__(db, tenant_id)  # type: ignore[arg-type]  # 租户可空 / nullable tenant
 
     def _tenant_filter(self):
         """构建 tenant_id 过滤条件（支持 NULL）。/ Build tenant_id filter (supports NULL)."""

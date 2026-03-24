@@ -28,7 +28,7 @@ class ReorderRequest(BaseModel):
         description="有序的 ID 列表，按此顺序重新分配排序值",
     )
 
-    # 可选的作用域参数
+    # 可选的作用域参数 / Optional scope fields
     parent_id: int | None = Field(
         None,
         description="父节点 ID（用于树形结构的同级排序）",

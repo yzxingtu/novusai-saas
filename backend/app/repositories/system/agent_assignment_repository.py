@@ -61,7 +61,7 @@ class AgentAssignmentRepository(BaseRepository[SystemAgentAssignment]):
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
-    # ==================== 企业覆盖查询 ====================
+    # ==================== 企业覆盖查询 ==================== / Tenant override queries
 
     async def get_tenant_override(
         self, feature_code: str, tenant_id: int

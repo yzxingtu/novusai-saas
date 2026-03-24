@@ -19,7 +19,7 @@ from app.ai.engine.types import ExecutionRequest, ExecutionResult
 from app.ai.sse import SSEChunkEncoder
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.core.response import build_error_event, build_exception_debug
+from app.core.response import build_error_event, build_exception_debug, build_public_error_text
 from app.middleware.trace import trace_id_var
 
 if TYPE_CHECKING:
@@ -209,7 +209,10 @@ class ImageGenerationEngine:
                     duration_ms = int((time.perf_counter() - start) * 1000)
                     await on_complete(ExecutionResult(
                         success=False,
-                        error=str(exc),
+                        error=build_public_error_text(
+                            message="Image generation failed",
+                            exc=exc,
+                        ),
                         duration_ms=duration_ms,
                         conversation_id=request.conversation_id,
                     ))

@@ -149,7 +149,7 @@ class QuotaService:
         """
         limit_gb = self.get_quota_value("storage_limit_gb", 0)
 
-        # 0 表示无限制
+        # 0 表示无限制 / Zero means unlimited
         if limit_gb == 0:
             return QuotaCheckResult(
                 allowed=True,
@@ -159,7 +159,7 @@ class QuotaService:
                 message=_("quota.no_limit"),
             )
 
-        # 使用传入的存储使用量，未传入则使用默认值
+        # 使用传入的存储使用量，未传入则使用默认值 / Use passed storage usage; default if omitted
         current_bytes = current_bytes or 0
 
         limit_bytes = limit_gb * 1024 * 1024 * 1024
@@ -187,7 +187,7 @@ class QuotaService:
         """
         limit = self.get_quota_value("max_users", 0)
 
-        # 0 表示无限制
+        # 0 表示无限制 / Zero means unlimited
         if limit == 0:
             return QuotaCheckResult(
                 allowed=True,
@@ -197,10 +197,10 @@ class QuotaService:
                 message=_("quota.no_limit"),
             )
 
-        # 锁定企业行，防止并发超额
+        # 锁定企业行，防止并发超额 / Lock tenant row to prevent concurrent over-allot
         await self._lock_tenant_row()
 
-        # 统计当前用户数
+        # 统计当前用户数 / Count current users
         query = select(func.count(TenantUser.id)).where(
             TenantUser.tenant_id == self.tenant.id,
             TenantUser.is_deleted.is_(False),
@@ -231,7 +231,7 @@ class QuotaService:
         """
         limit = self.get_quota_value("max_admins", 0)
 
-        # 0 表示无限制
+        # 0 表示无限制 / Zero means unlimited
         if limit == 0:
             return QuotaCheckResult(
                 allowed=True,
@@ -241,10 +241,10 @@ class QuotaService:
                 message=_("quota.no_limit"),
             )
 
-        # 锁定企业行，防止并发超额
+        # 锁定企业行，防止并发超额 / Lock tenant row to prevent concurrent over-allot
         await self._lock_tenant_row()
 
-        # 统计当前管理员数
+        # 统计当前管理员数 / Count current admins
         query = select(func.count(TenantAdmin.id)).where(
             TenantAdmin.tenant_id == self.tenant.id,
             TenantAdmin.is_deleted.is_(False),
@@ -273,7 +273,7 @@ class QuotaService:
         Returns:
             配额检查结果
         """
-        # 先检查是否允许自定义域名
+        # 先检查是否允许自定义域名 / Check custom domain allowed first
         allow_custom = self.get_quota_value("allow_custom_domain", False)
         if not allow_custom:
             return QuotaCheckResult(
@@ -286,7 +286,7 @@ class QuotaService:
 
         limit = self.get_quota_value("max_custom_domains", 0)
 
-        # 0 表示无限制
+        # 0 表示无限制 / Zero means unlimited
         if limit == 0:
             return QuotaCheckResult(
                 allowed=True,
@@ -296,13 +296,13 @@ class QuotaService:
                 message=_("quota.no_limit"),
             )
 
-        # 锁定企业行，防止并发超额
+        # 锁定企业行，防止并发超额 / Lock tenant row to prevent concurrent over-allot
         await self._lock_tenant_row()
 
-        # 获取平台域名后缀，用于区分默认域名和自定义域名
+        # 获取平台域名后缀，用于区分默认域名和自定义域名 / Fetch platform domain suffix to tell default vs custom
         suffix = await self._get_domain_suffix()
 
-        # 统计当前自定义域名数（排除默认域名，按后缀判断）
+        # 统计当前自定义域名数（排除默认域名，按后缀判断） / Count custom domains (exclude default by suffix)
         query = select(func.count(TenantDomain.id)).where(
             TenantDomain.tenant_id == self.tenant.id,
             TenantDomain.is_deleted.is_(False),
@@ -334,7 +334,7 @@ class QuotaService:
         """
         limit = self.get_quota_value("api_calls_per_month", 0)
 
-        # 0 表示无限制
+        # 0 表示无限制 / Zero means unlimited
         if limit == 0:
             return QuotaCheckResult(
                 allowed=True,
@@ -379,7 +379,7 @@ class QuotaService:
         """
         limit_mb = self.get_quota_value("max_file_size_mb", 0)
 
-        # 0 表示无限制
+        # 0 表示无限制 / Zero means unlimited
         if limit_mb == 0:
             return QuotaCheckResult(
                 allowed=True,

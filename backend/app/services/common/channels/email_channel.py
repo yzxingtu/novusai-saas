@@ -80,7 +80,7 @@ class EmailChannel(NotificationChannel):
         """
         _ = data
         try:
-            # 企业级邮件通知开关检查
+            # 企业级邮件通知开关检查 / Tenant-level email notification switch check
             if tenant_id:
                 try:
                     from app.configs.service import ConfigService
@@ -124,7 +124,7 @@ class EmailChannel(NotificationChannel):
                     logger.debug("EmailChannel: rendered HTML template OK, len={}", len(email_html))
                 except Exception as tpl_err:
                     logger.error("EmailChannel: render_notification_html failed: {}", tpl_err, exc_info=True)
-                    # 降级为纯文本
+                    # 降级为纯文本 / Degrade to plain text
                     email_html = body or title
 
             send_notification_email.delay(

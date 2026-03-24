@@ -52,7 +52,7 @@ def public(func: F) -> F:
         async def login(data: LoginRequest):
             ...
     """
-    func._access_level = ACCESS_PUBLIC  # type: ignore
+    func._access_level = ACCESS_PUBLIC  # type: ignore  # RBAC 动态属性 / dynamic attach
     return func
 
 
@@ -76,7 +76,7 @@ def auth_only(func: F) -> F:
         async def get_me(current_admin: ActiveAdmin):
             ...
     """
-    func._access_level = ACCESS_AUTH_ONLY  # type: ignore
+    func._access_level = ACCESS_AUTH_ONLY  # type: ignore  # RBAC 动态属性 / dynamic attach
     return func
 
 
@@ -181,10 +181,10 @@ def permission_resource(
 
     def decorator(cls: type) -> type:
         # Save resource metadata to class attributes / 保存资源元信息到类属性
-        cls._permission_resource = resource  # type: ignore
-        cls._permission_name = name  # type: ignore
-        cls._permission_scope = scope  # type: ignore
-        cls._permission_parent_resource = parent_resource  # type: ignore
+        cls._permission_resource = resource  # type: ignore  # RBAC 动态属性 / dynamic attach
+        cls._permission_name = name  # type: ignore  # RBAC 动态属性 / dynamic attach
+        cls._permission_scope = scope  # type: ignore  # RBAC 动态属性 / dynamic attach
+        cls._permission_parent_resource = parent_resource  # type: ignore  # RBAC 动态属性 / dynamic attach
 
         # Register menu permission / 注册菜单权限
         if menu:
@@ -252,7 +252,7 @@ def permission_action(
     """
     def decorator(func: F) -> F:
         # Save operation metadata to function attributes (for permission registration) / 保存操作元信息到函数属性（用于权限注册）
-        func._permission_action = {  # type: ignore
+        func._permission_action = {  # type: ignore  # RBAC 动态属性 / dynamic attach
             "action": action,
             "name": name,
             "description": description,
@@ -260,10 +260,10 @@ def permission_action(
         }
 
         # Mark required permission (for dependency injection check) / 标记需要的权限（用于依赖注入检查）
-        func._required_permission_action = action  # type: ignore
+        func._required_permission_action = action  # type: ignore  # RBAC 动态属性 / dynamic attach
 
         # Mark access level as requiring permission check / 标记访问级别为需要权限检查
-        func._access_level = ACCESS_PERMISSION  # type: ignore
+        func._access_level = ACCESS_PERMISSION  # type: ignore  # RBAC 动态属性 / dynamic attach
 
         if not auto_check:
             return func
@@ -302,11 +302,11 @@ def permission_action(
             return await func(*args, **kwargs)
 
         # Copy original function attributes to wrapper / 复制原始函数的属性到 wrapper
-        wrapper._permission_action = func._permission_action  # type: ignore
-        wrapper._required_permission_action = func._required_permission_action  # type: ignore
-        wrapper._access_level = ACCESS_PERMISSION  # type: ignore
+        wrapper._permission_action = func._permission_action  # type: ignore  # RBAC 动态属性 / dynamic attach
+        wrapper._required_permission_action = func._required_permission_action  # type: ignore  # RBAC 动态属性 / dynamic attach
+        wrapper._access_level = ACCESS_PERMISSION  # type: ignore  # RBAC 动态属性 / dynamic attach
 
-        return wrapper  # type: ignore
+        return wrapper  # type: ignore  # RBAC 动态属性 / dynamic attach
 
     return decorator
 

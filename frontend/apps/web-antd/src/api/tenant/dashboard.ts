@@ -6,7 +6,7 @@ import { requestClient } from '#/utils/request';
 
 const API_PREFIX = '/tenant/dashboard';
 
-// ── Types ──
+// ── Types / 类型 ──
 
 export interface TenantDashboardStats {
   total_users: number;
@@ -59,7 +59,7 @@ export interface TenantDashboardOverview {
   storage_detail: StorageDetail;
 }
 
-// ── API Functions ──
+// ── API Functions / 接口函数 ──
 
 export async function getTenantDashboardOverviewApi(): Promise<TenantDashboardOverview> {
   return requestClient.get<TenantDashboardOverview>(`${API_PREFIX}/overview`);

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { PermissionRoleInfo } from '#/api/admin/role';
+import type { OrgNodeInfo } from '#/api/admin/organization';
 
 /**
  * 智能体访问权限配置抽屉（管理端）
@@ -26,13 +26,13 @@ import {
 } from 'ant-design-vue';
 
 import { getAIAgentAccessApi, updateAIAgentAccessApi } from '#/api/admin/ai';
-import { getAllPermissionRoleListApi } from '#/api/admin/role';
+import { getOrganizationTreeApi } from '#/api/admin/organization';
 import { $t } from '#/locales';
 
 defineOptions({ name: 'AdminAccessConfigDrawer' });
 
-interface PermissionRoleTreeNode {
-  disabled?: boolean;
+interface OrgRoleTreeNode {
+  children?: OrgRoleTreeNode[];
   key: number;
   title: string;
   value: number;
@@ -46,7 +46,7 @@ const saving = ref(false);
 const adminRoleMode = ref<'all' | 'specific'>('all');
 const adminRoleIds = ref<number[]>([]);
 
-const roleTreeData = ref<PermissionRoleTreeNode[]>([]);
+const roleTreeData = ref<OrgRoleTreeNode[]>([]);
 const roleTreeLoading = ref(false);
 
 /** TreeSelect may return string values, normalize to numbers / TreeSelect 可能返回字符串值，统一转换为数字 */
@@ -59,22 +59,20 @@ function normalizeIdList(raw: unknown): number[] {
     .filter((item) => Number.isFinite(item) && item > 0);
 }
 
-function roleInfoToTreeData(
-  roles: PermissionRoleInfo[],
-): PermissionRoleTreeNode[] {
-  return roles.map((r) => ({
-    disabled: !r.isActive,
-    title: r.name,
-    value: r.id,
-    key: r.id,
+function orgNodeToTreeData(nodes: OrgNodeInfo[]): OrgRoleTreeNode[] {
+  return nodes.map((node) => ({
+    title: node.name,
+    value: node.id,
+    key: node.id,
+    children: node.children ? orgNodeToTreeData(node.children) : undefined,
   }));
 }
 
-async function loadPermissionRoles() {
+async function loadOrganizationTree() {
   roleTreeLoading.value = true;
   try {
-    const roles = await getAllPermissionRoleListApi();
-    roleTreeData.value = roleInfoToTreeData(roles);
+    const nodes = await getOrganizationTreeApi();
+    roleTreeData.value = orgNodeToTreeData(nodes);
   } catch {
     // error handled by global interceptor / 错误由请求拦截器处理
   } finally {
@@ -92,7 +90,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
       if (data) {
         agentId.value = data.id;
         agentName.value = data.name;
-        await Promise.all([loadPermissionRoles(), loadAccessConfig()]);
+        await Promise.all([loadOrganizationTree(), loadAccessConfig()]);
       }
     }
   },

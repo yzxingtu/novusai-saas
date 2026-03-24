@@ -20,7 +20,7 @@ from app.ai.sse import SSEChunkEncoder
 from app.ai.types import ChatMessage
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.core.response import build_error_event, build_exception_debug
+from app.core.response import build_error_event, build_exception_debug, build_public_error_text
 from app.middleware.trace import trace_id_var
 from app.enums.common import UserRoleEnum
 
@@ -123,9 +123,9 @@ class StreamExecutionHandler:
         total_tokens = 0
         all_tool_results: list[ToolResult] = []
         output = ""
-        self._output = ""  # Used for partial persist on interrupt
+        self._output = ""  # Used for partial persist on interrupt  # 补充说明 / note
         self._reasoning_output = (
-            ""  # For chain-of-thought models, used in partial persist
+            ""  # For chain-of-thought models, used in partial persist  # 补充说明 / note
         )
         self._total_tokens = 0
         self._runtime_model_info: dict[str, Any] | None = None
@@ -134,7 +134,7 @@ class StreamExecutionHandler:
         try:
             next_runtime_context = getattr(self.prep, "stream_runtime", None)
             if self.request.conversation_id:
-                # Publish conversation id early so frontend keeps the session
+                # Publish conversation id early so frontend keeps the session / 上文为英文说明 / English above
                 # even when the stream is interrupted before the final done event.
                 yield SSEChunkEncoder.encode(
                     _trace_payload({
@@ -277,7 +277,7 @@ class StreamExecutionHandler:
             # 在发送 done 之前启动后台回调，确保客户端断开不会阻止持久化开始。
             self._schedule_on_complete(result)
 
-            # ---- Send done event FIRST so frontend unlocks immediately ----
+            # ---- Send done event FIRST so frontend unlocks immediately ---- / 上文为英文说明 / English above
             # on_complete may trigger slow operations (e.g. memory extraction LLM call);
             # emitting done before the callback prevents the UI from hanging.
             yield SSEChunkEncoder.encode(
@@ -319,7 +319,7 @@ class StreamExecutionHandler:
                 partial_tokens = getattr(self, "_total_tokens", None)
                 if partial_tokens is None:
                     partial_tokens = total_tokens
-                # Append partial assistant message when we have output but did not finish normally
+                # Append partial assistant message when we have output but did not finish normally / 上文为英文说明 / English above
                 if partial_output:
                     reasoning = (
                         getattr(self, "_reasoning_output", None) or ""
@@ -349,7 +349,10 @@ class StreamExecutionHandler:
                     runtime_provider_name=(self._runtime_model_info or {}).get(
                         "provider_name"
                     ),
-                    error=str(exc),
+                    error=build_public_error_text(
+                        message=_("common.server_error"),
+                        exc=exc,
+                    ),
                     partial=True,
                     interrupted=False,
                     completion_reason="error",
@@ -401,7 +404,10 @@ class StreamExecutionHandler:
                     runtime_provider_name=(self._runtime_model_info or {}).get(
                         "provider_name"
                     ),
-                    error=f"{type(exc).__name__}: {exc}",
+                    error=build_public_error_text(
+                        message="Execution interrupted",
+                        detail=f"{type(exc).__name__}: {exc}",
+                    ),
                     partial=True,
                     interrupted=True,
                     completion_reason="interrupted",
@@ -434,7 +440,7 @@ class StreamExecutionHandler:
         self._total_tokens = 0
         self._output = ""
         self._reasoning_output = ""
-        _ = strip_fc_tokens  # unused in real streaming path
+        _ = strip_fc_tokens  # unused in real streaming path  # 补充说明 / note
         append_final_assistant = True
         next_runtime_context = getattr(self.prep, "stream_runtime", None)
 
@@ -710,7 +716,7 @@ class StreamExecutionHandler:
                 )
                 all_tool_results.append(result)
 
-                # Track consecutive page operation failures; abort to stop apology loops
+                # Track consecutive page operation failures; abort to stop apology loops / 上文为英文说明 / English above
                 _is_page_op = func_name == "invoke_page_operation" or (
                     func_name.startswith("pageop_") if func_name else False
                 )
@@ -772,7 +778,7 @@ class StreamExecutionHandler:
                 if round_has_confirmation:
                     self._output = round_output.strip()
                     self._reasoning_output = round_reasoning_output.strip()
-                    # The current round already has assistant(tool_calls) content;
+                    # The current round already has assistant(tool_calls) content; / 上文为英文说明 / English above
                     # do not append a second plain assistant copy into history.
                     append_final_assistant = False
                 break

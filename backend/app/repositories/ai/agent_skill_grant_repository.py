@@ -21,7 +21,7 @@ class AgentSkillGrantRepository(TenantRepository[AgentSkillGrant]):
     model = AgentSkillGrant
 
     def __init__(self, db, tenant_id: int | None):
-        super().__init__(db, tenant_id)  # type: ignore[arg-type]
+        super().__init__(db, tenant_id)  # type: ignore[arg-type]  # 租户可空 / nullable tenant
 
     def _tenant_filter(self):
         """Build tenant_id filter and support NULL owner grants."""

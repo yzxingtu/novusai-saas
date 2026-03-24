@@ -91,7 +91,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
 
         for key, value in config.items():
             if key not in properties:
-                # 允许额外字段，保持向后兼容
+                # 允许额外字段，保持向后兼容 / Allow extra fields for backward compatibility
                 continue
             spec = properties.get(key) or {}
             expected_type = spec.get("type")
@@ -136,7 +136,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
                             message=f"Config '{key}' must be <= {maximum}",
                         )
 
-    # ── 安装/启停/卸载 ──
+    # ── 安装/启停/卸载 ── / ── Install / enable-disable / uninstall ──
 
     async def install_from_path(
         self,
@@ -314,7 +314,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
 
         return plugin
 
-    # ── 配置 ──
+    # ── 配置 ── / ── Configuration ──
 
     async def update_plugin_config(
         self, plugin_id: int, config: dict
@@ -362,7 +362,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         await self.db.flush()
         return plugin
 
-    # ── 企业分配 ──
+    # ── 企业分配 ── / ── Tenant assignment ──
 
     async def assign_tenants(
         self, plugin_id: int, tenant_ids: list[int]
@@ -383,7 +383,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         if not plugin:
             raise NotFoundException(message="plugin.error.not_found")
 
-        # 查询已有分配（仅非软删除记录；已删除的分配不阻止重新分配）
+        # 查询已有分配（仅非软删除记录；已删除的分配不阻止重新分配） / Query existing assignments (non-deleted only; deleted rows do not block re-assign)
         result = await self.db.execute(
             select(ResourceTenantAssignment.tenant_id).where(
                 ResourceTenantAssignment.resource_type == "plugin",
@@ -459,7 +459,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
                 message=result.get("message") or "plugin.error.license_invalid",
             )
 
-    # ── 查询辅助 ──
+    # ── 查询辅助 ── / ── Query helpers ──
 
     async def get_readme(
         self, plugin_id: int, locale: str = "zh-CN"
@@ -512,7 +512,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
                 visible.add(plugin_name)
         return visible
 
-    # ── 依赖状态（用于前端卡片展示） ──
+    # ── 依赖状态（用于前端卡片展示） ── / ── Dependency status (for frontend cards) ──
 
     async def get_dependency_status(self, plugin: Plugin) -> dict:
         """

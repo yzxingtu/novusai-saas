@@ -121,10 +121,12 @@ interface MemberFormValues {
 async function loadRoleOptions(
   currentMember?: MemberPanelMember,
 ): Promise<MemberRoleOption[]> {
+  if (props.apiPrefix !== 'tenant') {
+    return [];
+  }
+
   const roles =
-    props.apiPrefix === 'tenant'
-      ? await tenant.getAllTenantPermissionRoleListApi()
-      : await admin.getAllPermissionRoleListApi();
+    await tenant.getAllTenantPermissionRoleListApi();
 
   const options = roles
     .filter((role) => role.isActive)
@@ -161,7 +163,6 @@ const [Drawer, drawerApi] = useVbenDrawer({
     const values = (await formApi.getValues()) as MemberFormValues;
     const selectedOrgNodeId =
       values.org_node_id ?? sourceOrgNodeId.value ?? props.nodeId ?? null;
-    const selectedRoleId = values.role_id ?? null;
 
     // Build request body / 构造请求体
     const baseData = {
@@ -188,7 +189,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
         const data = {
           ...baseData,
           org_node_id: selectedOrgNodeId,
-          role_id: selectedRoleId,
+          ...(props.apiPrefix === 'tenant' ? { role_id: values.role_id ?? null } : {}),
         };
         await (props.apiPrefix === 'tenant'
           ? tenant.updateTenantMemberApi(
@@ -222,7 +223,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
           username: values.username,
           password: values.password,
           org_node_id: selectedOrgNodeId,
-          role_id: selectedRoleId,
+          ...(props.apiPrefix === 'tenant' ? { role_id: values.role_id ?? null } : {}),
         };
         await (props.apiPrefix === 'tenant'
           ? tenant.createTenantMemberApi(
@@ -271,6 +272,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
     // Update schema / 更新 schema
     formApi.setState({
       schema: useAdminFormSchema({
+        apiPrefix: props.apiPrefix,
         isEdit: isEdit.value,
         nodeName: data?.orgNodeName ?? props.nodeName,
         nodeId: data?.orgNodeId ?? props.nodeId,
@@ -290,7 +292,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
         nickname: data.nickname,
         is_active: data.isActive,
         org_node_id: data.orgNodeId ?? props.nodeId,
-        role_id: data.roleId,
+        ...(props.apiPrefix === 'tenant' ? { role_id: data.roleId } : {}),
         org_node_display:
           data.orgNodeName || props.nodeName || $t('shared.common.notAssigned'),
       });
@@ -299,7 +301,9 @@ const [Drawer, drawerApi] = useVbenDrawer({
       currentNickname.value = '';
       currentUsername.value = '';
       // Create mode defaults / 新建模式默认值
-      formApi.setValues(getAdminFormDefaults(props.nodeName, props.nodeId));
+      formApi.setValues(
+        getAdminFormDefaults(props.apiPrefix, props.nodeName, props.nodeId),
+      );
     }
   },
 });

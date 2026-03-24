@@ -121,15 +121,15 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         max_attempts = 10
 
         for _attempt in range(max_attempts):
-            # 生成 t + 8位随机字符
+            # 生成 t + 8位随机字符 / Generate t + 8 random chars
             random_part = ''.join(secrets.choice(charset) for _ in range(8))
             code = f"t{random_part}"
 
-            # 检查是否已存在
+            # 检查是否已存在 / Check exists
             if not await self.repo.code_exists(code):
                 return code
 
-        # 极端情况：多次尝试后仍重复，加长随机部分
+        # 极端情况：多次尝试后仍重复，加长随机部分 / Rare: still duplicate after retries; lengthen random part
         random_part = ''.join(secrets.choice(charset) for _ in range(12))
         return f"t{random_part}"
 
@@ -168,7 +168,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         Returns:
             创建的企业
         """
-        # 自动生成企业编码
+        # 自动生成企业编码 / Auto-generate tenant code
         code = await self._generate_tenant_code()
 
         if plan_id is not None:
@@ -182,7 +182,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
                 context={"tenant_code": code, "tenant_name": name},
             )
 
-        # 创建企业
+        # 创建企业 / Create tenant
         data = {
             "code": code,
             "name": name,
@@ -199,11 +199,11 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
 
         tenant = await self.create(data)
 
-        # 创建默认域名
+        # 创建默认域名 / Create default domain
         domain_service = TenantDomainService(self.db)
         await domain_service.create_default_domain(tenant.id, tenant.code)
 
-        # 创建企业组织架构根节点
+        # 创建企业组织架构根节点 / Create tenant org root node
         root_node = await self._create_tenant_root_node(tenant.id, tenant.name)
 
         # 创建企业超级管理员（owner）
@@ -216,7 +216,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             root_node=root_node,
         )
 
-        # 异步发送欢迎邮件（失败不阻塞创建流程）
+        # 异步发送欢迎邮件（失败不阻塞创建流程） / Async welcome email (failure does not block create)
         self._send_welcome_email(
             tenant_name=name,
             admin_name=admin_username,
@@ -224,7 +224,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             tenant_id=tenant.id,
         )
 
-        # 创建默认用户角色
+        # 创建默认用户角色 / Create default user roles
         await self._create_default_user_role(tenant.id)
 
         # 自动绑定插件（scope=global/all_tenants 的已启用插件）
@@ -414,7 +414,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         """
         from sqlalchemy import select
 
-        # 检查企业是否存在
+        # 检查企业是否存在 / Check tenant exists
         tenant = await self.get_by_id(tenant_id)
         if not tenant:
             raise NotFoundException(
@@ -436,11 +436,11 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
                 message=_("tenant.owner_not_found"),
             )
 
-        # 更新密码
+        # 更新密码 / Update password
         owner.password_hash = get_password_hash(new_password)
         await self.db.flush()
 
-        # 异步发送密码重置通知邮件（失败不阻塞重置流程）
+        # 异步发送密码重置通知邮件（失败不阻塞重置流程） / Async password-reset email (failure does not block reset)
         if owner.email:
             self._send_password_reset_notification(
                 user_name=owner.username,
@@ -509,7 +509,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
                 message=_("tenant.not_found"),
             )
 
-        # 如果要更新编码，检查是否已被占用
+        # 如果要更新编码，检查是否已被占用 / If updating code, check not already taken
         if (
             "code" in data
             and data["code"]

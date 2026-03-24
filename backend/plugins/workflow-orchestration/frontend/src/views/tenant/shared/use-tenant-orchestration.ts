@@ -1,6 +1,12 @@
 import { computed } from 'vue';
 
 import { enUS, zhCN } from '../../../locales/tenant';
+import {
+  getPluginAccessCodes,
+  hasAllPluginAccess,
+  hasAnyPluginAccess,
+  hasPluginAccess,
+} from '../../../shared/access';
 import type {
   TenantDownloadOptions,
   TenantArtifactStatus,
@@ -11,7 +17,7 @@ import type {
   TenantWorkflowStatus,
 } from '../../../types/tenant';
 
-const TENANT_LOCALE_PREFIX = 'plugin.workflowOrchestration.tenant.';
+const TENANT_LOCALE_PREFIX = 'plugin.workflow-orchestration.tenant.';
 const TENANT_LOCAL_MESSAGES = {
   en: enUS,
   zh: zhCN,
@@ -123,6 +129,21 @@ export function useTenantOrchestration() {
 
   const t = (key: string, params?: Record<string, unknown>): string => translate(key, params);
 
+  const getAccessCodes = (): string[] => getPluginAccessCodes();
+
+  const hasAccess = (
+    codes: readonly string[] | string | undefined,
+    options?: { mode?: 'all' | 'any' },
+  ): boolean => hasPluginAccess(codes, options);
+
+  const hasAnyAccess = (
+    codes: readonly string[] | string | undefined,
+  ): boolean => hasAnyPluginAccess(codes);
+
+  const hasAllAccess = (
+    codes: readonly string[] | string | undefined,
+  ): boolean => hasAllPluginAccess(codes);
+
   const buildTenantPath = (suffix = ''): string => {
     const normalized = suffix.startsWith('/') ? suffix : `/${suffix}`;
     return `/tenant/plugins/workflow-orchestration${normalized === '/' ? '' : normalized}`;
@@ -168,7 +189,7 @@ export function useTenantOrchestration() {
 
   const formatNumber = (value: null | number | string | undefined): string => {
     if (value == null || value === '') {
-      return t('plugin.workflowOrchestration.tenant.common.placeholders.empty');
+      return t('plugin.workflow-orchestration.tenant.common.placeholders.empty');
     }
     const numeric = typeof value === 'number' ? value : Number(value);
     if (!Number.isFinite(numeric)) {
@@ -179,7 +200,7 @@ export function useTenantOrchestration() {
 
   const formatPercent = (value: null | number | undefined): string => {
     if (value == null || !Number.isFinite(value)) {
-      return t('plugin.workflowOrchestration.tenant.common.placeholders.empty');
+      return t('plugin.workflow-orchestration.tenant.common.placeholders.empty');
     }
     const normalized = value > 1 ? value / 100 : value;
     return new Intl.NumberFormat(locale.value, {
@@ -190,7 +211,7 @@ export function useTenantOrchestration() {
 
   const formatDateTime = (
     value: null | string | undefined,
-    fallbackKey = 'plugin.workflowOrchestration.tenant.common.placeholders.empty',
+    fallbackKey = 'plugin.workflow-orchestration.tenant.common.placeholders.empty',
   ): string => {
     if (!value) {
       return t(fallbackKey);
@@ -207,11 +228,11 @@ export function useTenantOrchestration() {
 
   const formatRelativeTime = (value: null | string | undefined): string => {
     if (!value) {
-      return t('plugin.workflowOrchestration.tenant.common.placeholders.empty');
+      return t('plugin.workflow-orchestration.tenant.common.placeholders.empty');
     }
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) {
-      return t('plugin.workflowOrchestration.tenant.common.placeholders.empty');
+      return t('plugin.workflow-orchestration.tenant.common.placeholders.empty');
     }
 
     const deltaMs = date.getTime() - Date.now();
@@ -242,7 +263,7 @@ export function useTenantOrchestration() {
 
   const formatBytes = (value: null | number | undefined): string => {
     if (value == null || !Number.isFinite(value) || value < 0) {
-      return t('plugin.workflowOrchestration.tenant.common.placeholders.empty');
+      return t('plugin.workflow-orchestration.tenant.common.placeholders.empty');
     }
     if (value < 1024) {
       return `${value} B`;
@@ -258,10 +279,10 @@ export function useTenantOrchestration() {
 
   const labelForWorkflowStatus = (status?: TenantWorkflowStatus): string => {
     if (!status) {
-      return t('plugin.workflowOrchestration.tenant.common.placeholders.empty');
+      return t('plugin.workflow-orchestration.tenant.common.placeholders.empty');
     }
     return translate(
-      `plugin.workflowOrchestration.tenant.workflow.status.${status}`,
+      `plugin.workflow-orchestration.tenant.workflow.status.${status}`,
       undefined,
       humanizeCode(status),
     );
@@ -269,10 +290,10 @@ export function useTenantOrchestration() {
 
   const labelForRunStatus = (status?: TenantRunStatus): string => {
     if (!status) {
-      return t('plugin.workflowOrchestration.tenant.common.placeholders.empty');
+      return t('plugin.workflow-orchestration.tenant.common.placeholders.empty');
     }
     return translate(
-      `plugin.workflowOrchestration.tenant.run.status.${status}`,
+      `plugin.workflow-orchestration.tenant.run.status.${status}`,
       undefined,
       humanizeCode(status),
     );
@@ -280,10 +301,10 @@ export function useTenantOrchestration() {
 
   const labelForArtifactStatus = (status?: TenantArtifactStatus): string => {
     if (!status) {
-      return t('plugin.workflowOrchestration.tenant.common.placeholders.empty');
+      return t('plugin.workflow-orchestration.tenant.common.placeholders.empty');
     }
     return translate(
-      `plugin.workflowOrchestration.tenant.artifact.status.${status}`,
+      `plugin.workflow-orchestration.tenant.artifact.status.${status}`,
       undefined,
       humanizeCode(status),
     );
@@ -291,10 +312,10 @@ export function useTenantOrchestration() {
 
   const labelForArtifactType = (type?: TenantArtifactType): string => {
     if (!type) {
-      return t('plugin.workflowOrchestration.tenant.common.placeholders.empty');
+      return t('plugin.workflow-orchestration.tenant.common.placeholders.empty');
     }
     return translate(
-      `plugin.workflowOrchestration.tenant.artifact.type.${type}`,
+      `plugin.workflow-orchestration.tenant.artifact.type.${type}`,
       undefined,
       humanizeCode(type),
     );
@@ -302,10 +323,10 @@ export function useTenantOrchestration() {
 
   const labelForBuilderMode = (mode?: TenantWorkflowBuilderMode): string => {
     if (!mode) {
-      return t('plugin.workflowOrchestration.tenant.common.placeholders.empty');
+      return t('plugin.workflow-orchestration.tenant.common.placeholders.empty');
     }
     return translate(
-      `plugin.workflowOrchestration.tenant.workflow.builderMode.${mode}`,
+      `plugin.workflow-orchestration.tenant.workflow.builderMode.${mode}`,
       undefined,
       humanizeCode(mode),
     );
@@ -313,7 +334,7 @@ export function useTenantOrchestration() {
 
   const labelForCapability = (code: string): string => {
     return translate(
-      `plugin.workflowOrchestration.tenant.capability.labels.${code}`,
+      `plugin.workflow-orchestration.tenant.capability.labels.${code}`,
       undefined,
       humanizeCode(code),
     );
@@ -321,10 +342,10 @@ export function useTenantOrchestration() {
 
   const labelForRisk = (risk?: string): string => {
     if (!risk) {
-      return t('plugin.workflowOrchestration.tenant.common.placeholders.empty');
+      return t('plugin.workflow-orchestration.tenant.common.placeholders.empty');
     }
     return translate(
-      `plugin.workflowOrchestration.tenant.common.risk.${risk}`,
+      `plugin.workflow-orchestration.tenant.common.risk.${risk}`,
       undefined,
       humanizeCode(risk),
     );
@@ -456,6 +477,10 @@ export function useTenantOrchestration() {
     formatNumber,
     formatPercent,
     formatRelativeTime,
+    getAccessCodes,
+    hasAccess,
+    hasAllAccess,
+    hasAnyAccess,
     labelForArtifactStatus,
     labelForArtifactType,
     labelForBuilderMode,

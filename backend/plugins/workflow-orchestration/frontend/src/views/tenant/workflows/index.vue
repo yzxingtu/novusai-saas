@@ -6,6 +6,17 @@ import {
   listTenantWorkflowsApi,
 } from '../../../api/tenant';
 import type { TenantWorkflowSummary } from '../../../types/tenant';
+import {
+  TENANT_WORKFLOW_AI_CONVERSATION_SCOPE,
+  buildPrompt,
+  openWorkflowAIPanel,
+  useWorkflowPageAI,
+} from '../../../shared/ai';
+import {
+  TENANT_WORKFLOW_CREATE_PAGE_ACCESS_CODES,
+  TENANT_WORKFLOW_LIST_PAGE_ACCESS_CODES,
+  WORKFLOW_ACCESS_CODES,
+} from '../../../shared/access';
 import ConsoleShell from '../shared/ConsoleShell.vue';
 import EmptyState from '../shared/EmptyState.vue';
 import StatusPill from '../shared/StatusPill.vue';
@@ -15,10 +26,14 @@ defineOptions({
   name: 'WorkflowOrchestrationTenantWorkflowList',
 });
 
+const TENANT_WORKFLOW_LIST_PAGE_KEY = 'tenant.workflow_orchestration.workflows';
+
 const {
   formatNumber,
   formatPercent,
   formatRelativeTime,
+  hasAccess,
+  hasAnyAccess,
   labelForBuilderMode,
   labelForRisk,
   labelForRunStatus,
@@ -29,6 +44,19 @@ const {
   toneForRunStatus,
   toneForWorkflowStatus,
 } = useTenantOrchestration();
+const permissionDeniedMessage = t(
+  'plugin.workflow-orchestration.tenant.common.messages.permissionDenied',
+);
+const canAccessWorkflowListPage = hasAnyAccess(
+  TENANT_WORKFLOW_LIST_PAGE_ACCESS_CODES,
+);
+const canOpenCreateGuide = hasAnyAccess(TENANT_WORKFLOW_CREATE_PAGE_ACCESS_CODES);
+const canOpenRuns = hasAccess(WORKFLOW_ACCESS_CODES.WORKFLOW_RUN_LIST);
+const canOpenWorkflowDetail = hasAccess(
+  WORKFLOW_ACCESS_CODES.WORKFLOW_CENTER_VIEW,
+);
+const canOpenEditor = hasAccess(WORKFLOW_ACCESS_CODES.WORKFLOW_BUILDER_EDIT);
+const canRunWorkflow = hasAccess(WORKFLOW_ACCESS_CODES.WORKFLOW_RUN_EXECUTE);
 
 const loading = ref(true);
 const actionLoadingId = ref<null | number>(null);
@@ -61,6 +89,14 @@ const builderModeOptions = [
 ];
 
 async function loadWorkflows(): Promise<void> {
+  if (!canAccessWorkflowListPage) {
+    loading.value = false;
+    errorMessage.value = permissionDeniedMessage;
+    workflows.value = [];
+    total.value = 0;
+    return;
+  }
+
   loading.value = true;
   errorMessage.value = '';
 
@@ -81,7 +117,7 @@ async function loadWorkflows(): Promise<void> {
     errorMessage.value =
       error instanceof Error
         ? error.message
-        : t('plugin.workflowOrchestration.tenant.common.messages.loadFailed');
+        : t('plugin.workflow-orchestration.tenant.common.messages.loadFailed');
   } finally {
     loading.value = false;
   }
@@ -101,6 +137,11 @@ function resetFilters(): void {
 }
 
 async function executeWorkflow(workflow: TenantWorkflowSummary): Promise<void> {
+  if (!canRunWorkflow) {
+    errorMessage.value = permissionDeniedMessage;
+    return;
+  }
+
   if (!workflow.id) {
     return;
   }
@@ -117,13 +158,17 @@ async function executeWorkflow(workflow: TenantWorkflowSummary): Promise<void> {
     errorMessage.value =
       error instanceof Error
         ? error.message
-        : t('plugin.workflowOrchestration.tenant.common.messages.actionFailed');
+        : t('plugin.workflow-orchestration.tenant.common.messages.actionFailed');
   } finally {
     actionLoadingId.value = null;
   }
 }
 
 function openEditor(workflowId: number): void {
+  if (!canOpenEditor) {
+    errorMessage.value = permissionDeniedMessage;
+    return;
+  }
   navigateTo(`workflows/${workflowId}/editor`);
 }
 
@@ -132,55 +177,178 @@ function openDetail(workflowId: number): void {
 }
 
 function createWorkflow(): void {
-  navigateTo('workflows/new/editor');
+  if (!canOpenCreateGuide) {
+    errorMessage.value = permissionDeniedMessage;
+    return;
+  }
+  navigateTo('workflows/new');
+}
+
+function openAIPlanner(seed?: string): void {
+  openWorkflowAIPanel({
+    conversationScope: TENANT_WORKFLOW_AI_CONVERSATION_SCOPE,
+    message: buildPrompt([
+      t('plugin.workflow-orchestration.tenant.workflow.ai.systemLead'),
+      seed?.trim()
+        ? t('plugin.workflow-orchestration.tenant.workflow.ai.userIdea', {
+            idea: seed.trim(),
+          })
+        : t('plugin.workflow-orchestration.tenant.workflow.ai.emptyIdea'),
+      t('plugin.workflow-orchestration.tenant.workflow.ai.outputContract'),
+    ]),
+    pageKey: TENANT_WORKFLOW_LIST_PAGE_KEY,
+  });
 }
 
 onMounted(() => {
   void loadWorkflows();
 });
+
+useWorkflowPageAI({
+  conversationScope: TENANT_WORKFLOW_AI_CONVERSATION_SCOPE,
+  pageKey: TENANT_WORKFLOW_LIST_PAGE_KEY,
+  buildContext: () => ({
+    entityDescription: t('plugin.workflow-orchestration.tenant.workflow.ai.pageDescription'),
+    entityTitle: t('plugin.workflow-orchestration.tenant.workflow.listTitle'),
+    entityType: 'workflow_orchestration_tenant_workflow_list',
+    pageData: {
+      active_builder_mode_filter: selectedBuilderMode.value || null,
+      active_status_filter: selectedStatus.value || null,
+      keyword: keyword.value,
+      total_items: total.value,
+      visible_workflow_names: workflows.value
+        .slice(0, 6)
+        .map((workflow) => workflow.name)
+        .filter(Boolean),
+    },
+    pageTitle: t('plugin.workflow-orchestration.tenant.workflow.listTitle'),
+  }),
+  operations: [
+    {
+      name: 'open_workflow_create_guide',
+      label: t('plugin.workflow-orchestration.tenant.workflow.ai.operations.openCreateGuide.label'),
+      description: t(
+        'plugin.workflow-orchestration.tenant.workflow.ai.operations.openCreateGuide.description',
+      ),
+      readonly: true,
+      handler: async () => {
+        if (!canOpenCreateGuide) {
+          return {
+            success: false,
+            message: permissionDeniedMessage,
+          };
+        }
+        createWorkflow();
+        return {
+          success: true,
+          message: t(
+            'plugin.workflow-orchestration.tenant.workflow.ai.operations.openCreateGuide.success',
+          ),
+        };
+      },
+    },
+    {
+      name: 'open_workflow_ai_planner',
+      label: t('plugin.workflow-orchestration.tenant.workflow.ai.operations.openAI.label'),
+      description: t(
+        'plugin.workflow-orchestration.tenant.workflow.ai.operations.openAI.description',
+      ),
+      readonly: true,
+      params: {
+        idea: {
+          description: t(
+            'plugin.workflow-orchestration.tenant.workflow.ai.operations.openAI.ideaDescription',
+          ),
+          required: false,
+          type: 'string',
+        },
+      },
+      handler: async (params: Record<string, unknown>) => {
+        openAIPlanner(typeof params.idea === 'string' ? params.idea : undefined);
+        return {
+          success: true,
+          message: t(
+            'plugin.workflow-orchestration.tenant.workflow.ai.operations.openAI.success',
+          ),
+        };
+      },
+    },
+    {
+      name: 'refresh_workflow_list',
+      label: t('plugin.workflow-orchestration.tenant.workflow.ai.operations.refresh.label'),
+      description: t(
+        'plugin.workflow-orchestration.tenant.workflow.ai.operations.refresh.description',
+      ),
+      readonly: true,
+      handler: async () => {
+        await loadWorkflows();
+        return {
+          success: true,
+          message: t(
+            'plugin.workflow-orchestration.tenant.workflow.ai.operations.refresh.success',
+          ),
+        };
+      },
+    },
+  ],
+});
 </script>
 
 <template>
   <ConsoleShell
-    :description="t('plugin.workflowOrchestration.tenant.workflow.listDescription')"
-    :eyebrow="t('plugin.workflowOrchestration.tenant.workflow.eyebrow')"
-    :title="t('plugin.workflowOrchestration.tenant.workflow.listTitle')"
+    :description="t('plugin.workflow-orchestration.tenant.workflow.listDescription')"
+    :eyebrow="t('plugin.workflow-orchestration.tenant.workflow.eyebrow')"
+    :title="t('plugin.workflow-orchestration.tenant.workflow.listTitle')"
   >
     <template #actions>
       <button
+        v-if="canAccessWorkflowListPage && canOpenRuns"
         class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-sky-200 hover:text-sky-700"
         @click="navigateTo('runs')"
       >
-        {{ t('plugin.workflowOrchestration.tenant.common.actions.openRuns') }}
+        {{ t('plugin.workflow-orchestration.tenant.common.actions.openRuns') }}
       </button>
       <button
+        v-if="canAccessWorkflowListPage"
+        class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-sky-200 hover:text-sky-700"
+        @click="openAIPlanner()"
+      >
+        {{ t('plugin.workflow-orchestration.tenant.workflow.actions.askAI') }}
+      </button>
+      <button
+        v-if="canAccessWorkflowListPage && canOpenCreateGuide"
         class="inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
         @click="createWorkflow"
       >
-        {{ t('plugin.workflowOrchestration.tenant.workflow.actions.create') }}
+        {{ t('plugin.workflow-orchestration.tenant.workflow.actions.openCreateGuide') }}
       </button>
     </template>
 
+    <EmptyState
+      v-if="!canAccessWorkflowListPage"
+      :title="permissionDeniedMessage"
+    />
+    <template v-else>
     <section class="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-sm">
       <div class="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_repeat(3,minmax(0,0.5fr))]">
         <label class="space-y-2 text-sm text-slate-600">
-          <span>{{ t('plugin.workflowOrchestration.tenant.workflow.filters.keyword') }}</span>
+          <span>{{ t('plugin.workflow-orchestration.tenant.workflow.filters.keyword') }}</span>
           <input
             v-model="keyword"
             class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
-            :placeholder="t('plugin.workflowOrchestration.tenant.workflow.placeholders.keyword')"
+            :placeholder="t('plugin.workflow-orchestration.tenant.workflow.placeholders.keyword')"
             @keyup.enter="applyFilters"
           />
         </label>
 
         <label class="space-y-2 text-sm text-slate-600">
-          <span>{{ t('plugin.workflowOrchestration.tenant.workflow.filters.status') }}</span>
+          <span>{{ t('plugin.workflow-orchestration.tenant.workflow.filters.status') }}</span>
           <select
             v-model="selectedStatus"
             class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
           >
             <option value="">
-              {{ t('plugin.workflowOrchestration.tenant.common.filters.allStatus') }}
+              {{ t('plugin.workflow-orchestration.tenant.common.filters.allStatus') }}
             </option>
             <option
               v-for="status in statusOptions"
@@ -193,13 +361,13 @@ onMounted(() => {
         </label>
 
         <label class="space-y-2 text-sm text-slate-600">
-          <span>{{ t('plugin.workflowOrchestration.tenant.workflow.filters.builderMode') }}</span>
+          <span>{{ t('plugin.workflow-orchestration.tenant.workflow.filters.builderMode') }}</span>
           <select
             v-model="selectedBuilderMode"
             class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
           >
             <option value="">
-              {{ t('plugin.workflowOrchestration.tenant.common.filters.allBuilderModes') }}
+              {{ t('plugin.workflow-orchestration.tenant.common.filters.allBuilderModes') }}
             </option>
             <option
               v-for="mode in builderModeOptions"
@@ -216,13 +384,13 @@ onMounted(() => {
             class="inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
             @click="applyFilters"
           >
-            {{ t('plugin.workflowOrchestration.tenant.common.actions.applyFilters') }}
+            {{ t('plugin.workflow-orchestration.tenant.common.actions.applyFilters') }}
           </button>
           <button
             class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
             @click="resetFilters"
           >
-            {{ t('plugin.workflowOrchestration.tenant.common.actions.resetFilters') }}
+            {{ t('plugin.workflow-orchestration.tenant.common.actions.resetFilters') }}
           </button>
         </div>
       </div>
@@ -259,7 +427,7 @@ onMounted(() => {
         <div class="flex items-start justify-between gap-4">
           <div class="space-y-2">
             <h2 class="text-lg font-semibold text-slate-900">
-              {{ workflow.name || t('plugin.workflowOrchestration.tenant.workflow.untitled') }}
+              {{ workflow.name || t('plugin.workflow-orchestration.tenant.workflow.untitled') }}
             </h2>
             <p
               v-if="workflow.description"
@@ -269,10 +437,11 @@ onMounted(() => {
             </p>
           </div>
           <button
+            v-if="canOpenWorkflowDetail"
             class="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
             @click="openDetail(workflow.id)"
           >
-            {{ t('plugin.workflowOrchestration.tenant.common.actions.openDetail') }}
+            {{ t('plugin.workflow-orchestration.tenant.common.actions.openDetail') }}
           </button>
         </div>
 
@@ -295,15 +464,15 @@ onMounted(() => {
         <dl class="grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
           <div class="rounded-2xl bg-slate-50 px-4 py-3">
             <dt class="text-xs uppercase tracking-wide text-slate-400">
-              {{ t('plugin.workflowOrchestration.tenant.workflow.fields.version') }}
+              {{ t('plugin.workflow-orchestration.tenant.workflow.fields.version') }}
             </dt>
             <dd class="mt-1 font-medium text-slate-900">
-              {{ workflow.currentVersion || t('plugin.workflowOrchestration.tenant.common.placeholders.empty') }}
+              {{ workflow.currentVersion || t('plugin.workflow-orchestration.tenant.common.placeholders.empty') }}
             </dd>
           </div>
           <div class="rounded-2xl bg-slate-50 px-4 py-3">
             <dt class="text-xs uppercase tracking-wide text-slate-400">
-              {{ t('plugin.workflowOrchestration.tenant.workflow.fields.lastRunStatus') }}
+              {{ t('plugin.workflow-orchestration.tenant.workflow.fields.lastRunStatus') }}
             </dt>
             <dd class="mt-1">
               <StatusPill
@@ -314,7 +483,7 @@ onMounted(() => {
           </div>
           <div class="rounded-2xl bg-slate-50 px-4 py-3">
             <dt class="text-xs uppercase tracking-wide text-slate-400">
-              {{ t('plugin.workflowOrchestration.tenant.workflow.fields.pendingApprovals') }}
+              {{ t('plugin.workflow-orchestration.tenant.workflow.fields.pendingApprovals') }}
             </dt>
             <dd class="mt-1 font-medium text-slate-900">
               {{ formatNumber(workflow.pendingApprovals ?? 0) }}
@@ -322,7 +491,7 @@ onMounted(() => {
           </div>
           <div class="rounded-2xl bg-slate-50 px-4 py-3">
             <dt class="text-xs uppercase tracking-wide text-slate-400">
-              {{ t('plugin.workflowOrchestration.tenant.workflow.fields.successRate7d') }}
+              {{ t('plugin.workflow-orchestration.tenant.workflow.fields.successRate7d') }}
             </dt>
             <dd class="mt-1 font-medium text-slate-900">
               {{ formatPercent(workflow.successRate7d) }}
@@ -332,7 +501,7 @@ onMounted(() => {
 
         <div class="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
           <p class="text-xs uppercase tracking-wide text-slate-400">
-            {{ t('plugin.workflowOrchestration.tenant.workflow.fields.lastRunAt') }}
+            {{ t('plugin.workflow-orchestration.tenant.workflow.fields.lastRunAt') }}
           </p>
           <p class="mt-1 font-medium text-slate-900">
             {{ formatRelativeTime(workflow.lastRunAt || workflow.updatedAt) }}
@@ -341,36 +510,51 @@ onMounted(() => {
 
         <div class="mt-auto flex flex-wrap items-center gap-3">
           <button
+            v-if="canOpenEditor && workflow.canEdit !== false"
             class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
             @click="openEditor(workflow.id)"
           >
-            {{ t('plugin.workflowOrchestration.tenant.workflow.actions.openEditor') }}
+            {{ t('plugin.workflow-orchestration.tenant.workflow.actions.openEditor') }}
           </button>
           <button
+            v-if="canRunWorkflow"
             class="inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="workflow.canExecute === false || actionLoadingId === workflow.id"
             @click="executeWorkflow(workflow)"
           >
             {{
               actionLoadingId === workflow.id
-                ? t('plugin.workflowOrchestration.tenant.common.messages.processing')
-                : t('plugin.workflowOrchestration.tenant.workflow.actions.run')
-            }}
+                ? t('plugin.workflow-orchestration.tenant.common.messages.processing')
+                : t('plugin.workflow-orchestration.tenant.workflow.actions.run')
+              }}
           </button>
         </div>
+        <p
+          v-if="workflow.canExecute === false"
+          class="text-xs leading-5 text-slate-500"
+        >
+          {{ t('plugin.workflow-orchestration.tenant.workflow.hints.publishBeforeRun') }}
+        </p>
       </article>
     </section>
 
     <EmptyState
       v-else
-      :description="t('plugin.workflowOrchestration.tenant.workflow.empty.description')"
-      :title="t('plugin.workflowOrchestration.tenant.workflow.empty.title')"
+      :description="t('plugin.workflow-orchestration.tenant.workflow.empty.description')"
+      :title="t('plugin.workflow-orchestration.tenant.workflow.empty.title')"
     >
       <button
+        v-if="canOpenCreateGuide"
         class="inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
         @click="createWorkflow"
       >
-        {{ t('plugin.workflowOrchestration.tenant.workflow.actions.create') }}
+        {{ t('plugin.workflow-orchestration.tenant.workflow.actions.openCreateGuide') }}
+      </button>
+      <button
+        class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-sky-200 hover:text-sky-700"
+        @click="openAIPlanner()"
+      >
+        {{ t('plugin.workflow-orchestration.tenant.workflow.actions.askAI') }}
       </button>
     </EmptyState>
 
@@ -380,7 +564,7 @@ onMounted(() => {
     >
       <p class="text-sm text-slate-500">
         {{
-          t('plugin.workflowOrchestration.tenant.common.pagination.summary', {
+          t('plugin.workflow-orchestration.tenant.common.pagination.summary', {
             page,
             total,
             totalPages,
@@ -396,7 +580,7 @@ onMounted(() => {
             void loadWorkflows();
           "
         >
-          {{ t('plugin.workflowOrchestration.tenant.common.actions.previousPage') }}
+          {{ t('plugin.workflow-orchestration.tenant.common.actions.previousPage') }}
         </button>
         <button
           class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
@@ -406,9 +590,10 @@ onMounted(() => {
             void loadWorkflows();
           "
         >
-          {{ t('plugin.workflowOrchestration.tenant.common.actions.nextPage') }}
+          {{ t('plugin.workflow-orchestration.tenant.common.actions.nextPage') }}
         </button>
       </div>
     </section>
+    </template>
   </ConsoleShell>
 </template>

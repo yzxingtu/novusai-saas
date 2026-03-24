@@ -10,6 +10,7 @@ import time
 
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.core.response import build_public_error_text
 from app.enums.agent import AgentExecutionModeEnum, BatchRunStatusEnum
 from app.models.ai.agent import Agent
 
@@ -108,7 +109,10 @@ class BatchEngine(BaseEngine):
                 item.status = BatchRunStatusEnum.FAILED.value
                 item.result = ExecutionResult(
                     success=False,
-                    error=str(exc),
+                    error=build_public_error_text(
+                        message=_("common.server_error"),
+                        exc=exc,
+                    ),
                 )
                 failed += 1
 

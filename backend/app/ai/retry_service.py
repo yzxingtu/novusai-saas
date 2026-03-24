@@ -156,7 +156,7 @@ class RetryService:
                     provider.code, model, str(e),
                 )
                 raise ProviderError(
-                    message=str(e),
+                    message=_("ai.request_failed"),
                     provider_code=provider.code,
                     model_code=model,
                     original_error=e,

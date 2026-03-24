@@ -10,6 +10,7 @@ from app.plugins.exceptions import PluginManifestError
 from app.plugins.frontend_contract import (
     default_plugin_global_var,
     get_release_styles,
+    has_frontend_extensions,
     validate_runtime_frontend_contract,
 )
 
@@ -94,3 +95,20 @@ def test_release_styles_are_read_from_release_manifest(
     styles = get_release_styles(plugin_root, _manifest_with_frontend())
 
     assert styles == ["style.css"]
+
+
+def test_has_frontend_extensions_true_when_only_dev_release_declared() -> None:
+    manifest = {
+        "name": "demo-plugin",
+        "version": "1.0.0",
+        "display_name": {"en": "Demo Plugin"},
+        "scope": "all_tenants",
+        "extensions": {
+            "frontend": {
+                "dev": {"entry": "src/index.ts"},
+                "release": {"manifest": "plugin.manifest.json"},
+            }
+        },
+    }
+
+    assert has_frontend_extensions(manifest) is True

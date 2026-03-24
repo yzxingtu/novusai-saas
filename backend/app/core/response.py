@@ -12,10 +12,11 @@ from typing import Any, Generic, TypeVar
 
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from socketio.exceptions import ConnectionRefusedError as SocketConnectionRefusedError
 
 from app.core.config import settings
 from app.core.i18n import _
-from app.middleware.trace import trace_id_var
+from app.middleware.trace import extract_optional_trace_id, trace_id_var
 
 
 def _serialize(data: Any) -> Any:
@@ -77,8 +78,7 @@ class PagedData(BaseModel, Generic[T]):
 
 def get_current_trace_id() -> str | None:
     """Get current trace_id from ContextVar / 从 ContextVar 获取当前 trace_id"""
-    trace_id = trace_id_var.get().strip()
-    return trace_id or None
+    return extract_optional_trace_id(trace_id_var.get())
 
 
 def include_debug_payload() -> bool:
@@ -104,6 +104,88 @@ def build_exception_debug(
         debug["traceback"] = traceback.format_exc()
 
     return debug
+
+
+def build_public_error_text(
+    *,
+    message: str | None = None,
+    exc: BaseException | None = None,
+    detail: str | None = None,
+    trace_id: str | None = None,
+    include_trace_id: bool = True,
+    expose_detail: bool | None = None,
+) -> str:
+    """
+    Build safe public-facing error text with optional trace_id suffix.
+    / 构建对外安全错误文本，并按需附带 trace_id。
+    """
+    text = message or _("common.server_error")
+    if expose_detail is None:
+        expose_detail = include_debug_payload()
+
+    if exc is not None:
+        try:
+            from app.exceptions.base import AppException
+        except Exception:  # pragma: no cover - defensive import fallback
+            AppException = None  # type: ignore[assignment] / 动态导入失败时的占位
+        if AppException is not None and isinstance(exc, AppException):
+            app_message = str(getattr(exc, "message", "") or str(exc)).strip()
+            if app_message:
+                text = app_message
+
+    detail_text = (detail if detail is not None else (str(exc) if exc else "")).strip()
+    if expose_detail and detail_text:
+        text = detail_text if not text or text == detail_text else f"{text}: {detail_text}"
+
+    resolved_trace_id = trace_id or get_current_trace_id()
+    if include_trace_id and resolved_trace_id:
+        return f"{text} [trace_id={resolved_trace_id}]"
+    return text
+
+
+def resolve_public_error_message(
+    exc: BaseException | str | None = None,
+    *,
+    fallback_message: str | None = None,
+    expose_detail: bool | None = None,
+) -> str:
+    """Resolve safe public error message without trace_id / 解析不含 trace_id 的安全对外错误文案。"""
+    return build_public_error_text(
+        message=fallback_message,
+        exc=exc if not isinstance(exc, str) else None,
+        detail=exc if isinstance(exc, str) else None,
+        include_trace_id=False,
+        expose_detail=expose_detail,
+    )
+
+
+def build_inline_error_result(
+    exc: BaseException | str | None = None,
+    *,
+    fallback_message: str | None = None,
+    expose_detail: bool | None = None,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build success-wrapper error payload / 构建 success 包裹的错误载荷。"""
+    trace_id = get_current_trace_id()
+    payload: dict[str, Any] = {
+        "success": False,
+        "errors": [
+            build_public_error_text(
+                message=fallback_message,
+                exc=exc if not isinstance(exc, str) else None,
+                detail=exc if isinstance(exc, str) else None,
+                trace_id=trace_id,
+                include_trace_id=True,
+                expose_detail=expose_detail,
+            )
+        ],
+    }
+    if trace_id:
+        payload["trace_id"] = trace_id
+    if extra:
+        payload.update(extra)
+    return payload
 
 
 def build_error_payload(
@@ -174,7 +256,7 @@ def build_socket_connect_error(
     debug: Any = None,
     extra: dict[str, Any] | None = None,
     include_debug: bool | None = None,
-) -> ConnectionRefusedError:
+) -> SocketConnectionRefusedError:
     """
     Build Socket.IO connect refusal carrying structured data.
     / 构建携带结构化数据的 Socket.IO 握手拒绝异常。
@@ -183,7 +265,7 @@ def build_socket_connect_error(
     if extra:
         merged_extra.update(extra)
 
-    return ConnectionRefusedError(
+    return SocketConnectionRefusedError(
         reason,
         build_error_payload(
             message=message,

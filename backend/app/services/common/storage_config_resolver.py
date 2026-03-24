@@ -318,7 +318,7 @@ class StorageConfigResolver:
         Returns:
             StorageConfig matching the attachment's storage driver
         """
-        # Local files always live on local disk, regardless of current config
+        # Local files always live on local disk, regardless of current config / 本地文件恒在本地盘 / local files stay on disk
         if driver == "local":
             from app.storage import LOCAL_STORAGE_ROOT
             return StorageConfig(
@@ -328,7 +328,7 @@ class StorageConfigResolver:
                 options={},
             )
 
-        # For cloud drivers, try tenant config first if applicable
+        # For cloud drivers, try tenant config first if applicable / 云端先读租户配置 / tenant config first
         if tenant_id:
             storage_mode = await self.get_storage_mode(tenant_id)
             if storage_mode in ("custom", "admin_override"):
@@ -340,7 +340,7 @@ class StorageConfigResolver:
                 except BusinessException:
                     pass
 
-        # Fall back to platform config
+        # Fall back to platform config / 回退平台配置 / fall back platform config
         config = await self.resolve_platform_config()
         if config.driver == driver:
             self._check_driver_available(config)
@@ -349,13 +349,13 @@ class StorageConfigResolver:
         # Driver mismatch: attachment was stored on a different driver
         # than the current config. This happens after a storage migration.
         # Still try to use platform config if it was the original source.
-        # As last resort, check if the driver is at least registered.
+        # As last resort, check if the driver is at least registered. / 最后回退 API 代理 / last-resort API proxy
         from app.storage.manager import storage_manager
         if storage_manager.has_driver(driver):
             # Driver is available (plugin enabled) but no matching config.
             # Return platform config — the caller will get a driver instance
             # but it won't have the right credentials for this driver.
-            # Log a warning so admins are aware of the config gap.
+            # Log a warning so admins are aware of the config gap. / 驱动可用但缺配置 / driver enabled missing config
             from app.core.logging import LogManager
             logger = LogManager.get_logger("storage")
             logger.warning(

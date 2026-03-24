@@ -14,7 +14,7 @@ import pytest
 
 from app.ai.tools.types import ToolDefinition
 
-# ── 动态导入插件模块 ──
+# ── 动态导入插件模块 / dynamic plugin import ──
 
 _PLUGIN_DIR = Path(__file__).parent.parent
 
@@ -106,7 +106,7 @@ class TestWeatherWidgetExecutor:
     def setup_method(self):
         self.executor = WeatherWidgetExecutor()
 
-    # ── validate ──
+    # ── validate / 参数校验 ──
 
     @pytest.mark.asyncio
     async def test_validate_with_city(self):
@@ -126,7 +126,7 @@ class TestWeatherWidgetExecutor:
         result = await self.executor.validate(definition, {"city": ""})
         assert result is False
 
-    # ── execute: empty city ──
+    # ── execute: empty city / 执行：城市为空 ──
 
     @pytest.mark.asyncio
     async def test_execute_empty_city(self):
@@ -143,7 +143,7 @@ class TestWeatherWidgetExecutor:
         result = await self.executor.execute(definition, "call-1", {})
         assert result.success is False
 
-    # ── execute: unknown tool ──
+    # ── execute: unknown tool / 执行：未知工具 ──
 
     @pytest.mark.asyncio
     async def test_execute_unknown_tool(self):
@@ -155,7 +155,7 @@ class TestWeatherWidgetExecutor:
         assert result.success is False
         assert "unknown" in result.output.lower()
 
-    # ── execute: get_current_weather ──
+    # ── execute: get_current_weather / 执行：当前天气 ──
 
     @pytest.mark.asyncio
     async def test_execute_current_weather_success(self):
@@ -186,7 +186,7 @@ class TestWeatherWidgetExecutor:
         assert "Clear sky" in result.output
         assert result.duration_ms >= 0
 
-    # ── execute: get_weather_forecast ──
+    # ── execute: get_weather_forecast / 执行：天气预报 ──
 
     @pytest.mark.asyncio
     async def test_execute_forecast_success(self):
@@ -258,10 +258,10 @@ class TestWeatherWidgetExecutor:
                 definition, "call-4", {"city": "London", "days": "abc"}
             )
 
-        # Invalid days falls back to 3
+        # Invalid days falls back to 3 / 非法 days 回退为 3
         mock_open_meteo.get_forecast.assert_called_once_with(51.51, -0.13, 3)
 
-    # ── execute: city not found ──
+    # ── execute: city not found / 执行：城市未找到 ──
 
     @pytest.mark.asyncio
     async def test_execute_city_not_found(self):
@@ -279,7 +279,7 @@ class TestWeatherWidgetExecutor:
         assert result.success is False
         assert "未找到城市" in result.output
 
-    # ── execute: API error ──
+    # ── execute: API error / 执行：接口异常 ──
 
     @pytest.mark.asyncio
     async def test_execute_api_error(self):

@@ -31,7 +31,7 @@ class TenantQuota(TenantModel):
         "allow_read": True,
     }
 
-    # 允许前端筛选的字段
+    # 允许前端筛选的字段 / Fields exposed for list filtering
     __filterable__ = {
         "id": "id",
         "tenant_id": "tenant_id",
@@ -42,7 +42,7 @@ class TenantQuota(TenantModel):
         "created_at": "created_at",
     }
 
-    # 允许排序的字段
+    # 允许排序的字段 / Sortable columns for UI
     __sortable__ = {
         "id": "id",
         "limit": "limit",
@@ -83,7 +83,7 @@ class TenantQuota(TenantModel):
         comment=_("enum.tenant_quota.quota_type")
     )
 
-    # 预警阈值（百分比，如 80 表示 80%）
+    # 预警阈值（百分比，如 80 表示 80%） / Warning threshold (percent; e.g. 80 = 80%)
     warning_threshold: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
@@ -91,7 +91,7 @@ class TenantQuota(TenantModel):
         comment=_("enum.tenant_quota.warning_threshold")
     )
 
-    # 是否启用
+    # 是否启用 / Enabled flag
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         default=True,
@@ -99,14 +99,14 @@ class TenantQuota(TenantModel):
         comment=_("enum.tenant_quota.is_active")
     )
 
-    # 备注说明
+    # 备注说明 / Notes
     description: Mapped[str | None] = mapped_column(
         String(500),
         nullable=True,
         comment=_("enum.tenant_quota.description")
     )
 
-    # ==================== 关系 ====================
+    # ==================== 关系 ==================== / Relationships
 
     # 关联的 AI 模型
     model = relationship(
@@ -114,7 +114,7 @@ class TenantQuota(TenantModel):
         lazy="selectin",
     )
 
-    # 关联的企业
+    # 关联的企业 / Linked tenant
     tenant = relationship(
         "Tenant",
         lazy="selectin",

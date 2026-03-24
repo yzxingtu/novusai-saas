@@ -56,10 +56,10 @@ class PlatformPublicConfig(BaseSchema):
     session_timeout_minutes: int | None = Field(None, description="会话超时时间")
     session_max_devices: int | None = Field(None, description="最大登录设备数")
 
-    # 域名检测
+    # 域名检测 / Domain detection
     platform_domains: list[str] = Field(default_factory=list, description="平台管理端域名列表")
 
-    # 存储配置
+    # 存储配置 / Storage
     storage: StoragePublicConfig | None = Field(None, description="存储配置")
     runtime_limits: RuntimeLimitsPublicConfig | None = Field(None, description="运行时限制")
 

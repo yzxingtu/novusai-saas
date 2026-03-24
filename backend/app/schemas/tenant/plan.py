@@ -114,7 +114,7 @@ class PermissionTreeSimpleResponse(BaseSchema):
     )
 
 
-# 解决循环引用
+# 解决循环引用 / Resolve forward references
 PermissionTreeSimpleResponse.model_rebuild()
 
 

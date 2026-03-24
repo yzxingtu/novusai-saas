@@ -14,6 +14,7 @@ from app.core.base_model import BaseModel
 
 class NovusdocDocument(BaseModel):
     __tablename__ = "px_novusdoc_documents"
+    __data_permission__ = True
 
     tenant_id: Mapped[int] = mapped_column(
         Integer,

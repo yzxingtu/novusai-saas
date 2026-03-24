@@ -36,7 +36,6 @@ import {
 
 import {
   batchBindKBsApi,
-  bindSingleAgentKBApi,
   getAgentDetailApi,
   getAgentKBsApi,
   getAgentMemoryConfigApi,
@@ -50,7 +49,13 @@ import {
 } from '#/api/tenant/agents';
 import { getTenantAIModelsApi } from '#/api/tenant/ai';
 import { smartUploadFile } from '#/api/tenant/attachment';
-import { getKnowledgeBaseListApi } from '#/api/tenant/knowledge-bases';
+import { getTenantSelectableKBApi } from '#/api/tenant/knowledge-bases';
+import type { AgentKnowledgeBaseBindingDraftItem } from '#/components/business/agent-kb-binding-picker';
+import {
+  AgentKnowledgeBaseBindingPicker,
+  bindingsToDrafts as kbBindingsToDrafts,
+  draftsToBatchPayload as kbDraftsToBatchPayload,
+} from '#/components/business/agent-kb-binding-picker';
 import InputVariablesEditor from '#/components/business/input-variables-editor/InputVariablesEditor.vue';
 import {
   createOpenCurrentPageOperation,
@@ -63,6 +68,7 @@ import {
   formatStarterQuestionsInput,
   parseStarterQuestionsInput,
 } from '#/utils/ai-starter-questions';
+import { showRequestError } from '#/utils/error-helpers';
 import { toAvatarDisplayUrl } from '#/utils/image';
 import {
   getScopeColor,
@@ -76,7 +82,7 @@ import VersionHistoryDrawer from './modules/VersionHistory.vue';
 
 defineOptions({ name: 'TenantAgentDetail' });
 
-// ==================== AccessConfig Drawer ====================
+// ==================== AccessConfig Drawer / 访问配置抽屉 ====================
 const [AccessConfigDrawerCmp, accessConfigApi] = useVbenDrawer({
   connectedComponent: AccessConfigDrawer,
 });
@@ -94,7 +100,7 @@ function openAccessConfigDrawer() {
   accessConfigApi.open();
 }
 
-// ==================== VersionHistory Drawer ====================
+// ==================== VersionHistory Drawer / 版本历史抽屉 ====================
 const [VersionHistoryDrawerCmp, versionHistoryApi] = useVbenDrawer({
   connectedComponent: VersionHistoryDrawer,
 });
@@ -112,12 +118,12 @@ function openVersionHistoryDrawer() {
   versionHistoryApi.open();
 }
 
-// ==================== Route ====================
+// ==================== Route / 路由 ====================
 const route = useRoute();
 const router = useRouter();
 const agentId = computed(() => Number(route.params.id));
 
-// ==================== State ====================
+// ==================== State / 状态 ====================
 const loading = ref(false);
 const saving = ref(false);
 const agent = ref<AgentInfo | null>(null);
@@ -127,15 +133,15 @@ const memorySaving = ref(false);
 const memoryConfig = ref<AgentMemoryConfig | null>(null);
 const tenantMemoryDisabled = ref(false);
 
-// ==================== Load ====================
+// ==================== Load / 加载 ====================
 async function loadMemoryConfig() {
   memoryLoading.value = true;
   try {
     memoryConfig.value = await getAgentMemoryConfigApi(agentId.value);
     tenantMemoryDisabled.value =
       memoryConfig.value.tenant_agent_memory_disabled;
-  } catch {
-    message.error($t('common.loadFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.loadFailed');
   } finally {
     memoryLoading.value = false;
   }
@@ -146,8 +152,8 @@ async function loadAgent() {
   try {
     agent.value = await getAgentDetailApi(agentId.value);
     await loadMemoryConfig();
-  } catch {
-    message.error($t('common.loadFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.loadFailed');
   } finally {
     loading.value = false;
   }
@@ -199,21 +205,21 @@ function getExecutionModeIcon(mode: string): string {
   }
 }
 
-// ==================== Generic Save ====================
+// ==================== Generic Save / 通用保存 ====================
 async function saveFields(fields: Record<string, unknown>) {
   if (!agent.value) return;
   saving.value = true;
   try {
     agent.value = await updateAgentApi(agentId.value, fields);
     message.success($t('tenant.ai.agent.detail.saveSuccess'));
-  } catch {
-    message.error($t('common.saveFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.saveFailed');
   } finally {
     saving.value = false;
   }
 }
 
-// ==================== Avatar Upload ====================
+// ==================== Avatar Upload / 头像上传 ====================
 const avatarUploading = ref(false);
 
 const avatarDisplayUrl = computed(() => {
@@ -253,8 +259,8 @@ async function handleAvatarUpload(file: File) {
     if (!attachmentId) throw new Error('Upload failed');
     agent.value = await updateAgentApi(agentId.value, { avatar: attachmentId });
     message.success($t('tenant.ai.agent.detail.saveSuccess'));
-  } catch {
-    message.error($t('shared.common.uploadFailed'));
+  } catch (error) {
+    showRequestError(error, 'shared.common.uploadFailed');
   } finally {
     avatarUploading.value = false;
   }
@@ -266,8 +272,8 @@ async function removeAvatar() {
   try {
     agent.value = await updateAgentApi(agentId.value, { avatar: null });
     message.success($t('tenant.ai.agent.detail.saveSuccess'));
-  } catch {
-    message.error($t('common.saveFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.saveFailed');
   } finally {
     avatarUploading.value = false;
   }
@@ -285,15 +291,15 @@ async function updateTenantMemoryDisabled(disabled: boolean) {
     tenantMemoryDisabled.value =
       memoryConfig.value.tenant_agent_memory_disabled;
     message.success($t('tenant.ai.agent.memory.saveSuccess'));
-  } catch {
+  } catch (error) {
     tenantMemoryDisabled.value = previous;
-    message.error($t('common.saveFailed'));
+    showRequestError(error, 'common.saveFailed');
   } finally {
     memorySaving.value = false;
   }
 }
 
-// ==================== Scope Protection ====================
+// ==================== Scope Protection / 作用域保护 ====================
 const isTenantOwned = computed(() => agent.value?.owner_type === 'tenant');
 /** 平台下发智能体：可追加本企业知识库，不可改平台全局绑定 / Platform agent: tenant KB overlay */
 const isPlatformAssignedAgent = computed(
@@ -306,7 +312,7 @@ function isKbBindingReadonly(binding: AgentKBBindingInfo) {
   return binding.binding_scope === 'platform';
 }
 
-// ==================== Overview Tab ====================
+// ==================== Overview Tab / 概览页签 ====================
 const editingPrompt = ref(false);
 const promptDraft = ref('');
 
@@ -324,7 +330,7 @@ async function savePrompt() {
   editingPrompt.value = false;
 }
 
-// ==================== Model Params Tab ====================
+// ==================== Model Params Tab / 模型参数页签 ====================
 const modelTemp = ref(0.7);
 const modelMaxTokens = ref<number | undefined>(undefined);
 const modelTopP = ref<number | undefined>(undefined);
@@ -360,7 +366,7 @@ async function saveModelParams() {
   });
 }
 
-// ==================== Chat Config Tab ====================
+// ==================== Chat Config Tab / 对话配置页签 ====================
 const chatWelcome = ref('');
 const chatSuggestions = ref('');
 const chatInputVars = ref<InputVariable[]>([]);
@@ -439,40 +445,42 @@ async function loadBindings() {
   }
 }
 
-// ==================== Knowledge Base Bindings Tab ====================
+// ==================== Knowledge Base Bindings Tab / 知识库绑定页签 ====================
 const kbBindings = ref<AgentKBBindingInfo[]>([]);
 const kbBindingsLoading = ref(false);
-const kbOptions = ref<{ label: string; value: number }[]>([]);
-const selectedNewKBs = ref<number[]>([]);
+const kbPickerOpen = ref(false);
+const kbPickerDrafts = ref<AgentKnowledgeBaseBindingDraftItem[]>([]);
 const platformKbSuppressLoadingKbId = ref<null | number>(null);
+const managedKbBindings = computed(() =>
+  isTenantOwned.value
+    ? kbBindings.value
+    : kbBindings.value.filter((binding) => !isKbBindingReadonly(binding)),
+);
+const kbManagedScopeCount = computed(() => {
+  const keys = new Set(
+    managedKbBindings.value.map((binding) => binding.kb_scope || 'unknown'),
+  );
+  return keys.size;
+});
+const kbPickerExcludedIds = computed(() =>
+  isTenantOwned.value
+    ? []
+    : kbBindings.value
+        .filter((binding) => isKbBindingReadonly(binding))
+        .map((binding) => binding.knowledge_base_id),
+);
 
 async function loadKBBindings() {
   kbBindingsLoading.value = true;
   try {
     kbBindings.value = await getAgentKBsApi(agentId.value);
-  } catch {
+  } catch (error) {
     kbBindings.value = [];
+    showRequestError(error, 'common.loadFailed');
   } finally {
     kbBindingsLoading.value = false;
   }
 }
-
-async function loadKBOptions() {
-  try {
-    const res = await getKnowledgeBaseListApi({ 'page[size]': 200 });
-    kbOptions.value = (res.items || []).map((kb) => ({
-      label: kb.name,
-      value: kb.id,
-    }));
-  } catch {
-    kbOptions.value = [];
-  }
-}
-
-const unboundKBs = computed(() => {
-  const boundIds = new Set(kbBindings.value.map((b) => b.knowledge_base_id));
-  return kbOptions.value.filter((kb) => !boundIds.has(kb.value));
-});
 
 function getKbChunkStrategyText(strategy: null | string | undefined): string {
   switch (strategy) {
@@ -494,27 +502,23 @@ function getKbChunkStrategyText(strategy: null | string | undefined): string {
   }
 }
 
-async function bindKB() {
-  if (selectedNewKBs.value.length === 0) return;
+function openKBBindingPicker() {
+  kbPickerDrafts.value = kbBindingsToDrafts(managedKbBindings.value);
+  kbPickerOpen.value = true;
+}
+
+async function onKBBindingPickerConfirm(
+  drafts: AgentKnowledgeBaseBindingDraftItem[],
+) {
   try {
-    if (isTenantOwned.value) {
-      const currentIds = kbBindings.value.map((b) => b.knowledge_base_id);
-      for (const kbId of selectedNewKBs.value) {
-        if (!currentIds.includes(kbId)) currentIds.push(kbId);
-      }
-      await batchBindKBsApi(agentId.value, currentIds);
-    } else {
-      for (const kbId of selectedNewKBs.value) {
-        await bindSingleAgentKBApi(agentId.value, {
-          knowledge_base_id: kbId,
-        });
-      }
-    }
-    selectedNewKBs.value = [];
+    await batchBindKBsApi(
+      agentId.value,
+      kbDraftsToBatchPayload(drafts).knowledge_base_ids,
+    );
     await loadKBBindings();
     message.success($t('tenant.ai.agent.detail.saveSuccess'));
-  } catch {
-    message.error($t('common.saveFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.saveFailed');
   }
 }
 
@@ -523,8 +527,8 @@ async function unbindKB(knowledgeBaseId: number) {
     await unbindKBApi(agentId.value, knowledgeBaseId);
     await loadKBBindings();
     message.success($t('tenant.ai.agent.detail.saveSuccess'));
-  } catch {
-    message.error($t('common.saveFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.saveFailed');
   }
 }
 
@@ -535,8 +539,8 @@ async function toggleKBEnabled(binding: AgentKBBindingInfo) {
       enabled: !binding.enabled,
     });
     await loadKBBindings();
-  } catch {
-    message.error($t('common.saveFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.saveFailed');
   }
 }
 
@@ -547,8 +551,8 @@ async function updateKBWeight(bindingId: number, weight: number) {
     await updateAgentKBBindingApi(agentId.value, bindingId, { weight });
     await loadKBBindings();
     message.success($t('tenant.ai.agent.detail.saveSuccess'));
-  } catch {
-    message.error($t('common.saveFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.saveFailed');
   }
 }
 
@@ -564,8 +568,8 @@ async function togglePlatformKbOptOut(
       : unsuppressPlatformKbApi(agentId.value, binding.knowledge_base_id));
     await loadKBBindings();
     message.success($t('tenant.ai.agent.detail.saveSuccess'));
-  } catch {
-    message.error($t('common.saveFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.saveFailed');
   } finally {
     platformKbSuppressLoadingKbId.value = null;
   }
@@ -636,7 +640,7 @@ async function saveRagConfig() {
   });
 }
 
-// ==================== Quota Tab ====================
+// ==================== Quota Tab / 配额页签 ====================
 const quotaConversationsPerDay = ref(0);
 const quotaTokensPerDay = ref(0);
 const quotaTokensPerMonth = ref(0);
@@ -669,7 +673,7 @@ async function saveQuota() {
   });
 }
 
-// ==================== Routing Config Tab ====================
+// ==================== Routing Config Tab / 路由配置页签 ====================
 const routingEnabled = ref(false);
 const routingMaxTier = ref<string | undefined>(undefined);
 const routingVisionModelId = ref<number | undefined>(undefined);
@@ -712,7 +716,7 @@ async function loadRoutingModelOptions() {
         .map((m) => [m.id, m.max_output_tokens ?? undefined]),
     );
   } catch {
-    // fallback: empty list
+    // fallback: empty list / 回退为空列表
     chatModelMaxOutputTokens.value = {};
     visionModelOptions.value = [];
     audioModelOptions.value = [];
@@ -758,7 +762,7 @@ async function saveRouting() {
   });
 }
 
-// ==================== Tab Change: Init ====================
+// ==================== Tab Change: Init / 切换页签：初始化 ====================
 function onTabChange(key: number | string) {
   activeTab.value = String(key);
   if (!agent.value) return;
@@ -769,7 +773,6 @@ function onTabChange(key: number | string) {
     }
     case 'knowledgeBases': {
       loadKBBindings();
-      loadKBOptions();
       break;
     }
     case 'modelParams': {
@@ -1785,6 +1788,14 @@ useDetailPageAi({
                 </span>
               </template>
               <div class="p-5 pt-3">
+                <AgentKnowledgeBaseBindingPicker
+                  v-model:open="kbPickerOpen"
+                  v-model="kbPickerDrafts"
+                  :excluded-ids="kbPickerExcludedIds"
+                  :fetch-candidates="getTenantSelectableKBApi"
+                  i18n-prefix="tenant.ai.agent.kbPicker"
+                  @confirm="onKBBindingPickerConfirm"
+                />
                 <Spin :spinning="kbBindingsLoading">
                   <div class="flex flex-col gap-4">
                     <p
@@ -1793,34 +1804,41 @@ useDetailPageAi({
                     >
                       {{ $t('tenant.ai.agent.detail.kbTenantOverlayHint') }}
                     </p>
-                    <p class="text-xs text-muted-foreground">
-                      {{ $t('tenant.ai.agent.detail.kbWeightFusionHint') }}
-                    </p>
-                    <!-- Add binding row -->
                     <div
                       v-if="canManageKnowledgeBases"
-                      class="flex items-center gap-3 rounded-xl border bg-accent/30 p-4"
+                      class="rounded-2xl border border-border/70 bg-muted/20 p-4"
                     >
-                      <ASelect
-                        v-model:value="selectedNewKBs"
-                        :options="unboundKBs"
-                        :placeholder="
-                          $t('tenant.ai.agent.detail.selectKnowledgeBase')
-                        "
-                        mode="multiple"
-                        show-search
-                        option-filter-prop="label"
-                        allow-clear
-                        class="flex-1"
-                      />
-                      <Button
-                        type="primary"
-                        :disabled="selectedNewKBs.length === 0"
-                        @click="bindKB"
-                      >
-                        <IconifyIcon icon="lucide:plus" class="mr-1" />
-                        {{ $t('tenant.ai.agent.detail.bindKnowledgeBase') }}
-                      </Button>
+                      <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div class="min-w-0 flex-1">
+                          <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-sm font-semibold text-foreground">
+                              {{ $t('tenant.ai.agent.detail.knowledgeBases') }}
+                            </span>
+                            <Tag class="!mr-0 !rounded-full !px-2 !text-[11px]">
+                              {{
+                                $t('tenant.ai.agent.kbPicker.selectedCount', {
+                                  count: managedKbBindings.length,
+                                })
+                              }}
+                            </Tag>
+                            <Tag class="!mr-0 !rounded-full !px-2 !text-[11px]">
+                              {{
+                                $t('tenant.ai.agent.kbPicker.selectionSummary', {
+                                  count: managedKbBindings.length,
+                                  scopes: kbManagedScopeCount,
+                                })
+                              }}
+                            </Tag>
+                          </div>
+                          <p class="mt-1 text-xs leading-5 text-muted-foreground">
+                            {{ $t('tenant.ai.agent.detail.kbWeightFusionHint') }}
+                          </p>
+                        </div>
+                        <Button type="primary" @click="openKBBindingPicker">
+                          <IconifyIcon icon="lucide:settings-2" class="mr-1 size-4" />
+                          {{ $t('tenant.ai.agent.kbPicker.manageBindings') }}
+                        </Button>
+                      </div>
                     </div>
 
                     <!-- Binding list -->
@@ -1989,12 +2007,31 @@ useDetailPageAi({
                       </div>
                     </div>
 
-                    <Empty
+                    <div
                       v-if="kbBindings.length === 0 && !kbBindingsLoading"
-                      :description="
-                        $t('tenant.ai.agent.detail.noKnowledgeBases')
-                      "
-                    />
+                      class="rounded-2xl border border-dashed border-border/70 bg-background px-6 py-10 text-center"
+                    >
+                      <div
+                        class="mx-auto flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary"
+                      >
+                        <IconifyIcon icon="lucide:library-big" class="size-6" />
+                      </div>
+                      <div class="mt-4 text-sm font-semibold text-foreground">
+                        {{ $t('tenant.ai.agent.kbPicker.emptySelected') }}
+                      </div>
+                      <div class="mx-auto mt-2 max-w-xl text-xs leading-6 text-muted-foreground">
+                        {{ $t('tenant.ai.agent.kbPicker.detailEmptyHint') }}
+                      </div>
+                      <Button
+                        v-if="canManageKnowledgeBases"
+                        class="mt-5"
+                        type="primary"
+                        @click="openKBBindingPicker"
+                      >
+                        <IconifyIcon icon="lucide:sparkles" class="mr-1 size-4" />
+                        {{ $t('tenant.ai.agent.kbPicker.manageBindings') }}
+                      </Button>
+                    </div>
                   </div>
                 </Spin>
               </div>

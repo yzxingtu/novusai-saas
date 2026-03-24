@@ -137,14 +137,19 @@ interface PublicConfigState {
   isDomainDetected: boolean;
 }
 
+interface LoadTenantConfigOptions {
+  /** Skip domain guard when domain detection already proved the host is tenant-facing. / 已确认当前域名属于企业侧时跳过域名守卫 */
+  skipDomainCheck?: boolean;
+}
+
 // ============================================================
 // Store definition / Store 定义
 // ============================================================
 
 // Promise deduplication: prevent duplicate requests from concurrent calls / Promise 去重
-let _platformConfigPromise: Promise<null | PlatformPublicConfig> | null = null;
-let _tenantConfigPromise: Promise<null | TenantPublicConfig> | null = null;
-let _detectDomainPromise: Promise<void> | null = null;
+let _platformConfigPromise: null | Promise<null | PlatformPublicConfig> = null;
+let _tenantConfigPromise: null | Promise<null | TenantPublicConfig> = null;
+let _detectDomainPromise: null | Promise<void> = null;
 
 export const usePublicConfigStore = defineStore('publicConfig', {
   state: (): PublicConfigState => ({
@@ -332,9 +337,27 @@ export const usePublicConfigStore = defineStore('publicConfig', {
      * 加载企业公开配置（首次访问时调用）
      * Tenant is auto-detected by domain middleware, no manual tenant_code needed.
      */
-    async loadTenantConfig(): Promise<null | TenantPublicConfig> {
+    async loadTenantConfig(
+      options: LoadTenantConfigOptions = {},
+    ): Promise<null | TenantPublicConfig> {
+      const { skipDomainCheck = false } = options;
+
       if (this.tenantConfigLoaded && this.tenantConfig) {
         return this.tenantConfig;
+      }
+
+      if (!skipDomainCheck) {
+        await this.detectDomainType().catch(() => {});
+
+        if (this.tenantConfigLoaded && this.tenantConfig) {
+          return this.tenantConfig;
+        }
+
+        // Platform-domain tenant/admin routes should keep using platform public config.
+        // / 平台域企业端管理页面应继续使用平台公开配置，避免误打 tenant public config。
+        if (this.isDomainDetected && this.isDomainTenantDomain === false) {
+          return null;
+        }
       }
 
       // Deduplicate: reuse in-flight request / 去重
@@ -401,9 +424,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
       const hostname = globalThis.location?.hostname ?? '';
 
       // ── Layer 1: Env var fast match / 环境变量快速匹配 ──────────────
-      const envDomains = (
-        import.meta.env.VITE_PLATFORM_DOMAINS ?? ''
-      )
+      const envDomains = (import.meta.env.VITE_PLATFORM_DOMAINS ?? '')
         .split(',')
         .map((d: string) => d.trim().toLowerCase())
         .filter(Boolean);
@@ -433,7 +454,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
           this.isDomainTenantDomain = true;
           this.isDomainDetected = true;
           // Preload tenant config / 预加载企业配置
-          await this.loadTenantConfig();
+          await this.loadTenantConfig({ skipDomainCheck: true });
           return;
         }
       }
@@ -457,10 +478,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
         const httpStatus = err?.response?.status;
         const businessCode = err?.response?.data?.code;
 
-        if (
-          httpStatus === 404 ||
-          businessCode === 4040
-        ) {
+        if (httpStatus === 404 || businessCode === 4040) {
           // Tenant not found → platform domain / 企业不存在
           this.isDomainTenantDomain = false;
           this.isDomainDetected = true;

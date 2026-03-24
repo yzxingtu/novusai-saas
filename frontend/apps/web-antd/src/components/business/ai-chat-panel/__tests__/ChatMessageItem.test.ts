@@ -234,8 +234,8 @@ describe('ChatMessageItem', () => {
   });
 
   it('shows toolStatusOk (not error) when tool completes successfully after name-mismatch fallback', async () => {
-    // Simulates: tool_start had name pageop_xxx, tool_call had name invoke_page_operation;
-    // fallback matched and updated the running tool to success, so we show success not error.
+    // Simulates: tool_start had name pageop_xxx, tool_call had name invoke_page_operation; / 模拟名称不一致
+    // fallback matched and updated the running tool to success, so we show success not error. / 回退匹配后应显示成功
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: createAssistantMsg([

@@ -40,7 +40,7 @@ class TenantUser(TenantModel):
         UniqueConstraint("tenant_id", "phone", name="uq_tenant_user_tenant_phone"),
     )
 
-    # 可过滤字段声明
+    # 可过滤字段声明 / Declares filterable fields
     __filterable__ = {
         "id": "id",
         "tenant_id": "tenant_id",
@@ -58,14 +58,14 @@ class TenantUser(TenantModel):
         "last_login_at": "last_login_at",
     }
 
-    # 可排序字段声明
+    # 可排序字段声明 / Declares sortable fields
     __sortable__ = [
         "id", "username", "email", "nickname",
         "is_active", "approval_status", "gender",
         "created_at", "updated_at", "last_login_at",
     ]
 
-    # 下拉选项配置
+    # 下拉选项配置 / Select dropdown config
     __selectable__ = {
         "label": "nickname",
         "value": "id",
@@ -73,93 +73,93 @@ class TenantUser(TenantModel):
         "extra": ["username", "email", "avatar"],
     }
 
-    # 基本信息
+    # 基本信息 / Basic info
     username: Mapped[str | None] = mapped_column(
-        String(50), index=True, nullable=True, comment="用户名"
+        String(50), index=True, nullable=True, comment="用户名 / Username",
     )
     email: Mapped[str | None] = mapped_column(
-        String(255), index=True, nullable=True, comment="邮箱"
+        String(255), index=True, nullable=True, comment="邮箱 / Email",
     )
     phone: Mapped[str | None] = mapped_column(
-        String(20), index=True, nullable=True, comment="手机号"
+        String(20), index=True, nullable=True, comment="手机号 / Phone",
     )
 
-    # 认证信息
+    # 认证信息 / Credentials
     password_hash: Mapped[str | None] = mapped_column(
-        String(255), nullable=True, comment="密码哈希"
+        String(255), nullable=True, comment="密码哈希 / Password hash",
     )
 
-    # 第三方登录
+    # 第三方登录 / Third-party login
     openid: Mapped[str | None] = mapped_column(
-        String(100), index=True, nullable=True, comment="微信 OpenID"
+        String(100), index=True, nullable=True, comment="微信 OpenID / WeChat OpenID",
     )
     unionid: Mapped[str | None] = mapped_column(
-        String(100), index=True, nullable=True, comment="微信 UnionID"
+        String(100), index=True, nullable=True, comment="微信 UnionID / WeChat UnionID",
     )
 
-    # 角色
+    # 角色 / Role assignment
     role_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("tenant_user_roles.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
-        comment="用户角色 ID"
+        comment="用户角色 ID / User role id",
     )
     org_node_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("tenant_org_nodes.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
-        comment="组织节点 ID",
+        comment="组织节点 ID / Org node id",
     )
 
-    # 用户状态
+    # 用户状态 / Account status
     is_active: Mapped[bool] = mapped_column(
-        Boolean, default=True, comment="是否激活"
+        Boolean, default=True, comment="是否激活 / Active",
     )
     approval_status: Mapped[str] = mapped_column(
         String(20),
         default=ApprovalStatusEnum.APPROVED.value,
         server_default=ApprovalStatusEnum.APPROVED.value,
-        comment="审批状态: pending/approved/rejected",
+        comment="审批状态: pending/approved/rejected / Approval status",
     )
 
-    # 个人资料
+    # 个人资料 / Profile
     nickname: Mapped[str | None] = mapped_column(
-        String(100), nullable=True, comment="昵称"
+        String(100), nullable=True, comment="昵称 / Nickname",
     )
     avatar: Mapped[str | None] = mapped_column(
-        String(500), nullable=True, comment="头像附件 ID（兼容旧 URL 值）"
+        String(500), nullable=True, comment="头像附件 ID（兼容旧 URL 值） / Avatar attachment id",
     )
     gender: Mapped[int] = mapped_column(
-        Integer, default=0, comment="性别: 0未知 1男 2女"
+        Integer, default=0, comment="性别: 0未知 1男 2女 / Gender code",
     )
 
-    # 扩展信息
+    # 扩展信息 / Extra JSON
     extra: Mapped[dict | None] = mapped_column(
-        JSON, nullable=True, comment="扩展信息"
+        JSON, nullable=True, comment="扩展信息 / Extra payload",
     )
 
-    # 登录信息
+    # 登录信息 / Login audit
     last_login_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True, comment="最后登录时间"
+        DateTime(timezone=True), nullable=True, comment="最后登录时间 / Last login at",
     )
     last_login_ip: Mapped[str | None] = mapped_column(
-        String(50), nullable=True, comment="最后登录 IP"
+        String(50), nullable=True, comment="最后登录 IP / Last login IP",
     )
 
-    # 登录安全信息
+    # 登录安全信息 / Login security
     login_fail_count: Mapped[int] = mapped_column(
-        Integer, default=0, comment="登录失败次数"
+        Integer, default=0, comment="登录失败次数 / Failed login count",
     )
     last_fail_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True, comment="最后登录失败时间"
+        DateTime(timezone=True), nullable=True, comment="最后登录失败时间 / Last failed login",
     )
     locked_until: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True, comment="账户锁定到期时间"
+        DateTime(timezone=True), nullable=True, comment="账户锁定到期时间 / Locked until",
     )
 
-    # ========== 关联关系 ==========
+    # ========== 关联关系 ========== / Relationships
     role: Mapped["TenantUserRole | None"] = relationship(
         "TenantUserRole",
         back_populates="users",

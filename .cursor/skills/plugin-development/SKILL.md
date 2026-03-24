@@ -1,121 +1,202 @@
 ---
 name: plugin-development
-description: NovusAI 插件开发技能。适用于新建插件、迁移旧插件、修复 plugin.yaml、处理授权/启动恢复/前端契约、或执行 plugin CLI 的场景。
+description: NovusAI 插件开发技能。用于修改 plugin.yaml、前端 runtime 契约、权限桥接、菜单标题、多语言、release manifest 与浏览器回归闭环。只保留可执行规则与检查项。
 ---
 
 # 插件开发技能
 
 ## 何时使用
 
-- 新增 `backend/plugins/{name}/` 插件
-- 将旧插件迁移到 `pages + dev.entry + release.manifest`
-- 修复授权、启用、过期、恢复、启动恢复链路
-- 调整插件菜单挂载、页面声明、前端 slots
-- 执行 `novusai plugin build / validate / pack`
+- 新建或重构 `backend/plugins/{plugin-name}/`
+- 修改 `plugin.yaml`、`extensions.frontend.pages[*]`、`pages[*].menu`
+- 排查插件页面首屏 403、菜单可见但页面不可进、切语言后标题不更新、生产态白屏、public asset 错端加载
+- 审核 loader cache、release manifest、permission bridge、浏览器回归闭环
 
-## 必守模型
+## 开始前先做什么
 
-- 插件必须零侵入，代码只能留在插件目录内。
-- `plugin.yaml` 是声明层单一事实来源。
-- `extensions.capabilities[*]` 与 `extensions.skills[*].capabilities[]` 必须形成显式标准映射，禁止只靠单个示例插件做隐式约定。
-- 插件启用时同步的是 `SkillPackage + Skill` 目录投影，**不是**自动把整包绑定到 Agent 运行时。
-- License 语义只允许：
-  - `trial`
-  - `fixed_term`
-  - `perpetual`
-- 页面与菜单只允许：
-  - `extensions.frontend.pages[*]`
-  - `pages[*].menu`
-- 前端契约只允许：
-  - 开发态：`extensions.frontend.dev.entry`
-  - 生产态：`extensions.frontend.release.manifest`
-- 当前不支持 `user` 端插件；只写 `admin` / `tenant`。
+1. 读目标插件的 `plugin.yaml`。
+2. 判定插件前端入口属于哪类：
+   - 普通 admin 页面
+   - 普通 tenant 页面
+   - public 资源入口，例如登录前 captcha provider
+   - 只有 slot/widget，没有 page
+3. 读宿主 3 条消费链路：
+   - 菜单：`/permissions/menus`
+   - 页面：`/plugins/slots` + `ensurePluginRoutes()`
+   - 资产：`loadPluginComponents()` / `getPluginComponent()` / `buildPluginAssetUrl()`
+4. 再开始改代码；不要先猜权限、猜 side、猜 manifest。
 
-## 前端开发规则
+## 必守规则
 
-- dev 模式走 `/__plugin_dev__/{plugin}/entry`，用于源码调试与 HMR。
-- dev loader 必须从 `plugin.yaml -> extensions.frontend.dev.entry` 解析真实入口，不能再假定固定 `src/index.ts`。
-- production 模式只能消费 `frontend_runtime.release_manifest` 指向的 release manifest 以及其声明的发布产物。
-- `/plugins/slots` 中每个前端 slot 都应附带 `frontend_runtime` 投影，用来把 `release.manifest` 契约传给宿主 loader。
-- 插件元数据图标只允许插件根目录 `icon.png`；未提供时宿主管理端统一回退 `lucide:plug`。
-- 插件页面/菜单图标默认使用 `lucide:*`，禁止依赖在线 Iconify。
-- 不允许继续写：
+### 1. 声明层
+
+- `plugin.yaml` 是插件页面、菜单、权限、前端入口的单一事实源。
+- 页面只在 `extensions.frontend.pages[*]` 声明。
+- 菜单只在 `pages[*].menu` 声明。
+- 页面标题只来自 `pages[*].title`。
+- 菜单标题只来自 `pages[*].menu.title`。
+- 插件内部按钮、表单、提示文案才允许走 `registerLocale(locale, 'plugin.{manifest-name}', messages)`。
+- 不要把插件菜单标题写进宿主 `backend/app/locales/*/menu.json`。
+
+### 2. runtime signature
+
+- 调用 loader 时 scope 必须显式传入，而且只能二选一：
+  - `endpoint`
+  - `publicEndpoint`
+- 禁止省略 scope 参数。
+- 禁止同时传 `endpoint` 与 `publicEndpoint`。
+- loader cache key 必须同时包含：
+  - scope signature：`pluginName::auth:{endpoint}` 或 `pluginName::public:{publicEndpoint}`
+  - runtime signature：`dev={dev_entry}|manifest={release_manifest}`
+- 同插件、同 scope 下，只要 `dev_entry` 或 `release_manifest` 改变，就必须重新加载。
+- `setup()` 成功后才能写入 loaded cache。
+- `setup()` 失败后必须清理中间状态，允许下次重试。
+- `unloadPlugin()` 只能清理目标 scope，不能误删同插件其他 scope。
+
+### 3. public asset 隔离
+
+- 普通 admin/tenant 页面、page slot、dashboard widget、settings tab、notification UI 一律走：
+  - `loadPluginComponents(plugin, runtime, { endpoint })`
+  - `/plugin-assets/{plugin}/{file}`
+- 只有 public 资源入口才允许走：
+  - `loadPluginComponents(plugin, runtime, { publicEndpoint })`
+  - `/plugin-public-assets/{publicEndpoint}/{plugin}/{file}`
+- `publicEndpoint` 不是通用 side 选择器。
+- public asset 请求不得带 `Authorization` 头。
+- public asset 侧必须清理历史 `novus_plugin_asset_token` cookie。
+- 如果调用方传入预前缀路径，路径必须与当前 `pluginName`、当前 scope 对齐；不对齐时必须 fail-close。
+
+### 4. release manifest
+
+- 开发态入口只认 `extensions.frontend.dev.entry`。
+- 生产态入口只认 `extensions.frontend.release.manifest`。
+- release 契约文件固定为 `frontend/dist/plugin.manifest.json`。
+- `/plugins/slots` 返回的前端 slot 必须携带 `frontend_runtime`。
+- manifest 中声明的组件名，必须由插件前端入口真实导出。
+- 声明了 `release.manifest` 却没有产出 `frontend/dist/plugin.manifest.json`，按失败处理，不得降级启用。
+- `pack --source` 不是 release 验收，必须跑 `validate -> build -> pack --release`。
+
+### 5. permission bridge
+
+- 宿主菜单码与插件页面码必须闭环。
+- `pages[*].menu` 存在时，页面访问码必须桥接菜单码。
+- 当前菜单桥接格式固定为：
+  - `menu:{scope}.plugin_{safe_plugin_name}_{page_name}`
+- 前端权限池必须把菜单 `code` 放进 `accessStore.accessCodes`。
+- 插件前端权限判断必须优先使用桥接：
+  - `window.NovusPluginShared.getAccessCodes()`
+  - `window.NovusPluginShared.hasAccessByCodes(codes)`
+- 插件页面首屏请求前先判权限，不要先发请求再吃 403。
+- CTA 必须按“目标权限 + 当前状态”一起 gating；不要只看状态，不要只看菜单可见。
+
+### 6. menu / i18n / title
+
+- manifest 标题是真相，不是一次性快照。
+- 宿主消费插件标题时必须保留可重算来源，例如 `titleLocaleMap`。
+- `registerLocale()` 只影响插件内部文案，不负责菜单标题系统。
+- 插件前端至少注册一个 canonical prefix：
+  - `plugin.{manifest-name}`
+- legacy alias 只允许兼容，不能只有 alias 没有 canonical。
+- 切语言后必须同步验证：
+  - sidebar
+  - breadcrumb
+  - `document.title`
+  - 页面 heading
+  - 已打开 tab 标题
+
+## 开发/审计步骤
+
+1. 读 `plugin.yaml`
+   - 检查 `scope`
+   - 检查 `extensions.frontend.pages[*]`
+   - 检查 `pages[*].menu`
+   - 检查 `permissions[*]`
+   - 检查 `extensions.frontend.dev.entry`
+   - 检查 `extensions.frontend.release.manifest`
+2. 读插件前端入口
+   - 是否导出所有声明组件
+   - 是否注册 `plugin.{manifest-name}` locale prefix
+   - 是否在首屏请求前做权限 gating
+   - 是否基于 `window.NovusPluginShared` 做 CTA gating
+3. 读宿主消费点
+   - `/permissions/menus`
+   - `/plugins/slots`
+   - `ensurePluginRoutes()`
+   - `loadPluginComponents()` / `getPluginComponent()`
+4. 跑 CLI
+   - `novusai plugin validate backend/plugins/{name}`
+   - `novusai plugin build backend/plugins/{name}`
+   - `novusai plugin pack backend/plugins/{name} --release`
+5. 做浏览器回归
+
+## 审计清单
+
+### loader / asset
+
+- 是否仍有只按 `pluginName` 缓存的地方
+- 是否仍有省略 scope 参数的 loader 调用
+- 是否存在把普通页面错误打到 `/plugin-public-assets/...`
+- 是否允许 public/auth 预前缀路径旁路 scope 校验
+- 是否在 runtime contract 变化后仍复用旧 bundle
+
+### permission bridge
+
+- 菜单 `code` 是否进入 `accessStore.accessCodes`
+- `/plugins/slots` 的 `accessCodes` 是否同时含显式页面码与菜单桥接码
+- 插件前端是否通过 `window.NovusPluginShared.getAccessCodes/hasAccessByCodes` 判权限
+- 首屏请求前是否已完成权限 gating
+- CTA 是否按目标权限 + 当前状态一起控制
+
+### title / i18n
+
+- `pages[*].title` 是否补齐 `zh-CN` / `en`
+- `pages[*].menu.title` 是否补齐 `zh-CN` / `en`
+- 是否保留 `titleLocaleMap`
+- 切语言后 breadcrumb / tab / document title 是否同步更新
+
+### release
+
+- `frontend/dist/plugin.manifest.json` 是否存在
+- manifest `entry` / `css` / `assets` 是否真实存在
+- 生产态是否只消费 `release.manifest`
+- 是否把 `.backups/**` 误当成 release 正例
+
+## 回归清单
+
+### CLI
+
+- `novusai plugin validate backend/plugins/{name}`
+- `novusai plugin build backend/plugins/{name}`
+- `novusai plugin pack backend/plugins/{name} --release`
+
+### 浏览器
+
+- 从菜单进入插件页
+- 直接输入插件 URL 进入
+- 插件页硬刷新
+- 切换语言后检查 sidebar / breadcrumb / tab / `document.title`
+- 分别验证 admin 与 tenant scope
+- 验证普通插件页资源只命中 `/plugin-assets/...`
+- 验证 public captcha 只命中 `/plugin-public-assets/...` 且不带 `Authorization`
+- 验证禁用插件、撤销权限、runtime gate fail-close 后入口一起失效
+
+## 明确禁止
+
+- 禁止把 `.backups/**` 当正式模板
+- 禁止把普通插件页面打到 `/plugin-public-assets/...`
+- 禁止省略 loader scope 参数
+- 禁止只按插件名做 loader cache
+- 禁止把 `registerLocale()` 当菜单标题系统
+- 禁止把 route meta title 提前压平成不可重算字符串
+- 禁止菜单可见、页面可进、runtime gate 三套逻辑漂移
+- 禁止继续写旧字段：
   - `frontend.menus`
   - `frontend.standalone_pages`
   - `frontend.admin.entry`
   - `frontend.tenant.entry`
   - `frontend.npm_dependencies`
-- release 产物缺失时，安装/启用必须 fail-close。
-
-## 菜单与权限
-
-- 页面路径、组件名、标题只在 `pages[*]` 声明一次。
-- `pages[*].menu` 只负责菜单入口元数据，不重复声明页面路由。
-- 菜单位置调整只重建导航域，不重跑整套扩展注册。
-- 权限同步唯一入口是 `sync_plugin_permissions(plugin.name)`。
-
-## 启动边界
-
-- `discover` 只做发现和漂移标记。
-- `sync-manifest` 只同步同版本 manifest 漂移，不覆盖 `granted_capabilities`。
-- `upgrade` 才能处理版本变化。
-- 启动恢复不处理前端 npm 依赖。
-- 启动恢复遇到 Alembic 迁移失败时，必须像 `enable()` 一样对当前插件 fail-close，并标记 `ERROR`。
-
-## 依赖模型
-
-- Python 依赖运行在共享宿主环境。
-- `install / upgrade / repair / dependencies/install` 可以处理 Python 依赖；
-  `enable` 会在共享环境预检通过后按需补装缺失依赖。
-- `startup restore` 只校验 Python/插件依赖，不再自动 `pip install`。
-- 插件间依赖只允许 `dependencies.plugins`：
-  - 推荐对象写法：`{ plugin, version }`
-  - 无版本约束时可简写为字符串
-- 新 manifest 禁止：
-  - `compatibility.requires`
-  - `dependencies.system`
-- 运行时仅对历史数据库中的旧 `manifest` 投影保留兼容读取，不能继续在源码和脚手架里生成旧字段。
-
-## 常用命令
-
-```bash
-novusai plugin create my-plugin --template=minimal
-novusai plugin create my-plugin --template=full-module
-novusai plugin build backend/plugins/my-plugin
-novusai plugin validate backend/plugins/my-plugin
-novusai plugin pack backend/plugins/my-plugin --release
-novusai plugin pack backend/plugins/my-plugin --source
-```
-
-- `create --template minimal` 现在默认生成 `icon: ""`，保证脚手架产物可直接通过 manifest 校验。
-
-## 开发检查清单
-
-1. 先确认插件顶层 `scope` 与企业分配模型是否一致。
-2. 再确认 `capabilities` 是否与真实行为匹配。
-3. 再确认 `dependencies.python` / `dependencies.plugins` 是否与真实运行模型一致。
-4. 如有前端页面，必须同时检查：
-   - `pages[*].path`
-   - `pages[*].scope`
-   - `pages[*].component`
-   - `pages[*].menu`
-   - `pages[*].icon`
-   - `extensions.frontend.dev.entry`
-   - `extensions.frontend.release.manifest`
-5. 如声明 `extensions.frontend.dashboard_widgets[*]`，必须同时检查：
-   - 宿主 dashboard 已支持对应插槽
-   - `frontend/src/index.ts` 已导出对应组件名
-   - 组件实际位于插件目录内，而不是宿主前端源码里
-6. 如有图标，必须同时检查：
-   - 顶层 `icon` 是否为 `icon.png` 或空字符串
-   - 插件根目录是否真的提供了 `icon.png`
-   - 是否没有引入在线 Iconify 依赖
-7. 如是付费插件，确认统一 runtime gate 已覆盖执行入口。
-8. 最后跑 `validate`、相关 pytest/vitest、以及需要的 `pack` 验证。
 
 ## 参考
 
-- `../novusai-saas/references/plugin-spec.md`
-- `../novusai-saas/references/icon-spec.md`
-- `../novusai-saas/references/plugin-menu-registration.md`
-- `../../../docs/audit/plugin-system-comprehensive-audit-20260322.md`
+- `.cursor/rules/plugin-system.md`
+- `docs/design/plugin-system-comprehensive-audit-20260324.md`

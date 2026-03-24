@@ -232,12 +232,24 @@ const raw = responseData.data;
 
 ## 六、CORS 生产环境注意事项
 
-`backend/app/core/config.py` 中 `CORS_ORIGINS` 默认仅含 localhost。
+当前主干 `backend/app/main.py` 为支持**动态子域名 + 自定义域名**，直接使用：
 
-| 环境 | 配置 |
+```python
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+```
+
+| 场景 | 现状 |
 |------|------|
-| 开发（`DEBUG=True`） | `allow_origins=["*"]`，无需配置 |
-| 生产（`DEBUG=False`） | 必须在 `CORS_ORIGINS` 中加入所有企业域名，否则跨域请求 403 |
+| 开发环境 | 不需要手工把每个租户域名填入 `CORS_ORIGINS` |
+| 生产环境 | 当前主干同样依赖运行时代码中的动态宽松 CORS，而不是静态白名单 |
+
+若未来要收紧 CORS，必须连同 tenant / user 自定义域名能力一起设计，不要只改配置文档或只加静态白名单。
 
 ---
 

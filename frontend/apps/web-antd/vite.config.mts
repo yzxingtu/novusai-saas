@@ -17,10 +17,16 @@ export default defineConfig(async () => {
   );
   const sharedSourceAliases = {
     '@vben-core/shared/cache': fileURLToPath(
-      new URL('../../packages/@core/base/shared/src/cache/index.ts', import.meta.url),
+      new URL(
+        '../../packages/@core/base/shared/src/cache/index.ts',
+        import.meta.url,
+      ),
     ),
     '@vben-core/shared/color': fileURLToPath(
-      new URL('../../packages/@core/base/shared/src/color/index.ts', import.meta.url),
+      new URL(
+        '../../packages/@core/base/shared/src/color/index.ts',
+        import.meta.url,
+      ),
     ),
     '@vben-core/shared/constants': fileURLToPath(
       new URL(
@@ -29,13 +35,19 @@ export default defineConfig(async () => {
       ),
     ),
     '@vben-core/shared/global-state': fileURLToPath(
-      new URL('../../packages/@core/base/shared/src/global-state.ts', import.meta.url),
+      new URL(
+        '../../packages/@core/base/shared/src/global-state.ts',
+        import.meta.url,
+      ),
     ),
     '@vben-core/shared/store': fileURLToPath(
       new URL('../../packages/@core/base/shared/src/store.ts', import.meta.url),
     ),
     '@vben-core/shared/utils': fileURLToPath(
-      new URL('../../packages/@core/base/shared/src/utils/index.ts', import.meta.url),
+      new URL(
+        '../../packages/@core/base/shared/src/utils/index.ts',
+        import.meta.url,
+      ),
     ),
   };
 
@@ -59,6 +71,10 @@ export default defineConfig(async () => {
         allowedHosts: true,
         proxy: {
           '/plugin-assets': {
+            changeOrigin: true,
+            target: 'http://127.0.0.1:8000',
+          },
+          '/plugin-public-assets': {
             changeOrigin: true,
             target: 'http://127.0.0.1:8000',
           },

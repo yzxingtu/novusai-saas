@@ -80,7 +80,7 @@ class PdfParser(DocumentParser):
         self._knowledge_base = knowledge_base
 
     async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
-        import fitz  # PyMuPDF
+        import fitz  # PyMuPDF / PDF 解析库
 
         pages: list[ParsedPage] = []
         data = file_content.read()
@@ -124,10 +124,10 @@ class PdfParser(DocumentParser):
                     ext: str = base_image.get("ext", "png")
                     mime_type = "image/jpeg" if ext in ("jpg", "jpeg") else f"image/{ext}"
 
-                    description = await self._vision_describer.describe_image(  # type: ignore[union-attr]
+                    description = await self._vision_describer.describe_image(  # type: ignore[union-attr]  # 可选依赖 / optional
                         image_bytes=image_bytes,
                         mime_type=mime_type,
-                        knowledge_base=self._knowledge_base,  # type: ignore[arg-type]
+                        knowledge_base=self._knowledge_base,  # type: ignore[arg-type]  # 可选依赖 / optional
                     )
                     if description:
                         pages.append(ParsedPage(
@@ -696,7 +696,7 @@ class PptxParser(DocumentParser):
     """
 
     async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
-        from pptx import Presentation  # python-pptx
+        from pptx import Presentation  # python-pptx / PPT 解析库
 
         data = file_content.read()
         prs = Presentation(io.BytesIO(data))

@@ -1,11 +1,11 @@
 /**
- * Storage Migration - helpers, column definitions, status mappings
+ * Storage Migration - helpers, column definitions, status mappings / 辅助、列定义、状态映射
  */
 import type { MigrationTask, StorageDriverInfo } from './types';
 
 import { $t } from '@novus/plugin-shared';
 
-// ============ Formatters ============
+// ============ Formatters / 格式化 ============
 
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -19,7 +19,7 @@ export function formatTime(iso: string | null): string {
   return new Date(iso).toLocaleString();
 }
 
-// ============ Status ============
+// ============ Status / 状态 ============
 
 export type BadgeStatus =
   | 'default'
@@ -46,7 +46,7 @@ export function getStatusText(status: string): string {
   return $t(`plugin.storage-migration.task.status.${status}`);
 }
 
-// ============ Drivers ============
+// ============ Drivers / 存储驱动 ============
 
 function translateDriverDisplayName(
   displayName: null | string | undefined,
@@ -69,7 +69,7 @@ export function getDriverLabel(
   return translateDriverDisplayName(driver?.display_name, name);
 }
 
-// ============ Progress ============
+// ============ Progress / 进度 ============
 
 export function getProgressPercent(task: MigrationTask): number {
   if (task.total_files === 0) return 0;
@@ -82,7 +82,7 @@ export function getProgressPercent(task: MigrationTask): number {
 
 export const ACTIVE_STATUSES = ['running', 'paused', 'rolling_back'];
 
-// ============ Table Columns ============
+// ============ Table Columns / 表格列 ============
 
 export function useColumns() {
   return [

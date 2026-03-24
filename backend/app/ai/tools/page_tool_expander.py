@@ -120,7 +120,7 @@ def expand_page_tools(
     if not isinstance(raw_ops, list) or not raw_ops:
         return tools
 
-    # Build op map: name -> {label, description, params, readonly}
+    # Build op map: name -> {label, description, params, readonly} / 上文为英文说明 / English above
     op_map: dict[str, dict[str, Any]] = {}
     for o in raw_ops:
         if not isinstance(o, dict) or not o.get("name"):
@@ -138,12 +138,12 @@ def expand_page_tools(
     if not op_map:
         return tools
 
-    # Build expanded tool definitions
+    # Build expanded tool definitions / 上文为英文说明 / English above
     expanded: list[ToolDefinition] = []
     for op_name in sorted(op_map.keys()):
         meta = op_map[op_name]
         tool_name = f"{PREFIX}{op_name}"
-        # Avoid duplicate if already present
+        # Avoid duplicate if already present / 上文为英文说明 / English above
         if any(t.name == tool_name for t in tools):
             continue
 
@@ -154,7 +154,7 @@ def expand_page_tools(
             ToolDefinition(
                 name=tool_name,
                 description=desc,
-                tool_type="builtin",  # Executed via sandbox redirect to invoke_page_operation
+                tool_type="builtin",  # Executed via sandbox redirect to invoke_page_operation  # 补充说明 / note
                 parameters=params_list,
                 config={"underlying_operation": op_name, "page_tool": True},
             )

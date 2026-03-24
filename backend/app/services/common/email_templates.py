@@ -28,7 +28,7 @@ def _default_platform_name() -> str:
     except Exception:
         return "NovusAI SaaS"
 
-# 模板目录
+# 模板目录 / Template directory
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent.parent / "templates" / "email"
 
 # Jinja2 环境（单例）
@@ -57,13 +57,13 @@ def _strip_html(html: str) -> str:
     text = re.sub(r"</?(p|div|tr|li|h[1-6])[^>]*>", "\n", text, flags=re.IGNORECASE)
     # <td> → 空格
     text = re.sub(r"</?td[^>]*>", " ", text, flags=re.IGNORECASE)
-    # 移除所有剩余标签
+    # 移除所有剩余标签 / Strip all remaining tags
     text = re.sub(r"<[^>]+>", "", text)
     # HTML 实体
     text = text.replace("&nbsp;", " ").replace("&amp;", "&")
     text = text.replace("&lt;", "<").replace("&gt;", ">")
     text = text.replace("&quot;", '"')
-    # 合并连续空行
+    # 合并连续空行 / Collapse consecutive blank lines
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 
@@ -88,10 +88,10 @@ def render_email(
     ctx = dict(context or {})
     ctx["lang"] = lang
 
-    # 注入 i18n 翻译函数
+    # 注入 i18n 翻译函数 / Inject i18n translate function
     ctx["t"] = _get_translations(lang)
 
-    # 尝试加载语言专属模板，回退到默认模板
+    # 尝试加载语言专属模板，回退到默认模板 / Try locale-specific template, else default
     html_template_name = f"{template_name}.html"
     try:
         template = env.get_template(html_template_name)
@@ -106,7 +106,7 @@ def render_email(
 
 
 # ============================================
-# 场景快捷函数
+# 场景快捷函数 / Scenario shortcut functions
 # ============================================
 
 def render_test_email(
@@ -313,7 +313,7 @@ def render_notification_html(
 
 
 # ============================================
-# i18n 翻译字典
+# i18n 翻译字典 / i18n translation dictionary
 # ============================================
 
 _TRANSLATIONS: dict[str, dict[str, Any]] = {

@@ -92,7 +92,7 @@ def _serialize_tenant_admin(tenant_admin) -> dict:
 
 
 # ==========================================
-# Controller
+# Controller / 控制器
 # ==========================================
 
 @permission_resource(

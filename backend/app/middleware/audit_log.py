@@ -255,7 +255,7 @@ class AuditLogMiddleware:
         body_index = 0
         _http_request_done = [False]
 
-        # Key distinction: _collect_request_info only calls original receive() for POST/PUT/PATCH.
+        # Key distinction: _collect_request_info only calls original receive() for POST/PUT/PATCH. / 要点：仅 POST/PUT/PATCH 消费原始 receive
         # For GET/DELETE/HEAD etc., original receive() was never consumed,
         # still holds the real http.request message.
         #
@@ -286,25 +286,31 @@ class AuditLogMiddleware:
                 if _body_consumed_from_source:
                     # POST/PUT/PATCH: body already consumed by _collect_request_info,
                     # synthesize empty body end message to prevent route handler from hanging.
+                    # / 请求体已读完，合成空包尾防止挂起
                     return {"type": "http.request", "body": b"", "more_body": False}
                 else:
                     # GET/DELETE etc.: original receive() was never called,
                     # pass-through returns real http.request to avoid duplicate messages.
+                    # / GET 等未消费 receive，直通真实消息防重复
                     return await receive()
             # http.request 已交付完毕，pass-through 供断连检测（返回 http.disconnect 等）
             # http.request delivered, pass-through for disconnect detection (http.disconnect etc.)
             return await receive()
 
         # Wrap send to capture response info / 包装 send 以捕获响应信息
+        response_body_parts: list[bytes] = []
+
         async def wrapped_send(message: Message) -> None:
             if message["type"] == "http.response.start":
                 response_info["status_code"] = message.get("status")
             elif message["type"] == "http.response.body":
                 # Try extracting business response code from body / 尝试从响应体提取业务响应码
                 body = message.get("body", b"")
-                if body and response_info.get("status_code") == 200:
+                if body:
+                    response_body_parts.append(body)
+                if not message.get("more_body", False) and response_body_parts:
                     try:
-                        response_data = json.loads(body)
+                        response_data = json.loads(b"".join(response_body_parts))
                         response_info["response_code"] = response_data.get("code")
                         response_info["response_message"] = response_data.get("message")
                     except (json.JSONDecodeError, UnicodeDecodeError):

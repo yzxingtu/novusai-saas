@@ -9,15 +9,15 @@ Uses more accurate estimation coefficients for CJK characters to avoid severe un
 def _is_cjk(char: str) -> bool:
     """Check if character is a CJK unified ideograph / 判断字符是否为 CJK 统一表意文字"""
     cp = ord(char)
-    # CJK Unified Ideographs: U+4E00 - U+9FFF
-    # CJK Extension A: U+3400 - U+4DBF
-    # CJK Extension B+: U+20000 - U+2A6DF
-    # CJK Compatibility: U+F900 - U+FAFF
-    # Fullwidth forms: U+FF00 - U+FFEF
-    # CJK Symbols: U+3000 - U+303F
-    # Hiragana: U+3040 - U+309F
-    # Katakana: U+30A0 - U+30FF
-    # Hangul Syllables: U+AC00 - U+D7AF
+    # CJK Unified Ideographs: U+4E00 - U+9FFF / CJK 统一表意文字
+    # CJK Extension A: U+3400 - U+4DBF / CJK 扩展 A
+    # CJK Extension B+: U+20000 - U+2A6DF / CJK 扩展 B 及以后
+    # CJK Compatibility: U+F900 - U+FAFF / CJK 兼容表意
+    # Fullwidth forms: U+FF00 - U+FFEF / 全角形式
+    # CJK Symbols: U+3000 - U+303F / CJK 符号与标点
+    # Hiragana: U+3040 - U+309F / 平假名
+    # Katakana: U+30A0 - U+30FF / 片假名
+    # Hangul Syllables: U+AC00 - U+D7AF / 韩文音节
     return (
         0x4E00 <= cp <= 0x9FFF
         or 0x3400 <= cp <= 0x4DBF

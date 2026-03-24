@@ -14,7 +14,7 @@ from app.core.base_controller import GlobalController
 from app.core.base_schema import PageResponse
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
-from app.core.response import created, deleted, paginated, success
+from app.core.response import build_public_error_text, created, deleted, paginated, success
 from app.enums.common import ResourceScopeEnum
 from app.enums.knowledge_base import DocumentStatusEnum, DocumentTypeEnum
 from app.enums.rbac import PermissionScope
@@ -1054,7 +1054,10 @@ class AdminKnowledgeBaseController(GlobalController):
                     doc.token_count = token_count
                     imported += 1
                 except Exception as exc:
-                    errors.append(f"Row {int(row_idx) + 2}: {str(exc)[:100]}")
+                    errors.append(
+                        f"Row {int(row_idx) + 2}: "
+                        f"{build_public_error_text(exc=exc, message=_('common.server_error'))}"
+                    )
 
             await kb_service.update_statistics(kb_id)
             await db.commit()

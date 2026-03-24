@@ -104,7 +104,7 @@ class TenantAnalyticsService:
         result = await self.db.execute(stmt)
         rows = result.all()
 
-        # Fetch agent names
+        # Fetch agent names / 拉取智能体名称 / fetch agent names
         agent_ids = [r.agent_id for r in rows if r.agent_id]
         agent_names: dict[int, str] = {}
         if agent_ids:

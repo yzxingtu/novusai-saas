@@ -35,7 +35,7 @@ function textOf(el: Element | null): string {
 export function scanDomSemantics(): DomSnapshot | null {
   const start = performance.now();
 
-  // 1. Page title — breadcrumb last item or header title
+  // 1. Page title — breadcrumb last item or header title / 页面标题
   let pageTitle = '';
   const breadcrumbItems = document.querySelectorAll(
     '.ant-breadcrumb-link, .vben-breadcrumb .breadcrumb-label',
@@ -56,7 +56,7 @@ export function scanDomSemantics(): DomSnapshot | null {
       '';
   }
 
-  // 2. Tables
+  // 2. Tables / 表格
   const tables: DomSnapshot['tables'] = [];
   const tableEls = document.querySelectorAll(
     '.ant-table, .vxe-table, [class*="vxe-grid"]',
@@ -102,7 +102,7 @@ export function scanDomSemantics(): DomSnapshot | null {
     }
   });
 
-  // 4. Action buttons
+  // 4. Action buttons / 操作按钮
   const actionButtons: string[] = [];
   const buttons = document.querySelectorAll(
     'button:not([disabled]):not(.ant-modal button):not(.ant-drawer button)',
@@ -127,7 +127,7 @@ export function scanDomSemantics(): DomSnapshot | null {
     }
   });
 
-  // Empty check — return null if nothing meaningful found
+  // Empty check — return null if nothing meaningful found / 无有效内容则返回 null
   if (
     !pageTitle &&
     breadcrumb.length === 0 &&
@@ -148,7 +148,7 @@ export function scanDomSemantics(): DomSnapshot | null {
     tabs,
   };
 
-  // Size guard: if serialized output exceeds budget, trim sample_rows/buttons
+  // Size guard: if serialized output exceeds budget, trim sample_rows/buttons / 超长则裁剪
   const serialized = JSON.stringify(snapshot);
   if (serialized.length > MAX_OUTPUT_BYTES) {
     snapshot.action_buttons = snapshot.action_buttons.slice(0, 8);

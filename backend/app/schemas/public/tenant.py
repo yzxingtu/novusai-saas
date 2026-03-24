@@ -22,12 +22,12 @@ class TenantPublicConfig(BaseSchema):
     登录页面可获取的企业信息（无需认证）
     """
 
-    # 基本信息
+    # 基本信息 / Basic info
     tenant_id: int = Field(..., description="企业 ID")
     tenant_code: str = Field(..., description="企业代码")
     tenant_name: str = Field(..., description="企业名称")
 
-    # 品牌设置
+    # 品牌设置 / Branding
     logo_url: str | None = Field(None, description="Logo URL")
     favicon_url: str | None = Field(None, description="Favicon URL")
     login_bg: str | None = Field(None, description="登录页背景图")
@@ -35,7 +35,7 @@ class TenantPublicConfig(BaseSchema):
     login_subtitle: str | None = Field(None, description="登录页副标题")
     footer_copyright: str | None = Field(None, description="页脚版权")
 
-    # 登录设置
+    # 登录设置 / Login settings
     captcha_enabled: bool = Field(False, description="是否启用验证码")
     user_login_captcha_enabled: bool = Field(
         True,
@@ -69,7 +69,7 @@ class TenantPublicConfig(BaseSchema):
     password_complexity: str | None = Field(None, description="密码复杂度")
     session_timeout: int | None = Field(None, description="会话超时时间（分钟）")
 
-    # 功能开关
+    # 功能开关 / Feature toggles
     allow_registration: bool | None = Field(None, description="允许用户注册")
     registration_approval: bool | None = Field(None, description="注册需审批")
     allow_profile_edit: bool | None = Field(None, description="允许修改资料")
@@ -78,18 +78,18 @@ class TenantPublicConfig(BaseSchema):
     api_access: bool | None = Field(None, description="启用 API 访问")
     file_upload: bool | None = Field(None, description="启用文件上传")
 
-    # 注册页链接
+    # 注册页链接 / Registration page links
     privacy_policy_url: str | None = Field(None, description="隐私政策链接")
     terms_url: str | None = Field(None, description="服务条款链接")
     # 是否启用站内富文本页（有正文则 true，注册页优先链到站内）
     privacy_policy_internal: bool = Field(False, description="是否有站内隐私政策 HTML")
     terms_internal: bool = Field(False, description="是否有站内服务条款 HTML")
 
-    # 域名信息
+    # 域名信息 / Domain info
     subdomain: str = Field(..., description="企业子域名")
     subdomain_url: str = Field(..., description="子域名完整 URL")
 
-    # 存储配置
+    # 存储配置 / Storage
     storage: StoragePublicConfig | None = Field(None, description="存储配置")
     runtime_limits: RuntimeLimitsPublicConfig | None = Field(None, description="运行时限制")
 
@@ -101,7 +101,7 @@ class DomainVerificationInfo(BaseSchema):
     用于指导用户配置 DNS 记录
     """
 
-    # 要验证的域名
+    # 要验证的域名 / Domain to verify
     domain: str = Field(..., description="待验证域名")
 
     # CNAME 配置
@@ -115,10 +115,10 @@ class DomainVerificationInfo(BaseSchema):
     txt_name: str | None = Field(None, description="TXT 记录名称")
     txt_value: str | None = Field(None, description="TXT 记录值")
 
-    # 验证状态
+    # 验证状态 / Verification status
     is_verified: bool = Field(False, description="是否已验证")
 
-    # 配置说明
+    # 配置说明 / Setup instructions
     instructions: str = Field(
         "",
         description="配置说明",

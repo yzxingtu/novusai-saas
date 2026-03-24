@@ -229,7 +229,7 @@ class ModelRouter:
             if long_ctx_result:
                 return long_ctx_result
 
-        # ── 4. ComplexityClassifier → tier ──
+        # ── 4. ComplexityClassifier → tier ── / 4. 复杂度分类 → tier
         complexity = self._classifier.classify(
             messages,
             tools,

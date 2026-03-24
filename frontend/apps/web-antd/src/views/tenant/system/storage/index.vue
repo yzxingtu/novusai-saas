@@ -50,6 +50,7 @@ import {
   StorageDriverSelector,
 } from '#/components/business/storage-config';
 import { $t } from '#/locales';
+import { showRequestError } from '#/utils/error-helpers';
 
 defineOptions({ name: 'TenantStorageConfig' });
 const AI_PAGE_KEY = 'tenant.system.storage';
@@ -255,8 +256,8 @@ async function onTestConnection() {
         message: messageText,
       };
     }
-  } catch {
-    message.error($t('shared.storage.testFailed'));
+  } catch (error) {
+    showRequestError(error, 'shared.storage.testFailed');
     return {
       success: false,
       message: $t('shared.storage.testFailed'),

@@ -3187,7 +3187,7 @@
   "config.tenant.user_terms_html.name": "Terms of Service Content (Rich Text)",
   "config.tenant.user_terms_html.desc": "HTML for the in-site legal page. Registration link rule: if the URL above is set, it always opens in a new tab; the in-site page is used only when the URL is empty and this field has real text. Empty editor placeholders count as not configured.",
   "enum.config_value_type.html": "HTML",
-  "agent_access.admin_role_ids": "Admin Role Access",
+  "agent_access.admin_role_ids": "Admin Organization Access",
   "agent_access.tenant_role_ids": "Tenant Role Access",
   "agent_access.access_type": "Legacy access type (DB NOT NULL); end-user rules use tenant publication",
   "skill_package.system.engine": "System Engine Skills",

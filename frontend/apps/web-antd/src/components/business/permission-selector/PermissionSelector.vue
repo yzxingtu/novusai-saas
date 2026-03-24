@@ -53,7 +53,7 @@ const props = withDefaults(
     inheritedFromMap: () => new Map(),
     loading: false,
     showInheritedBadge: true,
-    defaultExpandedLevel: 2,
+    defaultExpandedLevel: 0,
     showSelectAll: true,
   },
 );
@@ -67,6 +67,43 @@ const emit = defineEmits<{
 // Internal state / 内部状态
 const expandedKeys = ref<Key[]>([]);
 const checkedKeys = ref<number[]>([]);
+
+// Key relations / 节点关系
+const parentKeyMap = computed(() => {
+  const map = new Map<number, null | number>();
+
+  function walk(nodes: PermissionNode[], parentId: null | number = null) {
+    for (const node of nodes) {
+      map.set(node.id, parentId);
+      if (node.children && node.children.length > 0) {
+        walk(node.children, node.id);
+      }
+    }
+  }
+
+  walk(props.permissions);
+  return map;
+});
+
+const descendantKeyMap = computed(() => {
+  const map = new Map<number, number[]>();
+
+  function collect(node: PermissionNode): number[] {
+    const descendants: number[] = [];
+    for (const child of node.children || []) {
+      descendants.push(child.id);
+      descendants.push(...collect(child));
+    }
+    map.set(node.id, descendants);
+    return descendants;
+  }
+
+  for (const node of props.permissions) {
+    collect(node);
+  }
+
+  return map;
+});
 
 // Computed: inherited permission ID set / 继承权限 ID 集合
 const inheritedIdSet = computed(() => new Set(props.inheritedPermissionIds));
@@ -113,17 +150,63 @@ watch(
 
 // Watch permission data changes, initialize expanded state / 监听权限数据变化，初始化展开状态
 watch(
-  () => props.permissions,
+  () => [props.defaultExpandedLevel, props.permissions],
   () => {
-    if (props.permissions.length > 0 && expandedKeys.value.length === 0) {
+    if (props.permissions.length > 0 && props.defaultExpandedLevel > 0) {
       expandedKeys.value = getExpandedKeys(
         props.permissions,
         props.defaultExpandedLevel,
       );
+    } else {
+      expandedKeys.value = [];
     }
   },
   { immediate: true },
 );
+
+function getBranchKeys(targetKey: Key): Key[] {
+  if (typeof targetKey !== 'number') {
+    return [];
+  }
+
+  const branch: number[] = [];
+  let current: null | number = targetKey;
+
+  while (typeof current === 'number') {
+    branch.push(current);
+    current = parentKeyMap.value.get(current) ?? null;
+  }
+
+  return branch.reverse();
+}
+
+/**
+ * Keep only one expanded branch / 仅保留一个展开分支
+ */
+const handleExpand: NonNullable<AntTreeProps['onExpand']> = (
+  nextExpandedKeys,
+  info,
+) => {
+  const nodeKey = info.node.key;
+
+  if (typeof nodeKey !== 'number') {
+    expandedKeys.value = [...nextExpandedKeys];
+    return;
+  }
+
+  if (info.expanded) {
+    expandedKeys.value = getBranchKeys(nodeKey);
+    return;
+  }
+
+  const removedKeys = new Set<number>([
+    nodeKey,
+    ...(descendantKeyMap.value.get(nodeKey) || []),
+  ]);
+  expandedKeys.value = expandedKeys.value.filter(
+    (key) => typeof key !== 'number' || !removedKeys.has(key),
+  );
+};
 
 /**
  * Handle check change / 处理选中变化
@@ -300,6 +383,7 @@ defineExpose({
         :block-node="true"
         :check-strictly="false"
         @check="handleCheck"
+        @expand="handleExpand"
       >
         <template #title="nodeData">
           <div class="permission-node flex items-center gap-2 py-0.5">

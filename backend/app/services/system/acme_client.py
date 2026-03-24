@@ -90,7 +90,7 @@ class AcmeClient:
         """
         logger.info("Starting ACME certificate provisioning for {}", domain)
 
-        # 1. 生成域名私钥
+        # 1. 生成域名私钥 / 1. Generate domain private key
         domain_key = self._generate_private_key()
         domain_key_pem = domain_key.private_bytes(
             serialization.Encoding.PEM,
@@ -101,7 +101,7 @@ class AcmeClient:
         # 2. 初始化 ACME 客户端
         await self._init_client()
 
-        # 3. 创建订单
+        # 3. 创建订单 / 3. Create order
         order = await asyncio.to_thread(self._create_order, domain)
         logger.info("ACME order created for {}", domain)
 
@@ -130,7 +130,7 @@ class AcmeClient:
         await asyncio.to_thread(self._respond_challenge, challenge)
         logger.info("ACME challenge responded for {}", domain)
 
-        # 8. 等待验证完成
+        # 8. 等待验证完成 / 8. Wait for validation to finish
         await self._poll_challenge_status(authz)
 
         # 9. 生成 CSR 并完成订单
@@ -138,7 +138,7 @@ class AcmeClient:
         order = await asyncio.to_thread(self._finalize_order, order, csr)
         logger.info("ACME order finalized for {}", domain)
 
-        # 10. 下载证书
+        # 10. 下载证书 / 10. Download certificate
         cert_pem, chain_pem = self._extract_certificate(order)
         logger.info("Certificate issued for {}", domain)
 
@@ -155,7 +155,7 @@ class AcmeClient:
 
         return cert_pem, domain_key_pem, chain_pem
 
-    # ==================== 内部方法 ====================
+    # ==================== 内部方法 ==================== / ==================== Internal methods ====================
 
     async def _init_client(self) -> None:
         """初始化 ACME 客户端并注册/复用账户 / Init ACME client and register/reuse account."""
@@ -179,7 +179,7 @@ class AcmeClient:
 
         self._client = self._acme_module.ClientV2(directory, net)
 
-        # 注册账户
+        # 注册账户 / Register ACME account
         registration = self._messages.NewRegistration.from_data(
             email=self._account_email,
             terms_of_service_agreed=True,
@@ -237,7 +237,7 @@ class AcmeClient:
             response = await asyncio.to_thread(
                 self._client.poll, authz,
             )
-            # client.poll returns (authzr, response) tuple
+            # client.poll returns (authzr, response) tuple / poll 返回元组 / poll returns tuple
             updated_authz = response if not isinstance(response, tuple) else response[0]
             status = getattr(updated_authz, "status", None)
             if status is None and hasattr(updated_authz, "body"):

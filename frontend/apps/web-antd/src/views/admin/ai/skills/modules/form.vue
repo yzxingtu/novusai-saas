@@ -683,7 +683,7 @@ function getFormDefaults(): Record<string, unknown> {
     rag_context_token_ratio: 0.3,
     di_table_policy_ids: [],
     di_max_rows_override: 0,
-    // http defaults
+    // http defaults / HTTP 技能默认值
     http_url: '',
     http_method: 'GET',
     http_headers: '',
@@ -696,7 +696,7 @@ function getFormDefaults(): Record<string, unknown> {
     http_auth_username: '',
     http_auth_password: '',
     http_response_path: '',
-    // email defaults
+    // email defaults / 邮件技能默认值
     email_subject_prefix: '',
     email_allowed_domains: '',
     email_max_recipients: 5,
@@ -817,7 +817,7 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillInfo>({
 
         break;
       }
-      // No default
+      // No default / 无额外分支
     }
 
     const result: Record<string, unknown> = {
@@ -887,7 +887,7 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillInfo>({
       valves_config: (cfg.valves as Record<string, unknown>) || {},
       di_table_policy_ids: (cfg.table_policy_ids as number[]) || [],
       di_max_rows_override: (cfg.max_rows_override as number) ?? 0,
-      // http fields
+      // http fields / HTTP 表单字段回填
       http_url: (cfg.url as string) || '',
       http_method: (cfg.method as string) || 'GET',
       http_headers: cfg.headers ? JSON.stringify(cfg.headers, null, 2) : '',
@@ -906,7 +906,7 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillInfo>({
       http_auth_password:
         (cfg.auth_config as Record<string, string>)?.password || '',
       http_response_path: (cfg.response_path as string) || '',
-      // email fields
+      // email fields / 邮件表单字段回填
       email_subject_prefix: (cfg.subject_prefix as string) || '',
       email_allowed_domains: Array.isArray(cfg.allowed_domains)
         ? (cfg.allowed_domains as string[]).join(', ')
@@ -914,7 +914,7 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillInfo>({
       email_max_recipients: (cfg.max_recipients as number) ?? 5,
       email_require_confirmation: (cfg.require_confirmation as boolean) ?? true,
       email_allow_cc: (cfg.allow_cc as boolean) ?? true,
-      // code_execution fields
+      // code_execution fields / 代码执行字段回填
       code_language: (cfg.language as string) || 'python',
       code_memory_limit_mb: (cfg.memory_limit_mb as number) ?? 256,
       code_allowed_modules: Array.isArray(cfg.allowed_modules)

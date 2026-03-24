@@ -51,6 +51,12 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
   /** Agent ID set by external page to open / 外部页面设置的待打开智能体 ID */
   const pendingAgentId = ref<number | undefined>(undefined);
 
+  /** Pending external message to send after panel opens / 面板打开后待发送的外部消息 */
+  const pendingMessage = ref<null | string>(null);
+
+  /** Pending conversation to restore after panel opens / 面板打开后待恢复的对话 */
+  const pendingConversationId = ref<null | number>(null);
+
   /** Whether there are unread messages / 是否有未读消息 */
   const hasUnread = ref(false);
 
@@ -144,6 +150,47 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
    */
   function openWithAgent(agentId: number) {
     pendingAgentId.value = agentId;
+    open();
+  }
+
+  function queueMessage(message: null | string | undefined) {
+    const normalized = message?.trim();
+    pendingMessage.value = normalized ? normalized : null;
+  }
+
+  function consumePendingMessage(): null | string {
+    const message = pendingMessage.value;
+    pendingMessage.value = null;
+    return message;
+  }
+
+  function queueConversationRestore(conversationId: null | number | undefined) {
+    pendingConversationId.value =
+      typeof conversationId === 'number' && Number.isFinite(conversationId)
+        ? conversationId
+        : null;
+  }
+
+  function consumePendingConversationId(): null | number {
+    const conversationId = pendingConversationId.value;
+    pendingConversationId.value = null;
+    return conversationId;
+  }
+
+  function openWithContext(options?: {
+    agentId?: number;
+    conversationId?: null | number;
+    message?: null | string;
+  }) {
+    if (typeof options?.agentId === 'number' && Number.isFinite(options.agentId)) {
+      pendingAgentId.value = options.agentId;
+    }
+    if (options?.message !== undefined) {
+      queueMessage(options.message);
+    }
+    if (options?.conversationId !== undefined) {
+      queueConversationRestore(options.conversationId);
+    }
     open();
   }
 
@@ -291,6 +338,8 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     pinnedAgentId.value = null;
     pinnedAgentName.value = null;
     pendingAgentId.value = undefined;
+    pendingMessage.value = null;
+    pendingConversationId.value = null;
     hasUnread.value = false;
     for (const invokeId of pageOpCleanupTimers.keys()) {
       clearPageOpCleanupTimer(invokeId);
@@ -311,6 +360,8 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     pinnedAgentId,
     pinnedAgentName,
     pendingAgentId,
+    pendingMessage,
+    pendingConversationId,
     hasUnread,
 
     // Panel actions / 面板操作
@@ -335,6 +386,11 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
 
     // External / 外部
     openWithAgent,
+    openWithContext,
+    queueMessage,
+    consumePendingMessage,
+    queueConversationRestore,
+    consumePendingConversationId,
     consumePendingAgentId,
     markUnread,
 

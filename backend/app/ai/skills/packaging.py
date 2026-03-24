@@ -7,16 +7,16 @@ validation, and extraction functionality.
 定义 Skill ZIP 包格式，提供解析 SKILL.md 前置元数据、校验、解压功能。
 
 Skill ZIP package structure / Skill ZIP 包结构：
-├── SKILL.md           # Skill metadata (YAML frontmatter) + docs (required)
-├── README.md          # User documentation (optional)
-├── .clawignore        # Ignore rules (optional)
-├── server/            # Skill server code (required)
-│   ├── pyproject.toml # Python project config
-│   └── {package}/     # Python package directory
+├── SKILL.md           — Skill metadata (YAML frontmatter) + docs (required) / 元数据与文档（必填）
+├── README.md          — User documentation (optional) / 用户文档（可选）
+├── .clawignore        — Ignore rules (optional) / 忽略规则（可选）
+├── server/            — Skill server code (required) / 服务代码（必填）
+│   ├── pyproject.toml — Python project config / 项目配置
+│   └── {package}/     — Python package directory / 包目录
 │       ├── __init__.py
-│       ├── main.py    # FastAPI entry point
+│       ├── main.py    — FastAPI entry point / 入口
 │       └── ...
-└── references/        # Reference docs (optional)
+└── references/        — Reference docs (optional) / 参考文档（可选）
     └── *.md
 """
 

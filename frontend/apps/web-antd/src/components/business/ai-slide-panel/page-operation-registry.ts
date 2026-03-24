@@ -70,11 +70,42 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function isValidPageOperation(value: unknown): value is PageOperation {
+  if (!isPlainRecord(value)) return false;
+  return (
+    isNonEmptyString(value.name) &&
+    isNonEmptyString(value.label) &&
+    typeof value.readonly === 'boolean'
+  );
+}
+
+function sanitizePageOperations(
+  operations: readonly unknown[],
+  sourceLabel: string,
+): PageOperation[] {
+  const sanitized: PageOperation[] = [];
+  for (const operation of operations) {
+    if (isValidPageOperation(operation)) {
+      sanitized.push(operation);
+      continue;
+    }
+    console.warn(
+      `[PageOperation] Ignored invalid operation from ${sourceLabel}`,
+      operation,
+    );
+  }
+  return sanitized;
+}
+
 function isPageOperationResult(value: unknown): value is PageOperationResult {
   return (
-    isPlainRecord(value)
-    && typeof value.success === 'boolean'
-    && typeof value.message === 'string'
+    isPlainRecord(value) &&
+    typeof value.success === 'boolean' &&
+    typeof value.message === 'string'
   );
 }
 
@@ -109,7 +140,7 @@ function buildInvalidParamEnumResult(
   return {
     success: false,
     message: $t('shared.pageOperation.msg.paramInvalidEnum', {
-      allowed: allowedValues.map((value) => String(value)).join(', '),
+      allowed: allowedValues.map(String).join(', '),
       param: paramName,
     }),
     error_type: 'invalid_input',
@@ -123,8 +154,8 @@ function parseStructuredParamValue(
   const trimmed = value.trim();
   if (!trimmed) return undefined;
   const looksStructured =
-    (expectedType === 'array' && trimmed.startsWith('['))
-    || (expectedType === 'object' && trimmed.startsWith('{'));
+    (expectedType === 'array' && trimmed.startsWith('[')) ||
+    (expectedType === 'object' && trimmed.startsWith('{'));
   if (!looksStructured) return undefined;
 
   try {
@@ -145,12 +176,24 @@ function coerceOperationParamValue(
   }
 
   switch (expectedType) {
-    case 'string': {
-      if (typeof rawValue === 'string') return rawValue;
-      if (Array.isArray(rawValue) || isPlainRecord(rawValue)) {
-        return buildInvalidParamTypeResult(paramName, expectedType);
+    case 'array': {
+      if (Array.isArray(rawValue)) return rawValue;
+      if (typeof rawValue === 'string') {
+        const parsed = parseStructuredParamValue(rawValue, 'array');
+        if (Array.isArray(parsed)) return parsed;
       }
-      return String(rawValue);
+      return buildInvalidParamTypeResult(paramName, expectedType);
+    }
+    case 'boolean': {
+      if (typeof rawValue === 'boolean') return rawValue;
+      if (typeof rawValue === 'string') {
+        const normalized = rawValue.trim().toLowerCase();
+        if (['1', 'true', 'yes'].includes(normalized)) return true;
+        if (['0', 'false', 'no'].includes(normalized)) return false;
+      }
+      if (rawValue === 1) return true;
+      if (rawValue === 0) return false;
+      return buildInvalidParamTypeResult(paramName, expectedType);
     }
     case 'number': {
       if (typeof rawValue === 'number' && Number.isFinite(rawValue)) {
@@ -164,25 +207,6 @@ function coerceOperationParamValue(
       }
       return buildInvalidParamTypeResult(paramName, expectedType);
     }
-    case 'boolean': {
-      if (typeof rawValue === 'boolean') return rawValue;
-      if (typeof rawValue === 'string') {
-        const normalized = rawValue.trim().toLowerCase();
-        if (['true', '1', 'yes'].includes(normalized)) return true;
-        if (['false', '0', 'no'].includes(normalized)) return false;
-      }
-      if (rawValue === 1) return true;
-      if (rawValue === 0) return false;
-      return buildInvalidParamTypeResult(paramName, expectedType);
-    }
-    case 'array': {
-      if (Array.isArray(rawValue)) return rawValue;
-      if (typeof rawValue === 'string') {
-        const parsed = parseStructuredParamValue(rawValue, 'array');
-        if (Array.isArray(parsed)) return parsed;
-      }
-      return buildInvalidParamTypeResult(paramName, expectedType);
-    }
     case 'object': {
       if (isPlainRecord(rawValue)) return rawValue;
       if (typeof rawValue === 'string') {
@@ -191,8 +215,16 @@ function coerceOperationParamValue(
       }
       return buildInvalidParamTypeResult(paramName, expectedType);
     }
-    default:
+    case 'string': {
+      if (typeof rawValue === 'string') return rawValue;
+      if (Array.isArray(rawValue) || isPlainRecord(rawValue)) {
+        return buildInvalidParamTypeResult(paramName, expectedType);
+      }
+      return String(rawValue);
+    }
+    default: {
       return rawValue;
+    }
   }
 }
 
@@ -211,9 +243,9 @@ function validateAndNormalizeOperationParams(
     const schema = rawSchema as PageOperationParamSchema;
     const rawValue = rawParams[paramName];
     const hasValue = !(
-      rawValue === undefined
-      || rawValue === null
-      || (typeof rawValue === 'string' && rawValue.trim() === '')
+      rawValue === undefined ||
+      rawValue === null ||
+      (typeof rawValue === 'string' && rawValue.trim() === '')
     );
 
     if (!hasValue) {
@@ -233,9 +265,9 @@ function validateAndNormalizeOperationParams(
     }
 
     if (
-      Array.isArray(schema.enum)
-      && schema.enum.length > 0
-      && !schema.enum.some((candidate) => candidate === coerced)
+      Array.isArray(schema.enum) &&
+      schema.enum.length > 0 &&
+      !schema.enum.includes(coerced)
     ) {
       return buildInvalidParamEnumResult(paramName, schema.enum);
     }
@@ -249,7 +281,9 @@ function validateAndNormalizeOperationParams(
 function getContextSnapshot(pageKey: string): PageOperationContextSnapshot {
   return {
     formOpen: formStateTracker.isOpenWithFallback(pageKey),
-    hasModal: !!document.querySelector('.ant-modal-wrap:not(.ant-modal-wrap-hidden)'),
+    hasModal: !!document.querySelector(
+      '.ant-modal-wrap:not(.ant-modal-wrap-hidden)',
+    ),
     hasDrawer: !!document.querySelector('.ant-drawer-open'),
   };
 }
@@ -388,10 +422,14 @@ export function registerPageOperations(
   operations: PageOperation[],
 ): () => void {
   const nk = normalizePageKey(key);
-  registry.set(nk, operations);
+  const sanitizedOperations = sanitizePageOperations(
+    operations as unknown[],
+    `registerPageOperations(${nk})`,
+  );
+  registry.set(nk, sanitizedOperations);
   pageOperationVersion.value++;
   return () => {
-    if (registry.get(nk) === operations) {
+    if (registry.get(nk) === sanitizedOperations) {
       registry.delete(nk);
       pageOperationVersion.value++;
     }
@@ -405,6 +443,13 @@ function mergeOperationGroups(groups: PageOperation[][] = []): PageOperation[] {
   // 后面的分组会覆盖前面分组中的同名操作。
   for (const group of groups) {
     for (const op of group) {
+      if (!isValidPageOperation(op)) {
+        console.warn(
+          '[PageOperation] Ignored invalid operation during merge',
+          op,
+        );
+        continue;
+      }
       const existingIndex = merged.findIndex((item) => item.name === op.name);
       if (existingIndex !== -1) {
         merged.splice(existingIndex, 1);
@@ -442,14 +487,21 @@ export function appendPageOperations(
   operations: PageOperation[],
 ): () => void {
   const nk = normalizePageKey(key);
+  const sanitizedOperations = sanitizePageOperations(
+    operations as unknown[],
+    `appendPageOperations(${nk})`,
+  );
+  if (sanitizedOperations.length === 0) {
+    return () => {};
+  }
   const current = extrasRegistry.get(nk) ?? [];
-  current.push(operations);
+  current.push(sanitizedOperations);
   extrasRegistry.set(nk, current);
   pageOperationVersion.value++;
   return () => {
     const cur = extrasRegistry.get(nk);
     if (cur) {
-      const next = cur.filter((group) => group !== operations);
+      const next = cur.filter((group) => group !== sanitizedOperations);
       if (next.length > 0) {
         extrasRegistry.set(nk, next);
       } else {
@@ -516,7 +568,10 @@ export async function executePageOperation(
     };
   }
 
-  const normalizedParams = validateAndNormalizeOperationParams(operation, params);
+  const normalizedParams = validateAndNormalizeOperationParams(
+    operation,
+    params,
+  );
   if (isPageOperationResult(normalizedParams)) {
     return normalizedParams;
   }
@@ -525,7 +580,10 @@ export async function executePageOperation(
 
   try {
     const result = await operation.handler(normalizedParams);
-    const afterSnapshot = await waitForContextSnapshotChange(nk, beforeSnapshot);
+    const afterSnapshot = await waitForContextSnapshotChange(
+      nk,
+      beforeSnapshot,
+    );
     const observedContextDiff = buildContextDiff(beforeSnapshot, afterSnapshot);
     const resultData = isPlainRecord(result.data) ? result.data : {};
     const mergedContextDiff = mergeContextDiffs(

@@ -8,6 +8,7 @@ from app.core.base_model import BaseModel
 
 class NovusdocTag(BaseModel):
     __tablename__ = "px_novusdoc_tags"
+    __data_permission__ = True
 
     tenant_id: Mapped[int] = mapped_column(
         Integer,
@@ -21,6 +22,10 @@ class NovusdocTag(BaseModel):
     )
     color: Mapped[str | None] = mapped_column(
         String(20), nullable=True,
+    )
+    created_by: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
     )
 
 

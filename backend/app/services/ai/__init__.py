@@ -15,7 +15,7 @@ from app.services.ai.table_policy_service import AITablePolicyService
 from app.services.ai.usage_metrics import CostCalculator, TokenCounter
 
 # AgentChatService / ConversationService 延迟导入以避免循环依赖
-# 使用方请直接从子模块导入：
+# 使用方请直接从子模块导入： / Consumers should import from submodules directly
 #   from app.services.ai.agent_chat_service import AgentChatService
 #   from app.services.ai.conversation_service import ConversationService
 

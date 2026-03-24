@@ -15,7 +15,7 @@ import {
 } from '#/constants/upload';
 import { $t } from '#/locales';
 
-// ============ Types ============
+// ============ Types / 类型 ============
 
 export interface FileValidationRules {
   /** Allowed extensions (lowercase, no dot). Defaults to PLATFORM_ALLOWED_EXTENSIONS / 允许的扩展名 */
@@ -34,7 +34,7 @@ export interface FileValidationResult {
   errorMessage?: string;
 }
 
-// ============ Composable ============
+// ============ Composable / 组合式 API ============
 
 export function useFileUpload() {
   /**
@@ -61,7 +61,7 @@ export function useFileUpload() {
       return { valid: false, errorMessage: msg };
     }
 
-    // 2. Size check
+    // 2. Size check / 大小校验
     if (maxSizeMb > 0) {
       const fileSizeMb = file.size / (1024 * 1024);
       if (fileSizeMb > maxSizeMb) {
@@ -104,7 +104,7 @@ export function useFileUpload() {
     const isAudio = file.type.startsWith('audio/');
     const isVideo = file.type.startsWith('video/');
 
-    // Image-specific validation
+    // Image-specific validation / 图片专项校验
     if (isImage) {
       if (!supportsVision) {
         const msg = $t('common.globalAiChat.imageNotSupported');
@@ -118,7 +118,7 @@ export function useFileUpload() {
         message.warning(msg);
         return { valid: false, errorMessage: msg };
       }
-      // Image-specific size check
+      // Image-specific size check / 图片大小上限
       if (maxImageSizeMb && maxImageSizeMb > 0) {
         const fileSizeMb = file.size / (1024 * 1024);
         if (fileSizeMb > maxImageSizeMb) {
@@ -131,21 +131,21 @@ export function useFileUpload() {
       }
     }
 
-    // Audio: require model support
+    // Audio: require model support / 音频需模型能力
     if (isAudio && !supportsAudio) {
       const msg = $t('common.globalAiChat.audioNotSupported');
       message.warning(msg);
       return { valid: false, errorMessage: msg };
     }
 
-    // Video: require model support
+    // Video: require model support / 视频需模型能力
     if (isVideo && !supportsVideo) {
       const msg = $t('common.globalAiChat.videoNotSupported');
       message.warning(msg);
       return { valid: false, errorMessage: msg };
     }
 
-    // General validation (extension + size)
+    // General validation (extension + size) / 通用校验
     return validateFile(file, {
       maxSizeMb: CHAT_MAX_FILE_SIZE_MB,
     });

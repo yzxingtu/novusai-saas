@@ -40,7 +40,7 @@ class SkillCallLog(TenantModel):
         "duration_ms": "duration_ms",
     }
 
-    # ==================== 关联信息 ====================
+    # ==================== 关联信息 ==================== / Linked entities
 
     skill_id: Mapped[int | None] = mapped_column(
         Integer,
@@ -55,7 +55,7 @@ class SkillCallLog(TenantModel):
         comment=_("skill_call_log.field.agent_id"),
     )
 
-    # ==================== 调用信息 ====================
+    # ==================== 调用信息 ==================== / Invocation
 
     tool_name: Mapped[str] = mapped_column(
         String(200),
@@ -69,7 +69,7 @@ class SkillCallLog(TenantModel):
         comment=_("skill_call_log.field.tool_type"),
     )
 
-    # ==================== 结果 ====================
+    # ==================== 结果 ==================== / Outcome
 
     status: Mapped[str] = mapped_column(
         String(20),
@@ -90,7 +90,7 @@ class SkillCallLog(TenantModel):
         comment=_("skill_call_log.field.error_message"),
     )
 
-    # ==================== 复合索引 ====================
+    # ==================== 复合索引 ==================== / Composite indexes
 
     __table_args__ = (
         Index("ix_skill_call_logs_tenant_skill", "tenant_id", "skill_id"),

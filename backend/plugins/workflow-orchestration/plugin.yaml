@@ -232,6 +232,12 @@ extensions:
         auth: required
         permission: "workflow_center:view"
       - method: GET
+        path: templates
+        handler: "api.tenant_templates.list_templates"
+        summary: "List tenant-visible published templates"
+        auth: required
+        permission: "workflow_builder:copy"
+      - method: GET
         path: workflows
         handler: "api.tenant_workflows.list_workflows"
         summary: "List tenant workflows"
@@ -370,6 +376,9 @@ extensions:
         icon: "lucide:workflow"
         access_codes:
           - plugin.workflow-orchestration.orchestration_admin:view
+          - plugin.workflow-orchestration.platform_template:list
+          - plugin.workflow-orchestration.release_ops:list
+          - plugin.workflow-orchestration.runtime_ops:list
         title:
           zh-CN: "任务编排"
           en: "Workflow Orchestration"
@@ -379,6 +388,9 @@ extensions:
           title:
             zh-CN: "任务编排"
             en: "Workflow Orchestration"
+        ai:
+          mode: operate
+          page_context_key: admin.workflow_orchestration.home
       - name: workflow-orchestration-admin-templates
         path: /admin/plugins/workflow-orchestration/templates
         component: "WorkflowOrchestrationAdminTemplateListPage"
@@ -396,6 +408,9 @@ extensions:
           title:
             zh-CN: "平台模板"
             en: "Templates"
+        ai:
+          mode: operate
+          page_context_key: admin.workflow_orchestration.templates
       - name: workflow-orchestration-admin-template-detail
         path: /admin/plugins/workflow-orchestration/templates/:id
         component: "WorkflowOrchestrationAdminTemplateDetailPage"
@@ -406,6 +421,9 @@ extensions:
         title:
           zh-CN: "模板详情"
           en: "Template Detail"
+        ai:
+          mode: operate
+          page_context_key: admin.workflow_orchestration.templates.detail
       - name: workflow-orchestration-admin-template-editor
         path: /admin/plugins/workflow-orchestration/templates/:id/editor
         component: "WorkflowOrchestrationAdminTemplateEditorPage"
@@ -416,6 +434,9 @@ extensions:
         title:
           zh-CN: "模板编辑器"
           en: "Template Editor"
+        ai:
+          mode: operate
+          page_context_key: admin.workflow_orchestration.templates.editor
       - name: workflow-orchestration-admin-releases
         path: /admin/plugins/workflow-orchestration/releases
         component: "WorkflowOrchestrationAdminReleaseListPage"
@@ -433,6 +454,9 @@ extensions:
           title:
             zh-CN: "发布管理"
             en: "Releases"
+        ai:
+          mode: operate
+          page_context_key: admin.workflow_orchestration.releases
       - name: workflow-orchestration-admin-runtime
         path: /admin/plugins/workflow-orchestration/runtime
         component: "WorkflowOrchestrationAdminRuntimePage"
@@ -450,6 +474,9 @@ extensions:
           title:
             zh-CN: "运行治理"
             en: "Runtime"
+        ai:
+          mode: operate
+          page_context_key: admin.workflow_orchestration.runtime
       - name: workflow-orchestration-tenant-home
         path: /tenant/plugins/workflow-orchestration
         component: "WorkflowOrchestrationTenantHomePage"
@@ -457,6 +484,9 @@ extensions:
         icon: "lucide:workflow"
         access_codes:
           - plugin.workflow-orchestration.workflow_center:view
+          - plugin.workflow-orchestration.workflow_center:list
+          - plugin.workflow-orchestration.workflow_run:list
+          - plugin.workflow-orchestration.artifact_center:list
         title:
           zh-CN: "任务编排"
           en: "Workflow Orchestration"
@@ -466,6 +496,23 @@ extensions:
           title:
             zh-CN: "任务编排"
             en: "Workflow Orchestration"
+        ai:
+          mode: operate
+          page_context_key: tenant.workflow_orchestration.home
+      - name: workflow-orchestration-tenant-workflow-create
+        path: /tenant/plugins/workflow-orchestration/workflows/new
+        component: "WorkflowOrchestrationTenantWorkflowCreatePage"
+        scope: tenant
+        icon: "lucide:sparkles"
+        access_codes:
+          - plugin.workflow-orchestration.workflow_builder:create
+          - plugin.workflow-orchestration.workflow_builder:copy
+        title:
+          zh-CN: "新建工作流"
+          en: "New Workflow"
+        ai:
+          mode: operate
+          page_context_key: tenant.workflow_orchestration.workflows.create
       - name: workflow-orchestration-tenant-workflows
         path: /tenant/plugins/workflow-orchestration/workflows
         component: "WorkflowOrchestrationTenantWorkflowListPage"
@@ -483,6 +530,9 @@ extensions:
           title:
             zh-CN: "工作流中心"
             en: "Workflows"
+        ai:
+          mode: operate
+          page_context_key: tenant.workflow_orchestration.workflows
       - name: workflow-orchestration-tenant-workflow-detail
         path: /tenant/plugins/workflow-orchestration/workflows/:id
         component: "WorkflowOrchestrationTenantWorkflowDetailPage"
@@ -493,6 +543,9 @@ extensions:
         title:
           zh-CN: "工作流详情"
           en: "Workflow Detail"
+        ai:
+          mode: operate
+          page_context_key: tenant.workflow_orchestration.workflows.detail
       - name: workflow-orchestration-tenant-workflow-editor
         path: /tenant/plugins/workflow-orchestration/workflows/:id/editor
         component: "WorkflowOrchestrationTenantWorkflowEditorPage"
@@ -503,6 +556,9 @@ extensions:
         title:
           zh-CN: "工作流编辑器"
           en: "Workflow Editor"
+        ai:
+          mode: operate
+          page_context_key: tenant.workflow_orchestration.workflows.editor
       - name: workflow-orchestration-tenant-runs
         path: /tenant/plugins/workflow-orchestration/runs
         component: "WorkflowOrchestrationTenantRunListPage"
@@ -520,6 +576,9 @@ extensions:
           title:
             zh-CN: "运行中心"
             en: "Runs"
+        ai:
+          mode: operate
+          page_context_key: tenant.workflow_orchestration.runs
       - name: workflow-orchestration-tenant-run-detail
         path: /tenant/plugins/workflow-orchestration/runs/:runId
         component: "WorkflowOrchestrationTenantRunDetailPage"
@@ -530,6 +589,9 @@ extensions:
         title:
           zh-CN: "运行详情"
           en: "Run Detail"
+        ai:
+          mode: operate
+          page_context_key: tenant.workflow_orchestration.runs.detail
       - name: workflow-orchestration-tenant-artifacts
         path: /tenant/plugins/workflow-orchestration/artifacts
         component: "WorkflowOrchestrationTenantArtifactListPage"
@@ -547,6 +609,9 @@ extensions:
           title:
             zh-CN: "产物中心"
             en: "Artifacts"
+        ai:
+          mode: operate
+          page_context_key: tenant.workflow_orchestration.artifacts
       - name: workflow-orchestration-tenant-artifact-detail
         path: /tenant/plugins/workflow-orchestration/artifacts/:artifactId
         component: "WorkflowOrchestrationTenantArtifactDetailPage"
@@ -557,6 +622,9 @@ extensions:
         title:
           zh-CN: "产物详情"
           en: "Artifact Detail"
+        ai:
+          mode: operate
+          page_context_key: tenant.workflow_orchestration.artifacts.detail
     dev:
       entry: "src/index.ts"
     release:

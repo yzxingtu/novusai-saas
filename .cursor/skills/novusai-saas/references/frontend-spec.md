@@ -2,6 +2,26 @@
 
 > 基于 Vben Admin 5.x + Vue 3 + TypeScript + Ant Design Vue
 
+## 目录
+
+- [一、架构概览](#一架构概览)
+- [二、耦合关系（重要）](#二耦合关系重要)
+- [三、CRUD 列表页开发 (Schema Driven)](#三crud-列表页开发-schema-driven)
+- [四、权限控制](#四权限控制)
+- [五、搜索筛选（JSON:API）](#五搜索筛选jsonapi)
+- [六、国际化](#六国际化)
+- [七、图标](#七图标)
+- [八、HTTP 请求](#八http-请求)
+- [九、工具函数](#九工具函数)
+- [十、命名规范](#十命名规范)
+- [十一、开发流程](#十一开发流程)
+- [十二、拖拽排序](#十二拖拽排序)
+- [十三、列表 UI 设计规范](#十三列表-ui-设计规范)
+- [十四、通用下拉 (select)](#十四通用下拉-select)
+- [十五、代码风格规范](#十五代码风格规范)
+- [十六、CSS 动画](#十六css-动画)
+- [相关文档](#相关文档)
+
 ---
 
 ## 一、架构概览
@@ -186,7 +206,7 @@ clearSelection(gridApi.grid);
 
 菜单接口 `permissions` 字段 → `router/access.ts` 提取 → `accessStore.setAccessCodes()`
 
-### 使用方式
+### 权限使用方式
 
 ```vue
 <!-- 模板中 -->
@@ -263,7 +283,7 @@ fieldName: 'filter[created_at][gte]'; // 大于等于
 zh-CN/admin/system.json → admin.system.*
 ```
 
-### 使用方式
+### 国际化使用方式
 
 ```typescript
 import { $t } from '#/locales';
@@ -405,6 +425,18 @@ const data = await requestClient.post('/admin/users', userData, {
   showCodeMessage: false, // 不显示业务错误
 });
 ```
+
+### 请求错误展示 owner
+
+- `requestClient` 默认会处理请求错误消息。
+- 如果页面需要在 `catch` 中自行提示，必须先关闭：
+  - `showErrorMessage: false`
+  - `showCodeMessage: false`
+- 页面本地展示请求错误时，优先使用统一 helper：
+  - `showRequestError(error, fallbackKey)`
+  - `getErrorMessage(error, fallbackKey)`
+- 禁止在请求 `catch` 中直接写固定 `message.error($t('common.requestFailed'))` 覆盖后端真实错误。
+- 生产环境的用户可见请求错误应尽量带 `trace_id`；开发环境允许额外显示 `debugMessage`。
 
 ### 文件上传
 
@@ -799,7 +831,7 @@ interface DragSortConfig {
 
 ## 十三、列表 UI 设计规范
 
-### 核心理念
+### 列表 UI 核心理念
 
 **拒绝纯文字表格，拥抱视觉层次**。每个列表都应该有自己的个性，根据数据特点设计最合适的呈现方式。
 
@@ -933,7 +965,7 @@ import { formatRelativeTime, formatDate } from '#/utils/common';
 
 ## 十四、通用下拉 (select)
 
-### 核心理念
+### 通用下拉核心理念
 
 使用统一的 `select()` 函数，智能判断是使用远程 API 还是静态选项。屏蔽组件差异，保持代码一致性。
 
@@ -1024,12 +1056,15 @@ pnpm run check         # 类型检查 + 循环依赖检测
 
 ### 注释与备注规范
 
-- 新增代码注释、说明性备注、`TODO`、`FIXME`、`NOTE` 等文本时，**必须同时包含中文和英文**
+**核心规则**：新增说明性文字（`//`、`/* */`、块注释、Vue `<!-- -->`、`TODO` / `FIXME` / `NOTE`）须为**中英双语**。**仅含一种自然语言的注释即违规**（纯中文或纯英文均不允许）。若逻辑已足够清晰，**优先不写注释**。
+
+- **必须同时包含中文和英文**（同一条注释内可读的双语信息，推荐 `中文 / English`）
 - **禁止只写中文注释/备注**
 - **禁止只写英文注释/备注**
-- 如果代码本身已经足够清晰，**优先不新增注释**
+- **与 i18n 无关**：`$t()` 解决用户可见文案；注释给开发者阅读，仍须双语，不能用「界面已翻译」代替注释规范
+- **禁止批量脚本**：禁止用脚本对全仓库批量查找替换或机翻批量「修复」注释；请在编辑器中**逐行**补全，或拆成经审阅的小范围 diff
 
-示例：
+**违规（单语）与合规对照：**
 
 ```typescript
 // Correct usage / 正确用法
@@ -1039,37 +1074,44 @@ const title = $t('admin.system.role.title');
 ```
 
 ```typescript
-// ❌ 错误：只写中文
+// ❌ 错误：只写中文（单语）
 // 处理空状态
 
-// ❌ 错误：只写英文
+// ❌ 错误：只写英文（单语）
 // Handle empty state
+
+// ✅ 合规：单行双语
+// Handle empty state / 处理空状态
 ```
+
+**CSS**：属性分组等场景见下文「Stylelint 属性顺序」，区段注释同样须中英双语。后端 Python 的 `#`、`"""docstring"""` 与同规则，见 [backend-spec.md](backend-spec.md#代码注释与文档字符串)。
 
 ### 需要 eslint-disable 的场景
 
 ```typescript
-// 非空断言
+// Non-null assertion / 非空断言
 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 const value = obj.prop!;
 
-// Vue emit 类型
+// Vue emit signatures / Vue emit 联合签名
 /* eslint-disable @typescript-eslint/unified-signatures */
 const emits = defineEmits<{ ... }>();
 /* eslint-enable @typescript-eslint/unified-signatures */
 
-// 占位空文件
+// Placeholder empty module / 占位空文件
 /* eslint-disable unicorn/no-empty-file */
 ```
 
 ### Stylelint 属性顺序
 
+（分组注释须中英双语，与上文「注释与备注规范」一致。）
+
 ```css
 .element {
-  /* 1. 定位 */ position, top, left, z-index
-  /* 2. 盒模型 */ display, width, height, padding, margin, overflow
-  /* 3. 视觉 */ background, border, border-radius
-  /* 4. 动画 */ transition, max-height, opacity
+  /* 1. 定位 / Positioning */ position, top, left, z-index
+  /* 2. 盒模型 / Box */ display, width, height, padding, margin, overflow
+  /* 3. 视觉 / Visual */ background, border, border-radius
+  /* 4. 动画 / Motion */ transition, max-height, opacity
 }
 ```
 
@@ -1084,7 +1126,7 @@ const emits = defineEmits<{ ... }>();
 - [ ] 无 `@ts-ignore`（用 `@ts-expect-error` + 注释原因替代）
 - [ ] 泛型函数正确推断（`post<ResponseType>()`）
 - [ ] `void` 返回值不滥用（不作为泛型参数 `post<void>()`）
-- [ ] 新增代码注释/备注必须中英双语，禁止只写中文或英文
+- [ ] 新增代码注释/备注必须中英双语，**禁止单语**（仅中文或仅英文）
 
 #### 国际化
 - [ ] 无中文硬编码，全部使用 `$t()` 或 `t()`

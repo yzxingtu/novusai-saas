@@ -28,7 +28,7 @@ export function getFileIcon(
   filename: string,
   mimeType?: null | string,
 ): string {
-  // 1. 优先根据 MIME 类型判断
+  // 1. 优先根据 MIME 类型判断 / prefer MIME sniffing
   if (mimeType) {
     if (mimeType.startsWith('image/')) return 'lucide:image';
     if (mimeType.startsWith('video/')) return 'lucide:video';
@@ -54,12 +54,12 @@ export function getFileIcon(
     }
   }
 
-  // 2. 根据文件后缀判断
+  // 2. 根据文件后缀判断 / fallback to file extension
   const ext = filename.split('.').pop()?.toLowerCase();
   if (!ext) return 'lucide:file';
 
   switch (ext) {
-    // 压缩包
+    // 压缩包 / archives
     case '7z':
     case 'bz2':
     case 'gz':
@@ -68,7 +68,7 @@ export function getFileIcon(
     case 'zip': {
       return 'lucide:archive';
     }
-    // 音频
+    // 音频 / audio
     case 'aac':
     case 'flac':
     case 'm4a':
@@ -76,7 +76,7 @@ export function getFileIcon(
     case 'wav': {
       return 'lucide:music';
     }
-    // 视频
+    // 视频 / video
     case 'avi':
     case 'mkv':
     case 'mov':
@@ -111,7 +111,7 @@ export function getFileIcon(
     case 'yml': {
       return 'lucide:file-code';
     }
-    // 图片
+    // 图片 / images
     case 'bmp':
     case 'gif':
     case 'ico':
@@ -122,7 +122,7 @@ export function getFileIcon(
     case 'webp': {
       return 'lucide:image';
     }
-    // 表格
+    // 表格 / spreadsheets
     case 'csv':
     case 'tsv':
     case 'xls':
@@ -136,16 +136,16 @@ export function getFileIcon(
     case 'txt': {
       return 'lucide:file-text';
     }
-    // 文档
+    // 文档 / documents
     case 'pdf': {
       return 'lucide:file-text';
     }
-    // 幻灯片
+    // 幻灯片 / slides
     case 'ppt':
     case 'pptx': {
       return 'lucide:presentation';
     }
-    // 其他
+    // 其他 / default
     default: {
       return 'lucide:file';
     }

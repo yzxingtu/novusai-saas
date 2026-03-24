@@ -44,6 +44,6 @@ description: NovusAI AI 页面感知技能。当需要接入或修复 page_conte
 
 ## 参考
 
-- `../novusai-saas/references/page-awareness-spec.md`
-- `../novusai-saas/references/ai-module.md`
-- `../websocket-guide/SKILL.md`
+- [../novusai-saas/references/page-awareness-spec.md](../novusai-saas/references/page-awareness-spec.md)
+- [../novusai-saas/references/ai-module.md](../novusai-saas/references/ai-module.md)
+- [../websocket-guide/SKILL.md](../websocket-guide/SKILL.md)

@@ -103,28 +103,28 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
         Raises:
             BusinessException: 用户名/邮箱/手机号已存在
         """
-        # 检查用户名是否已存在（企业内唯一）
+        # 检查用户名是否已存在（企业内唯一） / Check username exists (unique within tenant)
         if await self.repo.username_exists(username):
             raise BusinessException(
                 message=_("tenant_admin.username_exists"),
                 code=ErrorCode.ADMIN_USERNAME_EXISTS,
             )
 
-        # 检查邮箱是否已存在（企业内唯一）
+        # 检查邮箱是否已存在（企业内唯一） / Check email exists (unique within tenant)
         if await self.repo.email_exists(email):
             raise BusinessException(
                 message=_("tenant_admin.email_exists"),
                 code=ErrorCode.ADMIN_EMAIL_EXISTS,
             )
 
-        # 检查手机号是否已存在（企业内唯一）
+        # 检查手机号是否已存在（企业内唯一） / Check phone exists (unique within tenant)
         if phone and await self.repo.phone_exists(phone):
             raise BusinessException(
                 message=_("tenant_admin.phone_exists"),
                 code=ErrorCode.ADMIN_PHONE_EXISTS,
             )
 
-        # 检查管理员数配额
+        # 检查管理员数配额 / Check admin count quota
         from sqlalchemy.orm import selectinload
 
         from app.models.tenant.tenant import Tenant
@@ -143,11 +143,11 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
                     code=ErrorCode.CONFLICT,
                 )
 
-        # 如果是企业所有者，获取根节点
+        # 如果是企业所有者，获取根节点 / If tenant owner, fetch root node
         root_node = None
         if is_owner:
             root_node = await self._get_tenant_root_node()
-            # 如果未指定角色，自动关联到根节点
+            # 如果未指定角色，自动关联到根节点 / If role not specified, attach to root
             if root_node and org_node_id is None:
                 org_node_id = root_node.id
 
@@ -169,7 +169,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
 
         admin = await self.create(data)
 
-        # 如果是企业所有者，设为根节点负责人
+        # 如果是企业所有者，设为根节点负责人 / If tenant owner, set as root leader
         if is_owner and root_node and root_node.leader_id is None:
             root_node.leader_id = admin.id
             await self.db.flush()
@@ -201,7 +201,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
                 message=_("tenant_admin.not_found"),
             )
 
-        # 检查邮箱是否已被其他管理员使用
+        # 检查邮箱是否已被其他管理员使用 / Check email used by other admin
         if (
             "email" in data
             and data["email"]
@@ -212,7 +212,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
                 code=ErrorCode.ADMIN_EMAIL_EXISTS,
             )
 
-        # 检查手机号是否已被其他管理员使用
+        # 检查手机号是否已被其他管理员使用 / Check phone used by other admin
         if (
             "phone" in data
             and data["phone"]
@@ -229,10 +229,10 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
         if "org_node_id" in data:
             await self._validate_org_node(data["org_node_id"])
 
-        # 移除不允许直接更新的字段
+        # 移除不允许直接更新的字段 / Remove fields not directly updatable
         data.pop("password", None)
         data.pop("password_hash", None)
-        data.pop("username", None)  # 用户名不允许修改
+        data.pop("username", None)  # 用户名不允许修改 / policy guard
         data.pop("tenant_id", None)  # 企业 ID 不允许修改
 
         result = await self.update(admin_id, data)
@@ -267,14 +267,14 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
                 message=_("tenant_admin.not_found"),
             )
 
-        # 验证旧密码
+        # 验证旧密码 / Validate old password
         if not verify_password(old_password, admin.password_hash):
             raise BusinessException(
                 message=_("tenant_admin.password_incorrect"),
                 code=ErrorCode.OLD_PASSWORD_INCORRECT,
             )
 
-        # 更新密码
+        # 更新密码 / Update password
         await self.update(admin_id, {
             "password_hash": get_password_hash(new_password),
         })
@@ -305,7 +305,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
                 message=_("tenant_admin.not_found"),
             )
 
-        # 更新密码
+        # 更新密码 / Update password
         await self.update(admin_id, {
             "password_hash": get_password_hash(new_password),
         })

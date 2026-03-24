@@ -30,7 +30,7 @@ class ProviderApiKey(BaseModel):
 
     __tablename__ = "ai_api_keys"
 
-    # 允许前端筛选的字段
+    # 允许前端筛选的字段 / Fields exposed for list filtering
     __filterable__ = {
         "id": "id",
         "provider_id": "provider_id",
@@ -42,7 +42,7 @@ class ProviderApiKey(BaseModel):
         "created_at": "created_at",
     }
 
-    # 允许排序的字段（用于前端排序）
+    # 允许排序的字段（用于前端排序） / Sortable columns for UI
     __sortable__ = {
         "id": "id",
         "name": "name",
@@ -62,7 +62,7 @@ class ProviderApiKey(BaseModel):
         comment=_("enum.ai_api_key.scope"),
     )
 
-    # 外键：所属供应商
+    # 外键：所属供应商 / FK to provider
     provider_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("ai_providers.id", ondelete="CASCADE"),
@@ -81,20 +81,20 @@ class ProviderApiKey(BaseModel):
     )
     tenant_id = synonym("owner_tenant_id")
 
-    # Key 名称（便于识别）
+    # Key 名称（便于识别） / Display name for key
     name: Mapped[str] = mapped_column(
         String(100),
         comment=_("enum.ai_api_key.name")
     )
 
-    # 加密存储的 API Key
+    # 加密存储的 API Key / Encrypted secret
     encrypted_key: Mapped[str] = mapped_column(
         String(500),
         nullable=False,
         comment=_("enum.ai_api_key.encrypted_key")
     )
 
-    # 是否启用
+    # 是否启用 / Active flag
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         default=True,
@@ -102,44 +102,44 @@ class ProviderApiKey(BaseModel):
         comment=_("enum.ai_api_key.is_active")
     )
 
-    # 使用限制（可选，NULL 表示无限制）
+    # 使用限制（可选，NULL 表示无限制） / Usage cap (NULL = unlimited)
     usage_limit: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
         comment=_("enum.ai_api_key.usage_limit")
     )
 
-    # 已使用次数
+    # 已使用次数 / Usage counter
     usage_count: Mapped[int] = mapped_column(
         Integer,
         default=0,
         comment=_("enum.ai_api_key.usage_count")
     )
 
-    # 最后使用时间
+    # 最后使用时间 / Last used at
     last_used_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
         comment=_("enum.ai_api_key.last_used_at")
     )
 
-    # 过期时间（可选）
+    # 过期时间（可选） / Expires at (optional)
     expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
         comment=_("enum.ai_api_key.expires_at")
     )
 
-    # ==================== 关系 ====================
+    # ==================== 关系 ==================== / Relationships
 
-    # 所属供应商
+    # 所属供应商 / Provider row
     provider = relationship(
         "AIProvider",
         back_populates="api_keys",
         lazy="selectin",
     )
 
-    # ==================== 方法 ====================
+    # ==================== 方法 ==================== / Methods
 
     def encrypt_key(self, plain_key: str) -> None:
         """

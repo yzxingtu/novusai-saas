@@ -2,6 +2,22 @@
 
 > AI 页面感知系统的完整架构、接入方式和数据流规范。
 
+## 目录 / Contents
+
+- [一、架构概述 / Architecture Overview](#一架构概述-architecture-overview)
+- [二、pageKey 规范 / Page Key Convention](#二pagekey-规范-page-key-convention)
+- [三、formComponent 模式接入 / formComponent Mode Integration](#三formcomponent-模式接入-formcomponent-mode-integration)
+- [四、ref 模式接入 / Ref Mode Integration](#四ref-模式接入-ref-mode-integration)
+- [五、contextExtras 替代手动注册 / contextExtras Replaces Manual Registration](#五contextextras-替代手动注册-contextextras-replaces-manual-registration)
+- [六、useCrudDrawer 自动集成 / useCrudDrawer Auto-Integration](#六usecruddrawer-自动集成-usecruddrawer-auto-integration)
+- [七、标准操作列表 / Standard Operations](#七标准操作列表-standard-operations)
+- [八、CrudListAiOptions 完整配置 / Full CrudListAiOptions](#八crudlistaioptions-完整配置-full-crudlistaioptions)
+- [九、后端 Prompt 对接 / Backend Prompt Integration](#九后端-prompt-对接-backend-prompt-integration)
+- [十、检查清单 / Checklist](#十检查清单-checklist)
+- [十一、增强能力 / Enhanced Capabilities](#十一增强能力-enhanced-capabilities)
+- [十二、已知限制与缓解措施 / Known Limitations & Mitigations](#十二已知限制与缓解措施-known-limitations-mitigations)
+- [十三、增强能力核心文件 / Enhanced Capability Core Files](#十三增强能力核心文件-enhanced-capability-core-files)
+
 ---
 
 ## 一、架构概述 / Architecture Overview
@@ -50,7 +66,7 @@ admin.ai.quotas       ← 已经是点号格式，原样返回
 
 适用于 `useCrudList` 的 `formComponent` 配置指向表单组件的页面（标准模式）。
 
-### 步骤
+### formComponent 模式步骤
 
 1. **data.ts 中导出 schema 工厂函数**：
 
@@ -98,7 +114,7 @@ const { list, FormDrawer, onCreate, onEdit, ... } = useCrudList<ItemType>({
 
 适用于表单组件通过 `ref` 管理（非 `formComponent` 配置）的页面。
 
-### 步骤
+### ref 模式步骤
 
 1. **定义 AI_PAGE_KEY 常量**：
 

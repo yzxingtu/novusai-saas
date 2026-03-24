@@ -208,7 +208,7 @@ USER_DIRECTORY_MENUS: list[PermissionMeta] = [
 ```
 
 > 注意：这段示例反映的是当前后端真实代码，仍保留 legacy `dashboard` 资源码。
-> 新增用户端页面时，不要继续扩散该命名；前端当前规范入口以 `/`、`/ai-chat`、`/settings/*` 为准，`/home` 仅保留为兼容 alias。
+> 新增用户端页面时，不要继续扩散该命名；前端当前规范入口以 tenant 域名下的 `/`、`/agents`、`/ai-chat`、`/help`、`/settings/*` 为准，`/home` 仅保留为兼容 alias，平台域名下的 `/` 则是公共网关。
 
 ### 注册流程
 

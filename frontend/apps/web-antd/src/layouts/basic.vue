@@ -18,6 +18,7 @@ import {
 } from '@vben/layouts';
 import { preferences, updatePreferences } from '@vben/preferences';
 import { useAccessStore, useTabbarStore, useUserStore } from '@vben/stores';
+import { resolveRouteMetaTitle } from '@vben/utils';
 
 import { message, Popover, Tooltip } from 'ant-design-vue';
 
@@ -37,8 +38,7 @@ import {
   usePluginFrontendInit,
 } from '#/composables/use-plugin-frontend-init';
 import { usePreferenceSync } from '#/composables/use-preference-sync';
-import { $t } from '#/locales';
-import { getEndpointFromPath } from '#/utils';
+import { $t, $te } from '#/locales';
 import { generateAccess } from '#/router/access';
 import { accessRoutes } from '#/router/routes';
 import {
@@ -50,6 +50,7 @@ import {
 } from '#/store';
 import { useUserPreferenceStore } from '#/store/shared';
 import { usePluginSlotsStore } from '#/stores/plugin-slots';
+import { getEndpointFromPath } from '#/utils';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -66,10 +67,10 @@ const { destroyWatermark, updateWatermark } = useWatermark();
 const { refresh } = useRefresh();
 const cacheClearModalRef = ref<InstanceType<typeof CacheClearModal>>();
 
-// ============ Preference Sync ============
+// ============ Preference Sync / 偏好同步 ============
 const { initSnapshot, skipSync } = usePreferenceSync();
 
-// ============ AI Panel ============
+// ============ AI Panel / AI 面板 ============
 
 usePageSession();
 usePageOperationChannel();
@@ -117,33 +118,36 @@ const aiPanelRightOffset = computed(() => {
   return aiPanelStore.panelWidth;
 });
 
-/** CommandBar 发送的待处理消息 / Pending messages from CommandBar */
-const pendingMessage = ref<null | string>(null);
+/** CommandBar / plugin bridge queued message / CommandBar / 插件桥接排队消息 */
+const pendingMessage = computed(() => aiPanelStore.pendingMessage);
 
-/** CommandBar 选择的待恢复对话 ID / Conversation ID to resume from CommandBar */
-const pendingConversationId = ref<null | number>(null);
+/** CommandBar / plugin bridge queued conversation restore / CommandBar / 插件桥接排队恢复对话 */
+const pendingConversationId = computed(
+  () => aiPanelStore.pendingConversationId,
+);
 
 function onCommandBarSubmit(text: string) {
-  pendingMessage.value = text;
+  aiPanelStore.queueMessage(text);
   aiPanelStore.open();
 }
 
 function onCommandBarSelectConversation(convId: number) {
-  pendingConversationId.value = convId;
+  aiPanelStore.queueConversationRestore(convId);
+  aiPanelStore.open();
 }
 
 function onMessageSent() {
-  pendingMessage.value = null;
+  aiPanelStore.consumePendingMessage();
 }
 
 function onConversationRestored() {
-  pendingConversationId.value = null;
+  aiPanelStore.consumePendingConversationId();
 }
 
 /** CommandBar 组件引用 / CommandBar component ref */
 const commandBarRef = ref<InstanceType<typeof CommandBar> | null>(null);
 
-// 初始化插件前端（动态加载已启用插件的 UMD 包并注册到插槽 Store）
+// 初始化插件前端（动态加载已启用插件的 UMD 包并注册到插槽 Store）/ plugin UMD + slots
 const currentEndpointPrefix = computed(() => {
   const path = router.currentRoute.value.path;
   return path.startsWith('/tenant') ? '/tenant' : '/admin';
@@ -156,7 +160,7 @@ watch(currentEndpointPrefix, async (endpoint, previousEndpoint) => {
     return;
   }
   resetPluginRoutesReady(router);
-  await refreshPluginSlots(endpoint, router);
+  await refreshPluginSlots(endpoint, router, { reloadAssets: false });
 });
 
 /** Socket.IO 断连/重连 UI 提示 / Socket disconnect/reconnect UI hint */
@@ -253,18 +257,18 @@ async function handleLogout() {
  * 语言切换时重新加载菜单
  */
 async function handleLocaleChange() {
-  // 显示加载提示
+  // 显示加载提示 / loading toast
   const hideLoading = message.loading({
     content: $t('common.loadingMenu'),
     duration: 0,
   });
 
   try {
-    // 获取当前端类型
+    // 获取当前端类型 / resolve endpoint
     const currentEndpoint = getEndpointFromPath(router.currentRoute.value.path);
     const userRoles = userStore.userInfo?.roles ?? [];
 
-    // 重新获取菜单和路由
+    // 重新获取菜单和路由 / rebuild access
     const { accessibleMenus, accessibleRoutes } = await generateAccess(
       {
         roles: userRoles,
@@ -274,12 +278,14 @@ async function handleLocaleChange() {
       currentEndpoint,
     );
 
-    // 更新菜单和路由
+    // 更新菜单和路由 / apply menus + routes
     accessStore.setAccessMenus(accessibleMenus);
     accessStore.setAccessRoutes(accessibleRoutes);
+    await refreshPluginSlots(currentEndpoint, router, { reloadAssets: false });
 
-    // 更新所有已打开的 tabs 的 title
+    // 更新所有已打开的 tabs 的 title / retitle open tabs
     updateAllTabsTitles();
+    await refreshCurrentRouteMatch();
   } finally {
     hideLoading();
   }
@@ -292,24 +298,53 @@ function updateAllTabsTitles() {
   const tabs = tabbarStore.getTabs;
   const routes = router.getRoutes();
 
-  // 创建路由路径到 meta.title 的映射
-  const routeTitleMap = new Map<string, string>();
+  // 创建路由路径到 meta 的映射 / path → route meta map
+  const routeMetaMap = new Map<string, Record<string, unknown>>();
   for (const route of routes) {
-    if (route.meta?.title) {
-      routeTitleMap.set(route.path, route.meta.title as string);
+    if (route.meta) {
+      routeMetaMap.set(route.path, route.meta as Record<string, unknown>);
     }
   }
 
-  // 更新每个 tab 的 title
+  // 更新每个 tab 的 title / sync tab meta.title
   for (const tab of tabs) {
-    const newTitle = routeTitleMap.get(tab.path);
+    const routeMeta = routeMetaMap.get(tab.path);
+    const newTitle = resolveRouteMetaTitle(routeMeta, {
+      hasLocaleKey: $te,
+      locale: preferences.app.locale,
+      translate: $t,
+    });
     if (newTitle && tab.meta) {
       tab.meta.title = newTitle;
+      tab.meta.titleLocaleMap = routeMeta?.titleLocaleMap as
+        | Record<string, string>
+        | undefined;
     }
   }
 
-  // 触发 tabbarStore 更新
+  // 触发 tabbarStore 更新 / bump tabbar version
   tabbarStore.setUpdateTime();
+}
+
+async function refreshCurrentRouteMatch() {
+  const currentRoute = router.currentRoute.value;
+  const routeTarget = currentRoute.name
+    ? {
+        hash: currentRoute.hash,
+        name: currentRoute.name,
+        params: currentRoute.params,
+        query: currentRoute.query,
+      }
+    : {
+        hash: currentRoute.hash,
+        path: currentRoute.path,
+        query: currentRoute.query,
+      };
+
+  await router.replace({
+    ...routeTarget,
+    force: true,
+  });
 }
 
 /**

@@ -3,7 +3,8 @@ import type { FormInstance, RadioChangeEvent } from 'ant-design-vue';
 
 import type { OrgNodeFormData } from './types';
 
-import type { OrgNodeType } from '#/api/admin/organization';
+import type { OrgNodeInfo, OrgNodeType } from '#/api/admin/organization';
+import type { PermissionNode } from '#/api/admin/permission';
 
 import { computed, ref, watch } from 'vue';
 
@@ -32,12 +33,14 @@ import {
   getOrganizationTreeApi,
   updateOrganizationNodeApi,
 } from '#/api/admin/organization';
+import { getPermissionTreeApi } from '#/api/admin/permission';
 import {
   createTenantOrganizationNodeApi,
   getTenantOrganizationNodeDetailApi,
   getTenantOrganizationTreeApi,
   updateTenantOrganizationNodeApi,
 } from '#/api/tenant/organization';
+import { PermissionSelector } from '#/components/business/permission-selector';
 import { $t } from '#/locales';
 
 import {
@@ -88,6 +91,8 @@ const loading = ref(false);
 const submitting = ref(false);
 const deptTreeLoading = ref(false);
 const deptTreeData = ref<DeptTreeOption[]>([]);
+const permissionTreeLoading = ref(false);
+const permissionTree = ref<PermissionNode[]>([]);
 
 const formData = ref<OrgNodeFormData>({
   name: '',
@@ -96,6 +101,7 @@ const formData = ref<OrgNodeFormData>({
   allowMembers: false,
   isActive: true,
   sortOrder: 0,
+  permissionIds: [],
   dataScope: 'self',
   customDeptIds: [],
 });
@@ -195,19 +201,40 @@ async function loadDeptTree() {
   }
 }
 
+async function loadPermissionTree() {
+  if (props.apiPrefix !== 'admin') {
+    permissionTree.value = [];
+    return;
+  }
+
+  permissionTreeLoading.value = true;
+  try {
+    permissionTree.value = await getPermissionTreeApi();
+  } catch {
+    permissionTree.value = [];
+  } finally {
+    permissionTreeLoading.value = false;
+  }
+}
+
 async function loadNodeDetail() {
   if (!props.nodeId) return;
 
   loading.value = true;
   try {
     const detail = await api.value.getNodeDetail(props.nodeId);
+    const permissionIds: number[] =
+      props.apiPrefix === 'admin'
+        ? (((detail as OrgNodeInfo).permissionIds ?? []) as number[])
+        : [];
     formData.value = {
       name: detail.name,
       description: detail.description || '',
-      type: detail.type || 'role',
+      type: detail.type || 'department',
       allowMembers: detail.allowMembers ?? true,
       isActive: detail.isActive,
       sortOrder: detail.sortOrder,
+      permissionIds,
       dataScope: detail.dataScope || 'self',
       customDeptIds: detail.customDeptIds || [],
     };
@@ -225,6 +252,7 @@ function resetForm() {
     allowMembers: getDefaultAllowMembers(initialType),
     isActive: true,
     sortOrder: 0,
+    permissionIds: [],
     dataScope: 'self',
     customDeptIds: [],
   };
@@ -257,6 +285,8 @@ async function handleSubmit() {
       is_active: formData.value.isActive,
       sort_order: formData.value.sortOrder,
       parent_id: props.mode === 'create' ? props.parentId : undefined,
+      permission_ids:
+        props.apiPrefix === 'admin' ? formData.value.permissionIds : undefined,
       data_scope: formData.value.dataScope,
       custom_dept_ids:
         formData.value.dataScope === 'custom' ? formData.value.customDeptIds : undefined,
@@ -269,7 +299,7 @@ async function handleSubmit() {
     emit('success', {
       id: result.id,
       name: result.name,
-      type: result.type || 'role',
+      type: result.type || 'department',
     });
     emit('update:open', false);
   } finally {
@@ -282,7 +312,7 @@ watch(
   async (open) => {
     if (!open) return;
 
-    await loadDeptTree();
+    await Promise.all([loadDeptTree(), loadPermissionTree()]);
 
     if (props.mode === 'edit' && props.nodeId) {
       await loadNodeDetail();
@@ -299,6 +329,7 @@ watch(
           getDefaultAllowMembers(allowedTypes.value[0] || 'department'),
         isActive: props.initialData.isActive ?? true,
         sortOrder: props.initialData.sortOrder ?? 0,
+        permissionIds: props.initialData.permissionIds || [],
         dataScope: props.initialData.dataScope || 'self',
         customDeptIds: props.initialData.customDeptIds || [],
       };
@@ -432,6 +463,30 @@ watch(
               class="!w-full"
             />
           </FormItem>
+        </div>
+
+        <div
+          v-if="props.apiPrefix === 'admin'"
+          class="rounded-lg border border-border/60 p-4"
+        >
+          <div class="mb-3">
+            <div class="text-sm font-medium text-foreground">
+              {{ $t('shared.orgNode.permissions') }}
+            </div>
+            <div class="mt-1 text-xs text-muted-foreground">
+              {{
+                $t('shared.orgNode.selectedCount', {
+                  count: formData.permissionIds.length,
+                })
+              }}
+            </div>
+          </div>
+          <PermissionSelector
+            v-model="formData.permissionIds"
+            :permissions="permissionTree"
+            :loading="permissionTreeLoading"
+            :show-inherited-badge="false"
+          />
         </div>
 
         <div class="rounded-lg border border-border/60 p-4">

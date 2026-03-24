@@ -174,7 +174,7 @@ async def _load_and_parse_document(db, doc, tenant_id, kb=None) -> list:
         raise ValueError("Attachment not found")
 
     config_service = ConfigService(db)
-    # Resolve platform storage config (same logic as AttachmentService)
+    # Resolve platform storage config (same logic as AttachmentService) / 上文为英文说明 / English above
     driver_name = await config_service.get_platform_config(
         "platform_storage_driver", default="local"
     )
@@ -474,7 +474,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                     batch_data = []
                     for idx, cd in enumerate(batch):
                         embedding_vec = (
-                            all_embeddings[idx + i]  # all_embeddings indexed from 0 corresponding to chunks_to_embed
+                            all_embeddings[idx + i]  # all_embeddings indexed from 0 corresponding to chunks_to_embed  # 补充说明 / note
                             if (idx + i) < len(all_embeddings)
                             else None
                         )

@@ -152,7 +152,7 @@ function printResult(
 
           break;
         }
-        // No default
+        // No default / 无 default 分支
       }
       const ruleUrl = `https://publint.dev/rules#${message.code.toLocaleLowerCase()}`;
       consola.log(

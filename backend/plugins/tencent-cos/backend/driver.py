@@ -89,7 +89,7 @@ class CosStorageDriver(StorageDriver):
         "required": ["root_path", "secret_id", "secret_key", "region"],
     }
 
-    MAX_PROCESS_SIZE = 32 * 1024 * 1024  # 32MB
+    MAX_PROCESS_SIZE = 32 * 1024 * 1024  # 32MB / 图像处理上限约 32MB
 
     def __init__(self, config: StorageConfig):
         super().__init__(config)

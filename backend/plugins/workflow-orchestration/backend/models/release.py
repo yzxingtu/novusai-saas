@@ -18,10 +18,13 @@ from .enums import (
     TriggerTypeEnum,
     WorkflowKindEnum,
 )
+from .template import WorkflowTemplate
 
 
 class WorkflowEnvironment(BaseModel):
     __tablename__ = "px_workflow_orchestration_environments"
+    __data_permission__ = True
+    __data_permission_creator_scope__ = "admin"
     __table_args__ = (
         UniqueConstraint("code", name="uq_px_workflow_orchestration_environments_code"),
         Index(
@@ -47,6 +50,8 @@ class WorkflowEnvironment(BaseModel):
 
 class WorkflowChangeSet(BaseModel):
     __tablename__ = "px_workflow_orchestration_change_sets"
+    __data_permission__ = True
+    __data_permission_creator_scope__ = "admin"
     __table_args__ = (
         UniqueConstraint("code", name="uq_px_workflow_orchestration_change_sets_code"),
         Index(
@@ -79,6 +84,8 @@ class WorkflowChangeSet(BaseModel):
 
 class WorkflowTrigger(BaseModel):
     __tablename__ = "px_workflow_orchestration_triggers"
+    __data_permission__ = True
+    __data_permission_creator_scope__ = "admin"
     __table_args__ = (
         Index(
             "ix_px_workflow_orchestration_triggers_workflow_status",
@@ -117,6 +124,10 @@ class WorkflowTrigger(BaseModel):
 
 class WorkflowRelease(BaseModel):
     __tablename__ = "px_workflow_orchestration_releases"
+    __data_permission__ = True
+    __data_permission_creator_scope__ = "admin"
+    __data_permission_parent_model__ = WorkflowTemplate
+    __data_permission_parent_key__ = "workflow_id"
     __table_args__ = (
         UniqueConstraint("code", name="uq_px_workflow_orchestration_releases_code"),
         Index(
@@ -183,6 +194,8 @@ class WorkflowRelease(BaseModel):
 
 class WorkflowModuleConfig(BaseModel):
     __tablename__ = "px_workflow_orchestration_module_configs"
+    __data_permission__ = True
+    __data_permission_creator_scope__ = "admin"
     __table_args__ = (
         Index(
             "uq_px_workflow_orchestration_module_configs_global",

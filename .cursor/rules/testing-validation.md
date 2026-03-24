@@ -22,6 +22,7 @@
 - 同一条测试流程不要混用两套浏览器 MCP
 - 页面状态变化后重新 snapshot，不要复用失效的 `uid` / `ref`
 - 先查 console / network，再判断前端逻辑是否失败
+- 仓库内 `.cursor/mcp.json` 当前不是浏览器 MCP 的唯一事实来源；`chrome-devtools` / `playwright` 往往来自开发者全局 MCP 配置。文档默认这些工具已在本机接入，不要因为仓库级 `mcp.json` 为空就误判规则失效
 
 ## AI 配额 / 限速专项验证
 
@@ -55,6 +56,17 @@
 - 新增上传下载：至少验证上传成功、下载成功、权限或可见性正确
 - 新增插件页：至少验证菜单注册、页面加载、权限与卸载后回收
 
+## 插件浏览器回归最低矩阵
+
+- 插件菜单能正确显示，且标题在当前语言下不退化
+- 直接访问插件路由可进入
+- 硬刷新插件路由可进入
+- 切换语言后，sidebar、breadcrumb、document.title、页面主标题同步更新
+- 普通插件页面网络里只应出现 `/plugin-assets/...`
+- 公开 captcha 才允许 `/plugin-public-assets/...`
+- 平台域名下访问 `/tenant/*` 管理页面时，不应再出现 `/api/public/tenant/config` 404 噪音
+- 遇到“菜单能显示但页面不能用”时，必须同时检查 route access、首屏 API 权限、页面内 CTA/动作权限是否同源收敛
+
 ## 附件 / 图片 / 存储专项验证
 
 - 涉及 `attachments`、`ImageUpload`、`FilePicker`、`FilePreview`、`smartUploadFile`、对象存储插件、图片显示 helper 时，禁止只做页面点点看或只跑单侧测试
@@ -73,5 +85,5 @@
 
 ## 参考
 
-- `../skills/novusai-saas/references/testing-spec.md`
-- `../skills/novusai-saas/references/browser-testing-spec.md`
+- [../skills/novusai-saas/references/testing-spec.md](../skills/novusai-saas/references/testing-spec.md)
+- [../skills/novusai-saas/references/browser-testing-spec.md](../skills/novusai-saas/references/browser-testing-spec.md)

@@ -11,6 +11,7 @@ from app.core.config import settings
 from app.plugins.exceptions import PluginInstallError, PluginManifestError
 
 _WINDOWS_DRIVE_RE = re.compile(r"^[a-zA-Z]:")
+_INVALID_PLUGIN_ARCHIVE_MESSAGE = "Invalid plugin archive"
 
 
 def ensure_package_size_limit(size_bytes: int) -> None:
@@ -34,7 +35,7 @@ def validate_plugin_zip_archive(zip_path: Path) -> None:
         with zipfile.ZipFile(zip_path, "r") as zf:
             _validate_zip_entries(zf, zip_size)
     except zipfile.BadZipFile as exc:
-        raise PluginInstallError(message=f"Invalid plugin archive: {exc}") from exc
+        raise PluginInstallError(message=_INVALID_PLUGIN_ARCHIVE_MESSAGE) from exc
 
 
 def extract_plugin_zip_safely(zip_path: Path, extract_dir: Path) -> Path:
@@ -87,7 +88,7 @@ def extract_plugin_zip_safely(zip_path: Path, extract_dir: Path) -> Path:
                             )
                         dst.write(chunk)
     except zipfile.BadZipFile as exc:
-        raise PluginInstallError(message=f"Invalid plugin archive: {exc}") from exc
+        raise PluginInstallError(message=_INVALID_PLUGIN_ARCHIVE_MESSAGE) from exc
 
     plugin_dir = _locate_plugin_root(extract_root)
     if plugin_dir is None:

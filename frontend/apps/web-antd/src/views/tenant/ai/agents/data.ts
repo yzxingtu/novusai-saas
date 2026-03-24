@@ -25,7 +25,7 @@ export function isTenantOwnedAgent(row: AgentListItem): boolean {
   return row.owner_type === 'tenant';
 }
 
-// ============ 状态辅助 ============
+// ============ 状态辅助 / status helpers ============
 
 /**
  * 获取智能体状态下拉选项
@@ -82,7 +82,7 @@ export function getStatusColor(status: string | undefined): string {
   }
 }
 
-// ============ 执行模式辅助 ============
+// ============ 执行模式辅助 / execution mode helpers ============
 
 /**
  * 获取执行模式下拉选项
@@ -123,7 +123,7 @@ export function getExecutionModeText(mode: string | undefined): string {
   }
 }
 
-// ============ 模型下拉 ============
+// ============ 模型下拉 / model select ============
 
 /**
  * 获取模型下拉选项
@@ -140,7 +140,7 @@ export async function getModelSelectOptions() {
   }
 }
 
-// ============ 搜索表单 ============
+// ============ 搜索表单 / search form ============
 
 /**
  * 搜索表单 Schema
@@ -169,7 +169,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
   ];
 }
 
-// ============ 编辑表单 ============
+// ============ 编辑表单 / edit form ============
 
 export function useFormSchema(
   isCreate = false,
@@ -265,7 +265,7 @@ export function useFormSchema(
   ];
 }
 
-// ============ 向导模式 ============
+// ============ 向导模式 / wizard mode ============
 
 /**
  * 向导步骤定义

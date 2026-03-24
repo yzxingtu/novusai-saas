@@ -258,6 +258,19 @@
   "nextStep": "下一步",
   "finish": "完成",
   "createdAt": "创建时间",
+  "relativeTime": {
+    "justNow": "刚刚",
+    "minutesAgo": "{n} 分钟前",
+    "minutesLater": "{n} 分钟后",
+    "hoursAgo": "{n} 小时前",
+    "hoursLater": "{n} 小时后",
+    "daysAgo": "{n} 天前",
+    "daysLater": "{n} 天后",
+    "monthsAgo": "{n} 个月前",
+    "monthsLater": "{n} 个月后",
+    "yearsAgo": "{n} 年前",
+    "yearsLater": "{n} 年后"
+  },
   "validate": {
     "invalid": "请输入有效的{field}"
   },

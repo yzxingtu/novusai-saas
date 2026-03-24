@@ -5,9 +5,9 @@
 - 业务任务模块必须使用 `@register_task`
 - 禁止在业务任务模块直接写 `@celery_app.task`、`@shared_task`
 - 任务函数第一个参数固定为 `self`
-- Worker 是同步进程，DB 访问必须用 `self.get_db_session()`
+- Worker 是同步进程。业务任务优先用 `BaseTask` / `TenantTask` 提供的 `self.get_db_session()`；底层桥接任务、bootstrap 任务或独立写库任务可直接用 `sync_session_factory()`，但禁止使用异步 Session
 - 返回值必须是 JSON 可序列化对象
-- 新任务模块必须注册到 `celery_app.py` 的 `task_modules`
+- 新任务模块必须注册到 `celery_app.py` 的 `celery_app.conf.include` 列表（并保持 `_import_task_modules()` 能导入到）
 - 插件注册器、消费者桥接器这类基础设施可在内部动态调用 `celery_app.task(...)`，但不对业务模块开放
 
 ## 任务基类与队列
@@ -69,9 +69,9 @@
 
 ## 参考
 
-- `../skills/novusai-saas/references/async-tasks.md`
-- `../skills/novusai-saas/references/notification-spec.md`
-- `../skills/novusai-saas/references/notification-preference-spec.md`
-- `../skills/novusai-saas/references/email-spec.md`
-- `../skills/websocket-guide/SKILL.md`
-- `../skills/novusai-saas/references/token-force-logout-spec.md`
+- [../skills/novusai-saas/references/async-tasks.md](../skills/novusai-saas/references/async-tasks.md)
+- [../skills/novusai-saas/references/notification-spec.md](../skills/novusai-saas/references/notification-spec.md)
+- [../skills/novusai-saas/references/notification-preference-spec.md](../skills/novusai-saas/references/notification-preference-spec.md)
+- [../skills/novusai-saas/references/email-spec.md](../skills/novusai-saas/references/email-spec.md)
+- [../skills/websocket-guide/SKILL.md](../skills/websocket-guide/SKILL.md)
+- [../skills/novusai-saas/references/token-force-logout-spec.md](../skills/novusai-saas/references/token-force-logout-spec.md)

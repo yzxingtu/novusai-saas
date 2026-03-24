@@ -33,7 +33,7 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     # ========================================
     PermissionMeta(
         code="menu:tenant.dashboard",
-        name="menu.tenant.dashboard",  # i18n key
+        name="menu.tenant.dashboard",  # i18n key / 国际化键名
         type=PermissionType.MENU,
         scope=PermissionScope.TENANT,
         resource="menu",
@@ -66,7 +66,7 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     # ========================================
     PermissionMeta(
         code="menu:tenant.system",
-        name="menu.tenant.system",  # i18n key
+        name="menu.tenant.system",  # i18n key / 国际化键名
         type=PermissionType.MENU,
         scope=PermissionScope.TENANT,
         resource="menu",
@@ -86,7 +86,7 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     # ========================================
     PermissionMeta(
         code="menu:tenant.system_mgmt",
-        name="menu.tenant.system_mgmt",  # i18n key
+        name="menu.tenant.system_mgmt",  # i18n key / 国际化键名
         type=PermissionType.MENU,
         scope=PermissionScope.TENANT,
         resource="menu",
@@ -104,7 +104,7 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     # ---- Global Preferences (leaf menu) / 偏好设置（叶子菜单） ----
     PermissionMeta(
         code="menu:tenant.global_preferences",
-        name="menu.tenant.global_preferences",  # i18n key
+        name="menu.tenant.global_preferences",  # i18n key / 国际化键名
         type=PermissionType.MENU,
         scope=PermissionScope.TENANT,
         resource="menu",
@@ -121,7 +121,7 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     # ========================================
     PermissionMeta(
         code="menu:tenant.ai_mgmt",
-        name="menu.tenant.ai_mgmt",  # i18n key
+        name="menu.tenant.ai_mgmt",  # i18n key / 国际化键名
         type=PermissionType.MENU,
         scope=PermissionScope.TENANT,
         resource="menu",
@@ -134,7 +134,7 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     # ---- AI Apps (sub-directory, unified name with admin) / 智能应用（子目录，与管理端统一名称） ----
     PermissionMeta(
         code="menu:tenant.ai_workspace",
-        name="menu.tenant.ai_workspace",  # i18n key
+        name="menu.tenant.ai_workspace",  # i18n key / 国际化键名
         type=PermissionType.MENU,
         scope=PermissionScope.TENANT,
         resource="menu",
@@ -153,7 +153,7 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     # ---- Settings (sub-directory) / 设置（子目录） ----
     PermissionMeta(
         code="menu:tenant.ai_settings",
-        name="menu.tenant.ai_settings",  # i18n key
+        name="menu.tenant.ai_settings",  # i18n key / 国际化键名
         type=PermissionType.MENU,
         scope=PermissionScope.TENANT,
         resource="menu",
@@ -170,7 +170,7 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     # ---- Data Analytics (sub-directory, unified name with admin) / 数据分析（子目录，与管理端统一名称） ----
     PermissionMeta(
         code="menu:tenant.ai_analytics",
-        name="menu.tenant.ai_analytics",  # i18n key
+        name="menu.tenant.ai_analytics",  # i18n key / 国际化键名
         type=PermissionType.MENU,
         scope=PermissionScope.TENANT,
         resource="menu",
@@ -226,7 +226,7 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     # ========================================
     # PermissionMeta(
     #     code="menu:tenant.business",
-    #     name="menu.tenant.business",  # i18n key
+    #     name="menu.tenant.business",  # i18n key / 国际化键名
     #     type=PermissionType.MENU,
     #     scope=PermissionScope.TENANT,
     #     resource="menu",

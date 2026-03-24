@@ -537,7 +537,7 @@ class FileWriter:
                         data = json.loads(f.content) if f.content else {}
                     except (json.JSONDecodeError, TypeError):
                         data = {}
-                    # Ensure top-level merged_keys present; skip nested (e.g. "tenant.article")
+                    # Ensure top-level merged_keys present; skip nested (e.g. "tenant.article") / 仅合并顶层键，跳过嵌套（如 tenant.article）
                     for k in f.merged_keys:
                         if "." not in k and k not in data:
                             data[k] = {}

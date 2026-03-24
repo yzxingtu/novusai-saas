@@ -124,7 +124,7 @@ DNS_PROVIDER = ConfigMeta(
     sort_order=80,
 )
 
-# ---- Cloudflare ----
+# ---- Cloudflare ---- / ---- Cloudflare 配置段 ----
 
 DNS_CLOUDFLARE_API_TOKEN = ConfigMeta(
     key="dns_cloudflare_api_token",

@@ -10,13 +10,13 @@ Organized by module layers, exports all Pydantic schemas.
 - tenant/: 企业相关 Schema / Tenant schemas
 """
 
-# Common
+# Common / 通用
 from app.schemas.common import (
     RefreshTokenRequest,
     TokenResponse,
 )
 
-# System
+# System / 平台
 from app.schemas.system import (
     AdminChangePasswordRequest,
     AdminCreateRequest,
@@ -25,7 +25,7 @@ from app.schemas.system import (
     AdminUpdateRequest,
 )
 
-# Tenant
+# Tenant / 企业
 from app.schemas.tenant import (
     TenantAdminChangePasswordRequest,
     TenantAdminCreateRequest,
@@ -40,22 +40,22 @@ from app.schemas.tenant import (
 )
 
 __all__ = [
-    # Common
+    # Common / 通用
     "TokenResponse",
     "RefreshTokenRequest",
-    # System - Admin
+    # System - Admin / 平台 - 管理员
     "AdminLoginRequest",
     "AdminResponse",
     "AdminCreateRequest",
     "AdminUpdateRequest",
     "AdminChangePasswordRequest",
-    # Tenant - Admin
+    # Tenant - Admin / 企业 - 管理员
     "TenantAdminLoginRequest",
     "TenantAdminResponse",
     "TenantAdminCreateRequest",
     "TenantAdminUpdateRequest",
     "TenantAdminChangePasswordRequest",
-    # Tenant - User
+    # Tenant - User / 企业 - 用户
     "TenantUserLoginRequest",
     "TenantUserResponse",
     "TenantUserCreateRequest",

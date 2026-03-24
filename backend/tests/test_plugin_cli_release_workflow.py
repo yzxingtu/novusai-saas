@@ -34,7 +34,20 @@ def _write_plugin(
         encoding="utf-8",
     )
     (plugin_dir / "frontend" / "src" / "index.ts").write_text(
-        "export const DemoPage = {};",
+        """
+export function setup() {
+  const shared = window.NovusPluginShared;
+  if (shared?.registerLocale) {
+    shared.registerLocale('zh-CN', 'plugin.demo-plugin', {});
+    shared.registerLocale('zh', 'plugin.demo-plugin', {});
+    shared.registerLocale('en-US', 'plugin.demo-plugin', {});
+    shared.registerLocale('en', 'plugin.demo-plugin', {});
+  }
+}
+
+export const DemoPage = {};
+""".strip()
+        + "\n",
         encoding="utf-8",
     )
     (plugin_dir / "frontend" / "src" / "DemoPage.vue").write_text(
@@ -141,6 +154,42 @@ extensions:
     return plugin_dir
 
 
+def _write_captcha_plugin(
+    tmp_path: Path,
+    *,
+    with_release: bool = False,
+) -> Path:
+    plugin_dir = _write_plugin(tmp_path, with_release=with_release)
+    manifest_path = plugin_dir / "plugin.yaml"
+    payload = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    payload["extensions"] = {
+        "custom": [
+            {
+                "type": "captcha_provider",
+                "name": "demo-slider",
+                "description": "Demo slider captcha provider",
+                "data": {
+                    "entry_point": "captcha_provider.DemoSliderCaptchaProvider",
+                    "public_endpoints": ["admin", "tenant"],
+                    "display_name": {
+                        "zh-CN": "演示滑块验证码",
+                        "en": "Demo Slider CAPTCHA",
+                    },
+                },
+            }
+        ],
+        "frontend": {
+            "dev": {"entry": "src/index.ts"},
+            "release": {"manifest": "plugin.manifest.json"},
+        },
+    }
+    manifest_path.write_text(
+        yaml.safe_dump(payload, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )
+    return plugin_dir
+
+
 def test_cmd_validate_accepts_new_source_contract_and_warns_missing_release(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -153,6 +202,7 @@ def test_cmd_validate_accepts_new_source_contract_and_warns_missing_release(
     assert exc.value.code == 0
     out = capsys.readouterr().out
     assert "frontend dev entry exists: src/index.ts" in out
+    assert "frontend page/menu i18n covers locales: zh-CN, en" in out
     assert "frontend release manifest missing" in out
 
 
@@ -183,6 +233,68 @@ def test_cmd_validate_accepts_nested_plugin_locale_tree(
     assert exc.value.code == 0
     out = capsys.readouterr().out
     assert "should start with 'plugin.demo-plugin.'" not in out
+
+
+def test_cmd_validate_rejects_unsupported_manifest_contract_overlay_fields(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    plugin_dir = _write_plugin(tmp_path, with_release=True)
+    payload = yaml.safe_load((plugin_dir / "plugin.yaml").read_text(encoding="utf-8"))
+    payload.setdefault("extensions", {})["capabilities"] = [
+        {
+            "key": "demo.search",
+            "tool_name": "demo_search",
+        }
+    ]
+    payload["extensions"]["skills"] = [
+        {
+            "name": "demo-search",
+            "type": "toolkit",
+            "display_name": {"zh-CN": "演示搜索", "en": "Demo Search"},
+            "entry_point": "skills.demo_resolver",
+            "capabilities": ["demo.search"],
+            "skill_md_path": "backend/skills/demo/SKILL.md",
+        }
+    ]
+    (plugin_dir / "plugin.yaml").write_text(
+        yaml.safe_dump(payload, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
+
+    assert exc.value.code == 1
+    out = capsys.readouterr().out
+    assert "extensions.capabilities is not part of the current manifest schema" in out
+    assert "extensions.skills[0].capabilities is not part of the current manifest schema" in out
+    assert "extensions.skills[0].skill_md_path is not part of the current manifest schema" in out
+
+
+def test_cmd_validate_warns_when_frontend_titles_are_missing_required_locales(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    plugin_dir = _write_plugin(tmp_path, with_release=True)
+    payload = yaml.safe_load((plugin_dir / "plugin.yaml").read_text(encoding="utf-8"))
+    page = payload["extensions"]["frontend"]["pages"][0]
+    page["title"] = {"zh-CN": "演示插件"}
+    page["menu"]["title"] = {"en": "Demo Plugin"}
+    (plugin_dir / "plugin.yaml").write_text(
+        yaml.safe_dump(payload, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
+
+    assert exc.value.code == 1
+    out = capsys.readouterr().out
+    assert "frontend.pages[0].title missing locale(s): en" in out
+    assert "frontend.pages[0].menu.title missing locale(s): zh-CN" in out
+    assert "frontend page title should define locales en: demo_admin_home" in out
+    assert "frontend menu title should define locales zh-CN: demo_admin_home" in out
 
 
 def test_cmd_validate_rejects_missing_frontend_package_json(
@@ -242,6 +354,147 @@ def test_cmd_validate_rejects_peer_only_vue_dependency(
     assert "frontend/package.json must declare local build dependency 'vue'" in out
 
 
+def test_cmd_validate_rejects_missing_frontend_page_title_locale(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    plugin_dir = _write_plugin(tmp_path, with_release=True)
+    payload = yaml.safe_load((plugin_dir / "plugin.yaml").read_text(encoding="utf-8"))
+    payload["extensions"]["frontend"]["pages"][0]["title"] = {
+        "zh-CN": "演示插件",
+    }
+    (plugin_dir / "plugin.yaml").write_text(
+        yaml.safe_dump(payload, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
+
+    assert exc.value.code == 1
+    out = capsys.readouterr().out
+    assert "frontend.pages[0].title missing locale(s): en" in out
+
+
+def test_cmd_validate_rejects_missing_frontend_menu_title_locale(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    plugin_dir = _write_plugin(tmp_path, with_release=True)
+    payload = yaml.safe_load((plugin_dir / "plugin.yaml").read_text(encoding="utf-8"))
+    payload["extensions"]["frontend"]["pages"][0]["menu"]["title"] = {
+        "zh-CN": "演示插件",
+    }
+    (plugin_dir / "plugin.yaml").write_text(
+        yaml.safe_dump(payload, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
+
+    assert exc.value.code == 1
+    out = capsys.readouterr().out
+    assert "frontend.pages[0].menu.title missing locale(s): en" in out
+
+
+def test_cmd_validate_rejects_non_canonical_frontend_locale_prefix(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    plugin_dir = _write_plugin(tmp_path, with_release=True)
+    (plugin_dir / "frontend" / "src" / "index.ts").write_text(
+        """
+export function setup() {
+  const shared = window.NovusPluginShared;
+  if (shared?.registerLocale) {
+    shared.registerLocale('zh-CN', 'plugin.demoPlugin', {});
+    shared.registerLocale('en', 'plugin.demoPlugin', {});
+  }
+}
+
+export const DemoPage = {};
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
+
+    assert exc.value.code == 1
+    out = capsys.readouterr().out
+    assert "frontend registerLocale() should use canonical prefix 'plugin.demo-plugin'" in out
+    assert "plugin.demoPlugin" in out
+
+
+def test_cmd_validate_warns_on_frontend_locale_alias_prefix(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    plugin_dir = _write_plugin(tmp_path, with_release=True)
+    (plugin_dir / "frontend" / "src" / "index.ts").write_text(
+        """
+export function setup() {
+  const shared = window.NovusPluginShared;
+  if (shared?.registerLocale) {
+    shared.registerLocale('zh-CN', 'plugin.demo-plugin', {});
+    shared.registerLocale('en', 'plugin.demo-plugin', {});
+    shared.registerLocale('zh-CN', 'admin.demoPlugin', {});
+    shared.registerLocale('en', 'admin.demoPlugin', {});
+  }
+}
+
+export const DemoPage = {};
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
+
+    assert exc.value.code == 0
+    out = capsys.readouterr().out
+    assert "frontend locale alias prefix detected: admin.demoPlugin" in out
+    assert "canonical: plugin.demo-plugin" in out
+
+
+def test_cmd_validate_treats_captcha_provider_as_frontend_plugin(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    plugin_dir = _write_captcha_plugin(tmp_path, with_release=False)
+
+    with pytest.raises(SystemExit) as exc:
+        pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
+
+    assert exc.value.code == 0
+    out = capsys.readouterr().out
+    assert "No frontend extensions declared" not in out
+    assert "frontend/package.json exists" in out
+    assert "frontend dev entry exists: src/index.ts" in out
+    assert "frontend locale namespace covers canonical root: plugin.demo-plugin" in out
+
+
+def test_cmd_validate_rejects_missing_declared_frontend_component_export(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    plugin_dir = _write_plugin(tmp_path, with_release=True)
+    (plugin_dir / "frontend" / "src" / "index.ts").write_text(
+        "export const OtherPage = {};",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
+
+    assert exc.value.code == 1
+    out = capsys.readouterr().out
+    assert "frontend dev entry does not export declared component 'DemoPage'" in out
+
+
 def test_cmd_build_generates_release_manifest(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -268,6 +521,73 @@ def test_cmd_build_generates_release_manifest(
     assert payload["entry"] == "plugin.js"
     assert payload["css"] == ["assets/style.css"]
     assert payload["global_var"] == "NovusPlugin_demo_plugin"
+
+
+def test_cmd_build_handles_captcha_provider_frontend_plugin(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    plugin_dir = _write_captcha_plugin(tmp_path, with_release=False)
+
+    def _fake_run(command, cwd, check):  # noqa: ANN001
+        assert command[-2:] == ["run", "build"] or command[-1:] == ["build"]
+        assert check is True
+        dist_dir = Path(cwd) / "dist" / "assets"
+        dist_dir.mkdir(parents=True, exist_ok=True)
+        (Path(cwd) / "dist" / "plugin.js").write_text(
+            "window.NovusPlugin_demo_plugin = {};",
+            encoding="utf-8",
+        )
+        (dist_dir / "style.css").write_text(".demo { color: red; }", encoding="utf-8")
+
+    monkeypatch.setattr(pc.subprocess, "run", _fake_run)
+
+    pc.cmd_build(SimpleNamespace(dir=str(plugin_dir)))
+
+    manifest_path = plugin_dir / "frontend" / "dist" / "plugin.manifest.json"
+    assert manifest_path.is_file()
+
+
+def test_cmd_build_runs_security_scan_before_build_script(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    plugin_dir = _write_plugin(tmp_path, with_release=False)
+    call_order: list[str] = []
+
+    class _FakeScanResult:
+        files_scanned = 1
+        warnings: list[str] = []
+
+        @property
+        def has_warnings(self) -> bool:
+            return False
+
+    def _fake_scan(_plugin_dir: Path):  # noqa: ANN001
+        call_order.append("scan")
+        return _FakeScanResult()
+
+    def _fake_run(command, cwd, check):  # noqa: ANN001
+        call_order.append("build")
+        assert command[-2:] == ["run", "build"] or command[-1:] == ["build"]
+        assert check is True
+        dist_dir = Path(cwd) / "dist" / "assets"
+        dist_dir.mkdir(parents=True, exist_ok=True)
+        (Path(cwd) / "dist" / "plugin.js").write_text(
+            "window.NovusPlugin_demo_plugin = {};",
+            encoding="utf-8",
+        )
+        (dist_dir / "style.css").write_text(".demo { color: red; }", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "app.plugins.security_scan.scan_plugin_directory",
+        _fake_scan,
+    )
+    monkeypatch.setattr(pc.subprocess, "run", _fake_run)
+
+    pc.cmd_build(SimpleNamespace(dir=str(plugin_dir)))
+
+    assert call_order == ["scan", "build"]
 
 
 def test_cmd_pack_release_excludes_source_and_tests(tmp_path: Path) -> None:
@@ -315,6 +635,99 @@ def test_cmd_pack_source_keeps_frontend_source(tmp_path: Path) -> None:
     assert "demo-plugin/frontend/dist/plugin.manifest.json" in names
 
 
+def test_cmd_build_rejects_release_manifest_path_traversal(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    plugin_dir = _write_plugin(tmp_path, with_release=False)
+    manifest_data = yaml.safe_load((plugin_dir / "plugin.yaml").read_text(encoding="utf-8"))
+    manifest_data["extensions"]["frontend"]["release"]["manifest"] = "../escape.json"
+    (plugin_dir / "plugin.yaml").write_text(
+        yaml.safe_dump(manifest_data, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(pc.subprocess, "run", lambda *args, **kwargs: None)
+
+    with pytest.raises(SystemExit) as exc:
+        pc.cmd_build(SimpleNamespace(dir=str(plugin_dir)))
+
+    assert exc.value.code == 1
+    out = capsys.readouterr().out
+    assert "plugin.yaml validation failed" in out
+    assert "safe relative path" in out
+
+
+def test_cmd_pack_release_rejects_invalid_release_manifest_assets(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    plugin_dir = _write_plugin(tmp_path, with_release=True)
+    (plugin_dir / "frontend" / "dist" / "plugin.manifest.json").write_text(
+        json.dumps(
+            {
+                "format": "novus.plugin.release.v1",
+                "entry": "missing.js",
+                "global_var": "NovusPlugin_demo_plugin",
+                "css": ["assets/style.css"],
+                "assets": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        pc.cmd_pack(
+            SimpleNamespace(
+                dir=str(plugin_dir),
+                output=str(tmp_path / "invalid-release.zip"),
+                release=True,
+                source=False,
+            )
+        )
+
+    assert exc.value.code == 1
+    out = capsys.readouterr().out
+    assert "Frontend release entry missing" in out
+
+
+def test_cmd_pack_rejects_security_scan_warnings(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    plugin_dir = _write_plugin(tmp_path, with_release=True)
+
+    class _FakeScanResult:
+        files_scanned = 1
+        warnings = ["backend/main.py:1: dangerous call 'exec()'"]
+
+        @property
+        def has_warnings(self) -> bool:
+            return True
+
+    monkeypatch.setattr(
+        "app.plugins.security_scan.scan_plugin_directory",
+        lambda _plugin_dir: _FakeScanResult(),
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        pc.cmd_pack(
+            SimpleNamespace(
+                dir=str(plugin_dir),
+                output=str(tmp_path / "unsafe.zip"),
+                release=True,
+                source=False,
+            )
+        )
+
+    assert exc.value.code == 1
+    out = capsys.readouterr().out
+    assert "Security scan failed" in out
+    assert "dangerous call 'exec()'" in out
+
+
 def test_cmd_create_full_module_uses_new_frontend_contract(tmp_path: Path) -> None:
     output_dir = tmp_path / "scaffold-demo"
 
@@ -357,3 +770,58 @@ def test_cmd_create_minimal_generates_manifest_valid_plugin_yaml(
     assert manifest.name == "minimal-demo"
     assert manifest.icon == ""
     assert manifest.dependencies.plugins == []
+
+
+def test_cmd_pack_release_requires_release_assets(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    plugin_dir = _write_plugin(tmp_path, with_release=True)
+    css_path = plugin_dir / "frontend" / "dist" / "assets" / "style.css"
+    css_path.unlink()
+    output_path = tmp_path / "demo-plugin-release.zip"
+
+    with pytest.raises(SystemExit) as exc:
+        pc.cmd_pack(
+            SimpleNamespace(
+                dir=str(plugin_dir),
+                output=str(output_path),
+                release=True,
+                source=False,
+            )
+        )
+
+    out = capsys.readouterr().out
+    assert exc.value.code == 1
+    assert "Frontend release css missing" in out
+
+
+def test_cmd_pack_rejects_invalid_plugin_name(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    plugin_dir = _write_plugin(tmp_path, with_release=True)
+    manifest_path = plugin_dir / "plugin.yaml"
+    manifest_data = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    manifest_data["name"] = "InvalidName"
+    manifest_path.write_text(
+        yaml.safe_dump(manifest_data, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        pc.cmd_pack(
+            SimpleNamespace(
+                dir=str(plugin_dir),
+                output=str(tmp_path / "invalid.zip"),
+                release=True,
+                source=False,
+            )
+        )
+
+    out = capsys.readouterr().out
+    assert exc.value.code == 1
+    assert "Plugin name must be lowercase kebab-case" in out
+
+
+def test_generate_release_manifest_rejects_escaping_manifest_name(tmp_path: Path) -> None:
+    plugin_dir = _write_plugin(tmp_path, with_release=True)
+
+    with pytest.raises(RuntimeError) as exc:
+        pc._generate_release_manifest(plugin_dir, "../escape.json")
+
+    assert "frontend.release.manifest" in str(exc.value)

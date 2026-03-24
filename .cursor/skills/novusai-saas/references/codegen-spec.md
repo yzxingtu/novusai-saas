@@ -99,6 +99,9 @@ novusai codegen --help
 - `tree.yaml` — 树形数据（department 示例）
 - `dual_scope.yaml` — Admin + Tenant 双端
 - `workflow.yaml` — 状态工作流（approval 示例）
+- `sub_form_embedded.yaml` — 嵌入式主子表，子表字段以内联方式呈现在同一表单，适合轻量嵌套录入。
+- `sub_form_standard.yaml` — 标准主从表布局，主表与子表共享提交节奏，适合订单类业务。
+- `sub_form_erp.yaml` — 面向 ERP 流程的主子表模板，预装常见审批与权限校验片段。
 
 ---
 
@@ -138,7 +141,19 @@ novusai codegen --help
 |------|------|
 | `novusai codegen init -t simple` | 从预设初始化配置 |
 | `novusai codegen history` | 显示生成历史 |
-| `novusai codegen download --id N -o out.zip` | 下载生成代码 ZIP |
+| `novusai codegen download --id 5 -o out.zip` | 按配置 ID 下载生成代码 ZIP |
+| `novusai codegen download --resource notice -o out.zip` | 按资源名下载生成代码 ZIP |
+| `novusai codegen download --config codegen_configs/notice.yaml -o out.zip` | 按配置文件下载生成代码 ZIP |
+| `novusai codegen download --stdin -o out.zip` | 从 stdin 配置下载生成代码 ZIP |
+
+`download` 与 `preview` 一样，都要求来源选择器四选一：`--id` / `--resource` / `--config` / `--stdin`。
+
+### 3.5 预设
+
+| 命令 | 说明 |
+|------|------|
+| `novusai codegen presets list` | 列出可用预设及其元数据（label/category/tags/description） |
+| `novusai codegen presets show --name preset_name` | 查看单个预设的 YAML 内容和解析结果，便于复制到 `codegen_configs/` |
 
 ---
 
@@ -186,10 +201,10 @@ CLI `--auto-migrate`（默认开启）和 Web API `auto_migrate`（默认 `true`
 | 步骤 | 操作 | 目的 |
 |------|------|------|
 | 1 | `purge_orphaned_alembic_stamps` | 清理无法对应到迁移文件的孤立 stamp |
-| 2 | `alembic upgrade head` | Pre-upgrade，确保 DB 处于最新 |
+| 2 | `alembic upgrade heads` | Pre-upgrade，确保 DB 处于最新 |
 | 3 | `alembic revision --autogenerate -m "codegen_{resource}"` | 对比 Model 与 DB 生成迁移 |
 | 4 | `inject_migration_metadata` | 注入 `codegen_source` / `codegen_resource` / `codegen_version` |
-| 5 | `alembic upgrade head` | Post-upgrade，实际建表 |
+| 5 | `alembic upgrade heads` | Post-upgrade，实际建表 |
 
 ### 6.2 元数据注入
 
@@ -221,7 +236,7 @@ codegen_version = '1'
 | 场景 | 系统防护 |
 |------|----------|
 | 插件卸载残留 stamp | `purge_orphaned_alembic_stamps` 自动清理 |
-| DB 落后于 head | Pre-upgrade 先执行 `upgrade head` |
+| DB 落后于 heads | Pre-upgrade 先执行 `upgrade heads` |
 | 回滚时迁移文件已删 | 按表名扫描 + 强制 `DROP TABLE` |
 | 多次 codegen 多 head | 生成前 purge + pre-upgrade 确保单 head |
 

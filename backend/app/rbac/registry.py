@@ -21,7 +21,7 @@ class PermissionRegistry:
     """
 
     _instance: "PermissionRegistry | None" = None
-    _permissions: dict[str, "PermissionMeta"]  # key = "code:scope"
+    _permissions: dict[str, "PermissionMeta"]  # key = "code:scope" / 权限字典键格式
 
     def __new__(cls) -> "PermissionRegistry":
         if cls._instance is None:

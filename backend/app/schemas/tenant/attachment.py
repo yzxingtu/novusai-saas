@@ -231,7 +231,7 @@ __all__ = [
     "AttachmentListItem",
     "AttachmentSafeListItem",
     "TenantStorageQuotaResponse",
-    # 上传相关
+    # 上传相关 / Upload
     "AttachmentPreflightRequest",
     "AttachmentPreflightResponse",
     "AttachmentSafePreflightResponse",

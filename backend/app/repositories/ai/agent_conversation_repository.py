@@ -77,12 +77,12 @@ class AgentConversationRepository(TenantRepository[AgentConversation]):
             AgentConversation.title.ilike(f"%{escaped}%"),
         )
 
-        # 总数
+        # 总数 / Total count
         count_stmt = select(func.count(AgentConversation.id)).where(base_cond)
         count_result = await self.db.execute(count_stmt)
         total = count_result.scalar() or 0
 
-        # 列表
+        # 列表 / List rows
         stmt = (
             select(AgentConversation)
             .where(base_cond)

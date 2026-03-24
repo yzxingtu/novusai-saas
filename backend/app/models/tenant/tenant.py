@@ -40,7 +40,7 @@ class Tenant(BaseModel):
                     label_field="id", i18n_key="system_agent_assignment"),
     ]
 
-    # 允许前端筛选的字段
+    # 允许前端筛选的字段 / Fields exposed for list filtering
     __filterable__ = {
         "id": "id",
         "name": "name",
@@ -57,7 +57,7 @@ class Tenant(BaseModel):
 
     __sortable__ = ["id", "name", "code", "is_active", "plan_id", "expires_at", "created_at", "updated_at"]
 
-    # 下拉选项配置
+    # 下拉选项配置 / Select dropdown config
     __selectable__ = {
         "label": "name",
         "value": "id",
@@ -65,79 +65,81 @@ class Tenant(BaseModel):
         "extra": ["code"],
     }
 
-    # 基本信息
+    # 基本信息 / Basic info
     name: Mapped[str] = mapped_column(
-        String(100), index=True, comment="企业名称"
+        String(100), index=True, comment="企业名称 / Tenant name",
     )
     code: Mapped[str] = mapped_column(
-        String(50), unique=True, index=True, comment="企业编码（唯一标识）"
+        String(50), unique=True, index=True, comment="企业编码（唯一标识） / Tenant code",
     )
 
-    # 联系信息
+    # 联系信息 / Contact
     contact_name: Mapped[str | None] = mapped_column(
-        String(50), nullable=True, comment="联系人姓名"
+        String(50), nullable=True, comment="联系人姓名 / Contact name",
     )
     contact_phone: Mapped[str | None] = mapped_column(
-        String(20), nullable=True, comment="联系人电话"
+        String(20), nullable=True, comment="联系人电话 / Contact phone",
     )
     contact_email: Mapped[str | None] = mapped_column(
-        String(255), nullable=True, comment="联系人邮箱"
+        String(255), nullable=True, comment="联系人邮箱 / Contact email",
     )
 
-    # 企业状态
+    # 企业状态 / Status
     is_active: Mapped[bool] = mapped_column(
-        Boolean, default=True, comment="是否启用"
+        Boolean, default=True, comment="是否启用 / Active",
     )
 
-    # 套餐/配额
+    # 套餐/配额 / Plan and quota
     # @deprecated: plan 字段已废弃，请使用 plan_id 关联 TenantPlan
-    # 保留字段以兼容旧数据，迁移后删除
+    # Deprecated: use plan_id -> TenantPlan
+    # 保留字段以兼容旧数据，迁移后删除 / Kept for legacy data migration
     plan: Mapped[str | None] = mapped_column(
-        String(50), nullable=True, default=None, comment="套餐类型(已废弃)"
+        String(50), nullable=True, default=None, comment="套餐类型(已废弃) / Legacy plan (deprecated)",
     )
 
-    # 套餐外键关联
+    # 套餐外键关联 / FK to TenantPlan
     plan_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("tenant_plans.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
-        comment="关联套餐ID"
+        comment="关联套餐ID / Plan id",
     )
 
-    # 企业级配额覆盖（可覆盖套餐默认配额）
+    # 企业级配额覆盖（可覆盖套餐默认配额） / Tenant quota overrides
     quota: Mapped[dict | None] = mapped_column(
-        JSON, nullable=True, comment="配额配置(可覆盖套餐默认值)"
+        JSON, nullable=True, comment="配额配置(可覆盖套餐默认值) / Quota JSON overrides",
     )
 
-    # 有效期
+    # 有效期 / Expiry
     expires_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True, comment="到期时间"
+        DateTime(timezone=True), nullable=True, comment="到期时间 / Expires at",
     )
 
-    # 备注
+    # 备注 / Remark
     remark: Mapped[str | None] = mapped_column(
-        Text, nullable=True, comment="备注"
+        Text, nullable=True, comment="备注 / Remark",
     )
 
-    # 企业设置（JSON 格式）
+    # 企业设置（JSON 格式） / Tenant settings JSON
     # @deprecated: 已废弃，请使用 ConfigService.get_tenant_config() 获取配置
-    # 数据已迁移到 system_config_values 表
-    # 保留字段以兼容旧数据，但不再使用
+    # Deprecated: use ConfigService.get_tenant_config()
+    # 数据已迁移到 system_config_values 表 / Data moved to system_config_values
+    # 保留字段以兼容旧数据，但不再使用 / Legacy column retained
     settings: Mapped[dict | None] = mapped_column(
-        JSON, nullable=True, comment="企业设置(已废弃)"
+        JSON, nullable=True, comment="企业设置(已废弃) / Legacy settings (deprecated)",
     )
 
-    # ==================== 关系 ====================
+    # ==================== 关系 ==================== / Relationships
 
-    # 关联套餐
+    # 关联套餐 / Linked plan
     tenant_plan: Mapped["TenantPlan | None"] = relationship(
         "TenantPlan",
         back_populates="tenants",
         lazy="selectin",
     )
 
-    # 企业绑定的域名列表
+    # 企业绑定的域名列表 / Bound domains
     domains = relationship(
         "TenantDomain",
         back_populates="tenant",
@@ -145,14 +147,15 @@ class Tenant(BaseModel):
         cascade="all, delete-orphan",
     )
 
-    # ==================== 辅助属性 ====================
+    # ==================== 辅助属性 ==================== / Helpers
 
     @property
     def subdomain(self) -> str:
         """获取企业子域名 / Get tenant subdomain."""
         return self.code
 
-    # 以下属性已废弃，请使用 ConfigService.get_tenant_config() 代替
+    # 以下属性已废弃，请使用 ConfigService.get_tenant_config() 代替 /
+    # Deprecated properties; use ConfigService.get_tenant_config()
     # - logo_url -> tenant_logo
     # - favicon_url -> tenant_favicon
     # - captcha_enabled -> tenant_captcha_enabled
@@ -161,7 +164,8 @@ class Tenant(BaseModel):
     @property
     def max_custom_domains(self) -> int:
         """获取最大自定义域名数量（由套餐决定） / Max custom domains (from plan quota)."""
-        # 优先从企业级 quota 获取，其次从套餐获取
+        # 优先从企业级 quota 获取，其次从套餐获取 /
+        # Prefer tenant quota, then plan defaults
         if self.quota and "max_custom_domains" in self.quota:
             return self.quota.get("max_custom_domains", 0)
         if self.tenant_plan:
@@ -179,10 +183,10 @@ class Tenant(BaseModel):
         Returns:
             配额值
         """
-        # 优先从企业级 quota 获取
+        # 优先从企业级 quota 获取 / Prefer tenant-level quota
         if self.quota and key in self.quota:
             return self.quota.get(key, default)
-        # 其次从套餐获取
+        # 其次从套餐获取 / Else plan defaults
         if self.tenant_plan:
             return self.tenant_plan.get_quota_value(key, default)
         return default

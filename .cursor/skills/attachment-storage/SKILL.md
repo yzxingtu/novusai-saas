@@ -37,6 +37,6 @@ description: NovusAI 附件上传与存储技能。当需要实现文件上传�
 
 ## 参考
 
-- `../novusai-saas/references/upload-storage-spec.md`
-- `../novusai-saas/references/download-spec.md`
-- `../novusai-saas/references/platform-infrastructure.md`
+- [../novusai-saas/references/upload-storage-spec.md](../novusai-saas/references/upload-storage-spec.md)
+- [../novusai-saas/references/download-spec.md](../novusai-saas/references/download-spec.md)
+- [../novusai-saas/references/platform-infrastructure.md](../novusai-saas/references/platform-infrastructure.md)

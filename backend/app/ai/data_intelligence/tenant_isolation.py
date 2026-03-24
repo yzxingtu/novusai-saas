@@ -65,9 +65,9 @@ class TableReference:
 _TABLE_REF_RE = re.compile(
     r"""
     \b(?:FROM|(?:LEFT|RIGHT|INNER|OUTER|CROSS|FULL)?\s*JOIN)\s+
-    (\w+)                         # 表名（组1）
+    (\w+)                         # 表名（组1） / table name (group 1)
     (?:\s+AS\s+(\w+))?            # AS 别名（组2, 可选）
-    (?:\s+(\w+))?                 # 隐式别名（组3, 可选, 排除关键字）
+    (?:\s+(\w+))?                 # 隐式别名（组3, 可选, 排除关键字） / implicit alias (group 3, optional)
     """,
     re.IGNORECASE | re.VERBOSE,
 )
@@ -95,7 +95,7 @@ def _extract_table_refs(sql: str) -> list[tuple[str, str | None]]:
     for match in _TABLE_REF_RE.finditer(sql):
         table_name = match.group(1)
         as_alias = match.group(2)   # AS 别名
-        implicit_alias = match.group(3)  # 隐式别名
+        implicit_alias = match.group(3)  # 隐式别名 / implicit alias
 
         # Determine final alias / 确定最终别名
         alias = as_alias
@@ -112,7 +112,7 @@ def _extract_table_refs(sql: str) -> list[tuple[str, str | None]]:
     return refs
 
 
-# ============================================
+# ============================================ / 上文为英文说明 / English above
 # TenantIsolationInjector
 # ============================================
 
@@ -315,7 +315,7 @@ def _inject_conditions(
 
     tenant_clause = " AND ".join(conditions)
 
-    # Search for WHERE at depth 0 only (skip subquery WHEREs)
+    # Search for WHERE at depth 0 only (skip subquery WHEREs) / 上文为英文说明 / English above
     where_match = _find_at_depth_zero(sql, _WHERE_RE)
 
     if where_match:
@@ -326,7 +326,7 @@ def _inject_conditions(
             + sql[where_pos:]
         )
     else:
-        # No outermost WHERE — insert before trailing clauses at depth 0
+        # No outermost WHERE — insert before trailing clauses at depth 0 / 上文为英文说明 / English above
         insert_match = _find_at_depth_zero(sql, _INSERT_BEFORE_RE)
 
         if insert_match:

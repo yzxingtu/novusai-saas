@@ -52,12 +52,18 @@ import {
   updateAIAgentSkillGrantApi,
 } from '#/api/admin/ai';
 import { smartUploadFile } from '#/api/admin/attachment';
-import { getAdminKnowledgeBaseListApi } from '#/api/admin/knowledge-bases';
+import { getAdminSelectableKBApi } from '#/api/admin/knowledge-bases';
+import type { AgentKnowledgeBaseBindingDraftItem } from '#/components/business/agent-kb-binding-picker';
+import {
+  AgentKnowledgeBaseBindingPicker,
+  bindingsToDrafts as kbBindingsToDrafts,
+  draftsToBatchPayload as kbDraftsToBatchPayload,
+} from '#/components/business/agent-kb-binding-picker';
+import type { AgentSkillBindingDraftItem } from '#/components/business/agent-skill-binding-picker';
 import {
   AgentSkillBindingPicker,
   draftsToBatchPayload,
   grantsToDrafts,
-  type AgentSkillBindingDraftItem,
 } from '#/components/business/agent-skill-binding-picker';
 import InputVariablesEditor from '#/components/business/input-variables-editor/InputVariablesEditor.vue';
 import {
@@ -72,6 +78,7 @@ import {
   formatStarterQuestionsInput,
   parseStarterQuestionsInput,
 } from '#/utils/ai-starter-questions';
+import { showRequestError } from '#/utils/error-helpers';
 import { toAvatarDisplayUrl } from '#/utils/image';
 import {
   getScopeColor,
@@ -90,12 +97,12 @@ import VersionHistoryDrawer from './modules/VersionHistory.vue';
 
 defineOptions({ name: 'AdminAgentDetail' });
 
-// ==================== Route ====================
+// ==================== Route / 路由 ====================
 const route = useRoute();
 const router = useRouter();
 const agentId = computed(() => Number(route.params.id));
 
-// ==================== State ====================
+// ==================== State / 状态 ====================
 const loading = ref(false);
 const saving = ref(false);
 const agent = ref<AIAgentInfo | null>(null);
@@ -105,14 +112,14 @@ const memorySaving = ref(false);
 const memoryConfig = ref<AIAgentMemoryConfig | null>(null);
 const adminMemoryEnabled = ref(true);
 
-// ==================== Load ====================
+// ==================== Load / 加载 ====================
 async function loadMemoryConfig() {
   memoryLoading.value = true;
   try {
     memoryConfig.value = await getAIAgentMemoryConfigApi(agentId.value);
     adminMemoryEnabled.value = memoryConfig.value.admin_agent_memory_enabled;
-  } catch {
-    message.error($t('common.loadFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.loadFailed');
   } finally {
     memoryLoading.value = false;
   }
@@ -123,8 +130,8 @@ async function loadAgent() {
   try {
     agent.value = await getAIAgentDetailApi(agentId.value);
     await loadMemoryConfig();
-  } catch {
-    message.error($t('common.loadFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.loadFailed');
   } finally {
     loading.value = false;
   }
@@ -176,21 +183,21 @@ function getExecutionModeIcon(mode: string): string {
   }
 }
 
-// ==================== Generic Save ====================
+// ==================== Generic Save / 通用保存 ====================
 async function saveFields(fields: Record<string, unknown>) {
   if (!agent.value) return;
   saving.value = true;
   try {
     agent.value = await updateAIAgentApi(agentId.value, fields);
     message.success($t('admin.ai.agent.detail.saveSuccess'));
-  } catch {
-    message.error($t('common.saveFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.saveFailed');
   } finally {
     saving.value = false;
   }
 }
 
-// ==================== Avatar Upload ====================
+// ==================== Avatar Upload / 头像上传 ====================
 const avatarUploading = ref(false);
 
 const avatarDisplayUrl = computed(() => {
@@ -232,8 +239,8 @@ async function handleAvatarUpload(file: File) {
       avatar: attachmentId,
     });
     message.success($t('admin.ai.agent.detail.saveSuccess'));
-  } catch {
-    message.error($t('shared.common.uploadFailed'));
+  } catch (error) {
+    showRequestError(error, 'shared.common.uploadFailed');
   } finally {
     avatarUploading.value = false;
   }
@@ -245,8 +252,8 @@ async function removeAvatar() {
   try {
     agent.value = await updateAIAgentApi(agentId.value, { avatar: null });
     message.success($t('admin.ai.agent.detail.saveSuccess'));
-  } catch {
-    message.error($t('common.saveFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.saveFailed');
   } finally {
     avatarUploading.value = false;
   }
@@ -262,15 +269,15 @@ async function updateAdminMemoryEnabled(checked: boolean) {
     });
     adminMemoryEnabled.value = memoryConfig.value.admin_agent_memory_enabled;
     message.success($t('admin.ai.agent.memory.saveSuccess'));
-  } catch {
+  } catch (error) {
     adminMemoryEnabled.value = previous;
-    message.error($t('common.saveFailed'));
+    showRequestError(error, 'common.saveFailed');
   } finally {
     memorySaving.value = false;
   }
 }
 
-// ==================== Overview Tab ====================
+// ==================== Overview Tab / 概览页签 ====================
 const editingPrompt = ref(false);
 const promptDraft = ref('');
 
@@ -284,7 +291,7 @@ async function savePrompt() {
   editingPrompt.value = false;
 }
 
-// ==================== Model Params Tab ====================
+// ==================== Model Params Tab / 模型参数页签 ====================
 const modelTemp = ref(0.7);
 const modelMaxTokens = ref<number | undefined>(undefined);
 const modelTopP = ref<number | undefined>(undefined);
@@ -320,7 +327,7 @@ async function saveModelParams() {
   });
 }
 
-// ==================== Chat Config Tab ====================
+// ==================== Chat Config Tab / 对话配置页签 ====================
 const chatWelcome = ref('');
 const chatSuggestions = ref('');
 const chatInputVars = ref<InputVariable[]>([]);
@@ -384,7 +391,7 @@ async function saveChatConfig() {
   });
 }
 
-// ==================== Skill Bindings Tab ====================
+// ==================== Skill Bindings Tab / 技能绑定页签 ====================
 const bindings = ref<AIAgentSkillGrantInfo[]>([]);
 const bindingsLoading = ref(false);
 const skillPickerOpen = ref(false);
@@ -403,7 +410,7 @@ async function loadBindings() {
   } catch (error) {
     console.error('[AdminAgentDetail] loadBindings', error);
     bindings.value = [];
-    message.error($t('common.loadFailed'));
+    showRequestError(error, 'common.loadFailed');
   } finally {
     bindingsLoading.value = false;
   }
@@ -424,7 +431,7 @@ async function onSkillBindingPickerConfirm(_drafts: AgentSkillBindingDraftItem[]
     await loadBindings();
   } catch (error) {
     console.error('[AdminAgentDetail] batchBind skills', error);
-    message.error($t('common.saveFailed'));
+    showRequestError(error, 'common.saveFailed');
   }
 }
 
@@ -462,8 +469,8 @@ async function unbindSkill(skillId: number) {
     await unbindAIAgentSkillApi(agentId.value, skillId);
     await loadBindings();
     message.success($t('admin.ai.agent.detail.saveSuccess'));
-  } catch {
-    message.error($t('common.saveFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.saveFailed');
   }
 }
 
@@ -474,8 +481,8 @@ async function updateConsentMode(bindingId: number, mode: string) {
     });
     await loadBindings();
     message.success($t('admin.ai.agent.detail.saveSuccess'));
-  } catch {
-    message.error($t('common.saveFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.saveFailed');
   }
 }
 
@@ -486,8 +493,8 @@ async function toggleSkillEnabled(binding: AIAgentSkillGrantInfo) {
       enabled: !binding.enabled,
     });
     await loadBindings();
-  } catch {
-    message.error($t('common.saveFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.saveFailed');
   }
 }
 
@@ -509,39 +516,28 @@ function getSkillTypeText(type: string | undefined): string {
   return text;
 }
 
-// ==================== Knowledge Base Bindings Tab ====================
+// ==================== Knowledge Base Bindings Tab / 知识库绑定页签 ====================
 const kbBindings = ref<AIAgentKBBindingInfo[]>([]);
 const kbBindingsLoading = ref(false);
-const kbOptions = ref<{ label: string; value: number }[]>([]);
-const selectedNewKBs = ref<number[]>([]);
+const kbPickerOpen = ref(false);
+const kbPickerDrafts = ref<AgentKnowledgeBaseBindingDraftItem[]>([]);
+const kbBindingScopeCount = computed(() => {
+  const keys = new Set(kbBindings.value.map((binding) => binding.kb_scope || 'unknown'));
+  return keys.size;
+});
 
 async function loadKBBindings() {
   kbBindingsLoading.value = true;
   try {
     kbBindings.value = await getAIAgentKBsApi(agentId.value);
-  } catch {
+  } catch (error) {
+    console.error('[AdminAgentDetail] loadKBBindings', error);
     kbBindings.value = [];
+    showRequestError(error, 'common.loadFailed');
   } finally {
     kbBindingsLoading.value = false;
   }
 }
-
-async function loadKBOptions() {
-  try {
-    const res = await getAdminKnowledgeBaseListApi({ 'page[size]': 200 });
-    kbOptions.value = (res.items || []).map((kb) => ({
-      label: kb.name,
-      value: kb.id,
-    }));
-  } catch {
-    kbOptions.value = [];
-  }
-}
-
-const unboundKBs = computed(() => {
-  const boundIds = new Set(kbBindings.value.map((b) => b.knowledge_base_id));
-  return kbOptions.value.filter((kb) => !boundIds.has(kb.value));
-});
 
 function getKbChunkStrategyText(strategy: null | string | undefined): string {
   switch (strategy) {
@@ -563,21 +559,24 @@ function getKbChunkStrategyText(strategy: null | string | undefined): string {
   }
 }
 
-async function bindKB() {
-  if (selectedNewKBs.value.length === 0) return;
-  const currentIds = kbBindings.value.map((b) => b.knowledge_base_id);
-  for (const kbId of selectedNewKBs.value) {
-    if (!currentIds.includes(kbId)) currentIds.push(kbId);
-  }
+function openKBBindingPicker() {
+  kbPickerDrafts.value = kbBindingsToDrafts(kbBindings.value);
+  kbPickerOpen.value = true;
+}
+
+async function onKBBindingPickerConfirm(
+  drafts: AgentKnowledgeBaseBindingDraftItem[],
+) {
   try {
-    await batchBindAIAgentKBsApi(agentId.value, {
-      knowledge_base_ids: currentIds,
-    });
-    selectedNewKBs.value = [];
-    await loadKBBindings();
+    await batchBindAIAgentKBsApi(
+      agentId.value,
+      kbDraftsToBatchPayload(drafts),
+    );
     message.success($t('admin.ai.agent.detail.saveSuccess'));
-  } catch {
-    message.error($t('common.saveFailed'));
+    await loadKBBindings();
+  } catch (error) {
+    console.error('[AdminAgentDetail] batchBind knowledge bases', error);
+    showRequestError(error, 'common.saveFailed');
   }
 }
 
@@ -586,8 +585,8 @@ async function unbindKB(knowledgeBaseId: number) {
     await unbindAIAgentKBApi(agentId.value, knowledgeBaseId);
     await loadKBBindings();
     message.success($t('admin.ai.agent.detail.saveSuccess'));
-  } catch {
-    message.error($t('common.saveFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.saveFailed');
   }
 }
 
@@ -597,8 +596,8 @@ async function toggleKBEnabled(binding: AIAgentKBBindingInfo) {
       enabled: !binding.enabled,
     });
     await loadKBBindings();
-  } catch {
-    message.error($t('common.saveFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.saveFailed');
   }
 }
 
@@ -607,8 +606,8 @@ async function updateKBWeight(bindingId: number, weight: number) {
     await updateAIAgentKBBindingApi(agentId.value, bindingId, { weight });
     await loadKBBindings();
     message.success($t('admin.ai.agent.detail.saveSuccess'));
-  } catch {
-    message.error($t('common.saveFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.saveFailed');
   }
 }
 
@@ -676,7 +675,7 @@ async function saveRagConfig() {
   });
 }
 
-// ==================== Quota Tab ====================
+// ==================== Quota Tab / 配额页签 ====================
 const quotaConversationsPerDay = ref<number | undefined>(undefined);
 const quotaTokensPerDay = ref<number | undefined>(undefined);
 const quotaTokensPerMonth = ref<number | undefined>(undefined);
@@ -714,7 +713,7 @@ async function saveQuota() {
   });
 }
 
-// ==================== Routing Config Tab ====================
+// ==================== Routing Config Tab / 路由配置页签 ====================
 const routingEnabled = ref(false);
 const routingMaxTier = ref<string | undefined>(undefined);
 const routingVisionModelId = ref<number | undefined>(undefined);
@@ -760,7 +759,7 @@ async function loadAdminRoutingModelOptions() {
     );
     chatModelOptions.value = chatModels.map(toOption);
   } catch {
-    // fallback
+    // fallback / 回退默认值
     chatModelMaxOutputTokens.value = {};
     visionModelOptions.value = [];
     audioModelOptions.value = [];
@@ -806,7 +805,7 @@ async function saveAdminRouting() {
   });
 }
 
-// ==================== AccessConfig Drawer ====================
+// ==================== AccessConfig Drawer / 访问配置抽屉 ====================
 const [AccessConfigDrawerCmp, accessConfigApi] = useVbenDrawer({
   connectedComponent: AccessConfigDrawer,
 });
@@ -824,7 +823,7 @@ function openAccessConfigDrawer() {
   accessConfigApi.open();
 }
 
-// ==================== VersionHistory Drawer ====================
+// ==================== VersionHistory Drawer / 版本历史抽屉 ====================
 const [VersionHistoryDrawerCmp, versionHistoryApi] = useVbenDrawer({
   connectedComponent: VersionHistoryDrawer,
 });
@@ -842,7 +841,7 @@ function openVersionHistoryDrawer() {
   versionHistoryApi.open();
 }
 
-// ==================== Tab Change ====================
+// ==================== Tab Change / 切换页签 ====================
 function onTabChange(key: number | string) {
   activeTab.value = String(key);
   if (!agent.value) return;
@@ -853,7 +852,6 @@ function onTabChange(key: number | string) {
     }
     case 'knowledgeBases': {
       loadKBBindings();
-      loadKBOptions();
       break;
     }
     case 'modelParams': {
@@ -1908,6 +1906,12 @@ useDetailPageAi({
                 </span>
               </template>
               <div class="p-5 pt-3">
+                <AgentKnowledgeBaseBindingPicker
+                  v-model:open="kbPickerOpen"
+                  v-model="kbPickerDrafts"
+                  :fetch-candidates="getAdminSelectableKBApi"
+                  @confirm="onKBBindingPickerConfirm"
+                />
                 <Spin :spinning="kbBindingsLoading">
                   <div class="flex flex-col gap-4">
                     <Alert
@@ -1919,36 +1923,40 @@ useDetailPageAi({
                         $t('admin.ai.agent.detail.knowledgeBasesGlobalHint')
                       "
                     />
-                    <p class="text-xs text-muted-foreground">
-                      {{ $t('admin.ai.agent.detail.kbWeightFusionHint') }}
-                    </p>
-                    <!-- Add binding row -->
-                    <div
-                      class="flex items-center gap-3 rounded-xl border bg-accent/30 p-4"
-                    >
-                      <ASelect
-                        v-model:value="selectedNewKBs"
-                        :options="unboundKBs"
-                        :placeholder="
-                          $t('admin.ai.agent.detail.selectKnowledgeBase')
-                        "
-                        mode="multiple"
-                        show-search
-                        option-filter-prop="label"
-                        allow-clear
-                        class="flex-1"
-                      />
-                      <Button
-                        type="primary"
-                        :disabled="selectedNewKBs.length === 0"
-                        @click="bindKB"
-                      >
-                        <IconifyIcon icon="lucide:plus" class="mr-1" />
-                        {{ $t('admin.ai.agent.detail.bindKnowledgeBase') }}
-                      </Button>
+                    <div class="rounded-2xl border border-border/70 bg-muted/20 p-4">
+                      <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div class="min-w-0 flex-1">
+                          <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-sm font-semibold text-foreground">
+                              {{ $t('admin.ai.agent.detail.knowledgeBases') }}
+                            </span>
+                            <Tag class="!mr-0 !rounded-full !px-2 !text-[11px]">
+                              {{
+                                $t('admin.ai.agent.kbPicker.selectedCount', {
+                                  count: kbBindings.length,
+                                })
+                              }}
+                            </Tag>
+                            <Tag class="!mr-0 !rounded-full !px-2 !text-[11px]">
+                              {{
+                                $t('admin.ai.agent.kbPicker.selectionSummary', {
+                                  count: kbBindings.length,
+                                  scopes: kbBindingScopeCount,
+                                })
+                              }}
+                            </Tag>
+                          </div>
+                          <p class="mt-1 text-xs leading-5 text-muted-foreground">
+                            {{ $t('admin.ai.agent.detail.kbWeightFusionHint') }}
+                          </p>
+                        </div>
+                        <Button type="primary" @click="openKBBindingPicker">
+                          <IconifyIcon icon="lucide:settings-2" class="mr-1 size-4" />
+                          {{ $t('admin.ai.agent.kbPicker.manageBindings') }}
+                        </Button>
+                      </div>
                     </div>
 
-                    <!-- Binding list -->
                     <div
                       v-if="kbBindings.length > 0"
                       class="flex flex-col gap-2"
@@ -2064,12 +2072,26 @@ useDetailPageAi({
                       </div>
                     </div>
 
-                    <Empty
+                    <div
                       v-if="kbBindings.length === 0 && !kbBindingsLoading"
-                      :description="
-                        $t('admin.ai.agent.detail.noKnowledgeBases')
-                      "
-                    />
+                      class="rounded-2xl border border-dashed border-border/70 bg-background px-6 py-10 text-center"
+                    >
+                      <div
+                        class="mx-auto flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary"
+                      >
+                        <IconifyIcon icon="lucide:library-big" class="size-6" />
+                      </div>
+                      <div class="mt-4 text-sm font-semibold text-foreground">
+                        {{ $t('admin.ai.agent.kbPicker.emptySelected') }}
+                      </div>
+                      <div class="mx-auto mt-2 max-w-xl text-xs leading-6 text-muted-foreground">
+                        {{ $t('admin.ai.agent.kbPicker.detailEmptyHint') }}
+                      </div>
+                      <Button class="mt-5" type="primary" @click="openKBBindingPicker">
+                        <IconifyIcon icon="lucide:sparkles" class="mr-1 size-4" />
+                        {{ $t('admin.ai.agent.kbPicker.manageBindings') }}
+                      </Button>
+                    </div>
                   </div>
                 </Spin>
               </div>

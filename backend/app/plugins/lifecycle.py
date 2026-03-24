@@ -22,7 +22,9 @@ from typing import TYPE_CHECKING
 import anyio
 
 from app.core.base_model import utc_now
+from app.core.i18n import _
 from app.core.logging import get_logger
+from app.core.response import build_public_error_text, resolve_public_error_message
 from app.enums.plugin import (
     PluginInstallSourceEnum,
     PluginStatusEnum,
@@ -327,6 +329,140 @@ class PluginLifecycle:
                 ),
             )
         return states
+
+    @staticmethod
+    def _count_declared_plugin_permissions(manifest: object) -> tuple[int, int]:
+        """Count declared plugin permission targets. / 统计插件声明的权限目标数。"""
+        extensions = getattr(manifest, "extensions", None)
+        frontend = getattr(extensions, "frontend", None)
+        pages = getattr(frontend, "pages", None) or []
+        permission_exts = getattr(extensions, "permissions", None) or []
+
+        total_declared = 0
+        tenant_declared = 0
+
+        for page in pages:
+            if getattr(page, "menu", None) is None:
+                continue
+            total_declared += 1
+            if str(getattr(page, "scope", "") or "").strip().lower() == "tenant":
+                tenant_declared += 1
+
+        for perm_ext in permission_exts:
+            actions = [
+                str(action).strip()
+                for action in (getattr(perm_ext, "actions", None) or [])
+                if str(action or "").strip()
+            ]
+            if not actions:
+                continue
+
+            action_count = len(actions)
+            total_declared += action_count
+
+            scope = str(getattr(perm_ext, "scope", "") or "").strip().lower()
+            if scope in {"both", "tenant"}:
+                tenant_declared += action_count
+
+        return total_declared, tenant_declared
+
+    async def _assert_plugin_enable_prerequisites(
+        self,
+        plugin: object,
+        manifest: object,
+        *,
+        action: str,
+        error_cls: type[PluginError],
+    ) -> None:
+        """Run enable-like runtime guards. / 运行 enable 类链路的运行前置校验。"""
+        plugin_name = str(getattr(plugin, "name", "") or "").strip()
+        plugin_id = int(getattr(plugin, "id"))
+        pricing_type = str(getattr(plugin, "pricing_type", "") or "").strip()
+
+        from app.plugins.license import assert_plugin_license_active
+
+        await assert_plugin_license_active(
+            plugin_id,
+            pricing_type,
+            self._db,
+            plugin_name=plugin_name,
+            operation=action,
+        )
+
+        if manifest.compatibility and manifest.compatibility.conflicts:
+            from sqlalchemy import select
+
+            from app.models.system.plugin import Plugin as PluginModel
+
+            for conflict in manifest.compatibility.conflicts:
+                dep_result = await self._db.execute(
+                    select(PluginModel.status).where(
+                        PluginModel.name == conflict.plugin,
+                        PluginModel.is_deleted.is_(False),
+                    )
+                )
+                dep_status = dep_result.scalar_one_or_none()
+                if dep_status == PluginStatusEnum.ENABLED.value:
+                    conflict_reason = (
+                        conflict.reason.get("zh-CN")
+                        or conflict.reason.get("en")
+                        or "incompatible"
+                    ) if conflict.reason else "incompatible"
+                    raise error_cls(
+                        message=(
+                            f"Cannot {action} '{plugin_name}': conflicts with enabled plugin "
+                            f"'{conflict.plugin}' ({conflict_reason}). Disable it first."
+                        ),
+                    )
+
+        await self._assert_plugin_dependencies_ready(
+            manifest,
+            plugin_name=plugin_name,
+            require_enabled=True,
+            error_cls=error_cls,
+            action=action,
+        )
+
+    async def _ensure_plugin_permissions_active(
+        self,
+        plugin_name: str,
+        manifest: object,
+        *,
+        action: str,
+    ) -> None:
+        """Strictly sync + enable plugin permissions. / 严格同步并启用插件权限。"""
+        declared_permissions, tenant_declared_permissions = (
+            self._count_declared_plugin_permissions(manifest)
+        )
+
+        from app.rbac.sync import PermissionSyncService
+
+        perm_sync = PermissionSyncService(self._db)
+        async with self._db.begin_nested():
+            synced_count = await perm_sync.sync_plugin_permissions(plugin_name)
+
+        if declared_permissions > 0 and synced_count <= 0:
+            raise PluginError(
+                message=(
+                    f"Cannot {action} '{plugin_name}': expected {declared_permissions} "
+                    "plugin permission/menu declaration(s) to sync into DB, but none were written."
+                ),
+            )
+
+        enabled_count = await self._set_plugin_permissions_enabled(plugin_name, True)
+        if declared_permissions > 0 and enabled_count <= 0:
+            raise PluginError(
+                message=(
+                    f"Cannot {action} '{plugin_name}': expected {declared_permissions} "
+                    "plugin permission/menu row(s) to be enabled, but no DB rows matched."
+                ),
+            )
+
+        await self._auto_grant_plugin_menus_to_plans(
+            plugin_name,
+            expected_tenant_permissions=tenant_declared_permissions,
+            action=action,
+        )
 
     def _load_project_pyproject_requirements(self) -> list[str]:
         """Load declared host requirements from pyproject.toml. / 从 pyproject.toml 加载宿主声明的 requirement。"""
@@ -674,7 +810,14 @@ class PluginLifecycle:
                 completed_steps.append("on_install")
                 await emitter.emit_step("on_install", "success", "Install hook completed")
             except Exception as exc:
-                await emitter.emit_step("on_install", "warning", f"Install hook warning: {exc}")
+                await emitter.emit_step(
+                    "on_install",
+                    "warning",
+                    build_public_error_text(
+                        exc=exc,
+                        message=_("common.server_error"),
+                    ),
+                )
                 logger.warning(
                     "Plugin {} on_install failed (non-fatal): {}",
                     plugin_name, exc,
@@ -743,12 +886,20 @@ class PluginLifecycle:
                 plugin_name, completed_steps[-1] if completed_steps else "init", exc,
             )
             if emitter is not None:
-                await emitter.emit_error(str(exc))
+                await emitter.emit_error(
+                    build_public_error_text(
+                        exc=exc,
+                        message=_("plugin.error.install_failed"),
+                    )
+                )
             await self._rollback_install(plugin_name, completed_steps)
             if isinstance(exc, (PluginError, PluginInstallError, PluginDependencyError)):
                 raise
             raise PluginInstallError(
-                message=f"Failed to install plugin '{plugin_name}': {exc}",
+                message=resolve_public_error_message(
+                    exc,
+                    fallback_message=_("plugin.error.install_failed"),
+                ),
             )
         finally:
             # Release install lock / 释放安装锁
@@ -794,60 +945,9 @@ class PluginLifecycle:
         manifest = self._loader.load_manifest(plugin_name)
         validate_runtime_frontend_contract(self._loader.plugins_dir / plugin_name, manifest)
 
-        from app.plugins.license import assert_plugin_license_active
-        await assert_plugin_license_active(
-            plugin.id,
-            plugin.pricing_type,
-            self._db,
-            plugin_name=plugin_name,
-            operation="enable",
-        )
-
-        # DEBUG mode: sync key fields from disk plugin.yaml to DB (scope/manifest etc.) / DEBUG 模式：从磁盘 plugin.yaml 同步到 DB
-        # / DEBUG 模式：同步磁盘 plugin.yaml 的关键字段到 DB（scope/manifest 等）
-        from app.core.config import settings
-        if settings.DEBUG:
-            from app.plugins.preview import resolve_i18n
-            plugin.scope = manifest.scope
-            plugin.manifest = manifest.model_dump()
-            plugin.display_name = resolve_i18n(manifest.display_name)
-            plugin.description = resolve_i18n(manifest.description) if manifest.description else plugin.description
-            plugin.icon = manifest.icon or plugin.icon
-            plugin.icon_color = manifest.icon_color or plugin.icon_color
-            plugin.tags = manifest.tags
-            plugin.installed_packages = manifest.dependencies.python or []
-            plugin.ai_requirements = manifest.ai_requirements.model_dump() if manifest.ai_requirements else plugin.ai_requirements
-            await self._db.flush()
-
-        # Check compatibility.conflicts (enabled conflicting plugins) / 检查 compatibility.conflicts（已启用的冲突插件）
-        if manifest.compatibility and manifest.compatibility.conflicts:
-            for conflict in manifest.compatibility.conflicts:
-                dep_result = await self._db.execute(
-                    select(PluginModel.status).where(
-                        PluginModel.name == conflict.plugin,
-                        PluginModel.is_deleted.is_(False),
-                    )
-                )
-                dep_status = dep_result.scalar_one_or_none()
-                if dep_status == PluginStatusEnum.ENABLED.value:
-                    conflict_reason = (
-                        conflict.reason.get("zh-CN")
-                        or conflict.reason.get("en")
-                        or "incompatible"
-                    ) if conflict.reason else "incompatible"
-                    raise PluginDependencyError(
-                        message=(
-                            f"Cannot enable '{plugin_name}': conflicts with enabled plugin "
-                            f"'{conflict.plugin}' ({conflict_reason}). Disable it first."
-                        ),
-                    )
-
-        # Unified plugin dependency check / 统一插件依赖检查
-        await self._assert_plugin_dependencies_ready(
+        await self._assert_plugin_runtime_enable_guards(
+            plugin,
             manifest,
-            plugin_name=plugin_name,
-            require_enabled=True,
-            error_cls=PluginDependencyError,
             action="enable",
         )
 
@@ -864,14 +964,24 @@ class PluginLifecycle:
                 await self.run_alembic_upgrade(plugin_name)
                 await emitter.emit_step("alembic", "success", "Database migrations complete")
             except Exception as exc:
-                err_msg = f"Migration failed: {exc}"
+                err_msg = resolve_public_error_message(
+                    exc,
+                    fallback_message=_("common.server_error"),
+                )
                 plugin.status = PluginStatusEnum.ERROR.value
                 plugin.error_message = err_msg
                 plugin.error_count = (plugin.error_count or 0) + 1
                 await self._db.flush()
-                await emitter.emit_step("alembic", "error", err_msg)
+                await emitter.emit_step(
+                    "alembic",
+                    "error",
+                    build_public_error_text(
+                        exc=exc,
+                        message=_("common.server_error"),
+                    ),
+                )
                 raise PluginError(
-                    message=f"Cannot enable '{plugin_name}': {err_msg}",
+                    message=err_msg,
                 )
         else:
             await emitter.emit_step("alembic", "success", "No database migrations")
@@ -882,7 +992,12 @@ class PluginLifecycle:
             try:
                 pip_installed = await self._install_python_deps(plugin_name, manifest.dependencies.python)
             except Exception as exc:
-                await emitter.emit_error(f"pip install failed: {exc}")
+                await emitter.emit_error(
+                    build_public_error_text(
+                        exc=exc,
+                        message=_("plugin.error.dependency_failed"),
+                    )
+                )
                 raise
             if pip_installed:
                 await emitter.emit_step("pip", "success", f"Installed {len(pip_installed)} package(s)")
@@ -960,13 +1075,55 @@ class PluginLifecycle:
             logger.warning("Plugin {} on_enable failed: {}", plugin_name, exc)
             registry.unregister_all(plugin_name)
             plugin.status = PluginStatusEnum.ERROR.value
-            plugin.error_message = f"on_enable failed: {exc}"
+            plugin.error_message = resolve_public_error_message(
+                exc,
+                fallback_message=_("common.server_error"),
+            )
             plugin.error_count += 1
             await self._db.flush()
-            await emitter.emit_error(f"on_enable failed: {exc}")
-            raise PluginError(
-                message=f"Plugin '{plugin_name}' on_enable failed: {exc}",
+            await emitter.emit_error(
+                build_public_error_text(
+                    exc=exc,
+                    message=_("common.server_error"),
+                )
             )
+            raise PluginError(
+                message=resolve_public_error_message(
+                    exc,
+                    fallback_message=_("common.server_error"),
+                ),
+            )
+
+        try:
+            await self._restore_plugin_permissions(plugin_name)
+        except Exception as exc:
+            logger.warning(
+                "Plugin {}: failed to restore plugin permissions during enable: {}",
+                plugin_name,
+                exc,
+            )
+            registry.unregister_all(plugin_name)
+            with suppress(Exception):
+                await self._set_plugin_permissions_enabled(plugin_name, False)
+            plugin.status = PluginStatusEnum.ERROR.value
+            plugin.error_message = resolve_public_error_message(
+                exc,
+                fallback_message=_("common.server_error"),
+            )
+            plugin.error_count = (plugin.error_count or 0) + 1
+            await self._db.flush()
+            await emitter.emit_error(
+                build_public_error_text(
+                    exc=exc,
+                    message=_("common.server_error"),
+                )
+            )
+            raise PluginError(
+                message=resolve_public_error_message(
+                    exc,
+                    fallback_message=_("common.server_error"),
+                ),
+            ) from exc
 
         # Update status / 更新状态
         plugin.status = PluginStatusEnum.ENABLED.value
@@ -974,30 +1131,6 @@ class PluginLifecycle:
         plugin.error_message = None
         plugin.error_count = 0
         await self._db.flush()
-
-        # Write plugin permissions to DB (menus + plugin action permissions, flush only);
-        # _set_plugin_permissions_enabled only does UPDATE, first enable must sync first.
-        # / 将插件权限写入 DB（菜单 + 插件动作权限）；首次 enable 须先 sync
-        # _set_plugin_permissions_enabled 只做 UPDATE（依赖 DB 记录已存在），
-        # 首次 enable 时 DB 尚无该插件权限记录，必须先 sync 才能写入。
-        try:
-            from app.rbac.sync import PermissionSyncService
-            perm_sync = PermissionSyncService(self._db)
-            async with self._db.begin_nested():
-                await perm_sync.sync_plugin_permissions(plugin_name)
-        except Exception as exc:
-            logger.warning("Plugin {}: failed to sync plugin permissions to DB: {}", plugin_name, exc)
-
-        # Enable plugin permissions in DB so API/menu reflect runtime immediately
-        # / 启用 DB 中插件权限，使 API/菜单权限状态立即生效
-        await self._set_plugin_permissions_enabled(plugin_name, True)
-
-        # Auto-grant tenant-scoped plugin permissions to all active plans (unless manual entitlement policy)
-        # / 自动授予企业端插件权限给所有活跃套餐（声明 manual_entitlement 时跳过）
-        try:
-            await self._auto_grant_plugin_menus_to_plans(plugin_name)
-        except Exception as exc:
-            logger.warning("Plugin {}: failed to auto-grant permissions to plans: {}", plugin_name, exc)
 
         # Clear route regex cache (routes may change in DEBUG mode) / 清除路由正则缓存（DEBUG 模式下路由可能变化）
         from app.plugins.api_dispatcher import _compile_route_regex
@@ -1110,7 +1243,14 @@ class PluginLifecycle:
             await emitter.emit_step("on_disable", "success", "Disable hook completed")
         except Exception as exc:
             logger.warning("Plugin {} on_disable failed: {}", plugin_name, exc)
-            await emitter.emit_step("on_disable", "success", f"Disable hook warning: {exc}")
+            await emitter.emit_step(
+                "on_disable",
+                "success",
+                build_public_error_text(
+                    exc=exc,
+                    message=_("common.server_error"),
+                ),
+            )
 
         # Disable does not uninstall deps — deps only cleaned on uninstall / 禁用不卸载依赖，重新启用无需重装
         # / 禁用不卸载依赖 — 依赖仅在 uninstall 时清理
@@ -1377,7 +1517,14 @@ class PluginLifecycle:
             await plugin_cls().on_uninstall(ctx)
             await emitter.emit_step("on_uninstall", "success", "Uninstall hook completed")
         except Exception as exc:
-            await emitter.emit_step("on_uninstall", "warning", f"Uninstall hook warning: {exc}")
+            await emitter.emit_step(
+                "on_uninstall",
+                "warning",
+                build_public_error_text(
+                    exc=exc,
+                    message=_("common.server_error"),
+                ),
+            )
             logger.warning("Plugin {} on_uninstall failed: {}", plugin_name, exc)
 
         # 4. Unregister all extension points / 反注册所有扩展点
@@ -1418,7 +1565,14 @@ class PluginLifecycle:
             )
             await emitter.emit_step("cleanup_ai_features", "success", "AI features removed")
         except Exception as exc:
-            await emitter.emit_step("cleanup_ai_features", "success", f"AI features warning: {exc}")
+            await emitter.emit_step(
+                "cleanup_ai_features",
+                "success",
+                build_public_error_text(
+                    exc=exc,
+                    message=_("common.server_error"),
+                ),
+            )
             logger.warning("Failed to cleanup AI features for {}: {}", plugin_name, exc)
 
         # 8.5 Pre-uninstall data backup (non-fatal, failure doesn't block uninstall) / 卸载前数据备份（non-fatal，失败不阻止卸载）
@@ -1623,6 +1777,102 @@ class PluginLifecycle:
         )
         action = "enabled" if is_enabled else "disabled"
         logger.info("Plugin {}: {} plugin permissions in DB", plugin_name, action)
+
+    async def _restore_plugin_permissions(
+        self,
+        plugin_name: str,
+        *,
+        auto_grant_plans: bool = True,
+    ) -> None:
+        """
+        Strictly rebuild and enable plugin permission rows.
+        / 严格重建并启用插件权限记录。
+
+        This is shared by enable / repair / startup restore so those flows
+        fail-close consistently when menu/action permissions cannot be restored.
+        / enable / repair / startup restore 共享此逻辑，确保菜单/动作权限恢复失败时统一 fail-close。
+        """
+        from app.rbac.sync import PermissionSyncService
+
+        perm_sync = PermissionSyncService(self._db)
+        await perm_sync.sync_plugin_permissions(plugin_name)
+        await self._set_plugin_permissions_enabled(plugin_name, True)
+        if auto_grant_plans:
+            await self._auto_grant_plugin_menus_to_plans(plugin_name)
+
+    async def _assert_plugin_runtime_enable_guards(
+        self,
+        plugin: Plugin,
+        manifest,
+        *,
+        action: str,
+        error_cls: type[Exception] = PluginDependencyError,
+    ) -> None:
+        """
+        Shared runtime guards for enable-like flows.
+        / enable 类链路共享的运行前置校验。
+        """
+        from sqlalchemy import select
+
+        from app.models.system.plugin import Plugin as PluginModel
+        from app.plugins.license import assert_plugin_license_active
+
+        plugin_name = plugin.name
+
+        await assert_plugin_license_active(
+            plugin.id,
+            plugin.pricing_type,
+            self._db,
+            plugin_name=plugin_name,
+            operation=action,
+        )
+
+        # DEBUG mode: sync key fields from disk plugin.yaml to DB (scope/manifest etc.) / DEBUG 模式：从磁盘 plugin.yaml 同步到 DB
+        # / DEBUG 模式：同步磁盘 plugin.yaml 的关键字段到 DB（scope/manifest 等）
+        from app.core.config import settings
+
+        if settings.DEBUG:
+            plugin.scope = manifest.scope
+            plugin.manifest = manifest.model_dump()
+            plugin.display_name = resolve_i18n(manifest.display_name)
+            plugin.description = resolve_i18n(manifest.description) if manifest.description else plugin.description
+            plugin.icon = manifest.icon or plugin.icon
+            plugin.icon_color = manifest.icon_color or plugin.icon_color
+            plugin.tags = manifest.tags
+            plugin.installed_packages = manifest.dependencies.python or []
+            plugin.ai_requirements = manifest.ai_requirements.model_dump() if manifest.ai_requirements else plugin.ai_requirements
+            await self._db.flush()
+
+        # Check compatibility.conflicts (enabled conflicting plugins) / 检查 compatibility.conflicts（已启用的冲突插件）
+        if manifest.compatibility and manifest.compatibility.conflicts:
+            for conflict in manifest.compatibility.conflicts:
+                dep_result = await self._db.execute(
+                    select(PluginModel.status).where(
+                        PluginModel.name == conflict.plugin,
+                        PluginModel.is_deleted.is_(False),
+                    )
+                )
+                dep_status = dep_result.scalar_one_or_none()
+                if dep_status == PluginStatusEnum.ENABLED.value:
+                    conflict_reason = (
+                        conflict.reason.get("zh-CN")
+                        or conflict.reason.get("en")
+                        or "incompatible"
+                    ) if conflict.reason else "incompatible"
+                    raise error_cls(
+                        message=(
+                            f"Cannot {action} '{plugin_name}': conflicts with enabled plugin "
+                            f"'{conflict.plugin}' ({conflict_reason}). Disable it first."
+                        ),
+                    )
+
+        await self._assert_plugin_dependencies_ready(
+            manifest,
+            plugin_name=plugin_name,
+            require_enabled=True,
+            error_cls=error_cls,
+            action=action,
+        )
 
     async def _auto_grant_plugin_menus_to_plans(self, plugin_name: str) -> None:
         """
@@ -1906,7 +2156,10 @@ class PluginLifecycle:
                 req_obj = Requirement(normalized_req)
             except Exception as exc:
                 raise PluginDependencyError(
-                    message=f"Invalid requirement '{normalized_req}': {exc}",
+                    message=resolve_public_error_message(
+                        exc,
+                        fallback_message=_("plugin.error.dependency_failed"),
+                    ),
                 ) from exc
 
             if req_obj.url:
@@ -2432,7 +2685,10 @@ except Exception as exc:
         if result.returncode != 0:
             err_output = result.stderr.strip() or result.stdout.strip() or "unknown error"
             raise PluginInstallError(
-                message=f"Alembic upgrade failed for '{plugin_name}': {err_output}",
+                message=resolve_public_error_message(
+                    err_output,
+                    fallback_message=f"Alembic upgrade failed for '{plugin_name}'",
+                ),
             )
 
     def _plugin_has_migrations(self, plugin_name: str) -> bool:

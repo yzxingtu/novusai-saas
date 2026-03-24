@@ -55,7 +55,7 @@ async function loadCommonPlugins(
         viteVue({
           script: {
             defineModel: true,
-            // propsDestructure: true,
+            // propsDestructure: true, / Vue props 解构（已注释）/ props destructure
           },
         }),
         viteVueJsx(),

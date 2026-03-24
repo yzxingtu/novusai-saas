@@ -33,7 +33,7 @@ class AIQueryLog(TenantModel):
         "blocked_columns": ["generated_sql", "final_sql"],
     }
 
-    # 允许前端筛选的字段
+    # 允许前端筛选的字段 / Fields exposed for list filtering
     __filterable__ = {
         "id": "id",
         "tenant_id": "tenant_id",
@@ -44,7 +44,7 @@ class AIQueryLog(TenantModel):
         "created_at": "created_at",
     }
 
-    # 允许排序的字段
+    # 允许排序的字段 / Sortable columns for UI
     __sortable__ = {
         "id": "id",
         "created_at": "created_at",
@@ -68,7 +68,7 @@ class AIQueryLog(TenantModel):
         comment=_("ai_query_log.field.user_id"),
     )
 
-    # 操作者角色（platform_admin / tenant_admin / tenant_user）
+    # 操作者角色（platform_admin / tenant_admin / tenant_user） / Actor role
     user_role: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
@@ -76,35 +76,35 @@ class AIQueryLog(TenantModel):
         comment=_("ai_query_log.field.user_role"),
     )
 
-    # 用户原始问题
+    # 用户原始问题 / Natural language question
     question: Mapped[str] = mapped_column(
         Text,
         nullable=False,
         comment=_("ai_query_log.field.question"),
     )
 
-    # LLM 生成的原始 SQL
+    # LLM 生成的原始 SQL / LLM-generated SQL
     generated_sql: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
         comment=_("ai_query_log.field.generated_sql"),
     )
 
-    # 隔离注入后的最终 SQL
+    # 隔离注入后的最终 SQL / Final SQL after tenant isolation
     final_sql: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
         comment=_("ai_query_log.field.final_sql"),
     )
 
-    # 返回行数
+    # 返回行数 / Returned row count
     row_count: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
         comment=_("ai_query_log.field.row_count"),
     )
 
-    # 执行状态（success / failed / rejected）
+    # 执行状态（success / failed / rejected） / Execution status
     status: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
@@ -113,35 +113,35 @@ class AIQueryLog(TenantModel):
         comment=_("ai_query_log.field.status"),
     )
 
-    # 错误信息
+    # 错误信息 / Error message
     error_message: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
         comment=_("ai_query_log.field.error_message"),
     )
 
-    # 执行耗时（毫秒）
+    # 执行耗时（毫秒） / Duration in ms
     duration_ms: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
         comment=_("ai_query_log.field.duration_ms"),
     )
 
-    # LLM 置信度
+    # LLM 置信度 / LLM confidence label
     confidence: Mapped[str | None] = mapped_column(
         String(20),
         nullable=True,
         comment=_("ai_query_log.field.confidence"),
     )
 
-    # ==================== 索引 ====================
+    # ==================== 索引 ==================== / Indexes
 
     __table_args__ = (
-        # 企业 + 创建时间复合索引
+        # 企业 + 创建时间复合索引 / tenant + created_at
         Index("idx_ai_query_logs_tenant_created", "tenant_id", "created_at"),
-        # 操作者 + 创建时间复合索引
+        # 操作者 + 创建时间复合索引 / user + created_at
         Index("idx_ai_query_logs_user_created", "user_id", "created_at"),
-        # 状态 + 创建时间复合索引
+        # 状态 + 创建时间复合索引 / status + created_at
         Index("idx_ai_query_logs_status_created", "status", "created_at"),
     )
 

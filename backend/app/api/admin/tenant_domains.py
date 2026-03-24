@@ -41,7 +41,7 @@ from app.services.system.ssl_certificate_service import SslCertificateService
 
 @permission_resource(
     resource="tenant_domain",
-    name="menu.admin.tenant_domain",  # i18n key
+    name="menu.admin.tenant_domain",  # i18n key / 菜单 i18n 键名
     scope=PermissionScope.ADMIN,
     parent_resource="tenant",  # 操作权限挂载到企业管理菜单下 / Permissions mounted under tenant management menu
 )

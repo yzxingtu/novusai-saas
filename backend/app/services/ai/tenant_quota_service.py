@@ -70,10 +70,10 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
             period=period,
         )
 
-        # 计算使用百分比
+        # 计算使用百分比 / Compute usage percent
         usage_percent = (usage / quota.limit * 100) if quota.limit > 0 else 0
 
-        # 判断是否达到预警阈值
+        # 判断是否达到预警阈值 / Check warning threshold reached
         warning_threshold = quota.warning_threshold or 80
         is_exceeded = usage_percent >= 100
         is_warning = usage_percent >= warning_threshold and not is_exceeded

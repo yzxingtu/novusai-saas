@@ -136,7 +136,7 @@ class ImageProcessParams:
         """
         if p:
             return cls.from_preset(p)
-        return cls(width=w, height=h, quality=q, format=f, mode=m)  # type: ignore
+        return cls(width=w, height=h, quality=q, format=f, mode=m)  # type: ignore  # format 遮蔽内置 / shadows builtin
 
     def is_empty(self) -> bool:
         """Check if parameters are empty (no processing needed) / 判断是否为空参数（不需要处理）"""

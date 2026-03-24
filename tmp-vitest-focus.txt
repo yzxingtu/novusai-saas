@@ -1,0 +1,371 @@
+[1m[43m DEPRECATED [49m[22m [33mThe workspace file is deprecated and will be removed in the next major. Please, use the `test.projects` field in E:/git_clone/novusai-saas-yudi/frontend/vitest.config.ts instead.[39m
+
+[1m[46m RUN [49m[22m [36mv3.2.4 [39m[90mE:/git_clone/novusai-saas-yudi/frontend[39m
+
+ [32m✓[39m apps/web-antd/src/utils/__tests__/public-config-domain.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+[90mstderr[2m | apps/web-antd/src/utils/__tests__/plugin-loader.test.ts[2m > [22m[2mplugin-loader[2m > [22m[2mdoes not cache a plugin module when setup throws
+[22m[39m[PluginLoader] setup() failed for 'demo-plugin': Error: setup boom
+    at Object.<anonymous> [90m(E:\git_clone\novusai-saas-yudi\frontend\[39mapps\web-antd\src\utils\__tests__\plugin-loader.test.ts:413:13[90m)[39m
+    at Object.mockCall [90m(file:///E:/git_clone/novusai-saas-yudi/frontend/[39mnode_modules/[4m.pnpm[24m/@vitest+spy@3.2.4/node_modules/[4m@vitest/spy[24m/dist/index.js:96:15[90m)[39m
+    at Object.spy [as setup] [90m(file:///E:/git_clone/novusai-saas-yudi/frontend/[39mnode_modules/[4m.pnpm[24m/tinyspy@4.0.4/node_modules/[4mtinyspy[24m/dist/index.js:47:80[90m)[39m
+    at [90mE:\git_clone\novusai-saas-yudi\frontend\[39mapps\web-antd\src\utils\plugin-loader.ts:486:14
+[90m    at processTicksAndRejections (node:internal/process/task_queues:105:5)[39m
+    at Module.loadPluginComponents [90m(E:\git_clone\novusai-saas-yudi\frontend\[39mapps\web-antd\src\utils\plugin-loader.ts:509:12[90m)[39m
+    at [90mE:\git_clone\novusai-saas-yudi\frontend\[39mapps\web-antd\src\utils\__tests__\plugin-loader.test.ts:446:5
+    at [90mfile:///E:/git_clone/novusai-saas-yudi/frontend/[39mnode_modules/[4m.pnpm[24m/@vitest+runner@3.2.4/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:752:20
+
+ [31m❯[39m apps/web-antd/src/utils/__tests__/plugin-loader.test.ts [2m([22m[2m11 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[32m 49[2mms[22m[39m
+   [32m✓[39m plugin-loader[2m > [22mbuilds the dev entry url and forwards runtime dev_entry when provided[32m 4[2mms[22m[39m
+   [32m✓[39m plugin-loader[2m > [22mdrops invalid dev_entry traversal paths[32m 1[2mms[22m[39m
+   [32m✓[39m plugin-loader[2m > [22mrejects invalid release manifest entries[32m 1[2mms[22m[39m
+   [32m✓[39m plugin-loader[2m > [22mparses release manifests with default global var fallback[32m 1[2mms[22m[39m
+[31m   [31m×[31m plugin-loader[2m > [22mloads release manifest before injecting css and script assets[39m[32m 5[2mms[22m[39m
+[31m     → Cannot read properties of undefined (reading 'publicEndpoint')[39m
+[31m   [31m×[31m plugin-loader[2m > [22minfers the current endpoint from the route when callers omit load options[39m[32m 1[2mms[22m[39m
+[31m     → Cannot read properties of undefined (reading 'publicEndpoint')[39m
+   [32m✓[39m plugin-loader[2m > [22muses public endpoint asset urls without authenticated headers when requested[32m 24[2mms[22m[39m
+   [32m✓[39m plugin-loader[2m > [22mkeeps cache entries isolated per authenticated endpoint scope[32m 3[2mms[22m[39m
+   [32m✓[39m plugin-loader[2m > [22mkeeps public and authenticated cache entries isolated for the same side[32m 3[2mms[22m[39m
+   [32m✓[39m plugin-loader[2m > [22mdoes not cache a plugin module when setup throws[32m 6[2mms[22m[39m
+   [32m✓[39m plugin-loader[2m > [22mrejects calls that omit plugin loader scope[32m 1[2mms[22m[39m
+[90mstderr[2m | Fetch.onError (file:\E:\git_clone\novusai-saas-yudi\frontend\node_modules\.pnpm\happy-dom@17.6.3\node_modules\happy-dom\src\fetch\Fetch.ts:669:37)
+[22m[39mAggregateError: 
+[90m    at internalConnectMultiple (node:net:1134:18)[39m
+[90m    at afterConnectMultiple (node:net:1715:7)[39m {
+  code: [32m'ECONNREFUSED'[39m,
+  [errors]: [
+    Error: connect ECONNREFUSED ::1:3000
+    [90m    at createConnectionError (node:net:1678:14)[39m
+    [90m    at afterConnectMultiple (node:net:1708:16)[39m {
+      errno: [33m-4078[39m,
+      code: [32m'ECONNREFUSED'[39m,
+      syscall: [32m'connect'[39m,
+      address: [32m'::1'[39m,
+      port: [33m3000[39m
+    },
+    Error: connect ECONNREFUSED 127.0.0.1:3000
+    [90m    at createConnectionError (node:net:1678:14)[39m
+    [90m    at afterConnectMultiple (node:net:1708:16)[39m {
+      errno: [33m-4078[39m,
+      code: [32m'ECONNREFUSED'[39m,
+      syscall: [32m'connect'[39m,
+      address: [32m'127.0.0.1'[39m,
+      port: [33m3000[39m
+    }
+  ]
+}
+
+[90mstderr[2m | HTMLLinkElement.#loadStyleSheet (file:\E:\git_clone\novusai-saas-yudi\frontend\node_modules\.pnpm\happy-dom@17.6.3\node_modules\happy-dom\src\nodes\html-link-element\HTMLLinkElement.ts:474:31)
+[22m[39mDOMException [NetworkError]: Failed to execute "fetch()" on "Window" with URL "http://localhost:3000/plugin-public-assets/tenant/demo-plugin/assets/plugin.css": 
+    at Fetch.onError [90m(file:///E:/git_clone/novusai-saas-yudi/frontend/[39mnode_modules/[4m.pnpm[24m/happy-dom@17.6.3/node_modules/[4mhappy-dom[24m/src/fetch/Fetch.ts:671:4[90m)[39m
+[90m    at ClientRequest.emit (node:events:519:28)[39m
+[90m    at emitErrorEvent (node:_http_client:105:11)[39m
+[90m    at Socket.socketErrorListener (node:_http_client:518:5)[39m
+[90m    at Socket.emit (node:events:519:28)[39m
+[90m    at emitErrorNT (node:internal/streams/destroy:170:8)[39m
+[90m    at emitErrorCloseNT (node:internal/streams/destroy:129:3)[39m
+[90m    at processTicksAndRejections (node:internal/process/task_queues:90:21)[39m
+
+[90mstderr[2m | Fetch.onError (file:\E:\git_clone\novusai-saas-yudi\frontend\node_modules\.pnpm\happy-dom@17.6.3\node_modules\happy-dom\src\fetch\Fetch.ts:669:37)
+[22m[39mAggregateError: 
+[90m    at internalConnectMultiple (node:net:1134:18)[39m
+[90m    at afterConnectMultiple (node:net:1715:7)[39m {
+  code: [32m'ECONNREFUSED'[39m,
+  [errors]: [
+    Error: connect ECONNREFUSED ::1:3000
+    [90m    at createConnectionError (node:net:1678:14)[39m
+    [90m    at afterConnectMultiple (node:net:1708:16)[39m {
+      errno: [33m-4078[39m,
+      code: [32m'ECONNREFUSED'[39m,
+      syscall: [32m'connect'[39m,
+      address: [32m'::1'[39m,
+      port: [33m3000[39m
+    },
+    Error: connect ECONNREFUSED 127.0.0.1:3000
+    [90m    at createConnectionError (node:net:1678:14)[39m
+    [90m    at afterConnectMultiple (node:net:1708:16)[39m {
+      errno: [33m-4078[39m,
+      code: [32m'ECONNREFUSED'[39m,
+      syscall: [32m'connect'[39m,
+      address: [32m'127.0.0.1'[39m,
+      port: [33m3000[39m
+    }
+  ]
+}
+
+[90mstderr[2m | HTMLScriptElement.#loadScript (file:\E:\git_clone\novusai-saas-yudi\frontend\node_modules\.pnpm\happy-dom@17.6.3\node_modules\happy-dom\src\nodes\html-script-element\HTMLScriptElement.ts:678:32)
+[22m[39mDOMException [NetworkError]: Failed to execute "fetch()" on "Window" with URL "http://localhost:3000/plugin-public-assets/tenant/demo-plugin/assets/plugin.js": 
+    at Fetch.onError [90m(file:///E:/git_clone/novusai-saas-yudi/frontend/[39mnode_modules/[4m.pnpm[24m/happy-dom@17.6.3/node_modules/[4mhappy-dom[24m/src/fetch/Fetch.ts:671:4[90m)[39m
+[90m    at ClientRequest.emit (node:events:519:28)[39m
+[90m    at emitErrorEvent (node:_http_client:105:11)[39m
+[90m    at Socket.socketErrorListener (node:_http_client:518:5)[39m
+[90m    at Socket.emit (node:events:519:28)[39m
+[90m    at emitErrorNT (node:internal/streams/destroy:170:8)[39m
+[90m    at emitErrorCloseNT (node:internal/streams/destroy:129:3)[39m
+[90m    at processTicksAndRejections (node:internal/process/task_queues:90:21)[39m
+
+[90mstderr[2m | Fetch.onError (file:\E:\git_clone\novusai-saas-yudi\frontend\node_modules\.pnpm\happy-dom@17.6.3\node_modules\happy-dom\src\fetch\Fetch.ts:669:37)
+[22m[39mAggregateError: 
+[90m    at internalConnectMultiple (node:net:1134:18)[39m
+[90m    at afterConnectMultiple (node:net:1715:7)[39m {
+  code: [32m'ECONNREFUSED'[39m,
+  [errors]: [
+    Error: connect ECONNREFUSED ::1:3000
+    [90m    at createConnectionError (node:net:1678:14)[39m
+    [90m    at afterConnectMultiple (node:net:1708:16)[39m {
+      errno: [33m-4078[39m,
+      code: [32m'ECONNREFUSED'[39m,
+      syscall: [32m'connect'[39m,
+      address: [32m'::1'[39m,
+      port: [33m3000[39m
+    },
+    Error: connect ECONNREFUSED 127.0.0.1:3000
+    [90m    at createConnectionError (node:net:1678:14)[39m
+    [90m    at afterConnectMultiple (node:net:1708:16)[39m {
+      errno: [33m-4078[39m,
+      code: [32m'ECONNREFUSED'[39m,
+      syscall: [32m'connect'[39m,
+      address: [32m'127.0.0.1'[39m,
+      port: [33m3000[39m
+    }
+  ]
+}
+
+[90mstderr[2m | HTMLScriptElement.#loadScript (file:\E:\git_clone\novusai-saas-yudi\frontend\node_modules\.pnpm\happy-dom@17.6.3\node_modules\happy-dom\src\nodes\html-script-element\HTMLScriptElement.ts:678:32)
+[22m[39mDOMException [NetworkError]: Failed to execute "fetch()" on "Window" with URL "http://localhost:3000/plugin-assets/demo-plugin/assets/plugin.js": 
+    at Fetch.onError [90m(file:///E:/git_clone/novusai-saas-yudi/frontend/[39mnode_modules/[4m.pnpm[24m/happy-dom@17.6.3/node_modules/[4mhappy-dom[24m/src/fetch/Fetch.ts:671:4[90m)[39m
+[90m    at ClientRequest.emit (node:events:519:28)[39m
+[90m    at emitErrorEvent (node:_http_client:105:11)[39m
+[90m    at Socket.socketErrorListener (node:_http_client:518:5)[39m
+[90m    at Socket.emit (node:events:519:28)[39m
+[90m    at emitErrorNT (node:internal/streams/destroy:170:8)[39m
+[90m    at emitErrorCloseNT (node:internal/streams/destroy:129:3)[39m
+[90m    at processTicksAndRejections (node:internal/process/task_queues:90:21)[39m
+
+[90mstderr[2m | Fetch.onError (file:\E:\git_clone\novusai-saas-yudi\frontend\node_modules\.pnpm\happy-dom@17.6.3\node_modules\happy-dom\src\fetch\Fetch.ts:669:37)
+[22m[39mAggregateError: 
+[90m    at internalConnectMultiple (node:net:1134:18)[39m
+[90m    at afterConnectMultiple (node:net:1715:7)[39m {
+  code: [32m'ECONNREFUSED'[39m,
+  [errors]: [
+    Error: connect ECONNREFUSED ::1:3000
+    [90m    at createConnectionError (node:net:1678:14)[39m
+    [90m    at afterConnectMultiple (node:net:1708:16)[39m {
+      errno: [33m-4078[39m,
+      code: [32m'ECONNREFUSED'[39m,
+      syscall: [32m'connect'[39m,
+      address: [32m'::1'[39m,
+      port: [33m3000[39m
+    },
+    Error: connect ECONNREFUSED 127.0.0.1:3000
+    [90m    at createConnectionError (node:net:1678:14)[39m
+    [90m    at afterConnectMultiple (node:net:1708:16)[39m {
+      errno: [33m-4078[39m,
+      code: [32m'ECONNREFUSED'[39m,
+      syscall: [32m'connect'[39m,
+      address: [32m'127.0.0.1'[39m,
+      port: [33m3000[39m
+    }
+  ]
+}
+
+[90mstderr[2m | HTMLScriptElement.#loadScript (file:\E:\git_clone\novusai-saas-yudi\frontend\node_modules\.pnpm\happy-dom@17.6.3\node_modules\happy-dom\src\nodes\html-script-element\HTMLScriptElement.ts:678:32)
+[22m[39mDOMException [NetworkError]: Failed to execute "fetch()" on "Window" with URL "http://localhost:3000/plugin-assets/demo-plugin/assets/plugin.js": 
+    at Fetch.onError [90m(file:///E:/git_clone/novusai-saas-yudi/frontend/[39mnode_modules/[4m.pnpm[24m/happy-dom@17.6.3/node_modules/[4mhappy-dom[24m/src/fetch/Fetch.ts:671:4[90m)[39m
+[90m    at ClientRequest.emit (node:events:519:28)[39m
+[90m    at emitErrorEvent (node:_http_client:105:11)[39m
+[90m    at Socket.socketErrorListener (node:_http_client:518:5)[39m
+[90m    at Socket.emit (node:events:519:28)[39m
+[90m    at emitErrorNT (node:internal/streams/destroy:170:8)[39m
+[90m    at emitErrorCloseNT (node:internal/streams/destroy:129:3)[39m
+[90m    at processTicksAndRejections (node:internal/process/task_queues:90:21)[39m
+
+[90mstderr[2m | Fetch.onError (file:\E:\git_clone\novusai-saas-yudi\frontend\node_modules\.pnpm\happy-dom@17.6.3\node_modules\happy-dom\src\fetch\Fetch.ts:669:37)
+[22m[39mAggregateError: 
+[90m    at internalConnectMultiple (node:net:1134:18)[39m
+[90m    at afterConnectMultiple (node:net:1715:7)[39m {
+  code: [32m'ECONNREFUSED'[39m,
+  [errors]: [
+    Error: connect ECONNREFUSED ::1:3000
+    [90m    at createConnectionError (node:net:1678:14)[39m
+    [90m    at afterConnectMultiple (node:net:1708:16)[39m {
+      errno: [33m-4078[39m,
+      code: [32m'ECONNREFUSED'[39m,
+      syscall: [32m'connect'[39m,
+      address: [32m'::1'[39m,
+      port: [33m3000[39m
+    },
+    Error: connect ECONNREFUSED 127.0.0.1:3000
+    [90m    at createConnectionError (node:net:1678:14)[39m
+    [90m    at afterConnectMultiple (node:net:1708:16)[39m {
+      errno: [33m-4078[39m,
+      code: [32m'ECONNREFUSED'[39m,
+      syscall: [32m'connect'[39m,
+      address: [32m'127.0.0.1'[39m,
+      port: [33m3000[39m
+    }
+  ]
+}
+
+[90mstderr[2m | HTMLScriptElement.#loadScript (file:\E:\git_clone\novusai-saas-yudi\frontend\node_modules\.pnpm\happy-dom@17.6.3\node_modules\happy-dom\src\nodes\html-script-element\HTMLScriptElement.ts:678:32)
+[22m[39mDOMException [NetworkError]: Failed to execute "fetch()" on "Window" with URL "http://localhost:3000/plugin-assets/demo-plugin/assets/plugin.js": 
+    at Fetch.onError [90m(file:///E:/git_clone/novusai-saas-yudi/frontend/[39mnode_modules/[4m.pnpm[24m/happy-dom@17.6.3/node_modules/[4mhappy-dom[24m/src/fetch/Fetch.ts:671:4[90m)[39m
+[90m    at ClientRequest.emit (node:events:519:28)[39m
+[90m    at emitErrorEvent (node:_http_client:105:11)[39m
+[90m    at Socket.socketErrorListener (node:_http_client:518:5)[39m
+[90m    at Socket.emit (node:events:519:28)[39m
+[90m    at emitErrorNT (node:internal/streams/destroy:170:8)[39m
+[90m    at emitErrorCloseNT (node:internal/streams/destroy:129:3)[39m
+[90m    at processTicksAndRejections (node:internal/process/task_queues:90:21)[39m
+
+[90mstderr[2m | Fetch.onError (file:\E:\git_clone\novusai-saas-yudi\frontend\node_modules\.pnpm\happy-dom@17.6.3\node_modules\happy-dom\src\fetch\Fetch.ts:669:37)
+[22m[39mAggregateError: 
+[90m    at internalConnectMultiple (node:net:1134:18)[39m
+[90m    at afterConnectMultiple (node:net:1715:7)[39m {
+  code: [32m'ECONNREFUSED'[39m,
+  [errors]: [
+    Error: connect ECONNREFUSED ::1:3000
+    [90m    at createConnectionError (node:net:1678:14)[39m
+    [90m    at afterConnectMultiple (node:net:1708:16)[39m {
+      errno: [33m-4078[39m,
+      code: [32m'ECONNREFUSED'[39m,
+      syscall: [32m'connect'[39m,
+      address: [32m'::1'[39m,
+      port: [33m3000[39m
+    },
+    Error: connect ECONNREFUSED 127.0.0.1:3000
+    [90m    at createConnectionError (node:net:1678:14)[39m
+    [90m    at afterConnectMultiple (node:net:1708:16)[39m {
+      errno: [33m-4078[39m,
+      code: [32m'ECONNREFUSED'[39m,
+      syscall: [32m'connect'[39m,
+      address: [32m'127.0.0.1'[39m,
+      port: [33m3000[39m
+    }
+  ]
+}
+
+[90mstderr[2m | HTMLScriptElement.#loadScript (file:\E:\git_clone\novusai-saas-yudi\frontend\node_modules\.pnpm\happy-dom@17.6.3\node_modules\happy-dom\src\nodes\html-script-element\HTMLScriptElement.ts:678:32)
+[22m[39mDOMException [NetworkError]: Failed to execute "fetch()" on "Window" with URL "http://localhost:3000/plugin-public-assets/tenant/demo-plugin/assets/plugin.js": 
+    at Fetch.onError [90m(file:///E:/git_clone/novusai-saas-yudi/frontend/[39mnode_modules/[4m.pnpm[24m/happy-dom@17.6.3/node_modules/[4mhappy-dom[24m/src/fetch/Fetch.ts:671:4[90m)[39m
+[90m    at ClientRequest.emit (node:events:519:28)[39m
+[90m    at emitErrorEvent (node:_http_client:105:11)[39m
+[90m    at Socket.socketErrorListener (node:_http_client:518:5)[39m
+[90m    at Socket.emit (node:events:519:28)[39m
+[90m    at emitErrorNT (node:internal/streams/destroy:170:8)[39m
+[90m    at emitErrorCloseNT (node:internal/streams/destroy:129:3)[39m
+[90m    at processTicksAndRejections (node:internal/process/task_queues:90:21)[39m
+
+[90mstderr[2m | Fetch.onError (file:\E:\git_clone\novusai-saas-yudi\frontend\node_modules\.pnpm\happy-dom@17.6.3\node_modules\happy-dom\src\fetch\Fetch.ts:669:37)
+[22m[39mAggregateError: 
+[90m    at internalConnectMultiple (node:net:1134:18)[39m
+[90m    at afterConnectMultiple (node:net:1715:7)[39m {
+  code: [32m'ECONNREFUSED'[39m,
+  [errors]: [
+    Error: connect ECONNREFUSED ::1:3000
+    [90m    at createConnectionError (node:net:1678:14)[39m
+    [90m    at afterConnectMultiple (node:net:1708:16)[39m {
+      errno: [33m-4078[39m,
+      code: [32m'ECONNREFUSED'[39m,
+      syscall: [32m'connect'[39m,
+      address: [32m'::1'[39m,
+      port: [33m3000[39m
+    },
+    Error: connect ECONNREFUSED 127.0.0.1:3000
+    [90m    at createConnectionError (node:net:1678:14)[39m
+    [90m    at afterConnectMultiple (node:net:1708:16)[39m {
+      errno: [33m-4078[39m,
+      code: [32m'ECONNREFUSED'[39m,
+      syscall: [32m'connect'[39m,
+      address: [32m'127.0.0.1'[39m,
+      port: [33m3000[39m
+    }
+  ]
+}
+
+[90mstderr[2m | HTMLScriptElement.#loadScript (file:\E:\git_clone\novusai-saas-yudi\frontend\node_modules\.pnpm\happy-dom@17.6.3\node_modules\happy-dom\src\nodes\html-script-element\HTMLScriptElement.ts:678:32)
+[22m[39mDOMException [NetworkError]: Failed to execute "fetch()" on "Window" with URL "http://localhost:3000/plugin-assets/demo-plugin/assets/plugin.js": 
+    at Fetch.onError [90m(file:///E:/git_clone/novusai-saas-yudi/frontend/[39mnode_modules/[4m.pnpm[24m/happy-dom@17.6.3/node_modules/[4mhappy-dom[24m/src/fetch/Fetch.ts:671:4[90m)[39m
+[90m    at ClientRequest.emit (node:events:519:28)[39m
+[90m    at emitErrorEvent (node:_http_client:105:11)[39m
+[90m    at Socket.socketErrorListener (node:_http_client:518:5)[39m
+[90m    at Socket.emit (node:events:519:28)[39m
+[90m    at emitErrorNT (node:internal/streams/destroy:170:8)[39m
+[90m    at emitErrorCloseNT (node:internal/streams/destroy:129:3)[39m
+[90m    at processTicksAndRejections (node:internal/process/task_queues:90:21)[39m
+
+[90mstderr[2m | Fetch.onError (file:\E:\git_clone\novusai-saas-yudi\frontend\node_modules\.pnpm\happy-dom@17.6.3\node_modules\happy-dom\src\fetch\Fetch.ts:669:37)
+[22m[39mAggregateError: 
+[90m    at internalConnectMultiple (node:net:1134:18)[39m
+[90m    at afterConnectMultiple (node:net:1715:7)[39m {
+  code: [32m'ECONNREFUSED'[39m,
+  [errors]: [
+    Error: connect ECONNREFUSED ::1:3000
+    [90m    at createConnectionError (node:net:1678:14)[39m
+    [90m    at afterConnectMultiple (node:net:1708:16)[39m {
+      errno: [33m-4078[39m,
+      code: [32m'ECONNREFUSED'[39m,
+      syscall: [32m'connect'[39m,
+      address: [32m'::1'[39m,
+      port: [33m3000[39m
+    },
+    Error: connect ECONNREFUSED 127.0.0.1:3000
+    [90m    at createConnectionError (node:net:1678:14)[39m
+    [90m    at afterConnectMultiple (node:net:1708:16)[39m {
+      errno: [33m-4078[39m,
+      code: [32m'ECONNREFUSED'[39m,
+      syscall: [32m'connect'[39m,
+      address: [32m'127.0.0.1'[39m,
+      port: [33m3000[39m
+    }
+  ]
+}
+
+[90mstderr[2m | HTMLScriptElement.#loadScript (file:\E:\git_clone\novusai-saas-yudi\frontend\node_modules\.pnpm\happy-dom@17.6.3\node_modules\happy-dom\src\nodes\html-script-element\HTMLScriptElement.ts:678:32)
+[22m[39mDOMException [NetworkError]: Failed to execute "fetch()" on "Window" with URL "http://localhost:3000/plugin-assets/demo-plugin/assets/plugin.js": 
+    at Fetch.onError [90m(file:///E:/git_clone/novusai-saas-yudi/frontend/[39mnode_modules/[4m.pnpm[24m/happy-dom@17.6.3/node_modules/[4mhappy-dom[24m/src/fetch/Fetch.ts:671:4[90m)[39m
+[90m    at ClientRequest.emit (node:events:519:28)[39m
+[90m    at emitErrorEvent (node:_http_client:105:11)[39m
+[90m    at Socket.socketErrorListener (node:_http_client:518:5)[39m
+[90m    at Socket.emit (node:events:519:28)[39m
+[90m    at emitErrorNT (node:internal/streams/destroy:170:8)[39m
+[90m    at emitErrorCloseNT (node:internal/streams/destroy:129:3)[39m
+[90m    at processTicksAndRejections (node:internal/process/task_queues:90:21)[39m
+
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 2 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m apps/web-antd/src/utils/__tests__/plugin-loader.test.ts[2m > [22mplugin-loader[2m > [22mloads release manifest before injecting css and script assets
+[31m[1mTypeError[22m: Cannot read properties of undefined (reading 'publicEndpoint')[39m
+[36m [2m❯[22m normalizePluginLoadOptions apps/web-antd/src/utils/plugin-loader.ts:[2m113:19[22m[39m
+    [90m111| [39m  loadOptions[33m:[39m [33mPluginAssetLoadOptions[39m[33m,[39m
+    [90m112| [39m)[33m:[39m [33mPluginAssetLoadOptions[39m {
+    [90m113| [39m  [35mif[39m (loadOptions[33m.[39mpublicEndpoint [33m&&[39m loadOptions[33m.[39mendpoint) {
+    [90m   | [39m                  [31m^[39m
+    [90m114| [39m    [35mthrow[39m [35mnew[39m [33mError[39m(
+    [90m115| [39m      'Plugin loader scope must use either endpoint or publicEndpoint,…
+[90m [2m❯[22m Module.loadPluginComponents apps/web-antd/src/utils/plugin-loader.ts:[2m433:33[22m[39m
+[90m [2m❯[22m apps/web-antd/src/utils/__tests__/plugin-loader.test.ts:[2m156:23[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m apps/web-antd/src/utils/__tests__/plugin-loader.test.ts[2m > [22mplugin-loader[2m > [22minfers the current endpoint from the route when callers omit load options
+[31m[1mTypeError[22m: Cannot read properties of undefined (reading 'publicEndpoint')[39m
+[36m [2m❯[22m normalizePluginLoadOptions apps/web-antd/src/utils/plugin-loader.ts:[2m113:19[22m[39m
+    [90m111| [39m  loadOptions[33m:[39m [33mPluginAssetLoadOptions[39m[33m,[39m
+    [90m112| [39m)[33m:[39m [33mPluginAssetLoadOptions[39m {
+    [90m113| [39m  [35mif[39m (loadOptions[33m.[39mpublicEndpoint [33m&&[39m loadOptions[33m.[39mendpoint) {
+    [90m   | [39m                  [31m^[39m
+    [90m114| [39m    [35mthrow[39m [35mnew[39m [33mError[39m(
+    [90m115| [39m      'Plugin loader scope must use either endpoint or publicEndpoint,…
+[90m [2m❯[22m Module.loadPluginComponents apps/web-antd/src/utils/plugin-loader.ts:[2m433:33[22m[39m
+[90m [2m❯[22m apps/web-antd/src/utils/__tests__/plugin-loader.test.ts:[2m225:11[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m1 passed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m12 passed[39m[22m[90m (14)[39m
+[2m   Start at [22m 20:47:36
+[2m   Duration [22m 1.69s[2m (transform 108ms, setup 0ms, collect 132ms, tests 51ms, environment 477ms, prepare 154ms)[22m
+

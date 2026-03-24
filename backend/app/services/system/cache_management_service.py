@@ -24,7 +24,7 @@ from app.storage import LOCAL_IMAGE_CACHE_ROOT
 
 logger = LogManager.get_logger("app")
 
-# Redis key pattern mapping for each cache category
+# Redis key pattern mapping for each cache category / Redis 键模式映射 / Redis key patterns
 _REDIS_PATTERNS: dict[str, str] = {
     CacheCategoryEnum.AI_RESPONSE.value: "ai:response:*",
     CacheCategoryEnum.AI_SCHEMA.value: "ai:schema:*",

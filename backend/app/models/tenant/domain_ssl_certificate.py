@@ -41,14 +41,14 @@ class DomainSslCertificate(BaseModel):
         "id", "expires_at", "issued_at", "created_at", "updated_at",
     ]
 
-    # ==================== 关联字段 ====================
+    # ==================== 关联字段 ==================== / Foreign keys
 
     domain_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("tenant_domains.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
-        comment="域名 ID",
+        comment="域名 ID / Domain id",
     )
 
     tenant_id: Mapped[int] = mapped_column(
@@ -56,10 +56,10 @@ class DomainSslCertificate(BaseModel):
         ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
-        comment="企业 ID",
+        comment="企业 ID / Tenant id",
     )
 
-    # ==================== 证书类型与状态 ====================
+    # ==================== 证书类型与状态 ==================== / Type and status
 
     cert_type: Mapped[str] = mapped_column(
         String(20),
@@ -75,7 +75,7 @@ class DomainSslCertificate(BaseModel):
         comment="证书状态: pending/active/expired/revoked/failed",
     )
 
-    # ==================== 证书内容 ====================
+    # ==================== 证书内容 ==================== / PEM payload
 
     certificate: Mapped[str | None] = mapped_column(
         Text,
@@ -95,7 +95,7 @@ class DomainSslCertificate(BaseModel):
         comment="PEM 格式证书链（中间证书）",
     )
 
-    # ==================== 证书元信息 ====================
+    # ==================== 证书元信息 ==================== / Certificate metadata
 
     issuer: Mapped[str | None] = mapped_column(
         String(255),
@@ -121,7 +121,7 @@ class DomainSslCertificate(BaseModel):
         comment="到期时间",
     )
 
-    # ==================== 续期配置 ====================
+    # ==================== 续期配置 ==================== / Renewal settings
 
     auto_renew: Mapped[bool] = mapped_column(
         Boolean,
@@ -141,7 +141,7 @@ class DomainSslCertificate(BaseModel):
         comment="最近一次续期失败原因",
     )
 
-    # ==================== ACME 相关 ====================
+    # ==================== ACME 相关 ==================== / ACME fields
 
     acme_order_url: Mapped[str | None] = mapped_column(
         String(500),
@@ -149,7 +149,7 @@ class DomainSslCertificate(BaseModel):
         comment="ACME 订单 URL（用于异步轮询签发状态）",
     )
 
-    # ==================== 关系 ====================
+    # ==================== 关系 ==================== / Relationships
 
     domain = relationship(
         "TenantDomain",
@@ -162,7 +162,7 @@ class DomainSslCertificate(BaseModel):
         lazy="noload",
     )
 
-    # ==================== 索引 ====================
+    # ==================== 索引 ==================== / Indexes
 
     __table_args__ = (
         Index("ix_domain_ssl_certs_domain_status", "domain_id", "status"),
@@ -170,7 +170,7 @@ class DomainSslCertificate(BaseModel):
         Index("ix_domain_ssl_certs_tenant", "tenant_id"),
     )
 
-    # ==================== 辅助方法 ====================
+    # ==================== 辅助方法 ==================== / Helpers
 
     @property
     def is_platform(self) -> bool:

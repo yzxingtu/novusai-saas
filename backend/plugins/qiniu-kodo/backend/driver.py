@@ -86,7 +86,7 @@ class KodoStorageDriver(StorageDriver):
         "required": ["root_path", "access_key", "secret_key"],
     }
 
-    MAX_PROCESS_SIZE = 20 * 1024 * 1024  # 20MB
+    MAX_PROCESS_SIZE = 20 * 1024 * 1024  # 20MB / 图像处理上限约 20MB
 
     def __init__(self, config: StorageConfig):
         super().__init__(config)

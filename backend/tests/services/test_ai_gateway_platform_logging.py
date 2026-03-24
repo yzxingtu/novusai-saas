@@ -8,7 +8,9 @@ import pytest
 
 from app.ai.types import ChatMessage, ChatResponse
 from app.configs.service import PLATFORM_TENANT_ID
+from app.core.config import settings
 from app.enums.log import UserTypeEnum as LogUserTypeEnum
+from app.middleware.trace import trace_id_var
 
 
 @pytest.mark.asyncio
@@ -409,3 +411,54 @@ async def test_conversation_engine_stream_logs_failure_before_done(
     gateway.usage_recorder.record_usage_and_adjust.assert_not_awaited()
     api_key.increment_usage.assert_not_called()
     mock_db.flush.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_test_model_hides_generic_exception_in_production(mock_db):
+    from app.ai.gateway import AIGateway
+
+    gateway = AIGateway.__new__(AIGateway)
+    gateway.db = mock_db
+    gateway.provider_repo = MagicMock()
+    gateway.api_key_repo = MagicMock()
+    gateway.model_repo = MagicMock()
+
+    provider = SimpleNamespace(
+        id=11,
+        code="provider_1",
+        type="openai_compatible",
+        base_url="https://example.com/v1",
+        config={},
+        is_active=True,
+    )
+    api_key = SimpleNamespace(
+        id=22,
+        decrypt_key=MagicMock(return_value="sk-test"),
+        is_available=MagicMock(return_value=True),
+    )
+    gateway.provider_repo.get_by_id = AsyncMock(return_value=provider)
+    gateway.api_key_repo.get_available_key = AsyncMock(return_value=api_key)
+    gateway._get_model = AsyncMock(return_value=None)
+
+    adapter = SimpleNamespace(
+        chat=AsyncMock(side_effect=RuntimeError("upstream provider boom")),
+    )
+    original_debug = settings.DEBUG
+    token = trace_id_var.set("trace-test-model-prod")
+    settings.DEBUG = False
+    try:
+        with patch(
+            "app.ai.gateway.AdapterRegistry.create_adapter",
+            return_value=adapter,
+        ):
+            result = await gateway.test_model(
+                provider_id=provider.id,
+                model_code="gpt-test",
+            )
+    finally:
+        settings.DEBUG = original_debug
+        trace_id_var.reset(token)
+
+    assert result.connected is False
+    assert "upstream provider boom" not in (result.error or "")
+    assert "trace-test-model-prod" in (result.error or "")

@@ -10,9 +10,9 @@
 
 1. **业务任务模块必须使用 `@register_task` 装饰器**（`app/tasks/base.py`），禁止直接写 `@celery_app.task`
 2. **第一个参数始终是 `self`**（装饰器自动设置 `bind=True`）
-3. **Celery Worker 是同步进程**，必须用 `self.get_db_session()` 获取同步 Session，禁止使用 `async`
+3. **Celery Worker 是同步进程**。业务任务优先用 `self.get_db_session()` 获取同步 Session；底层桥接任务、bootstrap 任务或当前已有的独立写库任务也可以直接使用 `sync_session_factory()`，但禁止使用 `async`
 4. **返回值必须是 JSON 可序列化的 dict**
-5. **新任务模块**必须注册到 `celery_app.py` 的 `task_modules` 列表
+5. **新任务模块**必须注册到 `celery_app.py` 的 `celery_app.conf.include` 列表，并确保 `_import_task_modules()` 会导入它
 
 ### 任务基类选择
 
@@ -29,13 +29,14 @@
 | `high_priority` | `app.tasks.high_priority.*` | 需快速响应的用户操作 |
 | `ai_gateway` | `app.tasks.ai.*` | AI 模型调用（可能较慢） |
 | `scheduled` | `app.tasks.scheduled.*` | 定时触发的任务 |
+| `notification` | `app.tasks.notification.*` | 通知邮件、站内信等通知相关任务 |
 
 ### 禁止事项
 
-- **禁止业务任务模块使用 `@shared_task` 或 `@celery_app.task`**（`ai.py` 是历史遗留，待修复；插件注册器等框架桥接层内部动态注册 Celery task 属于例外）
+- **禁止业务任务模块使用 `@shared_task` 或 `@celery_app.task`**（插件注册器等框架桥接层内部动态注册 Celery task 属于例外；`ai.py` 当前已经迁移到 `@register_task`）
 - **禁止在 `@register_task` 中传 `bind=True` 或 `base=BaseTask`**（装饰器已自动设置）
 - **禁止在任务函数内直接写 `async def`**（Celery Worker 是同步进程）
-- **禁止使用异步 DB Session**（必须用 `self.get_db_session()` 同步 Session）
+- **禁止使用异步 DB Session**（应使用 `self.get_db_session()` 或明确的 `sync_session_factory()` 同步 Session）
 
 ---
 
@@ -263,9 +264,9 @@ python scripts/start_worker.py dev                  # 开发模式（Worker + Be
 
 - [ ] 使用 `@register_task` 装饰器
 - [ ] 第一个参数是 `self: BaseTask` 或 `self: TenantTask`
-- [ ] 使用 `self.get_db_session()` 获取同步 Session
+- [ ] 业务任务优先使用 `self.get_db_session()`；若使用 `sync_session_factory()`，说明这是底层/桥接型任务而非普通业务任务
 - [ ] 返回值是 JSON 可序列化的 dict
-- [ ] 新模块已注册到 `celery_app.py` 的 `task_modules`
+- [ ] 新模块已注册到 `celery_app.py` 的 `celery_app.conf.include`
 - [ ] 企业任务使用 `TenantTask` 基类
 - [ ] 合理选择队列
 - [ ] 设置合适的 `max_retries` 和 `description`

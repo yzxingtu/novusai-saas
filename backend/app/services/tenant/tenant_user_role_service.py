@@ -73,18 +73,18 @@ class TenantUserRoleService(TenantService[TenantUserRole, TenantUserRoleReposito
         Raises:
             BusinessException: 名称或代码已存在
         """
-        # 自动生成代码（如未提供）
+        # 自动生成代码（如未提供） / Auto-generate code if omitted
         if not code:
             code = self._generate_role_code()
 
-        # 检查代码是否已存在
+        # 检查代码是否已存在 / Check code exists
         if await self.repo.code_exists(code):
             raise BusinessException(
                 message=_("tenant_user_role.code_exists"),
                 code=ErrorCode.DUPLICATE_ENTRY,
             )
 
-        # 检查名称是否已存在
+        # 检查名称是否已存在 / Check name exists
         if await self.repo.name_exists(name):
             raise BusinessException(
                 message=_("tenant_user_role.name_exists"),
@@ -101,7 +101,7 @@ class TenantUserRoleService(TenantService[TenantUserRole, TenantUserRoleReposito
 
         role = await self.repo.create(data)
 
-        # 分配权限
+        # 分配权限 / Assign permissions
         if permission_ids:
             await self._assign_permissions(role, permission_ids)
 
@@ -130,18 +130,18 @@ class TenantUserRoleService(TenantService[TenantUserRole, TenantUserRoleReposito
         if not role:
             raise NotFoundException(message=_("tenant_user_role.not_found"))
 
-        # 系统角色不可修改
+        # 系统角色不可修改 / System roles are immutable
         if role.is_system:
             raise BusinessException(
                 message=_("tenant_user_role.system_cannot_modify"),
                 code=ErrorCode.VALIDATION_ERROR,
             )
 
-        # 移除不允许直接更新的字段
+        # 移除不允许直接更新的字段 / Remove fields not directly updatable
         data.pop("tenant_id", None)
         permission_ids = data.pop("permission_ids", None)
 
-        # 检查代码唯一性
+        # 检查代码唯一性 / Check code uniqueness
         if (
             "code" in data
             and data["code"]
@@ -152,7 +152,7 @@ class TenantUserRoleService(TenantService[TenantUserRole, TenantUserRoleReposito
                 code=ErrorCode.DUPLICATE_ENTRY,
             )
 
-        # 检查名称唯一性
+        # 检查名称唯一性 / Check name uniqueness
         if (
             "name" in data
             and data["name"]
@@ -167,7 +167,7 @@ class TenantUserRoleService(TenantService[TenantUserRole, TenantUserRoleReposito
         if not result:
             raise NotFoundException(message=_("tenant_user_role.not_found"))
 
-        # 更新权限
+        # 更新权限 / Update permissions
         if permission_ids is not None:
             await self._assign_permissions(result, permission_ids)
 

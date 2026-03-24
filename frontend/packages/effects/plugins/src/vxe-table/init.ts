@@ -2,7 +2,8 @@ import type { SetupVxeTable } from './types';
 
 import { defineComponent, watch } from 'vue';
 
-import { usePreferences } from '@vben/preferences';
+import { i18n } from '@vben/locales';
+import { preferences, usePreferences } from '@vben/preferences';
 
 import { useVbenForm } from '@vben-core/form-ui';
 
@@ -35,9 +36,9 @@ import {
   // VxeSwitch,
   // VxeTextarea,
 } from 'vxe-pc-ui';
-import enUS from 'vxe-pc-ui/lib/language/en-US';
+import enUS from 'vxe-pc-ui/es/language/en-US';
 // 导入默认的语言
-import zhCN from 'vxe-pc-ui/lib/language/zh-CN';
+import zhCN from 'vxe-pc-ui/es/language/zh-CN';
 import {
   VxeColgroup,
   VxeColumn,
@@ -53,6 +54,26 @@ let isInit = false;
 
 // eslint-disable-next-line import/no-mutable-exports
 export let useTableForm: typeof useVbenForm;
+
+const VXE_LOCALE_MAP = {
+  'zh-CN': zhCN,
+  'en-US': enUS,
+} as const;
+
+type SupportedVxeLocale = keyof typeof VXE_LOCALE_MAP;
+
+function resolveVxeLocale(localeValue?: string): SupportedVxeLocale {
+  if (localeValue && localeValue in VXE_LOCALE_MAP) {
+    return localeValue as SupportedVxeLocale;
+  }
+
+  const fallbackLocale = preferences.app.locale;
+  if (fallbackLocale in VXE_LOCALE_MAP) {
+    return fallbackLocale as SupportedVxeLocale;
+  }
+
+  return 'zh-CN';
+}
 
 // 部分组件，如果没注册，vxe-table 会报错，这里实际没用组件，只是为了不报错，同时可以减少打包体积
 const createVirtualComponent = (name = '') => {
@@ -108,18 +129,13 @@ export function setupVbenVxeTable(setupOptions: SetupVxeTable) {
   initVxeTable();
   useTableForm = useVbenForm;
 
-  const { isDark, locale } = usePreferences();
-
-  const localMap = {
-    'zh-CN': zhCN,
-    'en-US': enUS,
-  };
+  const { isDark } = usePreferences();
 
   watch(
-    [() => isDark.value, () => locale.value],
+    [() => isDark.value, () => resolveVxeLocale(i18n.global.locale.value)],
     ([isDarkValue, localeValue]) => {
       VxeUI.setTheme(isDarkValue ? 'dark' : 'light');
-      VxeUI.setI18n(localeValue, localMap[localeValue]);
+      VxeUI.setI18n(localeValue, VXE_LOCALE_MAP[localeValue]);
       VxeUI.setLanguage(localeValue);
     },
     {

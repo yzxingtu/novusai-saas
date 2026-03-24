@@ -52,7 +52,7 @@ def get_registered_channels_info() -> list[dict[str, str]]:
 
 
 # ============================================
-# 内置渠道自动注册
+# 内置渠道自动注册 / Built-in channel auto-registration
 # ============================================
 def _register_builtin_channels() -> None:
     """注册内置渠道（模块加载时执行） / Register built-in channels (on module load)."""

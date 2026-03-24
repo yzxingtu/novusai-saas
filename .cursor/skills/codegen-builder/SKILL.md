@@ -36,6 +36,6 @@ description: NovusAI Codegen 可视化构建器技能。当需要开发或修复
 
 ## 参考
 
-- `../novusai-saas/references/codegen-builder-spec.md`
-- `../novusai-saas/references/codegen-spec.md`
-- `../crud-codegen-workflow/SKILL.md`
+- [../novusai-saas/references/codegen-builder-spec.md](../novusai-saas/references/codegen-builder-spec.md)
+- [../novusai-saas/references/codegen-spec.md](../novusai-saas/references/codegen-spec.md)
+- [../crud-codegen-workflow/SKILL.md](../crud-codegen-workflow/SKILL.md)

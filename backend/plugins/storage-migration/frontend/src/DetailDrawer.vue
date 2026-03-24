@@ -88,7 +88,7 @@ async function loadDetail(taskId: number) {
   try {
     task.value = await getMigrationTaskApi(taskId);
   } catch {
-    // handled by interceptor
+    // handled by interceptor / 已由拦截器处理
   } finally {
     loading.value = false;
   }

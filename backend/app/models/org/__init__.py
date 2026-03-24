@@ -9,6 +9,7 @@ from app.models.org.admin_org_node import (
     AdminOrgNode,
     AdminOrgScopePolicy,
     AdminOrgScopeTarget,
+    admin_org_node_permissions,
 )
 from app.models.org.tenant_org_node import (
     TenantOrgNode,
@@ -20,6 +21,7 @@ __all__ = [
     "AdminOrgNode",
     "AdminOrgScopePolicy",
     "AdminOrgScopeTarget",
+    "admin_org_node_permissions",
     "TenantOrgNode",
     "TenantOrgScopePolicy",
     "TenantOrgScopeTarget",

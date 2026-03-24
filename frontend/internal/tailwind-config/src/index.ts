@@ -9,14 +9,14 @@ import animate from 'tailwindcss-animate';
 
 import { enterAnimationPlugin } from './plugins/entry';
 
-// import defaultTheme from 'tailwindcss/defaultTheme';
+// import defaultTheme from 'tailwindcss/defaultTheme'; / 默认主题（已注释）/ defaultTheme unused
 
 const { packages } = getPackagesSync(process.cwd());
 
 const tailwindPackages: string[] = [];
 
 packages.forEach((pkg) => {
-  // apps目录下和 @vben-core/tailwind-ui 包需要使用到 tailwindcss ui
+  // apps 与 @vben-core/tailwind-ui 等需扫描 Tailwind 源码 / scan packages for Tailwind content
   // if (fs.existsSync(path.join(pkg.dir, 'tailwind.config.mjs'))) {
   tailwindPackages.push(pkg.dir);
   // }
@@ -169,7 +169,7 @@ export default {
       fontFamily: {
         sans: [
           'var(--font-family)',
-          //  ...defaultTheme.fontFamily.sans
+          //  ...defaultTheme.fontFamily.sans / 默认无衬线栈（已注释）/ default sans stack
         ],
       },
       keyframes: {
@@ -241,26 +241,26 @@ function createColorsPalette(name: string) {
     // 800: `hsl(var(--${name}-800))`,
     // 900: `hsl(var(--${name}-900))`,
     // 950: `hsl(var(--${name}-950))`,
-    // 激活状态下的颜色，适用于按钮按下时的背景色或边框色。
+    // 激活状态下的颜色，适用于按钮按下时的背景色或边框色。/ active / pressed state
     active: `hsl(var(--${name}-700))`,
-    // 浅色背景，适用于输入框或表单区域的背景。
+    // 浅色背景，适用于输入框或表单区域的背景。/ light bg for inputs/forms
     'background-light': `hsl(var(--${name}-200))`,
-    // 适用于略浅的背景色，通常用于次要背景或略浅的区域。
+    // 适用于略浅的背景色，通常用于次要背景或略浅的区域。/ lighter secondary bg
     'background-lighter': `hsl(var(--${name}-100))`,
-    // 最浅的背景色，适用于非常轻微的阴影或卡片的背景。
+    // 最浅的背景色，适用于非常轻微的阴影或卡片的背景。/ lightest bg / cards
     'background-lightest': `hsl(var(--${name}-50))`,
-    // 适用于普通边框，可能用于按钮或卡片的边框。
+    // 适用于普通边框，可能用于按钮或卡片的边框。/ default border
     border: `hsl(var(--${name}-400))`,
-    // 浅色边框，适用于输入框或卡片的边框。
+    // 浅色边框，适用于输入框或卡片的边框。/ light border
     'border-light': `hsl(var(--${name}-300))`,
     foreground: `hsl(var(--${name}-foreground))`,
-    // 鼠标悬停状态下的颜色，适用于按钮悬停时的背景色或边框色。
+    // 鼠标悬停状态下的颜色，适用于按钮悬停时的背景色或边框色。/ hover state color
     hover: `hsl(var(--${name}-600))`,
-    // 主色文本
+    // 主色文本 / primary text
     text: `hsl(var(--${name}-500))`,
-    // 主色文本激活态
+    // 主色文本激活态 / active text
     'text-active': `hsl(var(--${name}-700))`,
-    // 主色文本悬浮态
+    // 主色文本悬浮态 / hover text
     'text-hover': `hsl(var(--${name}-600))`,
   };
 }

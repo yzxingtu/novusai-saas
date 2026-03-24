@@ -29,9 +29,9 @@ novusai = "app.cli:cli"
 | `novusai run` | - | 启动 FastAPI（uvicorn） |
 | `novusai celery` | worker, beat, dev, flower, purge | Celery 管理 |
 | `novusai db` | upgrade, revision, current, heads, history, stamp, merge, autogenerate | Alembic 迁移 |
-| `novusai plugin` | create, validate, pack, list | 插件管理 |
+| `novusai plugin` | create, validate, build, pack, list, cleanup, sync-manifest, activate-license, enable, assign-tenant | 插件管理 |
 | `novusai license` | generate, verify, keygen | License 管理 |
-| `novusai codegen` | generate, preview, validate, rollback, list, show, import, export, db, init, ... | 代码生成器 |
+| `novusai codegen` | generate, preview, validate, rollback, versions, restore, list, show, import, export, delete, duplicate, presets, init, history, download | 代码生成器 |
 | `novusai check` | all, db, redis, celery | 环境连通性检查 |
 | `novusai info` | - | 版本/环境/配置摘要 |
 
@@ -64,7 +64,7 @@ novusai celery purge
 ### 3.3 novusai db
 
 ```bash
-novusai db upgrade [revision]           # 默认 head
+novusai db upgrade [revision]           # 默认 heads
 novusai db revision -m "desc" [--autogenerate]
 novusai db current
 novusai db heads
@@ -81,11 +81,19 @@ novusai db autogenerate -m "desc"
 ```bash
 novusai plugin create <name> [--template minimal|skill|full-module|storage] [--output dir]
 novusai plugin validate <path>
-novusai plugin pack <path> [--output file.zip]
+novusai plugin build <path>
+novusai plugin pack <path> [--output file.zip] [--release] [--source]
 novusai plugin list
+novusai plugin cleanup --plugin <name> [--revision rev1,rev2]
+novusai plugin sync-manifest --plugin <name>
+novusai plugin activate-license --plugin <name> --key <license_key>
+novusai plugin enable --plugin <name>
+novusai plugin assign-tenant --plugin <name> --tenant-id 1 [--tenant-id 2]
 ```
 
-- `create`/`validate`/`pack` 复用 `scripts/plugin_cli.py` 逻辑
+- `create`/`validate`/`build`/`pack` 复用 `scripts/plugin_cli.py` 逻辑
+- `cleanup` 调用 `scripts/cleanup_plugin.py`，用于清理插件 DB 记录、Alembic 版本与构建产物
+- `sync-manifest` / `activate-license` / `enable` / `assign-tenant` 通过 `PluginService` 对已安装插件做运维操作
 - `list` 读取 `plugins/` 目录
 
 ### 3.5 novusai license
@@ -102,10 +110,32 @@ novusai license keygen
 
 ```bash
 novusai codegen generate --config codegen_configs/xxx.yaml --auto-migrate  # 生成 + 自动迁移
-novusai codegen preview --config codegen_configs/xxx.yaml                   # 预览
+novusai codegen preview --config codegen_configs/xxx.yaml                   # 按文件预览
+novusai codegen preview --resource xxx --step frontend --verbose            # 按资源局部预览
 novusai codegen validate --config codegen_configs/xxx.yaml                  # 校验
 novusai codegen rollback --resource xxx                                    # 回滚
+novusai codegen versions --resource xxx                                    # 查看版本
+novusai codegen restore --resource xxx --version-id 1                      # 恢复版本
+novusai codegen list [--resource xxx]                                      # 列出记录
+novusai codegen show --resource xxx                                        # 查看详情
+novusai codegen import --input xxx.yaml                                    # 导入配置
+novusai codegen export --resource xxx [--output xxx.yaml]                  # 导出配置
+novusai codegen delete --resource xxx                                      # 删除记录
+novusai codegen duplicate --resource xxx --new-resource yyy                # 复制配置
+novusai codegen presets list [--json]                                      # 列出预设
+novusai codegen presets show --name simple [--json]                        # 查看预设
+novusai codegen init --template simple [--output xxx.yaml]                 # 从预设初始化
+novusai codegen history [--resource xxx] [--json]                          # 查看生成历史
+novusai codegen download --resource xxx --output xxx.zip                   # 按资源下载生成结果
+novusai codegen download --config xxx.yaml --output xxx.zip                # 按配置文件下载
+novusai codegen download --stdin --output xxx.zip                          # 从 stdin 下载
 ```
+
+- `presets list/show` 对应 `app.codegen.preset_loader`
+- `init` 本质上是从 preset 写出 YAML 配置
+- `preview` 支持 `--config` / `--id` / `--resource` / `--stdin` 四种来源，并支持 `--step model|controller|frontend` 与 `--verbose`
+- `download` 要求且仅允许一个来源选择器：`--id` / `--resource` / `--config` / `--stdin`
+- `generate --auto-migrate` 走 `novusai db upgrade heads` 语义，与启动自动迁移保持一致
 
 ### 3.7 novusai check
 
@@ -133,8 +163,8 @@ novusai info
 | 原脚本 | 替代命令 |
 |--------|----------|
 | `python scripts/start_worker.py worker/beat/dev` | `novusai celery worker/beat/dev` |
-| `python scripts/alembic_run.py upgrade head` | `novusai db upgrade head` |
-| `python scripts/plugin_cli.py create/validate/pack` | `novusai plugin create/validate/pack` |
+| `python scripts/alembic_run.py upgrade heads` | `novusai db upgrade heads` |
+| `python scripts/plugin_cli.py create/validate/build/pack` | `novusai plugin create/validate/build/pack` |
 | `python scripts/generate_license_key.py` | `novusai license generate/keygen` |
 
 在保留脚本头部添加：
@@ -149,5 +179,5 @@ novusai info
 ## 五、新增子命令流程
 
 1. 在 `app/cli.py` 中定义 `@cli.command()` 或 `@cli.group()`
-2. 更新本规范 `cli-spec.md`
-3. 更新 `SKILL.md` 检查清单
+2. 更新本规范 [cli-spec.md](cli-spec.md)
+3. 更新 [../SKILL.md](../SKILL.md) 与 [delivery-checklist.md](delivery-checklist.md) 中受影响的检查项

@@ -56,7 +56,7 @@ class BaseController:
         """单例模式，确保每个控制器类只有一个实例 / Singleton pattern, ensures one instance per controller class"""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-        return cls._instance  # type: ignore
+        return cls._instance  # type: ignore  # 单例构造 / singleton typing
 
     @classmethod
     def get_router(cls) -> APIRouter:
@@ -107,7 +107,7 @@ class BaseController:
 
             # 如果有 _permission_action 属性，注入 resource / If has _permission_action attr, inject resource
             if hasattr(endpoint, "_permission_action"):
-                endpoint._permission_resource = resource  # type: ignore
+                endpoint._permission_resource = resource  # type: ignore  # 动态注入 / dynamic inject
 
     @property
     def router(self) -> APIRouter:

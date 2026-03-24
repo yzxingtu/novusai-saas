@@ -53,7 +53,7 @@ class AITablePolicyOverrideService(TenantService[AITablePolicyOverride, AITableP
         if not global_policy:
             raise NotFoundException(message=_("ai_table_policy.not_found"))
 
-        # 执行收紧校验
+        # 执行收紧校验 / Tightening validation pass
         self._validate_restrict_only(global_policy, data)
 
         existing = await self.repo.get_by_policy_id(policy_id)
@@ -96,7 +96,7 @@ class AITablePolicyOverrideService(TenantService[AITablePolicyOverride, AITableP
             if field in data and data[field] is not None:
                 global_val = getattr(gp, field)
                 if not global_val and data[field]:
-                    data[field] = None  # 不允许放开，清除覆盖
+                    data[field] = None  # 不允许放开，清除覆盖 / policy guard
 
         # max_rows: 只能更小
         if (
@@ -104,7 +104,7 @@ class AITablePolicyOverrideService(TenantService[AITablePolicyOverride, AITableP
             and data["max_rows"] is not None
             and data["max_rows"] > gp.max_rows
         ):
-            data["max_rows"] = None  # 不允许超过全局值
+            data["max_rows"] = None  # 不允许超过全局值 / policy guard
 
 
 __all__ = ["AITablePolicyOverrideService"]

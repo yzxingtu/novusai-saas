@@ -13,13 +13,14 @@
  */
 
 import type { Component } from 'vue';
-import type { RouteRecordRaw, Router } from 'vue-router';
+import type { Router, RouteRecordRaw } from 'vue-router';
 
 import { onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { usePluginExtensionsStore } from '#/stores/plugin-extensions';
 import { usePluginSlotsStore } from '#/stores/plugin-slots';
+import { unloadPlugin } from '#/utils/plugin-loader';
 
 type EndpointSide = 'admin' | 'tenant';
 
@@ -48,9 +49,205 @@ function removeAllPluginPageRoutes(router: Router) {
   registeredPluginRouteNames.clear();
 }
 
+function getLoadedPluginNames(
+  slotsStore: ReturnType<typeof usePluginSlotsStore>,
+): string[] {
+  const pluginNames = new Set<string>();
+  for (const list of [
+    slotsStore.headerWidgets,
+    slotsStore.floatingPanels,
+    slotsStore.dashboardWidgets,
+    slotsStore.settingsTabs,
+    slotsStore.notificationUI,
+    slotsStore.pages,
+  ]) {
+    for (const item of list) {
+      if (
+        typeof item.pluginName === 'string' &&
+        item.pluginName.trim().length > 0
+      ) {
+        pluginNames.add(item.pluginName);
+      }
+    }
+  }
+  return [...pluginNames];
+}
+
 // Flag whether plugin routes are registered (prevent duplicate registration) / 标记插件路由是否已注册
 let _pluginRoutesReady = false;
 let _pluginRoutesReadySide: EndpointSide | null = null;
+let pluginFrontendGeneration = 0;
+const pluginFrontendInFlight: Map<EndpointSide, Promise<void>> = new Map();
+const queuedPluginFrontendRefreshSides: Set<EndpointSide> = new Set();
+
+export interface RefreshPluginSlotsOptions {
+  reloadAssets?: boolean;
+}
+
+function getPluginPageRouteName(item: {
+  name: string;
+  pluginName: string;
+}): string {
+  return `plugin-${item.pluginName}-${item.name}`;
+}
+
+function hasMissingPluginRoutes(
+  router: Router,
+  slotsStore: ReturnType<typeof usePluginSlotsStore>,
+): boolean {
+  for (const item of slotsStore.pages) {
+    if (!item.path || !item.component) continue;
+    if (!isValidPluginRoutePath(item.path)) continue;
+    if (!router.hasRoute(getPluginPageRouteName(item))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function inferLoadedPluginSide(
+  slotsStore: ReturnType<typeof usePluginSlotsStore>,
+): EndpointSide | null {
+  for (const list of [
+    slotsStore.pages,
+    slotsStore.headerWidgets,
+    slotsStore.dashboardWidgets,
+    slotsStore.settingsTabs,
+    slotsStore.floatingPanels,
+    slotsStore.notificationUI,
+  ]) {
+    for (const item of list) {
+      if (typeof item.path === 'string') {
+        if (item.path.startsWith('/tenant/plugins/')) {
+          return 'tenant';
+        }
+        if (item.path.startsWith('/admin/plugins/')) {
+          return 'admin';
+        }
+      }
+      if (item.scope === 'tenant') {
+        return 'tenant';
+      }
+      if (item.scope === 'admin') {
+        return 'admin';
+      }
+    }
+  }
+  return null;
+}
+
+async function syncPluginFrontendState(
+  side: EndpointSide,
+  router?: Router,
+  options: {
+    forceRefresh?: boolean;
+    reloadAssets?: boolean;
+  } = {},
+) {
+  const forceRefresh = options.forceRefresh ?? false;
+  const reloadAssets = options.reloadAssets ?? false;
+  const slotsStore = usePluginSlotsStore();
+  const extensionsStore = usePluginExtensionsStore();
+
+  while (true) {
+    if (
+      router &&
+      !forceRefresh &&
+      _pluginRoutesReady &&
+      _pluginRoutesReadySide === side
+    ) {
+      if (!hasMissingPluginRoutes(router, slotsStore)) {
+        return;
+      }
+      removeAllPluginPageRoutes(router);
+      _registerStandalonePageRoutes(router, slotsStore);
+      return;
+    }
+
+    const existing = pluginFrontendInFlight.get(side);
+    if (existing) {
+      if (forceRefresh) {
+        queuedPluginFrontendRefreshSides.add(side);
+      }
+      try {
+        await existing;
+      } catch {
+        // Let the caller retry with a fresh pass after the in-flight sync settles.
+      }
+
+      if (!forceRefresh) {
+        continue;
+      }
+      if (queuedPluginFrontendRefreshSides.delete(side)) {
+        continue;
+      }
+      return;
+    }
+
+    const previousPluginNames = getLoadedPluginNames(slotsStore);
+    const generationAtStart = pluginFrontendGeneration;
+    const task = (async () => {
+      const extensionsSnapshot = reloadAssets
+        ? extensionsStore.captureSnapshot()
+        : null;
+
+      if (reloadAssets) {
+        extensionsStore.clearAll();
+      }
+
+      try {
+        await slotsStore.fetchSlots(side, {
+          forceReload: reloadAssets,
+        });
+      } catch (error) {
+        if (extensionsSnapshot) {
+          extensionsStore.restoreSnapshot(extensionsSnapshot);
+        }
+        throw error;
+      }
+
+      if (generationAtStart !== pluginFrontendGeneration) {
+        return;
+      }
+
+      if (router) {
+        removeAllPluginPageRoutes(router);
+      }
+
+      const nextPluginNames = getLoadedPluginNames(slotsStore);
+      const nextPluginSet = new Set(nextPluginNames);
+      for (const pluginName of previousPluginNames) {
+        if (nextPluginSet.has(pluginName)) {
+          continue;
+        }
+        extensionsStore.unregisterPlugin(pluginName);
+        unloadPlugin(pluginName, { endpoint: side });
+      }
+
+      if (router) {
+        _registerStandalonePageRoutes(router, slotsStore);
+      }
+
+      _pluginRoutesReady = true;
+      _pluginRoutesReadySide = side;
+    })();
+
+    pluginFrontendInFlight.set(side, task);
+
+    try {
+      await task;
+    } finally {
+      if (pluginFrontendInFlight.get(side) === task) {
+        pluginFrontendInFlight.delete(side);
+      }
+    }
+
+    if (forceRefresh && queuedPluginFrontendRefreshSides.delete(side)) {
+      continue;
+    }
+    return;
+  }
+}
 
 /**
  * Ensure plugin routes are registered (can be called in guard for seamless refresh)
@@ -65,23 +262,8 @@ export async function ensurePluginRoutes(
   endpoint: string = '/admin',
 ) {
   const side: EndpointSide = endpoint.includes('tenant') ? 'tenant' : 'admin';
-  if (_pluginRoutesReady && _pluginRoutesReadySide === side) return;
-
-  const slotsStore = usePluginSlotsStore();
-  const extensionsStore = usePluginExtensionsStore();
-
   try {
-    // Fetch first, only clear after success to avoid losing existing routes on failure / 先拉取，成功后再清空，避免失败时丢失现有路由
-    // / 先 fetch，成功后再清理，避免失败时丢失现有路由
-    await slotsStore.fetchSlots(side);
-
-    removeAllPluginPageRoutes(router);
-    extensionsStore.clearAll();
-
-    _registerStandalonePageRoutes(router, slotsStore);
-
-    _pluginRoutesReady = true;
-    _pluginRoutesReadySide = side;
+    await syncPluginFrontendState(side, router);
   } catch (error: unknown) {
     console.error('[ensurePluginRoutes] Failed:', error);
   }
@@ -89,15 +271,25 @@ export async function ensurePluginRoutes(
 
 /** Reset plugin routes ready flag (called on endpoint switch) / 重置插件路由就绪标志（端切换时调用） */
 export function resetPluginRoutesReady(router?: Router) {
+  const slotsStore = usePluginSlotsStore();
+  const loadedSide =
+    _pluginRoutesReadySide ?? inferLoadedPluginSide(slotsStore);
+  pluginFrontendGeneration += 1;
   _pluginRoutesReady = false;
   _pluginRoutesReadySide = null;
+  queuedPluginFrontendRefreshSides.clear();
 
   if (router) {
     removeAllPluginPageRoutes(router);
   }
 
-  const slotsStore = usePluginSlotsStore();
   const extensionsStore = usePluginExtensionsStore();
+  const pluginNames = getLoadedPluginNames(slotsStore);
+  for (const pluginName of pluginNames) {
+    if (loadedSide) {
+      unloadPlugin(pluginName, { endpoint: loadedSide });
+    }
+  }
   slotsStore.clearAll();
   extensionsStore.clearAll();
 }
@@ -112,24 +304,13 @@ export function resetPluginRoutesReady(router?: Router) {
 export async function refreshPluginSlots(
   endpoint: string = '/admin',
   router?: Router,
+  options: RefreshPluginSlotsOptions = {},
 ) {
   const side: EndpointSide = endpoint.includes('tenant') ? 'tenant' : 'admin';
-  const slotsStore = usePluginSlotsStore();
-  const extensionsStore = usePluginExtensionsStore();
-
-  if (router) {
-    removeAllPluginPageRoutes(router);
-  }
-
-  extensionsStore.clearAll();
-  // fetchSlots internally calls clearAll / fetchSlots 内部已调用 clearAll
-  await slotsStore.fetchSlots(side);
-
-  if (router) {
-    _registerStandalonePageRoutes(router, slotsStore);
-  }
-  _pluginRoutesReady = true;
-  _pluginRoutesReadySide = side;
+  await syncPluginFrontendState(side, router, {
+    forceRefresh: true,
+    reloadAssets: options.reloadAssets ?? false,
+  });
 }
 
 /**
@@ -152,13 +333,23 @@ function _registerStandalonePageRoutes(
     const childPath = item.path.startsWith(prefix)
       ? item.path.slice(prefix.length)
       : item.path.replace(/^\//, '');
-    const routeName = `plugin-${item.pluginName}-${item.name}`;
+    const routeName = getPluginPageRouteName(item);
 
     if (registeredPluginRouteNames.has(routeName) || router.hasRoute(routeName))
       continue;
 
+    const samePathRoutes = router
+      .getRoutes()
+      .filter((route) => route.path === item.path && route.name !== routeName);
+    for (const route of samePathRoutes) {
+      if (route.name) {
+        router.removeRoute(route.name);
+      }
+    }
+
     const routeMeta: NonNullable<RouteRecordRaw['meta']> = {
       title: item.title ?? item.name,
+      ...(item.titleLocaleMap ? { titleLocaleMap: item.titleLocaleMap } : {}),
       icon: item.icon,
       hideInMenu: true,
     };
@@ -197,20 +388,18 @@ function _registerStandalonePageRoutes(
 
 export function usePluginFrontendInit(endpoint: string = '/admin') {
   const side: EndpointSide = endpoint.includes('tenant') ? 'tenant' : 'admin';
-  const slotsStore = usePluginSlotsStore();
   const router = useRouter();
 
   async function initPluginSlots() {
-    // Phase 1: Fetch slot data via unified /plugins/slots API (M51-T9)
-    // Backend already filters by scope + tenant assignment, no frontend filtering needed / 后端已按 scope 与分配过滤，前端无需再过滤
-    await slotsStore.fetchSlots(side);
-
-    // Phase 2: Register plugin page dynamic routes / 注册插件页面动态路由
-    _registerStandalonePageRoutes(router, slotsStore);
+    await syncPluginFrontendState(side, router);
   }
 
   onMounted(async () => {
-    await initPluginSlots();
+    try {
+      await initPluginSlots();
+    } catch (error: unknown) {
+      console.warn('[usePluginFrontendInit] initPluginSlots failed:', error);
+    }
   });
 
   return { initPluginSlots };

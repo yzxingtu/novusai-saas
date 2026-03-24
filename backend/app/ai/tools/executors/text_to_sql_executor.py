@@ -38,6 +38,7 @@ from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.core.response import build_public_error_text
 from app.enums.common import UserRoleEnum
 
 if TYPE_CHECKING:
@@ -308,7 +309,7 @@ class TextToSQLExecutor(BaseToolExecutor):
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=False,
-                error=str(exc),
+                error=build_public_error_text(message=str(exc)),
                 duration_ms=duration_ms,
             )
 
@@ -336,23 +337,15 @@ class TextToSQLExecutor(BaseToolExecutor):
                 error_message=error_detail,
                 duration_ms=duration_ms,
             )
-            # Return output with error details for debugging
-            # 返回含错误详情的输出，便于排查
-            error_output = json.dumps(
-                {
-                    "success": False,
-                    "error": f"{type(exc).__name__}: {core_msg[:200]}",
-                    "generated_sql": _generated_sql,
-                    "final_sql": _final_sql,
-                },
-                ensure_ascii=False,
-            )
             return ToolResult(
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=False,
-                output=error_output,
-                error=f"{_('data_intelligence.executor.execution_error')} [{type(exc).__name__}: {core_msg[:100]}]",
+                output="",
+                error=build_public_error_text(
+                    message=_("data_intelligence.executor.execution_error"),
+                    exc=exc,
+                ),
                 duration_ms=duration_ms,
             )
 

@@ -100,7 +100,7 @@ async function hashLargeFile(
     chunks.push(buffer);
     offset = end;
 
-    // 读取阶段占 80% 进度
+    // 读取阶段占 80% 进度 / read phase → 80% progress
     const readPercent = Math.round((offset / totalSize) * 80);
     onProgress?.(readPercent);
   }

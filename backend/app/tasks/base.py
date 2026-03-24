@@ -443,7 +443,7 @@ class BaseTask(Task):
                             day_of_week=parts[4],
                         )
                         remaining = schedule.remaining_estimate(now)
-                        task.next_run_at = now + remaining  # remaining is timedelta
+                        task.next_run_at = now + remaining  # remaining is timedelta / 剩余为 timedelta
                 except Exception:
                     pass
             elif task.schedule_type == "interval" and task.interval_seconds:

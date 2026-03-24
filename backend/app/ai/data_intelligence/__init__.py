@@ -44,25 +44,25 @@ from app.ai.data_intelligence.text_to_sql import (
 )
 
 __all__ = [
-    # SchemaProvider
+    # SchemaProvider / 上文为英文说明 / English above
     "ColumnSchema",
     "TableSchema",
     "SchemaProvider",
-    # SQLSafetyValidator
+    # SQLSafetyValidator / 上文为英文说明 / English above
     "SQLSafetyValidator",
     "SQLValidationResult",
     "extract_table_names",
-    # TenantIsolationInjector
+    # TenantIsolationInjector / 上文为英文说明 / English above
     "TenantIsolationInjector",
     "TenantIsolationError",
-    # ReadOnlyExecutor
+    # ReadOnlyExecutor / 上文为英文说明 / English above
     "QueryResult",
     "ReadOnlyExecutor",
-    # TextToSQLGenerator
+    # TextToSQLGenerator / 上文为英文说明 / English above
     "ConversationRound",
     "GeneratedSQL",
     "TextToSQLGenerator",
-    # ResultFormatter
+    # ResultFormatter / 上文为英文说明 / English above
     "FormattedResult",
     "ResultFormatter",
 ]

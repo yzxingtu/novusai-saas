@@ -73,7 +73,7 @@ async function viteExtraAppConfigPlugin({
 async function getConfigSource() {
   const config = await loadEnv();
   const windowVariable = `window.${VBEN_ADMIN_PRO_APP_CONF}`;
-  // 确保变量不会被修改
+  // 确保变量不会被修改 / freeze injected window config
   let source = `${windowVariable}=${JSON.stringify(config)};`;
   source += `
     Object.freeze(${windowVariable});

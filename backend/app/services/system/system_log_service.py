@@ -22,7 +22,7 @@ class LogFileInfo(NamedTuple):
     category: str
     size: int
     modified_at: datetime
-    is_current: bool  # 是否为当前活动日志文件
+    is_current: bool  # 是否为当前活动日志文件 / policy guard
 
 
 class LogCategoryInfo(NamedTuple):
@@ -107,11 +107,11 @@ class SystemLogService:
             return False
 
         try:
-            # 解析为绝对路径
+            # 解析为绝对路径 / Resolve absolute path
             resolved_path = file_path.resolve()
             resolved_log_dir = self._log_dir.resolve()
 
-            # 检查是否在日志目录内
+            # 检查是否在日志目录内 / Check path inside log directory
             return str(resolved_path).startswith(str(resolved_log_dir))
         except (OSError, ValueError):
             return False
@@ -156,7 +156,7 @@ class SystemLogService:
         for category in LogCategoryEnum:
             category_value = category.value
 
-            # 统计该分类的文件数和总大小
+            # 统计该分类的文件数和总大小 / Count files and total size for category
             file_count = 0
             total_size = 0
 
@@ -194,7 +194,7 @@ class SystemLogService:
 
         files: list[LogFileInfo] = []
 
-        # 确定要搜索的模式
+        # 确定要搜索的模式 / Resolve search glob pattern
         if category:
             patterns = [f"{category}.log*"]
         else:
@@ -205,12 +205,12 @@ class SystemLogService:
                 if not file_path.is_file():
                     continue
 
-                # 解析文件名
+                # 解析文件名 / Parse filename
                 parsed_category, date_str = self._parse_log_filename(file_path.name)
                 if not parsed_category:
                     continue
 
-                # 如果指定了分类，验证匹配
+                # 如果指定了分类，验证匹配 / If category filter set, validate match
                 if category and parsed_category != category:
                     continue
 
@@ -223,7 +223,7 @@ class SystemLogService:
                     is_current=(date_str is None),
                 ))
 
-        # 按修改时间倒序排序
+        # 按修改时间倒序排序 / Sort by mtime descending
         files.sort(key=lambda f: f.modified_at, reverse=True)
         return files
 
@@ -251,7 +251,7 @@ class SystemLogService:
 
         file_path = self._log_dir / filename
 
-        # 安全验证
+        # 安全验证 / Safety validation
         if not self._validate_path(file_path):
             return None
 
@@ -259,22 +259,22 @@ class SystemLogService:
             return None
 
         try:
-            # 读取所有行
+            # 读取所有行 / Read all lines
             with open(file_path, encoding="utf-8", errors="replace") as f:
                 all_lines = f.readlines()
 
             total_lines = len(all_lines)
 
-            # 倒序处理
+            # 倒序处理 / Process in reverse order
             if reverse:
                 all_lines = all_lines[::-1]
 
-            # 分页
+            # 分页 / Pagination
             start = (page - 1) * page_size
             end = start + page_size
             page_lines = all_lines[start:end]
 
-            # 去除每行末尾的换行符
+            # 去除每行末尾的换行符 / Strip trailing newline per line
             page_lines = [line.rstrip("\n\r") for line in page_lines]
 
             has_more = end < total_lines
@@ -304,7 +304,7 @@ class SystemLogService:
 
         file_path = self._log_dir / filename
 
-        # 安全验证
+        # 安全验证 / Safety validation
         if not self._validate_path(file_path):
             return None
 
@@ -330,17 +330,17 @@ class SystemLogService:
 
         file_path = self._log_dir / filename
 
-        # 安全验证
+        # 安全验证 / Safety validation
         if not self._validate_path(file_path):
             return False
 
         if not file_path.exists() or not file_path.is_file():
             return False
 
-        # 不允许删除当前活动日志文件
+        # 不允许删除当前活动日志文件 / Cannot delete the current active log file
         parsed_category, date_str = self._parse_log_filename(filename)
         if date_str is None:
-            # 当前活动日志文件，不允许删除
+            # 当前活动日志文件，不允许删除 / Current active log file cannot be deleted
             return False
 
         try:

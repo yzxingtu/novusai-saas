@@ -649,15 +649,15 @@ def _gen_tool_method(L: list[str], handler: dict[str, Any]) -> None:
 
 _CREDENTIAL_PATTERN = re.compile(
     r"""(?ix)
-    ^\s*                               # leading whitespace
-    (?:                                 # variable name
+    ^\s*
+    (?:
         [A-Z_]*(?:SECRET|PASSWORD|PASSWD|TOKEN|API_KEY|APP_KEY|PRIVATE_KEY|ACCESS_KEY)
         [A-Z_]*
     )
     \s*=\s*
-    ['\"]                              # opening quote
-    [^'\"]+                            # value (non-empty)
-    ['\"]                              # closing quote
+    ['\"]
+    [^'\"]+
+    ['\"]
     """,
 )
 

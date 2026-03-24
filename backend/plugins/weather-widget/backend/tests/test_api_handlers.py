@@ -46,7 +46,7 @@ def _make_ctx(config: dict | None = None) -> MagicMock:
     return ctx
 
 
-# ── get_current_weather ──
+# ── get_current_weather / 当前天气 ──
 
 
 class TestGetCurrentWeather:
@@ -111,7 +111,7 @@ class TestGetCurrentWeather:
         assert "timeout" in result["error"]
 
 
-# ── get_forecast ──
+# ── get_forecast / 天气预报 ──
 
 
 class TestGetForecast:
@@ -195,7 +195,7 @@ class TestGetForecast:
         assert result.get("code") == 5000
 
 
-# ── search_city ──
+# ── search_city / 城市搜索 ──
 
 
 class TestSearchCity:

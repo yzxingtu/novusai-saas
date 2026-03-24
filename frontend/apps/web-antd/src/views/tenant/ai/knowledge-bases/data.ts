@@ -16,7 +16,7 @@ import {
 import { getTenantAIModelsApi } from '#/api/tenant/ai';
 import { $t } from '#/locales';
 
-// ============ 状态辅助 ============
+// ============ 状态辅助 / status helpers ============
 
 export function getStatusOptions() {
   return [
@@ -82,7 +82,7 @@ export function getDocStatusColor(status: string | undefined): string {
   }
 }
 
-// ============ Embedding / Vision 模型下拉 ============
+// ============ Embedding / Vision 模型下拉 / embedding & vision model select ============
 
 async function getEmbeddingModelOptions() {
   try {
@@ -198,7 +198,7 @@ export function getSearchModeOptions() {
   ];
 }
 
-// ============ 表格列 ============
+// ============ 表格列 / table columns ============
 
 export function useColumns<T = KnowledgeBaseItem>(
   onActionClick: OnActionClickFn<T>,
@@ -290,7 +290,7 @@ export function useColumns<T = KnowledgeBaseItem>(
   ];
 }
 
-// ============ 搜索表单 ============
+// ============ 搜索表单 / search form ============
 
 export function useGridFormSchema(): VbenFormSchema[] {
   return [
@@ -300,7 +300,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
   ];
 }
 
-// ============ 编辑表单 ============
+// ============ 编辑表单 / edit form ============
 
 export function useFormSchema(): VbenFormSchema[] {
   return [

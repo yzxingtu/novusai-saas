@@ -25,7 +25,7 @@ class LabeledEnum(Enum):
 
         StatusEnum.ACTIVE.value  # 1
         StatusEnum.ACTIVE.label  # "启用" (based on current language)
-        StatusEnum.choices()  # [(1, "启用"), (0, "禁用")]
+        StatusEnum.choices()  # returns (value, label) pairs / 返回 (值, 标签) 列表
     """
 
     def __new__(cls, value: Any, label_key: str = "") -> "LabeledEnum":
@@ -38,7 +38,7 @@ class LabeledEnum(Enum):
         """
         obj = object.__new__(cls)
         obj._value_ = value
-        obj._label_key = label_key  # type: ignore
+        obj._label_key = label_key  # type: ignore  # 枚举内部字段 / enum internal
         return obj
 
     @property
@@ -115,7 +115,7 @@ class LabeledIntEnum(LabeledEnum):
             raise TypeError(f"LabeledIntEnum value must be int, got {type(value)}")
         obj = object.__new__(cls)
         obj._value_ = value
-        obj._label_key = label_key  # type: ignore
+        obj._label_key = label_key  # type: ignore  # 枚举内部字段 / enum internal
         return obj
 
 
@@ -127,7 +127,7 @@ class LabeledStrEnum(LabeledEnum):
             raise TypeError(f"LabeledStrEnum value must be str, got {type(value)}")
         obj = object.__new__(cls)
         obj._value_ = value
-        obj._label_key = label_key  # type: ignore
+        obj._label_key = label_key  # type: ignore  # 枚举内部字段 / enum internal
         return obj
 
 

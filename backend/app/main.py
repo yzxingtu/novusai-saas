@@ -391,43 +391,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # Reload translations after plugin restore (plugins may have their own locales files) / 插件恢复后重新加载翻译（插件可能有自己的 locales 文件）
         reload_translations()
 
-        # Re-sync permissions after plugin restore (plugins may register menus to permission_registry)
-        # 插件恢复后再次同步权限（插件可能注册了菜单到 permission_registry）
-        # Also needs distributed lock to prevent multi-worker concurrent INSERT
-        # 同样需要分布式锁防止多 worker 并发 INSERT
-        _plugin_perm_owner = str(__import__("uuid").uuid4())
-        _plugin_perm_redis = None
-        _plugin_perm_locked = False
-        try:
-            from app.core.redis import get_redis_client as _get_rc
-            _plugin_perm_redis = _get_rc()
-            _plugin_perm_locked = await _plugin_perm_redis.set(
-                "plugin:startup:plugin_perm_sync_lock", _plugin_perm_owner, nx=True, ex=60,
-            )
-        except Exception:
-            _plugin_perm_locked = True
-
-        if _plugin_perm_locked:
-            try:
-                async with async_session_factory() as db:
-                    plugin_perm_result = await sync_permissions_on_startup(db)
-                    if plugin_perm_result["created"] > 0:
-                        logger.info(
-                            f"Plugin permissions synced: "
-                            f"created={plugin_perm_result['created']}, "
-                            f"updated={plugin_perm_result['updated']}"
-                        )
-            finally:
-                if _plugin_perm_redis and _plugin_perm_locked is True:
-                    try:
-                        from app.plugins.lifecycle import _UNLOCK_IF_OWNER_LUA
-                        await _plugin_perm_redis.eval(
-                            _UNLOCK_IF_OWNER_LUA, 1,
-                            "plugin:startup:plugin_perm_sync_lock", _plugin_perm_owner,
-                        )
-                    except Exception as exc:
-                        logger.debug("Redis plugin perm sync lock release failed: {}", exc)
-
         # Check if configured storage driver is available / 检查配置的存储驱动是否可用
         try:
             from app.configs.service import ConfigService
@@ -748,15 +711,30 @@ def create_application() -> FastAPI:
 
         from app.core.database import async_session_factory
         from app.plugins.asset_resolver import resolve_plugin_asset_file
-        from app.plugins.asset_runtime import authorize_public_captcha_asset_request
+        from app.plugins.asset_runtime import (
+            authorize_public_captcha_asset_request,
+            clear_plugin_asset_access_cookie,
+        )
 
-        _normalized = PurePosixPath(file_path.replace("\\", "/").lstrip("/"))
-        if str(_normalized) in {"", "."}:
-            return error(
+        def _build_public_not_found_response():
+            response = error(
                 message="Plugin asset not found",
                 code=4040,
                 status_code=404,
             )
+            response.headers.update(
+                {
+                    "Cache-Control": "private, no-store, max-age=0",
+                    "Vary": "Host, Authorization, Cookie",
+                    "X-Content-Type-Options": "nosniff",
+                }
+            )
+            clear_plugin_asset_access_cookie(response, request)
+            return response
+
+        _normalized = PurePosixPath(file_path.replace("\\", "/").lstrip("/"))
+        if str(_normalized) in {"", "."}:
+            return _build_public_not_found_response()
 
         async with async_session_factory() as db:
             access = await authorize_public_captcha_asset_request(
@@ -766,28 +744,21 @@ def create_application() -> FastAPI:
                 public_endpoint,
             )
             if not access.allowed:
-                return error(
-                    message="Plugin asset not found",
-                    code=4040,
-                    status_code=404,
-                )
+                return _build_public_not_found_response()
 
         asset_file = resolve_plugin_asset_file(PLUGINS_ROOT, plugin_name, file_path)
         if asset_file is None:
-            return error(
-                message="Plugin asset not found",
-                code=4040,
-                status_code=404,
-            )
+            return _build_public_not_found_response()
 
         content_type = _mimetypes.guess_type(str(asset_file))[0] or "application/octet-stream"
         headers = {
             "Cache-Control": "public, max-age=300, must-revalidate",
+            "Vary": "Host, Authorization, Cookie",
             "X-Content-Type-Options": "nosniff",
         }
 
         if request.method == "HEAD":
-            return FastAPIResponse(
+            response = FastAPIResponse(
                 content=b"",
                 media_type=content_type,
                 headers={
@@ -795,12 +766,16 @@ def create_application() -> FastAPI:
                     "Content-Length": str(asset_file.stat().st_size),
                 },
             )
+            clear_plugin_asset_access_cookie(response, request)
+            return response
 
-        return FastAPIResponse(
+        response = FastAPIResponse(
             content=asset_file.read_bytes(),
             media_type=content_type,
             headers=headers,
         )
+        clear_plugin_asset_access_cookie(response, request)
+        return response
 
     @app.api_route(
         "/plugin-assets/{plugin_name}/{file_path:path}",

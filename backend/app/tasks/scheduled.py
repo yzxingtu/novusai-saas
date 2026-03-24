@@ -442,7 +442,7 @@ def _merge_llmring_into_registry(registry: dict, payload: dict) -> int:
     for raw_key, raw_entry in models.items():
         if not isinstance(raw_entry, dict):
             continue
-        reg_key = str(raw_key).replace(":", "/", 1)  # openai:gpt-4.1 -> openai/gpt-4.1
+        reg_key = str(raw_key).replace(":", "/", 1)  # openai:gpt-4.1 -> openai/gpt-4.1 / 注册键规范化
         model_id = raw_key.split(":", 1)[-1] if ":" in raw_key else raw_key
         normalized = _normalize_llmring_entry(raw_entry)
         if not normalized or (len(normalized) == 1 and normalized.get("mode") == "chat"):

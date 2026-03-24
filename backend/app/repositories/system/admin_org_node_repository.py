@@ -37,6 +37,7 @@ class AdminOrgNodeRepository(BaseRepository[AdminOrgNode]):
             selectinload(self.model.scope_policy)
             .selectinload(AdminOrgScopePolicy.targets)
             .selectinload(AdminOrgScopeTarget.target_org_node),
+            selectinload(self.model.permissions),
         ]
 
     async def get_by_code(self, code: str) -> AdminOrgNode | None:

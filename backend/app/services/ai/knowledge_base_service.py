@@ -28,7 +28,7 @@ from app.repositories.ai.knowledge_base_repository import (
 logger = LogManager.get_logger("ai.knowledge_base_service")
 
 
-# 默认知识库配额
+# 默认知识库配额 / Default knowledge-base quota
 DEFAULT_MAX_KNOWLEDGE_BASES = 20
 DEFAULT_MAX_DOCUMENTS_PER_KB = 500
 
@@ -46,7 +46,7 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
         """创建前校验：名称唯一性 + 配额检查 / Before create: name uniqueness + quota check."""
         await super()._before_create(data)
 
-        # 配额检查
+        # 配额检查 / Quota check
         await self.check_kb_quota()
 
         name = data.get("name")
@@ -87,7 +87,7 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
 
         level = self._default_delete_level
         now = utc_now()
-        # 级联软删除文档分块
+        # 级联软删除文档分块 / Cascade soft-delete document chunks
         doc_ids_query = select(KnowledgeDocument.id).where(
             KnowledgeDocument.knowledge_base_id == id,
             KnowledgeDocument.is_deleted.is_(False),
@@ -107,7 +107,7 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
                 updated_at=now,
             )
         )
-        # 级联软删除文档
+        # 级联软删除文档 / Cascade soft-delete documents
         await self.repo.db.execute(
             update(KnowledgeDocument)
             .where(
@@ -167,7 +167,7 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
     async def _after_restore(self, instance: KnowledgeBase) -> None:
         """恢复后：级联恢复文档和分块 / After restore: cascade restore docs and chunks."""
         now = utc_now()
-        # 级联恢复文档
+        # 级联恢复文档 / Cascade restore documents
         await self.repo.db.execute(
             update(KnowledgeDocument)
             .where(
@@ -183,7 +183,7 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
                 updated_at=now,
             )
         )
-        # 级联恢复文档分块
+        # 级联恢复文档分块 / Cascade restore document chunks
         doc_ids_query = select(KnowledgeDocument.id).where(
             KnowledgeDocument.knowledge_base_id == instance.id,
         )
@@ -295,7 +295,7 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
         if not kb:
             raise NotFoundException(message=_("knowledge_base.error.not_found"))
 
-        # 查询所有未删除文档
+        # 查询所有未删除文档 / Query all non-deleted documents
         stmt = select(KnowledgeDocument).where(
             and_(
                 KnowledgeDocument.knowledge_base_id == kb_id,
@@ -309,7 +309,7 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
         if not docs:
             return 0
 
-        # 重置文档状态并触发重新处理
+        # 重置文档状态并触发重新处理 / Reset document state and reprocess
         from app.ai.rag.processor import process_document
 
         count = 0

@@ -449,7 +449,7 @@ class AgentRouterService:
         )
 
     # ========================================
-    # 候选列表构建
+    # 候选列表构建 / Build candidate list
     # ========================================
 
     async def _list_available_agents(
@@ -575,7 +575,7 @@ class AgentRouterService:
                     entry["capabilities"] = skill_names
             agent_list.append(entry)
 
-        # 构建路由指令消息
+        # 构建路由指令消息 / Build routing instruction message
         vision_preamble = ""
         if has_image_attachments:
             vision_preamble = (
@@ -649,7 +649,7 @@ class AgentRouterService:
     @staticmethod
     def _parse_router_output(output: str) -> dict[str, Any] | None:
         """从 Router 输出中提取 JSON / Extract JSON from Router output."""
-        # 尝试直接解析
+        # 尝试直接解析 / Try direct parse first
         try:
             data = json.loads(output.strip())
             if isinstance(data, dict) and "agent_id" in data:

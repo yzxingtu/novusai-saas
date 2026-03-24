@@ -183,7 +183,7 @@ class AttachmentDownloadService:
         3. cloud + public + has base_url → direct CDN URL from stored base_url
         4. fallback → API proxy endpoint
         """
-        # Local: always through API proxy
+        # Local: always through API proxy / 本地经 API 代理 / local via API proxy
         if attachment.driver == "local":
             token = None
             if attachment.visibility == AttachmentVisibility.PRIVATE.value:
@@ -192,7 +192,7 @@ class AttachmentDownloadService:
                 attachment.id, token, preview, expires=expires,
             )
 
-        # Cloud: try to resolve a matching config for proper signed URL
+        # Cloud: try to resolve a matching config for proper signed URL / 云端签名 URL / cloud signed URL
         try:
             storage_config = await self._resolve_storage_config_for_attachment(attachment)
             if storage_config.driver == attachment.driver:
@@ -202,12 +202,12 @@ class AttachmentDownloadService:
         except Exception:
             pass
 
-        # Config mismatch: use stored base_url for public cloud files
+        # Config mismatch: use stored base_url for public cloud files / 配置不一致回退 / config mismatch fallback
         direct_url = self._build_direct_cdn_url(attachment)
         if direct_url:
             return direct_url
 
-        # Last resort: API proxy (private file with no matching config)
+        # Last resort: API proxy (private file with no matching config) / 最后回退 API 代理 / last-resort API proxy
         return self._build_public_access_url(
             attachment.id, None, preview, expires=expires,
         )

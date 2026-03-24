@@ -314,7 +314,7 @@ class BaseEngine(ABC):
                 f"Tools are for internal execution; return natural language results only."
                 f"{data_distinction_note}"
             )
-        # Fallback: invoke_page_operation format for non-rich-text pages
+        # Fallback: invoke_page_operation format for non-rich-text pages / 上文为英文说明 / English above
         read_example = ""
         if "read_visible_rows" in op_names:
             read_example = (
@@ -481,7 +481,7 @@ class BaseEngine(ABC):
                 kb_weights=agent_kb_weights,
             )
 
-        # 4. Get tool list + expand dedicated page tools (before optimize) + optimize
+        # 4. Get tool list + expand dedicated page tools (before optimize) + optimize / 上文为英文说明 / English above
         tools = skill_result.tools if skill_result else []
         if tools:
             from app.ai.tools.page_tool_expander import expand_page_tools
@@ -791,7 +791,7 @@ class BaseEngine(ABC):
                 raw_args = func.get("arguments", "{}")
                 arguments, parse_error = processor.parse_arguments(raw_args)
 
-                # consent_mode check only when args parse ok (else process_single handles parse error)
+                # consent_mode check only when args parse ok (else process_single handles parse error) / 上文为英文说明 / English above
                 if not parse_error:
                     _consent = processor.check_consent(func_name)
                     if _consent == "reject":

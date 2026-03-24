@@ -15,11 +15,8 @@ import {
   resolveLoginPathByPath,
 } from '#/constants/endpoints';
 import { accessRoutes, coreRouteNames } from '#/router/routes';
-import {
-  TokenStorage,
-  useMultiAuthStore,
-  usePublicConfigStore,
-} from '#/store';
+import { TokenStorage, useMultiAuthStore, usePublicConfigStore } from '#/store';
+import { shouldRequestTenantPublicConfig } from '#/utils/public-config-domain';
 
 import { generateAccess } from './access';
 
@@ -58,13 +55,13 @@ function isLoginPath(path: string): boolean {
  * @param router
  */
 function setupCommonGuard(router: Router) {
-  // 记录已经加载的页面
+  // 记录已经加载的页面 / track loaded paths for transition skip
   const loadedPaths = new Set<string>();
 
   router.beforeEach((to) => {
     to.meta.loaded = loadedPaths.has(to.path);
 
-    // 页面加载进度条
+    // 页面加载进度条 / NProgress on first paint
     if (!to.meta.loaded && preferences.transition.progress) {
       startProgress();
     }
@@ -72,11 +69,11 @@ function setupCommonGuard(router: Router) {
   });
 
   router.afterEach((to) => {
-    // 记录页面是否加载,如果已经加载，后续的页面切换动画等效果不在重复执行
+    // 记录页面是否加载,如果已经加载，后续的页面切换动画等效果不在重复执行 / mark visited; skip repeat enter effects
 
     loadedPaths.add(to.path);
 
-    // 关闭页面加载进度条
+    // 关闭页面加载进度条 / stop NProgress
     if (preferences.transition.progress) {
       stopProgress();
     }
@@ -85,6 +82,20 @@ function setupCommonGuard(router: Router) {
 
 // Record last endpoint type for detecting endpoint switches / 记录上一次的端类型，用于检测端切换
 let lastEndpoint: ApiEndpoint | null = null;
+
+function pluginLeafRouteNeedsBootstrap(to: {
+  matched: Array<{ components?: null | Record<string, unknown> }>;
+}): boolean {
+  const leafRecord = to.matched.at(-1);
+  if (!leafRecord) {
+    return true;
+  }
+  const components = leafRecord.components;
+  if (!components) {
+    return true;
+  }
+  return Object.values(components).every((component) => !component);
+}
 
 /**
  * Reset endpoint type record (called on logout to avoid stale state during HMR or session switching)
@@ -135,12 +146,12 @@ function setupAccessGuard(router: Router) {
       userStore.setUserInfo(null);
     };
 
-    // 获取当前路由对应的端类型、登录路径和首页路径
+    // 获取当前路由对应的端类型、登录路径和首页路径 / resolve endpoint + login/home paths
     let currentEndpoint: ApiEndpoint = resolveEndpointByPath(to.path);
     let currentLoginPath = getLoginPathByRoute(to.path);
     let currentHomePath = getHomePathByRoute(to.path);
 
-    // ── 域名类型检测（幂等，仅首次导航发一次请求） ──────────────────────────
+    // ── 域名类型检测（幂等，仅首次导航发一次请求） / domain detect (once) ──
     await publicConfigStore.detectDomainType().catch(() => {});
 
     currentEndpoint = resolveEndpointForPath(
@@ -161,27 +172,33 @@ function setupAccessGuard(router: Router) {
       return { path: '/', replace: true };
     }
 
-    // 首次访问时加载对应端的公开配置（品牌、验证码等）
+    // 首次访问时加载对应端的公开配置（品牌、验证码等） / load public config per endpoint
     if (currentEndpoint === 'admin') {
       if (!publicConfigStore.platformConfigLoaded) {
-        // 平台端：加载平台公开配置
+        // 平台端：加载平台公开配置 / admin: platform public config
         await publicConfigStore.loadPlatformConfig().catch((error) => {
           console.warn('[Router Guard] 加载平台公开配置失败:', error);
         });
       } else if (publicConfigStore.platformConfig?.brand) {
-        // 如果已加载，确保应用当前端的品牌配置（处理端切换时的缓存问题）
+        // 如果已加载，确保应用当前端的品牌配置（处理端切换时的缓存问题） / re-apply brand on endpoint switch
         publicConfigStore.applyBrandConfig(
           publicConfigStore.platformConfig.brand,
         );
       }
-    } else if (currentEndpoint === 'tenant' || currentEndpoint === 'user') {
+    } else if (
+      (currentEndpoint === 'tenant' || currentEndpoint === 'user') &&
+      shouldRequestTenantPublicConfig(
+        publicConfigStore.isDomainDetected,
+        publicConfigStore.isDomainTenantDomain,
+      )
+    ) {
       if (!publicConfigStore.tenantConfigLoaded) {
-        // 企业端 / 用户端：加载企业公开配置（用户属于企业，复用企业配置）
+        // 企业端 / 用户端：加载企业公开配置（用户属于企业，复用企业配置） / tenant+user: tenant public config
         await publicConfigStore.loadTenantConfig().catch((error) => {
           console.warn('[Router Guard] 加载企业公开配置失败:', error);
         });
       } else if (publicConfigStore.tenantConfig?.brand) {
-        // 如果已加载，确保应用当前端的品牌配置（处理端切换时的缓存问题）
+        // 如果已加载，确保应用当前端的品牌配置（处理端切换时的缓存问题） / re-apply tenant brand
         publicConfigStore.applyBrandConfig(
           publicConfigStore.tenantConfig.brand,
         );
@@ -208,24 +225,25 @@ function setupAccessGuard(router: Router) {
         replace: true,
       };
     }
-    // 维护模式已关闭但用户仍在维护页面，重定向回首页
+    // 维护模式已关闭但用户仍在维护页面，重定向回首页 / maintenance off → leave maintenance page
     if (!maintenanceEnabled && isMaintenancePage) {
       const fromEndpoint = (to.query.from as string) || '';
-      const homePath = fromEndpoint && HOME_PATHS[fromEndpoint as ApiEndpoint]
-        ? normalizeEndpointNavigationPath(
-            HOME_PATHS[fromEndpoint as ApiEndpoint],
-            fromEndpoint as ApiEndpoint,
-          )
-        : currentHomePath;
+      const homePath =
+        fromEndpoint && HOME_PATHS[fromEndpoint as ApiEndpoint]
+          ? normalizeEndpointNavigationPath(
+              HOME_PATHS[fromEndpoint as ApiEndpoint],
+              fromEndpoint as ApiEndpoint,
+            )
+          : currentHomePath;
       return { path: homePath, replace: true };
     }
 
-    // 检测端切换：如果端类型变化，需要重新生成路由和权限
+    // 检测端切换：如果端类型变化，需要重新生成路由和权限 / endpoint switch → reset access
     if (lastEndpoint && lastEndpoint !== currentEndpoint) {
       accessStore.setIsAccessChecked(false);
       accessStore.setAccessMenus([]);
       accessStore.setAccessRoutes([]);
-      // 清除权限码，避免使用旧端的权限
+      // 清除权限码，避免使用旧端的权限 / drop stale access codes
       accessStore.setAccessCodes([]);
 
       const { resetPluginRoutesReady } =
@@ -237,9 +255,9 @@ function setupAccessGuard(router: Router) {
     // 从 TokenStorage 获取当前端的 Token（多端分离存储）
     const currentToken = TokenStorage.getToken(currentEndpoint);
 
-    // 基本路由，这些路由不需要进入权限拦截
+    // 基本路由，这些路由不需要进入权限拦截 / core routes bypass full access pipeline
     if (coreRouteNames.includes(to.name as string)) {
-      // 如果当前端已登录且访问登录页，重定向到对应端的首页
+      // 如果当前端已登录且访问登录页，重定向到对应端的首页 / logged-in → skip login shell
       if (isLoginPath(to.path) && currentToken) {
         const redirectPath = to.query?.redirect as string | undefined;
         if (redirectPath) {
@@ -272,12 +290,12 @@ function setupAccessGuard(router: Router) {
 
     // Token 检查（使用当前端的 Token）
     if (!currentToken) {
-      // 明确声明忽略权限访问权限，则可以访问
+      // 明确声明忽略权限访问权限，则可以访问 / ignoreAccess meta bypass
       if (to.meta.ignoreAccess) {
         return true;
       }
 
-      // 没有访问权限，跳转到对应端的登录页面
+      // 没有访问权限，跳转到对应端的登录页面 / no token → login
       if (!isLoginPath(to.path)) {
         return {
           path: currentLoginPath,
@@ -298,16 +316,19 @@ function setupAccessGuard(router: Router) {
       }
     }
 
-    // 是否已经生成过动态路由
+    // 是否已经生成过动态路由 / dynamic routes already built
     if (accessStore.isAccessChecked) {
       // 插件路由可能还未注册（layout onMounted 异步注册），
-      // 如果目标是插件 URL 但路由不存在，在 guard 中同步注册插件路由
+      // 如果目标是插件 URL，但当前仍是占位菜单路由或 404，在 guard 中同步注册插件路由
       const isPluginPath = /\/(?:tenant|admin)\/plugins\//.test(to.path);
-      if (isPluginPath && to.name === 'FallbackNotFound') {
+      if (
+        isPluginPath &&
+        (to.name === 'FallbackNotFound' || pluginLeafRouteNeedsBootstrap(to))
+      ) {
         const { ensurePluginRoutes } =
           await import('#/composables/use-plugin-frontend-init');
         await ensurePluginRoutes(router, to.path);
-        // 路由注册后重新解析
+        // 路由注册后重新解析 / re-resolve after plugin routes
         const resolved = router.resolve(to.fullPath);
         if (resolved.name !== 'FallbackNotFound') {
           return { ...resolved, replace: true };
@@ -343,7 +364,7 @@ function setupAccessGuard(router: Router) {
 
     const userRoles = userInfo.roles ?? [];
 
-    // 生成菜单和路由（根据端类型获取对应的菜单）
+    // 生成菜单和路由（根据端类型获取对应的菜单） / build menus+routes for endpoint
     let accessibleMenus;
     let accessibleRoutes;
     try {
@@ -372,7 +393,7 @@ function setupAccessGuard(router: Router) {
       };
     }
 
-    // 保存菜单信息和路由信息
+    // 保存菜单信息和路由信息 / persist menus + routes
     accessStore.setAccessMenus(accessibleMenus);
     accessStore.setAccessRoutes(accessibleRoutes);
     accessStore.setIsAccessChecked(true);
@@ -380,10 +401,11 @@ function setupAccessGuard(router: Router) {
       return { path: currentHomePath, replace: true };
     }
 
-    let redirectPath = normalizeEndpointNavigationPath(
+    const redirectPath = normalizeEndpointNavigationPath(
       (from.query.redirect ??
-        (to.path === currentHomePath ? userInfo.homePath : to.fullPath)) as
-        string,
+        (to.path === currentHomePath
+          ? userInfo.homePath
+          : to.fullPath)) as string,
       currentEndpoint,
     );
 
@@ -430,7 +452,7 @@ function setupTabbarGuard(router: Router) {
       publicConfigStore.isDomainTenantDomain,
     );
 
-    // 获取当前不需要显示的标签页（非当前端）
+    // 获取当前不需要显示的标签页（非当前端） / tabs from other endpoints
     const tabs = tabbarStore.getTabs;
     const invalidTabs = tabs.filter((tab) => {
       const tabEndpoint = resolveEndpointForPath(
@@ -445,7 +467,7 @@ function setupTabbarGuard(router: Router) {
       return tabEndpoint !== currentEndpoint;
     });
 
-    // 批量关闭非当前端的标签页
+    // 批量关闭非当前端的标签页 / bulk close foreign tabs
     if (invalidTabs.length > 0) {
       const keys = invalidTabs.map((tab) => tab.key as string).filter(Boolean);
       if (keys.length > 0) {

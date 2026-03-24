@@ -21,7 +21,7 @@ from app.services.system import OperationLogService
 
 @permission_resource(
     resource="operation_log",
-    name="menu.tenant.operation_log",  # i18n key
+    name="menu.tenant.operation_log",  # i18n key / 菜单 i18n 键名
     scope=PermissionScope.TENANT,
     parent_resource="logs",
     menu=MenuConfig(

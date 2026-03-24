@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 import httpx
 
 from app.core.logging import get_logger
+from app.core.response import resolve_public_error_message
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -445,7 +446,10 @@ class MarketplaceClient:
 
                 shutil.rmtree(tmp_dir, ignore_errors=True)
                 raise PluginInstallError(
-                    message=f"Failed to download plugin '{slug}' after 3 attempts: {exc}",
+                    message=resolve_public_error_message(
+                        exc,
+                        fallback_message=f"Failed to download plugin '{slug}' after 3 attempts",
+                    ),
                 )
 
         return zip_path  # unreachable but satisfies type checker

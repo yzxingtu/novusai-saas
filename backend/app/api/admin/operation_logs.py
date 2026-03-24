@@ -30,7 +30,7 @@ from app.services.system.operation_log_service import OperationLogService
 
 @permission_resource(
     resource="operation_log",
-    name="menu.admin.operation_log",  # i18n key
+    name="menu.admin.operation_log",  # i18n key / 菜单 i18n 键名
     scope=PermissionScope.ADMIN,
     parent_resource="system_maintenance",
     menu=MenuConfig(

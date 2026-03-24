@@ -3,6 +3,7 @@
  * 用户角色权限分配抽屉 / User role permission assignment drawer
  * 加载权限树 + 勾选已分配权限 + 保存
  */
+import type { TreeProps as AntTreeProps } from 'ant-design-vue';
 import type { TenantUserRoleInfo } from '#/api/tenant/tenant-user-roles';
 import type { TenantPermissionNode } from '#/api/tenant/permission';
 
@@ -48,6 +49,8 @@ const permissionTree = ref<TreeNode[]>([]);
 const checkedKeys = ref<number[]>([]);
 const expandedKeys = ref<number[]>([]);
 const halfCheckedKeys = ref<number[]>([]);
+const parentKeyMap = ref<Map<number, null | number>>(new Map());
+const descendantKeyMap = ref<Map<number, number[]>>(new Map());
 
 // ============================================================
 // Tree node type / 树节点类型
@@ -97,6 +100,31 @@ function getAllKeys(nodes: TreeNode[]): number[] {
   return keys;
 }
 
+function buildTreeRelations(nodes: TreeNode[], parentId: null | number = null) {
+  for (const node of nodes) {
+    parentKeyMap.value.set(node.key, parentId);
+    const descendants: number[] = [];
+    for (const child of node.children || []) {
+      descendants.push(child.key);
+      buildTreeRelations([child], node.key);
+      descendants.push(...(descendantKeyMap.value.get(child.key) || []));
+    }
+    descendantKeyMap.value.set(node.key, descendants);
+  }
+}
+
+function getBranchKeys(targetKey: number): number[] {
+  const branch: number[] = [];
+  let current: null | number = targetKey;
+
+  while (typeof current === 'number') {
+    branch.push(current);
+    current = parentKeyMap.value.get(current) ?? null;
+  }
+
+  return branch.reverse();
+}
+
 async function loadData() {
   if (!props.role) return;
   loading.value = true;
@@ -107,7 +135,10 @@ async function loadData() {
     ]);
 
     permissionTree.value = transformToTreeNodes(tree);
-    expandedKeys.value = getAllKeys(permissionTree.value);
+    expandedKeys.value = [];
+    parentKeyMap.value = new Map();
+    descendantKeyMap.value = new Map();
+    buildTreeRelations(permissionTree.value);
 
     const permIds = detail.permissionIds || [];
     checkedKeys.value = filterLeafKeys(permissionTree.value, new Set(permIds));
@@ -180,6 +211,33 @@ function onCollapseAll() {
   expandedKeys.value = [];
 }
 
+const onExpand: NonNullable<AntTreeProps['onExpand']> = (
+  nextExpandedKeys,
+  info,
+) => {
+  const nodeKey = info.node.key;
+
+  if (typeof nodeKey !== 'number') {
+    expandedKeys.value = nextExpandedKeys.filter(
+      (key): key is number => typeof key === 'number',
+    );
+    return;
+  }
+
+  if (info.expanded) {
+    expandedKeys.value = getBranchKeys(nodeKey);
+    return;
+  }
+
+  const removedKeys = new Set<number>([
+    nodeKey,
+    ...(descendantKeyMap.value.get(nodeKey) || []),
+  ]);
+  expandedKeys.value = nextExpandedKeys.filter(
+    (key): key is number => typeof key === 'number' && !removedKeys.has(key),
+  );
+};
+
 // ============================================================
 // Watch / 监听
 // ============================================================
@@ -215,6 +273,12 @@ function getTypeColor(type: string): string {
     case 'operation': return 'green';
     default: return 'default';
   }
+}
+
+function getTypeLabel(type: string): string {
+  const key = `tenant.system.userRole.permissionTypes.${type}`;
+  const label = $t(key);
+  return label === key ? type : label;
 }
 </script>
 
@@ -265,6 +329,7 @@ function getTypeColor(type: string): string {
       :selectable="false"
       block-node
       @check="onCheck"
+      @expand="onExpand"
     >
       <template #title="{ code, icon, title, type }">
         <div class="flex items-center gap-1.5">
@@ -274,7 +339,7 @@ function getTypeColor(type: string): string {
           />
           <span class="text-sm">{{ title }}</span>
           <Tag :color="getTypeColor(type)" size="small">
-            {{ type }}
+            {{ getTypeLabel(type) }}
           </Tag>
           <span class="text-xs text-muted-foreground">
             {{ code }}

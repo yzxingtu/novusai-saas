@@ -69,21 +69,14 @@ class ManualTestAdminOrganization(BaseAPITest):
         self.run_test("删除主组织节点", self.test_delete_primary_org_node)
         self.run_test("删除目标组织节点", self.test_delete_secondary_org_node)
 
-    def _get_any_permission_role_id(self) -> int | None:
-        resp = self.client.get(
-            "/admin/permission-roles",
-            params={"page[number]": 1, "page[size]": 1},
-        )
-        data = assert_success(resp, "获取平台权限角色列表失败")
-        items = data["data"]["items"]
+    def _get_any_permission_id(self) -> int | None:
+        resp = self.client.get("/admin/permissions/list")
+        data = assert_success(resp, "获取平台权限列表失败")
+        items = data["data"]
         return items[0]["id"] if items else None
 
     def _assert_member_mapping(self, member: dict, expected_org_node_id: int | None) -> None:
         assert_equals(member["org_node_id"], expected_org_node_id)
-        expected_role_id = self._test_data.get("permission_role_id")
-        assert_equals(member.get("permission_role_id"), expected_role_id)
-        if expected_role_id is not None:
-            assert_true(member.get("permission_role_name") is not None, "权限角色名称不应为空")
 
     def test_list_organization(self) -> None:
         """测试获取组织根节点和组织树 / Test get organization roots and tree."""
@@ -107,6 +100,9 @@ class ManualTestAdminOrganization(BaseAPITest):
                 "is_active": True,
                 "sort_order": 10,
                 "data_scope": "dept_children",
+                "permission_ids": [permission_id]
+                if (permission_id := self._get_any_permission_id()) is not None
+                else None,
             },
         )
         data = assert_success(resp, "创建主组织节点失败")
@@ -145,7 +141,16 @@ class ManualTestAdminOrganization(BaseAPITest):
 
         assert_has_keys(
             data["data"],
-            ["id", "name", "type", "allow_members", "data_scope", "children_count", "member_count"],
+            [
+                "id",
+                "name",
+                "type",
+                "allow_members",
+                "data_scope",
+                "children_count",
+                "member_count",
+                "permission_ids",
+            ],
         )
         assert_equals(data["data"]["id"], org_node_id)
 
@@ -188,9 +193,6 @@ class ManualTestAdminOrganization(BaseAPITest):
         if not org_node_id:
             raise AssertionError("没有可用的组织节点 ID")
 
-        permission_role_id = self._get_any_permission_role_id()
-        self._test_data["permission_role_id"] = permission_role_id
-
         payload = {
             "username": self._test_data["member_username"],
             "email": self._test_data["member_email"],
@@ -198,13 +200,11 @@ class ManualTestAdminOrganization(BaseAPITest):
             "nickname": "组织成员",
             "is_active": True,
         }
-        if permission_role_id is not None:
-            payload["role_id"] = permission_role_id
 
         resp = self.client.post(f"/admin/organization/{org_node_id}/members/create", data=payload)
         data = assert_success(resp, "创建组织成员失败")
 
-        assert_has_keys(data["data"], ["id", "username", "org_node_id", "permission_role_id"])
+        assert_has_keys(data["data"], ["id", "username", "org_node_id"])
         assert_equals(data["data"]["username"], self._test_data["member_username"])
         self._assert_member_mapping(data["data"], org_node_id)
         self._test_data["created_admin_id"] = data["data"]["id"]
@@ -239,9 +239,6 @@ class ManualTestAdminOrganization(BaseAPITest):
             "nickname": "已转移成员",
             "org_node_id": target_org_node_id,
         }
-        permission_role_id = self._test_data.get("permission_role_id")
-        if permission_role_id is not None:
-            payload["role_id"] = permission_role_id
 
         resp = self.client.put(
             f"/admin/organization/{source_org_node_id}/members/{admin_id}",

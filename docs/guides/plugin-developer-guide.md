@@ -22,9 +22,10 @@
 ### 快速创建
 
 ```bash
-cd backend
 novusai plugin create my-plugin --template=skill
 ```
+
+脚手架默认输出到 `backend/plugins/my-plugin/`，后续 `build / validate / pack` 也统一针对这个目录执行。
 
 三种模板：
 - **minimal**: 最简插件（plugin.yaml + main.py）
@@ -34,7 +35,7 @@ novusai plugin create my-plugin --template=skill
 ### 目录结构
 
 ```
-my-plugin/
+backend/plugins/my-plugin/
 ├── plugin.yaml              # 清单文件（必须）
 ├── README.md                # 说明文档
 ├── backend/
@@ -44,7 +45,10 @@ my-plugin/
 │   ├── api/                  # 自定义 API
 │   └── migrations/versions/  # Alembic 迁移
 ├── frontend/
-│   └── dist/                 # 前端 UMD 包
+│   ├── src/                  # 前端源码与 dev.entry
+│   ├── dist/                 # 前端发布产物与 plugin.manifest.json
+│   ├── package.json          # 本地构建依赖（必须包含 vue）
+│   └── vite.config.ts        # 前端构建配置
 └── locales/
     ├── zh-CN.json            # 中文翻译
     └── en.json               # 英文翻译
@@ -68,16 +72,37 @@ extensions:
   webhooks: [...]                  # Webhook 端点
   events: [...]                    # EventBus 订阅
   api: { admin_routes: [...], tenant_routes: [...], public_routes: [...] }  # API 路由
+  frontend:
+    pages: [...]                   # 页面与菜单声明
+    dev: { entry: "src/index.ts" } # 开发态入口
+    release: { manifest: "plugin.manifest.json" } # 发布态契约
 ```
 
 补充约束：
-- `extensions.capabilities[*]` 与 `extensions.skills[*].capabilities[]` 必须形成显式标准映射，禁止只依赖某个样例插件形成隐式约定。
+- 插件 AI/技能在 manifest 中当前只以 `extensions.skills[*]` 为正式契约；不要再写 `extensions.capabilities[*]`、`extensions.skills[*].capabilities[]`、`skill_md_path` 这类当前 schema 不消费的字段。
 - 如声明 `extensions.frontend.dashboard_widgets[*]`，插件前端入口必须导出对应组件，宿主 dashboard 只负责插槽挂载。
+- 只要插件声明了 `extensions.frontend`，或声明了依赖前端入口的 `custom.type=captcha_provider`，都必须提供 `frontend/package.json`、`vite.config.ts`、`extensions.frontend.dev.entry` 与 `extensions.frontend.release.manifest`；`novusai plugin validate` 会按前端插件完整校验。
+- `extensions.frontend.*.component` 里声明的组件名，必须由 `frontend` 入口文件显式导出，否则宿主能拿到 manifest 但无法真正挂载页面或小部件。
+- 插件页面标题与菜单标题分别来自 `extensions.frontend.pages[*].title` 和 `pages[*].menu.title`；页面内部按钮、提示、表单文案才走 `registerLocale(locale, 'plugin.{manifest-name}', messages)`。
+- `pages[*].title` 与 `pages[*].menu.title` 必须同时覆盖 `zh-CN` / `en`；`novusai plugin validate` 会直接拦截缺失语言。
+- 前端 locale 必须注册根 canonical prefix `plugin.{manifest-name}`（例如 `plugin.my-plugin`）；`plugin.{manifest-name}.admin` 等子前缀只能作为补充命名空间，不能替代根前缀。
+- `.vue` 文件禁止 `<style scoped>`；插件样式必须用根类名前缀隔离，避免和宿主样式系统冲突。
+- `plugin-extensions` / runtime-only 前端扩展当前不是正式 manifest 契约；发布插件只应依赖 `pages + slots + captcha` 这条宿主已落地的声明链。
+
+### 前端运行态稳定性
+
+- **统一初始化入口**：所有页面、路由、slot 的注册必须通过宿主提供的 `usePluginFrontendInit`/`ensurePluginRoutes`/`refreshPluginSlots` 组合完成；插件不得在多处重复注入路由或直接操作 router，以免并行调用造成 `_pluginRoutesReady` 竞争。
+- **原子刷新**：`/plugins/slots` 的刷新逻辑在数据确认有效前不会清空旧状态。插件提供的 `frontend_runtime`、component 与 release manifest 必须一次性可用，否则宿主会拒绝替换并保留旧插槽，避免菜单/页面临时空白。
+- **显式 endpoint + `publicEndpoint`**：前端 loader 读取 `slots/pages[*].frontend_runtime`，配合传入的 `publicEndpoint` 构建 `/plugin-assets` 请求；不要依赖 `window.location` 自动推断 endpoint。插件必须为 admin/tenant 分发各自的 release manifest 与 assets，并确保 manifest 中的 `entry`/`assets`/`css` 路径都在 `/plugin-assets/{plugin}/` 内。
+- **`setup()` 失败不得缓存**：`loadPluginComponents` 只有在 `setup()` 成功后才算真正加载成功；出现异常时宿主会清除模块缓存并允许下一次重试。插件在 `setup()` 中应捕获自身可控异常，保证抛出明确错误并且不会吞掉堆栈。
+- **菜单≠页面**：`extensions.frontend.pages[*].menu` 只控制菜单 metadata（title/icon/parent/accessCodes），真正的路由/组件由 `pages[*].path`+`component` 形成。manifest 必须在 `pages[*]` 同时提供路由与菜单，并保证 `menu.accessCodes` 与 guard 所需的权限码一致，以实现“可见 → 可进 → 可执行”的三层门控。
+- **只在必要时重载资产**：`refreshPluginSlots({ reloadAssets: true })` 只用于 enable/disable/uninstall/repair 之后重新装载插件 bundle；语言切换、菜单重建、端切换后的重新挂载应使用 `reloadAssets: false`，只刷新标题与 route 元数据，避免无意义地卸载/重载 JS/CSS。
 
 ### 命名规范
 
 - **DB 表**: `px_{name}_*`（如 `px_my_plugin_customers`）
-- **i18n Key**: `plugin.{name}.*`（如 `plugin.my-plugin.title`）
+- **registerLocale Prefix**: 必须包含根前缀 `plugin.{manifest-name}`；可额外扩展 `plugin.{manifest-name}.admin` 等子命名空间
+- **locale bundle keys**: 使用相对 key（如 `title`、`form.submit`），不要在消息对象里重复写完整 `plugin.{manifest-name}.*`
 - **API 路径**: `/admin/plugins/{name}/api/*` 或 `/tenant/plugins/{name}/api/*`
 - **前端菜单/页面路径**: 必须以 `/admin/plugins/` 或 `/tenant/plugins/` 开头
 
@@ -114,7 +139,10 @@ await ctx.emit_event(name, data)                        # 触发自定义事件
 
 插件的所有模块（skills、executors、api handlers 等）通过统一加载器 `app/plugins/module_loader.py` 加载。
 
-**entry_point 格式**: `模块路径.属性名`（相对于 `backend/` 目录）
+**entry_point / handler 语义（按扩展类型区分）**
+
+- `extensions.skills[*].entry_point`：resolver 模块路径（相对于 `backend/`），例如 `skills.weather_resolver`；运行时会调用该模块的 `resolve`。
+- API route / webhook / task 的 `handler` 或 `entry_point`：函数级 dotted path（相对于 `backend/`），例如 `api.admin.run_job`。
 
 ```yaml
 # plugin.yaml 示例
@@ -125,7 +153,7 @@ extensions:
       entry_point: "skills.weather_resolver"   # → backend/skills/weather_resolver.py
 ```
 
-启动恢复时会调用 `entry_point + ".resolve"`，即 `skills.weather_resolver.resolve`。
+注意：skill 的 `entry_point` 不要写成 `skills.weather_resolver.resolve`，否则会出现双重拼接导致加载失败。
 
 **加载优先级**:
 1. 子模块加载（推荐）: `skills/weather_resolver.py` 中的 `resolve` 函数
@@ -177,7 +205,11 @@ return {"data": result, "error": None}  # error key 存在会被误判为错误
 插件启用或升级时，系统会同步：
 1. 创建或更新 `SkillPackage`（目录、来源、归组单元，`source_plugin=插件名`）
 2. 为每个 `extensions.skills[*]` 创建或更新 `Skill` 记录
-3. 按 `extensions.capabilities[*] -> extensions.skills[*].capabilities[]` 的映射关系生成解析元数据
+3. `Skill` 的工具能力以 `entry_point` 指向的 resolver/executor 实现为准，不再通过额外的 `extensions.capabilities[*]` overlay 做二次声明
+
+当前边界：
+- `skill_md_path` 不是现行 manifest schema 字段；如需给插件技能附带说明文档，可把 `SKILL.md` 放在插件目录中，但不要再写入 `plugin.yaml`
+- 如插件需要声明宿主运行能力，继续使用顶层 `capabilities`（如 `http:outbound`、`db:own_tables`），不要混入不存在的扩展层 capability schema
 
 重要边界：
 - 这里同步的是**目录投影**，不是“自动把整包绑定到 Agent 运行时”。
@@ -210,11 +242,21 @@ plugin_modules = [k for k in sys.modules if k.startswith("plugins.my-plugin")]
 
 ```bash
 # 校验
-novusai plugin validate my-plugin/
+novusai plugin validate backend/plugins/my-plugin
 
-# 打包
-novusai plugin pack my-plugin/
+# 构建前端发布产物（会执行插件自己的 npm/pnpm/yarn build 脚本）
+novusai plugin build backend/plugins/my-plugin
+
+# 打包发布包（用于安装/分发）
+novusai plugin pack backend/plugins/my-plugin --release
+
+# 打包源码包（用于源码交付或二次开发）
+novusai plugin pack backend/plugins/my-plugin --source
 ```
+
+安全边界：
+- `novusai plugin build` 会直接执行插件仓库中的第三方构建脚本。仅对可信源码运行；第三方插件先做安全扫描和人工审阅。
+- 推荐发布前流程：`validate -> build -> pack --release`。
 
 ## 四、发布到市场
 
@@ -229,4 +271,4 @@ novusai plugin pack my-plugin/
 - 定价在 `plugin.yaml` 的 `pricing` 字段声明
 - License Key 由 NovusAI 平台生成（Ed25519 签名）
 - 用户激活后本地验证，无需联网
-- 支持 14 天试用期
+- 试用期与授权周期以当前平台 License 策略为准（不要在插件文档中硬编码固定天数）。

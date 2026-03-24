@@ -60,7 +60,7 @@ watch(
 
 const showProfileCard = ref(false);
 
-// ==================== Agent Skills in Popover ====================
+// ==================== Agent Skills in Popover / 弹窗内技能列表 ====================
 const skillBindings = ref<ChatSkillBindingInfo[]>([]);
 const skillBindingsLoaded = ref(false);
 const skillBindingsLoading = ref(false);

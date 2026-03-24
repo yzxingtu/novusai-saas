@@ -60,7 +60,7 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
         Raises:
             BusinessException: 用户名/邮箱/手机号已存在
         """
-        # 检查用户数配额
+        # 检查用户数配额 / Check user count quota
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload
 
@@ -167,7 +167,7 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
         if "org_node_id" in data:
             await self._validate_org_node(data["org_node_id"])
 
-        # 移除不允许直接更新的字段
+        # 移除不允许直接更新的字段 / Remove fields not directly updatable
         data.pop("password", None)
         data.pop("password_hash", None)
         data.pop("username", None)

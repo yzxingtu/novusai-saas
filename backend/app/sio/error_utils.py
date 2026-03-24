@@ -6,6 +6,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from socketio.exceptions import ConnectionRefusedError as SocketConnectionRefusedError
+
 from app.core.i18n import _
 from app.core.response import (
     build_exception_debug,
@@ -40,7 +42,7 @@ def socket_connect_refusal(
     *,
     exc: BaseException | None = None,
     extra: dict[str, Any] | None = None,
-) -> ConnectionRefusedError:
+) -> SocketConnectionRefusedError:
     """Create ConnectionRefusedError with structured payload / 创建带结构化载荷的 ConnectionRefusedError。"""
     return build_socket_connect_error(
         reason,

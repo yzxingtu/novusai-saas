@@ -16,6 +16,14 @@
   "sortOrder": "排序号",
   "permissions": "权限分配",
   "selectedCount": "已选 {count} 项",
+  "noPermissions": "暂无分配权限",
+  "scopeHintTitle": "负责人数据范围",
+  "scopeHintDescription": "负责人会继承当前节点的数据查看范围，范围由这里统一配置。",
+  "leaderScope": "数据范围",
+  "leaderScopeDescription": "定义当前节点负责人的表格可见范围。",
+  "selectLeaderScope": "请选择数据范围",
+  "customScopeNodes": "自定义节点",
+  "selectCustomScopeNodes": "请选择自定义节点",
   "type": {
     "department": "部门",
     "departmentDesc": "组织架构中的部门单位",
@@ -24,11 +32,26 @@
     "role": "角色",
     "roleDesc": "权限分配单位"
   },
+  "scope": {
+    "all": "全组织",
+    "allDesc": "可查看当前租户或平台内全部数据。",
+    "deptChildren": "当前节点及下级",
+    "deptChildrenDesc": "可查看当前节点以及所有下级节点的数据。",
+    "deptOnly": "仅当前节点",
+    "deptOnlyDesc": "仅可查看当前节点归属的数据。",
+    "self": "仅本人",
+    "selfDesc": "仅可查看负责人本人相关的数据。",
+    "custom": "自定义节点",
+    "customDesc": "仅可查看指定组织节点范围内的数据。",
+    "unknown": "未配置",
+    "unknownDesc": "当前节点尚未配置负责人数据范围。"
+  },
   "validation": {
     "nameRequired": "请输入节点名称",
     "nameMaxLength": "名称不能超过50个字符",
     "typeRequired": "请选择节点类型",
     "sortOrderRequired": "请输入排序号",
-    "sortOrderRange": "排序号需在0-9999之间"
+    "sortOrderRange": "排序号需在0-9999之间",
+    "customScopeRequired": "请选择至少一个自定义节点"
   }
 }

@@ -59,6 +59,7 @@ import {
   normalizePageAIMode,
   shouldDisablePageContext,
 } from '#/utils/ai-page-capabilities';
+import { getErrorMessage } from '#/utils/error-helpers';
 import { normalizeStarterQuestions } from '#/utils/ai-starter-questions';
 import { getFileIcon } from '#/utils/file';
 
@@ -166,7 +167,7 @@ onUnmounted(() => {
   }
 });
 
-// ============ Chat Logic (reuse useAIChat) ============
+// ============ Chat Logic (reuse useAIChat) / 对话逻辑（复用 useAIChat） ============
 
 const chat = useAIChat({
   apiPrefix: toRef(props, 'apiPrefix'),
@@ -293,7 +294,7 @@ const unassociatedPendingOps = computed(() =>
   ),
 );
 
-// ============ Input Variables Modal ============
+// ============ Input Variables Modal / 输入变量弹窗 ============
 
 /** Single-agent prompt modal (when routing detects missing required vars) / 单智能体变量弹窗（路由检测到必填变量缺失时） */
 const varsModalVisible = ref(false);
@@ -475,7 +476,7 @@ function onToggleForceReroute() {
   forceRerouteNextTurn.value = !forceRerouteNextTurn.value;
 }
 
-// ============ Page AI Capability Indicator ============
+// ============ Page AI Capability Indicator / 页面 AI 能力指示 ============
 
 const FALLBACK_PAGE_CONTEXT_SOURCES = new Set([
   'dom_snapshot',
@@ -1211,25 +1212,7 @@ async function handleSendMessage() {
       return;
     }
 
-    const responseData =
-      typeof error === 'object' && error !== null && 'response' in error
-        ? Reflect.get(error, 'response')
-        : null;
-    const businessData =
-      typeof responseData === 'object' &&
-      responseData !== null &&
-      'data' in responseData
-        ? Reflect.get(responseData, 'data')
-        : null;
-    const errorMessage =
-      typeof businessData === 'object' && businessData !== null
-        ? Reflect.get(businessData, 'message')
-        : null;
-
-    const baseMsg =
-      typeof errorMessage === 'string' && errorMessage
-        ? errorMessage
-        : $t('common.http.internalServerError');
+    const baseMsg = getErrorMessage(error, 'common.http.internalServerError');
     message.error(`${baseMsg} ${$t('common.globalAiChat.routeFailedHint')}`);
   }
 }
@@ -1410,7 +1393,7 @@ function handleToggleDock() {
   aiPanelStore.toggleDock();
 }
 
-// ============ Click-outside: close when not docked ============
+// ============ Click-outside: close when not docked / 非停靠时点击外部关闭 ============
 
 function onDocumentClick(e: MouseEvent) {
   if (
@@ -1423,13 +1406,13 @@ function onDocumentClick(e: MouseEvent) {
   }
 }
 
-// ============ Pin ============
+// ============ Pin / 固定智能体 ============
 
 function unpinAgent() {
   aiPanelStore.togglePin(0, '');
 }
 
-// ============ Memory ============
+// ============ Memory / 会话记忆 ============
 
 const showMemoryPanel = ref(false);
 
@@ -1525,7 +1508,7 @@ const headerMoreHasAttention = computed(
     ),
 );
 
-// ============ Screenshot ============
+// ============ Screenshot / 页面截图 ============
 
 const { capturing, captureAndUpload } = usePageScreenshot();
 
@@ -1543,7 +1526,7 @@ async function handleScreenshot() {
   }
 }
 
-// ============ Welcome & Suggested Questions ============
+// ============ Welcome & Suggested Questions / 欢迎语与推荐问 ============
 
 const starterAgent = computed(() => {
   return mentionedAgent.value ?? selectedAgent.value ?? null;
@@ -1562,7 +1545,7 @@ function askSuggested(question: string) {
   handleSendMessage();
 }
 
-// ============ Image preview lightbox ============
+// ============ Image preview lightbox / 图片预览灯箱 ============
 
 const previewImageUrl = ref('');
 const previewImageVisible = ref(false);
@@ -1572,7 +1555,7 @@ function openImagePreview(url: string) {
   previewImageVisible.value = true;
 }
 
-// ============ Copy ============
+// ============ Copy / 复制消息 ============
 
 async function onCopyMessage(content: string) {
   await copyMessage(content);
@@ -1643,31 +1626,54 @@ function onDragStart(e: MouseEvent) {
 
 // ============ External message handling / 外部消息处理 ============
 
-watch(
-  () => props.pendingMessage,
-  (msg) => {
-    if (msg) {
-      inputMessage.value = msg;
-      handleSendMessage();
-      emit('messageSent');
-    }
-  },
-);
+const hasQueuedExternalContext = computed(() => {
+  const queuedMessage = props.pendingMessage?.trim();
+  return Boolean(props.pendingConversationId) || Boolean(queuedMessage);
+});
 
-// ============ External conversation restore handling / 外部对话恢复处理 ============
+const applyingExternalContext = ref(false);
 
-watch(
-  () => props.pendingConversationId,
-  (convId) => {
-    if (convId) {
-      if (!aiPanelStore.visible) {
-        aiPanelStore.open();
-      }
+async function applyExternalContext(): Promise<void> {
+  if (!aiPanelStore.visible || applyingExternalContext.value) {
+    return;
+  }
+
+  const queuedConversationId =
+    typeof props.pendingConversationId === 'number' &&
+    Number.isFinite(props.pendingConversationId)
+      ? props.pendingConversationId
+      : null;
+  const queuedMessage = props.pendingMessage?.trim() || '';
+
+  if (!queuedConversationId && !queuedMessage) {
+    return;
+  }
+
+  applyingExternalContext.value = true;
+  try {
+    if (queuedConversationId) {
       showHistory.value = false;
       showMemoryPanel.value = false;
-      loadConversationMessages(convId);
+      if (activeConversationId.value !== queuedConversationId) {
+        await loadConversationMessages(queuedConversationId);
+      }
       emit('conversationRestored');
     }
+
+    if (queuedMessage) {
+      inputMessage.value = queuedMessage;
+      await handleSendMessage();
+      emit('messageSent');
+    }
+  } finally {
+    applyingExternalContext.value = false;
+  }
+}
+
+watch(
+  [() => props.pendingConversationId, () => props.pendingMessage, () => aiPanelStore.visible],
+  () => {
+    void applyExternalContext();
   },
 );
 
@@ -1680,14 +1686,25 @@ watch(
       aiPanelStore.clearResolvedPageOps?.();
       const pendingId = aiPanelStore.consumePendingAgentId();
       forceRerouteNextTurn.value = false;
-      manualNewConversationAgentId.value = pendingId ?? null;
-      // On panel open: reset messages/conversation but KEEP session vars
-      // (vars only clear when user explicitly clicks "+" new chat)
-      startNewConversation(true);
+      const shouldResumeExistingConversation =
+        !pendingId &&
+        !hasQueuedExternalContext.value &&
+        (activeConversationId.value !== null || chatMessages.value.length > 0);
+
+      if (shouldResumeExistingConversation) {
+        manualNewConversationAgentId.value = null;
+      } else {
+        manualNewConversationAgentId.value = pendingId ?? null;
+        // Only clear state when this open action is explicitly starting a
+        // new routed conversation or restoring queued external context.
+        // 仅在显式开启新路由会话或恢复排队的外部上下文时清空状态 / see conditions above
+        startNewConversation(true);
+      }
       showHistory.value = false;
       showMemoryPanel.value = false;
-      await loadAgents(pendingId);
-      loadConversations();
+      await loadAgents(pendingId ?? selectedAgentId.value ?? undefined);
+      await loadConversations();
+      await applyExternalContext();
     }
   },
 );
@@ -1730,7 +1747,7 @@ watch([activeConversationId, selectedAgentId], ([conversationId, agentId]) => {
   aiPanelStore.setConversation(conversationId, agentId ?? undefined);
 });
 
-// ============ Lifecycle ============
+// ============ Lifecycle / 生命周期 ============
 
 /** Sync CSS variable for drawer/modal offset when AI panel is docked / AI 面板停靠时同步抽屉/弹窗偏移 CSS 变量 */
 watchEffect(() => {

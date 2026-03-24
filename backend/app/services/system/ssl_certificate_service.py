@@ -36,7 +36,7 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
     model = DomainSslCertificate
     repository_class = SslCertificateRepository
 
-    # ==================== 查询 ====================
+    # ==================== 查询 ==================== / ==================== Query ====================
 
     async def get_cert_detail(self, domain_id: int) -> DomainSslCertificate | None:
         """获取域名当前证书（优先 active，否则最新） / Get domain cert (active first, else latest)."""
@@ -45,7 +45,7 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
             cert = await self.repo.get_cert_by_domain(domain_id)
         return cert
 
-    # ==================== 上传自定义证书 ====================
+    # ==================== 上传自定义证书 ==================== / ==================== Upload custom certificate ====================
 
     async def _check_custom_ssl_quota(self, tenant_id: int) -> None:
         """
@@ -88,33 +88,33 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
         Args:
             check_quota: 是否检查套餐 allow_custom_ssl 配额（企业端传 True，管理端传 False） / Whether to check allow_custom_ssl quota.
         """
-        # 套餐配额检查（仅企业端需要）
+        # 套餐配额检查（仅企业端需要） / Plan quota check (tenant side only)
         if check_quota:
             await self._check_custom_ssl_quota(tenant_id)
 
-        # 获取域名信息
+        # 获取域名信息 / Fetch domain info
         domain = await self._get_domain(domain_id)
 
-        # 验证证书与私钥
+        # 验证证书与私钥 / Validate cert matches private key
         cert_info = self._parse_cert_info(cert_pem)
         self._validate_certificate(cert_pem, key_pem)
         self._validate_domain_in_cert(cert_pem, domain.domain)
 
-        # 检查证书是否过期
+        # 检查证书是否过期 / Check cert expired
         if cert_info["expires_at"] and cert_info["expires_at"] < utc_now():
             raise BusinessException(
                 message=_("ssl_certificate.cert_expired"),
                 code=ErrorCode.VALIDATION_ERROR,
             )
 
-        # 停用域名现有证书
+        # 停用域名现有证书 / Deactivate existing domain certs
         await self.repo.deactivate_domain_certs(domain_id)
 
-        # 加密私钥
+        # 加密私钥 / Encrypt private key
         encryption_key = await self._get_encryption_key()
         encrypted_key = self._encrypt_private_key(key_pem, encryption_key)
 
-        # 创建新证书记录
+        # 创建新证书记录 / Create new cert record
         cert = await self.create({
             "domain_id": domain_id,
             "tenant_id": tenant_id,
@@ -137,7 +137,7 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
 
         return cert
 
-    # ==================== 删除证书 ====================
+    # ==================== 删除证书 ==================== / ==================== Delete certificate ====================
 
     async def delete_cert(self, domain_id: int) -> bool:
         """删除域名证书并重置 SSL 状态 / Delete domain cert and reset SSL status."""
@@ -151,7 +151,7 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
         await self._update_domain_ssl_status(domain_id, DomainSslStatus.NONE.value, None)
         return True
 
-    # ==================== 自动续期开关 ====================
+    # ==================== 自动续期开关 ==================== / ==================== Auto-renewal toggle ====================
 
     async def toggle_auto_renew(self, domain_id: int, enabled: bool) -> DomainSslCertificate:
         """开关自动续期（仅 platform 类型可开启） / Toggle auto-renew (platform type only)."""
@@ -186,7 +186,7 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
         encryption_key = await self._get_encryption_key()
         encrypted_key = self._encrypt_private_key(key_pem, encryption_key)
 
-        # 停用已有证书
+        # 停用已有证书 / Deactivate existing certs
         await self.repo.deactivate_domain_certs(domain_id)
 
         cert = await self.create({
@@ -211,7 +211,7 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
 
         return cert
 
-    # ==================== 记录签发失败 ====================
+    # ==================== 记录签发失败 ==================== / ==================== Record renewal failure ====================
 
     async def mark_provision_failed(
         self, domain_id: int, error: str,
@@ -227,7 +227,7 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
 
         await self._update_domain_ssl_status(domain_id, DomainSslStatus.FAILED.value, None)
 
-    # ==================== 记录续期失败 ====================
+    # ==================== 记录续期失败 ==================== / ==================== Record expiry warning ====================
 
     async def mark_renewal_failed(
         self, cert_id: int, error: str,
@@ -238,7 +238,7 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
             "last_renewal_attempt": utc_now(),
         })
 
-    # ==================== 记录到期预警 ====================
+    # ==================== 记录到期预警 ==================== / ==================== Record issuance failure ====================
 
     async def mark_expiry_warning(
         self, cert_id: int, warning: str,
@@ -249,14 +249,14 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
             "last_renewal_attempt": utc_now(),
         })
 
-    # ==================== 标记过期 ====================
+    # ==================== 标记过期 ==================== / ==================== Mark expired ====================
 
     async def mark_expired(self, cert_id: int, domain_id: int) -> None:
         """标记证书过期 / Mark cert expired."""
         await self.update(cert_id, {"status": SslCertStatus.EXPIRED.value})
         await self._update_domain_ssl_status(domain_id, DomainSslStatus.EXPIRED.value, None)
 
-    # ==================== 内部方法 ====================
+    # ==================== 内部方法 ==================== / ==================== Internal methods ====================
 
     async def _get_domain(self, domain_id: int) -> TenantDomain:
         """获取域名实例 / Get domain instance."""
@@ -284,7 +284,7 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
         )
         await self.db.execute(stmt)
 
-    # ==================== 证书工具方法 ====================
+    # ==================== 证书工具方法 ==================== / ==================== Certificate helpers ====================
 
     async def _get_encryption_key(self) -> str:
         """从平台配置或环境变量获取 Fernet 加密密钥 / Get Fernet key from config or env."""
@@ -319,14 +319,14 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
         """解析 PEM 证书信息 / Parse PEM cert info."""
         cert = x509.load_pem_x509_certificate(cert_pem.encode())
 
-        # 签发机构
+        # 签发机构 / Certificate authority
         issuer_parts = []
         for attr in cert.issuer:
             if attr.oid == NameOID.ORGANIZATION_NAME or attr.oid == NameOID.COMMON_NAME:
                 issuer_parts.append(attr.value)
         issuer = ", ".join(issuer_parts) if issuer_parts else str(cert.issuer)
 
-        # Return naive UTC datetimes (TIMESTAMP WITHOUT TIME ZONE)
+        # Return naive UTC datetimes (TIMESTAMP WITHOUT TIME ZONE) / 返回无时区 UTC 时间 / naive UTC datetimes
         issued_at = (
             cert.not_valid_before_utc if hasattr(cert, "not_valid_before_utc")
             else cert.not_valid_before
@@ -355,7 +355,7 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
                 code=ErrorCode.VALIDATION_ERROR,
             ) from e
 
-        # 比较公钥
+        # 比较公钥 / Compare public keys
         cert_pub = cert.public_key()
         key_pub = key.public_key()
 

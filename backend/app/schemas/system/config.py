@@ -12,7 +12,7 @@ from pydantic import Field
 from app.core.base_schema import BaseSchema
 
 # ==========================================
-# 配置选项
+# 配置选项 / Config options
 # ==========================================
 
 class ConfigOptionSchema(BaseSchema):
@@ -61,7 +61,7 @@ class ConfigItemResponse(BaseSchema):
 
 
 # ==========================================
-# 配置分组响应
+# 配置分组响应 / Config group response
 # ==========================================
 
 class ConfigGroupResponse(BaseSchema):
@@ -87,7 +87,7 @@ class ConfigGroupListResponse(BaseSchema):
 
 
 # ==========================================
-# 配置更新请求
+# 配置更新请求 / Config update request
 # ==========================================
 
 class ConfigUpdateRequest(BaseSchema):
@@ -104,7 +104,7 @@ class ConfigUpdateItem(BaseSchema):
 
 
 # ==========================================
-# 批量配置更新请求
+# 批量配置更新请求 / Batch config update
 # ==========================================
 
 class BatchConfigUpdateRequest(BaseSchema):

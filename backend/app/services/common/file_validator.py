@@ -198,7 +198,7 @@ class FileValidator:
                 extensions.add(ext)
         return extensions
 
-    # ========== 配置获取方法 ==========
+    # ========== 配置获取方法 ========== / ========== Config accessors ==========
 
     async def _get_platform_allowed_extensions(self) -> set[str]:
         """获取平台允许的扩展名 / Get platform allowed extensions"""

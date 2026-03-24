@@ -135,7 +135,7 @@ class BaseSchema(BaseModel):
                 # 支持的格式列表 / Supported format list
                 formats = [
                     "%Y-%m-%d %H:%M:%S",   # 前端发送的格式 / Frontend format
-                    "%Y-%m-%dT%H:%M:%S",   # ISO 8601
+                    "%Y-%m-%dT%H:%M:%S",   # ISO 8601 / ISO 8601 日期时间
                     "%Y-%m-%d",            # 纯日期 / Date only
                 ]
 

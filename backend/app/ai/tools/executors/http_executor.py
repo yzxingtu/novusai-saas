@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.security import SSRFBlockedError, UrlValidator
 from app.ai.tools.types import ToolDefinition, ToolResult
+from app.core.response import build_public_error_text
 from app.core.logging import LogManager
 
 if TYPE_CHECKING:
@@ -23,7 +24,7 @@ if TYPE_CHECKING:
 logger = LogManager.get_logger("ai.tool.http")
 
 # Security limits / 安全限制
-_MAX_RESPONSE_SIZE = 50_000  # 50KB
+_MAX_RESPONSE_SIZE = 50_000  # 50KB  # 补充说明 / note
 
 
 def _substitute_template(template: str, variables: dict[str, Any]) -> str:
@@ -101,7 +102,7 @@ class HttpToolExecutor(BaseToolExecutor):
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=False,
-                error=str(e),
+                error=build_public_error_text(message=str(e)),
             )
 
         # Substitute template variables in query params / 替换查询参数中的模板变量
@@ -128,7 +129,7 @@ class HttpToolExecutor(BaseToolExecutor):
             import httpx
 
             timeout = definition.timeout or 30
-            # Redirects are disabled here so every outbound target must pass the
+            # Redirects are disabled here so every outbound target must pass the / 上文为英文说明 / English above
             # shared UrlValidator check explicitly instead of silently hopping
             # to another host after the first validated URL.
             async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
@@ -161,7 +162,10 @@ class HttpToolExecutor(BaseToolExecutor):
                     tool_call_id=tool_call_id,
                     name=definition.name,
                     success=False,
-                    error=f"HTTP redirect blocked: {location or 'no location header'}",
+                    error=build_public_error_text(
+                        message="HTTP redirect blocked",
+                        detail=location or "no location header",
+                    ),
                     duration_ms=duration_ms,
                 )
 
@@ -170,7 +174,9 @@ class HttpToolExecutor(BaseToolExecutor):
                     tool_call_id=tool_call_id,
                     name=definition.name,
                     success=False,
-                    error=f"HTTP {resp.status_code}: {resp_text[:500]}",
+                    error=build_public_error_text(
+                        message=f"HTTP {resp.status_code} from upstream service",
+                    ),
                     duration_ms=duration_ms,
                 )
 
@@ -189,7 +195,10 @@ class HttpToolExecutor(BaseToolExecutor):
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=False,
-                error=f"HTTP request failed: {str(exc)}",
+                error=build_public_error_text(
+                    message="HTTP request failed",
+                    exc=exc,
+                ),
                 duration_ms=duration_ms,
             )
 

@@ -40,25 +40,25 @@ class HookPoint:
     # ── Before/After Execution (Dispatcher layer) / 执行前后（Dispatcher 层） ──
     # params: tenant_id, agent_id, execution_mode, request
     BEFORE_EXECUTE = "before_execute"
-    # params: tenant_id, agent_id, result
+    # params: tenant_id, agent_id, result / 上文为英文说明 / English above
     AFTER_EXECUTE = "after_execute"
 
     # ── Message Processing / 消息处理 ──
     # params: tenant_id, conversation_id, role, content | 可修改 content
     BEFORE_MESSAGE_SAVE = "before_message_save"
-    # params: tenant_id, conversation_id, message_id, role, content
+    # params: tenant_id, conversation_id, message_id, role, content / 上文为英文说明 / English above
     AFTER_MESSAGE_SAVE = "after_message_save"
 
     # ── Tool Call (Sandbox layer) / 工具调用（Sandbox 层） ──
     # params: tenant_id, agent_id, tool_name, arguments, definition | 可修改 arguments
     BEFORE_TOOL_CALL = "before_tool_call"
-    # params: tenant_id, agent_id, tool_name, result
+    # params: tenant_id, agent_id, tool_name, result / 上文为英文说明 / English above
     AFTER_TOOL_CALL = "after_tool_call"
 
     # ── LLM Call / LLM 调用 ──
     # params: tenant_id, agent_id, model, messages, config | 可修改 messages, config
     BEFORE_LLM_CALL = "before_llm_call"
-    # params: tenant_id, agent_id, model, response, usage
+    # params: tenant_id, agent_id, model, response, usage / 上文为英文说明 / English above
     AFTER_LLM_CALL = "after_llm_call"
 
     # ── Context Building / 上下文构建 ──
@@ -76,29 +76,29 @@ class HookPoint:
     # ── Skill CRUD / 技能 CRUD ──
     # params: tenant_id, skill_data | 可修改 skill_data, 可阻止
     BEFORE_SKILL_CREATE = "before_skill_create"
-    # params: tenant_id, skill_id, skill_data
+    # params: tenant_id, skill_id, skill_data / 上文为英文说明 / English above
     AFTER_SKILL_CREATE = "after_skill_create"
     # params: tenant_id, skill_id, updates | 可修改 updates, 可阻止
     BEFORE_SKILL_UPDATE = "before_skill_update"
-    # params: tenant_id, skill_id, updates
+    # params: tenant_id, skill_id, updates / 上文为英文说明 / English above
     AFTER_SKILL_UPDATE = "after_skill_update"
     # params: tenant_id, skill_id | 可阻止
     BEFORE_SKILL_DELETE = "before_skill_delete"
-    # params: tenant_id, skill_id
+    # params: tenant_id, skill_id / 上文为英文说明 / English above
     AFTER_SKILL_DELETE = "after_skill_delete"
 
     # ── Agent CRUD / 智能体 CRUD ──
     # params: tenant_id, agent_data | 可修改 agent_data, 可阻止
     BEFORE_AGENT_CREATE = "before_agent_create"
-    # params: tenant_id, agent_id, agent_data
+    # params: tenant_id, agent_id, agent_data / 上文为英文说明 / English above
     AFTER_AGENT_CREATE = "after_agent_create"
     # params: tenant_id, agent_id, updates | 可修改 updates, 可阻止
     BEFORE_AGENT_UPDATE = "before_agent_update"
-    # params: tenant_id, agent_id, updates
+    # params: tenant_id, agent_id, updates / 上文为英文说明 / English above
     AFTER_AGENT_UPDATE = "after_agent_update"
     # params: tenant_id, agent_id | 可阻止
     BEFORE_AGENT_DELETE = "before_agent_delete"
-    # params: tenant_id, agent_id
+    # params: tenant_id, agent_id / 上文为英文说明 / English above
     AFTER_AGENT_DELETE = "after_agent_delete"
 
     # ── Chat / 对话（Chat） ──
@@ -108,7 +108,7 @@ class HookPoint:
     AFTER_AGENT_CHAT = "after_agent_chat"
     # params: tenant_id, agent_id, title | 可修改 title
     BEFORE_CONVERSATION_CREATE = "before_conversation_create"
-    # params: tenant_id, agent_id, conversation_id
+    # params: tenant_id, agent_id, conversation_id / 上文为英文说明 / English above
     AFTER_CONVERSATION_CREATE = "after_conversation_create"
 
     # ── Model Call (Gateway layer) / 模型调用（Gateway 层） ──

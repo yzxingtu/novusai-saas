@@ -102,7 +102,7 @@ async function generateAccess(
   const pageMap: ComponentRecordType = import.meta.glob('../views/**/*.vue');
   const accessStore = useAccessStore();
 
-  // 设置已存在的组件映射，用于检测缺失的菜单组件
+  // 设置已存在的组件映射，用于检测缺失的菜单组件 / record existing view modules
   setExistingComponents(pageMap);
 
   const layoutMap: ComponentRecordType = {
@@ -111,7 +111,7 @@ async function generateAccess(
     UserLayout,
   };
 
-  // 如果未指定端类型，尝试从当前路由获取
+  // 如果未指定端类型，尝试从当前路由获取 / infer endpoint from route
   const currentEndpoint = endpoint || getCurrentEndpoint();
   const menuApi = getMenuWithPermissionsApi(currentEndpoint);
 
@@ -133,9 +133,9 @@ async function generateAccess(
       accessStore.setAccessCodes(merged);
       return menus;
     },
-    // 可以指定没有权限跳转403页面
+    // 可以指定没有权限跳转403页面 / forbidden route component
     forbiddenComponent,
-    // 如果 route.meta.menuVisibleWithForbidden = true
+    // 如果 route.meta.menuVisibleWithForbidden = true / keep menu visible when forbidden
     layoutMap,
     pageMap,
   });

@@ -14,7 +14,14 @@ from pydantic import Field
 from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.logging import LogManager
-from app.core.response import created, deleted, paginated, success
+from app.core.response import (
+    build_public_error_text,
+    created,
+    deleted,
+    paginated,
+    resolve_public_error_message,
+    success,
+)
 from app.enums.rbac import PermissionScope
 from app.rbac.decorators import (
     MenuConfig,
@@ -24,6 +31,7 @@ from app.rbac.decorators import (
     action_update,
     permission_resource,
 )
+from app.rbac.services import PermissionService
 from app.services.system.plugin_service import PluginService
 
 _SLUG_PATTERN = re.compile(r"^[a-z0-9][a-z0-9\-]*$")
@@ -66,8 +74,8 @@ class PluginRollbackBody(PydanticBaseModel):
 class MenuOverrideItem(PydanticBaseModel):
     """单条菜单覆盖：挂载到哪个父级 / Single menu override: which parent to mount under."""
     name: str = Field(..., max_length=100, description="Menu name from plugin.yaml")
-    parent: str = Field(..., max_length=100, pattern=r"^[a-z0-9_]+$", description="Admin parent menu code (e.g. system_mgmt)")
-    tenant_parent: str | None = Field(None, max_length=100, description="Tenant parent menu code (when menu scope is both)")
+    parent: str = Field(..., max_length=100, pattern=r"^[a-z0-9_-]+$", description="Admin parent menu code (e.g. system_mgmt)")
+    tenant_parent: str | None = Field(None, max_length=100, pattern=r"^[a-z0-9_-]+$", description="Tenant parent menu code (when menu scope is both)")
 
 
 class PluginMenuConfigBody(PydanticBaseModel):
@@ -196,9 +204,15 @@ class AdminPluginController(GlobalController):
             """
             from app.plugins.registry import ExtensionRegistry
             from app.plugins.runtime_gate import evaluate_plugin_runtime_gate
+            from app.api.shared._plugin_slot_filter import (
+                filter_grouped_plugin_slots_by_permission_codes,
+            )
 
             registry = ExtensionRegistry.get_instance()
             grouped = registry.get_frontend_slots_grouped(scope="admin")
+            permission_codes = await PermissionService(db).get_admin_permissions(
+                admin
+            )
 
             plugin_names = {
                 slot.get("plugin_name")
@@ -225,6 +239,10 @@ class AdminPluginController(GlobalController):
                 ]
                 for slot_key, slots in grouped.items()
             }
+            grouped = filter_grouped_plugin_slots_by_permission_codes(
+                grouped,
+                permission_codes,
+            )
 
             return success(data=grouped)
 
@@ -460,8 +478,8 @@ class AdminPluginController(GlobalController):
             """
             from sqlalchemy import select
 
-            from app.core.i18n import translate
             from app.models.auth.permission import Permission
+            from app.rbac.services.permission_service import PermissionService
 
             # 加载所有启用的菜单权限（admin + tenant） / Load all enabled menu permissions (admin + tenant)
             result = await db.execute(
@@ -481,9 +499,11 @@ class AdminPluginController(GlobalController):
 
             def _label(perm: Permission) -> str:
                 name_key = perm.name or ""
+                translated = PermissionService._translate_name(name_key)
+                if translated and translated != name_key:
+                    return translated
                 if "." in name_key:
-                    t = translate(name_key)
-                    return t if t != name_key else name_key.split(".")[-1]
+                    return name_key.split(".")[-1]
                 return name_key
 
             # 计算哪些 id 是父节点（有子菜单的目录型节点） / Determine which ids are parent nodes (directory nodes with child menus)
@@ -803,7 +823,10 @@ class AdminPluginController(GlobalController):
                 except Exception as exc:
                     registry.unregister_by_type(plugin.name, "menu")
                     raise BusinessException(
-                        message=f"Menu config update failed: {exc}",
+                        message=resolve_public_error_message(
+                            exc,
+                            fallback_message="Menu config update failed",
+                        ),
                     ) from exc
 
                 # 仅同步当前插件权限，避免全量 sync 的事务副作用 / Only sync current plugin permissions to avoid side effects of full sync
@@ -881,10 +904,33 @@ class AdminPluginController(GlobalController):
             emitter = PluginProgressEmitter(admin.id, plugin.name, "enable")
 
             async with _plugin_lock(plugin_id):
+                async def _fail_close_plugin_runtime() -> None:
+                    try:
+                        registry.unregister_all(plugin.name)
+                    except Exception as cleanup_exc:
+                        logger.warning(
+                            "Repair: failed to unregister runtime extensions for {}: {}",
+                            plugin.name,
+                            cleanup_exc,
+                        )
+                    try:
+                        await lifecycle._set_plugin_permissions_enabled(plugin.name, False)
+                    except Exception as perm_exc:
+                        logger.warning(
+                            "Repair: failed to disable permissions for {}: {}",
+                            plugin.name,
+                            perm_exc,
+                        )
+
                 try:
                     manifest = loader.load_manifest(plugin.name)
                     from app.plugins.frontend_contract import validate_runtime_frontend_contract
                     validate_runtime_frontend_contract(loader.plugins_dir / plugin.name, manifest)
+                    await lifecycle._assert_plugin_runtime_enable_guards(
+                        plugin,
+                        manifest,
+                        action="repair",
+                    )
 
                     # 安装 Python 依赖 / Install Python dependencies
                     if manifest.dependencies.python:
@@ -905,8 +951,16 @@ class AdminPluginController(GlobalController):
                         try:
                             await lifecycle.run_alembic_upgrade(plugin.name)
                             await emitter.emit_step("alembic", "success", "Database tables verified")
-                        except Exception as _alembic_exc:
-                            await emitter.emit_step("alembic", "warning", f"DB migration warning: {_alembic_exc}")
+                        except Exception as alembic_exc:
+                            await emitter.emit_step(
+                                "alembic",
+                                "error",
+                                build_public_error_text(
+                                    message="DB migration failed",
+                                    exc=alembic_exc,
+                                ),
+                            )
+                            raise
 
                     # 注册扩展点 / Register extension points
                     await emitter.emit_step("extensions", "running", "Registering extensions...")
@@ -920,28 +974,47 @@ class AdminPluginController(GlobalController):
                         plugin.status = PluginStatusEnum.ERROR.value
                         plugin.error_message = f"Repair failed: extension load failed: {failed_summary}"
                         plugin.error_count = (plugin.error_count or 0) + 1
+                        await _fail_close_plugin_runtime()
                         await db.flush()
                         await emitter.emit_error(f"{len(failed)} extension(s) failed to load")
                         raise BusinessException(message=f"Repair failed: {len(failed)} extension(s) failed")
 
                     await emitter.emit_step("extensions", "success", f"Registered {registry.get_registered_count(plugin.name)} extension(s)")
 
+                    ext = manifest.extensions
+                    if ext.skills:
+                        await lifecycle._ensure_plugin_skill_records(
+                            plugin.name,
+                            manifest,
+                            ext.skills,
+                            active=True,
+                        )
+                    if manifest.ai_requirements and manifest.ai_requirements.features:
+                        await lifecycle._ensure_plugin_ai_features(
+                            plugin.name,
+                            manifest.ai_requirements.features,
+                        )
+                    if ext.notifications:
+                        await lifecycle._sync_plugin_notification_templates(
+                            plugin.name,
+                            ext.notifications,
+                        )
+                    if ext.tasks:
+                        await lifecycle._sync_plugin_periodic_tasks(
+                            plugin.name,
+                            ext.tasks,
+                        )
+
+                    await lifecycle._restore_plugin_permissions(
+                        plugin.name,
+                        auto_grant_plans=True,
+                    )
+
                     # 恢复成功：重置错误，恢复 enabled 状态 / Recovery successful: reset errors, restore enabled state
                     plugin.status = PluginStatusEnum.ENABLED.value
                     plugin.error_count = 0
                     plugin.error_message = None
                     await db.flush()
-
-                    # 将 permission_registry 内存菜单写入 DB（首次修复时 DB 可能无记录，flush 不 commit） / Write permission_registry in-memory menus to DB (DB may have no records on first repair, flush without commit)
-                    try:
-                        from app.rbac.sync import PermissionSyncService
-                        perm_sync = PermissionSyncService(db)
-                        await perm_sync.sync_plugin_permissions(plugin.name)
-                    except Exception as _perm_exc:
-                        logger.warning("Repair: permission sync failed for {}: {}", plugin.name, _perm_exc)
-
-                    # 同步启用权限（error 状态下权限可能被禁用） / Sync enabled permissions (permissions may be disabled in error state)
-                    await lifecycle._set_plugin_permissions_enabled(plugin.name, True)
 
                     await emitter.emit_done(f"Plugin {plugin.name} repaired successfully")
                     return success(data={"message": "Plugin repaired and restored"})
@@ -951,10 +1024,24 @@ class AdminPluginController(GlobalController):
                 except Exception as exc:
                     plugin.status = PluginStatusEnum.ERROR.value
                     plugin.error_count = (plugin.error_count or 0) + 1
-                    plugin.error_message = f"Repair failed: {exc}"
+                    plugin.error_message = resolve_public_error_message(
+                        exc,
+                        fallback_message="Repair failed",
+                    )
+                    await _fail_close_plugin_runtime()
                     await db.flush()
-                    await emitter.emit_error(f"Repair failed: {exc}")
-                    raise BusinessException(message=f"Repair failed: {exc}") from exc
+                    await emitter.emit_error(
+                        build_public_error_text(
+                            message="Repair failed",
+                            exc=exc,
+                        )
+                    )
+                    raise BusinessException(
+                        message=resolve_public_error_message(
+                            exc,
+                            fallback_message="Repair failed",
+                        )
+                    ) from exc
 
         @self.router.delete("/{plugin_id}/force-cleanup")
         @action_delete("action.plugin.uninstall")

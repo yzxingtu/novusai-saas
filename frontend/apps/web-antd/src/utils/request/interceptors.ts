@@ -167,13 +167,13 @@ export function createRequestInterceptor(
       // 0. 注入 X-Trace-ID（用于请求关联与问题反馈）/ Inject for request correlation
       ensureTraceIdHeader(config.headers as never);
 
-      // 1. 重复请求取消
+      // 1. 重复请求取消 / cancel duplicate in-flight requests
       if (options.cancelDuplicateRequest !== false) {
         client.removePending(config);
         client.addPending(config);
       }
 
-      // 2. 自动携带 Token（根据 URL 判断端类型）
+      // 2. 自动携带 Token（根据 URL 判断端类型）/ attach Bearer by endpoint
       const requestUrl = config.url || '';
       const endpoint = getEndpointByUrl(requestUrl);
       const token = tokenGetter.getToken(endpoint);
@@ -181,10 +181,10 @@ export function createRequestInterceptor(
         config.headers.Authorization = formatToken(token);
       }
 
-      // 3. Accept-Language
+      // 3. Accept-Language / 协商语言头
       config.headers['Accept-Language'] = getLocale();
 
-      // 4. Loading 管理
+      // 4. Loading 管理 / global loading counter
       if (options.loading) {
         loadingState.count++;
         if (loadingState.count === 1) {
@@ -226,7 +226,7 @@ export function createLoadingInterceptor(client: RequestClient) {
       const config = response.config as ExtendedConfig;
       const options = config?.__options || {};
 
-      // 清理 pending 请求
+      // 清理 pending 请求 / clear duplicate-cancel slot
       client.removePending(config);
 
       if (options.loading) {
@@ -238,7 +238,7 @@ export function createLoadingInterceptor(client: RequestClient) {
       const config = error.config as ExtendedConfig;
       const options = config?.__options || {};
 
-      // 清理 pending 请求（即使失败也要清理）
+      // 清理 pending 请求（即使失败也要清理）/ clear pending on error too
       if (config) {
         client.removePending(config);
       }
@@ -272,26 +272,26 @@ export function createResponseDataInterceptor(
       const options = config?.__options || {};
       const { data: responseData, status } = response;
 
-      // raw 模式：返回原始 AxiosResponse
+      // raw 模式：返回原始 AxiosResponse / return full AxiosResponse
       if (options.responseReturn === 'raw') {
         return response;
       }
 
-      // HTTP 状态码检查
+      // HTTP 状态码检查 / HTTP status gate
       if (status >= 200 && status < 400) {
-        // body 模式：返回响应体
+        // body 模式：返回响应体 / return response body JSON
         if (options.responseReturn === 'body') {
           return responseData;
         }
 
-        // data 模式：检查业务 code 并解构 data 字段
+        // data 模式：检查业务 code 并解构 data 字段 / unwrap { code, data }
         const code = responseData?.[codeField];
         if (code === successCode) {
           return responseData[dataField];
         }
       }
 
-      // 业务错误，抛出供后续拦截器处理
+      // 业务错误，抛出供后续拦截器处理 / business error → downstream interceptors
       throw Object.assign({}, response, { response });
     },
   };
@@ -340,31 +340,31 @@ export function createAuthInterceptor(
 ) {
   return {
     rejected: async (error: any) => {
-      // 取消的请求不处理
+      // 取消的请求不处理 / skip cancelled requests
       if (axios.isCancel(error)) {
         throw error;
       }
 
       const { config, response } = error;
 
-      // 非 401 HTTP 状态码，继续传递
+      // 非 401 HTTP 状态码，继续传递 / pass through non-401
       if (response?.status !== 401) {
         throw error;
       }
 
-      // 登录接口的 401 不应触发重新认证，应该显示错误消息
+      // 登录接口的 401 不应触发重新认证，应该显示错误消息 / login 401 → show error, no re-auth flow
       if (isLoginUrl(config?.url)) {
         throw error;
       }
 
-      // 检查业务错误码是否为认证错误 (4010/4011/4012)
+      // 检查业务错误码是否为认证错误 (4010/4011/4012) / map biz codes to auth errors
       const businessCode = response?.data?.code;
       if (!isAuthError(businessCode)) {
-        // 不是认证错误，继续传递给其他拦截器处理
+        // 不是认证错误，继续传递给其他拦截器处理 / not auth-related → pass through
         throw error;
       }
 
-      // 4010 UNAUTHORIZED 或未启用刷新或已是重试请求 -> 直接重新认证
+      // 4010 UNAUTHORIZED 或未启用刷新或已是重试请求 -> 直接重新认证 / re-auth path
       if (
         businessCode === 4010 ||
         !enableRefreshToken ||
@@ -374,9 +374,9 @@ export function createAuthInterceptor(
         throw error;
       }
 
-      // 4011 TOKEN_EXPIRED 或 4012 TOKEN_INVALID -> 尝试刷新 Token
+      // 4011 TOKEN_EXPIRED 或 4012 TOKEN_INVALID -> 尝试刷新 Token / refresh token path
 
-      // 正在刷新中，加入队列等待
+      // 正在刷新中，加入队列等待 / queue while refresh in progress
       if (client.isRefreshing) {
         return new Promise((resolve, reject) => {
           client.refreshTokenQueue.push({
@@ -391,22 +391,22 @@ export function createAuthInterceptor(
         });
       }
 
-      // 开始刷新
+      // 开始刷新 / start token refresh
       client.isRefreshing = true;
       config.__isRetryRequest = true;
 
       try {
         const newToken = await authHandler.doRefreshToken();
 
-        // 刷新成功，处理队列中的请求
+        // 刷新成功，处理队列中的请求 / flush queued retries
         client.refreshTokenQueue.forEach((item) => item.resolve(newToken));
         client.refreshTokenQueue = [];
 
-        // 重试原请求
+        // 重试原请求 / retry original request
         config.headers.Authorization = formatToken(newToken);
         return client.instance.request(config);
       } catch (refreshError) {
-        // 刷新失败，reject 队列中所有等待的请求
+        // 刷新失败，reject 队列中所有等待的请求 / reject queued on refresh failure
         client.refreshTokenQueue.forEach((item) => item.reject(refreshError));
         client.refreshTokenQueue = [];
         await authHandler.doReAuthenticate();
@@ -431,7 +431,7 @@ export function createAuthInterceptor(
 export function createErrorMessageInterceptor(messageHandler: MessageHandler) {
   return {
     rejected: (error: any) => {
-      // 取消的请求不处理
+      // 取消的请求不处理 / skip cancelled
       if (axios.isCancel(error)) {
         return Promise.reject(error);
       }
@@ -440,7 +440,7 @@ export function createErrorMessageInterceptor(messageHandler: MessageHandler) {
       const options = config?.__options || {};
       const appError = normalizeHttpError(error, messageHandler.t);
 
-      // 网络错误
+      // 网络错误 / network failure
       const errStr = error?.toString?.() ?? '';
       if (errStr.includes('Network Error')) {
         if (options.showErrorMessage !== false) {
@@ -449,7 +449,7 @@ export function createErrorMessageInterceptor(messageHandler: MessageHandler) {
         return Promise.reject(Object.assign(error, { appError }));
       }
 
-      // 超时错误
+      // 超时错误 / request timeout
       if (error?.message?.includes?.('timeout')) {
         if (options.showErrorMessage !== false) {
           messageHandler.showMessage('error', formatAppErrorMessage(appError, messageHandler.t));
@@ -457,7 +457,7 @@ export function createErrorMessageInterceptor(messageHandler: MessageHandler) {
         return Promise.reject(Object.assign(error, { appError }));
       }
 
-      // 如果有业务错误消息，跳过 HTTP 错误消息（已由 BusinessErrorInterceptor 处理）
+      // 如果有业务错误消息，跳过 HTTP 错误消息（已由 BusinessErrorInterceptor 处理）/ defer to biz interceptor
       const responseData = error?.response?.data;
       const status = error?.response?.status;
       const hasBusinessMessage =
@@ -474,7 +474,7 @@ export function createErrorMessageInterceptor(messageHandler: MessageHandler) {
         return Promise.reject(Object.assign(error, { appError }));
       }
 
-      // HTTP 状态码错误（仅当没有业务错误消息时显示）
+      // HTTP 状态码错误（仅当没有业务错误消息时显示）/ HTTP status toast fallback
       if (status && options.showErrorMessage !== false) {
         const statusMessages: Record<number, string> = {
           400: 'common.http.badRequest',
@@ -495,8 +495,7 @@ export function createErrorMessageInterceptor(messageHandler: MessageHandler) {
           message: appError.message || msg,
         };
 
-        // 5xx: use notification with trace ID and copy button (non-closing)
-        // 5xx：使用 notification 展示追踪 ID 与复制按钮（不自动关闭）
+        // 5xx：notification + 追踪 ID + 复制（不自动关闭）/ trace-aware server error notification
         if (status >= 500) {
           showServerErrorNotification(
             displayError.message,
@@ -528,7 +527,7 @@ export function createErrorMessageInterceptor(messageHandler: MessageHandler) {
 export function createBusinessErrorInterceptor(messageHandler: MessageHandler) {
   return {
     rejected: (error: any) => {
-      // 取消的请求不处理
+      // 取消的请求不处理 / skip cancelled
       if (axios.isCancel(error)) {
         return Promise.reject(error);
       }
@@ -539,7 +538,7 @@ export function createBusinessErrorInterceptor(messageHandler: MessageHandler) {
       const status = error?.response?.status;
       const appError = normalizeHttpError(error, messageHandler.t);
 
-      // 显示业务错误消息
+      // 显示业务错误消息 / show biz error toast
       if (options.showCodeMessage !== false && responseData) {
         if (appError.message && (!status || status < 500)) {
           messageHandler.showMessage(
@@ -568,12 +567,12 @@ export function createSuccessMessageInterceptor(
 ) {
   return {
     fulfilled: (response: AxiosResponse | null | undefined) => {
-      // 处理 data 模式下返回 null/undefined 的情况（如 DELETE 接口返回 data: null）
+      // 处理 data 模式下返回 null/undefined 的情况（如 DELETE 接口返回 data: null）/ allow empty DELETE data
       if (response === null || response === undefined) {
         return response;
       }
 
-      // 如果是解构后的数据（非 AxiosResponse），直接返回
+      // 如果是解构后的数据（非 AxiosResponse），直接返回 / plain payload passthrough
       if (typeof response !== 'object' || !('config' in response)) {
         return response;
       }
@@ -581,7 +580,7 @@ export function createSuccessMessageInterceptor(
       const config = response.config as ExtendedConfig;
       const options = config?.__options || {};
 
-      // 显示成功消息
+      // 显示成功消息 / success toast
       if (options.showSuccessMessage) {
         const message =
           options.successMessage ||

@@ -11,6 +11,8 @@ from .enums import BuilderSurfaceEnum, ReleaseScopeEnum, TemplateStatusEnum
 
 class WorkflowTemplate(BaseModel):
     __tablename__ = "px_workflow_orchestration_templates"
+    __data_permission__ = True
+    __data_permission_creator_scope__ = "admin"
     __table_args__ = (
         UniqueConstraint("code", name="uq_px_workflow_orchestration_templates_code"),
     )
@@ -65,6 +67,10 @@ class WorkflowTemplate(BaseModel):
 
 class WorkflowTemplateVersion(BaseModel):
     __tablename__ = "px_workflow_orchestration_template_versions"
+    __data_permission__ = True
+    __data_permission_creator_scope__ = "admin"
+    __data_permission_parent_model__ = WorkflowTemplate
+    __data_permission_parent_key__ = "template_id"
     __table_args__ = (
         UniqueConstraint(
             "template_id",

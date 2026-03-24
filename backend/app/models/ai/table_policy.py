@@ -33,7 +33,7 @@ class AITablePolicy(BaseModel):
                     label_field="id", i18n_key="table_policy_override"),
     ]
 
-    # 允许前端筛选的字段
+    # 允许前端筛选的字段 / Fields exposed for list filtering
     __filterable__ = {
         "id": "id",
         "table_name": "table_name",
@@ -46,7 +46,7 @@ class AITablePolicy(BaseModel):
         "created_at": "created_at",
     }
 
-    # 允许排序的字段
+    # 允许排序的字段 / Sortable columns for UI
     __sortable__ = {
         "id": "id",
         "table_name": "table_name",
@@ -56,14 +56,14 @@ class AITablePolicy(BaseModel):
         "updated_at": "updated_at",
     }
 
-    # 下拉选择配置
+    # 下拉选择配置 / Select dropdown config
     __selectable__ = {
         "label": "label",
         "value": "id",
         "search": ["table_name", "label"],
     }
 
-    # ==================== 基本信息 ====================
+    # ==================== 基本信息 ==================== / Basic info
 
     table_name: Mapped[str] = mapped_column(
         String(100),
@@ -90,7 +90,7 @@ class AITablePolicy(BaseModel):
         comment=_("ai_table_policy.field.keywords"),
     )
 
-    # ==================== 列级描述 ====================
+    # ==================== 列级描述 ==================== / Column descriptions
 
     column_descriptions: Mapped[dict | None] = mapped_column(
         JSON,
@@ -99,7 +99,7 @@ class AITablePolicy(BaseModel):
         comment=_("ai_table_policy.field.column_descriptions"),
     )
 
-    # ==================== CRUD 权限开关 ====================
+    # ==================== CRUD 权限开关 ==================== / CRUD toggles
 
     allow_read: Mapped[bool] = mapped_column(
         Boolean,
@@ -126,7 +126,7 @@ class AITablePolicy(BaseModel):
         comment=_("ai_table_policy.field.allow_delete"),
     )
 
-    # ==================== 查询限制 ====================
+    # ==================== 查询限制 ==================== / Query limits
 
     max_rows: Mapped[int] = mapped_column(
         Integer,
@@ -135,7 +135,7 @@ class AITablePolicy(BaseModel):
         comment=_("ai_table_policy.field.max_rows"),
     )
 
-    # ==================== 列级控制 ====================
+    # ==================== 列级控制 ==================== / Column-level controls
 
     blocked_columns: Mapped[list | None] = mapped_column(
         JSON,
@@ -150,7 +150,7 @@ class AITablePolicy(BaseModel):
         comment=_("ai_table_policy.field.readonly_columns"),
     )
 
-    # ==================== 权限 ====================
+    # ==================== 权限 ==================== / Permission code
 
     permission_code: Mapped[str] = mapped_column(
         String(100),
@@ -159,7 +159,7 @@ class AITablePolicy(BaseModel):
         comment=_("ai_table_policy.field.permission_code"),
     )
 
-    # ==================== 排序与状态 ====================
+    # ==================== 排序与状态 ==================== / Order and status
 
     sort_order: Mapped[int] = mapped_column(
         Integer,
@@ -175,7 +175,7 @@ class AITablePolicy(BaseModel):
         comment=_("ai_table_policy.field.is_active"),
     )
 
-    # ==================== 索引 ====================
+    # ==================== 索引 ==================== / Indexes
 
     __table_args__ = (
         Index("idx_ai_table_policies_active", "is_active"),
@@ -199,7 +199,7 @@ class AITablePolicyOverride(TenantModel):
 
     __tablename__ = "ai_table_policy_overrides"
 
-    # 允许前端筛选的字段
+    # 允许前端筛选的字段 / Fields exposed for list filtering
     __filterable__ = {
         "id": "id",
         "policy_id": "policy_id",
@@ -208,14 +208,14 @@ class AITablePolicyOverride(TenantModel):
         "created_at": "created_at",
     }
 
-    # 允许排序的字段
+    # 允许排序的字段 / Sortable columns for UI
     __sortable__ = {
         "id": "id",
         "created_at": "created_at",
         "updated_at": "updated_at",
     }
 
-    # ==================== 关联 ====================
+    # ==================== 关联 ==================== / Associations
 
     policy_id: Mapped[int] = mapped_column(
         Integer,
@@ -225,7 +225,7 @@ class AITablePolicyOverride(TenantModel):
         comment=_("ai_table_policy_override.field.policy_id"),
     )
 
-    # ==================== 可覆盖字段（NULL = 使用全局值） ====================
+    # ==================== 可覆盖字段（NULL = 使用全局值） ==================== / Overrides (NULL = inherit)
 
     allow_read: Mapped[bool | None] = mapped_column(
         Boolean,
@@ -263,7 +263,7 @@ class AITablePolicyOverride(TenantModel):
         comment=_("ai_table_policy_override.field.is_active"),
     )
 
-    # ==================== 约束 ====================
+    # ==================== 约束 ==================== / Constraints
 
     __table_args__ = (
         Index(

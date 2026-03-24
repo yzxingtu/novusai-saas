@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any
 from app.configs.service import PLATFORM_TENANT_ID
 
 from app.core.logging import get_logger
+from app.core.response import resolve_public_error_message
 from app.enums.agent import (
     MemoryChannelEnum,
     MemorySceneEnum,
@@ -759,7 +760,12 @@ class PluginContext:
                     yield full_text
             except Exception as fallback_exc:
                 logger.error("Plugin {} AI fallback also failed: {}", self.plugin_name, fallback_exc)
-                raise PluginError(message=f"AI call failed: {exc}") from exc
+                raise PluginError(
+                    message=resolve_public_error_message(
+                        exc,
+                        fallback_message="AI call failed",
+                    )
+                ) from exc
 
         finally:
             latency_ms = int((time.perf_counter() - start_time) * 1000)

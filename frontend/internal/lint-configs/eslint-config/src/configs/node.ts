@@ -30,7 +30,7 @@ export async function node(): Promise<Linter.Config[]> {
         ],
         'n/no-new-require': 'error',
         'n/no-path-concat': 'error',
-        // 'n/no-unpublished-import': 'off',
+        // 'n/no-unpublished-import': 'off', / 关闭未发布依赖检查 / disable unpublished import
         'n/no-unsupported-features/es-syntax': [
           'error',
           {
@@ -39,7 +39,7 @@ export async function node(): Promise<Linter.Config[]> {
           },
         ],
         'n/prefer-global/buffer': ['error', 'never'],
-        // 'n/no-missing-import': 'off',
+        // 'n/no-missing-import': 'off', / 关闭缺失 import 规则 / disable missing import
         'n/prefer-global/process': ['error', 'never'],
         'n/process-exit-as-throw': 'error',
       },

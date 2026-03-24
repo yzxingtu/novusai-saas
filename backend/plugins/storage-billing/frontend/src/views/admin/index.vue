@@ -130,7 +130,7 @@ const qiniuBillingMonth = ref(new Date(Date.now() - 32 * 24 * 60 * 60 * 1000).to
 const qiniuMonthValid = computed(() => isValidYearMonth(qiniuBillingMonth.value));
 const qiniuMonthError = computed(() => {
   if (!qiniuBillingMonth.value) return null;
-  return qiniuMonthValid.value ? null : $t('plugin.storageBilling.admin.actions.qiniuMonthlyInvalid');
+  return qiniuMonthValid.value ? null : $t('plugin.storage-billing.admin.actions.qiniuMonthlyInvalid');
 });
 const qiniuMonthStatus = computed(() => {
   if (!qiniuBillingMonth.value) return undefined;
@@ -153,39 +153,39 @@ const validations = reactive<Record<ProviderCode, ProviderValidation>>(emptyVali
 const form = reactive<BindingFormState>(emptyForm());
 
 const bindingColumns = computed(() => [
-  { key: 'tenant', title: $t('plugin.storageBilling.admin.bindings.table.tenant') },
-  { key: 'provider', title: $t('plugin.storageBilling.admin.bindings.table.provider') },
-  { key: 'mode', title: $t('plugin.storageBilling.admin.bindings.table.mode') },
-  { key: 'scope', title: $t('plugin.storageBilling.admin.bindings.table.scope') },
-  { key: 'status', title: $t('plugin.storageBilling.admin.bindings.table.status') },
-  { key: 'message', title: $t('plugin.storageBilling.admin.bindings.table.message') },
-  { key: 'actions', title: $t('plugin.storageBilling.admin.bindings.table.actions') },
+  { key: 'tenant', title: $t('plugin.storage-billing.admin.bindings.table.tenant') },
+  { key: 'provider', title: $t('plugin.storage-billing.admin.bindings.table.provider') },
+  { key: 'mode', title: $t('plugin.storage-billing.admin.bindings.table.mode') },
+  { key: 'scope', title: $t('plugin.storage-billing.admin.bindings.table.scope') },
+  { key: 'status', title: $t('plugin.storage-billing.admin.bindings.table.status') },
+  { key: 'message', title: $t('plugin.storage-billing.admin.bindings.table.message') },
+  { key: 'actions', title: $t('plugin.storage-billing.admin.bindings.table.actions') },
 ]);
 const runColumns = computed(() => [
-  { key: 'billing_date', title: $t('plugin.storageBilling.admin.runs.table.billingDate') },
-  { key: 'status', title: $t('plugin.storageBilling.admin.runs.table.status') },
-  { key: 'trigger_type', title: $t('plugin.storageBilling.admin.runs.table.trigger') },
-  { key: 'providers', title: $t('plugin.storageBilling.admin.runs.table.providers') },
-  { key: 'finished_at', title: $t('plugin.storageBilling.admin.runs.table.finishedAt') },
-  { key: 'actions', title: $t('plugin.storageBilling.admin.runs.table.actions') },
+  { key: 'billing_date', title: $t('plugin.storage-billing.admin.runs.table.billingDate') },
+  { key: 'status', title: $t('plugin.storage-billing.admin.runs.table.status') },
+  { key: 'trigger_type', title: $t('plugin.storage-billing.admin.runs.table.trigger') },
+  { key: 'providers', title: $t('plugin.storage-billing.admin.runs.table.providers') },
+  { key: 'finished_at', title: $t('plugin.storage-billing.admin.runs.table.finishedAt') },
+  { key: 'actions', title: $t('plugin.storage-billing.admin.runs.table.actions') },
 ]);
 const sourceColumns = computed(() => [
-  { key: 'provider', title: $t('plugin.storageBilling.admin.runs.sources.table.provider') },
-  { key: 'status', title: $t('plugin.storageBilling.admin.runs.sources.table.status') },
-  { key: 'amount', title: $t('plugin.storageBilling.admin.runs.sources.table.amount') },
-  { key: 'usage', title: $t('plugin.storageBilling.admin.runs.sources.table.usage') },
-  { key: 'allocation', title: $t('plugin.storageBilling.admin.runs.sources.table.allocation') },
-  { key: 'error', title: $t('plugin.storageBilling.admin.runs.sources.table.error') },
+  { key: 'provider', title: $t('plugin.storage-billing.admin.runs.sources.table.provider') },
+  { key: 'status', title: $t('plugin.storage-billing.admin.runs.sources.table.status') },
+  { key: 'amount', title: $t('plugin.storage-billing.admin.runs.sources.table.amount') },
+  { key: 'usage', title: $t('plugin.storage-billing.admin.runs.sources.table.usage') },
+  { key: 'allocation', title: $t('plugin.storage-billing.admin.runs.sources.table.allocation') },
+  { key: 'error', title: $t('plugin.storage-billing.admin.runs.sources.table.error') },
 ]);
 const chargeColumns = computed(() => [
-  { key: 'billing_date', title: $t('plugin.storageBilling.admin.runs.charges.table.billingDate') },
-  { key: 'tenant_id', title: $t('plugin.storageBilling.admin.runs.charges.table.tenant') },
-  { key: 'provider', title: $t('plugin.storageBilling.admin.runs.charges.table.provider') },
-  { key: 'source', title: $t('plugin.storageBilling.admin.runs.charges.table.source') },
-  { key: 'charge_basis', title: $t('plugin.storageBilling.admin.runs.charges.table.chargeBasis') },
-  { key: 'usage_bytes', title: $t('plugin.storageBilling.admin.runs.charges.table.usage') },
-  { key: 'amount_total', title: $t('plugin.storageBilling.admin.runs.charges.table.amount') },
-  { key: 'currency', title: $t('plugin.storageBilling.admin.runs.charges.table.currency') },
+  { key: 'billing_date', title: $t('plugin.storage-billing.admin.runs.charges.table.billingDate') },
+  { key: 'tenant_id', title: $t('plugin.storage-billing.admin.runs.charges.table.tenant') },
+  { key: 'provider', title: $t('plugin.storage-billing.admin.runs.charges.table.provider') },
+  { key: 'source', title: $t('plugin.storage-billing.admin.runs.charges.table.source') },
+  { key: 'charge_basis', title: $t('plugin.storage-billing.admin.runs.charges.table.chargeBasis') },
+  { key: 'usage_bytes', title: $t('plugin.storage-billing.admin.runs.charges.table.usage') },
+  { key: 'amount_total', title: $t('plugin.storage-billing.admin.runs.charges.table.amount') },
+  { key: 'currency', title: $t('plugin.storage-billing.admin.runs.charges.table.currency') },
 ]);
 const activeConfiguredProviderCode = computed<null | ProviderCode>(() => {
   const rawDriver =
@@ -202,14 +202,14 @@ const providerOptions = computed(() =>
   visibleProviderCodes.value.map((code) => ({ label: providerLabel(code), value: code })),
 );
 const modeOptions = computed(() => [
-  { label: $t('plugin.storageBilling.admin.bindings.mode.official_reconciled'), value: 'official_reconciled' },
-  { label: $t('plugin.storageBilling.admin.bindings.mode.official_pass_through'), value: 'official_pass_through' },
+  { label: $t('plugin.storage-billing.admin.bindings.mode.official_reconciled'), value: 'official_reconciled' },
+  { label: $t('plugin.storage-billing.admin.bindings.mode.official_pass_through'), value: 'official_pass_through' },
 ]);
 const scopeOptions = computed(() => [
-  { label: $t('plugin.storageBilling.admin.bindings.scope.bucket'), value: 'bucket' },
-  { label: $t('plugin.storageBilling.admin.bindings.scope.domain'), value: 'domain' },
-  { label: $t('plugin.storageBilling.admin.bindings.scope.account'), value: 'account' },
-  { label: $t('plugin.storageBilling.admin.bindings.scope.tag'), value: 'tag' },
+  { label: $t('plugin.storage-billing.admin.bindings.scope.bucket'), value: 'bucket' },
+  { label: $t('plugin.storage-billing.admin.bindings.scope.domain'), value: 'domain' },
+  { label: $t('plugin.storage-billing.admin.bindings.scope.account'), value: 'account' },
+  { label: $t('plugin.storage-billing.admin.bindings.scope.tag'), value: 'tag' },
 ]);
 const currentModeOptions = computed(() =>
   form.provider_code === 'qiniu-kodo'
@@ -221,8 +221,8 @@ const currentScopeOptions = computed(() =>
     ? scopeOptions.value.filter((item) => item.value === 'account')
     : scopeOptions.value,
 );
-const modalTitle = computed(() => editingId.value === null ? $t('plugin.storageBilling.admin.bindingModal.createTitle') : $t('plugin.storageBilling.admin.bindingModal.editTitle'));
-const modalOkText = computed(() => editingId.value === null ? $t('plugin.storageBilling.admin.bindingModal.submitCreate') : $t('plugin.storageBilling.admin.bindingModal.submitUpdate'));
+const modalTitle = computed(() => editingId.value === null ? $t('plugin.storage-billing.admin.bindingModal.createTitle') : $t('plugin.storage-billing.admin.bindingModal.editTitle'));
+const modalOkText = computed(() => editingId.value === null ? $t('plugin.storage-billing.admin.bindingModal.submitCreate') : $t('plugin.storage-billing.admin.bindingModal.submitUpdate'));
 const selectedRun = computed(() => selectedRunDetail.value?.run ?? null);
 const selectedRunProviderResults = computed<ReconciliationProviderSummary[]>(() => {
   const providers = selectedRun.value?.summary?.providers;
@@ -271,7 +271,7 @@ const runChargeActiveFilters = computed<ChargeFilterBadge[]>(() => {
     if (key === 'provider_code' && typeof rawValue === 'string') {
       return [{
         key,
-        label: $t('plugin.storageBilling.admin.runs.charges.filterProvider'),
+        label: $t('plugin.storage-billing.admin.runs.charges.filterProvider'),
         value: providerLabelFromAny(rawValue),
       }];
     }
@@ -282,7 +282,7 @@ const runChargeActiveFilters = computed<ChargeFilterBadge[]>(() => {
       }
       return [{
         key,
-        label: $t('plugin.storageBilling.admin.runs.charges.filterSource'),
+        label: $t('plugin.storage-billing.admin.runs.charges.filterSource'),
         value: sourceById.value.get(sourceId)?.source_ref || `#${sourceId}`,
       }];
     }
@@ -292,7 +292,7 @@ const runChargeActiveFilters = computed<ChargeFilterBadge[]>(() => {
         ? []
         : [{
             key,
-            label: $t('plugin.storageBilling.admin.runs.charges.filterTenant'),
+            label: $t('plugin.storage-billing.admin.runs.charges.filterTenant'),
             value: `#${tenantId}`,
           }];
     }
@@ -342,7 +342,7 @@ function syncProfiles(payload: { providers: Partial<Record<ProviderCode, Provide
 }
 
 function providerLabel(code: ProviderCode): string {
-  return $t(`plugin.storageBilling.common.provider.${code}`);
+  return $t(`plugin.storage-billing.common.provider.${code}`);
 }
 
 function providerLabelFromAny(code: string): string {
@@ -350,7 +350,7 @@ function providerLabelFromAny(code: string): string {
 }
 
 function fieldLabel(field: ProviderField): string {
-  return $t(`plugin.storageBilling.admin.field.${field}`);
+  return $t(`plugin.storage-billing.admin.field.${field}`);
 }
 
 function prettyStatus(status: string): string {
@@ -369,7 +369,7 @@ function prettyStatus(status: string): string {
     'not_implemented',
   ]);
   if (dictionary.has(normalized)) {
-    return $t(`plugin.storageBilling.common.status.${normalized}`);
+    return $t(`plugin.storage-billing.common.status.${normalized}`);
   }
   return normalized || '-';
 }
@@ -504,21 +504,21 @@ const manualProviderCodes = ref<ProviderCode[]>([]);
 const manualBillingDateValid = computed(() => !manualBillingDate.value || isValidBillingDate(manualBillingDate.value));
 const manualBillingDateError = computed(() => {
   if (!manualBillingDate.value) return null;
-  return manualBillingDateValid.value ? null : $t('plugin.storageBilling.admin.actions.dailyInvalid');
+  return manualBillingDateValid.value ? null : $t('plugin.storage-billing.admin.actions.dailyInvalid');
 });
 const manualBillingDateStatus = computed(() => {
   if (!manualBillingDate.value) return undefined;
   return manualBillingDateValid.value ? undefined : 'error';
 });
 const manualRunHelpText = computed(
-  () => manualBillingDateError.value || $t('plugin.storageBilling.admin.actions.triggerRunHint'),
+  () => manualBillingDateError.value || $t('plugin.storage-billing.admin.actions.triggerRunHint'),
 );
 
 function capabilityModeLabel(value?: string): string | null {
   if (!value) return null;
   const map: Record<string, string> = {
-    strict_daily_reconciliation: $t('plugin.storageBilling.common.capabilities.mode.strictDailyReconciliation'),
-    monthly_settled: $t('plugin.storageBilling.common.capabilities.mode.monthlySettled'),
+    strict_daily_reconciliation: $t('plugin.storage-billing.common.capabilities.mode.strictDailyReconciliation'),
+    monthly_settled: $t('plugin.storage-billing.common.capabilities.mode.monthlySettled'),
   };
   return map[value] ?? value;
 }
@@ -526,8 +526,8 @@ function capabilityModeLabel(value?: string): string | null {
 function capabilityCycleLabel(value?: string): string | null {
   if (!value) return null;
   const map: Record<string, string> = {
-    daily: $t('plugin.storageBilling.common.capabilities.cycle.daily'),
-    monthly: $t('plugin.storageBilling.common.capabilities.cycle.monthly'),
+    daily: $t('plugin.storage-billing.common.capabilities.cycle.daily'),
+    monthly: $t('plugin.storage-billing.common.capabilities.cycle.monthly'),
   };
   return map[value] ?? value;
 }
@@ -535,8 +535,8 @@ function capabilityCycleLabel(value?: string): string | null {
 function capabilityPeriodLabel(value?: PeriodType | string): string | null {
   if (!value) return null;
   const map: Record<PeriodType, string> = {
-    daily: $t('plugin.storageBilling.common.periodType.daily'),
-    monthly: $t('plugin.storageBilling.common.periodType.monthly'),
+    daily: $t('plugin.storage-billing.common.periodType.daily'),
+    monthly: $t('plugin.storage-billing.common.periodType.monthly'),
   };
   return map[value as PeriodType] ?? value;
 }
@@ -544,19 +544,19 @@ function capabilityPeriodLabel(value?: PeriodType | string): string | null {
 function capabilityTargetRuleLabel(value?: string): string {
   if (!value) return '-';
   if (value === 'per-provider') {
-    return $t('plugin.storageBilling.common.capabilities.targetRule.perProvider');
+    return $t('plugin.storage-billing.common.capabilities.targetRule.perProvider');
   }
   return value;
 }
 
 function capabilityFlagLabel(key: 'strict' | 'manual' | 'scheduled'): string {
   if (key === 'strict') {
-    return $t('plugin.storageBilling.common.capabilities.strictDailySupported');
+    return $t('plugin.storage-billing.common.capabilities.strictDailySupported');
   }
   if (key === 'manual') {
-    return $t('plugin.storageBilling.common.capabilities.manualPullSupported');
+    return $t('plugin.storage-billing.common.capabilities.manualPullSupported');
   }
-  return $t('plugin.storageBilling.common.capabilities.scheduledDailySupported');
+  return $t('plugin.storage-billing.common.capabilities.scheduledDailySupported');
 }
 
 function providerCapabilitySummary(code: ProviderCode): CapabilitySummary {
@@ -646,7 +646,7 @@ function formatBytes(value: number): string {
 }
 
 function chargeBasisLabel(basis: string): string {
-  const key = `plugin.storageBilling.common.chargeBasis.${basis}`;
+  const key = `plugin.storage-billing.common.chargeBasis.${basis}`;
   const translated = $t(key);
   return translated === key ? basis : translated;
 }
@@ -957,9 +957,9 @@ async function exportCurrentRunCharges(): Promise<void> {
       blob,
       { filename: `storage-billing-run-${selectedRunId.value}-${datePart}.csv` },
     );
-    message.success($t('plugin.storageBilling.admin.messages.exportSuccess'));
+    message.success($t('plugin.storage-billing.admin.messages.exportSuccess'));
   } catch {
-    message.error($t('plugin.storageBilling.admin.messages.requestFailed'));
+    message.error($t('plugin.storage-billing.admin.messages.requestFailed'));
   } finally {
     runChargeExporting.value = false;
   }
@@ -967,7 +967,7 @@ async function exportCurrentRunCharges(): Promise<void> {
 
 async function saveProfiles(): Promise<void> {
   if (!visibleProviderCodes.value.length) {
-    message.warning($t('plugin.storageBilling.admin.providers.noActiveDriver'));
+    message.warning($t('plugin.storage-billing.admin.providers.noActiveDriver'));
     return;
   }
   saving.value = true;
@@ -978,7 +978,7 @@ async function saveProfiles(): Promise<void> {
       ),
     });
     syncProfiles(payload);
-    message.success($t('plugin.storageBilling.admin.messages.saved'));
+    message.success($t('plugin.storage-billing.admin.messages.saved'));
   } finally {
     saving.value = false;
   }
@@ -988,7 +988,7 @@ async function validateProvider(code: ProviderCode): Promise<void> {
   const result = await validateProviderProfileApi(code, providerPayload(code));
   Object.assign(profiles[code], { ...profiles[code], ...result.profile });
   Object.assign(validations[code], { ...validations[code], ...result });
-  message[result.status === 'valid' ? 'success' : 'warning']($t(result.status === 'valid' ? 'plugin.storageBilling.admin.messages.providerValid' : 'plugin.storageBilling.admin.messages.providerInvalid'));
+  message[result.status === 'valid' ? 'success' : 'warning']($t(result.status === 'valid' ? 'plugin.storage-billing.admin.messages.providerValid' : 'plugin.storage-billing.admin.messages.providerInvalid'));
 }
 
 async function searchTenants(keyword: string): Promise<void> {
@@ -1010,7 +1010,7 @@ function openEdit(record: BindingRecord): void {
 
 async function submitBinding(): Promise<void> {
   if (!form.tenant_id) {
-    message.warning($t('plugin.storageBilling.admin.bindingForm.selectTenant'));
+    message.warning($t('plugin.storage-billing.admin.bindingForm.selectTenant'));
     return;
   }
   bindingLoading.value = true;
@@ -1018,7 +1018,7 @@ async function submitBinding(): Promise<void> {
     const result = editingId.value === null ? await createBindingApi(bindingPayload()) : await updateBindingApi(editingId.value, bindingPayload());
     bindingOpen.value = false;
     await loadAll();
-    message[result.validation.validation_status === 'valid' ? 'success' : 'warning']($t(result.validation.validation_status === 'valid' ? 'plugin.storageBilling.admin.messages.bindingSaved' : 'plugin.storageBilling.admin.messages.bindingInvalid'));
+    message[result.validation.validation_status === 'valid' ? 'success' : 'warning']($t(result.validation.validation_status === 'valid' ? 'plugin.storage-billing.admin.messages.bindingSaved' : 'plugin.storage-billing.admin.messages.bindingInvalid'));
   } finally {
     bindingLoading.value = false;
   }
@@ -1026,7 +1026,7 @@ async function submitBinding(): Promise<void> {
 
 async function revalidateBinding(record: BindingRecord): Promise<void> {
   const result = await validateBindingApi(record.id);
-  message[result.validation.validation_status === 'valid' ? 'success' : 'warning'](result.validation.validation_message || $t('plugin.storageBilling.admin.messages.bindingValidated'));
+  message[result.validation.validation_status === 'valid' ? 'success' : 'warning'](result.validation.validation_message || $t('plugin.storage-billing.admin.messages.bindingValidated'));
   await loadAll();
 }
 
@@ -1046,15 +1046,15 @@ function triggerRun(): void {
 
   const providerSummary = manualProviderCodes.value.length
     ? manualProviderCodes.value.map((code) => providerLabel(code)).join(' / ')
-    : $t('plugin.storageBilling.admin.actions.providerAll');
-  const billingDateSummary = manualBillingDate.value || $t('plugin.storageBilling.admin.actions.dailyAuto');
+    : $t('plugin.storage-billing.admin.actions.providerAll');
+  const billingDateSummary = manualBillingDate.value || $t('plugin.storage-billing.admin.actions.dailyAuto');
 
   Modal.confirm({
-    title: $t('plugin.storageBilling.admin.actions.triggerRun'),
-    content: `${$t('plugin.storageBilling.admin.actions.triggerRunHint')} (${billingDateSummary} / ${providerSummary})`,
+    title: $t('plugin.storage-billing.admin.actions.triggerRun'),
+    content: `${$t('plugin.storage-billing.admin.actions.triggerRunHint')} (${billingDateSummary} / ${providerSummary})`,
     onOk: async () => {
       const result = await runReconciliationApi(payload);
-      message.success($t('plugin.storageBilling.admin.messages.runTriggered'));
+      message.success($t('plugin.storage-billing.admin.messages.runTriggered'));
       await loadAll();
       const runId = Number((result.run as Record<string, unknown>)?.id ?? 0);
       if (runId > 0) {
@@ -1066,16 +1066,16 @@ function triggerRun(): void {
 
 function triggerQiniuMonthlyRun(): void {
   if (!qiniuMonthValid.value) {
-    message.error($t('plugin.storageBilling.admin.actions.qiniuMonthlyInvalid'));
+    message.error($t('plugin.storage-billing.admin.actions.qiniuMonthlyInvalid'));
     return;
   }
 
   Modal.confirm({
-    title: $t('plugin.storageBilling.admin.actions.triggerQiniuMonthly'),
-    content: `${$t('plugin.storageBilling.admin.actions.triggerQiniuMonthlyHint')} (${qiniuBillingMonth.value || '-'})`,
+    title: $t('plugin.storage-billing.admin.actions.triggerQiniuMonthly'),
+    content: `${$t('plugin.storage-billing.admin.actions.triggerQiniuMonthlyHint')} (${qiniuBillingMonth.value || '-'})`,
     onOk: async () => {
       const result = await runQiniuMonthlySettlementApi({ billing_month: qiniuBillingMonth.value });
-      message.success($t('plugin.storageBilling.admin.messages.runTriggered'));
+      message.success($t('plugin.storage-billing.admin.messages.runTriggered'));
       await loadAll();
       const runId = Number((result.run as Record<string, unknown>)?.id ?? 0);
       if (runId > 0) {
@@ -1093,21 +1093,21 @@ onMounted(() => void loadAll());
     <Spin :spinning="loading || saving">
       <div class="hero">
         <div>
-          <div class="badge">{{ $t('plugin.storageBilling.admin.hero.badge') }}</div>
-          <h1>{{ $t('plugin.storageBilling.admin.page.title') }}</h1>
-          <p>{{ $t('plugin.storageBilling.admin.page.subtitle') }}</p>
+          <div class="badge">{{ $t('plugin.storage-billing.admin.hero.badge') }}</div>
+          <h1>{{ $t('plugin.storage-billing.admin.page.title') }}</h1>
+          <p>{{ $t('plugin.storage-billing.admin.page.subtitle') }}</p>
         </div>
         <div class="hero-actions">
           <Space wrap class="toolbar-group">
-            <Button @click="loadAll">{{ $t('plugin.storageBilling.admin.actions.refresh') }}</Button>
-            <Button :disabled="!hasVisibleProviders" type="primary" @click="saveProfiles">{{ $t('plugin.storageBilling.admin.providers.save') }}</Button>
+            <Button @click="loadAll">{{ $t('plugin.storage-billing.admin.actions.refresh') }}</Button>
+            <Button :disabled="!hasVisibleProviders" type="primary" @click="saveProfiles">{{ $t('plugin.storage-billing.admin.providers.save') }}</Button>
           </Space>
           <div class="toolbar-stack">
             <Space wrap class="toolbar-group">
               <Input
                 v-model:value="manualBillingDate"
                 class="toolbar-field"
-                :placeholder="$t('plugin.storageBilling.admin.actions.dailyPlaceholder')"
+                :placeholder="$t('plugin.storage-billing.admin.actions.dailyPlaceholder')"
                 :status="manualBillingDateStatus"
               />
               <Select
@@ -1115,9 +1115,9 @@ onMounted(() => void loadAll());
                 class="toolbar-field toolbar-field-wide"
                 mode="multiple"
                 :options="manualRunProviderOptions"
-                :placeholder="$t('plugin.storageBilling.admin.actions.providerPlaceholder')"
+                :placeholder="$t('plugin.storage-billing.admin.actions.providerPlaceholder')"
               />
-              <Button :disabled="!hasVisibleProviders" @click="triggerRun">{{ $t('plugin.storageBilling.admin.actions.triggerRun') }}</Button>
+              <Button :disabled="!hasVisibleProviders" @click="triggerRun">{{ $t('plugin.storage-billing.admin.actions.triggerRun') }}</Button>
             </Space>
             <div class="toolbar-help" :class="{ 'toolbar-help-error': manualBillingDateError }">
               {{ manualRunHelpText }}
@@ -1128,42 +1128,42 @@ onMounted(() => void loadAll());
               <Input
                 v-model:value="qiniuBillingMonth"
                 class="toolbar-field"
-                :placeholder="$t('plugin.storageBilling.admin.actions.qiniuMonthlyPlaceholder')"
+                :placeholder="$t('plugin.storage-billing.admin.actions.qiniuMonthlyPlaceholder')"
                 :status="qiniuMonthStatus"
               />
-              <Button @click="triggerQiniuMonthlyRun">{{ $t('plugin.storageBilling.admin.actions.triggerQiniuMonthly') }}</Button>
+              <Button @click="triggerQiniuMonthlyRun">{{ $t('plugin.storage-billing.admin.actions.triggerQiniuMonthly') }}</Button>
             </Space>
             <div class="toolbar-help" :class="{ 'toolbar-help-error': qiniuMonthError }">
-              {{ qiniuMonthError || $t('plugin.storageBilling.admin.actions.triggerQiniuMonthlyHint') }}
+              {{ qiniuMonthError || $t('plugin.storage-billing.admin.actions.triggerQiniuMonthlyHint') }}
             </div>
           </div>
           <div v-if="!hasVisibleProviders" class="toolbar-help toolbar-help-error">
-            {{ $t('plugin.storageBilling.admin.providers.noActiveDriver') }}
+            {{ $t('plugin.storage-billing.admin.providers.noActiveDriver') }}
           </div>
         </div>
       </div>
 
       <div class="stats">
-        <Card><Statistic :title="$t('plugin.storageBilling.admin.overview.billableDrivers')" :value="overview?.billable_drivers.length ?? 0" /></Card>
-        <Card><Statistic :title="$t('plugin.storageBilling.admin.overview.enabledDrivers')" :value="overview?.host_snapshot.enabled_storage_drivers.length ?? 0" /></Card>
-        <Card><Statistic :title="$t('plugin.storageBilling.admin.overview.bindingTotal')" :value="overview?.ledger_snapshot.binding_total ?? 0" /></Card>
-        <Card><Statistic :title="$t('plugin.storageBilling.admin.overview.statementTotal')" :value="overview?.ledger_snapshot.statement_total ?? 0" /></Card>
+        <Card><Statistic :title="$t('plugin.storage-billing.admin.overview.billableDrivers')" :value="overview?.billable_drivers.length ?? 0" /></Card>
+        <Card><Statistic :title="$t('plugin.storage-billing.admin.overview.enabledDrivers')" :value="overview?.host_snapshot.enabled_storage_drivers.length ?? 0" /></Card>
+        <Card><Statistic :title="$t('plugin.storage-billing.admin.overview.bindingTotal')" :value="overview?.ledger_snapshot.binding_total ?? 0" /></Card>
+        <Card><Statistic :title="$t('plugin.storage-billing.admin.overview.statementTotal')" :value="overview?.ledger_snapshot.statement_total ?? 0" /></Card>
       </div>
 
       <Alert
         class="block"
-        :message="$t('plugin.storageBilling.admin.hero.lag')"
+        :message="$t('plugin.storage-billing.admin.hero.lag')"
         :description="`${overview?.reconciliation_schedule.local_time ?? '03:00'} / ${reconciliationScheduleSummary} / ${overview?.mode ?? '-'}`"
         show-icon
         type="info"
       />
 
-      <Card :title="$t('plugin.storageBilling.admin.providers.title')" class="block">
-        <div class="section-subtitle">{{ $t('plugin.storageBilling.admin.providers.subtitle') }}</div>
+      <Card :title="$t('plugin.storage-billing.admin.providers.title')" class="block">
+        <div class="section-subtitle">{{ $t('plugin.storage-billing.admin.providers.subtitle') }}</div>
         <Alert
           v-if="!hasVisibleProviders"
           class="block"
-          :message="$t('plugin.storageBilling.admin.providers.noActiveDriver')"
+          :message="$t('plugin.storage-billing.admin.providers.noActiveDriver')"
           type="warning"
           show-icon
         />
@@ -1194,23 +1194,23 @@ onMounted(() => void loadAll());
             />
             <div class="capability-grid">
               <div class="capability-item">
-                <span class="capability-label">{{ $t('plugin.storageBilling.admin.providers.capabilities.mode') }}</span>
+                <span class="capability-label">{{ $t('plugin.storage-billing.admin.providers.capabilities.mode') }}</span>
                 <strong>{{ capabilityModeLabel(providerCapabilitySummary(code).settlement_mode) || '-' }}</strong>
               </div>
               <div class="capability-item">
-                <span class="capability-label">{{ $t('plugin.storageBilling.admin.providers.capabilities.cycle') }}</span>
+                <span class="capability-label">{{ $t('plugin.storage-billing.admin.providers.capabilities.cycle') }}</span>
                 <strong>{{ capabilityCycleLabel(providerCapabilitySummary(code).settlement_cycle) || '-' }}</strong>
               </div>
               <div class="capability-item">
-                <span class="capability-label">{{ $t('plugin.storageBilling.admin.providers.capabilities.targetRule') }}</span>
+                <span class="capability-label">{{ $t('plugin.storage-billing.admin.providers.capabilities.targetRule') }}</span>
                 <strong>{{ capabilityTargetRuleLabel(providerCapabilitySummary(code).official_target_rule) }}</strong>
               </div>
               <div class="capability-item">
-                <span class="capability-label">{{ $t('plugin.storageBilling.admin.providers.capabilities.lagDays') }}</span>
+                <span class="capability-label">{{ $t('plugin.storage-billing.admin.providers.capabilities.lagDays') }}</span>
                 <strong>{{ providerCapabilitySummary(code).official_billing_lag_days ?? '-' }}</strong>
               </div>
               <div class="capability-item capability-item-wide">
-                <span class="capability-label">{{ $t('plugin.storageBilling.admin.providers.capabilities.periodTypes') }}</span>
+                <span class="capability-label">{{ $t('plugin.storage-billing.admin.providers.capabilities.periodTypes') }}</span>
                 <strong>
                   {{
                     providerCapabilitySummary(code).supported_period_types
@@ -1220,74 +1220,74 @@ onMounted(() => void loadAll());
                 </strong>
               </div>
               <div class="capability-item capability-item-wide">
-                <span class="capability-label">{{ $t('plugin.storageBilling.admin.providers.capabilities.recommendedScopes') }}</span>
+                <span class="capability-label">{{ $t('plugin.storage-billing.admin.providers.capabilities.recommendedScopes') }}</span>
                 <strong>
                   {{
                     providerCapabilitySummary(code).recommended_scope_types
-                      .map((item) => $t(`plugin.storageBilling.admin.bindings.scope.${item}`))
+                      .map((item) => $t(`plugin.storage-billing.admin.bindings.scope.${item}`))
                       .join(' / ') || '-'
                   }}
                 </strong>
               </div>
             </div>
             <Descriptions :column="2" class="provider-runtime" size="small">
-              <Descriptions.Item :label="$t('plugin.storageBilling.admin.providers.runtime.configSource')">
-                {{ $t('plugin.storageBilling.admin.providers.runtime.source.platform_storage') }}
+              <Descriptions.Item :label="$t('plugin.storage-billing.admin.providers.runtime.configSource')">
+                {{ $t('plugin.storage-billing.admin.providers.runtime.source.platform_storage') }}
               </Descriptions.Item>
-              <Descriptions.Item :label="$t('plugin.storageBilling.admin.providers.runtime.currentDriver')">
+              <Descriptions.Item :label="$t('plugin.storage-billing.admin.providers.runtime.currentDriver')">
                 {{ providerLabelFromAny(providerStorageContext(code).current_driver || '-') }}
               </Descriptions.Item>
-              <Descriptions.Item :label="$t('plugin.storageBilling.admin.providers.runtime.driverMatch')">
+              <Descriptions.Item :label="$t('plugin.storage-billing.admin.providers.runtime.driverMatch')">
                 <Tag :color="providerStorageMatch(code) ? 'success' : 'error'">
                   {{
                     $t(
                       providerStorageMatch(code)
-                        ? 'plugin.storageBilling.admin.providers.runtime.match'
-                        : 'plugin.storageBilling.admin.providers.runtime.mismatch',
+                        ? 'plugin.storage-billing.admin.providers.runtime.match'
+                        : 'plugin.storage-billing.admin.providers.runtime.mismatch',
                     )
                   }}
                 </Tag>
               </Descriptions.Item>
-              <Descriptions.Item :label="$t('plugin.storageBilling.admin.providers.runtime.credentialStatus')">
+              <Descriptions.Item :label="$t('plugin.storage-billing.admin.providers.runtime.credentialStatus')">
                 <Tag :color="providerStorageReady(code) ? 'success' : 'warning'">
                   {{
                     $t(
                       providerStorageReady(code)
-                        ? 'plugin.storageBilling.admin.providers.runtime.configured'
-                        : 'plugin.storageBilling.admin.providers.runtime.missing',
+                        ? 'plugin.storage-billing.admin.providers.runtime.configured'
+                        : 'plugin.storage-billing.admin.providers.runtime.missing',
                     )
                   }}
                 </Tag>
               </Descriptions.Item>
-              <Descriptions.Item :label="$t('plugin.storageBilling.admin.providers.runtime.bucket')">
+              <Descriptions.Item :label="$t('plugin.storage-billing.admin.providers.runtime.bucket')">
                 {{ providerRuntimeValue(providerStorageContext(code).bucket_name) }}
               </Descriptions.Item>
-              <Descriptions.Item :label="$t('plugin.storageBilling.admin.providers.runtime.baseUrl')">
+              <Descriptions.Item :label="$t('plugin.storage-billing.admin.providers.runtime.baseUrl')">
                 {{ providerRuntimeValue(providerStorageContext(code).base_url) }}
               </Descriptions.Item>
-              <Descriptions.Item :label="$t('plugin.storageBilling.admin.providers.runtime.region')">
+              <Descriptions.Item :label="$t('plugin.storage-billing.admin.providers.runtime.region')">
                 {{ providerRuntimeValue(providerStorageContext(code).region) }}
               </Descriptions.Item>
-              <Descriptions.Item :label="$t('plugin.storageBilling.admin.providers.runtime.endpoint')">
+              <Descriptions.Item :label="$t('plugin.storage-billing.admin.providers.runtime.endpoint')">
                 {{ providerRuntimeValue(providerStorageContext(code).endpoint) }}
               </Descriptions.Item>
-              <Descriptions.Item :label="$t('plugin.storageBilling.admin.providers.runtime.prefix')">
+              <Descriptions.Item :label="$t('plugin.storage-billing.admin.providers.runtime.prefix')">
                 {{ providerRuntimeValue(providerStorageContext(code).prefix) }}
               </Descriptions.Item>
-              <Descriptions.Item :label="$t('plugin.storageBilling.admin.providers.runtime.rootPath')">
+              <Descriptions.Item :label="$t('plugin.storage-billing.admin.providers.runtime.rootPath')">
                 {{ providerRuntimeValue(providerStorageContext(code).root_path) }}
               </Descriptions.Item>
             </Descriptions>
             <Form layout="vertical">
-              <FormItem :label="$t('plugin.storageBilling.admin.field.enabled')"><Switch v-model:checked="profiles[code].enabled" /></FormItem>
+              <FormItem :label="$t('plugin.storage-billing.admin.field.enabled')"><Switch v-model:checked="profiles[code].enabled" /></FormItem>
               <FormItem v-for="field in profileFields[code]" :key="field" :label="fieldLabel(field)">
                 <template #extra>
                   <Space wrap>
                     <Tag :color="(validations[code].required_fields ?? []).includes(field) ? 'error' : 'default'">
                       {{
                         (validations[code].required_fields ?? []).includes(field)
-                          ? $t('plugin.storageBilling.admin.providers.required')
-                          : $t('plugin.storageBilling.admin.providers.optional')
+                          ? $t('plugin.storage-billing.admin.providers.required')
+                          : $t('plugin.storage-billing.admin.providers.optional')
                       }}
                     </Tag>
                   </Space>
@@ -1300,31 +1300,31 @@ onMounted(() => void loadAll());
                 />
               </FormItem>
             </Form>
-            <div class="actions"><Button @click="validateProvider(code)">{{ $t('plugin.storageBilling.admin.providers.validate') }}</Button></div>
+            <div class="actions"><Button @click="validateProvider(code)">{{ $t('plugin.storage-billing.admin.providers.validate') }}</Button></div>
           </Card>
         </div>
       </Card>
 
-      <Card :title="$t('plugin.storageBilling.admin.bindings.title')" class="block">
-        <template #extra><Button :disabled="!hasVisibleProviders" type="primary" @click="openCreate">{{ $t('plugin.storageBilling.admin.bindings.add') }}</Button></template>
-        <div class="section-subtitle">{{ $t('plugin.storageBilling.admin.bindings.subtitle') }}</div>
-        <Table :columns="bindingColumns" :data-source="bindings" :locale="{ emptyText: $t('plugin.storageBilling.admin.bindings.empty') }" :pagination="false" row-key="id">
+      <Card :title="$t('plugin.storage-billing.admin.bindings.title')" class="block">
+        <template #extra><Button :disabled="!hasVisibleProviders" type="primary" @click="openCreate">{{ $t('plugin.storage-billing.admin.bindings.add') }}</Button></template>
+        <div class="section-subtitle">{{ $t('plugin.storage-billing.admin.bindings.subtitle') }}</div>
+        <Table :columns="bindingColumns" :data-source="bindings" :locale="{ emptyText: $t('plugin.storage-billing.admin.bindings.empty') }" :pagination="false" row-key="id">
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'tenant'">#{{ record.tenant_id }}</template>
             <template v-else-if="column.key === 'provider'">{{ providerLabel(record.provider_code) }}</template>
-            <template v-else-if="column.key === 'mode'">{{ $t(`plugin.storageBilling.admin.bindings.mode.${record.billing_mode}`) }}</template>
-            <template v-else-if="column.key === 'scope'"><Space wrap><Tag color="blue">{{ $t(`plugin.storageBilling.admin.bindings.scope.${record.scope_type}`) }}</Tag><span>{{ scopeValue(record) }}</span></Space></template>
+            <template v-else-if="column.key === 'mode'">{{ $t(`plugin.storage-billing.admin.bindings.mode.${record.billing_mode}`) }}</template>
+            <template v-else-if="column.key === 'scope'"><Space wrap><Tag color="blue">{{ $t(`plugin.storage-billing.admin.bindings.scope.${record.scope_type}`) }}</Tag><span>{{ scopeValue(record) }}</span></Space></template>
             <template v-else-if="column.key === 'status'"><Tag :color="statusColor(record.validation_status)">{{ prettyStatus(record.validation_status) }}</Tag></template>
             <template v-else-if="column.key === 'message'"><span class="muted">{{ record.validation_message || '-' }}</span></template>
-            <template v-else-if="column.key === 'actions'"><Space wrap><Button size="small" @click="openEdit(record)">{{ $t('plugin.storageBilling.admin.bindings.edit') }}</Button><Button size="small" @click="revalidateBinding(record)">{{ $t('plugin.storageBilling.admin.bindings.revalidate') }}</Button></Space></template>
+            <template v-else-if="column.key === 'actions'"><Space wrap><Button size="small" @click="openEdit(record)">{{ $t('plugin.storage-billing.admin.bindings.edit') }}</Button><Button size="small" @click="revalidateBinding(record)">{{ $t('plugin.storage-billing.admin.bindings.revalidate') }}</Button></Space></template>
           </template>
         </Table>
-        <div v-if="!bindings.length" class="empty"><Empty :description="$t('plugin.storageBilling.admin.bindings.empty')" /></div>
+        <div v-if="!bindings.length" class="empty"><Empty :description="$t('plugin.storage-billing.admin.bindings.empty')" /></div>
       </Card>
 
-      <Card :title="$t('plugin.storageBilling.admin.runs.title')" class="block">
-        <div class="section-subtitle">{{ $t('plugin.storageBilling.admin.runs.subtitle') }}</div>
-        <Table :columns="runColumns" :data-source="runs" :locale="{ emptyText: $t('plugin.storageBilling.admin.runs.empty') }" :pagination="false" row-key="id">
+      <Card :title="$t('plugin.storage-billing.admin.runs.title')" class="block">
+        <div class="section-subtitle">{{ $t('plugin.storage-billing.admin.runs.subtitle') }}</div>
+        <Table :columns="runColumns" :data-source="runs" :locale="{ emptyText: $t('plugin.storage-billing.admin.runs.empty') }" :pagination="false" row-key="id">
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'billing_date'">{{ record.period_label || record.billing_date }}</template>
             <template v-else-if="column.key === 'status'"><Tag :color="statusColor(record.status)">{{ prettyStatus(record.status) }}</Tag></template>
@@ -1338,31 +1338,31 @@ onMounted(() => void loadAll());
             </template>
             <template v-else-if="column.key === 'finished_at'">{{ formatTimestamp(record.completed_at) }}</template>
             <template v-else-if="column.key === 'actions'">
-              <Button size="small" @click="loadRunDetail(record.id)">{{ $t('plugin.storageBilling.admin.runs.view') }}</Button>
+              <Button size="small" @click="loadRunDetail(record.id)">{{ $t('plugin.storage-billing.admin.runs.view') }}</Button>
             </template>
           </template>
         </Table>
-        <div v-if="!runs.length" class="empty"><Empty :description="$t('plugin.storageBilling.admin.runs.empty')" /></div>
+        <div v-if="!runs.length" class="empty"><Empty :description="$t('plugin.storage-billing.admin.runs.empty')" /></div>
 
         <Card v-if="selectedRun" class="run-detail" size="small">
-          <template #title>{{ $t('plugin.storageBilling.admin.runs.detailTitle') }} · {{ selectedRun.period_label || selectedRun.billing_date }}</template>
+          <template #title>{{ $t('plugin.storage-billing.admin.runs.detailTitle') }} · {{ selectedRun.period_label || selectedRun.billing_date }}</template>
           <template #extra>
             <Button
               :loading="runChargeExporting"
               size="small"
               @click="exportCurrentRunCharges"
             >
-              {{ $t('plugin.storageBilling.admin.runs.charges.export') }}
+              {{ $t('plugin.storage-billing.admin.runs.charges.export') }}
             </Button>
           </template>
           <Spin :spinning="runDetailLoading">
             <Descriptions :column="3" size="small">
-              <Descriptions.Item :label="$t('plugin.storageBilling.admin.runs.detail.status')">
+              <Descriptions.Item :label="$t('plugin.storage-billing.admin.runs.detail.status')">
                 <Tag :color="statusColor(selectedRun.status)">{{ prettyStatus(selectedRun.status) }}</Tag>
               </Descriptions.Item>
-              <Descriptions.Item :label="$t('plugin.storageBilling.admin.runs.detail.trigger')">{{ selectedRun.trigger_type }}</Descriptions.Item>
-              <Descriptions.Item :label="$t('plugin.storageBilling.admin.runs.detail.statementCount')">{{ selectedRun.summary.statement_count ?? 0 }}</Descriptions.Item>
-              <Descriptions.Item :label="$t('plugin.storageBilling.admin.runs.detail.requestedScope')" :span="3">
+              <Descriptions.Item :label="$t('plugin.storage-billing.admin.runs.detail.trigger')">{{ selectedRun.trigger_type }}</Descriptions.Item>
+              <Descriptions.Item :label="$t('plugin.storage-billing.admin.runs.detail.statementCount')">{{ selectedRun.summary.statement_count ?? 0 }}</Descriptions.Item>
+              <Descriptions.Item :label="$t('plugin.storage-billing.admin.runs.detail.requestedScope')" :span="3">
                 <div class="run-scope-summary">{{ selectedRunScopeSummary(selectedRun) }}</div>
                 <Space v-if="scopeProviderCodes(runRequestedScope(selectedRun)).length" wrap class="run-scope-tags">
                   <Tag
@@ -1383,12 +1383,12 @@ onMounted(() => void loadAll());
                       <Tag color="blue">{{ providerLabelFromAny(plan.provider_code) }}</Tag>
                       <Tag color="processing">{{ plan.billing_date }}</Tag>
                       <Tag>{{ capabilityTargetRuleLabel(plan.official_target_rule) }}</Tag>
-                      <Tag>{{ $t('plugin.storageBilling.admin.runs.detail.lagDays') }} {{ plan.official_billing_lag_days ?? '-' }}</Tag>
+                      <Tag>{{ $t('plugin.storage-billing.admin.runs.detail.lagDays') }} {{ plan.official_billing_lag_days ?? '-' }}</Tag>
                     </Space>
                   </div>
                 </div>
                 <details class="run-scope-details">
-                  <summary>{{ $t('plugin.storageBilling.admin.runs.detail.scopeToggle') }}</summary>
+                  <summary>{{ $t('plugin.storage-billing.admin.runs.detail.scopeToggle') }}</summary>
                   <pre>{{ selectedRunScopePayload(selectedRun) }}</pre>
                 </details>
               </Descriptions.Item>
@@ -1405,14 +1405,14 @@ onMounted(() => void loadAll());
                     {{ providerLabelFromAny(provider.provider_code) }}
                   </Tag>
                   <Tag>{{ prettyStatus(provider.source_status) }}</Tag>
-                  <Tag>{{ $t('plugin.storageBilling.admin.runs.audit.matched') }} {{ provider.matched_items ?? 0 }}</Tag>
-                  <Tag>{{ $t('plugin.storageBilling.admin.runs.detail.chargeItems') }} {{ provider.charge_item_count ?? 0 }}</Tag>
-                  <Tag>{{ $t('plugin.storageBilling.admin.runs.detail.writtenRows') }} {{ provider.written_charge_rows ?? 0 }}</Tag>
+                  <Tag>{{ $t('plugin.storage-billing.admin.runs.audit.matched') }} {{ provider.matched_items ?? 0 }}</Tag>
+                  <Tag>{{ $t('plugin.storage-billing.admin.runs.detail.chargeItems') }} {{ provider.charge_item_count ?? 0 }}</Tag>
+                  <Tag>{{ $t('plugin.storage-billing.admin.runs.detail.writtenRows') }} {{ provider.written_charge_rows ?? 0 }}</Tag>
                 </Space>
               </div>
             </div>
 
-            <Table :columns="sourceColumns" :data-source="selectedRunDetail?.sources ?? []" :locale="{ emptyText: $t('plugin.storageBilling.admin.runs.sources.empty') }" :pagination="false" row-key="id">
+            <Table :columns="sourceColumns" :data-source="selectedRunDetail?.sources ?? []" :locale="{ emptyText: $t('plugin.storage-billing.admin.runs.sources.empty') }" :pagination="false" row-key="id">
               <template #bodyCell="{ column, record }">
                 <template v-if="column.key === 'provider'">
                   <Space direction="vertical" size="small">
@@ -1427,9 +1427,9 @@ onMounted(() => void loadAll());
                 <template v-else-if="column.key === 'usage'">{{ formatBytes(record.usage_bytes) }}</template>
                 <template v-else-if="column.key === 'allocation'">
                   <Space wrap>
-                    <Tag color="success">{{ $t('plugin.storageBilling.admin.runs.audit.matched') }} {{ sourceAllocationSummary(record).matched_items }}</Tag>
-                    <Tag color="warning">{{ $t('plugin.storageBilling.admin.runs.audit.unmatched') }} {{ sourceAllocationSummary(record).unmatched_items }}</Tag>
-                    <Tag color="error">{{ $t('plugin.storageBilling.admin.runs.audit.ambiguous') }} {{ sourceAllocationSummary(record).ambiguous_items }}</Tag>
+                    <Tag color="success">{{ $t('plugin.storage-billing.admin.runs.audit.matched') }} {{ sourceAllocationSummary(record).matched_items }}</Tag>
+                    <Tag color="warning">{{ $t('plugin.storage-billing.admin.runs.audit.unmatched') }} {{ sourceAllocationSummary(record).unmatched_items }}</Tag>
+                    <Tag color="error">{{ $t('plugin.storage-billing.admin.runs.audit.ambiguous') }} {{ sourceAllocationSummary(record).ambiguous_items }}</Tag>
                   </Space>
                 </template>
                 <template v-else-if="column.key === 'error'">
@@ -1439,12 +1439,12 @@ onMounted(() => void loadAll());
             </Table>
 
             <Card class="run-charge-card" size="small">
-              <template #title>{{ $t('plugin.storageBilling.admin.runs.charges.title') }}</template>
-              <div class="section-subtitle">{{ $t('plugin.storageBilling.admin.runs.charges.subtitle') }}</div>
+              <template #title>{{ $t('plugin.storage-billing.admin.runs.charges.title') }}</template>
+              <div class="section-subtitle">{{ $t('plugin.storage-billing.admin.runs.charges.subtitle') }}</div>
               <Space wrap class="run-charge-summary">
-                <Tag color="blue">{{ $t('plugin.storageBilling.admin.runs.charges.rowTotal') }} {{ selectedRunChargeResponse?.total ?? selectedRunCharges.length }}</Tag>
-                <Tag color="cyan">{{ $t('plugin.storageBilling.admin.runs.charges.sourceTotal') }} {{ selectedRunChargeResponse?.source_total ?? (selectedRunDetail?.sources?.length ?? 0) }}</Tag>
-                <Tag v-if="!runChargeActiveFilters.length" color="default">{{ $t('plugin.storageBilling.admin.runs.charges.filterNone') }}</Tag>
+                <Tag color="blue">{{ $t('plugin.storage-billing.admin.runs.charges.rowTotal') }} {{ selectedRunChargeResponse?.total ?? selectedRunCharges.length }}</Tag>
+                <Tag color="cyan">{{ $t('plugin.storage-billing.admin.runs.charges.sourceTotal') }} {{ selectedRunChargeResponse?.source_total ?? (selectedRunDetail?.sources?.length ?? 0) }}</Tag>
+                <Tag v-if="!runChargeActiveFilters.length" color="default">{{ $t('plugin.storage-billing.admin.runs.charges.filterNone') }}</Tag>
                 <Tag v-for="filter in runChargeActiveFilters" :key="`charge-filter-${filter.key}`" color="processing">
                   {{ filter.label }}: {{ filter.value }}
                 </Tag>
@@ -1455,32 +1455,32 @@ onMounted(() => void loadAll());
                   allow-clear
                   class="toolbar-field"
                   :options="runChargeProviderOptions"
-                  :placeholder="$t('plugin.storageBilling.admin.runs.charges.filterProvider')"
+                  :placeholder="$t('plugin.storage-billing.admin.runs.charges.filterProvider')"
                 />
                 <Select
                   v-model:value="runChargeFilters.source_id"
                   allow-clear
                   class="toolbar-field toolbar-source"
                   :options="runChargeSourceOptions"
-                  :placeholder="$t('plugin.storageBilling.admin.runs.charges.filterSource')"
+                  :placeholder="$t('plugin.storage-billing.admin.runs.charges.filterSource')"
                 />
                 <Input
                   v-model:value="runChargeFilters.tenant_id"
                   class="toolbar-field"
-                  :placeholder="$t('plugin.storageBilling.admin.runs.charges.filterTenant')"
+                  :placeholder="$t('plugin.storage-billing.admin.runs.charges.filterTenant')"
                 />
                 <Button @click="applyRunChargeFilters">
-                  {{ $t('plugin.storageBilling.admin.runs.charges.applyFilters') }}
+                  {{ $t('plugin.storage-billing.admin.runs.charges.applyFilters') }}
                 </Button>
                 <Button @click="resetRunChargeFilters">
-                  {{ $t('plugin.storageBilling.admin.runs.charges.resetFilters') }}
+                  {{ $t('plugin.storage-billing.admin.runs.charges.resetFilters') }}
                 </Button>
               </Space>
               <Spin :spinning="runChargeLoading">
                 <Table
                   :columns="chargeColumns"
                   :data-source="selectedRunCharges"
-                  :locale="{ emptyText: $t('plugin.storageBilling.admin.runs.charges.empty') }"
+                  :locale="{ emptyText: $t('plugin.storage-billing.admin.runs.charges.empty') }"
                   :pagination="false"
                   row-key="id"
                   size="small"
@@ -1508,11 +1508,11 @@ onMounted(() => void loadAll());
                   </Space>
                 </div>
                 <div class="audit-summary">
-                  <Tag color="warning">{{ $t('plugin.storageBilling.admin.runs.audit.unmatchedSamples') }} {{ sourceAllocationAudit(source).unmatched_item_samples.length }}</Tag>
-                  <Tag color="error">{{ $t('plugin.storageBilling.admin.runs.audit.ambiguousSamples') }} {{ sourceAllocationAudit(source).ambiguous_item_samples.length }}</Tag>
+                  <Tag color="warning">{{ $t('plugin.storage-billing.admin.runs.audit.unmatchedSamples') }} {{ sourceAllocationAudit(source).unmatched_item_samples.length }}</Tag>
+                  <Tag color="error">{{ $t('plugin.storage-billing.admin.runs.audit.ambiguousSamples') }} {{ sourceAllocationAudit(source).ambiguous_item_samples.length }}</Tag>
                 </div>
                 <details class="audit-details">
-                  <summary>{{ $t('plugin.storageBilling.admin.runs.audit.toggle') }}</summary>
+                  <summary>{{ $t('plugin.storage-billing.admin.runs.audit.toggle') }}</summary>
                   <pre>{{ JSON.stringify(source.raw_payload_json, null, 2) }}</pre>
                 </details>
               </div>
@@ -1523,75 +1523,86 @@ onMounted(() => void loadAll());
 
       <Modal v-model:open="bindingOpen" :confirm-loading="bindingLoading" :title="modalTitle" :ok-text="modalOkText" @ok="submitBinding" @cancel="resetForm">
         <Form layout="vertical">
-          <FormItem :label="$t('plugin.storageBilling.admin.bindingForm.tenant')"><Select v-model:value="form.tenant_id" :options="tenants" :filter-option="false" show-search @search="searchTenants" /></FormItem>
-          <FormItem :label="$t('plugin.storageBilling.admin.bindingForm.provider')"><Select v-model:value="form.provider_code" :disabled="providerOptions.length <= 1" :options="providerOptions" @change="handleProviderChange" /></FormItem>
+          <FormItem :label="$t('plugin.storage-billing.admin.bindingForm.tenant')"><Select v-model:value="form.tenant_id" :options="tenants" :filter-option="false" show-search @search="searchTenants" /></FormItem>
+          <FormItem :label="$t('plugin.storage-billing.admin.bindingForm.provider')"><Select v-model:value="form.provider_code" :disabled="providerOptions.length <= 1" :options="providerOptions" @change="handleProviderChange" /></FormItem>
           <Alert
             v-if="form.provider_code === 'qiniu-kodo'"
             class="block"
-            :message="$t('plugin.storageBilling.admin.bindingForm.qiniuRestrictionTitle')"
-            :description="$t('plugin.storageBilling.admin.bindingForm.qiniuRestrictionDesc')"
+            :message="$t('plugin.storage-billing.admin.bindingForm.qiniuRestrictionTitle')"
+            :description="$t('plugin.storage-billing.admin.bindingForm.qiniuRestrictionDesc')"
             show-icon
             type="info"
           />
-          <FormItem :label="$t('plugin.storageBilling.admin.bindingForm.mode')"><Select v-model:value="form.billing_mode" :options="currentModeOptions" /></FormItem>
-          <FormItem :label="$t('plugin.storageBilling.admin.bindingForm.scopeType')"><Select v-model:value="form.scope_type" :options="currentScopeOptions" @change="clearScopeFields" /></FormItem>
-          <FormItem v-if="form.scope_type === 'bucket'" :label="$t('plugin.storageBilling.admin.bindingForm.bucketName')"><Input v-model:value="form.bucket_name" :placeholder="$t('plugin.storageBilling.admin.bindingForm.scopePlaceholder.bucket')" /></FormItem>
-          <FormItem v-if="form.scope_type === 'domain'" :label="$t('plugin.storageBilling.admin.bindingForm.domainName')"><Input v-model:value="form.domain_name" :placeholder="$t('plugin.storageBilling.admin.bindingForm.scopePlaceholder.domain')" /></FormItem>
-          <FormItem v-if="form.scope_type === 'account'" :label="$t('plugin.storageBilling.admin.bindingForm.accountIdentifier')"><Input v-model:value="form.account_identifier" :placeholder="$t('plugin.storageBilling.admin.bindingForm.scopePlaceholder.account')" /></FormItem>
+          <FormItem :label="$t('plugin.storage-billing.admin.bindingForm.mode')"><Select v-model:value="form.billing_mode" :options="currentModeOptions" /></FormItem>
+          <FormItem :label="$t('plugin.storage-billing.admin.bindingForm.scopeType')"><Select v-model:value="form.scope_type" :options="currentScopeOptions" @change="clearScopeFields" /></FormItem>
+          <FormItem v-if="form.scope_type === 'bucket'" :label="$t('plugin.storage-billing.admin.bindingForm.bucketName')"><Input v-model:value="form.bucket_name" :placeholder="$t('plugin.storage-billing.admin.bindingForm.scopePlaceholder.bucket')" /></FormItem>
+          <FormItem v-if="form.scope_type === 'domain'" :label="$t('plugin.storage-billing.admin.bindingForm.domainName')"><Input v-model:value="form.domain_name" :placeholder="$t('plugin.storage-billing.admin.bindingForm.scopePlaceholder.domain')" /></FormItem>
+          <FormItem v-if="form.scope_type === 'account'" :label="$t('plugin.storage-billing.admin.bindingForm.accountIdentifier')"><Input v-model:value="form.account_identifier" :placeholder="$t('plugin.storage-billing.admin.bindingForm.scopePlaceholder.account')" /></FormItem>
           <template v-if="form.scope_type === 'tag'">
-            <FormItem :label="$t('plugin.storageBilling.admin.bindingForm.tagKey')"><Input v-model:value="form.tag_key" :placeholder="$t('plugin.storageBilling.admin.bindingForm.scopePlaceholder.tagKey')" /></FormItem>
-            <FormItem :label="$t('plugin.storageBilling.admin.bindingForm.tagValue')"><Input v-model:value="form.tag_value" :placeholder="$t('plugin.storageBilling.admin.bindingForm.scopePlaceholder.tagValue')" /></FormItem>
+            <FormItem :label="$t('plugin.storage-billing.admin.bindingForm.tagKey')"><Input v-model:value="form.tag_key" :placeholder="$t('plugin.storage-billing.admin.bindingForm.scopePlaceholder.tagKey')" /></FormItem>
+            <FormItem :label="$t('plugin.storage-billing.admin.bindingForm.tagValue')"><Input v-model:value="form.tag_value" :placeholder="$t('plugin.storage-billing.admin.bindingForm.scopePlaceholder.tagValue')" /></FormItem>
           </template>
-          <FormItem :label="$t('plugin.storageBilling.admin.bindingForm.isActive')"><Switch v-model:checked="form.is_active" /></FormItem>
+          <FormItem :label="$t('plugin.storage-billing.admin.bindingForm.isActive')"><Switch v-model:checked="form.is_active" /></FormItem>
         </Form>
       </Modal>
     </Spin>
   </Page>
 </template>
 
-<style scoped>
+<style>
 .storage-billing-admin{--hero:linear-gradient(135deg,#fff7ed,#f8fafc 50%,#eff6ff)}
-.hero{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;margin-bottom:20px;padding:24px;border-radius:24px;background:var(--hero);border:1px solid rgba(180,83,9,.14)}
-.badge{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#b45309;margin-bottom:8px}
-.hero h1{margin:0 0 8px;font-size:28px}
-.hero p{margin:0;color:#475569;max-width:760px}
-.hero-actions{display:flex;flex-direction:column;gap:12px;min-width:320px}
-.toolbar-group{justify-content:flex-end}
-.toolbar-stack{display:flex;flex-direction:column;gap:6px}
-.toolbar-field{min-width:180px}
-.toolbar-field-wide{min-width:240px}
-.toolbar-help{font-size:12px;color:#64748b;max-width:360px}
-.toolbar-help-error{color:#dc2626}
-.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:20px}
-.block{margin-bottom:20px}
-.providers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
-.section-subtitle,.muted{color:#64748b}
-.section-subtitle{margin-bottom:16px}
-.capability-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:16px}
-.capability-item{padding:12px;border-radius:14px;background:#f8fafc;border:1px solid rgba(148,163,184,.18)}
-.capability-item-wide{grid-column:1/-1}
-.provider-runtime{margin-bottom:16px;padding:12px;border-radius:14px;background:#f8fafc;border:1px solid rgba(148,163,184,.18)}
-.capability-label{display:block;margin-bottom:6px;font-size:12px;color:#64748b}
-.actions{display:flex;justify-content:flex-end}
-.empty{margin-top:12px}
-.run-detail{margin-top:16px}
-.run-scope-summary{line-height:1.6;color:#0f172a}
-.run-scope-tags{margin-top:8px}
-.run-plan-list,.run-provider-results{display:grid;gap:12px;margin-top:16px}
-.run-plan-card,.run-provider-card{padding:12px;border-radius:14px;background:#f8fafc;border:1px solid rgba(148,163,184,.18)}
-.run-scope-details{margin-top:8px}
-.run-scope-details summary{cursor:pointer;color:#64748b}
-.run-scope-details pre{margin:8px 0 0;padding:12px;border-radius:12px;background:#0f172a;color:#e2e8f0;overflow:auto;max-height:320px}
-.run-charge-summary{display:flex;margin:12px 0}
-.run-charge-toolbar{display:flex;margin-bottom:12px}
-.toolbar-field{min-width:180px}
-.toolbar-source{min-width:260px}
-.run-charge-card{margin-top:16px}
-.audit-list{display:grid;gap:12px;margin-top:16px}
-.audit-card{padding:16px;border-radius:16px;background:#f8fafc;border:1px solid rgba(148,163,184,.2)}
-.audit-head,.audit-summary{margin-bottom:12px}
-.audit-details summary{cursor:pointer;color:#0f172a;font-weight:600}
-.audit-details pre{margin-top:12px;padding:12px;border-radius:12px;background:#0f172a;color:#e2e8f0;overflow:auto;max-height:320px}
-@media (max-width:1200px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.providers{grid-template-columns:1fr}}
-@media (max-width:768px){.hero{flex-direction:column}.hero-actions{min-width:0;width:100%}.stats{grid-template-columns:1fr}.capability-grid{grid-template-columns:1fr}}
+.storage-billing-admin .hero{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;margin-bottom:20px;padding:24px;border-radius:24px;background:var(--hero);border:1px solid rgba(180,83,9,.14)}
+.storage-billing-admin .badge{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#b45309;margin-bottom:8px}
+.storage-billing-admin .hero h1{margin:0 0 8px;font-size:28px}
+.storage-billing-admin .hero p{margin:0;color:#475569;max-width:760px}
+.storage-billing-admin .hero-actions{display:flex;flex-direction:column;gap:12px;min-width:320px}
+.storage-billing-admin .toolbar-group{justify-content:flex-end}
+.storage-billing-admin .toolbar-stack{display:flex;flex-direction:column;gap:6px}
+.storage-billing-admin .toolbar-field{min-width:180px}
+.storage-billing-admin .toolbar-field-wide{min-width:240px}
+.storage-billing-admin .toolbar-help{font-size:12px;color:#64748b;max-width:360px}
+.storage-billing-admin .toolbar-help-error{color:#dc2626}
+.storage-billing-admin .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:20px}
+.storage-billing-admin .block{margin-bottom:20px}
+.storage-billing-admin .providers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.storage-billing-admin .section-subtitle,
+.storage-billing-admin .muted{color:#64748b}
+.storage-billing-admin .section-subtitle{margin-bottom:16px}
+.storage-billing-admin .capability-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.storage-billing-admin .capability-item{padding:12px;border-radius:14px;background:#f8fafc;border:1px solid rgba(148,163,184,.18)}
+.storage-billing-admin .capability-item-wide{grid-column:1/-1}
+.storage-billing-admin .provider-runtime{margin-bottom:16px;padding:12px;border-radius:14px;background:#f8fafc;border:1px solid rgba(148,163,184,.18)}
+.storage-billing-admin .capability-label{display:block;margin-bottom:6px;font-size:12px;color:#64748b}
+.storage-billing-admin .actions{display:flex;justify-content:flex-end}
+.storage-billing-admin .empty{margin-top:12px}
+.storage-billing-admin .run-detail{margin-top:16px}
+.storage-billing-admin .run-scope-summary{line-height:1.6;color:#0f172a}
+.storage-billing-admin .run-scope-tags{margin-top:8px}
+.storage-billing-admin .run-plan-list,
+.storage-billing-admin .run-provider-results{display:grid;gap:12px;margin-top:16px}
+.storage-billing-admin .run-plan-card,
+.storage-billing-admin .run-provider-card{padding:12px;border-radius:14px;background:#f8fafc;border:1px solid rgba(148,163,184,.18)}
+.storage-billing-admin .run-scope-details{margin-top:8px}
+.storage-billing-admin .run-scope-details summary{cursor:pointer;color:#64748b}
+.storage-billing-admin .run-scope-details pre{margin:8px 0 0;padding:12px;border-radius:12px;background:#0f172a;color:#e2e8f0;overflow:auto;max-height:320px}
+.storage-billing-admin .run-charge-summary{display:flex;margin:12px 0}
+.storage-billing-admin .run-charge-toolbar{display:flex;margin-bottom:12px}
+.storage-billing-admin .toolbar-source{min-width:260px}
+.storage-billing-admin .run-charge-card{margin-top:16px}
+.storage-billing-admin .audit-list{display:grid;gap:12px;margin-top:16px}
+.storage-billing-admin .audit-card{padding:16px;border-radius:16px;background:#f8fafc;border:1px solid rgba(148,163,184,.2)}
+.storage-billing-admin .audit-head,
+.storage-billing-admin .audit-summary{margin-bottom:12px}
+.storage-billing-admin .audit-details summary{cursor:pointer;color:#0f172a;font-weight:600}
+.storage-billing-admin .audit-details pre{margin-top:12px;padding:12px;border-radius:12px;background:#0f172a;color:#e2e8f0;overflow:auto;max-height:320px}
+@media (max-width:1200px){
+  .storage-billing-admin .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .storage-billing-admin .providers{grid-template-columns:1fr}
+}
+@media (max-width:768px){
+  .storage-billing-admin .hero{flex-direction:column}
+  .storage-billing-admin .hero-actions{min-width:0;width:100%}
+  .storage-billing-admin .stats{grid-template-columns:1fr}
+  .storage-billing-admin .capability-grid{grid-template-columns:1fr}
+}
 </style>

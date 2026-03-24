@@ -9,6 +9,7 @@ from app.core.base_model import utc_now
 from app.core.i18n import _
 from app.core.logging import get_logger
 from app.plugins.module_loader import load_plugin_module
+from ._data_scope import apply_run_data_scope, apply_run_related_scope
 
 PLUGIN_NAME = "workflow-orchestration"
 logger = get_logger(__name__)
@@ -289,6 +290,7 @@ class RecoveryService:
         model_access = _runtime("model_access")
 
         run_model = model_access.resolve_model("workflow_run")
+        workflow_model = model_access.try_resolve_model("tenant_workflow")
         cutoff = utc_now() - timedelta(minutes=timeout_minutes)
         stmt = select(run_model).where(
             run_model.status.in_(["running", "recovering", "compensating"]),
@@ -302,6 +304,12 @@ class RecoveryService:
             stmt = stmt.where(run_model.started_at <= cutoff)
         elif hasattr(run_model, "updated_at"):
             stmt = stmt.where(run_model.updated_at <= cutoff)
+        stmt = apply_run_data_scope(
+            stmt,
+            run_model,
+            tenant_id=self.tenant_id,
+            workflow_model=workflow_model,
+        )
         timed_out_runs = list((await self.db.execute(stmt)).scalars().all())
 
         affected_ids: list[int] = []
@@ -353,14 +361,24 @@ class RecoveryService:
         model_access = _runtime("model_access")
 
         run_model = model_access.resolve_model("workflow_run")
+        resolve_workflow_model = getattr(model_access, "try_resolve_model", None)
+        workflow_model = (
+            resolve_workflow_model("tenant_workflow")
+            if callable(resolve_workflow_model)
+            else None
+        )
         stmt = (
             select(run_model)
             .where(run_model.status.in_(["failed", "partially_completed", "recovering"]))
             .order_by(getattr(run_model, "updated_at", run_model.id))
             .limit(limit)
         )
-        if self.tenant_id is not None:
-            stmt = stmt.where(run_model.tenant_id == self.tenant_id)
+        stmt = apply_run_data_scope(
+            stmt,
+            run_model,
+            tenant_id=self.tenant_id,
+            workflow_model=workflow_model,
+        )
 
         processed_ids: list[int] = []
         for run in (await self.db.execute(stmt)).scalars().all():
@@ -385,10 +403,15 @@ class RecoveryService:
 
     async def _get_run(self, run_id: int) -> Any:
         errors = _runtime("errors")
-        run_model = _runtime("model_access").resolve_model("workflow_run")
-        stmt = select(run_model).where(run_model.id == run_id)
-        if self.tenant_id is not None:
-            stmt = stmt.where(run_model.tenant_id == self.tenant_id)
+        model_access = _runtime("model_access")
+        run_model = model_access.resolve_model("workflow_run")
+        workflow_model = model_access.try_resolve_model("tenant_workflow")
+        stmt = apply_run_data_scope(
+            select(run_model).where(run_model.id == run_id),
+            run_model,
+            tenant_id=self.tenant_id,
+            workflow_model=workflow_model,
+        )
         run = (await self.db.execute(stmt)).scalar_one_or_none()
         if run is None:
             raise errors.WorkflowNotFoundError(
@@ -399,10 +422,19 @@ class RecoveryService:
     async def _list_node_runs(self, run_id: int) -> list[Any]:
         model_access = _runtime("model_access")
         node_model = model_access.try_resolve_model("workflow_node_run")
-        if node_model is None:
+        run_model = model_access.try_resolve_model("workflow_run")
+        workflow_model = model_access.try_resolve_model("tenant_workflow")
+        if node_model is None or run_model is None:
             return []
         stmt = select(node_model).where(node_model.run_id == run_id)
         stmt = stmt.order_by(getattr(node_model, "created_at", node_model.id))
+        stmt = apply_run_related_scope(
+            stmt,
+            node_model.run_id,
+            run_model,
+            tenant_id=self.tenant_id,
+            workflow_model=workflow_model,
+        )
         return list((await self.db.execute(stmt)).scalars().all())
 
     async def _resolve_checkpoint_node_key(self, checkpoint_id: int | None) -> str | None:
@@ -410,11 +442,18 @@ class RecoveryService:
             return None
         model_access = _runtime("model_access")
         checkpoint_model = model_access.try_resolve_model("execution_checkpoint")
-        if checkpoint_model is None:
+        run_model = model_access.try_resolve_model("workflow_run")
+        workflow_model = model_access.try_resolve_model("tenant_workflow")
+        if checkpoint_model is None or run_model is None:
             return None
         stmt = select(checkpoint_model).where(checkpoint_model.id == checkpoint_id)
-        if self.tenant_id is not None and hasattr(checkpoint_model, "tenant_id"):
-            stmt = stmt.where(checkpoint_model.tenant_id == self.tenant_id)
+        stmt = apply_run_related_scope(
+            stmt,
+            checkpoint_model.run_id,
+            run_model,
+            tenant_id=self.tenant_id,
+            workflow_model=workflow_model,
+        )
         checkpoint = (await self.db.execute(stmt)).scalar_one_or_none()
         if checkpoint is None:
             return None
@@ -428,6 +467,13 @@ class RecoveryService:
         if node_model is None or node_run_id is None:
             return None
         node_stmt = select(node_model).where(node_model.id == node_run_id)
+        node_stmt = apply_run_related_scope(
+            node_stmt,
+            node_model.run_id,
+            run_model,
+            tenant_id=self.tenant_id,
+            workflow_model=workflow_model,
+        )
         node = (await self.db.execute(node_stmt)).scalar_one_or_none()
         if node is None:
             return None

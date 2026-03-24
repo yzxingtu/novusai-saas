@@ -22,6 +22,7 @@ import {
 } from 'ant-design-vue';
 
 import { $t } from '#/locales';
+import { showRequestError } from '#/utils/error-helpers';
 import { requestClient } from '#/utils/request';
 
 defineOptions({ name: 'NotificationSettings' });
@@ -116,8 +117,8 @@ async function handleSave() {
       visible.value = false;
     }
     emit('saved');
-  } catch {
-    message.error($t('common.requestFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.requestFailed');
   } finally {
     saving.value = false;
   }
@@ -134,8 +135,8 @@ async function handleReset() {
         await requestClient.delete(`${getApiBase()}/notification-preferences`);
         message.success($t('common.notification.resetSuccess'));
         await loadPreferences();
-      } catch {
-        message.error($t('common.requestFailed'));
+      } catch (error) {
+        showRequestError(error, 'common.requestFailed');
       } finally {
         resetting.value = false;
       }

@@ -18,6 +18,21 @@ class AgentVersionRepository(TenantRepository[AgentVersion]):
 
     model = AgentVersion
 
+    @staticmethod
+    def _sanitize_create_data(data: dict) -> dict:
+        payload = dict(data)
+        if payload.get("created_by") is None:
+            payload.pop("created_by", None)
+        return payload
+
+    async def create(self, data: dict) -> AgentVersion:
+        return await super().create(self._sanitize_create_data(data))
+
+    async def create_many(self, data_list: list[dict]) -> list[AgentVersion]:
+        return await super().create_many([
+            self._sanitize_create_data(data) for data in data_list
+        ])
+
     async def get_by_agent_and_version(
         self,
         agent_id: int,
@@ -41,6 +56,7 @@ class AgentVersionRepository(TenantRepository[AgentVersion]):
                 AgentVersion.is_deleted.is_(False),
             )
         )
+        stmt = self._apply_data_permission_if_needed(stmt)
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -74,6 +90,7 @@ class AgentVersionRepository(TenantRepository[AgentVersion]):
             .offset(skip)
             .limit(limit)
         )
+        stmt = self._apply_data_permission_if_needed(stmt)
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 

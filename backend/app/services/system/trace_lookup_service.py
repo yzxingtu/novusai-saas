@@ -199,7 +199,7 @@ class TraceLookupService:
 
     def _list_log_files(self, *, since_hours: int | None) -> list[Path]:
         files = [f for f in self.log_dir.glob(self._LOG_PATTERN) if f.is_file()]
-        # Prefer high-signal categories first for primary error extraction.
+        # Prefer high-signal categories first for primary error extraction. / 优先高信号分类提取主错误 / prefer high-signal categories
         preferred = ["error.log", "queue.log", "task.log", "app.log", "db.log"]
         files.sort(
             key=lambda f: (

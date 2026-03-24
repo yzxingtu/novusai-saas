@@ -187,7 +187,7 @@ class BaseRepository(Generic[ModelType]):
         Returns:
             创建的模型实例 / Created model instance
         """
-        instance = self.model(**data)
+        instance = self.model(**self._apply_data_permission_create_defaults(data))
         self.db.add(instance)
         await self.db.flush()
         await self.db.refresh(instance)
@@ -203,7 +203,10 @@ class BaseRepository(Generic[ModelType]):
         Returns:
             创建的模型实例列表 / List of created model instances
         """
-        instances = [self.model(**data) for data in data_list]
+        instances = [
+            self.model(**self._apply_data_permission_create_defaults(data))
+            for data in data_list
+        ]
         self.db.add_all(instances)
         await self.db.flush()
         for instance in instances:
@@ -258,6 +261,9 @@ class BaseRepository(Generic[ModelType]):
             .where(self.model.is_deleted.is_(False))
             .values(**data)
         )
+        permission_condition = self._build_data_permission_condition()
+        if permission_condition is not None:
+            stmt = stmt.where(permission_condition)
         result = await self.db.execute(stmt)
         return result.rowcount
 
@@ -316,6 +322,9 @@ class BaseRepository(Generic[ModelType]):
         else:
             stmt = delete(self.model).where(self.model.id.in_(ids))
 
+        permission_condition = self._build_data_permission_condition()
+        if permission_condition is not None:
+            stmt = stmt.where(permission_condition)
         result = await self.db.execute(stmt)
         return result.rowcount
 
@@ -582,17 +591,63 @@ class BaseRepository(Generic[ModelType]):
 
     def _apply_data_permission_if_needed(self, query: Select) -> Select:
         """
-        对声明 __data_permission__ 的 Model 应用数据权限过滤
-        Apply data permission filter for models with __data_permission__ = True.
+        对启用数据权限的 Model 应用数据权限过滤
+        Apply data permission filter for data-scope aware models.
         """
-        if not getattr(self.model, "__data_permission__", False):
-            return query
-        from app.core.data_permission import DataPermissionFilter, data_permission_ctx
+        from app.core.data_permission import DataPermissionFilter
+
+        return DataPermissionFilter.apply_for_current_context(query, self.model)
+
+    def _build_data_permission_condition(self):
+        """构建当前模型的数据权限条件 / Build data permission condition for the current model."""
+        from app.core.data_permission import build_data_permission_condition, data_permission_ctx
 
         ctx = data_permission_ctx.get()
         if not ctx:
-            return query
-        return DataPermissionFilter.apply(query, self.model, ctx.get("current_user_id"))
+            return None
+        return build_data_permission_condition(
+            self.model,
+            ctx.get("current_user_id"),
+            ctx=ctx,
+        )
+
+    def _apply_data_permission_create_defaults(
+        self,
+        data: dict[str, Any],
+    ) -> dict[str, Any]:
+        """
+        对启用数据权限的模型自动补齐创建上下文
+        Auto-fill create payload with current user / org context when applicable.
+        """
+        from app.core.data_permission import DataPermissionFilter, data_permission_ctx
+
+        if not DataPermissionFilter.is_enabled(self.model):
+            return data
+
+        ctx = data_permission_ctx.get()
+        if not ctx:
+            return data
+
+        result = dict(data)
+        if (
+            "created_by" not in result
+            and ctx.get("current_user_id") is not None
+            and hasattr(self.model, "created_by")
+        ):
+            result["created_by"] = ctx["current_user_id"]
+        if (
+            "org_node_id" not in result
+            and ctx.get("primary_org_id") is not None
+            and hasattr(self.model, "org_node_id")
+        ):
+            result["org_node_id"] = ctx["primary_org_id"]
+        if (
+            "dept_id" not in result
+            and ctx.get("primary_department_id") is not None
+            and hasattr(self.model, "dept_id")
+        ):
+            result["dept_id"] = ctx["primary_department_id"]
+        return result
 
     def _apply_sort(
         self,
@@ -687,7 +742,7 @@ class BaseRepository(Generic[ModelType]):
         # 数据权限过滤（仅对声明 __data_permission__ 的 Model 生效）/ Data permission filter (opt-in via __data_permission__)
         query = self._apply_data_permission_if_needed(query)
 
-        # 查询总数
+        # 查询总数 / Count total rows
         count_query = select(func.count()).select_from(query.subquery())
         count_result = await self.db.execute(count_query)
         total = count_result.scalar() or 0
@@ -743,15 +798,15 @@ class BaseRepository(Generic[ModelType]):
                 "value": "id",
                 "search": ["name", "code"],
                 "extra": ["code", "type"],
-                # 树型配置（可选）
+                # 树型配置（可选） / Tree config (optional)
                 "tree": {
-                    "parent_field": "parent_id",      # 父节点 ID 字段
-                    "children_field": "children",     # 子节点关联名称
-                    "order_by": "sort_order",         # 排序字段
+                    "parent_field": "parent_id",      # 父节点 ID 字段 / Parent FK column
+                    "children_field": "children",     # 子节点关联名称 / Children relationship name
+                    "order_by": "sort_order",         # 排序字段 / Sort column
                 }
             }
         """
-        # 获取 __selectable__ 配置
+        # 获取 __selectable__ 配置 / Load __selectable__ config
         selectable = getattr(self.model, "__selectable__", None)
         if not selectable:
             raise ValueError(
@@ -761,7 +816,7 @@ class BaseRepository(Generic[ModelType]):
         label_field = selectable.get("label", "name")
         search_fields = selectable.get("search", [label_field])
 
-        # 树型模式处理（不支持分页）
+        # 树型模式处理（不支持分页） / Tree mode (no pagination)
         if tree:
             tree_config = selectable.get("tree")
             if not tree_config:
@@ -776,7 +831,7 @@ class BaseRepository(Generic[ModelType]):
                 filters=filters,
                 parent_id=parent_id,
             )
-            # 树型模式不支持分页，total 返回 items 数量
+            # 树型模式不支持分页，total 返回 items 数量 / Tree mode: total=len(items)
             return items, len(items)
 
         # 列表模式 / List mode
@@ -790,7 +845,7 @@ class BaseRepository(Generic[ModelType]):
                 if hasattr(self.model, key) and value is not None:
                     query = query.where(getattr(self.model, key) == value)
 
-        # 应用搜索条件（OR 多字段）
+        # 应用搜索条件（OR 多字段） / Apply search (OR across fields)
         if search:
             escaped_search = str(search).replace("%", r"\%").replace("_", r"\_")
             search_predicates = []
@@ -801,29 +856,29 @@ class BaseRepository(Generic[ModelType]):
             if search_predicates:
                 query = query.where(or_(*search_predicates))
 
-        # 查询总数
+        # 查询总数 / Count total
         count_query = select(func.count()).select_from(query.subquery())
         count_result = await self.db.execute(count_query)
         total = count_result.scalar() or 0
 
-        # 排序
+        # 排序 / Order by label field
         if hasattr(self.model, label_field):
             query = query.order_by(asc(getattr(self.model, label_field)))
 
-        # 分页或限制
+        # 分页或限制 / Pagination or cap
         if page >= 1:
-            # 分页模式
+            # 分页模式 / Paged
             offset = (page - 1) * page_size
             query = query.offset(offset).limit(page_size)
         else:
-            # 非分页模式，使用 limit
+            # 非分页模式，使用 limit / Non-paged: apply limit
             query = query.limit(limit)
 
-        # 执行查询
+        # 执行查询 / Execute query
         result = await self.db.execute(query)
         items = list(result.scalars().all())
 
-        # 构建 SelectOption 列表
+        # 构建 SelectOption 列表 / Build SelectOption rows
         return self._build_select_options(items, selectable), total
 
     async def _get_tree_select_options(
@@ -865,7 +920,7 @@ class BaseRepository(Generic[ModelType]):
                     if hasattr(self.model, key) and value is not None:
                         query = query.where(getattr(self.model, key) == value)
 
-            # 排序
+            # 排序 / Order by tree field
             if hasattr(self.model, order_field):
                 query = query.order_by(asc(getattr(self.model, order_field)))
 
@@ -873,7 +928,7 @@ class BaseRepository(Generic[ModelType]):
             result = await self.db.execute(query)
             items = list(result.scalars().all())
 
-            # 构建选项（带 is_leaf 标记）
+            # 构建选项（带 is_leaf 标记） / Build options with is_leaf
             return self._build_select_options(
                 items, selectable, tree_mode=True, children_field=children_field
             )
@@ -888,7 +943,7 @@ class BaseRepository(Generic[ModelType]):
                 if hasattr(self.model, key) and value is not None:
                     query = query.where(getattr(self.model, key) == value)
 
-        # 应用搜索条件
+        # 应用搜索条件 / Apply search
         if search:
             escaped_search = str(search).replace("%", r"\%").replace("_", r"\_")
             search_predicates = []
@@ -899,7 +954,7 @@ class BaseRepository(Generic[ModelType]):
             if search_predicates:
                 query = query.where(or_(*search_predicates))
 
-        # 排序
+        # 排序 / Order full tree
         if hasattr(self.model, order_field):
             query = query.order_by(asc(getattr(self.model, order_field)))
 
@@ -907,7 +962,7 @@ class BaseRepository(Generic[ModelType]):
         result = await self.db.execute(query)
         all_items = list(result.scalars().all())
 
-        # 构建树结构
+        # 构建树结构 / Build nested tree
         return self._build_tree_options(
             all_items, selectable, parent_field, children_field
         )
@@ -937,7 +992,7 @@ class BaseRepository(Generic[ModelType]):
             label = getattr(item, label_field, "")
             value = getattr(item, value_field, 0)
 
-            # 构建 extra 数据
+            # 构建 extra 数据 / Build extra payload
             extra = None
             if extra_fields:
                 extra = {}
@@ -945,7 +1000,7 @@ class BaseRepository(Generic[ModelType]):
                     if hasattr(item, ef):
                         extra[ef] = getattr(item, ef)
 
-            # 检查是否禁用
+            # 检查是否禁用 / Disabled if inactive
             disabled = False
             if hasattr(item, "is_active"):
                 disabled = not item.is_active
@@ -957,11 +1012,11 @@ class BaseRepository(Generic[ModelType]):
                 disabled=disabled,
             )
 
-            # 树型模式时添加 is_leaf 标记
+            # 树型模式时添加 is_leaf 标记 / Set is_leaf in tree mode
             if tree_mode:
                 children = getattr(item, children_field, None)
                 if children is not None:
-                    # 过滤已删除的子节点
+                    # 过滤已删除的子节点 / Drop soft-deleted children
                     active_children = [
                         c for c in children
                         if not getattr(c, "is_deleted", False)
@@ -995,18 +1050,18 @@ class BaseRepository(Generic[ModelType]):
         value_field = selectable.get("value", "id")
         extra_fields = selectable.get("extra", [])
 
-        # 构建 ID -> item 映射
+        # 构建 ID -> item 映射 / Map id -> model row
         item_map: dict[int, ModelType] = {}
         for item in items:
             item_map[getattr(item, value_field)] = item
 
-        # 构建 ID -> SelectOption 映射
+        # 构建 ID -> SelectOption 映射 / Map id -> SelectOption
         option_map: dict[int | str, SelectOption] = {}
         for item in items:
             value = getattr(item, value_field)
             label = getattr(item, label_field, "")
 
-            # 构建 extra 数据
+            # 构建 extra 数据 / Build extra payload
             extra = None
             if extra_fields:
                 extra = {}
@@ -1014,7 +1069,7 @@ class BaseRepository(Generic[ModelType]):
                     if hasattr(item, ef):
                         extra[ef] = getattr(item, ef)
 
-            # 检查是否禁用
+            # 检查是否禁用 / Disabled if inactive
             disabled = False
             if hasattr(item, "is_active"):
                 disabled = not item.is_active
@@ -1024,11 +1079,11 @@ class BaseRepository(Generic[ModelType]):
                 value=value,
                 extra=extra,
                 disabled=disabled,
-                children=[],  # 初始化为空列表
-                is_leaf=True,  # 默认为叶子节点
+                children=[],  # 初始化为空列表 / Init empty children
+                is_leaf=True,  # 默认为叶子节点 / Default leaf
             )
 
-        # 构建树结构
+        # 构建树结构 / Build tree from flat rows
         root_options: list[SelectOption] = []
         for item in items:
             value = getattr(item, value_field)
@@ -1036,14 +1091,14 @@ class BaseRepository(Generic[ModelType]):
             option = option_map[value]
 
             if parent_id is None or parent_id not in option_map:
-                # 根节点
+                # 根节点 / Root row
                 root_options.append(option)
             else:
-                # 子节点，添加到父节点的 children
+                # 子节点，添加到父节点的 children / Child under parent
                 parent_option = option_map[parent_id]
                 if parent_option.children is not None:
                     parent_option.children.append(option)
-                    parent_option.is_leaf = False  # 父节点不是叶子
+                    parent_option.is_leaf = False  # 父节点不是叶子 / Parent is not leaf
 
         return root_options
 
@@ -1149,7 +1204,7 @@ class BaseRepository(Generic[ModelType]):
         sort_field = sortable.get("field", "sort_order")
         step = sortable.get("step", 1000)
 
-        # 检查排序字段是否存在
+        # 检查排序字段是否存在 / Check if sort field exists
         if not hasattr(self.model, sort_field):
             raise ValueError(
                 f"Model {self.model.__name__} does not have field '{sort_field}'"
@@ -1227,9 +1282,12 @@ class BaseRepository(Generic[ModelType]):
             and "promoted_to_global_at" not in sortable_fields
         ):
             sortable_fields["promoted_to_global_at"] = self.model.promoted_to_global_at
-        # 总回收站默认按进入总回收站时间倒序，模块回收站默认按删除时间倒序
-        # Default sort: global stage by promoted_to_global_at desc, module stage by deleted_at desc
-        if not spec.sort and recycle_stage == RecycleStageEnum.GLOBAL.value and hasattr(self.model, "promoted_to_global_at"):
+        # 总回收站默认按进入总回收站时间倒序，模块回收站默认按删除时间倒序 / Default: global bin by promoted_to_global_at desc, module bin by deleted_at desc
+        if (
+            not spec.sort
+            and recycle_stage == RecycleStageEnum.GLOBAL.value
+            and hasattr(self.model, "promoted_to_global_at")
+        ):
             query = query.order_by(
                 desc(self.model.promoted_to_global_at),
                 desc(self.model.deleted_at),
@@ -1264,6 +1322,7 @@ class BaseRepository(Generic[ModelType]):
         query = select(func.count(self.model.id)).where(
             self.model.is_deleted.is_(True)
         )
+        query = self._apply_data_permission_if_needed(query)
         if delete_level:
             query = query.where(self.model.delete_level == delete_level)
         if recycle_stage:
@@ -1383,6 +1442,9 @@ class BaseRepository(Generic[ModelType]):
                 updated_at=utc_now(),
             )
         )
+        permission_condition = self._build_data_permission_condition()
+        if permission_condition is not None:
+            stmt = stmt.where(permission_condition)
         result = await self.db.execute(stmt)
         return result.rowcount
 
@@ -1404,6 +1466,9 @@ class BaseRepository(Generic[ModelType]):
             self.model.is_deleted.is_(True),
             self.model.recycle_stage == RecycleStageEnum.GLOBAL.value,
         )
+        permission_condition = self._build_data_permission_condition()
+        if permission_condition is not None:
+            stmt = stmt.where(permission_condition)
         result = await self.db.execute(stmt)
         return result.rowcount
 
@@ -1426,6 +1491,9 @@ class BaseRepository(Generic[ModelType]):
             self.model.promoted_to_global_at.is_not(None),
             self.model.promoted_to_global_at < cutoff,
         )
+        permission_condition = self._build_data_permission_condition()
+        if permission_condition is not None:
+            stmt = stmt.where(permission_condition)
         result = await self.db.execute(stmt)
         return result.rowcount
 
@@ -1491,19 +1559,8 @@ class TenantRepository(BaseRepository[ModelType]):
         return await super().count(include_deleted=include_deleted, **filters)
 
     async def create(self, data: dict[str, Any]) -> ModelType:
-        """创建企业级记录，对 __data_permission__ 模型自动填充 created_by / org_node_id / dept_id / Create tenant-scoped record, auto-fill created_by / org_node_id / dept_id for __data_permission__ models"""
+        """创建企业级记录，自动注入 tenant_id 与数据权限默认字段 / Create tenant record with tenant and data-scope defaults."""
         data[self._tenant_scope_field_name()] = self.tenant_id
-        if getattr(self.model, "__data_permission__", False):
-            from app.core.data_permission import data_permission_ctx
-
-            ctx = data_permission_ctx.get()
-            if ctx:
-                if "created_by" not in data and ctx.get("current_user_id") is not None and hasattr(self.model, "created_by"):
-                    data = {**data, "created_by": ctx["current_user_id"]}
-                if "org_node_id" not in data and ctx.get("primary_org_id") is not None and hasattr(self.model, "org_node_id"):
-                    data = {**data, "org_node_id": ctx["primary_org_id"]}
-                if "dept_id" not in data and ctx.get("primary_department_id") is not None and hasattr(self.model, "dept_id"):
-                    data = {**data, "dept_id": ctx["primary_department_id"]}
         return await super().create(data)
 
     async def get_by_id(
@@ -1600,7 +1657,7 @@ class TenantRepository(BaseRepository[ModelType]):
         Returns:
             (SelectOption 列表, 总数)
         """
-        # 自动添加企业过滤
+        # 自动添加企业过滤 / Auto-inject tenant filter
         all_filters = filters.copy() if filters else {}
         all_filters[self._tenant_scope_field_name()] = self.tenant_id
 
@@ -1646,6 +1703,7 @@ class TenantRepository(BaseRepository[ModelType]):
             self.model.is_deleted.is_(True),
             self._tenant_scope_column() == self.tenant_id,
         )
+        query = self._apply_data_permission_if_needed(query)
         if delete_level:
             query = query.where(self.model.delete_level == delete_level)
         if recycle_stage:
@@ -1672,6 +1730,9 @@ class TenantRepository(BaseRepository[ModelType]):
             )
             .values(**data)
         )
+        permission_condition = self._build_data_permission_condition()
+        if permission_condition is not None:
+            stmt = stmt.where(permission_condition)
         result = await self.db.execute(stmt)
         return result.rowcount
 
@@ -1700,6 +1761,9 @@ class TenantRepository(BaseRepository[ModelType]):
                 self._tenant_scope_column() == self.tenant_id,
             )
 
+        permission_condition = self._build_data_permission_condition()
+        if permission_condition is not None:
+            stmt = stmt.where(permission_condition)
         result = await self.db.execute(stmt)
         return result.rowcount
 
@@ -1724,6 +1788,9 @@ class TenantRepository(BaseRepository[ModelType]):
                 updated_at=utc_now(),
             )
         )
+        permission_condition = self._build_data_permission_condition()
+        if permission_condition is not None:
+            stmt = stmt.where(permission_condition)
         result = await self.db.execute(stmt)
         return result.rowcount
 
@@ -1738,9 +1805,11 @@ class TenantRepository(BaseRepository[ModelType]):
             self.model.recycle_stage == RecycleStageEnum.GLOBAL.value,
             self._tenant_scope_column() == self.tenant_id,
         )
+        permission_condition = self._build_data_permission_condition()
+        if permission_condition is not None:
+            stmt = stmt.where(permission_condition)
         result = await self.db.execute(stmt)
         return result.rowcount
-
 
 # 导出 / Exports
 __all__ = ["BaseRepository", "TenantRepository"]

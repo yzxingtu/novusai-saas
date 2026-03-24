@@ -19,14 +19,14 @@ from app.core.logging import get_logger
 
 logger = get_logger("app.i18n")
 
-# 当前请求的语言上下文
+# 当前请求的语言上下文 / Per-request locale context
 _current_locale: ContextVar[str] = ContextVar("current_locale", default="zh_CN")
 
-# 支持的语言列表
+# 支持的语言列表 / Supported locales
 SUPPORTED_LOCALES = ["zh_CN", "en"]
 DEFAULT_LOCALE = "zh_CN"
 
-# 翻译文件目录
+# 翻译文件目录 / Translation files directory
 LOCALES_DIR = Path(__file__).parent.parent / "locales"
 
 
@@ -87,8 +87,8 @@ def _load_translations(locale: str) -> dict[str, Any]:
     # 2. 扫描插件翻译文件
     # 两个位置：app/plugins/*/locales/ 和 plugins/*/locales/（已安装插件）
     _plugin_dirs = [
-        LOCALES_DIR.parent / "plugins",           # app/plugins/
-        LOCALES_DIR.parent.parent / "plugins",     # plugins/（已安装插件）
+        LOCALES_DIR.parent / "plugins",           # app/plugins/ / 源码插件目录
+        LOCALES_DIR.parent.parent / "plugins",     # plugins/（已安装插件） / installed plugins dir
     ]
     for plugins_dir in _plugin_dirs:
         if not plugins_dir.is_dir():
@@ -191,7 +191,7 @@ def translate(key: str, locale: str | None = None, **kwargs: Any) -> str:
             if isinstance(value, dict) and k in value:
                 value = value[k]
             else:
-                # 找不到翻译，尝试回退到默认语言
+                # 找不到翻译，尝试回退到默认语言 / Missing key: fallback locale
                 if locale != DEFAULT_LOCALE:
                     return translate(key, locale=DEFAULT_LOCALE, **kwargs)
                 # 默认语言也找不到，返回 key
@@ -202,7 +202,7 @@ def translate(key: str, locale: str | None = None, **kwargs: Any) -> str:
                 return translate(key, locale=DEFAULT_LOCALE, **kwargs)
             return key
 
-    # 格式化参数替换
+    # 格式化参数替换 / Format kwargs into template
     if kwargs:
         with contextlib.suppress(KeyError):
             value = value.format(**kwargs)
@@ -210,7 +210,7 @@ def translate(key: str, locale: str | None = None, **kwargs: Any) -> str:
     return value
 
 
-# 翻译函数别名
+# 翻译函数别名 / Alias for translate()
 _ = translate
 
 
@@ -233,14 +233,14 @@ def parse_accept_language(accept_language: str | None) -> str:
     if not accept_language:
         return DEFAULT_LOCALE
 
-    # 解析语言偏好列表
+    # 解析语言偏好列表 / Parse Accept-Language parts
     languages = []
     for part in accept_language.split(","):
         part = part.strip()
         if not part:
             continue
 
-        # 解析语言和权重
+        # 解析语言和权重 / Parse lang and q-weight
         if ";q=" in part:
             lang, q = part.split(";q=")
             try:
@@ -251,16 +251,16 @@ def parse_accept_language(accept_language: str | None) -> str:
             lang = part
             weight = 1.0
 
-        # 标准化语言代码
+        # 标准化语言代码 / Normalize locale code
         lang = lang.strip().replace("-", "_")
         languages.append((lang, weight))
 
-    # 按权重排序
+    # 按权重排序 / Sort by q-value
     languages.sort(key=lambda x: x[1], reverse=True)
 
-    # 查找最佳匹配
+    # 查找最佳匹配 / Pick best supported locale
     for lang, _ in languages:
-        # 精确匹配
+        # 精确匹配 / Exact locale match
         if lang in SUPPORTED_LOCALES:
             return lang
 
@@ -273,7 +273,7 @@ def parse_accept_language(accept_language: str | None) -> str:
     return DEFAULT_LOCALE
 
 
-# 导出
+# 导出 / Public exports
 __all__ = [
     "SUPPORTED_LOCALES",
     "DEFAULT_LOCALE",

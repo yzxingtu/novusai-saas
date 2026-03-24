@@ -58,6 +58,7 @@ import { CHAT_ACCEPT_ATTRIBUTE } from '#/constants/upload';
 import { $t } from '#/locales';
 import { useSocketIOStore } from '#/store';
 import { addConsent, getConsentedActions } from '#/utils/ai-consent';
+import { showRequestError } from '#/utils/error-helpers';
 import { toAvatarDisplayUrl } from '#/utils/image';
 import {
   type AppErrorInfo,
@@ -99,7 +100,7 @@ export function useAIChat(options: UseAIChatOptions) {
     });
   }
 
-  // ============ Agents ============
+  // ============ Agents / 智能体 ============
 
   const agents = ref<AgentItem[]>([]);
   const agentsLoading = ref(false);
@@ -150,11 +151,11 @@ export function useAIChat(options: UseAIChatOptions) {
     chatMessages.value = [];
     clearPendingAttachments();
     clearMentionedAgent();
-    // Clear cached variables when switching agents
-    // (they'll be re-initialized via watch + openVarsModal in the page component)
+    // Clear cached variables when switching agents / 切换智能体时清空缓存变量
+    // (they'll be re-initialized via watch + openVarsModal in the page component) / 由页面 watch 与弹窗再初始化
   }
 
-  // ============ Conversations ============
+  // ============ Conversations / 会话 ============
 
   const conversations = ref<ConversationItem[]>([]);
   const conversationsLoading = ref(false);
@@ -184,7 +185,7 @@ export function useAIChat(options: UseAIChatOptions) {
           conversation.id === activeConversationId.value,
       );
 
-      // Auto-load initial conversation (only once)
+      // Auto-load initial conversation (only once) / 仅一次自动加载初始会话
       const initConvId = unref(options.initialConversationId);
       if (
         initConvId &&
@@ -250,7 +251,7 @@ export function useAIChat(options: UseAIChatOptions) {
       const conv = conversations.value.find((c) => c.id === convId);
       if (conv) conv.title = title || null;
     } catch {
-      // handled by interceptor
+      // handled by interceptor / 错误由请求拦截器处理
     }
   }
 
@@ -286,7 +287,7 @@ export function useAIChat(options: UseAIChatOptions) {
         activeConversationAgentId.value = res.agent_id;
       }
 
-      // Pre-load variables for the agent from localStorage
+      // Pre-load variables for the agent from localStorage / 从 localStorage 预载智能体变量
       const agentId = selectedAgentId.value;
       if (agentId) {
         ensureAgentVarsLoaded(agentId);
@@ -294,9 +295,9 @@ export function useAIChat(options: UseAIChatOptions) {
 
       const merged = mergeMessagesForDisplay(res.message_list ?? []);
       chatMessages.value = merged;
-      // Restore lastMemoryUpdated from historical messages
+      // Restore lastMemoryUpdated from historical messages / 从历史消息恢复记忆更新标记
       lastMemoryUpdated.value = merged.some((m) => m.memoryUpdated);
-      // Restore trust-session preference for this conversation (persisted per convId)
+      // Restore trust-session preference for this conversation (persisted per convId) / 按会话恢复信任本会话选项
       try {
         const stored = sessionStorage.getItem(`ai_trust_session_${convId}`);
         trustSession.value = stored === '1';
@@ -309,7 +310,7 @@ export function useAIChat(options: UseAIChatOptions) {
     }
   }
 
-  // Persist trustSession when it changes (per active conversation)
+  // Persist trustSession when it changes (per active conversation) / 信任本会话变更时写入 sessionStorage
   watch(
     [trustSession, activeConversationId],
     ([trust, convId]) => {
@@ -320,7 +321,7 @@ export function useAIChat(options: UseAIChatOptions) {
             trust ? '1' : '0',
           );
         } catch {
-          // ignore
+          // ignore / 忽略写入失败
         }
       }
     },
@@ -378,13 +379,13 @@ export function useAIChat(options: UseAIChatOptions) {
   function mergeMessagesForDisplay(
     rawMessages: RawMessageItem[],
   ): ChatMessage[] {
-    // Filter out system messages
+    // Filter out system messages / 过滤 system 消息
     const filtered = rawMessages.filter((m) => m.role !== 'system');
     if (filtered.length === 0) return [];
 
     const result: ChatMessage[] = [];
 
-    // Collect tool responses keyed by tool_call_id for quick lookup
+    // Collect tool responses keyed by tool_call_id for quick lookup / 按 tool_call_id 索引 tool 回包
     const toolResponseMap = new Map<
       string,
       { content: string; error?: string; name?: string; success: boolean }
@@ -402,7 +403,7 @@ export function useAIChat(options: UseAIChatOptions) {
       }
     }
 
-    // Group consecutive non-user messages into assistant turns
+    // Group consecutive non-user messages into assistant turns / 合并连续非 user 为助手轮次
     let i = 0;
     while (i < filtered.length) {
       const msg = filtered[i]!;
@@ -418,7 +419,7 @@ export function useAIChat(options: UseAIChatOptions) {
         continue;
       }
 
-      // Collect all consecutive non-user messages as one assistant turn
+      // Collect all consecutive non-user messages as one assistant turn / 单轮助手合并多条消息
       const toolCalls: ToolCallEvent[] = [];
       const contentParts: string[] = [];
       const thinkingContentParts: string[] = [];
@@ -441,12 +442,12 @@ export function useAIChat(options: UseAIChatOptions) {
 
         if (cur.role === 'assistant') {
           if (cur.created_at) turnCreatedAt = cur.created_at;
-          // Capture agent info from the first assistant message in this turn
+          // Capture agent info from the first assistant message in this turn / 本轮首条 assistant 取 agent 信息
           if (turnAgentId === null && cur.agent_id) {
             turnAgentId = cur.agent_id;
             turnAgentName = cur.agent_name ?? null;
             turnAgentAvatar = cur.agent_avatar ?? null;
-            // Enrich from agents list
+            // Enrich from agents list / 从已加载 agents 列表补全描述等
             const agentInfo = agents.value.find((a) => a.id === cur.agent_id);
             if (agentInfo) {
               turnAgentDescription = agentInfo.description ?? null;
@@ -468,7 +469,7 @@ export function useAIChat(options: UseAIChatOptions) {
           if (turnRouteSource === null && typeof cur.metadata?.route_source === 'string') {
             turnRouteSource = cur.metadata.route_source;
           }
-          // Extract tool calls from this assistant message
+          // Extract tool calls from this assistant message / 解析本条的 tool_calls
           if (cur.tool_calls && cur.tool_calls.length > 0) {
             for (const tc of cur.tool_calls) {
               const tcId = tc.id ?? '';
@@ -484,7 +485,7 @@ export function useAIChat(options: UseAIChatOptions) {
                   : undefined;
               }
 
-              // Match with tool response (use metadata.tool_success for status)
+              // Match with tool response (use metadata.tool_success for status) / 与 tool 回包对齐状态
               const response = tcId ? toolResponseMap.get(tcId) : undefined;
 
               toolCalls.push({
@@ -504,7 +505,7 @@ export function useAIChat(options: UseAIChatOptions) {
             }
           }
 
-          // Check memory_updated flag in metadata
+          // Check memory_updated flag in metadata / 检查 metadata 记忆更新标记
           if (cur.metadata?.memory_updated) {
             hasMemoryUpdated = true;
           }
@@ -525,8 +526,8 @@ export function useAIChat(options: UseAIChatOptions) {
             thinkingContentParts.push(persistedThinking.trim());
           }
 
-          // Accumulate content from all assistant messages in this turn
-          // (matches streaming behavior where all deltas are concatenated)
+          // Accumulate content from all assistant messages in this turn / 拼接本轮所有 assistant 正文
+          // (matches streaming behavior where all deltas are concatenated) / 与流式增量拼接行为一致
           if (cur.content && cur.content.trim()) {
             // Backward compatibility: older tool rounds persisted "thinking" into
             // assistant.content instead of metadata.thinking_content. Recover them
@@ -545,11 +546,11 @@ export function useAIChat(options: UseAIChatOptions) {
             turnRagSources = rs as RagSource[];
           }
         }
-        // tool messages are already handled via toolResponseMap
+        // tool messages are already handled via toolResponseMap / tool 行已由 Map 处理
         i++;
       }
 
-      // Only add if we actually processed something
+      // Only add if we actually processed something / 确有内容再推入助手消息
       if (i > startIdx) {
         const assistantMsg: ChatMessage = {
           role: 'assistant',
@@ -588,7 +589,7 @@ export function useAIChat(options: UseAIChatOptions) {
     return result;
   }
 
-  // ============ Chat Messages ============
+  // ============ Chat Messages / 消息区 ============
 
   /** Guard: only restore initialConversationId once / 仅恢复一次 initialConversationId */
   let _initialConvRestored = false;
@@ -679,7 +680,7 @@ export function useAIChat(options: UseAIChatOptions) {
     mentionActiveIndex.value = 0;
   }
 
-  // ============ Input Variables ============
+  // ============ Input Variables / 输入变量 ============
 
   /** Per-agent variables: agentId → { varName: value } / 各智能体变量 */
   const allAgentsVariables = ref<Record<number, Record<string, string>>>({});
@@ -730,7 +731,7 @@ export function useAIChat(options: UseAIChatOptions) {
   }
 
   function clearConversationVarsCache() {
-    // no-op: variables are now persisted per-agent, not per-conversation
+    // no-op: variables are now persisted per-agent, not per-conversation / 变量已按智能体持久化，此接口空操作
   }
 
   /** Agents that have appeared in the conversation AND have input_variables / 对话中出现且含 input_variables 的智能体 */
@@ -865,7 +866,7 @@ export function useAIChat(options: UseAIChatOptions) {
       await navigator.clipboard.writeText(content);
       message.success($t('common.globalAiChat.copySuccess'));
     } catch {
-      // fallback silently
+      // fallback silently / 剪贴板失败则静默
     }
   }
 
@@ -911,7 +912,7 @@ export function useAIChat(options: UseAIChatOptions) {
     return false;
   }
 
-  // ============ Model Capabilities ============
+  // ============ Model Capabilities / 模型能力 ============
 
   /** 仅当后端明确 supports_vision=false 时禁止传图；未返回能力时保持兼容允许上传 */
   const supportsVision = computed(
@@ -960,7 +961,7 @@ export function useAIChat(options: UseAIChatOptions) {
     return result.valid;
   }
 
-  // ============ File Uploads ============
+  // ============ File Uploads / 附件上传 ============
 
   const pendingAttachments = ref<ChatAttachment[]>([]);
   const uploading = ref(false);
@@ -1057,11 +1058,7 @@ export function useAIChat(options: UseAIChatOptions) {
         preview: isImage ? URL.createObjectURL(fileToUpload) : undefined,
       };
     } catch (error: unknown) {
-      const errorMsg =
-        error instanceof Error
-          ? error.message
-          : $t('common.uploadValidation.uploadFailed');
-      message.error(errorMsg);
+      showRequestError(error, 'common.uploadValidation.uploadFailed');
       return null;
     } finally {
       uploading.value = false;
@@ -1128,7 +1125,7 @@ export function useAIChat(options: UseAIChatOptions) {
     pendingAttachments.value = [];
   }
 
-  // ============ SSE Streaming ============
+  // ============ SSE Streaming / SSE 流式 ============
 
   /**
    * 解析 SSE 行。对 message/thinking 在 handler 后 await nextTick，避免同一次 fetch chunk
@@ -1182,7 +1179,7 @@ export function useAIChat(options: UseAIChatOptions) {
     )
       return;
 
-    // Block sending if required input variables are not filled
+    // Block sending if required input variables are not filled / 必填变量未填则拦截发送
     const agent = agents.value.find((a) => a.id === targetAgentId);
     const requiredVars = getAgentInputVariables(agent).filter((v) => v.required);
     if (requiredVars.length > 0) {
@@ -1588,8 +1585,8 @@ export function useAIChat(options: UseAIChatOptions) {
 
     try {
       const prefix = unref(options.apiPrefix) as string;
-      // Refresh room binding before each request so page operations still work
-      // after backend reloads or transient Socket.IO room loss.
+      // Refresh room binding before each request so page operations still work / 每次请求前刷新页面会话房间
+      // after backend reloads or transient Socket.IO room loss. / 避免后端重启或 Socket 掉线后 pageop 失效
       refreshPageSessionRoom();
       const requestBody: AgentChatRequestBody = {
         ...(texts.length === 1
@@ -1645,7 +1642,7 @@ export function useAIChat(options: UseAIChatOptions) {
         },
       );
     } catch (err: unknown) {
-      // sendChatStreamApi throws on non-2xx; sse.ts does not call onError for HTTP errors
+      // sendChatStreamApi throws on non-2xx; sse.ts does not call onError for HTTP errors / 非 2xx 抛错，sse 层未必走 onError
       const normalizedError = normalizeSseTransportError(err, $t);
       const msg = chatMessages.value[assistantIdx];
       applyAssistantError(msg, normalizedError);
@@ -1661,7 +1658,7 @@ export function useAIChat(options: UseAIChatOptions) {
       userScrolledUp.value = false;
       finalizeMessage();
 
-      // Send deferred auto-confirm (trustSession approved during active stream)
+      // Send deferred auto-confirm (trustSession approved during active stream) / 流式中自动同意后延迟补发确认消息
       if (_deferredAutoConfirm && inputMessage.value.trim()) {
         _deferredAutoConfirm = false;
         await nextTick();
@@ -1716,10 +1713,10 @@ export function useAIChat(options: UseAIChatOptions) {
     const msg = chatMessages.value[msgIndex];
     if (!msg || msg.role !== 'user') return;
 
-    // Fill input with the user message content
+    // Fill input with the user message content / 将用户原文填回输入框
     inputMessage.value = msg.content;
 
-    // Remove this message and all subsequent messages
+    // Remove this message and all subsequent messages / 删除本条及之后消息
     chatMessages.value.splice(msgIndex);
 
     // Fork to new conversation: edited message will create new conv, not append to old / 分叉新会话
@@ -1848,7 +1845,7 @@ export function useAIChat(options: UseAIChatOptions) {
     const msg = chatMessages.value[msgIndex];
     if (!msg || msg.role !== 'assistant') return;
 
-    // Find the preceding user message
+    // Find the preceding user message / 向前查找最近一条 user
     let userMsgIndex = -1;
     for (let i = msgIndex - 1; i >= 0; i--) {
       if (chatMessages.value[i]?.role === 'user') {
@@ -1861,7 +1858,7 @@ export function useAIChat(options: UseAIChatOptions) {
     const userContent = chatMessages.value[userMsgIndex]!.content;
     const userAttachments = chatMessages.value[userMsgIndex]!.attachments;
 
-    // Remove the assistant message (and any messages after it)
+    // Remove the assistant message (and any messages after it) / 移除该 assistant 及之后消息
     chatMessages.value.splice(msgIndex);
 
     // Fork to new conversation: regenerate creates new branch, not overwrite in same conv / 分叉新会话
@@ -1869,7 +1866,7 @@ export function useAIChat(options: UseAIChatOptions) {
     activeConversationAgentId.value = null;
     messagesRequestSeq += 1;
 
-    // Re-send the user message
+    // Re-send the user message / 用原 user 内容再次发送
     inputMessage.value = userContent;
     clearPendingAttachments();
     if (userAttachments?.length) {
@@ -1906,10 +1903,10 @@ export function useAIChat(options: UseAIChatOptions) {
     abortActiveStream();
   }
 
-  // ============ Helpers ============
+  // ============ Helpers / 对外 API ============
 
   return {
-    // Agents
+    // Agents / 智能体
     agents,
     agentsLoading,
     selectedAgentId,
@@ -1917,7 +1914,7 @@ export function useAIChat(options: UseAIChatOptions) {
     loadAgents,
     selectAgent,
 
-    // Conversations
+    // Conversations / 会话
     conversations,
     conversationsLoading,
     activeConversationId,
@@ -1933,7 +1930,7 @@ export function useAIChat(options: UseAIChatOptions) {
     lastMemoryUpdated,
     loadConversationMessages,
 
-    // Chat
+    // Chat / 对话与发送
     chatMessages,
     inputMessage,
     mentionedAgentId,
@@ -1978,14 +1975,14 @@ export function useAIChat(options: UseAIChatOptions) {
     retryLastMessage,
     cleanup,
 
-    // Model capabilities
+    // Model capabilities / 模型能力
     supportsVision,
     imageParams,
     exportAsMarkdown,
     exportAsPlainText,
     totalTokensUsed,
 
-    // Attachments
+    // Attachments / 附件
     pendingAttachments,
     uploading,
     fileInput,

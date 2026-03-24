@@ -1,5 +1,17 @@
 # 后端 CRUD 开发完整指南
 
+## 目录
+
+- [新增 CRUD 模块步骤](#新增-crud-模块步骤)
+- [统一响应](#统一响应)
+- [异常体系](#异常体系)
+- [依赖注入](#依赖注入)
+- [权限装饰器](#权限装饰器)
+- [菜单权限系统](#菜单权限系统)
+- [中间件顺序](#中间件顺序)
+- [枚举规范](#枚举规范)
+- [日志](#日志)
+
 ## 新增 CRUD 模块步骤
 
 以「公告（Notice）」为例，**严格按以下 7 步执行**：
@@ -183,7 +195,7 @@ router = notice_controller.router
 
 ```bash
 alembic revision --autogenerate -m "add notice table"
-alembic upgrade head
+# 启动/热重载时会自动执行 alembic upgrade heads，一般无需手动 upgrade
 ```
 
 ---

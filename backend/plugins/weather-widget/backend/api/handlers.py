@@ -45,7 +45,7 @@ async def _get_plugin_config(ctx) -> dict:
         return {}
 
 
-# ── 路由 ──
+# ── 路由 / routes ──
 
 
 async def get_config(request, ctx) -> dict:

@@ -107,7 +107,7 @@ def _is_numeric(value: Any) -> bool:
 
 
 # ============================================
-# ResultFormatter
+# ResultFormatter / 查询结果格式化器
 # ============================================
 
 class ResultFormatter:

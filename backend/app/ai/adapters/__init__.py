@@ -32,7 +32,7 @@ class AdapterRegistry:
             adapter_class: Adapter class / 适配器类
         """
         if provider_type in cls._adapters and cls._adapters[provider_type] is adapter_class:
-            return  # idempotent: already registered same class, skip
+            return  # idempotent: already registered same class, skip / 幂等：已注册相同类则跳过
         cls._adapters[provider_type] = adapter_class
         logger.info(_("ai.log.adapter_registered"), extra={"provider_type": provider_type})
 

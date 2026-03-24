@@ -22,6 +22,7 @@ export interface OrgNodeFormData {
   allowMembers: boolean;
   isActive: boolean;
   sortOrder: number;
+  permissionIds: number[];
   dataScope: DataScopeType;
   customDeptIds: number[];
 }

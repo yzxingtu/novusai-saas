@@ -68,7 +68,7 @@ def build_assignment_item(
 
     is_override = assignment.tenant_id is not None
 
-    # Resolve global default agent info
+    # Resolve global default agent info / 解析全局默认智能体信息
     gd_agent_id = None
     gd_agent_name = None
     if global_default:
@@ -80,7 +80,7 @@ def build_assignment_item(
         except AttributeError:
             pass
     elif not is_override:
-        # Non-override item IS the global default
+        # Non-override item IS the global default / 非覆盖项即全局默认
         gd_agent_id = assignment.agent_id
         gd_agent_name = agent_name
 

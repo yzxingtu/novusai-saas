@@ -42,7 +42,7 @@ LOG_LEVELS = {
     "CRITICAL": "CRITICAL",
 }
 
-# 分类日志器名称前缀
+# 分类日志器名称前缀 / Category logger name prefix
 _CATEGORY_LOGGER_PREFIX = "novusai."
 
 
@@ -184,7 +184,7 @@ class LogManager:
 
         # 文件输出 / File sinks
         if enable_file:
-            # app.log
+            # app.log / 主应用日志文件
             logger.add(
                 cls._log_dir / "app.log",
                 format=file_fmt,
@@ -193,7 +193,7 @@ class LogManager:
                 retention=30,
                 filter=lambda r: r["extra"].get("category") in (None, "app", "error"),
             )
-            # error.log (ERROR+ only)
+            # error.log (ERROR+ only) / 仅 ERROR 及以上
             logger.add(
                 cls._log_dir / "error.log",
                 format=file_fmt,

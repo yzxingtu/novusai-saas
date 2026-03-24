@@ -65,3 +65,34 @@ logger.info("message")
 - 5xx 错误使用 `notification.error()` 替代 `message.error()`
 - 显示追踪 ID（从响应 header `X-Trace-ID` 读取）
 - 追踪 ID 旁带「复制」按钮，不自动关闭
+
+---
+
+## 八、前端请求错误展示规则
+
+### 1. 错误展示只能有一个 owner
+
+- `requestClient` 默认会处理请求错误消息。
+- 如果页面额外在 `catch` 中自行提示，必须先关闭该请求的：
+  - `showErrorMessage: false`
+  - `showCodeMessage: false`
+- 否则同一次错误会出现 **双重提示**。
+
+### 2. 页面层统一入口
+
+- 直接弹统一请求错误：`showRequestError(error, fallbackKey)`
+- 需要拼接自定义文案：`getErrorMessage(error, fallbackKey)`
+- **禁止** 对请求错误直接写：
+  - `catch { message.error($t('common.requestFailed')) }`
+  - `message.error(error.message)`
+
+### 3. 用户可见的请求错误必须尽量带 trace_id
+
+- 前端通过 `normalizeHttpError()` 从响应 body 或 header 抽取 `trace_id`
+- 生产环境：显示 **错误响应文字 + trace_id**
+- 开发环境：允许追加 `debugMessage`
+
+### 4. 后端接口契约建议
+
+- 推荐失败时返回标准错误响应，让前端进入统一 `AppError` 链路。
+- 不推荐长期保留 `200 + success=false + error/message/errors` 这种软失败协议；这会让前端只能手工分支，无法统一 `trace_id` 展示。

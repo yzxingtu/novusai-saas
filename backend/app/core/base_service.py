@@ -322,9 +322,9 @@ class BaseService(Generic[ModelType, RepoType]):
             page_size=page_size,
         )
 
-        # 构建响应
+        # 构建响应 / Build response
         if page >= 1:
-            # 分页模式，返回分页信息
+            # 分页模式，返回分页信息 / Paginated: include page meta
             has_more = (page * page_size) < total
             return SelectResponse(
                 items=items,
@@ -334,7 +334,7 @@ class BaseService(Generic[ModelType, RepoType]):
                 has_more=has_more,
             )
         else:
-            # 非分页模式，不返回分页信息
+            # 非分页模式，不返回分页信息 / Non-paginated: omit page meta
             return SelectResponse(items=items)
 
     # ========================================
@@ -631,22 +631,22 @@ class BaseService(Generic[ModelType, RepoType]):
         sort_field = sortable.get("field", "sort_order")
         scope_fields = sortable.get("scope_fields", [])
 
-        # 模型上必须有该排序字段
+        # 模型上必须有该排序字段 / Model must define sort field
         if not hasattr(self.model, sort_field):
             return
 
-        # 检查是否已传入有效的排序值
+        # 检查是否已传入有效的排序值 / Check explicit sort value
         current_value = data.get(sort_field)
         if current_value is not None and current_value > 0:
-            return  # 已传入有效值，不自动计算
+            return  # 已传入有效值，不自动计算 / Valid value provided; skip auto
 
-        # 构建作用域过滤条件
+        # 构建作用域过滤条件 / Build scope filters
         scope_filters = {}
         for field in scope_fields:
             if field in data:
                 scope_filters[field] = data[field]
 
-        # 计算下一个排序值
+        # 计算下一个排序值 / Compute next sort value
         next_value = await self.repo.get_next_sort_order(**scope_filters)
         data[sort_field] = next_value
 

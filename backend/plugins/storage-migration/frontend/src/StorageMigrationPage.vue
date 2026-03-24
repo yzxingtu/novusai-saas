@@ -175,7 +175,7 @@ async function loadDrivers() {
   try {
     drivers.value = await getStorageDriversApi();
   } catch {
-    // handled
+    // handled / 已处理
   }
 }
 
@@ -186,7 +186,7 @@ async function loadTasks() {
     tasks.value = result.items ?? [];
     totalTasks.value = result.total ?? 0;
   } catch {
-    // handled
+    // handled / 已处理
   } finally {
     loading.value = false;
   }
@@ -226,7 +226,7 @@ async function onAnalyzeImpact() {
       result as Partial<ImpactAnalysis>,
     );
   } catch {
-    // handled
+    // handled / 已处理
   } finally {
     analyzingImpact.value = false;
   }
@@ -256,7 +256,7 @@ function onCreateTask() {
           openDetail(result.task_id);
         }
       } catch {
-        // handled
+        // handled / 已处理
       } finally {
         creating.value = false;
       }
@@ -270,7 +270,7 @@ async function onPause(taskId: number) {
     message.success($t('admin.storageMigration.action.paused'));
     await loadTasks();
   } catch {
-    // handled
+    // handled / 已处理
   }
 }
 
@@ -281,7 +281,7 @@ async function onResume(taskId: number) {
     await loadTasks();
     startPolling();
   } catch {
-    // handled
+    // handled / 已处理
   }
 }
 
@@ -296,7 +296,7 @@ function onCancel(taskId: number) {
         message.success($t('admin.storageMigration.action.cancelled'));
         await loadTasks();
       } catch {
-        // handled
+        // handled / 已处理
       }
     },
   });
@@ -309,7 +309,7 @@ async function onRetryFailed(taskId: number) {
     await loadTasks();
     startPolling();
   } catch {
-    // handled
+    // handled / 已处理
   }
 }
 
@@ -324,7 +324,7 @@ function onRollback(taskId: number) {
         message.success($t('admin.storageMigration.action.rollbackDone'));
         await loadTasks();
       } catch {
-        // handled
+        // handled / 已处理
       }
     },
   });
@@ -341,7 +341,7 @@ function onCleanupSource(taskId: number) {
         message.success($t('admin.storageMigration.action.cleanupDone', { count: result.deleted_files }));
         await loadTasks();
       } catch {
-        // handled
+        // handled / 已处理
       }
     },
   });

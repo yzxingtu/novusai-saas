@@ -58,16 +58,16 @@ const emit = defineEmits<{
   'update:value': [val: string];
 }>();
 
-// ── i18n helper ──
+// ── i18n helper / 国际化封装 ──
 function t(key: string): string {
   return $t(`${props.localePrefix}.toolkitEditor.${key}`);
 }
 
-// ── Dark mode ──
+// ── Dark mode / 深色模式 ──
 const { isDark } = usePreferences();
 const monacoTheme = computed(() => (isDark.value ? 'vs-dark' : 'vs'));
 
-// ── Monaco Editor (lazy-loaded via defineAsyncComponent) ──
+// ── Monaco Editor (lazy-loaded via defineAsyncComponent) / Monaco 懒加载 ──
 const MonacoEditor = defineAsyncComponent({
   loader: () => import('@guolao/vue-monaco-editor'),
   loadingComponent: { render: () => null },
@@ -84,7 +84,7 @@ const editorOptions = {
   automaticLayout: true,
 };
 
-// ── Parse state ──
+// ── Parse state / 解析状态 ──
 const parseResult = ref<null | ToolkitParseResult>(null);
 const isParsing = ref(false);
 
@@ -116,7 +116,7 @@ function handleEditorChange(val = '') {
   debouncedParse(val);
 }
 
-// Auto-fill blank template when value is empty (new skill)
+// Auto-fill blank template when value is empty (new skill) / 新技能时空值填入模板
 watch(
   () => props.value,
   (v) => {
@@ -130,7 +130,7 @@ watch(
   { immediate: true },
 );
 
-// ── Computed helpers ──
+// ── Computed helpers / 计算属性 ──
 const tools = computed<ToolkitToolInfo[]>(() => parseResult.value?.tools ?? []);
 const valvesSchema = computed(() => parseResult.value?.valves_schema ?? {});
 const hasValves = computed(() => Object.keys(valvesSchema.value).length > 0);
@@ -164,7 +164,7 @@ function getValveDefault(prop: Record<string, unknown>): unknown {
   return prop.default;
 }
 
-// ── Templates ──
+// ── Templates / 代码模板 ──
 const BLANK_TEMPLATE = `"""
 title: My Toolkit
 description: A custom toolkit
@@ -247,7 +247,7 @@ function applyTemplate(tpl: string) {
   debouncedParse(tpl);
 }
 
-// ── File upload ──
+// ── File upload / 文件上传 ──
 function handleBeforeUpload(file: File): false {
   if (!file.name.endsWith('.py')) {
     message.error(t('onlyPyFiles'));
@@ -266,7 +266,7 @@ function handleBeforeUpload(file: File): false {
   return false;
 }
 
-// ── Active panel for collapse ──
+// ── Active panel for collapse / 折叠面板激活项 ──
 const activeKeys = ref<string[]>(['tools']);
 </script>
 

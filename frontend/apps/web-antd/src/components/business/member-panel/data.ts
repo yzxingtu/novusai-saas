@@ -24,6 +24,8 @@ export interface MemberRoleOption {
  * @param options - Configuration options / 配置选项
  */
 export function useAdminFormSchema(options: {
+  /** API prefix / API 前缀 */
+  apiPrefix?: 'admin' | 'tenant';
   /** Whether in edit mode / 是否编辑模式 */
   isEdit?: boolean;
   /** Current org node ID (for default selection) / 当前组织节点 ID（用于默认选中） */
@@ -35,7 +37,14 @@ export function useAdminFormSchema(options: {
   /** Permission role options / 权限角色选项 */
   roleOptions?: MemberRoleOption[];
 }): VbenFormSchema[] {
-  const { isEdit = false, nodeName, nodeId, orgTreeApi, roleOptions = [] } = options;
+  const {
+    apiPrefix = 'admin',
+    isEdit = false,
+    nodeName,
+    nodeId,
+    orgTreeApi,
+    roleOptions = [],
+  } = options;
 
   return [
     // === Basic Info / 基本信息 ===
@@ -163,20 +172,24 @@ export function useAdminFormSchema(options: {
             },
           ]
         : []),
-    {
-      component: 'Select',
-      componentProps: {
-        allowClear: true,
-        options: roleOptions,
-        optionFilterProp: 'label',
-        placeholder: $t('shared.memberPanel.selectPermissionRole'),
-        showSearch: true,
-        style: { width: '100%' },
-      },
-      fieldName: 'role_id',
-      label: $t('shared.memberPanel.permissionRole'),
-      help: $t('shared.memberPanel.permissionRoleHelp'),
-    },
+    ...(apiPrefix === 'tenant'
+      ? [
+          {
+            component: 'Select',
+            componentProps: {
+              allowClear: true,
+              options: roleOptions,
+              optionFilterProp: 'label',
+              placeholder: $t('shared.memberPanel.selectPermissionRole'),
+              showSearch: true,
+              style: { width: '100%' },
+            },
+            fieldName: 'role_id',
+            label: $t('shared.memberPanel.permissionRole'),
+            help: $t('shared.memberPanel.permissionRoleHelp'),
+          },
+        ]
+      : []),
     {
       component: 'RadioGroup',
       componentProps: {
@@ -198,9 +211,11 @@ export function useAdminFormSchema(options: {
  * Admin form default values (create mode)
  * 管理员表单默认值（新建模式）
  * @param nodeName - Org node name / 组织节点名称
- * @param nodeId - Org node ID (for default role selection) / 组织节点 ID（用于默认选中角色）
+ * @param apiPrefix - API prefix / API 前缀
+ * @param nodeId - Org node ID (for default selection) / 组织节点 ID（用于默认选中）
  */
 export function getAdminFormDefaults(
+  apiPrefix: 'admin' | 'tenant' = 'admin',
   nodeName?: string,
   nodeId?: null | number,
 ): Record<string, unknown> {
@@ -208,7 +223,7 @@ export function getAdminFormDefaults(
     is_active: true,
     org_node_display: nodeName || $t('shared.common.notAssigned'),
     org_node_id: nodeId ?? undefined,
-    role_id: undefined,
+    ...(apiPrefix === 'tenant' ? { role_id: undefined } : {}),
   };
 }
 

@@ -464,7 +464,6 @@
       "noQuotaLimit": "0 表示不限制",
       "noSkills": "该技能包暂无技能",
       "ragHint": "智能体级 RAG 配置是运行时检索入口；多知识库会按知识库独立召回后再融合。",
-      "noKnowledgeBases": "暂未绑定知识库",
       "kbWeight": "权重",
       "kbEnabled": "启用",
       "kbDocCount": "文档数",
@@ -472,8 +471,6 @@
       "kbEmbeddingDimensions": "向量维度",
       "kbChunkStrategy": "分块策略",
       "kbWeightFusionHint": "权重已接入多知识库融合排序，作为先验偏置使用，不会硬性覆盖相关性。",
-      "selectKnowledgeBase": "选择知识库",
-      "bindKnowledgeBase": "绑定",
       "uploadAvatar": "上传头像",
       "removeAvatar": "删除头像",
       "knowledgeBasesGlobalHint": "此处绑定为平台全局知识库：所有被分配或可使用该智能体的企业，在对话 RAG 中默认都会使用这些知识库。企业可在企业端对单个平台知识库选择「本企业不使用」，仅影响本企业检索，不改变此处配置。"
@@ -606,6 +603,30 @@
       "manageBindings": "管理技能绑定",
       "selectedCount": "已选 {count} 项"
     },
+    "kbPicker": {
+      "title": "选择知识库绑定",
+      "subtitle": "按知识库名称、描述和作用域快速筛选候选项，并一次性保存智能体的知识库绑定集合。",
+      "searchPlaceholder": "搜索知识库名称、描述或 ID",
+      "scopeFilter": "按作用域筛选",
+      "refresh": "刷新列表",
+      "candidates": "可选知识库",
+      "selected": "已选知识库",
+      "scopes": "作用域",
+      "matches": "匹配结果",
+      "filtered": "已应用筛选",
+      "resultSummary": "当前共匹配 {count} 个知识库，覆盖 {scopes} 种作用域",
+      "candidateHint": "从左侧浏览候选知识库，点击整行即可勾选或取消勾选。当前共有 {count} 个匹配项。",
+      "selectedBadge": "已选中",
+      "selectionSummary": "{count} 个知识库 / {scopes} 种作用域",
+      "selectionHint": "从左侧候选区勾选知识库后，这里会保留选择，并在确认时整体替换当前绑定集合。",
+      "detailEmptyHint": "这个智能体当前没有任何知识库绑定。点击上方按钮后，可按作用域筛选候选知识库并统一保存。",
+      "replaceNotice": "确认保存时会整体替换当前知识库绑定，请先在右侧确认本次要保留的知识库。",
+      "emptyCandidates": "没有匹配的知识库",
+      "emptySelected": "尚未选择知识库",
+      "remove": "移除",
+      "manageBindings": "管理知识库绑定",
+      "selectedCount": "已选 {count} 项"
+    },
     "quotaConfig": {
       "conversationsPerDay": "每日对话上限",
       "tokensPerDay": "每日 Token 上限",
@@ -648,7 +669,7 @@
       "selectOrgNodes": "选择组织节点",
       "inputUserIds": "输入用户 ID，多个用逗号分隔",
       "inputRoleIds": "输入角色 ID，多个用逗号分隔",
-      "selectRoles": "请选择角色",
+      "selectRoles": "请选择组织节点",
       "inputTemperature": "0-2，值越高输出越随机",
       "inputMaxTokens": "单次回复最大输出 Token 数（只限制输出）",
       "inputTopP": "0-1，与 temperature 配合使用"
@@ -699,12 +720,12 @@
     "orgNodes": "组织节点",
     "specificUsers": "指定用户",
     "roleAccess": "角色权限控制",
-    "adminRoleAccess": "管理端角色权限",
+    "adminRoleAccess": "管理端组织节点权限",
     "tenantRoleAccess": "企业端角色权限",
     "userRoleAccess": "用户端角色权限",
     "roleMode": {
       "all": "全部可用",
-      "specific": "指定角色"
+      "specific": "指定组织节点"
     },
     "visibility_options": {
       "public": "公开",
@@ -729,8 +750,8 @@
       "accessUpdated": "访问权限已更新",
       "visibilityPublicHint": "所有用户都可以看到并使用此智能体",
       "visibilityPrivateHint": "仅授权的用户才能看到并使用此智能体",
-      "accessRoleHint": "通过角色控制哪些管理员可以使用此智能体。选择「全部可用」则不限制角色。",
-      "noAdminAccess": "当前智能体的目标受众不包含管理端，无需配置管理端角色权限。"
+      "accessRoleHint": "通过组织节点控制哪些管理员可以使用此智能体。选择「全部可用」则不限制组织节点。",
+      "noAdminAccess": "当前智能体的目标受众不包含管理端，无需配置管理端组织节点权限。"
     }
   },
   "conversation": {

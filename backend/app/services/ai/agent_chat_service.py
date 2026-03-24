@@ -792,7 +792,7 @@ class AgentChatService:
         )
         memory_event_id = self._build_memory_event_id(conversation.id)
 
-        # 1.5 新对话时递增每日对话计数
+        # 1.5 新对话时递增每日对话计数 / 1.5 Increment daily conversation count on new chat
         if is_new_conversation:
             await AgentQuotaManager.record_conversation(
                 tenant_id=self.tenant_id,
@@ -1053,7 +1053,7 @@ class AgentChatService:
                     len(result.messages) > system_count + history_count
                 )
                 if result.success or has_new_messages:
-                    # 先提交消息和统计，再做可能较慢的记忆抽取，避免后半段取消导致历史整笔回滚。
+                    # 先提交消息和统计，再做可能较慢的记忆抽取，避免后半段取消导致历史整笔回滚。 / Commit messages and stats first, then slower memory extract to avoid full rollback on late cancel
                     # Commit message persistence first, then run slower memory extraction separately.
                     async with async_session_factory() as cb_db:
                         try:

@@ -33,7 +33,7 @@ class AgentKBBindingService:
         else:
             from app.repositories.ai.agent_repository import AdminAgentRepository
             self.binding_repo = AgentKBBindingRepository(db, None)
-            self.agent_repo = AdminAgentRepository(db)  # type: ignore[assignment]
+            self.agent_repo = AdminAgentRepository(db)  # type: ignore[assignment]  # 类型存根 / typing stub
 
     async def _get_kb_repo(self):
         """延迟获取 KB 仓库（避免循环导入） / Lazy get KB repo (avoid circular import)."""

@@ -17,8 +17,8 @@ from app.core.response import build_error_payload
 
 
 _login_buckets: dict[str, list[float]] = defaultdict(list)
-_LOGIN_WINDOW = 60  # seconds
-_LOGIN_MAX = 10  # requests per window
+_LOGIN_WINDOW = 60  # seconds / 窗口秒数
+_LOGIN_MAX = 10  # requests per window / 窗口内最大请求数
 _eviction_last = 0.0
 
 

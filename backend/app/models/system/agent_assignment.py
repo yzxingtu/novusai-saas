@@ -107,7 +107,7 @@ class SystemAgentAssignment(BaseModel):
         comment=_("system_agent_assignment.field.is_active"),
     )
 
-    # ==================== 关系 ====================
+    # ==================== 关系 / Relationships ====================
 
     agent = relationship(
         "Agent",

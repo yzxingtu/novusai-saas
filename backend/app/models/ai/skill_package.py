@@ -44,7 +44,7 @@ class SkillPackage(TenantModel):
         comment="企业ID（平台级包为 NULL，企业自有包为企业 ID）/ Tenant ID (NULL for platform packages, tenant ID for tenant-owned)"
     )
 
-    # 允许前端筛选的字段
+    # 允许前端筛选的字段 / Fields exposed for list filtering
     __filterable__ = {
         "id": "id",
         "name": "name",
@@ -55,7 +55,7 @@ class SkillPackage(TenantModel):
         "created_at": "created_at",
     }
 
-    # 允许排序的字段
+    # 允许排序的字段 / Sortable columns for UI
     __sortable__ = {
         "id": "id",
         "name": "name",
@@ -64,7 +64,7 @@ class SkillPackage(TenantModel):
         "updated_at": "updated_at",
     }
 
-    # 下拉选择配置
+    # 下拉选择配置 / Select dropdown config
     __selectable__ = {
         "label": "name",
         "value": "id",
@@ -72,7 +72,7 @@ class SkillPackage(TenantModel):
         "extra": ["is_system", "source_plugin"],
     }
 
-    # ==================== 基本信息 ====================
+    # ==================== 基本信息 ==================== / Basic info
 
     name: Mapped[str] = mapped_column(
         String(100),
@@ -91,7 +91,7 @@ class SkillPackage(TenantModel):
         comment=_("skill_package.field.avatar"),
     )
 
-    # ==================== 推荐标记 ====================
+    # ==================== 推荐标记 ==================== / Recommendation flag
 
     is_recommended: Mapped[bool] = mapped_column(
         Boolean,
@@ -100,7 +100,7 @@ class SkillPackage(TenantModel):
         comment=_("skill_package.field.is_recommended"),
     )
 
-    # ==================== 来源标记 ====================
+    # ==================== 来源标记 ==================== / Source plugin
 
     source_plugin: Mapped[str | None] = mapped_column(
         String(100),
@@ -110,7 +110,7 @@ class SkillPackage(TenantModel):
         comment=_("skill_package.field.source_plugin"),
     )
 
-    # ==================== 系统标记 ====================
+    # ==================== 系统标记 ==================== / System flags
 
     is_system: Mapped[bool] = mapped_column(
         Boolean,
@@ -120,7 +120,7 @@ class SkillPackage(TenantModel):
         comment=_("skill_package.field.is_system"),
     )
 
-    # ==================== Valves 配置 ====================
+    # ==================== Valves 配置 ==================== / Valves schema
 
     valves_schema: Mapped[dict | None] = mapped_column(
         JSONB,
@@ -135,7 +135,7 @@ class SkillPackage(TenantModel):
         comment=_("skill_package.field.valves_config"),
     )
 
-    # ==================== 状态与排序 ====================
+    # ==================== 状态与排序 ==================== / Status and order
 
     is_active: Mapped[bool] = mapped_column(
         Boolean,
@@ -150,7 +150,7 @@ class SkillPackage(TenantModel):
         comment=_("skill_package.field.sort_order"),
     )
 
-    # ==================== 关系 ====================
+    # ==================== 关系 ==================== / Relationships
 
     skills = relationship(
         "Skill",
@@ -159,7 +159,7 @@ class SkillPackage(TenantModel):
         cascade="all, delete-orphan",
     )
 
-    # ==================== 复合索引 ====================
+    # ==================== 复合索引 ==================== / Composite indexes
 
     __table_args__ = (
         Index("ix_skill_packages_tenant_active", "tenant_id", "is_active"),

@@ -7,12 +7,14 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from collections.abc import Iterable
 from pathlib import Path
 
 from sqlalchemy import create_engine, text
 
 logger = logging.getLogger(__name__)
+_REVISION_PATTERN = re.compile(r"""^\s*revision\s*=\s*["']([^"']+)["']\s*$""")
 
 
 def resolve_backend_dir(backend_dir: Path | None = None) -> Path:
@@ -77,6 +79,100 @@ def get_db_registered_plugin_names(*, db_url: str | None = None) -> list[str]:
         engine.dispose()
 
 
+def get_alembic_version_nums(*, db_url: str | None = None) -> set[str]:
+    """
+    Load stamped alembic revisions from DB.
+    / 从数据库读取已盖章的 alembic revision。
+    """
+    target_db_url = (db_url or _get_default_db_url() or "").replace("\\", "/")
+    if not target_db_url:
+        return set()
+
+    engine = create_engine(target_db_url, echo=False)
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(text("SELECT version_num FROM alembic_version")).fetchall()
+        return {
+            str(row[0]).strip()
+            for row in rows
+            if row and str(row[0] or "").strip()
+        }
+    except Exception as exc:
+        logger.debug("Cannot resolve stamped alembic revisions for migrations: %s", exc)
+        return set()
+    finally:
+        engine.dispose()
+
+
+def resolve_repo_plugin_names(*, backend_dir: Path | None = None) -> list[str]:
+    """List repo plugin names that have backend migration folders. / 列出仓库中带迁移目录的插件。"""
+    backend = resolve_backend_dir(backend_dir)
+    plugins_root = backend / "plugins"
+    if not plugins_root.is_dir():
+        return []
+
+    names: list[str] = []
+    for plugin_root in sorted(plugins_root.iterdir(), key=lambda item: item.name):
+        if not plugin_root.is_dir():
+            continue
+        versions_dir = plugin_root / "backend" / "migrations" / "versions"
+        if versions_dir.is_dir():
+            names.append(plugin_root.name)
+    return names
+
+
+def resolve_plugin_revision_ids(
+    plugin_name: str,
+    *,
+    backend_dir: Path | None = None,
+) -> set[str]:
+    """
+    Read revision ids declared by one plugin migration branch.
+    / 读取单个插件迁移分支声明的 revision id。
+    """
+    versions_dir = resolve_plugin_versions_dir(plugin_name, backend_dir=backend_dir)
+    if not versions_dir.is_dir():
+        return set()
+
+    revision_ids: set[str] = set()
+    for script_path in versions_dir.glob("*.py"):
+        try:
+            lines = script_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+        except Exception as exc:
+            logger.debug("Cannot read migration script %s: %s", script_path, exc)
+            continue
+        for line in lines[:80]:
+            match = _REVISION_PATTERN.match(line)
+            if match:
+                revision_ids.add(match.group(1).strip())
+                break
+    return revision_ids
+
+
+def get_stamped_plugin_names(
+    *,
+    backend_dir: Path | None = None,
+    db_url: str | None = None,
+) -> list[str]:
+    """
+    Resolve repo plugins whose revisions are already stamped in DB.
+    / 解析数据库已盖章 revision 所属的仓库插件。
+    """
+    stamped_revision_ids = get_alembic_version_nums(db_url=db_url)
+    if not stamped_revision_ids:
+        return []
+
+    names: list[str] = []
+    for plugin_name in resolve_repo_plugin_names(backend_dir=backend_dir):
+        revision_ids = resolve_plugin_revision_ids(
+            plugin_name,
+            backend_dir=backend_dir,
+        )
+        if revision_ids & stamped_revision_ids:
+            names.append(plugin_name)
+    return names
+
+
 def _get_default_db_url() -> str:
     """Resolve DATABASE_URL_SYNC lazily to avoid core import cycles. / 惰性读取数据库 URL，避免 core 循环导入。"""
     from app.core.config import settings
@@ -92,6 +188,12 @@ def get_migration_plugin_names(
 ) -> list[str]:
     """Resolve plugin names participating in migration graph. / 解析参与迁移图的插件名。"""
     plugin_names = set(get_db_registered_plugin_names(db_url=db_url))
+    plugin_names.update(
+        get_stamped_plugin_names(
+            backend_dir=backend_dir,
+            db_url=db_url,
+        )
+    )
     for plugin_name in include_plugin_names or ():
         normalized = str(plugin_name or "").strip()
         if normalized:

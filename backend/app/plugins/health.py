@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 from app.core.base_model import utc_now
 from app.core.logging import get_logger
+from app.core.response import resolve_public_error_message
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -140,7 +141,16 @@ class PluginHealthMonitor:
                 plugin_name, exc,
             )
             plugin.status = PluginStatusEnum.ERROR.value
-            plugin.error_message = f"Auto-disabled after {plugin.error_count} consecutive errors (lifecycle disable failed: {exc})"
+            plugin.error_message = (
+                "Auto-disabled after "
+                f"{plugin.error_count} consecutive errors "
+                "("
+                + resolve_public_error_message(
+                    exc,
+                    fallback_message="lifecycle disable failed",
+                )
+                + ")"
+            )
             plugin.updated_at = utc_now()
             await self._db.flush()
 

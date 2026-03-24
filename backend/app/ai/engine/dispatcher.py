@@ -24,6 +24,7 @@ from app.ai.tools.sandbox import SandboxConfig, ToolSandbox
 from app.ai.utils.token_estimator import estimate_tokens
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.core.response import build_public_error_text
 from app.enums.agent import AgentExecutionModeEnum, AgentStatusEnum
 from app.exceptions import BusinessException, NotFoundException
 from app.models.ai.agent import Agent
@@ -285,13 +286,20 @@ class ExecutionDispatcher:
                     )
 
             if agent:
+                public_error = build_public_error_text(
+                    message=_("common.server_error"),
+                    exc=exc,
+                )
                 await BaseEngine._publish_execution_failed(
-                    request, agent, str(exc), type(exc).__name__,
+                    request, agent, public_error, type(exc).__name__,
                 )
 
             return ExecutionResult(
                 success=False,
-                error=str(exc),
+                error=build_public_error_text(
+                    message=_("common.server_error"),
+                    exc=exc,
+                ),
                 duration_ms=duration_ms,
             )
 

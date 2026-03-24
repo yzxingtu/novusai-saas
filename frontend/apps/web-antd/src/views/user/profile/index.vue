@@ -30,6 +30,7 @@ import { getUserProfileApi, updateUserProfileApi } from '#/api/user/auth';
 import { $t } from '#/locales';
 import { usePublicConfigStore } from '#/store/shared/public-config';
 import { formatDate, formatDateOnly } from '#/utils/common';
+import { showRequestError } from '#/utils/error-helpers';
 import { toAttachmentImageUrl, toAvatarDisplayUrl } from '#/utils/image';
 
 defineOptions({ name: 'UserProfile' });
@@ -102,8 +103,8 @@ async function loadProfile() {
     const data = await getUserProfileApi();
     profile.value = data;
     syncFormFromProfile(data);
-  } catch {
-    message.error($t('common.loadFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.loadFailed');
   } finally {
     loading.value = false;
   }
@@ -131,8 +132,8 @@ async function handleSaveProfile() {
         avatar: data.avatar || '',
       });
     }
-  } catch {
-    message.error($t('common.saveFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.saveFailed');
   } finally {
     saving.value = false;
   }
@@ -161,8 +162,8 @@ async function handleAvatarUpload(file: File) {
     }
 
     message.success($t('user.profile.messages.avatarUpdated'));
-  } catch {
-    message.error($t('user.profile.messages.avatarFailed'));
+  } catch (error) {
+    showRequestError(error, 'user.profile.messages.avatarFailed');
   } finally {
     avatarUploading.value = false;
   }

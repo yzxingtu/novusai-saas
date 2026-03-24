@@ -3192,7 +3192,7 @@
   "config.tenant.user_terms_html.name": "服务条款正文（富文本）",
   "config.tenant.user_terms_html.desc": "用户端站内展示的服务条款 HTML。注册页链接规则：若已填上方外链，始终打开外链；仅当外链留空且此处有正文时，才链到站内页。空编辑器产生的无文字 HTML 视为未配置。",
   "enum.config_value_type.html": "HTML",
-  "agent_access.admin_role_ids": "管理端角色授权",
+  "agent_access.admin_role_ids": "管理端组织节点授权",
   "agent_access.tenant_role_ids": "企业端角色授权",
   "agent_access.access_type": "历史访问类型（兼容库表 NOT NULL）；终端用户规则请用企业发布配置",
   "skill_package.system.engine": "系统引擎技能包",

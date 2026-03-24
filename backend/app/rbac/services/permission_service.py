@@ -16,6 +16,7 @@ from app.models import Admin, Permission, TenantAdmin, TenantUser
 from app.models.auth.admin_role import AdminRole
 from app.models.auth.tenant_admin_role import TenantAdminRole
 from app.models.auth.tenant_user_role import TenantUserRole
+from app.models.org.admin_org_node import AdminOrgNode
 from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_plan import TenantPlan
 from app.schemas.common import MenuResponse, PermissionResponse, PermissionTreeResponse
@@ -36,6 +37,20 @@ class PermissionService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def _get_admin_org_node(self, admin: Admin) -> AdminOrgNode | None:
+        if admin.org_node_id is None:
+            return None
+
+        result = await self.db.execute(
+            select(AdminOrgNode)
+            .where(AdminOrgNode.id == admin.org_node_id)
+            .options(selectinload(AdminOrgNode.permissions))
+        )
+        org_node = result.scalar_one_or_none()
+        if org_node is None or org_node.is_deleted or not org_node.is_active:
+            return None
+        return org_node
+
     async def get_admin_permissions(
         self,
         admin: Admin,
@@ -54,7 +69,14 @@ class PermissionService:
         if admin.is_super:
             return {"*"}
 
-        # No role means no permissions / 无角色则无权限
+        org_node = await self._get_admin_org_node(admin)
+        if org_node is not None:
+            return {
+                p.code for p in org_node.permissions
+                if p.is_enabled and not p.is_deleted
+            }
+
+        # No org node and no role means no permissions / 无组织节点且无角色则无权限
         if admin.role_id is None:
             return set()
 
@@ -98,7 +120,14 @@ class PermissionService:
             )
             return set(result.scalars().all())
 
-        # No role means no permissions / 无角色则无权限
+        org_node = await self._get_admin_org_node(admin)
+        if org_node is not None:
+            return {
+                p.id for p in org_node.permissions
+                if p.is_enabled and not p.is_deleted
+            }
+
+        # No org node and no role means no permissions / 无组织节点且无角色则无权限
         if admin.role_id is None:
             return set()
 
@@ -986,6 +1015,29 @@ class PermissionService:
         all_permissions = await self.get_enabled_permissions_by_scope(
             PermissionScope.TENANT.value
         )
+        from app.services.system.plugin_service import PluginService
+
+        visible_plugin_safe_names = {
+            name.replace("-", "_")
+            for name in await PluginService(self.db).get_tenant_visible_plugin_names(
+                tenant_admin.tenant_id,
+            )
+        }
+
+        def _menu_visible_for_tenant(permission: Permission) -> bool:
+            if not self._is_plugin_menu(permission.code):
+                return True
+            name_key = str(permission.name or "")
+            safe_name = name_key.split(".", 1)[0].strip()
+            if not safe_name:
+                return False
+            return safe_name in visible_plugin_safe_names
+
+        all_permissions = [
+            permission
+            for permission in all_permissions
+            if permission.type != "menu" or _menu_visible_for_tenant(permission)
+        ]
 
         # Get user's effective permission ID set (includes plan filtering) / 获取用户的有效权限 ID 集合
         effective_ids = await self.get_tenant_admin_effective_permission_ids(tenant_admin)
@@ -1003,6 +1055,11 @@ class PermissionService:
             )
         )
         user_permissions = list(result.scalars().all())
+        user_permissions = [
+            permission
+            for permission in user_permissions
+            if permission.type != "menu" or _menu_visible_for_tenant(permission)
+        ]
 
         # Collect user's permission code set / 收集用户拥有的权限码集合
         user_permission_codes = {p.code for p in user_permissions}

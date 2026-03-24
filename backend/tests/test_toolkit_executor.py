@@ -8,6 +8,8 @@ import pytest
 
 from app.ai.tools.executors.toolkit_executor import ToolkitExecutor, clear_toolkit_cache
 from app.ai.tools.types import ToolDefinition, ToolParameter
+from app.core.config import settings
+from app.middleware.trace import trace_id_var
 
 SIMPLE_TOOLKIT = '''
 """title: Test Toolkit / 测试
@@ -183,6 +185,24 @@ async def test_method_error():
     assert result.success is False
     assert "Something went wrong" in result.error
     print("PASS: method error")
+
+
+@pytest.mark.asyncio
+async def test_method_error_hides_detail_in_production():
+    executor = ToolkitExecutor()
+    defn = _make_definition("raise_error", "raise_error")
+    original_debug = settings.DEBUG
+    token = trace_id_var.set("trace-toolkit-prod")
+    settings.DEBUG = False
+    try:
+        result = await executor.execute(defn, "call7_prod", {})
+    finally:
+        settings.DEBUG = original_debug
+        trace_id_var.reset(token)
+
+    assert result.success is False
+    assert "Something went wrong" not in (result.error or "")
+    assert "trace-toolkit-prod" in (result.error or "")
 
 
 @pytest.mark.asyncio

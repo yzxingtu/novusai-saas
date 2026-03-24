@@ -18,20 +18,21 @@
  */
 
 import * as Vue from 'vue';
+import { watch } from 'vue';
 import * as VueRouter from 'vue-router';
-
 
 import * as VbenCommonUi from '@vben/common-ui';
 import * as VbenIcons from '@vben/icons';
 import { IconifyIcon } from '@vben/icons';
 import { i18n } from '@vben/locales';
-import { useUserStore } from '@vben/stores';
+import { useAccessStore, useUserStore } from '@vben/stores';
 
 import * as AntDesignVue from 'ant-design-vue';
 
 import {
   appendPageOperations,
   listPageOperations,
+  normalizePageKey,
   registerPageContext,
   registerPageContextExtras,
   registerPageOperations,
@@ -41,31 +42,50 @@ import {
   mountRichTextEditor,
   RichTextEditor,
 } from '#/components/business/rich-text-editor';
+import {
+  createKeywordSearchPageOperation,
+  createParameterizedPageOperation,
+  createPrefilledCreatePageOperation,
+  createRefreshPageOperation,
+  createSimplePageOperation,
+} from '#/composables/use-page-ai-operation-helpers';
 import { $t } from '#/locales';
-import { getCurrentEndpoint } from '#/router/access';
 import { router } from '#/router';
+import { getCurrentEndpoint } from '#/router/access';
+import { useAIPanelStore } from '#/store';
 import { TokenStorage } from '#/store/shared/token-storage';
 import { usePluginExtensionsStore } from '#/stores/plugin-extensions';
 import { usePluginSlotsStore } from '#/stores/plugin-slots';
+import { checkPermission } from '#/utils/access';
 import { downloadBlob } from '#/utils/download';
 import { requestClient } from '#/utils/request';
 
-// Re-export for dev mode: plugins import { $t, IconifyIcon, ... } from '@novus/plugin-shared'
+// Re-export for dev mode: plugins import { $t, IconifyIcon, ... } from '@novus/plugin-shared' / 开发态供插件复用
 export {
   $t,
   appendPageOperations,
+  createKeywordSearchPageOperation,
+  createParameterizedPageOperation,
+  createPrefilledCreatePageOperation,
+  createRefreshPageOperation,
+  createSimplePageOperation,
   downloadBlob,
+  getAccessCodes,
+  getActiveAIConversation,
   getAuthToken,
   getCurrentUser,
+  hasAccessByCodes,
   IconifyIcon,
   listPageOperations,
   mountRichTextEditor,
+  openAIPanel,
   registerCaptchaProviderRegistry as registerCaptchaProvider,
   registerPageContext,
   registerPageContextExtras,
   registerPageOperations,
   requestClient,
   RichTextEditor,
+  subscribeAIConversation,
   usePluginExtensionsStore,
   usePluginSlotsStore,
 };
@@ -106,6 +126,167 @@ function getCurrentUser(): {
   return { id: null, username: '', name: '' };
 }
 
+function getAccessCodes(): string[] {
+  try {
+    const accessStore = useAccessStore();
+    return [...accessStore.accessCodes];
+  } catch {
+    return [];
+  }
+}
+
+function hasAccessByCodes(
+  codes: string | string[] | undefined,
+  options: {
+    mode?: 'all' | 'any';
+  } = {},
+): boolean {
+  let requestedCodes: string[] = [];
+  if (Array.isArray(codes)) {
+    requestedCodes = codes;
+  } else if (codes) {
+    requestedCodes = [codes];
+  }
+  if (requestedCodes.length === 0) {
+    return true;
+  }
+
+  const currentCodes = getAccessCodes();
+  if (currentCodes.includes('*')) {
+    return true;
+  }
+
+  if (options.mode === 'all') {
+    return requestedCodes.every((code) => currentCodes.includes(code));
+  }
+
+  return checkPermission(requestedCodes, currentCodes);
+}
+
+export interface OpenAIPanelOptions {
+  agentId?: number;
+  conversationId?: null | number;
+  message?: null | string;
+}
+
+export interface ActiveAIConversationSnapshot {
+  agentId: null | number;
+  conversationId: null | number;
+  pageContextKey: null | string;
+  routePath: string;
+  visible: boolean;
+}
+
+type RouteAIMeta = {
+  ai?: {
+    pageContextKey?: string;
+  };
+};
+
+const aiConversationListeners = new Set<
+  (snapshot: ActiveAIConversationSnapshot) => void
+>();
+let aiConversationBridgeInitialized = false;
+
+function getActiveAIConversation(): ActiveAIConversationSnapshot {
+  try {
+    const aiPanelStore = useAIPanelStore();
+    const route = router.currentRoute.value;
+    const routeMeta = route.meta as
+      | undefined
+      | {
+          ai?: {
+            pageContextKey?: string;
+          };
+        };
+    const rawPageContextKey =
+      routeMeta?.ai?.pageContextKey || route.path || undefined;
+    return {
+      agentId: aiPanelStore.activeAgentId ?? null,
+      conversationId: aiPanelStore.activeConversationId ?? null,
+      pageContextKey: rawPageContextKey
+        ? normalizePageKey(rawPageContextKey)
+        : null,
+      routePath: route.path,
+      visible: aiPanelStore.visible,
+    };
+  } catch {
+    return {
+      agentId: null,
+      conversationId: null,
+      pageContextKey: null,
+      routePath: '',
+      visible: false,
+    };
+  }
+}
+
+function notifyAIConversationListeners(): void {
+  const snapshot = getActiveAIConversation();
+  aiConversationListeners.forEach((listener) => {
+    listener(snapshot);
+  });
+}
+
+function ensureAIConversationBridge(): void {
+  if (aiConversationBridgeInitialized) {
+    return;
+  }
+
+  try {
+    const aiPanelStore = useAIPanelStore();
+    watch(
+      [
+        () => aiPanelStore.activeAgentId,
+        () => aiPanelStore.activeConversationId,
+        () => aiPanelStore.visible,
+        () => router.currentRoute.value.path,
+        () =>
+          (router.currentRoute.value.meta as RouteAIMeta | undefined)?.ai
+            ?.pageContextKey ?? '',
+      ],
+      () => {
+        notifyAIConversationListeners();
+      },
+    );
+    aiConversationBridgeInitialized = true;
+  } catch {
+    // Store may not be ready during very early bootstrap.
+  }
+}
+
+function subscribeAIConversation(
+  listener: (snapshot: ActiveAIConversationSnapshot) => void,
+): () => void {
+  ensureAIConversationBridge();
+  aiConversationListeners.add(listener);
+  listener(getActiveAIConversation());
+  return () => {
+    aiConversationListeners.delete(listener);
+  };
+}
+
+function openAIPanel(options: OpenAIPanelOptions = {}): void {
+  try {
+    ensureAIConversationBridge();
+    const aiPanelStore = useAIPanelStore();
+    aiPanelStore.openWithContext({
+      agentId: options.agentId,
+      conversationId: options.conversationId ?? null,
+      message: options.message ?? null,
+    });
+  } catch (error) {
+    console.error('[PluginShared] Failed to open AI panel', error);
+  }
+}
+
+/**
+ * @deprecated Plugin extensions store is runtime-only and not part of
+ * declarative plugin manifest contract.
+ * / 已弃用：插件扩展 Store 仅运行时可用，不属于声明式插件 manifest 正式契约。
+ */
+type PluginExtensionsStoreAccessor = typeof usePluginExtensionsStore;
+
 export interface NovusPluginSharedAPI {
   /** HTTP request client / HTTP 请求客户端 */
   requestClient: typeof requestClient;
@@ -119,9 +300,12 @@ export interface NovusPluginSharedAPI {
   mountRichTextEditor: typeof mountRichTextEditor;
   /** Plugin slots store (UI slots: headerWidgets / floatingPanels, etc.) / 插件槽位 Store（UI 插槽：headerWidgets / floatingPanels 等） */
   usePluginSlotsStore: typeof usePluginSlotsStore;
-  /** Plugin extensions store (editor extensions / panels / commands) / 插件扩展 Store（编辑器扩展 / 面板 / 命令） */
-  usePluginExtensionsStore: typeof usePluginExtensionsStore;
-  /** Register plugin i18n messages / 注册插件国际化消息 */
+  /**
+   * @deprecated Experimental runtime-only store; avoid new plugin dependencies.
+   * / 已弃用：实验运行时能力，不建议新增插件依赖。
+   */
+  usePluginExtensionsStore?: PluginExtensionsStoreAccessor;
+  /** Register plugin-internal i18n messages only; host menu/page titles still come from plugin.yaml manifest. / 仅注册插件内部文案；宿主菜单与页面标题仍来自 plugin.yaml manifest。 */
   registerLocale: (
     locale: string,
     prefix: string,
@@ -129,6 +313,13 @@ export interface NovusPluginSharedAPI {
   ) => void;
   /** Get current endpoint JWT Access Token (for Socket.IO and other non-HTTP auth) / 获取当前端 JWT Access Token（供 Socket.IO 等非 HTTP 通道鉴权） */
   getAuthToken: () => null | string;
+  /** Get current access codes snapshot / 获取当前权限码快照 */
+  getAccessCodes: () => string[];
+  /** Check access codes with host-consistent semantics / 使用宿主一致语义检查权限码 */
+  hasAccessByCodes: (
+    codes: string | string[] | undefined,
+    options?: { mode?: 'all' | 'any' },
+  ) => boolean;
   /** Get current logged-in user info (for collaboration, comments, etc.) / 获取当前登录用户信息（供协作、评论等场景） */
   getCurrentUser: () => { id: null | number; name: string; username: string };
   /** Vue Router instance (for plugin in-page navigation) / Vue Router 实例（供插件页面内导航使用） */
@@ -139,6 +330,16 @@ export interface NovusPluginSharedAPI {
   registerPageContextExtras: typeof registerPageContextExtras;
   /** Register page operations for AI invocation / 注册页面操作供 AI 调用 */
   registerPageOperations: typeof registerPageOperations;
+  /** Build a simple operation quickly / 快速构建简单页面操作 */
+  createSimplePageOperation: typeof createSimplePageOperation;
+  /** Build a parameterized operation / 构建参数化页面操作 */
+  createParameterizedPageOperation: typeof createParameterizedPageOperation;
+  /** Build a refresh operation / 构建刷新页面操作 */
+  createRefreshPageOperation: typeof createRefreshPageOperation;
+  /** Build a keyword-search operation / 构建关键词搜索页面操作 */
+  createKeywordSearchPageOperation: typeof createKeywordSearchPageOperation;
+  /** Build a prefilled create operation / 构建预填新建页面操作 */
+  createPrefilledCreatePageOperation: typeof createPrefilledCreatePageOperation;
   /** Register captcha provider component / 注册验证码提供方组件 */
   registerCaptchaProvider: typeof registerCaptchaProviderRegistry;
   /** List currently registered page operations (e.g. to merge with plugin ops) / 获取当前已注册的页面操作（如与插件操作合并） */
@@ -147,6 +348,12 @@ export interface NovusPluginSharedAPI {
   appendPageOperations: typeof appendPageOperations;
   /** Download blob as file (handles cross-browser quirks) / 下载 Blob 为文件（处理跨浏览器兼容） */
   downloadBlob: typeof downloadBlob;
+  /** Open the global AI panel with optional message/agent/conversation seed / 打开全局 AI 面板并可附带消息、智能体或对话种子 */
+  openAIPanel: typeof openAIPanel;
+  /** Get the current AI conversation snapshot / 获取当前 AI 对话快照 */
+  getActiveAIConversation: typeof getActiveAIConversation;
+  /** Subscribe to AI conversation changes / 订阅 AI 对话变化 */
+  subscribeAIConversation: typeof subscribeAIConversation;
 }
 
 /**
@@ -154,22 +361,23 @@ export interface NovusPluginSharedAPI {
  * 将共享依赖挂载到 window（调用一次即可）
  */
 export function exposePluginShared(): void {
+  ensureAIConversationBridge();
   const w = window as unknown as Record<string, unknown>;
 
-  // Vue 核心
+  // Vue 核心 / Vue runtime
   w.Vue = Vue;
 
-  // Vue Router
+  // Vue Router / 路由
   w.VueRouter = VueRouter;
 
-  // Ant Design Vue
+  // Ant Design Vue / UI 组件库
   w.AntDesignVue = AntDesignVue;
 
   // Vben Common UI / Icons（供插件 UMD external 全局映射）
   w.VbenCommonUi = VbenCommonUi;
   w.VbenIcons = VbenIcons;
 
-  // NovusAI 插件共享 API
+  // NovusAI 插件共享 API / plugin bridge namespace
   w.NovusPluginShared = {
     requestClient,
     $t,
@@ -180,21 +388,35 @@ export function exposePluginShared(): void {
     usePluginExtensionsStore,
     registerLocale: _registerPluginLocale,
     getAuthToken,
+    getAccessCodes,
     getCurrentUser,
+    hasAccessByCodes,
     router,
     listPageOperations,
     registerCaptchaProvider: registerCaptchaProviderRegistry,
     registerPageContext,
     registerPageContextExtras,
     registerPageOperations,
+    createSimplePageOperation,
+    createParameterizedPageOperation,
+    createRefreshPageOperation,
+    createKeywordSearchPageOperation,
+    createPrefilledCreatePageOperation,
     appendPageOperations,
     downloadBlob,
+    openAIPanel,
+    getActiveAIConversation,
+    subscribeAIConversation,
   } satisfies NovusPluginSharedAPI;
 }
 
 /**
- * Merge plugin-provided translation messages into global i18n instance
- * 将插件提供的翻译消息合并到全局 i18n 实例
+ * Merge plugin-provided translation messages into global i18n instance.
+ * This only affects plugin-internal copy and does not rewrite manifest-derived menu/page titles.
+ * `prefix` is the namespace wrapper, so messages should use relative keys such as
+ * `{ title, description }` instead of already-prefixed keys like `plugin.foo.title`.
+ * 将插件提供的翻译消息合并到全局 i18n 实例。
+ * 这只影响插件内部文案，不会改写由 manifest 派生的菜单/页面标题。
  */
 const _DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 

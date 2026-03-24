@@ -2,7 +2,7 @@
 
 本规则针对 **`backend/migrations/versions/*.py`** 及 **`backend/plugins/*/backend/migrations/versions/*.py`**。目标是：**全新 PostgreSQL 空库执行 `alembic upgrade heads`（或 `novusai db upgrade` / 启动自动迁移）必须一次成功**，不因历史分支、种子数据或列宽假设而中断。
 
-配套文档：`docs/acceptance/unified-scope-migration-verification.md`；验证脚本：`backend/scripts/fresh_install_migrate_test.py`。
+配套文档：[../../docs/acceptance/unified-scope-migration-verification.md](../../docs/acceptance/unified-scope-migration-verification.md)；验证脚本：[../../backend/scripts/fresh_install_migrate_test.py](../../backend/scripts/fresh_install_migrate_test.py)。
 
 ---
 
@@ -90,5 +90,5 @@
 
 ## 10. 与现有技能的关系
 
-更完整的流程与历史问题排查见：`.cursor/skills/database-migration-best-practices/SKILL.md`。  
+更完整的流程与历史问题排查见：[../skills/database-migration-best-practices/SKILL.md](../skills/database-migration-best-practices/SKILL.md)。
 **本规则侧重「写法底线 + 空库必过」**；与技能文档冲突时，以 **空库可安装** 为优先。

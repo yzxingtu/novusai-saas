@@ -135,11 +135,11 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
             random_part = ''.join(secrets.choice(charset) for _ in range(6))
             code = f"plan_{random_part}"
 
-            # 检查是否已存在
+            # 检查是否已存在 / Check exists
             if not await self.repo.code_exists(code):
                 return code
 
-        # 极端情况：多次尝试后仍重复，加长随机部分
+        # 极端情况：多次尝试后仍重复，加长随机部分 / Rare: still duplicate after retries; lengthen random part
         random_part = ''.join(secrets.choice(charset) for _ in range(10))
         return f"plan_{random_part}"
 
@@ -156,7 +156,7 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
         Returns:
             创建的套餐
         """
-        # 自动生成套餐代码
+        # 自动生成套餐代码 / Auto-generate plan code
         code = await self._generate_plan_code()
 
         quota_data = request.quota.to_dict() if request.quota else None
@@ -170,7 +170,7 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
             context={"code": code, "name": request.name},
         )
 
-        # 构建创建数据
+        # 构建创建数据 / Build create payload
         data = {
             "code": code,
             "name": request.name,
@@ -280,7 +280,7 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
                 message=_("tenant_plan.not_found"),
             )
 
-        # 检查是否有企业使用该套餐
+        # 检查是否有企业使用该套餐 / Check plan in use by tenants
         if plan.has_tenants:
             raise BusinessException(
                 message=_("tenant_plan.has_tenants"),
@@ -317,7 +317,7 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
         # 获取有效的权限列表（仅 tenant/both scope 的 menu 类型）
         valid_permissions = await self._get_valid_permissions(permission_ids)
 
-        # 更新套餐权限
+        # 更新套餐权限 / Update plan permissions
         plan.permissions = valid_permissions
         await self.db.flush()
         await self.db.refresh(plan)
@@ -362,7 +362,7 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
         if not permission_ids:
             return []
 
-        # 查询有效权限
+        # 查询有效权限 / Query effective permissions
         query = (
             select(Permission)
             .where(

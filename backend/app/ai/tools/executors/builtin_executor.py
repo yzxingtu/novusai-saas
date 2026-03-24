@@ -17,6 +17,7 @@ from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.core.response import build_public_error_text
 
 if TYPE_CHECKING:
     from app.ai.tools.types import ExecutionContext
@@ -126,7 +127,10 @@ class BuiltinToolExecutor(BaseToolExecutor):
                 tool_call_id=tool_call_id,
                 name=func_name,
                 success=False,
-                error=str(exc),
+                error=build_public_error_text(
+                    message="Builtin tool execution failed",
+                    exc=exc,
+                ),
                 duration_ms=duration_ms,
             )
 
@@ -235,10 +239,10 @@ class BuiltinToolExecutor(BaseToolExecutor):
                 resp.raise_for_status()
                 html = resp.text
 
-            # Parse results from DuckDuckGo HTML response
+            # Parse results from DuckDuckGo HTML response / 上文为英文说明 / English above
             results: list[dict[str, str]] = []
 
-            # Extract result blocks
+            # Extract result blocks / 上文为英文说明 / English above
             snippet_re = re.compile(
                 r'<a[^>]+class="result__a"[^>]*href="([^"]*)"[^>]*>(.*?)</a>'
                 r'.*?<a[^>]+class="result__snippet"[^>]*>(.*?)</a>',
@@ -305,11 +309,11 @@ class BuiltinToolExecutor(BaseToolExecutor):
                 resp.raise_for_status()
                 html = resp.text
 
-            # Remove script/style/noscript tags
+            # Remove script/style/noscript tags / 上文为英文说明 / English above
             html = re.sub(r"<(script|style|noscript)[^>]*>.*?</\1>", "", html, flags=re.DOTALL | re.IGNORECASE)
-            # Remove HTML tags
+            # Remove HTML tags / 上文为英文说明 / English above
             text = re.sub(r"<[^>]+>", " ", html)
-            # Collapse whitespace
+            # Collapse whitespace / 上文为英文说明 / English above
             text = re.sub(r"\s+", " ", text).strip()
 
             if len(text) > max_length:

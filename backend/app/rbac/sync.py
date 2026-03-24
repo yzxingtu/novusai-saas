@@ -153,7 +153,7 @@ class PermissionSyncService(LoggerMixin):
         existing_keys = {
             self._make_key(p.code, p.scope): p for p in existing_permissions
         }
-        existing_map = existing_keys  # key -> Permission
+        existing_map = existing_keys  # key -> Permission / 键到 ORM 行映射
 
         created_count = 0
         updated_count = 0

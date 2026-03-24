@@ -41,7 +41,7 @@ class StorageQuotaService:
         Returns:
             存储统计信息
         """
-        # 查询附件统计
+        # 查询附件统计 / Query attachment stats
         result = await self.db.execute(
             select(
                 func.coalesce(func.sum(Attachment.size), 0).label("used_bytes"),
@@ -55,7 +55,7 @@ class StorageQuotaService:
         used_bytes = int(row.used_bytes)
         file_count = int(row.file_count)
 
-        # 获取企业配额限制
+        # 获取企业配额限制 / Fetch tenant quota limit
         tenant = await self._get_tenant_with_plan(tenant_id)
         limit_gb = 0
         max_file_size_mb = 0
@@ -85,7 +85,7 @@ class StorageQuotaService:
         if not tenant_ids:
             return {}
 
-        # 批量查询附件统计
+        # 批量查询附件统计 / Batch query attachment stats
         result = await self.db.execute(
             select(
                 Attachment.tenant_id,
@@ -98,7 +98,7 @@ class StorageQuotaService:
         )
         rows = result.all()
 
-        # 构建统计映射
+        # 构建统计映射 / Build stats map
         stats_map: dict[int, dict[str, int]] = {}
         for row in rows:
             stats_map[row.tenant_id] = {
@@ -106,7 +106,7 @@ class StorageQuotaService:
                 "file_count": int(row.file_count),
             }
 
-        # 批量获取企业配额信息
+        # 批量获取企业配额信息 / Batch fetch tenant quota info
         tenants = await self._get_tenants_with_plan(tenant_ids)
 
         result_map: dict[int, dict[str, Any]] = {}
@@ -122,7 +122,7 @@ class StorageQuotaService:
                 max_file_size_mb=max_file_size_mb,
             )
 
-        # 确保所有请求的企业都有统计数据（默认值）
+        # 确保所有请求的企业都有统计数据（默认值） / Ensure every requested tenant has stats (defaults)
         for tid in tenant_ids:
             if tid not in result_map:
                 result_map[tid] = self._build_stats_response(

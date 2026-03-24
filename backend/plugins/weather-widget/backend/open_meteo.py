@@ -29,14 +29,14 @@ _NOMINATIM_SEARCH_URL = "https://nominatim.openstreetmap.org/search"
 _NOMINATIM_REVERSE_URL = "https://nominatim.openstreetmap.org/reverse"
 _NOMINATIM_HEADERS = {"User-Agent": "NovusAI-WeatherPlugin/1.0"}
 
-# ── 超时 ──
+# ── 超时 / timeouts ──
 _WEATHER_TIMEOUT = 10.0
 _NOMINATIM_TIMEOUT = 5.0
 
-# ── SSL ──
+# ── SSL / 证书校验 ──
 _VERIFY_SSL = _os.environ.get("WEATHER_VERIFY_SSL", "0") in ("1", "true", "yes")
 
-# ── Nominatim Rate-Limit (1 req/s) ──
+# ── Nominatim Rate-Limit (1 req/s) / Nominatim 限速 1 次每秒 ──
 _nominatim_lock = asyncio.Lock()
 _nominatim_last_ts: float = 0.0
 
@@ -174,7 +174,7 @@ async def get_weather_all(
         resp.raise_for_status()
         data = resp.json()
 
-    # parse current
+    # parse current / 解析当前天气块
     cur = data.get("current", {})
     wcode = cur.get("weather_code", 0)
     wmo = get_wmo_info(wcode)
@@ -191,7 +191,7 @@ async def get_weather_all(
         "is_day": bool(cur.get("is_day", 1)),
     }
 
-    # parse daily
+    # parse daily / 解析逐日预报
     daily_raw = data.get("daily", {})
     dates = daily_raw.get("time", [])
     daily_out = []
@@ -212,7 +212,7 @@ async def get_weather_all(
             "sunset": sunsets[i] if i < len(sunsets) else None,
         })
 
-    # parse hourly (next 24 hours from now)
+    # parse hourly (next 24 hours from now) / 解析逐小时（自当前起 24 小时）
     hourly_raw = data.get("hourly", {})
     h_times = hourly_raw.get("time", [])
     h_temps = hourly_raw.get("temperature_2m", [])
@@ -264,7 +264,7 @@ async def get_forecast(latitude: float, longitude: float, days: int = 3) -> list
     return all_data["daily"]
 
 
-# ── 空气质量 ──
+# ── 空气质量 / air quality ──
 
 
 async def get_air_quality(latitude: float, longitude: float) -> dict[str, Any]:
@@ -272,7 +272,7 @@ async def get_air_quality(latitude: float, longitude: float) -> dict[str, Any]:
 
     Returns:
         {
-            "aqi": 42,       # US AQI
+            "aqi": 42,       — US AQI（美标指数）
             "pm2_5": 12.3,
             "pm10": 25.1,
             "european_aqi": 35,
@@ -384,7 +384,7 @@ async def search_city(name: str, count: int = 5) -> list[dict]:
         return []
 
 
-# ── 反向地理编码 ──
+# ── 反向地理编码 / reverse geocoding ──
 
 _CITY_FIELDS = ("city", "town", "village", "county", "suburb", "state_district", "state")
 
@@ -396,13 +396,13 @@ async def reverse_geocode(latitude: float, longitude: float) -> dict | None:
     if cached is not None:
         return cached
 
-    # 1) Nominatim reverse (zoom=14 for better city-level accuracy)
+    # 1) Nominatim reverse (zoom=14 for better city-level accuracy) / Nominatim 反向，zoom=14 提高城市精度
     result = await _reverse_nominatim(latitude, longitude)
     if result:
         _cache_set(cache_key, result)
         return result
 
-    # 2) Fallback: Open-Meteo geocoding nearest match
+    # 2) Fallback: Open-Meteo geocoding nearest match / 回退 Open-Meteo 最近城市匹配
     result = await _reverse_open_meteo(latitude, longitude)
     if result:
         _cache_set(cache_key, result)

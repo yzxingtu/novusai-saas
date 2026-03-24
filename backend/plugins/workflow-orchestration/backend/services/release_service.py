@@ -6,6 +6,7 @@ from typing import Any
 from sqlalchemy import Select, asc, desc, func, select
 
 from app.core.base_model import utc_now
+from app.core.data_permission import apply_data_permission_if_needed
 from app.core.i18n import _
 from app.exceptions.base import BusinessException, NotFoundException, ValidationException
 from app.schemas.common.query import FilterOp, QuerySpec
@@ -42,6 +43,10 @@ _RELEASE_SORTS = {
     "published_at": WorkflowRelease.published_at,
     "code": WorkflowRelease.code,
 }
+
+
+def apply_model_scope(stmt: Any, model: type) -> Any:
+    return apply_data_permission_if_needed(stmt, model)
 
 
 def _apply_filters(
@@ -101,7 +106,14 @@ def _generate_change_set_code(template_id: int) -> str:
 
 
 async def _get_template_or_raise(db, template_id: int) -> WorkflowTemplate:
-    template = await db.get(WorkflowTemplate, template_id)
+    template = (
+        await db.execute(
+            apply_model_scope(
+                select(WorkflowTemplate).where(WorkflowTemplate.id == template_id),
+                WorkflowTemplate,
+            )
+        )
+    ).scalar_one_or_none()
     if not template or template.is_deleted:
         raise NotFoundException(message=_("Workflow template not found."))
     return template
@@ -113,7 +125,14 @@ async def _get_template_version_or_raise(
     template_id: int,
     version_id: int,
 ) -> WorkflowTemplateVersion:
-    version = await db.get(WorkflowTemplateVersion, version_id)
+    version = (
+        await db.execute(
+            apply_model_scope(
+                select(WorkflowTemplateVersion).where(WorkflowTemplateVersion.id == version_id),
+                WorkflowTemplateVersion,
+            )
+        )
+    ).scalar_one_or_none()
     if not version or version.is_deleted or version.template_id != template_id:
         raise NotFoundException(message=_("Workflow template version not found."))
     return version
@@ -122,9 +141,12 @@ async def _get_template_version_or_raise(
 async def _get_environment_by_code(db, code: str) -> WorkflowEnvironment:
     environment = (
         await db.execute(
-            select(WorkflowEnvironment).where(
-                WorkflowEnvironment.code == code,
-                WorkflowEnvironment.is_deleted.is_(False),
+            apply_model_scope(
+                select(WorkflowEnvironment).where(
+                    WorkflowEnvironment.code == code,
+                    WorkflowEnvironment.is_deleted.is_(False),
+                ),
+                WorkflowEnvironment,
             )
         )
     ).scalar_one_or_none()
@@ -146,11 +168,14 @@ async def _mark_previous_published_releases_deprecated(
 ) -> None:
     rows = (
         await db.execute(
-            select(WorkflowRelease).where(
-                WorkflowRelease.workflow_kind == workflow_kind,
-                WorkflowRelease.workflow_id == workflow_id,
-                WorkflowRelease.status == ReleaseStatusEnum.PUBLISHED.value,
-                WorkflowRelease.is_deleted.is_(False),
+            apply_model_scope(
+                select(WorkflowRelease).where(
+                    WorkflowRelease.workflow_kind == workflow_kind,
+                    WorkflowRelease.workflow_id == workflow_id,
+                    WorkflowRelease.status == ReleaseStatusEnum.PUBLISHED.value,
+                    WorkflowRelease.is_deleted.is_(False),
+                ),
+                WorkflowRelease,
             )
         )
     ).scalars().all()
@@ -167,10 +192,13 @@ async def _mark_previous_published_versions_deprecated(
 ) -> None:
     rows = (
         await db.execute(
-            select(WorkflowTemplateVersion).where(
-                WorkflowTemplateVersion.template_id == template_id,
-                WorkflowTemplateVersion.is_deleted.is_(False),
-                WorkflowTemplateVersion.is_published.is_(True),
+            apply_model_scope(
+                select(WorkflowTemplateVersion).where(
+                    WorkflowTemplateVersion.template_id == template_id,
+                    WorkflowTemplateVersion.is_deleted.is_(False),
+                    WorkflowTemplateVersion.is_published.is_(True),
+                ),
+                WorkflowTemplateVersion,
             )
         )
     ).scalars().all()
@@ -211,7 +239,10 @@ async def _create_change_set(
 
 async def list_releases(db, query_spec: QuerySpec | None = None) -> dict[str, Any]:
     query = query_spec or QuerySpec()
-    stmt = select(WorkflowRelease).where(WorkflowRelease.is_deleted.is_(False))
+    stmt = apply_model_scope(
+        select(WorkflowRelease).where(WorkflowRelease.is_deleted.is_(False)),
+        WorkflowRelease,
+    )
     stmt = _apply_filters(stmt, query, _RELEASE_FILTERS)
     total_stmt = select(func.count()).select_from(stmt.order_by(None).subquery())
     total = int((await db.execute(total_stmt)).scalar_one() or 0)
@@ -230,9 +261,12 @@ async def list_releases(db, query_spec: QuerySpec | None = None) -> dict[str, An
     if workflow_ids:
         template_rows = (
             await db.execute(
-                select(WorkflowTemplate).where(
-                    WorkflowTemplate.id.in_(workflow_ids),
-                    WorkflowTemplate.is_deleted.is_(False),
+                apply_model_scope(
+                    select(WorkflowTemplate).where(
+                        WorkflowTemplate.id.in_(workflow_ids),
+                        WorkflowTemplate.is_deleted.is_(False),
+                    ),
+                    WorkflowTemplate,
                 )
             )
         ).scalars().all()
@@ -345,7 +379,14 @@ async def rollback_release(
     *,
     user_id: int | None,
 ) -> dict[str, Any]:
-    release = await db.get(WorkflowRelease, release_id)
+    release = (
+        await db.execute(
+            apply_model_scope(
+                select(WorkflowRelease).where(WorkflowRelease.id == release_id),
+                WorkflowRelease,
+            )
+        )
+    ).scalar_one_or_none()
     if not release or release.is_deleted:
         raise NotFoundException(message=_("Workflow release not found."))
     if release.workflow_kind != WorkflowKindEnum.TEMPLATE.value:
@@ -355,7 +396,14 @@ async def rollback_release(
 
     target_release: WorkflowRelease | None = None
     if payload.target_release_id is not None:
-        candidate = await db.get(WorkflowRelease, payload.target_release_id)
+        candidate = (
+            await db.execute(
+                apply_model_scope(
+                    select(WorkflowRelease).where(WorkflowRelease.id == payload.target_release_id),
+                    WorkflowRelease,
+                )
+            )
+        ).scalar_one_or_none()
         if (
             candidate
             and not candidate.is_deleted
@@ -366,16 +414,19 @@ async def rollback_release(
     else:
         target_release = (
             await db.execute(
-                select(WorkflowRelease)
-                .where(
-                    WorkflowRelease.workflow_id == release.workflow_id,
-                    WorkflowRelease.workflow_kind == release.workflow_kind,
-                    WorkflowRelease.id != release.id,
-                    WorkflowRelease.is_deleted.is_(False),
-                    WorkflowRelease.workflow_version_id.is_not(None),
+                apply_model_scope(
+                    select(WorkflowRelease)
+                    .where(
+                        WorkflowRelease.workflow_id == release.workflow_id,
+                        WorkflowRelease.workflow_kind == release.workflow_kind,
+                        WorkflowRelease.id != release.id,
+                        WorkflowRelease.is_deleted.is_(False),
+                        WorkflowRelease.workflow_version_id.is_not(None),
+                    )
+                    .order_by(desc(WorkflowRelease.published_at), desc(WorkflowRelease.id))
+                    .limit(1),
+                    WorkflowRelease,
                 )
-                .order_by(desc(WorkflowRelease.published_at), desc(WorkflowRelease.id))
-                .limit(1)
             )
         ).scalar_one_or_none()
 
@@ -453,8 +504,11 @@ async def get_release_overview_stats(db) -> dict[str, Any]:
     total_releases = int(
         (
             await db.execute(
-                select(func.count(WorkflowRelease.id)).where(
-                    WorkflowRelease.is_deleted.is_(False)
+                apply_model_scope(
+                    select(func.count(WorkflowRelease.id)).where(
+                        WorkflowRelease.is_deleted.is_(False)
+                    ),
+                    WorkflowRelease,
                 )
             )
         ).scalar_one()
@@ -463,17 +517,23 @@ async def get_release_overview_stats(db) -> dict[str, Any]:
 
     status_rows = (
         await db.execute(
-            select(WorkflowRelease.status, func.count(WorkflowRelease.id))
-            .where(WorkflowRelease.is_deleted.is_(False))
-            .group_by(WorkflowRelease.status)
+            apply_model_scope(
+                select(WorkflowRelease.status, func.count(WorkflowRelease.id))
+                .where(WorkflowRelease.is_deleted.is_(False))
+                .group_by(WorkflowRelease.status),
+                WorkflowRelease,
+            )
         )
     ).all()
     status_counts = {row[0]: int(row[1]) for row in status_rows}
 
     published_at = (
         await db.execute(
-            select(func.max(WorkflowRelease.published_at)).where(
-                WorkflowRelease.is_deleted.is_(False)
+            apply_model_scope(
+                select(func.max(WorkflowRelease.published_at)).where(
+                    WorkflowRelease.is_deleted.is_(False)
+                ),
+                WorkflowRelease,
             )
         )
     ).scalar_one_or_none()
@@ -488,16 +548,26 @@ async def get_release_overview_stats(db) -> dict[str, Any]:
 async def get_runtime_status_metrics(db) -> dict[str, Any]:
     run_rows = (
         await db.execute(
-            select(WorkflowRun.status, func.count(WorkflowRun.id))
-            .where(WorkflowRun.is_deleted.is_(False))
-            .group_by(WorkflowRun.status)
+            apply_model_scope(
+                select(WorkflowRun.status, func.count(WorkflowRun.id))
+                .where(WorkflowRun.is_deleted.is_(False))
+                .group_by(WorkflowRun.status),
+                WorkflowRun,
+            )
         )
     ).all()
     artifact_rows = (
         await db.execute(
-            select(WorkflowArtifact.status, func.count(WorkflowArtifact.id))
-            .where(WorkflowArtifact.is_deleted.is_(False))
-            .group_by(WorkflowArtifact.status)
+            apply_model_scope(
+                select(WorkflowArtifact.status, func.count(WorkflowArtifact.id))
+                .join(WorkflowRun, WorkflowArtifact.run_id == WorkflowRun.id)
+                .where(
+                    WorkflowArtifact.is_deleted.is_(False),
+                    WorkflowRun.is_deleted.is_(False),
+                )
+                .group_by(WorkflowArtifact.status),
+                WorkflowRun,
+            )
         )
     ).all()
 

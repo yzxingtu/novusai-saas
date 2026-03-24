@@ -12,41 +12,38 @@ import type { Router } from 'vue-router';
 
 import { useAccessStore, useUserStore } from '@vben/stores';
 
-import { message, Modal } from 'ant-design-vue';
+import { Modal } from 'ant-design-vue';
 
-import { $t } from '#/locales';
 import { refreshPluginSlots } from '#/composables/use-plugin-frontend-init';
+import { $t } from '#/locales';
 import { generateAccess } from '#/router/access';
 import { accessRoutes } from '#/router/routes';
+import { showRequestError } from '#/utils/error-helpers';
 
 export async function refreshAdminMenusAndPluginRoutes(router: Router) {
   const accessStore = useAccessStore();
   const userStore = useUserStore();
 
   try {
-    await refreshPluginSlots('/admin', router);
+    await refreshPluginSlots('/admin', router, { reloadAssets: true });
   } catch (error) {
     console.warn('[PluginRefresh] Failed to refresh plugin slots:', error);
   }
   try {
     const userRoles = userStore.userInfo?.roles ?? [];
-    const { accessibleMenus, accessibleRoutes: routes } =
-      await generateAccess(
-        {
-          roles: userRoles,
-          router,
-          routes: accessRoutes,
-        },
-        'admin',
-      );
+    const { accessibleMenus, accessibleRoutes: routes } = await generateAccess(
+      {
+        roles: userRoles,
+        router,
+        routes: accessRoutes,
+      },
+      'admin',
+    );
     accessStore.setAccessMenus(accessibleMenus);
     accessStore.setAccessRoutes(routes);
     accessStore.setIsAccessChecked(true);
   } catch (error) {
-    console.warn(
-      '[PluginRefresh] Failed to refresh admin menu/routes:',
-      error,
-    );
+    console.warn('[PluginRefresh] Failed to refresh admin menu/routes:', error);
     accessStore.setIsAccessChecked(false);
   }
 }
@@ -64,7 +61,7 @@ export async function refreshAdminMenusAndPluginRoutes(router: Router) {
 export function handleDisableError(
   error: unknown,
   pluginName: string,
-  onForceDisable: () => void | Promise<void>,
+  onForceDisable: () => Promise<void> | void,
 ): void {
   type AxiosLike = {
     message?: string;
@@ -100,5 +97,5 @@ export function handleDisableError(
     return;
   }
 
-  message.error(apiMsg || $t('admin.common.operationFailed'));
+  showRequestError(error, 'admin.common.operationFailed');
 }

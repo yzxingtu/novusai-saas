@@ -255,7 +255,7 @@ async function onNewDoc() {
     const doc = res.document;
     navigateToEditor(doc.id);
   } catch {
-    // silently fail
+    // silently fail / 静默失败
   }
 }
 
@@ -269,7 +269,7 @@ function navigateToEditor(docId: number) {
   }
 }
 
-// ── Folder management ─────────────────────────────────────
+// ── Folder management / 文件夹管理 ───────────────────────
 
 const newFolderVisible = ref(false);
 const newFolderName = ref('');
@@ -288,7 +288,7 @@ async function confirmNewFolder() {
   }
 }
 
-// ── Delete ────────────────────────────────────────────────
+// ── Delete / 删除 ─────────────────────────────────────────
 
 const deleteConfirmVisible = ref(false);
 const deleteTarget = ref<DocItem | null>(null);
@@ -331,7 +331,7 @@ async function confirmDeleteFolder() {
     deleteFolderTarget.value = null;
     await loadFolders();
   } catch {
-    // silently fail
+    // silently fail / 静默失败
   }
 }
 

@@ -29,6 +29,7 @@ import {
 import { $t } from '#/locales';
 import { usePresenceStore } from '#/store';
 import { formatRelativeTime } from '#/utils/common';
+import { showRequestError } from '#/utils/error-helpers';
 import { toAvatarDisplayUrl } from '#/utils/image';
 
 import TenantAdminForm from './TenantAdminForm.vue';
@@ -76,8 +77,8 @@ async function handleToggleStatus(admin: TenantAdminItem) {
     );
     admin.is_active = !admin.is_active;
     message.success($t('common.saveSuccess'));
-  } catch {
-    message.error($t('common.requestFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.requestFailed');
   }
 }
 
@@ -102,8 +103,8 @@ async function handleForceLogout(admin: TenantAdminItem) {
     await forceLogoutTenantAdminApi(props.tenantId, admin.id);
     message.success($t('common.auth.forceLogoutSuccess', { name: admin.nickname || admin.username }));
     await loadAdmins();
-  } catch {
-    message.error($t('common.requestFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.requestFailed');
   }
 }
 

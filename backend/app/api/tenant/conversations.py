@@ -24,7 +24,7 @@ from app.services.ai.conversation_service import ConversationService
 
 
 # ============================================
-# Controller
+# Controller / 控制器
 # ============================================
 
 @permission_resource(

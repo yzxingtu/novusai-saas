@@ -33,7 +33,7 @@ class ConversationMessage(TenantModel):
         "blocked_columns": ["content", "tool_calls", "metadata"],
     }
 
-    # 允许前端筛选的字段
+    # 允许前端筛选的字段 / Fields exposed for list filtering
     __filterable__ = {
         "id": "id",
         "conversation_id": "conversation_id",
@@ -43,14 +43,14 @@ class ConversationMessage(TenantModel):
         "created_at": "created_at",
     }
 
-    # 允许排序的字段
+    # 允许排序的字段 / Sortable columns for UI
     __sortable__ = {
         "id": "id",
         "sequence": "sequence",
         "created_at": "created_at",
     }
 
-    # ==================== 关联 ====================
+    # ==================== 关联 ==================== / Associations
 
     conversation_id: Mapped[int] = mapped_column(
         Integer,
@@ -60,7 +60,7 @@ class ConversationMessage(TenantModel):
         comment=_("enum.conversation_message.conversation_id"),
     )
 
-    # ==================== 消息内容 ====================
+    # ==================== 消息内容 ==================== / Message body
 
     role: Mapped[str] = mapped_column(
         String(20),
@@ -81,7 +81,7 @@ class ConversationMessage(TenantModel):
         comment=_("enum.conversation_message.sequence"),
     )
 
-    # ==================== Token 统计 ====================
+    # ==================== Token 统计 ==================== / Token usage
 
     token_count: Mapped[int] = mapped_column(
         Integer,
@@ -90,9 +90,9 @@ class ConversationMessage(TenantModel):
         comment=_("enum.conversation_message.token_count"),
     )
 
-    # ==================== Function Calling ====================
+    # ==================== Function Calling ==================== / 函数调用 / Tool calls
 
-    # assistant 发起的 tool_calls 请求（JSON 数组）
+    # assistant 发起的 tool_calls 请求（JSON 数组） / Assistant tool_calls JSON
     tool_calls: Mapped[list | None] = mapped_column(
         JSON,
         nullable=True,
@@ -104,14 +104,14 @@ class ConversationMessage(TenantModel):
         nullable=True,
         comment=_("enum.conversation_message.tool_call_id"),
     )
-    # 工具名称（tool 角色消息使用）
+    # 工具名称（tool 角色消息使用） / Tool name for tool-role rows
     tool_name: Mapped[str | None] = mapped_column(
         String(100),
         nullable=True,
         comment=_("enum.conversation_message.tool_name"),
     )
 
-    # ==================== 性能指标 ====================
+    # ==================== 性能指标 ==================== / Performance
 
     latency_ms: Mapped[int | None] = mapped_column(
         Integer,
@@ -119,9 +119,10 @@ class ConversationMessage(TenantModel):
         comment=_("enum.conversation_message.latency_ms"),
     )
 
-    # ==================== 关联模型 ====================
+    # ==================== 关联模型 ==================== / Linked models
 
-    # 生成此消息的智能体（assistant/tool 角色，支持多智能体对话）
+    # 生成此消息的智能体（assistant/tool 角色，支持多智能体对话） /
+    # Agent that produced this message (multi-agent threads)
     agent_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("agents.id", ondelete="SET NULL"),
@@ -130,7 +131,7 @@ class ConversationMessage(TenantModel):
         comment=_("enum.conversation_message.agent_id"),
     )
 
-    # 生成此消息使用的 AI 模型（仅 assistant 角色）
+    # 生成此消息使用的 AI 模型（仅 assistant 角色） / AIModel used (assistant only)
     model_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("ai_models.id", ondelete="SET NULL"),
@@ -138,7 +139,7 @@ class ConversationMessage(TenantModel):
         comment=_("enum.conversation_message.model_id"),
     )
 
-    # ==================== 扩展 ====================
+    # ==================== 扩展 ==================== / Extensions
 
     metadata_: Mapped[dict | None] = mapped_column(
         "metadata",
@@ -147,14 +148,14 @@ class ConversationMessage(TenantModel):
         comment=_("enum.conversation_message.metadata"),
     )
 
-    # ==================== 复合索引 ====================
+    # ==================== 复合索引 ==================== / Composite indexes
 
     __table_args__ = (
         Index("ix_conv_msg_conv_seq", "conversation_id", "sequence"),
         Index("ix_conv_msg_tenant_conv", "tenant_id", "conversation_id"),
     )
 
-    # ==================== 关系 ====================
+    # ==================== 关系 ==================== / Relationships
 
     conversation = relationship(
         "AgentConversation",

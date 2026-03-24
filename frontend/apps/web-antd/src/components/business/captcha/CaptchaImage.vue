@@ -33,7 +33,7 @@ const emit = defineEmits<{
 }>();
 
 // ============================================================
-// Props & Emits
+// Props & Emits / 属性与事件
 // ============================================================
 
 interface Props {
@@ -52,7 +52,7 @@ interface Props {
 }
 
 // ============================================================
-// State
+// State / 状态
 // ============================================================
 
 /** Challenge ID / 挑战 ID */
@@ -100,7 +100,7 @@ async function _doFetchChallenge() {
     });
 
     challengeId.value = response.challengeId;
-    // Ensure base64 prefix - handle undefined/empty image
+    // Ensure base64 prefix - handle undefined/empty image / 补全 data URL 前缀
     const base64 = response.image || '';
     if (base64) {
       captchaImage.value = base64.startsWith('data:')
@@ -136,7 +136,7 @@ function getChallengeId() {
 }
 
 // ============================================================
-// Lifecycle
+// Lifecycle / 生命周期
 // ============================================================
 
 // Auto-fetch captcha on mount / 挂载时自动获取验证码

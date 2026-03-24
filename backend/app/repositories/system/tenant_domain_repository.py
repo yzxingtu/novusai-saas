@@ -80,7 +80,7 @@ class TenantDomainRepository(BaseRepository[TenantDomain]):
                 self.model.is_deleted.is_(False),
             )
             .order_by(
-                self.model.is_primary.desc(),  # 主域名排在前面
+                self.model.is_primary.desc(),  # 主域名排在前面 / Primary domain first
                 asc(self.model.created_at),
             )
         )

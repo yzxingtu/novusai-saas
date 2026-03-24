@@ -12,7 +12,7 @@ import { smartUploadFile as tenantSmartUploadFile } from '#/api/tenant/attachmen
 import { smartUploadFile as userSmartUploadFile } from '#/api/user/attachment';
 import { requestClient } from '#/utils/request';
 
-// ============ Types ============
+// ============ Types / 类型 ============
 
 export interface PaginatedResponse<T = Record<string, unknown>> {
   items: T[];
@@ -264,7 +264,7 @@ export function buildChatAttachmentFromUpload(
   };
 }
 
-// ============ Route Types ============
+// ============ Route Types / 路由请求类型 ============
 
 export interface PageContext {
   page_key: string;
@@ -354,7 +354,7 @@ export async function getChatAgentKBBindingsApi(
   );
 }
 
-// ============ Agent Skill Bindings ============
+// ============ Agent Skill Bindings / 智能体技能绑定 ============
 
 export interface ChatSkillBindingInfo {
   id: null | number;

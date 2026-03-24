@@ -125,7 +125,7 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
         if pkg.is_system:
             raise BusinessException(message=_("skill_package.error.system_protected"))
 
-        # 级联软删除技能包下的技能
+        # 级联软删除技能包下的技能 / Cascade soft-delete skills under package
         await self.repo.cascade_soft_delete_skills(id, self._default_delete_level)
 
     async def promote_to_global(self, id: int) -> SkillPackage | None:

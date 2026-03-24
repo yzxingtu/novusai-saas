@@ -46,8 +46,18 @@ export interface TenantPluginSharedApi {
   requestClient: TenantRequestClientLike;
   downloadBlob?: (blob: Blob, options: TenantDownloadOptions) => void;
   $t?: (key: string, params?: Record<string, unknown>) => string;
+  getAccessCodes?: () => string[];
+  hasAccessByCodes?: (
+    codes: string | string[] | undefined,
+    options?: { mode?: 'all' | 'any' },
+  ) => boolean;
   router?: TenantRouterLike;
   getCurrentUser?: () => TenantCurrentUser;
+  openAIPanel?: (options?: {
+    agentId?: number;
+    conversationId?: null | number;
+    message?: null | string;
+  }) => void;
 }
 
 export interface TenantListQuery {
@@ -58,6 +68,12 @@ export interface TenantListQuery {
   statuses?: string[];
   types?: string[];
   workflowId?: null | number;
+}
+
+export interface TenantTemplateListQuery {
+  keyword?: string;
+  page?: number;
+  size?: number;
 }
 
 export interface PaginatedResult<T> {
@@ -122,6 +138,26 @@ export interface TenantHomePayload {
   highlightedWorkflows?: TenantWorkflowSummary[];
   latestRuns?: TenantRunSummary[];
   latestArtifacts?: TenantArtifactSummary[];
+}
+
+export interface TenantWorkflowTemplateSummary {
+  id: number;
+  code?: string;
+  name: string;
+  description?: string;
+  category?: string;
+  status?: string;
+  builderSurface?: string;
+  releaseScope?: string;
+  tags?: string[];
+  latestVersionNo?: number;
+  currentPublishedVersionId?: number;
+  publishedVersion?: string;
+  nodeCount?: number;
+  edgeCount?: number;
+  publishedAt?: string;
+  updatedAt?: string;
+  canCopy?: boolean;
 }
 
 export type TenantWorkflowStatus =
@@ -404,6 +440,13 @@ export interface TenantArtifactDetail extends TenantArtifactSummary {
 export interface TenantWorkflowUpsertPayload {
   name: string;
   description?: string;
+}
+
+export interface TenantWorkflowCopyPayload {
+  description?: string;
+  name?: string;
+  templateId: number;
+  templateVersionId: number;
 }
 
 export interface TenantArtifactFeedbackPayload {

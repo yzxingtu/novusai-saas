@@ -33,8 +33,9 @@ class AgentVersion(TenantModel):
     """
 
     __tablename__ = "agent_versions"
+    __data_permission__ = True
 
-    # 允许前端筛选的字段
+    # 允许前端筛选的字段 / Fields exposed for list filtering
     __filterable__ = {
         "id": "id",
         "agent_id": "agent_id",
@@ -43,14 +44,14 @@ class AgentVersion(TenantModel):
         "created_at": "created_at",
     }
 
-    # 允许排序的字段
+    # 允许排序的字段 / Sortable columns for UI
     __sortable__ = {
         "id": "id",
         "version": "version",
         "created_at": "created_at",
     }
 
-    # ==================== 关联 ====================
+    # ==================== 关联 ==================== / Associations
 
     agent_id: Mapped[int] = mapped_column(
         Integer,
@@ -65,7 +66,7 @@ class AgentVersion(TenantModel):
         comment=_("agent.version.field.version"),
     )
 
-    # ==================== 配置快照 ====================
+    # ==================== 配置快照 ==================== / Config snapshot
 
     system_prompt: Mapped[str] = mapped_column(
         Text,
@@ -147,7 +148,7 @@ class AgentVersion(TenantModel):
         comment=_("agent.version.field.output_schema"),
     )
 
-    # ==================== 版本元信息 ====================
+    # ==================== 版本元信息 ==================== / Version metadata
 
     change_log: Mapped[str | None] = mapped_column(
         Text,
@@ -160,14 +161,14 @@ class AgentVersion(TenantModel):
         comment=_("agent.version.field.created_by"),
     )
 
-    # ==================== 约束 ====================
+    # ==================== 约束 ==================== / Constraints
 
     __table_args__ = (
         UniqueConstraint("agent_id", "version", name="uq_agent_version"),
         Index("ix_agent_versions_agent_version", "agent_id", "version"),
     )
 
-    # ==================== 关系 ====================
+    # ==================== 关系 ==================== / Relationships
 
     agent = relationship(
         "Agent",

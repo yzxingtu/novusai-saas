@@ -15,8 +15,8 @@ class StorageMigrationPlugin(PluginBase):
         logger = ctx.get_logger()
         logger.info("Storage migration plugin enabled")
 
-        # Recover interrupted tasks: after server restart no background
-        # coroutine is running, so mark 'running' tasks as 'paused'.
+        # Recover interrupted tasks: after server restart no background / 恢复中断任务：重启后内存无后台
+        # coroutine is running, so mark 'running' tasks as 'paused'. / 协程，将 running 任务标为 paused
         try:
             db = ctx.get_db()
             result = await db.execute(

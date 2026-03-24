@@ -47,6 +47,8 @@ from app.ai.engine.types import ExecutionRequest, PreparedExecution
 from app.ai.quota import QuotaExceeded
 from app.ai.rate_limiter import RateLimitExceeded
 from app.ai.types import ChatMessage
+from app.core.config import settings
+from app.middleware.trace import trace_id_var
 
 
 @pytest.mark.asyncio
@@ -120,3 +122,31 @@ async def test_conversation_engine_stream_execute_preflight_reraises_business_ex
 
     assert exc_info.value.status_code == 429
     assert exc_info.value.code == expected_code
+
+
+@pytest.mark.asyncio
+async def test_conversation_engine_execute_hides_generic_exception_in_production() -> None:
+    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine._prepare_execution = AsyncMock(
+        side_effect=RuntimeError("secret provider stack")
+    )
+
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        user_id=1,
+        messages=[ChatMessage(role="user", content="hello")],
+    )
+    agent = SimpleNamespace(id=1)
+    original_debug = settings.DEBUG
+    token = trace_id_var.set("trace-conversation-prod")
+    settings.DEBUG = False
+    try:
+        result = await engine.execute(agent, request)
+    finally:
+        settings.DEBUG = original_debug
+        trace_id_var.reset(token)
+
+    assert result.success is False
+    assert "secret provider stack" not in (result.error or "")
+    assert "trace-conversation-prod" in (result.error or "")

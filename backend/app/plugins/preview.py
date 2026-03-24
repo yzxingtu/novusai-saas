@@ -12,6 +12,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from app.core.i18n import get_locale
 from app.core.logging import get_logger
 from app.plugins.dependencies import (
     build_plugin_dependency_states,
@@ -54,11 +55,111 @@ _CAPABILITY_DESCRIPTIONS: dict[str, dict[str, str]] = {
 }
 
 
-def resolve_i18n(text: dict[str, str] | str, locale: str = "zh-CN") -> str:
+def _canonical_locale(locale: str) -> str:
+    normalized = (locale or "").strip().replace("_", "-")
+    lowered = normalized.lower()
+    if lowered.startswith("zh"):
+        return "zh-CN"
+    if lowered.startswith("en"):
+        return "en"
+    return normalized
+
+
+def _iter_locale_candidates(locale: str | None) -> list[str]:
+    candidates: list[str] = []
+
+    def _push(value: str | None) -> None:
+        if value and value not in candidates:
+            candidates.append(value)
+
+    locale_text = (locale or "").strip()
+    if locale_text:
+        normalized = locale_text.replace("_", "-")
+        base = normalized.split("-", 1)[0]
+        _push(locale_text)
+        _push(normalized)
+        _push(locale_text.replace("-", "_"))
+        _push(base)
+        if base == "zh":
+            _push("zh-CN")
+            _push("zh_CN")
+            _push("zh")
+        elif base == "en":
+            _push("en")
+            _push("en-US")
+            _push("en_US")
+
+    for fallback in ("zh-CN", "zh_CN", "zh", "en", "en-US", "en_US"):
+        _push(fallback)
+
+    return candidates
+
+
+def _expected_i18n_locales(*values: object) -> list[str]:
+    locales: list[str] = []
+    for value in values:
+        if not isinstance(value, dict):
+            continue
+        for locale, text in value.items():
+            if not isinstance(text, str) or not text.strip():
+                continue
+            canonical = _canonical_locale(locale)
+            if canonical and canonical not in locales:
+                locales.append(canonical)
+    return locales or ["zh-CN", "en"]
+
+
+def _missing_i18n_locales(value: object, expected_locales: list[str]) -> list[str]:
+    if not expected_locales:
+        return []
+    if not isinstance(value, dict):
+        return expected_locales.copy()
+
+    present = {
+        _canonical_locale(locale)
+        for locale, text in value.items()
+        if isinstance(text, str) and text.strip()
+    }
+    return [locale for locale in expected_locales if locale not in present]
+
+
+def _collect_frontend_i18n_warnings(manifest) -> list[str]:
+    warnings: list[str] = []
+    expected_locales = _expected_i18n_locales(
+        getattr(manifest, "display_name", None),
+        getattr(manifest, "description", None),
+    )
+    pages = getattr(getattr(manifest.extensions, "frontend", None), "pages", []) or []
+    for index, page in enumerate(pages):
+        missing_page_locales = _missing_i18n_locales(page.title, expected_locales)
+        if missing_page_locales:
+            warnings.append(
+                "Frontend page title i18n incomplete: "
+                f"pages[{index}].title missing {', '.join(missing_page_locales)}"
+            )
+        menu = getattr(page, "menu", None)
+        if menu is None or getattr(menu, "title", None) is None:
+            continue
+        missing_menu_locales = _missing_i18n_locales(menu.title, expected_locales)
+        if missing_menu_locales:
+            warnings.append(
+                "Frontend menu title i18n incomplete: "
+                f"pages[{index}].menu.title missing {', '.join(missing_menu_locales)}"
+            )
+    return warnings
+
+
+def resolve_i18n(text: dict[str, str] | str, locale: str | None = None) -> str:
     """Resolve multilingual text to a single-language string / 将多语言文本解析为单语言字符串"""
     if isinstance(text, str):
         return text
-    return text.get(locale, text.get("zh-CN", text.get("en", next(iter(text.values()), ""))))
+    if not isinstance(text, dict):
+        return ""
+    for candidate in _iter_locale_candidates(locale):
+        value = text.get(candidate)
+        if isinstance(value, str) and value:
+            return value
+    return next((value for value in text.values() if isinstance(value, str)), "")
 
 
 async def generate_preview(
@@ -75,6 +176,7 @@ async def generate_preview(
         loader: PluginLoader instance (optional) / PluginLoader 实例（可选）
     """
     loader = loader or PluginLoader()
+    locale = get_locale()
 
     # Parse manifest
     # Read directly by path, supporting staging/temp directory preview without requiring plugin to be in PLUGINS_DIR
@@ -99,8 +201,8 @@ async def generate_preview(
     plugin_info = {
         "name": manifest.name,
         "version": manifest.version,
-        "display_name": resolve_i18n(manifest.display_name),
-        "description": resolve_i18n(manifest.description) if manifest.description else "",
+        "display_name": resolve_i18n(manifest.display_name, locale),
+        "description": resolve_i18n(manifest.description, locale) if manifest.description else "",
         "icon": icon_value,
         "scope": manifest.scope,
         "author": manifest.author,
@@ -112,11 +214,11 @@ async def generate_preview(
     ext = manifest.extensions
     install_manifest = {
         "skills": len(ext.skills),
-        "skills_details": [resolve_i18n(s.display_name) or s.name for s in ext.skills],
+        "skills_details": [resolve_i18n(s.display_name, locale) or s.name for s in ext.skills],
         "adapters": len(ext.adapters),
-        "adapters_details": [resolve_i18n(a.display_name) or a.provider_code for a in ext.adapters],
+        "adapters_details": [resolve_i18n(a.display_name, locale) or a.provider_code for a in ext.adapters],
         "storage_drivers": len(ext.storage_drivers),
-        "storage_drivers_details": [resolve_i18n(s.display_name) or s.code for s in ext.storage_drivers],
+        "storage_drivers_details": [resolve_i18n(s.display_name, locale) or s.code for s in ext.storage_drivers],
         "hooks": len(ext.hooks),
         "hooks_details": [h.point for h in ext.hooks],
         "events": len(ext.events),
@@ -135,10 +237,13 @@ async def generate_preview(
             [*ext.api.admin_routes, *ext.api.tenant_routes, *ext.api.public_routes]
         ],
         "frontend_pages": len(ext.frontend.pages),
-        "frontend_pages_details": [p.title for p in ext.frontend.pages] if ext.frontend.pages else [],
+        "frontend_pages_details": [
+            resolve_i18n(p.title, locale)
+            for p in ext.frontend.pages
+        ] if ext.frontend.pages else [],
         "frontend_menus": len([p for p in ext.frontend.pages if p.menu is not None]),
         "frontend_menus_details": [
-            (p.menu.title or p.title)
+            resolve_i18n(p.menu.title or p.title, locale)
             for p in ext.frontend.pages
             if p.menu is not None
         ],
@@ -207,7 +312,7 @@ async def generate_preview(
         desc = _CAPABILITY_DESCRIPTIONS.get(cap, {})
         capabilities.append({
             "code": cap,
-            "description": resolve_i18n(desc) if desc else cap,
+            "description": resolve_i18n(desc, locale) if desc else cap,
         })
 
     # Compatibility / 兼容性
@@ -225,6 +330,7 @@ async def generate_preview(
 
     # Warnings / 警告
     warnings: list[str] = []
+    warnings.extend(_collect_frontend_i18n_warnings(manifest))
     if conflicts:
         warnings.append(f"Detected {len(conflicts)} conflict(s) with existing extensions")
     if python_dependency_states:

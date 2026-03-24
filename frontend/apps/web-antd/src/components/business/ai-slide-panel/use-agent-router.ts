@@ -138,7 +138,7 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
     const pinId = unref(options.pinnedAgentId);
     const pinName = unref(options.pinnedAgentName);
 
-    // ---- P1: Pinned agent ----
+    // ---- P1: Pinned agent / P1：已固定智能体 ----
     if (pinId && pinName) {
       return {
         agentId: pinId,
@@ -198,7 +198,7 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
     );
 
     if (matched) {
-      // Strip @name prefix from message so LLM doesn't receive it
+      // Strip @name prefix from message so LLM doesn't receive it / 去掉 @ 前缀再送模型
       const cleaned = trimmed.slice(mentionMatch[0]!.length).trimStart();
       return {
         agentId: matched.id,

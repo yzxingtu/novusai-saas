@@ -10,6 +10,17 @@ import {
   terminateTenantRunApi,
 } from '../../../api/tenant';
 import type { TenantRunDetail } from '../../../types/tenant';
+import {
+  TENANT_WORKFLOW_AI_CONVERSATION_SCOPE,
+  buildPrompt,
+  openWorkflowAIPanel,
+  useWorkflowPageAI,
+} from '../../../shared/ai';
+import {
+  TENANT_RUN_ACTION_ACCESS_CODES,
+  TENANT_RUN_DETAIL_PAGE_ACCESS_CODES,
+  WORKFLOW_ACCESS_CODES,
+} from '../../../shared/access';
 import ConsoleShell from '../shared/ConsoleShell.vue';
 import EmptyState from '../shared/EmptyState.vue';
 import StatusPill from '../shared/StatusPill.vue';
@@ -19,11 +30,15 @@ defineOptions({
   name: 'WorkflowOrchestrationTenantRunDetail',
 });
 
+const TENANT_RUN_DETAIL_PAGE_KEY = 'tenant.workflow_orchestration.runs.detail';
+
 const route = useRoute();
 const {
   canRunAction,
   formatDateTime,
   formatRelativeTime,
+  hasAccess,
+  hasAnyAccess,
   labelForArtifactStatus,
   labelForArtifactType,
   labelForRisk,
@@ -35,6 +50,28 @@ const {
   toneForRisk,
   toneForRunStatus,
 } = useTenantOrchestration();
+const permissionDeniedMessage = t(
+  'plugin.workflow-orchestration.tenant.common.messages.permissionDenied',
+);
+const canAccessRunDetailPage = hasAnyAccess(TENANT_RUN_DETAIL_PAGE_ACCESS_CODES);
+const canOpenWorkflowCenter = hasAccess(
+  WORKFLOW_ACCESS_CODES.WORKFLOW_CENTER_LIST,
+);
+const canOpenWorkflowDetail = hasAccess(
+  WORKFLOW_ACCESS_CODES.WORKFLOW_CENTER_VIEW,
+);
+const canOpenArtifacts = hasAccess(
+  WORKFLOW_ACCESS_CODES.ARTIFACT_CENTER_LIST,
+);
+const canOpenArtifactDetail = hasAccess(
+  WORKFLOW_ACCESS_CODES.ARTIFACT_CENTER_VIEW,
+);
+
+function hasRunActionAccess(
+  action: keyof typeof TENANT_RUN_ACTION_ACCESS_CODES,
+): boolean {
+  return hasAccess(TENANT_RUN_ACTION_ACCESS_CODES[action]);
+}
 
 const loading = ref(true);
 const actionBusy = ref(false);
@@ -61,9 +98,44 @@ const prettyOutput = computed(() => {
     : '';
 });
 
+function buildRunPlannerSeed(): string | undefined {
+  const parts = [
+    run.value?.name?.trim(),
+    run.value?.workflowName?.trim(),
+    run.value?.status?.trim(),
+    run.value?.currentNodeName?.trim(),
+    run.value?.contractSummary?.trim(),
+  ].filter((part): part is string => Boolean(part && part.trim()));
+
+  return parts.length > 0 ? parts.join('\n') : undefined;
+}
+
+function openAIPlanner(seed?: string): void {
+  openWorkflowAIPanel({
+    conversationScope: TENANT_WORKFLOW_AI_CONVERSATION_SCOPE,
+    message: buildPrompt([
+      t('plugin.workflow-orchestration.tenant.run.ai.systemLead'),
+      seed?.trim()
+        ? t('plugin.workflow-orchestration.tenant.run.ai.userIdea', {
+            idea: seed.trim(),
+          })
+        : t('plugin.workflow-orchestration.tenant.run.ai.emptyIdea'),
+      t('plugin.workflow-orchestration.tenant.run.ai.outputContract'),
+    ]),
+    pageKey: TENANT_RUN_DETAIL_PAGE_KEY,
+  });
+}
+
 async function loadRun(): Promise<void> {
+  if (!canAccessRunDetailPage) {
+    run.value = null;
+    errorMessage.value = permissionDeniedMessage;
+    loading.value = false;
+    return;
+  }
+
   if (!runId.value) {
-    errorMessage.value = t('plugin.workflowOrchestration.tenant.common.messages.invalidRoute');
+    errorMessage.value = t('plugin.workflow-orchestration.tenant.common.messages.invalidRoute');
     loading.value = false;
     return;
   }
@@ -77,7 +149,7 @@ async function loadRun(): Promise<void> {
     errorMessage.value =
       error instanceof Error
         ? error.message
-        : t('plugin.workflowOrchestration.tenant.common.messages.loadFailed');
+        : t('plugin.workflow-orchestration.tenant.common.messages.loadFailed');
   } finally {
     loading.value = false;
   }
@@ -86,6 +158,11 @@ async function loadRun(): Promise<void> {
 async function handleAction(
   action: 'pause' | 'resume' | 'retry' | 'terminate',
 ): Promise<void> {
+  if (!hasRunActionAccess(action)) {
+    errorMessage.value = permissionDeniedMessage;
+    return;
+  }
+
   if (!run.value?.id) {
     return;
   }
@@ -93,7 +170,7 @@ async function handleAction(
   if (
     action === 'terminate' &&
     !window.confirm(
-      t('plugin.workflowOrchestration.tenant.run.confirm.terminate'),
+      t('plugin.workflow-orchestration.tenant.run.confirm.terminate'),
     )
   ) {
     return;
@@ -117,11 +194,129 @@ async function handleAction(
     errorMessage.value =
       error instanceof Error
         ? error.message
-        : t('plugin.workflowOrchestration.tenant.common.messages.actionFailed');
+        : t('plugin.workflow-orchestration.tenant.common.messages.actionFailed');
   } finally {
     actionBusy.value = false;
   }
 }
+
+useWorkflowPageAI({
+  conversationScope: TENANT_WORKFLOW_AI_CONVERSATION_SCOPE,
+  pageKey: TENANT_RUN_DETAIL_PAGE_KEY,
+  buildContext: () => ({
+    entityDescription: t('plugin.workflow-orchestration.tenant.run.detailDescription'),
+    entityTitle: run.value?.name || t('plugin.workflow-orchestration.tenant.run.untitled'),
+    entityType: 'workflow_orchestration_tenant_run_detail',
+    pageData: {
+      artifact_count: run.value?.artifacts?.length ?? 0,
+      current_node_name: run.value?.currentNodeName ?? null,
+      run_id: runId.value,
+      status: run.value?.status ?? null,
+      workflow_id: run.value?.workflowId ?? null,
+      workflow_name: run.value?.workflowName ?? null,
+    },
+    pageTitle: run.value?.name || t('plugin.workflow-orchestration.tenant.run.untitled'),
+  }),
+  operations: [
+    {
+      name: 'open_workflow_from_run_detail',
+      label: t('plugin.workflow-orchestration.tenant.run.ai.operations.openWorkflows.label'),
+      description: t(
+        'plugin.workflow-orchestration.tenant.run.ai.operations.openWorkflows.description',
+      ),
+      readonly: true,
+      handler: async () => {
+        if (run.value?.workflowId && canOpenWorkflowDetail) {
+          navigateTo(`workflows/${run.value.workflowId}`);
+        } else if (canOpenWorkflowCenter) {
+          navigateTo('workflows');
+        } else {
+          return {
+            success: false,
+            message: permissionDeniedMessage,
+          };
+        }
+        return {
+          success: true,
+          message: t(
+            'plugin.workflow-orchestration.tenant.run.ai.operations.openWorkflows.success',
+          ),
+        };
+      },
+    },
+    {
+      name: 'open_artifacts_from_run_detail',
+      label: t('plugin.workflow-orchestration.tenant.run.ai.operations.openArtifacts.label'),
+      description: t(
+        'plugin.workflow-orchestration.tenant.run.ai.operations.openArtifacts.description',
+      ),
+      readonly: true,
+      handler: async () => {
+        if (run.value?.artifacts?.[0]?.id && canOpenArtifactDetail) {
+          navigateTo(`artifacts/${run.value.artifacts[0].id}`);
+        } else if (canOpenArtifacts) {
+          navigateTo('artifacts');
+        } else {
+          return {
+            success: false,
+            message: permissionDeniedMessage,
+          };
+        }
+        return {
+          success: true,
+          message: t(
+            'plugin.workflow-orchestration.tenant.run.ai.operations.openArtifacts.success',
+          ),
+        };
+      },
+    },
+    {
+      name: 'open_run_ai_assistant_from_detail',
+      label: t('plugin.workflow-orchestration.tenant.run.ai.operations.openAI.label'),
+      description: t(
+        'plugin.workflow-orchestration.tenant.run.ai.operations.openAI.description',
+      ),
+      readonly: true,
+      params: {
+        idea: {
+          description: t(
+            'plugin.workflow-orchestration.tenant.run.ai.operations.openAI.ideaDescription',
+          ),
+          required: false,
+          type: 'string',
+        },
+      },
+      handler: async (params: Record<string, unknown>) => {
+        openAIPlanner(
+          typeof params.idea === 'string' ? params.idea : buildRunPlannerSeed(),
+        );
+        return {
+          success: true,
+          message: t(
+            'plugin.workflow-orchestration.tenant.run.ai.operations.openAI.success',
+          ),
+        };
+      },
+    },
+    {
+      name: 'refresh_run_detail',
+      label: t('plugin.workflow-orchestration.tenant.run.ai.operations.refresh.label'),
+      description: t(
+        'plugin.workflow-orchestration.tenant.run.ai.operations.refresh.description',
+      ),
+      readonly: true,
+      handler: async () => {
+        await loadRun();
+        return {
+          success: true,
+          message: t(
+            'plugin.workflow-orchestration.tenant.run.ai.operations.refresh.success',
+          ),
+        };
+      },
+    },
+  ],
+});
 
 watch(
   () => route.params.runId,
@@ -136,45 +331,61 @@ watch(
 
 <template>
   <ConsoleShell
-    :description="t('plugin.workflowOrchestration.tenant.run.detailDescription')"
-    :eyebrow="t('plugin.workflowOrchestration.tenant.run.eyebrow')"
-    :title="run?.name || t('plugin.workflowOrchestration.tenant.run.untitled')"
+    :description="t('plugin.workflow-orchestration.tenant.run.detailDescription')"
+    :eyebrow="t('plugin.workflow-orchestration.tenant.run.eyebrow')"
+    :title="run?.name || t('plugin.workflow-orchestration.tenant.run.untitled')"
   >
     <template #actions>
       <button
+        v-if="canAccessRunDetailPage"
+        class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-sky-200 hover:text-sky-700"
+        @click="openAIPlanner(buildRunPlannerSeed())"
+      >
+        {{ t('plugin.workflow-orchestration.tenant.run.actions.askAI') }}
+      </button>
+      <button
+        v-if="canAccessRunDetailPage && hasRunActionAccess('pause')"
         class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
         :disabled="actionBusy || !canRunAction(run, 'pause')"
         @click="handleAction('pause')"
       >
-        {{ t('plugin.workflowOrchestration.tenant.run.actions.pause') }}
+        {{ t('plugin.workflow-orchestration.tenant.run.actions.pause') }}
       </button>
       <button
+        v-if="canAccessRunDetailPage && hasRunActionAccess('resume')"
         class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
         :disabled="actionBusy || !canRunAction(run, 'resume')"
         @click="handleAction('resume')"
       >
-        {{ t('plugin.workflowOrchestration.tenant.run.actions.resume') }}
+        {{ t('plugin.workflow-orchestration.tenant.run.actions.resume') }}
       </button>
       <button
+        v-if="canAccessRunDetailPage && hasRunActionAccess('retry')"
         class="inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
         :disabled="actionBusy || !canRunAction(run, 'retry')"
         @click="handleAction('retry')"
       >
         {{
           actionBusy
-            ? t('plugin.workflowOrchestration.tenant.common.messages.processing')
-            : t('plugin.workflowOrchestration.tenant.run.actions.retry')
+            ? t('plugin.workflow-orchestration.tenant.common.messages.processing')
+            : t('plugin.workflow-orchestration.tenant.run.actions.retry')
         }}
       </button>
       <button
+        v-if="canAccessRunDetailPage && hasRunActionAccess('terminate')"
         class="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
         :disabled="actionBusy || !canRunAction(run, 'terminate')"
         @click="handleAction('terminate')"
       >
-        {{ t('plugin.workflowOrchestration.tenant.run.actions.terminate') }}
+        {{ t('plugin.workflow-orchestration.tenant.run.actions.terminate') }}
       </button>
     </template>
 
+    <EmptyState
+      v-if="!canAccessRunDetailPage"
+      :title="permissionDeniedMessage"
+    />
+    <template v-else>
     <section
       v-if="errorMessage"
       class="rounded-3xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700"
@@ -211,31 +422,31 @@ watch(
           <dl class="mt-5 grid gap-3 text-sm text-slate-600 sm:grid-cols-2 xl:grid-cols-3">
             <div class="rounded-2xl bg-slate-50 px-4 py-3">
               <dt class="text-xs uppercase tracking-wide text-slate-400">
-                {{ t('plugin.workflowOrchestration.tenant.run.fields.workflowName') }}
+                {{ t('plugin.workflow-orchestration.tenant.run.fields.workflowName') }}
               </dt>
               <dd class="mt-1 font-medium text-slate-900">
-                {{ run.workflowName || t('plugin.workflowOrchestration.tenant.common.placeholders.empty') }}
+                {{ run.workflowName || t('plugin.workflow-orchestration.tenant.common.placeholders.empty') }}
               </dd>
             </div>
             <div class="rounded-2xl bg-slate-50 px-4 py-3">
               <dt class="text-xs uppercase tracking-wide text-slate-400">
-                {{ t('plugin.workflowOrchestration.tenant.run.fields.currentNodeName') }}
+                {{ t('plugin.workflow-orchestration.tenant.run.fields.currentNodeName') }}
               </dt>
               <dd class="mt-1 font-medium text-slate-900">
-                {{ run.currentNodeName || t('plugin.workflowOrchestration.tenant.common.placeholders.empty') }}
+                {{ run.currentNodeName || t('plugin.workflow-orchestration.tenant.common.placeholders.empty') }}
               </dd>
             </div>
             <div class="rounded-2xl bg-slate-50 px-4 py-3">
               <dt class="text-xs uppercase tracking-wide text-slate-400">
-                {{ t('plugin.workflowOrchestration.tenant.run.fields.snapshotVersion') }}
+                {{ t('plugin.workflow-orchestration.tenant.run.fields.snapshotVersion') }}
               </dt>
               <dd class="mt-1 font-medium text-slate-900">
-                {{ run.snapshotVersion || t('plugin.workflowOrchestration.tenant.common.placeholders.empty') }}
+                {{ run.snapshotVersion || t('plugin.workflow-orchestration.tenant.common.placeholders.empty') }}
               </dd>
             </div>
             <div class="rounded-2xl bg-slate-50 px-4 py-3">
               <dt class="text-xs uppercase tracking-wide text-slate-400">
-                {{ t('plugin.workflowOrchestration.tenant.run.fields.startedAt') }}
+                {{ t('plugin.workflow-orchestration.tenant.run.fields.startedAt') }}
               </dt>
               <dd class="mt-1 font-medium text-slate-900">
                 {{ formatDateTime(run.startedAt) }}
@@ -243,7 +454,7 @@ watch(
             </div>
             <div class="rounded-2xl bg-slate-50 px-4 py-3">
               <dt class="text-xs uppercase tracking-wide text-slate-400">
-                {{ t('plugin.workflowOrchestration.tenant.run.fields.updatedAt') }}
+                {{ t('plugin.workflow-orchestration.tenant.run.fields.updatedAt') }}
               </dt>
               <dd class="mt-1 font-medium text-slate-900">
                 {{ formatRelativeTime(run.updatedAt) }}
@@ -251,20 +462,20 @@ watch(
             </div>
             <div class="rounded-2xl bg-slate-50 px-4 py-3">
               <dt class="text-xs uppercase tracking-wide text-slate-400">
-                {{ t('plugin.workflowOrchestration.tenant.run.fields.costSummary') }}
+                {{ t('plugin.workflow-orchestration.tenant.run.fields.costSummary') }}
               </dt>
               <dd class="mt-1 font-medium text-slate-900">
-                {{ run.costSummary || t('plugin.workflowOrchestration.tenant.common.placeholders.empty') }}
+                {{ run.costSummary || t('plugin.workflow-orchestration.tenant.common.placeholders.empty') }}
               </dd>
             </div>
           </dl>
 
           <div class="mt-5 rounded-3xl border border-slate-200 bg-slate-50 px-5 py-4">
             <h2 class="text-sm font-semibold text-slate-900">
-              {{ t('plugin.workflowOrchestration.tenant.run.sections.contractSummary') }}
+              {{ t('plugin.workflow-orchestration.tenant.run.sections.contractSummary') }}
             </h2>
             <p class="mt-2 text-sm leading-6 text-slate-600">
-              {{ run.contractSummary || t('plugin.workflowOrchestration.tenant.run.empty.contractSummary') }}
+              {{ run.contractSummary || t('plugin.workflow-orchestration.tenant.run.empty.contractSummary') }}
             </p>
           </div>
         </article>
@@ -273,10 +484,10 @@ watch(
           <div class="flex items-center justify-between gap-3">
             <div>
               <h2 class="text-lg font-semibold text-slate-900">
-                {{ t('plugin.workflowOrchestration.tenant.run.sections.timeline') }}
+                {{ t('plugin.workflow-orchestration.tenant.run.sections.timeline') }}
               </h2>
               <p class="mt-1 text-sm text-slate-500">
-                {{ t('plugin.workflowOrchestration.tenant.run.sections.timelineHint') }}
+                {{ t('plugin.workflow-orchestration.tenant.run.sections.timelineHint') }}
               </p>
             </div>
           </div>
@@ -293,10 +504,10 @@ watch(
               <div class="flex items-start justify-between gap-3">
                 <div class="space-y-1">
                   <p class="text-sm font-semibold text-slate-900">
-                    {{ nodeRun.nodeName || t('plugin.workflowOrchestration.tenant.workflow.empty.nodeName') }}
+                    {{ nodeRun.nodeName || t('plugin.workflow-orchestration.tenant.workflow.empty.nodeName') }}
                   </p>
                   <p class="text-sm text-slate-600">
-                    {{ nodeRun.nodeType || t('plugin.workflowOrchestration.tenant.common.placeholders.empty') }}
+                    {{ nodeRun.nodeType || t('plugin.workflow-orchestration.tenant.common.placeholders.empty') }}
                   </p>
                 </div>
                 <StatusPill
@@ -311,7 +522,7 @@ watch(
                   {{
                     nodeRun.durationMs != null
                       ? `${nodeRun.durationMs} ms`
-                      : t('plugin.workflowOrchestration.tenant.common.placeholders.empty')
+                      : t('plugin.workflow-orchestration.tenant.common.placeholders.empty')
                   }}
                 </span>
               </div>
@@ -325,8 +536,8 @@ watch(
           </div>
           <EmptyState
             v-else
-            :description="t('plugin.workflowOrchestration.tenant.run.empty.timelineDescription')"
-            :title="t('plugin.workflowOrchestration.tenant.run.empty.timelineTitle')"
+            :description="t('plugin.workflow-orchestration.tenant.run.empty.timelineDescription')"
+            :title="t('plugin.workflow-orchestration.tenant.run.empty.timelineTitle')"
           />
         </article>
       </section>
@@ -335,17 +546,17 @@ watch(
         <article class="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-sm">
           <div>
             <h2 class="text-lg font-semibold text-slate-900">
-              {{ t('plugin.workflowOrchestration.tenant.run.sections.inputOutput') }}
+              {{ t('plugin.workflow-orchestration.tenant.run.sections.inputOutput') }}
             </h2>
             <p class="mt-1 text-sm text-slate-500">
-              {{ t('plugin.workflowOrchestration.tenant.run.sections.inputOutputHint') }}
+              {{ t('plugin.workflow-orchestration.tenant.run.sections.inputOutputHint') }}
             </p>
           </div>
 
           <div class="mt-5 grid gap-4 lg:grid-cols-2">
             <div class="rounded-3xl border border-slate-200 bg-slate-50 px-5 py-4">
               <h3 class="text-sm font-semibold text-slate-900">
-                {{ t('plugin.workflowOrchestration.tenant.run.sections.inputPayload') }}
+                {{ t('plugin.workflow-orchestration.tenant.run.sections.inputPayload') }}
               </h3>
               <pre
                 v-if="prettyInput"
@@ -353,14 +564,14 @@ watch(
               >{{ prettyInput }}</pre>
               <EmptyState
                 v-else
-                :description="t('plugin.workflowOrchestration.tenant.run.empty.inputDescription')"
-                :title="t('plugin.workflowOrchestration.tenant.run.empty.inputTitle')"
+                :description="t('plugin.workflow-orchestration.tenant.run.empty.inputDescription')"
+                :title="t('plugin.workflow-orchestration.tenant.run.empty.inputTitle')"
               />
             </div>
 
             <div class="rounded-3xl border border-slate-200 bg-slate-50 px-5 py-4">
               <h3 class="text-sm font-semibold text-slate-900">
-                {{ t('plugin.workflowOrchestration.tenant.run.sections.outputPayload') }}
+                {{ t('plugin.workflow-orchestration.tenant.run.sections.outputPayload') }}
               </h3>
               <pre
                 v-if="prettyOutput"
@@ -368,8 +579,8 @@ watch(
               >{{ prettyOutput }}</pre>
               <EmptyState
                 v-else
-                :description="t('plugin.workflowOrchestration.tenant.run.empty.outputDescription')"
-                :title="t('plugin.workflowOrchestration.tenant.run.empty.outputTitle')"
+                :description="t('plugin.workflow-orchestration.tenant.run.empty.outputDescription')"
+                :title="t('plugin.workflow-orchestration.tenant.run.empty.outputTitle')"
               />
             </div>
           </div>
@@ -379,17 +590,18 @@ watch(
           <div class="flex items-center justify-between gap-3">
             <div>
               <h2 class="text-lg font-semibold text-slate-900">
-                {{ t('plugin.workflowOrchestration.tenant.run.sections.artifacts') }}
+                {{ t('plugin.workflow-orchestration.tenant.run.sections.artifacts') }}
               </h2>
               <p class="mt-1 text-sm text-slate-500">
-                {{ t('plugin.workflowOrchestration.tenant.run.sections.artifactsHint') }}
+                {{ t('plugin.workflow-orchestration.tenant.run.sections.artifactsHint') }}
               </p>
             </div>
             <button
+              v-if="canOpenArtifacts"
               class="text-sm font-medium text-sky-700 transition hover:text-sky-800"
               @click="navigateTo('artifacts')"
             >
-              {{ t('plugin.workflowOrchestration.tenant.common.actions.openArtifacts') }}
+              {{ t('plugin.workflow-orchestration.tenant.common.actions.openArtifacts') }}
             </button>
           </div>
 
@@ -400,12 +612,13 @@ watch(
             <button
               v-for="artifact in run.artifacts"
               :key="artifact.id"
-              class="flex w-full items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:border-sky-200 hover:bg-sky-50/60"
+              class="flex w-full items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:border-sky-200 hover:bg-sky-50/60 disabled:cursor-not-allowed disabled:opacity-70"
+              :disabled="!canOpenArtifactDetail"
               @click="navigateTo(`artifacts/${artifact.id}`)"
             >
               <div class="min-w-0 space-y-2">
                 <p class="truncate text-sm font-semibold text-slate-900">
-                  {{ artifact.title || t('plugin.workflowOrchestration.tenant.artifact.untitled') }}
+                  {{ artifact.title || t('plugin.workflow-orchestration.tenant.artifact.untitled') }}
                 </p>
                 <div class="flex flex-wrap items-center gap-2">
                   <StatusPill
@@ -425,8 +638,8 @@ watch(
           </div>
           <EmptyState
             v-else
-            :description="t('plugin.workflowOrchestration.tenant.run.empty.artifactDescription')"
-            :title="t('plugin.workflowOrchestration.tenant.run.empty.artifactTitle')"
+            :description="t('plugin.workflow-orchestration.tenant.run.empty.artifactDescription')"
+            :title="t('plugin.workflow-orchestration.tenant.run.empty.artifactTitle')"
           />
         </article>
       </section>
@@ -436,10 +649,10 @@ watch(
           <div class="flex items-center justify-between gap-3">
             <div>
               <h2 class="text-lg font-semibold text-slate-900">
-                {{ t('plugin.workflowOrchestration.tenant.run.sections.approvals') }}
+                {{ t('plugin.workflow-orchestration.tenant.run.sections.approvals') }}
               </h2>
               <p class="mt-1 text-sm text-slate-500">
-                {{ t('plugin.workflowOrchestration.tenant.run.sections.approvalsHint') }}
+                {{ t('plugin.workflow-orchestration.tenant.run.sections.approvalsHint') }}
               </p>
             </div>
             <button
@@ -447,7 +660,7 @@ watch(
               class="text-sm font-medium text-sky-700 transition hover:text-sky-800"
               @click="openExternal(run.hostApprovalPath)"
             >
-              {{ t('plugin.workflowOrchestration.tenant.run.actions.openHostApproval') }}
+              {{ t('plugin.workflow-orchestration.tenant.run.actions.openHostApproval') }}
             </button>
           </div>
 
@@ -466,29 +679,29 @@ watch(
                   {{ approval.title }}
                 </p>
                 <p class="text-sm text-slate-600">
-                  {{ approval.approverName || t('plugin.workflowOrchestration.tenant.common.placeholders.empty') }}
+                  {{ approval.approverName || t('plugin.workflow-orchestration.tenant.common.placeholders.empty') }}
                 </p>
               </div>
               <div class="text-right text-xs text-slate-500">
-                <p>{{ approval.status || t('plugin.workflowOrchestration.tenant.common.placeholders.empty') }}</p>
+                <p>{{ approval.status || t('plugin.workflow-orchestration.tenant.common.placeholders.empty') }}</p>
                 <p>{{ formatDateTime(approval.dueAt) }}</p>
               </div>
             </button>
           </div>
           <EmptyState
             v-else
-            :description="t('plugin.workflowOrchestration.tenant.run.empty.approvalDescription')"
-            :title="t('plugin.workflowOrchestration.tenant.run.empty.approvalTitle')"
+            :description="t('plugin.workflow-orchestration.tenant.run.empty.approvalDescription')"
+            :title="t('plugin.workflow-orchestration.tenant.run.empty.approvalTitle')"
           />
         </article>
 
         <article class="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-sm">
           <div>
             <h2 class="text-lg font-semibold text-slate-900">
-              {{ t('plugin.workflowOrchestration.tenant.run.sections.recovery') }}
+              {{ t('plugin.workflow-orchestration.tenant.run.sections.recovery') }}
             </h2>
             <p class="mt-1 text-sm text-slate-500">
-              {{ t('plugin.workflowOrchestration.tenant.run.sections.recoveryHint') }}
+              {{ t('plugin.workflow-orchestration.tenant.run.sections.recoveryHint') }}
             </p>
           </div>
 
@@ -519,8 +732,8 @@ watch(
           </div>
           <EmptyState
             v-else
-            :description="t('plugin.workflowOrchestration.tenant.run.empty.recoveryDescription')"
-            :title="t('plugin.workflowOrchestration.tenant.run.empty.recoveryTitle')"
+            :description="t('plugin.workflow-orchestration.tenant.run.empty.recoveryDescription')"
+            :title="t('plugin.workflow-orchestration.tenant.run.empty.recoveryTitle')"
           />
         </article>
       </section>
@@ -528,8 +741,9 @@ watch(
 
     <EmptyState
       v-else
-      :description="t('plugin.workflowOrchestration.tenant.run.empty.detailDescription')"
-      :title="t('plugin.workflowOrchestration.tenant.run.empty.detailTitle')"
+      :description="t('plugin.workflow-orchestration.tenant.run.empty.detailDescription')"
+      :title="t('plugin.workflow-orchestration.tenant.run.empty.detailTitle')"
     />
+    </template>
   </ConsoleShell>
 </template>

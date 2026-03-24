@@ -62,7 +62,7 @@ class AgentAccessRepository(TenantRepository[AgentAccess]):
             await self.db.refresh(existing)
             return existing
 
-        # 新建
+        # 新建 / Create new row
         create_data = {
             "agent_id": agent_id,
             **data,

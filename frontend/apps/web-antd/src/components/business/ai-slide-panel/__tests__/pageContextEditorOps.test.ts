@@ -169,7 +169,7 @@ describe('Page context editor ops', () => {
     ]);
 
     const ops = listPageOperations(EDITOR_KEY);
-    // Same mapping as AIChatSlidePanel enrichPageContextWithOperations
+    // Same mapping as AIChatSlidePanel enrichPageContextWithOperations / 与面板内 enrich 映射一致
     const available_operations = ops.map((op) => ({
       name: op.name,
       label: op.label,
@@ -195,7 +195,7 @@ describe('Page context editor ops', () => {
   });
 
   it('DocumentEditor appendPageOperations: platform editor ops preserved, document ops appended', () => {
-    // Platform (useEditorPageOps) registers editor ops first
+    // Platform (useEditorPageOps) registers editor ops first / 平台先注册编辑器操作
     registerPageOperations(EDITOR_KEY, [
       {
         name: 'get_editor_html',
@@ -213,7 +213,7 @@ describe('Page context editor ops', () => {
       },
     ]);
 
-    // DocumentEditor appends document ops (save_document, update_title, etc.) without replacing
+    // DocumentEditor appends document ops (save_document, update_title, etc.) without replacing / 文档操作追加不覆盖
     const cleanupAppend = appendPageOperations(EDITOR_KEY, [
       {
         name: 'save_document',

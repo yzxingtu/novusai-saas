@@ -288,7 +288,7 @@ class AICallLogRepository(BaseRepository[AICallLog]):
         avg_latency_expr = func.avg(AICallLog.latency_ms)
         max_latency_expr = func.max(AICallLog.latency_ms)
 
-        # 优先账本快照，避免企业/模型改名后聚合展示漂移
+        # 优先账本快照，避免企业/模型改名后聚合展示漂移 / Prefer billing snapshots for stable aggregates
         tenant_name_col = func.coalesce(
             AICallLog.billing_tenant_name_snapshot,
             Tenant.name,

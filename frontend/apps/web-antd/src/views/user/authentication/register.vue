@@ -23,6 +23,7 @@ import { userApi } from '#/api';
 import { CaptchaProvider } from '#/components/business/captcha';
 import { $t } from '#/locales';
 import { usePublicConfigStore } from '#/store';
+import { showRequestError } from '#/utils/error-helpers';
 
 defineOptions({ name: 'UserRegister' });
 
@@ -144,10 +145,7 @@ async function handleSubmit() {
     if (captchaRequired) {
       showCaptcha.value = true;
     }
-    // Show backend error message / 显示后端返回的错误信息
-    if (responseData?.message) {
-      message.error(responseData.message);
-    }
+    showRequestError(error, 'common.requestFailed');
     refreshCaptcha();
   } finally {
     loading.value = false;

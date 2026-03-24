@@ -55,6 +55,7 @@ import {
 import { $t } from '#/locales';
 import { usePresenceStore } from '#/store';
 import { formatDate, formatRelativeTime } from '#/utils/common';
+import { showRequestError } from '#/utils/error-helpers';
 
 import { OrgTreeNode, useOrgTree } from '#/components/business/org-tree';
 
@@ -296,8 +297,8 @@ async function onForceLogout(row: TenantUserInfo) {
       $t('common.auth.forceLogoutSuccess', { name: row.username }),
     );
     onMemberRefresh();
-  } catch {
-    message.error($t('common.requestFailed'));
+  } catch (error) {
+    showRequestError(error, 'common.requestFailed');
   }
 }
 
@@ -395,7 +396,6 @@ watch(
 
 onMounted(async () => {
   await Promise.all([loadRoles(), loadRootNodes()]);
-  expandAll();
   presenceStore.loadTenantUserPresence();
 });
 
@@ -421,12 +421,14 @@ usePageAIOperations({
         await Promise.all([refreshOrgTree(), loadRoles()]);
         onMemberRefresh();
       },
-      description: 'Refresh organization filters, permission roles, and user list',
+      description: $t('tenant.system.userArchitecture.aiOperations.refreshFiltersDesc'),
     }),
     createKeywordSearchPageOperation({
       label: $t('shared.pageOperation.searchByKeyword'),
-      description: 'Search permission roles by keyword',
-      keywordDescription: 'Permission role keyword',
+      description: $t('tenant.system.userArchitecture.aiOperations.searchRoleDesc'),
+      keywordDescription: $t(
+        'tenant.system.userArchitecture.aiOperations.searchRoleKeyword',
+      ),
       normalize: (keyword) => keyword.toLowerCase(),
       setKeyword: (keyword) => {
         roleSearchKeyword.value = keyword;
@@ -435,23 +437,31 @@ usePageAIOperations({
     createPrefilledCreatePageOperation({
       name: 'create_permission_role',
       label: $t('tenant.system.userArchitecture.createRole'),
-      description: 'Open the create permission-role form',
+      description: $t('tenant.system.userArchitecture.aiOperations.createRoleDesc'),
       params: {
         description: {
           type: 'string',
-          description: 'Permission role description',
+          description: $t(
+            'tenant.system.userArchitecture.aiOperations.createRoleParams.description',
+          ),
         },
         is_active: {
           type: 'boolean',
-          description: 'Whether the permission role should be active',
+          description: $t(
+            'tenant.system.userArchitecture.aiOperations.createRoleParams.isActive',
+          ),
         },
         name: {
           type: 'string',
-          description: 'Permission role name',
+          description: $t(
+            'tenant.system.userArchitecture.aiOperations.createRoleParams.name',
+          ),
         },
         sort_order: {
           type: 'number',
-          description: 'Permission role sort order',
+          description: $t(
+            'tenant.system.userArchitecture.aiOperations.createRoleParams.sortOrder',
+          ),
         },
       },
       normalizeParams: (params) => {
@@ -483,36 +493,49 @@ usePageAIOperations({
     createPrefilledCreatePageOperation({
       name: 'create_user',
       label: $t('tenant.system.user.create'),
-      description:
-        'Open the create user form with optional org node and permission role defaults',
+      description: $t('tenant.system.userArchitecture.aiOperations.createUserDesc'),
       params: {
         email: {
           type: 'string',
-          description: 'User email',
+          description: $t(
+            'tenant.system.userArchitecture.aiOperations.createUserParams.email',
+          ),
         },
         is_active: {
           type: 'boolean',
-          description: 'Whether the user should be active',
+          description: $t(
+            'tenant.system.userArchitecture.aiOperations.createUserParams.isActive',
+          ),
         },
         nickname: {
           type: 'string',
-          description: 'User nickname',
+          description: $t(
+            'tenant.system.userArchitecture.aiOperations.createUserParams.nickname',
+          ),
         },
         org_node_id: {
           type: 'number',
-          description: 'Target org node ID',
+          description: $t(
+            'tenant.system.userArchitecture.aiOperations.createUserParams.orgNodeId',
+          ),
         },
         phone: {
           type: 'string',
-          description: 'User phone number',
+          description: $t(
+            'tenant.system.userArchitecture.aiOperations.createUserParams.phone',
+          ),
         },
         role_id: {
           type: 'number',
-          description: 'Permission role ID',
+          description: $t(
+            'tenant.system.userArchitecture.aiOperations.createUserParams.roleId',
+          ),
         },
         username: {
           type: 'string',
-          description: 'Username',
+          description: $t(
+            'tenant.system.userArchitecture.aiOperations.createUserParams.username',
+          ),
         },
       },
       normalizeParams: (params) => {

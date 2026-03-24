@@ -54,7 +54,7 @@ _VERSION_SNAPSHOT_FIELDS = [
     "context_config",
     "output_schema",
     # NOTE: tool_bindings / knowledge_base_ids removed —
-    # replaced by direct AgentSkillGrant + AgentKnowledgeBaseBinding architecture
+    # replaced by direct AgentSkillGrant + AgentKnowledgeBaseBinding architecture / 已由 AgentSkillGrant 等替代 / replaced by grants
 ]
 
 
@@ -536,7 +536,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         conversation_targets = await self.repo.list_conversation_memory_cleanup_targets(
             id,
         )
-        # 级联软删除智能体的对话记录
+        # 级联软删除智能体的对话记录 / Cascade soft-delete agent conversations
         await self.repo.cascade_soft_delete_conversations(id, self._default_delete_level)
         deleted_keys = await _clear_cascaded_conversation_memories(conversation_targets)
         if conversation_targets:
@@ -589,7 +589,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         if not agent:
             raise NotFoundException(message=_("agent.error.not_found"))
 
-        # 构建响应字典
+        # 构建响应字典 / Build response dict
         result = agent.to_dict()
         result["owner_tenant_id"] = agent.owner_tenant_id
         result["scope"] = getattr(agent, "scope", None)
@@ -604,7 +604,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         except AttributeError:
             pass
 
-        # 附加记忆开关计算结果（企业服务）
+        # 附加记忆开关计算结果（企业服务） / Attach computed memory toggle (tenant service)
         resolved = await self.resolve_memory_effective_config(agent_id)
         result["memory_enabled"] = bool(getattr(agent, "memory_enabled", True))
         result["effective_memory_enabled"] = resolved["effective_memory_enabled"]
@@ -613,7 +613,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         return result
 
     # ========================================
-    # 版本管理
+    # 版本管理 / Version management
     # ========================================
 
     async def publish_agent(
@@ -639,12 +639,12 @@ class AgentService(TenantService[Agent, AgentRepository]):
         if not agent:
             raise NotFoundException(message=_("agent.error.not_found"))
 
-        # 计算新版本号
+        # 计算新版本号 / Compute new version number
         version_repo = self._get_version_repo()
         latest_version = await version_repo.get_latest_version_number(agent_id)
         new_version = latest_version + 1
 
-        # 创建版本快照
+        # 创建版本快照 / Create version snapshot
         version_data: dict[str, Any] = {
             "agent_id": agent_id,
             "version": new_version,
@@ -655,7 +655,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         for field_name in _VERSION_SNAPSHOT_FIELDS:
             version_data[field_name] = getattr(agent, field_name)
 
-        # 快照包含技能绑定信息
+        # 快照包含技能绑定信息 / Snapshot includes skill bindings
         version_data["tool_bindings"] = await self._snapshot_skill_grants(agent_id)
 
         await version_repo.create(version_data)
@@ -709,7 +709,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
 
         updated = await self.repo.update(agent_id, rollback_data)
 
-        # 恢复技能绑定
+        # 恢复技能绑定 / Restore skill bindings
         await self._restore_skill_grants(
             agent_id, version_record.tool_bindings,
         )
@@ -795,7 +795,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
                 message=_("agent.version.error.version_not_found_n", version=v2)
             )
 
-        # 对比快照字段
+        # 对比快照字段 / Compare snapshot fields
         diff: dict[str, Any] = {}
         for field_name in _VERSION_SNAPSHOT_FIELDS:
             val1 = getattr(record_v1, field_name)
@@ -812,7 +812,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
 
 
     # ========================================
-    # 访问权限管理
+    # 访问权限管理 / Access control management
     # ========================================
 
     async def get_access_config(self, agent_id: int) -> dict[str, Any]:
@@ -864,7 +864,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         allowed = frozenset({"admin_role_ids", "tenant_role_ids"})
         data = {k: v for k, v in patch.items() if k in allowed}
 
-        # Upsert AgentAccess
+        # Upsert AgentAccess / 插入或更新访问记录 / upsert access row
         access_repo = self._get_access_repo()
         access = await access_repo.upsert(agent_id, data)
 
@@ -974,8 +974,8 @@ class AgentService(TenantService[Agent, AgentRepository]):
                 user_role_id,
             )
         if access_type == AgentPublicationAccessTypeEnum.ORG_NODE.value:
-            # 当前企业用户模型暂未提供可直接复用的组织节点关联，因此先严格拒绝，
-            # 避免出现“配置了组织节点但实际放行全部用户”的错误语义。
+            # 当前企业用户模型暂未提供可直接复用的组织节点关联，因此先严格拒绝， / Tenant user model has no reusable org-node link yet; reject strictly for now,
+            # 避免出现“配置了组织节点但实际放行全部用户”的错误语义。 / Avoid wrong semantics: org node configured but all users allowed
             return False
         return False
 
@@ -1221,7 +1221,7 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
         if agent.owner_tenant_id is not None:
             raise BusinessException(message=_("agent.error.system_protected"))
 
-        # 系统智能体不允许修改关键字段
+        # 系统智能体不允许修改关键字段 / System agents cannot change critical fields
         if agent.is_system:
             protected = {
                 "is_system",
@@ -1285,7 +1285,7 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
         conversation_targets = await self.repo.list_conversation_memory_cleanup_targets(
             id,
         )
-        # 级联软删除智能体的对话记录
+        # 级联软删除智能体的对话记录 / Cascade soft-delete agent conversations
         await self.repo.cascade_soft_delete_conversations(id, self._default_delete_level)
         deleted_keys = await _clear_cascaded_conversation_memories(conversation_targets)
         if conversation_targets:

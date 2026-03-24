@@ -317,14 +317,47 @@ export function formatRelativeTime(
   const months = Math.floor(days / 30);
   const years = Math.floor(days / 365);
 
-  const suffix = diff > 0 ? '前' : '后';
+  const isPast = diff > 0;
 
-  if (seconds < 60) return '刚刚';
-  if (minutes < 60) return `${minutes} 分钟${suffix}`;
-  if (hours < 24) return `${hours} 小时${suffix}`;
-  if (days < 30) return `${days} 天${suffix}`;
-  if (months < 12) return `${months} 个月${suffix}`;
-  return `${years} 年${suffix}`;
+  if (seconds < 60) return $t('common.relativeTime.justNow');
+  if (minutes < 60) {
+    return $t(
+      isPast
+        ? 'common.relativeTime.minutesAgo'
+        : 'common.relativeTime.minutesLater',
+      { n: minutes },
+    );
+  }
+  if (hours < 24) {
+    return $t(
+      isPast
+        ? 'common.relativeTime.hoursAgo'
+        : 'common.relativeTime.hoursLater',
+      { n: hours },
+    );
+  }
+  if (days < 30) {
+    return $t(
+      isPast
+        ? 'common.relativeTime.daysAgo'
+        : 'common.relativeTime.daysLater',
+      { n: days },
+    );
+  }
+  if (months < 12) {
+    return $t(
+      isPast
+        ? 'common.relativeTime.monthsAgo'
+        : 'common.relativeTime.monthsLater',
+      { n: months },
+    );
+  }
+  return $t(
+    isPast
+      ? 'common.relativeTime.yearsAgo'
+      : 'common.relativeTime.yearsLater',
+    { n: years },
+  );
 }
 
 // ============================================================

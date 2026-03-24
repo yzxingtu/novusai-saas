@@ -54,7 +54,7 @@ class GeneratedSQL:
 
     sql: str = ""
     explanation: str = ""
-    visualization_suggestion: str = ""  # line/bar/pie/table/number
+    visualization_suggestion: str = ""  # line/bar/pie/table/number  # 补充说明 / note
     confidence: float = 0.0  # 0.0 ~ 1.0
     success: bool = True
     error: str = ""
@@ -85,7 +85,7 @@ class ConversationRound:
 
 _SYSTEM_PROMPT_TEMPLATE = """You are a PostgreSQL query generator for a multi-tenant SaaS platform.
 
-## STRICT RULES
+## STRICT RULES / 上文为英文说明 / English above
 1. ONLY generate SELECT statements. Never INSERT/UPDATE/DELETE/DROP/ALTER/CREATE.
 2. NEVER use comments (-- or /* */) in SQL.
 3. NEVER use dangerous functions like pg_read_file, pg_sleep, dblink, lo_import, etc.
@@ -99,10 +99,10 @@ _SYSTEM_PROMPT_TEMPLATE = """You are a PostgreSQL query generator for a multi-te
 11. PostgreSQL requires ALL non-aggregated columns in SELECT to appear in GROUP BY. Never select columns like `created_at`, `name`, etc. without including them in GROUP BY when using aggregate functions.
 12. Keep SQL simple and direct. Prefer a single query without unnecessary subqueries or CTEs.
 
-## AVAILABLE TABLES
+## AVAILABLE TABLES / 上文为英文说明 / English above
 {schema_ddl}
 
-## OUTPUT FORMAT
+## OUTPUT FORMAT / 上文为英文说明 / English above
 Return ONLY a JSON object (no markdown, no extra text):
 {{
   "sql": "SELECT ...",
@@ -122,7 +122,7 @@ _RETRY_USER_TEMPLATE = """The SQL you generated has safety violations:
 Please fix the SQL to comply with all rules. Return the corrected JSON output."""
 
 
-# ============================================
+# ============================================ / 上文为英文说明 / English above
 # TextToSQLGenerator
 # ============================================
 

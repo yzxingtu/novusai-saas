@@ -119,12 +119,12 @@ class TenantDomainCreateRequest(BaseSchema):
 
         v = v.lower().strip()
 
-        # 基本域名格式验证
+        # 基本域名格式验证 / Basic domain format
         pattern = r"^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$"
         if not re.match(pattern, v):
             raise ValueError(_("tenant_domain.invalid_format"))
 
-        # 禁止使用平台域名
+        # 禁止使用平台域名 / Forbid platform-reserved suffix
         from app.core.config import settings
         suffix = settings.TENANT_DOMAIN_SUFFIX.lstrip(".")
         if v.endswith(suffix):

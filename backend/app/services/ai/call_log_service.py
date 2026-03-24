@@ -55,7 +55,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
             if len(api_key) > 8:
                 sanitized["api_key"] = f"{api_key[:4]}...{api_key[-4:]}"
 
-        # 脱敏其他敏感字段
+        # 脱敏其他敏感字段 / Redact other sensitive fields
         sensitive_fields = ["password", "token", "secret", "authorization"]
         for field in sensitive_fields:
             if field in sanitized:
@@ -85,7 +85,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         response_str = json.dumps(response_data, ensure_ascii=False, default=str)
 
         if len(response_str.encode("utf-8")) > CallLogService.RESPONSE_TRUNCATE_THRESHOLD:
-            # 截断并添加标记
+            # 截断并添加标记 / Truncate and add marker
             return {
                 "truncated": True,
                 "size": len(response_str),
@@ -173,17 +173,17 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         Returns:
             AICallLog 实例
         """
-        # 脱敏和截断处理
+        # 脱敏和截断处理 / Redact and truncate
         sanitized_request = self._sanitize_request(request_data)
         truncated_response = self._truncate_response(response_data)
 
-        # 生成请求哈希
+        # 生成请求哈希 / Generate request hash
         messages = request_data.get("messages", [])
         temperature = request_data.get("temperature", 0.7)
         tools = request_data.get("tools")
         request_hash = self._generate_request_hash(model_id, messages, temperature, tools)
 
-        # 创建日志记录
+        # 创建日志记录 / Create log row
         billing_context = dict(billing_context or {})
         call_log = AICallLog(
             tenant_id=tenant_id,

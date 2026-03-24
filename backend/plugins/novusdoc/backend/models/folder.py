@@ -8,6 +8,7 @@ from app.core.base_model import BaseModel
 
 class NovusdocFolder(BaseModel):
     __tablename__ = "px_novusdoc_folders"
+    __data_permission__ = True
 
     tenant_id: Mapped[int] = mapped_column(
         Integer,
@@ -27,4 +28,8 @@ class NovusdocFolder(BaseModel):
     )
     sort_order: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0,
+    )
+    created_by: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
     )

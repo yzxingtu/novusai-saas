@@ -156,10 +156,26 @@
       "codeHelp": "角色代码在企业内唯一，创建后不可修改",
       "codeCreate": "角色代码将用于权限标识",
       "systemRoleHelp": "系统内置角色不可删除和修改代码"
+    },
+    "permissionTypes": {
+      "api": "接口",
+      "button": "按钮",
+      "menu": "菜单",
+      "operation": "操作"
     }
   },
   "userArchitecture": {
     "title": "用户架构",
+    "filterSidebarTitle": "组织与角色筛选",
+    "orgFilterTitle": "组织筛选",
+    "clearOrgFilter": "清空组织筛选",
+    "allOrganizations": "全部组织",
+    "allOrganizationsDesc": "查看企业下所有用户，不按组织过滤",
+    "orgFilterHint": "选择组织后，仅显示该组织及其下级组织的用户",
+    "permissionRoleListTitle": "权限角色",
+    "allPermissionRoles": "全部权限角色",
+    "allPermissionRolesDesc": "查看所有权限角色下的用户，不按角色过滤",
+    "permissionRoleHint": "选择权限角色后，仅显示该角色下的用户",
     "roleList": "角色列表",
     "selectRoleHint": "请在左侧选择一个角色",
     "selectRoleSubHint": "选择后可查看角色详情和管理成员",
@@ -180,7 +196,40 @@
     "offline": "离线",
     "allUsers": "全部用户",
     "allUsersDesc": "查看企业下所有用户，不按角色过滤",
-    "allUsersListTitle": "用户列表"
+    "allUsersListTitle": "用户列表",
+    "userListTitle": "用户列表",
+    "orgColumn": "组织节点",
+    "permissionRoleColumn": "权限角色",
+    "orgField": "所属组织",
+    "orgFieldHelp": "设置用户所属的组织节点，用于组织筛选和数据归属",
+    "permissionRoleField": "权限角色",
+    "permissionRoleHelp": "权限角色决定用户在企业端可见的菜单与操作权限",
+    "selectOrgPlaceholder": "请选择组织节点",
+    "selectPermissionRolePlaceholder": "请选择权限角色",
+    "unassignedOrg": "未分配组织",
+    "unassignedPermissionRole": "未分配权限角色",
+    "aiOperations": {
+      "refreshFiltersDesc": "刷新组织筛选、权限角色和用户列表",
+      "searchRoleDesc": "按关键词搜索权限角色",
+      "searchRoleKeyword": "权限角色关键词",
+      "createRoleDesc": "打开新建权限角色表单",
+      "createRoleParams": {
+        "description": "权限角色描述",
+        "isActive": "权限角色是否启用",
+        "name": "权限角色名称",
+        "sortOrder": "权限角色排序值"
+      },
+      "createUserDesc": "打开新建用户表单，并可带入组织节点和权限角色默认值",
+      "createUserParams": {
+        "email": "用户邮箱",
+        "isActive": "用户是否启用",
+        "nickname": "用户昵称",
+        "orgNodeId": "目标组织节点 ID",
+        "phone": "用户手机号",
+        "roleId": "权限角色 ID",
+        "username": "用户名"
+      }
+    }
   },
   "configs": {
     "title": "系统配置",
@@ -376,6 +425,14 @@
     "selectNodeHint": "请在左侧选择一个节点",
     "selectNodeSubHint": "选择后可查看详情和管理成员",
     "basicInfo": "基本信息",
+    "leaderCardTitle": "负责人信息",
+    "leaderCardDescription": "负责人决定当前组织节点的管理归属，并继承该节点配置的数据查看范围。",
+    "scopeCardTitle": "数据范围",
+    "scopeMode": "范围模式",
+    "scopeTargetCount": "自定义节点数",
+    "noLeaderAssigned": "未设置负责人",
+    "noLeaderHint": "设置负责人后，可按组织节点统一控制其可见数据范围。",
+    "memberCardDescription": "默认展示当前节点及其下级节点成员，可切换为仅看本节点。",
     "permissionInfo": "权限信息",
     "assignedPermissions": "已分配权限",
     "editPermissionHint": "点击编辑按钮可修改权限分配",

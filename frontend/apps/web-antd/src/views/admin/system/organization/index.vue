@@ -26,6 +26,7 @@ import {
 } from '#/api/admin/organization';
 import { MemberPanel } from '#/components/business/member-panel';
 import { OrgNodeDialog } from '#/components/business/org-node-dialog';
+import { PermissionPreview } from '#/components/business/permission-preview';
 import {
   getLeaderScopeDescription,
   getLeaderScopeLabel,
@@ -146,6 +147,7 @@ async function loadSelectedNodeDetail(nodeId: number) {
       leader: detail.leader,
       leaderId: detail.leaderId,
       memberCount: detail.memberCount,
+      permissionsCount: detail.permissionsCount,
       sortOrder: detail.sortOrder,
       type: detail.type,
     });
@@ -582,6 +584,17 @@ usePageAIOperations({
                         $t('admin.system.organization.memberCount')
                       }}</span>
                       <span>{{ activeNode?.memberCount }}</span>
+                    </div>
+                    <div class="flex items-center justify-between gap-4">
+                      <span class="text-muted-foreground">{{
+                        $t('shared.orgNode.permissions')
+                      }}</span>
+                      <PermissionPreview
+                        api-prefix="admin"
+                        source="org-node"
+                        :node-id="activeNode!.id"
+                        :permissions-count="activeNode?.permissionsCount ?? 0"
+                      />
                     </div>
                   </div>
                 </Card>

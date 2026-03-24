@@ -45,30 +45,30 @@ from app.ai.events.types import (
 )
 
 __all__ = [
-    # 事件基类
+    # 事件基类 / Base event
     "BaseEvent",
-    # 智能体
+    # 智能体 / Agent
     "AgentCreated", "AgentPublished", "AgentDisabled",
     "AgentUpdated", "AgentDeleted",
-    # 技能
+    # 技能 / Skill
     "SkillCreated", "SkillUpdated", "SkillDeleted",
-    # 对话
+    # 对话 / Conversation
     "ConversationStarted", "ConversationCreated",
     "MessageAdded", "MessageCreated", "ConversationCompleted",
-    # 工具
+    # 工具 / Tool call
     "ToolCallRequested", "ToolCallCompleted", "ToolCallFailed",
-    # 配额
+    # 配额 / Quota
     "QuotaWarning", "QuotaExceeded",
-    # 执行
+    # 执行 / Execution
     "ExecutionStarted", "ExecutionCompleted", "ExecutionFailed",
-    # 插件
+    # 插件 / Plugin
     "PluginInstalled", "PluginEnabled", "PluginDisabled", "PluginUninstalled",
-    # 知识库
+    # 知识库 / Knowledge base
     "KnowledgeBaseUpdated", "DocumentUploaded",
-    # 模型
+    # 模型 / Model
     "ModelCallCompleted",
-    # 事件总线
+    # 事件总线 / Event bus
     "EventBus", "EventHandler", "get_event_bus",
-    # 钩子系统
+    # 钩子系统 / Hooks
     "HookPoint", "HookHandler", "HookRegistry", "get_hook_registry",
 ]

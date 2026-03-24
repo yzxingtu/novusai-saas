@@ -58,6 +58,22 @@ function findNode(
   return null;
 }
 
+function findNodePath(
+  nodes: OrgTreeNodeData[],
+  id: number,
+  path: number[] = [],
+): null | number[] {
+  for (const node of nodes) {
+    const nextPath = [...path, node.id];
+    if (node.id === id) return nextPath;
+    if (node.children.length > 0) {
+      const found = findNodePath(node.children, id, nextPath);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 /**
  * Collect all node IDs (for expanding all)
  * 收集所有节点 ID（用于展开全部）
@@ -92,7 +108,7 @@ export function useOrgTree(options: UseOrgTreeOptions = {}): UseOrgTreeReturn {
           getChildren: getTenantNodeChildrenApi,
         };
 
-  // State
+  // State / 状态
   const treeData = shallowRef<OrgTreeNodeData[]>([]);
   const loading = ref(false);
   const expandedIds = ref<Set<number>>(new Set());
@@ -178,23 +194,22 @@ export function useOrgTree(options: UseOrgTreeOptions = {}): UseOrgTreeReturn {
     if (!node) return;
 
     const isCurrentlyExpanded = expandedIds.value.has(nodeId);
+    const nodePath = findNodePath(treeData.value, nodeId) ?? [nodeId];
 
     // Convert to frontend tree node format / 转换为前端树节点格式且未加载，先加载
-    if (node.hasChildren && !node.loaded) {
+    if (node.hasChildren && !node.loaded && !isCurrentlyExpanded) {
       await loadChildren(nodeId);
       // Load children on first expand / 首次展开时加载子节点完成后展开
-      expandedIds.value.add(nodeId);
-      expandedIds.value = new Set(expandedIds.value);
+      expandedIds.value = new Set(nodePath);
       return;
     }
 
     // Reload this node's info and children / 重新加载该节点的信息和子节点，切换展开/收起状态
     if (isCurrentlyExpanded) {
-      expandedIds.value.delete(nodeId);
+      expandedIds.value = new Set(nodePath.slice(0, -1));
     } else {
-      expandedIds.value.add(nodeId);
+      expandedIds.value = new Set(nodePath);
     }
-    expandedIds.value = new Set(expandedIds.value);
   }
 
   /**
@@ -228,10 +243,10 @@ export function useOrgTree(options: UseOrgTreeOptions = {}): UseOrgTreeReturn {
    * @returns First root node
    */
   async function refresh(): Promise<null | OrgTreeNodeData> {
-    // Save current expanded state
+    // Save current expanded state / 保存展开集合
     const currentExpanded = new Set(expandedIds.value);
     const firstNode = await loadRootNodes();
-    // Restore expanded state (only keep existing nodes)
+    // Restore expanded state (only keep existing nodes) / 刷新后恢复仍存在的展开项
     const allIds = new Set(collectAllIds(treeData.value));
     expandedIds.value = new Set(
       [...currentExpanded].filter((id) => allIds.has(id)),

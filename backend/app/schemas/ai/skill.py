@@ -128,7 +128,7 @@ class SkillResponse(BaseResponseSchema):
     toolkit_content: str | None = Field(None, description=_("skill.field.toolkit_content"))
     toolkit_meta: dict[str, Any] | None = Field(None, description=_("skill.field.toolkit_meta"))
 
-    # ---- 插件来源信息（仅插件注册的技能有值） ----
+    # ---- 插件来源信息（仅插件注册的技能有值） ---- / Plugin source (only for plugin-registered skills) ----
     source_plugin: str | None = Field(None, description="Source plugin name (null for manual skills)")
     plugin_tools: list[PluginToolInfo] | None = Field(None, description="Plugin-resolved tool list (null for manual skills)")
 

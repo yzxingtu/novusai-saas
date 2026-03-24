@@ -80,7 +80,7 @@ class PeriodicTaskService(GlobalService[PeriodicTask, PeriodicTaskRepository]):
                     day_of_week=parts[4],
                 )
                 remaining = schedule.remaining_estimate(base)
-                return base + remaining  # remaining is timedelta
+                return base + remaining  # 剩余为 timedelta 类型 / remaining is timedelta
             except Exception:
                 return None
         elif task.schedule_type == "interval" and task.interval_seconds:

@@ -49,12 +49,12 @@ const emit = defineEmits<{
   'update:value': [val: Record<string, unknown>];
 }>();
 
-// ── i18n helper ──
+// ── i18n helper / 国际化封装 ──
 function t(key: string): string {
   return $t(`${props.localePrefix}.toolkitEditor.${key}`);
 }
 
-// ── Schema parsing ──
+// ── Schema parsing / Schema 解析 ──
 interface ValvesField {
   name: string;
   type: string;
@@ -86,7 +86,7 @@ const fields = computed<ValvesField[]>(() => {
 
 const hasFields = computed(() => fields.value.length > 0);
 
-// ── Form values ──
+// ── Form values / 表单值 ──
 const formValues = computed(() => {
   const vals: Record<string, unknown> = {};
   for (const field of fields.value) {
@@ -119,7 +119,7 @@ function handleFieldChange(fieldName: string, val: unknown) {
   emit('update:value', newValues);
 }
 
-// Emit defaults on mount if value is empty
+// Emit defaults on mount if value is empty / 空值时挂载发出默认
 watch(
   fields,
   (f) => {

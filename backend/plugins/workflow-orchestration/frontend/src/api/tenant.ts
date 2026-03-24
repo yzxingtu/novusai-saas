@@ -10,6 +10,7 @@ import type {
   TenantHomePayload,
   TenantHomeStatCard,
   TenantHomeSummary,
+  TenantTemplateListQuery,
   TenantHomeTodoItem,
   TenantListQuery,
   TenantNodeRun,
@@ -23,7 +24,9 @@ import type {
   TenantWorkflowInputVariable,
   TenantWorkflowNode,
   TenantWorkflowOutputContract,
+  TenantWorkflowCopyPayload,
   TenantWorkflowSummary,
+  TenantWorkflowTemplateSummary,
   TenantWorkflowUpsertPayload,
   TenantWorkflowVersionSummary,
 } from '../types/tenant';
@@ -363,6 +366,41 @@ function normalizeWorkflowSummary(item: unknown): TenantWorkflowSummary {
     canEdit: asBoolean(record.canEdit, record.can_edit, record.editable),
     canPublish: asBoolean(record.canPublish, record.can_publish),
     canExecute: asBoolean(record.canExecute, record.can_execute),
+  };
+}
+
+function normalizeWorkflowTemplateSummary(
+  item: unknown,
+): TenantWorkflowTemplateSummary {
+  const record = toRecord(item);
+  return {
+    id: asNumber(record.id, record.template_id) ?? 0,
+    code: asOptionalString(record.code),
+    name: asString(record.name, record.title) ?? '',
+    description: asOptionalString(record.description, record.summary),
+    category: asOptionalString(record.category),
+    status: asOptionalString(record.status),
+    builderSurface: asOptionalString(
+      record.builderSurface,
+      record.builder_surface,
+    ),
+    releaseScope: asOptionalString(record.releaseScope, record.release_scope),
+    tags: asOptionalStringArray(record.tags ?? record.tags_json),
+    latestVersionNo: asNumber(record.latestVersionNo, record.latest_version_no),
+    currentPublishedVersionId: asNumber(
+      record.currentPublishedVersionId,
+      record.current_published_version_id,
+    ),
+    publishedVersion: asOptionalString(
+      record.publishedVersion,
+      record.published_version,
+      record.version,
+    ),
+    nodeCount: asNumber(record.nodeCount, record.node_count),
+    edgeCount: asNumber(record.edgeCount, record.edge_count),
+    publishedAt: asOptionalString(record.publishedAt, record.published_at),
+    updatedAt: asOptionalString(record.updatedAt, record.updated_at),
+    canCopy: asBoolean(record.canCopy, record.can_copy) ?? true,
   };
 }
 
@@ -750,12 +788,42 @@ export async function listTenantWorkflowsApi(
   return buildListResult(response, normalizeWorkflowSummary);
 }
 
+export async function listTenantWorkflowTemplatesApi(
+  query: TenantTemplateListQuery = {},
+): Promise<PaginatedResult<TenantWorkflowTemplateSummary>> {
+  const params = new URLSearchParams();
+  params.set('page[number]', String(query.page ?? 1));
+  params.set('page[size]', String(query.size ?? 6));
+  if (query.keyword) {
+    params.set('filter[name][ilike]', query.keyword);
+  }
+  const response = await getClient().get<unknown>(
+    `${resolveTenantApiBase()}/templates?${params.toString()}`,
+  );
+  return buildListResult(response, normalizeWorkflowTemplateSummary);
+}
+
 export async function createTenantWorkflowApi(
   payload: TenantWorkflowUpsertPayload,
 ): Promise<TenantWorkflowDetail> {
   const response = await getClient().post<unknown>(
     `${resolveTenantApiBase()}/workflows`,
     payload,
+  );
+  return normalizeWorkflowDetail(response);
+}
+
+export async function copyTenantWorkflowFromTemplateApi(
+  payload: TenantWorkflowCopyPayload,
+): Promise<TenantWorkflowDetail> {
+  const response = await getClient().post<unknown>(
+    `${resolveTenantApiBase()}/workflows/copy-from-template`,
+    {
+      description: payload.description,
+      name: payload.name,
+      template_id: payload.templateId,
+      template_version_id: payload.templateVersionId,
+    },
   );
   return normalizeWorkflowDetail(response);
 }

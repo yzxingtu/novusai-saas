@@ -277,7 +277,7 @@ async def get_current_active_tenant_user(
 
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 
-# Redis
+# Redis / Redis 异步客户端
 RedisClient = Annotated[AioRedis, Depends(get_redis)]
 
 # 平台管理员 / Platform admin

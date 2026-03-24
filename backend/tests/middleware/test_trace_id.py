@@ -87,3 +87,25 @@ class TestTraceIdMiddleware:
         assert resp.status_code == 200
         assert received_tid[0] == expected
         assert resp.json()["trace_id"] == expected
+
+    def test_long_request_trace_id_is_normalized_to_column_safe_length(self, app):
+        """超长请求头 trace_id 应统一归一化，避免 HTTP/Socket/DB 长度不一致。"""
+        received_tid = []
+
+        async def capture_handler(request: Request):
+            tid = trace_id_var.get()
+            received_tid.append(tid)
+            return JSONResponse({"trace_id": tid})
+
+        capture_app = Starlette(routes=[Route("/capture", capture_handler)])
+        capture_app.add_middleware(TraceIdMiddleware)
+
+        client = TestClient(capture_app)
+        long_trace_id = "trace-" + ("x" * 100)
+        resp = client.get("/capture", headers={"X-Trace-ID": long_trace_id})
+
+        assert resp.status_code == 200
+        assert len(received_tid[0]) == 64
+        assert received_tid[0] == long_trace_id[:64]
+        assert resp.headers["X-Trace-ID"] == long_trace_id[:64]
+        assert resp.json()["trace_id"] == long_trace_id[:64]

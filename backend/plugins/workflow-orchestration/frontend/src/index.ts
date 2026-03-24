@@ -13,6 +13,7 @@ import TenantArtifactListView from './views/tenant/artifacts/index.vue';
 import TenantHomeView from './views/tenant/home/index.vue';
 import TenantRunDetailView from './views/tenant/runs/detail.vue';
 import TenantRunListView from './views/tenant/runs/index.vue';
+import TenantWorkflowCreateView from './views/tenant/workflows/create.vue';
 import TenantWorkflowDetailView from './views/tenant/workflows/detail.vue';
 import TenantWorkflowEditorView from './views/tenant/workflows/editor.vue';
 import TenantWorkflowListView from './views/tenant/workflows/index.vue';
@@ -27,8 +28,10 @@ interface WorkflowPluginSharedApi {
   ) => void;
 }
 
-const ADMIN_LOCALE_PREFIX = 'plugin.workflowOrchestration.admin';
-const TENANT_LOCALE_PREFIX = 'plugin.workflowOrchestration.tenant';
+const ADMIN_LOCALE_PREFIX = 'plugin.workflow-orchestration.admin';
+const TENANT_LOCALE_PREFIX = 'plugin.workflow-orchestration.tenant';
+const LEGACY_ADMIN_LOCALE_PREFIX = 'plugin.workflowOrchestration.admin';
+const LEGACY_TENANT_LOCALE_PREFIX = 'plugin.workflowOrchestration.tenant';
 
 function getShared(): WorkflowPluginSharedApi | undefined {
   return (window as unknown as { NovusPluginShared?: WorkflowPluginSharedApi })
@@ -58,7 +61,15 @@ export function setup(): void {
     enUS: adminEnUS,
     zhCN: adminZhCN,
   });
+  registerLocaleGroup(LEGACY_ADMIN_LOCALE_PREFIX, {
+    enUS: adminEnUS,
+    zhCN: adminZhCN,
+  });
   registerLocaleGroup(TENANT_LOCALE_PREFIX, {
+    enUS: tenantEnUS,
+    zhCN: tenantZhCN,
+  });
+  registerLocaleGroup(LEGACY_TENANT_LOCALE_PREFIX, {
     enUS: tenantEnUS,
     zhCN: tenantZhCN,
   });
@@ -77,6 +88,8 @@ export const WorkflowOrchestrationAdminRuntimePage =
   AdminRuntimeView as Component;
 
 export const WorkflowOrchestrationTenantHomePage = TenantHomeView as Component;
+export const WorkflowOrchestrationTenantWorkflowCreatePage =
+  TenantWorkflowCreateView as Component;
 export const WorkflowOrchestrationTenantWorkflowListPage =
   TenantWorkflowListView as Component;
 export const WorkflowOrchestrationTenantWorkflowDetailPage =
@@ -107,6 +120,8 @@ export const WorkflowOrchestrationAdminRuntime =
 
 export const WorkflowOrchestrationTenantHome =
   WorkflowOrchestrationTenantHomePage;
+export const WorkflowOrchestrationTenantWorkflowCreate =
+  WorkflowOrchestrationTenantWorkflowCreatePage;
 export const WorkflowOrchestrationTenantWorkflowList =
   WorkflowOrchestrationTenantWorkflowListPage;
 export const WorkflowOrchestrationTenantWorkflowDetail =

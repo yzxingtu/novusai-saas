@@ -210,7 +210,7 @@ export interface TenantPublicConfig {
 // ============================================================
 
 interface PlatformPublicConfigRaw {
-  // Brand
+  // Brand / 品牌与站点展示
   site_name?: string;
   site_description?: string;
   site_logo?: string;
@@ -220,21 +220,21 @@ interface PlatformPublicConfigRaw {
   primary_color?: string;
   logo_dark?: string;
 
-  // Domain
+  // Domain / 域名与租户后缀
   tenant_domain_suffix?: string;
   domain_verification_prefix?: string;
   platform_domains?: string[];
 
-  // Runtime limits
+  // Runtime limits / 运行时限制
   runtime_limits?: {
     page_context_max_bytes?: number;
   };
 
-  // Maintenance
+  // Maintenance / 维护模式
   maintenance_mode?: boolean;
   maintenance_message?: string;
 
-  // Login / Captcha
+  // Login / Captcha / 登录与验证码
   login_captcha_enabled?: boolean;
   captcha_type?: string;
   captcha_difficulty?: string;
@@ -245,12 +245,12 @@ interface PlatformPublicConfigRaw {
   login_lockout_minutes?: number;
   allowed_methods?: string[];
 
-  // Password
+  // Password / 密码策略
   password_min_length?: number;
   password_complexity?: string;
   password_expiry_days?: number;
 
-  // Session
+  // Session / 会话策略
   session_timeout_minutes?: number;
   session_max_devices?: number;
 }
@@ -260,7 +260,7 @@ interface TenantPublicConfigRaw {
   tenant_code: string;
   tenant_name: string;
 
-  // Brand (backend returns these field names from TenantPublicConfig schema)
+  // Brand (backend returns these field names from TenantPublicConfig schema) / 品牌字段（与后端 schema 一致）
   logo_url?: string;
   favicon_url?: string;
   login_bg?: string;
@@ -268,15 +268,15 @@ interface TenantPublicConfigRaw {
   login_subtitle?: string;
   footer_copyright?: string;
 
-  // Domain
+  // Domain / 企业域名
   subdomain?: string;
   subdomain_url?: string;
 
-  // Maintenance (from platform fallback)
+  // Maintenance (from platform fallback) / 维护（可来自平台兜底）
   maintenance_mode?: boolean;
   maintenance_message?: string;
 
-  // Login / Captcha
+  // Login / Captcha / 登录与验证码
   captcha_enabled?: boolean;
   user_login_captcha_enabled?: boolean;
   user_login_captcha_enable_threshold?: number;
@@ -289,14 +289,14 @@ interface TenantPublicConfigRaw {
   login_max_attempts?: number;
   login_lockout_minutes?: number;
 
-  // Password
+  // Password / 密码策略
   password_min_length?: number;
   password_complexity?: string;
 
-  // Session
+  // Session / 会话
   session_timeout?: number;
 
-  // Features
+  // Features / 功能开关
   allow_registration?: boolean;
   registration_approval?: boolean;
   allow_profile_edit?: boolean;
@@ -305,13 +305,13 @@ interface TenantPublicConfigRaw {
   api_access?: boolean;
   file_upload?: boolean;
 
-  // Registration links
+  // Registration links / 注册与协议链接
   privacy_policy_url?: string;
   terms_url?: string;
   privacy_policy_internal?: boolean;
   terms_internal?: boolean;
 
-  // Storage
+  // Storage / 存储上传
   storage?: {
     allowed_extensions?: string;
     base_url?: string;
@@ -320,7 +320,7 @@ interface TenantPublicConfigRaw {
     max_file_size_mb?: number;
   };
 
-  // Runtime limits
+  // Runtime limits / 运行时限制
   runtime_limits?: {
     page_context_max_bytes?: number;
   };
@@ -492,8 +492,8 @@ interface HttpResponse<T> {
  * No auth required / 无需认证
  */
 export async function getPlatformPublicConfigApi(): Promise<PlatformPublicConfig> {
-  // baseRequestClient has no interceptor, returns raw AxiosResponse
-  // AxiosResponse.data = HttpResponse { code, message, data }
+  // baseRequestClient has no interceptor, returns raw AxiosResponse / 无拦截器，原始 Axios 响应
+  // AxiosResponse.data = HttpResponse { code, message, data } / data 为统一包装体
   const response = await baseRequestClient.get<
     HttpResponse<PlatformPublicConfigRaw>
   >('/api/public/platform/config');

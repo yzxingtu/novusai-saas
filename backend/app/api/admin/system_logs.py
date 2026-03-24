@@ -63,7 +63,7 @@ class LogStatsResponse(BaseModel):
 
 @permission_resource(
     resource="system_log",
-    name="menu.admin.system_log",  # i18n key
+    name="menu.admin.system_log",  # i18n key / 菜单 i18n 键名
     scope=PermissionScope.ADMIN,
     parent_resource="system_maintenance",
     menu=MenuConfig(

@@ -74,7 +74,7 @@ class Agent(BaseModel):
         comment="归属企业ID（平台级智能体为 NULL，企业自有智能体为所属企业）",
     )
 
-    # 允许前端筛选的字段
+    # 允许前端筛选的字段 / Fields exposed for list filtering
     __filterable__ = {
         "id": "id",
         "name": "name",
@@ -88,7 +88,7 @@ class Agent(BaseModel):
         "created_at": "created_at",
     }
 
-    # 允许排序的字段
+    # 允许排序的字段 / Sortable columns for UI
     __sortable__ = {
         "id": "id",
         "name": "name",
@@ -105,7 +105,7 @@ class Agent(BaseModel):
         comment="资源作用域 ResourceScopeEnum（五类）/ Resource scope",
     )
 
-    # ==================== 基本信息 ====================
+    # ==================== 基本信息 ==================== / Basic info
 
     name: Mapped[str] = mapped_column(
         String(100),
@@ -124,9 +124,9 @@ class Agent(BaseModel):
         comment=_("enum.agent_model.avatar"),
     )
 
-    # ==================== 模型配置 ====================
+    # ==================== 模型配置 ==================== / Model parameters
 
-    # 关联 AI 模型
+    # 关联 AI 模型 / Linked AI model
     model_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("ai_models.id", ondelete="RESTRICT"),
@@ -156,7 +156,7 @@ class Agent(BaseModel):
         comment=_("enum.agent_model.top_p"),
     )
 
-    # ==================== 状态与模式 ====================
+    # ==================== 状态与模式 ==================== / Status and mode
 
     status: Mapped[str] = mapped_column(
         String(20),
@@ -184,7 +184,7 @@ class Agent(BaseModel):
         comment=_("enum.agent_model.visibility"),
     )
 
-    # ==================== 配额配置 ====================
+    # ==================== 配额配置 ==================== / Quota config
 
     quota_config: Mapped[dict | None] = mapped_column(
         JSON,
@@ -193,7 +193,7 @@ class Agent(BaseModel):
         comment=_("enum.agent_model.quota_config"),
     )
 
-    # ==================== 多模型路由配置 ====================
+    # ==================== 多模型路由配置 ==================== / Multi-model routing
 
     routing_config: Mapped[dict | None] = mapped_column(
         JSON,
@@ -202,7 +202,7 @@ class Agent(BaseModel):
         comment=_("enum.agent_model.routing_config"),
     )
 
-    # ==================== 会话记忆配置 ====================
+    # ==================== 会话记忆配置 ==================== / Session memory
 
     memory_enabled: Mapped[bool] = mapped_column(
         Boolean,
@@ -211,7 +211,7 @@ class Agent(BaseModel):
         comment=_("enum.agent_model.memory_enabled"),
     )
 
-    # ==================== 变量 ====================
+    # ==================== 变量 ==================== / Variables
 
     input_variables: Mapped[list | None] = mapped_column(
         JSON,
@@ -220,9 +220,9 @@ class Agent(BaseModel):
         comment=_("enum.agent_model.input_variables"),
     )
 
-    # ==================== 知识库（RAG）配置 ====================
-    # 知识库绑定通过 AgentKnowledgeBaseBinding 中间表管理
-    # rag_config 为 Agent 级统一 RAG 配置
+    # ==================== 知识库（RAG）配置 ==================== / Knowledge (RAG)
+    # 知识库绑定通过 AgentKnowledgeBaseBinding 中间表管理 / Bindings via join table
+    # rag_config 为 Agent 级统一 RAG 配置 / Agent-level RAG JSON
 
     rag_config: Mapped[dict | None] = mapped_column(
         JSON,
@@ -231,7 +231,7 @@ class Agent(BaseModel):
         comment=_("enum.agent_model.rag_config"),
     )
 
-    # ==================== 上下文配置 ====================
+    # ==================== 上下文配置 ==================== / Context config
 
     context_config: Mapped[dict | None] = mapped_column(
         JSON,
@@ -246,7 +246,7 @@ class Agent(BaseModel):
         comment=_("enum.agent_model.output_schema"),
     )
 
-    # ==================== 系统标记 ====================
+    # ==================== 系统标记 ==================== / System flags
 
     is_system: Mapped[bool] = mapped_column(
         Boolean,
@@ -256,7 +256,7 @@ class Agent(BaseModel):
         comment=_("enum.agent_model.is_system"),
     )
 
-    # ==================== 交互配置 ====================
+    # ==================== 交互配置 ==================== / Interaction defaults
 
     welcome_message: Mapped[str | None] = mapped_column(
         Text,
@@ -270,21 +270,21 @@ class Agent(BaseModel):
         comment=_("enum.agent_model.suggested_questions"),
     )
 
-    # ==================== 复合索引 ====================
+    # ==================== 复合索引 ==================== / Composite indexes
 
     __table_args__ = (
         Index("ix_agents_owner_tenant_status", "owner_tenant_id", "status"),
     )
 
-    # ==================== 关系 ====================
+    # ==================== 关系 ==================== / Relationships
 
-    # 关联的 AI 模型
+    # 关联的 AI 模型 / Linked AIModel row
     model = relationship(
         "AIModel",
         lazy="selectin",
     )
 
-    # 关联的对话列表
+    # 关联的对话列表 / Conversations for this agent
     conversations = relationship(
         "AgentConversation",
         back_populates="agent",
@@ -292,7 +292,7 @@ class Agent(BaseModel):
         cascade="all, delete-orphan",
     )
 
-    # 技能授权（Direct Skill Grants）
+    # 技能授权（Direct Skill Grants） / Direct skill grants
     skill_grants = relationship(
         "AgentSkillGrant",
         back_populates="agent",
@@ -301,7 +301,7 @@ class Agent(BaseModel):
         order_by="AgentSkillGrant.sort_order",
     )
 
-    # 知识库绑定
+    # 知识库绑定 / Knowledge base bindings
     kb_bindings = relationship(
         "AgentKnowledgeBaseBinding",
         lazy="noload",

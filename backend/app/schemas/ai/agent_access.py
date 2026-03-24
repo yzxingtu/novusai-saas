@@ -11,7 +11,7 @@ from app.core.i18n import _
 
 
 class AgentAccessUpdate(BaseModel):
-    """更新智能体访问权限配置（仅角色 ID 列表） / Update agent access config (role ID lists only)."""
+    """更新智能体访问权限配置 / Update agent access config."""
 
     admin_role_ids: list[int] | None = Field(
         None,

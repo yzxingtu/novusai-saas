@@ -11,6 +11,13 @@ from app.core.base_model import utc_now
 from app.core.i18n import _
 from app.core.logging import get_logger
 from app.plugins.module_loader import load_plugin_module
+from ._data_scope import (
+    apply_artifact_data_scope,
+    apply_model_scope,
+    apply_run_data_scope,
+    apply_tenant_workflow_scope,
+    apply_template_scope,
+)
 
 PLUGIN_NAME = "workflow-orchestration"
 logger = get_logger(__name__)
@@ -68,6 +75,50 @@ class TenantWorkflowService:
         payload["items"] = self._build_builder_capability_items(payload)
         return payload
 
+    async def list_copyable_templates(self, query_params: Any) -> dict[str, Any]:
+        model_access = _runtime("model_access")
+        query = _runtime("query")
+
+        template_model = model_access.resolve_model("workflow_template")
+        allowed_fields = model_access.model_field_names(template_model)
+        page, page_size = query.parse_page(query_params)
+        default_sort = (
+            "-published_at" if "published_at" in allowed_fields else "-updated_at"
+        )
+        base_filters = self._copyable_template_filters(template_model)
+
+        list_stmt = apply_model_scope(
+            select(template_model).where(*base_filters),
+            template_model,
+        )
+        count_stmt = apply_model_scope(
+            select(func.count()).select_from(template_model).where(*base_filters),
+            template_model,
+        )
+
+        parsed_filters = query.parse_filters(query_params, allowed_fields)
+        list_stmt = query.apply_filters(list_stmt, template_model, parsed_filters)
+        count_stmt = query.apply_filters(count_stmt, template_model, parsed_filters)
+        list_stmt = query.apply_sort(
+            list_stmt,
+            template_model,
+            query.parse_sort(query_params, allowed_fields, default_sort=default_sort),
+        )
+
+        total = (await self.db.execute(count_stmt)).scalar() or 0
+        list_stmt = list_stmt.offset((page - 1) * page_size).limit(page_size)
+        result = await self.db.execute(list_stmt)
+        items = [
+            await self.serialize_copyable_template(item)
+            for item in result.scalars().all()
+        ]
+        return {
+            "items": items,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
+
     async def list_workflows(self, query_params: Any) -> dict[str, Any]:
         model_access = _runtime("model_access")
         query = _runtime("query")
@@ -77,8 +128,16 @@ class TenantWorkflowService:
         page, page_size = query.parse_page(query_params)
         allowed_fields = model_access.model_field_names(workflow_model)
 
-        list_stmt = select(workflow_model).where(*base_filters)
-        count_stmt = select(func.count()).select_from(workflow_model).where(*base_filters)
+        list_stmt = apply_tenant_workflow_scope(
+            select(workflow_model).where(*base_filters),
+            workflow_model,
+            self.tenant_id,
+        )
+        count_stmt = apply_tenant_workflow_scope(
+            select(func.count()).select_from(workflow_model).where(*base_filters),
+            workflow_model,
+            self.tenant_id,
+        )
 
         parsed_filters = query.parse_filters(query_params, allowed_fields)
         list_stmt = query.apply_filters(list_stmt, workflow_model, parsed_filters)
@@ -209,15 +268,36 @@ class TenantWorkflowService:
                 _("plugin.workflow-orchestration.error.template_id_required"),
             )
 
-        template_model = model_access.resolve_model("workflow_template")
-        template_stmt = select(template_model).where(template_model.id == template_id)
-        template = (await self.db.execute(template_stmt)).scalar_one_or_none()
-        if template is None:
+        template = await self._get_copyable_template(template_id)
+        current_published_version_id = self._safe_int(
+            model_access.first_attr(
+                template,
+                ("current_published_version_id", "latest_version_id"),
+            )
+        )
+        if current_published_version_id is None:
             raise errors.WorkflowNotFoundError(
                 _("plugin.workflow-orchestration.error.template_not_found"),
             )
 
-        snapshot = await self._resolve_template_snapshot(template)
+        requested_template_version_id = self._safe_int(
+            payload.get("template_version_id") or payload.get("templateVersionId")
+        )
+        if (
+            requested_template_version_id is not None
+            and requested_template_version_id != current_published_version_id
+        ):
+            raise errors.WorkflowValidationError(
+                _("plugin.workflow-orchestration.error.template_not_found"),
+            )
+
+        template_version_id = (
+            requested_template_version_id or current_published_version_id
+        )
+        snapshot = await self._resolve_template_snapshot(
+            template,
+            template_version_id=template_version_id,
+        )
         template_name = model_access.first_attr(template, ("name",), "workflow")
         name = str(payload.get("name") or f"{template_name} copy").strip()
         return await self.create_workflow(
@@ -321,6 +401,12 @@ class TenantWorkflowService:
             .where(version_model.workflow_id == workflow_id)
             .order_by(getattr(version_model, "version_no", version_model.id).desc())
         )
+        stmt = apply_tenant_workflow_scope(
+            stmt,
+            type(workflow),
+            self.tenant_id,
+            workflow_id_column=version_model.workflow_id,
+        )
         result = await self.db.execute(stmt)
         versions: list[dict[str, Any]] = []
         for item in result.scalars().all():
@@ -380,6 +466,46 @@ class TenantWorkflowService:
         )
         return payload
 
+    async def serialize_copyable_template(self, template: Any) -> dict[str, Any]:
+        model_access = _runtime("model_access")
+        serializer = _runtime("serializer")
+
+        snapshot = await self._resolve_template_snapshot(template)
+        nodes = self._extract_nodes(snapshot)
+        edges = self._extract_edges(snapshot)
+        current_version = await self._current_template_version_label(template)
+
+        return {
+            "id": model_access.first_attr(template, ("id",)),
+            "code": model_access.first_attr(template, ("code",)),
+            "name": model_access.first_attr(template, ("name",), "workflow"),
+            "description": model_access.first_attr(template, ("description",)),
+            "category": model_access.first_attr(template, ("category",)),
+            "status": model_access.first_attr(template, ("status",), "published"),
+            "builder_surface": model_access.first_attr(template, ("builder_surface",)),
+            "release_scope": model_access.first_attr(template, ("release_scope",)),
+            "tags_json": model_access.first_attr(template, ("tags_json",), []) or [],
+            "latest_version_no": model_access.first_attr(
+                template,
+                ("latest_version_no",),
+                0,
+            ),
+            "current_published_version_id": model_access.first_attr(
+                template,
+                ("current_published_version_id",),
+            ),
+            "published_version": current_version,
+            "node_count": len(nodes),
+            "edge_count": len(edges),
+            "can_copy": True,
+            "published_at": serializer.to_iso(
+                model_access.first_attr(template, ("published_at",)),
+            ),
+            "updated_at": serializer.to_iso(
+                model_access.first_attr(template, ("updated_at",)),
+            ),
+        }
+
     async def _get_workflow(self, workflow_id: int) -> Any:
         errors = _runtime("errors")
         workflow_model = _runtime("model_access").resolve_model("tenant_workflow")
@@ -387,6 +513,7 @@ class TenantWorkflowService:
             workflow_model.id == workflow_id,
             workflow_model.tenant_id == self.tenant_id,
         )
+        stmt = apply_tenant_workflow_scope(stmt, workflow_model, self.tenant_id)
         workflow = (await self.db.execute(stmt)).scalar_one_or_none()
         if workflow is None:
             raise errors.WorkflowNotFoundError(
@@ -394,11 +521,26 @@ class TenantWorkflowService:
             )
         return workflow
 
-    async def _resolve_template_snapshot(self, template: Any) -> dict[str, Any]:
+    async def _resolve_template_snapshot(
+        self,
+        template: Any,
+        template_version_id: int | None = None,
+    ) -> dict[str, Any]:
         model_access = _runtime("model_access")
         graph = _runtime("graph")
+        errors = _runtime("errors")
 
         version_model = model_access.try_resolve_model("workflow_template_version")
+        target_version_id = template_version_id or self._safe_int(
+            model_access.first_attr(
+                template,
+                ("current_published_version_id", "latest_version_id"),
+            )
+        )
+        if target_version_id is not None and version_model is None:
+            raise errors.WorkflowDependencyError(
+                _("plugin.workflow-orchestration.error.runtime_dependency_missing"),
+            )
         if version_model is not None:
             template_id = model_access.first_attr(template, ("id",))
             template_field = None
@@ -408,29 +550,55 @@ class TenantWorkflowService:
                 template_field = version_model.template_id
             if template_field is not None:
                 stmt = select(version_model).where(template_field == template_id)
+                if target_version_id is not None:
+                    stmt = stmt.where(version_model.id == target_version_id)
                 if hasattr(version_model, "is_published"):
                     stmt = stmt.where(version_model.is_published.is_(True))
                 elif hasattr(version_model, "status"):
                     stmt = stmt.where(version_model.status == "published")
-                order_field = getattr(version_model, "version_no", getattr(version_model, "id"))
-                stmt = stmt.order_by(order_field.desc()).limit(1)
+                if target_version_id is None:
+                    order_field = getattr(
+                        version_model,
+                        "version_no",
+                        getattr(version_model, "id"),
+                    )
+                    stmt = stmt.order_by(order_field.desc())
+                stmt = stmt.limit(1)
+                stmt = apply_template_scope(stmt, type(template), template_field)
                 latest = (await self.db.execute(stmt)).scalar_one_or_none()
                 if latest is not None:
                     snapshot = graph.extract_snapshot(latest)
                     if snapshot:
                         return snapshot
-        return graph.extract_snapshot(template)
+                if target_version_id is not None:
+                    raise errors.WorkflowNotFoundError(
+                        _("plugin.workflow-orchestration.error.template_not_found"),
+                    )
+        snapshot = graph.extract_snapshot(template)
+        if snapshot and template_version_id is None:
+            return snapshot
+        if template_version_id is not None:
+            raise errors.WorkflowNotFoundError(
+                _("plugin.workflow-orchestration.error.template_not_found"),
+            )
+        return snapshot
 
     async def _resolve_published_snapshot(self, workflow: Any) -> dict[str, Any]:
         model_access = _runtime("model_access")
         graph = _runtime("graph")
         version_model = model_access.try_resolve_model("tenant_workflow_version")
+        workflow_model = model_access.try_resolve_model("tenant_workflow")
         if version_model is None:
             return {}
         version_id = model_access.first_attr(workflow, ("active_version_id", "latest_version_id"))
         if not version_id:
             return {}
-        stmt = select(version_model).where(version_model.id == version_id)
+        stmt = apply_tenant_workflow_scope(
+            select(version_model).where(version_model.id == version_id),
+            workflow_model,
+            self.tenant_id,
+            workflow_id_column=version_model.workflow_id,
+        )
         version = (await self.db.execute(stmt)).scalar_one_or_none()
         if version is None:
             return {}
@@ -450,7 +618,13 @@ class TenantWorkflowService:
                 _("plugin.workflow-orchestration.error.workflow_not_found"),
             )
 
-        stmt = select(version_model).where(version_model.workflow_id == workflow_id)
+        workflow_model = type(workflow)
+        stmt = apply_tenant_workflow_scope(
+            select(version_model).where(version_model.workflow_id == workflow_id),
+            workflow_model,
+            self.tenant_id,
+            workflow_id_column=version_model.workflow_id,
+        )
         existing_versions = list((await self.db.execute(stmt)).scalars().all())
         for item in existing_versions:
             model_access.assign_model_values(item, {"is_latest": False, "is_published": False})
@@ -486,9 +660,17 @@ class TenantWorkflowService:
     async def _next_workflow_version_no(self, version_model: Any, workflow_id: int) -> int:
         if not hasattr(version_model, "version_no"):
             return 1
+        workflow_model = _runtime("model_access").try_resolve_model("tenant_workflow")
         stmt = select(func.max(version_model.version_no)).where(
             version_model.workflow_id == workflow_id,
         )
+        if workflow_model is not None:
+            stmt = apply_tenant_workflow_scope(
+                stmt,
+                workflow_model,
+                self.tenant_id,
+                workflow_id_column=version_model.workflow_id,
+            )
         current = (await self.db.execute(stmt)).scalar()
         return int(current or 0) + 1
 
@@ -522,7 +704,13 @@ class TenantWorkflowService:
                 "risk_level": None,
             }
 
-        stmt = select(run_model).where(run_model.workflow_id == workflow_id)
+        workflow_model = _runtime("model_access").try_resolve_model("tenant_workflow")
+        stmt = apply_run_data_scope(
+            select(run_model).where(run_model.workflow_id == workflow_id),
+            run_model,
+            tenant_id=self.tenant_id,
+            workflow_model=workflow_model,
+        )
         runs = list((await self.db.execute(stmt)).scalars().all())
         if not runs:
             return {
@@ -572,11 +760,44 @@ class TenantWorkflowService:
         template_model = model_access.try_resolve_model("workflow_template")
         if template_model is None:
             return None
-        stmt = select(template_model).where(template_model.id == template_id)
+        stmt = apply_model_scope(
+            select(template_model).where(template_model.id == template_id),
+            template_model,
+        )
         template = (await self.db.execute(stmt)).scalar_one_or_none()
         if template is None:
             return None
         return model_access.first_attr(template, ("name",))
+
+    async def _current_template_version_label(self, template: Any) -> str | None:
+        model_access = _runtime("model_access")
+        version_model = model_access.try_resolve_model("workflow_template_version")
+        version_id = model_access.first_attr(
+            template,
+            ("current_published_version_id", "latest_version_id"),
+        )
+        if not version_id:
+            version_no = model_access.first_attr(template, ("latest_version_no",))
+            return f"v{int(version_no)}" if version_no else None
+
+        if version_model is None:
+            return None
+
+        template_id_column = getattr(
+            version_model,
+            "template_id",
+            getattr(version_model, "workflow_template_id", None),
+        )
+        stmt = select(version_model).where(version_model.id == version_id)
+        if template_id_column is not None:
+            stmt = apply_template_scope(stmt, type(template), template_id_column)
+        version = (await self.db.execute(stmt)).scalar_one_or_none()
+        if version is None:
+            return None
+
+        version_no = model_access.first_attr(version, ("version_no",))
+        return f"v{int(version_no)}" if version_no else None
+
 
     async def _list_related_runs(self, workflow_id: int, limit: int = 5) -> list[dict[str, Any]]:
         run_query_module = load_plugin_module(PLUGIN_NAME, "services.run_query_service")
@@ -591,6 +812,13 @@ class TenantWorkflowService:
             .where(run_model.workflow_id == workflow_id)
             .order_by(getattr(run_model, "updated_at", run_model.id).desc())
             .limit(limit)
+        )
+        workflow_model = _runtime("model_access").try_resolve_model("tenant_workflow")
+        stmt = apply_run_data_scope(
+            stmt,
+            run_model,
+            tenant_id=self.tenant_id,
+            workflow_model=workflow_model,
         )
         runs = (await self.db.execute(stmt)).scalars().all()
         query_service = run_query_module.RunQueryService(self.db, self.tenant_id)
@@ -619,8 +847,15 @@ class TenantWorkflowService:
             .order_by(getattr(artifact_model, "ready_at", getattr(artifact_model, "updated_at", artifact_model.id)).desc())
             .limit(limit)
         )
-        if hasattr(artifact_model, "tenant_id"):
-            stmt = stmt.where(artifact_model.tenant_id == self.tenant_id)
+        workflow_model = _runtime("model_access").try_resolve_model("tenant_workflow")
+        run_model = _runtime("model_access").try_resolve_model("workflow_run")
+        stmt = apply_artifact_data_scope(
+            stmt,
+            artifact_model,
+            run_model,
+            tenant_id=self.tenant_id,
+            workflow_model=workflow_model,
+        )
         artifacts = (await self.db.execute(stmt)).scalars().all()
         query_service = run_query_module.RunQueryService(self.db, self.tenant_id)
         return [await query_service._serialize_artifact_record(item) for item in artifacts]
@@ -730,6 +965,33 @@ class TenantWorkflowService:
         list_stmt = list_stmt.where(predicate)
         count_stmt = count_stmt.where(predicate)
         return list_stmt, count_stmt
+
+    async def _get_copyable_template(self, template_id: int) -> Any:
+        errors = _runtime("errors")
+        template_model = _runtime("model_access").resolve_model("workflow_template")
+        stmt = apply_model_scope(
+            select(template_model).where(
+                template_model.id == template_id,
+                *self._copyable_template_filters(template_model),
+            ),
+            template_model,
+        )
+        template = (await self.db.execute(stmt)).scalar_one_or_none()
+        if template is None:
+            raise errors.WorkflowNotFoundError(
+                _("plugin.workflow-orchestration.error.template_not_found"),
+            )
+        return template
+
+    def _copyable_template_filters(self, template_model: Any) -> list[Any]:
+        filters = []
+        if hasattr(template_model, "is_deleted"):
+            filters.append(template_model.is_deleted.is_(False))
+        if hasattr(template_model, "status"):
+            filters.append(template_model.status == "published")
+        if hasattr(template_model, "current_published_version_id"):
+            filters.append(template_model.current_published_version_id.is_not(None))
+        return filters
 
     def _current_user_id(self) -> int | None:
         if self.ctx is None or not hasattr(self.ctx, "get_current_user_id"):

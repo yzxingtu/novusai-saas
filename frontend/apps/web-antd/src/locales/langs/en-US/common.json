@@ -258,6 +258,19 @@
   "prevStep": "Previous",
   "nextStep": "Next",
   "finish": "Finish",
+  "relativeTime": {
+    "justNow": "Just now",
+    "minutesAgo": "{n} minutes ago",
+    "minutesLater": "in {n} minutes",
+    "hoursAgo": "{n} hours ago",
+    "hoursLater": "in {n} hours",
+    "daysAgo": "{n} days ago",
+    "daysLater": "in {n} days",
+    "monthsAgo": "{n} months ago",
+    "monthsLater": "in {n} months",
+    "yearsAgo": "{n} years ago",
+    "yearsLater": "in {n} years"
+  },
   "validate": {
     "invalid": "Please enter a valid {field}"
   },

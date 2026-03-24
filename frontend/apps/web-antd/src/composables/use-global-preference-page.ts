@@ -19,6 +19,7 @@ import {
   mapToVbenPreferences,
   useUserPreferenceStore,
 } from '#/store/shared/user-preference';
+import { showRequestError } from '#/utils/error-helpers';
 
 type Side = 'admin' | 'tenant';
 
@@ -39,8 +40,8 @@ export function useGlobalPreferencePage(side: Side) {
       if (data) {
         formData.value = { ...data };
       }
-    } catch {
-      message.error($t('common.preference.loadFailed'));
+    } catch (error) {
+      showRequestError(error, 'common.preference.loadFailed');
     } finally {
       loading.value = false;
     }
@@ -60,8 +61,8 @@ export function useGlobalPreferencePage(side: Side) {
       } else {
         message.error($t('common.preference.saveFailed'));
       }
-    } catch {
-      message.error($t('common.preference.saveFailed'));
+    } catch (error) {
+      showRequestError(error, 'common.preference.saveFailed');
     } finally {
       saving.value = false;
     }

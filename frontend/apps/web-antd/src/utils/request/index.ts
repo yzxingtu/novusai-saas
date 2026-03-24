@@ -45,7 +45,7 @@ export {
   isServerError,
 } from './error-codes';
 
-// 请求实例导出
+// 请求实例导出 / export configured request clients
 export { baseRequestClient, requestClient } from './instance';
 
 // Interceptor creation functions / 拦截器创建函数导出

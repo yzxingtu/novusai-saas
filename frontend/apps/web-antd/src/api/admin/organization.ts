@@ -44,6 +44,8 @@ export interface OrgNodeInfoRaw {
   leader_id?: null | number;
   leader?: LeaderInfo | null;
   permissions_count?: number;
+  permission_ids?: number[];
+  permission_codes?: string[];
   data_scope?: null | OrgLeaderScopeType;
   custom_dept_ids?: null | number[];
   scope_target_count?: number;
@@ -69,6 +71,8 @@ export interface OrgNodeInfo {
   leaderId?: null | number;
   leader?: LeaderInfo | null;
   permissionsCount?: number;
+  permissionIds?: number[];
+  permissionCodes?: string[];
   dataScope?: null | OrgLeaderScopeType;
   customDeptIds?: null | number[];
   scopeTargetCount?: number;
@@ -149,7 +153,6 @@ export interface CreateMemberRequest {
   is_active?: boolean;
   is_super?: boolean;
   org_node_id?: null | number;
-  role_id?: null | number;
 }
 
 export interface UpdateMemberRequest {
@@ -160,7 +163,6 @@ export interface UpdateMemberRequest {
   is_active?: boolean | null;
   is_super?: boolean | null;
   org_node_id?: null | number;
-  role_id?: null | number;
 }
 
 export interface ResetMemberPasswordRequest {
@@ -183,6 +185,7 @@ export interface CreateOrganizationNodeRequest {
   allow_members?: boolean;
   is_active?: boolean;
   sort_order?: number;
+  permission_ids?: null | number[];
   data_scope?: null | OrgLeaderScopeType;
   custom_dept_ids?: null | number[];
 }
@@ -195,6 +198,7 @@ export interface UpdateOrganizationNodeRequest {
   is_active?: boolean | null;
   sort_order?: null | number;
   leader_id?: null | number;
+  permission_ids?: null | number[];
   data_scope?: null | OrgLeaderScopeType;
   custom_dept_ids?: null | number[];
 }
@@ -216,6 +220,8 @@ function transformOrgNode(raw: OrgNodeInfoRaw): OrgNodeInfo {
     leaderId: raw.leader_id,
     leader: raw.leader,
     permissionsCount: raw.permissions_count,
+    permissionIds: raw.permission_ids,
+    permissionCodes: raw.permission_codes,
     dataScope: raw.data_scope,
     customDeptIds: raw.custom_dept_ids,
     scopeTargetCount: raw.scope_target_count ?? raw.custom_dept_ids?.length ?? 0,

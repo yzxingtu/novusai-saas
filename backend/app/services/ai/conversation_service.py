@@ -234,7 +234,7 @@ class ConversationService(
         return detail
 
     # ========================================
-    # 详情
+    # 详情 / Detail
     # ========================================
 
     @classmethod
@@ -313,7 +313,7 @@ class ConversationService(
             owner_type=owner_type,
         )
 
-        # 获取分页消息
+        # 获取分页消息 / Fetch paginated messages
         messages = await self.message_repo.get_by_conversation(
             conversation_id=conversation_id,
             skip=message_skip,
@@ -324,7 +324,7 @@ class ConversationService(
         )
 
         result = conversation.to_dict()
-        # Enrich messages with agent info for multi-agent avatar display
+        # Enrich messages with agent info for multi-agent avatar display / 说明 / note
         message_list = []
         for msg in messages:
             msg_dict = msg.to_dict()
@@ -352,7 +352,7 @@ class ConversationService(
         result["message_list"] = message_list
         result["message_count"] = message_count
 
-        # 提取关联智能体名称
+        # 提取关联智能体名称 / Extract linked agent names
         result["agent_name"] = None
         try:
             agent_obj = getattr(conversation, "agent", None)
@@ -426,7 +426,7 @@ class ConversationService(
         return await memory_svc.clear_conversation_memory(conversation_id)
 
     # ========================================
-    # 搜索
+    # 搜索 / Search
     # ========================================
 
     async def search_messages(
@@ -481,7 +481,7 @@ class ConversationService(
         }
 
     # ========================================
-    # 归档
+    # 归档 / Archive
     # ========================================
 
     async def archive_conversation(self, conversation_id: int) -> AgentConversation:
@@ -547,7 +547,7 @@ class ConversationService(
             )
 
     # ========================================
-    # 导出
+    # 导出 / Export
     # ========================================
 
     async def export_conversation(
@@ -571,7 +571,7 @@ class ConversationService(
         if not conversation:
             raise NotFoundException(message=_("conversation.not_found"))
 
-        # 分批加载所有消息
+        # 分批加载所有消息 / Load all messages in batches
         messages: list = []
         batch_size = 1000
         skip = 0
@@ -764,7 +764,7 @@ class ConversationService(
             lines.append(_msg_get(msg, "content") or "")
             lines.append("")
 
-            # 工具调用信息
+            # 工具调用信息 / Tool-call info
             tool_calls = _msg_get(msg, "tool_calls")
             if tool_calls:
                 lines.append("**Tool Calls:**")
@@ -801,11 +801,11 @@ class ConversationService(
     # 对话执行辅助（从 AgentChatService 提取）
     # ========================================
 
-    # 历史消息最大加载条数（兜底默认值）
+    # 历史消息最大加载条数（兜底默认值） / Max history messages to load (fallback default)
     MAX_HISTORY_MESSAGES = 50
     # 历史消息最大 Token 数（兜底默认值，0=不限制）
     MAX_HISTORY_TOKENS = 0
-    # 对话标题最大长度
+    # 对话标题最大长度 / Max conversation title length
     MAX_TITLE_LENGTH = 100
 
     async def get_or_create_for_chat(
@@ -833,7 +833,7 @@ class ConversationService(
             BusinessException: 对话已归档
         """
         if conversation_id:
-            # 续接已有对话
+            # 续接已有对话 / Resume existing conversation
             conversation = await self.get_accessible_conversation(
                 conversation_id,
                 user_id=(user_id if self.tenant_id != PLATFORM_TENANT_ID else None),
@@ -852,7 +852,7 @@ class ConversationService(
 
             return conversation
 
-        # 创建新对话
+        # 创建新对话 / Create new conversation
         title = first_message[: self.MAX_TITLE_LENGTH].strip()
         conversation = await self.repo.create(
             {
@@ -974,7 +974,7 @@ class ConversationService(
         while i < len(messages):
             msg = messages[i]
             if msg.role == "tool":
-                # Orphan tool: drop (no matching assistant round)
+                # Orphan tool: drop (no matching assistant round) / 孤立工具轮次丢弃 / drop orphan tool round
                 i += 1
                 continue
             if msg.role != "assistant" or not msg.tool_calls:
@@ -1239,7 +1239,7 @@ class ConversationService(
             "total_tokens": new_total_tokens,
         }
 
-        # 尝试提取输出变量
+        # 尝试提取输出变量 / Try extract output variables
         agent = current_agent or conversation.agent
         if agent and agent.output_schema and result.output:
             extracted = parse_output(result.output, agent.output_schema)

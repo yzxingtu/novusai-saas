@@ -145,7 +145,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
         result = await self.create(data)
 
-        # ⚠️  LOCAL DEV ENVIRONMENT: auto-inject default domain into hosts file
+        # ⚠️  LOCAL DEV ENVIRONMENT: auto-inject default domain into hosts file / 本地开发自动写 hosts / local dev hosts inject
         if self._should_inject_hosts() and is_dev_local():
             await async_add_host_entry(domain)
 
@@ -251,7 +251,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         domain_str = domain_obj.domain
         deleted = await self.delete(domain_id)
 
-        # ⚠️  LOCAL DEV ENVIRONMENT: remove deleted custom domain from hosts file
+        # ⚠️  LOCAL DEV ENVIRONMENT: remove deleted custom domain from hosts file / 本地开发移除 hosts / local dev hosts remove
         if deleted and self._should_inject_hosts() and is_dev_local():
             await async_remove_host_entry(domain_str)
 
@@ -420,7 +420,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         if not result:
             raise NotFoundException(message=_("tenant_domain.not_found"))
 
-        # ⚠️  LOCAL DEV ENVIRONMENT: auto-inject verified custom domain into hosts file
+        # ⚠️  LOCAL DEV ENVIRONMENT: auto-inject verified custom domain into hosts file / 本地开发自动写 hosts / local dev hosts inject
         if self._should_inject_hosts() and is_dev_local():
             await async_add_host_entry(domain.domain)
 

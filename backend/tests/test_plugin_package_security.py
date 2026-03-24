@@ -163,3 +163,19 @@ def test_extract_zip_returns_plugin_root_for_valid_archive(tmp_path: Path) -> No
 
     assert plugin_dir.name == "demo-plugin"
     assert (plugin_dir / "plugin.yaml").is_file()
+
+
+@pytest.mark.parametrize("mode", ["validate", "extract"])
+def test_invalid_zip_hides_badzip_detail(tmp_path: Path, mode: str) -> None:
+    extract_plugin_zip_safely, validate_plugin_zip_archive = _import_funcs()
+    zip_path = tmp_path / "invalid.zip"
+    zip_path.write_bytes(b"not-a-real-zip")
+
+    with pytest.raises(_get_install_error()) as exc_info:
+        if mode == "validate":
+            validate_plugin_zip_archive(zip_path)
+        else:
+            extract_plugin_zip_safely(zip_path, tmp_path / "extracted")
+
+    assert str(exc_info.value) == "Invalid plugin archive"
+    assert "File is not a zip file" not in str(exc_info.value)

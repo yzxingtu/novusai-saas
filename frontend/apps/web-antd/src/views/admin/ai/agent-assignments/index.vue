@@ -33,7 +33,7 @@ import {
 import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
 
-// ========== 声明式列表管理 ==========
+// ========== 声明式列表管理 / declarative CRUD list ==========
 const assignmentSummary = ref({ active: 0, assigned: 0 });
 
 const {
@@ -59,7 +59,7 @@ const {
   },
 });
 
-// ========== Agent 选项 ==========
+// ========== Agent 选项 / agent select options ==========
 interface AgentOption {
   label: string;
   value: number;
@@ -77,7 +77,7 @@ async function loadAgentOptions() {
 
 onMounted(loadAgentOptions);
 
-// ========== 自定义操作 ==========
+// ========== 自定义操作 / custom row actions ==========
 const saving = ref<null | string>(null);
 
 async function updateAssignment(featureCode: string, agentId: null | number) {
@@ -109,7 +109,7 @@ async function toggleActive(featureCode: string, isActive: boolean) {
   }
 }
 
-// ========== 辅助 ==========
+// ========== 辅助 / helpers ==========
 const currentLocale = computed(() => preferences.app.locale);
 
 function pickLocale(
@@ -139,7 +139,7 @@ function featureDesc(record: AgentAssignmentItem): string {
   return val === key ? record.description || '' : val;
 }
 
-// ========== 功能图标映射 ==========
+// ========== 功能图标映射 / capability icon map ==========
 interface FeatureIconConfig {
   icon: string;
   bgClass: string;
@@ -193,7 +193,7 @@ function getFeatureIcon(featureCode: string): FeatureIconConfig {
   }
 }
 
-// ========== 统计 ==========
+// ========== 统计 / stats ==========
 watchEffect(() => {
   const all = assignments.value;
   assignmentSummary.value = {

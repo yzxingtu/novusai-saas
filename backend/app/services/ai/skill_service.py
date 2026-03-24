@@ -109,7 +109,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
         if pkg and pkg.tenant_id != self.repo.tenant_id:
             raise BusinessException(message=_("skill.error.system_protected"))
 
-        # 系统技能不允许修改关键字段
+        # 系统技能不允许修改关键字段 / System skills cannot change critical fields
         if skill.is_system:
             protected = {"type", "is_system", "is_active"}
             if protected & set(data.keys()):
@@ -198,7 +198,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
             data["toolkit_meta"] = None
             return
 
-        # 安全扫描（非系统技能）
+        # 安全扫描（非系统技能） / Security scan (non-system skills)
         is_system = data.get("is_system", False)
         if not is_system and security_level:
             from app.ai.tools.executors.toolkit_executor import (

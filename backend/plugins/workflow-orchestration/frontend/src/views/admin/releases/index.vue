@@ -5,6 +5,7 @@ import type {
 } from '../../../types/admin';
 
 import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -26,6 +27,12 @@ import {
 } from 'ant-design-vue';
 
 import { listAdminReleasesApi, rollbackAdminReleaseApi } from '../../../api/admin';
+import {
+  ADMIN_WORKFLOW_AI_CONVERSATION_SCOPE,
+  buildPrompt,
+  openWorkflowAIPanel,
+  useWorkflowPageAI,
+} from '../../../shared/ai';
 import { formatCompactNumber, formatDateTime } from '../shared/format';
 import { usePaginatedCollection } from '../shared/use-paginated-collection';
 
@@ -41,11 +48,14 @@ import {
   getReleaseStatusText,
 } from './data';
 
-import { ADMIN_I18N_PREFIX } from '../shared/constants';
+import { ADMIN_I18N_PREFIX, buildAdminPath } from '../shared/constants';
 import { $t } from '@novus/plugin-shared';
 
 defineOptions({ name: 'WorkflowOrchestrationAdminReleases' });
 
+const ADMIN_RELEASES_PAGE_KEY = 'admin.workflow_orchestration.releases';
+
+const router = useRouter();
 const keyword = ref('');
 const environmentCode = ref('');
 const workflowIdInput = ref<null | number>(null);
@@ -191,6 +201,34 @@ const summaryCards = computed(() => {
   ];
 });
 
+function openTemplatesCenter(): void {
+  void router.push(buildAdminPath('templates'));
+}
+
+function openRuntimeCenter(): void {
+  void router.push(buildAdminPath('runtime'));
+}
+
+function buildPlannerPrompt(seed?: string): string {
+  return buildPrompt([
+    $t(`${ADMIN_I18N_PREFIX}.home.ai.systemLead`),
+    seed?.trim()
+      ? $t(`${ADMIN_I18N_PREFIX}.home.ai.userIdea`, {
+          idea: seed.trim(),
+        })
+      : $t(`${ADMIN_I18N_PREFIX}.home.ai.emptyIdea`),
+    $t(`${ADMIN_I18N_PREFIX}.home.ai.outputContract`),
+  ]);
+}
+
+function openAIPlanner(seed?: string): void {
+  openWorkflowAIPanel({
+    conversationScope: ADMIN_WORKFLOW_AI_CONVERSATION_SCOPE,
+    message: buildPlannerPrompt(seed || keyword.value),
+    pageKey: ADMIN_RELEASES_PAGE_KEY,
+  });
+}
+
 async function applyFilters() {
   await collection.patchQuery({
     channel: collection.query.value.channel,
@@ -233,6 +271,94 @@ function confirmRollback(record: WorkflowReleaseSummary) {
   });
 }
 
+useWorkflowPageAI({
+  conversationScope: ADMIN_WORKFLOW_AI_CONVERSATION_SCOPE,
+  pageKey: ADMIN_RELEASES_PAGE_KEY,
+  buildContext: () => ({
+    entityDescription: buildPrompt([
+      $t(`${ADMIN_I18N_PREFIX}.releases.subtitle`),
+      $t(`${ADMIN_I18N_PREFIX}.releases.contractNotice.description`),
+    ]),
+    entityTitle: $t(`${ADMIN_I18N_PREFIX}.releases.title`),
+    entityType: 'workflow_orchestration_admin_release_list',
+    pageData: {
+      channel: collection.query.value.channel || null,
+      environment_code: environmentCode.value.trim() || null,
+      keyword: keyword.value.trim() || null,
+      release_scope: collection.query.value.releaseScope || null,
+      status: collection.query.value.status || null,
+      visible_releases: visibleItems.value.length,
+      workflow_id: workflowIdInput.value ?? null,
+    },
+    pageTitle: $t(`${ADMIN_I18N_PREFIX}.releases.title`),
+  }),
+  operations: [
+    {
+      name: 'open_admin_release_templates_center',
+      label: $t(`${ADMIN_I18N_PREFIX}.home.resources.templates.action`),
+      description: $t(`${ADMIN_I18N_PREFIX}.home.resources.templates.description`),
+      readonly: true,
+      handler: async () => {
+        openTemplatesCenter();
+        return {
+          success: true,
+          message: $t(`${ADMIN_I18N_PREFIX}.home.resources.templates.action`),
+        };
+      },
+    },
+    {
+      name: 'open_admin_releases_ai_planner',
+      label: $t(`${ADMIN_I18N_PREFIX}.home.ai.operations.openAI.label`),
+      description: $t(`${ADMIN_I18N_PREFIX}.home.ai.operations.openAI.description`),
+      readonly: true,
+      params: {
+        idea: {
+          description: $t(
+            `${ADMIN_I18N_PREFIX}.home.ai.operations.openAI.ideaDescription`,
+          ),
+          required: false,
+          type: 'string',
+        },
+      },
+      handler: async (params: Record<string, unknown>) => {
+        openAIPlanner(typeof params.idea === 'string' ? params.idea : undefined);
+        return {
+          success: true,
+          message: $t(`${ADMIN_I18N_PREFIX}.home.ai.operations.openAI.success`),
+        };
+      },
+    },
+    {
+      name: 'open_admin_release_runtime_center',
+      label: $t(`${ADMIN_I18N_PREFIX}.home.ai.operations.openRuntime.label`),
+      description: $t(
+        `${ADMIN_I18N_PREFIX}.home.ai.operations.openRuntime.description`,
+      ),
+      readonly: true,
+      handler: async () => {
+        openRuntimeCenter();
+        return {
+          success: true,
+          message: $t(`${ADMIN_I18N_PREFIX}.home.ai.operations.openRuntime.success`),
+        };
+      },
+    },
+    {
+      name: 'refresh_admin_releases',
+      label: $t(`${ADMIN_I18N_PREFIX}.home.ai.operations.refresh.label`),
+      description: $t(`${ADMIN_I18N_PREFIX}.home.ai.operations.refresh.description`),
+      readonly: true,
+      handler: async () => {
+        await collection.load();
+        return {
+          success: true,
+          message: $t(`${ADMIN_I18N_PREFIX}.home.ai.operations.refresh.success`),
+        };
+      },
+    },
+  ],
+});
+
 onMounted(() => {
   keyword.value = collection.query.value.keyword ?? '';
   environmentCode.value = collection.query.value.environmentCode ?? '';
@@ -262,12 +388,26 @@ onMounted(() => {
             </p>
           </div>
 
-          <Button :loading="collection.loading.value" @click="collection.load">
-            <template #icon>
-              <IconifyIcon icon="lucide:refresh-cw" />
-            </template>
-            {{ $t(`${ADMIN_I18N_PREFIX}.common.refresh`) }}
-          </Button>
+          <div class="flex flex-wrap items-center gap-2">
+            <Button @click="openAIPlanner()">
+              <template #icon>
+                <IconifyIcon icon="lucide:sparkles" />
+              </template>
+              {{ $t(`${ADMIN_I18N_PREFIX}.home.actions.askAI`) }}
+            </Button>
+            <Button @click="openTemplatesCenter">
+              <template #icon>
+                <IconifyIcon icon="lucide:copy-plus" />
+              </template>
+              {{ $t(`${ADMIN_I18N_PREFIX}.home.resources.templates.action`) }}
+            </Button>
+            <Button :loading="collection.loading.value" @click="collection.load">
+              <template #icon>
+                <IconifyIcon icon="lucide:refresh-cw" />
+              </template>
+              {{ $t(`${ADMIN_I18N_PREFIX}.common.refresh`) }}
+            </Button>
+          </div>
         </div>
 
         <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -294,6 +434,20 @@ onMounted(() => {
       show-icon
       type="info"
     />
+
+    <section class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+      <div class="rounded-2xl border bg-card px-5 py-4 shadow-sm">
+        <div class="text-sm font-medium text-foreground">
+          {{ $t(`${ADMIN_I18N_PREFIX}.home.steps.publish.title`) }}
+        </div>
+        <div class="mt-1 text-sm leading-6 text-muted-foreground">
+          {{ $t(`${ADMIN_I18N_PREFIX}.home.steps.publish.description`) }}
+        </div>
+      </div>
+      <Button class="h-auto rounded-2xl px-5 py-3" @click="openRuntimeCenter">
+        {{ $t(`${ADMIN_I18N_PREFIX}.home.resources.runtime.action`) }}
+      </Button>
+    </section>
 
     <Card :body-style="{ padding: '18px' }">
       <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -447,7 +601,16 @@ onMounted(() => {
 
         <template #emptyText>
           <div class="py-10">
-            <Empty :description="$t(`${ADMIN_I18N_PREFIX}.common.emptyState`)" />
+            <Empty :description="$t(`${ADMIN_I18N_PREFIX}.common.emptyState`)">
+              <div class="mt-4 flex flex-wrap justify-center gap-3">
+                <Button @click="openAIPlanner()">
+                  {{ $t(`${ADMIN_I18N_PREFIX}.home.actions.askAI`) }}
+                </Button>
+                <Button type="primary" @click="openTemplatesCenter">
+                  {{ $t(`${ADMIN_I18N_PREFIX}.home.resources.templates.action`) }}
+                </Button>
+              </div>
+            </Empty>
           </div>
         </template>
       </Table>

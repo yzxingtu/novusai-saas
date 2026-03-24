@@ -151,7 +151,7 @@ class ConfigRegistry:
             logger.warning(f"add_option: config key '{config_key}' not found")
             return False
 
-        # 避免重复添加
+        # 避免重复添加 / Avoid duplicate options
         existing_values = {opt.value for opt in config.options}
         if option.value in existing_values:
             logger.debug(f"add_option: option '{option.value}' already exists in '{config_key}'")

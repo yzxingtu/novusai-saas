@@ -110,7 +110,7 @@ class ReloadingPersistentScheduler(PersistentScheduler):
         try:
             self._store = self._open_schedule()
             self._store.keys()
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception as exc:  # pylint: disable=broad-except  # 损坏调度文件容错 / tolerate corrupt schedule
             self._store = self._destroy_open_corrupted_schedule(exc)
 
         self._create_schedule()

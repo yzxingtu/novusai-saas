@@ -36,5 +36,5 @@ description: NovusAI 偏好设置治理技能。当需要开发或修复 admin/t
 
 ## 参考
 
-- `../novusai-saas/references/preferences-spec.md`
-- `../novusai-saas/references/notification-spec.md`
+- [../novusai-saas/references/preferences-spec.md](../novusai-saas/references/preferences-spec.md)
+- [../novusai-saas/references/notification-spec.md](../novusai-saas/references/notification-spec.md)

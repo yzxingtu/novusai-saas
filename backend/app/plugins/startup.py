@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 
 from app.core.base_model import utc_now
 from app.core.logging import get_logger
+from app.core.response import resolve_public_error_message
 from app.plugins.dependencies import (
     build_plugin_dependency_states,
     build_python_dependency_states,
@@ -336,6 +337,16 @@ async def discover_and_register(db: AsyncSession) -> dict:
             plugin.error_message = "Plugin files missing from disk"
             plugin.error_count += 1
             missing += 1
+            try:
+                from app.plugins.lifecycle import PluginLifecycle
+
+                await PluginLifecycle(db)._set_plugin_permissions_enabled(plugin_name, False)
+            except Exception as perm_exc:
+                logger.warning(
+                    "Discover: failed to disable permissions for missing plugin {}: {}",
+                    plugin_name,
+                    perm_exc,
+                )
             logger.warning("Discover: plugin {} missing from disk, marked error", plugin_name)
 
     if discovered > 0 or sync_required > 0 or upgrade_required > 0 or missing > 0 or reconciled > 0:
@@ -405,8 +416,30 @@ async def restore_enabled_plugins(
     from app.plugins.frontend_contract import validate_runtime_frontend_contract
     from app.plugins.lifecycle import PluginLifecycle
 
-    lifecycle = PluginLifecycle(db) if run_heavy else None
+    lifecycle = PluginLifecycle(db) if run_heavy or mutate_db_status else None
     mode_label = "heavy" if run_heavy else "register-only"
+
+    async def _fail_close_plugin_runtime(plugin_name: str) -> None:
+        try:
+            registry.unregister_all(plugin_name)
+        except Exception as cleanup_exc:
+            logger.warning(
+                "Restore({}) failed to unregister runtime extensions for {}: {}",
+                mode_label,
+                plugin_name,
+                cleanup_exc,
+            )
+        if lifecycle is None:
+            return
+        try:
+            await lifecycle._set_plugin_permissions_enabled(plugin_name, False)
+        except Exception as perm_exc:
+            logger.warning(
+                "Restore({}) failed to disable permissions for {}: {}",
+                mode_label,
+                plugin_name,
+                perm_exc,
+            )
 
     for plugin in enabled_plugins:
         try:
@@ -426,6 +459,7 @@ async def restore_enabled_plugins(
                     )
                     plugin.error_count = 0
                     status_changed = True
+                    await _fail_close_plugin_runtime(plugin.name)
                 logger.warning(
                     "Restore({}) skipped plugin {} due to inactive license: {}",
                     mode_label,
@@ -441,6 +475,12 @@ async def restore_enabled_plugins(
                     "Disk plugin version drift detected: "
                     f"DB={plugin.version}, disk={manifest.version}. "
                     "Formal upgrade is required before startup restore."
+                )
+            disk_manifest = manifest.model_dump()
+            if isinstance(plugin.manifest, dict) and plugin.manifest != disk_manifest:
+                raise RuntimeError(
+                    "Manifest drift detected on disk. "
+                    "Run explicit sync-manifest before startup restore."
                 )
 
             # NOTE: manifest sync already handled by discover_and_register(), not repeated here
@@ -485,6 +525,12 @@ async def restore_enabled_plugins(
                     f"Extension load failed during startup restore: {failed_summary}"
                 )
 
+            if lifecycle is not None:
+                await lifecycle._restore_plugin_permissions(
+                    plugin.name,
+                    auto_grant_plans=True,
+                )
+
             # Only restore owner worker is allowed to write DB status, avoid multi-worker concurrent jitter
             # / 仅 owner worker 写库
             if mutate_db_status and plugin.error_count > 0:
@@ -496,15 +542,20 @@ async def restore_enabled_plugins(
             logger.info(
                 "Restored plugin({}): {} (v{}, {} extensions)",
                 mode_label,
-                plugin.name, plugin.version,
+                plugin.name,
+                plugin.version,
                 registry.get_registered_count(plugin.name),
             )
 
         except Exception as exc:
             failed += 1
+            await _fail_close_plugin_runtime(plugin.name)
             if mutate_db_status:
                 plugin.status = PluginStatusEnum.ERROR.value
-                plugin.error_message = f"Startup restore failed: {exc}"
+                plugin.error_message = resolve_public_error_message(
+                    exc,
+                    fallback_message="Startup restore failed",
+                )
                 plugin.error_count += 1
                 status_changed = True
             logger.error(

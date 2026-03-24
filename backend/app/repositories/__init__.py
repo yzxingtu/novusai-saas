@@ -14,10 +14,10 @@ from app.repositories.tenant import (
 )
 
 __all__ = [
-    # 平台级
+    # 平台级 / Platform scope
     "AdminRepository",
     "TenantRepository",
-    # 企业级
+    # 企业级 / Tenant scope
     "AttachmentRepository",
     "TenantAdminRepository",
     "TenantOrgNodeRepository",

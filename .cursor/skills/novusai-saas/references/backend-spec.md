@@ -1,5 +1,32 @@
 # 后端开发指南
 
+## 目录
+
+- [技术栈](#技术栈)
+- [目录结构](#目录结构)
+- [代码注释与文档字符串](#代码注释与文档字符串)
+- [类型注解规范](#类型注解规范)
+- [架构分层](#架构分层)
+- [多企业体系](#多企业体系)
+- [快速上手：新增一个 CRUD 模块](#快速上手新增一个-crud-模块)
+- [统一响应](#统一响应)
+- [查询规范 (JSON:API)](#查询规范-jsonapi)
+- [权限体系 (RBAC)](#权限体系-rbac)
+- [依赖注入](#依赖注入)
+- [异常处理](#异常处理)
+- [枚举规范](#枚举规范)
+- [多语言 (i18n)](#多语言-i18n)
+- [Service 钩子](#service-钩子)
+- [远程下拉 (Select)](#远程下拉-select)
+- [排序 API](#排序-api)
+- [存储](#存储)
+- [日志](#日志)
+- [中间件注册顺序](#中间件注册顺序)
+- [Health Check](#health-check)
+- [IP 速率限制](#ip-速率限制)
+- [ConfigService 内存缓存](#configservice-内存缓存)
+- [开发检查清单](#开发检查清单)
+
 ## 技术栈
 
 | 项 | 选型 |
@@ -37,28 +64,40 @@ backend/
 │   │   └── logging.py             # 分类日志 LogManager
 │   ├── api/                       # 路由层（按作用域分）
 │   │   ├── admin/                 # 平台管理 /admin/*
-│   │   ├── tenant/                # 企业管理 /tenant/*
 │   │   ├── public/                # 公开接口 /api/public/*
+│   │   ├── shared/                # 供 admin / tenant / user 复用的通用控制器
+│   │   ├── tenant/                # 企业管理 /tenant/*
 │   │   └── user/                  # 用户端 API  /api/user/*
 │   ├── services/                  # 业务逻辑
+│   │   ├── ai/                    # AI / 智能体相关服务（agents、skills、toolkit）
+│   │   ├── business/              # 跨 scope 的业务服务（workflow、billing）
 │   │   ├── common/                # 跨域共享服务
 │   │   ├── system/                # 平台级服务
 │   │   └── tenant/                # 企业级服务
 │   ├── repositories/              # 数据访问层
+│   │   ├── ai/
+│   │   ├── business/
+│   │   ├── common/
 │   │   ├── system/
 │   │   └── tenant/
 │   ├── models/                    # ORM 模型
+│   │   ├── ai/
 │   │   ├── auth/                  # 角色、权限
+│   │   ├── business/
+│   │   ├── common/
+│   │   ├── org/
 │   │   ├── system/                # 管理员、配置、操作日志
 │   │   └── tenant/                # 企业、附件、套餐、域名
 │   ├── schemas/                   # Pydantic Schema
+│   │   ├── ai/
+│   │   ├── business/
 │   │   ├── common/                # 通用（查询、选项、排序）
 │   │   ├── public/
 │   │   ├── system/
 │   │   └── tenant/
 │   ├── enums/                     # 枚举（LabeledEnum 基类）
 │   ├── exceptions/                # 异常体系
-│   ├── middleware/                 # 中间件
+│   ├── middleware/                # 中间件
 │   ├── rbac/                      # 权限体系
 │   ├── configs/                   # 声明式系统配置
 │   ├── locales/                   # i18n 翻译 JSON
@@ -68,6 +107,39 @@ backend/
 ├── migrations/                    # Alembic 迁移
 └── tests/
 ```
+
+---
+
+## 代码注释与文档字符串
+
+本仓库对**新增**注释的要求与前端一致：**禁止单语注释**（只写中文或只写英文均违规），须在同一说明中同时体现中文与英文语义。
+
+### 违规与合规
+
+| 情形 | 说明 |
+|------|------|
+| 违规 | 仅中文、仅英文、或两行各写一种语言但**未形成一条可读的双语说明**（例如上一行全英、下一行全中且互不对应） |
+| 合规 | `# 限流：按 IP / Rate limit by IP`、`"""Resolve tenant scope / 解析企业作用域"""`、``TODO: add cache invalidation / TODO：补充缓存失效`` |
+| 优先 | 代码已自解释则**不写注释** |
+
+### 写法建议
+
+- **行内注释**：`# 中文 / English` 或 `# English / 中文`
+- **Docstring**：首行双语摘要，必要时 body 用中英分段说明复杂行为
+- **类型旁备注**（若必须）：同上，避免只写一种语言
+
+### ORM 字段 `comment=`
+
+与 [codegen-spec.md](codegen-spec.md) 一致：可使用 `"中文 / English"` 单字符串，便于 codegen 拆分为 `comment` 与 `comment_en`；若手写模型且无意拆分，仍须满足「字符串内双语」而非单语。
+
+### 例外
+
+- 第三方 LICENSE、vendor 拷贝、机器生成文件头可保持原样
+- **存量**单语注释不强制一次性全改；**新写或本次修改到的注释**必须符合双语要求
+
+### 治理方式（禁止批量脚本）
+
+**禁止**用脚本对全仓库做批量替换或机翻批量「修复」注释。请在编辑器中**逐行**补全另一语种，或提交**小范围、已审阅**的 diff。`backend/scripts/bilingual_comment_audit.py` 仅可用于人工对照的清单扫描，**不得**自动改文件。
 
 ---
 
@@ -268,7 +340,7 @@ router = notice_controller.router
 
 ```bash
 alembic revision --autogenerate -m "add notice table"
-alembic upgrade head
+# 启动/热重载时会自动执行 alembic upgrade heads，一般无需手动 upgrade
 ```
 
 ---
@@ -541,27 +613,32 @@ logger.info("User login success", extra={"user_id": user.id})
 
 ## 中间件注册顺序
 
-FastAPI 的 `add_middleware` 是栈式的——**后注册的先执行**。CORS 必须最后注册以确保最先执行，正确处理 preflight OPTIONS 请求。
+FastAPI 的 `add_middleware` 是栈式的——**后注册的先执行**。当前主干 `backend/app/main.py` 的中间件栈不是旧版的“CORS 最外层 + Tenant 最内层”简化模型，而是包含 `NoCacheAPIMiddleware`、`MaintenanceMiddleware` 与最外层 `TraceIdMiddleware` 的实际运行顺序。
 
 ```python
-# main.py 中间件注册（后注册 = 先执行）
-app.add_middleware(CORSMiddleware, ...)        # 第1个注册，最后执行
-app.add_middleware(I18nMiddleware)             # 第2个注册
-app.add_middleware(PermissionMiddleware)       # 第3个注册
-app.add_middleware(AuditLogMiddleware)         # 第4个注册
-app.add_middleware(AccessControlMiddleware)    # 第5个注册
-app.add_middleware(TenantMiddleware)           # 第6个注册，最先执行
+# main.py 当前中间件注册（后注册 = 先执行）
+app.add_middleware(NoCacheAPIMiddleware)
+app.add_middleware(I18nMiddleware)
+app.add_middleware(MaintenanceMiddleware)
+app.add_middleware(PermissionMiddleware)
+app.add_middleware(AuditLogMiddleware)
+app.add_middleware(AccessControlMiddleware)
+app.add_middleware(TenantMiddleware)
+app.add_middleware(CORSMiddleware, ...)
+app.add_middleware(TraceIdMiddleware)
 ```
 
 请求处理顺序：
 
 ```
-Request → CORS → Tenant → AccessControl → AuditLog → Permission → I18n → Route
+Request → TraceId → CORS → Tenant → AccessControl → AuditLog → Permission → Maintenance → I18n → NoCache → Route
 ```
 
 > **注意**：如果 CORS 不在最外层，preflight OPTIONS 请求会被内层中间件拦截，导致浏览器报跨域错误。
 
 ---
+
+> **注意**：当前主干为了动态子域名 / 自定义域名场景，确实使用 `allow_origins=["*"]` + `allow_credentials=True`。审计或改造时应以运行时代码为准，不要沿用旧文档把这套配置直接判成错误；若未来调整 CORS 策略，必须同步验证 tenant / user 域名链路。
 
 ## Health Check
 

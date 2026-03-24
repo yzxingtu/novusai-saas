@@ -9,6 +9,7 @@ import { preferences } from '@vben/preferences';
 import { initStores } from '@vben/stores';
 import '@vben/styles';
 import '@vben/styles/antd';
+import { resolveRouteMetaTitle } from '@vben/utils';
 
 import { useTitle } from '@vueuse/core';
 import AntDesignVue from 'ant-design-vue';
@@ -16,7 +17,7 @@ import AntDesignVue from 'ant-design-vue';
 import { initComponentAdapter } from '#/adapter/component';
 import { initSetupVbenForm } from '#/adapter/form';
 import { setupVxeTable } from '#/adapter/vxe-table';
-import { $t, setupI18n } from '#/locales';
+import { $t, $te, setupI18n } from '#/locales';
 
 import App from './app.vue';
 import { registerCustomAccessDirective } from './directives/access';
@@ -33,7 +34,7 @@ async function bootstrap(namespace: string) {
   // 初始化 TokenStorage（多端 Token 分离存储）
   TokenStorage.init(namespace);
 
-  // 设置控制台过滤器，过滤框架的组件错误输出
+  // 设置控制台过滤器，过滤框架的组件错误输出 / filter noisy framework console errors
   setupConsoleFilter();
 
   // 修复 Ant Design Tabs 的 aria-hidden 警告
@@ -42,10 +43,10 @@ async function bootstrap(namespace: string) {
   // 初始化组件适配器
   await initComponentAdapter();
 
-  // 初始化表单组件
+  // 初始化表单组件 / init form setup
   await initSetupVbenForm();
 
-  // 初始化声明式表格
+  // 初始化声明式表格 / init VXE table adapter
   setupVxeTable();
 
   // // 设置弹窗的默认配置
@@ -69,13 +70,13 @@ async function bootstrap(namespace: string) {
     spinning: 'spinning',
   });
 
-  // 国际化 i18n 配置
+  // 国际化 i18n 配置 / setup i18n
   await setupI18n(app);
 
   // 配置 pinia-tore
   await initStores(app, { namespace });
 
-  // 安装自定义权限指令（支持超级管理员 '*' 通配符）
+  // 安装自定义权限指令（支持超级管理员 '*' 通配符）/ v-access + '*' wildcard
   registerCustomAccessDirective(app);
 
   // 初始化 tippy
@@ -85,26 +86,30 @@ async function bootstrap(namespace: string) {
   // 全局注册 Ant Design Vue 组件（插件 Vue SFC 中使用 <a-button> 等模板标签需要）
   app.use(AntDesignVue);
 
-  // 配置路由及路由守卫
+  // 暴露插件共享依赖到 window（供插件 UMD 包引用）
+  const { exposePluginShared } = await import('#/utils/plugin-shared');
+  exposePluginShared();
+
+  // 配置路由及路由守卫 / router + navigation guards
   app.use(router);
 
   // 配置Motion插件
   const { MotionPlugin } = await import('@vben/plugins/motion');
   app.use(MotionPlugin);
 
-  // 动态更新标题
+  // 动态更新标题 / document title from route meta
   watchEffect(() => {
     if (preferences.app.dynamicTitle) {
-      const routeTitle = router.currentRoute.value.meta?.title;
+      const routeTitle = resolveRouteMetaTitle(router.currentRoute.value.meta, {
+        hasLocaleKey: $te,
+        locale: preferences.app.locale,
+        translate: $t,
+      });
       const pageTitle =
-        (routeTitle ? `${$t(routeTitle)} - ` : '') + preferences.app.name;
+        (routeTitle ? `${routeTitle} - ` : '') + preferences.app.name;
       useTitle(pageTitle);
     }
   });
-
-  // 暴露插件共享依赖到 window（供插件 UMD 包引用）
-  const { exposePluginShared } = await import('#/utils/plugin-shared');
-  exposePluginShared();
 
   app.mount('#app');
 }

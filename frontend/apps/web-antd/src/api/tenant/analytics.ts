@@ -6,7 +6,7 @@ import { requestClient } from '#/utils/request';
 
 const API_PREFIX = '/tenant/analytics';
 
-// ── Types ──
+// ── Types / 类型 ──
 
 export interface CallTrendItem {
   date: string;
@@ -46,7 +46,7 @@ export interface DateRangeParams {
   end_date?: string;
 }
 
-// ── API Functions ──
+// ── API Functions / 接口函数 ──
 
 export async function getTenantCallTrendApi(
   params?: DateRangeParams,

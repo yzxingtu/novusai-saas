@@ -108,7 +108,7 @@ class ProviderApiKeyService(BaseService[ProviderApiKey, ProviderApiKeyRepository
         if data.key is not None:
             key.encrypt_key(data.key)
 
-        # 更新其他字段
+        # 更新其他字段 / Update other fields
         update_data = data.model_dump(exclude_unset=True, exclude={"key"})
         key.update_from_dict(update_data)
         await self.db.flush()

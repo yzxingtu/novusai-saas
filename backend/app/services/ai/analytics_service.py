@@ -92,7 +92,7 @@ class AnalyticsService:
             for r in result.all()
         ]
 
-    # ── T3: 模型调用分布（饼图） ──
+    # ── T3: 模型调用分布（饼图） ── / ── T3: model call distribution (pie) ──
 
     async def get_model_distribution(
         self,
@@ -124,7 +124,7 @@ class AnalyticsService:
         result = await self.db.execute(stmt)
         rows = result.all()
 
-        # Fetch model names
+        # Fetch model names / 拉取模型名称 / fetch model names
         model_ids = [r.model_id for r in rows]
         model_names: dict[int, str] = {}
         if model_ids:
@@ -144,7 +144,7 @@ class AnalyticsService:
             for r in rows
         ]
 
-    # ── T4: 供应商性能对比（雷达图） ──
+    # ── T4: 供应商性能对比（雷达图） ── / ── T4: provider performance comparison (radar) ──
 
     async def get_provider_performance(
         self,
@@ -176,7 +176,7 @@ class AnalyticsService:
         result = await self.db.execute(stmt)
         rows = result.all()
 
-        # Fetch provider names
+        # Fetch provider names / 拉取供应商名称 / fetch provider names
         provider_ids = [r.provider_id for r in rows]
         provider_names: dict[int, str] = {}
         if provider_ids:
@@ -228,7 +228,7 @@ class AnalyticsService:
         result = await self.db.execute(stmt)
         rows = result.all()
 
-        # Fetch tenant names
+        # Fetch tenant names / 拉取企业名称 / fetch tenant names
         tenant_ids = [r.tenant_id for r in rows if r.tenant_id]
         tenant_names: dict[int, str] = {}
         if tenant_ids:
@@ -248,7 +248,7 @@ class AnalyticsService:
             for r in rows
         ]
 
-    # ── T6: 延迟分布（直方图） ──
+    # ── T6: 延迟分布（直方图） ── / ── T6: latency distribution (histogram) ──
 
     async def get_latency_distribution(
         self,
@@ -299,7 +299,7 @@ class AnalyticsService:
             for i, (_, _, label) in enumerate(buckets)
         ]
 
-    # ── 成功率趋势 ──
+    # ── 成功率趋势 ── / ── Success-rate trend ──
 
     async def get_success_rate_trend(
         self,
@@ -325,7 +325,7 @@ class AnalyticsService:
             for item in trend
         ]
 
-    # ── helpers ──
+    # ── helpers ── / 辅助函数 / helpers
 
     def _date_filters(self, start_date: date | None, end_date: date | None) -> list:
         filters = []

@@ -33,7 +33,7 @@ class TenantContext:
         tenant_id: int | None = None,
         tenant_code: str | None = None,
         tenant: Tenant | None = None,
-        domain_type: str = "unknown",  # subdomain, custom, unknown
+        domain_type: str = "unknown",  # subdomain, custom, unknown / 域名类型：子域名、自定义、未知
     ):
         self.tenant_id = tenant_id
         self.tenant_code = tenant_code

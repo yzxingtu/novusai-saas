@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.core.response import resolve_public_error_message
 from app.exceptions import ValidationException
 
 if TYPE_CHECKING:
@@ -92,7 +93,12 @@ async def process_skill_package_upload(
             extract_dir = FilePath(tmp_dir) / "extracted"
             metadata = extract_skill_package(zip_path, extract_dir)
         except SkillPackageError as e:
-            raise ValidationException(message=str(e), code=4001)
+            raise ValidationException(
+                message=resolve_public_error_message(
+                    e,
+                    fallback_message=_("common.validation_error"),
+                )
+            )
 
         skill_name = metadata.get("name", "")
         skill_version = metadata.get("version", "")

@@ -30,11 +30,11 @@ if TYPE_CHECKING:
 
 logger = LogManager.get_logger("storage")
 
-# In-memory registry of running migration coroutines
+# In-memory registry / 内存中在跑迁移协程的注册表
 _running_migrations: dict[int, asyncio.Task[None]] = {}
-# Pause flags: task_id -> Event (cleared = paused, set = running)
+# Pause flags: task_id -> Event (cleared = paused, set = running) / 暂停：task_id→Event（clear=暂停，set=运行）
 _pause_events: dict[int, asyncio.Event] = {}
-# Cancel flags
+# Cancel flags / 取消标记
 _cancel_flags: set[int] = set()
 
 
@@ -59,7 +59,7 @@ class MigrationImpactAnalyzer:
             tenant_id = int(scope.split(":")[1])
             conditions.append(Attachment.tenant_id == tenant_id)
 
-        # Total stats
+        # Total stats / 汇总统计
         total_q = select(
             func.count(Attachment.id).label("total_files"),
             func.coalesce(func.sum(Attachment.size), 0).label("total_size_bytes"),
@@ -67,7 +67,7 @@ class MigrationImpactAnalyzer:
         total_result = await self._db.execute(total_q)
         total_row = total_result.one()
 
-        # Visibility breakdown
+        # Visibility breakdown / 可见性维度拆分
         visibility_q = (
             select(
                 Attachment.visibility,
@@ -92,7 +92,7 @@ class MigrationImpactAnalyzer:
                 public_files = row.count
                 public_size = row.size_bytes
 
-        # Tenant breakdown (for scope=all)
+        # Tenant breakdown (for scope=all) / 租户维度拆分（scope=all 时）
         tenant_breakdown = []
         if scope == "all":
             tenant_q = (
@@ -114,7 +114,7 @@ class MigrationImpactAnalyzer:
                     "size_bytes": int(row.size_bytes),
                 })
 
-        # Check if target driver is available
+        # Check if target driver is available / 检查目标存储驱动是否可用
         target_available = storage_manager.has_driver(target_driver)
         source_available = storage_manager.has_driver(source_driver)
 
@@ -148,7 +148,7 @@ class StorageMigrationService:
     def __init__(self, db: AsyncSession):
         self._db = db
 
-    # ── Task CRUD ──────────────────────────────────────────────
+    # ── Task CRUD / 任务增删改查 ─────────────────────────────────
 
     async def create_task(
         self,
@@ -159,7 +159,7 @@ class StorageMigrationService:
         created_by: int,
     ) -> dict:
         """Create a migration task and populate log entries for each file. / 迁移"""
-        # Validate drivers
+        # Validate drivers / 校验驱动是否可用
         if not storage_manager.has_driver(source_driver):
             return {"error": f"Source driver '{source_driver}' is not available"}
         if not storage_manager.has_driver(target_driver):
@@ -167,7 +167,7 @@ class StorageMigrationService:
         if source_driver == target_driver:
             return {"error": "Source and target drivers must be different"}
 
-        # Resolve storage configs
+        # Resolve storage configs / 解析存储配置
         resolver = StorageConfigResolver(self._db)
         try:
             source_config = await self._resolve_driver_config(resolver, source_driver, scope)
@@ -175,7 +175,7 @@ class StorageMigrationService:
         except Exception as exc:
             return {"error": str(exc)}
 
-        # Count files to migrate
+        # Count files to migrate / 统计待迁移文件数
         conditions = [Attachment.driver == source_driver, Attachment.is_deleted.is_(False)]
         if scope.startswith("tenant:"):
             tenant_id = int(scope.split(":")[1])
@@ -191,10 +191,10 @@ class StorageMigrationService:
         if total_files == 0:
             return {"error": "No files found for the specified source driver and scope"}
 
-        # Save full config snapshots including options (credentials).
-        # These are stored in the DB (admin-only access) and needed for
-        # _resolve_config_with_snapshot to reconstruct working drivers
-        # even if the live config changes mid-migration.
+        # Save full config snapshots including options (credentials). / 保存含 options（密钥）的完整配置快照
+        # These are stored in the DB (admin-only access) and needed for / 仅存 DB，管理员可访问；供
+        # _resolve_config_with_snapshot to reconstruct working drivers / 快照解析以还原可用驱动，
+        # even if the live config changes mid-migration. / 避免迁移中途线上配置变更导致不一致。
         source_snapshot = {
             "driver": source_config.driver,
             "root_path": source_config.root_path,
@@ -208,7 +208,7 @@ class StorageMigrationService:
             "options": target_config.options,
         }
 
-        # Insert task record
+        # Insert task record / 写入任务行
         now = utc_now()
         insert_task = text(f"""INSERT INTO {self.TASK_TABLE} / 说明
             (source_driver, target_driver, status, scope, total_files,
@@ -235,10 +235,10 @@ class StorageMigrationService:
                 "now": now,
             },
         )
-        # asyncpg needs JSON as string; text() doesn't auto-serialize
+        # asyncpg needs JSON as string; text() doesn't auto-serialize / asyncpg 需 JSON 字符串，text() 不自动序列化
         task_id = result.scalar_one()
 
-        # Populate log entries in batches to avoid OOM on large file sets
+        # Populate log entries in batches to avoid OOM on large file sets / 分批写入日志，防海量文件 OOM
         BATCH_SIZE = 1000
         insert_log = text(f"""INSERT INTO {self.LOG_TABLE} / 说明
             (task_id, attachment_id, file_path, file_size, status,
@@ -355,7 +355,7 @@ class StorageMigrationService:
             "page_size": page_size,
         }
 
-    # ── Task Control ───────────────────────────────────────────
+    # ── Task Control / 任务控制 ─────────────────────────────────
 
     async def start_task(self, task_id: int) -> dict:
         """Start executing a migration task in the background. / 迁移"""
@@ -365,17 +365,17 @@ class StorageMigrationService:
         if task["status"] not in ("pending", "paused"):
             return {"error": f"Cannot start task in '{task['status']}' status"}
 
-        # Set running status
+        # Set running status / 置为运行中
         await self._update_task_status(task_id, "running", started_at=utc_now())
         await self._db.commit()
 
-        # Create pause event (set = running, clear = paused)
+        # Create pause event (set = running, clear = paused) / 暂停用 Event（set=运行，clear=暂停）
         event = asyncio.Event()
         event.set()
         _pause_events[task_id] = event
         _cancel_flags.discard(task_id)
 
-        # Start background coroutine
+        # Start background coroutine / 启动后台协程
         bg_task = asyncio.create_task(self._run_migration(task_id))
         _running_migrations[task_id] = bg_task
 
@@ -391,7 +391,7 @@ class StorageMigrationService:
 
         event = _pause_events.get(task_id)
         if event:
-            event.clear()  # Signal the migration loop to pause
+            event.clear()  # Signal the migration loop to pause / 通知迁移循环暂停
         await self._update_task_status(task_id, "paused")
         await self._db.commit()
         return {"status": "paused", "task_id": task_id}
@@ -406,13 +406,13 @@ class StorageMigrationService:
 
         event = _pause_events.get(task_id)
         if event:
-            event.set()  # Signal the migration loop to resume
+            event.set()  # Signal the migration loop to resume / 通知迁移循环继续
         await self._update_task_status(task_id, "running")
         await self._db.commit()
 
-        # If server restarted, there is no in-memory coroutine running.
-        # In that case, we must re-create the pause event and start the
-        # background migration coroutine, otherwise task will be stuck.
+        # If server restarted, there is no in-memory coroutine running. / 进程重启后内存里无协程
+        # In that case, we must re-create the pause event and start the / 需重建暂停 Event 并重新启动
+        # background migration coroutine, otherwise task will be stuck. / 后台迁移协程，否则任务卡住
         if task_id not in _running_migrations:
             event = asyncio.Event()
             event.set()
@@ -435,11 +435,11 @@ class StorageMigrationService:
         _cancel_flags.add(task_id)
         event = _pause_events.get(task_id)
         if event:
-            event.set()  # Unblock if paused so it can check cancel flag
+            event.set()  # Unblock if paused so it can check cancel flag / 若处于暂停则唤醒以检查取消
         await self._update_task_status(task_id, "cancelled")
         await self._db.commit()
 
-        # Clean up background task
+        # Clean up background task / 清理后台任务
         bg = _running_migrations.pop(task_id, None)
         if bg and not bg.done():
             bg.cancel()
@@ -448,7 +448,7 @@ class StorageMigrationService:
 
         return {"status": "cancelled", "task_id": task_id}
 
-    # ── Retry & Rollback ───────────────────────────────────────
+    # ── Retry & Rollback / 重试与回滚 ───────────────────────────
 
     async def retry_failed(self, task_id: int) -> dict:
         """Reset failed log entries to pending and restart migration. / 迁移"""
@@ -458,7 +458,7 @@ class StorageMigrationService:
         if task["status"] not in ("completed", "failed"):
             return {"error": f"Cannot retry task in '{task['status']}' status"}
 
-        # Reset failed logs to pending
+        # Reset failed logs to pending / 失败日志重置为 pending
         reset_q = text(f"""UPDATE {self.LOG_TABLE} / 说明
             SET status = 'pending', error_message = NULL, migrated_at = NULL
             WHERE task_id = :task_id AND status = 'failed'""")
@@ -468,7 +468,7 @@ class StorageMigrationService:
         if reset_count == 0:
             return {"error": "No failed files to retry"}
 
-        # Update task counters
+        # Update task counters / 更新任务计数
         await self._db.execute(
             text(f"""UPDATE {self.TASK_TABLE} / 说明
                 SET failed_files = failed_files - :count,
@@ -481,7 +481,7 @@ class StorageMigrationService:
         )
         await self._db.commit()
 
-        # Start the migration again
+        # Start the migration again / 再次启动迁移
         return await self.start_task(task_id)
 
     async def rollback_task(self, task_id: int) -> dict:
@@ -495,7 +495,7 @@ class StorageMigrationService:
         await self._update_task_status(task_id, "rolling_back")
         await self._db.commit()
 
-        # Best-effort: delete files from target storage
+        # Best-effort: delete files from target storage / 尽力删除目标端文件
         target_delete_errors = 0
         try:
             target_config = await self._resolve_config_with_snapshot(
@@ -521,7 +521,7 @@ class StorageMigrationService:
         except Exception as exc:
             logger.warning("Rollback: cannot resolve target driver for cleanup: %s", exc)
 
-        # Revert attachment records using migration logs
+        # Revert attachment records using migration logs / 按迁移日志回滚附件记录
         logs_q = text(f"""
             SELECT attachment_id, old_driver, old_base_url
             FROM {self.LOG_TABLE}
@@ -541,7 +541,7 @@ class StorageMigrationService:
             )
             reverted += 1
 
-        # Mark logs as rolled back
+        # Mark logs as rolled back / 标记日志已回滚
         await self._db.execute(
             text(f"""UPDATE {self.LOG_TABLE} / 说明
                 SET status = 'pending', new_driver = NULL, new_base_url = NULL,
@@ -550,7 +550,7 @@ class StorageMigrationService:
             {"task_id": task_id},
         )
 
-        # Reset task counters
+        # Reset task counters / 重置任务计数
         await self._db.execute(
             text(f"""UPDATE {self.TASK_TABLE} / 说明
                 SET status = 'pending', migrated_files = 0, migrated_bytes = 0,
@@ -609,7 +609,7 @@ class StorageMigrationService:
             "errors": errors,
         }
 
-    # ── Migration Execution ────────────────────────────────────
+    # ── Migration Execution / 迁移执行 ─────────────────────────
 
     async def _run_migration(self, task_id: int) -> None:
         """Background coroutine that performs the actual file migration. / 迁移
@@ -620,7 +620,7 @@ class StorageMigrationService:
         from app.core.database import async_session_factory
 
         try:
-            # Use a dedicated session for setup queries
+            # Use a dedicated session for setup queries / 初始化阶段独立会话
             async with async_session_factory() as setup_db:
                 svc = StorageMigrationService(setup_db)
                 task = await svc.get_task(task_id)
@@ -631,7 +631,7 @@ class StorageMigrationService:
                 target_driver_name = task["target_driver"]
                 concurrency = task.get("concurrency", 5)
 
-                # Use config snapshot if available, fallback to live resolution
+                # Use config snapshot if available, fallback to live resolution / 优先快照，否则现场解析
                 source_config = await self._resolve_config_with_snapshot(
                     setup_db, task.get("source_config_snapshot"),
                     source_driver_name, task["scope"],
@@ -645,9 +645,9 @@ class StorageMigrationService:
                 target_storage = storage_manager.get_driver(target_config)
                 target_base_url = target_storage.get_base_url()
 
-            # Process pending files in batches to avoid OOM on large file sets.
-            # Each file gets its own DB session for concurrency safety.
-            # Counters are accumulated in memory per batch, then flushed once.
+            # Process pending files in batches to avoid OOM on large file sets. / 分批处理 pending，防 OOM
+            # Each file gets its own DB session for concurrency safety. / 每文件独立 DB 会话保证并发安全
+            # Counters are accumulated in memory per batch, then flushed once. / 计数内存累加后批量刷盘
             BATCH_SIZE = 1000
             semaphore = asyncio.Semaphore(concurrency)
             counter_lock = asyncio.Lock()
@@ -661,14 +661,14 @@ class StorageMigrationService:
 
             async def migrate_one(log_entry: dict) -> None:
                 async with semaphore:
-                    # Check pause/cancel
+                    # Check pause/cancel / 检查暂停与取消
                     event = _pause_events.get(task_id)
                     if event:
                         await event.wait()
                     if task_id in _cancel_flags:
                         return
 
-                    # Each file gets its own session
+                    # Each file gets its own session / 每文件独立会话
                     async with async_session_factory() as file_db:
                         ok = await self._migrate_single_file(
                             db=file_db,
@@ -682,7 +682,7 @@ class StorageMigrationService:
                             target_storage_config=target_config,
                         )
 
-                    # Accumulate counters (lock-protected for safety)
+                    # Accumulate counters (lock-protected for safety) / 累加计数（加锁）
                     async with counter_lock:
                         if ok:
                             batch_counters["migrated_files"] += 1
@@ -711,7 +711,7 @@ class StorageMigrationService:
                 batch_tasks = [migrate_one(log) for log in batch]
                 await asyncio.gather(*batch_tasks, return_exceptions=True)
 
-                # Flush accumulated counters in a single UPDATE
+                # Flush accumulated counters in a single UPDATE / 单次 UPDATE 刷计数
                 async with async_session_factory() as flush_db:
                     await flush_db.execute(
                         text(f"""UPDATE {self.TASK_TABLE} / 说明
@@ -729,7 +729,7 @@ class StorageMigrationService:
                     )
                     await flush_db.commit()
 
-            # Check final status with a fresh session
+            # Check final status with a fresh session / 新会话判定最终状态
             if task_id not in _cancel_flags:
                 async with async_session_factory() as final_db:
                     final_svc = StorageMigrationService(final_db)
@@ -815,13 +815,13 @@ class StorageMigrationService:
                 storage_scope,
             )
 
-            # Read from source — returns BinaryIO stream.
-            # Pass directly to put() to avoid loading entire file into memory.
-            content = await source_driver.get(file_path)  # type: ignore[union-attr]
+            # Read from source — returns BinaryIO stream. / 从源读取，返回二进制流
+            # Pass directly to put() to avoid loading entire file into memory. / 直接传给 put，避免整文件入内存
+            content = await source_driver.get(file_path)  # type: ignore[union-attr]  # 存储驱动接口 / driver API
             file_data = BytesIO(content) if isinstance(content, bytes) else content
 
-            # Write to target (streaming)
-            await target_driver.put(  # type: ignore[union-attr]
+            # Write to target (streaming) / 写入目标（流式）
+            await target_driver.put(  # type: ignore[union-attr]  # 存储驱动接口 / driver API
                 path=file_path,
                 content=file_data,
                 mime_type=mime_type,
@@ -829,7 +829,7 @@ class StorageMigrationService:
                 metadata=object_metadata,
             )
 
-            # Update attachment record
+            # Update attachment record / 更新附件记录
             await db.execute(
                 update(Attachment)
                 .where(Attachment.id == attachment_id)
@@ -840,7 +840,7 @@ class StorageMigrationService:
                 )
             )
 
-            # Update log entry
+            # Update log entry / 更新迁移日志行
             now = utc_now()
             await db.execute(
                 text(f"""UPDATE {self.LOG_TABLE} / 说明
@@ -875,7 +875,7 @@ class StorageMigrationService:
                 pass
             return False
 
-    # ── Helpers ─────────────────────────────────────────────────
+    # ── Helpers / 辅助方法 ─────────────────────────────────────
 
     async def _update_task_status(
         self,
@@ -920,7 +920,7 @@ class StorageMigrationService:
                 base_url=snapshot.get("base_url"),
                 options=snapshot.get("options", {}),
             )
-        # Fallback: live resolution (snapshot may lack options/credentials)
+        # Fallback: live resolution (snapshot may lack options/credentials) / 回退现场解析（快照可能缺密钥）
         resolver = StorageConfigResolver(db)
         svc = StorageMigrationService(db)
         return await svc._resolve_driver_config(resolver, driver_name, scope)
@@ -936,14 +936,14 @@ class StorageMigrationService:
         if scope.startswith("tenant:"):
             tenant_id = int(scope.split(":")[1])
 
-        # Use resolve_for_attachment which handles driver → config mapping
-        # including local fallback, tenant/platform config matching, etc.
+        # Use resolve_for_attachment which handles driver → config mapping / resolve_for_attachment 映射驱动→配置
+        # including local fallback, tenant/platform config matching, etc. / 含 local 回退与租户/平台匹配等
         try:
             return await resolver.resolve_for_attachment(driver_name, tenant_id)
         except Exception:
             pass
 
-        # Last resort: if driver doesn't match any config, try platform config
+        # Last resort: if driver doesn't match any config, try platform config / 最后尝试平台级配置
         config = await resolver.resolve_platform_config()
         if config.driver == driver_name:
             return config

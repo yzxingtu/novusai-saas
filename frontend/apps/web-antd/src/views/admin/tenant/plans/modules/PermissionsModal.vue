@@ -137,7 +137,7 @@ defineExpose({ open });
           v-model="selectedPermissionIds"
           :permissions="permissionTree"
           :loading="loading"
-          :default-expanded-level="1"
+          :default-expanded-level="0"
           :show-inherited-badge="false"
         />
 

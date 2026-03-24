@@ -294,7 +294,7 @@ class RAGContextBuilder:
         candidates = []
         for sep in ("。", "\n", "；", ". ", "; ", "，", ", "):
             pos = content.rfind(sep, 0, rough_end)
-            if pos > rough_end * 0.3:  # 至少保留 30% 内容
+            if pos > rough_end * 0.3:  # 至少保留 30% 内容 / Keep at least ~30% of content
                 candidates.append((pos + len(sep), sep))
 
         if candidates:

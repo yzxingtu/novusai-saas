@@ -24,15 +24,19 @@ from ..schemas.module_config import (
     ZeroHostBoundarySchema,
 )
 from ..schemas.release import WorkflowEnvironmentSchema
+from ._data_scope import apply_model_scope
 
 
 async def _ensure_environment_profiles(db) -> list[WorkflowEnvironment]:
     codes = [item["code"] for item in DEFAULT_ENVIRONMENT_PROFILES]
     existing_rows = (
         await db.execute(
-            select(WorkflowEnvironment).where(
-                WorkflowEnvironment.code.in_(codes),
-                WorkflowEnvironment.is_deleted.is_(False),
+            apply_model_scope(
+                select(WorkflowEnvironment).where(
+                    WorkflowEnvironment.code.in_(codes),
+                    WorkflowEnvironment.is_deleted.is_(False),
+                ),
+                WorkflowEnvironment,
             )
         )
     ).scalars().all()
@@ -61,9 +65,12 @@ async def _ensure_environment_profiles(db) -> list[WorkflowEnvironment]:
 
     rows = (
         await db.execute(
-            select(WorkflowEnvironment)
-            .where(WorkflowEnvironment.is_deleted.is_(False))
-            .order_by(asc(WorkflowEnvironment.sort_order), asc(WorkflowEnvironment.id))
+            apply_model_scope(
+                select(WorkflowEnvironment)
+                .where(WorkflowEnvironment.is_deleted.is_(False))
+                .order_by(asc(WorkflowEnvironment.sort_order), asc(WorkflowEnvironment.id)),
+                WorkflowEnvironment,
+            )
         )
     ).scalars().all()
     return rows
@@ -78,11 +85,14 @@ async def _get_or_create_config(
 ) -> WorkflowModuleConfig:
     row = (
         await db.execute(
-            select(WorkflowModuleConfig).where(
-                WorkflowModuleConfig.config_scope == config_scope,
-                WorkflowModuleConfig.config_key == MODULE_SETTINGS_KEY,
-                WorkflowModuleConfig.tenant_id.is_(None),
-                WorkflowModuleConfig.is_deleted.is_(False),
+            apply_model_scope(
+                select(WorkflowModuleConfig).where(
+                    WorkflowModuleConfig.config_scope == config_scope,
+                    WorkflowModuleConfig.config_key == MODULE_SETTINGS_KEY,
+                    WorkflowModuleConfig.tenant_id.is_(None),
+                    WorkflowModuleConfig.is_deleted.is_(False),
+                ),
+                WorkflowModuleConfig,
             )
         )
     ).scalar_one_or_none()
@@ -187,9 +197,12 @@ async def get_settings_overview(db) -> dict:
     environments = await _ensure_environment_profiles(db)
     rows = (
         await db.execute(
-            select(WorkflowModuleConfig).where(
-                WorkflowModuleConfig.config_key == MODULE_SETTINGS_KEY,
-                WorkflowModuleConfig.is_deleted.is_(False),
+            apply_model_scope(
+                select(WorkflowModuleConfig).where(
+                    WorkflowModuleConfig.config_key == MODULE_SETTINGS_KEY,
+                    WorkflowModuleConfig.is_deleted.is_(False),
+                ),
+                WorkflowModuleConfig,
             )
         )
     ).scalars().all()

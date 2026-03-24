@@ -30,17 +30,17 @@ class OperationLog(BaseModel):
         "blocked_columns": ["request_body", "query_params", "ip", "user_agent"],
     }
 
-    # 表级索引
+    # 表级索引 / Table-level indexes
     __table_args__ = (
-        # 复合索引：企业 + 时间，用于企业日志查询
+        # 复合索引：企业 + 时间，用于企业日志查询 / tenant + time for tenant log queries
         Index("ix_operation_logs_tenant_created", "tenant_id", "created_at"),
-        # 复合索引：用户类型 + 用户ID，用于用户操作追溯
+        # 复合索引：用户类型 + 用户ID，用于用户操作追溯 / user type + id trace
         Index("ix_operation_logs_user", "user_type", "user_id"),
-        # 复合索引：模块 + 操作，用于操作统计
+        # 复合索引：模块 + 操作，用于操作统计 / module + action stats
         Index("ix_operation_logs_module_action", "module", "action"),
     )
 
-    # 可过滤字段声明
+    # 可过滤字段声明 / Declared filterable fields
     __filterable__ = {
         "id": "id",
         "trace_id": "trace_id",
@@ -60,9 +60,9 @@ class OperationLog(BaseModel):
 
     __sortable__ = ["id", "username", "module", "action", "method", "response_code", "created_at"]
 
-    # ==================== 用户信息 ====================
+    # ==================== 用户信息 ==================== / User identity
 
-    # 企业ID（平台操作时为空）
+    # 企业ID（平台操作时为空） / Tenant id (null for platform ops)
     tenant_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("tenants.id", ondelete="SET NULL"),
@@ -86,7 +86,7 @@ class OperationLog(BaseModel):
         comment="用户ID"
     )
 
-    # 用户名（冗余存储，便于查询和展示）
+    # 用户名（冗余存储，便于查询和展示） / Username denormalized
     username: Mapped[str | None] = mapped_column(
         String(100),
         nullable=True,
@@ -94,14 +94,14 @@ class OperationLog(BaseModel):
         comment="用户名"
     )
 
-    # 用户昵称（冗余存储，便于展示）
+    # 用户昵称（冗余存储，便于展示） / Nickname denormalized
     nickname: Mapped[str | None] = mapped_column(
         String(100),
         nullable=True,
         comment="用户昵称"
     )
 
-    # ==================== 操作信息 ====================
+    # ==================== 操作信息 ==================== / Operation details
 
     # 业务模块: auth / permission / role / admin_user / tenant / config / plan / ...
     module: Mapped[str | None] = mapped_column(
@@ -127,7 +127,7 @@ class OperationLog(BaseModel):
         comment="资源标识（权限代码）"
     )
 
-    # ==================== 追踪信息 ====================
+    # ==================== 追踪信息 ==================== / Tracing
 
     # 请求追踪 ID（用于关联日志、审计、Celery 任务）
     trace_id: Mapped[str | None] = mapped_column(
@@ -137,7 +137,7 @@ class OperationLog(BaseModel):
         comment="请求追踪 ID / Trace ID for request correlation",
     )
 
-    # ==================== 请求信息 ====================
+    # ==================== 请求信息 ==================== / Request
 
     # HTTP 方法: GET / POST / PUT / DELETE / PATCH
     method: Mapped[str] = mapped_column(
@@ -146,7 +146,7 @@ class OperationLog(BaseModel):
         comment="HTTP 方法"
     )
 
-    # 请求路径
+    # 请求路径 / Request path
     path: Mapped[str] = mapped_column(
         String(500),
         nullable=False,
@@ -168,7 +168,7 @@ class OperationLog(BaseModel):
         comment="请求体摘要（已脱敏）"
     )
 
-    # ==================== 响应信息 ====================
+    # ==================== 响应信息 ==================== / Response
 
     # HTTP 响应状态码
     status_code: Mapped[int | None] = mapped_column(
@@ -177,7 +177,7 @@ class OperationLog(BaseModel):
         comment="HTTP 响应状态码"
     )
 
-    # 业务响应码
+    # 业务响应码 / App response code
     response_code: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
@@ -185,14 +185,14 @@ class OperationLog(BaseModel):
         comment="业务响应码"
     )
 
-    # 响应消息
+    # 响应消息 / Response message
     response_message: Mapped[str | None] = mapped_column(
         String(500),
         nullable=True,
         comment="响应消息"
     )
 
-    # ==================== 客户端信息 ====================
+    # ==================== 客户端信息 ==================== / Client
 
     # 客户端 IP
     ip: Mapped[str | None] = mapped_column(
@@ -202,16 +202,16 @@ class OperationLog(BaseModel):
         comment="客户端 IP"
     )
 
-    # User-Agent
+    # User-Agent / 浏览器 UA 字符串
     user_agent: Mapped[str | None] = mapped_column(
         String(500),
         nullable=True,
         comment="User-Agent"
     )
 
-    # ==================== 性能指标 ====================
+    # ==================== 性能指标 ==================== / Performance
 
-    # 请求耗时（毫秒）
+    # 请求耗时（毫秒） / Request duration (ms)
     duration_ms: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,

@@ -32,7 +32,7 @@ class AIActionLog(TenantModel):
         "allow_read": True,
     }
 
-    # 允许前端筛选的字段
+    # 允许前端筛选的字段 / Fields exposed for list filtering
     __filterable__ = {
         "id": "id",
         "tenant_id": "tenant_id",
@@ -47,7 +47,7 @@ class AIActionLog(TenantModel):
         "created_at": "created_at",
     }
 
-    # 允许排序的字段
+    # 允许排序的字段 / Sortable columns for UI
     __sortable__ = {
         "id": "id",
         "created_at": "created_at",
@@ -131,28 +131,28 @@ class AIActionLog(TenantModel):
         comment=_("ai_action_log.field.status"),
     )
 
-    # 错误信息
+    # 错误信息 / Error message
     error_message: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
         comment=_("ai_action_log.field.error_message"),
     )
 
-    # 执行耗时（毫秒）
+    # 执行耗时（毫秒） / Duration in ms
     duration_ms: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
         comment=_("ai_action_log.field.duration_ms"),
     )
 
-    # ==================== 索引 ====================
+    # ==================== 索引 ==================== / Indexes
 
     __table_args__ = (
-        # 操作类型 + 创建时间复合索引（用于按类型查询审计记录）
+        # 操作类型 + 创建时间复合索引（用于按类型查询审计记录） / type + created_at
         Index("idx_ai_action_logs_type_created", "action_type", "created_at"),
-        # 企业 + 创建时间复合索引（用于按企业查询最近记录）
+        # 企业 + 创建时间复合索引（用于按企业查询最近记录） / tenant + created_at
         Index("idx_ai_action_logs_tenant_created", "tenant_id", "created_at"),
-        # 操作者 + 创建时间复合索引（用于按操作者追溯记录）
+        # 操作者 + 创建时间复合索引（用于按操作者追溯记录） / operator + created_at
         Index("idx_ai_action_logs_operator_created", "operator_id", "created_at"),
     )
 

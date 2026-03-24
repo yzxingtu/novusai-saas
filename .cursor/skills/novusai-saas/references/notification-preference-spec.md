@@ -1,6 +1,6 @@
 # 通知偏好治理规范
 
-> 本文档覆盖 admin / tenant 端通知偏好的分层模型、接口、前端组件和扩展规则。通知投递链路本身见 `notification-spec.md`；这里聚焦“谁允许接收什么渠道”。
+> 本文档覆盖 admin / tenant 端通知偏好的分层模型、接口、前端组件和扩展规则。通知投递链路本身见 [notification-spec.md](notification-spec.md)；这里聚焦“谁允许接收什么渠道”。
 
 ---
 
@@ -173,7 +173,7 @@ UniqueConstraint(
 2. `DEFAULT_PREF`
 3. `NotificationPreferenceService` 读写逻辑
 4. `NotificationSettings.vue` 表格列
-5. `notification-spec.md` 中的渠道规则
+5. [notification-spec.md](notification-spec.md) 中的渠道规则
 
 ---
 

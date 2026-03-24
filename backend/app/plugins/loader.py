@@ -15,6 +15,7 @@ from pathlib import Path
 import yaml
 
 from app.core.logging import get_logger
+from app.core.response import resolve_public_error_message
 from app.plugins.base import PluginBase
 from app.plugins.exceptions import (
     PluginError,
@@ -190,7 +191,10 @@ class PluginLoader:
             if isinstance(exc, (PluginError, PluginNotFoundError)):
                 raise
             raise PluginError(
-                message=f"Failed to import plugin '{plugin_name}': {exc}",
+                message=resolve_public_error_message(
+                    exc,
+                    fallback_message=f"Failed to import plugin '{plugin_name}'",
+                ),
             )
 
         # Find PluginBase subclass / 查找 PluginBase 子类

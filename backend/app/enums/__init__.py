@@ -122,7 +122,7 @@ __all__ = [
     "AgentVisibilityEnum",
     "AccessTypeEnum",
     "BatchRunStatusEnum",
-    # AI
+    # AI / AI 相关
     "ToolParameterTypeEnum",
     # 域名 / Domain
     "DomainSslStatus",

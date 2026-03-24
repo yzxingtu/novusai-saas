@@ -88,7 +88,7 @@ import PackageForm from './modules/form.vue';
 
 defineOptions({ name: 'AdminSkillPackageList' });
 
-// ==================== 技能包列表（左侧） ====================
+// ==================== 技能包列表（左侧）/ package list (left) ====================
 const packages = ref<AdminSkillPackageInfo[]>([]);
 const packagesLoading = ref(false);
 const searchKeyword = ref('');
@@ -250,7 +250,7 @@ async function handleImportFile(file: File) {
   return false;
 }
 
-// ==================== 技能包 ZIP 上传 ====================
+// ==================== 技能包 ZIP 上传 / package ZIP upload ====================
 const uploadModalVisible = ref(false);
 const uploading = ref(false);
 
@@ -274,7 +274,7 @@ async function handleCustomUpload(options: UploadRequestOption) {
   }
 }
 
-// ==================== 技能包 CRUD 抽屉 ====================
+// ==================== 技能包 CRUD 抽屉 / package CRUD drawer ====================
 const [PackageFormDrawer, packageFormApi] = useVbenDrawer({
   connectedComponent: PackageForm,
   destroyOnClose: true,
@@ -383,7 +383,7 @@ function onPackageFormSuccess() {
   loadPackages();
 }
 
-// ==================== Valves 配置 ====================
+// ==================== Valves 配置 / Valves schema ====================
 const valvesConfigPanelRef = ref<InstanceType<typeof ValvesConfigPanel> | null>(
   null,
 );
@@ -396,7 +396,7 @@ function openValvesConfigPanel() {
   valvesConfigPanelRef.value?.open();
 }
 
-// ==================== 技能列表（右侧） ====================
+// ==================== 技能列表（右侧）/ skills list (right) ====================
 const skills = ref<AdminSkillInfo[]>([]);
 const skillsLoading = ref(false);
 
@@ -423,7 +423,7 @@ watch(selectedPackageId, () => {
   loadSkills();
 });
 
-// ==================== 技能 CRUD 抽屉 ====================
+// ==================== 技能 CRUD 抽屉 / skill CRUD drawer ====================
 const [SkillFormDrawer, skillFormApi] = useVbenDrawer({
   connectedComponent: SkillForm,
   destroyOnClose: true,
@@ -492,7 +492,7 @@ function onSkillFormSuccess() {
   loadPackages();
 }
 
-// ==================== 技能操作 ====================
+// ==================== 技能操作 / skill actions ====================
 async function onToggleSkillStatus(row: AdminSkillInfo) {
   try {
     await toggleSkillStatusApi(row.id);
@@ -539,7 +539,7 @@ async function onTestSkill(row: AdminSkillInfo) {
   }
 }
 
-// ==================== 回收站 (using RecycleBinDrawer) ====================
+// ==================== 回收站 / Recycle bin (RecycleBinDrawer) ====================
 const recycleBinRef = ref<InstanceType<typeof RecycleBinDrawer> | null>(null);
 const recycleBinCount = computed(() => recycleBinRef.value?.deletedCount ?? 0);
 
@@ -547,7 +547,7 @@ function openRecycleBin() {
   recycleBinRef.value?.open();
 }
 
-// ==================== 技能列定义 ====================
+// ==================== 技能列定义 / skill columns ====================
 const skillColumns = computed(() => [
   {
     title: $t('admin.ai.skill.name'),
@@ -590,7 +590,7 @@ const skillColumns = computed(() => [
   },
 ]);
 
-// ==================== 初始化 ====================
+// ==================== 初始化 / bootstrap ====================
 onMounted(() => {
   loadPackages();
 });

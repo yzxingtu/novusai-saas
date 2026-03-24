@@ -60,7 +60,7 @@ _REJECTION_TEXTS: frozenset[str] = frozenset(
 )
 
 
-# DeepSeek DSML markers (same as conversation.py, for tool arguments cleanup)
+# DeepSeek DSML markers (same as conversation.py, for tool arguments cleanup) / 上文为英文说明 / English above
 _MODEL_FC_TOKEN_RE = re.compile(r"</?｜[A-Za-z]+｜[^>]*>")
 _MODEL_FC_BLOCK_RE = re.compile(
     r"<｜DSML｜function_calls>.*?</｜DSML｜function_calls>",
@@ -96,7 +96,7 @@ def _fix_unescaped_control_chars(s: str) -> str:
                 result.append(ch)
                 escape_next = True
             elif ch == '"':
-                # Look-ahead: if next non-whitespace is a JSON structural char,
+                # Look-ahead: if next non-whitespace is a JSON structural char, / 上文为英文说明 / English above
                 # this quote ends the string; otherwise it's an embedded quote
                 j = i + 1
                 while j < n and chars[j] in " \t\r\n":
@@ -206,10 +206,10 @@ def _try_repair_json(raw: str) -> dict[str, Any] | None:
     未转义控制字符、Python 风格单引号、截断。
     """
     s = raw.strip()
-    # Phase A: DSML cleanup
+    # Phase A: DSML cleanup / 上文为英文说明 / English above
     s = _strip_dsml_from_args(s)
 
-    # Existing: trailing comma, missing brackets
+    # Existing: trailing comma, missing brackets / 上文为英文说明 / English above
     s = re.sub(r",\s*([}\]])", r"\1", s)
     s_before_braces = s
     opens = s.count("{") - s.count("}")
@@ -225,7 +225,7 @@ def _try_repair_json(raw: str) -> dict[str, Any] | None:
     except json.JSONDecodeError:
         pass
 
-    # Phase B: fix unescaped control chars
+    # Phase B: fix unescaped control chars / 上文为英文说明 / English above
     s2 = _fix_unescaped_control_chars(s)
     if s2 != s:
         try:
@@ -234,7 +234,7 @@ def _try_repair_json(raw: str) -> dict[str, Any] | None:
         except json.JSONDecodeError:
             s = s2
 
-    # Phase C: Python-style single quotes
+    # Phase C: Python-style single quotes / 上文为英文说明 / English above
     s3 = _try_convert_single_quotes(s)
     if s3:
         try:
@@ -243,7 +243,7 @@ def _try_repair_json(raw: str) -> dict[str, Any] | None:
         except json.JSONDecodeError:
             pass
 
-    # Phase D: truncation fix — use string BEFORE we added closing braces,
+    # Phase D: truncation fix — use string BEFORE we added closing braces, / 上文为英文说明 / English above
     # otherwise a trailing } would be incorrectly placed inside an unclosed string
     s4 = _try_fix_truncation(s_before_braces)
     if s4 != s:
@@ -253,11 +253,11 @@ def _try_repair_json(raw: str) -> dict[str, Any] | None:
         except json.JSONDecodeError:
             pass
 
-    # Phase E: brute-force replace all control chars with spaces (last resort —
+    # Phase E: brute-force replace all control chars with spaces (last resort — / 上文为英文说明 / English above
     # loses newline semantics but at least lets the record be created)
     s5 = _brute_force_control_chars(s)
     if s5 != s:
-        # also strip trailing commas & fix braces again on the cleaned string
+        # also strip trailing commas & fix braces again on the cleaned string / 上文为英文说明 / English above
         s5 = re.sub(r",\s*([}\]])", r"\1", s5)
         opens = s5.count("{") - s5.count("}")
         if opens > 0:
@@ -526,7 +526,7 @@ class ToolCallProcessor:
                             )
                         except json.JSONDecodeError:
                             arguments = {}
-                        # Only mutation-preview confirmations require confirmed=True.
+                        # Only mutation-preview confirmations require confirmed=True. / 上文为英文说明 / English above
                         # consent_mode=ask should replay the original arguments unchanged.
                         if inject_confirmed:
                             arguments["confirmed"] = True
@@ -627,7 +627,7 @@ class ToolCallProcessor:
                 parsed.get("preview") or parsed.get("diff") or parsed.get("record")
             ),
         }
-        # File generation confirmation (e.g. plugin codegen)
+        # File generation confirmation (e.g. plugin codegen) / 上文为英文说明 / English above
         if parsed.get("files"):
             event["files"] = parsed["files"]
             event["message"] = parsed.get("message", "")

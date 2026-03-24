@@ -68,7 +68,7 @@ class TestWmoCodeMapping:
         assert info["zh"] == "未知"
 
 
-# ── 缓存测试 ──
+# ── 缓存测试 / cache tests ──
 
 
 class TestCache:
@@ -269,5 +269,5 @@ class TestGetForecast:
     async def test_days_clamped(self):
         _cache_set("forecast:31.23:121.47:7", [])
         result = await get_forecast(31.23, 121.47, 10)
-        # days clamped to 7, so cache key uses 7
+        # days clamped to 7, so cache key uses 7 / days 上限为 7，缓存键按 7 计算
         assert result == []

@@ -86,7 +86,7 @@ async function loadEditor(): Promise<void> {
     }
 
     if (!workflowId.value) {
-      errorMessage.value = t('plugin.workflowOrchestration.tenant.common.messages.invalidRoute');
+      errorMessage.value = t('plugin.workflow-orchestration.tenant.common.messages.invalidRoute');
       return;
     }
 
@@ -100,7 +100,7 @@ async function loadEditor(): Promise<void> {
     errorMessage.value =
       error instanceof Error
         ? error.message
-        : t('plugin.workflowOrchestration.tenant.common.messages.loadFailed');
+        : t('plugin.workflow-orchestration.tenant.common.messages.loadFailed');
   } finally {
     loading.value = false;
   }
@@ -108,7 +108,7 @@ async function loadEditor(): Promise<void> {
 
 async function saveWorkflow(): Promise<void> {
   if (!form.value.name.trim()) {
-    errorMessage.value = t('plugin.workflowOrchestration.tenant.workflow.validation.nameRequired');
+    errorMessage.value = t('plugin.workflow-orchestration.tenant.workflow.validation.nameRequired');
     return;
   }
 
@@ -138,7 +138,7 @@ async function saveWorkflow(): Promise<void> {
     errorMessage.value =
       error instanceof Error
         ? error.message
-        : t('plugin.workflowOrchestration.tenant.common.messages.actionFailed');
+        : t('plugin.workflow-orchestration.tenant.common.messages.actionFailed');
   } finally {
     saving.value = false;
   }
@@ -156,7 +156,7 @@ async function publishWorkflow(): Promise<void> {
     errorMessage.value =
       error instanceof Error
         ? error.message
-        : t('plugin.workflowOrchestration.tenant.common.messages.actionFailed');
+        : t('plugin.workflow-orchestration.tenant.common.messages.actionFailed');
   } finally {
     saving.value = false;
   }
@@ -175,12 +175,12 @@ watch(
 
 <template>
   <ConsoleShell
-    :description="t('plugin.workflowOrchestration.tenant.editor.description')"
-    :eyebrow="t('plugin.workflowOrchestration.tenant.editor.eyebrow')"
+    :description="t('plugin.workflow-orchestration.tenant.editor.description')"
+    :eyebrow="t('plugin.workflow-orchestration.tenant.editor.eyebrow')"
     :title="
       isCreateMode
-        ? t('plugin.workflowOrchestration.tenant.editor.createTitle')
-        : workflow?.name || t('plugin.workflowOrchestration.tenant.workflow.untitled')
+        ? t('plugin.workflow-orchestration.tenant.editor.createTitle')
+        : workflow?.name || t('plugin.workflow-orchestration.tenant.workflow.untitled')
     "
   >
     <template #actions>
@@ -189,7 +189,7 @@ watch(
         class="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
         @click="navigateTo(`workflows/${workflow.id}`)"
       >
-        {{ t('plugin.workflowOrchestration.tenant.common.actions.openDetail') }}
+        {{ t('plugin.workflow-orchestration.tenant.common.actions.openDetail') }}
       </button>
       <button
         v-if="!isCreateMode && workflow?.id"
@@ -197,7 +197,7 @@ watch(
         :disabled="saving"
         @click="publishWorkflow"
       >
-        {{ t('plugin.workflowOrchestration.tenant.workflow.actions.publish') }}
+        {{ t('plugin.workflow-orchestration.tenant.workflow.actions.publish') }}
       </button>
       <button
         class="inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
@@ -206,8 +206,8 @@ watch(
       >
         {{
           saving
-            ? t('plugin.workflowOrchestration.tenant.common.messages.processing')
-            : t('plugin.workflowOrchestration.tenant.editor.actions.save')
+            ? t('plugin.workflow-orchestration.tenant.common.messages.processing')
+            : t('plugin.workflow-orchestration.tenant.editor.actions.save')
         }}
       </button>
     </template>
@@ -239,10 +239,10 @@ watch(
           <div class="flex items-start justify-between gap-4">
             <div>
               <h2 class="text-lg font-semibold text-slate-900">
-                {{ t('plugin.workflowOrchestration.tenant.editor.sections.basicInfo') }}
+                {{ t('plugin.workflow-orchestration.tenant.editor.sections.basicInfo') }}
               </h2>
               <p class="mt-1 text-sm text-slate-500">
-                {{ t('plugin.workflowOrchestration.tenant.editor.sections.basicInfoHint') }}
+                {{ t('plugin.workflow-orchestration.tenant.editor.sections.basicInfoHint') }}
               </p>
             </div>
             <StatusPill
@@ -254,40 +254,40 @@ watch(
 
           <div class="mt-5 grid gap-4">
             <label class="space-y-2 text-sm text-slate-600">
-              <span>{{ t('plugin.workflowOrchestration.tenant.workflow.fields.name') }}</span>
+              <span>{{ t('plugin.workflow-orchestration.tenant.workflow.fields.name') }}</span>
               <input
                 v-model="form.name"
                 class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
-                :placeholder="t('plugin.workflowOrchestration.tenant.workflow.placeholders.name')"
+                :placeholder="t('plugin.workflow-orchestration.tenant.workflow.placeholders.name')"
               />
             </label>
 
             <label class="space-y-2 text-sm text-slate-600">
-              <span>{{ t('plugin.workflowOrchestration.tenant.workflow.fields.description') }}</span>
+              <span>{{ t('plugin.workflow-orchestration.tenant.workflow.fields.description') }}</span>
               <textarea
                 v-model="form.description"
                 class="min-h-32 w-full rounded-3xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
-                :placeholder="t('plugin.workflowOrchestration.tenant.workflow.placeholders.description')"
+                :placeholder="t('plugin.workflow-orchestration.tenant.workflow.placeholders.description')"
               />
             </label>
           </div>
 
           <div class="mt-5 rounded-3xl border border-slate-200 bg-slate-50 px-5 py-4">
             <h3 class="text-sm font-semibold text-slate-900">
-              {{ t('plugin.workflowOrchestration.tenant.editor.sections.versionInfo') }}
+              {{ t('plugin.workflow-orchestration.tenant.editor.sections.versionInfo') }}
             </h3>
             <dl class="mt-4 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
               <div>
                 <dt class="text-xs uppercase tracking-wide text-slate-400">
-                  {{ t('plugin.workflowOrchestration.tenant.workflow.fields.version') }}
+                  {{ t('plugin.workflow-orchestration.tenant.workflow.fields.version') }}
                 </dt>
                 <dd class="mt-1 font-medium text-slate-900">
-                  {{ workflow?.currentVersion || t('plugin.workflowOrchestration.tenant.common.placeholders.empty') }}
+                  {{ workflow?.currentVersion || t('plugin.workflow-orchestration.tenant.common.placeholders.empty') }}
                 </dd>
               </div>
               <div>
                 <dt class="text-xs uppercase tracking-wide text-slate-400">
-                  {{ t('plugin.workflowOrchestration.tenant.workflow.fields.updatedAt') }}
+                  {{ t('plugin.workflow-orchestration.tenant.workflow.fields.updatedAt') }}
                 </dt>
                 <dd class="mt-1 font-medium text-slate-900">
                   {{ formatDateTime(workflow?.updatedAt) }}
@@ -300,10 +300,10 @@ watch(
         <article class="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-sm">
           <div>
             <h2 class="text-lg font-semibold text-slate-900">
-              {{ t('plugin.workflowOrchestration.tenant.editor.sections.capabilities') }}
+              {{ t('plugin.workflow-orchestration.tenant.editor.sections.capabilities') }}
             </h2>
             <p class="mt-1 text-sm text-slate-500">
-              {{ t('plugin.workflowOrchestration.tenant.editor.sections.capabilitiesHint') }}
+              {{ t('plugin.workflow-orchestration.tenant.editor.sections.capabilitiesHint') }}
             </p>
           </div>
 
@@ -322,12 +322,12 @@ watch(
                     {{
                       capability.description ||
                         capability.reason ||
-                        t('plugin.workflowOrchestration.tenant.editor.empty.capabilityDescription')
+                        t('plugin.workflow-orchestration.tenant.editor.empty.capabilityDescription')
                     }}
                   </p>
                 </div>
                 <StatusPill
-                  :label="t(`plugin.workflowOrchestration.tenant.capability.state.${capability.enabled ? 'enabled' : 'disabled'}`)"
+                  :label="t(`plugin.workflow-orchestration.tenant.capability.state.${capability.enabled ? 'enabled' : 'disabled'}`)"
                   :tone="capability.enabled ? 'success' : 'neutral'"
                 />
               </div>
@@ -336,14 +336,14 @@ watch(
 
           <div class="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
             <p class="text-sm font-semibold text-amber-900">
-              {{ t('plugin.workflowOrchestration.tenant.editor.sections.boundaryTitle') }}
+              {{ t('plugin.workflow-orchestration.tenant.editor.sections.boundaryTitle') }}
             </p>
             <ul class="mt-3 space-y-2 text-sm text-amber-800">
               <li
                 v-for="code in lockedBoundaryCodes"
                 :key="code"
               >
-                {{ t(`plugin.workflowOrchestration.tenant.capability.locked.${code}`) }}
+                {{ t(`plugin.workflow-orchestration.tenant.capability.locked.${code}`) }}
               </li>
             </ul>
           </div>
@@ -355,10 +355,10 @@ watch(
           <div class="flex items-center justify-between gap-3">
             <div>
               <h2 class="text-lg font-semibold text-slate-900">
-                {{ t('plugin.workflowOrchestration.tenant.editor.sections.canvasPreview') }}
+                {{ t('plugin.workflow-orchestration.tenant.editor.sections.canvasPreview') }}
               </h2>
               <p class="mt-1 text-sm text-slate-500">
-                {{ t('plugin.workflowOrchestration.tenant.editor.sections.canvasPreviewHint') }}
+                {{ t('plugin.workflow-orchestration.tenant.editor.sections.canvasPreviewHint') }}
               </p>
             </div>
           </div>
@@ -375,14 +375,14 @@ watch(
               <div class="flex items-start justify-between gap-3">
                 <div class="space-y-1">
                   <p class="text-sm font-semibold text-slate-900">
-                    {{ node.name || t('plugin.workflowOrchestration.tenant.workflow.empty.nodeName') }}
+                    {{ node.name || t('plugin.workflow-orchestration.tenant.workflow.empty.nodeName') }}
                   </p>
                   <p class="text-sm text-slate-600">
                     {{ node.type }}
                   </p>
                 </div>
                 <StatusPill
-                  :label="node.readonly ? t('plugin.workflowOrchestration.tenant.editor.flags.platformManaged') : t('plugin.workflowOrchestration.tenant.editor.flags.tenantEditable')"
+                  :label="node.readonly ? t('plugin.workflow-orchestration.tenant.editor.flags.platformManaged') : t('plugin.workflow-orchestration.tenant.editor.flags.tenantEditable')"
                   :tone="node.readonly ? 'warning' : 'success'"
                 />
               </div>
@@ -390,44 +390,44 @@ watch(
           </div>
           <EmptyState
             v-else
-            :description="t('plugin.workflowOrchestration.tenant.editor.empty.canvasDescription')"
-            :title="t('plugin.workflowOrchestration.tenant.editor.empty.canvasTitle')"
+            :description="t('plugin.workflow-orchestration.tenant.editor.empty.canvasDescription')"
+            :title="t('plugin.workflow-orchestration.tenant.editor.empty.canvasTitle')"
           />
         </article>
 
         <article class="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-sm">
           <div>
             <h2 class="text-lg font-semibold text-slate-900">
-              {{ t('plugin.workflowOrchestration.tenant.editor.sections.designRules') }}
+              {{ t('plugin.workflow-orchestration.tenant.editor.sections.designRules') }}
             </h2>
             <p class="mt-1 text-sm text-slate-500">
-              {{ t('plugin.workflowOrchestration.tenant.editor.sections.designRulesHint') }}
+              {{ t('plugin.workflow-orchestration.tenant.editor.sections.designRulesHint') }}
             </p>
           </div>
 
           <div class="mt-5 space-y-3">
             <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
               <h3 class="text-sm font-semibold text-slate-900">
-                {{ t('plugin.workflowOrchestration.tenant.editor.cards.operatorScope') }}
+                {{ t('plugin.workflow-orchestration.tenant.editor.cards.operatorScope') }}
               </h3>
               <p class="mt-2 text-sm leading-6 text-slate-600">
-                {{ t('plugin.workflowOrchestration.tenant.editor.cardBody.operatorScope') }}
+                {{ t('plugin.workflow-orchestration.tenant.editor.cardBody.operatorScope') }}
               </p>
             </div>
             <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
               <h3 class="text-sm font-semibold text-slate-900">
-                {{ t('plugin.workflowOrchestration.tenant.editor.cards.reviewLane') }}
+                {{ t('plugin.workflow-orchestration.tenant.editor.cards.reviewLane') }}
               </h3>
               <p class="mt-2 text-sm leading-6 text-slate-600">
-                {{ t('plugin.workflowOrchestration.tenant.editor.cardBody.reviewLane') }}
+                {{ t('plugin.workflow-orchestration.tenant.editor.cardBody.reviewLane') }}
               </p>
             </div>
             <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
               <h3 class="text-sm font-semibold text-slate-900">
-                {{ t('plugin.workflowOrchestration.tenant.editor.cards.integrationBoundary') }}
+                {{ t('plugin.workflow-orchestration.tenant.editor.cards.integrationBoundary') }}
               </h3>
               <p class="mt-2 text-sm leading-6 text-slate-600">
-                {{ t('plugin.workflowOrchestration.tenant.editor.cardBody.integrationBoundary') }}
+                {{ t('plugin.workflow-orchestration.tenant.editor.cardBody.integrationBoundary') }}
               </p>
             </div>
           </div>
@@ -441,17 +441,17 @@ watch(
         <div class="flex items-center justify-between gap-3">
           <div>
             <h2 class="text-lg font-semibold text-slate-900">
-              {{ t('plugin.workflowOrchestration.tenant.editor.sections.recentRuns') }}
+              {{ t('plugin.workflow-orchestration.tenant.editor.sections.recentRuns') }}
             </h2>
             <p class="mt-1 text-sm text-slate-500">
-              {{ t('plugin.workflowOrchestration.tenant.editor.sections.recentRunsHint') }}
+              {{ t('plugin.workflow-orchestration.tenant.editor.sections.recentRunsHint') }}
             </p>
           </div>
           <button
             class="text-sm font-medium text-sky-700 transition hover:text-sky-800"
             @click="navigateTo('runs')"
           >
-            {{ t('plugin.workflowOrchestration.tenant.common.actions.openRuns') }}
+            {{ t('plugin.workflow-orchestration.tenant.common.actions.openRuns') }}
           </button>
         </div>
 
@@ -463,7 +463,7 @@ watch(
             @click="navigateTo(`runs/${run.id}`)"
           >
             <p class="text-sm font-semibold text-slate-900">
-              {{ run.name || t('plugin.workflowOrchestration.tenant.run.untitled') }}
+              {{ run.name || t('plugin.workflow-orchestration.tenant.run.untitled') }}
             </p>
             <p class="mt-1 text-xs text-slate-500">
               {{ formatDateTime(run.updatedAt) }}

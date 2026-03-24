@@ -21,7 +21,7 @@ from app.rbac.services import PermissionService
 
 @permission_resource(
     resource="permission",
-    name="menu.admin.permission",  # i18n key
+    name="menu.admin.permission",  # i18n key / 菜单 i18n 键名
     scope=PermissionScope.ADMIN,
     parent_resource="platform_mgmt",
     # 不传 menu 参数 = 不注册菜单权限，仅提供 API 端点 / No menu param = no menu permission registered, API endpoints only

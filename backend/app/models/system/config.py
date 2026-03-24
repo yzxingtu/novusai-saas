@@ -29,7 +29,7 @@ class SystemConfigGroup(BaseModel):
                     label_field="key", i18n_key="system_config"),
     ]
 
-    # 可过滤字段声明
+    # 可过滤字段声明 / Declares filterable fields
     __filterable__ = {
         "id": "id",
         "code": "code",
@@ -43,7 +43,7 @@ class SystemConfigGroup(BaseModel):
 
     __sortable__ = ["id", "code", "scope", "sort_order", "is_active", "created_at", "updated_at"]
 
-    # 下拉选项配置
+    # 下拉选项配置 / Select dropdown config
     __selectable__ = {
         "label": "name_key",
         "value": "id",
@@ -51,43 +51,44 @@ class SystemConfigGroup(BaseModel):
         "extra": ["scope", "icon"],
     }
 
-    # 分组标识
+    # 分组标识 / Group identifier
     code: Mapped[str] = mapped_column(
-        String(100), unique=True, index=True, comment="分组代码（唯一标识）"
+        String(100), unique=True, index=True,
+        comment="分组代码（唯一标识） / Group code (unique)",
     )
 
-    # 国际化名称键
+    # 国际化名称键 / i18n name key
     name_key: Mapped[str] = mapped_column(
-        String(200), comment="名称的 i18n 键"
+        String(200), comment="名称的 i18n 键 / i18n key for display name",
     )
     description_key: Mapped[str | None] = mapped_column(
-        String(200), nullable=True, comment="描述的 i18n 键"
+        String(200), nullable=True, comment="描述的 i18n 键 / i18n key for description",
     )
 
-    # 作用域
+    # 作用域 / Config scope
     scope: Mapped[str] = mapped_column(
         String(20), default=ConfigScope.ADMIN_ONLY.value, index=True,
-        comment="作用域: admin_only/all_tenants"
+        comment="作用域: admin_only/all_tenants / Scope: admin_only or all_tenants",
     )
 
-    # 层级关系
+    # 层级关系 / Hierarchy
     parent_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("system_config_groups.id"), nullable=True,
-        index=True, comment="父分组 ID"
+        index=True, comment="父分组 ID / Parent group id",
     )
 
-    # 显示设置
+    # 显示设置 / Display
     icon: Mapped[str | None] = mapped_column(
-        String(50), nullable=True, comment="分组图标"
+        String(50), nullable=True, comment="分组图标 / Group icon",
     )
     sort_order: Mapped[int] = mapped_column(
-        Integer, default=0, comment="排序顺序"
+        Integer, default=0, comment="排序顺序 / Sort order",
     )
     is_active: Mapped[bool] = mapped_column(
-        Boolean, default=True, comment="是否启用"
+        Boolean, default=True, comment="是否启用 / Active flag",
     )
 
-    # 关系
+    # 关系 / Relationships
     parent: Mapped["SystemConfigGroup | None"] = relationship(
         "SystemConfigGroup",
         remote_side="SystemConfigGroup.id",
@@ -124,12 +125,12 @@ class SystemConfig(BaseModel):
                     label_field="id", i18n_key="system_config_value"),
     ]
 
-    # 复合唯一索引
+    # 复合唯一索引 / Composite unique index
     __table_args__ = (
         Index("ix_system_configs_group_key", "group_id", "key", unique=True),
     )
 
-    # 可过滤字段声明
+    # 可过滤字段声明 / Declares filterable fields
     __filterable__ = {
         "id": "id",
         "key": "key",
@@ -144,7 +145,7 @@ class SystemConfig(BaseModel):
         "updated_at": "updated_at",
     }
 
-    # 下拉选项配置
+    # 下拉选项配置 / Select dropdown config
     __selectable__ = {
         "label": "name_key",
         "value": "id",
@@ -152,65 +153,69 @@ class SystemConfig(BaseModel):
         "extra": ["scope", "value_type"],
     }
 
-    # 配置键（组内唯一）
+    # 配置键（组内唯一） / Config key (unique within group)
     key: Mapped[str] = mapped_column(
-        String(100), index=True, comment="配置键名"
+        String(100), index=True, comment="配置键名 / Config key",
     )
 
-    # 所属分组
+    # 所属分组 / Owning group
     group_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("system_config_groups.id"), index=True,
-        comment="所属分组 ID"
+        comment="所属分组 ID / Owning group id",
     )
 
-    # 国际化名称键
+    # 国际化名称键 / i18n name key
     name_key: Mapped[str] = mapped_column(
-        String(200), comment="名称的 i18n 键"
+        String(200), comment="名称的 i18n 键 / i18n key for display name",
     )
     description_key: Mapped[str | None] = mapped_column(
-        String(200), nullable=True, comment="描述的 i18n 键"
+        String(200), nullable=True, comment="描述的 i18n 键 / i18n key for description",
     )
 
-    # 作用域
+    # 作用域 / Config scope
     scope: Mapped[str] = mapped_column(
         String(20), default=ConfigScope.ADMIN_ONLY.value, index=True,
-        comment="作用域: admin_only/all_tenants"
+        comment="作用域: admin_only/all_tenants / Scope: admin_only or all_tenants",
     )
 
-    # 值类型和默认值
+    # 值类型和默认值 / Value type and default
     value_type: Mapped[str] = mapped_column(
         String(20), default=ConfigValueType.STRING.value,
-        comment="值类型: string/number/boolean/select/multi_select/json/text/password/color/image"
+        comment=(
+            "值类型: string/number/boolean/select/multi_select/json/text/password/color/image / "
+            "Value type enum"
+        ),
     )
     default_value: Mapped[str | None] = mapped_column(
-        Text, nullable=True, comment="默认值（JSON 字符串存储）"
+        Text, nullable=True, comment="默认值（JSON 字符串存储） / Default value (JSON string)",
     )
 
-    # 验证规则
+    # 验证规则 / Validation
     validation_rules: Mapped[str | None] = mapped_column(
-        Text, nullable=True, comment="验证规则（JSON 格式）"
+        Text, nullable=True, comment="验证规则（JSON 格式） / Validation rules (JSON)",
     )
     options: Mapped[str | None] = mapped_column(
-        Text, nullable=True, comment="选项列表（用于 select/multi_select，JSON 格式）"
+        Text, nullable=True,
+        comment="选项列表（用于 select/multi_select，JSON 格式） / Options JSON for select types",
     )
 
-    # 配置属性
+    # 配置属性 / Config flags
     is_required: Mapped[bool] = mapped_column(
-        Boolean, default=False, comment="是否必填"
+        Boolean, default=False, comment="是否必填 / Required",
     )
     is_visible: Mapped[bool] = mapped_column(
-        Boolean, default=True, comment="是否在配置界面显示"
+        Boolean, default=True, comment="是否在配置界面显示 / Visible in UI",
     )
     is_encrypted: Mapped[bool] = mapped_column(
-        Boolean, default=False, comment="是否加密存储"
+        Boolean, default=False, comment="是否加密存储 / Stored encrypted",
     )
 
-    # 显示设置
+    # 显示设置 / Display
     sort_order: Mapped[int] = mapped_column(
-        Integer, default=0, comment="排序顺序"
+        Integer, default=0, comment="排序顺序 / Sort order",
     )
 
-    # 关系
+    # 关系 / Relationships
     group: Mapped["SystemConfigGroup"] = relationship(
         "SystemConfigGroup",
         back_populates="configs",
@@ -237,12 +242,12 @@ class SystemConfigValue(TenantModel):
 
     __tablename__ = "system_config_values"
 
-    # 复合唯一索引：同一配置项在同一企业下只能有一个值
+    # 复合唯一索引：同一配置项在同一企业下只能有一个值 / Composite unique: one value per config per tenant
     __table_args__ = (
         Index("ix_system_config_values_config_tenant", "config_id", "tenant_id", unique=True),
     )
 
-    # 可过滤字段声明
+    # 可过滤字段声明 / Declares filterable fields
     __filterable__ = {
         "id": "id",
         "config_id": "config_id",
@@ -251,18 +256,18 @@ class SystemConfigValue(TenantModel):
         "updated_at": "updated_at",
     }
 
-    # 关联的配置项
+    # 关联的配置项 / Linked config definition
     config_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("system_configs.id"), index=True,
-        comment="配置项 ID"
+        comment="配置项 ID / Config definition id",
     )
 
-    # 配置值（JSON 字符串存储，支持各种类型）
+    # 配置值（JSON 字符串存储，支持各种类型） / Stored value (JSON string)
     value: Mapped[str | None] = mapped_column(
-        Text, nullable=True, comment="配置值（JSON 字符串存储）"
+        Text, nullable=True, comment="配置值（JSON 字符串存储） / Value as JSON string",
     )
 
-    # 关系
+    # 关系 / Relationships
     config: Mapped["SystemConfig"] = relationship(
         "SystemConfig",
         back_populates="values",

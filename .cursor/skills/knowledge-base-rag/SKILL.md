@@ -238,8 +238,8 @@ description: NovusAI 知识库 / RAG 技能。当需要开发、修复、审查�
 
 ## 参考
 
-- `../novusai-saas/references/ai-module.md`
-- `../novusai-saas/references/multimodal-rag.md`
-- `../novusai-saas/references/multimodal-model-usage.md`
-- `../novusai-saas/references/upload-storage-spec.md`
-- `../attachment-storage/SKILL.md`
+- [../novusai-saas/references/ai-module.md](../novusai-saas/references/ai-module.md)
+- [../novusai-saas/references/multimodal-rag.md](../novusai-saas/references/multimodal-rag.md)
+- [../novusai-saas/references/multimodal-model-usage.md](../novusai-saas/references/multimodal-model-usage.md)
+- [../novusai-saas/references/upload-storage-spec.md](../novusai-saas/references/upload-storage-spec.md)
+- [../attachment-storage/SKILL.md](../attachment-storage/SKILL.md)

@@ -10,7 +10,7 @@
 ### Step 1: Model
 
 ```python
-# backend/app/models/tenant/notice.py
+# backend/app/models/{module}/{resource}.py
 from sqlalchemy import String, Text, Integer, Boolean
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.base_model import TenantModel
@@ -53,7 +53,7 @@ class Notice(TenantModel):
 ### Step 2: Schema
 
 ```python
-# backend/app/schemas/tenant/notice.py
+# backend/app/schemas/{module}/{resource}.py
 from typing import Optional
 from app.core.base_schema import BaseCreateSchema, BaseUpdateSchema, BaseResponseSchema
 
@@ -77,7 +77,7 @@ class NoticeResponse(BaseResponseSchema):
 ### Step 3: Repository
 
 ```python
-# backend/app/repositories/tenant/notice_repository.py
+# backend/app/repositories/{module}/{resource}_repository.py
 from app.core.base_repository import TenantRepository
 from app.models.tenant.notice import Notice
 
@@ -88,7 +88,7 @@ class NoticeRepository(TenantRepository[Notice]):
 ### Step 4: Service
 
 ```python
-# backend/app/services/tenant/notice_service.py
+# backend/app/services/{module}/{resource}_service.py
 from app.core.base_service import TenantService
 from app.repositories.tenant.notice_repository import NoticeRepository
 from app.models.tenant.notice import Notice
@@ -102,7 +102,7 @@ class NoticeService(TenantService[Notice]):
 ### Step 5: Controller
 
 ```python
-# backend/app/api/tenant/notices.py
+# backend/app/api/{endpoint_scope}/{resources}.py
 from app.core.base_controller import TenantController
 from app.rbac.decorators import permission_resource
 from app.services.tenant.notice_service import NoticeService
@@ -282,7 +282,7 @@ const {
 ## API Composable 示例
 
 ```typescript
-// frontend/apps/web-antd/src/composables/use-notice-apis.ts
+// frontend/apps/web-antd/src/composables/use-{resource}-apis.ts
 import { tenantApi } from '#/api';
 
 export function useNoticeApis() {

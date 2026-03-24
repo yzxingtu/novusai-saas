@@ -8,13 +8,16 @@ vi.mock('#/locales', () => ({
 import { formStateTracker } from '#/composables/use-form-state-tracker';
 
 import {
+  appendPageOperations,
   clearPageOperationRegistry,
   executePageOperation,
+  listPageOperations,
   registerPageOperations,
 } from '../page-operation-registry';
 
 describe('page-operation-registry', () => {
   afterEach(() => {
+    vi.restoreAllMocks();
     clearPageOperationRegistry();
     formStateTracker.clear();
     document.body.innerHTML = '';
@@ -127,5 +130,76 @@ describe('page-operation-registry', () => {
       drawer_opened: true,
       form_opened: true,
     });
+  });
+
+  it('filters falsy and invalid operations from register/append safely', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    registerPageOperations('tenant.demo.invalid_ops', [
+      undefined as unknown as {
+        label: string;
+        name: string;
+        readonly: boolean;
+      },
+      {
+        name: 'valid_primary',
+        label: 'Valid Primary',
+        readonly: true,
+        handler: async () => ({
+          success: true,
+          message: 'ok',
+        }),
+      },
+      {
+        name: '',
+        label: 'Missing Name',
+        readonly: true,
+      } as unknown as {
+        label: string;
+        name: string;
+        readonly: boolean;
+      },
+    ]);
+
+    appendPageOperations('tenant.demo.invalid_ops', [
+      null as unknown as {
+        label: string;
+        name: string;
+        readonly: boolean;
+      },
+      {
+        name: 'valid_extra',
+        label: 'Valid Extra',
+        readonly: false,
+        handler: async () => ({
+          success: true,
+          message: 'extra',
+        }),
+      },
+      {
+        name: 'broken_without_readonly',
+        label: 'Broken',
+      } as unknown as {
+        label: string;
+        name: string;
+        readonly: boolean;
+      },
+    ]);
+
+    const operationNames = listPageOperations('tenant.demo.invalid_ops').map(
+      (operation) => operation.name,
+    );
+
+    expect(operationNames).toContain('valid_primary');
+    expect(operationNames).toContain('valid_extra');
+    expect(operationNames).not.toContain('broken_without_readonly');
+    expect(operationNames).not.toContain('');
+
+    const result = await executePageOperation(
+      'tenant.demo.invalid_ops',
+      'valid_extra',
+    );
+    expect(result.success).toBe(true);
+    expect(warnSpy).toHaveBeenCalled();
   });
 });

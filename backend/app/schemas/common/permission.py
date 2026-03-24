@@ -50,7 +50,7 @@ class MenuResponse(BaseSchema):
     children: list["MenuResponse"] = Field(default_factory=list, description="子菜单")
 
 
-# 解决循环引用
+# 解决循环引用 / Resolve forward references
 PermissionTreeResponse.model_rebuild()
 MenuResponse.model_rebuild()
 

@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.core.logging import LogManager
+from app.core.response import build_public_error_text
 
 if TYPE_CHECKING:
     from app.ai.tools.types import ExecutionContext
@@ -246,7 +247,10 @@ class ToolkitExecutor(BaseToolExecutor):
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=False,
-                error=f"Argument error: {exc}",
+                error=build_public_error_text(
+                    message="Toolkit argument error",
+                    exc=exc,
+                ),
                 duration_ms=duration_ms,
             )
 
@@ -263,7 +267,10 @@ class ToolkitExecutor(BaseToolExecutor):
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=False,
-                error=str(exc),
+                error=build_public_error_text(
+                    message="Toolkit execution failed",
+                    exc=exc,
+                ),
                 duration_ms=duration_ms,
             )
 
@@ -605,7 +612,10 @@ def _inject_valves(
             "Failed to inject Valves config: {}. Using defaults.",
             str(exc),
         )
-        return str(exc)
+        return build_public_error_text(
+            message="Valves config injection failed",
+            exc=exc,
+        )
 
 
 def _to_string(value: Any) -> str:

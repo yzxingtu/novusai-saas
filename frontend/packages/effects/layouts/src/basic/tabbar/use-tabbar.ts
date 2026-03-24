@@ -21,9 +21,9 @@ import {
   RotateCw,
   X,
 } from '@vben/icons';
-import { $t, useI18n } from '@vben/locales';
+import { $t, $te, useI18n } from '@vben/locales';
 import { getTabKey, useAccessStore, useTabbarStore } from '@vben/stores';
-import { filterTree } from '@vben/utils';
+import { filterTree, resolveRouteMetaTitle } from '@vben/utils';
 
 export function useTabbar() {
   const router = useRouter();
@@ -112,7 +112,11 @@ export function useTabbar() {
       ...tab,
       meta: {
         ...tab?.meta,
-        title: $t(tab?.meta?.title as string),
+        title: resolveRouteMetaTitle(tab?.meta, {
+          hasLocaleKey: $te,
+          locale: locale.value,
+          translate: $t,
+        }),
       },
     };
   }

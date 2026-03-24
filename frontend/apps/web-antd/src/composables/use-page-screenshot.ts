@@ -18,6 +18,7 @@ import {
 import { resolveEndpointByPath } from '#/constants/endpoints';
 import { $t } from '#/locales';
 import { EndpointType } from '#/types/endpoint';
+import { showRequestError } from '#/utils/error-helpers';
 
 // ============ Constants / 常量 ============
 
@@ -153,11 +154,7 @@ export async function capturePageScreenshot(
 
     return { attachment, blob };
   } catch (error: unknown) {
-    const errorMsg =
-      error instanceof Error
-        ? error.message
-        : $t('common.globalAiChat.screenshotFailed');
-    message.error(errorMsg);
+    showRequestError(error, 'common.globalAiChat.screenshotFailed');
     return null;
   } finally {
     globalCapturing.value = false;

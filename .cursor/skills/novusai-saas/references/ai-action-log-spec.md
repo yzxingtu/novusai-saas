@@ -109,7 +109,7 @@ await write_ai_action_log(
 
 ## 四、查询接口
 
-### 企业端
+### 查询接口：企业端
 
 | 接口 | 说明 |
 |------|------|
@@ -117,7 +117,7 @@ await write_ai_action_log(
 | `GET /tenant/ai/action-logs/stats` | 本企业统计与类型分布 |
 | `GET /tenant/ai/action-logs/{id}` | 本企业单条详情 |
 
-### 平台端
+### 查询接口：平台端
 
 | 接口 | 说明 |
 |------|------|
@@ -135,14 +135,14 @@ await write_ai_action_log(
 
 ## 五、前端页面
 
-### 平台端
+### 前端页面：平台端
 
 - 页面：`frontend/apps/web-antd/src/views/admin/ai/action-logs/index.vue`
 - API：`frontend/apps/web-antd/src/api/admin/action-logs.ts`
 - 模式：`useCrudPage` + 详情 Drawer
 - 展示补充：tenant 名称/编码、请求载荷、响应载荷、错误信息
 
-### 企业端
+### 前端页面：企业端
 
 - 页面：`frontend/apps/web-antd/src/views/tenant/ai/action-logs/index.vue`
 - API：`frontend/apps/web-antd/src/api/tenant/action-logs.ts`

@@ -498,6 +498,67 @@ describe('AIChatSlidePanel (component mount)', () => {
     wrapper.unmount();
   });
 
+  it('reopens without resetting the current conversation when no external context is queued', async () => {
+    activeConversationIdValue.value = 10;
+
+    const wrapper = mount(AIChatSlidePanel, {
+      props: {
+        apiPrefix: '/tenant',
+        uploadUrl: '/upload',
+      },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          ChatMessageItem: true,
+        },
+      },
+    });
+
+    await flushPromises();
+    startNewConversationMock.mockClear();
+
+    aiPanelStore.visible = false;
+    await flushPromises();
+    aiPanelStore.visible = true;
+    await flushPromises();
+
+    expect(startNewConversationMock).not.toHaveBeenCalled();
+
+    wrapper.unmount();
+  });
+
+  it('restores queued conversation before sending queued message', async () => {
+    selectedAgentIdValue.value = 2;
+    loadConversationMessagesMock.mockImplementation(async (convId: number) => {
+      activeConversationIdValue.value = convId;
+    });
+
+    const wrapper = mount(AIChatSlidePanel, {
+      props: {
+        apiPrefix: '/tenant',
+        pendingConversationId: 10,
+        pendingMessage: 'continue this thread',
+        uploadUrl: '/upload',
+      },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          ChatMessageItem: true,
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(loadConversationMessagesMock).toHaveBeenCalledWith(10);
+    expect(sendMessageMock).toHaveBeenCalledWith({ pageContext: null });
+    expect(
+      loadConversationMessagesMock.mock.invocationCallOrder[0],
+    ).toBeLessThan(sendMessageMock.mock.invocationCallOrder[0]);
+
+    wrapper.unmount();
+  });
+
   it('countdown decrements over time and stays >= 0', async () => {
     const base = 1_000_000_000_000;
     pendingPageOpsValue.value = [

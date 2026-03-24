@@ -20,7 +20,7 @@ from app.models.ai.table_policy import AITablePolicy
 
 logger = get_logger(__name__)
 
-# ===== 全局敏感列名模式 =====
+# ===== 全局敏感列名模式 / Global sensitive column patterns =====
 _SENSITIVE_COLUMN_PATTERNS: set[str] = {
     "password",
     "password_hash",
@@ -34,7 +34,7 @@ _SENSITIVE_COLUMN_PATTERNS: set[str] = {
     "salt",
 }
 
-# ===== 只读系统列 =====
+# ===== 只读系统列 / Read-only system columns =====
 _READONLY_COLUMNS: list[str] = [
     "id",
     "created_at",
@@ -43,7 +43,7 @@ _READONLY_COLUMNS: list[str] = [
     "tenant_id",
 ]
 
-# ===== 表名 → 中文关键词映射（常用表手动维护） =====
+# ===== 表名 → 中文关键词映射（常用表手动维护） / Table → keyword hints (curated) =====
 _TABLE_KEYWORDS: dict[str, list[str]] = {
     "tenants": ["企业", "tenant", "组织", "商户", "客户"],
     "tenant_plans": ["套餐", "plan", "计划", "订阅"],
@@ -78,9 +78,9 @@ _TABLE_KEYWORDS: dict[str, list[str]] = {
     "task_logs": ["任务日志", "task_log"],
 }
 
-# ===== 列名 → 中文描述映射（用于 AI 理解的列描述，覆盖未翻译的 i18n 键） =====
+# ===== 列名 → 描述映射（AI / i18n 回退） / Column → description map for AI & i18n fallback =====
 _COLUMN_DESC_MAP: dict[str, str] = {
-    # 通用 / 基类
+    # 通用 / 基类 / Common & base
     "id": "主键 ID",
     "created_at": "创建时间",
     "updated_at": "更新时间",
@@ -109,7 +109,7 @@ _COLUMN_DESC_MAP: dict[str, str] = {
     "owner_tenant_id": "资源归属企业 ID（平台级资源为 NULL）",
     "visibility": "可见性",
     "avatar": "头像 URL",
-    # 用户 / 企业
+    # 用户 / 企业 / User & tenant
     "user_id": "用户 ID",
     "user_type": "用户类型（admin/tenant_user）",
     "user_role": "用户角色",
@@ -203,7 +203,7 @@ _COLUMN_DESC_MAP: dict[str, str] = {
     "fallback_model_id": "备用模型 ID（故障转移）",
     "supports_audio": "支持音频",
     "supports_video": "支持视频",
-    # 智能体 / 对话
+    # 智能体 / 对话 / Agent & conversation
     "agent_id": "关联智能体 ID",
     "conversation_id": "关联对话 ID",
     "title": "标题",
@@ -214,7 +214,7 @@ _COLUMN_DESC_MAP: dict[str, str] = {
     "metadata": "元数据（JSON）",
     "content": "消息内容",
     "role": "角色（user/assistant/system）",
-    # 技能 / 技能包
+    # 技能 / 技能包 / Skills & packages
     "skill_id": "关联技能 ID",
     "skill_package_id": "关联技能包 ID",
     "package_id": "关联技能包 ID",
@@ -239,7 +239,7 @@ _COLUMN_DESC_MAP: dict[str, str] = {
     "source_plugin": "来源插件",
     "valves_schema": "阀门配置 Schema",
     "valves_config": "阀门配置值",
-    # 知识库
+    # 知识库 / Knowledge base
     "knowledge_base_id": "关联知识库 ID",
     "document_id": "关联文档 ID",
     "chunk_index": "分块索引",
@@ -274,7 +274,7 @@ _COLUMN_DESC_MAP: dict[str, str] = {
     "content_hash": "内容哈希",
     "content_tsv": "全文搜索向量（TSV）",
     "embedding": "嵌入向量",
-    # 批量任务
+    # 批量任务 / Batch jobs
     "created_by": "创建者 ID",
     "total_items": "总条目数",
     "completed_items": "已完成条目数",
@@ -288,13 +288,13 @@ _COLUMN_DESC_MAP: dict[str, str] = {
     "input_items": "输入条目（JSON）",
     "celery_task_id": "Celery 任务 ID",
     "started_at": "开始时间",
-    # 查询日志
+    # 查询日志 / Query logs
     "question": "用户原始问题",
     "generated_sql": "LLM 生成的 SQL",
     "final_sql": "隔离注入后的最终 SQL",
     "row_count": "返回行数",
     "confidence": "置信度",
-    # 操作日志
+    # 操作日志 / Operation logs
     "module": "模块",
     "trace_id": "链路 ID",
     "method": "HTTP 方法",
@@ -305,7 +305,7 @@ _COLUMN_DESC_MAP: dict[str, str] = {
     "response_message": "业务响应消息",
     "ip": "客户端 IP",
     "user_agent": "User-Agent",
-    # 邮件
+    # 邮件 / Email
     "to_address": "收件人地址",
     "cc": "抄送（逗号分隔）",
     "bcc": "密送（逗号分隔）",
@@ -314,7 +314,7 @@ _COLUMN_DESC_MAP: dict[str, str] = {
     "html_body": "HTML 正文",
     "text_body": "纯文本正文",
     "sent_at": "发送时间",
-    # 任务日志
+    # 任务日志 / Task logs
     "task_id": "任务 ID",
     "task_name": "任务名称",
     "queue": "队列名",
@@ -325,7 +325,7 @@ _COLUMN_DESC_MAP: dict[str, str] = {
     "started_at": "开始时间",
     "finished_at": "结束时间",
     "retry_count": "重试次数",
-    # 通知
+    # 通知 / Notifications
     "recipient_type": "接收者类型",
     "recipient_id": "接收者 ID",
     "template_code": "模板代码",
@@ -337,7 +337,7 @@ _COLUMN_DESC_MAP: dict[str, str] = {
     "read_at": "阅读时间",
     "data": "数据（JSON）",
     "expired_at": "过期时间",
-    # 附件
+    # 附件 / Attachments
     "original_name": "原始文件名",
     "size": "文件大小（字节）",
     "hash": "文件哈希",
@@ -350,12 +350,12 @@ _COLUMN_DESC_MAP: dict[str, str] = {
     "business_type": "业务类型",
     "business_id": "业务 ID",
     "meta": "元数据（JSON）",
-    # 角色 / 权限
+    # 角色 / 权限 / Roles & permissions
     "allow_members": "是否允许成员",
     "leader_id": "负责人 ID",
     "data_scope": "数据范围",
     "permission_code": "权限码",
-    # 表策略
+    # 表策略 / Table policy
     "table_name": "表名",
     "policy_id": "关联策略 ID",
     "keywords": "关键词（JSON 数组）",
@@ -381,12 +381,12 @@ def _is_i18n_key(text: str) -> bool:
     parts = text.split(".")
     if len(parts) < 2:
         return False
-    # 每段应为字母数字下划线，且不含中文
+    # 每段应为字母数字下划线，且不含中文 / Each segment: alnum + underscore, no CJK
     for part in parts:
         clean = part.replace("_", "")
         if not clean.isalnum():
             return False
-    # 简单排除：若包含常见中文，则不是 i18n 键
+    # 简单排除：若包含常见中文，则不是 i18n 键 / Any CJK → not i18n key
     for c in text:
         if "\u4e00" <= c <= "\u9fff":
             return False
@@ -402,9 +402,9 @@ def _derive_permission_code(table_name: str, has_tenant: bool) -> str:
     """从表名推导权限码 / Derive permission code from table name."""
     if not has_tenant:
         return "platform_only"
-    # 去除复数 s，转为资源名
+    # 去除复数 s，转为资源名 / Strip plural 's' → resource slug
     resource = table_name.rstrip("s")
-    # 特殊处理一些表名
+    # 特殊处理一些表名 / Exceptions for irregular table names
     resource_map = {
         "tenant_user": "tenant_user",
         "tenant_admin": "tenant_admin",
@@ -454,29 +454,29 @@ def _extract_column_descriptions(model_cls: type[BaseModel]) -> dict[str, str]:
         col_name = col.name
         comment = col.comment
 
-        # 跳过敏感列
+        # 跳过敏感列 / Skip secret columns
         if col_name in _SENSITIVE_COLUMN_PATTERNS:
             continue
 
         desc_parts: list[str] = []
 
-        # 1. 列 comment - 检测是否为未翻译的 i18n 键
+        # 1. 列 comment - 检测是否为未翻译的 i18n 键 / Column comment vs raw i18n key
         if comment:
             comment_str = str(comment)
             if _is_i18n_key(comment_str):
-                # i18n 键未翻译，尝试静态映射回退
+                # i18n 键未翻译，尝试静态映射回退 / Fallback to _COLUMN_DESC_MAP when i18n key raw
                 fallback = _COLUMN_DESC_MAP.get(col_name)
                 if fallback:
                     desc_parts.append(fallback)
             else:
                 desc_parts.append(comment_str)
         else:
-            # 无 comment，尝试静态映射
+            # 无 comment，尝试静态映射 / No DB comment → static map
             fallback = _COLUMN_DESC_MAP.get(col_name)
             if fallback:
                 desc_parts.append(fallback)
 
-        # 2. 枚举值自动提取
+        # 2. 枚举值自动提取 / Auto-append enum value lists
         col_type = col.type
         if hasattr(col_type, "enum_class") and col_type.enum_class is not None:
             enum_cls = col_type.enum_class
@@ -484,12 +484,12 @@ def _extract_column_descriptions(model_cls: type[BaseModel]) -> dict[str, str]:
                 values = [f"{m.value}" for m in enum_cls]
                 desc_parts.append(f"values: {', '.join(values)}")
         else:
-            # 检查 Model 类上是否有同名的 default 引用枚举
+            # 检查 Model 类上是否有同名的 default 引用枚举 / Infer enum from column default
             default = col.default
             if default is not None and hasattr(default, "arg"):
                 arg = default.arg
                 if isinstance(arg, str):
-                    # 尝试查找 import 的枚举类
+                    # 尝试查找 import 的枚举类 / Resolve enum class from module
                     _try_extract_enum_from_default(
                         model_cls, col_name, arg, desc_parts
                     )
@@ -513,11 +513,11 @@ def _try_extract_enum_from_default(
     if not module:
         return
 
-    # 扫描模块级别的枚举导入
+    # 扫描模块级别的枚举导入 / Scan module-level Enum imports
     for _name, obj in vars(module).items():
         if not isinstance(obj, type) or not issubclass(obj, Enum):
             continue
-        # 检查默认值是否属于该枚举
+        # 检查默认值是否属于该枚举 / Match default to enum member
         try:
             if any(m.value == default_value for m in obj):
                 labels = []
@@ -647,7 +647,7 @@ def get_declared_table_names() -> set[str]:
     return declared
 
 
-# 管理员自定义字段（sync 时保留旧值，不从声明覆盖）
+# 管理员自定义字段（sync 时保留旧值，不从声明覆盖） / Fields preserved on sync (not overwritten by codegen)
 _ADMIN_CUSTOM_FIELDS: tuple[str, ...] = (
     "max_rows",
     "allow_create",
@@ -679,7 +679,7 @@ async def sync_table_policies(db: AsyncSession) -> dict[str, Any]:
     Returns:
         {"synced": N, "declared_tables": [...]}
     """
-    # 1. 缓存旧配置（仅 is_deleted=False 的活跃记录）
+    # 1. 缓存旧配置（仅 is_deleted=False 的活跃记录） / Snapshot active rows before delete
     old_result = await db.execute(
         select(AITablePolicy).where(AITablePolicy.is_deleted == False)  # noqa: E712
     )
@@ -687,11 +687,11 @@ async def sync_table_policies(db: AsyncSession) -> dict[str, Any]:
     for p in old_result.scalars().all():
         old_policies[p.table_name] = _extract_admin_custom(p)
 
-    # 2. 硬删除全部旧记录（CASCADE 会清理 ai_table_policy_overrides）
+    # 2. 硬删除全部旧记录（CASCADE 会清理 ai_table_policy_overrides） / Hard-delete policies (CASCADE overrides)
     await db.execute(delete(AITablePolicy))
     await db.flush()
 
-    # 3. 从声明重建并回填自定义
+    # 3. 从声明重建并回填自定义 / Rebuild from __ai_policy__, merge admin overrides
     declared_names: list[str] = []
     for mapper in Base.registry.mappers:
         cls = mapper.class_
@@ -710,19 +710,19 @@ async def sync_table_policies(db: AsyncSession) -> dict[str, Any]:
         declared_names.append(table_name)
         policy_data = _build_default_policy_from_declaration(cls, ai_policy)
 
-        # 4. 回填管理员自定义字段
+        # 4. 回填管理员自定义字段 / Restore admin-tuned fields
         if table_name in old_policies:
             old_custom = old_policies[table_name]
             for k, v in old_custom.items():
                 if v is None:
                     continue
                 if k == "column_descriptions" and isinstance(v, dict):
-                    # 合并：仅保留非 i18n 键的旧值（管理员自定义），其余用新提取的描述
+                    # 合并：仅保留非 i18n 键的旧值（管理员自定义），其余用新提取的描述 / Merge manual descs + fresh extract
                     new_descs = policy_data.get("column_descriptions") or {}
                     merged: dict[str, str] = {}
                     for col, old_val in v.items():
                         s = str(old_val).strip()
-                        # 丢弃以 enum. 开头的（含 "enum.xxx; values: ..." 这种混合格式）
+                        # 丢弃以 enum. 开头的（含 "enum.xxx; values: ..." 这种混合格式） / Skip enum.* legacy strings
                         if s and not s.startswith("enum.") and not _is_i18n_key(s):
                             merged[col] = s
                     for col, new_val in new_descs.items():

@@ -8,8 +8,8 @@ Defines configuration system related enum types.
 from app.enums.base import StrEnum
 from app.enums.common import ResourceScopeEnum
 
-# ConfigScope = ResourceScopeEnum: config availability uses the same enum
-# but only ADMIN_ONLY (platform) and ALL_TENANTS (per-tenant) are meaningful here.
+# ConfigScope = ResourceScopeEnum: config availability uses the same enum / 与 ResourceScope 共用枚举
+# but only ADMIN_ONLY (platform) and ALL_TENANTS (per-tenant) are meaningful here. / 仅 ADMIN_ONLY 与 ALL_TENANTS 有意义
 ConfigScope = ResourceScopeEnum
 
 

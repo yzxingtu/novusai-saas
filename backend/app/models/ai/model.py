@@ -57,7 +57,7 @@ class AIModel(BaseModel):
         "extra": ["code", "type"],
     }
 
-    # 允许前端筛选的字段
+    # 允许前端筛选的字段 / Fields exposed for list filtering
     __filterable__ = {
         "id": "id",
         "provider_id": "provider_id",
@@ -74,7 +74,7 @@ class AIModel(BaseModel):
         "created_at": "created_at",
     }
 
-    # 允许排序的字段
+    # 允许排序的字段 / Sortable columns for UI
     __sortable__ = {
         "id": "id",
         "name": "name",
@@ -83,7 +83,7 @@ class AIModel(BaseModel):
         "created_at": "created_at",
     }
 
-    # 外键：所属供应商
+    # 外键：所属供应商 / FK to provider
     provider_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("ai_providers.id", ondelete="CASCADE"),
@@ -92,7 +92,7 @@ class AIModel(BaseModel):
         comment=_("enum.ai_model.provider_id")
     )
 
-    # 基本信息
+    # 基本信息 / Basic info
     name: Mapped[str] = mapped_column(
         String(100),
         index=True,
@@ -105,7 +105,7 @@ class AIModel(BaseModel):
         comment=_("enum.ai_model.code")
     )
 
-    # 模型类型
+    # 模型类型 / Model kind
     type: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
@@ -113,21 +113,21 @@ class AIModel(BaseModel):
         comment=_("enum.ai_model.type")
     )
 
-    # 上下文窗口大小（tokens）
+    # 上下文窗口大小（tokens） / Context window (tokens)
     context_window: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
         comment=_("enum.ai_model.context_window")
     )
 
-    # 最大输出 tokens
+    # 最大输出 tokens / Max output tokens
     max_output_tokens: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
         comment=_("enum.ai_model.max_output_tokens")
     )
 
-    # 价格信息（每 1k tokens，单位：美元）
+    # 价格信息（每 1k tokens，单位：美元） / Price per 1k tokens (USD)
     input_price_per_1k: Mapped[float | None] = mapped_column(
         Numeric(10, 6),
         nullable=True,
@@ -139,7 +139,7 @@ class AIModel(BaseModel):
         comment=_("enum.ai_model.output_price_per_1k")
     )
 
-    # 速率限制 (每分钟请求数/Token 数)
+    # 速率限制 (每分钟请求数/Token 数) / Rate limits (RPM/TPM)
     rpm_limit: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
@@ -151,7 +151,7 @@ class AIModel(BaseModel):
         comment=_("enum.ai_model.tpm_limit")
     )
 
-    # 能力标记
+    # 能力标记 / Capability flags
     supports_function_calling: Mapped[bool] = mapped_column(
         Boolean,
         default=False,
@@ -178,7 +178,7 @@ class AIModel(BaseModel):
         comment=_("enum.ai_model.supports_streaming")
     )
 
-    # 图片限制（仅 supports_vision=True 时有效）
+    # 图片限制（仅 supports_vision=True 时有效） / Image limits (vision models)
     max_image_count: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
@@ -192,7 +192,7 @@ class AIModel(BaseModel):
         comment=_("enum.ai_model.max_image_size_mb")
     )
 
-    # 是否启用
+    # 是否启用 / Active flag
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         default=True,
@@ -200,15 +200,15 @@ class AIModel(BaseModel):
         comment=_("enum.ai_model.is_active")
     )
 
-    # 模型特定配置（JSON 格式）
-    # 例如：默认参数、特殊能力标记等
+    # 模型特定配置（JSON 格式） / Model-specific JSON
+    # 例如：默认参数、特殊能力标记等 / e.g. defaults, capability flags
     config: Mapped[dict | None] = mapped_column(
         JSON,
         nullable=True,
         comment=_("enum.ai_model.config")
     )
 
-    # 模型级别（用于多模型路由策略）
+    # 模型级别（用于多模型路由策略） / Tier for routing policy
     tier: Mapped[str | None] = mapped_column(
         String(20),
         nullable=True,
@@ -216,7 +216,7 @@ class AIModel(BaseModel):
         comment=_("enum.ai_model.tier"),
     )
 
-    # 备用模型（故障转移链）
+    # 备用模型（故障转移链） / Fallback model id
     fallback_model_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("ai_models.id", ondelete="SET NULL"),
@@ -225,16 +225,16 @@ class AIModel(BaseModel):
         comment=_("enum.ai_model.fallback_model_id")
     )
 
-    # ==================== 关系 ====================
+    # ==================== 关系 ==================== / Relationships
 
-    # 所属供应商
+    # 所属供应商 / Provider row
     provider = relationship(
         "AIProvider",
         back_populates="models",
         lazy="selectin",
     )
 
-    # 备用模型关系
+    # 备用模型关系 / Fallback relationship
     fallback_model = relationship(
         "AIModel",
         remote_side="AIModel.id",

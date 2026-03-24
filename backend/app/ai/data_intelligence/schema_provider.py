@@ -152,7 +152,7 @@ def _simplify_type(pg_type: str) -> str:
     return "str"
 
 
-# ============================================
+# ============================================ / 上文为英文说明 / English above
 # SchemaProvider
 # ============================================
 
@@ -752,7 +752,7 @@ class SchemaProvider:
         Returns:
             {table_name: [{"name": str, "type": str, "desc": str, "required": bool, "fk_table": str|None}, ...]}
         """
-        # System-managed columns: never writable in data_create
+        # System-managed columns: never writable in data_create / 上文为英文说明 / English above
         _SYSTEM_MANAGED = frozenset({
             "id", "created_at", "updated_at", "is_deleted", "deleted_at", "tenant_id",
         })
@@ -787,7 +787,7 @@ class SchemaProvider:
             for c in table_schema.columns:
                 if c.name in _SYSTEM_MANAGED:
                     continue
-                # required = NOT NULL and not auto-generated (PK)
+                # required = NOT NULL and not auto-generated (PK) / 上文为英文说明 / English above
                 required = not c.nullable and not c.is_primary
                 hints.append({
                     "name": c.name,
