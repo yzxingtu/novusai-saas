@@ -7,8 +7,8 @@
 
 import type { VbenFormSchema } from '#/adapter/form';
 
-import { computed, nextTick, watch } from 'vue';
-import { Empty, Tag, Tooltip } from 'ant-design-vue';
+import { computed, nextTick, ref, watch } from 'vue';
+import { Empty, Input, Select, Tag, Tooltip } from 'ant-design-vue';
 import { IconifyIcon } from '@vben/icons';
 import { $t } from '#/locales';
 import { useCodegenBuilderStore } from '#/store';
@@ -26,6 +26,42 @@ defineOptions({ name: 'WysiwygListView' });
 const store = useCodegenBuilderStore();
 const features = useConfigFeatures(store);
 const displayNameStr = computed(() => String(features.displayName.value ?? ''));
+
+type WysiwygQuickSearchFieldOverride =
+  | string
+  | {
+      fieldName: string;
+      label?: string;
+      placeholder?: string;
+    };
+
+type WysiwygQuickSearchConfig = {
+  default_field?: string;
+  fields?: WysiwygQuickSearchFieldOverride[];
+};
+
+type WysiwygQuickSearchOption = {
+  sourceField: string;
+  fieldName: string;
+  label: string;
+  placeholder?: string;
+};
+
+type WysiwygQuickSearchResolvedOption = WysiwygQuickSearchOption & {
+  placeholder: string;
+};
+
+type WysiwygQuickSearchPayload = {
+  activeField: string;
+  keyword: string;
+  onFieldChange: (fieldName: string) => void;
+  onKeywordChange: (keyword: string) => void;
+  options: WysiwygQuickSearchResolvedOption[];
+};
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 const dataFields = computed(() => {
   const arr = (store.configJson.fields as FieldRecord[]) || [];
@@ -140,7 +176,19 @@ function buildSearchSchema(fields: FieldRecord[]): VbenFormSchema[] {
     } else {
       schema.push(
         searchInput(name, label, {
-          op: queryType === 'eq' ? 'eq' : 'ilike',
+          op:
+            queryType === 'between'
+              ? 'ilike'
+              : (queryType as
+                  | 'eq'
+                  | 'gt'
+                  | 'gte'
+                  | 'ilike'
+                  | 'in'
+                  | 'like'
+                  | 'lt'
+                  | 'lte'
+                  | 'ne'),
         }),
       );
     }
@@ -148,10 +196,199 @@ function buildSearchSchema(fields: FieldRecord[]): VbenFormSchema[] {
   return schema;
 }
 
-const showSearchForm = computed(() => searchFields.value.length > 0);
+function buildQuickSearchOptions(
+  fields: FieldRecord[],
+  schema: VbenFormSchema[],
+) {
+  return fields.reduce<WysiwygQuickSearchOption[]>((options, field, index) => {
+    const schemaField = schema[index];
+    if (
+      !schemaField ||
+      schemaField.component !== 'Input' ||
+      typeof schemaField.fieldName !== 'string' ||
+      typeof schemaField.label !== 'string'
+    ) {
+      return options;
+    }
+
+    const componentProps = isPlainObject(schemaField.componentProps)
+      ? schemaField.componentProps
+      : undefined;
+
+    options.push({
+      sourceField: String(field.name || ''),
+      fieldName: schemaField.fieldName,
+      label: schemaField.label,
+      ...(typeof componentProps?.placeholder === 'string'
+        ? {
+            placeholder: componentProps.placeholder,
+          }
+        : {}),
+    });
+
+    return options;
+  }, []);
+}
+
+function isEmptyQuickSearchValue(value: unknown) {
+  return value === undefined || value === null || `${value}`.trim() === '';
+}
+
+const hasSearchForm = computed(() => searchFields.value.length > 0);
+const searchSchema = computed(() => buildSearchSchema(searchFields.value));
+const quickSearchField = ref('');
+const quickSearchKeyword = ref('');
+const quickSearchConfig = computed(() => features.quickSearch.value);
+const quickSearchOptions = computed(() =>
+  buildQuickSearchOptions(searchFields.value, searchSchema.value),
+);
+function resolveQuickSearchConfig(): WysiwygQuickSearchConfig | undefined {
+  if (!isPlainObject(quickSearchConfig.value)) {
+    return undefined;
+  }
+
+  const { fields } = quickSearchConfig.value;
+
+  return {
+    default_field:
+      typeof quickSearchConfig.value.default_field === 'string'
+        ? quickSearchConfig.value.default_field
+        : typeof quickSearchConfig.value.defaultField === 'string'
+          ? quickSearchConfig.value.defaultField
+          : undefined,
+    fields: Array.isArray(fields)
+      ? fields.flatMap<WysiwygQuickSearchFieldOverride>((field) => {
+          if (typeof field === 'string') {
+            return [field];
+          }
+
+          if (!isPlainObject(field) || typeof field.fieldName !== 'string') {
+            return [];
+          }
+
+          return [
+            {
+              fieldName: field.fieldName,
+              label: typeof field.label === 'string' ? field.label : undefined,
+              placeholder:
+                typeof field.placeholder === 'string'
+                  ? field.placeholder
+                  : undefined,
+            },
+          ];
+        })
+      : undefined,
+  };
+}
+const defaultQuickSearchField = computed(() => {
+  const config = resolveQuickSearchConfig();
+  const defaultSourceField = config?.default_field ?? '';
+  return (
+    quickSearchOptions.value.find(
+      (field) => field.sourceField === defaultSourceField,
+    )?.fieldName ??
+    quickSearchOptions.value[0]?.fieldName ??
+    ''
+  );
+});
+
+if (!quickSearchField.value) {
+  quickSearchField.value = defaultQuickSearchField.value;
+}
+
+const enabledQuickSearchOptions = computed<WysiwygQuickSearchOption[]>(() => {
+  if (quickSearchConfig.value === false) {
+    return [];
+  }
+
+  const config = resolveQuickSearchConfig();
+
+  if (!config?.fields?.length) {
+    return quickSearchOptions.value;
+  }
+
+  const fieldOverrides = new Map<
+    string,
+    { label?: string; placeholder?: string }
+  >();
+  for (const field of config.fields) {
+    if (typeof field === 'string') {
+      fieldOverrides.set(field, {});
+      continue;
+    }
+    if (
+      field &&
+      typeof field === 'object' &&
+      typeof field.fieldName === 'string'
+    ) {
+      fieldOverrides.set(field.fieldName, {
+        label: typeof field.label === 'string' ? field.label : undefined,
+        placeholder:
+          typeof field.placeholder === 'string' ? field.placeholder : undefined,
+      });
+    }
+  }
+
+  return quickSearchOptions.value
+    .filter((field) => fieldOverrides.has(field.sourceField))
+    .map((field) => {
+      const override = fieldOverrides.get(field.sourceField);
+      return {
+        ...field,
+        label: override?.label ?? field.label,
+        placeholder: override?.placeholder ?? field.placeholder,
+      };
+    });
+});
+
+watch(
+  enabledQuickSearchOptions,
+  (options) => {
+    const fieldNames = options.map((field) => field.fieldName);
+    if (!fieldNames.includes(quickSearchField.value)) {
+      quickSearchField.value = options[0]?.fieldName ?? '';
+      quickSearchKeyword.value = '';
+    }
+  },
+  { immediate: true },
+);
+
+const showSearchForm = computed(() =>
+  hasSearchForm.value ? features.searchDefaultOpen.value : undefined,
+);
 const searchFormOptions = computed(() =>
-  searchFields.value.length > 0
-    ? useGridSearchFormOptions(buildSearchSchema(searchFields.value))
+  hasSearchForm.value
+    ? {
+        ...useGridSearchFormOptions(searchSchema.value),
+        handleValuesChange: (
+          values: Record<string, any>,
+          changedFields: string[],
+        ) => {
+          const fieldNames = enabledQuickSearchOptions.value.map(
+            (field) => field.fieldName,
+          );
+          const changedQuickSearchField = changedFields.find((field) =>
+            fieldNames.includes(field),
+          );
+          const populatedField =
+            (changedQuickSearchField &&
+            !isEmptyQuickSearchValue(values?.[changedQuickSearchField])
+              ? changedQuickSearchField
+              : undefined) ??
+            fieldNames.find(
+              (field) => !isEmptyQuickSearchValue(values?.[field]),
+            );
+
+          quickSearchField.value =
+            populatedField ??
+            (fieldNames.includes(quickSearchField.value)
+              ? quickSearchField.value
+              : defaultQuickSearchField.value);
+          quickSearchKeyword.value = populatedField
+            ? String(values?.[populatedField] ?? '')
+            : '';
+        },
+      }
     : undefined,
 );
 
@@ -170,11 +407,11 @@ const [Grid, gridApi] = useVbenVxeGrid({
 });
 
 watch(
-  [showSearchForm, searchFormOptions],
-  ([showSearch, options]) => {
+  [hasSearchForm, showSearchForm, searchFormOptions],
+  ([hasSearch, showSearch, options]) => {
     gridApi.setState({
       formOptions: options,
-      showSearchForm: showSearch,
+      showSearchForm: hasSearch ? showSearch : undefined,
     });
   },
   { deep: true, immediate: true },
@@ -212,6 +449,71 @@ function getFileName(val: unknown): string {
   const idx = s.lastIndexOf('/');
   return idx >= 0 ? s.slice(idx + 1) : s;
 }
+
+async function applyQuickSearchValue(
+  keyword: string,
+  fieldName = quickSearchField.value || defaultQuickSearchField.value,
+) {
+  if (!fieldName || enabledQuickSearchOptions.value.length === 0) {
+    return;
+  }
+
+  const nextKeyword = typeof keyword === 'string' ? keyword : '';
+  quickSearchField.value = fieldName;
+  quickSearchKeyword.value = nextKeyword;
+
+  const updates = Object.fromEntries(
+    enabledQuickSearchOptions.value.map((field) => [
+      field.fieldName,
+      undefined,
+    ]),
+  ) as Record<string, any>;
+  updates[fieldName] = nextKeyword.trim() || undefined;
+  await gridApi.formApi?.setValues?.(updates);
+}
+
+function onQuickSearchFieldChange(fieldName: string) {
+  if (!fieldName || fieldName === quickSearchField.value) {
+    return;
+  }
+  void applyQuickSearchValue(quickSearchKeyword.value, fieldName);
+}
+
+function onQuickSearchChange(keyword: string) {
+  void applyQuickSearchValue(keyword);
+}
+
+const previewQuickSearch = computed<WysiwygQuickSearchPayload | undefined>(
+  () => {
+    if (!enabledQuickSearchOptions.value.length) {
+      return undefined;
+    }
+
+    const options =
+      enabledQuickSearchOptions.value.map<WysiwygQuickSearchResolvedOption>(
+        (field) => ({
+          ...field,
+          placeholder: field.placeholder ?? $t('common.search'),
+        }),
+      );
+
+    return {
+      activeField: quickSearchField.value || defaultQuickSearchField.value,
+      keyword: quickSearchKeyword.value,
+      onFieldChange: onQuickSearchFieldChange,
+      onKeywordChange: onQuickSearchChange,
+      options,
+    };
+  },
+);
+const cardQuickSearchPlaceholder = computed(() => {
+  const activeField = previewQuickSearch.value?.activeField;
+  return (
+    previewQuickSearch.value?.options.find(
+      (field) => field.fieldName === activeField,
+    )?.placeholder ?? $t('common.search')
+  );
+});
 </script>
 
 <template>
@@ -274,131 +576,159 @@ function getFileName(val: unknown): string {
 
     <div
       v-if="features.isCardMode?.value && hasVisibleColumns"
-      class="grid grid-cols-1 gap-3 bg-muted/10 p-5 sm:grid-cols-2 lg:grid-cols-3"
+      class="bg-muted/10 p-5"
     >
-      <div
-        v-for="row in mockData"
-        :key="String(row.id ?? '')"
-        class="flex flex-col gap-3 rounded-[20px] border border-border/70 bg-background p-4 shadow-sm transition-shadow hover:shadow-md"
-      >
-        <div
-          class="flex items-center justify-between gap-2 border-b border-border/50 pb-3"
-        >
-          <div class="text-sm font-medium text-foreground">#{{ row.id }}</div>
-          <span
-            class="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
-          >
-            {{ $t('admin.system.codegen.wysiwyg.sampleData') }}
-          </span>
+      <div v-if="previewQuickSearch" class="mb-4 max-w-md">
+        <div class="flex items-center gap-2">
+          <Select
+            v-if="previewQuickSearch.options.length > 1"
+            :value="previewQuickSearch.activeField"
+            :options="
+              previewQuickSearch.options.map((field) => ({
+                label: field.label,
+                value: field.fieldName,
+              }))
+            "
+            class="min-w-[140px]"
+            @change="(value) => onQuickSearchFieldChange(String(value ?? ''))"
+          />
+          <Input.Search
+            :value="quickSearchKeyword"
+            allow-clear
+            :placeholder="cardQuickSearchPlaceholder"
+            @update:value="(value) => onQuickSearchChange(String(value ?? ''))"
+          />
         </div>
-
-        <div class="space-y-2 text-sm">
-          <template
-            v-for="f in listVisibleFields"
-            :key="(f.__key as string) || (f.name as string) || ''"
+      </div>
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div
+          v-for="row in mockData"
+          :key="String(row.id ?? '')"
+          class="flex flex-col gap-3 rounded-[20px] border border-border/70 bg-background p-4 shadow-sm transition-shadow hover:shadow-md"
+        >
+          <div
+            class="flex items-center justify-between gap-2 border-b border-border/50 pb-3"
           >
-            <div v-if="f.name" class="flex justify-between gap-2">
-              <Tooltip v-if="f.comment" :title="f.comment">
-                <span class="shrink-0 text-muted-foreground">{{
+            <div class="text-sm font-medium text-foreground">#{{ row.id }}</div>
+            <span
+              class="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
+            >
+              {{ $t('admin.system.codegen.wysiwyg.sampleData') }}
+            </span>
+          </div>
+
+          <div class="space-y-2 text-sm">
+            <template
+              v-for="f in listVisibleFields"
+              :key="(f.__key as string) || (f.name as string) || ''"
+            >
+              <div v-if="f.name" class="flex justify-between gap-2">
+                <Tooltip v-if="f.comment" :title="f.comment">
+                  <span class="shrink-0 text-muted-foreground">{{
+                    getFieldLabel(f)
+                  }}</span>
+                </Tooltip>
+                <span v-else class="shrink-0 text-muted-foreground">{{
                   getFieldLabel(f)
                 }}</span>
-              </Tooltip>
-              <span v-else class="shrink-0 text-muted-foreground">{{
-                getFieldLabel(f)
-              }}</span>
-              <span class="truncate text-right">
-                <template
-                  v-if="
-                    getComponent(f) === 'switch' ||
-                    String(f.type || '')
-                      .toLowerCase()
-                      .includes('boolean')
-                  "
-                >
-                  <Tag :color="row[f.name as string] ? 'success' : 'default'">
-                    {{
-                      row[f.name as string]
-                        ? $t('common.yes')
-                        : $t('common.no')
-                    }}
-                  </Tag>
-                </template>
-                <template
-                  v-else-if="
-                    (Array.isArray(f.enum_values) &&
-                      f.enum_values.length > 0) ||
-                    f.dict_code
-                  "
-                >
-                  <Tag color="processing">
-                    {{ getEnumLabel(f, row[f.name as string]) }}
-                  </Tag>
-                </template>
-                <template
-                  v-else-if="
-                    String(f.type || '')
-                      .toLowerCase()
-                      .includes('image')
-                  "
-                >
-                  <div
-                    class="inline-flex size-10 items-center justify-center overflow-hidden rounded border border-border/40 bg-muted/20"
+                <span class="truncate text-right">
+                  <template
+                    v-if="
+                      getComponent(f) === 'switch' ||
+                      String(f.type || '')
+                        .toLowerCase()
+                        .includes('boolean')
+                    "
                   >
-                    <IconifyIcon
-                      icon="lucide:image"
-                      class="size-5 text-muted-foreground"
-                    />
-                  </div>
-                </template>
-                <template
-                  v-else-if="
-                    String(f.type || '')
-                      .toLowerCase()
-                      .includes('file')
-                  "
-                >
-                  <span class="inline-flex items-center gap-1 text-xs">
-                    <IconifyIcon icon="lucide:file" class="size-3.5" />
-                    {{ getFileName(row[f.name as string]) }}
-                  </span>
-                </template>
-                <template v-else>
-                  {{ row[f.name as string] ?? '—' }}
-                </template>
-              </span>
-            </div>
-          </template>
-        </div>
-        <div
-          class="mt-auto flex justify-end gap-1 border-t border-border/40 pt-3"
-        >
-          <Tooltip
-            v-if="features.hasDetail?.value"
-            :title="$t('admin.system.codegen.wysiwyg.cardPreviewOnly')"
+                    <Tag :color="row[f.name as string] ? 'success' : 'default'">
+                      {{
+                        row[f.name as string]
+                          ? $t('common.yes')
+                          : $t('common.no')
+                      }}
+                    </Tag>
+                  </template>
+                  <template
+                    v-else-if="
+                      (Array.isArray(f.enum_values) &&
+                        f.enum_values.length > 0) ||
+                      f.dict_code
+                    "
+                  >
+                    <Tag color="processing">
+                      {{ getEnumLabel(f, row[f.name as string]) }}
+                    </Tag>
+                  </template>
+                  <template
+                    v-else-if="
+                      String(f.type || '')
+                        .toLowerCase()
+                        .includes('image')
+                    "
+                  >
+                    <div
+                      class="inline-flex size-10 items-center justify-center overflow-hidden rounded border border-border/40 bg-muted/20"
+                    >
+                      <IconifyIcon
+                        icon="lucide:image"
+                        class="size-5 text-muted-foreground"
+                      />
+                    </div>
+                  </template>
+                  <template
+                    v-else-if="
+                      String(f.type || '')
+                        .toLowerCase()
+                        .includes('file')
+                    "
+                  >
+                    <span class="inline-flex items-center gap-1 text-xs">
+                      <IconifyIcon icon="lucide:file" class="size-3.5" />
+                      {{ getFileName(row[f.name as string]) }}
+                    </span>
+                  </template>
+                  <template v-else>
+                    {{ row[f.name as string] ?? '—' }}
+                  </template>
+                </span>
+              </div>
+            </template>
+          </div>
+          <div
+            class="mt-auto flex justify-end gap-1 border-t border-border/40 pt-3"
           >
-            <span
-              role="link"
-              tabindex="0"
-              class="cursor-default text-xs text-primary opacity-75"
-              >{{ $t('common.detail') }}</span
+            <Tooltip
+              v-if="features.hasDetail?.value"
+              :title="$t('admin.system.codegen.wysiwyg.cardPreviewOnly')"
             >
-          </Tooltip>
-          <Tooltip :title="$t('admin.system.codegen.wysiwyg.cardPreviewOnly')">
-            <span
-              role="link"
-              tabindex="0"
-              class="cursor-default text-xs text-primary opacity-75"
-              >{{ $t('common.edit') }}</span
+              <span
+                role="link"
+                tabindex="0"
+                class="cursor-default text-xs text-primary opacity-75"
+                >{{ $t('common.detail') }}</span
+              >
+            </Tooltip>
+            <Tooltip
+              :title="$t('admin.system.codegen.wysiwyg.cardPreviewOnly')"
             >
-          </Tooltip>
-          <Tooltip :title="$t('admin.system.codegen.wysiwyg.cardPreviewOnly')">
-            <span
-              role="link"
-              tabindex="0"
-              class="cursor-default text-xs text-destructive opacity-75"
-              >{{ $t('common.delete') }}</span
+              <span
+                role="link"
+                tabindex="0"
+                class="cursor-default text-xs text-primary opacity-75"
+                >{{ $t('common.edit') }}</span
+              >
+            </Tooltip>
+            <Tooltip
+              :title="$t('admin.system.codegen.wysiwyg.cardPreviewOnly')"
             >
-          </Tooltip>
+              <span
+                role="link"
+                tabindex="0"
+                class="cursor-default text-xs text-destructive opacity-75"
+                >{{ $t('common.delete') }}</span
+              >
+            </Tooltip>
+          </div>
         </div>
       </div>
     </div>
@@ -411,6 +741,7 @@ function getFileName(val: unknown): string {
           :key="gridRemountKey"
           :grid="Grid"
           :create-label="$t('admin.system.codegen.wysiwyg.toolbar.create')"
+          :quick-search="previewQuickSearch"
           :show-export="features.hasExport.value"
           :show-recycle-bin="features.hasRecycleBin.value"
           :recycle-bin-count="3"

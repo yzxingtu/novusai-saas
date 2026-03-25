@@ -215,14 +215,7 @@ async function onImpersonateInCurrentTab(row: TenantInfo) {
 }
 
 // Declarative CRUD page (plan dropdown auto-loaded by ApiSelect, export button auto-added) / 声明式 CRUD 页面（套餐下拉由 ApiSelect 自动加载，导出按钮自动添加）
-const {
-  Grid,
-  FormDrawer,
-  ExportModal,
-  onRefresh,
-  handleActionClick,
-  gridApi,
-} =
+const { Grid, FormDrawer, ExportModal, onRefresh, handleActionClick, gridApi } =
   useCrudPage<TenantInfo>({
     api: {
       list: admin.getTenantListApi,
@@ -231,6 +224,17 @@ const {
     },
     columns: useColumns,
     searchSchema: useGridFormSchema(),
+    search: {
+      defaultOpen: false,
+      quickSearch: {
+        defaultField: 'filter[name][ilike]',
+        fields: [
+          'filter[name][ilike]',
+          'filter[code][ilike]',
+          'filter[contact_name][ilike]',
+        ],
+      },
+    },
     formComponent: Form,
     i18nPrefix: 'admin.tenant',
     nameField: 'name',

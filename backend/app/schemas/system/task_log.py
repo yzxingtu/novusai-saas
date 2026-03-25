@@ -20,6 +20,15 @@ class TaskLogResponse(BaseSchema):
     task_id: str = Field(..., description="Celery Task ID")
     task_name: str = Field(..., description="任务名称")
     handler_path: str | None = Field(None, description="处理器路径")
+    task_definition_id: int | None = Field(None, description="任务定义 ID")
+    binding_id: int | None = Field(None, description="企业绑定 ID")
+    task_definition_name: str | None = Field(None, description="任务定义名称")
+    task_scope: str | None = Field(None, description="任务定义作用域")
+    owner_tenant_id: int | None = Field(None, description="归属企业 ID")
+    owner_tenant_name: str | None = Field(None, description="归属企业名称")
+    effective_tenant_id: int | None = Field(None, description="生效企业 ID")
+    effective_tenant_name: str | None = Field(None, description="生效企业名称")
+    tenant_id: int | None = Field(None, description="兼容字段：生效企业 ID")
     queue: str = Field("default", description="队列名称")
     status: str = Field(..., description="任务状态")
     args: Any = Field(None, description="位置参数")
@@ -33,7 +42,6 @@ class TaskLogResponse(BaseSchema):
     finished_at: datetime | None = Field(None, description="完成时间")
     duration_ms: int | None = Field(None, description="耗时(毫秒)")
     retry_count: int = Field(0, description="重试次数")
-    tenant_id: int | None = Field(None, description="企业ID")
     created_at: datetime = Field(..., description="创建时间")
 
 

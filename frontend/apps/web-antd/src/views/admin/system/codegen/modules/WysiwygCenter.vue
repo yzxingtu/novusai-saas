@@ -34,6 +34,20 @@ const selectedFieldName = computed(() => {
   );
   return String(selected?.display_name || selected?.name || '').trim();
 });
+const endpointOptions = computed(() => {
+  const endpoints =
+    (store.configJson.endpoints as Array<Record<string, unknown>>) || [];
+  return endpoints.map((endpoint, index) => ({
+    label: $t(`admin.system.codegen.enum.${String(endpoint.scope || 'admin')}`),
+    value: index,
+  }));
+});
+const activeEndpointIdx = computed({
+  get: () => store.activeEndpointIdx,
+  set: (value: number) => {
+    store.activeEndpointIdx = value;
+  },
+});
 
 const workspaceMode = computed<WorkspaceMode>({
   get: () => (store.showFieldManager ? 'fields' : store.wysiwygViewMode),
@@ -162,29 +176,38 @@ onMounted(() => {
           </div>
 
           <div class="w-full xl:w-auto xl:min-w-[320px]">
-            <Segmented
-              v-model:value="workspaceMode"
-              block
-              :options="[
-                {
-                  label: $t('admin.system.codegen.wysiwyg.fieldsView'),
-                  value: 'fields',
-                },
-                {
-                  label: $t('admin.system.codegen.wysiwyg.listView'),
-                  value: 'list',
-                },
-                {
-                  label: $t('admin.system.codegen.wysiwyg.formView'),
-                  value: 'form',
-                },
-                {
-                  label: $t('admin.system.codegen.wysiwyg.detailView'),
-                  value: 'detail',
-                },
-              ]"
-              size="small"
-            />
+            <div class="flex flex-col gap-2">
+              <Segmented
+                v-model:value="workspaceMode"
+                block
+                :options="[
+                  {
+                    label: $t('admin.system.codegen.wysiwyg.fieldsView'),
+                    value: 'fields',
+                  },
+                  {
+                    label: $t('admin.system.codegen.wysiwyg.listView'),
+                    value: 'list',
+                  },
+                  {
+                    label: $t('admin.system.codegen.wysiwyg.formView'),
+                    value: 'form',
+                  },
+                  {
+                    label: $t('admin.system.codegen.wysiwyg.detailView'),
+                    value: 'detail',
+                  },
+                ]"
+                size="small"
+              />
+              <Segmented
+                v-if="endpointOptions.length > 1"
+                v-model:value="activeEndpointIdx"
+                block
+                :options="endpointOptions"
+                size="small"
+              />
+            </div>
           </div>
         </div>
       </div>

@@ -377,6 +377,8 @@ function createDefaultEndpoint(
       mode: 'table',
       page_size: 20,
       default_sort: '-created_at',
+      search_default_open: false,
+      quick_search: true,
       recycle_bin: false,
       export: false,
       import: false,
@@ -1479,104 +1481,100 @@ watch(
           class="grid gap-2 rounded-xl border border-border/70 bg-muted/10 px-2.5 py-2.5 md:grid-cols-2 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.8fr)_auto]"
         >
           <div>
-              <div class="mb-1 text-[11px] font-medium text-muted-foreground">
-                {{ $t('admin.system.codegen.basic.resource') }}
-              </div>
-              <Input
-                ref="resourceInputRef"
-                :model-value="resource"
-                :placeholder="$t('admin.system.codegen.basic.resource')"
-                @update:model-value="onResourceChange"
-              />
+            <div class="mb-1 text-[11px] font-medium text-muted-foreground">
+              {{ $t('admin.system.codegen.basic.resource') }}
+            </div>
+            <Input
+              ref="resourceInputRef"
+              :model-value="resource"
+              :placeholder="$t('admin.system.codegen.basic.resource')"
+              @update:model-value="onResourceChange"
+            />
           </div>
           <div>
-              <div
-                class="mb-1 flex items-center gap-1 text-[11px] font-medium text-muted-foreground"
-              >
-                <span>{{ $t('admin.system.codegen.basic.module') }}</span>
-                <Tooltip>
-                  <template #title>
-                    <div class="max-w-[240px] text-xs leading-5">
-                      <div>
-                        {{ $t('admin.system.codegen.basic.moduleHelpDesc') }}
-                      </div>
-                      <div
-                        v-if="moduleVal === 'business'"
-                        class="mt-1 text-muted-foreground"
-                      >
-                        {{
-                          $t(
-                            'admin.system.codegen.basic.moduleHelpCurrentBusinessShort',
-                          )
-                        }}
-                      </div>
+            <div
+              class="mb-1 flex items-center gap-1 text-[11px] font-medium text-muted-foreground"
+            >
+              <span>{{ $t('admin.system.codegen.basic.module') }}</span>
+              <Tooltip>
+                <template #title>
+                  <div class="max-w-[240px] text-xs leading-5">
+                    <div>
+                      {{ $t('admin.system.codegen.basic.moduleHelpDesc') }}
                     </div>
-                  </template>
-                  <span
-                    class="inline-flex size-4 cursor-help items-center justify-center rounded-full border border-border text-[10px] text-muted-foreground"
-                  >
-                    ?
-                  </span>
-                </Tooltip>
-              </div>
-              <Select
-                v-model:value="moduleVal"
-                class="w-full"
-                :options="normalizedModuleOptions"
-                :placeholder="
-                  $t('admin.system.codegen.basic.placeholder.module')
-                "
-                option-filter-prop="label"
-                show-search
-                style="width: 100%"
-              />
-              <div class="mt-1.5 flex flex-wrap items-center gap-1">
-                <button
-                  v-for="item in commonModuleOptions"
-                  :key="item.value"
-                  type="button"
-                  class="rounded-full border px-2 py-0.5 text-[10px] transition-colors"
-                  :class="
-                    moduleVal === item.value
-                      ? 'border-primary bg-primary/5 text-primary'
-                      : 'border-border bg-background text-muted-foreground hover:border-primary/30 hover:text-foreground'
-                  "
-                  @click="moduleVal = item.value"
+                    <div
+                      v-if="moduleVal === 'business'"
+                      class="mt-1 text-muted-foreground"
+                    >
+                      {{
+                        $t(
+                          'admin.system.codegen.basic.moduleHelpCurrentBusinessShort',
+                        )
+                      }}
+                    </div>
+                  </div>
+                </template>
+                <span
+                  class="inline-flex size-4 cursor-help items-center justify-center rounded-full border border-border text-[10px] text-muted-foreground"
                 >
-                  {{ item.label }}
-                </button>
-              </div>
-          </div>
-          <div>
-              <div class="mb-1 text-[11px] font-medium text-muted-foreground">
-                {{ $t('admin.system.codegen.basic.displayName') }}
-              </div>
-              <Input
-                v-model:value="displayName"
-                :placeholder="$t('admin.system.codegen.basic.displayName')"
-              />
-          </div>
-          <div>
-              <div class="mb-1 text-[11px] font-medium text-muted-foreground">
-                {{ $t('admin.system.codegen.basic.displayNameEn') }}
-              </div>
-              <Input
-                v-model:value="displayNameEn"
-                :placeholder="$t('admin.system.codegen.basic.displayNameEn')"
-              />
-          </div>
-          <div>
-              <div class="mb-1 text-[11px] font-medium text-muted-foreground">
-                {{
-                  $t('admin.system.codegen.basic.placeholder.resourcePlural')
-                }}
-              </div>
-              <Input
-                v-model:value="resourcePlural"
-                :placeholder="
-                  $t('admin.system.codegen.basic.placeholder.resourcePlural')
+                  ?
+                </span>
+              </Tooltip>
+            </div>
+            <Select
+              v-model:value="moduleVal"
+              class="w-full"
+              :options="normalizedModuleOptions"
+              :placeholder="$t('admin.system.codegen.basic.placeholder.module')"
+              option-filter-prop="label"
+              show-search
+              style="width: 100%"
+            />
+            <div class="mt-1.5 flex flex-wrap items-center gap-1">
+              <button
+                v-for="item in commonModuleOptions"
+                :key="item.value"
+                type="button"
+                class="rounded-full border px-2 py-0.5 text-[10px] transition-colors"
+                :class="
+                  moduleVal === item.value
+                    ? 'border-primary bg-primary/5 text-primary'
+                    : 'border-border bg-background text-muted-foreground hover:border-primary/30 hover:text-foreground'
                 "
-              />
+                @click="moduleVal = item.value"
+              >
+                {{ item.label }}
+              </button>
+            </div>
+          </div>
+          <div>
+            <div class="mb-1 text-[11px] font-medium text-muted-foreground">
+              {{ $t('admin.system.codegen.basic.displayName') }}
+            </div>
+            <Input
+              v-model:value="displayName"
+              :placeholder="$t('admin.system.codegen.basic.displayName')"
+            />
+          </div>
+          <div>
+            <div class="mb-1 text-[11px] font-medium text-muted-foreground">
+              {{ $t('admin.system.codegen.basic.displayNameEn') }}
+            </div>
+            <Input
+              v-model:value="displayNameEn"
+              :placeholder="$t('admin.system.codegen.basic.displayNameEn')"
+            />
+          </div>
+          <div>
+            <div class="mb-1 text-[11px] font-medium text-muted-foreground">
+              {{ $t('admin.system.codegen.basic.placeholder.resourcePlural') }}
+            </div>
+            <Input
+              v-model:value="resourcePlural"
+              :placeholder="
+                $t('admin.system.codegen.basic.placeholder.resourcePlural')
+              "
+            />
           </div>
 
           <div

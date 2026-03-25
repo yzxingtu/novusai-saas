@@ -74,7 +74,7 @@ class TenantAIActionLogController(TenantController):
             items, total = await service.query_list(spec=spec)
 
             return paginated(
-                items=[item.to_dict() for item in items],
+                items=await service.serialize_logs(items),
                 total=total,
                 page=spec.page,
                 page_size=spec.size,
@@ -124,7 +124,7 @@ class TenantAIActionLogController(TenantController):
                     message=_("ai_action_log.not_found"),
                 )
 
-            return success(data=log.to_dict())
+            return success(data=await service.serialize_log(log))
 
 
 # 导出路由器 / Export router

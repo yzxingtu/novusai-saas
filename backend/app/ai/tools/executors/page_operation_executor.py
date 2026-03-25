@@ -192,6 +192,7 @@ class PageOperationExecutor(BaseToolExecutor):
                     tenant_id=context.tenant_id,
                     agent_id=context.agent_id,
                     operator_id=context.user_id,
+                    operator_type=context.user_role,
                     skill_id=context.skill_id,
                     action_name=operation_name,
                     action_type=(

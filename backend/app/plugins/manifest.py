@@ -227,11 +227,12 @@ class TaskExtensionSchema(BaseModel):
 
     name: str
     handler: str
+    display_name: I18nText = Field(default_factory=dict)
     schedule_type: str = "interval"
     cron_expression: str | None = None
     interval_seconds: int | None = None
     queue: str = "default"
-    description: str = ""
+    description: I18nText = Field(default_factory=dict)
 
     @field_validator("handler")
     @classmethod

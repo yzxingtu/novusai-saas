@@ -20,7 +20,6 @@ import {
   Progress,
   Select,
   Spin,
-  Statistic,
   TabPane,
   Tabs,
   Tag,
@@ -46,6 +45,7 @@ import {
 import { $t } from '#/locales';
 import { formatTokens } from '#/utils/format';
 
+import AIPageHeroCard from '../_shared/AIPageHeroCard.vue';
 import {
   formatPercent,
   getActiveStateOptions,
@@ -157,6 +157,62 @@ const summaryCards = computed(() => [
     toneBg: 'bg-success/10',
   },
 ]);
+
+const heroMetrics = computed(() =>
+  summaryCards.value.map((card) => ({
+    key: card.key,
+    label: card.label,
+    value: card.value,
+  })),
+);
+
+const activeTabTitle = computed(() =>
+  activeTab.value === 'quotas'
+    ? $t('admin.ai.quota.title')
+    : $t('admin.ai.rateLimit.title'),
+);
+
+const selectedTenantLabel = computed(() => {
+  return tenantOptions.value.find(
+    (option) => option.value === sharedFilters.value.tenant_id,
+  )?.label;
+});
+
+const selectedModelLabel = computed(() => {
+  return modelOptions.value.find(
+    (option) => option.value === sharedFilters.value.model_id,
+  )?.label;
+});
+
+const heroChips = computed(() => {
+  const chips = [
+    {
+      key: 'tab',
+      icon: 'lucide:layers-3',
+      className: 'bg-sky-500/10 text-sky-700 dark:text-sky-200',
+      text: activeTabTitle.value,
+    },
+    {
+      key: 'focus',
+      icon: 'lucide:scan-search',
+      className: 'bg-background/90 text-foreground',
+      text: `${$t('admin.ai.quota.runtime')} / ${$t('admin.ai.quota.response')} / ${$t('admin.ai.quota.remaining')}`,
+    },
+  ];
+
+  if (selectedTenantLabel.value || selectedModelLabel.value) {
+    chips.push({
+      key: 'filters',
+      icon: 'lucide:filter',
+      className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-200',
+      text: [selectedTenantLabel.value, selectedModelLabel.value]
+        .filter(Boolean)
+        .join(' / '),
+    });
+  }
+
+  return chips;
+});
 
 async function loadSummary() {
   summaryLoading.value = true;
@@ -532,45 +588,23 @@ onMounted(async () => {
 </script>
 
 <template>
-  <Page
-    auto-content-height
-    :description="$t('admin.ai.quota.pageDesc')"
-    content-class="flex flex-col gap-4"
-  >
+  <Page auto-content-height content-class="flex flex-col gap-4 !p-4">
     <QuotaFormDrawer @success="handleQuotaMutationSuccess" />
     <RateLimitForm
       ref="rateLimitFormRef"
       @success="handleRateLimitMutationSuccess"
     />
 
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-      <Card
-        v-for="card in summaryCards"
-        :key="card.key"
-        :body-style="{ padding: '18px' }"
-      >
-        <Spin :spinning="summaryLoading">
-          <div class="flex items-center justify-between gap-3">
-            <div class="min-w-0">
-              <div class="text-sm text-muted-foreground">
-                {{ card.label }}
-              </div>
-              <Statistic :value="card.value" class="mt-2" />
-            </div>
-            <div
-              class="flex size-11 shrink-0 items-center justify-center rounded-2xl"
-              :class="card.toneBg"
-            >
-              <IconifyIcon
-                :icon="card.icon"
-                class="size-5"
-                :class="card.tone"
-              />
-            </div>
-          </div>
-        </Spin>
-      </Card>
-    </div>
+    <Spin :spinning="summaryLoading">
+      <AIPageHeroCard
+        :chips="heroChips"
+        :description="$t('admin.ai.quota.pageDesc')"
+        icon="lucide:gauge"
+        icon-wrap-class="bg-primary/10 text-primary"
+        :metrics="heroMetrics"
+        :title="$t('admin.ai.quota.title')"
+      />
+    </Spin>
 
     <div class="grid grid-cols-1 gap-3 xl:grid-cols-3">
       <Alert

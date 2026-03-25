@@ -43,6 +43,7 @@ import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 import { formatFileSize } from '#/utils/file';
 
+import AIPageHeroCard from '../_shared/AIPageHeroCard.vue';
 import {
   getFormDefaults,
   getScopeColor,
@@ -143,8 +144,7 @@ const {
         },
       }),
       createCreateRecordPageOperation({
-        description:
-          'Open the create knowledge base form / 打开新建知识库表单',
+        description: 'Open the create knowledge base form / 打开新建知识库表单',
         action: () => {
           onCreate();
         },
@@ -171,6 +171,57 @@ const recycleBinCount = computed(() => recycleBinRef.value?.deletedCount ?? 0);
 function openRecycleBin() {
   recycleBinRef.value?.open();
 }
+
+const heroMetrics = computed(() => [
+  {
+    key: 'knowledgeBases',
+    label: $t('admin.knowledgeBase.stats.totalKnowledgeBases'),
+    value: stats.value?.total_knowledge_bases ?? '-',
+  },
+  {
+    key: 'documents',
+    label: $t('admin.knowledgeBase.stats.totalDocuments'),
+    value: stats.value?.total_documents ?? '-',
+  },
+  {
+    key: 'chunks',
+    label: $t('admin.knowledgeBase.stats.totalChunks'),
+    value: stats.value?.total_chunks ?? '-',
+  },
+  {
+    key: 'storage',
+    label: $t('admin.knowledgeBase.stats.totalStorage'),
+    value: stats.value ? formatFileSize(stats.value.total_size_bytes) : '-',
+  },
+]);
+
+const heroChips = computed(() => {
+  const chips = [
+    {
+      key: 'dimensions',
+      icon: 'lucide:database-zap',
+      className: 'bg-sky-500/10 text-sky-700 dark:text-sky-200',
+      text: `${$t('admin.knowledgeBase.field.scope')} / ${$t('admin.knowledgeBase.document.title')} / ${$t('admin.knowledgeBase.stats.totalStorage')}`,
+    },
+    {
+      key: 'recycle',
+      icon: 'lucide:trash-2',
+      className: 'bg-background/90 text-foreground',
+      text: `${recycleBinCount.value} ${$t('common.recycleBin.title')}`,
+    },
+  ];
+
+  if (scopeFilter.value) {
+    chips.push({
+      key: 'scope',
+      icon: 'lucide:filter',
+      className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-200',
+      text: getScopeText(scopeFilter.value),
+    });
+  }
+
+  return chips;
+});
 
 // ========== Search filters / 搜索过滤 ==========
 const scopeFilter = ref<string | undefined>(undefined);
@@ -208,11 +259,7 @@ function onDetailSuccess() {
 </script>
 
 <template>
-  <Page
-    auto-content-height
-    :description="$t('admin.knowledgeBase.pageDesc')"
-    content-class="flex flex-col gap-4"
-  >
+  <Page auto-content-height content-class="flex flex-col gap-4 !p-4">
     <FormDrawer @success="onFormSuccess" />
     <DetailDrawer @success="onDetailSuccess" />
     <RecycleBinDrawer
@@ -221,80 +268,14 @@ function onDetailSuccess() {
       @restored="loadList"
     />
 
-    <!-- 统计卡片 -->
-    <div v-if="stats" class="grid grid-cols-4 gap-4">
-      <div
-        class="flex items-center gap-3.5 rounded-xl border border-border/60 bg-card p-4 transition-colors hover:border-border"
-      >
-        <div
-          class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10"
-        >
-          <IconifyIcon icon="lucide:book-open" class="size-5.5 text-primary" />
-        </div>
-        <div>
-          <div class="text-2xl font-bold tabular-nums text-foreground">
-            {{ stats.total_knowledge_bases }}
-          </div>
-          <div class="text-xs text-muted-foreground">
-            {{ $t('admin.knowledgeBase.stats.totalKnowledgeBases') }}
-          </div>
-        </div>
-      </div>
-      <div
-        class="flex items-center gap-3.5 rounded-xl border border-border/60 bg-card p-4 transition-colors hover:border-border"
-      >
-        <div
-          class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-success/10"
-        >
-          <IconifyIcon icon="lucide:file-text" class="size-5.5 text-success" />
-        </div>
-        <div>
-          <div class="text-2xl font-bold tabular-nums text-foreground">
-            {{ stats.total_documents }}
-          </div>
-          <div class="text-xs text-muted-foreground">
-            {{ $t('admin.knowledgeBase.stats.totalDocuments') }}
-          </div>
-        </div>
-      </div>
-      <div
-        class="flex items-center gap-3.5 rounded-xl border border-border/60 bg-card p-4 transition-colors hover:border-border"
-      >
-        <div
-          class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-warning/10"
-        >
-          <IconifyIcon icon="lucide:puzzle" class="size-5.5 text-warning" />
-        </div>
-        <div>
-          <div class="text-2xl font-bold tabular-nums text-foreground">
-            {{ stats.total_chunks }}
-          </div>
-          <div class="text-xs text-muted-foreground">
-            {{ $t('admin.knowledgeBase.stats.totalChunks') }}
-          </div>
-        </div>
-      </div>
-      <div
-        class="flex items-center gap-3.5 rounded-xl border border-border/60 bg-card p-4 transition-colors hover:border-border"
-      >
-        <div
-          class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-destructive/10"
-        >
-          <IconifyIcon
-            icon="lucide:hard-drive"
-            class="size-5.5 text-destructive"
-          />
-        </div>
-        <div>
-          <div class="text-2xl font-bold tabular-nums text-foreground">
-            {{ formatFileSize(stats.total_size_bytes) }}
-          </div>
-          <div class="text-xs text-muted-foreground">
-            {{ $t('admin.knowledgeBase.stats.totalStorage') }}
-          </div>
-        </div>
-      </div>
-    </div>
+    <AIPageHeroCard
+      :chips="heroChips"
+      :description="$t('admin.knowledgeBase.pageDesc')"
+      icon="lucide:book-open"
+      icon-wrap-class="bg-primary/10 text-primary"
+      :metrics="heroMetrics"
+      :title="$t('admin.knowledgeBase.title')"
+    />
 
     <!-- 搜索栏 + 创建按钮 -->
     <div class="flex items-center gap-3">
@@ -414,10 +395,7 @@ function onDetailSuccess() {
                 class="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 @click.stop
               >
-                <IconifyIcon
-                  icon="lucide:more-vertical"
-                  class="size-4"
-                />
+                <IconifyIcon icon="lucide:more-vertical" class="size-4" />
               </button>
               <template #overlay>
                 <Menu

@@ -1,7 +1,7 @@
 {
   "title": "AI 管理",
   "config": {
-    "name": "AI 配置"
+    "name": "可用模型"
   },
   "model": {
     "title": "可用模型",
@@ -123,8 +123,31 @@
     "confirmDelete": "确认删除此配额配置？",
     "usage": "已使用",
     "remaining": "剩余",
+    "response": "超限响应",
     "exceeded": "已超额",
     "warning": "接近上限",
+    "refresh": "刷新诊断",
+    "summary": {
+      "totalRules": "配额规则",
+      "activeRules": "启用中的配额规则",
+      "riskRules": "配额风险规则",
+      "rateLimitRules": "速率限制规则"
+    },
+    "helper": {
+      "hardLimit": "硬配额超限后会直接拒绝请求，返回 HTTP 429。",
+      "softLimit": "软配额超限不会拦截请求，但会继续累计用量并触发告警。",
+      "globalFallback": "全局配额仅在同周期没有模型专属配额时生效；模型专属规则优先。"
+    },
+    "runtimeStatus": {
+      "healthy": "正常",
+      "warning": "预警",
+      "exceeded": "超限",
+      "inactive": "未启用"
+    },
+    "scope": {
+      "global": "全局配额",
+      "model": "模型专属"
+    },
     "section": {
       "basic": "基本信息",
       "config": "配额配置"
@@ -138,6 +161,10 @@
       "hard": "硬限制"
     },
     "placeholder": {
+      "allModels": "全部模型",
+      "allStatus": "全部状态",
+      "allPeriods": "全部周期",
+      "allTypes": "全部类型",
       "selectModel": "选择模型（留空为全局配额）",
       "selectPeriod": "请选择周期",
       "selectType": "请选择配额类型",
@@ -152,7 +179,7 @@
     }
   },
   "agent": {
-    "readonlyHint": "该智能体由管理端分配，仅可查看和对话，不可编辑配置",
+    "readonlyHint": "该智能体由管理端分配，基础配置仅可查看；但知识库页仍可停用管理端下发的知识库，并绑定本企业自己的知识库",
     "title": "智能体管理",
     "entityDescription": "管理 AI 智能体的配置和发布状态",
     "pageDesc": "创建和管理智能体。配置模型、工具、知识库后发布即可使用，支持版本管理和回滚。",
@@ -179,7 +206,7 @@
       "kbChunkStrategy": "分块策略",
       "kbWeightFusionHint": "权重已参与多知识库融合排序，作为先验偏置使用，不会硬性覆盖相关性。",
       "kbPlatformBadge": "平台",
-      "kbTenantOverlayHint": "以下为仅本企业生效的追加知识库，可绑定或解绑。",
+      "kbTenantOverlayHint": "你可以拒绝使用管理端下发的知识库，并为当前智能体追加仅本企业生效的知识库。",
       "kbPlatformOptOut": "本企业不使用",
       "uploadAvatar": "上传头像",
       "removeAvatar": "删除头像",
@@ -593,16 +620,38 @@
     "title": "操作审计",
     "name": "操作审计",
     "pageDesc": "查看智能体执行的所有操作记录，包括 SQL 查询和业务操作的详细审计。",
+    "detailTitle": "审计详情",
+    "summary": "执行摘要",
+    "overviewTab": "概览",
+    "requestTab": "请求",
+    "responseTab": "响应",
+    "errorTab": "错误",
+    "basicInfo": "基本信息",
+    "id": "ID",
     "actionName": "操作名称",
     "actionType": "操作类型",
+    "actionLevel": "安全等级",
     "status": "状态",
     "agentName": "智能体",
+    "agentUnavailable": "历史日志未记录",
+    "operatorId": "操作者",
+    "operatorTypes": {
+      "admin": "平台管理员",
+      "tenantAdmin": "企业管理员",
+      "tenantUser": "企业用户"
+    },
     "createdAt": "执行时间",
     "executionTime": "耗时 (ms)",
     "sqlStatement": "SQL 语句",
     "resultSummary": "结果摘要",
     "errorMessage": "错误信息",
     "viewDetail": "查看详情",
+    "copyPayload": "复制内容",
+    "fieldsCount": "{count} 个字段",
+    "noRequestData": "暂无请求数据",
+    "noResponseData": "暂无响应数据",
+    "noErrorData": "本次执行没有错误信息",
+    "noDetailData": "暂无详情数据",
     "stats": {
       "title": "审计统计",
       "totalActions": "总操作数",
@@ -614,6 +663,11 @@
       "query": "数据查询",
       "action": "业务操作",
       "confirm": "确认操作"
+    },
+    "level_options": {
+      "read": "只读",
+      "safe_write": "安全写入",
+      "dangerous": "危险操作"
     },
     "status_options": {
       "success": "成功",
@@ -652,6 +706,20 @@
     "rpmUnit": "次/分钟",
     "tpmUnit": "Token/分钟",
     "noLimit": "不限制",
+    "configured": "当前配置",
+    "effective": "生效值",
+    "modelDefault": "模型默认",
+    "inheritance": "留空字段会继承模型默认限速；企业配置优先于模型默认。",
+    "sourceLabel": "生效来源",
+    "source": {
+      "tenant": "企业规则",
+      "model": "模型默认",
+      "none": "未设置"
+    },
+    "helper": {
+      "inherit": "留空的 RPM / TPM 会自动继承模型默认值，页面展示的是最终生效结果。",
+      "disable": "停用速率限制后，当前模型会回退到模型默认限速或不限制。"
+    },
     "placeholder": {
       "selectModel": "请选择模型",
       "inputRpm": "每分钟请求数（留空不限制）",

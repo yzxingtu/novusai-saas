@@ -28,7 +28,8 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
     async def get_quota(
         self,
         model_id: int | None = None,
-        period: str = QuotaPeriodEnum.MONTHLY.value
+        period: str = QuotaPeriodEnum.MONTHLY.value,
+        is_active: bool | None = None,
     ) -> TenantQuota | None:
         """
         获取企业配额配置 / Get tenant quota config.
@@ -41,39 +42,26 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
             TenantQuota 实例
         """
         return await self.repo.get_by_tenant_and_model(
-            self.tenant_id, model_id, period
+            self.tenant_id,
+            model_id,
+            period,
+            is_active=is_active,
         )
 
-    async def get_quota_with_usage(
+    async def build_quota_with_usage(
         self,
-        model_id: int | None = None,
-        period: str = QuotaPeriodEnum.MONTHLY.value
-    ) -> dict[str, Any] | None:
+        quota: TenantQuota,
+    ) -> dict[str, Any]:
         """
-        获取配额配置及当前使用量 / Get quota config and current usage.
-
-        Args:
-            model_id: 模型 ID（None 表示全局配额）
-            period: 周期
-
-        Returns:
-            包含配额和使用量的字典
+        基于指定配额对象构建带使用量的响应 / Build usage payload from a concrete quota rule.
         """
-        quota = await self.get_quota(model_id, period)
-
-        if not quota:
-            return None
-
         usage = await UsageTracker.get_usage(
             tenant_id=self.tenant_id,
-            model_id=model_id or 0,
-            period=period,
+            model_id=quota.model_id or 0,
+            period=quota.period,
         )
 
-        # 计算使用百分比 / Compute usage percent
         usage_percent = (usage / quota.limit * 100) if quota.limit > 0 else 0
-
-        # 判断是否达到预警阈值 / Check warning threshold reached
         warning_threshold = quota.warning_threshold or 80
         is_exceeded = usage_percent >= 100
         is_warning = usage_percent >= warning_threshold and not is_exceeded
@@ -88,28 +76,56 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
             "remaining": max(0, quota.limit - usage),
         }
 
+    async def get_quota_with_usage(
+        self,
+        model_id: int | None = None,
+        period: str = QuotaPeriodEnum.MONTHLY.value,
+        is_active: bool | None = True,
+    ) -> dict[str, Any] | None:
+        """
+        获取配额配置及当前使用量 / Get quota config and current usage.
+
+        Args:
+            model_id: 模型 ID（None 表示全局配额）
+            period: 周期
+
+        Returns:
+            包含配额和使用量的字典
+        """
+        quota = await self.get_quota(model_id, period, is_active=is_active)
+
+        if not quota:
+            return None
+
+        return await self.build_quota_with_usage(quota)
+
     async def get_all_quotas_with_usage(
         self,
-        period: str | None = None
+        period: str | None = None,
+        model_id: int | None = None,
+        is_active: bool | None = None,
     ) -> list[dict[str, Any]]:
         """
         获取企业所有配额配置及使用量 / Get all tenant quotas with usage.
 
         Args:
             period: 周期（None 表示全部）
+            model_id: 模型 ID（可选）
+            is_active: 是否启用（None 表示全部）
 
         Returns:
             配额及使用量列表
         """
-        quotas = await self.repo.get_active_quotas(self.tenant_id, period)
+        quotas = await self.repo.list_quotas(
+            self.tenant_id,
+            period=period,
+            model_id=model_id,
+            is_active=is_active,
+        )
 
         result = []
         for quota in quotas:
-            quota_with_usage = await self.get_quota_with_usage(
-                quota.model_id, quota.period
-            )
-            if quota_with_usage:
-                result.append(quota_with_usage)
+            result.append(await self.build_quota_with_usage(quota))
 
         return result
 
@@ -144,6 +160,7 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
     async def get_active_quotas(
         self,
         period: str | None = None,
+        model_id: int | None = None,
     ) -> list[TenantQuota]:
         """
         获取企业活跃配额列表 / Get active quota list for tenant.
@@ -157,6 +174,23 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
         return await self.repo.get_active_quotas(
             tenant_id=self.tenant_id,
             period=period,
+            model_id=model_id,
+        )
+
+    async def list_quotas(
+        self,
+        period: str | None = None,
+        model_id: int | None = None,
+        is_active: bool | None = None,
+    ) -> list[TenantQuota]:
+        """
+        获取企业配额配置列表 / List tenant quota configs.
+        """
+        return await self.repo.list_quotas(
+            tenant_id=self.tenant_id,
+            period=period,
+            model_id=model_id,
+            is_active=is_active,
         )
 
     async def create_quota(

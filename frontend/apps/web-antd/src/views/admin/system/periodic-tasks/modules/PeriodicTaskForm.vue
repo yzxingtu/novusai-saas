@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * 定时任务新建/编辑表单抽屉
+ * 定时任务定义表单
  */
 import type { adminApi } from '#/api';
 
@@ -38,9 +38,8 @@ const { Drawer, isEdit } = useCrudDrawer<PeriodicTaskInfo>({
       is_active: values.is_active ?? true,
       description: values.description || null,
       scope: values.scope || 'admin_only',
-      owner_tenant_id: values.owner_tenant_id || null,
-      is_locked: values.is_locked ?? false,
-      is_editable: values.is_editable ?? true,
+      owner_tenant_id: null,
+      tenant_ids: Array.isArray(values.tenant_ids) ? values.tenant_ids : [],
       max_retries: values.max_retries ?? 0,
       retry_delay: values.retry_delay ?? 60,
       timeout: values.timeout ?? 3600,
@@ -58,9 +57,7 @@ const { Drawer, isEdit } = useCrudDrawer<PeriodicTaskInfo>({
       is_active: data.isActive,
       description: data.description,
       scope: data.scope,
-      owner_tenant_id: data.tenantId,
-      is_locked: data.isLocked,
-      is_editable: data.isEditable,
+      tenant_ids: data.assignedTenantIds ?? [],
       max_retries: data.maxRetries,
       retry_delay: data.retryDelay,
       timeout: data.timeout,
@@ -82,7 +79,7 @@ const title = computed(() =>
 </script>
 
 <template>
-  <Drawer :title="title" class="w-[600px]">
+  <Drawer :title="title" class="w-[680px]">
     <Form />
   </Drawer>
 </template>

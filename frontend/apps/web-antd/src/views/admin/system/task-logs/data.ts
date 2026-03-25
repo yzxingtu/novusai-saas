@@ -1,5 +1,5 @@
 /**
- * 任务日志管理 - 表格列和搜索配置
+ * 任务日志运行中心 - 表格列与搜索配置
  */
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
@@ -11,9 +11,6 @@ import { $t } from '#/locales';
 
 type TaskLogInfo = adminApi.TaskLogInfo;
 
-/**
- * 从完整任务路径提取简短友好名称
- */
 export function getTaskShortName(taskName: string): string {
   const funcName = taskName.split('.').at(-1) ?? taskName;
   for (const prefix of ['admin', 'tenant']) {
@@ -24,9 +21,6 @@ export function getTaskShortName(taskName: string): string {
   return funcName;
 }
 
-/**
- * 格式化耗时为易读字符串
- */
 export function formatDuration(ms: null | number | undefined): string {
   if (ms === null || ms === undefined) return '-';
   if (ms < 1000) return `${ms}ms`;
@@ -36,9 +30,6 @@ export function formatDuration(ms: null | number | undefined): string {
   return `${minutes}m ${seconds}s`;
 }
 
-/**
- * 从任务结果中提取摘要信息
- */
 export function getResultSummary(
   row: TaskLogInfo,
 ): null | { text: string; type: 'error' | 'info' | 'success' } {
@@ -46,36 +37,36 @@ export function getResultSummary(
     return { text: row.errorMessage, type: 'error' };
   }
   if (!row.result || typeof row.result !== 'object') return null;
-  const r = row.result as Record<string, unknown>;
+  const result = row.result as Record<string, unknown>;
   const parts: string[] = [];
-  if ('total_cleaned' in r) {
+  if ('total_cleaned' in result) {
     parts.push(
-      `${$t('admin.system.taskLog.resultKeys.cleaned')}: ${r.total_cleaned}`,
+      `${$t('admin.system.taskLog.resultKeys.cleaned')}: ${result.total_cleaned}`,
     );
   }
-  if ('cleaned' in r) {
+  if ('cleaned' in result) {
     parts.push(
-      `${$t('admin.system.taskLog.resultKeys.cleaned')}: ${r.cleaned}`,
+      `${$t('admin.system.taskLog.resultKeys.cleaned')}: ${result.cleaned}`,
     );
   }
-  if ('reset_count' in r) {
+  if ('reset_count' in result) {
     parts.push(
-      `${$t('admin.system.taskLog.resultKeys.reset')}: ${r.reset_count}`,
+      `${$t('admin.system.taskLog.resultKeys.reset')}: ${result.reset_count}`,
     );
   }
-  if ('db' in r) {
-    parts.push(`DB: ${r.db}`);
+  if ('db' in result) {
+    parts.push(`DB: ${result.db}`);
   }
-  if ('redis' in r) {
-    parts.push(`Redis: ${r.redis}`);
+  if ('redis' in result) {
+    parts.push(`Redis: ${result.redis}`);
   }
-  if ('error' in r && typeof r.error === 'string') {
-    return { text: r.error as string, type: 'error' };
+  if ('error' in result && typeof result.error === 'string') {
+    return { text: result.error, type: 'error' };
   }
   if (parts.length > 0) {
     return { text: parts.join(' | '), type: 'success' };
   }
-  return { text: JSON.stringify(r), type: 'info' };
+  return { text: JSON.stringify(result), type: 'info' };
 }
 
 export function getTriggerSourceText(source: null | string | undefined): string {
@@ -88,9 +79,33 @@ export function getRunKindText(kind: null | string | undefined): string {
   return $t(`admin.system.taskLog.runKindValues.${kind}`, kind);
 }
 
-/**
- * 获取任务状态颜色
- */
+export function getBindingContextText(
+  bindingId: null | number | undefined,
+): string {
+  if (!bindingId) {
+    return $t('admin.system.taskLog.relation.platformDirect');
+  }
+  return `${$t('admin.system.taskLog.bindingId')} #${bindingId}`;
+}
+
+export function getOwnerContextText(
+  ownerTenantId: null | number | undefined,
+): string {
+  if (!ownerTenantId) {
+    return $t('admin.system.taskLog.relation.ownerPlatform');
+  }
+  return `${$t('admin.system.taskLog.ownerTenantId')} #${ownerTenantId}`;
+}
+
+export function getEffectiveContextText(
+  effectiveTenantId: null | number | undefined,
+): string {
+  if (!effectiveTenantId) {
+    return $t('admin.system.taskLog.relation.effectivePlatform');
+  }
+  return `${$t('admin.system.taskLog.effectiveTenantId')} #${effectiveTenantId}`;
+}
+
 export function getStatusColor(status: string | undefined): string {
   if (!status) return 'default';
   switch (status) {
@@ -115,9 +130,6 @@ export function getStatusColor(status: string | undefined): string {
   }
 }
 
-/**
- * 获取队列颜色
- */
 export function getQueueColor(queue: string | undefined): string {
   if (!queue) return 'default';
   switch (queue) {
@@ -142,9 +154,6 @@ export function getQueueColor(queue: string | undefined): string {
   }
 }
 
-/**
- * 任务状态选项
- */
 function getStatusOptions() {
   return [
     { label: $t('admin.system.taskLog.status.pending'), value: 'pending' },
@@ -155,9 +164,6 @@ function getStatusOptions() {
   ];
 }
 
-/**
- * 表格列定义
- */
 export function useColumns<T = TaskLogInfo>(
   onActionClick: OnActionClickFn<T>,
 ): VxeTableGridOptions['columns'] {
@@ -165,9 +171,17 @@ export function useColumns<T = TaskLogInfo>(
     {
       field: 'taskName',
       title: $t('admin.system.taskLog.taskName'),
-      minWidth: 220,
+      minWidth: 320,
       slots: {
         default: 'taskName_cell',
+      },
+    },
+    {
+      field: 'relation',
+      title: $t('admin.system.taskLog.relationInfo'),
+      minWidth: 280,
+      slots: {
+        default: 'relation_cell',
       },
     },
     {
@@ -180,18 +194,9 @@ export function useColumns<T = TaskLogInfo>(
       },
     },
     {
-      field: 'queue',
-      title: $t('admin.system.taskLog.queue'),
-      width: 100,
-      align: 'center',
-      slots: {
-        default: 'queue_cell',
-      },
-    },
-    {
       field: 'durationMs',
       title: $t('admin.system.taskLog.duration'),
-      width: 100,
+      width: 96,
       align: 'center',
       slots: {
         default: 'durationMs_cell',
@@ -200,7 +205,7 @@ export function useColumns<T = TaskLogInfo>(
     {
       field: 'result',
       title: $t('admin.system.taskLog.resultSummary'),
-      minWidth: 240,
+      minWidth: 260,
       slots: {
         default: 'result_cell',
       },
@@ -208,7 +213,7 @@ export function useColumns<T = TaskLogInfo>(
     {
       field: 'createdAt',
       title: $t('admin.system.taskLog.createdAt'),
-      width: 160,
+      width: 150,
       slots: {
         default: 'createdAt_cell',
       },
@@ -242,14 +247,11 @@ export function useColumns<T = TaskLogInfo>(
       field: 'operation',
       fixed: 'right',
       title: $t('admin.common.operation'),
-      width: 120,
+      width: 100,
     },
   ];
 }
 
-/**
- * 搜索表单 Schema
- */
 export function useGridFormSchema(): VbenFormSchema[] {
   return [
     searchInput('task_name', $t('admin.system.taskLog.taskName'), {
@@ -263,10 +265,14 @@ export function useGridFormSchema(): VbenFormSchema[] {
       placeholder: $t('admin.system.taskLog.placeholder.searchQueue'),
       op: 'eq',
     }),
-    select('filter[tenant_id]', $t('admin.system.taskLog.tenantName'), {
-      api: getTenantSelectApi,
-      params: { is_active: 'true' },
-      placeholder: $t('admin.system.taskLog.placeholder.allTenant'),
-    }),
+    select(
+      'filter[effective_tenant_id][eq]',
+      $t('admin.system.taskLog.tenantName'),
+      {
+        api: getTenantSelectApi,
+        params: { is_active: 'true' },
+        placeholder: $t('admin.system.taskLog.placeholder.allTenant'),
+      },
+    ),
   ];
 }

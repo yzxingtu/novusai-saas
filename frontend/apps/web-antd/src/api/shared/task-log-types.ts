@@ -17,6 +17,14 @@ export interface TaskLogInfo {
   taskId: string;
   taskName: string;
   handlerPath: null | string;
+  taskDefinitionId: null | number;
+  bindingId: null | number;
+  taskDefinitionName: null | string;
+  taskScope: null | string;
+  ownerTenantId: null | number;
+  ownerTenantName: null | string;
+  effectiveTenantId: null | number;
+  effectiveTenantName: null | string;
   queue: string;
   status: string;
   args: null | Record<string, unknown> | unknown[];
@@ -30,7 +38,6 @@ export interface TaskLogInfo {
   finishedAt: null | string;
   durationMs: null | number;
   retryCount: number;
-  tenantId: null | number;
   createdAt: string;
 }
 

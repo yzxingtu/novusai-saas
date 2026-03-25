@@ -11,14 +11,28 @@ import { requestClient } from '#/utils/request';
 /** Action log list item / 操作日志列表项 */
 export interface ActionLogItem {
   id: number;
+  agent_avatar?: null | string;
+  agent_name: null | string;
   action_name: string;
   action_type: string;
   status: string;
   agent_id: null | number;
-  agent_name: null | string;
   duration_ms: null | number;
   error_message: null | string;
+  operator_id: null | number;
+  operator_avatar?: null | string;
+  operator_name?: null | string;
+  operator_nickname?: null | string;
+  operator_type?: null | string;
   created_at: string;
+}
+
+/** Action log detail / 操作日志详情 */
+export interface ActionLogDetail extends ActionLogItem {
+  action_level: string;
+  operator_id: null | number;
+  request_data: null | Record<string, unknown>;
+  response_data: null | Record<string, unknown>;
 }
 
 /** Action log statistics (actual backend response) / 操作日志统计 */
@@ -61,4 +75,11 @@ export async function getActionLogStatsApi(): Promise<ActionLogStats> {
     `${PREFIX}/stats`,
   );
   return res.stats;
+}
+
+/** Get action log detail / 获取操作日志详情 */
+export async function getActionLogDetailApi(
+  id: number,
+): Promise<ActionLogDetail> {
+  return requestClient.get<ActionLogDetail>(`${PREFIX}/${id}`);
 }

@@ -1,8 +1,8 @@
 """
-企业端 AI 配置 API / Tenant AI Config API
+企业端可用模型 API / Tenant available models API
 
-提供企业端 AI 模型查询、API Key 管理等接口
-Provides tenant AI model query, API Key management endpoints
+提供企业端可用 AI 模型查询、API Key 管理等接口
+Provides tenant available AI model query and API key management endpoints
 """
 
 from fastapi import Query, Request
@@ -43,7 +43,7 @@ from app.services.ai import AIModelService, AIProviderService, ProviderApiKeySer
 )
 class TenantAIConfigController(TenantController):
     """
-    企业 AI 配置控制器 / Tenant AI Config Controller
+    企业可用模型控制器 / Tenant available models controller
 
     提供企业可用模型查询、API Key 管理等接口
     Provides tenant available model query, API Key management endpoints

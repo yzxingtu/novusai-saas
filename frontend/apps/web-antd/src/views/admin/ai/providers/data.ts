@@ -188,6 +188,13 @@ export function useColumns<T = AIProviderInfo>(
       slots: { default: 'type_cell' },
     },
     {
+      field: 'wire_api',
+      title: $t('admin.ai.provider.wireApi'),
+      width: 180,
+      align: 'center',
+      slots: { default: 'wireApi_cell' },
+    },
+    {
       field: 'model_count',
       title: $t('admin.ai.provider.modelCount'),
       width: 100,

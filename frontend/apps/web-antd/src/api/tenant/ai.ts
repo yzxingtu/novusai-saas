@@ -339,6 +339,17 @@ export interface TenantRateLimitUpdateRequest {
   is_active?: boolean;
 }
 
+/** Effective rate limit info / 生效速率限制信息 */
+export interface TenantEffectiveRateLimitInfo {
+  model_default_rpm_limit?: null | number;
+  model_default_tpm_limit?: null | number;
+  rpm_limit: null | number;
+  rpm_source?: 'model' | 'none' | 'tenant';
+  source: 'model' | 'none' | 'tenant';
+  tpm_limit: null | number;
+  tpm_source?: 'model' | 'none' | 'tenant';
+}
+
 // ============================================================
 // API functions - Quota management / API 接口 - 配额管理
 // ============================================================
@@ -408,6 +419,17 @@ export async function getTenantRateLimitsApi(
   return requestClient.get<TenantRateLimitInfo[]>(
     `${QUOTA_PREFIX}/rate-limits`,
     { params, ...options },
+  );
+}
+
+/** Get effective rate limits for model / 获取模型生效速率限制 */
+export async function getTenantEffectiveRateLimitsApi(
+  modelId: number,
+  options?: ApiRequestOptions,
+): Promise<TenantEffectiveRateLimitInfo> {
+  return requestClient.get<TenantEffectiveRateLimitInfo>(
+    `${QUOTA_PREFIX}/rate-limits/effective/${modelId}`,
+    options,
   );
 }
 

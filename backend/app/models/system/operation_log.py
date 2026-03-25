@@ -53,6 +53,7 @@ class OperationLog(BaseModel):
         "resource": "resource",
         "method": "method",
         "path": "path",
+        "status_code": "status_code",
         "response_code": "response_code",
         "ip": "ip",
         "created_at": "created_at",

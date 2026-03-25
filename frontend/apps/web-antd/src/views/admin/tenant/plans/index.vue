@@ -79,6 +79,13 @@ const { Grid, FormDrawer, ExportModal, gridApi, onRefresh } =
     },
     columns: useColumns,
     searchSchema: useGridFormSchema(),
+    search: {
+      defaultOpen: false,
+      quickSearch: {
+        defaultField: 'filter[name][ilike]',
+        fields: ['filter[name][ilike]', 'filter[code][ilike]'],
+      },
+    },
     formComponent: Form,
     formDefaults: getFormDefaults,
     i18nPrefix: 'admin.tenant.plan',

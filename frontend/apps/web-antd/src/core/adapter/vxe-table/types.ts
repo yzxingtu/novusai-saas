@@ -119,6 +119,30 @@ export interface ToolbarConfig {
   zoom?: boolean;
 }
 
+export interface QuickSearchFieldOption {
+  fieldName: string;
+  label?: string;
+  placeholder?: string;
+}
+
+export interface QuickSearchConfig {
+  defaultField?: string;
+  fields?: Array<QuickSearchFieldOption | string>;
+}
+
+export interface SearchConfig {
+  /**
+   * Whether advanced search panel is open on first render. Defaults to true for backward compatibility.
+   * 高级搜索面板首次渲染时是否展开；默认为 true，以保持兼容。
+   */
+  defaultOpen?: boolean;
+  /**
+   * Right-side quick-search config. `true` means auto-derive from `searchSchema`.
+   * 表格右侧快速搜索配置。`true` 表示自动从 `searchSchema` 推导。
+   */
+  quickSearch?: boolean | QuickSearchConfig;
+}
+
 export interface CrudPageAiOptions {
   /** Page key matching registerPageOperations / 匹配 registerPageOperations 的页面标识 */
   pageKey?: string;
@@ -161,6 +185,9 @@ export interface UseCrudPageOptions<T extends BaseRow = BaseRow> {
 
   /** Search form schema / 搜索表单 Schema */
   searchSchema?: VbenFormSchema[];
+
+  /** Search behavior config / 搜索行为配置 */
+  search?: SearchConfig;
 
   /** Form component / 表单组件 */
   formComponent?: Component;

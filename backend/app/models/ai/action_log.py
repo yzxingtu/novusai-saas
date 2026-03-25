@@ -39,6 +39,7 @@ class AIActionLog(TenantModel):
         "agent_id": "agent_id",
         "conversation_id": "conversation_id",
         "operator_id": "operator_id",
+        "operator_type": "operator_type",
         "skill_id": "skill_id",
         "action_name": "action_name",
         "action_type": "action_type",
@@ -78,12 +79,54 @@ class AIActionLog(TenantModel):
         comment=_("ai_action_log.field.skill_id"),
     )
 
-    # 操作者 ID（关联 tenant_admins 或 tenant_users）
+    # 操作者 ID（关联 admins / tenant_admins / tenant_users）
     operator_id: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
         index=True,
         comment=_("ai_action_log.field.operator_id"),
+    )
+
+    # 操作者类型快照（platform_admin / tenant_admin / tenant_user）
+    operator_type: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="操作者类型快照 / Operator type snapshot",
+    )
+
+    # 智能体名称快照
+    agent_name_snapshot: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        comment="智能体名称快照 / Agent name snapshot",
+    )
+
+    # 智能体头像快照
+    agent_avatar_snapshot: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="智能体头像快照 / Agent avatar snapshot",
+    )
+
+    # 操作者用户名快照
+    operator_name_snapshot: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        comment="操作者用户名快照 / Operator username snapshot",
+    )
+
+    # 操作者昵称快照
+    operator_nickname_snapshot: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        comment="操作者昵称快照 / Operator nickname snapshot",
+    )
+
+    # 操作者头像快照
+    operator_avatar_snapshot: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="操作者头像快照 / Operator avatar snapshot",
     )
 
     # 操作名称（如 text_to_sql、create_order 等）

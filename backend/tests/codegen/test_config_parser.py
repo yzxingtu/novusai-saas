@@ -360,3 +360,102 @@ fields:
     assert parsed.module == "system"
     assert parsed.resource == "category"
     assert len(parsed.fields) == 1
+
+
+def test_expand_defaults_frontend_search_config() -> None:
+    """frontend 搜索配置默认值应自动补全。"""
+    config = {
+        "module": "system",
+        "resource": "category",
+        "display_name": "分类",
+        "fields": [{"name": "name", "type": "String", "filterable": True}],
+        "endpoints": [{"scope": "admin"}],
+    }
+    parser = ConfigParser()
+    parsed = parser.parse(config)
+
+    frontend = parsed.endpoints[0]["frontend"]
+    assert frontend["search_default_open"] is False
+    assert frontend["quick_search"] is True
+
+
+def test_validation_errors_invalid_quick_search_field() -> None:
+    """quick_search 字段引用无效候选项时应报错。"""
+    config = {
+        "module": "system",
+        "resource": "category",
+        "display_name": "分类",
+        "fields": [
+            {"name": "name", "type": "String", "filterable": True},
+            {"name": "is_active", "type": "Boolean", "filterable": True},
+        ],
+        "endpoints": [
+            {
+                "scope": "admin",
+                "frontend": {
+                    "quick_search": {
+                        "fields": ["is_active"],
+                        "default_field": "is_active",
+                    }
+                },
+            }
+        ],
+    }
+    parser = ConfigParser()
+    errors = parser.validate(config)
+
+    assert any(e.code == "unknown_quick_search_field" for e in errors)
+    assert any(e.code == "unknown_quick_search_default_field" for e in errors)
+
+
+def test_validation_errors_invalid_search_default_open() -> None:
+    """search_default_open 必须是布尔值。"""
+    config = {
+        "module": "system",
+        "resource": "category",
+        "display_name": "分类",
+        "fields": [{"name": "name", "type": "String", "filterable": True}],
+        "endpoints": [
+            {
+                "scope": "admin",
+                "frontend": {
+                    "search_default_open": "yes",
+                },
+            }
+        ],
+    }
+    parser = ConfigParser()
+    errors = parser.validate(config)
+
+    assert any(e.code == "invalid_search_default_open" for e in errors)
+
+
+def test_validation_accepts_object_quick_search_fields() -> None:
+    """quick_search.fields 支持对象写法。"""
+    config = {
+        "module": "system",
+        "resource": "category",
+        "display_name": "分类",
+        "fields": [
+            {"name": "name", "type": "String", "filterable": True},
+            {"name": "code", "type": "String", "filterable": True},
+        ],
+        "endpoints": [
+            {
+                "scope": "admin",
+                "frontend": {
+                    "quick_search": {
+                        "fields": [
+                            {"fieldName": "name", "label": "名称"},
+                            {"fieldName": "code", "placeholder": "搜索编码"},
+                        ],
+                        "defaultField": "code",
+                    }
+                },
+            }
+        ],
+    }
+    parser = ConfigParser()
+    errors = parser.validate(config)
+
+    assert errors == []

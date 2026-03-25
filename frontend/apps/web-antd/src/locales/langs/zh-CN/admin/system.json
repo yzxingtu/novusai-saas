@@ -132,6 +132,7 @@
     "path": "请求路径",
     "statusCode": "状态码",
     "responseCode": "响应码",
+    "responseMessage": "响应消息",
     "ip": "IP地址",
     "durationMs": "耗时(ms)",
     "createdAt": "操作时间",
@@ -153,6 +154,7 @@
       "searchTraceId": "搜索追踪 ID",
       "searchModule": "搜索模块",
       "searchAction": "搜索操作类型",
+      "searchStatusCode": "选择状态码",
       "searchIp": "搜索IP地址",
       "allModules": "全部模块",
       "allActions": "全部操作",
@@ -316,6 +318,9 @@
     }
   },
   "taskLog": {
+    "heroEyebrow": "任务运行中心",
+    "heroTitle": "从执行结果切换到运行语义",
+    "heroDescription": "这里展示的是 TaskRun 运行事实，不再只是旧 task_logs 列表。你可以按执行视图、高频内部和全部运行源快速切换，并在详情里查看处理器路径、触发来源、运行类型与追踪 ID。",
     "title": "任务日志",
     "list": "任务日志列表",
     "detail": "任务详情",
@@ -340,6 +345,17 @@
     "tenantName": "所属企业",
     "triggerSource": "触发来源",
     "runKind": "运行类型",
+    "runCenterHint": "定义 / 绑定 / 执行主体统一查看",
+    "relationInfo": "定义 / 绑定 / 企业关系",
+    "relation": {
+      "platformDirect": "平台直跑",
+      "ownerPlatform": "归属主体: 平台",
+      "effectivePlatform": "执行主体: 平台"
+    },
+    "taskDefinitionId": "任务定义",
+    "bindingId": "企业绑定",
+    "ownerTenantId": "归属企业",
+    "effectiveTenantId": "执行企业",
     "basicInfo": "基本信息",
     "timeInfo": "时间信息",
     "paramsInfo": "参数信息",
@@ -349,6 +365,12 @@
       "execution": "任务执行",
       "internal": "高频内部",
       "all": "全部"
+    },
+    "summary": {
+      "total": "当前视图总量",
+      "activeNow": "运行中",
+      "failed": "近 7 天失败",
+      "success": "近 7 天成功"
     },
     "triggerSourceValues": {
       "scheduler": "调度触发",
@@ -381,7 +403,9 @@
       "system_health_check": "系统健康检查",
       "reset_agent_daily_quotas": "重置智能体配额",
       "reset_agent_daily_stats": "重置智能体统计",
+      "check_plugin_trial_expirations": "插件试用期检查",
       "clean_expired_task_logs": "清理过期任务日志",
+      "clean_expired_session_memories": "会话记忆兜底清理",
       "ai_provider_health_check": "AI 供应商健康检查",
       "run_agent_batch": "智能体批处理",
       "issue_ssl_certificate": "SSL 证书签发",
@@ -420,6 +444,9 @@
     }
   },
   "periodicTask": {
+    "heroEyebrow": "任务模板中心",
+    "heroTitle": "把定义、分发和治理拆成同一屏的三层视图",
+    "heroDescription": "这里管理的是 TaskDefinition，而不是旧 periodic_tasks。平台统一治理、企业可用范围、显式绑定名单和运行窗口会同时展示；企业端不再提供系统级定时任务控制台。",
     "title": "定时任务",
     "list": "定时任务列表",
     "create": "创建定时任务",
@@ -429,18 +456,145 @@
     "scheduleTypeLabel": "调度类型",
     "scheduleTypeHelp": "Cron: 按 Cron 表达式定时执行；间隔: 按固定秒数循环执行",
     "schedule": "调度配置",
+    "scheduleColumn": "调度节奏",
+    "scheduleHint": "调度定义只在平台统一治理，企业端不暴露系统级调度配置入口。",
     "cronExpression": "Cron 表达式",
     "intervalSeconds": "间隔秒数",
     "isActive": "启用",
     "lastRunAt": "上次",
     "nextRunAt": "下次",
-    "runInfo": "执行信息",
+    "runInfo": "运行窗口",
     "description": "描述",
     "trigger": "立即触发",
     "viewLogs": "执行日志",
-    "manageBindings": "企业绑定",
-    "bindingTitle": "企业绑定: {name}",
-    "bindingHelp": "选择哪些企业启用这个定时任务定义。保存后会同步企业绑定关系。",
+    "manageBindings": "分发与绑定",
+    "definitionColumn": "任务定义",
+    "distributionColumn": "分发语义",
+    "governanceColumn": "治理状态",
+    "surface": {
+      "definition": "任务定义",
+      "binding": "企业分发",
+      "runtime": "执行日志",
+      "governance": "治理视图",
+      "tenantNoConsole": "企业端无系统控制台"
+    },
+    "summary": {
+      "total": "总定义数",
+      "active": "启用中",
+      "bound": "按企业分发",
+      "upcoming": "1 小时内触发",
+      "platformManaged": "平台治理任务",
+      "tenantDistributed": "企业分发任务",
+      "missingBindings": "待补绑定",
+      "adminOnly": "平台专用",
+      "tenantShared": "全局共享 / 全企业",
+      "targetDispatch": "指定企业分发",
+      "anomalies": "待补绑定"
+    },
+    "legend": {
+      "governance": "平台治理语义",
+      "delivery": "企业投放语义",
+      "binding": "绑定清单状态"
+    },
+    "scopeCardHint": "当前落在此作用域的任务定义数量",
+    "distributionLabel": "分发语义",
+    "distributionGovernanceTitle": "治理说明",
+    "lockedTag": "禁止删除",
+    "scopeModeHeadline": {
+      "admin_only": "仅平台执行和治理",
+      "global_shared": "平台统一治理，企业共享能力",
+      "all_tenants": "对全部企业统一分发",
+      "admin_and_selected_tenants": "平台保留入口，同时定向下发给指定企业",
+      "selected_tenants": "仅向指定企业分发执行"
+    },
+    "adminSurface": {
+      "default": "平台统一治理入口保留",
+      "selected_tenants": "平台负责治理，运行只下发给指定企业"
+    },
+    "tenantSurface": {
+      "global_shared": "全部企业共享使用，不暴露系统配置入口",
+      "all_tenants": "全部企业纳入执行范围",
+      "selected": "仅 {count} 个绑定企业纳入执行范围",
+      "pending": "当前要求指定企业，但绑定名单为空",
+      "admin_only": "企业端不涉及"
+    },
+    "bindingSummary": {
+      "globalShared": "共享能力，不需要企业名单",
+      "allTenants": "覆盖全部企业，不需要单独绑定",
+      "adminOnly": "平台专用，不下发企业",
+      "pending": "尚未配置企业名单",
+      "selectedCount": "已绑定 {count} 家企业",
+      "selectedPreview": "{names} 等 {count} 家企业"
+    },
+    "scopeSemantics": {
+      "adminOnlyGovernance": "由平台统一维护，仅平台执行，不向企业投放。",
+      "globalSharedGovernance": "平台统一维护，企业共享能力，但企业端无系统级调度控制台。",
+      "allTenantsGovernance": "平台统一维护，并按全企业范围下发执行。",
+      "selectedTenantsGovernance": "平台统一维护，只向绑定企业下发执行。",
+      "adminAndSelectedGovernance": "平台保留自身治理入口，同时向绑定企业定向下发执行。"
+    },
+    "executionSemantics": {
+      "platformOnly": "仅平台自身执行",
+      "globalShared": "平台维护，企业共享使用",
+      "allTenants": "全部企业纳入执行范围",
+      "selectedTenants": "仅 {count} 个绑定企业执行",
+      "adminAndSelectedTenants": "平台执行 + {count} 个绑定企业执行"
+    },
+    "definitionType": {
+      "label": "定义类型",
+      "system": "系统任务",
+      "plugin": "插件任务"
+    },
+    "status": {
+      "label": "状态",
+      "enabled": "已启用",
+      "disabled": "已停用"
+    },
+    "adminSurface": {
+      "platform": "平台治理入口保留",
+      "allTenants": "平台统一治理，企业全量接收",
+      "selectedTenants": "平台治理保留，但只向指定企业投放"
+    },
+    "tenantSurface": {
+      "none": "企业端不涉及",
+      "globalShared": "全部企业共享能力，但企业端无系统配置入口",
+      "allTenants": "全部企业纳入执行范围",
+      "pending": "当前要求指定企业，但绑定名单为空",
+      "selectedTenants": "仅 {count} 个绑定企业纳入执行范围",
+      "adminAndSelectedTenants": "平台保留入口，同时仅 {count} 个绑定企业执行"
+    },
+    "bindingTitle": "分发与绑定: {name}",
+    "bindingEyebrow": "分发模式编辑器",
+    "bindingDescription": "这里编辑的是任务定义的投放范围。你可以继续使用统一的作用域体系，但把企业覆盖名单、平台治理入口和企业执行范围放到一个流程里完成。",
+    "bindingModeTitle": "选择分发模式",
+    "bindingCard": {
+      "currentScope": "当前生效模式",
+      "adminSurface": "平台治理面",
+      "tenantSurface": "企业执行面"
+    },
+    "bindingAlertTitle": "分发说明",
+    "bindingAlertSelected": "当前模式要求显式选择企业。保存时会同步企业绑定清单，并直接影响后续调度投放范围。",
+    "bindingAlertGlobal": "当前模式不会使用显式企业名单。保存时若已有旧绑定，会一并清空，改为平台统一分发语义。",
+    "bindingTenantTitle": "企业名单",
+    "bindingTenantHelpSelected": "选择需要接收这条任务定义的企业。",
+    "bindingTenantHelpGlobal": "当前模式无需维护企业名单，企业覆盖范围由作用域直接决定。",
+    "bindingGlobalNote": "全局共享、全企业和仅管理端模式都不依赖显式名单。这里保留旧选择只是方便你来回切换模式时继续调整。",
+    "bindingWarning": "需要补齐企业绑定",
+    "taskDescriptions": {
+      "ai_provider_health_check": "每 5 分钟检查所有启用的 AI 供应商可用性，写入 Redis 供故障转移。",
+      "clean_expired_captchas": "每小时清理过期的验证码缓存。",
+      "system_health_check": "每 5 分钟检查系统健康状态，包括数据库与 Redis 连接。",
+      "reset_agent_daily_quotas": "每天零点重置智能体每日配额，并清理无 TTL 的 Redis key。",
+      "reset_agent_daily_stats": "每天零点重置智能体每日统计，将 Redis 当日计数归零。",
+      "check_plugin_trial_expirations": "每天凌晨 2:00 检查插件试用期，自动禁用已到期插件并发出预警提醒。",
+      "clean_expired_task_logs": "每天凌晨 4:00 清理超过保留期的任务运行记录。",
+      "clean_expired_session_memories": "每天凌晨 3:30 清理会话记忆 Redis 残留 key，作为 24 小时 TTL 的兜底清理。",
+      "sync_litellm_registry": "每天凌晨 4:00 从 LiteLLM 与 LLMRing 多源同步模型能力注册表到 Redis，用于远程模型创建时自动填充能力字段。",
+      "cleanup_recycle_bin": "每天凌晨 3:00 自动清理超过 30 天的回收站记录，并执行物理删除。",
+      "task_check_ssl_renewals": "每天凌晨 3:00 检查即将过期的 SSL 证书，自动触发平台证书续期，并提醒自定义证书即将过期。",
+      "cleanup_chunk_uploads": "每 6 小时清理超过保留时间的分片上传临时文件。",
+      "cleanup_expired_notifications": "每天凌晨 3:00 根据 notification_retention_days 配置清理过期通知。"
+    },
     "executionLogs": "执行日志",
     "totalLogs": "共 {count} 条记录",
     "noLogs": "暂无执行日志",
@@ -454,6 +608,7 @@
     },
     "tenantName": "所属企业",
     "scopeLabel": "作用范围",
+    "scopeHelp": "作用域选择继续复用系统统一的 scope 体系，但这页会额外把企业分发名单和平台治理语义一起落地。",
     "isLocked": "保护（禁止删除）",
     "isEditable": "允许编辑",
     "maxRetries": "最大重试次数",
@@ -463,10 +618,20 @@
     "notifyEmails": "通知邮箱",
     "section": {
       "basic": "基本设置",
-      "scope": "作用范围",
+      "scope": "作用域与分发",
       "protection": "保护设置",
       "retry": "重试策略",
       "notify": "失败通知"
+    },
+    "formEyebrow": "创建 / 编辑任务定义",
+    "formTitle": "先选任务定义，再决定投放范围",
+    "formDescription": "表单里的作用域选择继续走系统统一组件，但这页会按定时任务的语义解释它们分别意味着平台专用、企业共享、全企业投放还是指定企业投放。",
+    "scopeGuide": {
+      "adminOnly": "平台专用任务。企业端不感知，不参与调度投放。",
+      "globalShared": "平台统一维护，企业共享能力，但企业端没有系统级配置入口。",
+      "allTenants": "平台下发到全部企业，适合统一巡检、账单刷新等场景。",
+      "adminAndSelectedTenants": "平台保留入口，同时只给一部分企业投放执行。",
+      "selectedTenants": "仅给指定企业投放，平台负责治理但不把它当作平台自身任务。"
     },
     "every": "每",
     "scheduleType": {
@@ -479,11 +644,27 @@
       "monthly": "每月",
       "day": "日"
     },
+    "typeTag": {
+      "plugin": "插件任务",
+      "system": "系统任务",
+      "bound": "企业分发"
+    },
+    "flag": {
+      "locked": "受保护",
+      "readOnly": "只读定义",
+      "protected": "禁止删除",
+      "mutable": "可调整"
+    },
+    "distributionLine": {
+      "admin": "平台",
+      "tenant": "企业"
+    },
     "messages": {
       "createSuccess": "创建成功",
       "updateSuccess": "更新成功",
       "deleteSuccess": "删除成功",
-      "bindingSaveSuccess": "企业绑定已保存",
+      "bindingSaveSuccess": "分发配置已保存",
+      "bindingMissing": "当前模式要求至少选择一个企业",
       "deleteConfirm": "确定要删除定时任务 \"{name}\" 吗？",
       "triggerSuccess": "任务已触发",
       "triggerConfirm": "确定要立即触发此任务吗？",
@@ -492,7 +673,10 @@
     "placeholder": {
       "searchName": "搜索任务名称",
       "searchTaskPath": "搜索任务路径",
+      "allDefinitionTypes": "全部定义类型",
       "allScheduleTypes": "全部类型",
+      "allStatus": "全部状态",
+      "allStatuses": "全部状态",
       "inputName": "请输入任务名称",
       "inputTaskPath": "请输入任务路径（如 app.tasks.scheduled.cleanup_logs）",
       "selectScheduleType": "请选择调度类型",
@@ -1293,6 +1477,15 @@
       "recycleBin": "回收站",
       "export": "导出",
       "batchDelete": "批量删除",
+      "searchDefaultOpen": "高级搜索默认展开",
+      "searchDefaultOpenHelp": "关闭后，生成的列表页首次进入时会折叠高级搜索，用户点击按钮后再展开。",
+      "quickSearch": "启用快速搜索",
+      "quickSearchHelp": "在表格右侧显示快速搜索框，并与高级搜索共用同一套筛选状态。",
+      "quickSearchCardHelp": "卡片模式仍保留单搜索框，但会按这里配置的字段决定搜索目标。",
+      "quickSearchFields": "快速搜索字段",
+      "quickSearchFieldsPlaceholder": "选择可用于快速搜索的字段",
+      "quickSearchDefaultField": "默认快速搜索字段",
+      "quickSearchDefaultFieldPlaceholder": "选择默认搜索字段",
       "addRelation": "添加关联",
       "relations": "关联关系",
       "relationTarget": "目标模型",
@@ -1315,7 +1508,8 @@
         "detail": "详情页开关、展示模式（抽屉/整页）、标题字段",
         "detailGroups": "详情页字段分组展示",
         "clone": "新建时是否允许从已有记录克隆",
-        "deleteDeps": "删除前需级联检查的关联资源"
+        "deleteDeps": "删除前需级联检查的关联资源",
+        "searchBehavior": "控制高级搜索默认展开与快速搜索字段，生成页和预览会同步采用这套搜索策略。"
       }
     },
     "builder": {

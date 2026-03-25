@@ -7,16 +7,52 @@ import { computed } from 'vue';
 
 import type { useCodegenBuilderStore } from '#/store';
 
-export function useConfigFeatures(store: ReturnType<typeof useCodegenBuilderStore>) {
-  const ep0 = computed(() => (store.configJson.endpoints as Record<string, unknown>[])?.[0] || {});
-  const fe = computed(() => (ep0.value?.frontend as Record<string, unknown>) || {});
-  const batch = computed(() => (store.configJson.batch as Record<string, unknown>) || {});
-  const clone = computed(() => (store.configJson as Record<string, unknown>).clone as Record<string, unknown> | undefined);
-  const detail = computed(() => (store.configJson as Record<string, unknown>).detail as Record<string, unknown> | undefined);
-  const actions = computed(() => ((store.configJson as Record<string, unknown>).actions as Record<string, unknown>[]) || []);
+export function useConfigFeatures(
+  store: ReturnType<typeof useCodegenBuilderStore>,
+) {
+  const activeEndpointIdx = computed(() =>
+    Math.max(0, store.activeEndpointIdx || 0),
+  );
+  const endpointList = computed(
+    () => (store.configJson.endpoints as Record<string, unknown>[]) || [],
+  );
+  const ep0 = computed(
+    () =>
+      endpointList.value[activeEndpointIdx.value] ||
+      endpointList.value[0] ||
+      {},
+  );
+  const fe = computed(
+    () => (ep0.value?.frontend as Record<string, unknown>) || {},
+  );
+  const batch = computed(
+    () => (store.configJson.batch as Record<string, unknown>) || {},
+  );
+  const clone = computed(
+    () =>
+      (store.configJson as Record<string, unknown>).clone as
+        | Record<string, unknown>
+        | undefined,
+  );
+  const detail = computed(
+    () =>
+      (store.configJson as Record<string, unknown>).detail as
+        | Record<string, unknown>
+        | undefined,
+  );
+  const actions = computed(
+    () =>
+      ((store.configJson as Record<string, unknown>).actions as Record<
+        string,
+        unknown
+      >[]) || [],
+  );
 
   const displayName = computed(
-    () => (store.configJson.display_name as string) || (store.configJson.resource as string) || '',
+    () =>
+      (store.configJson.display_name as string) ||
+      (store.configJson.resource as string) ||
+      '',
   );
 
   const hasRecycleBin = computed(() => !!fe.value.recycle_bin);
@@ -34,29 +70,53 @@ export function useConfigFeatures(store: ReturnType<typeof useCodegenBuilderStor
     return ['edit', 'delete'];
   });
 
-  const hasDetail = computed(() =>
-    !!detail.value?.enabled || (operationOptions.value as string[]).includes('detail'),
+  const hasDetail = computed(
+    () =>
+      !!detail.value?.enabled ||
+      (operationOptions.value as string[]).includes('detail'),
   );
 
   const model = computed(
-    () => (store.configJson as Record<string, unknown>).model as Record<string, unknown> | undefined,
+    () =>
+      (store.configJson as Record<string, unknown>).model as
+        | Record<string, unknown>
+        | undefined,
   );
-  const tree = computed(() => model.value?.tree as Record<string, unknown> | undefined);
+  const tree = computed(
+    () => model.value?.tree as Record<string, unknown> | undefined,
+  );
   const hasTree = computed(() => !!tree.value?.enabled);
 
   const workflow = computed(
-    () => (store.configJson as Record<string, unknown>).workflow as Record<string, unknown> | undefined,
+    () =>
+      (store.configJson as Record<string, unknown>).workflow as
+        | Record<string, unknown>
+        | undefined,
   );
-  const hasWorkflow = computed(() => !!(workflow.value?.transitions as unknown[])?.length);
+  const hasWorkflow = computed(
+    () => !!(workflow.value?.transitions as unknown[])?.length,
+  );
 
-  const defaultSort = computed(() => (fe.value.default_sort as string) || '-created_at');
+  const defaultSort = computed(
+    () => (fe.value.default_sort as string) || '-created_at',
+  );
   const pageSize = computed(() => (fe.value.page_size as number) || 20);
-  const softDelete = computed(() => !!(model.value?.soft_delete));
+  const searchDefaultOpen = computed(() =>
+    Boolean(fe.value.search_default_open),
+  );
+  const quickSearch = computed(() => {
+    const value = fe.value.quick_search;
+    return value === undefined ? true : value;
+  });
+  const softDelete = computed(() => !!model.value?.soft_delete);
 
   const customActions = computed(() => actions.value);
 
   const detailGroups = computed(
-    () => detail.value?.groups as Array<{ title_zh?: string; title_en?: string; fields?: string[] }>[] | undefined,
+    () =>
+      detail.value?.groups as
+        | Array<{ title_zh?: string; title_en?: string; fields?: string[] }>[]
+        | undefined,
   );
 
   const allFields = computed(
@@ -100,6 +160,7 @@ export function useConfigFeatures(store: ReturnType<typeof useCodegenBuilderStor
 
   return {
     ep0,
+    activeEndpointIdx,
     fe,
     batch,
     detail,
@@ -109,6 +170,8 @@ export function useConfigFeatures(store: ReturnType<typeof useCodegenBuilderStor
     hasWorkflow,
     defaultSort,
     pageSize,
+    searchDefaultOpen,
+    quickSearch,
     softDelete,
     hasRecycleBin,
     hasExport,

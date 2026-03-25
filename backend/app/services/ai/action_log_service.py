@@ -18,8 +18,12 @@ from app.configs.service import PLATFORM_TENANT_ID
 from app.core.base_model import BaseModel
 from app.core.base_service import GlobalService, TenantService
 from app.enums.agent import ActionLevelEnum, ActionStatusEnum, ActionTypeEnum
+from app.models.ai.agent import Agent
 from app.models.ai.action_log import AIActionLog
+from app.models.system.admin import Admin
 from app.models.tenant.tenant import Tenant
+from app.models.tenant.tenant_admin import TenantAdmin
+from app.models.tenant.tenant_user import TenantUser
 from app.repositories.ai.action_log_repository import (
     AIActionLogRepository,
     AdminAIActionLogRepository,
@@ -107,6 +111,161 @@ def _normalize_audit_payload(
     return {"value": normalized}
 
 
+def _default_agent_meta() -> dict[str, Any]:
+    return {
+        "agent_avatar": None,
+        "agent_name": None,
+    }
+
+
+def _default_operator_meta() -> dict[str, Any]:
+    return {
+        "operator_avatar": None,
+        "operator_name": None,
+        "operator_nickname": None,
+        "operator_type": None,
+    }
+
+
+def _normalize_operator_type(operator_type: str | None) -> str | None:
+    if not operator_type:
+        return None
+    if operator_type == "admin":
+        return "platform_admin"
+    return operator_type
+
+
+def _resolve_agent_meta(
+    item: dict[str, Any],
+    live_meta: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    live_meta = live_meta or {}
+    return {
+        "agent_avatar": item.get("agent_avatar_snapshot")
+        or live_meta.get("agent_avatar"),
+        "agent_name": item.get("agent_name_snapshot")
+        or live_meta.get("agent_name"),
+    }
+
+
+def _resolve_operator_meta(
+    item: dict[str, Any],
+    live_meta: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    live_meta = live_meta or {}
+    return {
+        "operator_avatar": item.get("operator_avatar_snapshot")
+        or live_meta.get("operator_avatar"),
+        "operator_name": item.get("operator_name_snapshot")
+        or live_meta.get("operator_name"),
+        "operator_nickname": item.get("operator_nickname_snapshot")
+        or live_meta.get("operator_nickname"),
+        "operator_type": _normalize_operator_type(item.get("operator_type"))
+        or _normalize_operator_type(live_meta.get("operator_type")),
+    }
+
+
+async def _load_agent_snapshot(
+    db: AsyncSession,
+    agent_id: int,
+) -> dict[str, Any]:
+    if not agent_id or agent_id <= 0:
+        return {}
+
+    stmt = select(Agent.name, Agent.avatar).where(
+        Agent.id == agent_id,
+        Agent.is_deleted.is_(False),
+    )
+    row = (await db.execute(stmt)).first()
+    if not row:
+        return {}
+    return {
+        "agent_avatar_snapshot": row.avatar,
+        "agent_name_snapshot": row.name,
+    }
+
+
+async def _load_operator_snapshot(
+    db: AsyncSession,
+    *,
+    tenant_id: int,
+    operator_id: int,
+    operator_type: str | None,
+) -> dict[str, Any]:
+    normalized_type = _normalize_operator_type(operator_type)
+    if not operator_id:
+        return {
+            "operator_type": normalized_type,
+        }
+
+    if normalized_type == "platform_admin" or tenant_id == PLATFORM_TENANT_ID:
+        stmt = select(Admin.username, Admin.nickname, Admin.avatar).where(
+            Admin.id == operator_id,
+            Admin.is_deleted.is_(False),
+        )
+        row = (await db.execute(stmt)).first()
+        if row:
+            return {
+                "operator_avatar_snapshot": row.avatar,
+                "operator_name_snapshot": row.username,
+                "operator_nickname_snapshot": row.nickname,
+                "operator_type": "platform_admin",
+            }
+
+    if normalized_type == "tenant_user":
+        stmt = select(
+            TenantUser.username, TenantUser.nickname, TenantUser.avatar,
+        ).where(
+            TenantUser.tenant_id == tenant_id,
+            TenantUser.id == operator_id,
+            TenantUser.is_deleted.is_(False),
+        )
+        row = (await db.execute(stmt)).first()
+        if row:
+            return {
+                "operator_avatar_snapshot": row.avatar,
+                "operator_name_snapshot": row.username,
+                "operator_nickname_snapshot": row.nickname,
+                "operator_type": "tenant_user",
+            }
+
+    stmt = select(
+        TenantAdmin.username, TenantAdmin.nickname, TenantAdmin.avatar,
+    ).where(
+        TenantAdmin.tenant_id == tenant_id,
+        TenantAdmin.id == operator_id,
+        TenantAdmin.is_deleted.is_(False),
+    )
+    row = (await db.execute(stmt)).first()
+    if row:
+        return {
+            "operator_avatar_snapshot": row.avatar,
+            "operator_name_snapshot": row.username,
+            "operator_nickname_snapshot": row.nickname,
+            "operator_type": "tenant_admin",
+        }
+
+    user_stmt = select(
+        TenantUser.username, TenantUser.nickname, TenantUser.avatar,
+    ).where(
+        TenantUser.tenant_id == tenant_id,
+        TenantUser.id == operator_id,
+        TenantUser.is_deleted.is_(False),
+    )
+    user_row = (await db.execute(user_stmt)).first()
+    if user_row:
+        return {
+            "operator_avatar_snapshot": user_row.avatar,
+            "operator_name_snapshot": user_row.username,
+            "operator_nickname_snapshot": user_row.nickname,
+            "operator_type": "tenant_user",
+        }
+
+    return {
+        "operator_type": normalized_type,
+    }
+
+
 async def write_ai_action_log(
     db: AsyncSession,
     *,
@@ -117,6 +276,7 @@ async def write_ai_action_log(
     action_type: str = ActionTypeEnum.ACTION.value,
     status: str = ActionStatusEnum.SUCCESS.value,
     operator_id: int | None = None,
+    operator_type: str | None = None,
     conversation_id: int | None = None,
     skill_id: int | None = None,
     request_data: dict[str, Any] | None = None,
@@ -129,6 +289,17 @@ async def write_ai_action_log(
     """
     normalized_request_data = _normalize_audit_payload(request_data)
     normalized_response_data = _normalize_audit_payload(response_data)
+    agent_snapshot = await _load_agent_snapshot(db, agent_id)
+    operator_snapshot = (
+        await _load_operator_snapshot(
+            db,
+            tenant_id=tenant_id,
+            operator_id=operator_id,
+            operator_type=operator_type,
+        )
+        if operator_id
+        else {"operator_type": _normalize_operator_type(operator_type)}
+    )
 
     log = AIActionLog(
         tenant_id=tenant_id,
@@ -136,6 +307,14 @@ async def write_ai_action_log(
         conversation_id=conversation_id,
         skill_id=skill_id,
         operator_id=operator_id,
+        operator_type=operator_snapshot.get("operator_type"),
+        agent_name_snapshot=agent_snapshot.get("agent_name_snapshot"),
+        agent_avatar_snapshot=agent_snapshot.get("agent_avatar_snapshot"),
+        operator_name_snapshot=operator_snapshot.get("operator_name_snapshot"),
+        operator_nickname_snapshot=operator_snapshot.get(
+            "operator_nickname_snapshot",
+        ),
+        operator_avatar_snapshot=operator_snapshot.get("operator_avatar_snapshot"),
         action_name=action_name,
         action_type=action_type,
         action_level=action_level,
@@ -160,6 +339,127 @@ class AIActionLogService(TenantService[AIActionLog, AIActionLogRepository]):
     model = AIActionLog
     repository_class = AIActionLogRepository
 
+    async def _load_agent_meta_map(
+        self,
+        agent_ids: set[int],
+    ) -> dict[int, dict[str, Any]]:
+        if not agent_ids:
+            return {}
+
+        stmt = select(Agent.id, Agent.name, Agent.avatar).where(
+            Agent.id.in_(agent_ids),
+            Agent.is_deleted.is_(False),
+        )
+        result = await self.db.execute(stmt)
+        return {
+            row.id: {
+                "agent_avatar": row.avatar,
+                "agent_name": row.name,
+            }
+            for row in result.all()
+        }
+
+    async def _load_operator_meta_map(
+        self,
+        operator_ids: set[int],
+    ) -> dict[int, dict[str, Any]]:
+        if not operator_ids:
+            return {}
+
+        stmt = select(
+            TenantAdmin.id,
+            TenantAdmin.username,
+            TenantAdmin.nickname,
+            TenantAdmin.avatar,
+        ).where(
+            TenantAdmin.tenant_id == self.tenant_id,
+            TenantAdmin.id.in_(operator_ids),
+            TenantAdmin.is_deleted.is_(False),
+        )
+        result = await self.db.execute(stmt)
+        operator_meta_map = {
+            row.id: {
+                "operator_avatar": row.avatar,
+                "operator_name": row.username,
+                "operator_nickname": row.nickname,
+                "operator_type": "tenant_admin",
+            }
+            for row in result.all()
+        }
+
+        missing_ids = operator_ids - set(operator_meta_map)
+        if not missing_ids:
+            return operator_meta_map
+
+        user_stmt = select(
+            TenantUser.id,
+            TenantUser.username,
+            TenantUser.nickname,
+            TenantUser.avatar,
+        ).where(
+            TenantUser.tenant_id == self.tenant_id,
+            TenantUser.id.in_(missing_ids),
+            TenantUser.is_deleted.is_(False),
+        )
+        user_result = await self.db.execute(user_stmt)
+        for row in user_result.all():
+            operator_meta_map[row.id] = {
+                "operator_avatar": row.avatar,
+                "operator_name": row.username,
+                "operator_nickname": row.nickname,
+                "operator_type": "tenant_user",
+            }
+        return operator_meta_map
+
+    async def serialize_log(self, log: AIActionLog) -> dict[str, Any]:
+        item = log.to_dict()
+        agent_meta_map = await self._load_agent_meta_map(
+            {item["agent_id"]} if item.get("agent_id") else set(),
+        )
+        operator_meta_map = await self._load_operator_meta_map(
+            {item["operator_id"]} if item.get("operator_id") else set(),
+        )
+        item.update(_default_agent_meta())
+        item.update(_default_operator_meta())
+        item.update(
+            _resolve_agent_meta(
+                item,
+                agent_meta_map.get(item.get("agent_id"), {}),
+            ),
+        )
+        item.update(
+            _resolve_operator_meta(
+                item,
+                operator_meta_map.get(item.get("operator_id"), {}),
+            ),
+        )
+        return item
+
+    async def serialize_logs(self, logs: list[AIActionLog]) -> list[dict[str, Any]]:
+        agent_meta_map = await self._load_agent_meta_map(
+            {log.agent_id for log in logs if log.agent_id},
+        )
+        operator_meta_map = await self._load_operator_meta_map(
+            {log.operator_id for log in logs if log.operator_id},
+        )
+
+        items: list[dict[str, Any]] = []
+        for log in logs:
+            item = log.to_dict()
+            item.update(_default_agent_meta())
+            item.update(_default_operator_meta())
+            item.update(
+                _resolve_agent_meta(item, agent_meta_map.get(log.agent_id, {})),
+            )
+            item.update(
+                _resolve_operator_meta(
+                    item,
+                    operator_meta_map.get(log.operator_id, {}),
+                ),
+            )
+            items.append(item)
+        return items
+
     async def get_stats(self) -> dict:
         """获取审计统计信息 / Get audit statistics."""
         return await self.repo.get_stats()
@@ -176,6 +476,26 @@ class AdminAIActionLogService(GlobalService[AIActionLog, AdminAIActionLogReposit
 
     model = AIActionLog
     repository_class = AdminAIActionLogRepository
+
+    async def _load_agent_meta_map(
+        self,
+        agent_ids: set[int],
+    ) -> dict[int, dict[str, Any]]:
+        if not agent_ids:
+            return {}
+
+        stmt = select(Agent.id, Agent.name, Agent.avatar).where(
+            Agent.id.in_(agent_ids),
+            Agent.is_deleted.is_(False),
+        )
+        result = await self.db.execute(stmt)
+        return {
+            row.id: {
+                "agent_avatar": row.avatar,
+                "agent_name": row.name,
+            }
+            for row in result.all()
+        }
 
     async def _load_tenant_meta_map(
         self,
@@ -208,22 +528,152 @@ class AdminAIActionLogService(GlobalService[AIActionLog, AdminAIActionLogReposit
             }
         return tenant_meta_map
 
+    async def _load_operator_meta_map(
+        self,
+        logs: list[AIActionLog],
+    ) -> dict[tuple[int, int], dict[str, Any]]:
+        platform_operator_ids = {
+            log.operator_id
+            for log in logs
+            if (log.tenant_id or PLATFORM_TENANT_ID) == PLATFORM_TENANT_ID
+            and log.operator_id
+        }
+        tenant_operator_pairs = {
+            (log.tenant_id, log.operator_id)
+            for log in logs
+            if (log.tenant_id or PLATFORM_TENANT_ID) != PLATFORM_TENANT_ID
+            and log.tenant_id
+            and log.operator_id
+        }
+
+        operator_meta_map: dict[tuple[int, int], dict[str, Any]] = {}
+
+        if platform_operator_ids:
+            stmt = select(
+                Admin.id,
+                Admin.username,
+                Admin.nickname,
+                Admin.avatar,
+            ).where(
+                Admin.id.in_(platform_operator_ids),
+                Admin.is_deleted.is_(False),
+            )
+            result = await self.db.execute(stmt)
+            for row in result.all():
+                operator_meta_map[(PLATFORM_TENANT_ID, row.id)] = {
+                    "operator_avatar": row.avatar,
+                    "operator_name": row.username,
+                    "operator_nickname": row.nickname,
+                    "operator_type": "platform_admin",
+                }
+
+        if tenant_operator_pairs:
+            tenant_ids = {tenant_id for tenant_id, _ in tenant_operator_pairs}
+            operator_ids = {operator_id for _, operator_id in tenant_operator_pairs}
+
+            stmt = select(
+                TenantAdmin.tenant_id,
+                TenantAdmin.id,
+                TenantAdmin.username,
+                TenantAdmin.nickname,
+                TenantAdmin.avatar,
+            ).where(
+                TenantAdmin.tenant_id.in_(tenant_ids),
+                TenantAdmin.id.in_(operator_ids),
+                TenantAdmin.is_deleted.is_(False),
+            )
+            result = await self.db.execute(stmt)
+            for row in result.all():
+                operator_meta_map[(row.tenant_id, row.id)] = {
+                    "operator_avatar": row.avatar,
+                    "operator_name": row.username,
+                    "operator_nickname": row.nickname,
+                    "operator_type": "tenant_admin",
+                }
+
+            missing_pairs = tenant_operator_pairs - set(operator_meta_map)
+            if missing_pairs:
+                missing_tenant_ids = {
+                    tenant_id for tenant_id, _ in missing_pairs
+                }
+                missing_operator_ids = {
+                    operator_id for _, operator_id in missing_pairs
+                }
+                user_stmt = select(
+                    TenantUser.tenant_id,
+                    TenantUser.id,
+                    TenantUser.username,
+                    TenantUser.nickname,
+                    TenantUser.avatar,
+                ).where(
+                    TenantUser.tenant_id.in_(missing_tenant_ids),
+                    TenantUser.id.in_(missing_operator_ids),
+                    TenantUser.is_deleted.is_(False),
+                )
+                user_result = await self.db.execute(user_stmt)
+                for row in user_result.all():
+                    operator_meta_map[(row.tenant_id, row.id)] = {
+                        "operator_avatar": row.avatar,
+                        "operator_name": row.username,
+                        "operator_nickname": row.nickname,
+                        "operator_type": "tenant_user",
+                    }
+
+        return operator_meta_map
+
     async def serialize_log(self, log: AIActionLog) -> dict[str, Any]:
         item = log.to_dict()
         tenant_id = item.get('tenant_id', PLATFORM_TENANT_ID) or PLATFORM_TENANT_ID
         tenant_meta_map = await self._load_tenant_meta_map({tenant_id})
+        agent_meta_map = await self._load_agent_meta_map(
+            {item["agent_id"]} if item.get("agent_id") else set(),
+        )
+        operator_meta_map = await self._load_operator_meta_map([log])
+        item.update(_default_agent_meta())
+        item.update(_default_operator_meta())
         item.update(tenant_meta_map.get(tenant_id, {}))
+        item.update(
+            _resolve_agent_meta(
+                item,
+                agent_meta_map.get(item.get("agent_id"), {}),
+            ),
+        )
+        item.update(
+            _resolve_operator_meta(
+                item,
+                operator_meta_map.get(
+                    (tenant_id, item.get("operator_id")),
+                    {},
+                ),
+            ),
+        )
         return item
 
     async def serialize_logs(self, logs: list[AIActionLog]) -> list[dict[str, Any]]:
         tenant_meta_map = await self._load_tenant_meta_map(
             {log.tenant_id or PLATFORM_TENANT_ID for log in logs},
         )
+        agent_meta_map = await self._load_agent_meta_map(
+            {log.agent_id for log in logs if log.agent_id},
+        )
+        operator_meta_map = await self._load_operator_meta_map(logs)
         items: list[dict[str, Any]] = []
         for log in logs:
             item = log.to_dict()
+            tenant_id = log.tenant_id or PLATFORM_TENANT_ID
+            item.update(_default_agent_meta())
+            item.update(_default_operator_meta())
             item.update(
-                tenant_meta_map.get(log.tenant_id or PLATFORM_TENANT_ID, {}),
+                tenant_meta_map.get(tenant_id, {}),
+            )
+            item.update(
+                _resolve_agent_meta(item, agent_meta_map.get(log.agent_id, {})),
+            )
+            item.update(
+                _resolve_operator_meta(
+                    item,
+                    operator_meta_map.get((tenant_id, log.operator_id), {}),
+                ),
             )
             items.append(item)
         return items

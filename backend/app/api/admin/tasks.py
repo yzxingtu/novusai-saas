@@ -9,6 +9,7 @@ from datetime import timedelta
 from typing import Literal
 
 from fastapi import Path, Query, Request
+from sqlalchemy import select
 
 from app.core.base_controller import GlobalController
 from app.core.base_model import utc_now
@@ -22,6 +23,8 @@ from app.rbac.decorators import (
     action_update,
     permission_resource,
 )
+from app.models.system.task_definition import TaskDefinition
+from app.models.tenant.tenant import Tenant
 from app.schemas.system import (
     ActiveTaskResponse,
     TaskLogDetailResponse,
@@ -58,19 +61,81 @@ class AdminTaskController(GlobalController):
     service_class = TaskLogService
 
     @staticmethod
-    def _serialize_task_run(task_run) -> dict:
+    async def _build_relation_maps(db, task_runs) -> tuple[dict[int, dict[str, str]], dict[int, str]]:
+        definition_ids = sorted(
+            {
+                task_run.task_definition_id
+                for task_run in task_runs
+                if task_run.task_definition_id is not None
+            }
+        )
+        tenant_ids = sorted(
+            {
+                tenant_id
+                for task_run in task_runs
+                for tenant_id in (task_run.owner_tenant_id, task_run.effective_tenant_id)
+                if tenant_id is not None
+            }
+        )
+        definition_map: dict[int, dict[str, str]] = {}
+        tenant_map: dict[int, str] = {}
+        if definition_ids:
+            result = await db.execute(
+                select(TaskDefinition.id, TaskDefinition.name, TaskDefinition.scope).where(
+                    TaskDefinition.id.in_(definition_ids)
+                )
+            )
+            definition_map = {
+                row.id: {"name": row.name, "scope": row.scope}
+                for row in result.all()
+            }
+        if tenant_ids:
+            result = await db.execute(select(Tenant.id, Tenant.name).where(Tenant.id.in_(tenant_ids)))
+            tenant_map = {row.id: row.name for row in result.all()}
+        return definition_map, tenant_map
+
+    @staticmethod
+    def _serialize_task_run(
+        task_run,
+        *,
+        definition_map: dict[int, dict[str, str]] | None = None,
+        tenant_map: dict[int, str] | None = None,
+    ) -> dict:
         args_summary = task_run.args_summary or {}
         args = None
         kwargs = None
         if isinstance(args_summary, dict):
             args = args_summary.get("args")
             kwargs = args_summary.get("kwargs")
+        definition_info = (
+            definition_map.get(task_run.task_definition_id, {})
+            if definition_map and task_run.task_definition_id is not None
+            else {}
+        )
+        owner_tenant_name = (
+            tenant_map.get(task_run.owner_tenant_id)
+            if tenant_map and task_run.owner_tenant_id is not None
+            else None
+        )
+        effective_tenant_name = (
+            tenant_map.get(task_run.effective_tenant_id)
+            if tenant_map and task_run.effective_tenant_id is not None
+            else None
+        )
 
         return TaskLogResponse(
             id=task_run.id,
             task_id=task_run.celery_task_id,
             task_name=task_run.task_name_snapshot,
             handler_path=task_run.handler_path_snapshot,
+            task_definition_id=task_run.task_definition_id,
+            binding_id=task_run.binding_id,
+            task_definition_name=definition_info.get("name"),
+            task_scope=definition_info.get("scope"),
+            owner_tenant_id=task_run.owner_tenant_id,
+            owner_tenant_name=owner_tenant_name,
+            effective_tenant_id=task_run.effective_tenant_id,
+            effective_tenant_name=effective_tenant_name,
             queue=task_run.queue,
             status=task_run.status,
             args=args,
@@ -90,19 +155,47 @@ class AdminTaskController(GlobalController):
         ).model_dump()
 
     @staticmethod
-    def _serialize_task_run_detail(task_run) -> dict:
+    def _serialize_task_run_detail(
+        task_run,
+        *,
+        definition_map: dict[int, dict[str, str]] | None = None,
+        tenant_map: dict[int, str] | None = None,
+    ) -> dict:
         args_summary = task_run.args_summary or {}
         args = None
         kwargs = None
         if isinstance(args_summary, dict):
             args = args_summary.get("args")
             kwargs = args_summary.get("kwargs")
+        definition_info = (
+            definition_map.get(task_run.task_definition_id, {})
+            if definition_map and task_run.task_definition_id is not None
+            else {}
+        )
+        owner_tenant_name = (
+            tenant_map.get(task_run.owner_tenant_id)
+            if tenant_map and task_run.owner_tenant_id is not None
+            else None
+        )
+        effective_tenant_name = (
+            tenant_map.get(task_run.effective_tenant_id)
+            if tenant_map and task_run.effective_tenant_id is not None
+            else None
+        )
 
         return TaskLogDetailResponse(
             id=task_run.id,
             task_id=task_run.celery_task_id,
             task_name=task_run.task_name_snapshot,
             handler_path=task_run.handler_path_snapshot,
+            task_definition_id=task_run.task_definition_id,
+            binding_id=task_run.binding_id,
+            task_definition_name=definition_info.get("name"),
+            task_scope=definition_info.get("scope"),
+            owner_tenant_id=task_run.owner_tenant_id,
+            owner_tenant_name=owner_tenant_name,
+            effective_tenant_id=task_run.effective_tenant_id,
+            effective_tenant_name=effective_tenant_name,
             queue=task_run.queue,
             status=task_run.status,
             args=args,
@@ -139,8 +232,16 @@ class AdminTaskController(GlobalController):
         ):
             service = self.get_service(db)
             items, total = await service.query_list_by_view(query, view=view)
+            definition_map, tenant_map = await self._build_relation_maps(db, items)
             return paginated(
-                items=[self._serialize_task_run(item) for item in items],
+                items=[
+                    self._serialize_task_run(
+                        item,
+                        definition_map=definition_map,
+                        tenant_map=tenant_map,
+                    )
+                    for item in items
+                ],
                 total=total,
                 page=query.page,
                 page_size=query.size,
@@ -193,7 +294,14 @@ class AdminTaskController(GlobalController):
 
                 raise NotFoundException(message=_("task_log.error.not_found"))
 
-            return success(data=self._serialize_task_run_detail(task_log))
+            definition_map, tenant_map = await self._build_relation_maps(db, [task_log])
+            return success(
+                data=self._serialize_task_run_detail(
+                    task_log,
+                    definition_map=definition_map,
+                    tenant_map=tenant_map,
+                )
+            )
 
         @router.post("/{task_log_id}/retry", summary="重试任务")
         @action_update("action.task_log.retry")

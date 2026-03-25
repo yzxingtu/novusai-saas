@@ -72,7 +72,7 @@ export interface SearchInputOptions {
   /** Placeholder / 占位符 */
   placeholder?: string;
   /** Operator, default 'ilike' / 操作符，默认 'ilike' */
-  op?: 'eq' | 'ilike' | 'like';
+  op?: 'eq' | 'gt' | 'gte' | 'ilike' | 'in' | 'like' | 'lt' | 'lte' | 'ne';
 }
 
 /** Status selector config / 状态选择器配置 */

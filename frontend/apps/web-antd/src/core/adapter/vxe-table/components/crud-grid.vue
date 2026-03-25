@@ -10,7 +10,7 @@ import { computed, ref, useAttrs, useSlots } from 'vue';
 
 import { Download, IconifyIcon, Plus } from '@vben/icons';
 
-import { Badge, Button, Tooltip } from 'ant-design-vue';
+import { Badge, Button, Input, Select, Tooltip } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
@@ -26,6 +26,7 @@ const props = withDefaults(defineProps<Props>(), {
   onExport: undefined,
   onRecycleBin: undefined,
   onRefresh: undefined,
+  quickSearch: undefined,
   recycleBinCount: 0,
   recycleBinPermission: '',
   showExport: true,
@@ -33,6 +34,18 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 interface Props {
+  /** Quick search config / 快速搜索配置 */
+  quickSearch?: {
+    activeField: string;
+    keyword: string;
+    options: Array<{
+      fieldName: string;
+      label: string;
+      placeholder: string;
+    }>;
+    onFieldChange: (fieldName: string) => void;
+    onKeywordChange: (keyword: string) => void;
+  };
   /** Original Grid component / 原始 Grid 组件 */
   grid: any;
   /** Whether to show export button / 是否显示导出按钮 */
@@ -76,6 +89,17 @@ const filteredSlots = computed(() => {
 const hasToolbarToolsSlot = computed(() => 'toolbar-tools' in slots);
 // Check for toolbar-actions slot / 检查是否有 toolbar-actions 插槽
 const hasToolbarActionsSlot = computed(() => 'toolbar-actions' in slots);
+const quickSearchOptions = computed(() => props.quickSearch?.options ?? []);
+const quickSearchPlaceholder = computed(() => {
+  return (
+    quickSearchOptions.value.find(
+      (option) => option.fieldName === props.quickSearch?.activeField,
+    )?.placeholder ?? $t('common.search')
+  );
+});
+const showQuickSearchFieldSwitcher = computed(
+  () => quickSearchOptions.value.length > 1,
+);
 
 // Refresh button rotation animation / 刷新按钮旋转动画
 const refreshAngle = ref(0);
@@ -148,9 +172,49 @@ function handleRefresh() {
         name="toolbar-tools"
         v-bind="slotProps || {}"
       ></slot>
+      <div
+        v-if="quickSearchOptions.length > 0 && props.quickSearch"
+        class="ml-2 flex items-center gap-2 rounded-xl border border-border/60 bg-background px-2 py-1 shadow-sm"
+      >
+        <Select
+          v-if="showQuickSearchFieldSwitcher"
+          :value="props.quickSearch.activeField"
+          class="!w-[112px]"
+          :bordered="false"
+          size="small"
+          :options="
+            quickSearchOptions.map((option) => ({
+              label: option.label,
+              value: option.fieldName,
+            }))
+          "
+          @update:value="
+            (value) => props.quickSearch?.onFieldChange(String(value ?? ''))
+          "
+        />
+        <Input
+          :value="props.quickSearch.keyword"
+          :placeholder="quickSearchPlaceholder"
+          allow-clear
+          class="!w-[220px] !border-0 !bg-transparent"
+          size="small"
+          @update:value="
+            (value) => props.quickSearch?.onKeywordChange(String(value ?? ''))
+          "
+        >
+          <template #prefix>
+            <IconifyIcon
+              icon="lucide:search"
+              class="size-3.5 text-primary/80"
+            />
+          </template>
+        </Input>
+      </div>
       <span
         v-if="showRecycleBin"
-        v-access:code="recycleBinPermission ? [recycleBinPermission] : undefined"
+        v-access:code="
+          recycleBinPermission ? [recycleBinPermission] : undefined
+        "
       >
         <Tooltip :title="$t('common.recycleBin.title')">
           <Badge :count="props.recycleBinCount" :offset="[-4, 4]" size="small">

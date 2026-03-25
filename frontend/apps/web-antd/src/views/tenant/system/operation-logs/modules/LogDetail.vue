@@ -118,7 +118,10 @@ const statusCodeType = computed(() => {
             >
               {{ formatDate(detail.createdAt) }}
             </DescriptionsItem>
-            <DescriptionsItem :label="$t('tenant.system.operationLog.traceId')">
+            <DescriptionsItem
+              :label="$t('tenant.system.operationLog.traceId')"
+              :span="2"
+            >
               <code class="break-all rounded bg-accent px-1 py-0.5 text-xs">
                 {{ detail.traceId || '-' }}
               </code>
@@ -180,7 +183,16 @@ const statusCodeType = computed(() => {
               </Tag>
             </DescriptionsItem>
             <DescriptionsItem
+              :label="$t('tenant.system.operationLog.responseMessage')"
+              :span="2"
+            >
+              <span class="break-all text-xs text-muted-foreground">
+                {{ detail.responseMessage || '-' }}
+              </span>
+            </DescriptionsItem>
+            <DescriptionsItem
               :label="$t('tenant.system.operationLog.durationMs')"
+              :span="2"
             >
               <span
                 :class="

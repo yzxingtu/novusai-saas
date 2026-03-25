@@ -1,7 +1,7 @@
 {
   "title": "AI Management",
   "config": {
-    "name": "AI Config"
+    "name": "Available Models"
   },
   "model": {
     "title": "Available Models",
@@ -123,8 +123,31 @@
     "confirmDelete": "Are you sure to delete this quota?",
     "usage": "Used",
     "remaining": "Remaining",
+    "response": "Exhaustion Response",
     "exceeded": "Exceeded",
     "warning": "Near Limit",
+    "refresh": "Refresh Diagnostics",
+    "summary": {
+      "totalRules": "Quota Rules",
+      "activeRules": "Active Quota Rules",
+      "riskRules": "Quota Risk Rules",
+      "rateLimitRules": "Rate Limit Rules"
+    },
+    "helper": {
+      "hardLimit": "Hard quotas reject excess requests with HTTP 429.",
+      "softLimit": "Soft quotas do not block requests, but they keep accumulating usage and trigger warnings.",
+      "globalFallback": "Global quotas apply only when no model-specific rule exists in the same period."
+    },
+    "runtimeStatus": {
+      "healthy": "Healthy",
+      "warning": "Warning",
+      "exceeded": "Exceeded",
+      "inactive": "Inactive"
+    },
+    "scope": {
+      "global": "Global Quota",
+      "model": "Model-Specific"
+    },
     "section": {
       "basic": "Basic Info",
       "config": "Quota Config"
@@ -138,6 +161,10 @@
       "hard": "Hard Limit"
     },
     "placeholder": {
+      "allModels": "All Models",
+      "allStatus": "All Statuses",
+      "allPeriods": "All Periods",
+      "allTypes": "All Types",
       "selectModel": "Select model (leave empty for global)",
       "selectPeriod": "Select period",
       "selectType": "Select quota type",
@@ -152,7 +179,7 @@
     }
   },
   "agent": {
-    "readonlyHint": "This agent is assigned by admin. You can view and chat, but cannot edit configuration.",
+    "readonlyHint": "This agent is assigned by admin. Its base configuration is read-only, but on the knowledge base tab you can opt out of admin-provided knowledge bases and bind your own tenant knowledge bases.",
     "title": "Agent Management",
     "entityDescription": "Manage AI agent configuration and publish status",
     "pageDesc": "Create and manage agents. Configure model, tools, and knowledge base, then publish. Supports versioning and rollback.",
@@ -179,7 +206,7 @@
       "kbChunkStrategy": "Chunk Strategy",
       "kbWeightFusionHint": "Weight now participates in multi-KB fusion as a prior signal and does not hard override relevance.",
       "kbPlatformBadge": "Platform",
-      "kbTenantOverlayHint": "Additional knowledge bases below apply only to your organization.",
+      "kbTenantOverlayHint": "You can opt out of admin-provided knowledge bases and add tenant-only knowledge bases for this agent.",
       "kbPlatformOptOut": "Opt out (this tenant)",
       "uploadAvatar": "Upload avatar",
       "removeAvatar": "Remove avatar",
@@ -593,16 +620,38 @@
     "title": "Action Audit",
     "name": "Action Audit",
     "pageDesc": "View all agent-executed operations including SQL queries and business action audit details.",
+    "detailTitle": "Audit Detail",
+    "summary": "Execution Summary",
+    "overviewTab": "Overview",
+    "requestTab": "Request",
+    "responseTab": "Response",
+    "errorTab": "Error",
+    "basicInfo": "Basic Info",
+    "id": "ID",
     "actionName": "Action Name",
     "actionType": "Action Type",
+    "actionLevel": "Safety Level",
     "status": "Status",
     "agentName": "Agent",
+    "agentUnavailable": "Not recorded in historical log",
+    "operatorId": "Operator",
+    "operatorTypes": {
+      "admin": "Platform Admin",
+      "tenantAdmin": "Tenant Admin",
+      "tenantUser": "Tenant User"
+    },
     "createdAt": "Executed At",
     "executionTime": "Duration (ms)",
     "sqlStatement": "SQL Statement",
     "resultSummary": "Result Summary",
     "errorMessage": "Error Message",
     "viewDetail": "View Detail",
+    "copyPayload": "Copy",
+    "fieldsCount": "{count} fields",
+    "noRequestData": "No request payload",
+    "noResponseData": "No response payload",
+    "noErrorData": "No error details for this execution",
+    "noDetailData": "No detail data available",
     "stats": {
       "title": "Audit Statistics",
       "totalActions": "Total Actions",
@@ -614,6 +663,11 @@
       "query": "Data Query",
       "action": "Business Action",
       "confirm": "Confirm Action"
+    },
+    "level_options": {
+      "read": "Read Only",
+      "safe_write": "Safe Write",
+      "dangerous": "Dangerous"
     },
     "status_options": {
       "success": "Success",
@@ -652,6 +706,20 @@
     "rpmUnit": "req/min",
     "tpmUnit": "Token/min",
     "noLimit": "No Limit",
+    "configured": "Configured",
+    "effective": "Effective",
+    "modelDefault": "Model Default",
+    "inheritance": "Blank RPM / TPM fields inherit the model default; tenant rules override model defaults.",
+    "sourceLabel": "Effective Source",
+    "source": {
+      "tenant": "Tenant Rule",
+      "model": "Model Default",
+      "none": "Unset"
+    },
+    "helper": {
+      "inherit": "Blank RPM / TPM values automatically inherit the model default, and the page shows the final effective limits.",
+      "disable": "Disabling a rate-limit rule falls back to model defaults or no limit."
+    },
     "placeholder": {
       "selectModel": "Select model",
       "inputRpm": "Requests per minute (leave empty for no limit)",

@@ -300,10 +300,18 @@ async function updateTenantMemoryDisabled(disabled: boolean) {
 }
 
 // ==================== Scope Protection / 作用域保护 ====================
-const isTenantOwned = computed(() => agent.value?.owner_type === 'tenant');
+const resolvedOwnerType = computed(() => {
+  const ownerType = agent.value?.owner_type;
+  if (ownerType === 'platform' || ownerType === 'tenant') {
+    return ownerType;
+  }
+  return agent.value?.owner_tenant_id != null ? 'tenant' : 'platform';
+});
+
+const isTenantOwned = computed(() => resolvedOwnerType.value === 'tenant');
 /** 平台下发智能体：可追加本企业知识库，不可改平台全局绑定 / Platform agent: tenant KB overlay */
 const isPlatformAssignedAgent = computed(
-  () => agent.value?.owner_type === 'platform',
+  () => resolvedOwnerType.value === 'platform',
 );
 const canManageKnowledgeBases = computed(
   () => isTenantOwned.value || isPlatformAssignedAgent.value,
@@ -1760,6 +1768,7 @@ useDetailPageAi({
                     <Switch
                       v-model:checked="ragRerankerEnabled"
                       :disabled="!isTenantOwned"
+                      class="self-start"
                       :aria-label="
                         $t('tenant.ai.agent.knowledgeBase.rerankerEnabled')
                       "

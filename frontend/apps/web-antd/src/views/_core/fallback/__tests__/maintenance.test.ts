@@ -5,7 +5,34 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import MaintenancePage from '../maintenance.vue';
 
-const publicConfigState = reactive({
+interface MockMaintenanceConfig {
+  brand: {
+    siteName: string;
+  };
+  maintenance: {
+    enabled: boolean;
+    message: string;
+  };
+}
+
+interface MockPublicConfigStore {
+  detectDomainType: ReturnType<typeof vi.fn<() => Promise<void>>>;
+  isDomainTenantDomain: boolean | null;
+  loadPlatformConfig: ReturnType<
+    typeof vi.fn<() => Promise<MockMaintenanceConfig | null>>
+  >;
+  loadTenantConfig: ReturnType<
+    typeof vi.fn<
+      (options?: { skipDomainCheck?: boolean }) => Promise<MockMaintenanceConfig | null>
+    >
+  >;
+  platformConfig: MockMaintenanceConfig;
+  resetPlatformConfig: ReturnType<typeof vi.fn>;
+  resetTenantConfig: ReturnType<typeof vi.fn>;
+  tenantConfig: MockMaintenanceConfig;
+}
+
+const publicConfigState = reactive<MockPublicConfigStore>({
   detectDomainType: vi.fn(async () => {}),
   isDomainTenantDomain: true,
   loadPlatformConfig: vi.fn(async () => null),

@@ -132,6 +132,7 @@
     "path": "Path",
     "statusCode": "Status Code",
     "responseCode": "Response Code",
+    "responseMessage": "Response Message",
     "ip": "IP Address",
     "durationMs": "Duration (ms)",
     "createdAt": "Operation Time",
@@ -153,6 +154,7 @@
       "searchTraceId": "Search trace ID",
       "searchModule": "Search module",
       "searchAction": "Search action",
+      "searchStatusCode": "Select status code",
       "searchIp": "Search IP address",
       "allModules": "All modules",
       "allActions": "All actions",
@@ -316,6 +318,9 @@
     }
   },
   "taskLog": {
+    "heroEyebrow": "Run Center",
+    "heroTitle": "Move from raw logs to run semantics",
+    "heroDescription": "This page now represents TaskRun execution facts instead of just the old task_logs feed. Switch between execution, internal, and full views, then inspect handler path, trigger source, run kind, and trace ID in the detail drawer.",
     "title": "Task Logs",
     "list": "Task Log List",
     "detail": "Task Detail",
@@ -340,6 +345,17 @@
     "tenantName": "Tenant",
     "triggerSource": "Trigger Source",
     "runKind": "Run Kind",
+    "runCenterHint": "Unified definition / binding / execution context",
+    "relationInfo": "Definition / Binding / Tenant Context",
+    "relation": {
+      "platformDirect": "Platform Direct Run",
+      "ownerPlatform": "Owner: Platform",
+      "effectivePlatform": "Effective Target: Platform"
+    },
+    "taskDefinitionId": "Definition",
+    "bindingId": "Binding",
+    "ownerTenantId": "Owner Tenant",
+    "effectiveTenantId": "Effective Tenant",
     "basicInfo": "Basic Info",
     "timeInfo": "Time Info",
     "paramsInfo": "Parameters",
@@ -349,6 +365,12 @@
       "execution": "Execution",
       "internal": "Internal High-Frequency",
       "all": "All"
+    },
+    "summary": {
+      "total": "Items In View",
+      "activeNow": "Running Now",
+      "failed": "Failed In 7d",
+      "success": "Succeeded In 7d"
     },
     "triggerSourceValues": {
       "scheduler": "Scheduler",
@@ -381,7 +403,9 @@
       "system_health_check": "System Health Check",
       "reset_agent_daily_quotas": "Reset Agent Quotas",
       "reset_agent_daily_stats": "Reset Agent Stats",
+      "check_plugin_trial_expirations": "Plugin Trial Expiration Check",
       "clean_expired_task_logs": "Cleanup Task Logs",
+      "clean_expired_session_memories": "Session Memory Fallback Cleanup",
       "ai_provider_health_check": "AI Provider Health Check",
       "run_agent_batch": "Agent Batch Run",
       "issue_ssl_certificate": "SSL Certificate Issue",
@@ -420,6 +444,9 @@
     }
   },
   "periodicTask": {
+    "heroEyebrow": "Definition Center",
+    "heroTitle": "Separate definition, binding, and runtime",
+    "heroDescription": "This page now manages TaskDefinition records. Platform task templates, tenant bindings, and execution logs have been split away from the old periodic_tasks mental model, so the page emphasizes scope, task type, and the next execution window.",
     "title": "Periodic Tasks",
     "list": "Periodic Task List",
     "create": "Create Periodic Task",
@@ -439,7 +466,114 @@
     "trigger": "Trigger Now",
     "viewLogs": "Logs",
     "manageBindings": "Tenant Bindings",
+    "surface": {
+      "definition": "Task Definition",
+      "binding": "Tenant Binding",
+      "runtime": "Execution Logs",
+      "governance": "Governance View"
+    },
+    "summary": {
+      "total": "Total Definitions",
+      "active": "Active",
+      "bound": "Tenant Distributed",
+      "upcoming": "Runs Within 1h",
+      "platformManaged": "Platform Governed",
+      "tenantDistributed": "Tenant Distributed",
+      "missingBindings": "Bindings Missing"
+    },
+    "legend": {
+      "governance": "Platform governance semantics",
+      "delivery": "Tenant delivery semantics",
+      "binding": "Binding state"
+    },
+    "scopeCardHint": "Definitions currently falling into this scope",
+    "distributionLabel": "Distribution",
+    "distributionGovernanceTitle": "Governance Notes",
+    "lockedTag": "Protected",
+    "scopeSemantics": {
+      "adminOnlyGovernance": "Governed only by platform admins and executed only on the platform side.",
+      "globalSharedGovernance": "Governed by the platform while tenants only consume the capability, without a tenant-side system console.",
+      "allTenantsGovernance": "Governed by the platform and dispatched across all tenants.",
+      "selectedTenantsGovernance": "Governed by the platform and dispatched only to bound tenants.",
+      "adminAndSelectedGovernance": "Platform governance remains while execution is also dispatched to selected tenants."
+    },
+    "executionSemantics": {
+      "platformOnly": "Platform execution only",
+      "globalShared": "Platform governed, tenant shared usage",
+      "allTenants": "All tenants are in execution scope",
+      "selectedTenants": "{count} bound tenants execute",
+      "adminAndSelectedTenants": "Platform + {count} bound tenants execute"
+    },
+    "definitionType": {
+      "label": "Definition Type",
+      "system": "System Task",
+      "plugin": "Plugin Task"
+    },
+    "status": {
+      "label": "Status",
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    },
+    "adminSurface": {
+      "platform": "Platform governance entry remains",
+      "allTenants": "Platform governed, all tenants receive execution",
+      "selectedTenants": "Platform governs, but only selected tenants receive execution"
+    },
+    "tenantSurface": {
+      "none": "Tenant side not involved",
+      "globalShared": "Shared capability for all tenants without a tenant-side system config console",
+      "allTenants": "All tenants are in execution scope",
+      "pending": "This mode requires selected tenants, but no tenant bindings are configured yet",
+      "selectedTenants": "{count} bound tenants are in execution scope",
+      "adminAndSelectedTenants": "Platform retained, while only {count} bound tenants execute"
+    },
+    "bindingSummary": {
+      "globalShared": "Shared capability, no explicit tenant list needed",
+      "allTenants": "Covers all tenants, no explicit bindings needed",
+      "adminOnly": "Platform only, not dispatched to tenants",
+      "pending": "Tenant bindings are not configured yet",
+      "selectedCount": "{count} tenants bound",
+      "selectedPreview": "{names} and {count} tenants in total"
+    },
+    "scopeGuide": {
+      "adminOnly": "Keep this task platform-only and do not dispatch it to tenants",
+      "globalShared": "Expose this as a shared capability without tenant-side system scheduling controls",
+      "allTenants": "Dispatch this task to every active tenant",
+      "selectedTenants": "Dispatch this task only to explicitly selected tenants",
+      "adminAndSelectedTenants": "Keep platform governance while also dispatching to selected tenants"
+    },
     "bindingTitle": "Tenant Bindings: {name}",
+    "bindingEyebrow": "Distribution editor",
+    "bindingDescription": "This drawer edits the delivery scope of a task definition. Keep the unified scope model, but complete platform governance, tenant execution range, and explicit tenant coverage in one place.",
+    "bindingModeTitle": "Choose distribution mode",
+    "bindingCard": {
+      "currentScope": "Current mode",
+      "adminSurface": "Platform surface",
+      "tenantSurface": "Tenant surface"
+    },
+    "bindingAlertTitle": "Distribution notes",
+    "bindingAlertSelected": "This mode requires an explicit tenant list. Saving will sync tenant bindings and directly change the execution coverage.",
+    "bindingAlertGlobal": "This mode does not use an explicit tenant list. Saving will clear any existing tenant bindings and switch back to platform-managed delivery semantics.",
+    "bindingTenantTitle": "Tenant list",
+    "bindingTenantHelpSelected": "Choose the tenants that should receive this task definition.",
+    "bindingTenantHelpGlobal": "This mode does not require an explicit tenant list. Coverage is defined directly by the selected scope.",
+    "bindingGlobalNote": "Global shared, all-tenants, and admin-only modes do not rely on an explicit tenant list. Preserved selections stay here so you can switch back and continue editing.",
+    "bindingWarning": "Explicit tenant bindings are still missing",
+    "taskDescriptions": {
+      "ai_provider_health_check": "Checks the availability of all enabled AI providers every 5 minutes and writes the result to Redis for failover.",
+      "clean_expired_captchas": "Cleans expired captcha cache entries every hour.",
+      "system_health_check": "Checks overall system health every 5 minutes, including database and Redis connectivity.",
+      "reset_agent_daily_quotas": "Resets daily agent quotas at midnight and cleans Redis keys without TTL.",
+      "reset_agent_daily_stats": "Resets daily agent statistics at midnight by clearing the current-day Redis counters.",
+      "check_plugin_trial_expirations": "Checks plugin trial expirations at 02:00 daily, disables expired plugins automatically, and sends warnings.",
+      "clean_expired_task_logs": "Cleans task run records that are older than the retention window at 04:00 daily.",
+      "clean_expired_session_memories": "Performs a 24-hour fallback cleanup for stale session-memory Redis keys at 03:30 daily.",
+      "sync_litellm_registry": "Syncs LiteLLM and LLMRing multi-source model registry data to Redis at 04:00 daily for remote model creation defaults.",
+      "cleanup_recycle_bin": "Physically deletes recycle-bin records older than 30 days at 03:00 daily.",
+      "task_check_ssl_renewals": "Checks expiring SSL certificates at 03:00 daily, triggers platform renewals automatically, and warns about custom certificates nearing expiry.",
+      "cleanup_chunk_uploads": "Cleans chunk-upload temporary files that exceed the retention window every 6 hours.",
+      "cleanup_expired_notifications": "Cleans expired notifications at 03:00 daily according to the notification_retention_days setting."
+    },
     "bindingHelp": "Choose which tenants enable this task definition. Saving will sync tenant bindings.",
     "executionLogs": "Execution Logs",
     "totalLogs": "{count} records",
@@ -479,6 +613,11 @@
       "monthly": "Monthly",
       "day": ""
     },
+    "typeTag": {
+      "plugin": "Plugin Task",
+      "system": "System Task",
+      "bound": "Tenant Distributed"
+    },
     "messages": {
       "createSuccess": "Created successfully",
       "updateSuccess": "Updated successfully",
@@ -492,7 +631,9 @@
     "placeholder": {
       "searchName": "Search task name",
       "searchTaskPath": "Search task path",
+      "allDefinitionTypes": "All Definition Types",
       "allScheduleTypes": "All Types",
+      "allStatus": "All Status",
       "inputName": "Please enter task name",
       "inputTaskPath": "Please enter task path (e.g. app.tasks.scheduled.cleanup_logs)",
       "selectScheduleType": "Please select schedule type",
@@ -1293,6 +1434,15 @@
       "recycleBin": "Recycle Bin",
       "export": "Export",
       "batchDelete": "Batch Delete",
+      "searchDefaultOpen": "Expand Advanced Search By Default",
+      "searchDefaultOpenHelp": "When disabled, generated list pages land with advanced search collapsed until the user opens it.",
+      "quickSearch": "Enable Quick Search",
+      "quickSearchHelp": "Show a compact quick-search input on the right side of the table and keep it synced with the advanced search form.",
+      "quickSearchCardHelp": "Card mode keeps a single search box, but this setting still decides which field that search targets.",
+      "quickSearchFields": "Quick Search Fields",
+      "quickSearchFieldsPlaceholder": "Choose fields available to quick search",
+      "quickSearchDefaultField": "Default Quick Search Field",
+      "quickSearchDefaultFieldPlaceholder": "Choose the default quick search field",
       "addRelation": "Add Relation",
       "relations": "Relations",
       "relationTarget": "Target Model",
@@ -1315,7 +1465,8 @@
         "detail": "Detail toggle, display mode (drawer/page), title field",
         "detailGroups": "Detail page field groups",
         "clone": "Allow clone from existing record when creating",
-        "deleteDeps": "Related resources to check before delete"
+        "deleteDeps": "Related resources to check before delete",
+        "searchBehavior": "Controls the default advanced-search state and quick-search fields. Generated pages and previews follow the same search behavior."
       }
     },
     "builder": {

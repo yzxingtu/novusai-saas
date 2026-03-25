@@ -9,6 +9,7 @@ const mockRefs = vi.hoisted(() => ({
   appendPageOperations: vi.fn(() => vi.fn()),
   createStandardOperations: vi.fn(() => []),
   crudGridProps: [] as Array<Record<string, unknown>>,
+  gridFactoryOptions: [] as Array<Record<string, unknown>>,
   gridQuery: vi.fn(),
   gridReload: vi.fn(),
   messageError: vi.fn(),
@@ -103,6 +104,7 @@ vi.mock('../components', () => ({
       createLabel: { default: '' },
       createPermission: { default: '' },
       onCreate: { default: undefined },
+      quickSearch: { default: undefined },
     },
     setup(props) {
       mockRefs.crudGridProps.push(props as unknown as Record<string, unknown>);
@@ -131,14 +133,20 @@ vi.mock('../components', () => ({
 
 vi.mock('../use-vxe-grid', () => ({
   useGridSearchFormOptions: vi.fn(() => ({})),
-  useVbenVxeGrid: () => [
-    defineComponent({ name: 'MockGrid', render: () => null }),
-    {
-      grid: {},
-      query: mockRefs.gridQuery,
-      reload: mockRefs.gridReload,
-    },
-  ],
+  useVbenVxeGrid: (options: Record<string, unknown>) => {
+    mockRefs.gridFactoryOptions.push(options);
+    return [
+      defineComponent({ name: 'MockGrid', render: () => null }),
+      {
+        formApi: {
+          setValues: vi.fn(),
+        },
+        grid: {},
+        query: mockRefs.gridQuery,
+        reload: mockRefs.gridReload,
+      },
+    ];
+  },
 }));
 
 function mountCrudPage(options: Record<string, unknown>) {
@@ -170,6 +178,7 @@ describe('useCrudPage', () => {
     mockRefs.appendPageOperations.mockClear();
     mockRefs.createStandardOperations.mockClear();
     mockRefs.crudGridProps.length = 0;
+    mockRefs.gridFactoryOptions.length = 0;
     mockRefs.requestGet.mockReset();
     mockRefs.requestDelete.mockReset();
     mockRefs.messageError.mockReset();
@@ -268,9 +277,9 @@ describe('useCrudPage', () => {
     mountCrudPage({});
 
     expect(mockRefs.createStandardOperations).toHaveBeenCalled();
-    const latestCall = mockRefs.createStandardOperations.mock.calls.at(
-      -1,
-    ) as [Record<string, unknown>] | undefined;
+    const latestCall = mockRefs.createStandardOperations.mock.calls.at(-1) as
+      | [Record<string, unknown>]
+      | undefined;
     const latestArgs = latestCall?.[0];
     expect(latestArgs?.openExportModal).toBeTypeOf('function');
   });
@@ -281,5 +290,61 @@ describe('useCrudPage', () => {
     expect(mockRefs.appendPageOperations).not.toHaveBeenCalled();
     expect(mockRefs.registerPageContext).not.toHaveBeenCalled();
     expect(mockRefs.registerPageContextExtras).not.toHaveBeenCalled();
+  });
+
+  it('passes search defaultOpen and quick search config to grid wrapper', async () => {
+    const vm = mount(
+      defineComponent({
+        name: 'UseCrudPageSearchHarness',
+        setup() {
+          return useCrudPage({
+            api: {
+              list: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+              resource: '/admin/items',
+            },
+            columns: () => [],
+            i18nPrefix: 'admin.test',
+            search: {
+              defaultOpen: false,
+              quickSearch: true,
+            },
+            searchSchema: [
+              {
+                component: 'Input',
+                componentProps: {
+                  placeholder: 'Search name',
+                },
+                fieldName: 'filter[name][ilike]',
+                label: 'Name',
+              },
+            ],
+          });
+        },
+        render() {
+          const Grid = (
+            this as unknown as { Grid: ReturnType<typeof defineComponent> }
+          ).Grid;
+          return Grid ? h(Grid) : null;
+        },
+      }),
+    );
+
+    await vm.vm.$nextTick();
+
+    expect(mockRefs.gridFactoryOptions.at(-1)?.showSearchForm).toBe(false);
+    expect(
+      (
+        mockRefs.crudGridProps.at(-1)?.quickSearch as
+          | Record<string, unknown>
+          | undefined
+      )?.activeField,
+    ).toBe('filter[name][ilike]');
+    expect(
+      (
+        mockRefs.crudGridProps.at(-1)?.quickSearch as
+          | { options?: Array<Record<string, unknown>> }
+          | undefined
+      )?.options?.[0]?.placeholder,
+    ).toBe('Search name');
   });
 });

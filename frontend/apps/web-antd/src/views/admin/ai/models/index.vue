@@ -10,7 +10,7 @@ import { ref } from 'vue';
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Card, message, Modal, Switch, Tag, Tooltip } from 'ant-design-vue';
+import { message, Modal, Switch, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import {
@@ -21,6 +21,7 @@ import {
 import { $t } from '#/locales';
 import { toAttachmentImageUrl } from '#/utils/image';
 
+import AIGatewayQuickStartHero from '../_shared/AIGatewayQuickStartHero.vue';
 import {
   getFormDefaults,
   getModelTierText,
@@ -114,6 +115,13 @@ const { Grid, FormDrawer, onRefresh } = useCrudPage<AIModelInfo>({
   },
   columns: useColumns,
   searchSchema: useGridFormSchema(),
+  search: {
+    defaultOpen: false,
+    quickSearch: {
+      defaultField: 'filter[name][ilike]',
+      fields: ['filter[name][ilike]'],
+    },
+  },
   formComponent: Form,
   formDefaults: getFormDefaults,
   i18nPrefix: 'admin.ai.model',
@@ -133,164 +141,153 @@ const { Grid, FormDrawer, onRefresh } = useCrudPage<AIModelInfo>({
 </script>
 
 <template>
-  <Page
-    auto-content-height
-    :description="$t('admin.ai.model.pageDesc')"
-    content-class="flex flex-col gap-4"
-  >
+  <Page auto-content-height content-class="flex flex-col gap-4 !p-4">
+    <AIGatewayQuickStartHero :current-title="$t('admin.ai.model.title')" />
     <FormDrawer @success="onRefresh" />
 
-    <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
-      <Grid>
-        <!-- 名称列：图标 + 名称 + 能力徽章 -->
-        <template #name_cell="{ row }">
-          <div class="flex items-center gap-2">
-            <div
-              class="flex size-8 items-center justify-center rounded-lg"
-              :class="row.is_active ? 'bg-primary/10' : 'bg-muted'"
-            >
-              <IconifyIcon
-                :icon="
-                  row.type === 'embedding'
-                    ? 'lucide:database'
-                    : row.type === 'image'
-                      ? 'lucide:image'
-                      : 'lucide:brain'
-                "
-                class="size-4"
-                :class="
-                  row.is_active ? 'text-primary' : 'text-muted-foreground'
-                "
-              />
-            </div>
-            <div class="flex flex-col gap-0.5">
-              <span class="font-medium text-foreground">{{ row.name }}</span>
-              <div class="flex flex-wrap gap-1">
-                <Tag
-                  v-if="row.supports_function_calling"
-                  class="!mr-0 rounded border-0 bg-blue-500/10 px-1 py-0 text-[10px] text-blue-600"
-                >
-                  {{ $t('admin.ai.model.functionCalling') }}
-                </Tag>
-                <Tag
-                  v-if="row.supports_vision"
-                  class="!mr-0 rounded border-0 bg-purple-500/10 px-1 py-0 text-[10px] text-purple-600"
-                >
-                  {{ $t('admin.ai.model.vision') }}
-                </Tag>
-                <Tag
-                  v-if="row.supports_streaming"
-                  class="!mr-0 rounded border-0 bg-green-500/10 px-1 py-0 text-[10px] text-green-600"
-                >
-                  {{ $t('admin.ai.model.streaming') }}
-                </Tag>
-              </div>
-            </div>
-          </div>
-        </template>
-
-        <!-- 代码列 -->
-        <template #code_cell="{ row }">
-          <code class="rounded bg-accent px-1.5 py-0.5 text-xs">
-            {{ row.code }}
-          </code>
-        </template>
-
-        <!-- 类型列 -->
-        <template #type_cell="{ row }">
-          <Tag
-            :color="
-              row.type === 'chat'
-                ? 'blue'
-                : row.type === 'embedding'
-                  ? 'green'
-                  : 'orange'
-            "
-          >
-            {{ getModelTypeText(row.type) }}
-          </Tag>
-        </template>
-
-        <!-- Provider column: icon + name / 供应商列：图标 + 名称 -->
-        <template #providerName_cell="{ row }">
+    <Grid>
+      <!-- 名称列：图标 + 名称 + 能力徽章 -->
+      <template #name_cell="{ row }">
+        <div class="flex items-center gap-2">
           <div
-            v-if="row.provider_name"
-            class="flex items-center justify-center gap-1.5"
+            class="flex size-8 items-center justify-center rounded-lg"
+            :class="row.is_active ? 'bg-primary/10' : 'bg-muted'"
           >
-            <img
-              v-if="
-                toAttachmentImageUrl(row.provider_icon, { preset: 'small' })
-              "
-              :src="
-                toAttachmentImageUrl(row.provider_icon, { preset: 'small' })
-              "
-              class="size-4 shrink-0 rounded object-contain"
-              alt=""
-            />
             <IconifyIcon
-              v-else
-              icon="lucide:cpu"
-              class="size-3.5 text-muted-foreground"
+              :icon="
+                row.type === 'embedding'
+                  ? 'lucide:database'
+                  : row.type === 'image'
+                    ? 'lucide:image'
+                    : 'lucide:brain'
+              "
+              class="size-4"
+              :class="row.is_active ? 'text-primary' : 'text-muted-foreground'"
             />
-            <span class="text-foreground">{{ row.provider_name }}</span>
           </div>
-          <span v-else class="text-muted-foreground">-</span>
-        </template>
-
-        <!-- 上下文窗口列 -->
-        <template #contextWindow_cell="{ row }">
-          <Tooltip
-            v-if="row.context_window"
-            :title="`${row.context_window.toLocaleString()} tokens`"
-          >
-            <span class="font-mono text-sm text-muted-foreground">
-              {{ formatTokens(row.context_window) }}
-            </span>
-          </Tooltip>
-          <span v-else class="text-muted-foreground">-</span>
-        </template>
-
-        <!-- 合并价格列 -->
-        <template #price_cell="{ row }">
-          <div class="flex flex-col items-center gap-0.5 text-xs">
-            <span class="text-muted-foreground">
-              <span class="text-green-600">{{
-                formatPrice(row.input_price_per_1k)
-              }}</span>
-              /
-              <span class="text-orange-600">{{
-                formatPrice(row.output_price_per_1k)
-              }}</span>
-            </span>
+          <div class="flex flex-col gap-0.5">
+            <span class="font-medium text-foreground">{{ row.name }}</span>
+            <div class="flex flex-wrap gap-1">
+              <Tag
+                v-if="row.supports_function_calling"
+                class="!mr-0 rounded border-0 bg-blue-500/10 px-1 py-0 text-[10px] text-blue-600"
+              >
+                {{ $t('admin.ai.model.functionCalling') }}
+              </Tag>
+              <Tag
+                v-if="row.supports_vision"
+                class="!mr-0 rounded border-0 bg-purple-500/10 px-1 py-0 text-[10px] text-purple-600"
+              >
+                {{ $t('admin.ai.model.vision') }}
+              </Tag>
+              <Tag
+                v-if="row.supports_streaming"
+                class="!mr-0 rounded border-0 bg-green-500/10 px-1 py-0 text-[10px] text-green-600"
+              >
+                {{ $t('admin.ai.model.streaming') }}
+              </Tag>
+            </div>
           </div>
-        </template>
+        </div>
+      </template>
 
-        <!-- 模型级别列：Tier Tag -->
-        <template #tier_cell="{ row }">
-          <span
-            v-if="row.tier"
-            class="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium"
-            :class="{
-              'bg-success/10 text-success': row.tier === 'fast',
-              'bg-primary/10 text-primary': row.tier === 'standard',
-              'bg-warning/10 text-warning': row.tier === 'premium',
-            }"
-          >
-            {{ getModelTierText(row.tier) }}
-          </span>
-          <span v-else class="text-muted-foreground">-</span>
-        </template>
+      <!-- 代码列 -->
+      <template #code_cell="{ row }">
+        <code class="rounded bg-accent px-1.5 py-0.5 text-xs">
+          {{ row.code }}
+        </code>
+      </template>
 
-        <!-- 启用状态列：Switch -->
-        <template #isActive_cell="{ row }">
-          <Switch
-            v-access:code="['ai_model:toggle_status']"
-            :checked="row.is_active"
-            size="small"
-            @change="() => onToggleModelActive(row)"
+      <!-- 类型列 -->
+      <template #type_cell="{ row }">
+        <Tag
+          :color="
+            row.type === 'chat'
+              ? 'blue'
+              : row.type === 'embedding'
+                ? 'green'
+                : 'orange'
+          "
+        >
+          {{ getModelTypeText(row.type) }}
+        </Tag>
+      </template>
+
+      <!-- Provider column: icon + name / 供应商列：图标 + 名称 -->
+      <template #providerName_cell="{ row }">
+        <div
+          v-if="row.provider_name"
+          class="flex items-center justify-center gap-1.5"
+        >
+          <img
+            v-if="toAttachmentImageUrl(row.provider_icon, { preset: 'small' })"
+            :src="toAttachmentImageUrl(row.provider_icon, { preset: 'small' })"
+            class="size-4 shrink-0 rounded object-contain"
+            alt=""
           />
-        </template>
-      </Grid>
-    </Card>
+          <IconifyIcon
+            v-else
+            icon="lucide:cpu"
+            class="size-3.5 text-muted-foreground"
+          />
+          <span class="text-foreground">{{ row.provider_name }}</span>
+        </div>
+        <span v-else class="text-muted-foreground">-</span>
+      </template>
+
+      <!-- 上下文窗口列 -->
+      <template #contextWindow_cell="{ row }">
+        <Tooltip
+          v-if="row.context_window"
+          :title="`${row.context_window.toLocaleString()} tokens`"
+        >
+          <span class="font-mono text-sm text-muted-foreground">
+            {{ formatTokens(row.context_window) }}
+          </span>
+        </Tooltip>
+        <span v-else class="text-muted-foreground">-</span>
+      </template>
+
+      <!-- 合并价格列 -->
+      <template #price_cell="{ row }">
+        <div class="flex flex-col items-center gap-0.5 text-xs">
+          <span class="text-muted-foreground">
+            <span class="text-green-600">{{
+              formatPrice(row.input_price_per_1k)
+            }}</span>
+            /
+            <span class="text-orange-600">{{
+              formatPrice(row.output_price_per_1k)
+            }}</span>
+          </span>
+        </div>
+      </template>
+
+      <!-- 模型级别列：Tier Tag -->
+      <template #tier_cell="{ row }">
+        <span
+          v-if="row.tier"
+          class="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium"
+          :class="{
+            'bg-success/10 text-success': row.tier === 'fast',
+            'bg-primary/10 text-primary': row.tier === 'standard',
+            'bg-warning/10 text-warning': row.tier === 'premium',
+          }"
+        >
+          {{ getModelTierText(row.tier) }}
+        </span>
+        <span v-else class="text-muted-foreground">-</span>
+      </template>
+
+      <!-- 启用状态列：Switch -->
+      <template #isActive_cell="{ row }">
+        <Switch
+          v-access:code="['ai_model:toggle_status']"
+          :checked="row.is_active"
+          size="small"
+          @change="() => onToggleModelActive(row)"
+        />
+      </template>
+    </Grid>
   </Page>
 </template>

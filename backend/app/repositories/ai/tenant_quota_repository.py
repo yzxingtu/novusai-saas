@@ -30,7 +30,8 @@ class TenantQuotaRepository(TenantRepository[TenantQuota]):
         self,
         tenant_id: int,
         model_id: int | None = None,
-        period: str = "monthly"
+        period: str = "monthly",
+        is_active: bool | None = None,
     ) -> TenantQuota | None:
         """
         获取企业对指定模型的配额配置 / Get tenant quota config for model.
@@ -52,6 +53,8 @@ class TenantQuotaRepository(TenantRepository[TenantQuota]):
             conditions.append(TenantQuota.model_id.is_(None))
         else:
             conditions.append(TenantQuota.model_id == model_id)
+        if is_active is not None:
+            conditions.append(TenantQuota.is_active.is_(is_active))
 
         stmt = select(TenantQuota).where(
             and_(*conditions)
@@ -60,29 +63,36 @@ class TenantQuotaRepository(TenantRepository[TenantQuota]):
         result = await self.db.execute(stmt)
         return result.scalars().first()
 
-    async def get_active_quotas(
+    async def list_quotas(
         self,
         tenant_id: int,
-        period: str | None = None
+        period: str | None = None,
+        model_id: int | None = None,
+        is_active: bool | None = None,
     ) -> list[TenantQuota]:
         """
-        获取企业所有激活的配额配置 / Get all active quota configs for tenant.
+        获取企业配额配置列表 / List tenant quota configs.
 
         Args:
             tenant_id: 企业 ID
             period: 周期（daily/monthly），None 表示全部
+            model_id: 模型 ID（可选）
+            is_active: 是否启用（None 表示全部）
 
         Returns:
             TenantQuota 列表
         """
         conditions = [
             TenantQuota.tenant_id == tenant_id,
-            TenantQuota.is_active.is_(True),
             TenantQuota.is_deleted.is_(False),
         ]
 
         if period:
             conditions.append(TenantQuota.period == period)
+        if model_id is not None:
+            conditions.append(TenantQuota.model_id == model_id)
+        if is_active is not None:
+            conditions.append(TenantQuota.is_active.is_(is_active))
 
         stmt = select(TenantQuota).where(
             and_(*conditions)
@@ -90,6 +100,22 @@ class TenantQuotaRepository(TenantRepository[TenantQuota]):
 
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
+
+    async def get_active_quotas(
+        self,
+        tenant_id: int,
+        period: str | None = None,
+        model_id: int | None = None,
+    ) -> list[TenantQuota]:
+        """
+        获取企业所有激活的配额配置 / Get all active quota configs for tenant.
+        """
+        return await self.list_quotas(
+            tenant_id=tenant_id,
+            period=period,
+            model_id=model_id,
+            is_active=True,
+        )
 
     async def get_active_quota(
         self,

@@ -12,6 +12,7 @@ from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.recycle_bin import register_admin_recycle_bin_routes
 from app.core.response import created, deleted, paginated, success
+from app.enums.common import ResourceScopeEnum
 from app.enums.rbac import PermissionScope
 from app.rbac.decorators import (
     MenuConfig,
@@ -29,6 +30,8 @@ from app.schemas.system import (
     PeriodicTaskToggleRequest,
     PeriodicTaskUpdateRequest,
 )
+from app.plugins.loader import PluginLoader
+from app.plugins.preview import resolve_i18n
 from app.services.system import TaskBindingService, TaskDefinitionService
 
 
@@ -55,10 +58,99 @@ class AdminPeriodicTaskController(GlobalController):
     service_class = TaskDefinitionService
 
     @staticmethod
-    def _serialize_definition(definition) -> dict:
+    def _resolve_plugin_task_i18n(
+        definition,
+        manifest_cache: dict[str, object] | None = None,
+    ) -> tuple[str | None, str]:
+        if getattr(definition, "definition_type", None) != "plugin":
+            return definition.description, definition.name
+
+        task_code = str(getattr(definition, "code", "") or getattr(definition, "name", ""))
+        parts = task_code.split(".")
+        if len(parts) < 3 or parts[0] != "plugin":
+            return definition.description, definition.name
+
+        plugin_name = parts[1]
+        task_name = ".".join(parts[2:])
+        manifest_map = manifest_cache if manifest_cache is not None else {}
+        manifest = manifest_map.get(plugin_name)
+
+        if manifest is None:
+            try:
+                manifest = PluginLoader().load_manifest(plugin_name)
+            except Exception:
+                manifest = False
+            manifest_map[plugin_name] = manifest
+
+        if not manifest:
+            return definition.description, definition.name
+
+        locale = getattr(definition, "_locale", None)
+        if not locale:
+            from app.core.i18n import get_locale
+
+            locale = get_locale()
+
+        task_ext = next(
+            (item for item in manifest.extensions.tasks if item.name == task_name),
+            None,
+        )
+        if task_ext is None:
+            return definition.description, definition.name
+
+        display_name = resolve_i18n(task_ext.display_name, locale) or definition.name
+        description = resolve_i18n(task_ext.description, locale) or definition.description
+        return description, display_name
+
+    @staticmethod
+    def _binding_semantics(scope: str | None, binding_count: int) -> dict[str, bool | str]:
+        selected_scopes = {
+            ResourceScopeEnum.SELECTED_TENANTS.value,
+            ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+        }
+        if scope in selected_scopes:
+            return {
+                "binding_required": True,
+                "binding_configured": binding_count > 0,
+                "tenant_access_mode": "selected",
+            }
+        if scope in (
+            ResourceScopeEnum.ALL_TENANTS.value,
+            ResourceScopeEnum.GLOBAL_SHARED.value,
+        ):
+            return {
+                "binding_required": False,
+                "binding_configured": True,
+                "tenant_access_mode": "all",
+            }
+        return {
+            "binding_required": False,
+            "binding_configured": True,
+            "tenant_access_mode": "none",
+        }
+
+    @staticmethod
+    def _serialize_definition(
+        definition,
+        *,
+        assigned_tenant_names: list[str] | None = None,
+        assigned_tenant_ids: list[int] | None = None,
+        binding_count: int = 0,
+        binding_summary: str | None = None,
+        manifest_cache: dict[str, object] | None = None,
+    ) -> dict:
+        semantics = AdminPeriodicTaskController._binding_semantics(
+            definition.scope,
+            binding_count,
+        )
+        description, display_name = AdminPeriodicTaskController._resolve_plugin_task_i18n(
+            definition,
+            manifest_cache=manifest_cache,
+        )
         return PeriodicTaskResponse(
             id=definition.id,
-            name=definition.name,
+            name=display_name,
+            definition_type=definition.definition_type,
             task_path=definition.handler_path,
             schedule_type=definition.default_schedule_type,
             cron_expression=definition.default_cron_expression,
@@ -66,9 +158,16 @@ class AdminPeriodicTaskController(GlobalController):
             is_active=definition.is_enabled,
             last_run_at=definition.last_run_at,
             next_run_at=definition.next_run_at,
-            description=definition.description,
+            description=description,
             scope=definition.scope,
             owner_tenant_id=definition.owner_tenant_id,
+            assigned_tenant_ids=assigned_tenant_ids or [],
+            assigned_tenant_names=assigned_tenant_names or [],
+            binding_count=binding_count,
+            binding_summary=binding_summary,
+            binding_required=bool(semantics["binding_required"]),
+            binding_configured=bool(semantics["binding_configured"]),
+            tenant_access_mode=str(semantics["tenant_access_mode"]),
             is_locked=not definition.is_deletable,
             is_editable=definition.is_editable,
             max_retries=definition.max_retries,
@@ -99,6 +198,11 @@ class AdminPeriodicTaskController(GlobalController):
         ):
             service = self.get_service(db)
             items, total = await service.query_list(query)
+            binding_service = TaskBindingService(db)
+            manifest_cache: dict[str, object] = {}
+            binding_summary = await binding_service.get_definition_binding_summary(
+                [item.id for item in items]
+            )
             # Fill next_run_at when null for Cron/Interval tasks (e.g. pre-seeded tasks)
             # 当 next_run_at 为空时，为 Cron/Interval 任务计算下次执行时间
             for item in items:
@@ -111,7 +215,25 @@ class AdminPeriodicTaskController(GlobalController):
                     if next_run:
                         item.next_run_at = next_run
             return paginated(
-                items=[self._serialize_definition(item) for item in items],
+                items=[
+                    self._serialize_definition(
+                        item,
+                        assigned_tenant_ids=binding_summary.get(item.id, {}).get(
+                            "assigned_tenant_ids", []
+                        ),
+                        assigned_tenant_names=binding_summary.get(item.id, {}).get(
+                            "assigned_tenant_names", []
+                        ),
+                        binding_count=int(
+                            binding_summary.get(item.id, {}).get("active_binding_count", 0)
+                        ),
+                        binding_summary=binding_summary.get(item.id, {}).get(
+                            "binding_summary"
+                        ),
+                        manifest_cache=manifest_cache,
+                    )
+                    for item in items
+                ],
                 total=total,
                 page=query.page,
                 page_size=query.size,
@@ -138,8 +260,6 @@ class AdminPeriodicTaskController(GlobalController):
                 "scope": body.scope,
                 "owner_tenant_id": body.owner_tenant_id,
                 "is_enabled": body.is_active,
-                "is_editable": body.is_editable,
-                "is_deletable": not body.is_locked,
                 "max_retries": body.max_retries,
                 "retry_delay": body.retry_delay,
                 "timeout": body.timeout,
@@ -149,7 +269,28 @@ class AdminPeriodicTaskController(GlobalController):
                 "definition_type": "system",
             }
             task = await service.create(payload)
-            return created(data=self._serialize_definition(task))
+            binding_service = TaskBindingService(db)
+            target_tenant_ids = await binding_service.resolve_target_tenant_ids(
+                body.scope,
+                body.tenant_ids,
+            )
+            await binding_service.sync_definition_bindings(
+                task.id,
+                target_tenant_ids,
+                target_scope=body.scope,
+            )
+            task = await service.get_by_id(task.id)
+            binding_summary = await binding_service.get_definition_binding_summary([task.id])
+            binding_info = binding_summary.get(task.id, {})
+            return created(
+                data=self._serialize_definition(
+                    task,
+                    assigned_tenant_ids=binding_info.get("assigned_tenant_ids", []),
+                    assigned_tenant_names=binding_info.get("assigned_tenant_names", []),
+                    binding_count=int(binding_info.get("active_binding_count", 0)),
+                    binding_summary=binding_info.get("binding_summary"),
+                )
+            )
 
         @router.get("/{task_id}", summary="获取定时任务详情")
         @action_read("action.periodic_task.detail")
@@ -165,7 +306,18 @@ class AdminPeriodicTaskController(GlobalController):
                 from app.exceptions import NotFoundException
                 raise NotFoundException(message=_("periodic_task.error.not_found"))
 
-            return success(data=self._serialize_definition(task))
+            binding_service = TaskBindingService(db)
+            binding_summary = await binding_service.get_definition_binding_summary([task.id])
+            binding_info = binding_summary.get(task.id, {})
+            return success(
+                data=self._serialize_definition(
+                    task,
+                    assigned_tenant_ids=binding_info.get("assigned_tenant_ids", []),
+                    assigned_tenant_names=binding_info.get("assigned_tenant_names", []),
+                    binding_count=int(binding_info.get("active_binding_count", 0)),
+                    binding_summary=binding_info.get("binding_summary"),
+                )
+            )
 
         @router.get("/{task_id}/bindings", summary="获取定时任务企业绑定")
         @action_read("action.periodic_task.bindings")
@@ -210,9 +362,19 @@ class AdminPeriodicTaskController(GlobalController):
                 raise NotFoundException(message=_("periodic_task.error.not_found"))
 
             binding_service = TaskBindingService(db)
+            target_scope = body.scope or task.scope or (
+                ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value
+                if body.tenant_ids
+                else ResourceScopeEnum.ADMIN_ONLY.value
+            )
+            target_tenant_ids = await binding_service.resolve_target_tenant_ids(
+                target_scope,
+                body.tenant_ids,
+            )
             result = await binding_service.sync_definition_bindings(
                 task_id,
-                body.tenant_ids,
+                target_tenant_ids,
+                target_scope=target_scope,
             )
             await db.commit()
             return success(data=result)
@@ -227,6 +389,7 @@ class AdminPeriodicTaskController(GlobalController):
             task_id: int = Path(..., description=_("api.param.task_id")),
         ):
             service = self.get_service(db)
+            current_task = await service.get_by_id(task_id)
             raw = body.model_dump(exclude_unset=True)
             payload = {}
             field_map = {
@@ -241,7 +404,6 @@ class AdminPeriodicTaskController(GlobalController):
                 "scope": "scope",
                 "owner_tenant_id": "owner_tenant_id",
                 "is_active": "is_enabled",
-                "is_editable": "is_editable",
                 "max_retries": "max_retries",
                 "retry_delay": "retry_delay",
                 "timeout": "timeout",
@@ -251,10 +413,49 @@ class AdminPeriodicTaskController(GlobalController):
             for old_key, new_key in field_map.items():
                 if old_key in raw:
                     payload[new_key] = raw[old_key]
-            if "is_locked" in raw:
-                payload["is_deletable"] = not raw["is_locked"]
             task = await service.update(task_id, payload)
-            return success(data=self._serialize_definition(task))
+            if "tenant_ids" in raw or "scope" in raw:
+                binding_service = TaskBindingService(db)
+                next_scope = raw.get("scope", task.scope)
+                existing_binding_summary = (
+                    await binding_service.get_definition_binding_summary([task_id])
+                )
+                existing_tenant_ids = existing_binding_summary.get(task_id, {}).get(
+                    "assigned_tenant_ids",
+                    [],
+                )
+                raw_tenant_ids = raw.get("tenant_ids")
+                requested_tenant_ids = (
+                    raw_tenant_ids
+                    if isinstance(raw_tenant_ids, list)
+                    else (
+                        existing_tenant_ids
+                        if isinstance(existing_tenant_ids, list)
+                        else []
+                    )
+                )
+                target_tenant_ids = await binding_service.resolve_target_tenant_ids(
+                    next_scope,
+                    requested_tenant_ids,
+                )
+                await binding_service.sync_definition_bindings(
+                    task_id,
+                    target_tenant_ids,
+                    target_scope=next_scope,
+                )
+                task = await service.get_by_id(task_id)
+            binding_service = TaskBindingService(db)
+            binding_summary = await binding_service.get_definition_binding_summary([task.id])
+            binding_info = binding_summary.get(task.id, {})
+            return success(
+                data=self._serialize_definition(
+                    task,
+                    assigned_tenant_ids=binding_info.get("assigned_tenant_ids", []),
+                    assigned_tenant_names=binding_info.get("assigned_tenant_names", []),
+                    binding_count=int(binding_info.get("active_binding_count", 0)),
+                    binding_summary=binding_info.get("binding_summary"),
+                )
+            )
 
         @router.delete("/{task_id}", summary="删除定时任务")
         @action_delete("action.periodic_task.delete")
@@ -279,7 +480,18 @@ class AdminPeriodicTaskController(GlobalController):
         ):
             service = self.get_service(db)
             task = await service.toggle_active(task_id, body.is_active)
-            return success(data=self._serialize_definition(task))
+            binding_service = TaskBindingService(db)
+            binding_summary = await binding_service.get_definition_binding_summary([task.id])
+            binding_info = binding_summary.get(task.id, {})
+            return success(
+                data=self._serialize_definition(
+                    task,
+                    assigned_tenant_ids=binding_info.get("assigned_tenant_ids", []),
+                    assigned_tenant_names=binding_info.get("assigned_tenant_names", []),
+                    binding_count=int(binding_info.get("active_binding_count", 0)),
+                    binding_summary=binding_info.get("binding_summary"),
+                )
+            )
 
         @router.post("/{task_id}/trigger", summary="手动触发定时任务")
         @action_update("action.periodic_task.trigger")

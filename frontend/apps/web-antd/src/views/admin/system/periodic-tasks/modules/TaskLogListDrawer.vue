@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 /**
  * 定时任务 - 执行日志抽屉
- * 按 task_path 过滤展示该任务的历史执行记录，支持查看详情
+ * 按 handler_path 过滤展示该任务的历史执行记录，支持查看详情
  */
 import type { adminApi } from '#/api';
 
@@ -56,7 +56,7 @@ async function loadLogs() {
   loading.value = true;
   try {
     const res = await getTaskLogListApi({
-      'filter[task_name][eq]': taskPath.value,
+      'filter[handler_path][eq]': taskPath.value,
       sort: '-created_at',
       'page[size]': 50,
     });

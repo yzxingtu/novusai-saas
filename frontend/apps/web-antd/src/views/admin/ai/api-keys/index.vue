@@ -29,6 +29,7 @@ import {
   getScopeText,
 } from '#/utils/scope-helpers';
 
+import AIGatewayQuickStartHero from '../_shared/AIGatewayQuickStartHero.vue';
 import {
   getFormDefaults,
   useColumns,
@@ -73,6 +74,13 @@ const { Grid, FormDrawer, onRefresh } = useCrudPage<AIApiKeyInfo>({
   },
   columns: useColumns,
   searchSchema: useGridFormSchema(),
+  search: {
+    defaultOpen: false,
+    quickSearch: {
+      defaultField: 'filter[name][ilike]',
+      fields: ['filter[name][ilike]'],
+    },
+  },
   formComponent: Form,
   formDefaults: getFormDefaults,
   i18nPrefix: 'admin.ai.apiKey',
@@ -91,9 +99,10 @@ const { Grid, FormDrawer, onRefresh } = useCrudPage<AIApiKeyInfo>({
 <template>
   <Page
     auto-content-height
-    :description="$t('admin.ai.apiKey.pageDesc')"
-    content-class="ai-api-keys-page flex flex-col gap-4"
+    content-class="ai-api-keys-page flex flex-col gap-4 !p-4"
   >
+    <AIGatewayQuickStartHero :current-title="$t('admin.ai.apiKey.title')" />
+
     <FormDrawer @success="onRefresh" />
 
     <Grid>

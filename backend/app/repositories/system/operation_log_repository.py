@@ -33,13 +33,13 @@ class OperationLogRepository(BaseRepository[OperationLog]):
         "admin": {
             "id", "trace_id", "tenant_id", "user_type", "user_id", "username",
             "module", "action", "resource", "method", "path",
-            "response_code", "ip", "created_at",
+            "status_code", "response_code", "ip", "created_at",
         },
         # 企业管理员可过滤的字段（不包含 tenant_id）
         "tenant": {
             "id", "trace_id", "user_type", "user_id", "username",
             "module", "action", "resource", "method", "path",
-            "response_code", "ip", "created_at",
+            "status_code", "response_code", "ip", "created_at",
         },
     }
 

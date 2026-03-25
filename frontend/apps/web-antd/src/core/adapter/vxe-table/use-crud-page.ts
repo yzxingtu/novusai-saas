@@ -30,18 +30,21 @@ import type {
   BaseRow,
   FormMode,
   OnActionClickParams,
+  QuickSearchFieldOption,
   RecycleBinConfig,
   ToggleStatusApi,
   UseCrudPageOptions,
 } from './types';
+import type { Component } from 'vue';
 
 import type {
   DeletePreviewResult,
   DependencyGroup,
 } from '#/components/business/dependency-block-modal/service';
+import type { VbenFormSchema } from '#/adapter/form';
 import type { FormPopupApi } from '#/composables/use-ai-operations';
 
-import { defineComponent, h, onBeforeUnmount, ref } from 'vue';
+import { computed, defineComponent, h, onBeforeUnmount, ref } from 'vue';
 import { useRoute } from 'vue-router';
 
 import { useVbenDrawer, useVbenModal } from '@vben/common-ui';
@@ -83,6 +86,42 @@ import { useGridSearchFormOptions, useVbenVxeGrid } from './use-vxe-grid';
 /** Dependency blocked error code / 依赖阻止错误码 */
 const DEPENDENCY_BLOCKED_CODE = 4221;
 
+function buildQuickSearchOptions(searchSchema: VbenFormSchema[]) {
+  return searchSchema
+    .filter(
+      (
+        schema,
+      ): schema is QuickSearchFieldOption & {
+        component: string;
+        componentProps?: Record<string, unknown>;
+      } =>
+        typeof schema?.fieldName === 'string' &&
+        typeof schema?.label === 'string' &&
+        schema.component === 'Input',
+    )
+    .map((schema) => {
+      const componentProps =
+        schema.componentProps &&
+        typeof schema.componentProps === 'object' &&
+        !Array.isArray(schema.componentProps)
+          ? schema.componentProps
+          : undefined;
+
+      return {
+        fieldName: schema.fieldName,
+        label: schema.label,
+        placeholder:
+          typeof componentProps?.placeholder === 'string'
+            ? componentProps.placeholder
+            : undefined,
+      };
+    });
+}
+
+function isEmptyQuickSearchValue(value: unknown) {
+  return value === undefined || value === null || `${value}`.trim() === '';
+}
+
 /**
  * Declarative CRUD list page composable / 声明式 CRUD 列表页 Composable
  */
@@ -109,6 +148,7 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
       search: true,
       zoom: true,
     },
+    search = {},
     customActions = {},
     createPermission,
     recycleBin,
@@ -178,6 +218,8 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
         ?.pageSize ?? 15,
     ),
   );
+  const quickSearchField = ref('');
+  const quickSearchKeyword = ref('');
 
   // Export modal / 导出弹窗
   const { ExportModal, openExportModal } = useExportModal(() => gridApi?.grid);
@@ -428,6 +470,141 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
   // Create button label: defaults to i18nPrefix + '.create' / 创建按钮文案：默认取 i18nPrefix + '.create'
   const createLabel = formComponent ? $t(`${i18nPrefix}.create`) : '';
 
+  const explicitQuickSearchConfig =
+    search.quickSearch && search.quickSearch !== true
+      ? search.quickSearch
+      : undefined;
+
+  const quickSearchFields = computed<QuickSearchFieldOption[]>(() => {
+    if (!searchSchema || search.quickSearch === false) {
+      return [];
+    }
+
+    const autoFields = buildQuickSearchOptions(searchSchema);
+    const fieldMap = new Map(
+      autoFields.map((field) => [field.fieldName, field]),
+    );
+
+    if (explicitQuickSearchConfig?.fields?.length) {
+      const resolvedFields: QuickSearchFieldOption[] = [];
+      for (const field of explicitQuickSearchConfig.fields) {
+        const fieldConfig =
+          typeof field === 'string' ? { fieldName: field } : field;
+        const matched = fieldMap.get(fieldConfig.fieldName);
+        if (!matched) {
+          continue;
+        }
+
+        resolvedFields.push({
+          ...matched,
+          ...(fieldConfig.label ? { label: fieldConfig.label } : undefined),
+          placeholder: fieldConfig.placeholder ?? matched.placeholder,
+        });
+      }
+      return resolvedFields;
+    }
+
+    if (search.quickSearch !== true && !explicitQuickSearchConfig) {
+      return [];
+    }
+
+    return autoFields;
+  });
+
+  const defaultQuickSearchField = computed(() => {
+    const configuredDefault = explicitQuickSearchConfig?.defaultField;
+    return (
+      quickSearchFields.value.find(
+        (field) => field.fieldName === configuredDefault,
+      )?.fieldName ??
+      quickSearchFields.value[0]?.fieldName ??
+      ''
+    );
+  });
+
+  if (!quickSearchField.value) {
+    quickSearchField.value = defaultQuickSearchField.value;
+  }
+
+  function syncQuickSearchState(
+    values: Record<string, any>,
+    changedFields: string[] = [],
+  ) {
+    if (quickSearchFields.value.length === 0) {
+      quickSearchKeyword.value = '';
+      quickSearchField.value = '';
+      return;
+    }
+
+    const fieldNames = quickSearchFields.value.map((field) => field.fieldName);
+    const changedQuickSearchField = changedFields.find((field) =>
+      fieldNames.includes(field),
+    );
+    const populatedField =
+      (changedQuickSearchField &&
+      !isEmptyQuickSearchValue(values?.[changedQuickSearchField])
+        ? changedQuickSearchField
+        : undefined) ??
+      fieldNames.find((field) => !isEmptyQuickSearchValue(values?.[field]));
+
+    quickSearchField.value =
+      populatedField ??
+      (fieldNames.includes(quickSearchField.value)
+        ? quickSearchField.value
+        : defaultQuickSearchField.value);
+    quickSearchKeyword.value = populatedField
+      ? String(values?.[populatedField] ?? '')
+      : '';
+  }
+
+  async function applyQuickSearchValue(
+    keyword: string,
+    fieldName = quickSearchField.value || defaultQuickSearchField.value,
+  ) {
+    if (
+      !fieldName ||
+      quickSearchFields.value.length === 0 ||
+      !gridApi?.formApi
+    ) {
+      return;
+    }
+
+    const nextKeyword = typeof keyword === 'string' ? keyword : '';
+    const trimmedKeyword = nextKeyword.trim();
+    quickSearchField.value = fieldName;
+    quickSearchKeyword.value = nextKeyword;
+
+    const updates = Object.fromEntries(
+      quickSearchFields.value.map((field) => [field.fieldName, undefined]),
+    ) as Record<string, any>;
+
+    updates[fieldName] = trimmedKeyword || undefined;
+    await gridApi.formApi.setValues(updates);
+  }
+
+  async function onQuickSearchChange(value: string) {
+    await applyQuickSearchValue(value);
+  }
+
+  async function onQuickSearchFieldChange(fieldName: string) {
+    if (!fieldName || fieldName === quickSearchField.value) {
+      return;
+    }
+    await applyQuickSearchValue(quickSearchKeyword.value, fieldName);
+  }
+
+  const searchFormOptions = searchSchema
+    ? {
+        ...useGridSearchFormOptions(searchSchema),
+        handleValuesChange: (
+          values: Record<string, any>,
+          changedFields: string[],
+        ) => {
+          syncQuickSearchState(values, changedFields);
+        },
+      }
+    : undefined;
+
   /**
    * Process form params, convert date ranges and other special fields.
    * 处理表单参数，转换日期范围等特殊字段
@@ -495,10 +672,9 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
 
   // Create table / 创建表格
   const [OriginalGrid, _gridApi] = useVbenVxeGrid({
-    formOptions: searchSchema
-      ? useGridSearchFormOptions(searchSchema)
-      : undefined,
+    formOptions: searchFormOptions,
     gridOptions,
+    showSearchForm: searchSchema ? (search.defaultOpen ?? true) : undefined,
   });
 
   // Assign to closure reference / 赋值给闭包引用
@@ -509,6 +685,8 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     recycleBinRef.value?.open();
   }
 
+  const CrudGridComponent = CrudGrid as Component;
+
   // Wrap Grid component, auto-add export button, recycle bin button and popups / 包装 Grid 组件，自动添加导出按钮、回收站按钮和弹窗
   const Grid = defineComponent({
     name: 'CrudPageGrid',
@@ -517,11 +695,25 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
       return () => {
         const children = [
           h(
-            CrudGrid,
+            CrudGridComponent,
             {
               grid: OriginalGrid,
               showExport: showExportButton,
               showRecycleBin: recycleBinEnabled,
+              ...(quickSearchFields.value.length > 0
+                ? {
+                    quickSearch: {
+                      activeField: quickSearchField.value,
+                      keyword: quickSearchKeyword.value,
+                      onFieldChange: onQuickSearchFieldChange,
+                      onKeywordChange: onQuickSearchChange,
+                      options: quickSearchFields.value.map((field) => ({
+                        ...field,
+                        placeholder: field.placeholder ?? $t('common.search'),
+                      })),
+                    },
+                  }
+                : {}),
               recycleBinCount: recycleBinRef.value?.deletedCount ?? 0,
               recycleBinPermission,
               onExport: openExportModal,

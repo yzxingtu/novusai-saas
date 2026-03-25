@@ -52,7 +52,7 @@ interface ValvesInfo {
 const props = defineProps<{
   /** API function to get Valves config / 获取 Valves 配置的 API 函数 */
   getValvesApi: (packageId: number) => Promise<ValvesInfo>;
-  /** i18n prefix, e.g. 'admin.ai.skillPackage' or 'tenant.ai.skillPackage' / i18n 前缀，如 'admin.ai.skillPackage' 或 'tenant.ai.skillPackage' */
+  /** i18n prefix, e.g. 'admin.ai.skillPackage' / i18n 前缀，例如 'admin.ai.skillPackage' */
   i18nPrefix: string;
   packageId: null | number;
   packageName?: string;

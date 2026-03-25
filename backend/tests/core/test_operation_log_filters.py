@@ -11,3 +11,5 @@ def test_operation_log_trace_id_is_allowed_for_admin_and_tenant_scope() -> None:
 
     assert "trace_id" in admin_fields
     assert "trace_id" in tenant_fields
+    assert "status_code" in admin_fields
+    assert "status_code" in tenant_fields

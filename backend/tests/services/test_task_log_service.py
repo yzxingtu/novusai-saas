@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 import pytest
 from sqlalchemy.dialects import postgresql
 
-from app.schemas.common.query import QuerySpec
+from app.schemas.common.query import FilterRule, QuerySpec
 from tests.services.conftest import make_scalar_result, make_scalars_result
 
 
@@ -89,6 +89,33 @@ class TestTaskLogViewRouting:
 
 
 class TestTaskLogRepositoryFilters:
+    @pytest.mark.asyncio
+    async def test_query_list_filters_by_handler_path_snapshot(self, mock_db):
+        from app.repositories.system.task_run_repository import TaskRunRepository
+
+        repo = TaskRunRepository(mock_db)
+        mock_db.execute.side_effect = [
+            make_scalar_result(0),
+            make_scalars_result([]),
+        ]
+
+        await repo.query_list(
+            QuerySpec(
+                filters=[
+                    FilterRule(
+                        field="handler_path",
+                        value="app.tasks.ai_health_check.ai_provider_health_check",
+                    )
+                ],
+                sort=["-created_at"],
+            ),
+        )
+
+        data_stmt = mock_db.execute.await_args_list[1].args[0]
+        sql = _compile_sql(data_stmt)
+        assert "handler_path_snapshot" in sql
+        assert "app.tasks.ai_health_check.ai_provider_health_check" in sql
+
     @pytest.mark.asyncio
     async def test_query_list_excludes_selected_task_names(self, mock_db):
         from app.repositories.system.task_run_repository import TaskRunRepository

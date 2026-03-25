@@ -40,6 +40,7 @@ import {
   getAgentListApi,
   publishAgentApi,
 } from '#/api/tenant/agents';
+import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
 import {
   buildPageAIFormExtraData,
   createKeywordSearchPageOperation,
@@ -95,10 +96,11 @@ const {
   pageSize: 12,
   recycleBin: true,
   customActions: {
-    edit: (row) => agentFormRef.value?.openEdit(
-      row,
-      buildPageAIFormExtraData({ pageKey: AI_PAGE_KEY }),
-    ),
+    edit: (row) =>
+      agentFormRef.value?.openEdit(
+        row,
+        buildPageAIFormExtraData({ pageKey: AI_PAGE_KEY }),
+      ),
   },
   ai: {
     pageKey: AI_PAGE_KEY,
@@ -138,7 +140,10 @@ const {
         },
         normalizeParams: (params) => {
           const defaults: Record<string, unknown> = {};
-          if (typeof params.description === 'string' && params.description.trim()) {
+          if (
+            typeof params.description === 'string' &&
+            params.description.trim()
+          ) {
             defaults.description = params.description.trim();
           }
           if (Number.isFinite(Number(params.model_id))) {
@@ -220,7 +225,8 @@ function openAgentCreate(defaults: Record<string, unknown> = {}) {
   agentFormRef.value?.openNew(
     buildPageAIFormExtraData({
       pageKey: AI_PAGE_KEY,
-      baseDefaults: Object.keys(defaults).length > 0 ? getFormDefaults() : undefined,
+      baseDefaults:
+        Object.keys(defaults).length > 0 ? getFormDefaults() : undefined,
       defaults,
     }),
   );
@@ -370,10 +376,63 @@ const stats = computed(() => ({
   system: list.value.filter((a) => a.is_system).length,
 }));
 
+const heroMetrics = computed(() => [
+  {
+    key: 'total',
+    label: $t('common.total'),
+    value: stats.value.total,
+  },
+  {
+    key: 'published',
+    label: $t('tenant.ai.agent.status_options.published'),
+    value: stats.value.published,
+  },
+  {
+    key: 'system',
+    label: $t('tenant.ai.agent.system'),
+    value: stats.value.system,
+  },
+  {
+    key: 'recycle',
+    label: $t('common.recycleBin.title'),
+    value: recycleBinCount.value,
+  },
+]);
+
+const heroChips = computed(() => {
+  const chips = [
+    {
+      key: 'focus',
+      icon: 'lucide:bot',
+      className: 'bg-sky-500/10 text-sky-700 dark:text-sky-200',
+      text: `${$t('tenant.ai.agent.executionMode')} / ${$t('tenant.ai.agent.status')} / ${$t('tenant.ai.agent.targetAudience')}`,
+    },
+  ];
+
+  if (searchKeyword.value.trim()) {
+    chips.push({
+      key: 'keyword',
+      icon: 'lucide:search',
+      className: 'bg-background/90 text-foreground',
+      text: `${$t('tenant.ai.agent.name')}: ${searchKeyword.value.trim()}`,
+    });
+  }
+
+  if (filterStatus.value) {
+    chips.push({
+      key: 'status',
+      icon: 'lucide:badge-check',
+      className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-200',
+      text: getStatusText(filterStatus.value),
+    });
+  }
+
+  return chips;
+});
 </script>
 
 <template>
-  <Page auto-content-height content-class="flex flex-col gap-4">
+  <Page auto-content-height content-class="flex flex-col gap-4 !p-4">
     <!-- Drawers -->
     <AgentForm ref="agentFormRef" @success="loadList" />
     <VersionHistoryDrawer @success="loadList" />
@@ -401,6 +460,15 @@ const stats = computed(() => ({
         show-count
       />
     </Modal>
+
+    <AIPageHeroCard
+      :chips="heroChips"
+      :description="$t('tenant.ai.agent.pageDesc')"
+      icon="lucide:bot"
+      icon-wrap-class="bg-primary/10 text-primary"
+      :metrics="heroMetrics"
+      :title="$t('tenant.ai.agent.title')"
+    />
 
     <!-- ==================== Top Bar ==================== -->
     <div class="flex flex-wrap items-center gap-3">
@@ -452,16 +520,6 @@ const stats = computed(() => ({
       </Button>
 
       <div class="flex-1"></div>
-
-      <div
-        class="hidden items-center gap-4 text-xs text-muted-foreground md:flex"
-      >
-        <span>{{ $t('common.total') }} {{ stats.total }}</span>
-        <span class="flex items-center gap-1">
-          <span class="inline-block size-2 rounded-full bg-green-500"></span>
-          {{ stats.published }}
-        </span>
-      </div>
 
       <!-- Recycle bin / 回收站 -->
       <span v-access:code="['agent:recycle_bin']">
@@ -601,19 +659,12 @@ const stats = computed(() => ({
                   <MenuItem
                     key="routing"
                     @click="
-                      router.push(
-                        `/tenant/ai/agents/${agent.id}?tab=routing`,
-                      )
+                      router.push(`/tenant/ai/agents/${agent.id}?tab=routing`)
                     "
                   >
                     <div class="flex items-center gap-2">
-                      <IconifyIcon
-                        icon="lucide:git-branch"
-                        class="size-4"
-                      />
-                      <span>{{
-                        $t('tenant.ai.agent.detail.routing')
-                      }}</span>
+                      <IconifyIcon icon="lucide:git-branch" class="size-4" />
+                      <span>{{ $t('tenant.ai.agent.detail.routing') }}</span>
                     </div>
                   </MenuItem>
                   <MenuItem key="versions" @click="onVersions(agent)">

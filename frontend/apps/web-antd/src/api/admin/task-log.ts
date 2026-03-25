@@ -35,6 +35,14 @@ export interface TaskLogInfoRaw {
   task_name_snapshot?: string;
   handler_path?: null | string;
   handler_path_snapshot?: null | string;
+  task_definition_id?: null | number;
+  binding_id?: null | number;
+  task_definition_name?: null | string;
+  task_scope?: null | string;
+  owner_tenant_id?: null | number;
+  owner_tenant_name?: null | string;
+  effective_tenant_id?: null | number;
+  effective_tenant_name?: null | string;
   queue: string;
   status: string;
   args?: null | Record<string, unknown> | unknown[];
@@ -56,7 +64,6 @@ export interface TaskLogInfoRaw {
   duration_ms: null | number;
   retry_count: number;
   tenant_id?: null | number;
-  effective_tenant_id?: null | number;
   created_at: string;
 }
 
@@ -109,6 +116,14 @@ function transformTaskLogInfo(raw: TaskLogInfoRaw): TaskLogInfo {
     taskId: raw.task_id ?? raw.celery_task_id ?? '',
     taskName: raw.task_name ?? raw.task_name_snapshot ?? '',
     handlerPath: raw.handler_path ?? raw.handler_path_snapshot ?? null,
+    taskDefinitionId: raw.task_definition_id ?? null,
+    bindingId: raw.binding_id ?? null,
+    taskDefinitionName: raw.task_definition_name ?? null,
+    taskScope: raw.task_scope ?? null,
+    ownerTenantId: raw.owner_tenant_id ?? null,
+    ownerTenantName: raw.owner_tenant_name ?? null,
+    effectiveTenantId: raw.effective_tenant_id ?? null,
+    effectiveTenantName: raw.effective_tenant_name ?? null,
     queue: raw.queue,
     status: raw.status,
     args,
@@ -126,7 +141,6 @@ function transformTaskLogInfo(raw: TaskLogInfoRaw): TaskLogInfo {
     finishedAt: raw.finished_at,
     durationMs: raw.duration_ms,
     retryCount: raw.retry_count,
-    tenantId: raw.effective_tenant_id ?? raw.tenant_id ?? null,
     createdAt: raw.created_at,
   };
 }

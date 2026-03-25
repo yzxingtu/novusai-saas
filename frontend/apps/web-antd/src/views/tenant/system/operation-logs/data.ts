@@ -11,6 +11,13 @@ import { $t } from '#/locales';
 
 type OperationLogInfo = tenantApi.OperationLogInfo;
 
+const STATUS_CODE_OPTIONS = [
+  200, 400, 401, 403, 404, 405, 409, 422, 429, 500, 502, 503,
+].map((code) => ({
+  label: `${code}`,
+  value: code,
+}));
+
 /**
  * 获取用户类型颜色
  */
@@ -234,6 +241,19 @@ export function useGridFormSchema(
     searchInput('action', $t('tenant.system.operationLog.action'), {
       placeholder: $t('tenant.system.operationLog.placeholder.searchAction'),
     }),
+    {
+      component: 'Select',
+      componentProps: {
+        allowClear: true,
+        class: 'w-full',
+        options: STATUS_CODE_OPTIONS,
+        placeholder: $t(
+          'tenant.system.operationLog.placeholder.searchStatusCode',
+        ),
+      },
+      fieldName: 'filter[status_code]',
+      label: $t('tenant.system.operationLog.statusCode'),
+    },
     searchInput('ip', $t('tenant.system.operationLog.ip'), {
       placeholder: $t('tenant.system.operationLog.placeholder.searchIp'),
     }),

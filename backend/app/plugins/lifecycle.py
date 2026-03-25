@@ -3351,6 +3351,7 @@ command.downgrade(cfg, {f"{branch_label}@base"!r})
         from app.enums.common import ResourceScopeEnum
         from app.enums.task import ScheduleTypeEnum
         from app.models.system.task_definition import TaskDefinition
+        from app.plugins.preview import resolve_i18n
 
         synced = 0
         for task_ext in tasks:
@@ -3364,6 +3365,7 @@ command.downgrade(cfg, {f"{branch_label}@base"!r})
             existing = result.scalar_one_or_none()
 
             schedule_type = task_ext.schedule_type or ScheduleTypeEnum.INTERVAL.value
+            description_text = resolve_i18n(task_ext.description, "zh-CN")
 
             if existing:
                 existing.is_deleted = False
@@ -3381,8 +3383,8 @@ command.downgrade(cfg, {f"{branch_label}@base"!r})
                 existing.is_system_builtin = True
                 existing.is_editable = False
                 existing.is_deletable = False
-                if task_ext.description:
-                    existing.description = task_ext.description
+                if description_text:
+                    existing.description = description_text
             else:
                 self._db.add(TaskDefinition(
                     code=task_code,
@@ -3399,7 +3401,7 @@ command.downgrade(cfg, {f"{branch_label}@base"!r})
                     is_system_builtin=True,
                     is_editable=False,
                     is_deletable=False,
-                    description=task_ext.description or "",
+                    description=description_text or "",
                 ))
             synced += 1
 

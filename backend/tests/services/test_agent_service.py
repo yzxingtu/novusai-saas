@@ -547,7 +547,7 @@ class TestGetAgentDetail:
         )
         from app.services.ai.agent_service import AgentService
 
-        agent = _make_agent()
+        agent = _make_agent(owner_tenant_id=None)
         agent.to_dict.return_value = {"id": 1, "name": "Test Agent"}
         agent.model = MagicMock()
         agent.model.to_dict.return_value = {"id": 1, "name": "gpt-4"}
@@ -566,3 +566,30 @@ class TestGetAgentDetail:
 
         assert isinstance(result, dict)
         assert result["id"] == 1
+        assert result["owner_type"] == "platform"
+        assert result["tenant_id"] is None
+
+    @pytest.mark.asyncio
+    async def test_detail_derives_tenant_owner_type(self, mock_db):
+        from app.repositories.ai.agent_memory_override_repository import (
+            AgentMemoryOverrideRepository,
+        )
+        from app.services.ai.agent_service import AgentService
+
+        agent = _make_agent(owner_tenant_id=3)
+        agent.to_dict.return_value = {"id": 7, "name": "Tenant Agent"}
+        agent.model = MagicMock()
+        service = AgentService.__new__(AgentService)
+        service.db = mock_db
+        service.tenant_id = 3
+        service.repo = AsyncMock()
+        service.repo.get_by_id = AsyncMock(return_value=agent)
+        service._get_platform_default_memory_enabled = AsyncMock(return_value=True)
+        override_repo = AsyncMock(spec=AgentMemoryOverrideRepository)
+        override_repo.get_by_agent_id = AsyncMock(return_value=None)
+        service._get_memory_override_repo = MagicMock(return_value=override_repo)
+
+        result = await service.get_agent_detail(7)
+
+        assert result["owner_type"] == "tenant"
+        assert result["tenant_id"] == 3

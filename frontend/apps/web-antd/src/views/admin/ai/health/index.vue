@@ -17,6 +17,8 @@ import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 import { toAttachmentImageUrl } from '#/utils/image';
 
+import AIGatewayQuickStartHero from '../_shared/AIGatewayQuickStartHero.vue';
+
 defineOptions({ name: 'AIHealthMonitor' });
 
 // ========== 声明式列表管理 + 30秒自动刷新 / Declarative list + 30s refresh ==========
@@ -93,49 +95,43 @@ function getBadgeStatus(
 </script>
 
 <template>
-  <Page
-    auto-content-height
-    :description="$t('admin.ai.health.pageDesc')"
-    content-class="flex flex-col gap-4"
-  >
-    <!-- 顶部操作栏 -->
-    <Card :body-style="{ padding: '12px 16px' }">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <div class="flex items-center gap-2">
-            <IconifyIcon
-              icon="lucide:heart-pulse"
-              class="size-5 text-primary"
-            />
-            <span class="font-medium text-foreground">{{
-              $t('admin.ai.health.title')
-            }}</span>
-          </div>
-          <!-- 概览摘要 -->
-          <div class="flex items-center gap-2 text-sm">
-            <span
-              v-if="healthyCount > 0"
-              class="flex items-center gap-1 text-success"
-            >
-              <Badge status="success" />
-              {{ healthyCount }} {{ $t('admin.ai.health.status.healthy') }}
+  <Page auto-content-height content-class="flex flex-col gap-4 !p-4">
+    <AIGatewayQuickStartHero :current-title="$t('admin.ai.health.title')" />
+
+    <section
+      class="rounded-[20px] border border-border/70 bg-card px-4 py-3 shadow-sm"
+    >
+      <div
+        class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
+      >
+        <div class="flex flex-wrap items-center gap-2">
+          <span
+            class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-700 dark:text-emerald-200"
+          >
+            <Badge status="success" />
+            {{ healthyCount }} {{ $t('admin.ai.health.status.healthy') }}
+          </span>
+          <span
+            class="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-1 text-xs text-amber-700 dark:text-amber-200"
+          >
+            <Badge status="warning" />
+            {{ degradedCount }} {{ $t('admin.ai.health.status.degraded') }}
+          </span>
+          <span
+            class="inline-flex items-center gap-1.5 rounded-full bg-rose-500/10 px-2.5 py-1 text-xs text-rose-700 dark:text-rose-200"
+          >
+            <Badge status="error" />
+            {{ unavailableCount }}
+            {{ $t('admin.ai.health.status.unavailable') }}
+          </span>
+          <span
+            class="rounded-xl border border-border/60 bg-background/80 px-3 py-2 text-xs text-muted-foreground"
+          >
+            <span class="mr-1 font-semibold text-foreground">
+              {{ statuses.length }}
             </span>
-            <span
-              v-if="degradedCount > 0"
-              class="flex items-center gap-1 text-warning"
-            >
-              <Badge status="warning" />
-              {{ degradedCount }} {{ $t('admin.ai.health.status.degraded') }}
-            </span>
-            <span
-              v-if="unavailableCount > 0"
-              class="flex items-center gap-1 text-destructive"
-            >
-              <Badge status="error" />
-              {{ unavailableCount }}
-              {{ $t('admin.ai.health.status.unavailable') }}
-            </span>
-          </div>
+            {{ $t('admin.ai.health.providers') }}
+          </span>
         </div>
         <Button size="small" @click="loadHealth">
           <template #icon>
@@ -144,7 +140,7 @@ function getBadgeStatus(
           {{ $t('admin.ai.health.refresh') }}
         </Button>
       </div>
-    </Card>
+    </section>
 
     <!-- 健康状态卡片网格 -->
     <Spin :spinning="loading">

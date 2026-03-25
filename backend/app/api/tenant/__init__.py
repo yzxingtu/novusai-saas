@@ -25,8 +25,6 @@ from app.api.tenant.ai_gateway import TenantAIGatewayController
 from app.api.tenant.ai_gateway import router as ai_gateway_router
 from app.api.tenant.ai_quotas import TenantAIQuotaController
 from app.api.tenant.ai_quotas import router as ai_quotas_router
-from app.api.tenant.ai_table_policies import TenantAITablePolicyController
-from app.api.tenant.ai_table_policies import router as ai_table_policies_router
 from app.api.tenant.ai_usage import TenantAIUsageController
 from app.api.tenant.ai_usage import router as ai_usage_router
 from app.api.tenant.analytics import router as analytics_router
@@ -56,8 +54,6 @@ from app.api.tenant.permission_roles import router as permission_roles_router
 from app.api.tenant.plugins import router as plugins_router
 from app.api.tenant.organization import TenantOrganizationController
 from app.api.tenant.organization import router as organization_router
-from app.api.tenant.skill_packages import TenantSkillPackageController
-from app.api.tenant.skill_packages import router as skill_packages_router
 from app.api.tenant.user_roles import TenantUserRoleController
 from app.api.tenant.user_roles import router as user_roles_router
 from app.api.tenant.users import TenantUserController
@@ -95,10 +91,6 @@ tenant_router.include_router(agent_chat_router)
 tenant_router.include_router(ai_action_logs_router)
 # 知识库 / Knowledge bases
 tenant_router.include_router(knowledge_bases_router)
-# AI 表策略覆盖 / AI table policies
-tenant_router.include_router(ai_table_policies_router)
-# 技能包辅助接口 / Skill package helpers
-tenant_router.include_router(skill_packages_router)
 # WebSocket 在线状态 / WebSocket online status
 tenant_router.include_router(ws_router)
 # 通知 / Notifications
@@ -142,8 +134,4 @@ __all__ = [
     "TenantAIActionLogController",
     # 知识库 / Knowledge bases
     "TenantKnowledgeBaseController",
-    # AI 表策略覆盖 / AI table policies
-    "TenantAITablePolicyController",
-    # 技能包辅助接口 / Skill package helpers
-    "TenantSkillPackageController",
 ]

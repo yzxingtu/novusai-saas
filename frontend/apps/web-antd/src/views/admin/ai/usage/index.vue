@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import type { EchartsUIType } from '@vben/plugins/echarts';
 
-import type { CallTrendItem } from '#/api/admin/analytics';
 import type { AIUsageStatInfo } from '#/api/admin/ai';
+import type { CallTrendItem } from '#/api/admin/analytics';
 
 /**
  * 平台管理端 AI 使用量统计页面
@@ -22,6 +22,7 @@ import { getCallTrendApi } from '#/api/admin/analytics';
 import { createRefreshPageOperation } from '#/composables';
 import { $t } from '#/locales';
 
+import AIPageHeroCard from '../_shared/AIPageHeroCard.vue';
 import {
   formatCost,
   formatLatency,
@@ -93,6 +94,35 @@ const summaryCards = computed(() => [
     icon: 'lucide:check-circle',
     bgClass: 'bg-success/10',
     iconClass: 'text-success',
+  },
+]);
+
+const heroMetrics = computed(() =>
+  summaryCards.value.map((item) => ({
+    key: item.key,
+    label: item.label,
+    value: item.value,
+  })),
+);
+
+const heroChips = computed(() => [
+  {
+    key: 'dimensions',
+    icon: 'lucide:table-properties',
+    className: 'bg-sky-500/10 text-sky-700 dark:text-sky-200',
+    text: `${$t('admin.ai.usage.tenantName')} / ${$t('admin.ai.usage.modelName')} / ${$t('admin.ai.usage.requestType')}`,
+  },
+  {
+    key: 'trend',
+    icon: 'lucide:chart-column-big',
+    className: 'bg-background/90 text-foreground',
+    text: `${$t('admin.analytics.callTrend')} / ${$t('admin.analytics.tokenTrend')}`,
+  },
+  {
+    key: 'focus',
+    icon: 'lucide:scan-search',
+    className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-200',
+    text: `${$t('admin.ai.usage.totalCost')} / ${$t('admin.ai.usage.successRate')} / ${$t('admin.ai.usage.avgLatency')}`,
   },
 ]);
 
@@ -250,7 +280,8 @@ function buildVisibleTablePreview() {
   const grid = gridApi.grid as unknown as {
     getTableData?: () => { tableData?: Record<string, unknown>[] };
   };
-  const rows = (grid?.getTableData?.().tableData ?? []) as unknown as AIUsageStatInfo[];
+  const rows = (grid?.getTableData?.().tableData ??
+    []) as unknown as AIUsageStatInfo[];
 
   return rows.slice(0, USAGE_TABLE_PREVIEW_LIMIT).map((row) => ({
     stat_date: row.stat_date,
@@ -328,39 +359,16 @@ const { Grid, gridApi } = useCrudPage({
 </script>
 
 <template>
-  <Page
-    auto-content-height
-    :description="$t('admin.ai.usage.pageDesc')"
-    content-class="flex flex-col gap-4"
-  >
-    <!-- Summary statistics cards -->
+  <Page auto-content-height content-class="flex flex-col gap-4 !p-4">
     <Spin :spinning="summaryLoading">
-      <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Card
-          v-for="stat in summaryCards"
-          :key="stat.key"
-          :body-style="{ padding: '16px' }"
-        >
-          <div class="flex items-center gap-3">
-            <div
-              class="flex size-10 items-center justify-center rounded-lg"
-              :class="stat.bgClass"
-            >
-              <IconifyIcon
-                :icon="stat.icon"
-                class="size-5"
-                :class="stat.iconClass"
-              />
-            </div>
-            <div>
-              <div class="text-sm text-muted-foreground">{{ stat.label }}</div>
-              <div class="text-lg font-semibold text-foreground">
-                {{ stat.value }}
-              </div>
-            </div>
-          </div>
-        </Card>
-      </div>
+      <AIPageHeroCard
+        :chips="heroChips"
+        :description="$t('admin.ai.usage.pageDesc')"
+        icon="lucide:chart-column-big"
+        icon-wrap-class="bg-primary/10 text-primary"
+        :metrics="heroMetrics"
+        :title="$t('admin.ai.usage.title')"
+      />
     </Spin>
 
     <!-- Trend charts -->

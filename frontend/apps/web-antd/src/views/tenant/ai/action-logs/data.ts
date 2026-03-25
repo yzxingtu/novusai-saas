@@ -95,6 +95,41 @@ export function getStatusColor(status: string | undefined): string {
   }
 }
 
+export function getLevelText(level: string | undefined): string {
+  if (!level) return '-';
+  switch (level) {
+    case 'dangerous': {
+      return $t('tenant.ai.actionLog.level_options.dangerous');
+    }
+    case 'read': {
+      return $t('tenant.ai.actionLog.level_options.read');
+    }
+    case 'safe_write': {
+      return $t('tenant.ai.actionLog.level_options.safe_write');
+    }
+    default: {
+      return level;
+    }
+  }
+}
+
+export function getLevelColor(level: string | undefined): string {
+  switch (level) {
+    case 'dangerous': {
+      return 'red';
+    }
+    case 'read': {
+      return 'green';
+    }
+    case 'safe_write': {
+      return 'orange';
+    }
+    default: {
+      return 'default';
+    }
+  }
+}
+
 export function getTypeColor(type: string | undefined): string {
   switch (type) {
     case 'action': {
@@ -149,7 +184,14 @@ export function useColumns<T = ActionLogItem>(
     {
       field: 'agent_name',
       title: $t('tenant.ai.actionLog.agentName'),
-      width: 140,
+      minWidth: 180,
+      slots: { default: 'agent_cell' },
+    },
+    {
+      field: 'operator_name',
+      title: $t('tenant.ai.actionLog.operatorId'),
+      minWidth: 180,
+      slots: { default: 'operator_cell' },
     },
     {
       field: 'duration_ms',

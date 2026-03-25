@@ -80,7 +80,10 @@ const statusCodeType = computed(() => {
           <DescriptionsItem :label="$t('admin.system.operationLog.createdAt')">
             {{ formatDate(detail.createdAt) }}
           </DescriptionsItem>
-          <DescriptionsItem :label="$t('admin.system.operationLog.traceId')">
+          <DescriptionsItem
+            :label="$t('admin.system.operationLog.traceId')"
+            :span="2"
+          >
             <code class="break-all rounded bg-accent px-1 py-0.5 text-xs">
               {{ detail.traceId || '-' }}
             </code>
@@ -139,7 +142,18 @@ const statusCodeType = computed(() => {
               {{ detail.responseCode }}
             </Tag>
           </DescriptionsItem>
-          <DescriptionsItem :label="$t('admin.system.operationLog.durationMs')">
+          <DescriptionsItem
+            :label="$t('admin.system.operationLog.responseMessage')"
+            :span="2"
+          >
+            <span class="break-all text-xs text-muted-foreground">
+              {{ detail.responseMessage || '-' }}
+            </span>
+          </DescriptionsItem>
+          <DescriptionsItem
+            :label="$t('admin.system.operationLog.durationMs')"
+            :span="2"
+          >
             <span
               :class="
                 detail.durationMs > 1000 ? 'text-warning' : 'text-foreground'

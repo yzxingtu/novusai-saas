@@ -14,7 +14,7 @@ import time
 from celery import __version__ as celery_version
 from celery.beat import PersistentScheduler
 from celery.schedules import crontab
-from sqlalchemy import exists, select
+from sqlalchemy import select
 
 from app.celery_app import celery_app
 from app.core.database import sync_session_factory
@@ -28,6 +28,18 @@ from app.tasks.task_scheduling import (
 )
 
 logger = LogManager.get_logger("queue")
+
+PLATFORM_SCHEDULE_SCOPES = (
+    ResourceScopeEnum.ADMIN_ONLY.value,
+    ResourceScopeEnum.GLOBAL_SHARED.value,
+    ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+)
+
+TENANT_SCHEDULE_SCOPES = (
+    ResourceScopeEnum.ALL_TENANTS.value,
+    ResourceScopeEnum.SELECTED_TENANTS.value,
+    ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+)
 
 
 def parse_cron_expression(expression: str) -> crontab:
@@ -139,14 +151,7 @@ def load_task_schedules_from_db(
                 TaskDefinition.is_enabled.is_(True),  # noqa: E712
                 TaskDefinition.is_deleted.is_(False),  # noqa: E712
                 TaskDefinition.owner_tenant_id.is_(None),
-                TaskDefinition.scope == ResourceScopeEnum.ADMIN_ONLY.value,
-                ~exists(
-                    select(TenantTaskBinding.id).where(
-                        TenantTaskBinding.task_definition_id == TaskDefinition.id,
-                        TenantTaskBinding.is_enabled.is_(True),  # noqa: E712
-                        TenantTaskBinding.is_deleted.is_(False),  # noqa: E712
-                    )
-                ),
+                TaskDefinition.scope.in_(PLATFORM_SCHEDULE_SCOPES),
             )
             .all()
         )
@@ -161,6 +166,7 @@ def load_task_schedules_from_db(
                 TenantTaskBinding.is_deleted.is_(False),  # noqa: E712
                 TaskDefinition.is_enabled.is_(True),  # noqa: E712
                 TaskDefinition.is_deleted.is_(False),  # noqa: E712
+                TaskDefinition.scope.in_(TENANT_SCHEDULE_SCOPES),
             )
             .all()
         )

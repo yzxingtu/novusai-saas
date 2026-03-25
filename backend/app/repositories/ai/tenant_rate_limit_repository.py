@@ -44,22 +44,24 @@ class TenantModelRateLimitRepository(TenantRepository[TenantModelRateLimit]):
         result = await self.db.execute(stmt)
         return result.scalars().first()
 
-    async def get_active_limits(
+    async def list_limits(
         self,
         tenant_id: int,
-        model_id: int | None = None
+        model_id: int | None = None,
+        is_active: bool | None = None,
     ) -> list[TenantModelRateLimit]:
         """
-        获取企业所有激活的速率限制配置 / Get all active rate limit configs for tenant.
+        获取企业速率限制配置列表 / List tenant rate limit configs.
         """
         conditions = [
             TenantModelRateLimit.tenant_id == tenant_id,
-            TenantModelRateLimit.is_active.is_(True),
             TenantModelRateLimit.is_deleted.is_(False),
         ]
 
         if model_id:
             conditions.append(TenantModelRateLimit.model_id == model_id)
+        if is_active is not None:
+            conditions.append(TenantModelRateLimit.is_active.is_(is_active))
 
         stmt = select(TenantModelRateLimit).where(
             and_(*conditions)
@@ -67,6 +69,20 @@ class TenantModelRateLimitRepository(TenantRepository[TenantModelRateLimit]):
 
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
+
+    async def get_active_limits(
+        self,
+        tenant_id: int,
+        model_id: int | None = None,
+    ) -> list[TenantModelRateLimit]:
+        """
+        获取企业所有激活的速率限制配置 / Get all active rate limit configs for tenant.
+        """
+        return await self.list_limits(
+            tenant_id=tenant_id,
+            model_id=model_id,
+            is_active=True,
+        )
 
     async def get_latest_active_limit(
         self,

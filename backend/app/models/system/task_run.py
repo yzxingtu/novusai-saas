@@ -32,10 +32,12 @@ class TaskRun(BaseModel):
         "task_definition_id": "task_definition_id",
         "binding_id": "binding_id",
         "task_name": "task_name_snapshot",
+        "handler_path": "handler_path_snapshot",
         "queue": "queue",
         "status": "status",
         "trigger_source": "trigger_source",
         "run_kind": "run_kind",
+        "owner_tenant_id": "owner_tenant_id",
         "effective_tenant_id": "effective_tenant_id",
         "tenant_id": "effective_tenant_id",
         "created_at": "created_at",
@@ -48,6 +50,7 @@ class TaskRun(BaseModel):
         "finished_at": "finished_at",
         "duration_ms": "duration_ms",
         "task_name": "task_name_snapshot",
+        "handler_path": "handler_path_snapshot",
     }
 
     __table_args__ = (

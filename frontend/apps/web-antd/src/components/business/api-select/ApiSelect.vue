@@ -36,6 +36,8 @@ interface OptionItem {
   [key: string]: any;
 }
 
+type SelectModelValue = Array<number | string> | number | string | undefined;
+
 // API response type / API 响应类型
 interface ApiResponse {
   items?: OptionItem[];
@@ -67,7 +69,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   optionsLoaded: [OptionItem[]];
-  'update:value': [number | string | undefined];
+  'update:value': [SelectModelValue];
 }>();
 
 // Page size options / 每页条数选项
@@ -110,8 +112,37 @@ interface Props {
 
 const slots = useSlots();
 
+function normalizeOptionItem(item: OptionItem): OptionItem {
+  const label = (item[props.labelField] as string | undefined) ?? item.label;
+  const value =
+    (item[props.valueField] as number | string | undefined) ?? item.value;
+
+  return {
+    ...item,
+    label,
+    value,
+    disabled: item.disabled,
+  };
+}
+
+function mergeOptions(sources: OptionItem[][]): OptionItem[] {
+  const optionMap = new Map<string, OptionItem>();
+
+  for (const source of sources) {
+    for (const item of source) {
+      const normalized = normalizeOptionItem(item);
+      if (normalized.value === undefined || normalized.value === null) {
+        continue;
+      }
+      optionMap.set(String(normalized.value), normalized);
+    }
+  }
+
+  return [...optionMap.values()];
+}
+
 // v-model:value compatible with Ant Design Vue value prop / v-model:value 兼容 Ant Design Vue 的 value 属性
-const modelValue = defineModel<number | string | undefined>('value');
+const modelValue = defineModel<SelectModelValue>('value');
 
 // State / 状态
 const loading = ref(false);
@@ -142,15 +173,11 @@ function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
 
 // Calculate final options (preserve complete original data) / 计算最终选项（保留完整原始数据）
 const finalOptions = computed(() => {
+  const localOptions = props.options.map((item) => normalizeOptionItem(item));
   if (props.api) {
-    return remoteOptions.value.map((item) => ({
-      ...item, // Preserve all original data (including extra) / 保留所有原始数据（包括 extra）
-      label: item[props.labelField] as string,
-      value: item[props.valueField] as number | string,
-      disabled: item.disabled,
-    }));
+    return mergeOptions([localOptions, remoteOptions.value]);
   }
-  return props.options;
+  return localOptions;
 });
 
 // Whether custom option rendering is needed (has optionRightField or option slot) / 是否需要自定义渲染选项（有 optionRightField 或有 option 插槽）

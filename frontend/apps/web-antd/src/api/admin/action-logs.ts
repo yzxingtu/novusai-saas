@@ -14,12 +14,18 @@ export interface AdminActionLogItem {
   tenant_id: number;
   tenant_code: null | string;
   tenant_name: null | string;
+  agent_avatar?: null | string;
+  agent_name?: null | string;
   action_name: string;
   action_type: string;
   action_level: string;
   status: string;
   agent_id: null | number;
   operator_id: null | number;
+  operator_avatar?: null | string;
+  operator_name?: null | string;
+  operator_nickname?: null | string;
+  operator_type?: null | string;
   duration_ms: null | number;
   error_message: null | string;
   created_at: string;

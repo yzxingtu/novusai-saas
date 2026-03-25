@@ -3,30 +3,31 @@
  * 平台端 AI 对话管理列表页面
  */
 import type { AIConversationInfo } from '#/api/admin/ai';
+import type { ConversationCallLogSummary } from '#/components/business/conversation-detail/ConversationDetail.vue';
 import type { ApiRequestOptions } from '#/utils/request';
 
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
 import { Avatar, Card, Descriptions, Tag } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
-import { getAICallLogListApi } from '#/api/admin/ai-call-logs';
 import {
   getAIConversationDetailApi,
   getAIConversationListApi,
 } from '#/api/admin/ai';
+import { getAICallLogListApi } from '#/api/admin/ai-call-logs';
+import ConversationDetail from '#/components/business/conversation-detail/ConversationDetail.vue';
 import {
   createKeywordSearchPageOperation,
   createViewDetailPageOperation,
 } from '#/composables';
-import ConversationDetail from '#/components/business/conversation-detail/ConversationDetail.vue';
-import type { ConversationCallLogSummary } from '#/components/business/conversation-detail/ConversationDetail.vue';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
 
+import AIPageHeroCard from '../_shared/AIPageHeroCard.vue';
 import {
   formatCost,
   formatTokens,
@@ -37,12 +38,31 @@ import {
 
 defineOptions({ name: 'AdminAIConversations' });
 
+const heroChips = computed(() => [
+  {
+    key: 'scope',
+    icon: 'lucide:building-2',
+    className: 'bg-sky-500/10 text-sky-700 dark:text-sky-200',
+    text: `${$t('admin.ai.conversation.tenantName')} / ${$t('admin.ai.conversation.user')} / ${$t('admin.ai.conversation.title')}`,
+  },
+  {
+    key: 'cost',
+    icon: 'lucide:wallet-cards',
+    className: 'bg-background/90 text-foreground',
+    text: `${$t('admin.ai.conversation.messageCount')} / ${$t('admin.ai.conversation.tokenCount')} / ${$t('admin.ai.conversation.cost')}`,
+  },
+  {
+    key: 'detail',
+    icon: 'lucide:file-search',
+    className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-200',
+    text: `${$t('admin.ai.conversation.messageCount')} / ${$t('admin.ai.callLog.detail.title')}`,
+  },
+]);
+
 const detailOpen = ref(false);
 const detailId = ref<null | number>(null);
-const conversationDetailApi = (
-  id: number,
-  ...args: unknown[]
-) => getAIConversationDetailApi(id, args[0] as ApiRequestOptions | undefined);
+const conversationDetailApi = (id: number, ...args: unknown[]) =>
+  getAIConversationDetailApi(id, args[0] as ApiRequestOptions | undefined);
 
 function onViewDetail(row: AIConversationInfo) {
   detailId.value = row.id;
@@ -82,7 +102,9 @@ const { Grid, gridApi } = useCrudPage<AIConversationInfo>({
         keywordDescription: 'Conversation title keyword / 对话标题关键字',
         setKeyword: () => {},
         action: async (keyword) => {
-          gridApi.formApi?.setValues({ 'filter[title][ilike]': keyword || undefined });
+          gridApi.formApi?.setValues({
+            'filter[title][ilike]': keyword || undefined,
+          });
           gridApi.reload({ page: 1 });
         },
         successMessage: (keyword) =>
@@ -107,11 +129,14 @@ const { Grid, gridApi } = useCrudPage<AIConversationInfo>({
 </script>
 
 <template>
-  <Page
-    auto-content-height
-    :description="$t('admin.ai.conversation.pageDesc')"
-    content-class="flex flex-col gap-4"
-  >
+  <Page auto-content-height content-class="flex flex-col gap-4 !p-4">
+    <AIPageHeroCard
+      :chips="heroChips"
+      :description="$t('admin.ai.conversation.pageDesc')"
+      icon="lucide:messages-square"
+      icon-wrap-class="bg-primary/10 text-primary"
+      :title="$t('admin.ai.conversation.title')"
+    />
     <ConversationDetail
       v-model:open="detailOpen"
       :conversation-id="detailId"

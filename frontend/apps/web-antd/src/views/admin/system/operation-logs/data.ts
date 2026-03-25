@@ -11,6 +11,13 @@ import { $t } from '#/locales';
 
 type OperationLogInfo = adminApi.OperationLogInfo;
 
+const STATUS_CODE_OPTIONS = [
+  200, 400, 401, 403, 404, 405, 409, 422, 429, 500, 502, 503,
+].map((code) => ({
+  label: `${code}`,
+  value: code,
+}));
+
 /**
  * 获取响应状态颜色
  */
@@ -188,6 +195,19 @@ export function useGridFormSchema(): VbenFormSchema[] {
     searchInput('action', $t('admin.system.operationLog.action'), {
       placeholder: $t('admin.system.operationLog.placeholder.searchAction'),
     }),
+    {
+      component: 'Select',
+      componentProps: {
+        allowClear: true,
+        class: 'w-full',
+        options: STATUS_CODE_OPTIONS,
+        placeholder: $t(
+          'admin.system.operationLog.placeholder.searchStatusCode',
+        ),
+      },
+      fieldName: 'filter[status_code]',
+      label: $t('admin.system.operationLog.statusCode'),
+    },
     searchInput('ip', $t('admin.system.operationLog.ip'), {
       placeholder: $t('admin.system.operationLog.placeholder.searchIp'),
     }),

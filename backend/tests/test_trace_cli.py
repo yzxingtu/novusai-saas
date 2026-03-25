@@ -109,3 +109,54 @@ def test_trace_show_auto_falls_back_to_logs_when_db_lookup_fails(monkeypatch) ->
     assert result.exit_code == 0
     assert '"trace_id": "trace-auto"' in result.output
     assert '"source": "logs"' in result.output
+
+
+def test_trace_show_text_includes_operation_log_response_message(monkeypatch) -> None:
+    from app.cli import cli
+    from app.services.system.trace_lookup_service import TraceLookupResult
+
+    class _FakeTraceLookupService:
+        def __init__(self, db=None, log_dir=None):
+            self.db = db
+            self.log_dir = log_dir
+
+        async def lookup(self, trace_id: str, **_kwargs):
+            return TraceLookupResult(
+                trace_id=trace_id,
+                operation_logs=[
+                    {
+                        "created_at": "2026-03-25T10:00:00+08:00",
+                        "tenant_id": None,
+                        "username": "admin",
+                        "method": "POST",
+                        "path": "/admin/demo",
+                        "status_code": 400,
+                        "response_code": 4001,
+                        "response_message": "validation failed",
+                        "duration_ms": 88,
+                    }
+                ],
+                log_matches=[],
+                primary_error=None,
+                summary={
+                    "operation_logs": 1,
+                    "log_matches": 0,
+                    "log_files": [],
+                    "source": "db",
+                },
+                redacted=True,
+            )
+
+    monkeypatch.setattr(
+        "app.services.system.trace_lookup_service.TraceLookupService",
+        _FakeTraceLookupService,
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["trace", "show", "trace-msg", "--source", "db"],
+    )
+
+    assert result.exit_code == 0
+    assert "msg=validation failed" in result.output

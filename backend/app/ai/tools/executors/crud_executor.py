@@ -481,6 +481,7 @@ async def _audit_log(
             tenant_id=context.tenant_id,
             agent_id=context.agent_id,
             operator_id=context.user_id,
+            operator_type=context.user_role,
             skill_id=context.skill_id,
             action_name=f"data_{action}",
             action_type=ActionTypeEnum.ACTION.value,

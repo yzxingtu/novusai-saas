@@ -10,6 +10,7 @@ import type {
 } from '#/api/shared/periodic-task-types';
 import type { ApiRequestOptions } from '#/utils/request';
 
+import { $t, $te } from '#/locales';
 import { requestClient } from '#/utils/request';
 
 // ============================================================
@@ -28,6 +29,7 @@ export interface PeriodicTaskInfoRaw {
   id: number;
   name: string;
   task_path: string;
+  definition_type?: string;
   schedule_type: string;
   cron_expression: null | string;
   interval_seconds: null | number;
@@ -38,6 +40,13 @@ export interface PeriodicTaskInfoRaw {
   created_at: string;
   scope: null | string;
   owner_tenant_id: null | number;
+  assigned_tenant_ids?: number[];
+  assigned_tenant_names?: string[];
+  binding_count?: number;
+  binding_required?: boolean;
+  binding_configured?: boolean;
+  tenant_access_mode?: string;
+  binding_summary?: null | string;
   is_locked: boolean;
   is_editable: boolean;
   max_retries: number;
@@ -59,6 +68,55 @@ export interface PeriodicTaskBindingInfo {
   next_run_at: null | string;
 }
 
+export interface PeriodicTaskBindingSyncPayload {
+  scope?: null | string;
+  tenant_ids: number[];
+}
+
+function getTaskLeafCandidates(raw: PeriodicTaskInfoRaw): string[] {
+  const candidates = [raw.task_path, raw.name]
+    .filter((value): value is string => Boolean(value))
+    .flatMap((value) => {
+      const trimmed = value.trim();
+      const leaf = trimmed.split('.').at(-1) || trimmed;
+      return [trimmed, leaf];
+    });
+
+  return [...new Set(candidates)];
+}
+
+function translateSystemTaskName(raw: PeriodicTaskInfoRaw): string {
+  if (raw.definition_type === 'plugin') {
+    return raw.name;
+  }
+
+  for (const candidate of getTaskLeafCandidates(raw)) {
+    const key = `admin.system.taskLog.taskNames.${candidate}`;
+    if ($te(key)) {
+      return $t(key);
+    }
+  }
+
+  return raw.name;
+}
+
+function translateSystemTaskDescription(
+  raw: PeriodicTaskInfoRaw,
+): null | string {
+  if (raw.definition_type === 'plugin' || !raw.description) {
+    return raw.description;
+  }
+
+  for (const candidate of getTaskLeafCandidates(raw)) {
+    const key = `admin.system.periodicTask.taskDescriptions.${candidate}`;
+    if ($te(key)) {
+      return $t(key);
+    }
+  }
+
+  return raw.description;
+}
+
 // ============================================================
 // Transform functions / 转换函数
 // ============================================================
@@ -66,18 +124,26 @@ export interface PeriodicTaskBindingInfo {
 function transformPeriodicTaskInfo(raw: PeriodicTaskInfoRaw): PeriodicTaskInfo {
   return {
     id: raw.id,
-    name: raw.name,
+    name: translateSystemTaskName(raw),
     taskPath: raw.task_path,
+    definitionType: raw.definition_type ?? 'system',
     scheduleType: raw.schedule_type,
     cronExpression: raw.cron_expression,
     intervalSeconds: raw.interval_seconds,
     isActive: raw.is_active,
     lastRunAt: raw.last_run_at,
     nextRunAt: raw.next_run_at,
-    description: raw.description,
+    description: translateSystemTaskDescription(raw),
     createdAt: raw.created_at,
     scope: raw.scope,
     tenantId: raw.owner_tenant_id,
+    assignedTenantIds: raw.assigned_tenant_ids ?? [],
+    assignedTenantNames: raw.assigned_tenant_names ?? [],
+    bindingCount: raw.binding_count ?? 0,
+    bindingRequired: raw.binding_required ?? false,
+    bindingConfigured: raw.binding_configured ?? true,
+    tenantAccessMode: raw.tenant_access_mode ?? 'none',
+    bindingSummary: raw.binding_summary ?? null,
     isLocked: raw.is_locked,
     isEditable: raw.is_editable,
     maxRetries: raw.max_retries,
@@ -229,16 +295,13 @@ export async function getPeriodicTaskBindingsApi(
  */
 export async function syncPeriodicTaskBindingsApi(
   id: number,
-  tenantIds: number[],
+  payload: number[] | PeriodicTaskBindingSyncPayload,
   options?: ApiRequestOptions,
 ): Promise<{ added: number; removed: number; reenabled: number }> {
+  const body = Array.isArray(payload) ? { tenant_ids: payload } : payload;
   return await requestClient.put<{
     added: number;
     removed: number;
     reenabled: number;
-  }>(
-    `${API_PREFIX}/${id}/bindings`,
-    { tenant_ids: tenantIds },
-    options,
-  );
+  }>(`${API_PREFIX}/${id}/bindings`, body, options);
 }

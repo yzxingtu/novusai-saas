@@ -40,6 +40,7 @@ import {
   publishAIAgentApi,
   updateAIAgentStatusApi,
 } from '#/api/admin/ai';
+import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
 import {
   buildPageAIFormExtraData,
   createKeywordSearchPageOperation,
@@ -97,14 +98,16 @@ const {
   pageSize: 12,
   recycleBin: true,
   customActions: {
-    edit: (row) => agentFormRef.value?.openEdit(
-      row,
-      buildPageAIFormExtraData({ pageKey: AI_PAGE_KEY }),
-    ),
+    edit: (row) =>
+      agentFormRef.value?.openEdit(
+        row,
+        buildPageAIFormExtraData({ pageKey: AI_PAGE_KEY }),
+      ),
   },
   ai: {
     pageKey: AI_PAGE_KEY,
-    formSchema: (isEdit?: boolean) => useFormSchema(isEdit ?? false, false, !(isEdit ?? false)),
+    formSchema: (isEdit?: boolean) =>
+      useFormSchema(isEdit ?? false, false, !(isEdit ?? false)),
     entityName: $t('admin.ai.agent.name'),
     entityDescription: $t('admin.ai.agent.entityDescription'),
     openRecycleBin: () => recycleBinRef.value?.open(),
@@ -114,21 +117,33 @@ const {
     }),
     extra: [
       createPrefilledCreatePageOperation({
-        description: 'Open the create agent form and optionally pre-fill fields / 打开新建智能体表单，可选预填字段',
+        description:
+          'Open the create agent form and optionally pre-fill fields / 打开新建智能体表单，可选预填字段',
         params: {
           name: { type: 'string', description: 'Agent name / 智能体名称' },
-          description: { type: 'string', description: 'Agent description / 简介' },
+          description: {
+            type: 'string',
+            description: 'Agent description / 简介',
+          },
           model_id: { type: 'number', description: 'AI model ID / AI 模型 ID' },
-          system_prompt: { type: 'string', description: 'System prompt / 系统提示词' },
-          welcome_message: { type: 'string', description: 'Welcome message / 欢迎语' },
+          system_prompt: {
+            type: 'string',
+            description: 'System prompt / 系统提示词',
+          },
+          welcome_message: {
+            type: 'string',
+            description: 'Welcome message / 欢迎语',
+          },
         },
         normalizeParams: (params) => {
           const overrides: Record<string, unknown> = {};
           if (params?.name) overrides.name = params.name;
           if (params?.description) overrides.description = params.description;
           if (params?.model_id) overrides.model_id = params.model_id;
-          if (params?.system_prompt) overrides.system_prompt = params.system_prompt;
-          if (params?.welcome_message) overrides.welcome_message = params.welcome_message;
+          if (params?.system_prompt)
+            overrides.system_prompt = params.system_prompt;
+          if (params?.welcome_message)
+            overrides.welcome_message = params.welcome_message;
           return overrides;
         },
         openCreate: async (overrides) => {
@@ -136,7 +151,9 @@ const {
             buildPageAIFormExtraData({
               pageKey: AI_PAGE_KEY,
               baseDefaults:
-                Object.keys(overrides).length > 0 ? getFormDefaults() : undefined,
+                Object.keys(overrides).length > 0
+                  ? getFormDefaults()
+                  : undefined,
               defaults: overrides,
             }),
           );
@@ -275,10 +292,7 @@ function onClearFilters() {
 }
 
 const hasActiveFilters = computed(
-  () =>
-    !!searchKeyword.value ||
-    !!filterScope.value ||
-    !!filterStatus.value,
+  () => !!searchKeyword.value || !!filterScope.value || !!filterStatus.value,
 );
 
 // ============================================================
@@ -336,10 +350,77 @@ const stats = computed(() => {
   };
 });
 
+const selectedScopeLabel = computed(() => {
+  return getAdminScopeOptions().find((opt) => opt.value === filterScope.value)
+    ?.label;
+});
+
+const heroMetrics = computed(() => [
+  {
+    key: 'total',
+    label: $t('admin.common.total'),
+    value: stats.value.total,
+  },
+  {
+    key: 'published',
+    label: $t('admin.ai.agent.status_options.published'),
+    value: stats.value.published,
+  },
+  {
+    key: 'system',
+    label: $t('admin.ai.agent.type_options.system'),
+    value: stats.value.system,
+  },
+  {
+    key: 'recycle',
+    label: $t('common.recycleBin.title'),
+    value: recycleBinCount.value,
+  },
+]);
+
+const heroChips = computed(() => {
+  const chips = [
+    {
+      key: 'focus',
+      icon: 'lucide:bot',
+      className: 'bg-sky-500/10 text-sky-700 dark:text-sky-200',
+      text: `${$t('admin.ai.agent.executionMode')} / ${$t('admin.ai.agent.status')} / ${$t('common.scope.scope')}`,
+    },
+  ];
+
+  if (searchKeyword.value.trim()) {
+    chips.push({
+      key: 'keyword',
+      icon: 'lucide:search',
+      className: 'bg-background/90 text-foreground',
+      text: `${$t('admin.ai.agent.name')}: ${searchKeyword.value.trim()}`,
+    });
+  }
+
+  if (selectedScopeLabel.value) {
+    chips.push({
+      key: 'scope',
+      icon: 'lucide:building-2',
+      className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-200',
+      text: selectedScopeLabel.value,
+    });
+  }
+
+  if (filterStatus.value) {
+    chips.push({
+      key: 'status',
+      icon: 'lucide:badge-check',
+      className: 'bg-amber-500/10 text-amber-700 dark:text-amber-200',
+      text: getStatusText(filterStatus.value),
+    });
+  }
+
+  return chips;
+});
 </script>
 
 <template>
-  <Page auto-content-height content-class="flex flex-col gap-4">
+  <Page auto-content-height content-class="flex flex-col gap-4 !p-4">
     <!-- Form Drawer -->
     <AgentForm ref="agentFormRef" @success="loadList" />
     <VersionDrawer @success="loadList" />
@@ -366,6 +447,15 @@ const stats = computed(() => {
         show-count
       />
     </Modal>
+
+    <AIPageHeroCard
+      :chips="heroChips"
+      :description="$t('admin.ai.agent.pageDesc')"
+      icon="lucide:bot"
+      icon-wrap-class="bg-primary/10 text-primary"
+      :metrics="heroMetrics"
+      :title="$t('admin.ai.agent.title')"
+    />
 
     <!-- ==================== Top Bar ==================== -->
     <div class="flex flex-wrap items-center gap-3">
@@ -437,21 +527,6 @@ const stats = computed(() => {
       </Button>
 
       <div class="flex-1"></div>
-
-      <!-- Stats -->
-      <div
-        class="hidden items-center gap-4 text-xs text-muted-foreground md:flex"
-      >
-        <span>{{ $t('admin.common.total') }} {{ stats.total }}</span>
-        <span class="flex items-center gap-1">
-          <span class="inline-block size-2 rounded-full bg-green-500"></span>
-          {{ stats.published }}
-        </span>
-        <span class="flex items-center gap-1">
-          <IconifyIcon icon="lucide:shield-check" class="size-3" />
-          {{ stats.system }}
-        </span>
-      </div>
 
       <!-- Recycle bin / 回收站 -->
       <span v-access:code="['ai_agent:recycle_bin']">
@@ -562,9 +637,7 @@ const stats = computed(() => {
                 <Menu>
                   <MenuItem
                     key="detail"
-                    @click="
-                      $router.push(`/admin/ai/agents/${agent.id}`)
-                    "
+                    @click="$router.push(`/admin/ai/agents/${agent.id}`)"
                   >
                     <div class="flex items-center gap-2">
                       <IconifyIcon icon="lucide:settings" class="size-4" />

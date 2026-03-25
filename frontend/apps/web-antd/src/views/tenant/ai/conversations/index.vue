@@ -3,9 +3,10 @@
  * 企业端对话管理列表页面
  */
 import type { ConversationInfo } from '#/api/tenant/conversations';
+import type { ConversationCallLogSummary } from '#/components/business/conversation-detail/ConversationDetail.vue';
 import type { ApiRequestOptions } from '#/utils/request';
 
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -18,9 +19,9 @@ import {
   getConversationDetailApi,
   getConversationListApi,
 } from '#/api/tenant/conversations';
-import { createViewDetailPageOperation } from '#/composables';
+import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
 import ConversationDetail from '#/components/business/conversation-detail/ConversationDetail.vue';
-import type { ConversationCallLogSummary } from '#/components/business/conversation-detail/ConversationDetail.vue';
+import { createViewDetailPageOperation } from '#/composables';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
@@ -35,16 +36,35 @@ import {
 
 defineOptions({ name: 'TenantConversationList' });
 
+const heroChips = computed(() => [
+  {
+    key: 'scope',
+    icon: 'lucide:messages-square',
+    className: 'bg-sky-500/10 text-sky-700 dark:text-sky-200',
+    text: `${$t('tenant.ai.conversation.agentName')} / ${$t('tenant.ai.conversation.user')} / ${$t('tenant.ai.conversation.title')}`,
+  },
+  {
+    key: 'cost',
+    icon: 'lucide:wallet-cards',
+    className: 'bg-background/90 text-foreground',
+    text: `${$t('tenant.ai.conversation.messageCount')} / ${$t('tenant.ai.conversation.tokenCount')} / ${$t('tenant.ai.conversation.cost')}`,
+  },
+  {
+    key: 'detail',
+    icon: 'lucide:file-search',
+    className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-200',
+    text: `${$t('tenant.ai.conversation.viewDetail')} / ${$t('tenant.ai.callLog.detailTitle')}`,
+  },
+]);
+
 const detailOpen = ref(false);
 const detailId = ref<null | number>(null);
-const conversationDetailApi = (
-  id: number,
-  ...args: unknown[]
-) => getConversationDetailApi(
-  id,
-  args[0] as Record<string, unknown> | undefined,
-  args[1] as ApiRequestOptions | undefined,
-);
+const conversationDetailApi = (id: number, ...args: unknown[]) =>
+  getConversationDetailApi(
+    id,
+    args[0] as Record<string, unknown> | undefined,
+    args[1] as ApiRequestOptions | undefined,
+  );
 
 function onViewDetail(row: ConversationInfo) {
   detailId.value = row.id;
@@ -93,11 +113,15 @@ const { Grid } = useCrudPage<ConversationInfo>({
 </script>
 
 <template>
-  <Page
-    auto-content-height
-    :description="$t('tenant.ai.conversation.pageDesc')"
-    content-class="flex flex-col gap-4"
-  >
+  <Page auto-content-height content-class="flex flex-col gap-4 !p-4">
+    <AIPageHeroCard
+      :chips="heroChips"
+      :description="$t('tenant.ai.conversation.pageDesc')"
+      icon="lucide:messages-square"
+      icon-wrap-class="bg-primary/10 text-primary"
+      :title="$t('tenant.ai.conversation.name')"
+    />
+
     <!-- 详情抽屉 -->
     <ConversationDetail
       v-model:open="detailOpen"

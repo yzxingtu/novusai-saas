@@ -84,6 +84,55 @@ class TestQuotaQuery:
         result = await service.get_active_quotas()
         assert len(result) == 0
 
+    @pytest.mark.asyncio
+    async def test_get_all_quotas_with_usage_keeps_listed_rule_identity(self, mock_db):
+        from app.services.ai.tenant_quota_service import TenantQuotaService
+
+        service = TenantQuotaService.__new__(TenantQuotaService)
+        service.db = mock_db
+        service.tenant_id = 1
+        first_quota = make_mock_model(
+            id=11,
+            tenant_id=1,
+            model_id=None,
+            period='monthly',
+            limit=1000,
+            warning_threshold=80,
+        )
+        second_quota = make_mock_model(
+            id=12,
+            tenant_id=1,
+            model_id=9,
+            period='daily',
+            limit=600,
+            warning_threshold=60,
+        )
+        service.repo = AsyncMock()
+        service.repo.list_quotas = AsyncMock(return_value=[first_quota, second_quota])
+
+        from app.services.ai import tenant_quota_service as service_module
+
+        original_tracker = service_module.UsageTracker
+
+        class _FakeTracker:
+            @staticmethod
+            async def get_usage(*, tenant_id, model_id, period):
+                if tenant_id == 1 and model_id == 0 and period == 'monthly':
+                    return 250
+                if tenant_id == 1 and model_id == 9 and period == 'daily':
+                    return 480
+                return 0
+
+        service_module.UsageTracker = _FakeTracker
+        try:
+            result = await service.get_all_quotas_with_usage()
+        finally:
+            service_module.UsageTracker = original_tracker
+
+        assert [item['quota'].id for item in result] == [11, 12]
+        assert result[0]['remaining'] == 750
+        assert result[1]['is_warning'] is True
+
 
 class TestRateLimitCheck:
 
@@ -113,6 +162,24 @@ class TestRateLimitCheck:
 
         config = await service.repo.get_rate_limit(tenant_id=1)
         assert config is None
+
+    @pytest.mark.asyncio
+    async def test_get_active_limits_can_request_all_statuses(self, mock_db):
+        from app.services.ai.tenant_rate_limit_service import TenantRateLimitService
+
+        service = TenantRateLimitService.__new__(TenantRateLimitService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.repo.list_limits = AsyncMock(return_value=[])
+
+        await service.get_active_limits(model_id=7, is_active=None)
+
+        service.repo.list_limits.assert_awaited_once_with(
+            tenant_id=1,
+            model_id=7,
+            is_active=None,
+        )
 
 
 class TestQuotaServiceMethods:

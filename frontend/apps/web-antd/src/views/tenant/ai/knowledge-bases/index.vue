@@ -27,6 +27,7 @@ import {
   deleteKnowledgeBaseApi,
   getKnowledgeBaseListApi,
 } from '#/api/tenant/knowledge-bases';
+import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
 import {
   buildPageAIFormExtraData,
   createKeywordSearchPageOperation,
@@ -76,10 +77,11 @@ const {
   pageSize: 12,
   recycleBin: true,
   customActions: {
-    edit: (row) => kbFormRef.value?.openEdit(
-      row,
-      buildPageAIFormExtraData({ pageKey: AI_PAGE_KEY }),
-    ),
+    edit: (row) =>
+      kbFormRef.value?.openEdit(
+        row,
+        buildPageAIFormExtraData({ pageKey: AI_PAGE_KEY }),
+      ),
   },
   ai: {
     pageKey: AI_PAGE_KEY,
@@ -131,7 +133,8 @@ const {
           ...(typeof params.chunk_strategy === 'string' && params.chunk_strategy
             ? { chunk_strategy: params.chunk_strategy }
             : {}),
-          ...(typeof params.description === 'string' && params.description.trim()
+          ...(typeof params.description === 'string' &&
+          params.description.trim()
             ? { description: params.description.trim() }
             : {}),
           ...(Number.isFinite(Number(params.embedding_model_id))
@@ -192,6 +195,34 @@ function openRecycleBin() {
   recycleBinRef.value?.open();
 }
 
+const heroMetrics = computed(() => [
+  {
+    key: 'total',
+    label: $t('tenant.knowledgeBase.title'),
+    value: total.value,
+  },
+  {
+    key: 'recycle',
+    label: $t('common.recycleBin.title'),
+    value: recycleBinCount.value,
+  },
+]);
+
+const heroChips = computed(() => [
+  {
+    key: 'focus',
+    icon: 'lucide:database-zap',
+    className: 'bg-sky-500/10 text-sky-700 dark:text-sky-200',
+    text: `${$t('tenant.knowledgeBase.document.title')} / ${$t('tenant.knowledgeBase.searchTest.title')} / ${$t('tenant.knowledgeBase.ragConfig.title')}`,
+  },
+  {
+    key: 'storage',
+    icon: 'lucide:hard-drive',
+    className: 'bg-background/90 text-foreground',
+    text: `${$t('tenant.knowledgeBase.field.totalChunks')} / ${$t('tenant.knowledgeBase.field.totalSizeBytes')}`,
+  },
+]);
+
 // ========== KnowledgeBaseForm (ref 模式) / form by ref ==========
 const kbFormRef = ref<InstanceType<typeof KnowledgeBaseForm>>();
 
@@ -244,15 +275,19 @@ function onMenuClick(key: number | string, row: KnowledgeBaseItem) {
     handleMenuAction(String(key), row);
   }
 }
-
 </script>
 
 <template>
-  <Page
-    auto-content-height
-    :description="$t('tenant.knowledgeBase.pageDesc')"
-    content-class="flex flex-col gap-4"
-  >
+  <Page auto-content-height content-class="flex flex-col gap-4 !p-4">
+    <AIPageHeroCard
+      :chips="heroChips"
+      :description="$t('tenant.knowledgeBase.pageDesc')"
+      icon="lucide:book-open"
+      icon-wrap-class="bg-primary/10 text-primary"
+      :metrics="heroMetrics"
+      :title="$t('tenant.knowledgeBase.title')"
+    />
+
     <KnowledgeBaseForm ref="kbFormRef" @success="loadList" />
     <DetailDrawer @success="loadList" />
     <RecycleBinDrawer

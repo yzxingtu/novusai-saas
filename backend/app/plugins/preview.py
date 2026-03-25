@@ -172,7 +172,7 @@ async def generate_preview(
         "webhooks": len(ext.webhooks),
         "webhooks_details": [f"{w.method} {w.path}" for w in ext.webhooks],
         "tasks": len(ext.tasks),
-        "tasks_details": [t.name for t in ext.tasks],
+        "tasks_details": [resolve_i18n(t.display_name, locale) or t.name for t in ext.tasks],
         "notifications": len(ext.notifications),
         "notifications_details": [n.code for n in ext.notifications],
         "permissions": len(ext.permissions),

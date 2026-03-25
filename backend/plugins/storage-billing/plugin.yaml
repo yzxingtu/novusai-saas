@@ -250,16 +250,26 @@ extensions:
   tasks:
     - name: daily_reconciliation
       handler: "tasks.run_daily_reconciliation"
+      display_name:
+        zh-CN: "对象存储每日对账"
+        en: "Daily Storage Reconciliation"
       schedule_type: cron
       cron_expression: "0 3 * * *"
       queue: default
-      description: "Daily storage billing reconciliation at 03:00 platform time"
+      description:
+        zh-CN: "每天凌晨 3:00 执行对象存储官方账单对账，归集平台托管对象存储的云端费用。"
+        en: "Runs daily storage billing reconciliation at 03:00 platform time, aggregating official cloud charges for platform-managed object storage."
     - name: qiniu_monthly_settlement
       handler: "tasks.run_qiniu_monthly_settlement"
+      display_name:
+        zh-CN: "七牛月结账单导入"
+        en: "Qiniu Monthly Settlement Import"
       schedule_type: cron
       cron_expression: "0 3 6 * *"
       queue: default
-      description: "Qiniu monthly settled billing import at 03:00 on day 6"
+      description:
+        zh-CN: "每月 6 日凌晨 3:00 导入七牛月结账单数据，用于平台侧对象存储对账。"
+        en: "Imports Qiniu monthly settled billing data at 03:00 on day 6 for platform-side storage reconciliation."
 
   frontend:
     pages:

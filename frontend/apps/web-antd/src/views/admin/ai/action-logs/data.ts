@@ -220,10 +220,22 @@ export function useColumns<T = AdminActionLogItem>(
       slots: { default: 'status_cell' },
     },
     {
+      field: 'agent_name',
+      title: $t('admin.ai.actionLog.agentName'),
+      minWidth: 180,
+      slots: { default: 'agent_cell' },
+    },
+    {
       field: 'tenant_id',
       title: $t('admin.ai.actionLog.tenantInfo'),
       minWidth: 180,
       slots: { default: 'tenantInfo_cell' },
+    },
+    {
+      field: 'operator_name',
+      title: $t('admin.ai.actionLog.operatorId'),
+      minWidth: 180,
+      slots: { default: 'operator_cell' },
     },
     {
       field: 'duration_ms',

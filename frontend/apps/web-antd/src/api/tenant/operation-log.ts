@@ -41,6 +41,7 @@ export interface OperationLogInfoRaw {
   request_body: null | Record<string, unknown>;
   status_code: number;
   response_code: number;
+  response_message?: null | string;
   ip: string;
   duration_ms: number;
   created_at: string;
@@ -65,6 +66,7 @@ export interface OperationLogInfo {
   requestBody: null | Record<string, unknown>;
   statusCode: number;
   responseCode: number;
+  responseMessage?: null | string;
   ip: string;
   durationMs: number;
   createdAt: string;
@@ -102,6 +104,7 @@ function transformOperationLogInfo(raw: OperationLogInfoRaw): OperationLogInfo {
     requestBody: raw.request_body,
     statusCode: raw.status_code,
     responseCode: raw.response_code,
+    responseMessage: raw.response_message,
     ip: raw.ip,
     durationMs: raw.duration_ms,
     createdAt: raw.created_at,

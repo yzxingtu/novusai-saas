@@ -49,7 +49,9 @@ function createCodegenStorage() {
         const configStr = JSON.stringify(parsed.configJson ?? {});
         if (getByteLength(configStr) > CONFIG_JSON_PERSIST_MAX_BYTES) {
           if (typeof console !== 'undefined' && console.warn) {
-            console.warn('[codegen] configJson exceeds persist limit, skipping persist to avoid quota');
+            console.warn(
+              '[codegen] configJson exceeds persist limit, skipping persist to avoid quota',
+            );
           }
           parsed.configJson = {};
         }
@@ -62,7 +64,9 @@ function createCodegenStorage() {
   };
 }
 
-function ensureFieldsDisplayNames(fields: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+function ensureFieldsDisplayNames(
+  fields: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
   return fields.map((f) => {
     const name = (f.name as string) || '';
     if (!name || f.type === '__divider__' || f.divider) return f;
@@ -80,7 +84,9 @@ function ensureFieldsDisplayNames(fields: Array<Record<string, unknown>>): Array
 }
 
 /** 按 name 去重，同名字段保留第一个原名，后续加 _2、_3 后缀 / Dedupe by name, suffix _2/_3 for duplicates */
-function dedupeFieldsByName(fields: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+function dedupeFieldsByName(
+  fields: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
   const seen = new Map<string, number>();
   return fields.map((f) => {
     if (f.type === '__divider__' || f.divider) return f;
@@ -95,10 +101,14 @@ function dedupeFieldsByName(fields: Array<Record<string, unknown>>): Array<Recor
 }
 
 /** 确保 fields 中每项有 __key、display_name、comment，缺失时自动补全；并去重 / Ensure __key, display_name, comment; dedupe */
-function ensureFieldsHaveKey(json: Record<string, unknown>): Record<string, unknown> {
+function ensureFieldsHaveKey(
+  json: Record<string, unknown>,
+): Record<string, unknown> {
   const rawFields = json.fields;
   if (!Array.isArray(rawFields)) return json;
-  let fields: Array<Record<string, unknown>> = rawFields as Array<Record<string, unknown>>;
+  let fields: Array<Record<string, unknown>> = rawFields as Array<
+    Record<string, unknown>
+  >;
   if (fields.length === 0) return json;
   fields = dedupeFieldsByName(fields);
   fields = ensureFieldsDisplayNames(fields);
@@ -137,6 +147,9 @@ export const useCodegenBuilderStore = defineStore(
 
     /** 当前选中字段的 __key / Currently selected field's __key */
     const selectedFieldKey = ref<string | null>(null);
+
+    /** 当前激活的 endpoint 索引 / Active endpoint index */
+    const activeEndpointIdx = ref(0);
 
     /** WYSIWYG 主视图模式 / WYSIWYG view mode */
     const wysiwygViewMode = ref<'list' | 'form' | 'detail'>('list');
@@ -181,13 +194,18 @@ export const useCodegenBuilderStore = defineStore(
     }
 
     /** 深合并嵌套对象 / Deep merge nested objects */
-    function deepMerge(target: Record<string, unknown>, patch: Record<string, unknown>): Record<string, unknown> {
+    function deepMerge(
+      target: Record<string, unknown>,
+      patch: Record<string, unknown>,
+    ): Record<string, unknown> {
       const result = { ...target };
       for (const [key, val] of Object.entries(patch)) {
         if (val != null && typeof val === 'object' && !Array.isArray(val)) {
           const cur = result[key];
           result[key] = deepMerge(
-            (typeof cur === 'object' && cur != null && !Array.isArray(cur) ? cur : {}) as Record<string, unknown>,
+            (typeof cur === 'object' && cur != null && !Array.isArray(cur)
+              ? cur
+              : {}) as Record<string, unknown>,
             val as Record<string, unknown>,
           );
         } else {
@@ -200,7 +218,10 @@ export const useCodegenBuilderStore = defineStore(
     /** 更新配置 JSON（深合并嵌套对象）/ Update config JSON (deep merge) */
     function updateConfig(patch: Record<string, unknown>) {
       if (!patch || Object.keys(patch).length === 0) return;
-      const next = deepMerge({ ...configJson.value }, patch) as Record<string, unknown>;
+      const next = deepMerge({ ...configJson.value }, patch) as Record<
+        string,
+        unknown
+      >;
       if (JSON.stringify(configJson.value) === JSON.stringify(next)) return;
       pushHistory(configJson.value);
       redoStack.value = [];
@@ -238,6 +259,7 @@ export const useCodegenBuilderStore = defineStore(
       validationWarnings.value = [];
       isDirty.value = false;
       selectedFieldKey.value = null;
+      activeEndpointIdx.value = 0;
     }
 
     /** 加载配置（编辑模式或导入）/ Load config (edit mode or import) */
@@ -250,6 +272,7 @@ export const useCodegenBuilderStore = defineStore(
       previewCache.value = null;
       isDirty.value = false;
       selectedFieldKey.value = null;
+      activeEndpointIdx.value = 0;
       showFieldManager.value = false;
     }
 
@@ -272,8 +295,10 @@ export const useCodegenBuilderStore = defineStore(
 
     /** 字段数量（不含 divider）/ Field count (excluding divider) */
     const fieldCount = computed(() => {
-      const fields = (configJson.value.fields as Array<Record<string, unknown>>) || [];
-      return fields.filter((f) => f.type !== '__divider__' && !f.divider).length;
+      const fields =
+        (configJson.value.fields as Array<Record<string, unknown>>) || [];
+      return fields.filter((f) => f.type !== '__divider__' && !f.divider)
+        .length;
     });
 
     /** 专家模式已配置项计数 / Expert mode item count */
@@ -293,7 +318,11 @@ export const useCodegenBuilderStore = defineStore(
       const ep0 = endpoints[0] || {};
       const fe = (ep0.frontend as Record<string, unknown>) || {};
       const batch = (ep0.batch as Record<string, unknown>) || {};
-      const menu = ((ep0.permission as Record<string, unknown>)?.menu as Record<string, unknown>) || {};
+      const menu =
+        ((ep0.permission as Record<string, unknown>)?.menu as Record<
+          string,
+          unknown
+        >) || {};
       let count = 0;
       if (tree.enabled) count++;
       if (unique.length > 0) count++;
@@ -313,7 +342,11 @@ export const useCodegenBuilderStore = defineStore(
       if (fe.export) count++;
       if (batch.delete) count++;
       if (fe.drag_sort) count++;
-      if ((fe.form_columns as number) !== undefined && (fe.form_columns as number) !== 1) count++;
+      if (
+        (fe.form_columns as number) !== undefined &&
+        (fe.form_columns as number) !== 1
+      )
+        count++;
       if (ep0.route_prefix) count++;
       if (ep0.data_mode) count++;
       if (menu.icon || menu.title) count++;
@@ -332,6 +365,7 @@ export const useCodegenBuilderStore = defineStore(
       validationWarnings,
       isDirty,
       selectedFieldKey,
+      activeEndpointIdx,
       wysiwygViewMode,
       showFieldManager,
       expertItemCount,
@@ -351,7 +385,7 @@ export const useCodegenBuilderStore = defineStore(
     persist: {
       key: 'codegen-builder',
       storage: createCodegenStorage(),
-      pick: ['configId', 'configJson', 'wysiwygViewMode'],
+      pick: ['configId', 'configJson', 'activeEndpointIdx', 'wysiwygViewMode'],
     },
   },
 );

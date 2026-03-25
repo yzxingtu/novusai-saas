@@ -74,6 +74,7 @@ class TenantAIQuotaController(TenantController):
             model_id: int | None = Query(None, description=_("api.param.model_id")),
             period: str | None = Query(None, description=_("api.param.period")),
             include_usage: bool = Query(False, description=_("api.param.include_usage")),
+            is_active: bool | None = Query(None, description=_("api.param.is_active")),
         ):
             """
             获取企业配额配置列表 / Get tenant quota config list
@@ -83,13 +84,11 @@ class TenantAIQuotaController(TenantController):
             service = TenantQuotaService(db, tenant_admin.tenant_id)
 
             if include_usage:
-                if model_id:
-                    quota_with_usage = await service.get_quota_with_usage(
-                        model_id, period or "monthly"
-                    )
-                    raw_list = [quota_with_usage] if quota_with_usage else []
-                else:
-                    raw_list = await service.get_all_quotas_with_usage(period)
+                raw_list = await service.get_all_quotas_with_usage(
+                    period=period,
+                    model_id=model_id,
+                    is_active=is_active,
+                )
 
                 # 将 ORM 对象序列化为包含 model_name 的字典 / Serialize ORM objects to dicts containing model_name
                 result = []
@@ -104,8 +103,10 @@ class TenantAIQuotaController(TenantController):
                         "remaining": item["remaining"],
                     })
             else:
-                quotas = await service.get_active_quotas(
+                quotas = await service.list_quotas(
                     period=period,
+                    model_id=model_id,
+                    is_active=is_active,
                 )
                 result = [TenantQuotaResponse.from_orm_model(q).model_dump() for q in quotas]
 
@@ -124,6 +125,7 @@ class TenantAIQuotaController(TenantController):
             db: DbSession,
             tenant_admin: ActiveTenantAdmin,
             model_id: int | None = Query(None, description=_("api.param.model_id")),
+            is_active: bool | None = Query(None, description=_("api.param.is_active")),
         ):
             """
             获取速率限制配置列表 / Get rate limit config list
@@ -133,6 +135,7 @@ class TenantAIQuotaController(TenantController):
             service = TenantRateLimitService(db, tenant_admin.tenant_id)
             items = await service.get_active_limits(
                 model_id=model_id,
+                is_active=is_active,
             )
             result = [TenantRateLimitResponse.from_orm_model(item).model_dump() for item in items]
 
@@ -260,9 +263,7 @@ class TenantAIQuotaController(TenantController):
             if quota.tenant_id != tenant_admin.tenant_id:
                 raise AuthorizationException(message=_("common.forbidden"))
 
-            quota_with_usage = await service.get_quota_with_usage(
-                quota.model_id, quota.period
-            )
+            quota_with_usage = await service.build_quota_with_usage(quota)
 
             if quota_with_usage:
                 response_data = {

@@ -22,13 +22,14 @@ import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 import { toAttachmentImageUrl } from '#/utils/image';
 
+import AIPageHeroCard from '../_shared/AIPageHeroCard.vue';
 import {
   formatCost,
   getCallSourceColor,
   getCallSourceText,
   getStatusText,
-  isPlatformCall,
   getTenantDisplayName,
+  isPlatformCall,
   useColumns,
   useGridFormSchema,
 } from './data';
@@ -87,6 +88,35 @@ const summaryCards = computed(() => [
     icon: 'lucide:dollar-sign',
     bgClass: 'bg-destructive/10',
     iconClass: 'text-destructive',
+  },
+]);
+
+const heroMetrics = computed(() =>
+  summaryCards.value.map((item) => ({
+    key: item.key,
+    label: item.label,
+    value: item.value,
+  })),
+);
+
+const heroChips = computed(() => [
+  {
+    key: 'scope',
+    icon: 'lucide:building-2',
+    className: 'bg-sky-500/10 text-sky-700 dark:text-sky-200',
+    text: `${$t('admin.ai.callLog.platformTenant')} / ${$t('admin.ai.callLog.tenantName')}`,
+  },
+  {
+    key: 'focus',
+    icon: 'lucide:scan-search',
+    className: 'bg-background/90 text-foreground',
+    text: `${$t('admin.ai.callLog.totalTokens')} / ${$t('admin.ai.callLog.cost')} / ${$t('admin.ai.callLog.latency')}`,
+  },
+  {
+    key: 'detail',
+    icon: 'lucide:file-search',
+    className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-200',
+    text: $t('admin.ai.callLog.detail.title'),
   },
 ]);
 
@@ -168,42 +198,19 @@ const { Grid, onRefresh } = useCrudPage<AICallLogInfo>({
 </script>
 
 <template>
-  <Page
-    auto-content-height
-    :description="$t('admin.ai.callLog.pageDesc')"
-    content-class="flex flex-col gap-4"
-  >
+  <Page auto-content-height content-class="flex flex-col gap-4 !p-4">
     <!-- 详情抽屉 -->
     <CallLogDetail v-model:visible="detailOpen" :log-id="detailLogId" />
 
-    <!-- 统计摘要 -->
     <Spin :spinning="summaryLoading">
-      <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Card
-          v-for="stat in summaryCards"
-          :key="stat.key"
-          :body-style="{ padding: '16px' }"
-        >
-          <div class="flex items-center gap-3">
-            <div
-              class="flex size-10 items-center justify-center rounded-lg"
-              :class="stat.bgClass"
-            >
-              <IconifyIcon
-                :icon="stat.icon"
-                class="size-5"
-                :class="stat.iconClass"
-              />
-            </div>
-            <div>
-              <div class="text-sm text-muted-foreground">{{ stat.label }}</div>
-              <div class="text-lg font-semibold text-foreground">
-                {{ stat.value }}
-              </div>
-            </div>
-          </div>
-        </Card>
-      </div>
+      <AIPageHeroCard
+        :chips="heroChips"
+        :description="$t('admin.ai.callLog.pageDesc')"
+        icon="lucide:file-search"
+        icon-wrap-class="bg-primary/10 text-primary"
+        :metrics="heroMetrics"
+        :title="$t('admin.ai.callLog.title')"
+      />
     </Spin>
 
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">

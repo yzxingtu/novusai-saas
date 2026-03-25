@@ -1,8 +1,10 @@
 <script lang="ts" setup>
 /**
- * 定时任务管理列表页面
+ * 定时任务治理中心
  */
 import type { adminApi } from '#/api';
+
+import { onMounted } from 'vue';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -13,13 +15,16 @@ import { useCrudPage } from '#/adapter/vxe-table';
 import { adminApi as admin } from '#/api';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
-import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
+import { getScopeColor, getScopeIcon } from '#/utils/scope-helpers';
 
 import {
-  formatInterval,
+  getDistributionCompactText,
+  getDefinitionTypeText,
   getFormDefaults,
+  normalizeScopeValue,
   getScheduleDisplay,
   getScheduleTypeText,
+  getScopeModeLabel,
   getTaskIcon,
   getTaskIconBg,
   getTaskIconColor,
@@ -49,16 +54,25 @@ function onViewLogs(row: PeriodicTaskInfo) {
 }
 
 function onManageBindings(row: PeriodicTaskInfo) {
-  taskBindingDrawerApi.setData({ id: row.id, name: row.name }).open();
+  taskBindingDrawerApi
+    .setData({
+      assignedTenantIds: row.assignedTenantIds,
+      assignedTenantNames: row.assignedTenantNames,
+      bindingCount: row.bindingCount,
+      id: row.id,
+      name: row.name,
+      scope: row.scope,
+    })
+    .open();
 }
 
 async function onTriggerTask(row: PeriodicTaskInfo) {
   try {
     await admin.triggerPeriodicTaskApi(row.id);
     message.success($t('admin.system.periodicTask.messages.triggerSuccess'));
-    onRefresh();
+    await onRefresh();
   } catch {
-    // Error handled by request interceptor / 错误由请求拦截器处理
+    // handled by interceptor
   }
 }
 
@@ -66,116 +80,149 @@ async function onToggleActive(row: PeriodicTaskInfo, checked: boolean) {
   try {
     await admin.togglePeriodicTaskApi(row.id, checked);
     message.success($t('admin.system.periodicTask.messages.toggleSuccess'));
-    onRefresh();
+    await onRefresh();
   } catch {
-    // Error handled by request interceptor / 错误由请求拦截器处理
+    // handled by interceptor
   }
 }
 
-const { Grid, FormDrawer, onRefresh } =
-  useCrudPage<PeriodicTaskInfo>({
-    api: {
-      list: admin.getPeriodicTaskListApi,
-      resource: '/admin/periodic-tasks',
-    },
-    columns: useColumns,
-    searchSchema: useGridFormSchema(),
-    formComponent: Form,
-    formDefaults: getFormDefaults,
-    i18nPrefix: 'admin.system.periodicTask',
-    nameField: 'name',
-    defaultSort: 'name',
-    rowHeight: 72,
-    recycleBin: true,
-    createPermission: 'periodic_task:create',
-    customActions: {
-      trigger: onTriggerTask,
-      logs: onViewLogs,
-      bindings: onManageBindings,
-    },
-    ai: {
-      formSchema: (isEdit?: boolean) => useFormSchema(Boolean(isEdit)),
-    },
-  });
+const {
+  Grid,
+  FormDrawer,
+  onRefresh: refreshGrid,
+} = useCrudPage<PeriodicTaskInfo>({
+  api: {
+    list: admin.getPeriodicTaskListApi,
+    resource: '/admin/periodic-tasks',
+  },
+  columns: useColumns,
+  searchSchema: useGridFormSchema(),
+  formComponent: Form,
+  formDefaults: getFormDefaults,
+  i18nPrefix: 'admin.system.periodicTask',
+  nameField: 'name',
+  defaultSort: 'name',
+  rowHeight: 84,
+  recycleBin: true,
+  createPermission: 'periodic_task:create',
+  customActions: {
+    trigger: onTriggerTask,
+    logs: onViewLogs,
+    bindings: onManageBindings,
+  },
+  ai: {
+    formSchema: (isEdit?: boolean) => useFormSchema(Boolean(isEdit)),
+  },
+});
+
+async function onRefresh() {
+  refreshGrid();
+}
+
+onMounted(async () => {
+  refreshGrid();
+});
 </script>
 
 <template>
-  <Page auto-content-height content-class="flex flex-col gap-4">
+  <Page auto-content-height content-class="flex flex-col gap-3">
     <FormDrawer @success="onRefresh" />
     <TaskLogListDrawerComp />
     <TaskBindingDrawerComp @success="onRefresh" />
 
-    <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
+    <Card :body-style="{ padding: '16px' }">
       <Grid>
-        <!-- ═══ 任务名称（图标 + 名称 + 描述 + 路径 + scope 标签） ═══ -->
         <template #name_cell="{ row }">
-          <div class="flex items-center gap-3">
-            <!-- 彩色任务图标 -->
+          <div class="flex items-start gap-3 text-left">
             <div
-              class="flex size-9 shrink-0 items-center justify-center rounded-xl transition-colors"
-              :class="[row.isActive ? getTaskIconBg(row.taskPath) : 'bg-muted']"
+              class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg"
+              :class="[
+                row.isActive ? getTaskIconBg(row.taskPath) : 'bg-slate-100',
+              ]"
             >
               <IconifyIcon
                 :icon="getTaskIcon(row.taskPath)"
-                class="size-[18px]"
+                class="size-[15px]"
                 :class="
                   row.isActive
                     ? getTaskIconColor(row.taskPath)
-                    : 'text-muted-foreground/50'
+                    : 'text-slate-300'
                 "
               />
             </div>
-            <!-- 文本信息 -->
-            <div class="flex min-w-0 flex-1 flex-col gap-0.5">
-              <div class="flex items-center gap-1.5">
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-1">
                 <span
-                  class="truncate text-[13px] font-medium"
-                  :class="
-                    row.isActive ? 'text-foreground' : 'text-muted-foreground'
-                  "
+                  class="truncate text-[13px] font-semibold leading-5 text-slate-900"
                 >
                   {{ row.name }}
                 </span>
-                <IconifyIcon
-                  v-if="row.isLocked"
-                  icon="lucide:lock"
-                  class="size-3 shrink-0 text-warning/70"
-                />
                 <Tag
-                  v-if="row.scope && row.scope !== 'admin_only'"
-                  :color="getScopeColor(row.scope)"
+                  :color="
+                    row.definitionType === 'plugin' ? 'magenta' : 'default'
+                  "
                   class="!m-0 !px-1 !text-[10px] !leading-4"
                 >
-                  {{ getScopeText(row.scope) }}
+                  {{ getDefinitionTypeText(row.definitionType) }}
                 </Tag>
               </div>
               <Tooltip
-                v-if="row.description"
-                :title="row.description.trim()"
+                :title="row.description || row.taskPath"
                 placement="topLeft"
               >
-                <span
-                  class="block w-full truncate text-left text-xs text-muted-foreground"
-                  >{{ row.description.trim() }}</span
-                >
-              </Tooltip>
-              <Tooltip :title="row.taskPath" placement="topLeft">
-                <code
-                  class="w-fit max-w-[280px] truncate text-[11px] leading-4 text-muted-foreground/50"
-                >
-                  {{ row.taskPath }}
-                </code>
+                <div class="mt-1 truncate text-[11px] leading-4 text-slate-400">
+                  {{ row.description || row.taskPath }}
+                </div>
               </Tooltip>
             </div>
           </div>
         </template>
 
-        <!-- ═══ 调度配置（类型标签 + 人类可读表达式） ═══ -->
+        <template #distribution_cell="{ row }">
+          <div class="flex flex-col gap-1 text-left">
+            <div class="flex flex-wrap items-center gap-2">
+              <Tag
+                :color="
+                  getScopeColor(normalizeScopeValue(row.scope) ?? undefined)
+                "
+                class="!m-0"
+              >
+                <div class="flex items-center gap-1">
+                  <IconifyIcon
+                    :icon="
+                      getScopeIcon(normalizeScopeValue(row.scope) ?? undefined)
+                    "
+                    class="size-3"
+                  />
+                  {{ getScopeModeLabel(row.scope) }}
+                </div>
+              </Tag>
+              <Tag
+                v-if="row.bindingCount > 0"
+                color="default"
+                class="!m-0 !px-1 !text-[10px] !leading-4"
+              >
+                {{ row.bindingCount }}
+              </Tag>
+            </div>
+            <div
+              class="line-clamp-1 text-xs leading-5"
+              :class="
+                row.bindingRequired && !row.bindingConfigured
+                  ? 'font-medium text-amber-600'
+                  : 'text-slate-500'
+              "
+            >
+              {{ getDistributionCompactText(row) }}
+            </div>
+          </div>
+        </template>
+
         <template #schedule_cell="{ row }">
-          <div class="flex flex-col items-center gap-1">
+          <div class="flex flex-col gap-1 text-left">
             <Tag
               :color="row.scheduleType === 'cron' ? 'purple' : 'blue'"
-              class="!m-0 !text-xs"
+              class="!m-0 !w-fit !text-xs"
             >
               <div class="flex items-center gap-1">
                 <IconifyIcon
@@ -193,49 +240,58 @@ const { Grid, FormDrawer, onRefresh } =
               v-if="row.scheduleType === 'cron' && row.cronExpression"
               :title="row.cronExpression"
             >
-              <span class="text-xs text-muted-foreground">
+              <span class="text-xs text-slate-500">
                 {{ getScheduleDisplay(row) }}
               </span>
             </Tooltip>
             <span
               v-else-if="row.scheduleType === 'interval'"
-              class="text-xs text-muted-foreground"
+              class="text-xs text-slate-500"
             >
-              {{ $t('admin.system.periodicTask.every') }}
-              {{ formatInterval(row.intervalSeconds) }}
+              {{ getScheduleDisplay(row) }}
             </span>
           </div>
         </template>
 
-        <!-- ═══ 启用状态 ═══ -->
         <template #isActive_cell="{ row }">
-          <Switch
-            v-access:code="['periodic_task:toggle']"
-            :checked="row.isActive"
-            size="small"
-            @change="(checked: unknown) => onToggleActive(row, !!checked)"
-          />
+          <div class="flex flex-col items-center gap-1">
+            <Switch
+              v-access:code="['periodic_task:toggle']"
+              :checked="row.isActive"
+              size="small"
+              @change="(checked: unknown) => onToggleActive(row, !!checked)"
+            />
+            <span
+              class="text-[11px] font-medium"
+              :class="row.isActive ? 'text-emerald-600' : 'text-slate-400'"
+            >
+              {{
+                row.isActive
+                  ? $t('admin.system.periodicTask.status.enabled')
+                  : $t('admin.system.periodicTask.status.disabled')
+              }}
+            </span>
+          </div>
         </template>
 
-        <!-- ═══ 执行信息（上次 + 下次） ═══ -->
         <template #runInfo_cell="{ row }">
-          <div class="flex flex-col gap-1 text-xs">
+          <div class="flex flex-col gap-1 text-left text-xs">
             <div class="flex items-center gap-1.5">
               <IconifyIcon
                 icon="lucide:history"
-                class="size-3 shrink-0 text-muted-foreground/40"
+                class="size-3 shrink-0 text-slate-400"
               />
               <Tooltip v-if="row.lastRunAt" :title="formatDate(row.lastRunAt)">
-                <span class="tabular-nums text-muted-foreground">
+                <span class="tabular-nums text-slate-600">
                   {{ formatRelativeTime(row.lastRunAt) }}
                 </span>
               </Tooltip>
-              <span v-else class="text-muted-foreground/30">—</span>
+              <span v-else class="text-slate-300">—</span>
             </div>
             <div class="flex items-center gap-1.5">
               <IconifyIcon
                 icon="lucide:timer"
-                class="size-3 shrink-0 text-muted-foreground/40"
+                class="size-3 shrink-0 text-slate-400"
               />
               <template v-if="row.nextRunAt">
                 <Tooltip :title="formatDate(row.nextRunAt)">
@@ -243,15 +299,15 @@ const { Grid, FormDrawer, onRefresh } =
                     class="tabular-nums"
                     :class="
                       new Date(row.nextRunAt).getTime() > Date.now()
-                        ? 'text-success'
-                        : 'text-warning'
+                        ? 'text-emerald-600'
+                        : 'text-amber-600'
                     "
                   >
                     {{ formatRelativeTime(row.nextRunAt) }}
                   </span>
                 </Tooltip>
               </template>
-              <span v-else class="text-muted-foreground/30">—</span>
+              <span v-else class="text-slate-300">—</span>
             </div>
           </div>
         </template>

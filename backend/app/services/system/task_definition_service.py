@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from hashlib import md5
+from typing import Any
 
 from app.celery_app import celery_app
 from app.core.base_model import utc_now
@@ -12,6 +13,7 @@ from app.core.base_service import GlobalService
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.exceptions import BusinessException, NotFoundException
+from app.enums.common import ResourceScopeEnum
 from app.models.system.task_definition import TaskDefinition
 from app.repositories.system.task_definition_repository import (
     TaskDefinitionRepository,
@@ -25,6 +27,18 @@ from app.tasks.task_scheduling import (
 )
 
 logger = LogManager.get_logger("queue")
+
+PLATFORM_EXECUTION_SCOPES = {
+    ResourceScopeEnum.ADMIN_ONLY.value,
+    ResourceScopeEnum.GLOBAL_SHARED.value,
+    ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+}
+
+TENANT_EXECUTION_SCOPES = {
+    ResourceScopeEnum.ALL_TENANTS.value,
+    ResourceScopeEnum.SELECTED_TENANTS.value,
+    ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+}
 
 
 class TaskDefinitionService(GlobalService[TaskDefinition, TaskDefinitionRepository]):
@@ -54,43 +68,81 @@ class TaskDefinitionService(GlobalService[TaskDefinition, TaskDefinitionReposito
     async def trigger_now(self, definition_id: int) -> str:
         definition = await self.get_by_id(definition_id)
         binding_repo = TenantTaskBindingRepository(self.db)
+        active_bindings = await binding_repo.get_list(
+            task_definition_id=definition.id,
+            is_enabled=True,
+        )
+        scope = getattr(definition, "scope", None)
 
-        if definition.owner_tenant_id is not None:
-            binding = await binding_repo.get_one_by(
-                task_definition_id=definition.id,
-                tenant_id=definition.owner_tenant_id,
-            )
-            if binding is None:
-                raise NotFoundException(message="task binding not found")
-            result = celery_app.send_task(
-                TENANT_BINDING_WRAPPER,
-                args=[binding.id],
-                queue="scheduled",
-            )
-        else:
+        dispatched_task_ids: list[str] = []
+        should_dispatch_bindings = (
+            scope in TENANT_EXECUTION_SCOPES if scope else bool(active_bindings)
+        )
+        should_dispatch_platform = (
+            scope in PLATFORM_EXECUTION_SCOPES if scope else not active_bindings
+        )
+
+        if should_dispatch_bindings and active_bindings:
+            for binding in active_bindings:
+                result = celery_app.send_task(
+                    TENANT_BINDING_WRAPPER,
+                    args=[binding.id],
+                    queue="scheduled",
+                )
+                dispatched_task_ids.append(str(result.id))
+        if should_dispatch_platform:
             result = celery_app.send_task(
                 TASK_DEFINITION_WRAPPER,
                 args=[definition.id],
                 queue="scheduled",
             )
+            dispatched_task_ids.append(str(result.id))
+        if not dispatched_task_ids:
+            if scope:
+                raise BusinessException(message=_("common.operation_failed"))
+            result = celery_app.send_task(
+                TASK_DEFINITION_WRAPPER,
+                args=[definition.id],
+                queue="scheduled",
+            )
+            dispatched_task_ids.append(str(result.id))
 
         now = utc_now()
+        update_data: dict = {"last_run_at": now}
         next_run = self._compute_next_run(
             definition.default_schedule_type,
             definition.default_cron_expression,
             definition.default_interval_seconds,
             now,
         )
-        update_data: dict = {"last_run_at": now}
         if next_run is not None:
             update_data["next_run_at"] = next_run
         await self.update(definition.id, update_data)
+        if should_dispatch_bindings and active_bindings:
+            for binding in active_bindings:
+                binding_next_run = self._compute_next_run(
+                    binding.schedule_type_override
+                    or definition.default_schedule_type,
+                    binding.cron_expression_override
+                    or definition.default_cron_expression,
+                    binding.interval_seconds_override
+                    if binding.interval_seconds_override is not None
+                    else definition.default_interval_seconds,
+                    now,
+                )
+                binding_update: dict[str, Any] = {"last_run_at": now}
+                if binding_next_run is not None:
+                    binding_update["next_run_at"] = binding_next_run
+                await binding_repo.update(
+                    binding.id,
+                    binding_update,
+                )
         logger.info(
-            "Task definition '{}' triggered manually -> task_id={}",
+            "Task definition '{}' triggered manually -> task_ids={}",
             definition.code,
-            result.id,
+            dispatched_task_ids,
         )
-        return result.id
+        return dispatched_task_ids[0]
 
     async def _before_create(self, data: dict) -> dict:
         handler_path = data.get("handler_path", "")

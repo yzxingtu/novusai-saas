@@ -214,7 +214,8 @@ export function useGridFormSchema(): VbenFormSchema[] {
       },
     },
 {% else %}
-    searchInput('{{ f.name }}', $t('{{ i18n_pre }}.{{ f.name | camel }}')),
+{% set _text_op = ((f.get('form', {}) if f.get('form') is mapping else {}).get('queryType') or f.get('query_type') or 'ilike') %}
+    searchInput('{{ f.name }}', $t('{{ i18n_pre }}.{{ f.name | camel }}'), { op: '{{ _text_op }}' }),
 {% endif %}
 {% endif %}
 {% endfor %}

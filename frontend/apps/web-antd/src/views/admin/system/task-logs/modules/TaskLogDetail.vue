@@ -14,6 +14,9 @@ import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
 import {
+  getBindingContextText,
+  getEffectiveContextText,
+  getOwnerContextText,
   getQueueColor,
   getRunKindText,
   getStatusColor,
@@ -32,11 +35,34 @@ const { Drawer, detailData: detail } = useCrudDrawer<TaskLogDetailInfo>({
 <template>
   <Drawer
     :title="$t('admin.system.taskLog.detail')"
-    class="w-[600px]"
+    class="w-[720px]"
     :footer="false"
   >
     <template v-if="detail">
-      <!-- 基本信息 -->
+      <div class="mb-4 rounded-2xl border border-border/70 bg-card p-4">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="text-lg font-semibold text-foreground">
+              {{ detail.taskName }}
+            </div>
+            <div class="mt-1 break-all text-xs text-muted-foreground">
+              {{ detail.handlerPath || detail.taskId }}
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <Tag :color="getStatusColor(detail.status)">
+              {{ $t(`admin.system.taskLog.status.${detail.status}`) }}
+            </Tag>
+            <Tag v-if="detail.runKind" color="blue">
+              {{ getRunKindText(detail.runKind) }}
+            </Tag>
+            <Tag v-if="detail.triggerSource" color="cyan">
+              {{ getTriggerSourceText(detail.triggerSource) }}
+            </Tag>
+          </div>
+        </div>
+      </div>
+
       <div class="mb-4">
         <div class="mb-2 flex items-center gap-2 text-base font-medium">
           <IconifyIcon icon="lucide:info" class="text-primary" />
@@ -68,11 +94,6 @@ const { Drawer, detailData: detail } = useCrudDrawer<TaskLogDetailInfo>({
               {{ detail.taskId }}
             </code>
           </DescriptionsItem>
-          <DescriptionsItem :label="$t('admin.system.taskLog.status.label')">
-            <Tag :color="getStatusColor(detail.status)">
-              {{ $t(`admin.system.taskLog.status.${detail.status}`) }}
-            </Tag>
-          </DescriptionsItem>
           <DescriptionsItem :label="$t('admin.system.taskLog.queue')">
             <Tag :color="getQueueColor(detail.queue)">
               {{
@@ -86,18 +107,6 @@ const { Drawer, detailData: detail } = useCrudDrawer<TaskLogDetailInfo>({
           <DescriptionsItem :label="$t('admin.system.taskLog.retryCount')">
             {{ detail.retryCount }}
           </DescriptionsItem>
-          <DescriptionsItem
-            v-if="detail.triggerSource"
-            :label="$t('admin.system.taskLog.triggerSource')"
-          >
-            {{ getTriggerSourceText(detail.triggerSource) }}
-          </DescriptionsItem>
-          <DescriptionsItem
-            v-if="detail.runKind"
-            :label="$t('admin.system.taskLog.runKind')"
-          >
-            {{ getRunKindText(detail.runKind) }}
-          </DescriptionsItem>
           <DescriptionsItem :label="$t('admin.system.taskLog.durationMs')">
             <span
               :class="
@@ -108,6 +117,29 @@ const { Drawer, detailData: detail } = useCrudDrawer<TaskLogDetailInfo>({
             >
               {{ detail.durationMs !== null ? `${detail.durationMs} ms` : '-' }}
             </span>
+          </DescriptionsItem>
+        </Descriptions>
+      </div>
+
+      <Divider class="!my-4" />
+
+      <div class="mb-4">
+        <div class="mb-2 flex items-center gap-2 text-base font-medium">
+          <IconifyIcon icon="lucide:link-2" class="text-primary" />
+          {{ $t('admin.system.taskLog.relationInfo') }}
+        </div>
+        <Descriptions :column="2" bordered size="small">
+          <DescriptionsItem :label="$t('admin.system.taskLog.taskDefinitionId')">
+            {{ detail.taskDefinitionId ?? '-' }}
+          </DescriptionsItem>
+          <DescriptionsItem :label="$t('admin.system.taskLog.bindingId')">
+            {{ getBindingContextText(detail.bindingId) }}
+          </DescriptionsItem>
+          <DescriptionsItem :label="$t('admin.system.taskLog.ownerTenantId')">
+            {{ getOwnerContextText(detail.ownerTenantId) }}
+          </DescriptionsItem>
+          <DescriptionsItem :label="$t('admin.system.taskLog.effectiveTenantId')">
+            {{ getEffectiveContextText(detail.effectiveTenantId) }}
           </DescriptionsItem>
         </Descriptions>
       </div>

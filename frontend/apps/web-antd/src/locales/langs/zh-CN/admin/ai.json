@@ -6,8 +6,14 @@
   "guide": {
     "title": "快速开始",
     "subtitle": "按以下步骤完成 AI 网关配置",
-    "totalTime": "约 10 分钟",
+    "totalTime": "约 8 分钟",
     "showGuide": "显示引导",
+    "summary": {
+      "current": "当前模块",
+      "flow": "流程",
+      "eta": "预计耗时",
+      "stepsLabel": "个步骤"
+    },
     "step1": {
       "title": "添加供应商",
       "time": "约 2 分钟"
@@ -234,6 +240,7 @@
     }
   },
   "callLog": {
+    "name": "调用日志",
     "title": "调用日志",
     "pageDesc": "查看管理端与企业端的 AI 调用记录，包括 Token 用量、费用和响应时间。",
     "requestType": "请求类型",
@@ -286,6 +293,7 @@
     }
   },
   "usage": {
+    "name": "使用量统计",
     "title": "使用量统计",
     "pageDesc": "按日统计各企业和模型的调用量、Token 消耗和费用。",
     "statDate": "统计日期",
@@ -792,6 +800,7 @@
     }
   },
   "actionLog": {
+    "name": "操作审计",
     "title": "操作审计",
     "pageDesc": "审计智能体执行的所有操作记录，包括数据库查询和业务操作，可追溯操作详情。",
     "detailTitle": "审计详情",
@@ -810,7 +819,13 @@
     "tenantInfo": "所属企业",
     "platformTenant": "管理端",
     "agentName": "智能体",
+    "agentUnavailable": "历史日志未记录",
     "operatorId": "操作者",
+    "operatorTypes": {
+      "admin": "平台管理员",
+      "tenantAdmin": "企业管理员",
+      "tenantUser": "企业用户"
+    },
     "executionTime": "耗时",
     "createdAt": "创建时间",
     "viewDetail": "查看详情",
@@ -850,6 +865,7 @@
     "entityDescription": "系统智能体分配管理"
   },
   "health": {
+    "name": "健康状态",
     "title": "健康状态",
     "pageDesc": "实时监控各 AI 供应商的连接状态、响应时间和故障次数。",
     "entityDescription": "AI 供应商健康状态监控",

@@ -10,6 +10,7 @@ export type PeriodicTaskListParams = Record<string, unknown>;
 export interface PeriodicTaskInfo {
   id: number;
   name: string;
+  definitionType: string;
   taskPath: string;
   scheduleType: string;
   cronExpression: null | string;
@@ -21,6 +22,13 @@ export interface PeriodicTaskInfo {
   createdAt: string;
   scope: null | string;
   tenantId: null | number;
+  assignedTenantIds: number[];
+  assignedTenantNames: string[];
+  bindingCount: number;
+  bindingRequired: boolean;
+  bindingConfigured: boolean;
+  tenantAccessMode: string;
+  bindingSummary: null | string;
   isLocked: boolean;
   isEditable: boolean;
   maxRetries: number;
@@ -41,6 +49,14 @@ export interface PeriodicTaskFormData {
   kwargs?: null | Record<string, unknown>;
   is_active?: boolean;
   description?: null | string;
+  scope?: null | string;
+  owner_tenant_id?: null | number;
+  tenant_ids?: number[];
+  max_retries?: number;
+  retry_delay?: number;
+  timeout?: null | number;
+  notify_on_failure?: boolean;
+  notify_emails?: null | string;
 }
 
 /** Paginated list response / 分页列表响应 */

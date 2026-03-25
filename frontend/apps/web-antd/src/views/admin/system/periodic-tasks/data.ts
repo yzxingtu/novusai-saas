@@ -1,5 +1,5 @@
 /**
- * 定时任务管理 - 表格列、搜索和表单配置
+ * 定时任务治理页配置
  */
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
@@ -16,17 +16,52 @@ import {
 } from '#/adapter/form';
 import { useScopeFields } from '#/components/business/scope-select';
 import { $t } from '#/locales';
-import { getScopeOptions as _getScopeOptions } from '#/utils/scope-helpers';
+import {
+  getAdminScopeOptions,
+  getScopeText,
+} from '#/utils/scope-helpers';
 
 type PeriodicTaskInfo = adminApi.PeriodicTaskInfo;
 
 function getScopeOptions() {
-  return _getScopeOptions(['admin_only', 'all_tenants']);
+  return getAdminScopeOptions();
 }
 
-/**
- * 获取调度类型文本
- */
+export function normalizeScopeValue(
+  scope: null | string | undefined,
+): null | string {
+  if (scope === 'platform' || scope === 'platform_only') {
+    return 'admin_only';
+  }
+  return scope ?? null;
+}
+
+function getDefinitionTypeOptions() {
+  return [
+    {
+      label: $t('admin.system.periodicTask.definitionType.system'),
+      value: 'system',
+    },
+    {
+      label: $t('admin.system.periodicTask.definitionType.plugin'),
+      value: 'plugin',
+    },
+  ];
+}
+
+function getEnabledOptions() {
+  return [
+    {
+      label: $t('admin.system.periodicTask.status.enabled'),
+      value: 'true',
+    },
+    {
+      label: $t('admin.system.periodicTask.status.disabled'),
+      value: 'false',
+    },
+  ];
+}
+
 export function getScheduleTypeText(type: string | undefined): string {
   if (!type) return '-';
   switch (type) {
@@ -42,9 +77,6 @@ export function getScheduleTypeText(type: string | undefined): string {
   }
 }
 
-/**
- * 格式化间隔秒数为可读文本
- */
 export function formatInterval(seconds: null | number | undefined): string {
   if (!seconds) return '-';
   if (seconds < 60) return `${seconds}s`;
@@ -53,9 +85,6 @@ export function formatInterval(seconds: null | number | undefined): string {
   return `${Math.floor(seconds / 86_400)}d`;
 }
 
-/**
- * 格式化 Cron 表达式为可读文本
- */
 function formatCronHuman(cron: null | string | undefined): string {
   if (!cron) return '-';
   const parts = cron.trim().split(/\s+/);
@@ -74,9 +103,6 @@ function formatCronHuman(cron: null | string | undefined): string {
   return cron;
 }
 
-/**
- * 获取调度显示文本（合并类型 + 表达式）
- */
 export function getScheduleDisplay(row: PeriodicTaskInfo): string {
   if (row.scheduleType === 'cron') {
     return formatCronHuman(row.cronExpression);
@@ -84,9 +110,6 @@ export function getScheduleDisplay(row: PeriodicTaskInfo): string {
   return formatInterval(row.intervalSeconds);
 }
 
-/**
- * 调度类型选项
- */
 function getScheduleTypeOptions() {
   return [
     { label: $t('admin.system.periodicTask.scheduleType.cron'), value: 'cron' },
@@ -97,9 +120,6 @@ function getScheduleTypeOptions() {
   ];
 }
 
-/**
- * 获取任务图标（根据 task_path 推断）
- */
 export function getTaskIcon(taskPath: string): string {
   if (taskPath.includes('health_check') || taskPath.includes('health'))
     return 'lucide:heart-pulse';
@@ -119,12 +139,9 @@ export function getTaskIcon(taskPath: string): string {
     return 'lucide:bot';
   if (taskPath.includes('email') || taskPath.includes('mail'))
     return 'lucide:mail';
-  return 'lucide:clock';
+  return 'lucide:clock-3';
 }
 
-/**
- * 获取任务图标颜色
- */
 export function getTaskIconColor(taskPath: string): string {
   if (taskPath.includes('health_check') || taskPath.includes('health'))
     return 'text-emerald-500';
@@ -147,9 +164,6 @@ export function getTaskIconColor(taskPath: string): string {
   return 'text-slate-500';
 }
 
-/**
- * 获取任务图标背景色
- */
 export function getTaskIconBg(taskPath: string): string {
   if (taskPath.includes('health_check') || taskPath.includes('health'))
     return 'bg-emerald-500/10';
@@ -172,34 +186,274 @@ export function getTaskIconBg(taskPath: string): string {
   return 'bg-slate-500/10';
 }
 
-/**
- * 表格列定义
- */
+export function isTenantDistributed(scope: null | string | undefined): boolean {
+  const normalizedScope = normalizeScopeValue(scope);
+  return (
+    normalizedScope === 'all_tenants' ||
+    normalizedScope === 'selected_tenants' ||
+    normalizedScope === 'admin_and_selected_tenants'
+  );
+}
+
+export function requiresTenantBindings(scope: null | string | undefined): boolean {
+  const normalizedScope = normalizeScopeValue(scope);
+  return (
+    normalizedScope === 'selected_tenants' ||
+    normalizedScope === 'admin_and_selected_tenants'
+  );
+}
+
+export function scopeNeedsExplicitBindings(
+  scope: null | string | undefined,
+): boolean {
+  return requiresTenantBindings(scope);
+}
+
+export function getDefinitionTypeText(
+  definitionType: null | string | undefined,
+): string {
+  if (definitionType === 'plugin') {
+    return $t('admin.system.periodicTask.definitionType.plugin');
+  }
+  return $t('admin.system.periodicTask.definitionType.system');
+}
+
+export function getGovernanceSummary(scope: null | string | undefined): string {
+  switch (normalizeScopeValue(scope)) {
+    case 'admin_only': {
+      return $t('admin.system.periodicTask.scopeSemantics.adminOnlyGovernance');
+    }
+    case 'global_shared': {
+      return $t('admin.system.periodicTask.scopeSemantics.globalSharedGovernance');
+    }
+    case 'all_tenants': {
+      return $t('admin.system.periodicTask.scopeSemantics.allTenantsGovernance');
+    }
+    case 'selected_tenants': {
+      return $t('admin.system.periodicTask.scopeSemantics.selectedTenantsGovernance');
+    }
+    case 'admin_and_selected_tenants': {
+      return $t(
+        'admin.system.periodicTask.scopeSemantics.adminAndSelectedGovernance',
+      );
+    }
+    default: {
+      return '-';
+    }
+  }
+}
+
+export function getExecutionSummary(row: PeriodicTaskInfo): string {
+  const scope = normalizeScopeValue(row.scope);
+  if (scope === 'all_tenants') {
+    return $t('admin.system.periodicTask.executionSemantics.allTenants');
+  }
+  if (scope === 'selected_tenants') {
+    return $t('admin.system.periodicTask.executionSemantics.selectedTenants', {
+      count: row.bindingCount,
+    });
+  }
+  if (scope === 'admin_and_selected_tenants') {
+    return $t(
+      'admin.system.periodicTask.executionSemantics.adminAndSelectedTenants',
+      {
+        count: row.bindingCount,
+      },
+    );
+  }
+  if (scope === 'global_shared') {
+    return $t('admin.system.periodicTask.executionSemantics.globalShared');
+  }
+  return $t('admin.system.periodicTask.executionSemantics.platformOnly');
+}
+
+export function getBindingSummary(row: PeriodicTaskInfo): string {
+  const scope = normalizeScopeValue(row.scope);
+  if (!requiresTenantBindings(scope)) {
+    if (scope === 'global_shared') {
+      return $t('admin.system.periodicTask.bindingSummary.globalShared');
+    }
+    if (scope === 'all_tenants') {
+      return $t('admin.system.periodicTask.bindingSummary.allTenants');
+    }
+    return $t('admin.system.periodicTask.bindingSummary.adminOnly');
+  }
+  if (row.bindingSummary) {
+    return row.bindingSummary;
+  }
+  return buildBindingSummary(
+    scope,
+    row.bindingCount,
+    row.assignedTenantNames,
+  );
+}
+
+export function getDistributionCompactText(row: PeriodicTaskInfo): string {
+  const scope = normalizeScopeValue(row.scope);
+  if (scope === 'global_shared') {
+    return $t('admin.system.periodicTask.bindingSummary.globalShared');
+  }
+  if (scope === 'all_tenants') {
+    return $t('admin.system.periodicTask.bindingSummary.allTenants');
+  }
+  if (
+    scope === 'selected_tenants' ||
+    scope === 'admin_and_selected_tenants'
+  ) {
+    if (row.bindingCount > 0) {
+      return $t('admin.system.periodicTask.bindingSummary.selectedCount', {
+        count: row.bindingCount,
+      });
+    }
+    return $t('admin.system.periodicTask.bindingSummary.pending');
+  }
+  return $t('admin.system.periodicTask.bindingSummary.adminOnly');
+}
+
+export function getDistributionStatusText(row: PeriodicTaskInfo): string {
+  if (row.bindingRequired && !row.bindingConfigured) {
+    return $t('admin.system.periodicTask.bindingSummary.pending');
+  }
+  if (row.bindingCount > 0) {
+    return $t('admin.system.periodicTask.bindingSummary.selectedCount', {
+      count: row.bindingCount,
+    });
+  }
+  return '';
+}
+
+export function buildBindingSummary(
+  scope: null | string | undefined,
+  bindingCount: number,
+  tenantNames: string[],
+): string {
+  if (scope === 'global_shared') {
+    return $t('admin.system.periodicTask.bindingSummary.globalShared');
+  }
+  if (scope === 'all_tenants') {
+    return $t('admin.system.periodicTask.bindingSummary.allTenants');
+  }
+  if (!requiresTenantBindings(scope)) {
+    return $t('admin.system.periodicTask.bindingSummary.adminOnly');
+  }
+  if (bindingCount <= 0) {
+    return $t('admin.system.periodicTask.bindingSummary.pending');
+  }
+  if (tenantNames.length <= 3) {
+    return $t('admin.system.periodicTask.bindingSummary.selectedCount', {
+      count: bindingCount,
+    });
+  }
+  return $t('admin.system.periodicTask.bindingSummary.selectedPreview', {
+    count: bindingCount,
+    names: tenantNames.slice(0, 3).join(' / '),
+  });
+}
+
+export function getDistributionHeadline(
+  scope: null | string | undefined,
+): string {
+  switch (scope) {
+    case 'global_shared': {
+      return $t('admin.system.periodicTask.scopeGuide.globalShared');
+    }
+    case 'all_tenants': {
+      return $t('admin.system.periodicTask.scopeGuide.allTenants');
+    }
+    case 'selected_tenants': {
+      return $t('admin.system.periodicTask.scopeGuide.selectedTenants');
+    }
+    case 'admin_and_selected_tenants': {
+      return $t(
+        'admin.system.periodicTask.scopeGuide.adminAndSelectedTenants',
+      );
+    }
+    default: {
+      return $t('admin.system.periodicTask.scopeGuide.adminOnly');
+    }
+  }
+}
+
+export function getAdminSurfaceSummary(
+  scope: null | string | undefined,
+): string {
+  switch (scope) {
+    case 'selected_tenants': {
+      return $t('admin.system.periodicTask.adminSurface.selectedTenants');
+    }
+    case 'all_tenants': {
+      return $t('admin.system.periodicTask.adminSurface.allTenants');
+    }
+    default: {
+      return $t('admin.system.periodicTask.adminSurface.platform');
+    }
+  }
+}
+
+export function getTenantSurfaceSummary(
+  scope: null | string | undefined,
+  bindingCount: number,
+): string {
+  switch (scope) {
+    case 'global_shared': {
+      return $t('admin.system.periodicTask.tenantSurface.globalShared');
+    }
+    case 'all_tenants': {
+      return $t('admin.system.periodicTask.tenantSurface.allTenants');
+    }
+    case 'selected_tenants': {
+      return $t('admin.system.periodicTask.tenantSurface.selectedTenants', {
+        count: bindingCount,
+      });
+    }
+    case 'admin_and_selected_tenants': {
+      return $t(
+        'admin.system.periodicTask.tenantSurface.adminAndSelectedTenants',
+        {
+          count: bindingCount,
+        },
+      );
+    }
+    default: {
+      return $t('admin.system.periodicTask.tenantSurface.none');
+    }
+  }
+}
+
 export function useColumns<T = PeriodicTaskInfo>(
   onActionClick: OnActionClickFn<T>,
 ): VxeTableGridOptions['columns'] {
   return [
     {
+      align: 'left',
       field: 'name',
       title: $t('admin.system.periodicTask.name'),
-      minWidth: 260,
+      minWidth: 320,
       slots: { default: 'name_cell' },
     },
     {
+      align: 'left',
+      field: 'distribution',
+      title: $t('admin.system.periodicTask.distributionLabel'),
+      width: 220,
+      slots: { default: 'distribution_cell' },
+    },
+    {
+      align: 'left',
       field: 'schedule',
       title: $t('admin.system.periodicTask.schedule'),
       width: 140,
-      align: 'center',
       slots: { default: 'schedule_cell' },
     },
     {
       field: 'isActive',
       title: $t('admin.system.periodicTask.isActive'),
-      width: 80,
+      width: 88,
       align: 'center',
       slots: { default: 'isActive_cell' },
     },
     {
+      align: 'left',
       field: 'lastRunAt',
       title: $t('admin.system.periodicTask.runInfo'),
       width: 170,
@@ -216,7 +470,13 @@ export function useColumns<T = PeriodicTaskInfo>(
         },
         name: 'CellOperation',
         options: [
-          'edit',
+          {
+            code: 'edit',
+            text: $t('common.edit'),
+            accessCodes: ['periodic_task:update'],
+            icon: 'lucide:pen-line',
+            show: (row: Record<string, unknown>) => row.isEditable !== false,
+          },
           {
             code: 'trigger',
             text: $t('admin.system.periodicTask.trigger'),
@@ -234,25 +494,38 @@ export function useColumns<T = PeriodicTaskInfo>(
             icon: 'lucide:building-2',
             accessCodes: ['periodic_task:bindings'],
           },
-          'delete',
+          {
+            code: 'delete',
+            text: $t('common.delete'),
+            icon: 'lucide:trash-2',
+            accessCodes: ['periodic_task:delete'],
+            show: (row: Record<string, unknown>) => row.isLocked !== true,
+          },
         ],
       },
       field: 'operation',
       fixed: 'right',
       title: $t('admin.common.operation'),
-      width: 220,
+      width: 190,
     },
   ];
 }
 
-/**
- * 搜索表单 Schema
- */
 export function useGridFormSchema(): VbenFormSchema[] {
   return [
     searchInput('name', $t('admin.system.periodicTask.name'), {
       placeholder: $t('admin.system.periodicTask.placeholder.searchName'),
     }),
+    select(
+      'filter[definition_type][eq]',
+      $t('admin.system.periodicTask.definitionType.label'),
+      {
+        options: getDefinitionTypeOptions(),
+        placeholder: $t(
+          'admin.system.periodicTask.placeholder.allDefinitionTypes',
+        ),
+      },
+    ),
     select(
       'filter[schedule_type][eq]',
       $t('admin.system.periodicTask.scheduleTypeLabel'),
@@ -267,12 +540,17 @@ export function useGridFormSchema(): VbenFormSchema[] {
       options: getScopeOptions(),
       placeholder: $t('admin.system.periodicTask.placeholder.allScopes'),
     }),
+    select(
+      'filter[is_enabled][eq]',
+      $t('admin.system.periodicTask.status.label'),
+      {
+        options: getEnabledOptions(),
+        placeholder: $t('admin.system.periodicTask.placeholder.allStatus'),
+      },
+    ),
   ];
 }
 
-/**
- * 表单 Schema
- */
 export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
   return [
     dividerField(
@@ -287,6 +565,9 @@ export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
       required: true,
       placeholder: $t('admin.system.periodicTask.placeholder.inputTaskPath'),
       disabled: isEdit,
+    }),
+    textareaField('description', $t('admin.system.periodicTask.description'), {
+      placeholder: $t('admin.system.periodicTask.placeholder.inputDescription'),
     }),
     {
       ...select(
@@ -331,29 +612,22 @@ export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
     switchField('is_active', $t('admin.system.periodicTask.isActive'), {
       defaultValue: true,
     }),
-    textareaField('description', $t('admin.system.periodicTask.description'), {
-      placeholder: $t('admin.system.periodicTask.placeholder.inputDescription'),
-    }),
 
     dividerField(
       'scope_divider',
       $t('admin.system.periodicTask.section.scope'),
     ),
     ...useScopeFields({
-      allowedScopes: ['admin_only', 'all_tenants'],
-      showTenantId: true,
-      tenantIdField: 'owner_tenant_id',
-    }),
-
-    dividerField(
-      'protection_divider',
-      $t('admin.system.periodicTask.section.protection'),
-    ),
-    switchField('is_locked', $t('admin.system.periodicTask.isLocked'), {
-      defaultValue: false,
-    }),
-    switchField('is_editable', $t('admin.system.periodicTask.isEditable'), {
-      defaultValue: true,
+      allowedScopes: [
+        'global_shared',
+        'admin_only',
+        'all_tenants',
+        'admin_and_selected_tenants',
+        'selected_tenants',
+      ],
+      scopeHelp: $t('admin.system.periodicTask.scopeHelp'),
+      showTenantId: false,
+      tenantIdsField: 'tenant_ids',
     }),
 
     dividerField(
@@ -405,20 +679,20 @@ export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
   ];
 }
 
-/**
- * 表单默认值
- */
 export function getFormDefaults(): Record<string, unknown> {
   return {
     schedule_type: 'interval',
     interval_seconds: 60,
     is_active: true,
     scope: 'admin_only',
-    is_locked: false,
-    is_editable: true,
+    tenant_ids: [],
     max_retries: 0,
     retry_delay: 60,
     timeout: 3600,
     notify_on_failure: false,
   };
+}
+
+export function getScopeModeLabel(scope: null | string | undefined): string {
+  return getScopeText(normalizeScopeValue(scope) ?? undefined);
 }

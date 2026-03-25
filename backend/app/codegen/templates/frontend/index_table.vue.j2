@@ -19,6 +19,8 @@
 {% set _export = _fe.get('export', False) %}
 {% set _import = _fe.get('import', False) %}
 {% set _default_sort = _fe.get('default_sort') or '-created_at' %}
+{% set _search_default_open = _fe.get('search_default_open', False) %}
+{% set _quick_search = _fe.get('quick_search', True) %}
 import type { {{ resource | pascal }}Info } from '#/api/{{ api_scope | default('admin') }}/{{ resource }}';
 import {
   get{{ resource | pascal }}ListApi,
@@ -32,7 +34,7 @@ import {
 {% if detail and detail.get('enabled') and (detail.get('mode') or 'drawer') == 'page' %}import { useRouter } from 'vue-router';
 {% endif %}
 import { Page } from '@vben/common-ui';
-import { useCrudPage } from '#/composables';
+import { useCrudPage } from '#/adapter/vxe-table';
 {% if model.drag_sort | default(false) %}
 import { useAutoTableDragSort } from '#/adapter/vxe-table';
 {% endif %}
@@ -94,6 +96,95 @@ const createPermission = '{{ perm_resource }}:create';
 {% if _import %}
 const importPermission = createPermission.replace(/:\w+$/, ':import');
 {% endif %}
+const searchSchema = useGridFormSchema();
+const rawQuickSearch = {{ _quick_search | tojson }};
+
+function extractQuickSearchSourceField(fieldName: string): string {
+  const match = fieldName.match(/^filter\[([^\]]+)\]/);
+  return match?.[1] ?? '';
+}
+
+function buildQuickSearchConfig(
+  rawConfig: boolean | { default_field?: string; defaultField?: string; fields?: Array<string | { fieldName?: string; label?: string; placeholder?: string }> },
+  schema: Array<Record<string, unknown>>,
+) {
+  if (rawConfig === false) {
+    return false;
+  }
+
+  const candidates = schema
+    .filter(
+      (field) =>
+        field.component === 'Input' && typeof field.fieldName === 'string',
+    )
+    .map((field) => ({
+      sourceField: extractQuickSearchSourceField(String(field.fieldName)),
+      fieldName: String(field.fieldName),
+    }))
+    .filter((field) => field.sourceField);
+
+  const candidateMap = new Map(
+    candidates.map((field) => [field.sourceField, field.fieldName]),
+  );
+
+  if (rawConfig === true) {
+    return true;
+  }
+
+  const defaultField =
+    typeof rawConfig?.default_field === 'string'
+      ? candidateMap.get(rawConfig.default_field)
+      : typeof rawConfig?.defaultField === 'string'
+        ? candidateMap.get(rawConfig.defaultField)
+      : undefined;
+  const fields = Array.isArray(rawConfig?.fields)
+    ? rawConfig.fields
+        .map((field) => {
+          const fieldConfig =
+            typeof field === 'string' ? { fieldName: field } : field;
+          const mappedField = fieldConfig?.fieldName
+            ? candidateMap.get(String(fieldConfig.fieldName))
+            : undefined;
+          if (!mappedField) {
+            return undefined;
+          }
+
+          return {
+            fieldName: mappedField,
+            ...(fieldConfig?.label ? { label: fieldConfig.label } : undefined),
+            ...(fieldConfig?.placeholder
+              ? { placeholder: fieldConfig.placeholder }
+              : undefined),
+          };
+        })
+        .filter(
+          (
+            field,
+          ): field is {
+            fieldName: string;
+            label?: string;
+            placeholder?: string;
+          } => Boolean(field),
+        )
+    : undefined;
+
+  if (!defaultField && !(fields && fields.length > 0)) {
+    return true;
+  }
+
+  return {
+    ...(defaultField ? { defaultField } : undefined),
+    ...(fields && fields.length > 0
+      ? {
+          fields: fields.map((field) =>
+            field.label || field.placeholder
+              ? field
+              : field.fieldName,
+          ),
+        }
+      : undefined),
+  };
+}
 
 const {
   FormDrawer,
@@ -118,7 +209,11 @@ const {
   i18nPrefix: '{{ i18n_pre }}',
   nameField: '{{ name_field | camel }}',
   recycleBin: {{ _recycle_bin | lower }},
-  searchSchema: useGridFormSchema(),
+  search: {
+    defaultOpen: {{ _search_default_open | lower }},
+    quickSearch: buildQuickSearchConfig(rawQuickSearch, searchSchema),
+  },
+  searchSchema,
   toolbar: { custom: true, export: {{ _export | lower }}, refresh: true, search: true, zoom: true },
   ai: { pageKey: '{{ i18n_pre }}', formSchema: useFormSchema },
 });

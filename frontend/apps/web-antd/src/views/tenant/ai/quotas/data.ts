@@ -84,6 +84,104 @@ export function getQuotaTypeText(type: string | undefined): string {
   }
 }
 
+/**
+ * 获取运行时状态文案
+ */
+export function getRuntimeStatusText(status: string | undefined): string {
+  switch (status) {
+    case 'healthy': {
+      return $t('tenant.ai.quota.runtimeStatus.healthy');
+    }
+    case 'warning': {
+      return $t('tenant.ai.quota.runtimeStatus.warning');
+    }
+    case 'exceeded': {
+      return $t('tenant.ai.quota.runtimeStatus.exceeded');
+    }
+    case 'inactive': {
+      return $t('tenant.ai.quota.runtimeStatus.inactive');
+    }
+    default: {
+      return status || '-';
+    }
+  }
+}
+
+/**
+ * 获取运行时状态颜色
+ */
+export function getRuntimeStatusColor(status: string | undefined): string {
+  switch (status) {
+    case 'healthy': {
+      return 'success';
+    }
+    case 'warning': {
+      return 'warning';
+    }
+    case 'exceeded': {
+      return 'error';
+    }
+    default: {
+      return 'default';
+    }
+  }
+}
+
+/**
+ * 获取启用状态选项
+ */
+export function getActiveStateOptions() {
+  return [
+    { label: $t('common.enabled'), value: 'true' },
+    { label: $t('common.disabled'), value: 'false' },
+  ];
+}
+
+/**
+ * 获取来源文案
+ */
+export function getSourceText(source: string | undefined): string {
+  switch (source) {
+    case 'tenant': {
+      return $t('tenant.ai.rateLimit.source.tenant');
+    }
+    case 'model': {
+      return $t('tenant.ai.rateLimit.source.model');
+    }
+    case 'none': {
+      return $t('tenant.ai.rateLimit.source.none');
+    }
+    default: {
+      return source || '-';
+    }
+  }
+}
+
+/**
+ * 获取来源颜色
+ */
+export function getSourceColor(source: string | undefined): string {
+  switch (source) {
+    case 'tenant': {
+      return 'blue';
+    }
+    case 'model': {
+      return 'geekblue';
+    }
+    default: {
+      return 'default';
+    }
+  }
+}
+
+/**
+ * 格式化百分比
+ */
+export function formatPercent(value: number): string {
+  if (!Number.isFinite(value)) return '0%';
+  return `${value.toFixed(value >= 10 ? 0 : 1)}%`;
+}
+
 // ============ 配额表单 / Quota form ============
 
 /**

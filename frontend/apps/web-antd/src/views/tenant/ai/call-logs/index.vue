@@ -4,7 +4,7 @@
  */
 import type { TenantAICallLogInfo } from '#/api/tenant/ai';
 
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -13,6 +13,7 @@ import { Button, Card, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import { getTenantAICallLogListApi } from '#/api/tenant/ai';
+import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
 import { createViewDetailPageOperation } from '#/composables';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
@@ -39,6 +40,21 @@ function onViewDetail(row: TenantAICallLogInfo) {
 
 // Quick status filter / 快捷状态筛选
 const activeFilter = ref<'all' | 'failed' | 'success'>('all');
+
+const heroChips = computed(() => [
+  {
+    key: 'focus',
+    icon: 'lucide:file-search',
+    className: 'bg-sky-500/10 text-sky-700 dark:text-sky-200',
+    text: `${$t('tenant.ai.callLog.modelName')} / ${$t('tenant.ai.callLog.providerName')} / ${$t('tenant.ai.callLog.status')}`,
+  },
+  {
+    key: 'metrics',
+    icon: 'lucide:scan-search',
+    className: 'bg-background/90 text-foreground',
+    text: `${$t('tenant.ai.callLog.totalTokens')} / ${$t('tenant.ai.callLog.cost')} / ${$t('tenant.ai.callLog.latency')}`,
+  },
+]);
 
 function applyQuickFilter(filter: 'all' | 'failed' | 'success') {
   activeFilter.value = filter;
@@ -87,44 +103,50 @@ const { Grid, gridApi } = useCrudPage<TenantAICallLogInfo>({
   <Page
     auto-content-height
     class="min-w-0 max-w-full"
-    :description="$t('tenant.ai.callLog.pageDesc')"
-    content-class="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col gap-4"
+    content-class="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col gap-4 !p-4"
   >
     <!-- 详情抽屉 -->
     <CallLogDetail v-model:open="detailOpen" :log-id="detailLogId" />
 
-    <!-- 快速筛选 -->
-    <div class="flex items-center gap-2">
-      <Button
-        :type="activeFilter === 'all' ? 'primary' : 'default'"
-        size="small"
-        @click="applyQuickFilter('all')"
-      >
-        {{ $t('tenant.ai.callLog.filter.all') }}
-      </Button>
-      <Button
-        :type="activeFilter === 'success' ? 'primary' : 'default'"
-        size="small"
-        @click="applyQuickFilter('success')"
-      >
-        <IconifyIcon
-          icon="lucide:check-circle"
-          class="mr-1 inline size-3.5 text-success"
-        />
-        {{ $t('tenant.ai.callLog.filter.onlySuccess') }}
-      </Button>
-      <Button
-        :type="activeFilter === 'failed' ? 'primary' : 'default'"
-        size="small"
-        @click="applyQuickFilter('failed')"
-      >
-        <IconifyIcon
-          icon="lucide:x-circle"
-          class="mr-1 inline size-3.5 text-destructive"
-        />
-        {{ $t('tenant.ai.callLog.filter.onlyFailed') }}
-      </Button>
-    </div>
+    <AIPageHeroCard
+      :chips="heroChips"
+      :description="$t('tenant.ai.callLog.pageDesc')"
+      icon="lucide:file-search"
+      icon-wrap-class="bg-primary/10 text-primary"
+      :title="$t('tenant.ai.callLog.title')"
+    >
+      <template #actions>
+        <Button
+          :type="activeFilter === 'all' ? 'primary' : 'default'"
+          size="small"
+          @click="applyQuickFilter('all')"
+        >
+          {{ $t('tenant.ai.callLog.filter.all') }}
+        </Button>
+        <Button
+          :type="activeFilter === 'success' ? 'primary' : 'default'"
+          size="small"
+          @click="applyQuickFilter('success')"
+        >
+          <IconifyIcon
+            icon="lucide:check-circle"
+            class="mr-1 inline size-3.5 text-success"
+          />
+          {{ $t('tenant.ai.callLog.filter.onlySuccess') }}
+        </Button>
+        <Button
+          :type="activeFilter === 'failed' ? 'primary' : 'default'"
+          size="small"
+          @click="applyQuickFilter('failed')"
+        >
+          <IconifyIcon
+            icon="lucide:x-circle"
+            class="mr-1 inline size-3.5 text-destructive"
+          />
+          {{ $t('tenant.ai.callLog.filter.onlyFailed') }}
+        </Button>
+      </template>
+    </AIPageHeroCard>
 
     <Card
       class="flex min-h-0 w-full min-w-0 max-w-full flex-1 flex-col"

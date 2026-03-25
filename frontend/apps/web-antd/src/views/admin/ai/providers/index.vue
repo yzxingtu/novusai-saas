@@ -16,10 +16,10 @@ import {
   reorderAIProvidersApi,
   toggleAIProviderStatusApi,
 } from '#/api/admin/ai';
-import QuickStartGuide from '#/components/business/quick-start-guide/QuickStartGuide.vue';
 import { $t } from '#/locales';
 import { toAttachmentImageUrl } from '#/utils/image';
 
+import AIGatewayQuickStartHero from '../_shared/AIGatewayQuickStartHero.vue';
 import {
   getFormDefaults,
   getProviderTypeText,
@@ -80,11 +80,19 @@ const { Grid, FormDrawer, gridApi, onRefresh } = useCrudPage<AIProviderInfo>({
   },
   columns: useColumns,
   searchSchema: useGridFormSchema(),
+  search: {
+    defaultOpen: false,
+    quickSearch: {
+      defaultField: 'filter[name][ilike]',
+      fields: ['filter[name][ilike]'],
+    },
+  },
   formComponent: Form,
   formDefaults: getFormDefaults,
   i18nPrefix: 'admin.ai.provider',
   nameField: 'name',
   defaultSort: 'sort_order',
+  rowHeight: 84,
   recycleBin: true,
   createPermission: 'ai_provider:create',
   ai: {
@@ -108,136 +116,123 @@ useAutoTableDragSort(() => gridApi.grid, {
 <template>
   <Page
     auto-content-height
-    :description="$t('admin.ai.provider.pageDesc')"
-    content-class="flex flex-col gap-4"
+    content-class="ai-providers-page flex flex-col gap-4 !p-4"
   >
-    <QuickStartGuide
-      storage-key="admin-ai-guide-dismissed"
-      i18n-prefix="admin.ai"
-      :steps="[
-        {
-          key: 'step1',
-          icon: 'lucide:plug',
-          color: 'text-primary',
-          bg: 'bg-primary/10',
-          link: '/admin/ai/providers',
-        },
-        {
-          key: 'step2',
-          icon: 'lucide:key',
-          color: 'text-amber-600',
-          bg: 'bg-amber-500/10',
-          link: '/admin/ai/api-keys',
-        },
-        {
-          key: 'step3',
-          icon: 'lucide:brain',
-          color: 'text-purple-600',
-          bg: 'bg-purple-500/10',
-          link: '/admin/ai/models',
-        },
-        {
-          key: 'step4',
-          icon: 'lucide:activity',
-          color: 'text-success',
-          bg: 'bg-success/10',
-          link: '/admin/ai/monitor/health',
-        },
-      ]"
-    />
+    <AIGatewayQuickStartHero :current-title="$t('admin.ai.provider.title')" />
+
     <FormDrawer @success="onFormSuccess" />
 
-    <!-- Data table -->
-    <Grid>
-      <!-- Name column: Logo + name + code + base_url / 名称列：Logo + 名称 + 代码 + base_url -->
-      <template #name_cell="{ row }">
-        <div class="flex items-center gap-2.5">
-          <div
-            class="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg"
-            :class="row.is_active ? 'bg-primary/10' : 'bg-muted'"
-          >
-            <img
-              v-if="toAttachmentImageUrl(row.icon, { preset: 'small' })"
-              :src="toAttachmentImageUrl(row.icon, { preset: 'small' })"
-              class="size-full object-contain"
-              alt=""
-            />
-            <IconifyIcon
-              v-else
-              icon="lucide:cpu"
-              class="size-4"
-              :class="row.is_active ? 'text-primary' : 'text-muted-foreground'"
-            />
-          </div>
-          <div class="min-w-0 flex-1">
-            <div class="flex items-center gap-1.5">
-              <span class="font-medium text-foreground">{{ row.name }}</span>
-              <code
-                class="shrink-0 rounded bg-accent px-1 py-0.5 text-[10px] text-muted-foreground"
-              >
-                {{ row.code }}
-              </code>
+    <section
+      class="overflow-hidden rounded-[20px] border border-border/70 bg-card shadow-sm"
+    >
+      <!-- Data table -->
+      <Grid>
+        <!-- Name column: Logo + name + code + base_url / 名称列：Logo + 名称 + 代码 + base_url -->
+        <template #name_cell="{ row }">
+          <div class="flex items-start gap-3 py-0.5">
+            <div
+              class="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/60 shadow-sm"
+              :class="
+                row.is_active
+                  ? 'from-primary/12 bg-gradient-to-br to-primary/5'
+                  : 'bg-muted/70'
+              "
+            >
+              <img
+                v-if="toAttachmentImageUrl(row.icon, { preset: 'small' })"
+                :src="toAttachmentImageUrl(row.icon, { preset: 'small' })"
+                class="size-full object-contain"
+                alt=""
+              />
+              <IconifyIcon
+                v-else
+                icon="lucide:cpu"
+                class="size-4"
+                :class="
+                  row.is_active ? 'text-primary' : 'text-muted-foreground'
+                "
+              />
             </div>
-            <Tooltip v-if="row.base_url" :title="row.base_url">
-              <div
-                class="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground"
-              >
-                <IconifyIcon icon="lucide:link" class="size-3 shrink-0" />
-                <span class="truncate">{{ row.base_url }}</span>
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-1.5">
+                <span class="font-medium text-foreground">{{ row.name }}</span>
+                <code
+                  class="shrink-0 rounded bg-accent px-1 py-0.5 text-[10px] text-muted-foreground"
+                >
+                  {{ row.code }}
+                </code>
+                <span
+                  v-if="row.description"
+                  class="min-w-0 truncate text-xs text-muted-foreground"
+                >
+                  {{ row.description }}
+                </span>
               </div>
-            </Tooltip>
-            <div
-              v-if="row.type === 'openai_compatible'"
-              class="mt-1 flex items-center gap-1"
-            >
-              <Tag color="processing" class="m-0">
-                {{ $t('admin.ai.provider.wireApi') }}:
-                {{ getProviderWireApiText(getRowWireApi(row)) }}
-              </Tag>
-            </div>
-            <div
-              v-if="row.description"
-              class="mt-0.5 truncate text-xs text-muted-foreground"
-            >
-              {{ row.description }}
+              <Tooltip v-if="row.base_url" :title="row.base_url">
+                <div
+                  class="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground"
+                >
+                  <IconifyIcon icon="lucide:link" class="size-3 shrink-0" />
+                  <span class="truncate">{{ row.base_url }}</span>
+                </div>
+              </Tooltip>
             </div>
           </div>
-        </div>
-      </template>
+        </template>
 
-      <!-- 类型列 -->
-      <template #type_cell="{ row }">
-        <Tag color="blue">
-          {{ getProviderTypeText(row.type) }}
-        </Tag>
-      </template>
+        <!-- 类型列 -->
+        <template #type_cell="{ row }">
+          <Tag color="blue">
+            {{ getProviderTypeText(row.type) }}
+          </Tag>
+        </template>
 
-      <!-- 模型数列 -->
-      <template #modelCount_cell="{ row }">
-        <Badge
-          :count="row.model_count || 0"
-          :number-style="{
-            backgroundColor:
-              row.model_count > 0
-                ? 'hsl(var(--primary))'
-                : 'hsl(var(--muted-foreground))',
-          }"
-          :overflow-count="999"
-          :show-zero="true"
-        />
-      </template>
+        <!-- API 协议列 -->
+        <template #wireApi_cell="{ row }">
+          <Tag
+            v-if="row.type === 'openai_compatible'"
+            color="processing"
+            class="m-0"
+          >
+            {{ getProviderWireApiText(getRowWireApi(row)) }}
+          </Tag>
+          <span v-else class="text-xs text-muted-foreground">-</span>
+        </template>
 
-      <!-- 启用状态列 -->
-      <template #isActive_cell="{ row }">
-        <Switch
-          v-access:code="['ai_provider:toggle_status']"
-          :checked="row.is_active"
-          :checked-children="$t('admin.common.enabled')"
-          :un-checked-children="$t('admin.common.disabled')"
-          size="small"
-          @change="() => onToggleActive(row)"
-        />
-      </template>
-    </Grid>
+        <!-- 模型数列 -->
+        <template #modelCount_cell="{ row }">
+          <Badge
+            :count="row.model_count || 0"
+            :number-style="{
+              backgroundColor:
+                row.model_count > 0
+                  ? 'hsl(var(--primary))'
+                  : 'hsl(var(--muted-foreground))',
+            }"
+            :overflow-count="999"
+            :show-zero="true"
+          />
+        </template>
+
+        <!-- 启用状态列 -->
+        <template #isActive_cell="{ row }">
+          <Switch
+            v-access:code="['ai_provider:toggle_status']"
+            :checked="row.is_active"
+            :checked-children="$t('admin.common.enabled')"
+            :un-checked-children="$t('admin.common.disabled')"
+            size="small"
+            @change="() => onToggleActive(row)"
+          />
+        </template>
+      </Grid>
+    </section>
   </Page>
 </template>
+
+<style scoped>
+.ai-providers-page :deep(.vxe-body--row .vxe-cell) {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+</style>

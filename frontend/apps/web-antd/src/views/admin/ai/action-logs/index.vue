@@ -16,16 +16,17 @@ import { IconifyIcon } from '@vben/icons';
 
 import {
   Alert,
+  Avatar,
   Button,
   Card,
   Descriptions,
   Drawer,
   Empty,
+  message,
   Skeleton,
   Tabs,
   Tag,
   Tooltip,
-  message,
 } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
@@ -36,8 +37,14 @@ import {
 import { createViewDetailPageOperation } from '#/composables';
 import { PLATFORM_TENANT_ID } from '#/constants';
 import { $t } from '#/locales';
-import { copyToClipboard, formatDate, formatRelativeTime } from '#/utils/common';
+import {
+  copyToClipboard,
+  formatDate,
+  formatRelativeTime,
+} from '#/utils/common';
+import { toAvatarDisplayUrl } from '#/utils/image';
 
+import AIPageHeroCard from '../_shared/AIPageHeroCard.vue';
 import {
   getLevelColor,
   getLevelText,
@@ -61,6 +68,90 @@ interface PayloadEntry {
   valueText: string;
 }
 
+function getAgentDisplayName(
+  log: Pick<AdminActionLogDetail, 'agent_id' | 'agent_name'>,
+): string {
+  if (log.agent_name) {
+    return log.agent_name;
+  }
+  if (log.agent_id && log.agent_id > 0) {
+    return `#${log.agent_id}`;
+  }
+  return $t('admin.ai.actionLog.agentUnavailable');
+}
+
+function getOperatorTypeText(operatorType: null | string | undefined): string {
+  switch (operatorType) {
+    case 'admin':
+    case 'platform_admin': {
+      return $t('admin.ai.actionLog.operatorTypes.admin');
+    }
+    case 'tenant_admin': {
+      return $t('admin.ai.actionLog.operatorTypes.tenantAdmin');
+    }
+    case 'tenant_user': {
+      return $t('admin.ai.actionLog.operatorTypes.tenantUser');
+    }
+    default: {
+      return '';
+    }
+  }
+}
+
+function getOperatorDisplayName(
+  log: Pick<
+    AdminActionLogDetail,
+    'operator_id' | 'operator_name' | 'operator_nickname'
+  >,
+): string {
+  return (
+    log.operator_nickname ||
+    log.operator_name ||
+    (log.operator_id ? `#${log.operator_id}` : '-')
+  );
+}
+
+function getOperatorSecondaryText(
+  log: Pick<
+    AdminActionLogDetail,
+    'operator_id' | 'operator_name' | 'operator_nickname' | 'operator_type'
+  >,
+): string {
+  if (
+    log.operator_nickname &&
+    log.operator_name &&
+    log.operator_nickname !== log.operator_name
+  ) {
+    return log.operator_name;
+  }
+  return getOperatorTypeText(log.operator_type);
+}
+
+function isIconAvatar(avatar: null | string | undefined): boolean {
+  return Boolean(avatar && String(avatar).includes(':'));
+}
+
+const heroChips = computed(() => [
+  {
+    key: 'audit',
+    icon: 'lucide:shield-check',
+    className: 'bg-sky-500/10 text-sky-700 dark:text-sky-200',
+    text: `${$t('admin.ai.actionLog.actionType')} / ${$t('admin.ai.actionLog.actionLevel')} / ${$t('admin.ai.actionLog.status')}`,
+  },
+  {
+    key: 'payload',
+    icon: 'lucide:braces',
+    className: 'bg-background/90 text-foreground',
+    text: `${$t('admin.ai.actionLog.requestTab')} / ${$t('admin.ai.actionLog.responseTab')} / ${$t('admin.ai.actionLog.errorTab')}`,
+  },
+  {
+    key: 'trace',
+    icon: 'lucide:file-search',
+    className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-200',
+    text: `${$t('admin.ai.actionLog.tenantInfo')} / ${$t('admin.ai.actionLog.executionTime')} / ${$t('admin.ai.actionLog.detailTitle')}`,
+  },
+]);
+
 // ============ 详情抽屉 / Detail drawer ============
 
 const detailOpen = ref(false);
@@ -68,7 +159,9 @@ const detailLoading = ref(false);
 const detailData = ref<AdminActionLogDetail | null>(null);
 const activeTab = ref<DetailTabKey>('overview');
 
-function isStructuredValue(value: unknown): value is Record<string, unknown> | unknown[] {
+function isStructuredValue(
+  value: unknown,
+): value is Record<string, unknown> | unknown[] {
   return Array.isArray(value) || (!!value && typeof value === 'object');
 }
 
@@ -184,7 +277,9 @@ const requestPayloadText = computed(() =>
 const responsePayloadText = computed(() =>
   stringifyPayload(detailData.value?.response_data ?? null),
 );
-const errorPayloadText = computed(() => detailData.value?.error_message?.trim() ?? '');
+const errorPayloadText = computed(
+  () => detailData.value?.error_message?.trim() ?? '',
+);
 
 // ============ 列表 / List ============
 
@@ -218,11 +313,14 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
 </script>
 
 <template>
-  <Page
-    auto-content-height
-    :description="$t('admin.ai.actionLog.pageDesc')"
-    content-class="flex flex-col gap-4"
-  >
+  <Page auto-content-height content-class="flex flex-col gap-4 !p-4">
+    <AIPageHeroCard
+      :chips="heroChips"
+      :description="$t('admin.ai.actionLog.pageDesc')"
+      icon="lucide:shield-check"
+      icon-wrap-class="bg-primary/10 text-primary"
+      :title="$t('admin.ai.actionLog.title')"
+    />
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>
         <template #createdAt_cell="{ row }">
@@ -260,6 +358,27 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
           </Tag>
         </template>
 
+        <template #agent_cell="{ row }">
+          <div class="flex items-center gap-2">
+            <div
+              class="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
+            >
+              <IconifyIcon
+                v-if="isIconAvatar(row.agent_avatar)"
+                :icon="String(row.agent_avatar)"
+                class="size-4"
+              />
+              <Avatar
+                v-else-if="row.agent_avatar"
+                :size="28"
+                :src="toAvatarDisplayUrl(row.agent_avatar)"
+              />
+              <IconifyIcon v-else icon="lucide:bot" class="size-4" />
+            </div>
+            <span class="truncate">{{ getAgentDisplayName(row) }}</span>
+          </div>
+        </template>
+
         <template #tenantInfo_cell="{ row }">
           <div class="flex min-w-0 flex-col">
             <span class="truncate font-medium">
@@ -271,6 +390,34 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
             >
               {{ row.tenant_code }}
             </span>
+          </div>
+        </template>
+
+        <template #operator_cell="{ row }">
+          <div class="flex items-center gap-2">
+            <Avatar
+              v-if="row.operator_avatar"
+              :src="toAvatarDisplayUrl(row.operator_avatar)"
+              :size="28"
+            />
+            <Avatar
+              v-else
+              :size="28"
+              class="flex-shrink-0 bg-primary/10 text-xs text-primary"
+            >
+              {{ getOperatorDisplayName(row).charAt(0) }}
+            </Avatar>
+            <div class="min-w-0 flex-1">
+              <div class="truncate text-sm font-medium text-foreground">
+                {{ getOperatorDisplayName(row) }}
+              </div>
+              <div
+                v-if="getOperatorSecondaryText(row)"
+                class="truncate text-xs text-muted-foreground"
+              >
+                {{ getOperatorSecondaryText(row) }}
+              </div>
+            </div>
           </div>
         </template>
 
@@ -310,7 +457,9 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
                   </div>
                   <div class="flex flex-wrap items-center gap-2">
                     <IconifyIcon icon="lucide:zap" class="text-primary" />
-                    <code class="rounded bg-background px-2 py-1 text-sm font-semibold">
+                    <code
+                      class="rounded bg-background px-2 py-1 text-sm font-semibold"
+                    >
                       {{ detailData.action_name }}
                     </code>
                   </div>
@@ -329,14 +478,18 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
 
                 <Button
                   size="small"
-                  @click="copyPayload(responsePayloadText || requestPayloadText)"
+                  @click="
+                    copyPayload(responsePayloadText || requestPayloadText)
+                  "
                 >
                   {{ $t('admin.ai.actionLog.copyPayload') }}
                 </Button>
               </div>
 
               <div class="grid grid-cols-2 gap-3 xl:grid-cols-4">
-                <div class="rounded-lg border border-dashed border-border bg-background p-3">
+                <div
+                  class="rounded-lg border border-dashed border-border bg-background p-3"
+                >
                   <div class="text-xs text-muted-foreground">
                     {{ $t('admin.ai.actionLog.status') }}
                   </div>
@@ -344,7 +497,9 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
                     {{ getStatusText(detailData.status) }}
                   </div>
                 </div>
-                <div class="rounded-lg border border-dashed border-border bg-background p-3">
+                <div
+                  class="rounded-lg border border-dashed border-border bg-background p-3"
+                >
                   <div class="text-xs text-muted-foreground">
                     {{ $t('admin.ai.actionLog.executionTime') }}
                   </div>
@@ -352,7 +507,9 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
                     {{ formatDuration(detailData.duration_ms) }}
                   </div>
                 </div>
-                <div class="rounded-lg border border-dashed border-border bg-background p-3">
+                <div
+                  class="rounded-lg border border-dashed border-border bg-background p-3"
+                >
                   <div class="text-xs text-muted-foreground">
                     {{ $t('admin.ai.actionLog.tenantInfo') }}
                   </div>
@@ -360,12 +517,14 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
                     {{ getTenantDisplay(detailData) }}
                   </div>
                 </div>
-                <div class="rounded-lg border border-dashed border-border bg-background p-3">
+                <div
+                  class="rounded-lg border border-dashed border-border bg-background p-3"
+                >
                   <div class="text-xs text-muted-foreground">
                     {{ $t('admin.ai.actionLog.operatorId') }}
                   </div>
                   <div class="mt-2 text-sm font-semibold">
-                    {{ detailData.operator_id ?? '-' }}
+                    {{ getOperatorDisplayName(detailData) }}
                   </div>
                 </div>
               </div>
@@ -373,27 +532,38 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
           </Card>
 
           <Tabs v-model:active-key="activeTab" size="small">
-            <Tabs.TabPane key="overview" :tab="$t('admin.ai.actionLog.overviewTab')">
+            <Tabs.TabPane
+              key="overview"
+              :tab="$t('admin.ai.actionLog.overviewTab')"
+            >
               <div class="space-y-4">
                 <Card size="small" :title="$t('admin.ai.actionLog.basicInfo')">
                   <Descriptions :column="2" bordered size="small">
                     <Descriptions.Item :label="$t('admin.ai.actionLog.id')">
                       {{ detailData.id }}
                     </Descriptions.Item>
-                    <Descriptions.Item :label="$t('admin.ai.actionLog.createdAt')">
+                    <Descriptions.Item
+                      :label="$t('admin.ai.actionLog.createdAt')"
+                    >
                       {{ formatDate(detailData.created_at) }}
                     </Descriptions.Item>
-                    <Descriptions.Item :label="$t('admin.ai.actionLog.actionName')">
+                    <Descriptions.Item
+                      :label="$t('admin.ai.actionLog.actionName')"
+                    >
                       <code class="rounded bg-accent px-1.5 py-0.5 text-xs">
                         {{ detailData.action_name }}
                       </code>
                     </Descriptions.Item>
-                    <Descriptions.Item :label="$t('admin.ai.actionLog.actionType')">
+                    <Descriptions.Item
+                      :label="$t('admin.ai.actionLog.actionType')"
+                    >
                       <Tag :color="getTypeColor(detailData.action_type)">
                         {{ getTypeText(detailData.action_type) }}
                       </Tag>
                     </Descriptions.Item>
-                    <Descriptions.Item :label="$t('admin.ai.actionLog.actionLevel')">
+                    <Descriptions.Item
+                      :label="$t('admin.ai.actionLog.actionLevel')"
+                    >
                       <Tag :color="getLevelColor(detailData.action_level)">
                         {{ getLevelText(detailData.action_level) }}
                       </Tag>
@@ -403,11 +573,66 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
                         {{ getStatusText(detailData.status) }}
                       </Tag>
                     </Descriptions.Item>
-                    <Descriptions.Item :label="$t('admin.ai.actionLog.tenantInfo')">
+                    <Descriptions.Item
+                      :label="$t('admin.ai.actionLog.agentName')"
+                    >
+                      <div class="flex items-center gap-2">
+                        <Avatar
+                          v-if="
+                            detailData.agent_avatar &&
+                            !isIconAvatar(detailData.agent_avatar)
+                          "
+                          :size="24"
+                          :src="toAvatarDisplayUrl(detailData.agent_avatar)"
+                        />
+                        <span class="flex items-center gap-1.5">
+                          <IconifyIcon
+                            v-if="isIconAvatar(detailData.agent_avatar)"
+                            :icon="String(detailData.agent_avatar)"
+                            class="size-4 text-primary"
+                          />
+                          <IconifyIcon
+                            v-else-if="!detailData.agent_avatar"
+                            icon="lucide:bot"
+                            class="size-4 text-primary"
+                          />
+                          <span>{{ getAgentDisplayName(detailData) }}</span>
+                        </span>
+                      </div>
+                    </Descriptions.Item>
+                    <Descriptions.Item
+                      :label="$t('admin.ai.actionLog.tenantInfo')"
+                    >
                       {{ getTenantDisplay(detailData) }}
                     </Descriptions.Item>
-                    <Descriptions.Item :label="$t('admin.ai.actionLog.operatorId')">
-                      {{ detailData.operator_id ?? '-' }}
+                    <Descriptions.Item
+                      :label="$t('admin.ai.actionLog.operatorId')"
+                    >
+                      <div class="flex items-center gap-2">
+                        <Avatar
+                          v-if="detailData.operator_avatar"
+                          :size="24"
+                          :src="toAvatarDisplayUrl(detailData.operator_avatar)"
+                        />
+                        <Avatar
+                          v-else
+                          :size="24"
+                          class="bg-primary/10 text-xs text-primary"
+                        >
+                          {{ getOperatorDisplayName(detailData).charAt(0) }}
+                        </Avatar>
+                        <div class="min-w-0">
+                          <div class="truncate">
+                            {{ getOperatorDisplayName(detailData) }}
+                          </div>
+                          <div
+                            v-if="getOperatorSecondaryText(detailData)"
+                            class="truncate text-xs text-muted-foreground"
+                          >
+                            {{ getOperatorSecondaryText(detailData) }}
+                          </div>
+                        </div>
+                      </div>
                     </Descriptions.Item>
                   </Descriptions>
                 </Card>
@@ -422,19 +647,32 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
               </div>
             </Tabs.TabPane>
 
-            <Tabs.TabPane key="request" :tab="$t('admin.ai.actionLog.requestTab')">
+            <Tabs.TabPane
+              key="request"
+              :tab="$t('admin.ai.actionLog.requestTab')"
+            >
               <Card size="small" :title="$t('admin.ai.actionLog.requestData')">
                 <template #extra>
                   <div class="flex items-center gap-2">
-                    <Tag>{{ $t('admin.ai.actionLog.fieldsCount', { count: detailRequestEntries.length }) }}</Tag>
+                    <Tag>
+                      {{
+                        $t('admin.ai.actionLog.fieldsCount', {
+                          count: detailRequestEntries.length,
+                        })
+                      }}
+                    </Tag>
                     <Tag>{{ formatPayloadSize(requestPayloadText) }}</Tag>
-                    <Button size="small" type="text" @click="copyPayload(requestPayloadText)">
+                    <Button
+                      size="small"
+                      type="text"
+                      @click="copyPayload(requestPayloadText)"
+                    >
                       {{ $t('admin.ai.actionLog.copyPayload') }}
                     </Button>
                   </div>
                 </template>
 
-                <div v-if="detailRequestEntries.length" class="space-y-3">
+                <div v-if="detailRequestEntries.length > 0" class="space-y-3">
                   <div
                     v-for="entry in detailRequestEntries"
                     :key="`request-${entry.key}`"
@@ -448,31 +686,49 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
                     <pre
                       v-if="entry.kind === 'json'"
                       class="m-0 max-h-72 overflow-auto whitespace-pre-wrap break-all rounded bg-accent/60 p-3 text-xs"
-                    >{{ entry.valueText }}</pre>
+                      >{{ entry.valueText }}</pre
+                    >
                     <code
                       v-else
                       class="block break-all rounded bg-accent/60 px-2 py-2 text-xs"
-                    >{{ entry.valueText }}</code>
+                      >{{ entry.valueText }}</code
+                    >
                   </div>
                 </div>
 
-                <Empty v-else :description="$t('admin.ai.actionLog.noRequestData')" />
+                <Empty
+                  v-else
+                  :description="$t('admin.ai.actionLog.noRequestData')"
+                />
               </Card>
             </Tabs.TabPane>
 
-            <Tabs.TabPane key="response" :tab="$t('admin.ai.actionLog.responseTab')">
+            <Tabs.TabPane
+              key="response"
+              :tab="$t('admin.ai.actionLog.responseTab')"
+            >
               <Card size="small" :title="$t('admin.ai.actionLog.responseData')">
                 <template #extra>
                   <div class="flex items-center gap-2">
-                    <Tag>{{ $t('admin.ai.actionLog.fieldsCount', { count: detailResponseEntries.length }) }}</Tag>
+                    <Tag>
+                      {{
+                        $t('admin.ai.actionLog.fieldsCount', {
+                          count: detailResponseEntries.length,
+                        })
+                      }}
+                    </Tag>
                     <Tag>{{ formatPayloadSize(responsePayloadText) }}</Tag>
-                    <Button size="small" type="text" @click="copyPayload(responsePayloadText)">
+                    <Button
+                      size="small"
+                      type="text"
+                      @click="copyPayload(responsePayloadText)"
+                    >
                       {{ $t('admin.ai.actionLog.copyPayload') }}
                     </Button>
                   </div>
                 </template>
 
-                <div v-if="detailResponseEntries.length" class="space-y-3">
+                <div v-if="detailResponseEntries.length > 0" class="space-y-3">
                   <div
                     v-for="entry in detailResponseEntries"
                     :key="`response-${entry.key}`"
@@ -486,15 +742,20 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
                     <pre
                       v-if="entry.kind === 'json'"
                       class="m-0 max-h-72 overflow-auto whitespace-pre-wrap break-all rounded bg-accent/60 p-3 text-xs"
-                    >{{ entry.valueText }}</pre>
+                      >{{ entry.valueText }}</pre
+                    >
                     <code
                       v-else
                       class="block break-all rounded bg-accent/60 px-2 py-2 text-xs"
-                    >{{ entry.valueText }}</code>
+                      >{{ entry.valueText }}</code
+                    >
                   </div>
                 </div>
 
-                <Empty v-else :description="$t('admin.ai.actionLog.noResponseData')" />
+                <Empty
+                  v-else
+                  :description="$t('admin.ai.actionLog.noResponseData')"
+                />
               </Card>
             </Tabs.TabPane>
 
@@ -518,7 +779,10 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
                   :message="$t('admin.ai.actionLog.error')"
                   :description="errorPayloadText"
                 />
-                <Empty v-else :description="$t('admin.ai.actionLog.noErrorData')" />
+                <Empty
+                  v-else
+                  :description="$t('admin.ai.actionLog.noErrorData')"
+                />
               </Card>
             </Tabs.TabPane>
           </Tabs>

@@ -6,8 +6,14 @@
   "guide": {
     "title": "Quick Start",
     "subtitle": "Follow these steps to configure AI Gateway",
-    "totalTime": "~10 min",
+    "totalTime": "~8 min",
     "showGuide": "Show Guide",
+    "summary": {
+      "current": "Module",
+      "flow": "Flow",
+      "eta": "Estimated time",
+      "stepsLabel": "steps"
+    },
     "step1": {
       "title": "Add Provider",
       "time": "~2 min"
@@ -234,6 +240,7 @@
     }
   },
   "callLog": {
+    "name": "Call Logs",
     "title": "Call Logs",
     "pageDesc": "View both admin and tenant AI call records, including token usage, cost, and response time.",
     "requestType": "Request Type",
@@ -286,6 +293,7 @@
     }
   },
   "usage": {
+    "name": "Usage Statistics",
     "title": "Usage Statistics",
     "pageDesc": "Daily statistics of calls, token consumption, and costs by tenant and model.",
     "statDate": "Date",
@@ -791,6 +799,7 @@
     }
   },
   "actionLog": {
+    "name": "Action Audit",
     "title": "Action Audit",
     "pageDesc": "Audit all agent-executed operations including DB queries and business actions with full traceability.",
     "detailTitle": "Audit Detail",
@@ -809,7 +818,13 @@
     "tenantInfo": "Tenant",
     "platformTenant": "Admin Console",
     "agentName": "Agent",
+    "agentUnavailable": "Not recorded in historical log",
     "operatorId": "Operator",
+    "operatorTypes": {
+      "admin": "Platform Admin",
+      "tenantAdmin": "Tenant Admin",
+      "tenantUser": "Tenant User"
+    },
     "executionTime": "Duration",
     "createdAt": "Created At",
     "viewDetail": "View Detail",
@@ -849,6 +864,7 @@
     "entityDescription": "System agent assignment management"
   },
   "health": {
+    "name": "Health Status",
     "title": "Health Status",
     "pageDesc": "Real-time monitoring of AI provider connectivity, response times, and failure counts.",
     "entityDescription": "AI provider health status monitoring",

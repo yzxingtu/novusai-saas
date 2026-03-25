@@ -235,3 +235,107 @@ def test_card_mode_template_includes_permissions_and_recycle_bin() -> None:
     assert "recycleBinPermission" in index_file.content
     assert 'v-access:code="[updatePermission]"' in index_file.content
     assert 'v-access:code="[deletePermission]"' in index_file.content
+
+
+def test_table_template_preserves_string_query_type() -> None:
+    """表格模板应保留字符串字段的 queryType 配置。"""
+    config = {
+        "module": "system",
+        "resource": "article",
+        "display_name": "文章",
+        "display_name_en": "Article",
+        "model": {"base_class": "BaseModel"},
+        "fields": [
+            {
+                "name": "title",
+                "type": "String(120)",
+                "filterable": True,
+                "form": {"queryType": "like"},
+                "comment": "标题",
+            },
+        ],
+        "endpoints": [
+            {
+                "scope": "admin",
+                "data_mode": "independent",
+                "route_prefix": "/articles",
+                "frontend": {"mode": "table"},
+            }
+        ],
+    }
+
+    parser = ConfigParser()
+    parsed = parser.parse(config)
+    gen = CodeGenerator()
+
+    result = gen.generate(parsed, step="frontend")
+    data_file = next(
+        f
+        for f in result.files
+        if f.path.endswith(
+            "frontend/apps/web-antd/src/views/admin/system/article/data.ts",
+        )
+    )
+
+    assert "searchInput('title'" in data_file.content
+    assert "op: 'like'" in data_file.content
+
+
+def test_card_template_supports_configured_quick_search_fields() -> None:
+    """card 模板应支持 quick_search 多字段配置与 defaultField 别名。"""
+    config = {
+        "module": "system",
+        "resource": "library",
+        "display_name": "知识库",
+        "display_name_en": "Knowledge Base",
+        "model": {"base_class": "BaseModel"},
+        "fields": [
+            {
+                "name": "name",
+                "type": "String(100)",
+                "filterable": True,
+                "comment": "名称",
+            },
+            {
+                "name": "code",
+                "type": "String(50)",
+                "filterable": True,
+                "form": {"queryType": "like"},
+                "comment": "编码",
+            },
+        ],
+        "endpoints": [
+            {
+                "scope": "admin",
+                "data_mode": "independent",
+                "route_prefix": "/libraries",
+                "frontend": {
+                    "mode": "card",
+                    "quick_search": {
+                        "fields": [
+                            {"fieldName": "name", "label": "名称"},
+                            {"fieldName": "code", "placeholder": "搜索编码"},
+                        ],
+                        "defaultField": "code",
+                    },
+                },
+            }
+        ],
+    }
+
+    parser = ConfigParser()
+    parsed = parser.parse(config)
+    gen = CodeGenerator()
+
+    result = gen.generate(parsed, step="frontend")
+    index_file = next(
+        f
+        for f in result.files
+        if f.path.endswith(
+            "frontend/apps/web-antd/src/views/admin/system/library/index.vue",
+        )
+    )
+
+    assert "resolvedQuickSearchOptions.length > 1" in index_file.content
+    assert "rawQuickSearch.default_field || rawQuickSearch.defaultField" in index_file.content
+    assert "override?.placeholder ?? option.placeholder" in index_file.content

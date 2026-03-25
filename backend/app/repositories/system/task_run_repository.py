@@ -24,6 +24,7 @@ class TaskRunRepository(BaseRepository[TaskRun]):
             "id",
             "task_id",
             "task_name",
+            "handler_path",
             "queue",
             "status",
             "tenant_id",

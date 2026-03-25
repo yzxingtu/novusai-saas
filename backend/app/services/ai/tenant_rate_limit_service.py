@@ -121,19 +121,22 @@ class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRate
     async def get_active_limits(
         self,
         model_id: int | None = None,
+        is_active: bool | None = True,
     ) -> list[TenantModelRateLimit]:
         """
-        获取企业活跃速率限制列表 / Get active rate limit list for tenant.
+        获取企业速率限制列表 / Get rate limit list for tenant.
 
         Args:
             model_id: 模型 ID（可选）
+            is_active: 是否启用（None 表示全部）
 
         Returns:
             TenantModelRateLimit 列表
         """
-        return await self.repo.get_active_limits(
+        return await self.repo.list_limits(
             tenant_id=self.tenant_id,
             model_id=model_id,
+            is_active=is_active,
         )
 
     async def create_rate_limit(

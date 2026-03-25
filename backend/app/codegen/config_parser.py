@@ -199,6 +199,8 @@ def _expand_defaults(config: dict[str, Any]) -> dict[str, Any]:
                 frontend.setdefault("mode", "table")
                 frontend.setdefault("page_size", 20)
                 frontend.setdefault("default_sort", "-created_at")
+                frontend.setdefault("search_default_open", False)
+                frontend.setdefault("quick_search", True)
                 frontend.setdefault("recycle_bin", False)
                 frontend.setdefault("export", False)
                 batch_cfg = out.get("batch") or {}
@@ -208,6 +210,24 @@ def _expand_defaults(config: dict[str, Any]) -> dict[str, Any]:
             out["endpoints"][i] = ep
 
     return out
+
+
+def _is_search_enabled(field_def: dict[str, Any]) -> bool:
+    search_cfg = field_def.get("search", {})
+    if isinstance(search_cfg, dict):
+        return bool(search_cfg.get("enabled", field_def.get("filterable", False)))
+    return bool(field_def.get("filterable", False))
+
+
+def _is_quick_search_candidate(field_def: dict[str, Any]) -> bool:
+    if field_def.get("divider") or field_def.get("type") == "__divider__":
+        return False
+    if not _is_search_enabled(field_def):
+        return False
+    try:
+        return type_registry.get_search_component(field_def) == "input"
+    except Exception:
+        return False
 
 
 class ConfigParser:
@@ -372,6 +392,139 @@ class ConfigParser:
                             "invalid_base_cross_tenant",
                             _("codegen.validation.base_model_cross_tenant"),
                             path=f"endpoints[{i}]",
+                        )
+                    )
+
+            frontend = (ep or {}).get("frontend")
+            if frontend is not None and not isinstance(frontend, dict):
+                errors.append(
+                    ValidationError(
+                        "invalid_frontend_config",
+                        "frontend config must be an object",
+                        path=f"endpoints[{i}].frontend",
+                    )
+                )
+                continue
+
+            frontend_cfg = frontend or {}
+            search_default_open = frontend_cfg.get("search_default_open")
+            if search_default_open is not None and not isinstance(search_default_open, bool):
+                errors.append(
+                    ValidationError(
+                        "invalid_search_default_open",
+                        "frontend.search_default_open must be boolean",
+                        path=f"endpoints[{i}].frontend.search_default_open",
+                    )
+                )
+
+            quick_search = frontend_cfg.get("quick_search")
+            quick_search_candidates = {
+                str(field.get("name"))
+                for field in parsed.fields
+                if isinstance(field.get("name"), str) and _is_quick_search_candidate(field)
+            }
+            if quick_search is not None:
+                if isinstance(quick_search, bool):
+                    pass
+                elif isinstance(quick_search, dict):
+                    qs_fields = quick_search.get("fields")
+                    default_field = quick_search.get("default_field") or quick_search.get(
+                        "defaultField"
+                    )
+
+                    if qs_fields is not None and not isinstance(qs_fields, list):
+                        errors.append(
+                            ValidationError(
+                                "invalid_quick_search_fields",
+                                "frontend.quick_search.fields must be a list of field names",
+                                path=f"endpoints[{i}].frontend.quick_search.fields",
+                            )
+                        )
+                    elif isinstance(qs_fields, list):
+                        for j, field_name in enumerate(qs_fields):
+                            source_field = None
+                            if isinstance(field_name, str):
+                                source_field = field_name
+                            elif isinstance(field_name, dict):
+                                source_field = field_name.get("fieldName")
+                                if source_field is not None and not isinstance(source_field, str):
+                                    errors.append(
+                                        ValidationError(
+                                            "invalid_quick_search_field",
+                                            "frontend.quick_search.fields[].fieldName must be a string",
+                                            path=f"endpoints[{i}].frontend.quick_search.fields[{j}].fieldName",
+                                        )
+                                    )
+                                    continue
+                            else:
+                                errors.append(
+                                    ValidationError(
+                                        "invalid_quick_search_field",
+                                        "frontend.quick_search.fields items must be strings or objects",
+                                        path=f"endpoints[{i}].frontend.quick_search.fields[{j}]",
+                                    )
+                                )
+                                continue
+
+                            if not source_field:
+                                errors.append(
+                                    ValidationError(
+                                        "invalid_quick_search_field",
+                                        "frontend.quick_search.fields items must define fieldName",
+                                        path=f"endpoints[{i}].frontend.quick_search.fields[{j}]",
+                                    )
+                                )
+                                continue
+
+                            if source_field not in quick_search_candidates:
+                                errors.append(
+                                    ValidationError(
+                                        "unknown_quick_search_field",
+                                        f"frontend.quick_search field '{source_field}' is not a valid quick-search candidate",
+                                        path=f"endpoints[{i}].frontend.quick_search.fields[{j}]",
+                                    )
+                                )
+
+                    if default_field is not None and not isinstance(default_field, str):
+                        errors.append(
+                            ValidationError(
+                                "invalid_quick_search_default_field",
+                                "frontend.quick_search.default_field must be a string",
+                                path=f"endpoints[{i}].frontend.quick_search.default_field",
+                            )
+                        )
+                    elif isinstance(default_field, str):
+                        if default_field not in quick_search_candidates:
+                            errors.append(
+                                ValidationError(
+                                    "unknown_quick_search_default_field",
+                                    f"frontend.quick_search default field '{default_field}' is not a valid quick-search candidate",
+                                        path=f"endpoints[{i}].frontend.quick_search.default_field",
+                                    )
+                                )
+                        qs_source_fields: list[str] = []
+                        if isinstance(qs_fields, list):
+                            for field_item in qs_fields:
+                                if isinstance(field_item, str):
+                                    qs_source_fields.append(field_item)
+                                elif isinstance(field_item, dict) and isinstance(
+                                    field_item.get("fieldName"), str
+                                ):
+                                    qs_source_fields.append(field_item["fieldName"])
+                        if qs_source_fields and default_field not in qs_source_fields:
+                            errors.append(
+                                ValidationError(
+                                    "inconsistent_quick_search_default_field",
+                                    "frontend.quick_search.default_field must be included in frontend.quick_search.fields",
+                                    path=f"endpoints[{i}].frontend.quick_search.default_field",
+                                )
+                            )
+                else:
+                    errors.append(
+                        ValidationError(
+                            "invalid_quick_search_config",
+                            "frontend.quick_search must be boolean or an object",
+                            path=f"endpoints[{i}].frontend.quick_search",
                         )
                     )
 

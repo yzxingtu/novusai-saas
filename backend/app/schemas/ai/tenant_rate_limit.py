@@ -82,6 +82,10 @@ class EffectiveRateLimits(BaseModel):
     rpm_limit: int | None = Field(None, description="RPM 限制")
     tpm_limit: int | None = Field(None, description="TPM 限制")
     source: str = Field(..., description="来源（tenant/model/none）")
+    rpm_source: str | None = Field(None, description="RPM 来源（tenant/model/none）")
+    tpm_source: str | None = Field(None, description="TPM 来源（tenant/model/none）")
+    model_default_rpm_limit: int | None = Field(None, description="模型默认 RPM")
+    model_default_tpm_limit: int | None = Field(None, description="模型默认 TPM")
 
 
 __all__ = [

@@ -58,8 +58,11 @@ function updateHead(brand: BrandConfig) {
 const BRAND_CONFIG_CACHE_KEY = '__applied_brand_config__';
 
 const DEFAULT_BRAND_CONFIG: BrandConfig = {
-  copyright: overridesPreferences.copyright.companyName,
-  siteName: overridesPreferences.app.name,
+  copyright: overridesPreferences.copyright?.companyName ?? 'NovusAI',
+  siteName:
+    overridesPreferences.app?.name ??
+    import.meta.env.VITE_APP_TITLE ??
+    'NovusAI',
 };
 
 /**

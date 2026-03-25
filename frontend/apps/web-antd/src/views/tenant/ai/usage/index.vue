@@ -26,14 +26,15 @@ import {
   getTenantCallTrendApi,
   getTenantModelDistributionApi,
 } from '#/api/tenant/analytics';
-import {
-  usePageAIContext,
-  usePageAIOperations,
-} from '#/composables/use-page-ai-registration';
+import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
 import {
   createRefreshPageOperation,
   createStructuredSearchPageOperation,
 } from '#/composables/use-page-ai-operation-helpers';
+import {
+  usePageAIContext,
+  usePageAIOperations,
+} from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 
 defineOptions({ name: 'TenantAIUsage' });
@@ -117,6 +118,44 @@ const successRate = computed(() => {
   return `${rate.toFixed(1)}%`;
 });
 
+const heroMetrics = computed(() => [
+  {
+    key: 'tokens',
+    label: $t('tenant.ai.usage.summary.totalTokens'),
+    value: formatTokens(summary.value?.total_tokens),
+  },
+  {
+    key: 'cost',
+    label: $t('tenant.ai.usage.summary.totalCost'),
+    value: formatCost(summary.value?.total_cost),
+  },
+  {
+    key: 'calls',
+    label: $t('tenant.ai.usage.summary.totalCalls'),
+    value: summary.value?.total_calls ?? 0,
+  },
+  {
+    key: 'successRate',
+    label: $t('tenant.ai.usage.summary.successRate'),
+    value: successRate.value,
+  },
+]);
+
+const heroChips = computed(() => [
+  {
+    key: 'range',
+    icon: 'lucide:calendar-range',
+    className: 'bg-sky-500/10 text-sky-700 dark:text-sky-200',
+    text: `${dateRange.value[0]?.format('YYYY-MM-DD')} ~ ${dateRange.value[1]?.format('YYYY-MM-DD')}`,
+  },
+  {
+    key: 'channels',
+    icon: 'lucide:split',
+    className: 'bg-background/90 text-foreground',
+    text: `${$t('tenant.ai.usage.accessChannel.title')} / ${$t('tenant.ai.usage.chart.dailyTrend')} / ${$t('tenant.ai.usage.chart.modelDistribution')}`,
+  },
+]);
+
 const formatCost = (cost: number | undefined) => {
   if (!cost) return '$0.00';
   return `$${cost.toFixed(4)}`;
@@ -162,15 +201,14 @@ const accessChannelCardVisible = computed(
   () => accessChannelRowsNonEmpty.value.length > 0,
 );
 
-function accessChannelLabel(channel: null | string | undefined): string {
+function accessChannelLabel(channel: null | string | undefined = ''): string {
   const c = channel ?? '';
   const keyMap: Record<string, string> = {
     admin_internal: 'tenant.ai.usage.accessChannel.admin_internal',
     tenant_admin: 'tenant.ai.usage.accessChannel.tenant_admin',
     tenant_user: 'tenant.ai.usage.accessChannel.tenant_user',
   };
-  const i18nKey =
-    keyMap[c] ?? 'tenant.ai.usage.accessChannel.unknown';
+  const i18nKey = keyMap[c] ?? 'tenant.ai.usage.accessChannel.unknown';
   return $t(i18nKey);
 }
 
@@ -379,10 +417,10 @@ usePageAIOperations({
         }
         const start = dayjs(params.start_date);
         const end = dayjs(params.end_date);
-        const startMatches = start.isValid()
-          && start.format('YYYY-MM-DD') === params.start_date;
-        const endMatches = end.isValid()
-          && end.format('YYYY-MM-DD') === params.end_date;
+        const startMatches =
+          start.isValid() && start.format('YYYY-MM-DD') === params.start_date;
+        const endMatches =
+          end.isValid() && end.format('YYYY-MM-DD') === params.end_date;
         if (!startMatches || !endMatches || start.isAfter(end)) {
           return {
             success: false,
@@ -399,11 +437,16 @@ usePageAIOperations({
 </script>
 
 <template>
-  <Page
-    auto-content-height
-    :description="$t('tenant.ai.usage.pageDesc')"
-    content-class="flex flex-col gap-4"
-  >
+  <Page auto-content-height content-class="flex flex-col gap-4 !p-4">
+    <AIPageHeroCard
+      :chips="heroChips"
+      :description="$t('tenant.ai.usage.pageDesc')"
+      icon="lucide:chart-column-big"
+      icon-wrap-class="bg-primary/10 text-primary"
+      :metrics="heroMetrics"
+      :title="$t('tenant.ai.usage.title')"
+    />
+
     <!-- 日期范围筛选 -->
     <Card :body-style="{ padding: '12px 16px' }">
       <div class="flex flex-wrap items-center gap-3">
@@ -440,91 +483,6 @@ usePageAIOperations({
     </Card>
 
     <Spin :spinning="loading">
-      <!-- 统计卡片 -->
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <!-- 总 Tokens -->
-        <Card :body-style="{ padding: '20px' }">
-          <div class="flex items-center gap-3">
-            <div
-              class="flex size-12 items-center justify-center rounded-xl bg-primary/10"
-            >
-              <IconifyIcon icon="lucide:hash" class="size-6 text-primary" />
-            </div>
-            <div>
-              <div class="text-sm text-muted-foreground">
-                {{ $t('tenant.ai.usage.summary.totalTokens') }}
-              </div>
-              <div class="text-2xl font-bold text-foreground">
-                {{ formatTokens(summary?.total_tokens) }}
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        <!-- 总费用 -->
-        <Card :body-style="{ padding: '20px' }">
-          <div class="flex items-center gap-3">
-            <div
-              class="flex size-12 items-center justify-center rounded-xl bg-warning/10"
-            >
-              <IconifyIcon
-                icon="lucide:dollar-sign"
-                class="size-6 text-warning"
-              />
-            </div>
-            <div>
-              <div class="text-sm text-muted-foreground">
-                {{ $t('tenant.ai.usage.summary.totalCost') }}
-              </div>
-              <div class="text-2xl font-bold text-foreground">
-                {{ formatCost(summary?.total_cost) }}
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        <!-- 调用次数 -->
-        <Card :body-style="{ padding: '20px' }">
-          <div class="flex items-center gap-3">
-            <div
-              class="flex size-12 items-center justify-center rounded-xl bg-success/10"
-            >
-              <IconifyIcon icon="lucide:activity" class="size-6 text-success" />
-            </div>
-            <div>
-              <div class="text-sm text-muted-foreground">
-                {{ $t('tenant.ai.usage.summary.totalCalls') }}
-              </div>
-              <div class="text-2xl font-bold text-foreground">
-                {{ summary?.total_calls || 0 }}
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        <!-- 成功率 -->
-        <Card :body-style="{ padding: '20px' }">
-          <div class="flex items-center gap-3">
-            <div
-              class="flex size-12 items-center justify-center rounded-xl bg-success/10"
-            >
-              <IconifyIcon
-                icon="lucide:check-circle"
-                class="size-6 text-success"
-              />
-            </div>
-            <div>
-              <div class="text-sm text-muted-foreground">
-                {{ $t('tenant.ai.usage.summary.successRate') }}
-              </div>
-              <div class="text-2xl font-bold text-foreground">
-                {{ successRate }}
-              </div>
-            </div>
-          </div>
-        </Card>
-      </div>
-
       <!-- 按访问渠道（企业管理员 / 终端用户等） -->
       <Card
         v-if="accessChannelCardVisible"
@@ -532,7 +490,9 @@ usePageAIOperations({
         :title="$t('tenant.ai.usage.accessChannel.title')"
       >
         <template #extra>
-          <span class="max-w-[220px] text-right text-xs text-muted-foreground sm:max-w-none">
+          <span
+            class="max-w-[220px] text-right text-xs text-muted-foreground sm:max-w-none"
+          >
             {{ $t('tenant.ai.usage.accessChannel.subtitle') }}
           </span>
         </template>
