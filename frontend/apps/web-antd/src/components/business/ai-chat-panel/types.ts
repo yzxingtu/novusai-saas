@@ -104,6 +104,8 @@ export interface ToolCallEvent {
   displayName?: string;
   /** One-line summary of the tool execution result / 工具执行结果摘要 */
   summary?: string;
+  /** Structured summary payload from backend SSE / 后端 SSE 下发的结构化摘要 */
+  summaryPayload?: Record<string, unknown>;
   /** Link to view the created/updated resource / 查看创建/更新资源的链接 */
   resultLink?: string;
   /** Error type for page ops: timeout, user_cancelled, not_registered, invalid_input, etc. / 页面操作错误类型 */

@@ -303,3 +303,6 @@ test_doc.txt
 .novus_codegen_backup/
 .codegen_tmp/
 .codegen_backup/
+
+# Codex / local workflow screenshots (do not commit)
+.codex-artifacts/

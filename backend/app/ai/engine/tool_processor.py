@@ -600,6 +600,8 @@ class ToolCallProcessor:
             event["summary"] = result.summary
         if result.result_link:
             event["result_link"] = result.result_link
+        if result.summary_payload:
+            event["summary_payload"] = result.summary_payload
 
         if result.success and result.output:
             if '"__crud_form_fill__"' in result.output:

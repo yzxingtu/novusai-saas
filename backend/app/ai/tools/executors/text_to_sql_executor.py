@@ -17,6 +17,7 @@ Requires AIGateway injection, registered in ToolSandbox._init_executors().
 from __future__ import annotations
 
 import json
+import re
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -49,6 +50,99 @@ if TYPE_CHECKING:
     from app.models.ai.agent import Agent
 
 logger = LogManager.get_logger("ai.tool.text_to_sql")
+
+
+def _parse_sql_table_names(sql: str) -> list[str]:
+    matches = re.findall(
+        r"\b(?:from|join|into|update)\s+([a-zA-Z0-9_.\"]+)",
+        sql,
+        flags=re.IGNORECASE,
+    )
+    out: list[str] = []
+    for raw in matches:
+        normalized = raw.replace('"', "").strip().split()[0]
+        if normalized and normalized not in out:
+            out.append(normalized)
+    return out
+
+
+def _parse_sql_metrics(sql: str) -> list[str]:
+    select_match = re.search(r"\bselect\b([\s\S]*?)\bfrom\b", sql, flags=re.IGNORECASE)
+    if not select_match:
+        return []
+    select_clause = select_match.group(1).strip()
+    matches = re.findall(
+        r"\b(count|sum|avg|min|max)\s*\(([\s\S]*?)\)",
+        select_clause,
+        flags=re.IGNORECASE,
+    )
+    out: list[str] = []
+    for fn_name, arg in matches:
+        formatted = f"{fn_name.upper()}({re.sub(r'\s+', ' ', arg).strip()})"
+        if formatted not in out:
+            out.append(formatted)
+    return out
+
+
+def _parse_sql_group_by(sql: str) -> list[str]:
+    match = re.search(
+        r"\bgroup\s+by\b([\s\S]*?)(?:\border\s+by\b|\blimit\b|$)",
+        sql,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return []
+    return [
+        re.sub(r"\s+", " ", part).strip()
+        for part in match.group(1).split(",")
+        if part.strip()
+    ][:4]
+
+
+def _parse_sql_filters(sql: str) -> list[str]:
+    normalized = sql.lower()
+    filters: list[str] = []
+    if (
+        "interval '7 day'" in normalized
+        or "interval '7 days'" in normalized
+    ):
+        filters.append("last_7_days")
+    elif (
+        "interval '30 day'" in normalized
+        or "interval '30 days'" in normalized
+    ):
+        filters.append("last_30_days")
+    elif "current_date" in normalized or "date_trunc('day'" in normalized:
+        filters.append("today")
+    return filters
+
+
+def _build_query_summary_payload(
+    *,
+    question: str,
+    generated_sql: str,
+    generated_explanation: str | None,
+    confidence: float | None,
+    display_type: str,
+    formatted_summary: str,
+    row_count: int,
+    truncated: bool,
+) -> dict[str, Any]:
+    return {
+        "tool_kind": "data_query",
+        "question": question,
+        "explanation": generated_explanation or "",
+        "sql": generated_sql,
+        "confidence": confidence,
+        "display_type": display_type,
+        "result_summary": formatted_summary,
+        "row_count": row_count,
+        "truncated": truncated,
+        "tables": _parse_sql_table_names(generated_sql),
+        "metrics": _parse_sql_metrics(generated_sql),
+        "group_by": _parse_sql_group_by(generated_sql),
+        "filters": _parse_sql_filters(generated_sql),
+    }
 
 
 class TextToSQLExecutor(BaseToolExecutor):
@@ -285,12 +379,25 @@ class TextToSQLExecutor(BaseToolExecutor):
                 confidence=generated.confidence,
             )
 
+            summary_payload = _build_query_summary_payload(
+                question=question,
+                generated_sql=generated.sql,
+                generated_explanation=generated.explanation,
+                confidence=generated.confidence,
+                display_type=formatted.display_type,
+                formatted_summary=formatted.summary,
+                row_count=query_result.row_count,
+                truncated=query_result.truncated,
+            )
+
             return ToolResult(
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=True,
                 output=output,
                 duration_ms=duration_ms,
+                summary=generated.explanation or formatted.summary,
+                summary_payload=summary_payload,
             )
 
         except TenantIsolationError as exc:

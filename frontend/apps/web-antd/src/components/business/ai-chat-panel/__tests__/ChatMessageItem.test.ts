@@ -373,4 +373,68 @@ describe('ChatMessageItem', () => {
     await wrapper.vm.$nextTick();
     expect(wrapper.text()).toContain('@ 猫娘智能体');
   });
+
+  it('renders tool target badges and toggles tool details with animated state', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: createAssistantMsg([
+          {
+            name: 'data_query',
+            status: 'success',
+            arguments: {
+              question: '统计今天调用情况',
+            },
+            output: JSON.stringify({
+              explanation: '按今天范围统计 AI 调用，并按租户分组。',
+              sql: "SELECT t.name, COUNT(acl.id) AS total_calls FROM ai_call_logs acl JOIN tenants t ON t.id = acl.tenant_id WHERE acl.created_at >= CURRENT_DATE GROUP BY t.name",
+              success: true,
+            }),
+          },
+        ]),
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain('common.globalAiChat.toolTouched');
+    expect(wrapper.text()).toContain('统计今天调用情况');
+    expect(wrapper.text()).toContain('ai_call_logs, tenants');
+    expect(wrapper.text()).toContain('common.globalAiChat.toolTargetMetrics');
+    expect(wrapper.text()).toContain('COUNT(acl.id)');
+    expect(wrapper.text()).toContain('common.globalAiChat.toolTargetGrouping');
+    expect(wrapper.text()).toContain('t.name');
+    expect(wrapper.text()).toContain('common.globalAiChat.toolTargetFilter');
+    expect(wrapper.text()).toContain('common.globalAiChat.toolFilterToday');
+
+    const details = wrapper.get('[data-testid="tool-call-details-0"]');
+    expect(details.attributes('style') ?? '').toContain('grid-template-rows: 0fr');
+
+    await wrapper.get('[data-testid="tool-call-toggle-0"]').trigger('click');
+    await wrapper.vm.$nextTick();
+
+    expect(details.attributes('style') ?? '').toContain('grid-template-rows: 1fr');
+    expect(wrapper.text()).toContain('common.globalAiChat.toolExplanation');
+    expect(wrapper.text()).toContain('按今天范围统计 AI 调用，并按租户分组。');
+    expect(wrapper.text()).toContain('common.globalAiChat.toolSql');
+
+    const sqlCopyButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.globalAiChat.copySql'));
+    expect(sqlCopyButton).toBeTruthy();
+    await sqlCopyButton!.trigger('click');
+    expect(wrapper.emitted('copy')?.[0]).toEqual([
+      "SELECT t.name, COUNT(acl.id) AS total_calls FROM ai_call_logs acl JOIN tenants t ON t.id = acl.tenant_id WHERE acl.created_at >= CURRENT_DATE GROUP BY t.name",
+    ]);
+
+    expect(wrapper.text()).toContain('common.globalAiChat.rawResult');
+  });
 });

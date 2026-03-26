@@ -1,179 +1,254 @@
 # NovusAI SaaS
 
-现代化 AI 集成 SaaS 开发框架，基于 Python + Vue 构建。
+**Languages:** English · [简体中文](README.zh-CN.md)
 
-## 技术栈
+Multi-tenant, AI-native SaaS platform with **platform admin**, **tenant**, and **user** apps, **RBAC**, **plugins**, **Agent → Skill → AIGateway** flows, **Socket.IO**, pluggable **attachments**, **codegen**, and **Alembic** migrations.
 
-### 后端
-- **Python 3.10+** - 核心语言
-- **FastAPI** - Web 框架
-- **SQLAlchemy 2.0** - ORM
-- **PostgreSQL** - 主数据库
-- **Redis** - 缓存与消息队列
-- **Celery** - 异步任务队列
-- **Alembic** - 数据库迁移
+## Table of contents
 
-### 前端
-- **Vue.js 3.x** - 前端框架
-- **TypeScript** - 类型安全
-- **Vite** - 构建工具
-- **Ant Design Vue** - UI 组件库
-- **Pinia** - 状态管理
-- **Vue Router** - 路由管理
-- **vue-i18n** - 国际化
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Tech stack](#tech-stack)
+- [Repository structure](#repository-structure)
+- [Prerequisites](#prerequisites)
+- [Quick start](#quick-start)
+- [Configuration](#configuration)
+- [Development](#development)
+- [API documentation](#api-documentation)
+- [Default development URLs and accounts](#default-development-urls-and-accounts)
+- [Documentation](#documentation)
+- [Deployment](#deployment)
+- [Contributing](#contributing)
+- [Security](#security)
+- [License](#license)
+- [Support](#support)
 
-## 项目结构
+## Overview
 
-```
-novusai-saas/
-├── backend/                 # 后端项目目录
-│   ├── app/                # 应用源码
-│   │   ├── api/           # API 路由层
-│   │   │   └── v1/       # API v1 版本
-│   │   ├── core/         # 核心配置与基础设施
-│   │   ├── models/       # 数据库模型
-│   │   ├── services/     # 业务逻辑服务层
-│   │   ├── schemas/      # Pydantic 数据验证模型
-│   │   ├── utils/        # 工具函数
-│   │   ├── middleware/   # 中间件
-│   │   ├── tasks/        # Celery 异步任务
-│   │   └── websocket/    # WebSocket 处理器
-│   ├── migrations/        # Alembic 数据库迁移
-│   └── tests/             # 后端测试
-│
-├── frontend/               # 前端项目目录
-│   ├── src/               # 源码目录
-│   │   ├── api/          # API 请求模块
-│   │   ├── assets/       # 静态资源
-│   │   ├── components/   # 通用组件
-│   │   ├── composables/  # 组合式函数
-│   │   ├── layouts/      # 布局组件
-│   │   ├── locales/      # 国际化文件
-│   │   ├── router/       # 路由配置
-│   │   ├── stores/       # Pinia 状态管理
-│   │   ├── styles/       # 全局样式
-│   │   ├── types/        # TypeScript 类型
-│   │   ├── utils/        # 工具函数
-│   │   └── views/        # 页面视图
-│   └── public/            # 公共静态文件
-│
-├── docs/                   # 项目文档
-│   ├── api/               # API 文档
-│   ├── guides/            # 开发指南
-│   └── architecture/      # 架构设计文档
-│
-├── scripts/                # 脚本工具
-│   ├── deploy/            # 部署脚本
-│   ├── dev/               # 开发辅助脚本
-│   └── migration/         # 迁移脚本
-│
-├── shared/                 # 前后端共享资源
-│   ├── types/             # 共享类型定义
-│   └── constants/         # 共享常量
-│
-├── .gitignore             # Git 忽略配置
-├── .warp/                 # Warp Agent 配置
-└── README.md              # 项目说明（本文件）
+NovusAI SaaS is a **monorepo**: [`backend`](backend) (FastAPI), [`frontend`](frontend) (Vben Admin monorepo), [`docs`](docs), and [`.cursor`](.cursor) (editor rules and skills for contributors and automation). Three UI surfaces share patterns but **must not cross-import** business modules between admin, tenant, and user.
+
+| Area | Notes |
+|------|--------|
+| **Surfaces** | `admin` / `tenant` / `user` — separate routes and API namespaces. |
+| **AI** | Business AI uses **Agent → Skill → AIGateway**; RAG, session memory, page tools, and routing are documented under `.cursor`. |
+| **Data** | JSON:API-style `filter` / `sort` / `page`; tenant isolation and data permissions in services and RBAC. |
+| **Realtime** | Celery for async work; Socket.IO for notifications, typing, and page-operation channels. |
+| **Extensibility** | Plugins under `backend/plugins/`; CRUD codegen and rollback via root [`codegen_manifest.json`](codegen_manifest.json). |
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph clients [Clients]
+    AdminUI[Admin_UI]
+    TenantUI[Tenant_UI]
+    UserUI[User_UI]
+  end
+  subgraph api [FastAPI]
+    Routes[Controllers]
+    Svc[Services]
+    Repo[Repositories]
+  end
+  subgraph ai [AI]
+    Agent[Agent]
+    Skill[Skill]
+    GW[AIGateway]
+  end
+  AdminUI --> Routes
+  TenantUI --> Routes
+  UserUI --> Routes
+  Routes --> Svc --> Repo
+  Svc --> Agent --> Skill --> GW
 ```
 
-## 快速开始
+## Tech stack
 
-### 环境要求
+| Layer | Stack |
+|-------|--------|
+| **Backend** | Python **3.10+**, FastAPI, SQLAlchemy 2.x (async), PostgreSQL (pgvector image in dev Compose), Redis, Celery, Alembic, Socket.IO |
+| **Frontend** | Vue 3, TypeScript, Vben Admin 5.x, Ant Design Vue, Vite, pnpm, vue-i18n |
+| **Auth** | JWT (access / refresh; impersonation where applicable) |
 
-- Python 3.10+
-- Node.js 18+
-- PostgreSQL 14+
-- Redis 6+
-- Docker（可选，用于 PostgreSQL / Redis / Prometheus / Grafana）
+## Repository structure
 
-### Docker 依赖服务（推荐）
+```
+novusai-saas-yudi/
+├── backend/
+│   ├── app/                 # FastAPI: api/, services/, models/, repositories/,
+│   │                        # ai/, rbac/, storage/, tasks/, sio/, codegen/, …
+│   ├── migrations/          # Alembic
+│   ├── plugins/             # Bundled / first-party plugins
+│   └── tests/
+├── frontend/                # pnpm + Turbo monorepo
+│   ├── apps/web-antd/       # Main NovusAI app (admin / tenant / user)
+│   └── packages/
+├── deploy/                  # Deployment-related assets (when present)
+├── docs/                    # Guides, audits, design notes
+├── scripts/
+├── shared/
+├── .cursor/
+│   ├── rules/               # Architecture, AI, plugins, RBAC, migrations, …
+│   └── skills/              # Topic skills for agents and developers
+├── codegen_manifest.json    # Codegen rollback manifest (may be empty)
+├── docker-compose.dev.yml   # Dev PostgreSQL + Redis
+├── LICENSE
+├── CONTRIBUTING.md
+├── SECURITY.md
+├── README.md
+└── README.zh-CN.md
+```
+
+## Prerequisites
+
+- **Python** 3.10+ ([`backend/pyproject.toml`](backend/pyproject.toml))
+- **Node.js** 18+ and **pnpm**
+- **PostgreSQL** and **Redis** (local or Docker)
+
+## Quick start
+
+### 1) Infrastructure (recommended)
+
+From the repository root:
 
 ```bash
-# 在项目根目录启动 PostgreSQL、Redis、Prometheus、Grafana
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-包含：PostgreSQL(5432)、Redis(6379)、Prometheus(9090)、Grafana(3000)。开发环境下 Grafana 会自动配置为 `http://localhost:3000`，监控页 Grafana Tab 可直接使用。
+This starts **PostgreSQL** (port `5432`) and **Redis** (`6379`) with named volumes.
 
-### 后端开发
+### 2) Backend
+
+Run all commands from the **`backend`** directory:
 
 ```bash
-# 进入后端目录
 cd backend
-
-# 创建虚拟环境
 python -m venv .venv
-source .venv/bin/activate  # Linux/macOS
-# .venv\Scripts\activate   # Windows
+# Windows: .venv\Scripts\activate
+# Linux/macOS: source .venv/bin/activate
 
-# 安装依赖（以 pyproject.toml + uv.lock 为唯一来源）
 uv sync --extra dev
-# 若无 uv：pip install -e ".[dev]"
-# 安装后可获得 novusai CLI
+# or: pip install -e ".[dev]"
 
-# 配置环境变量
 cp .env.example .env
-# 编辑 .env 文件配置数据库等
+# Edit .env — see Configuration
 
-# 运行数据库迁移（启动时也会自动执行）
 novusai db upgrade head
-
-# 启动开发服务器
 novusai run --reload
-# 另开终端启动 Celery Worker + Beat
+```
+
+In a **second** terminal (same virtualenv):
+
+```bash
+cd backend
 novusai celery dev
-# 终端噪音：SQL 默认只写入 backend/logs/db.log（LOG_DB_TO_CONSOLE=true 可打回终端）；
-# WebSocket 握手 INFO 默认不在终端显示（LOG_QUIET_WEBSOCKET_HANDSHAKE=false 可恢复）
-# 启动前端
+```
+
+Optional: tune logging via variables in `.env` (e.g. SQL file logging under `logs/`, WebSocket handshake verbosity).
+
+### 3) Frontend
+
+Run from the **`frontend`** directory:
+
+```bash
+cd frontend
+pnpm install
+```
+
+Set the API base URL in [`frontend/apps/web-antd/.env.development`](frontend/apps/web-antd/.env.development) (`VITE_GLOB_API_URL`, default `http://127.0.0.1:8000`). You may add `frontend/apps/web-antd/.env.local` for local overrides (Vite).
+
+```bash
 pnpm dev:antd
 ```
 
-### 前端开发
+The default dev server port is **5666** (`VITE_PORT` in `.env.development`).
+
+## Configuration
+
+Do **not** commit real secrets. Copy templates and edit:
+
+| Scope | File | Highlights |
+|--------|------|------------|
+| Backend | [`backend/.env.example`](backend/.env.example) → `.env` | `DEBUG`, `SECRET_KEY`, `DATABASE_*`, `REDIS_*`, `CELERY_*`, JWT settings, `LOG_*`, … |
+| Frontend | [`frontend/apps/web-antd/.env.development`](frontend/apps/web-antd/.env.development) | `VITE_GLOB_API_URL`, `VITE_PORT`, `VITE_PLATFORM_DOMAINS`, … |
+
+See comments inside each example file for semantics and production guidance.
+
+## Development
+
+### Backend
+
+From `backend` (with dev extras installed):
 
 ```bash
-# 进入前端目录
-cd frontend
-
-# 安装依赖
-pnpm install  # 或 npm install
-
-# 配置环境变量
-cp .env.example .env.local
-# 编辑 .env.local 配置 API 地址
-
-# 启动开发服务器
-pnpm dev  # 或 npm run dev
+pytest
+ruff check .
+ruff format .
 ```
 
-## 分支策略
+Tests are configured in [`backend/pyproject.toml`](backend/pyproject.toml) (`testpaths = ["tests"]`).
 
-本项目采用 Git Flow 分支模型：
+### Frontend
 
-- `main` - 生产环境分支，只接受 release 分支合并
-- `develop` - 开发主分支，日常开发基于此分支
-- `feature/backend-xxx` - 后端功能分支
-- `feature/frontend-xxx` - 前端功能分支
-- `release/vX.X.X` - 发布分支
-- `hotfix/xxx` - 紧急修复分支
+From `frontend`:
 
-### 开发流程
+```bash
+pnpm lint
+pnpm test:unit
+pnpm build:antd
+```
 
-1. 从 `develop` 分支创建功能分支
-2. 在功能分支上开发
-3. 提交 Pull Request 到 `develop`
-4. Code Review 通过后合并
+## API documentation
 
-## 开发规范
+When **`DEBUG=true`**, the API serves interactive docs (see [`backend/app/main.py`](backend/app/main.py)):
 
-请参阅 `docs/guides/` 目录下的开发规范文档：
+| URL | Description |
+|-----|----------------|
+| `http://localhost:8000/docs` | Swagger UI |
+| `http://localhost:8000/redoc` | ReDoc |
+| `http://localhost:8000/openapi.json` | OpenAPI schema |
 
-- [后端开发规范](docs/guides/backend-development.md)
-- [前端开发规范](docs/guides/frontend-development.md)
-- [API 设计规范](docs/guides/api-design.md)
-- [Git 提交规范](docs/guides/git-commit.md)
+In typical **production** settings, these URLs are disabled (`None` when `DEBUG` is false). Rely on versioned API contracts and internal documentation instead.
 
-注释须中英双语（见 [注释规范补全清单](docs/comment-compliance-remaining.md)）。
+## Default development URLs and accounts
 
-## 许可证
+> **Development only.** Change passwords and remove demo accounts before production.
 
-MIT License
+| Item | Value |
+|------|--------|
+| API | `http://localhost:8000` |
+| Web app | `http://localhost:5666` |
+| Platform login | `/admin/login` — example: `admin` / `admin123456` |
+| Tenant login | `/tenant/login` — example: `adminsss` / `admin123456` |
+
+## Documentation
+
+| Location | Purpose |
+|----------|---------|
+| [`.cursor/rules/novusai-saas.md`](.cursor/rules/novusai-saas.md) | Rule index: layering, i18n, AI, plugins, RBAC, migrations, trace/monitoring, … |
+| [`.cursor/skills/novusai-saas/SKILL.md`](.cursor/skills/novusai-saas/SKILL.md) | Umbrella skill: stack, constraints, CRUD/AI/plugin entry points |
+| [`.cursor/skills/`](.cursor/skills) | Topic skills (RAG, WebSocket, codegen, attachments, …) |
+| [`docs/guides/backend-development.md`](docs/guides/backend-development.md) | Backend guide |
+| [`docs/comment-compliance-remaining.md`](docs/comment-compliance-remaining.md) | Bilingual comment checklist |
+
+**Codegen:** after generating CRUD from the monorepo root, `codegen_manifest.json` records artifacts for rollback; the admin UI may warn if the manifest is missing or out of sync.
+
+## Deployment
+
+Production and environment-specific assets may live under [`deploy/`](deploy/). Consult that directory and your operations runbooks; this README stays focused on local development.
+
+## Contributing
+
+See [**CONTRIBUTING.md**](CONTRIBUTING.md) for branches, pull requests, style checks, and tests.
+
+## Security
+
+See [**SECURITY.md**](SECURITY.md) for how to report vulnerabilities.
+
+## License
+
+This project is licensed under the **MIT License** — see [**LICENSE**](LICENSE).
+
+## Support
+
+- **Bug reports and feature requests:** use your Git hosting’s issue tracker (e.g. GitHub **Issues** on the repository).
+- **Questions:** prefer issues or team channels so answers stay searchable.

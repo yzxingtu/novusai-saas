@@ -541,6 +541,78 @@ async def test_tool_call_name_matches_tool_start_when_sandbox_redirects():
 
 
 @pytest.mark.asyncio
+async def test_tool_call_event_includes_summary_payload():
+    class _SummarySandbox:
+        async def execute(
+            self,
+            tool_call_id: str,
+            name: str,
+            arguments: dict,
+            definitions: list,
+            conversation_id: int,
+        ):
+            _ = arguments, definitions, conversation_id
+            return ToolResult(
+                tool_call_id=tool_call_id,
+                name=name,
+                success=True,
+                output='{"ok": true}',
+                summary="按今天范围统计调用并按租户分组",
+                summary_payload={
+                    "tool_kind": "data_query",
+                    "tables": ["ai_call_logs", "tenants"],
+                    "metrics": ["COUNT(acl.id)"],
+                    "filters": ["today"],
+                },
+            )
+
+    engine = _FakeEngine(
+        call_llm_responses=[
+            ChatResponse(
+                message=ChatMessage(role="assistant", content=""),
+                tool_calls=[
+                    {
+                        "id": "call_summary_1",
+                        "type": "function",
+                        "function": {
+                            "name": "data_query",
+                            "arguments": '{"question":"统计今天调用情况"}',
+                        },
+                    },
+                ],
+                total_tokens=40,
+            ),
+            ChatResponse(
+                message=ChatMessage(role="assistant", content="Done"),
+                tool_calls=None,
+                total_tokens=60,
+            ),
+        ],
+    )
+    engine.sandbox = _SummarySandbox()
+    tools = [ToolDefinition(name="data_query", description="Query data")]
+    handler = _build_handler(engine, tools=tools)
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    tool_call_event = next(
+        event
+        for event in events
+        if event.get("event") == "tool_call" and event.get("name") == "data_query"
+    )
+    assert tool_call_event.get("summary") == "按今天范围统计调用并按租户分组"
+    assert tool_call_event.get("summary_payload") == {
+        "tool_kind": "data_query",
+        "tables": ["ai_call_logs", "tenants"],
+        "metrics": ["COUNT(acl.id)"],
+        "filters": ["today"],
+    }
+
+
+@pytest.mark.asyncio
 async def test_parse_error_abort_after_consecutive_page_op_failures():
     """
     parse error 连续 3 次后触发熔断，停止工具循环并输出恢复提示。

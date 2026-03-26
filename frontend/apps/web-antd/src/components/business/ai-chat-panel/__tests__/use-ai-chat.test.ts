@@ -289,4 +289,70 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(chat.chatMessages.value[1]?.partial).toBe(true);
     expect(chat.chatMessages.value[1]?.interrupted).toBe(true);
   });
+
+  it('stores summary_payload from tool_call SSE events for tool cards', async () => {
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          `data: ${JSON.stringify({ event: 'conversation', conversation_id: 42 })}\n`,
+        );
+        await options.onMessage(
+          `data: ${JSON.stringify({
+            arguments: { question: '统计今天调用情况' },
+            event: 'tool_start',
+            id: 'tc_data_query',
+            name: 'data_query',
+          })}\n`,
+        );
+        await options.onMessage(
+          `data: ${JSON.stringify({
+            duration_ms: 120,
+            event: 'tool_call',
+            name: 'data_query',
+            success: true,
+            summary: '按今天范围统计调用并按租户分组',
+            summary_payload: {
+              filters: ['today'],
+              group_by: ['t.name'],
+              metrics: ['COUNT(acl.id)'],
+              tables: ['ai_call_logs', 'tenants'],
+              tool_kind: 'data_query',
+            },
+          })}\n`,
+        );
+        await options.onMessage(
+          `data: ${JSON.stringify({ event: 'done', total_tokens: 18 })}\n`,
+        );
+      },
+    );
+
+    const chat = useAIChat({
+      apiPrefix: '/tenant',
+      uploadUrl: '/tenant/attachments',
+    });
+
+    await chat.loadAgents();
+    chat.inputMessage.value = '统计今天调用情况';
+
+    await chat.sendMessage({ routeSource: 'tool-summary-test' });
+    await flushPromises();
+
+    const assistantMessage = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+    expect(assistantMessage?.toolCalls?.[0]?.summaryPayload).toEqual({
+      filters: ['today'],
+      group_by: ['t.name'],
+      metrics: ['COUNT(acl.id)'],
+      tables: ['ai_call_logs', 'tenants'],
+      tool_kind: 'data_query',
+    });
+  });
 });

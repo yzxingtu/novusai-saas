@@ -1520,6 +1520,12 @@ export function useAIChat(options: UseAIChatOptions) {
               if (event.display_name)
                 existing.displayName = event.display_name as string;
               if (event.summary) existing.summary = event.summary as string;
+              if (event.summary_payload) {
+                existing.summaryPayload = event.summary_payload as Record<
+                  string,
+                  unknown
+                >;
+              }
               if (event.result_link)
                 existing.resultLink = event.result_link as string;
             } else {
@@ -1534,6 +1540,10 @@ export function useAIChat(options: UseAIChatOptions) {
                 skillType: (event.skill_type as string) || undefined,
                 displayName: (event.display_name as string) || undefined,
                 summary: (event.summary as string) || undefined,
+                summaryPayload: (event.summary_payload as Record<
+                  string,
+                  unknown
+                >) || undefined,
                 resultLink: (event.result_link as string) || undefined,
               });
             }
