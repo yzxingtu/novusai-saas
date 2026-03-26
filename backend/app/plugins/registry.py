@@ -74,7 +74,7 @@ def _select_i18n_value(locale_titles: dict[str, str], locale: str) -> str | None
     normalized = locale.replace("_", "-")
     if normalized in locale_titles:
         return locale_titles[normalized]
-    short = locale.split("_")[0]
+    short = normalized.split("-")[0]
     if short in locale_titles:
         return locale_titles[short]
     if locale_titles:

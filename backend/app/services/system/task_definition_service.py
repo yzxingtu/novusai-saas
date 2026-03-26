@@ -7,6 +7,8 @@ from __future__ import annotations
 from hashlib import md5
 from typing import Any
 
+from sqlalchemy import select
+
 from app.celery_app import celery_app
 from app.core.base_model import utc_now
 from app.core.base_service import GlobalService
@@ -14,6 +16,8 @@ from app.core.i18n import _
 from app.core.logging import LogManager
 from app.exceptions import BusinessException, NotFoundException
 from app.enums.common import ResourceScopeEnum
+from app.enums.plugin import PluginStatusEnum
+from app.models.system.plugin import Plugin
 from app.models.system.task_definition import TaskDefinition
 from app.repositories.system.task_definition_repository import (
     TaskDefinitionRepository,
@@ -55,8 +59,43 @@ class TaskDefinitionService(GlobalService[TaskDefinition, TaskDefinitionReposito
         digest = md5(handler_path.encode("utf-8")).hexdigest()[:8]
         return f"task.{leaf}.{digest}"
 
+    @staticmethod
+    def _extract_plugin_name(definition: TaskDefinition) -> str | None:
+        for raw in (
+            getattr(definition, "code", None),
+            getattr(definition, "handler_path", None),
+            getattr(definition, "name", None),
+        ):
+            value = str(raw or "").strip()
+            if not value.startswith("plugin."):
+                continue
+            parts = value.split(".")
+            if len(parts) >= 3:
+                return parts[1]
+        return None
+
+    async def _ensure_plugin_task_available(
+        self,
+        definition: TaskDefinition,
+    ) -> None:
+        plugin_name = self._extract_plugin_name(definition)
+        if not plugin_name:
+            return
+
+        result = await self.db.execute(
+            select(Plugin.status).where(
+                Plugin.name == plugin_name,
+                Plugin.is_deleted.is_(False),
+            )
+        )
+        plugin_status = result.scalar_one_or_none()
+        if plugin_status != PluginStatusEnum.ENABLED.value:
+            raise BusinessException(message=_("common.operation_failed"))
+
     async def toggle_active(self, definition_id: int, is_enabled: bool) -> TaskDefinition:
         definition = await self.get_by_id(definition_id)
+        if is_enabled:
+            await self._ensure_plugin_task_available(definition)
         updated = await self.update(definition.id, {"is_enabled": is_enabled})
         logger.info(
             "Task definition '{}' {}",
@@ -67,6 +106,7 @@ class TaskDefinitionService(GlobalService[TaskDefinition, TaskDefinitionReposito
 
     async def trigger_now(self, definition_id: int) -> str:
         definition = await self.get_by_id(definition_id)
+        await self._ensure_plugin_task_available(definition)
         binding_repo = TenantTaskBindingRepository(self.db)
         active_bindings = await binding_repo.get_list(
             task_definition_id=definition.id,

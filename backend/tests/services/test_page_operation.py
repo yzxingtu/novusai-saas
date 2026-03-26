@@ -124,6 +124,83 @@ class TestPageOperationExecutor:
         assert result.duration_ms >= 0
 
     @pytest.mark.asyncio
+    async def test_create_record_success_guides_agent_to_fill_remaining_fields(
+        self, executor, definition
+    ):
+        context = ExecutionContext(
+            tenant_id=1,
+            agent_id=2,
+            page_session_id="ps-123",
+        )
+        mock_result = {
+            "invoke_id": "inv-create",
+            "success": True,
+            "message": "Form opened",
+            "data": {
+                "form_is_open": True,
+                "remaining_empty_fields": ["description", "icon"],
+            },
+        }
+
+        with patch(
+            "app.sio.page_session.invoke_page_operation",
+            new=AsyncMock(return_value=mock_result),
+        ):
+            result = await executor.execute(
+                definition,
+                "call_create",
+                {
+                    "page_key": "admin.ai.providers",
+                    "operation_name": "create_record",
+                },
+                context,
+            )
+
+        assert result.success is True
+        assert "Do NOT call create_record/edit_record again" in result.output
+        assert "description, icon" in result.output
+
+    @pytest.mark.asyncio
+    async def test_fill_form_success_without_remaining_fields_waits_for_submit_confirmation(
+        self, executor, definition
+    ):
+        context = ExecutionContext(
+            tenant_id=1,
+            agent_id=2,
+            page_session_id="ps-123",
+        )
+        mock_result = {
+            "invoke_id": "inv-fill",
+            "success": True,
+            "message": "Filled fields",
+            "data": {
+                "field_feedback": {
+                    "name": {"requested": "demo", "actual": "demo", "match": True}
+                },
+                "remaining_empty_fields": [],
+            },
+        }
+
+        with patch(
+            "app.sio.page_session.invoke_page_operation",
+            new=AsyncMock(return_value=mock_result),
+        ):
+            result = await executor.execute(
+                definition,
+                "call_fill",
+                {
+                    "page_key": "admin.ai.providers",
+                    "operation_name": "fill_form",
+                    "params": {"name": "demo"},
+                },
+                context,
+            )
+
+        assert result.success is True
+        assert "The form appears filled" in result.output
+        assert "Do not call submit_form unless the user explicitly asked" in result.output
+
+    @pytest.mark.asyncio
     async def test_capture_screenshot_preserves_attachment_id(
         self, executor, definition
     ):

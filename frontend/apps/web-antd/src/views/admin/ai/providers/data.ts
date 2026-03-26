@@ -24,6 +24,7 @@ import { $t } from '#/locales';
 const adapterTypesCache = ref<AdapterTypeInfo[]>([]);
 
 export type OpenAICompatibleWireApi = 'chat_completions' | 'responses';
+export type ResponsesToolHistoryMode = 'structured' | 'text';
 const OPENAI_COMPATIBLE_FORBIDDEN_BASE_URL_SUFFIXES = [
   '/responses',
   '/chat/completions',
@@ -100,6 +101,12 @@ export function getProviderWireApiText(
 ): string {
   const normalizedWireApi = normalizeWireApi(wireApi) || 'chat_completions';
   return $t(`admin.ai.provider.wireApiOptions.${normalizedWireApi}`);
+}
+
+export function isResponsesToolHistoryCompatEnabled(
+  config: null | Record<string, unknown> | undefined,
+): boolean {
+  return config?.responses_tool_history_mode === 'text';
 }
 
 function isValidProviderBaseUrl(value: string): boolean {
@@ -299,6 +306,22 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
       },
       help: $t('admin.ai.provider.help.wireApi'),
     },
+    {
+      ...switchField(
+        'responses_tool_history_compat',
+        $t('admin.ai.provider.responsesToolHistoryCompat'),
+        {
+          defaultValue: false,
+        },
+      ),
+      dependencies: {
+        triggerFields: ['type', 'wire_api'],
+        show: (values: Record<string, unknown>) =>
+          values.type === 'openai_compatible' &&
+          values.wire_api === 'responses',
+      },
+      help: $t('admin.ai.provider.help.responsesToolHistoryCompat'),
+    },
     textareaField('description', $t('admin.ai.provider.description'), {
       placeholder: $t('admin.ai.provider.placeholder.inputDescription'),
     }),
@@ -323,6 +346,7 @@ export function getFormDefaults(): Record<string, unknown> {
   return {
     type: 'openai_compatible',
     wire_api: 'chat_completions',
+    responses_tool_history_compat: false,
     is_active: true,
     sort_order: 0,
   };

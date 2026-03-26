@@ -57,14 +57,14 @@ interface PageOperationParamSchema {
 
 interface PageOperationContextSnapshot {
   formOpen: boolean;
-  hasDrawer: boolean;
-  hasModal: boolean;
+  drawerCount: number;
+  modalCount: number;
 }
 
 type PageOperationContextDiff = Record<string, boolean>;
 
 const CONTEXT_DIFF_POLL_INTERVAL_MS = 60;
-const CONTEXT_DIFF_WAIT_TIMEOUT_MS = 480;
+const CONTEXT_DIFF_WAIT_TIMEOUT_MS = 1500;
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -249,6 +249,10 @@ function validateAndNormalizeOperationParams(
     );
 
     if (!hasValue) {
+      if (schema.defaultValue !== undefined) {
+        normalizedParams[paramName] = schema.defaultValue;
+        continue;
+      }
       if (schema.default !== undefined) {
         normalizedParams[paramName] = schema.default;
         continue;
@@ -281,10 +285,10 @@ function validateAndNormalizeOperationParams(
 function getContextSnapshot(pageKey: string): PageOperationContextSnapshot {
   return {
     formOpen: formStateTracker.isOpenWithFallback(pageKey),
-    hasModal: !!document.querySelector(
+    modalCount: document.querySelectorAll(
       '.ant-modal-wrap:not(.ant-modal-wrap-hidden)',
-    ),
-    hasDrawer: !!document.querySelector('.ant-drawer-open'),
+    ).length,
+    drawerCount: document.querySelectorAll('.ant-drawer-open').length,
   };
 }
 
@@ -295,10 +299,10 @@ function buildContextDiff(
   return {
     form_opened: !before.formOpen && after.formOpen,
     form_closed: before.formOpen && !after.formOpen,
-    modal_opened: !before.hasModal && after.hasModal,
-    modal_closed: before.hasModal && !after.hasModal,
-    drawer_opened: !before.hasDrawer && after.hasDrawer,
-    drawer_closed: before.hasDrawer && !after.hasDrawer,
+    modal_opened: after.modalCount > before.modalCount,
+    modal_closed: after.modalCount < before.modalCount,
+    drawer_opened: after.drawerCount > before.drawerCount,
+    drawer_closed: after.drawerCount < before.drawerCount,
   };
 }
 

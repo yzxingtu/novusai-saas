@@ -16,6 +16,7 @@ import { $t } from '#/locales';
 import {
   getFormDefaults,
   hasForbiddenProviderEndpointSuffix,
+  isResponsesToolHistoryCompatEnabled,
   normalizeProviderBaseUrlInput,
   resolveProviderWireApi,
   useFormSchema,
@@ -60,8 +61,17 @@ const { Drawer, isEdit } = useCrudDrawer<AIProviderInfo>({
       edit && configSnapshot.value ? { ...configSnapshot.value } : {};
     if (values.type === 'openai_compatible') {
       nextConfig.wire_api = effectiveWireApi || 'chat_completions';
+      if (
+        effectiveWireApi === 'responses' &&
+        values.responses_tool_history_compat === true
+      ) {
+        nextConfig.responses_tool_history_mode = 'text';
+      } else {
+        delete nextConfig.responses_tool_history_mode;
+      }
     } else {
       delete nextConfig.wire_api;
+      delete nextConfig.responses_tool_history_mode;
     }
 
     const result: Record<string, unknown> = {
@@ -94,6 +104,9 @@ const { Drawer, isEdit } = useCrudDrawer<AIProviderInfo>({
       type: data.type,
       base_url: data.base_url,
       wire_api: effectiveWireApi || 'chat_completions',
+      responses_tool_history_compat: isResponsesToolHistoryCompatEnabled(
+        data.config,
+      ),
       description: data.description,
       icon: data.icon,
       sort_order: data.sort_order,

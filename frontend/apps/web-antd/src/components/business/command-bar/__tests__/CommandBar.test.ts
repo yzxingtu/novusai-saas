@@ -13,8 +13,11 @@ const mocks = vi.hoisted(() => ({
 
 let aiPanelStore: {
   open: ReturnType<typeof vi.fn>;
+  openWithContext: ReturnType<typeof vi.fn>;
   pinnedAgentId: null | number;
   pinnedAgentName: null | string;
+  queueMessage: ReturnType<typeof vi.fn>;
+  togglePin: ReturnType<typeof vi.fn>;
   unpinAgent: ReturnType<typeof vi.fn>;
   visible: boolean;
 };
@@ -131,6 +134,7 @@ function createPinnedAgentStore() {
     open: ReturnType<typeof vi.fn>;
     pinnedAgentId: null | number;
     pinnedAgentName: null | string;
+    togglePin: ReturnType<typeof vi.fn>;
     unpinAgent: ReturnType<typeof vi.fn>;
     visible: boolean;
   }>({
@@ -138,6 +142,12 @@ function createPinnedAgentStore() {
     pinnedAgentId: 1,
     pinnedAgentName: 'Cat Agent',
     open: vi.fn(),
+    openWithContext: vi.fn(),
+    queueMessage: vi.fn(),
+    togglePin: vi.fn((id: number, name: string) => {
+      store.pinnedAgentId = id;
+      store.pinnedAgentName = name;
+    }),
     unpinAgent: vi.fn(),
   });
   store.open = vi.fn(() => {
@@ -241,6 +251,34 @@ describe('CommandBar', () => {
 
     expect(wrapper.emitted('submit')).toEqual([['帮我总结今天工作']]);
     expect(aiPanelStore.open).toHaveBeenCalledTimes(1);
+    expect(aiPanelStore.queueMessage).toHaveBeenCalledWith('帮我总结今天工作');
+
+    wrapper.unmount();
+  });
+
+  it('submits immediately after selecting an @mention agent when message content exists', async () => {
+    const wrapper = await openCommandBar();
+    const textarea = document.body.querySelector(
+      '[data-testid="cmd-input"]',
+    ) as HTMLTextAreaElement | null;
+
+    expect(textarea).toBeTruthy();
+    textarea!.value = '@CatAgent 帮我检查供应商';
+    textarea!.dispatchEvent(new Event('input'));
+    await flushPromises();
+
+    const keyboardEvent = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+    });
+    textarea!.dispatchEvent(keyboardEvent);
+    await flushPromises();
+
+    expect(wrapper.emitted('submit')).toBeUndefined();
+    expect(aiPanelStore.openWithContext).toHaveBeenCalledWith({
+      agentId: 1,
+      message: '帮我检查供应商',
+    });
 
     wrapper.unmount();
   });

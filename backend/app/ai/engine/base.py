@@ -204,6 +204,11 @@ class BaseEngine(ABC):
             "When the user's request can be fulfilled by calling a tool, "
             "you MUST call the appropriate tool instead of generating text-only responses. "
             "Do NOT say you cannot access the database or perform actions — use your tools.\n"
+            "When a newer user turn conflicts with an older temporary execution constraint "
+            '(for example: "read-only", "do not write", "do not submit"), follow the latest user turn '
+            "unless the user explicitly says the earlier constraint still applies.\n"
+            "If the user asks for multiple operations or gives an ordered checklist, execute the requested operations "
+            "in that order and only summarize after you have attempted each requested step.\n"
             "Do NOT show HTML, JSON, tool parameters or raw API output to the user. "
             "Tools are for internal execution; return natural language results only."
         )
@@ -294,6 +299,18 @@ class BaseEngine(ABC):
                     f'Format: invoke_page_operation(page_key="{page_key}", '
                     f'operation_name="<name>", params={{...}})'
                 )
+            mutation_ops = [
+                str(o.get("name", ""))
+                for o in raw_ops
+                if isinstance(o, dict) and o.get("name") and not bool(o.get("readonly", False))
+            ]
+            mutation_hint = ""
+            if mutation_ops:
+                mutation_hint = (
+                    f"\nWritable page operations are available: {', '.join(mutation_ops)}."
+                    "\nWhen the user asks to create, edit, fill, submit, or delete records, "
+                    "you MUST use these page operations instead of replying that the page is read-only."
+                )
             editor_flow_hint = ""
             if "get_editor_html" in pageop_tool_ops:
                 editor_flow_hint = (
@@ -307,6 +324,7 @@ class BaseEngine(ABC):
                 f"Current page: {page_key}{desc_line}"
                 f"Preferred: use dedicated pageop_* tools directly when available.\n"
                 f"{dedicated_hint}"
+                f"{mutation_hint}"
                 f"{editor_flow_hint}"
                 f"{other_ops_hint}\n"
                 f"{screenshot_hint}"
@@ -356,6 +374,18 @@ class BaseEngine(ABC):
                 "or table/form data is insufficient for a visual/layout question. "
                 "Avoid repeated screenshots unless the page visibly changed."
             )
+        mutation_ops = [
+            str(o.get("name", ""))
+            for o in raw_ops
+            if isinstance(o, dict) and o.get("name") and not bool(o.get("readonly", False))
+        ]
+        mutation_guidance = ""
+        if mutation_ops:
+            mutation_guidance = (
+                f"\nWritable operations available: {', '.join(mutation_ops)}."
+                "\nIf the user asks to create, edit, fill, submit, or delete, do not answer with a capability summary only."
+                " Execute the writable page operations."
+            )
 
         return (
             f"\n\n[PAGE OPERATIONS]\n"
@@ -369,6 +399,7 @@ class BaseEngine(ABC):
             f"{search_example}"
             f"{section_example}"
             f"{screenshot_guidance}"
+            f"{mutation_guidance}"
             f"{data_distinction_note}"
         )
 

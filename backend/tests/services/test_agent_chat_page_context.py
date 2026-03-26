@@ -309,6 +309,48 @@ async def test_page_context_executor_returns_empty_output_without_context() -> N
 
 
 @pytest.mark.asyncio
+async def test_page_context_executor_prioritizes_mutation_ops_and_submit_workflow() -> None:
+    executor = PageContextExecutor()
+    result = await executor.execute(
+        ToolDefinition(name="get_page_context"),
+        "call_mutation",
+        {},
+        ExecutionContext(
+            tenant_id=1,
+            agent_id=2,
+            variables={
+                "page_context": {
+                    "page_key": "admin.ai.providers",
+                    "page_title": "供应商名称",
+                    "page_data": {
+                        "form_fields": {
+                            "name": {
+                                "type": "string",
+                                "description": "供应商名称",
+                                "component": "input",
+                                "required": True,
+                            }
+                        },
+                        "available_operations": [
+                            {"name": "read_visible_rows", "label": "读取当前可见行", "readonly": True},
+                            {"name": "create_record", "label": "新建记录", "readonly": False},
+                            {"name": "fill_form", "label": "智能填写表单", "readonly": False},
+                            {"name": "submit_form", "label": "提交表单", "readonly": False},
+                            {"name": "validate_form", "label": "校验表单", "readonly": True},
+                        ],
+                    },
+                }
+            },
+        ),
+    )
+
+    assert result.success is True
+    assert "Writable Operations Available: create_record, fill_form, submit_form" in result.output
+    assert "call submit_form" in result.output
+    assert "Do not claim the page is read-only" in result.output
+
+
+@pytest.mark.asyncio
 async def test_agent_chat_service_injects_page_context_into_execution_request(mock_db) -> None:
     from app.services.ai.agent_chat_service import AgentChatService
 
@@ -728,6 +770,58 @@ class TestToolOptimizerProtectedTools:
         assert result.skipped
         assert len(result.tools) == 2
 
+    def test_explicit_tool_names_are_retained_even_when_budget_is_tight(self):
+        """用户明确点名工具名时，不应在优化阶段被筛掉。"""
+        from app.ai.tools.optimizer import optimize_tools
+
+        tools = [
+            ToolDefinition(name="get_page_context", description="Read page context"),
+            ToolDefinition(name="invoke_page_operation", description="Page operations"),
+            ToolDefinition(name="data_query", description="Query data"),
+            ToolDefinition(name="data_create", description="Create data"),
+            ToolDefinition(name="data_update", description="Update data"),
+            ToolDefinition(name="data_delete", description="Delete data"),
+            ToolDefinition(name="web_search", description="Web search"),
+            ToolDefinition(name="fetch_url", description="Fetch url"),
+            ToolDefinition(name="get_current_weather", description="Current weather"),
+            ToolDefinition(name="get_weather_forecast", description="Weather forecast"),
+        ]
+
+        result = optimize_tools(
+            tools,
+            "必须使用 get_current_weather 和 get_weather_forecast 两个天气工具查询北京天气",
+        )
+
+        tool_names = {t.name for t in result.tools}
+        assert "get_current_weather" in tool_names
+        assert "get_weather_forecast" in tool_names
+
+    def test_weather_query_prefers_weather_tools_over_web_search_bias(self):
+        """天气问题不应仅因为“天气”关键词而优先保留 web_search。"""
+        from app.ai.tools.optimizer import optimize_tools
+
+        tools = [
+            ToolDefinition(name="get_page_context", description="Read page context"),
+            ToolDefinition(name="invoke_page_operation", description="Page operations"),
+            ToolDefinition(name="data_query", description="Query data"),
+            ToolDefinition(name="data_create", description="Create data"),
+            ToolDefinition(name="data_update", description="Update data"),
+            ToolDefinition(name="data_delete", description="Delete data"),
+            ToolDefinition(name="web_search", description="Web search latest internet pages"),
+            ToolDefinition(name="fetch_url", description="Fetch a web page"),
+            ToolDefinition(name="get_current_weather", description="Get current weather"),
+            ToolDefinition(name="get_weather_forecast", description="Get weather forecast"),
+        ]
+
+        result = optimize_tools(
+            tools,
+            "请直接使用天气技能查询北京当前天气和未来两天预报，不要使用联网搜索。",
+        )
+
+        tool_names = {t.name for t in result.tools}
+        assert "get_current_weather" in tool_names
+        assert "get_weather_forecast" in tool_names
+
 
 # ========================================
 # P0 Fix: PageContext.page_data Size Limit
@@ -905,3 +999,5 @@ class TestPageContextExecutorTruncation:
         assert "search [readonly]" in result.output
         assert "keyword:string required" in result.output
         assert "status:string enum[active, paused]" in result.output
+        assert "If the latest user turn asks for multiple page operations" in result.output
+        assert "follow the latest user turn" in result.output

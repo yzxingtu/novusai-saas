@@ -37,8 +37,6 @@ def default_plugin_global_var(plugin_name: str) -> str:
 def has_frontend_extensions(manifest: Any) -> bool:
     """Whether plugin declares any frontend capability. / 插件是否声明了任何前端能力。"""
     frontend = _get_frontend_decl(manifest)
-    if frontend.get("dev") or frontend.get("release"):
-        return True
     has_standard_frontend = any(
         (
             frontend.get("pages"),

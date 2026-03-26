@@ -96,6 +96,43 @@ describe('page-operation-registry', () => {
     expect(invalidEnumResult.message).toContain('paramInvalidEnum');
   });
 
+  it('uses defaultValue before rejecting a required param', async () => {
+    let receivedParams: Record<string, unknown> | null = null;
+
+    registerPageOperations('tenant.demo.defaults', [
+      {
+        name: 'create_item',
+        label: 'Create Item',
+        readonly: false,
+        params: {
+          scope: {
+            required: true,
+            type: 'string',
+            defaultValue: 'admin_only',
+          },
+        },
+        handler: async (params) => {
+          receivedParams = params;
+          return {
+            success: true,
+            message: 'created',
+          };
+        },
+      },
+    ]);
+
+    const result = await executePageOperation(
+      'tenant.demo.defaults',
+      'create_item',
+      {},
+    );
+
+    expect(result.success).toBe(true);
+    expect(receivedParams).toEqual({
+      scope: 'admin_only',
+    });
+  });
+
   it('merges observed context diff with handler-provided context diff', async () => {
     registerPageOperations('tenant.demo.context', [
       {
@@ -127,6 +164,43 @@ describe('page-operation-registry', () => {
     expect(result.success).toBe(true);
     expect(result.data?.context_diff).toMatchObject({
       custom_flag: true,
+      drawer_opened: true,
+      form_opened: true,
+    });
+  });
+
+  it('detects a newly opened form drawer even when another drawer is already visible', async () => {
+    const aiDrawer = document.createElement('div');
+    aiDrawer.className = 'ant-drawer-open';
+    document.body.appendChild(aiDrawer);
+
+    registerPageOperations('tenant.demo.multi_drawer', [
+      {
+        name: 'open_form',
+        label: 'Open Form',
+        readonly: false,
+        handler: async () => {
+          formStateTracker.open('tenant.demo.multi_drawer', {
+            mode: 'add',
+          });
+          const formDrawer = document.createElement('div');
+          formDrawer.className = 'ant-drawer-open';
+          document.body.appendChild(formDrawer);
+          return {
+            success: true,
+            message: 'opened',
+          };
+        },
+      },
+    ]);
+
+    const result = await executePageOperation(
+      'tenant.demo.multi_drawer',
+      'open_form',
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.data?.context_diff).toMatchObject({
       drawer_opened: true,
       form_opened: true,
     });

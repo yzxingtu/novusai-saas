@@ -755,14 +755,62 @@ function compactAvailableOperations(
     maxParamsPerOp: number;
   },
 ): unknown[] {
-  return operations.slice(0, options.maxOps).map((operation) => {
+  const operationPriority: Record<string, number> = {
+    create_record: 0,
+    edit_record: 1,
+    fill_form: 2,
+    submit_form: 3,
+    get_form_state: 4,
+    validate_form: 5,
+    delete_record: 6,
+    search: 7,
+    read_visible_rows: 8,
+    capture_screenshot: 9,
+    read_current_view: 10,
+    read_current_sections: 11,
+  };
+  const normalizedOperations = operations.filter(Boolean);
+  const writableOperations = normalizedOperations.filter(
+    (operation) =>
+      typeof operation === 'object' &&
+      operation !== null &&
+      (operation as Record<string, unknown>).readonly === false,
+  );
+  const readonlyOperations = normalizedOperations.filter(
+    (operation) =>
+      !(
+        typeof operation === 'object' &&
+        operation !== null &&
+        (operation as Record<string, unknown>).readonly === false
+      ),
+  );
+  const prioritizedOperations = [...writableOperations, ...readonlyOperations]
+    .map((operation, index) => ({
+      index,
+      operation,
+      priority:
+        typeof operation === 'object' && operation !== null
+          ? (operationPriority[
+              String((operation as Record<string, unknown>).name || '')
+            ] ?? 1000)
+          : 1000,
+    }))
+    .sort((left, right) =>
+      left.priority === right.priority
+        ? left.index - right.index
+        : left.priority - right.priority,
+    )
+    .map((item) => item.operation);
+
+  return prioritizedOperations.slice(0, options.maxOps).map((operation) => {
     if (!operation || typeof operation !== 'object') {
       return operation;
     }
 
     const source = operation as Record<string, unknown>;
+    const operationName = String(source.name || '');
     const compact: Record<string, unknown> = {
-      name: source.name,
+      name: operationName,
       label: source.label,
       readonly: source.readonly,
     };
@@ -776,9 +824,15 @@ function compactAvailableOperations(
       source.params &&
       typeof source.params === 'object'
     ) {
+      const preferredParamCount =
+        operationName === 'create_record' ||
+        operationName === 'edit_record' ||
+        operationName === 'fill_form'
+          ? Math.max(options.maxParamsPerOp, 6)
+          : options.maxParamsPerOp;
       const paramEntries = Object.entries(
         source.params as Record<string, unknown>,
-      ).slice(0, options.maxParamsPerOp);
+      ).slice(0, preferredParamCount);
       compact.params = Object.fromEntries(
         paramEntries.map(([paramName, rawSchema]) => {
           if (!rawSchema || typeof rawSchema !== 'object') {
@@ -1459,6 +1513,9 @@ const headerConversationSummary = computed(() => {
       agent: currentConversationAgentName.value,
     });
   }
+  if (routing.value) {
+    return '';
+  }
   return selectedAgent.value?.name ?? '';
 });
 
@@ -1628,19 +1685,27 @@ function onDragStart(e: MouseEvent) {
 
 const hasQueuedConversationRestore = computed(
   () =>
-    typeof props.pendingConversationId === 'number' &&
-    Number.isFinite(props.pendingConversationId),
+    (typeof props.pendingConversationId === 'number' &&
+      Number.isFinite(props.pendingConversationId)) ||
+    (typeof aiPanelStore.pendingConversationId === 'number' &&
+      Number.isFinite(aiPanelStore.pendingConversationId)),
 );
 
 const hasQueuedExternalContext = computed(() => {
-  const queuedMessage = props.pendingMessage?.trim();
+  const queuedMessage =
+    props.pendingMessage?.trim() || aiPanelStore.pendingMessage?.trim?.() || '';
   return hasQueuedConversationRestore.value || Boolean(queuedMessage);
 });
 
 const applyingExternalContext = ref(false);
+const openingPanelContext = ref(false);
 
 async function applyExternalContext(): Promise<void> {
-  if (!aiPanelStore.visible || applyingExternalContext.value) {
+  if (
+    !aiPanelStore.visible ||
+    applyingExternalContext.value ||
+    openingPanelContext.value
+  ) {
     return;
   }
 
@@ -1648,8 +1713,12 @@ async function applyExternalContext(): Promise<void> {
     typeof props.pendingConversationId === 'number' &&
     Number.isFinite(props.pendingConversationId)
       ? props.pendingConversationId
-      : null;
-  const queuedMessage = props.pendingMessage?.trim() || '';
+      : typeof aiPanelStore.pendingConversationId === 'number' &&
+          Number.isFinite(aiPanelStore.pendingConversationId)
+        ? aiPanelStore.pendingConversationId
+        : null;
+  const queuedMessage =
+    props.pendingMessage?.trim() || aiPanelStore.pendingMessage?.trim?.() || '';
 
   if (!queuedConversationId && !queuedMessage) {
     return;
@@ -1677,10 +1746,17 @@ async function applyExternalContext(): Promise<void> {
 }
 
 watch(
-  [() => props.pendingConversationId, () => props.pendingMessage, () => aiPanelStore.visible],
+  [
+    () => props.pendingConversationId,
+    () => props.pendingMessage,
+    () => aiPanelStore.pendingConversationId,
+    () => aiPanelStore.pendingMessage,
+    () => aiPanelStore.visible,
+  ],
   () => {
     void applyExternalContext();
   },
+  { flush: 'post' },
 );
 
 // ============ Load data on panel open / 面板打开时加载数据 ============
@@ -1692,28 +1768,40 @@ watch(
       aiPanelStore.clearResolvedPageOps?.();
       const pendingId = aiPanelStore.consumePendingAgentId();
       forceRerouteNextTurn.value = false;
+      openingPanelContext.value = true;
       const shouldResumeExistingConversation =
         !pendingId &&
         !hasQueuedExternalContext.value &&
         (activeConversationId.value !== null || chatMessages.value.length > 0);
 
-      if (
-        shouldResumeExistingConversation ||
-        hasQueuedConversationRestore.value
-      ) {
-        manualNewConversationAgentId.value = null;
-      } else {
-        manualNewConversationAgentId.value = pendingId ?? null;
-        // Only clear state when this open action is explicitly starting a
-        // fresh routed conversation; queued conversation restore will own
-        // the state transition to avoid clearing restored history in a race.
-        // 仅在显式开启全新路由会话时清空状态；恢复排队会话由恢复逻辑接管，避免竞态下把历史清空
-        startNewConversation(true);
+      try {
+        if (
+          shouldResumeExistingConversation ||
+          hasQueuedConversationRestore.value
+        ) {
+          manualNewConversationAgentId.value = null;
+        } else {
+          manualNewConversationAgentId.value = pendingId ?? null;
+          // Only clear state when this open action is explicitly starting a
+          // fresh routed conversation; queued conversation restore will own
+          // the state transition to avoid clearing restored history in a race.
+          // 仅在显式开启全新路由会话时清空状态；恢复排队会话由恢复逻辑接管，避免竞态下把历史清空
+          startNewConversation(true);
+        }
+        showHistory.value = false;
+        showMemoryPanel.value = false;
+        await loadAgents(pendingId ?? selectedAgentId.value ?? undefined);
+        if (
+          pendingId &&
+          agents.value.some((agent) => agent.id === pendingId) &&
+          selectedAgentId.value !== pendingId
+        ) {
+          selectedAgentId.value = pendingId;
+        }
+        await loadConversations();
+      } finally {
+        openingPanelContext.value = false;
       }
-      showHistory.value = false;
-      showMemoryPanel.value = false;
-      await loadAgents(pendingId ?? selectedAgentId.value ?? undefined);
-      await loadConversations();
       await applyExternalContext();
     }
   },

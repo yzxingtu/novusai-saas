@@ -12,6 +12,7 @@ describe('useAIPanelStore page operations', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.useFakeTimers();
+    sessionStorage.clear();
   });
 
   afterEach(() => {
@@ -65,5 +66,16 @@ describe('useAIPanelStore page operations', () => {
     store.clearResolvedPageOps();
 
     expect(store.pendingPageOps.map((op) => op.invokeId)).toEqual(['pending-op']);
+  });
+
+  it('reads trust flag from sessionStorage for the active conversation', () => {
+    const store = useAIPanelStore();
+
+    store.setConversation(42);
+    sessionStorage.setItem('ai_trust_session_42', '1');
+
+    expect(store.isConversationTrusted(42)).toBe(true);
+    expect(store.isActiveConversationTrusted()).toBe(true);
+    expect(store.isConversationTrusted(99)).toBe(false);
   });
 });

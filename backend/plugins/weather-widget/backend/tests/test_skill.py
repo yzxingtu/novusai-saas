@@ -184,6 +184,8 @@ class TestWeatherWidgetExecutor:
         assert "Shanghai" in result.output
         assert "22.5" in result.output
         assert "Clear sky" in result.output
+        assert result.llm_follow_up_message is not None
+        assert "Do not call the same weather tool again" in result.llm_follow_up_message
         assert result.duration_ms >= 0
 
     # ── execute: get_weather_forecast / 执行：天气预报 ──
@@ -223,6 +225,7 @@ class TestWeatherWidgetExecutor:
         assert "Beijing" in result.output
         assert "2026-02-23" in result.output
         assert "25.0" in result.output
+        assert result.llm_follow_up_message is not None
 
     @pytest.mark.asyncio
     async def test_execute_forecast_default_days(self):

@@ -25,6 +25,7 @@ import {
   findPageOperation,
   listPageOperations,
 } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { formStateTracker } from '#/composables/use-form-state-tracker';
 import { currentPageAIExecutionPolicy } from '#/composables/use-ai-page-policy';
 import { getActivePageSessionId } from '#/composables/use-page-session';
 import { useSocketIOStore } from '#/store';
@@ -218,6 +219,14 @@ export function usePageOperationChannel(): void {
   ): Promise<void> {
     aiPanelStore.open();
 
+    if (aiPanelStore.isActiveConversationTrusted()) {
+      if (CHAIN_TRIGGER_OPS.has(event.operation_name)) {
+        markChainConfirmed(event.page_key);
+      }
+      await executeAndEmit(event);
+      return;
+    }
+
     const confirmPromise = aiPanelStore.requestPageOpConfirmation({
       invokeId: event.invoke_id,
       pageKey: event.page_key,
@@ -395,6 +404,14 @@ export function usePageOperationChannel(): void {
         if (
           CHAIN_AUTO_OPS.has(event.operation_name) &&
           isChainConfirmed(event.page_key)
+        ) {
+          await executeAndEmit(event);
+          return;
+        }
+
+        if (
+          CHAIN_TRIGGER_OPS.has(event.operation_name) &&
+          formStateTracker.isOpenWithFallback(event.page_key)
         ) {
           await executeAndEmit(event);
           return;

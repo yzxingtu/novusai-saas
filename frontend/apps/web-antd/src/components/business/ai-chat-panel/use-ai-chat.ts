@@ -1229,7 +1229,7 @@ export function useAIChat(options: UseAIChatOptions) {
     pageContext?: null | PageContext;
     routeSource?: null | string;
     silent?: boolean;
-  }) {
+  }): Promise<boolean> {
     const silent = opts?.silent ?? false;
     const targetAgentId = opts?.agentId ?? selectedAgentId.value;
     const routeSource = opts?.routeSource ?? null;
@@ -1244,7 +1244,7 @@ export function useAIChat(options: UseAIChatOptions) {
       !targetAgentId ||
       sending.value
     )
-      return;
+      return false;
 
     // Block sending if required input variables are not filled / 必填变量未填则拦截发送
     const agent = agents.value.find((a) => a.id === targetAgentId);
@@ -1260,7 +1260,7 @@ export function useAIChat(options: UseAIChatOptions) {
           }),
         );
         options.onVariablesMissing?.();
-        return;
+        return false;
       }
     }
 
@@ -1320,7 +1320,7 @@ export function useAIChat(options: UseAIChatOptions) {
           pageContext,
         });
       }, SEND_DEBOUNCE_MS);
-      return;
+      return true;
     }
 
     if (!silent) {
@@ -1367,6 +1367,7 @@ export function useAIChat(options: UseAIChatOptions) {
       pageContext,
       routeSource,
     });
+    return true;
   }
 
   async function flushPendingAndSend(opts: {

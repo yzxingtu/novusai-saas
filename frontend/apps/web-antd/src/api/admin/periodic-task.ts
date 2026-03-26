@@ -37,6 +37,8 @@ export interface PeriodicTaskInfoRaw {
   last_run_at: null | string;
   next_run_at: null | string;
   description: null | string;
+  plugin_enabled?: boolean;
+  plugin_name?: null | string;
   created_at: string;
   scope: null | string;
   owner_tenant_id: null | number;
@@ -134,6 +136,8 @@ function transformPeriodicTaskInfo(raw: PeriodicTaskInfoRaw): PeriodicTaskInfo {
     lastRunAt: raw.last_run_at,
     nextRunAt: raw.next_run_at,
     description: translateSystemTaskDescription(raw),
+    pluginEnabled: raw.plugin_enabled ?? true,
+    pluginName: raw.plugin_name ?? null,
     createdAt: raw.created_at,
     scope: raw.scope,
     tenantId: raw.owner_tenant_id,

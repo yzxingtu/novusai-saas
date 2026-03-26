@@ -384,16 +384,18 @@ class ToolCallProcessor:
     @staticmethod
     def build_follow_up_message(result: ToolResult) -> ChatMessage | None:
         """Build internal follow-up user message for multimodal tool outputs / 为多模态工具结果构建内部后续 user 消息"""
-        if not (result.success and result.attachments):
+        if not result.success:
             return None
 
         follow_up = result.llm_follow_up_message or result.output
         if not follow_up:
             return None
+
+        attachments = result.attachments or None
         return ChatMessage(
             role="user",
             content=follow_up,
-            attachments=result.attachments,
+            attachments=attachments,
             internal_only=True,
         )
 

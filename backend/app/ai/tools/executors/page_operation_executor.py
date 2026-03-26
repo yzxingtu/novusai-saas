@@ -126,20 +126,6 @@ class PageOperationExecutor(BaseToolExecutor):
                     page_key,
                     context.user_role,
                 )
-            else:
-                fresh_id = get_active_session_id(
-                    context.user_id,
-                    page_key,
-                    context.user_role,
-                )
-                if fresh_id and fresh_id != session_id:
-                    logger.info(
-                        "Page operation keeps explicit session_id over active mapping: "
-                        "page_key={} explicit={} active={}",
-                        page_key,
-                        session_id,
-                        fresh_id,
-                    )
 
         if not session_id:
             return ToolResult(
@@ -265,7 +251,52 @@ class PageOperationExecutor(BaseToolExecutor):
                     output += "\n[Do NOT echo this HTML to the user. Use it internally for replace_section, then respond in natural language.]"
                 # Agent Loop guidance: suggest next step based on context_diff / 上文为英文说明 / English above
                 context_diff = result_data.get("context_diff", {})
-                if context_diff.get("form_opened"):
+                remaining_empty_fields = result_data.get("remaining_empty_fields")
+                remaining_empty_preview = ""
+                if isinstance(remaining_empty_fields, list) and remaining_empty_fields:
+                    preview = ", ".join(
+                        str(item) for item in remaining_empty_fields[:8]
+                    )
+                    if len(remaining_empty_fields) > 8:
+                        preview += f", +{len(remaining_empty_fields) - 8} more"
+                    remaining_empty_preview = preview
+
+                if operation_name in {"create_record", "edit_record"}:
+                    form_is_open = bool(
+                        result_data.get("form_is_open")
+                        or result_data.get("already_open")
+                        or context_diff.get("form_opened")
+                    )
+                    if form_is_open:
+                        output += (
+                            "\n\n[Agent Loop] Form is open. "
+                            "Do NOT call create_record/edit_record again. "
+                        )
+                        if remaining_empty_preview:
+                            output += (
+                                "Next: call fill_form for the remaining fields: "
+                                f"{remaining_empty_preview}."
+                            )
+                        else:
+                            output += (
+                                "Next: call get_form_state to inspect current values, "
+                                "then call fill_form for any missing or requested fields."
+                            )
+                elif operation_name == "fill_form":
+                    if remaining_empty_preview:
+                        output += (
+                            "\n\n[Agent Loop] Some form fields are still empty: "
+                            f"{remaining_empty_preview}. "
+                            "If the user requested values for them, call fill_form again. "
+                            "Otherwise call get_form_state to inspect the form before deciding whether to submit."
+                        )
+                    else:
+                        output += (
+                            "\n\n[Agent Loop] The form appears filled. "
+                            "Do not call submit_form unless the user explicitly asked to save/create/update the record "
+                            "or you already have confirmation to submit."
+                        )
+                elif context_diff.get("form_opened"):
                     output += (
                         "\n\n[Agent Loop] Form opened. "
                         "Next: call get_form_state to inspect current values, "

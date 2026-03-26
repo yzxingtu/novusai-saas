@@ -27,6 +27,8 @@ class PeriodicTaskResponse(BaseSchema):
     last_run_at: datetime | None = Field(None, description="上次执行时间")
     next_run_at: datetime | None = Field(None, description="下次执行时间")
     description: str | None = Field(None, description="任务描述")
+    plugin_name: str | None = Field(None, description="插件名称（插件任务时返回）")
+    plugin_enabled: bool = Field(True, description="关联插件当前是否已启用")
     scope: str = Field("admin_only", description="资源作用域 ResourceScopeEnum")
     owner_tenant_id: int | None = Field(None, description="归属企业ID（平台级为 NULL）")
     assigned_tenant_ids: list[int] = Field(

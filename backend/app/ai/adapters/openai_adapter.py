@@ -773,6 +773,24 @@ class OpenAIAdapter(BaseAdapter):
             converted.append(tool)
         return converted
 
+    def _responses_tool_history_mode(self) -> str:
+        """
+        Responses tool-history compatibility mode.
+        / Responses 工具历史兼容模式。
+
+        Some OpenAI-compatible gateways cannot reliably process structured
+        function_call/function_call_output history on follow-up turns, even
+        though plain text and first-round tool calls work.
+        某些 OpenAI 兼容网关在后续轮次中无法稳定处理结构化
+        function_call/function_call_output 历史，尽管纯文本与首轮工具调用正常。
+        """
+        value = str(
+            (self.provider_config or {}).get("responses_tool_history_mode") or ""
+        ).strip().lower()
+        if value in {"text", "structured"}:
+            return value
+        return "structured"
+
     async def _convert_messages_to_responses_input(
         self,
         messages: list[ChatMessage],
@@ -782,9 +800,27 @@ class OpenAIAdapter(BaseAdapter):
         supports_video: bool = False,
     ) -> list[dict[str, Any]]:
         converted: list[dict[str, Any]] = []
+        textual_tool_history = self._responses_tool_history_mode() == "text"
+        tool_names_by_call_id: dict[str, str] = {}
 
         for msg in messages:
             if msg.role == "tool":
+                if textual_tool_history:
+                    tool_name = tool_names_by_call_id.get(msg.tool_call_id or "", "")
+                    prefix = (
+                        f"Context returned by previously executed tool {tool_name}:"
+                        if tool_name
+                        else "Context returned by a previously executed tool:"
+                    )
+                    tool_output = (msg.content or "").strip()
+                    converted.append({
+                        "type": "message",
+                        "role": "assistant",
+                        "content": (
+                            f"{prefix}\n{tool_output}" if tool_output else prefix
+                        ),
+                    })
+                    continue
                 converted.append({
                     "type": "function_call_output",
                     "call_id": msg.tool_call_id or "",
@@ -793,9 +829,24 @@ class OpenAIAdapter(BaseAdapter):
                 continue
 
             if msg.role == "assistant" and msg.tool_calls:
+                if textual_tool_history:
+                    assistant_text = (msg.content or "").strip()
+                    for tool_call in msg.tool_calls:
+                        function = tool_call.get("function") or {}
+                        tc_id = tool_call.get("call_id") or tool_call.get("id") or ""
+                        tool_name = function.get("name", "")
+                        tool_names_by_call_id[tc_id] = tool_name
+                    if assistant_text:
+                        converted.append({
+                            "type": "message",
+                            "role": "assistant",
+                            "content": assistant_text,
+                        })
+                    continue
                 for tool_call in msg.tool_calls:
                     function = tool_call.get("function") or {}
                     tc_id = tool_call.get("call_id") or tool_call.get("id") or ""
+                    tool_names_by_call_id[tc_id] = function.get("name", "")
                     converted.append({
                         "type": "function_call",
                         "call_id": tc_id,

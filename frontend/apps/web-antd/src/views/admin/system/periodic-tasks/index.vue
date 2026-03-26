@@ -258,6 +258,9 @@ onMounted(async () => {
             <Switch
               v-access:code="['periodic_task:toggle']"
               :checked="row.isActive"
+              :disabled="
+                row.definitionType === 'plugin' && row.pluginEnabled === false
+              "
               size="small"
               @change="(checked: unknown) => onToggleActive(row, !!checked)"
             />

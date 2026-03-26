@@ -6,6 +6,7 @@ Provides periodic task CRUD, enable/disable, manual trigger endpoints.
 """
 
 from fastapi import Path, Request
+from sqlalchemy import select
 
 from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
@@ -13,7 +14,9 @@ from app.core.i18n import _
 from app.core.recycle_bin import register_admin_recycle_bin_routes
 from app.core.response import created, deleted, paginated, success
 from app.enums.common import ResourceScopeEnum
+from app.enums.plugin import PluginStatusEnum
 from app.enums.rbac import PermissionScope
+from app.models.system.plugin import Plugin
 from app.rbac.decorators import (
     MenuConfig,
     action_create,
@@ -58,14 +61,61 @@ class AdminPeriodicTaskController(GlobalController):
     service_class = TaskDefinitionService
 
     @staticmethod
+    def _extract_plugin_name(definition) -> str | None:
+        for raw in (
+            getattr(definition, "code", None),
+            getattr(definition, "handler_path", None),
+            getattr(definition, "name", None),
+        ):
+            value = str(raw or "").strip()
+            if not value.startswith("plugin."):
+                continue
+            parts = value.split(".")
+            if len(parts) >= 3:
+                return parts[1]
+        return None
+
+    @staticmethod
+    async def _resolve_plugin_enabled_map(
+        db: DbSession,
+        definitions: list,
+    ) -> dict[str, bool]:
+        plugin_names = sorted({
+            plugin_name
+            for item in definitions
+            if (plugin_name := AdminPeriodicTaskController._extract_plugin_name(item))
+        })
+        if not plugin_names:
+            return {}
+
+        result = await db.execute(
+            select(Plugin.name, Plugin.status).where(
+                Plugin.name.in_(plugin_names),
+                Plugin.is_deleted.is_(False),
+            )
+        )
+        return {
+            name: status == PluginStatusEnum.ENABLED.value
+            for name, status in result.all()
+        }
+
+    @staticmethod
     def _resolve_plugin_task_i18n(
         definition,
         manifest_cache: dict[str, object] | None = None,
     ) -> tuple[str | None, str]:
-        if getattr(definition, "definition_type", None) != "plugin":
+        task_code = str(getattr(definition, "code", "") or getattr(definition, "name", ""))
+        handler_path = str(getattr(definition, "handler_path", "") or "")
+        is_plugin_like = (
+            getattr(definition, "definition_type", None) == "plugin"
+            or task_code.startswith("plugin.")
+            or handler_path.startswith("plugin.")
+        )
+        if not is_plugin_like:
             return definition.description, definition.name
 
-        task_code = str(getattr(definition, "code", "") or getattr(definition, "name", ""))
+        if not task_code.startswith("plugin.") and handler_path.startswith("plugin."):
+            task_code = handler_path
         parts = task_code.split(".")
         if len(parts) < 3 or parts[0] != "plugin":
             return definition.description, definition.name
@@ -138,11 +188,13 @@ class AdminPeriodicTaskController(GlobalController):
         binding_count: int = 0,
         binding_summary: str | None = None,
         manifest_cache: dict[str, object] | None = None,
+        plugin_enabled_map: dict[str, bool] | None = None,
     ) -> dict:
         semantics = AdminPeriodicTaskController._binding_semantics(
             definition.scope,
             binding_count,
         )
+        plugin_name = AdminPeriodicTaskController._extract_plugin_name(definition)
         description, display_name = AdminPeriodicTaskController._resolve_plugin_task_i18n(
             definition,
             manifest_cache=manifest_cache,
@@ -159,6 +211,12 @@ class AdminPeriodicTaskController(GlobalController):
             last_run_at=definition.last_run_at,
             next_run_at=definition.next_run_at,
             description=description,
+            plugin_name=plugin_name,
+            plugin_enabled=(
+                plugin_enabled_map.get(plugin_name, True)
+                if plugin_name and plugin_enabled_map is not None
+                else True
+            ),
             scope=definition.scope,
             owner_tenant_id=definition.owner_tenant_id,
             assigned_tenant_ids=assigned_tenant_ids or [],
@@ -200,6 +258,7 @@ class AdminPeriodicTaskController(GlobalController):
             items, total = await service.query_list(query)
             binding_service = TaskBindingService(db)
             manifest_cache: dict[str, object] = {}
+            plugin_enabled_map = await self._resolve_plugin_enabled_map(db, items)
             binding_summary = await binding_service.get_definition_binding_summary(
                 [item.id for item in items]
             )
@@ -231,6 +290,7 @@ class AdminPeriodicTaskController(GlobalController):
                             "binding_summary"
                         ),
                         manifest_cache=manifest_cache,
+                        plugin_enabled_map=plugin_enabled_map,
                     )
                     for item in items
                 ],
@@ -307,6 +367,7 @@ class AdminPeriodicTaskController(GlobalController):
                 raise NotFoundException(message=_("periodic_task.error.not_found"))
 
             binding_service = TaskBindingService(db)
+            plugin_enabled_map = await self._resolve_plugin_enabled_map(db, [task])
             binding_summary = await binding_service.get_definition_binding_summary([task.id])
             binding_info = binding_summary.get(task.id, {})
             return success(
@@ -316,6 +377,7 @@ class AdminPeriodicTaskController(GlobalController):
                     assigned_tenant_names=binding_info.get("assigned_tenant_names", []),
                     binding_count=int(binding_info.get("active_binding_count", 0)),
                     binding_summary=binding_info.get("binding_summary"),
+                    plugin_enabled_map=plugin_enabled_map,
                 )
             )
 
@@ -445,6 +507,7 @@ class AdminPeriodicTaskController(GlobalController):
                 )
                 task = await service.get_by_id(task_id)
             binding_service = TaskBindingService(db)
+            plugin_enabled_map = await self._resolve_plugin_enabled_map(db, [task])
             binding_summary = await binding_service.get_definition_binding_summary([task.id])
             binding_info = binding_summary.get(task.id, {})
             return success(
@@ -454,6 +517,7 @@ class AdminPeriodicTaskController(GlobalController):
                     assigned_tenant_names=binding_info.get("assigned_tenant_names", []),
                     binding_count=int(binding_info.get("active_binding_count", 0)),
                     binding_summary=binding_info.get("binding_summary"),
+                    plugin_enabled_map=plugin_enabled_map,
                 )
             )
 
@@ -481,6 +545,7 @@ class AdminPeriodicTaskController(GlobalController):
             service = self.get_service(db)
             task = await service.toggle_active(task_id, body.is_active)
             binding_service = TaskBindingService(db)
+            plugin_enabled_map = await self._resolve_plugin_enabled_map(db, [task])
             binding_summary = await binding_service.get_definition_binding_summary([task.id])
             binding_info = binding_summary.get(task.id, {})
             return success(
@@ -490,6 +555,7 @@ class AdminPeriodicTaskController(GlobalController):
                     assigned_tenant_names=binding_info.get("assigned_tenant_names", []),
                     binding_count=int(binding_info.get("active_binding_count", 0)),
                     binding_summary=binding_info.get("binding_summary"),
+                    plugin_enabled_map=plugin_enabled_map,
                 )
             )
 

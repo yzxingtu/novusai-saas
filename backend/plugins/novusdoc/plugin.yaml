@@ -36,38 +36,52 @@ config_schema:
       description: "Auto-save debounce interval in milliseconds"
 
 extensions:
+  permissions:
+    - code: novusdoc_admin
+      name:
+        zh-CN: "文档管理"
+        en: "Document Management"
+      scope: admin
+      actions: [view, create, update, delete, export]
+    - code: novusdoc_portal
+      name:
+        zh-CN: "文档管理"
+        en: "Document Management"
+      scope: tenant
+      actions: [view, create, update, delete, export]
+
   api:
     tenant_routes:
-      - { method: GET,    path: "docs",                handler: "api.documents.list_docs" }
-      - { method: POST,   path: "docs",                handler: "api.documents.create_doc" }
-      - { method: GET,    path: "docs/{doc_id}",       handler: "api.documents.get_doc" }
-      - { method: PUT,    path: "docs/{doc_id}",       handler: "api.documents.update_doc" }
-      - { method: DELETE, path: "docs/{doc_id}",       handler: "api.documents.delete_doc" }
-      - { method: GET,    path: "folders",              handler: "api.folders.list_folders" }
-      - { method: POST,   path: "folders",              handler: "api.folders.create_folder" }
-      - { method: PUT,    path: "folders/{folder_id}",  handler: "api.folders.update_folder" }
-      - { method: DELETE, path: "folders/{folder_id}",  handler: "api.folders.delete_folder" }
-      - { method: GET,    path: "tags",                 handler: "api.tags.list_tags" }
-      - { method: POST,   path: "tags",                 handler: "api.tags.create_tag" }
-      - { method: DELETE, path: "tags/{tag_id}",        handler: "api.tags.delete_tag" }
-      - { method: GET,    path: "search",               handler: "api.search.search_docs" }
-      - { method: GET,    path: "docs/{doc_id}/export", handler: "api.export.export_doc" }
+      - { method: GET,    path: "docs",                handler: "api.documents.list_docs", permission: "novusdoc_portal:view" }
+      - { method: POST,   path: "docs",                handler: "api.documents.create_doc", permission: "novusdoc_portal:create" }
+      - { method: GET,    path: "docs/{doc_id}",       handler: "api.documents.get_doc", permission: "novusdoc_portal:view" }
+      - { method: PUT,    path: "docs/{doc_id}",       handler: "api.documents.update_doc", permission: "novusdoc_portal:update" }
+      - { method: DELETE, path: "docs/{doc_id}",       handler: "api.documents.delete_doc", permission: "novusdoc_portal:delete" }
+      - { method: GET,    path: "folders",              handler: "api.folders.list_folders", permission: "novusdoc_portal:view" }
+      - { method: POST,   path: "folders",              handler: "api.folders.create_folder", permission: "novusdoc_portal:create" }
+      - { method: PUT,    path: "folders/{folder_id}",  handler: "api.folders.update_folder", permission: "novusdoc_portal:update" }
+      - { method: DELETE, path: "folders/{folder_id}",  handler: "api.folders.delete_folder", permission: "novusdoc_portal:delete" }
+      - { method: GET,    path: "tags",                 handler: "api.tags.list_tags", permission: "novusdoc_portal:view" }
+      - { method: POST,   path: "tags",                 handler: "api.tags.create_tag", permission: "novusdoc_portal:create" }
+      - { method: DELETE, path: "tags/{tag_id}",        handler: "api.tags.delete_tag", permission: "novusdoc_portal:delete" }
+      - { method: GET,    path: "search",               handler: "api.search.search_docs", permission: "novusdoc_portal:view" }
+      - { method: GET,    path: "docs/{doc_id}/export", handler: "api.export.export_doc", permission: "novusdoc_portal:export" }
 
     admin_routes:
-      - { method: GET,    path: "docs",                handler: "api.documents.list_docs" }
-      - { method: POST,   path: "docs",                handler: "api.documents.create_doc" }
-      - { method: GET,    path: "docs/{doc_id}",       handler: "api.documents.get_doc" }
-      - { method: PUT,    path: "docs/{doc_id}",       handler: "api.documents.update_doc" }
-      - { method: DELETE, path: "docs/{doc_id}",       handler: "api.documents.delete_doc" }
-      - { method: GET,    path: "folders",              handler: "api.folders.list_folders" }
-      - { method: POST,   path: "folders",              handler: "api.folders.create_folder" }
-      - { method: PUT,    path: "folders/{folder_id}",  handler: "api.folders.update_folder" }
-      - { method: DELETE, path: "folders/{folder_id}",  handler: "api.folders.delete_folder" }
-      - { method: GET,    path: "tags",                 handler: "api.tags.list_tags" }
-      - { method: POST,   path: "tags",                 handler: "api.tags.create_tag" }
-      - { method: DELETE, path: "tags/{tag_id}",        handler: "api.tags.delete_tag" }
-      - { method: GET,    path: "search",               handler: "api.search.search_docs" }
-      - { method: GET,    path: "docs/{doc_id}/export", handler: "api.export.export_doc" }
+      - { method: GET,    path: "docs",                handler: "api.documents.list_docs", permission: "novusdoc_admin:view" }
+      - { method: POST,   path: "docs",                handler: "api.documents.create_doc", permission: "novusdoc_admin:create" }
+      - { method: GET,    path: "docs/{doc_id}",       handler: "api.documents.get_doc", permission: "novusdoc_admin:view" }
+      - { method: PUT,    path: "docs/{doc_id}",       handler: "api.documents.update_doc", permission: "novusdoc_admin:update" }
+      - { method: DELETE, path: "docs/{doc_id}",       handler: "api.documents.delete_doc", permission: "novusdoc_admin:delete" }
+      - { method: GET,    path: "folders",              handler: "api.folders.list_folders", permission: "novusdoc_admin:view" }
+      - { method: POST,   path: "folders",              handler: "api.folders.create_folder", permission: "novusdoc_admin:create" }
+      - { method: PUT,    path: "folders/{folder_id}",  handler: "api.folders.update_folder", permission: "novusdoc_admin:update" }
+      - { method: DELETE, path: "folders/{folder_id}",  handler: "api.folders.delete_folder", permission: "novusdoc_admin:delete" }
+      - { method: GET,    path: "tags",                 handler: "api.tags.list_tags", permission: "novusdoc_admin:view" }
+      - { method: POST,   path: "tags",                 handler: "api.tags.create_tag", permission: "novusdoc_admin:create" }
+      - { method: DELETE, path: "tags/{tag_id}",        handler: "api.tags.delete_tag", permission: "novusdoc_admin:delete" }
+      - { method: GET,    path: "search",               handler: "api.search.search_docs", permission: "novusdoc_admin:view" }
+      - { method: GET,    path: "docs/{doc_id}/export", handler: "api.export.export_doc", permission: "novusdoc_admin:export" }
 
   frontend:
     pages:
@@ -93,6 +107,8 @@ extensions:
         title:
           zh-CN: "编辑文档"
           en: "Edit Document"
+        access_codes:
+          - "plugin.novusdoc.novusdoc_portal:view"
       - name: novusdoc-admin
         path: /admin/plugins/novusdoc
         component: "NovusDocAdminPage"
@@ -115,6 +131,8 @@ extensions:
         title:
           zh-CN: "编辑文档"
           en: "Edit Document"
+        access_codes:
+          - "plugin.novusdoc.novusdoc_admin:view"
     dev:
       entry: "src/index.ts"
     release:

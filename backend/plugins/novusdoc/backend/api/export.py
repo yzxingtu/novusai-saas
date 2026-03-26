@@ -16,7 +16,7 @@ from .documents import _resolve_tenant_id
 logger = logging.getLogger(__name__)
 
 # Emoji/symbol ranges that xhtml2pdf/reportlab often cannot render / 表情与符号区间（PDF 难渲染）
-_EMOJI_PATTERN = re.compile(
+_EMOJI_PATTERN = (
     "["
     "\U0001F1E0-\U0001F1FF"  # flags / 旗帜区
     "\U0001F300-\U0001F5FF"  # symbols & pictographs / 符号与象形
@@ -25,8 +25,7 @@ _EMOJI_PATTERN = re.compile(
     "\U0001F700-\U0001F77F"  # alchemical symbols / 炼金符号
     "\U0001F900-\U0001F9FF"  # supplemental symbols / 补充符号
     "\U00002702-\U000027B0"  # dingbats / 装饰符号
-    "]+",
-    flags=re.UNICODE,
+    "]+"
 )
 
 
@@ -57,7 +56,7 @@ def _content_disposition_attachment(filename: str) -> str:
 
 def _strip_emojis_for_pdf(text: str) -> str:
     """Remove emojis that xhtml2pdf/reportlab cannot render."""
-    return _EMOJI_PATTERN.sub("", text)
+    return re.sub(_EMOJI_PATTERN, "", text, flags=re.UNICODE)
 
 
 def _html_to_pdf(html_content: str, title: str) -> bytes:

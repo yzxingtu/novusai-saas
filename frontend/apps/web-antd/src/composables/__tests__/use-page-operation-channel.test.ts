@@ -11,6 +11,7 @@ const {
   connected,
   currentPageAIExecutionPolicy,
   emit,
+  isActiveConversationTrusted,
   openAIPanel,
   pageSessionId,
   requestPageOpConfirmation,
@@ -26,6 +27,7 @@ const {
     pageContextKey: 'admin.ai.agents',
   }),
   emit: vi.fn(),
+  isActiveConversationTrusted: vi.fn(),
   openAIPanel: vi.fn(),
   pageSessionId: (require('vue') as typeof import('vue')).ref(
     'page-session-1' as null | string,
@@ -49,6 +51,7 @@ vi.mock('#/store', () => ({
 
 vi.mock('#/store/shared/ai-panel', () => ({
   useAIPanelStore: () => ({
+    isActiveConversationTrusted,
     open: openAIPanel,
     requestPageOpConfirmation,
     resolvePageOp,
@@ -82,6 +85,7 @@ vi.mock('#/composables/use-socketio', () => ({
 
 vi.mock('@vben/locales', () => ({
   $t: (key: string) => key,
+  loadLocalesMapFromDir: () => ({}),
 }));
 
 import { usePageOperationChannel } from '../use-page-operation-channel';
@@ -103,6 +107,8 @@ describe('usePageOperationChannel', () => {
     requestPageOpConfirmation.mockReset();
     requestPageOpConfirmation.mockResolvedValue(true);
     resolvePageOp.mockReset();
+    isActiveConversationTrusted.mockReset();
+    isActiveConversationTrusted.mockReturnValue(false);
     unregisterHandler.mockClear();
     currentPageAIExecutionPolicy.value = {
       disabledCapabilities: [],
@@ -479,6 +485,59 @@ describe('usePageOperationChannel', () => {
 
     expect(requestPageOpConfirmation).toHaveBeenCalledTimes(2);
     expect(executePageOperation).toHaveBeenCalledTimes(2);
+
+    scope.stop();
+  });
+
+  it('auto-approves mutation page operations when the active conversation is trusted', async () => {
+    isActiveConversationTrusted.mockReturnValue(true);
+
+    const scope = effectScope();
+    scope.run(() => {
+      usePageOperationChannel();
+    });
+
+    vi.mocked(findPageOperation).mockReturnValue({
+      description: 'Open create form',
+      label: 'Create',
+      name: 'create_record',
+      readonly: false,
+    });
+    vi.mocked(listPageOperations).mockReturnValue([
+      {
+        description: 'Open create form',
+        label: 'Create',
+        name: 'create_record',
+        readonly: false,
+      },
+    ]);
+    vi.mocked(executePageOperation).mockResolvedValue({
+      success: true,
+      message: 'trusted-ok',
+    });
+
+    const invokeHandler = registerHandler.mock.calls[0]?.[1] as
+      | ((data: unknown) => Promise<void>)
+      | undefined;
+
+    await invokeHandler?.({
+      invoke_id: 'trusted-create',
+      operation_name: 'create_record',
+      page_key: 'admin.ai.agents',
+      params: {},
+      requires_confirmation: false,
+    });
+
+    expect(requestPageOpConfirmation).not.toHaveBeenCalled();
+    expect(executePageOperation).toHaveBeenCalledTimes(1);
+    expect(emit).toHaveBeenCalledWith(
+      'page_operation_result',
+      expect.objectContaining({
+        invoke_id: 'trusted-create',
+        message: 'trusted-ok',
+        success: true,
+      }),
+    );
 
     scope.stop();
   });

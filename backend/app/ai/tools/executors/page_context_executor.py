@@ -226,7 +226,31 @@ class PageContextExecutor(BaseToolExecutor):
                 parts.append("## Available Page Operations:")
 
             if ops and isinstance(ops, list):
-                for o in ops[:20]:
+                mutation_ops = [
+                    o for o in ops
+                    if isinstance(o, dict) and not bool(o.get("readonly", False))
+                ]
+                readonly_ops = [
+                    o for o in ops
+                    if isinstance(o, dict) and bool(o.get("readonly", False))
+                ]
+                ordered_ops = mutation_ops + readonly_ops
+                if mutation_ops:
+                    mutation_names = [
+                        str(o.get("name", ""))
+                        for o in mutation_ops
+                        if isinstance(o, dict) and o.get("name")
+                    ]
+                    parts.append(
+                        "Writable Operations Available: "
+                        + ", ".join(mutation_names)
+                    )
+                    parts.append(
+                        "You ARE allowed to use writable page operations on this page. "
+                        "Do not claim the page is read-only when these operations are present."
+                    )
+
+                for o in ordered_ops:
                     if not isinstance(o, dict) or not o.get("name"):
                         continue
                     op_name = str(o.get("name", ""))
@@ -252,13 +276,20 @@ class PageContextExecutor(BaseToolExecutor):
                 if has_form_ops:
                     parts.append("")
                     parts.append("## Agent Loop — Form Operation Workflow:")
-                    parts.append("Execute ALL steps in sequence WITHOUT waiting for user input between steps:")
+                    parts.append("Execute ALL applicable steps in sequence WITHOUT stopping at the first tool call:")
                     parts.append("1. Call create_record/edit_record to open the form")
-                    parts.append("2. Immediately call get_form_state to inspect current field values and schema")
-                    parts.append("3. Immediately call fill_form to fill ALL fields with intelligent values")
-                    parts.append("4. Check fill_form result field_feedback for mismatches, retry if needed")
-                    parts.append("5. User reviews the pre-filled form and submits manually")
-                    parts.append("IMPORTANT: Do NOT stop after step 1. Continue all steps in this single turn.")
+                    parts.append("2. Immediately call get_form_state to inspect current values and schema")
+                    parts.append("3. Immediately call fill_form to fill ALL relevant fields")
+                    parts.append("4. If validate_form exists, call validate_form and fix any errors")
+                    parts.append("5. If submit_form exists and the user asked you to create/update the record, call submit_form")
+                    parts.append("6. Only wait for user review when the page explicitly requires confirmation or submit_form is unavailable")
+                    parts.append("IMPORTANT: Do NOT answer 'only read operations are available' when create_record/edit_record/fill_form/submit_form exist.")
+
+                parts.append("")
+                parts.append("## Execution Discipline:")
+                parts.append("If the latest user turn asks for multiple page operations, execute those operations in the requested order.")
+                parts.append("Do NOT stop early and do NOT substitute screenshot analysis or free-form commentary for requested operations that are available as tools.")
+                parts.append("If a newer user turn conflicts with an older temporary constraint such as 'read-only', 'do not write', or 'do not submit', follow the latest user turn unless the user explicitly keeps the older constraint in effect.")
 
             # Serialize remaining page_data (exclude already-presented fields)
             # 序列化剩余 page_data（排除已展示的字段）

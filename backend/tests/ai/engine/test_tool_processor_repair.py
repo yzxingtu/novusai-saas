@@ -2,6 +2,7 @@
 import json
 
 from app.ai.engine.tool_processor import _try_repair_json, ToolCallProcessor
+from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage
 
 
@@ -140,3 +141,21 @@ def test_find_pending_confirmation_keeps_consent_tool_args_clean() -> None:
         "max_results": 1,
     }
     assert "confirmed" not in pending["arguments"]
+
+
+def test_build_follow_up_message_supports_non_attachment_tools() -> None:
+    result = ToolResult(
+        tool_call_id="tc_weather",
+        name="get_current_weather",
+        success=True,
+        output="Current weather for Beijing: 18°C",
+        llm_follow_up_message="Weather data retrieved successfully. Answer directly and do not call the same tool again.",
+    )
+
+    follow_up = ToolCallProcessor.build_follow_up_message(result)
+
+    assert follow_up is not None
+    assert follow_up.role == "user"
+    assert follow_up.internal_only is True
+    assert "do not call the same tool again" in (follow_up.content or "")
+    assert follow_up.attachments is None

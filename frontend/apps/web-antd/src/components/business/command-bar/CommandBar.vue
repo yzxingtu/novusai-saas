@@ -151,7 +151,7 @@ function handleKeydown(e: KeyboardEvent) {
       e.preventDefault();
       const agent = list[selectedIndex.value];
       if (agent) {
-        selectMentionAgent(agent);
+        submitMentionSelection(agent);
       }
     } else if (e.key === 'Escape') {
       e.preventDefault();
@@ -205,10 +205,27 @@ function handleMenuItemClick(item: MenuRecordRaw) {
 }
 
 function handleSubmit() {
+  const queuedMessage = inputText.value.trim();
+  if (queuedMessage) {
+    aiPanelStore.queueMessage(queuedMessage);
+  }
   const message = submit();
   if (message) {
     emit('submit', message);
   }
+}
+
+function submitMentionSelection(agent: AgentItem) {
+  const message = inputText.value.replace(/^@\S*\s?/, '').trim();
+  if (!message) {
+    selectMentionAgent(agent);
+    return;
+  }
+  hide();
+  aiPanelStore.openWithContext({
+    agentId: agent.id,
+    message,
+  });
 }
 
 function handleStarterQuestionClick(question: string) {
@@ -221,7 +238,7 @@ function handleMaskClick() {
 }
 
 function handleAgentClick(agent: AgentItem) {
-  selectMentionAgent(agent);
+  submitMentionSelection(agent);
 }
 
 function agentInitial(agent: AgentItem): string {

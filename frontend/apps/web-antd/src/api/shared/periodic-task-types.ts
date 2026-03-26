@@ -19,6 +19,8 @@ export interface PeriodicTaskInfo {
   lastRunAt: null | string;
   nextRunAt: null | string;
   description: null | string;
+  pluginEnabled: boolean;
+  pluginName: null | string;
   createdAt: string;
   scope: null | string;
   tenantId: null | number;

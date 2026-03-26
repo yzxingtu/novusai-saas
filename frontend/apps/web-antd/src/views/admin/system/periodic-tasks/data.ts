@@ -16,10 +16,7 @@ import {
 } from '#/adapter/form';
 import { useScopeFields } from '#/components/business/scope-select';
 import { $t } from '#/locales';
-import {
-  getAdminScopeOptions,
-  getScopeText,
-} from '#/utils/scope-helpers';
+import { getAdminScopeOptions, getScopeText } from '#/utils/scope-helpers';
 
 type PeriodicTaskInfo = adminApi.PeriodicTaskInfo;
 
@@ -195,7 +192,9 @@ export function isTenantDistributed(scope: null | string | undefined): boolean {
   );
 }
 
-export function requiresTenantBindings(scope: null | string | undefined): boolean {
+export function requiresTenantBindings(
+  scope: null | string | undefined,
+): boolean {
   const normalizedScope = normalizeScopeValue(scope);
   return (
     normalizedScope === 'selected_tenants' ||
@@ -224,13 +223,19 @@ export function getGovernanceSummary(scope: null | string | undefined): string {
       return $t('admin.system.periodicTask.scopeSemantics.adminOnlyGovernance');
     }
     case 'global_shared': {
-      return $t('admin.system.periodicTask.scopeSemantics.globalSharedGovernance');
+      return $t(
+        'admin.system.periodicTask.scopeSemantics.globalSharedGovernance',
+      );
     }
     case 'all_tenants': {
-      return $t('admin.system.periodicTask.scopeSemantics.allTenantsGovernance');
+      return $t(
+        'admin.system.periodicTask.scopeSemantics.allTenantsGovernance',
+      );
     }
     case 'selected_tenants': {
-      return $t('admin.system.periodicTask.scopeSemantics.selectedTenantsGovernance');
+      return $t(
+        'admin.system.periodicTask.scopeSemantics.selectedTenantsGovernance',
+      );
     }
     case 'admin_and_selected_tenants': {
       return $t(
@@ -281,11 +286,7 @@ export function getBindingSummary(row: PeriodicTaskInfo): string {
   if (row.bindingSummary) {
     return row.bindingSummary;
   }
-  return buildBindingSummary(
-    scope,
-    row.bindingCount,
-    row.assignedTenantNames,
-  );
+  return buildBindingSummary(scope, row.bindingCount, row.assignedTenantNames);
 }
 
 export function getDistributionCompactText(row: PeriodicTaskInfo): string {
@@ -296,10 +297,7 @@ export function getDistributionCompactText(row: PeriodicTaskInfo): string {
   if (scope === 'all_tenants') {
     return $t('admin.system.periodicTask.bindingSummary.allTenants');
   }
-  if (
-    scope === 'selected_tenants' ||
-    scope === 'admin_and_selected_tenants'
-  ) {
+  if (scope === 'selected_tenants' || scope === 'admin_and_selected_tenants') {
     if (row.bindingCount > 0) {
       return $t('admin.system.periodicTask.bindingSummary.selectedCount', {
         count: row.bindingCount,
@@ -364,9 +362,7 @@ export function getDistributionHeadline(
       return $t('admin.system.periodicTask.scopeGuide.selectedTenants');
     }
     case 'admin_and_selected_tenants': {
-      return $t(
-        'admin.system.periodicTask.scopeGuide.adminAndSelectedTenants',
-      );
+      return $t('admin.system.periodicTask.scopeGuide.adminAndSelectedTenants');
     }
     default: {
       return $t('admin.system.periodicTask.scopeGuide.adminOnly');
@@ -418,6 +414,15 @@ export function getTenantSurfaceSummary(
       return $t('admin.system.periodicTask.tenantSurface.none');
     }
   }
+}
+
+export function isPlatformOnlyPluginTask(
+  row: Pick<PeriodicTaskInfo, 'definitionType' | 'scope'>,
+): boolean {
+  return (
+    row.definitionType === 'plugin' &&
+    normalizeScopeValue(row.scope) === 'admin_only'
+  );
 }
 
 export function useColumns<T = PeriodicTaskInfo>(
@@ -493,6 +498,14 @@ export function useColumns<T = PeriodicTaskInfo>(
             text: $t('admin.system.periodicTask.manageBindings'),
             icon: 'lucide:building-2',
             accessCodes: ['periodic_task:bindings'],
+            show: (row: Record<string, unknown>) =>
+              !isPlatformOnlyPluginTask({
+                definitionType: String(row.definitionType || ''),
+                scope:
+                  typeof row.scope === 'string' || row.scope === null
+                    ? row.scope
+                    : null,
+              }),
           },
           {
             code: 'delete',

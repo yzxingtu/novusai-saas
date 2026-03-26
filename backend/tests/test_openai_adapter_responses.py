@@ -430,6 +430,51 @@ async def test_convert_messages_to_responses_input_preserves_tool_roundtrip() ->
         },
     ]
 
+
+@pytest.mark.asyncio
+async def test_convert_messages_to_responses_input_can_textualize_tool_roundtrip() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={
+            "wire_api": "responses",
+            "responses_tool_history_mode": "text",
+        },
+    )
+
+    converted = await adapter._convert_messages_to_responses_input([
+        ChatMessage(
+            role="assistant",
+            content="我先看看页面。",
+            tool_calls=[{
+                "id": "call_1",
+                "type": "function",
+                "function": {
+                    "name": "get_page_context",
+                    "arguments": "{}",
+                },
+            }],
+        ),
+        ChatMessage(
+            role="tool",
+            content="Page: admin.ai.providers",
+            tool_call_id="call_1",
+        ),
+    ])
+
+    assert converted == [
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": "我先看看页面。",
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": "Context returned by previously executed tool get_page_context:\nPage: admin.ai.providers",
+        },
+    ]
+
 def test_init_keeps_endpoint_style_base_url_and_does_not_infer_wire_api() -> None:
     adapter = OpenAIAdapter(
         api_key="test-key",

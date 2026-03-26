@@ -13,6 +13,8 @@ import { defineStore } from 'pinia';
 export type AIPanelMode = 'full' | 'panel';
 
 export const useAIPanelStore = defineStore('ai-panel', () => {
+  const TRUST_SESSION_STORAGE_KEY_PREFIX = 'ai_trust_session_';
+
   // ==================== Panel state / 面板状态 ====================
 
   /** Whether panel is visible / 面板是否可见 */
@@ -301,6 +303,30 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     pendingPageOps.value = pendingPageOps.value.filter((o) => !o.resolved);
   }
 
+  function isConversationTrusted(conversationId?: null | number): boolean {
+    if (
+      typeof conversationId !== 'number' ||
+      !Number.isFinite(conversationId) ||
+      conversationId <= 0
+    ) {
+      return false;
+    }
+
+    try {
+      return (
+        window.sessionStorage.getItem(
+          `${TRUST_SESSION_STORAGE_KEY_PREFIX}${conversationId}`,
+        ) === '1'
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  function isActiveConversationTrusted(): boolean {
+    return isConversationTrusted(activeConversationId.value);
+  }
+
   // ==================== Tool call dispatch / Tool Call 分发 ====================
 
   type ToolCallHandler = (toolName: string, output: string) => void;
@@ -399,6 +425,8 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     requestPageOpConfirmation,
     resolvePageOp,
     clearResolvedPageOps,
+    isConversationTrusted,
+    isActiveConversationTrusted,
 
     // Tool calls / 工具调用
     registerToolCallHandler,

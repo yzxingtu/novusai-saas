@@ -34,7 +34,10 @@ import { mergeDisabledOperations } from '#/utils/ai-page-capabilities';
 import { requestClient } from '#/utils/request';
 
 import { resolveFormOptionsFieldName } from './form-option-param-utils';
-import { formStateTracker } from './use-form-state-tracker';
+import {
+  formStateTracker,
+  type FormState,
+} from './use-form-state-tracker';
 
 // ============ Types / 类型定义 ============
 
@@ -687,6 +690,14 @@ interface FieldFeedback {
   match: boolean;
 }
 
+function isMeaningfullyFilled(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'string') return value.trim().length > 0;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === 'object') return Object.keys(value as object).length > 0;
+  return true;
+}
+
 /**
  * After setValues, read back actual form values and compare with the requested values / setValues 后读回表单实际值并与请求值对比
  * Returns per-field feedback so the LLM can detect
@@ -725,6 +736,37 @@ async function buildFillFormFeedback(
     if (!match) mismatchCount++;
   }
   return { feedback, mismatchCount };
+}
+
+async function waitForTrackedFormState(
+  pageKey: string,
+  timeoutMs = 1500,
+): Promise<FormState> {
+  const intervalMs = 60;
+  let elapsed = 0;
+  let latest = await formStateTracker.getStateWithFallback(pageKey);
+
+  while (!latest.isOpen && elapsed < timeoutMs) {
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, intervalMs);
+    });
+    elapsed += intervalMs;
+    latest = await formStateTracker.getStateWithFallback(pageKey);
+  }
+
+  return latest;
+}
+
+function collectRemainingEmptyFields(
+  fieldMap: Record<string, EnhancedFormFieldDescriptor>,
+  currentValues: Record<string, unknown>,
+  skipKeys: Iterable<string> = [],
+): string[] {
+  const skipped = new Set(skipKeys);
+  return Object.keys(fieldMap).filter((key) => {
+    if (skipped.has(key)) return false;
+    return !isMeaningfullyFilled(getByDotPath(currentValues, key));
+  });
 }
 
 // ============ Param Schema Builder / 参数 schema 构建 ============
@@ -947,7 +989,7 @@ export function createStandardOperations(
     operations.push({
       name: 'refresh_list',
       label: $t('shared.pageOperation.refreshList'),
-      description: 'Reload the current list data / 重新加载当前列表数据',
+      description: $t('shared.pageOperation.desc.refreshList'),
       readonly: true,
       handler: async () => {
         await loadList();
@@ -964,8 +1006,7 @@ export function createStandardOperations(
     operations.push({
       name: 'export_data',
       label: $t('shared.pageOperation.exportData'),
-      description:
-        'Open the current list export dialog / 打开当前列表导出对话框',
+      description: $t('shared.pageOperation.desc.exportData'),
       readonly: true,
       handler: async () => {
         openExportModal();
@@ -979,7 +1020,7 @@ export function createStandardOperations(
     operations.push({
       name: 'search',
       label: $t('shared.pageOperation.search'),
-      description: 'Search by specific field conditions / 按指定字段条件搜索',
+      description: $t('shared.pageOperation.desc.search'),
       readonly: true,
       params: searchOpParams,
       handler: async (params) => {
@@ -1019,8 +1060,7 @@ export function createStandardOperations(
     operations.push({
       name: 'clear_search',
       label: $t('shared.pageOperation.clearSearch'),
-      description:
-        'Clear all search conditions and reload / 清空所有搜索条件并重新加载',
+      description: $t('shared.pageOperation.desc.clearSearch'),
       readonly: true,
       handler: async () => {
         await onSearch(
@@ -1042,8 +1082,7 @@ export function createStandardOperations(
     operations.push({
       name: 'read_visible_rows',
       label: $t('shared.pageOperation.readVisibleRows'),
-      description:
-        'Read the currently visible table rows on this page / 读取当前页面表格中可见的记录行',
+      description: $t('shared.pageOperation.desc.readVisibleRows'),
       readonly: true,
       handler: async () => {
         const rows = (list.value as Record<string, unknown>[]) ?? [];
@@ -1077,8 +1116,7 @@ export function createStandardOperations(
     operations.push({
       name: 'next_page',
       label: $t('shared.pageOperation.nextPage'),
-      description:
-        'Go to the next page of the current list / 前往当前列表的下一页',
+      description: $t('shared.pageOperation.desc.nextPage'),
       readonly: true,
       handler: async () => {
         const pagination = getPaginationState();
@@ -1109,8 +1147,7 @@ export function createStandardOperations(
     operations.push({
       name: 'read_row_detail',
       label: $t('shared.pageOperation.readRowDetail'),
-      description:
-        'Read the current list row detail by record id / 按记录主键读取当前列表中的行详情',
+      description: $t('shared.pageOperation.desc.readRowDetail'),
       readonly: true,
       params: {
         id: {
@@ -1167,8 +1204,7 @@ export function createStandardOperations(
     operations.push({
       name: 'prev_page',
       label: $t('shared.pageOperation.prevPage'),
-      description:
-        'Go to the previous page of the current list / 返回当前列表的上一页',
+      description: $t('shared.pageOperation.desc.prevPage'),
       readonly: true,
       handler: async () => {
         const pagination = getPaginationState();
@@ -1204,7 +1240,7 @@ export function createStandardOperations(
     operations.push({
       name: 'go_to_page',
       label: $t('shared.pageOperation.goToPage'),
-      description: 'Jump to a specific page number / 跳转到指定页码',
+      description: $t('shared.pageOperation.desc.goToPage'),
       readonly: true,
       params: {
         page: {
@@ -1247,8 +1283,7 @@ export function createStandardOperations(
     operations.push({
       name: 'set_page_size',
       label: $t('shared.pageOperation.setPageSize'),
-      description:
-        'Change the number of rows shown per page / 修改每页显示的行数',
+      description: $t('shared.pageOperation.desc.setPageSize'),
       readonly: true,
       params: {
         page_size: {
@@ -1285,12 +1320,27 @@ export function createStandardOperations(
     operations.push({
       name: 'create_record',
       label: $t('shared.pageOperation.createRecord'),
-      description:
-        'Open create form with optional pre-filled fields. User must confirm submit. / 打开新建表单，可选预填字段，用户手动确认提交。',
+      description: $t('shared.pageOperation.desc.createRecord'),
       readonly: false,
       params:
         Object.keys(createOpParams).length > 0 ? createOpParams : undefined,
       handler: async (params) => {
+        if (optsPageKey && formStateTracker.isOpenWithFallback(optsPageKey)) {
+          const formState = await waitForTrackedFormState(optsPageKey);
+          return {
+            success: true,
+            message: $t('shared.pageOperation.msg.formAlreadyOpen'),
+            data: {
+              already_open: true,
+              current_values: formState.currentValues,
+              form_is_open: formState.isOpen,
+              remaining_empty_fields: collectRemainingEmptyFields(
+                formParamsMap,
+                formState.currentValues,
+              ),
+            },
+          };
+        }
         // Only accept fields defined in formSchema, ignore unknown fields
         // 只接受 formSchema 中定义的字段，忽略未知字段
         const overrides: Record<string, unknown> = {};
@@ -1312,6 +1362,9 @@ export function createStandardOperations(
         await new Promise<void>((resolve) => setTimeout(resolve, 200));
 
         const filled = Object.keys(overrides);
+        const formState = optsPageKey
+          ? await waitForTrackedFormState(optsPageKey)
+          : null;
         return {
           success: true,
           message:
@@ -1320,6 +1373,19 @@ export function createStandardOperations(
                   fields: filled.join(', '),
                 })
               : $t('shared.pageOperation.msg.createFormOpenedEmpty'),
+          data: {
+            current_values: formState?.currentValues ?? {},
+            form_is_open: Boolean(formState?.isOpen),
+            prefilled_fields: filled,
+            remaining_empty_fields: collectRemainingEmptyFields(
+              formParamsMap,
+              formState?.currentValues ?? {},
+              filled,
+            ),
+            context_diff: {
+              form_opened: Boolean(formState?.isOpen),
+            },
+          },
         };
       },
     });
@@ -1339,11 +1405,26 @@ export function createStandardOperations(
     operations.push({
       name: 'edit_record',
       label: $t('shared.pageOperation.editRecord'),
-      description:
-        'Open edit form for a record, optionally override specific fields. User must confirm submit. / 打开编辑表单，可选预填修改字段，用户手动确认提交。',
+      description: $t('shared.pageOperation.desc.editRecord'),
       readonly: false,
       params: editOpParams,
       handler: async (params) => {
+        if (optsPageKey && formStateTracker.isOpenWithFallback(optsPageKey)) {
+          const formState = await waitForTrackedFormState(optsPageKey);
+          return {
+            success: true,
+            message: $t('shared.pageOperation.msg.formAlreadyOpen'),
+            data: {
+              already_open: true,
+              current_values: formState.currentValues,
+              form_is_open: formState.isOpen,
+              remaining_empty_fields: collectRemainingEmptyFields(
+                formParamsMap,
+                formState.currentValues,
+              ),
+            },
+          };
+        }
         const id = params.id;
         if (id == null) {
           return {
@@ -1394,6 +1475,9 @@ export function createStandardOperations(
         await new Promise<void>((resolve) => setTimeout(resolve, 200));
 
         const changed = Object.keys(overrides);
+        const formState = optsPageKey
+          ? await waitForTrackedFormState(optsPageKey)
+          : null;
         return {
           success: true,
           message:
@@ -1403,6 +1487,19 @@ export function createStandardOperations(
                   fields: changed.join(', '),
                 })
               : $t('shared.pageOperation.msg.editFormOpenedEmpty', { id }),
+          data: {
+            current_values: formState?.currentValues ?? {},
+            form_is_open: Boolean(formState?.isOpen),
+            prefilled_fields: changed,
+            remaining_empty_fields: collectRemainingEmptyFields(
+              formParamsMap,
+              formState?.currentValues ?? {},
+              changed,
+            ),
+            context_diff: {
+              form_opened: Boolean(formState?.isOpen),
+            },
+          },
         };
       },
     });
@@ -1413,8 +1510,7 @@ export function createStandardOperations(
     operations.push({
       name: 'delete_record',
       label: $t('shared.pageOperation.deleteRecord'),
-      description:
-        'Delete a record by ID. Requires user confirmation. / 按 ID 删除记录。需用户确认。',
+      description: $t('shared.pageOperation.desc.deleteRecord'),
       readonly: false,
       params: {
         id: {
@@ -1454,7 +1550,7 @@ export function createStandardOperations(
     operations.push({
       name: 'navigate_to_detail',
       label: $t('shared.pageOperation.navigateToDetail'),
-      description: `Navigate to record detail page / 跳转到记录详情页`,
+      description: $t('shared.pageOperation.desc.navigateToDetail'),
       readonly: true,
       params: {
         id: {
@@ -1486,8 +1582,7 @@ export function createStandardOperations(
     operations.push({
       name: 'view_recycle_bin',
       label: $t('shared.pageOperation.viewRecycleBin'),
-      description:
-        'Open the recycle bin to view deleted records / 打开回收站查看已删除记录',
+      description: $t('shared.pageOperation.desc.viewRecycleBin'),
       readonly: true,
       handler: async () => {
         openRecycleBin();
@@ -1504,8 +1599,7 @@ export function createStandardOperations(
     operations.push({
       name: 'get_form_state',
       label: $t('shared.pageOperation.getFormState'),
-      description:
-        'Get the current form state: open/closed, field values, dirty fields, validation errors. Call after opening a form. / 获取当前表单状态：打开/关闭、字段值、脏字段、验证错误。在打开表单后调用。',
+      description: $t('shared.pageOperation.desc.getFormState'),
       readonly: true,
       handler: async () => {
         const state = await formStateTracker.getStateWithFallback(optsPageKey);
@@ -1532,8 +1626,7 @@ export function createStandardOperations(
     operations.push({
       name: 'fill_form',
       label: $t('shared.pageOperation.fillForm'),
-      description:
-        'Fill form fields with provided values. Form must be open first (use create_record or edit_record). Supports all field types: input, select, switch, date, remote_select. / 用提供的值填充表单字段。需先打开表单。支持所有字段类型。',
+      description: $t('shared.pageOperation.desc.fillForm'),
       readonly: false,
       params:
         Object.keys(createOpParams).length > 0 ? createOpParams : undefined,
@@ -1588,6 +1681,12 @@ export function createStandardOperations(
           trackedApi,
           validFields,
         );
+        const actualValues = await trackedApi.getValues().catch(() => ({}));
+        const remainingEmptyFields = collectRemainingEmptyFields(
+          formParamsMap,
+          actualValues,
+          Object.keys(validFields),
+        );
         const skippedInfo =
           skippedFields.length > 0
             ? `. ${$t('shared.pageOperation.msg.skippedUnknown', { fields: skippedFields.join(', ') })}`
@@ -1607,6 +1706,7 @@ export function createStandardOperations(
             filled: filledKeys,
             skipped: skippedFields,
             field_feedback: feedback,
+            remaining_empty_fields: remainingEmptyFields,
           },
         };
       },
@@ -1618,8 +1718,7 @@ export function createStandardOperations(
     operations.push({
       name: 'validate_form',
       label: $t('shared.pageOperation.validateForm'),
-      description:
-        'Trigger form validation and return errors. / 触发表单校验并返回错误信息。',
+      description: $t('shared.pageOperation.desc.validateForm'),
       readonly: true,
       handler: async () => {
         if (!formStateTracker.isOpenWithFallback(optsPageKey)) {
@@ -1659,8 +1758,7 @@ export function createStandardOperations(
     operations.push({
       name: 'submit_form',
       label: $t('shared.pageOperation.submitForm'),
-      description:
-        'Validate and submit the currently open form. The form must be filled first. / 校验并提交当前打开的表单。需先填充表单。',
+      description: $t('shared.pageOperation.desc.submitForm'),
       readonly: false,
       handler: async () => {
         if (!formStateTracker.isOpenWithFallback(optsPageKey)) {

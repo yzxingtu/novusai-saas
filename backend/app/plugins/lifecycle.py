@@ -3359,10 +3359,26 @@ command.downgrade(cfg, {f"{branch_label}@base"!r})
             handler_path = task_code
             result = await self._db.execute(
                 select(TaskDefinition).where(
-                    TaskDefinition.code == task_code,
+                    TaskDefinition.is_deleted.is_(False),
+                    (
+                        (TaskDefinition.code == task_code)
+                        | (TaskDefinition.handler_path == handler_path)
+                    ),
                 )
+                .order_by(TaskDefinition.id.asc())
             )
-            existing = result.scalar_one_or_none()
+            matched = list(result.scalars().all())
+            existing = next(
+                (item for item in matched if item.code == task_code),
+                None,
+            )
+            if existing is None and matched:
+                existing = matched[0]
+
+            duplicate_rows = [
+                item for item in matched
+                if existing is not None and item.id != existing.id
+            ]
 
             schedule_type = task_ext.schedule_type or ScheduleTypeEnum.INTERVAL.value
             description_text = resolve_i18n(task_ext.description, "zh-CN")
@@ -3376,6 +3392,7 @@ command.downgrade(cfg, {f"{branch_label}@base"!r})
                 existing.definition_type = "plugin"
                 existing.category = "plugin"
                 existing.scope = ResourceScopeEnum.ADMIN_ONLY.value
+                existing.code = task_code
                 existing.default_schedule_type = schedule_type
                 existing.default_cron_expression = task_ext.cron_expression
                 existing.default_interval_seconds = task_ext.interval_seconds
@@ -3403,6 +3420,12 @@ command.downgrade(cfg, {f"{branch_label}@base"!r})
                     is_deletable=False,
                     description=description_text or "",
                 ))
+
+            deleted_at = utc_now()
+            for duplicate in duplicate_rows:
+                duplicate.is_deleted = True
+                duplicate.deleted_at = deleted_at
+                duplicate.is_enabled = False
             synced += 1
 
         if synced:

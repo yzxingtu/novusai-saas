@@ -10,7 +10,6 @@ Open-Meteo API 客户端
 from __future__ import annotations
 
 import asyncio
-import os as _os
 import time
 from typing import Any
 
@@ -33,9 +32,6 @@ _NOMINATIM_HEADERS = {"User-Agent": "NovusAI-WeatherPlugin/1.0"}
 _WEATHER_TIMEOUT = 10.0
 _NOMINATIM_TIMEOUT = 5.0
 
-# ── SSL / 证书校验 ──
-_VERIFY_SSL = _os.environ.get("WEATHER_VERIFY_SSL", "0") in ("1", "true", "yes")
-
 # ── Nominatim Rate-Limit (1 req/s) / Nominatim 限速 1 次每秒 ──
 _nominatim_lock = asyncio.Lock()
 _nominatim_last_ts: float = 0.0
@@ -53,7 +49,8 @@ async def _nominatim_throttle() -> None:
 
 
 def _make_client(timeout: float = _WEATHER_TIMEOUT) -> httpx.AsyncClient:
-    transport = httpx.AsyncHTTPTransport(verify=_VERIFY_SSL)
+    # Keep TLS verification enabled by default for all outbound weather requests.
+    transport = httpx.AsyncHTTPTransport(verify=True)
     return httpx.AsyncClient(timeout=timeout, transport=transport)
 
 

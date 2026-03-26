@@ -39,6 +39,7 @@
     "type": "Provider Type",
     "baseUrl": "API URL",
     "wireApi": "API Protocol",
+    "responsesToolHistoryCompat": "Responses Tool Follow-up Compatibility Mode",
     "description": "Description",
     "icon": "Icon",
     "isActive": "Status",
@@ -78,7 +79,8 @@
     },
     "help": {
       "baseUrl": "The provider's API base URL, e.g. https://api.openai.com/v1. Do not append /responses or /chat/completions; configure the URL and protocol separately",
-      "wireApi": "Calling protocol for OpenAI-compatible providers. Choose Responses explicitly when the vendor requires the Responses API",
+      "wireApi": "Prefer Chat Completions for legacy integrations, simple chat, and full per-request control; prefer Responses for tool use, multi-step agents, GPT-5 / o-series reasoning, and less client-side state handling. For new integrations, Responses is usually the better default to evaluate first.",
+      "responsesToolHistoryCompat": "Enable this only when follow-up turns after tool calls frequently fail with 500/502 under the Responses protocol. It rewrites tool history into a more conservative text context for better gateway compatibility, but may reduce the model's ability to continue calling tools automatically. Disabled by default and generally not recommended.",
       "type": "Currently only OpenAI-compatible format is supported. Most AI services (including Anthropic, Azure) are compatible",
       "isActive": "When disabled, all models under this provider become unavailable and existing API calls will fail"
     },

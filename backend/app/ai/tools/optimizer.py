@@ -94,11 +94,18 @@ _KB_KEYWORDS = frozenset({
 # Web search keywords → boost web_search/fetch_url tools / 联网搜索关键词
 _WEB_KEYWORDS = frozenset({
     "联网", "搜索", "搜一下", "查一下", "查阅", "上网", "网上",
-    "最新", "实时", "新闻", "百科", "维基", "天气", "今天",
+    "最新", "实时", "新闻", "百科", "维基",
     "谁是", "生日", "简介", "官网", "网址", "链接", "网页",
     "search", "internet", "web", "online", "latest", "news",
-    "wiki", "wikipedia", "weather", "today", "website", "url",
+    "wiki", "wikipedia", "website", "url",
     "browse", "lookup", "fetch",
+})
+
+# Weather keywords → boost weather toolkit tools / 天气关键词
+_WEATHER_KEYWORDS = frozenset({
+    "天气", "预报", "气温", "温度", "湿度", "风速", "降雨", "北京", "上海",
+    "weather", "forecast", "temperature", "humidity", "wind", "rain",
+    "snow", "uv", "air", "quality",
 })
 
 # Chinese character regex / 中文字符正则
@@ -173,6 +180,15 @@ def _score_tool(
     if tool_name_lower in query_text or tool_name_lower.replace("_", " ") in query_text:
         score += 10.0
 
+    # 2.5 Explicit skill-family mentions / 明确点名技能族
+    if "weather" in tool_name_lower and (
+        "天气技能" in query_text
+        or "天气工具" in query_text
+        or "weather tool" in query_text
+        or "weather skill" in query_text
+    ):
+        score += 12.0
+
     # 3. Data tool boost / 数据类工具加权
     if (
         (tool.name.startswith("data_") or tool.tool_type in ("text_to_sql", "crud"))
@@ -190,6 +206,24 @@ def _score_tool(
         and query_tokens & _WEB_KEYWORDS
     ):
         score += 8.0
+
+    # 4.6 Weather tool boost / 天气工具加权
+    if "weather" in tool_name_lower and query_tokens & _WEATHER_KEYWORDS:
+        score += 8.0
+
+    # 4.7 Negative preference: user explicitly forbids web search / 用户明确禁止联网搜索时降低联网工具分数
+    if (
+        ("search" in tool_name_lower or "fetch" in tool_name_lower or "web" in tool_name_lower)
+        and (
+            "不要使用联网搜索" in query_text
+            or "不要联网搜索" in query_text
+            or "不要用联网搜索" in query_text
+            or "do not use web search" in query_text
+            or "don't use web search" in query_text
+            or "without web search" in query_text
+        )
+    ):
+        score -= 20.0
 
     # 5. History preference: boost previously used tools / 历史偏好加权
     if used_tool_names and tool.name in used_tool_names:
@@ -238,23 +272,43 @@ def optimize_tools(
 
     # Separate protected tools and optimizable tools / 分离保护工具与可优化工具
     protected: list[ToolDefinition] = []
+    explicitly_requested: list[ToolDefinition] = []
     optimizable: list[ToolDefinition] = []
     for tool in tools:
         if _is_protected_tool(tool.name):
             protected.append(tool)
+            continue
+
+        tool_name_lower = tool.name.lower()
+        if (
+            tool_name_lower in user_query.lower()
+            or tool_name_lower.replace("_", " ") in user_query.lower()
+        ):
+            explicitly_requested.append(tool)
         else:
             optimizable.append(tool)
 
     # Available budget after deducting protected tools / 扣除保护工具后的可用名额
-    budget = max(max_after_optimization - len(protected), 1)
+    budget = max(
+        max_after_optimization - len(protected) - len(explicitly_requested),
+        0,
+    )
 
     # Optimizable tools within budget, keep all / 可优化工具在名额内，全部保留
     if len(optimizable) <= budget:
         return OptimizeResult(
-            tools=protected + optimizable,
+            tools=protected + explicitly_requested + optimizable,
             total=total,
-            selected=len(protected) + len(optimizable),
+            selected=len(protected) + len(explicitly_requested) + len(optimizable),
             skipped=True,
+        )
+
+    if budget == 0:
+        return OptimizeResult(
+            tools=protected + explicitly_requested,
+            total=total,
+            selected=len(protected) + len(explicitly_requested),
+            skipped=False,
         )
 
     # Tokenize / 分词
@@ -272,13 +326,14 @@ def optimize_tools(
 
     # Take top-N / 取 top-N
     selected_optimizable = [item[2] for item in scored[:budget]]
-    selected = protected + selected_optimizable
+    selected = protected + explicitly_requested + selected_optimizable
 
     logger.info(
-        "Tool optimizer: {} → {} tools ({} protected, query={})",
+        "Tool optimizer: {} → {} tools ({} protected, {} explicit, query={})",
         total,
         len(selected),
         len(protected),
+        len(explicitly_requested),
         user_query[:50],
     )
     # Loguru 无 isEnabledFor，使用 getattr 兼容 / Loguru has no isEnabledFor, use getattr for compat

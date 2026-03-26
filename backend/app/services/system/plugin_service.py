@@ -248,6 +248,18 @@ class PluginService(BaseService[Plugin, PluginRepository]):
             except Exception:
                 previous_manifest = None
 
+        stale_manifest_error = (
+            plugin.status == PluginStatusEnum.ERROR.value
+            and "Manifest drift detected on disk." in str(plugin.error_message or "")
+        )
+        should_restore_runtime = (
+            plugin.status == PluginStatusEnum.ENABLED.value
+            or (
+                stale_manifest_error
+                and plugin.enabled_at is not None
+            )
+        )
+
         manifest_dump = manifest.model_dump()
         plugin.display_name = resolve_i18n(manifest.display_name)
         plugin.description = (
@@ -278,9 +290,10 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         plugin.installed_packages = manifest.dependencies.python or []
         await self.db.flush()
 
-        if plugin.status == PluginStatusEnum.ENABLED.value:
+        if should_restore_runtime:
             registry = ExtensionRegistry.get_instance()
             menu_overrides = (plugin.config or {}).get("menu_overrides")
+            registry.unregister_all(plugin.name)
             register_all_extensions(
                 registry,
                 manifest,
@@ -309,8 +322,27 @@ class PluginService(BaseService[Plugin, PluginRepository]):
                 )
 
             sync_service = PermissionSyncService(self.db)
+            await self._lifecycle._delete_plugin_permissions_from_db(plugin.name)
             await sync_service.sync_plugin_permissions(plugin.name)
             await self._lifecycle._set_plugin_permissions_enabled(plugin.name, True)
+            if manifest.extensions.tasks:
+                await self._lifecycle._sync_plugin_task_definitions(
+                    plugin.name,
+                    manifest.extensions.tasks,
+                )
+            plugin.status = PluginStatusEnum.ENABLED.value
+            plugin.error_message = None
+            plugin.error_count = 0
+            await self.db.flush()
+        elif stale_manifest_error:
+            plugin.status = (
+                PluginStatusEnum.DISABLED.value
+                if plugin.enabled_at is not None
+                else PluginStatusEnum.INSTALLED.value
+            )
+            plugin.error_message = None
+            plugin.error_count = 0
+            await self.db.flush()
 
         return plugin
 

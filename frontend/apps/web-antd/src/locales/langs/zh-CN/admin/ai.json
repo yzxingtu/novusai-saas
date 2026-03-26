@@ -39,6 +39,7 @@
     "type": "供应商类型",
     "baseUrl": "API 地址",
     "wireApi": "API 协议",
+    "responsesToolHistoryCompat": "Responses 工具续轮兼容模式",
     "description": "描述",
     "icon": "图标",
     "isActive": "启用状态",
@@ -78,7 +79,8 @@
     },
     "help": {
       "baseUrl": "供应商的 API 基础地址，如 https://api.openai.com/v1。请不要拼接 /responses 或 /chat/completions，地址与协议请分别配置",
-      "wireApi": "OpenAI 兼容供应商的调用协议。若供应商明确要求 Responses API，请在这里显式选择 Responses",
+      "wireApi": "已有系统迁移、简单对话和精细控制请求时优先用 Chat Completions；需要工具调用、多轮 Agent、GPT-5 / o-series reasoning 或更少客户端状态处理时优先用 Responses。新接入通常建议优先评估 Responses。",
+      "responsesToolHistoryCompat": "仅当 Responses 协议下，工具调用后的后续轮次频繁出现 500/502 时再开启。开启后会把工具历史转换为更保守的文本上下文，兼容性更好，但可能降低模型继续自动调用工具的能力。默认关闭，不建议常规开启。",
       "type": "当前仅支持 OpenAI 兼容格式。大多数 AI 服务（包括 Anthropic、Azure）都兼容此格式",
       "isActive": "禁用后该供应商下的所有模型将不可用，已有的 API 调用会失败"
     },

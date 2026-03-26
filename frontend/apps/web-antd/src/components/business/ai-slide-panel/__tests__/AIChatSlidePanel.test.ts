@@ -198,6 +198,8 @@ function createAIPanelStore() {
       store.visible = true;
     }),
     panelWidth: 460,
+    pendingConversationId: null as null | number,
+    pendingMessage: null as null | string,
     pendingPageOps: [] as typeof pendingPageOpsValue.value,
     pinnedAgentId: null as null | number,
     pinnedAgentName: null as null | string,
@@ -552,7 +554,12 @@ describe('AIChatSlidePanel (component mount)', () => {
 
     expect(startNewConversationMock).not.toHaveBeenCalled();
     expect(loadConversationMessagesMock).toHaveBeenCalledWith(10);
-    expect(sendMessageMock).toHaveBeenCalledWith({ pageContext: null });
+    expect(sendMessageMock).toHaveBeenCalled();
+    expect(sendMessageMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pageContext: null,
+      }),
+    );
     const loadInvocationOrder =
       loadConversationMessagesMock.mock.invocationCallOrder[0];
     const sendInvocationOrder = sendMessageMock.mock.invocationCallOrder[0];
@@ -560,6 +567,75 @@ describe('AIChatSlidePanel (component mount)', () => {
     expect(loadInvocationOrder).toBeDefined();
     expect(sendInvocationOrder).toBeDefined();
     expect(loadInvocationOrder!).toBeLessThan(sendInvocationOrder!);
+
+    wrapper.unmount();
+  });
+
+  it('falls back to store pendingMessage when prop timing lags behind visibility change', async () => {
+    selectedAgentIdValue.value = 2;
+    aiPanelStore.pendingMessage = 'store queued message';
+    aiPanelStore.visible = false;
+
+    const wrapper = mount(AIChatSlidePanel, {
+      props: {
+        apiPrefix: '/tenant',
+        uploadUrl: '/upload',
+      },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          ChatMessageItem: true,
+        },
+      },
+    });
+
+    await flushPromises();
+
+    aiPanelStore.visible = true;
+    await flushPromises();
+
+    expect(sendMessageMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pageContext: null,
+      }),
+    );
+    expect(wrapper.emitted('messageSent')).toBeTruthy();
+
+    wrapper.unmount();
+  });
+
+  it('prefers the queued pendingAgentId when external context starts a new conversation', async () => {
+    selectedAgentIdValue.value = 2;
+    aiPanelStore.pendingMessage = 'send to explicit agent';
+    aiPanelStore.consumePendingAgentId = vi.fn(() => 1);
+    aiPanelStore.visible = false;
+
+    const wrapper = mount(AIChatSlidePanel, {
+      props: {
+        apiPrefix: '/tenant',
+        uploadUrl: '/upload',
+      },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          ChatMessageItem: true,
+        },
+      },
+    });
+
+    await flushPromises();
+
+    aiPanelStore.visible = true;
+    await flushPromises();
+
+    expect(routeMessageMock).not.toHaveBeenCalled();
+    expect(sendMessageMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentId: 1,
+        pageContext: null,
+      }),
+    );
+    expect(wrapper.emitted('messageSent')).toBeTruthy();
 
     wrapper.unmount();
   });
@@ -638,7 +714,11 @@ describe('AIChatSlidePanel (component mount)', () => {
     await flushPromises();
 
     expect(routeMessageMock).not.toHaveBeenCalled();
-    expect(sendMessageMock).toHaveBeenCalledWith({ pageContext: null });
+    expect(sendMessageMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pageContext: null,
+      }),
+    );
 
     wrapper.unmount();
   });
