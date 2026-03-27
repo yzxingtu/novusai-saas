@@ -202,7 +202,6 @@ class AuthService:
             pairs = await client.hgetall(key)
             if pairs:
                 revoked_sessions = len(pairs)
-                from time import time
                 for access_jti, refresh_jti in pairs.items():
                     # 使用剩余 TTL 作为吊销 TTL（简化：用 refresh 的 7 天）
                     access_ttl = 86400  # access 最多 24h

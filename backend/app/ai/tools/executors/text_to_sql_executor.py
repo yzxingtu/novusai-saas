@@ -21,8 +21,6 @@ import re
 import time
 from typing import TYPE_CHECKING, Any
 
-from app.configs.service import PLATFORM_TENANT_ID
-
 from app.ai.data_intelligence.readonly_executor import ReadOnlyExecutor
 from app.ai.data_intelligence.result_formatter import ResultFormatter
 from app.ai.data_intelligence.schema_provider import SchemaProvider
@@ -37,6 +35,7 @@ from app.ai.data_intelligence.text_to_sql import (
 )
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
+from app.configs.service import PLATFORM_TENANT_ID
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.core.response import build_public_error_text
@@ -78,7 +77,8 @@ def _parse_sql_metrics(sql: str) -> list[str]:
     )
     out: list[str] = []
     for fn_name, arg in matches:
-        formatted = f"{fn_name.upper()}({re.sub(r'\s+', ' ', arg).strip()})"
+        normalized_arg = re.sub(r"\s+", " ", arg).strip()
+        formatted = f"{fn_name.upper()}({normalized_arg})"
         if formatted not in out:
             out.append(formatted)
     return out

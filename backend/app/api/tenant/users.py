@@ -11,7 +11,6 @@ from app.core.base_controller import TenantController
 from app.core.deps import ActiveTenantAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.response import created, deleted, paginated, success, updated
-from app.core.security import get_password_hash
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
 from app.rbac.decorators import (
@@ -23,7 +22,6 @@ from app.rbac.decorators import (
 )
 from app.schemas.tenant import (
     TenantUserCreateRequest,
-    TenantUserResponse,
     TenantUserUpdateRequest,
 )
 from app.services.common import AuthService

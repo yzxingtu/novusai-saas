@@ -17,7 +17,7 @@ import sys
 import uuid
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import anyio
 
@@ -2634,7 +2634,6 @@ class PluginLifecycle:
         causing "Can't locate revision identified by 'xxx'" errors.
         / 重要：必须把所有已安装插件的迁移路径都加入 version_locations。
         """
-        import os
 
         # Purge orphaned version stamps before upgrade (prevent uninstalled plugins' stamps from blocking upgrade)
         # / 升级前清除孤立版本戳（防止已卸载插件的 stamp 阻断升级）

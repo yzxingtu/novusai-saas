@@ -796,19 +796,24 @@ function collectRemainingEmptyFields(
  */
 function buildFieldParamSchema(
   entry: EnhancedFormFieldDescriptor,
+  options: {
+    includeDefaultValue?: boolean;
+    includeRequired?: boolean;
+  } = {},
 ): Record<string, unknown> {
+  const { includeDefaultValue = true, includeRequired = true } = options;
   const schema: Record<string, unknown> = {
     type: entry.type,
     description: entry.description,
   };
-  if (entry.required) schema.required = true;
+  if (includeRequired && entry.required) schema.required = true;
   if (entry.component) schema.component = entry.component;
   if (entry.constraints) schema.constraints = entry.constraints;
   if (entry.options && entry.options.length > 0) {
     schema.options = entry.options;
   }
   if (entry.optionsSource) schema.optionsSource = entry.optionsSource;
-  if (entry.defaultValue !== undefined)
+  if (includeDefaultValue && entry.defaultValue !== undefined)
     schema.defaultValue = entry.defaultValue;
   if (entry.placeholder) schema.placeholder = entry.placeholder;
   return schema;
@@ -995,7 +1000,10 @@ export function createStandardOperations(
 
   const createOpParams: Record<string, unknown> = {};
   for (const [key, entry] of Object.entries(formParamsMap)) {
-    createOpParams[key] = buildFieldParamSchema(entry);
+    createOpParams[key] = buildFieldParamSchema(entry, {
+      includeDefaultValue: false,
+      includeRequired: false,
+    });
   }
 
   // Router for navigation operations / 导航操作用的 router
@@ -1928,7 +1936,10 @@ export function createFormOperations(
 
   const createOpParams: Record<string, unknown> = {};
   for (const [key, entry] of Object.entries(formParamsMap)) {
-    createOpParams[key] = buildFieldParamSchema(entry);
+    createOpParams[key] = buildFieldParamSchema(entry, {
+      includeDefaultValue: false,
+      includeRequired: false,
+    });
   }
 
   let _remoteResolved = false;

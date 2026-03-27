@@ -26,7 +26,6 @@ import {
   listPageOperations,
 } from '#/components/business/ai-slide-panel/page-operation-registry';
 import { currentPageAIExecutionPolicy } from '#/composables/use-ai-page-policy';
-import { formStateTracker } from '#/composables/use-form-state-tracker';
 import { getActivePageSessionId } from '#/composables/use-page-session';
 import { getSocketTraceId } from '#/composables/use-socketio';
 import { useSocketIOStore } from '#/store';
@@ -410,14 +409,6 @@ export function usePageOperationChannel(): void {
         if (
           CHAIN_AUTO_OPS.has(event.operation_name) &&
           isChainConfirmed(event.page_key)
-        ) {
-          await executeAndEmit(event);
-          return;
-        }
-
-        if (
-          CHAIN_TRIGGER_OPS.has(event.operation_name) &&
-          formStateTracker.isOpenWithFallback(event.page_key)
         ) {
           await executeAndEmit(event);
           return;

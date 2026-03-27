@@ -21,14 +21,12 @@ from app.codegen.file_writer import FileWriter, WriteResult
 from app.codegen.generator import CodeGenerator, GeneratedFile
 from app.codegen.manifest import ManifestEntry, ManifestManager
 from app.codegen.rollback import CodegenRollback, RollbackResult
-from app.codegen.type_registry import type_registry
 from app.codegen.zip_exporter import export_zip, format_code
 from app.core.base_service import GlobalService
 from app.core.i18n import _
 from app.enums.codegen import CodegenConfigStatusEnum
 from app.exceptions import ConflictException, NotFoundException
 from app.models.system.codegen_config import CodegenConfig
-from app.models.system.codegen_config_version import CodegenConfigVersion
 from app.repositories.system.codegen_config_repository import (
     CodegenConfigRepository,
 )

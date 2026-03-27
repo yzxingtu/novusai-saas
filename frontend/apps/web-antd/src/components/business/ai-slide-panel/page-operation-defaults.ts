@@ -79,10 +79,14 @@ export function getDefaultPageOperations(pageKey: string): PageOperation[] {
             ? {
                 action_buttons: domSnapshot.action_buttons,
                 breadcrumb: domSnapshot.breadcrumb,
+                detail_fields: domSnapshot.detail_fields,
                 forms: domSnapshot.forms,
+                overlays: domSnapshot.overlays,
                 page_title: domSnapshot.page_title,
+                stat_cards: domSnapshot.stat_cards,
                 tables: domSnapshot.tables,
                 tabs: domSnapshot.tabs,
+                text_blocks: domSnapshot.text_blocks,
               }
             : { page_title: normalizedKey },
         };

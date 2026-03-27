@@ -13,7 +13,6 @@ import json
 from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.i18n import _
 from app.core.logging import LogManager
 from app.core.redis import get_redis
 from app.models.ai import AIModel

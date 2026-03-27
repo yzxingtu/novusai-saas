@@ -450,7 +450,7 @@ class MarketplaceClient:
                         exc,
                         fallback_message=f"Failed to download plugin '{slug}' after 3 attempts",
                     ),
-                )
+                ) from exc
 
         return zip_path  # unreachable but satisfies type checker / 不可达，仅为满足类型检查
 

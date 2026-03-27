@@ -8,7 +8,6 @@ Provides tenant AI quota CRUD endpoints (platform admin only).
 from fastapi import Request
 
 from app.core.base_controller import GlobalController
-from app.core.base_schema import PageResponse
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.response import success
@@ -25,8 +24,6 @@ from app.rbac.decorators import (
 from app.repositories.ai.tenant_quota_repository import AdminTenantQuotaRepository
 from app.schemas.ai.quota_diagnostics import (
     AIQuotaDiagnosticsSummary,
-    AdminQuotaDiagnosticItem,
-    AdminRateLimitDiagnosticItem,
 )
 from app.schemas.ai.tenant_quota import (
     AdminTenantQuotaCreate,

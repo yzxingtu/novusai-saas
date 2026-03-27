@@ -16,7 +16,12 @@ from typing import TYPE_CHECKING, Any
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.core.logging import LogManager
-from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY as SHARED_PAGE_CONTEXT_KEY, PageContext
+from app.schemas.ai.agent_chat import (
+    PAGE_CONTEXT_KEY as SHARED_PAGE_CONTEXT_KEY,
+)
+from app.schemas.ai.agent_chat import (
+    PageContext,
+)
 
 # Maximum characters of page_data output to LLM (truncation protection)
 # page_data 输出给 LLM 的最大字符数（截断保护）
@@ -86,7 +91,7 @@ class PageContextExecutor(BaseToolExecutor):
         self,
         definition: ToolDefinition,
         tool_call_id: str,
-        arguments: dict[str, Any],
+        _arguments: dict[str, Any],
         context: ExecutionContext | None = None,
     ) -> ToolResult:
         """Read page info from context variables and return / 从上下文变量读取页面信息并返回"""
@@ -183,6 +188,60 @@ class PageContextExecutor(BaseToolExecutor):
                         if isinstance(row, dict):
                             row_str = ", ".join(f"{k}={v}" for k, v in list(row.items())[:4])
                             parts.append(f"  [{i + 1}] {row_str}")
+
+            stat_cards = page_data.get("stat_cards")
+            if stat_cards and isinstance(stat_cards, list):
+                metric_parts: list[str] = []
+                for card in stat_cards[:4]:
+                    if not isinstance(card, dict):
+                        continue
+                    label = str(card.get("label", "")).strip()
+                    value = str(card.get("value", "")).strip()
+                    if label and value:
+                        metric_parts.append(f"{label}={value}")
+                if metric_parts:
+                    parts.append(f"Key Metrics: {' | '.join(metric_parts)}")
+
+            detail_fields = page_data.get("detail_fields")
+            if detail_fields and isinstance(detail_fields, list):
+                detail_parts: list[str] = []
+                for field in detail_fields[:6]:
+                    if not isinstance(field, dict):
+                        continue
+                    label = str(field.get("label", "")).strip()
+                    value = str(field.get("value", "")).strip()
+                    if label and value:
+                        detail_parts.append(f"{label}={value}")
+                if detail_parts:
+                    parts.append(f"Visible Details: {' | '.join(detail_parts)}")
+
+            text_blocks = page_data.get("text_blocks")
+            if text_blocks and isinstance(text_blocks, list):
+                visible_texts = [
+                    str(block).strip()
+                    for block in text_blocks[:4]
+                    if isinstance(block, str) and str(block).strip()
+                ]
+                if visible_texts:
+                    parts.append("Visible Text Summary:")
+                    for idx, block in enumerate(visible_texts, start=1):
+                        parts.append(f"  [{idx}] {block}")
+
+            overlays = page_data.get("overlays")
+            if overlays and isinstance(overlays, list):
+                overlay_parts: list[str] = []
+                for overlay in overlays[:3]:
+                    if not isinstance(overlay, dict):
+                        continue
+                    overlay_type = str(overlay.get("type", "")).strip() or "overlay"
+                    title = str(overlay.get("title", "")).strip() or "Untitled"
+                    summary = str(overlay.get("summary", "")).strip()
+                    if summary:
+                        overlay_parts.append(f"{overlay_type}({title}: {summary})")
+                    else:
+                        overlay_parts.append(f"{overlay_type}({title})")
+                if overlay_parts:
+                    parts.append(f"Active Overlays: {' | '.join(overlay_parts)}")
 
             # Build guidance for form operations
             # 构建表单操作指引
@@ -296,7 +355,8 @@ class PageContextExecutor(BaseToolExecutor):
             presented_keys = {
                 "entity_name", "entity_description", "form_purpose",
                 "form_is_open", "form_fields", "available_operations",
-                "visual_state", "list_summary", "source",
+                "visual_state", "list_summary", "source", "stat_cards",
+                "detail_fields", "text_blocks", "overlays",
             }
             remaining = {k: v for k, v in page_data.items() if k not in presented_keys}
             if remaining:
@@ -328,8 +388,8 @@ class PageContextExecutor(BaseToolExecutor):
 
     async def validate(
         self,
-        definition: ToolDefinition,
-        arguments: dict[str, Any],
+        _definition: ToolDefinition,
+        _arguments: dict[str, Any],
     ) -> bool:
         """页面上下文工具不需要参数校验 / Page context tool requires no parameter validation."""
         return True

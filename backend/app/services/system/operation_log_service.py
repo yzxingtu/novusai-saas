@@ -502,7 +502,6 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         """
         from app.services.system.admin_org_authority_service import AdminOrgAuthorityService
 
-        from app.models.auth.admin_role import AdminRole
         from app.models.system.admin import Admin as AdminModel
 
         # 总是包含自己 / Always include self

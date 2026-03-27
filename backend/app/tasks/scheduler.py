@@ -14,7 +14,6 @@ import time
 from celery import __version__ as celery_version
 from celery.beat import PersistentScheduler
 from celery.schedules import crontab
-from sqlalchemy import select
 
 from app.celery_app import celery_app
 from app.core.database import sync_session_factory

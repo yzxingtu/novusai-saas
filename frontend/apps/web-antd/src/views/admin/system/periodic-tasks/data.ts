@@ -638,6 +638,7 @@ export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
         'admin_and_selected_tenants',
         'selected_tenants',
       ],
+      scopeDefaultValue: 'admin_only',
       scopeHelp: $t('admin.system.periodicTask.scopeHelp'),
       showTenantId: false,
       tenantIdsField: 'tenant_ids',

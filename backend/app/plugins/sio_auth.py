@@ -145,8 +145,8 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
                         user_id_str = uid
                         matched_scope = scope_name
                         break
-                except TokenExpiredError:
-                    raise socket_connect_refusal("token_expired")
+                except TokenExpiredError as exc:
+                    raise socket_connect_refusal("token_expired") from exc
                 except Exception:
                     continue
 
@@ -267,7 +267,7 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
                 exc,
                 exc_info=True,
             )
-            raise socket_connect_refusal("connection_failed", exc=exc)
+            raise socket_connect_refusal("connection_failed", exc=exc) from exc
         finally:
             trace_id_var.set("")
 

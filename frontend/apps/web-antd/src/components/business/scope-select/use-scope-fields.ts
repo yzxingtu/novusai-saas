@@ -24,6 +24,8 @@ export interface ScopeFieldsOptions {
   scopeHelp?: string;
   /** Whether scope field is disabled (locked during edit) / scope 字段是否禁用（编辑时锁定） */
   scopeDisabled?: ((values: Record<string, unknown>) => boolean) | boolean;
+  /** Default scope value exposed to form schema and AI page awareness / 作用域默认值，用于表单 schema 与 AI 页面感知 */
+  scopeDefaultValue?: string;
   /**
    * Whether to show "tenant" select when scope=all_tenants, default false.
    * 是否在 scope=all_tenants 时显示「所属企业」单选，默认 false。
@@ -66,6 +68,7 @@ export function useScopeFields(
     allowedScopes,
     scopeHelp,
     scopeDisabled = false,
+    scopeDefaultValue,
     showTenantId = false,
     ownerTenantWhenScopes = [],
     hideTenantIdsField = false,
@@ -87,6 +90,9 @@ export function useScopeFields(
     fieldName: scopeField,
     label: $t('common.scope.label'),
     rules: 'selectRequired',
+    ...(scopeDefaultValue === undefined
+      ? {}
+      : { defaultValue: scopeDefaultValue }),
     componentProps: {
       allowClear: false,
       class: 'w-full',

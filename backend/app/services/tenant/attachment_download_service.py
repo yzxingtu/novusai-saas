@@ -11,7 +11,7 @@ from jose import JWTError, jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.configs.service import ConfigService, PLATFORM_TENANT_ID
+from app.configs.service import ConfigService
 from app.core.base_model import utc_now
 from app.core.config import settings
 from app.core.i18n import _

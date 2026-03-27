@@ -337,7 +337,7 @@ class OpenAIAdapter(BaseAdapter):
         except Exception as e:
             self._log_upstream_error(e, endpoint_path=self._chat_endpoint_path(), model=model)
             logger.error("Chat error: model={} error={}", model, str(e))
-            raise convert_openai_error(e, provider_code="openai", model_code=model)
+            raise convert_openai_error(e, provider_code="openai", model_code=model) from e
 
     async def stream_chat(
         self,
@@ -465,7 +465,7 @@ class OpenAIAdapter(BaseAdapter):
         except Exception as e:
             self._log_upstream_error(e, endpoint_path=self._chat_endpoint_path(), model=model)
             logger.error("Stream chat error: model={} error={}", model, str(e))
-            raise convert_openai_error(e, provider_code="openai", model_code=model)
+            raise convert_openai_error(e, provider_code="openai", model_code=model) from e
 
     async def embedding(
         self,
@@ -500,7 +500,7 @@ class OpenAIAdapter(BaseAdapter):
         except Exception as e:
             self._log_upstream_error(e, endpoint_path="embeddings", model=model)
             logger.error("Embedding error: model={} error={}", model, str(e))
-            raise convert_openai_error(e, provider_code="openai", model_code=model)
+            raise convert_openai_error(e, provider_code="openai", model_code=model) from e
 
     async def list_models(self) -> list[dict]:
         """
@@ -525,7 +525,7 @@ class OpenAIAdapter(BaseAdapter):
         except Exception as e:
             self._log_upstream_error(e, endpoint_path="models", model="")
             logger.error("List models error: {}", str(e))
-            raise convert_openai_error(e, provider_code="openai", model_code="")
+            raise convert_openai_error(e, provider_code="openai", model_code="") from e
 
     def _normalize_wire_api(self, wire_api: Any) -> str:
         value = str(wire_api or "").strip().lower().replace("-", "_")
@@ -542,9 +542,7 @@ class OpenAIAdapter(BaseAdapter):
             return False
         if getattr(payload, "error", None) is not None:
             return True
-        if isinstance(payload, dict) and payload.get("error") is not None:
-            return True
-        return False
+        return isinstance(payload, dict) and payload.get("error") is not None
 
     def _payload_resembles_responses_api_body(self, payload: Any) -> bool:
         """
@@ -563,9 +561,7 @@ class OpenAIAdapter(BaseAdapter):
             return True
         if hasattr(payload, "output_text"):
             return True
-        if isinstance(payload, dict) and "output_text" in payload:
-            return True
-        return False
+        return isinstance(payload, dict) and "output_text" in payload
 
     def _should_fallback_to_responses(self, payload: Any) -> bool:
         if self._use_responses_api():
@@ -1480,7 +1476,7 @@ class OpenAIAdapter(BaseAdapter):
             raise
         except Exception as e:
             logger.error("Image generation error: model={} error={}", model, str(e))
-            raise convert_openai_error(e, provider_code="openai", model_code=model)
+            raise convert_openai_error(e, provider_code="openai", model_code=model) from e
 
     def get_supported_features(self) -> dict[str, bool]:
         """

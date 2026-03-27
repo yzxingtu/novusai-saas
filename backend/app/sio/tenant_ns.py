@@ -67,8 +67,8 @@ class TenantNamespace(PageSessionMixin, socketio.AsyncNamespace):
                 user_id_str, scope = await verify_token_with_scope(
                     token, TOKEN_SCOPE_TENANT_ADMIN, raise_on_expired=True,
                 )
-            except TokenExpiredError:
-                raise socket_connect_refusal("token_expired")
+            except TokenExpiredError as exc:
+                raise socket_connect_refusal("token_expired") from exc
 
             if not user_id_str:
                 raise socket_connect_refusal("authentication_failed")
@@ -155,7 +155,7 @@ class TenantNamespace(PageSessionMixin, socketio.AsyncNamespace):
             raise
         except Exception as exc:
             logger.error("SIO /tenant connect failed: sid={} error={}", sid, exc, exc_info=True)
-            raise socket_connect_refusal("connection_failed", exc=exc)
+            raise socket_connect_refusal("connection_failed", exc=exc) from exc
         finally:
             trace_id_var.set("")
 

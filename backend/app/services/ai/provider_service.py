@@ -192,9 +192,9 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
         self.db.add(provider)
         try:
             await self.db.flush()
-        except IntegrityError:
+        except IntegrityError as exc:
             await self.db.rollback()
-            raise ConflictException(message=_("ai.error.provider_code_exists"))
+            raise ConflictException(message=_("ai.error.provider_code_exists")) from exc
         return provider
 
     async def update_provider(

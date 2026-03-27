@@ -40,6 +40,31 @@ if TYPE_CHECKING:
         TraceLookupService,
     )
 
+__all__ = [
+    "AdminOrgAuthorityService",
+    "AdminOrgNodeService",
+    "AdminPermissionRoleService",
+    "AdminRoleService",
+    "AdminService",
+    "AdminAttachmentService",
+    "OperationLogService",
+    "create_log_async",
+    "TaskBindingService",
+    "TaskDefinitionService",
+    "LogCategoryInfo",
+    "LogContentPage",
+    "LogFileInfo",
+    "SystemLogService",
+    "TaskLogService",
+    "TaskManagerService",
+    "TaskRunService",
+    "TenantDomainService",
+    "TenantDomainTenantService",
+    "TenantService",
+    "TraceLookupResult",
+    "TraceLookupService",
+]
+
 _LAZY_EXPORTS = {
     "AdminOrgAuthorityService": "app.services.system.admin_org_authority_service",
     "AdminOrgNodeService": "app.services.system.admin_org_node_service",
@@ -64,8 +89,6 @@ _LAZY_EXPORTS = {
     "TraceLookupResult": "app.services.system.trace_lookup_service",
     "TraceLookupService": "app.services.system.trace_lookup_service",
 }
-
-__all__ = list(_LAZY_EXPORTS)
 
 
 def __getattr__(name: str):

@@ -15,9 +15,7 @@ export function collectVisualState(
   };
 }
 
-export function getPageContextHardLimitBytes(
-  configuredValue?: number,
-): number {
+export function getPageContextHardLimitBytes(configuredValue?: number): number {
   return configuredValue || DEFAULT_PAGE_CONTEXT_MAX_BYTES_FALLBACK;
 }
 
@@ -209,6 +207,93 @@ function compactFormFieldsForBudget(
   return compact;
 }
 
+function compactSemanticSnapshot(
+  pageData: Record<string, unknown>,
+  options: {
+    maxDetailFields: number;
+    maxOverlays: number;
+    maxStatCards: number;
+    maxTextBlocks: number;
+    overlaySummaryChars: number;
+    textMaxChars: number;
+  },
+): Record<string, unknown> {
+  let changed = false;
+  const nextPageData: Record<string, unknown> = { ...pageData };
+
+  const textBlocks = pageData.text_blocks;
+  if (Array.isArray(textBlocks)) {
+    nextPageData.text_blocks = textBlocks
+      .slice(0, options.maxTextBlocks)
+      .map((item) =>
+        typeof item === 'string' ? item.slice(0, options.textMaxChars) : item,
+      );
+    changed = true;
+  }
+
+  const detailFields = pageData.detail_fields;
+  if (Array.isArray(detailFields)) {
+    nextPageData.detail_fields = detailFields
+      .slice(0, options.maxDetailFields)
+      .map((item) => {
+        if (!item || typeof item !== 'object') {
+          return item;
+        }
+        const field = item as Record<string, unknown>;
+        return {
+          label:
+            typeof field.label === 'string' ? field.label.slice(0, 32) : '',
+          value:
+            typeof field.value === 'string'
+              ? field.value.slice(0, options.textMaxChars)
+              : '',
+        };
+      });
+    changed = true;
+  }
+
+  const statCards = pageData.stat_cards;
+  if (Array.isArray(statCards)) {
+    nextPageData.stat_cards = statCards
+      .slice(0, options.maxStatCards)
+      .map((item) => {
+        if (!item || typeof item !== 'object') {
+          return item;
+        }
+        const card = item as Record<string, unknown>;
+        return {
+          label: typeof card.label === 'string' ? card.label.slice(0, 28) : '',
+          value: typeof card.value === 'string' ? card.value.slice(0, 48) : '',
+        };
+      });
+    changed = true;
+  }
+
+  const overlays = pageData.overlays;
+  if (Array.isArray(overlays)) {
+    nextPageData.overlays = overlays
+      .slice(0, options.maxOverlays)
+      .map((item) => {
+        if (!item || typeof item !== 'object') {
+          return item;
+        }
+        const overlay = item as Record<string, unknown>;
+        return {
+          type: overlay.type,
+          title:
+            typeof overlay.title === 'string' ? overlay.title.slice(0, 48) : '',
+          ...(options.overlaySummaryChars > 0 &&
+          typeof overlay.summary === 'string'
+            ? { summary: overlay.summary.slice(0, options.overlaySummaryChars) }
+            : {}),
+        };
+      });
+    changed = true;
+  }
+
+  return changed ? nextPageData : pageData;
+}
+
 export function guardPageDataSize(
   pageData: Record<string, unknown>,
   maxPageDataBytes: number,
@@ -235,6 +320,38 @@ export function guardPageDataSize(
     data = { ...data, list_summary: { ...ls, sample_rows: [] } };
     size = getSerializedPageDataBytes(data);
     if (size <= maxPageDataBytes) return data;
+  }
+
+  if (
+    Array.isArray(data.text_blocks) ||
+    Array.isArray(data.detail_fields) ||
+    Array.isArray(data.stat_cards) ||
+    Array.isArray(data.overlays)
+  ) {
+    const semanticVariants = [
+      compactSemanticSnapshot(data, {
+        maxDetailFields: 8,
+        maxOverlays: 2,
+        maxStatCards: 4,
+        maxTextBlocks: 4,
+        overlaySummaryChars: 96,
+        textMaxChars: 120,
+      }),
+      compactSemanticSnapshot(data, {
+        maxDetailFields: 4,
+        maxOverlays: 1,
+        maxStatCards: 2,
+        maxTextBlocks: 2,
+        overlaySummaryChars: 0,
+        textMaxChars: 80,
+      }),
+    ];
+
+    for (const compactSemanticData of semanticVariants) {
+      data = compactSemanticData;
+      size = getSerializedPageDataBytes(data);
+      if (size <= maxPageDataBytes) return data;
+    }
   }
 
   const aops = data.available_operations;

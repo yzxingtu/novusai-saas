@@ -95,7 +95,7 @@ class AdminAttachmentController(GlobalController):
 
             权限 / Permission: attachment:upload_rules
             """
-            from app.configs.service import ConfigService, PLATFORM_TENANT_ID
+            from app.configs.service import ConfigService
             config_service = ConfigService(db)
 
             allowed = await config_service.get_platform_config(

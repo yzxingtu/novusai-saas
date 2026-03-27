@@ -537,7 +537,7 @@ const togglePageAIDetails = pageAICapability.togglePageAIDetails;
 
 async function handleSendMessage() {
   const text = inputMessage.value.trim();
-  if (!text && pendingAttachments.value.length === 0) return;
+  if (!text && pendingAttachments.value.length === 0) return false;
 
   const hasImageAttachments = pendingAttachments.value.some(
     (a) => a.type === 'image',
@@ -579,11 +579,10 @@ async function handleSendMessage() {
           pageContext,
           requiredVars: pinnedInputVariables,
         });
-        return;
+        return false;
       }
     }
-    sendMessage({ agentId: pinnedId, pageContext });
-    return;
+    return await sendMessage({ agentId: pinnedId, pageContext });
   }
 
   const forceReroute = forceRerouteNextTurn.value;
@@ -598,13 +597,11 @@ async function handleSendMessage() {
   ) {
     const explicitAgentId = manualNewConversationAgentId.value;
     manualNewConversationAgentId.value = null;
-    sendMessage({ agentId: explicitAgentId, pageContext });
-    return;
+    return await sendMessage({ agentId: explicitAgentId, pageContext });
   }
 
   if (activeConversationId.value && selectedAgentId.value && !forceReroute) {
-    sendMessage({ pageContext });
-    return;
+    return await sendMessage({ pageContext });
   }
 
   try {
@@ -654,24 +651,24 @@ async function handleSendMessage() {
           pageContext: routedPageContext,
           requiredVars: routedInputVariables,
         });
-        return;
+        return false;
       }
     }
 
     // Send message (using routed agent ID) / 发送消息（使用路由后的智能体 ID）
-    sendMessage({
+    return await sendMessage({
       agentId: result.agentId,
       pageContext: routedPageContext,
     });
   } catch (error: unknown) {
     if (selectedAgentId.value && !hasCapabilitySensitiveAttachments) {
       message.warning($t('common.globalAiChat.routeFailedFallback'));
-      sendMessage({ pageContext });
-      return;
+      return await sendMessage({ pageContext });
     }
 
     const baseMsg = getErrorMessage(error, 'common.http.internalServerError');
     message.error(`${baseMsg} ${$t('common.globalAiChat.routeFailedHint')}`);
+    return false;
   }
 }
 

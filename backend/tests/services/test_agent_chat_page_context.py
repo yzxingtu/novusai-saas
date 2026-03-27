@@ -974,6 +974,15 @@ class TestPageContextExecutorTruncation:
                 "page_title": "Portal Home",
                 "page_data": {
                     "source": "dom_snapshot",
+                    "detail_fields": [
+                        {"label": "状态", "value": "运行中"},
+                    ],
+                    "stat_cards": [
+                        {"label": "请求数", "value": "128"},
+                    ],
+                    "text_blocks": [
+                        "这是当前页面正文中的一段摘要信息。",
+                    ],
                     "available_operations": [
                         {
                             "name": "search",
@@ -999,5 +1008,8 @@ class TestPageContextExecutorTruncation:
         assert "search [readonly]" in result.output
         assert "keyword:string required" in result.output
         assert "status:string enum[active, paused]" in result.output
+        assert "Key Metrics: 请求数=128" in result.output
+        assert "Visible Details: 状态=运行中" in result.output
+        assert "Visible Text Summary:" in result.output
         assert "If the latest user turn asks for multiple page operations" in result.output
         assert "follow the latest user turn" in result.output

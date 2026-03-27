@@ -118,7 +118,6 @@ class AdminSkillPackageController(GlobalController):
             """
             from sqlalchemy import and_, select
 
-            from app.models.ai.skill import Skill
 
             stmt = select(SkillPackage).where(
                 and_(

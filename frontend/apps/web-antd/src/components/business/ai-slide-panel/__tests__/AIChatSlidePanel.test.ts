@@ -796,7 +796,8 @@ describe('aIChatSlidePanel (component mount)', () => {
       confidence: 1,
       routedBy: 'router',
     });
-    sendMessageMock.mockClear();
+    sendMessageMock.mockReset();
+    sendMessageMock.mockResolvedValue(true);
     startNewConversationMock.mockClear();
     startNewConversationMock.mockResolvedValue(undefined);
     deleteConversationMock.mockClear();
@@ -962,6 +963,37 @@ describe('aIChatSlidePanel (component mount)', () => {
       }),
     );
     expect(wrapper.emitted('messageSent')).toBeTruthy();
+
+    wrapper.unmount();
+  });
+
+  it('keeps queued pendingMessage when external send did not start', async () => {
+    selectedAgentIdValue.value = null;
+    aiPanelStore.pendingMessage = 'store queued message';
+    aiPanelStore.visible = false;
+    sendMessageMock.mockResolvedValue(false);
+
+    const wrapper = mount(AIChatSlidePanel, {
+      props: {
+        apiPrefix: '/tenant',
+        uploadUrl: '/upload',
+      },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          ChatMessageItem: true,
+        },
+      },
+    });
+
+    await flushPromises();
+
+    aiPanelStore.visible = true;
+    await flushPromises();
+
+    expect(sendMessageMock).not.toHaveBeenCalled();
+    expect(wrapper.emitted('messageSent')).toBeFalsy();
+    expect(aiPanelStore.pendingMessage).toBe('store queued message');
 
     wrapper.unmount();
   });

@@ -43,7 +43,7 @@ interface UsePanelContextBridgeOptions {
   consumePendingAgentId: () => null | number;
   ensureAgentVarsLoaded: (agentId: number) => void;
   forceRerouteNextTurn: Ref<boolean>;
-  handleSendMessage: () => Promise<void> | void;
+  handleSendMessage: () => Promise<boolean> | boolean;
   inputMessage: Ref<string>;
   loadAgents: (selectedAgentId?: number) => Promise<unknown> | unknown;
   loadConversationMessages: (
@@ -248,8 +248,10 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
 
       if (queuedMessage) {
         options.inputMessage.value = queuedMessage;
-        await options.handleSendMessage();
-        options.onMessageSent();
+        const sent = await options.handleSendMessage();
+        if (sent) {
+          options.onMessageSent();
+        }
       }
     } finally {
       applyingExternalContext.value = false;

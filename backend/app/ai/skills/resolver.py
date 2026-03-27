@@ -28,7 +28,6 @@ from app.ai.events.hooks import HookPoint, get_hook_registry
 from app.ai.tools.types import ToolDefinition, ToolParameter
 from app.core.logging import LogManager
 from app.enums.agent import SkillTypeEnum, ToolTypeEnum
-from app.enums.common import ResourceScopeEnum
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -1116,4 +1115,4 @@ async def resolve_for_agent(
     return resolve_result
 
 
-__all__ = ["SkillResolver", "SkillResolveResult", "resolve_for_agent", "_audience_allows_role"]
+__all__ = ["SkillResolver", "SkillResolveResult", "resolve_for_agent"]

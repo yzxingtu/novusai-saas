@@ -1,6 +1,0 @@
-
-> vben-admin-monorepo@5.5.9 lint E:\git_clone\novusai-saas-yudi\frontend
-> vsh lint
-
-Checking formatting...
-All matched files use Prettier code style!

@@ -8,8 +8,8 @@ treat future records consistently across streaming and non-streaming calls.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable
 
 from app.ai.types import ChatMessage
 from app.ai.utils.token_estimator import estimate_tokens

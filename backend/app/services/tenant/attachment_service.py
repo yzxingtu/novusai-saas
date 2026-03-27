@@ -386,7 +386,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         # 单文件大小：取套餐和系统配置中更严格的那个 / Per-file size: stricter of plan vs system config
         plan_limit_mb = quota_service.get_quota_value("max_file_size_mb", 0)
 
-        from app.configs.service import ConfigService, PLATFORM_TENANT_ID
+        from app.configs.service import ConfigService
         config_service = ConfigService(self.db)
         platform_limit_mb = int(
             await config_service.get_platform_config(

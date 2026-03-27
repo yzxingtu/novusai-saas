@@ -92,7 +92,7 @@ class PluginLoader:
         except yaml.YAMLError as exc:
             raise PluginManifestError(
                 message=f"Failed to parse plugin.yaml for '{plugin_name}': {exc}",
-            )
+            ) from exc
 
         if not isinstance(data, dict):
             raise PluginManifestError(
@@ -104,7 +104,7 @@ class PluginLoader:
         except Exception as exc:
             raise PluginManifestError(
                 message=f"Manifest validation failed for '{plugin_name}': {exc}",
-            )
+            ) from exc
         manifest.icon = self._resolve_plugin_metadata_icon(
             yaml_path.parent,
             manifest.icon,
@@ -195,7 +195,7 @@ class PluginLoader:
                     exc,
                     fallback_message=f"Failed to import plugin '{plugin_name}'",
                 ),
-            )
+            ) from exc
 
         # Find PluginBase subclass / 查找 PluginBase 子类
         for _name, obj in inspect.getmembers(module, inspect.isclass):

@@ -32,7 +32,7 @@ MAX_TOOLS_WITHOUT_OPTIMIZATION = 6
 MAX_TOOLS_AFTER_OPTIMIZATION = 8
 
 # Infrastructure tool whitelist: always kept, not subject to optimization / 基础设施工具白名单
-_PROTECTED_TOOL_NAMES: frozenset[str] = frozenset({
+PROTECTED_TOOL_NAMES: frozenset[str] = frozenset({
     "get_page_context",
     "invoke_page_operation",
 })
@@ -42,7 +42,7 @@ _PROTECTED_TOOL_NAMES: frozenset[str] = frozenset({
 def _is_protected_tool(name: str) -> bool:
     """Check if tool should be protected from optimization / 工具是否应被保护不被优化"""
     return (
-        name in _PROTECTED_TOOL_NAMES
+        name in PROTECTED_TOOL_NAMES
         or name.startswith("pageop_")
         or name.startswith("data_")
     )

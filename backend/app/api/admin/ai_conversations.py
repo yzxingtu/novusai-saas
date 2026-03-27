@@ -27,10 +27,6 @@ from app.rbac.decorators import (
     permission_resource,
 )
 from app.services.ai.monitoring_service import MonitoringService
-from app.repositories.ai.agent_conversation_repository import (
-    AdminAgentConversationRepository,
-)
-from app.services.ai.conversation_service import ConversationService
 
 
 def _safe_int(value) -> int:

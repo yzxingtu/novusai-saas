@@ -2,7 +2,6 @@
 企业 AI 配额配置 Service / Tenant AI Quota Service
 """
 
-from datetime import date
 from typing import Any
 
 from app.ai.quota import UsageTracker

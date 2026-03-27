@@ -8,7 +8,6 @@ upstream_owned:
   - lefthook.yml
   - turbo.json
   - vitest.config.ts
-  - vitest.workspace.ts
   - eslint.config.mjs
   - stylelint.config.mjs
   - cspell.json

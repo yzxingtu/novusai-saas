@@ -57,14 +57,14 @@ async def create_challenge(
         raise RateLimitException()
     try:
         challenge = await captcha_service.generate_challenge(data.provider_code, ctx)
-    except ValueError:
+    except ValueError as exc:
         raise BusinessException(
             message=_(ErrorCode.INVALID_PARAMETER.message_key),
             code=ErrorCode.INVALID_PARAMETER,
-        )
+        ) from exc
     except RuntimeError as exc:
         if str(exc) == "captcha_library_missing":
-            raise ServiceUnavailableException()
+            raise ServiceUnavailableException() from exc
         raise
     return success(
         data=CaptchaChallengeResponse(**challenge.model_dump()),

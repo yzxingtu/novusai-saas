@@ -27,7 +27,6 @@ try:
     _HAS_INTERVAL = True
 except ImportError:
     _HAS_INTERVAL = False
-from sqlalchemy.orm import ColumnProperty
 
 # 基础类型映射（不含参数） / Base type mapping (no params)
 _TYPE_MAP: dict[str, dict[str, Any]] = {

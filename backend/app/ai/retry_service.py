@@ -160,7 +160,7 @@ class RetryService:
                     provider_code=provider.code,
                     model_code=model,
                     original_error=e,
-                )
+                ) from e
 
         if last_error:
             raise last_error

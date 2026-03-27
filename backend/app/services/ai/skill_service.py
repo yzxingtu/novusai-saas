@@ -218,7 +218,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
         except Exception as exc:
             raise BusinessException(
                 message=_("skill.error.toolkit_parse_failed", error=str(exc)),
-            )
+            ) from exc
 
     async def get_active_skills(self) -> list[Skill]:
         """获取当前企业所有已激活的技能 / Get all active skills for current tenant."""

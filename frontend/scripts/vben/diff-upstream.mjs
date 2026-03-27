@@ -50,7 +50,6 @@ const TRACKED_TOP_LEVEL_FILES = new Set([
   'stylelint.config.mjs',
   'turbo.json',
   'vitest.config.ts',
-  'vitest.workspace.ts',
 ]);
 
 const IGNORED_DIR_NAMES = new Set([

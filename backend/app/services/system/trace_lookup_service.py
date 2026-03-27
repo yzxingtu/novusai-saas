@@ -7,7 +7,6 @@ Aggregates operation logs (DB) and plain log files by trace_id for CLI usage.
 
 from __future__ import annotations
 
-import os
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone

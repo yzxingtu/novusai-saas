@@ -10,9 +10,10 @@ Used before destructive lifecycle operations are executed.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from threading import Lock
-from typing import Any, Awaitable, Callable, Literal, TypedDict
+from typing import Any, Literal, TypedDict
 
 
 class PluginLifecycleGuardPayload(TypedDict):

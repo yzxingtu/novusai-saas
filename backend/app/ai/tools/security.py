@@ -286,8 +286,8 @@ class UrlValidator:
         """
         try:
             parsed = urlparse(url)
-        except Exception:
-            raise SSRFBlockedError(_("tool.error.invalid_url", url=url))
+        except Exception as exc:
+            raise SSRFBlockedError(_("tool.error.invalid_url", url=url)) from exc
 
         # 1. Protocol check / 协议检查
         if parsed.scheme not in _ALLOWED_SCHEMES:
@@ -328,11 +328,11 @@ class UrlValidator:
                         )
         except SSRFBlockedError:
             raise
-        except socket.gaierror:
-            raise SSRFBlockedError(_("tool.error.dns_resolve_failed", hostname=hostname))
+        except socket.gaierror as exc:
+            raise SSRFBlockedError(_("tool.error.dns_resolve_failed", hostname=hostname)) from exc
         except Exception as exc:
             logger.error("URL validation error: {}", str(exc))
-            raise SSRFBlockedError(_("tool.error.url_validation_failed", detail=str(exc)))
+            raise SSRFBlockedError(_("tool.error.url_validation_failed", detail=str(exc))) from exc
 
     @staticmethod
     def sanitize_headers_for_log(headers: dict[str, str]) -> dict[str, str]:

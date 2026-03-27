@@ -10,9 +10,10 @@ Used before plan create/update and tenant plan assignment flows.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from threading import Lock
-from typing import Any, Awaitable, Callable, Literal, TypedDict
+from typing import Any, Literal, TypedDict
 
 
 class TenantPlanPreflightPayload(TypedDict):

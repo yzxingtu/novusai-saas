@@ -20,6 +20,7 @@ const {
   connected,
   currentPageAIExecutionPolicy,
   emit,
+  formIsOpenWithFallback,
   isActiveConversationTrusted,
   openAIPanel,
   pageSessionId,
@@ -36,6 +37,7 @@ const {
     pageContextKey: 'admin.ai.agents',
   }),
   emit: vi.fn(),
+  formIsOpenWithFallback: vi.fn(),
   isActiveConversationTrusted: vi.fn(),
   openAIPanel: vi.fn(),
   pageSessionId: (require('vue') as typeof import('vue')).ref(
@@ -88,6 +90,12 @@ vi.mock('#/composables/use-ai-page-policy', () => ({
   currentPageAIExecutionPolicy,
 }));
 
+vi.mock('#/composables/use-form-state-tracker', () => ({
+  formStateTracker: {
+    isOpenWithFallback: formIsOpenWithFallback,
+  },
+}));
+
 vi.mock('#/composables/use-socketio', () => ({
   getSocketTraceId: () => 'socket-trace-1',
 }));
@@ -109,6 +117,8 @@ describe('usePageOperationChannel', () => {
     requestPageOpConfirmation.mockReset();
     requestPageOpConfirmation.mockResolvedValue(true);
     resolvePageOp.mockReset();
+    formIsOpenWithFallback.mockReset();
+    formIsOpenWithFallback.mockReturnValue(false);
     isActiveConversationTrusted.mockReset();
     isActiveConversationTrusted.mockReturnValue(false);
     unregisterHandler.mockClear();
@@ -426,6 +436,51 @@ describe('usePageOperationChannel', () => {
 
     expect(requestPageOpConfirmation).toHaveBeenCalledTimes(1);
     expect(executePageOperation).toHaveBeenCalledTimes(2);
+
+    scope.stop();
+  });
+
+  it('still requests confirmation for create_record even when a form is already open', async () => {
+    formIsOpenWithFallback.mockReturnValue(true);
+
+    const scope = effectScope();
+    scope.run(() => {
+      usePageOperationChannel();
+    });
+
+    vi.mocked(findPageOperation).mockReturnValue({
+      description: 'Open create form',
+      label: 'Create',
+      name: 'create_record',
+      readonly: false,
+    });
+    vi.mocked(listPageOperations).mockReturnValue([
+      {
+        description: 'Open create form',
+        label: 'Create',
+        name: 'create_record',
+        readonly: false,
+      },
+    ]);
+    vi.mocked(executePageOperation).mockResolvedValue({
+      success: true,
+      message: 'created',
+    });
+
+    const invokeHandler = registerHandler.mock.calls[0]?.[1] as
+      | ((data: unknown) => Promise<void>)
+      | undefined;
+
+    await invokeHandler?.({
+      invoke_id: 'open-form-create',
+      operation_name: 'create_record',
+      page_key: 'admin.ai.agents',
+      params: {},
+      requires_confirmation: false,
+    });
+
+    expect(requestPageOpConfirmation).toHaveBeenCalledTimes(1);
+    expect(executePageOperation).toHaveBeenCalledTimes(1);
 
     scope.stop();
   });

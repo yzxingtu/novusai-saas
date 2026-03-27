@@ -909,5 +909,4 @@ __all__ = [
     "run_migrations",
     "init_database",
     "close_database",
-    "Base",
 ]

@@ -12,7 +12,6 @@ from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base_model import BaseModel
-from app.enums.task import TaskStatusEnum
 
 
 class TenantTaskBinding(BaseModel):

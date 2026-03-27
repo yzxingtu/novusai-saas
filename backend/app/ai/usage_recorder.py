@@ -25,7 +25,6 @@ from app.ai.types import (
     messages_to_dicts,
 )
 from app.configs.service import PLATFORM_TENANT_ID
-from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.ai import CallStatusEnum, RequestTypeEnum
 from app.enums.log import UserTypeEnum as LogUserTypeEnum

@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.configs.service import ConfigService, PLATFORM_TENANT_ID
+from app.configs.service import ConfigService
 from app.storage import StorageConfig, StorageVisibility, storage_manager
 from app.utils.image import PRESETS, ImageProcessParams
 

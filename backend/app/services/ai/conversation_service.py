@@ -8,7 +8,7 @@ Provides conversation list, detail, search, archive, delete and export.
 import json
 import re
 from datetime import datetime, timezone
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import Mock
 
 from sqlalchemy import select
@@ -41,6 +41,11 @@ from app.repositories.ai.conversation_message_repository import (
 )
 from app.services.ai.session_memory_service import SessionMemoryService
 from app.services.tenant.attachment_download_service import AttachmentDownloadService
+
+if TYPE_CHECKING:
+    from app.repositories.tenant.tenant_admin_repository import (
+        TenantAdminRepository,
+    )
 
 logger = LogManager.get_logger("ai.conversation_service")
 _ATTACHMENT_URL_RE = re.compile(

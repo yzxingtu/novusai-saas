@@ -30,7 +30,7 @@ from app.schemas.ai.monitoring import (
     MonitoringUsageSeriesPoint,
     MonitoringUsageSummary,
 )
-from app.schemas.common.query import FilterRule, QuerySpec
+from app.schemas.common.query import QuerySpec
 from app.services.ai.conversation_service import ConversationService
 
 
