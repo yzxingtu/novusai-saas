@@ -14,8 +14,8 @@ from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.recycle_bin import register_admin_recycle_bin_routes
 from app.core.response import success
-from app.models.ai import AIModel
 from app.enums.rbac import PermissionScope
+from app.models.ai import AIModel
 from app.rbac.decorators import (
     MenuConfig,
     action_create,

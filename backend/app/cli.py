@@ -627,8 +627,9 @@ def _get_key_dir() -> Path:
 
 
 def _generate_keypair() -> tuple[str, str]:
-    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
     import base64
+
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
     pk = Ed25519PrivateKey.generate()
     priv = base64.b64encode(pk.private_bytes_raw()).decode()
@@ -1468,9 +1469,9 @@ def codegen_rollback(
 
     from filelock import FileLock, Timeout
 
-    from app.codegen.rollback import CodegenRollback
     from app.codegen.manifest import ManifestManager
     from app.codegen.migration_helper import run_rollback_migration_cleanup
+    from app.codegen.rollback import CodegenRollback
     from app.core.database import get_db_context
     from app.core.i18n import _
     from app.enums.codegen import CodegenConfigStatusEnum
@@ -2276,6 +2277,7 @@ def _check_db() -> bool:
 def _check_redis() -> bool:
     try:
         from redis import Redis
+
         from app.core.config import settings
 
         r = Redis.from_url(settings.REDIS_URL)

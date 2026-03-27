@@ -70,7 +70,6 @@ from app.ai.tools.executors.page_operation_executor import PageOperationExecutor
 from app.ai.tools.types import ExecutionContext, ToolDefinition, to_openai_tools
 from app.enums.agent import SkillTypeEnum
 
-
 # ========================================
 # PageOperationExecutor 测试
 # ========================================
@@ -885,8 +884,8 @@ class TestInvokePageOperation:
         """指定 namespace → 只向该 namespace 发送 / namespace → namespace ..."""
         import asyncio
 
-        from app.sio.page_session import _pending_invocations, invoke_page_operation
         from app.middleware.trace import trace_id_var
+        from app.sio.page_session import _pending_invocations, invoke_page_operation
 
         async def fake_emit(event, data, room=None, namespace=None):
             invoke_id = data["invoke_id"]

@@ -11,10 +11,10 @@ from app.repositories.tenant.tenant_domain_tenant_repository import (
     TenantDomainTenantRepository,
 )
 from app.repositories.tenant.tenant_org_node_repository import TenantOrgNodeRepository
-from app.repositories.tenant.tenant_plan_repository import TenantPlanRepository
 from app.repositories.tenant.tenant_permission_role_repository import (
     TenantPermissionRoleRepository,
 )
+from app.repositories.tenant.tenant_plan_repository import TenantPlanRepository
 from app.repositories.tenant.tenant_user_repository import TenantUserRepository
 from app.repositories.tenant.tenant_user_role_repository import (
     TenantUserRoleRepository,

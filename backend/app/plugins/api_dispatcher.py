@@ -42,8 +42,8 @@ from app.core.security import (
     TOKEN_SCOPE_ADMIN,
     TOKEN_SCOPE_TENANT_ADMIN,
 )
-from app.middleware.trace import normalize_trace_id, trace_id_var
 from app.exceptions.base import AppException
+from app.middleware.trace import normalize_trace_id, trace_id_var
 from app.plugins.module_loader import load_plugin_handler
 from app.plugins.runtime_gate import evaluate_plugin_runtime_gate
 from app.rbac.decorators import auth_only, public
@@ -356,7 +356,7 @@ async def _dispatch_plugin_api(
             code=5000,
             status_code=500,
             debug=build_exception_debug(exc),
-        )
+        ) from exc
 
 
 @plugin_api_router.api_route(

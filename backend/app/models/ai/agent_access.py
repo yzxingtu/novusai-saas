@@ -5,7 +5,7 @@
 Defines endpoint-internal access control for agents. One-to-one with Agent per tenant.
 """
 
-from sqlalchemy import JSON, ForeignKey, Index, Integer, String, text
+from sqlalchemy import JSON, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import TenantModel
@@ -69,10 +69,9 @@ class AgentAccess(TenantModel):
 
     # 旧版访问类型（org_node / all_users 等）；终端用户可见性已用 TenantAgentPublication
     access_type: Mapped[str] = mapped_column(
-        String(50),
+        String(20),
         nullable=False,
         default="all_users",
-        server_default=text("'all_users'"),
         comment=_("agent_access.access_type"),
     )
 

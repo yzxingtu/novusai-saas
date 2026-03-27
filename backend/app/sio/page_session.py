@@ -31,8 +31,16 @@ import socketio
 
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.core.response import build_error_event, build_error_payload, build_exception_debug
-from app.middleware.trace import extract_optional_trace_id, normalize_trace_id, trace_id_var
+from app.core.response import (
+    build_error_event,
+    build_error_payload,
+    build_exception_debug,
+)
+from app.middleware.trace import (
+    extract_optional_trace_id,
+    normalize_trace_id,
+    trace_id_var,
+)
 
 logger = LogManager.get_logger("app")
 

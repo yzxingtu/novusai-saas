@@ -32,8 +32,8 @@ from app.schemas.ai.tenant_quota import (
 )
 from app.schemas.ai.tenant_rate_limit import (
     AdminRateLimitCreate,
-    TenantRateLimitUpdate,
     TenantRateLimitResponse,
+    TenantRateLimitUpdate,
 )
 from app.services.ai.quota_diagnostics_service import AIQuotaDiagnosticsService
 from app.services.ai.tenant_quota_service import TenantQuotaService

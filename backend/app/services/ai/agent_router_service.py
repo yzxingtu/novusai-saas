@@ -16,9 +16,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
+from app.ai.routing.router import ModelRouter
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -36,7 +37,6 @@ from app.models.ai.agent_skill_grant import AgentSkillGrant
 from app.models.system.agent_assignment import SystemAgentAssignment
 from app.repositories.ai.agent_repository import _tenant_available_condition
 from app.services.ai.agent_service import AgentService
-from app.ai.routing.router import ModelRouter
 
 logger = LogManager.get_logger("ai")
 

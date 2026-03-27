@@ -500,9 +500,10 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         Returns:
             下属用户 ID 列表
         """
-        from app.services.system.admin_org_authority_service import AdminOrgAuthorityService
-
         from app.models.system.admin import Admin as AdminModel
+        from app.services.system.admin_org_authority_service import (
+            AdminOrgAuthorityService,
+        )
 
         # 总是包含自己 / Always include self
         user_ids = [admin.id]
@@ -539,9 +540,10 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         Returns:
             下属用户 ID 列表
         """
-        from app.services.tenant.tenant_org_authority_service import TenantOrgAuthorityService
-
         from app.models.tenant.tenant_admin import TenantAdmin as TenantAdminModel
+        from app.services.tenant.tenant_org_authority_service import (
+            TenantOrgAuthorityService,
+        )
 
         # 总是包含自己 / Always include self
         user_ids = [tenant_admin.id]

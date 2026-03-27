@@ -3,24 +3,34 @@
 
 测试 /tenant/permission-roles/* 接口
 """
+import contextlib
 import os
 import sys
 import time
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
-import contextlib
-
-from tests.api.base import (
-    BaseAPITest,
-    assert_error,
-    assert_equals,
-    assert_has_keys,
-    assert_success,
-    assert_tenant_login_success,
-    assert_true,
-    config,
-)
+try:
+    from tests.api.base import (  # noqa: I001
+        BaseAPITest,
+        assert_error,
+        assert_equals,
+        assert_has_keys,
+        assert_success,
+        assert_tenant_login_success,
+        assert_true,
+        config,
+    )
+except ModuleNotFoundError:
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    from tests.api.base import (  # noqa: I001
+        BaseAPITest,
+        assert_error,
+        assert_equals,
+        assert_has_keys,
+        assert_success,
+        assert_tenant_login_success,
+        assert_true,
+        config,
+    )
 
 
 class ManualTestTenantPermissionRoles(BaseAPITest):

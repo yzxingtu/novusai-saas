@@ -14,9 +14,9 @@ from app.core.base_model import utc_now
 from app.core.base_service import GlobalService
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.exceptions import BusinessException
 from app.enums.common import ResourceScopeEnum
 from app.enums.plugin import PluginStatusEnum
+from app.exceptions import BusinessException
 from app.models.system.plugin import Plugin
 from app.models.system.task_definition import TaskDefinition
 from app.repositories.system.task_definition_repository import (

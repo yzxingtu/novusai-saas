@@ -11,14 +11,13 @@ from pathlib import Path
 
 from fastapi import Body, HTTPException, Query, Request, status
 from fastapi.responses import Response, StreamingResponse
-
 from filelock import FileLock, Timeout
 
 from app.codegen.manifest import ManifestManager
 from app.codegen.migration_helper import run_rollback_migration_cleanup
 from app.codegen.rollback import CodegenRollback
-from app.core.config import settings
 from app.core.base_controller import GlobalController
+from app.core.config import settings
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.response import paginated, success
@@ -34,24 +33,24 @@ from app.rbac.decorators import (
     permission_resource,
 )
 from app.schemas.codegen import (
-    CodegenGenerateBodySchema,
     CodegenConfigCreate,
     CodegenConfigResponse,
     CodegenConfigUpdate,
-    CodegenWorkbenchItemSchema,
-    CodegenWorkbenchSummarySchema,
+    CodegenGenerateBodySchema,
     CodegenPreviewBodySchema,
     CodegenValidateBodySchema,
     CodegenVersionItemSchema,
+    CodegenWorkbenchItemSchema,
+    CodegenWorkbenchSummarySchema,
+    ColumnInfoSchema,
     ComponentInfoSchema,
     GenerateResultSchema,
     PresetInfoSchema,
     PreviewResultSchema,
     RollbackResultSchema,
-    ValidationResultSchema,
     TableInfoSchema,
-    ColumnInfoSchema,
     TypeInfoSchema,
+    ValidationResultSchema,
 )
 from app.services.system.codegen_service import CodegenService
 
@@ -603,7 +602,7 @@ class AdminCodegenController(GlobalController):
                 raise HTTPException(
                     status_code=400,
                     detail={"error": err_msg, "code": "preview_download_failed"},
-                )
+                ) from e
 
         @router.post("/generate", summary=_("codegen.api.generate"))
         @action_create("action.codegen.generate")
@@ -635,8 +634,8 @@ class AdminCodegenController(GlobalController):
             try:
                 lock = _codegen_global_lock()
                 lock.acquire(timeout=60)
-            except Timeout:
-                raise HTTPException(409, _("codegen.concurrent_operation"))
+            except Timeout as exc:
+                raise HTTPException(409, _("codegen.concurrent_operation")) from exc
 
             try:
                 output = await service.generate(
@@ -770,8 +769,8 @@ class AdminCodegenController(GlobalController):
             try:
                 lock = _codegen_global_lock()
                 lock.acquire(timeout=60)
-            except Timeout:
-                raise HTTPException(409, _("codegen.concurrent_operation"))
+            except Timeout as exc:
+                raise HTTPException(409, _("codegen.concurrent_operation")) from exc
 
             try:
                 result = await service.rollback_async(
@@ -849,8 +848,8 @@ class AdminCodegenController(GlobalController):
             try:
                 lock = _codegen_global_lock()
                 lock.acquire(timeout=60)
-            except Timeout:
-                raise HTTPException(409, _("codegen.concurrent_operation"))
+            except Timeout as exc:
+                raise HTTPException(409, _("codegen.concurrent_operation")) from exc
 
             try:
                 rb = CodegenRollback(_PROJECT_ROOT)

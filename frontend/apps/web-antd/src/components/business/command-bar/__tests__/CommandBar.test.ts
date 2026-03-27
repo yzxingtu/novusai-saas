@@ -196,6 +196,16 @@ function findButtonByText(text: string) {
   );
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 describe('commandBar', () => {
   beforeEach(() => {
     aiPanelStore = createPinnedAgentStore();
@@ -305,6 +315,69 @@ describe('commandBar', () => {
     wrapper.unmount();
   });
 
+  it('replays an @mention Enter submission after the agent list finishes loading', async () => {
+    aiPanelStore.pinnedAgentId = null;
+    aiPanelStore.pinnedAgentName = null;
+    const deferredAgents = createDeferred<{ items: Array<{
+      avatar: null;
+      description: string;
+      id: number;
+      name: string;
+      status: string;
+      suggested_questions: string[];
+      tenant_id: number;
+      welcome_message: string;
+    }> }>();
+    mocks.getChatAgentsApi.mockReturnValueOnce(deferredAgents.promise);
+
+    const wrapper = await openCommandBar();
+    const textarea = document.body.querySelector(
+      '[data-testid="cmd-input"]',
+    ) as HTMLTextAreaElement | null;
+
+    const resolvedTextarea = requireElement(
+      textarea,
+      'Expected command bar textarea for deferred mention submit test',
+    );
+    resolvedTextarea.value = '@CatAgent 帮我检查供应商';
+    resolvedTextarea.dispatchEvent(new Event('input'));
+    await flushPromises();
+
+    resolvedTextarea.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'Enter',
+        bubbles: true,
+      }),
+    );
+    await flushPromises();
+
+    expect(aiPanelStore.openWithContext).not.toHaveBeenCalled();
+
+    deferredAgents.resolve({
+      items: [
+        {
+          id: 1,
+          tenant_id: 1,
+          name: 'Cat Agent',
+          description: 'A cat assistant',
+          avatar: null,
+          status: 'active',
+          welcome_message: '你好呀，主人喵~',
+          suggested_questions: [],
+        },
+      ],
+    });
+    await flushPromises();
+    await flushPromises();
+
+    expect(aiPanelStore.openWithContext).toHaveBeenCalledWith({
+      agentId: 1,
+      message: '帮我检查供应商',
+    });
+
+    wrapper.unmount();
+  });
+
   it('renders the recent conversations section only once in starter mode', async () => {
     mocks.getGlobalConversationsApi.mockResolvedValue({
       items: [
@@ -327,6 +400,30 @@ describe('commandBar', () => {
 
     expect(document.body.textContent).toContain('最近的对话');
     expect(recentChatsCount).toBe(1);
+
+    wrapper.unmount();
+  });
+
+  it('opens from the global hotkey even when the browser reports uppercase K', async () => {
+    const wrapper = mount(CommandBar, {
+      attachTo: document.body,
+      props: {
+        apiPrefix: '/tenant',
+        canChat: true,
+        menus: [],
+      },
+    });
+
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        bubbles: true,
+        ctrlKey: true,
+        key: 'K',
+      }),
+    );
+    await flushPromises();
+
+    expect(document.body.querySelector('[data-testid="cmd-input"]')).toBeTruthy();
 
     wrapper.unmount();
   });

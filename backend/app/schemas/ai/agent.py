@@ -13,6 +13,7 @@ from app.core.base_schema import (
     TenantResponseSchema,
 )
 from app.core.i18n import _
+
 # ============================================
 # Shared field mixins / 共享字段混入
 # ============================================

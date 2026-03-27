@@ -102,7 +102,9 @@ class AdminAITablePolicyController(GlobalController):
 
             权限 / Permission: ai_table_policy:list
             """
-            from app.services.ai.table_policy_sync_service import get_declared_table_names
+            from app.services.ai.table_policy_sync_service import (
+                get_declared_table_names,
+            )
             names = list(get_declared_table_names())
             return success(
                 data=names,

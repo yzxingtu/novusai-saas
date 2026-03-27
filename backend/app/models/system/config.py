@@ -67,7 +67,7 @@ class SystemConfigGroup(BaseModel):
 
     # 作用域 / Config scope
     scope: Mapped[str] = mapped_column(
-        String(20), default=ConfigScope.ADMIN_ONLY.value, index=True,
+        String(40), default=ConfigScope.ADMIN_ONLY.value, index=True,
         comment="作用域: admin_only/all_tenants / Scope: admin_only or all_tenants",
     )
 
@@ -174,7 +174,7 @@ class SystemConfig(BaseModel):
 
     # 作用域 / Config scope
     scope: Mapped[str] = mapped_column(
-        String(20), default=ConfigScope.ADMIN_ONLY.value, index=True,
+        String(40), default=ConfigScope.ADMIN_ONLY.value, index=True,
         comment="作用域: admin_only/all_tenants / Scope: admin_only or all_tenants",
     )
 

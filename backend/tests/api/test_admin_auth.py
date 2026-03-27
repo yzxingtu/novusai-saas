@@ -6,16 +6,25 @@ import os
 import sys
 
 # 添加项目根目录到路径
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
-from tests.api.base import (
-    BaseAPITest,
-    assert_error,
-    assert_equals,
-    assert_has_keys,
-    assert_success,
-    config,
-)
+try:
+    from tests.api.base import (  # noqa: I001
+        BaseAPITest,
+        assert_error,
+        assert_equals,
+        assert_has_keys,
+        assert_success,
+        config,
+    )
+except ModuleNotFoundError:
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    from tests.api.base import (  # noqa: I001
+        BaseAPITest,
+        assert_error,
+        assert_equals,
+        assert_has_keys,
+        assert_success,
+        config,
+    )
 
 
 class ManualTestAdminAuth(BaseAPITest):

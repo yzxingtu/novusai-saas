@@ -11,9 +11,9 @@ import re
 import time
 from typing import TYPE_CHECKING, Any
 
-from app.configs.service import PLATFORM_TENANT_ID
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
+from app.configs.service import PLATFORM_TENANT_ID
 from app.core.logging import LogManager
 from app.core.response import build_public_error_text
 
@@ -131,7 +131,7 @@ class EmailToolExecutor(BaseToolExecutor):
             )
 
             # Rate limiting (per tenant per hour) / 频控（按企业/小时）
-            from app.ai.tools.security import EmailRateLimitError, EmailRateLimiter
+            from app.ai.tools.security import EmailRateLimiter, EmailRateLimitError
             try:
                 await EmailRateLimiter.check_rate(tenant_id=tenant_id)
             except EmailRateLimitError as e:

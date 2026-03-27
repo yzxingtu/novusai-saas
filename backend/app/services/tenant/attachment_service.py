@@ -20,7 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.configs.service import ConfigService, PLATFORM_TENANT_ID
+from app.configs.service import PLATFORM_TENANT_ID, ConfigService
 from app.core.base_model import utc_now
 from app.core.base_service import TenantService
 from app.core.i18n import _

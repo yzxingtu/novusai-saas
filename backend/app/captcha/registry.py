@@ -66,7 +66,7 @@ class CaptchaRegistry:
         """List registered provider codes with metadata / 列出已注册提供者及其元数据"""
         return [
             (code, self._metadata.get(code, CaptchaProviderMetadata()))
-            for code in self._providers.keys()
+            for code in self._providers
         ]
 
     def get_default(self) -> ICaptchaProvider | None:

@@ -1,8 +1,9 @@
 """Tests for _try_repair_json enhancements."""
+import asyncio
 import json
 
-from app.ai.engine.tool_processor import _try_repair_json, ToolCallProcessor
-from app.ai.tools.types import ToolResult
+from app.ai.engine.tool_processor import ToolCallProcessor, _try_repair_json
+from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage
 
 
@@ -159,3 +160,67 @@ def test_build_follow_up_message_supports_non_attachment_tools() -> None:
     assert follow_up.internal_only is True
     assert "do not call the same tool again" in (follow_up.content or "")
     assert follow_up.attachments is None
+
+
+def test_execute_tool_uses_all_tools_fallback_for_pending_confirmation_replay() -> None:
+    class _Sandbox:
+        def __init__(self) -> None:
+            self.calls: list[dict] = []
+
+        async def execute(self, **kwargs):
+            self.calls.append(kwargs)
+            return ToolResult(
+                tool_call_id=kwargs["tool_call_id"],
+                name=kwargs["name"],
+                success=True,
+                output="ok",
+            )
+
+    async def _run() -> list[dict]:
+        sandbox = _Sandbox()
+        processor = ToolCallProcessor(
+            sandbox=sandbox,  # type: ignore[arg-type]
+            tools=[ToolDefinition(name="web_search")],
+            all_tools=[
+                ToolDefinition(name="web_search"),
+                ToolDefinition(name="get_current_weather"),
+            ],
+        )
+
+        await processor.execute_tool(
+            "tc_pending",
+            "get_current_weather",
+            {"city": "上海"},
+            conversation_id=1,
+        )
+        return sandbox.calls
+
+    calls = asyncio.run(_run())
+
+    assert len(calls) == 1
+    definitions = calls[0]["definitions"]
+    assert [tool.name for tool in definitions] == [
+        "web_search",
+        "get_current_weather",
+    ]
+
+
+def test_get_skill_info_falls_back_to_all_tools_when_tool_was_optimized_out() -> None:
+    processor = ToolCallProcessor(
+        sandbox=None,  # type: ignore[arg-type]
+        tools=[ToolDefinition(name="web_search")],
+        all_tools=[
+            ToolDefinition(
+                name="get_current_weather",
+                source_skill_name="实时天气查询",
+                source_package_name="天气组件",
+            ),
+        ],
+    )
+
+    skill_info = processor.get_skill_info("get_current_weather")
+
+    assert skill_info == {
+        "skill_name": "实时天气查询",
+        "package_name": "天气组件",
+    }

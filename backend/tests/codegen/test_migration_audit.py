@@ -7,7 +7,7 @@ Codegen 迁移审计回归测试 / Migration audit regression tests.
 
 import json
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 

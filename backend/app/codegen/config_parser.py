@@ -543,15 +543,19 @@ class ConfigParser:
 
         # tree 需要 TenantModel 或 BaseModel
         model = parsed.model or {}
-        if model.get("tree") and isinstance(model["tree"], dict) and model["tree"].get("enabled"):
-            if base_class not in ("TenantModel", "BaseModel"):
-                errors.append(
-                    ValidationError(
-                        "invalid_tree_base",
-                        _("codegen.validation.tree_requires_base"),
-                        path="model.tree",
-                    )
+        if (
+            model.get("tree")
+            and isinstance(model["tree"], dict)
+            and model["tree"].get("enabled")
+            and base_class not in ("TenantModel", "BaseModel")
+        ):
+            errors.append(
+                ValidationError(
+                    "invalid_tree_base",
+                    _("codegen.validation.tree_requires_base"),
+                    path="model.tree",
                 )
+            )
 
         # 字段基本校验 / Field basic validation
         seen_names: dict[str, list[int]] = {}

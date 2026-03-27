@@ -18,15 +18,15 @@ from app.configs.service import PLATFORM_TENANT_ID
 from app.core.base_model import BaseModel
 from app.core.base_service import GlobalService, TenantService
 from app.enums.agent import ActionLevelEnum, ActionStatusEnum, ActionTypeEnum
-from app.models.ai.agent import Agent
 from app.models.ai.action_log import AIActionLog
+from app.models.ai.agent import Agent
 from app.models.system.admin import Admin
 from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_admin import TenantAdmin
 from app.models.tenant.tenant_user import TenantUser
 from app.repositories.ai.action_log_repository import (
-    AIActionLogRepository,
     AdminAIActionLogRepository,
+    AIActionLogRepository,
 )
 
 

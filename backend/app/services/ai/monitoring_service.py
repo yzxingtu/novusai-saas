@@ -5,7 +5,8 @@ AI monitoring read service / AI 监控读服务。
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone as dt_timezone
+from datetime import date, datetime, timedelta
+from datetime import timezone as dt_timezone
 from typing import Any
 
 from sqlalchemy import Date, case, cast, func, select
@@ -14,12 +15,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.configs.service import PLATFORM_TENANT_ID
 from app.enums.ai import CallStatusEnum
 from app.exceptions import NotFoundException
-from app.models.ai import AICallLog, Agent, AgentConversation, AIModel, AIProvider
+from app.models.ai import Agent, AgentConversation, AICallLog, AIModel, AIProvider
 from app.models.system.admin import Admin
 from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_admin import TenantAdmin
 from app.models.tenant.tenant_user import TenantUser
-from app.repositories.ai.agent_conversation_repository import AdminAgentConversationRepository
+from app.repositories.ai.agent_conversation_repository import (
+    AdminAgentConversationRepository,
+)
 from app.schemas.ai.monitoring import (
     MonitoringActorInfo,
     MonitoringCallTraceItem,

@@ -56,6 +56,7 @@ class TestWeatherResolver:
         assert tools[0].name == "get_current_weather"
         assert tools[0].tool_type == "toolkit"
         assert any(p.name == "city" and p.required for p in tools[0].parameters)
+        assert "凤凰县天气" in tools[0].description
 
     def test_second_tool_is_forecast(self):
         skill = SimpleNamespace(name="weather-realtime")
@@ -65,6 +66,7 @@ class TestWeatherResolver:
         param_names = {p.name for p in tools[1].parameters}
         assert "city" in param_names
         assert "days" in param_names
+        assert "未来七天天气" in tools[1].description
 
     def test_custom_timeout(self):
         skill = SimpleNamespace(name="weather-realtime")
@@ -88,6 +90,7 @@ class TestWeatherResolver:
         for tool in tools:
             city_param = next(p for p in tool.parameters if p.name == "city")
             assert city_param.required is True
+            assert "city/county/district/region/scenic area" in city_param.description
 
     def test_days_param_optional(self):
         skill = SimpleNamespace(name="weather-realtime")

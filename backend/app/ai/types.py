@@ -6,9 +6,8 @@ Cross-provider unified data structures, abstracting away API differences.
 """
 
 from dataclasses import dataclass, field
-from typing import Any
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 
 
 @dataclass

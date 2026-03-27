@@ -6,9 +6,10 @@ Plugin dependency normalization and validation helpers.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from importlib import metadata as importlib_metadata
-from typing import Any, Iterable
+from typing import Any
 
 from packaging.requirements import Requirement
 from packaging.specifiers import InvalidSpecifier, SpecifierSet

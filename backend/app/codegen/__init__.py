@@ -13,8 +13,18 @@ from app.codegen.auto_fix import (
     validate_project,
 )
 from app.codegen.config_parser import ConfigParser, ParsedConfig, ValidationError
-from app.codegen.db_introspector import ColumnInfo, DbIntrospector, FKInfo, UniqueConstraintInfo
-from app.codegen.file_writer import FileWriter, GeneratedFile, SmartAppender, WriteResult
+from app.codegen.db_introspector import (
+    ColumnInfo,
+    DbIntrospector,
+    FKInfo,
+    UniqueConstraintInfo,
+)
+from app.codegen.file_writer import (
+    FileWriter,
+    GeneratedFile,
+    SmartAppender,
+    WriteResult,
+)
 from app.codegen.generator import CodeGenerator
 from app.codegen.manifest import MANIFEST_FILENAME, ManifestEntry, ManifestManager
 from app.codegen.migration_helper import inject_migration_metadata

@@ -9,8 +9,8 @@ Uses pure ASGI instead of BaseHTTPMiddleware to avoid CancelledError cascade on 
 """
 
 import uuid
-
 from contextvars import ContextVar
+
 from starlette.datastructures import State
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 

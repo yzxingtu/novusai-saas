@@ -23,6 +23,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from socketio.exceptions import ConnectionRefusedError as SocketConnectionRefusedError
 
 from app.plugins.event_bus import PluginEventBus
 from app.plugins.registry import ExtensionRegistry
@@ -862,8 +863,9 @@ class TestSocketIONamespaceRegistry:
     """Socket.IO namespace 动态注册/反注册契约测试"""
 
     def test_register_and_unregister_socketio_namespace(self, monkeypatch):
-        import socketio
+        import socketio  # noqa: I001
 
+        # Third-party imports above, project imports below / 第三方导入在上，项目导入在下
         # 确保 app.core.socketio_server 已导入，以便 monkeypatch 能解析路径
         import app.core.socketio_server as socketio_server_module
 
@@ -921,7 +923,7 @@ class TestPluginAuthNamespaceWrapper:
             auth_scopes=["tenant_admin"],
         )
 
-        with pytest.raises(ConnectionRefusedError) as exc:
+        with pytest.raises(SocketConnectionRefusedError) as exc:
             await wrapper.on_connect("sid", {}, auth=None)
         assert exc.value.args and exc.value.args[0] == "token_required"
 
@@ -955,7 +957,7 @@ class TestPluginAuthNamespaceWrapper:
             auth_scopes=["tenant_admin"],
         )
 
-        with pytest.raises(ConnectionRefusedError) as exc:
+        with pytest.raises(SocketConnectionRefusedError) as exc:
             await wrapper.on_connect("sid", {}, auth={"token": "expired"})
         assert exc.value.args and exc.value.args[0] == "token_expired"
 
@@ -987,7 +989,7 @@ class TestPluginAuthNamespaceWrapper:
             auth_scopes=["tenant_admin"],
         )
 
-        with pytest.raises(ConnectionRefusedError) as exc:
+        with pytest.raises(SocketConnectionRefusedError) as exc:
             await wrapper.on_connect("sid", {}, auth={"token": "invalid"})
         assert exc.value.args and exc.value.args[0] == "authentication_failed"
 
@@ -1037,8 +1039,9 @@ class TestPluginAuthNamespaceWrapper:
 
     @pytest.mark.asyncio
     async def test_trigger_event_prefers_payload_trace_and_updates_session(self):
+        from unittest.mock import AsyncMock  # noqa: I001
+
         import socketio
-        from unittest.mock import AsyncMock
 
         from app.middleware.trace import trace_id_var
         from app.plugins.sio_auth import PluginAuthNamespaceWrapper

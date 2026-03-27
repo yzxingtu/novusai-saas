@@ -77,7 +77,7 @@ class KnowledgeBase(BaseModel):
     }
 
     scope: Mapped[str] = mapped_column(
-        String(32),
+        String(40),
         nullable=False,
         default=ResourceScopeEnum.ALL_TENANTS.value,
         index=True,

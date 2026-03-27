@@ -39,13 +39,30 @@ PROTECTED_TOOL_NAMES: frozenset[str] = frozenset({
 
 # Dedicated editor tools (pageop_*) and data tools (data_*) are also protected when present
 # 专用 editor tools 和 data tools 存在时同样保护
-def _is_protected_tool(name: str) -> bool:
+def _is_protected_tool(name: str, preferred_family: str | None = None) -> bool:
     """Check if tool should be protected from optimization / 工具是否应被保护不被优化"""
+    if preferred_family == "web_research" and name.startswith("data_"):
+        return False
     return (
         name in PROTECTED_TOOL_NAMES
         or name.startswith("pageop_")
         or name.startswith("data_")
     )
+
+
+def _is_explicitly_requested_tool(tool_name_lower: str, query_text: str) -> bool:
+    """Check whether the query explicitly asks for a tool or its strong alias. / 检查查询是否显式点名工具或其强别名。"""
+    if tool_name_lower in query_text or tool_name_lower.replace("_", " ") in query_text:
+        return True
+
+    alias_map = {
+        "fetch_url": ("抓取网页", "打开网页", "读取网页", "读取页面链接"),
+        "get_current_weather": ("查询天气", "今天天气", "实时天气", "当前天气"),
+        "get_weather_forecast": ("天气预报", "未来天气", "未来七天", "7天天气", "明天天气", "预报"),
+        "web_search": ("联网搜索", "上网搜索", "搜索网页", "web search"),
+    }
+    aliases = alias_map.get(tool_name_lower, ())
+    return any(alias in query_text for alias in aliases)
 
 # Chinese stopwords (high-frequency meaningless words) / 中文停用词
 _STOPWORDS_ZH = frozenset({
@@ -153,6 +170,8 @@ def _score_tool(
     query_tokens: set[str],
     query_text: str,
     used_tool_names: set[str] | None = None,
+    prefer_weather_tools: bool = False,
+    preferred_family: str | None = None,
 ) -> float:
     """
     Score a tool for relevance / 为工具打分
@@ -211,6 +230,12 @@ def _score_tool(
     if "weather" in tool_name_lower and query_tokens & _WEATHER_KEYWORDS:
         score += 8.0
 
+    if prefer_weather_tools:
+        if "weather" in tool_name_lower:
+            score += 12.0
+        elif "search" in tool_name_lower or "fetch" in tool_name_lower or "web" in tool_name_lower:
+            score -= 4.0
+
     # 4.7 Negative preference: user explicitly forbids web search / 用户明确禁止联网搜索时降低联网工具分数
     if (
         ("search" in tool_name_lower or "fetch" in tool_name_lower or "web" in tool_name_lower)
@@ -229,6 +254,12 @@ def _score_tool(
     if used_tool_names and tool.name in used_tool_names:
         score += 3.0
 
+    if preferred_family == "web_research":
+        if tool.name in {"web_search", "fetch_url"}:
+            score += 15.0
+        elif tool.name.startswith("data_"):
+            score -= 25.0
+
     # 6. Base score (ensure minimum score to avoid unstable sorting) / 基础分
     score += 0.1
 
@@ -239,6 +270,7 @@ def optimize_tools(
     tools: list[ToolDefinition],
     user_query: str,
     used_tool_names: set[str] | None = None,
+    preferred_family: str | None = None,
     max_without_optimization: int = MAX_TOOLS_WITHOUT_OPTIMIZATION,
     max_after_optimization: int = MAX_TOOLS_AFTER_OPTIMIZATION,
 ) -> OptimizeResult:
@@ -262,7 +294,7 @@ def optimize_tools(
     total = len(tools)
 
     # Tool count within threshold, skip optimization / 工具数量在阈值内，跳过优化
-    if total <= max_without_optimization:
+    if total <= max_without_optimization and not preferred_family:
         return OptimizeResult(
             tools=tools,
             total=total,
@@ -275,15 +307,12 @@ def optimize_tools(
     explicitly_requested: list[ToolDefinition] = []
     optimizable: list[ToolDefinition] = []
     for tool in tools:
-        if _is_protected_tool(tool.name):
+        if _is_protected_tool(tool.name, preferred_family=preferred_family):
             protected.append(tool)
             continue
 
         tool_name_lower = tool.name.lower()
-        if (
-            tool_name_lower in user_query.lower()
-            or tool_name_lower.replace("_", " ") in user_query.lower()
-        ):
+        if _is_explicitly_requested_tool(tool_name_lower, user_query.lower()):
             explicitly_requested.append(tool)
         else:
             optimizable.append(tool)
@@ -296,6 +325,31 @@ def optimize_tools(
 
     # Optimizable tools within budget, keep all / 可优化工具在名额内，全部保留
     if len(optimizable) <= budget:
+        if preferred_family:
+            query_text = user_query.lower()
+            query_tokens = _tokenize(user_query)
+            prefer_weather_tools = bool(query_tokens & _WEATHER_KEYWORDS) and any(
+                "weather" in tool.name.lower() for tool in tools
+            )
+            scored = []
+            for idx, tool in enumerate(optimizable):
+                score = _score_tool(
+                    tool,
+                    query_tokens,
+                    query_text,
+                    used_tool_names,
+                    prefer_weather_tools=prefer_weather_tools,
+                    preferred_family=preferred_family,
+                )
+                scored.append((score, idx, tool))
+            scored.sort(key=lambda item: (-item[0], item[1]))
+            sorted_optimizable = [item[2] for item in scored]
+            return OptimizeResult(
+                tools=protected + explicitly_requested + sorted_optimizable,
+                total=total,
+                selected=len(protected) + len(explicitly_requested) + len(sorted_optimizable),
+                skipped=False,
+            )
         return OptimizeResult(
             tools=protected + explicitly_requested + optimizable,
             total=total,
@@ -316,9 +370,19 @@ def optimize_tools(
     query_tokens = _tokenize(user_query)
 
     # Score (only optimizable tools) / 打分
+    prefer_weather_tools = bool(query_tokens & _WEATHER_KEYWORDS) and any(
+        "weather" in tool.name.lower() for tool in tools
+    )
     scored: list[tuple[float, int, ToolDefinition]] = []
     for idx, tool in enumerate(optimizable):
-        s = _score_tool(tool, query_tokens, query_text, used_tool_names)
+        s = _score_tool(
+            tool,
+            query_tokens,
+            query_text,
+            used_tool_names,
+            prefer_weather_tools=prefer_weather_tools,
+            preferred_family=preferred_family,
+        )
         scored.append((s, idx, tool))
 
     # Sort by score descending (same score keeps original order) / 按分数降序排序

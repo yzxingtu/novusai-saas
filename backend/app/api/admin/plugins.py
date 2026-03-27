@@ -202,11 +202,11 @@ class AdminPluginController(GlobalController):
             前端 pluginSlotsStore 启动时调用此接口，驱动各插槽渲染。
             Frontend pluginSlotsStore calls this endpoint on startup to drive slot rendering.
             """
-            from app.plugins.registry import ExtensionRegistry
-            from app.plugins.runtime_gate import evaluate_plugin_runtime_gate
             from app.api.shared._plugin_slot_filter import (
                 filter_grouped_plugin_slots_by_permission_codes,
             )
+            from app.plugins.registry import ExtensionRegistry
+            from app.plugins.runtime_gate import evaluate_plugin_runtime_gate
 
             registry = ExtensionRegistry.get_instance()
             grouped = registry.get_frontend_slots_grouped(scope="admin")
@@ -295,13 +295,13 @@ class AdminPluginController(GlobalController):
                 if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
                     from app.exceptions.base import ValidationException
                     raise ValidationException(message="Private/reserved IP addresses are not allowed")
-            except ValueError:
+            except ValueError as exc:
                 if hostname not in _ALLOWED_HOSTS:
                     from app.exceptions.base import ValidationException
                     raise ValidationException(
                         message=f"Host '{hostname}' is not in the allowed list. "
                                 f"Allowed: {', '.join(sorted(_ALLOWED_HOSTS))}",
-                    )
+                    ) from exc
 
             url = f"{source_url.rstrip('/')}/registry.json"
             try:
@@ -926,7 +926,9 @@ class AdminPluginController(GlobalController):
 
                 try:
                     manifest = loader.load_manifest(plugin.name)
-                    from app.plugins.frontend_contract import validate_runtime_frontend_contract
+                    from app.plugins.frontend_contract import (
+                        validate_runtime_frontend_contract,
+                    )
                     validate_runtime_frontend_contract(loader.plugins_dir / plugin.name, manifest)
                     await lifecycle._assert_plugin_runtime_enable_guards(
                         plugin,
@@ -1347,11 +1349,10 @@ class AdminPluginController(GlobalController):
         @action_read("action.plugin.read")
         async def list_backups(plugin_id: int, db: DbSession, admin: ActiveAdmin):
             """列出插件的所有备份记录 / List all backup records for the plugin"""
-            from app.plugins.backup import list_backups as _list
-
             import asyncio as _asyncio
 
             from app.exceptions.base import NotFoundException
+            from app.plugins.backup import list_backups as _list
 
             plugin = await self.get_service(db).get_by_id(plugin_id)
             if not plugin:

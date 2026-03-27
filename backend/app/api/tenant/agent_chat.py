@@ -8,6 +8,10 @@ Provides AI chat (non-streaming/streaming), conversation list, delete endpoints
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.shared._agent_chat_helpers import (
+    enrich_conversations_with_agent,
+    handle_route,
+)
 from app.core.base_controller import TenantController
 from app.core.deps import ActiveTenantAdmin, DbSession, QueryParams
 from app.core.i18n import _
@@ -27,10 +31,6 @@ from app.rbac.decorators import (
     permission_resource,
 )
 from app.rbac.services.permission_service import PermissionService
-from app.api.shared._agent_chat_helpers import (
-    enrich_conversations_with_agent,
-    handle_route,
-)
 from app.schemas.ai.agent_chat import (
     AgentChatRequest,
     AgentRouteRequest,

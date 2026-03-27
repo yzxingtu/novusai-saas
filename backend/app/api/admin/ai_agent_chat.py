@@ -8,6 +8,10 @@ for testing and support purposes.
 
 from fastapi import Request
 
+from app.api.shared._agent_chat_helpers import (
+    enrich_conversations_with_agent,
+    handle_route,
+)
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
@@ -28,10 +32,6 @@ from app.rbac.decorators import (
     permission_resource,
 )
 from app.rbac.services.permission_service import PermissionService
-from app.api.shared._agent_chat_helpers import (
-    enrich_conversations_with_agent,
-    handle_route,
-)
 from app.schemas.ai.agent_chat import (
     AgentChatRequest,
     AgentRouteRequest,

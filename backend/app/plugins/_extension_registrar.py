@@ -347,10 +347,12 @@ def register_all_extensions(
 
     # Custom Extensions — Generic custom extension points (metadata injection) / 通用自定义扩展点（元数据注入）
     for custom_ext in ext.custom:
-        if custom_ext.type == "captcha_provider":
-            if not _register_custom_captcha_provider(manifest, plugin_name, custom_ext):
-                entry_point = str((custom_ext.data or {}).get("entry_point") or custom_ext.name)
-                _record_failure(plugin_name, "custom", entry_point)
+        if (
+            custom_ext.type == "captcha_provider"
+            and not _register_custom_captcha_provider(manifest, plugin_name, custom_ext)
+        ):
+            entry_point = str((custom_ext.data or {}).get("entry_point") or custom_ext.name)
+            _record_failure(plugin_name, "custom", entry_point)
         registry.register_custom(
             plugin_name, custom_ext.type, custom_ext.name,
             data=custom_ext.data,

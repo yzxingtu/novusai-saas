@@ -16,6 +16,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.base_model import TenantModel
 from app.core.deletion import DeletionDep, DeletionStrategy
 from app.core.i18n import _
+
+
 class SkillPackage(TenantModel):
     """
     技能包模型 / Skill package model.

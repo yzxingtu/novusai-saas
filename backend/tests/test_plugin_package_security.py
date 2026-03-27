@@ -22,12 +22,12 @@ def _import_funcs():
     return extract_plugin_zip_safely, validate_plugin_zip_archive
 
 _MINIMAL_PLUGIN_YAML = (
-    "name: demo-plugin\n"
-    "version: \"1.0.0\"\n"
-    "display_name:\n"
-    "  en: Demo Plugin\n"
-    "scope: all_tenants"
-).encode("utf-8")
+    b"name: demo-plugin\n"
+    b"version: \"1.0.0\"\n"
+    b"display_name:\n"
+    b"  en: Demo Plugin\n"
+    b"scope: all_tenants"
+)
 
 
 def _build_zip(zip_path: Path, members: dict[str, bytes]) -> None:

@@ -13,6 +13,7 @@ from app.core.response import success
 from app.schemas.ai.agent_chat import AgentRouteResponse
 from app.services.ai.page_context_limits import validate_page_context_size
 
+
 async def handle_route(
     db: Any,
     *,

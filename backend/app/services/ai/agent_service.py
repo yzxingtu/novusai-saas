@@ -10,8 +10,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from app.schemas.common.query import QuerySpec
 
-from app.configs.service import PLATFORM_TENANT_ID
-from app.configs.service import ConfigService
+from app.configs.service import PLATFORM_TENANT_ID, ConfigService
 from app.core.base_model import utc_now
 from app.core.base_service import GlobalService, TenantService
 from app.core.i18n import _
@@ -31,10 +30,10 @@ from app.repositories.ai.agent_memory_override_repository import (
     AgentMemoryOverrideRepository,
 )
 from app.repositories.ai.agent_repository import AdminAgentRepository, AgentRepository
+from app.repositories.ai.agent_version_repository import AgentVersionRepository
 from app.repositories.ai.tenant_agent_publication_repository import (
     TenantAgentPublicationRepository,
 )
-from app.repositories.ai.agent_version_repository import AgentVersionRepository
 
 logger = LogManager.get_logger("ai.agent_service")
 
@@ -471,9 +470,10 @@ class AgentService(TenantService[Agent, AgentRepository]):
                 raise BusinessException(message=_("agent.error.rejected_legacy_field").format(field=rejected))
         data.pop("tenant_id", None)
         data.pop("owner_tenant_id", None)
-        if "scope" in data and data["scope"] is not None:
-            if data["scope"] not in {e.value for e in ResourceScopeEnum}:
-                raise BusinessException(message=_("agent.error.invalid_scope"))
+        if "scope" in data and data["scope"] is not None and data["scope"] not in {
+            e.value for e in ResourceScopeEnum
+        }:
+            raise BusinessException(message=_("agent.error.invalid_scope"))
         if "rag_config" in data:
             data["rag_config"] = _normalize_agent_rag_config(data.get("rag_config"))
 

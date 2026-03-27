@@ -13,7 +13,11 @@ from typing import TYPE_CHECKING
 
 from app.core.base_service import BaseService
 from app.core.logging import get_logger
-from app.exceptions.base import BusinessException, NotFoundException, ValidationException
+from app.exceptions.base import (
+    BusinessException,
+    NotFoundException,
+    ValidationException,
+)
 from app.models.system.plugin import Plugin
 from app.plugins.dependencies import (
     build_plugin_dependency_states,
@@ -124,17 +128,15 @@ class PluginService(BaseService[Plugin, PluginRepository]):
 
             if isinstance(value, int) or isinstance(value, float):
                 minimum = spec.get("minimum")
-                if isinstance(minimum, int) or isinstance(minimum, float):
-                    if value < minimum:
-                        raise ValidationException(
-                            message=f"Config '{key}' must be >= {minimum}",
-                        )
+                if (isinstance(minimum, int) or isinstance(minimum, float)) and value < minimum:
+                    raise ValidationException(
+                        message=f"Config '{key}' must be >= {minimum}",
+                    )
                 maximum = spec.get("maximum")
-                if isinstance(maximum, int) or isinstance(maximum, float):
-                    if value > maximum:
-                        raise ValidationException(
-                            message=f"Config '{key}' must be <= {maximum}",
-                        )
+                if (isinstance(maximum, int) or isinstance(maximum, float)) and value > maximum:
+                    raise ValidationException(
+                        message=f"Config '{key}' must be <= {maximum}",
+                    )
 
     # ── 安装/启停/卸载 ── / ── Install / enable-disable / uninstall ──
 

@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-
 PLUGINS_ROOT = Path(__file__).resolve().parents[2] / 'plugins'
 
 

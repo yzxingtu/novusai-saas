@@ -60,6 +60,7 @@ def _has_fk_references(table: str) -> list[tuple[str, str]]:
     """
     try:
         from sqlalchemy import text
+
         from app.core.database import sync_session_factory
         with sync_session_factory() as session:
             result = session.execute(text("""
@@ -88,6 +89,7 @@ def _drop_table_if_exists(resource: str, force_cascade: bool = False) -> bool:
         return False
     try:
         from sqlalchemy import text
+
         from app.core.database import sync_session_factory
 
         fk_refs = _has_fk_references(table)

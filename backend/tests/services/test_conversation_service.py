@@ -9,8 +9,8 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from app.ai.tools.types import ToolResult
 
+from app.ai.tools.types import ToolResult
 from tests.services.conftest import make_mock_model
 
 

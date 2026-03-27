@@ -13,7 +13,6 @@ import pytest
 from app.codegen.file_writer import FileWriter, SmartAppender, WriteResult
 from app.codegen.generator import GeneratedFile
 
-
 # ============================================================
 # FileWriter atomic_write
 # ============================================================

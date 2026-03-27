@@ -20,7 +20,6 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from app.configs.service import PLATFORM_TENANT_ID
-
 from app.core.logging import get_logger
 from app.core.response import resolve_public_error_message
 from app.enums.agent import (
@@ -500,7 +499,7 @@ class PluginContext:
                 raise PluginSecurityError(
                     message=f"SSRF blocked: plugin http_request cannot access private/reserved IP '{host}'",
                 )
-        except ValueError:
+        except ValueError as exc:
             # host is a domain name (not an IP literal) — allow it / 非 IP 字面量则视为域名放行
             # Note: DNS rebinding attacks are still possible; for stronger protection / 注意 DNS 重绑定风险
             # use an egress proxy with IP-level filtering at the network layer. / 强防护需出口代理做 IP 层过滤
@@ -508,7 +507,7 @@ class PluginContext:
             if host.lower() in blocked_domains or host.lower().endswith(".local"):
                 raise PluginSecurityError(
                     message=f"SSRF blocked: plugin http_request cannot access '{host}'",
-                )
+                ) from exc
 
     # ── AI / AI 功能 ──
 

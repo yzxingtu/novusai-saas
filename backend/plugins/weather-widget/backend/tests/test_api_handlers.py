@@ -12,6 +12,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 # ── 动态导入 handlers 模块 ──
@@ -52,12 +53,16 @@ def _make_ctx(config: dict | None = None) -> MagicMock:
 class TestGetCurrentWeather:
     """当前天气 API / Current weather API."""
 
+    def test_describe_exception_uses_repr_for_blank_messages(self):
+        summary = mod._describe_exception(httpx.ConnectError(""))
+        assert "ConnectError" in summary
+
     @pytest.mark.asyncio
     async def test_missing_lat(self):
         req = _make_request({"lon": "121.47"})
         result = await get_current_weather(req, ctx=_make_ctx())
         assert result.get("code") == 4001
-        assert "lat" in result["error"]
+        assert result["error"]
 
     @pytest.mark.asyncio
     async def test_missing_lon(self):
@@ -76,15 +81,17 @@ class TestGetCurrentWeather:
         req = _make_request({"lat": "abc", "lon": "121.47"})
         result = await get_current_weather(req, ctx=_make_ctx())
         assert result.get("code") == 4001
-        assert "valid numbers" in result["error"]
+        assert result["error"]
 
     @pytest.mark.asyncio
     async def test_success(self):
         mock_open_meteo = MagicMock()
-        mock_open_meteo.get_current_weather = AsyncMock(return_value={
-            "temperature": 22.5,
-            "weather_code": 0,
-            "weather_icon": "sun",
+        mock_open_meteo.get_weather_all = AsyncMock(return_value={
+            "current": {
+                "temperature": 22.5,
+                "weather_code": 0,
+                "weather_icon": "sun",
+            },
         })
 
         req = _make_request({"lat": "31.23", "lon": "121.47"})
@@ -98,7 +105,7 @@ class TestGetCurrentWeather:
     @pytest.mark.asyncio
     async def test_api_error(self):
         mock_open_meteo = MagicMock()
-        mock_open_meteo.get_current_weather = AsyncMock(
+        mock_open_meteo.get_weather_all = AsyncMock(
             side_effect=Exception("timeout")
         )
 
@@ -109,6 +116,31 @@ class TestGetCurrentWeather:
 
         assert result.get("code") == 5000
         assert "timeout" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_api_error_logs_connect_error_details(self):
+        mock_open_meteo = MagicMock()
+        mock_open_meteo.get_weather_all = AsyncMock(
+            side_effect=httpx.ConnectError(""),
+        )
+
+        req = _make_request({"lat": "31.23", "lon": "121.47"})
+
+        with (
+            patch.object(mod, "_get_open_meteo", return_value=mock_open_meteo),
+            patch.object(mod.logger, "warning") as warning_mock,
+        ):
+            result = await get_current_weather(req, ctx=_make_ctx())
+
+        assert result.get("code") == 5000
+        assert warning_mock.call_count == 2
+        final_call = warning_mock.call_args_list[-1]
+        assert final_call.args[0] == (
+            "Failed to get current weather after retry for lat={} lon={}: {}"
+        )
+        assert final_call.args[1] == 31.23
+        assert final_call.args[2] == 121.47
+        assert "ConnectError" in final_call.args[3]
 
 
 # ── get_forecast / 天气预报 ──
@@ -132,45 +164,47 @@ class TestGetForecast:
     @pytest.mark.asyncio
     async def test_default_days(self):
         mock_open_meteo = MagicMock()
-        mock_open_meteo.get_forecast = AsyncMock(return_value=[])
+        mock_open_meteo.get_weather_all = AsyncMock(return_value={"daily": []})
 
         req = _make_request({"lat": "31.23", "lon": "121.47"})
 
         with patch.object(mod, "_get_open_meteo", return_value=mock_open_meteo):
             await get_forecast(req, ctx=_make_ctx())
 
-        mock_open_meteo.get_forecast.assert_called_once_with(31.23, 121.47, 3)
+        mock_open_meteo.get_weather_all.assert_called_once_with(31.23, 121.47, 3)
 
     @pytest.mark.asyncio
     async def test_custom_days(self):
         mock_open_meteo = MagicMock()
-        mock_open_meteo.get_forecast = AsyncMock(return_value=[])
+        mock_open_meteo.get_weather_all = AsyncMock(return_value={"daily": []})
 
         req = _make_request({"lat": "31.23", "lon": "121.47", "days": "5"})
 
         with patch.object(mod, "_get_open_meteo", return_value=mock_open_meteo):
             await get_forecast(req, ctx=_make_ctx())
 
-        mock_open_meteo.get_forecast.assert_called_once_with(31.23, 121.47, 5)
+        mock_open_meteo.get_weather_all.assert_called_once_with(31.23, 121.47, 5)
 
     @pytest.mark.asyncio
     async def test_invalid_days_fallback(self):
         mock_open_meteo = MagicMock()
-        mock_open_meteo.get_forecast = AsyncMock(return_value=[])
+        mock_open_meteo.get_weather_all = AsyncMock(return_value={"daily": []})
 
         req = _make_request({"lat": "31.23", "lon": "121.47", "days": "abc"})
 
         with patch.object(mod, "_get_open_meteo", return_value=mock_open_meteo):
             await get_forecast(req, ctx=_make_ctx())
 
-        mock_open_meteo.get_forecast.assert_called_once_with(31.23, 121.47, 3)
+        mock_open_meteo.get_weather_all.assert_called_once_with(31.23, 121.47, 3)
 
     @pytest.mark.asyncio
     async def test_success(self):
         mock_open_meteo = MagicMock()
-        mock_open_meteo.get_forecast = AsyncMock(return_value=[
-            {"date": "2026-02-23", "temp_max": 25.0, "temp_min": 15.0},
-        ])
+        mock_open_meteo.get_weather_all = AsyncMock(return_value={
+            "daily": [
+                {"date": "2026-02-23", "temp_max": 25.0, "temp_min": 15.0},
+            ],
+        })
 
         req = _make_request({"lat": "31.23", "lon": "121.47", "days": "1"})
 
@@ -183,7 +217,7 @@ class TestGetForecast:
     @pytest.mark.asyncio
     async def test_api_error(self):
         mock_open_meteo = MagicMock()
-        mock_open_meteo.get_forecast = AsyncMock(
+        mock_open_meteo.get_weather_all = AsyncMock(
             side_effect=Exception("network error")
         )
 

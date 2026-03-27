@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
-from app.configs.service import ConfigService
 from app.captcha.runtime import resolve_public_captcha_plugin_bundle
+from app.configs.service import ConfigService
 from app.core.config import settings
 from app.core.deps import DbSession
 from app.core.i18n import _

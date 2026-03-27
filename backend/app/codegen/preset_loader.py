@@ -12,7 +12,6 @@ from typing import Any
 
 import yaml
 
-
 _DEFAULT_PRESET_META: dict[str, dict[str, Any]] = {
     "simple": {
         "label_zh": "基础 CRUD",

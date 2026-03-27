@@ -16,8 +16,8 @@ from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.response import paginated, success
-from app.models.ai import AICallLog
 from app.enums.rbac import PermissionScope
+from app.models.ai import AICallLog
 from app.models.system.admin import Admin
 from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_admin import TenantAdmin

@@ -20,7 +20,12 @@ from app.enums.attachment import AttachmentVisibility
 from app.exceptions import BusinessException, NotFoundException
 from app.models.tenant.attachment import Attachment
 from app.repositories.tenant.attachment_repository import AttachmentRepository
-from app.storage import StorageConfig, StorageVisibility, build_content_disposition, storage_manager
+from app.storage import (
+    StorageConfig,
+    StorageVisibility,
+    build_content_disposition,
+    storage_manager,
+)
 
 
 class AttachmentDownloadService:

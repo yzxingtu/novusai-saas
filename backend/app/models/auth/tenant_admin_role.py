@@ -7,7 +7,7 @@ Tenant-level roles for tenant admin permission control, supports multi-level rol
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, JSON, String, Table, Text
+from sqlalchemy import JSON, Boolean, Column, ForeignKey, Integer, String, Table, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import Base, TenantModel

@@ -5,8 +5,8 @@ from types import SimpleNamespace
 
 from app.models.auth.tenant_admin_role import TenantAdminRole
 from app.services.ai.action_log_service import (
-    AIActionLogService,
     AdminAIActionLogService,
+    AIActionLogService,
     _normalize_audit_payload,
 )
 

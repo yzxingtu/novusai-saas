@@ -16,11 +16,11 @@ from app.configs.meta import ConfigMeta
 from app.configs.registry import ConfigRegistry, config_registry
 from app.core.logging import LogManager
 from app.enums.config import ConfigScope, ConfigValueType
-from app.utils.config_html_sanitize import sanitize_config_html
 from app.models.system.config import (
     SystemConfig,
     SystemConfigValue,
 )
+from app.utils.config_html_sanitize import sanitize_config_html
 
 logger = LogManager.get_logger("app")
 

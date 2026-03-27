@@ -8,7 +8,6 @@
 from fastapi import APIRouter
 
 from app.configs.service import PLATFORM_TENANT_ID
-
 from app.core.deps import ActiveAdmin, DbSession, SuperAdmin
 from app.core.i18n import _
 from app.core.logging import LogManager

@@ -96,8 +96,10 @@ const inputRef = ref<null | {
   resizableTextArea?: { textArea: HTMLTextAreaElement };
 }>(null);
 const selectedIndex = ref(0);
+const pendingMentionSubmit = ref(false);
 
 watch(open, async (isOpen) => {
+  pendingMentionSubmit.value = false;
   if (isOpen) {
     selectedIndex.value = 0;
     editingConversationId.value = null;
@@ -114,10 +116,34 @@ watch(open, async (isOpen) => {
 
 watch(mode, () => {
   selectedIndex.value = 0;
+  if (mode.value !== 'mention') {
+    pendingMentionSubmit.value = false;
+  }
 });
 
 watch(menuSearchResults, () => {
   selectedIndex.value = 0;
+});
+
+watch([agentsLoading, filteredAgents, mode], async ([loading, agents, currentMode]) => {
+  if (
+    !pendingMentionSubmit.value ||
+    currentMode !== 'mention' ||
+    loading ||
+    agents.length === 0
+  ) {
+    return;
+  }
+
+  pendingMentionSubmit.value = false;
+  await nextTick();
+  const safeIndex = Number.isFinite(selectedIndex.value)
+    ? selectedIndex.value
+    : 0;
+  const agent = agents[safeIndex] ?? agents[0];
+  if (agent) {
+    submitMentionSelection(agent);
+  }
 });
 
 onUnmounted(() => {
@@ -145,6 +171,19 @@ const showRecentConversations = computed(
 function handleKeydown(e: KeyboardEvent) {
   if (mode.value === 'mention') {
     const list = filteredAgents.value;
+    if (list.length === 0) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        pendingMentionSubmit.value = false;
+        exitMentionMode();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        pendingMentionSubmit.value = agentsLoading.value;
+      } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+      }
+      return;
+    }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       selectedIndex.value = (selectedIndex.value + 1) % list.length;
@@ -154,12 +193,14 @@ function handleKeydown(e: KeyboardEvent) {
         (selectedIndex.value - 1 + list.length) % list.length;
     } else if (e.key === 'Enter' && list.length > 0) {
       e.preventDefault();
+      pendingMentionSubmit.value = false;
       const agent = list[selectedIndex.value];
       if (agent) {
         submitMentionSelection(agent);
       }
     } else if (e.key === 'Escape') {
       e.preventDefault();
+      pendingMentionSubmit.value = false;
       exitMentionMode();
     }
     return;
@@ -213,6 +254,7 @@ function handleMenuItemClick(item: MenuRecordRaw) {
 }
 
 function handleSubmit() {
+  pendingMentionSubmit.value = false;
   const queuedMessage = inputText.value.trim();
   if (queuedMessage) {
     aiPanelStore.queueMessage(queuedMessage);
@@ -224,6 +266,7 @@ function handleSubmit() {
 }
 
 function submitMentionSelection(agent: AgentItem) {
+  pendingMentionSubmit.value = false;
   const message = inputText.value.replace(/^@\S*\s?/, '').trim();
   if (!message) {
     selectMentionAgent(agent);

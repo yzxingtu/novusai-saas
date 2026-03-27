@@ -157,9 +157,11 @@ class LogManager:
         if enable_console:
 
             def _console_sink_filter(record: dict) -> bool:
-                if not settings.LOG_DB_TO_CONSOLE:
-                    if record["extra"].get("category") == LogCategoryEnum.DB.value:
-                        return False
+                if (
+                    not settings.LOG_DB_TO_CONSOLE
+                    and record["extra"].get("category") == LogCategoryEnum.DB.value
+                ):
+                    return False
                 if settings.LOG_QUIET_WEBSOCKET_HANDSHAKE:
                     msg = record["message"]
                     lg = record["extra"].get("log_logger") or ""

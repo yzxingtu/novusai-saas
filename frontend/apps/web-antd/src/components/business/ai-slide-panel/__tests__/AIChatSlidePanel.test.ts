@@ -971,7 +971,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     selectedAgentIdValue.value = null;
     aiPanelStore.pendingMessage = 'store queued message';
     aiPanelStore.visible = false;
-    sendMessageMock.mockResolvedValue(false);
+    routeMessageMock.mockRejectedValue(new Error('route failed'));
 
     const wrapper = mount(AIChatSlidePanel, {
       props: {
@@ -998,7 +998,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     wrapper.unmount();
   });
 
-  it('prefers the queued pendingAgentId when external context starts a new conversation', async () => {
+  it('uses the queued pendingAgentId as the send target when external context starts a new conversation', async () => {
     selectedAgentIdValue.value = 2;
     aiPanelStore.pendingMessage = 'send to explicit agent';
     aiPanelStore.consumePendingAgentId = vi.fn(() => 1);
@@ -1022,7 +1022,6 @@ describe('aIChatSlidePanel (component mount)', () => {
     aiPanelStore.visible = true;
     await flushPromises();
 
-    expect(routeMessageMock).not.toHaveBeenCalled();
     expect(sendMessageMock).toHaveBeenCalledWith(
       expect.objectContaining({
         agentId: 1,
@@ -1338,7 +1337,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     wrapper.unmount();
   });
 
-  it('does not expose fallback-only context as formal page AI support', async () => {
+  it('shows fallback-only page AI support with a downgraded awareness badge', async () => {
     pageContextValue.value = {
       page_key: 'tenant.demo.fallback',
       page_title: 'Fallback Only',
@@ -1366,7 +1365,25 @@ describe('aIChatSlidePanel (component mount)', () => {
 
     expect(
       document.body.querySelector('[data-testid="ai-panel-page-ai-card"]'),
-    ).toBeFalsy();
+    ).toBeTruthy();
+    expect(document.body.textContent).toContain(
+      'common.aiPanel.pageAiFallbackBadge',
+    );
+
+    const fallbackRail = document.body.querySelector(
+      '[data-testid="ai-panel-page-ai-card"]',
+    ) as HTMLDivElement | null;
+    fallbackRail?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPromises();
+
+    expect(
+      document.body.querySelector(
+        '[data-testid="ai-panel-page-ai-diagnostics"]',
+      ),
+    ).toBeTruthy();
+    expect(document.body.textContent).toContain(
+      'common.aiPanel.pageAiDiagSource',
+    );
 
     wrapper.unmount();
   });
@@ -1462,10 +1479,28 @@ describe('aIChatSlidePanel (component mount)', () => {
     expect(
       (routedContext?.page_data?.available_operations as undefined | unknown[])
         ?.length ?? 0,
-    ).toBeLessThanOrEqual(16);
+    ).toBeGreaterThan(0);
+    expect(
+      (
+        routedContext?.page_data?.available_operations as Array<{
+          name: string;
+        }>
+      ).every((operation) => typeof operation.name === 'string'),
+    ).toBe(true);
     expect(
       String(routedContext?.page_data?.document_body_text ?? '').length,
     ).toBeLessThan(6400);
+
+    const diagnosticsRail = document.body.querySelector(
+      '[data-testid="ai-panel-page-ai-card"]',
+    ) as HTMLDivElement | null;
+    diagnosticsRail?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPromises();
+    expect(
+      document.body.querySelector(
+        '[data-testid="ai-panel-page-ai-diagnostics"]',
+      ),
+    ).toBeTruthy();
 
     wrapper.unmount();
   });

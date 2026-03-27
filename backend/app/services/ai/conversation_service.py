@@ -452,9 +452,7 @@ class ConversationService(
             if isinstance(pending, dict):
                 if action and pending.get("action") not in (None, action):
                     return False
-                if table and pending.get("table") not in (None, table):
-                    return False
-                return True
+                return not (table and pending.get("table") not in (None, table))
             if isinstance(tool_calls, list):
                 for tc in tool_calls:
                     if not isinstance(tc, dict):
@@ -476,9 +474,7 @@ class ConversationService(
         ) -> bool:
             pending = metadata.get("pending_consent")
             if isinstance(pending, dict):
-                if tool_name and pending.get("tool_name") not in (None, tool_name):
-                    return False
-                return True
+                return not (tool_name and pending.get("tool_name") not in (None, tool_name))
             if isinstance(tool_calls, list):
                 for tc in tool_calls:
                     if not isinstance(tc, dict):

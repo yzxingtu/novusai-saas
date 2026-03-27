@@ -9,6 +9,7 @@ from typing import Any
 
 from fastapi import Query, Request, UploadFile
 
+from app.api.shared._skill_package_summary import build_skill_package_payload
 from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
@@ -26,7 +27,6 @@ from app.rbac.decorators import (
     action_update,
     permission_resource,
 )
-from app.api.shared._skill_package_summary import build_skill_package_payload
 from app.schemas.ai.skill_package import (
     SkillPackageCreate,
     SkillPackageUpdate,

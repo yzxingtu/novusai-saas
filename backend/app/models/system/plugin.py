@@ -94,7 +94,7 @@ class Plugin(BaseModel):
 
     # ── 分类与状态 ── / Category and status
     scope: Mapped[str] = mapped_column(
-        String(30), nullable=False, comment="作用域",
+        String(40), nullable=False, comment="作用域",
     )
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="installed", comment="状态",

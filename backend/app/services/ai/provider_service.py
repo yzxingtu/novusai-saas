@@ -6,7 +6,6 @@ Handles AI provider business logic.
 """
 
 import re
-
 from typing import Any
 from urllib.parse import urlparse
 
@@ -21,7 +20,6 @@ from app.schemas.ai.provider import (
     AIProviderCreate,
     AIProviderUpdate,
 )
-
 
 _ALLOWED_PROVIDER_BASE_URL_SCHEMES = {"http", "https"}
 _FORBIDDEN_OPENAI_COMPATIBLE_BASE_URL_SUFFIXES = (

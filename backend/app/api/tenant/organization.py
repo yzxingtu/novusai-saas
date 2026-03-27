@@ -281,9 +281,11 @@ class TenantOrganizationController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             await self._require_manage(db, current_admin, org_node_id)
-            if "parent_id" in data.model_fields_set:
-                if not await TenantOrgAuthorityService(db, current_admin).can_create_under_parent(data.parent_id):
-                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_("role.parent_must_be_visible"))
+            if (
+                "parent_id" in data.model_fields_set
+                and not await TenantOrgAuthorityService(db, current_admin).can_create_under_parent(data.parent_id)
+            ):
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_("role.parent_must_be_visible"))
             try:
                 org_node = await TenantOrgNodeService(db, current_admin.tenant_id).update_org_node(
                     org_node_id,

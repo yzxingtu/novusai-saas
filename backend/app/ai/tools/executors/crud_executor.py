@@ -30,6 +30,7 @@ from sqlalchemy import text
 
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ExecutionContext, ToolDefinition, ToolResult
+from app.configs.service import PLATFORM_TENANT_ID
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.core.response import build_public_error_text
@@ -40,7 +41,6 @@ from app.enums.agent import (
     AgentStatusEnum,
 )
 from app.enums.common import ResourceScopeEnum
-from app.configs.service import PLATFORM_TENANT_ID
 from app.models.ai.table_policy import AITablePolicy
 from app.repositories.system.resource_tenant_assignment_repository import (
     ResourceTenantAssignmentRepository,
@@ -242,11 +242,12 @@ def _check_rbac(
     # Derive required permission code and check / 推导所需权限码并检查
     # permissions 为空/None 时拒绝（防止越权）
     required = _derive_permission(perm_code, action)
-    if required:
-        if not context.permissions or required not in context.permissions:
-            return _("data_intelligence.crud.permission_denied").format(
-                action=action, table=policy.table_name,
-            )
+    if required and (
+        not context.permissions or required not in context.permissions
+    ):
+        return _("data_intelligence.crud.permission_denied").format(
+            action=action, table=policy.table_name,
+        )
 
     return None
 

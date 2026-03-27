@@ -114,7 +114,7 @@ def send_email_task(
         raise self.retry(
             exc=e,
             countdown=self.get_retry_countdown() * (self.request.retries + 1),
-        )
+        ) from e
 
 
 def _record_email_log(

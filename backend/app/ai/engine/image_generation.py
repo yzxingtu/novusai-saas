@@ -19,7 +19,11 @@ from app.ai.engine.types import ExecutionRequest, ExecutionResult
 from app.ai.sse import SSEChunkEncoder
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.core.response import build_error_event, build_exception_debug, build_public_error_text
+from app.core.response import (
+    build_error_event,
+    build_exception_debug,
+    build_public_error_text,
+)
 from app.middleware.trace import trace_id_var
 
 if TYPE_CHECKING:

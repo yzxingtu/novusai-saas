@@ -14,9 +14,9 @@ from zipfile import ZipFile
 
 import pytest
 
-from app.codegen.manifest import ManifestManager
 from app.codegen.file_writer import WriteResult
-from app.codegen.generator import GenerateResult, GeneratedFile
+from app.codegen.generator import GeneratedFile, GenerateResult
+from app.codegen.manifest import ManifestManager
 from app.exceptions import ConflictException
 from app.services.system.codegen_service import CodegenService, GenerateOutput
 

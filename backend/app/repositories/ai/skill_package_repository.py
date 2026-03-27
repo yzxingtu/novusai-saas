@@ -134,9 +134,7 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
         """Tenant can access own packages and shared platform packages."""
         if instance.tenant_id == tenant_id:
             return True
-        if instance.tenant_id is None:
-            return True
-        return False
+        return instance.tenant_id is None
 
     async def get_by_id(
         self, id: int, include_deleted: bool = False

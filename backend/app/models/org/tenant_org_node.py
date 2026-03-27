@@ -228,7 +228,6 @@ class TenantOrgScopePolicy(TenantModel):
         Integer,
         ForeignKey("tenant_org_nodes.id", ondelete="CASCADE"),
         unique=True,
-        index=True,
         comment="组织节点 ID",
     )
     scope_mode: Mapped[str] = mapped_column(

@@ -1,6 +1,6 @@
-import pytest
-
 from types import SimpleNamespace
+
+import pytest
 
 from app.exceptions import ValidationException
 from app.services.ai.provider_service import AIProviderService

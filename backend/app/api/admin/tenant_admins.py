@@ -238,12 +238,11 @@ class AdminTenantAdminController(GlobalController):
                     detail=_("tenant_admin.not_found"),
                 )
 
-            if data.is_active is not None:
-                if tenant_admin.is_owner and not data.is_active:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=_("tenant_admin.cannot_disable_owner"),
-                    )
+            if data.is_active is not None and tenant_admin.is_owner and not data.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=_("tenant_admin.cannot_disable_owner"),
+                )
 
             service = TenantAdminService(db, tenant_id)
             update_data = data.model_dump(

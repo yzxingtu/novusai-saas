@@ -43,7 +43,6 @@ class Capability(BaseModel):
         String(100),
         nullable=False,
         unique=True,
-        index=True,
         comment="Stable capability key / 稳定能力 Key",
     )
     display_name: Mapped[str] = mapped_column(

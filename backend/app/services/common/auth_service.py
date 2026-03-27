@@ -15,28 +15,33 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.captcha.service import captcha_service
 from app.configs.service import ConfigService
-from app.core.i18n import _
 from app.core.config import settings
+from app.core.i18n import _
+from app.core.logging import LogManager
+from app.core.redis import cache_delete, cache_get, cache_set, get_redis_client
 from app.core.security import (
     ACTIVE_TOKENS_PREFIX,
     TOKEN_SCOPE_ADMIN,
-    _decode_token_no_blacklist,
-    revoke_token,
     TOKEN_SCOPE_TENANT_ADMIN,
     TOKEN_SCOPE_TENANT_USER,
     TOKEN_TYPE_REFRESH,
+    _decode_token_no_blacklist,
     create_access_token,
     create_refresh_token,
     create_token_pair,
     get_password_hash,
+    revoke_token,
     verify_impersonate_token,
     verify_password,
     verify_token_with_scope,
 )
-from app.core.logging import LogManager
-from app.core.redis import cache_delete, cache_get, cache_set, get_redis_client
 from app.enums.common import ApprovalStatusEnum
-from app.exceptions import AuthenticationException, BusinessException, NotFoundException, ValidationException
+from app.exceptions import (
+    AuthenticationException,
+    BusinessException,
+    NotFoundException,
+    ValidationException,
+)
 from app.models import Admin, Tenant, TenantAdmin, TenantUser
 
 logger = LogManager.get_logger("auth")
@@ -1586,10 +1591,11 @@ class AuthService:
                 raise ValidationException(
                     message=e.message,
                     errors=[e.data] if e.data else None,
-                )
+                ) from e
 
         # 检查用户数配额 / Enforce user quota
         from sqlalchemy.orm import selectinload as _selectinload
+
         from app.services.tenant.quota_service import QuotaService
         tenant_for_quota = (await self.db.execute(
             select(Tenant)
@@ -1903,7 +1909,9 @@ class AuthService:
         # 通过邮件发送验证码 / Send verification code via email
         expire_minutes = self.RESET_CODE_TTL // 60
         try:
-            from app.services.common.email_templates import render_verification_code_email
+            from app.services.common.email_templates import (
+                render_verification_code_email,
+            )
             from app.tasks.email import send_email_task
 
             user_name = (user.nickname or user.username or "").strip()

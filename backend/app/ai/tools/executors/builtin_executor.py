@@ -8,6 +8,7 @@ Provides safe built-in functions (datetime, math, etc.) without external calls.
 import ast
 import json
 import operator
+import re
 import time
 from collections.abc import Callable, Coroutine
 from datetime import datetime, timezone
@@ -109,6 +110,46 @@ _NOISE_HINTS = (
 )
 
 
+def _build_builtin_follow_up_message(func_name: str, output: str) -> str | None:
+    """Provide tool-specific guidance to help the LLM stop repeating web tools. / 为内置联网工具提供收敛提示。"""
+    if not output:
+        return None
+
+    if func_name == "web_search":
+        if output.startswith("Error:"):
+            return (
+                f"{output}\n\n"
+                "The web search already failed for this exact query. "
+                "Do not call web_search again with the same query unless the user changes it. "
+                "Either answer from the evidence already in the conversation or try a different research strategy."
+            )
+        return (
+            f"{output}\n\n"
+            "You have already completed the web search for this query. "
+            "Do not call web_search again unless the user changes the query. "
+            "Answer directly from these results, or call fetch_url for specific URLs if deeper detail is needed. "
+            "If the user asked for multiple articles, multiple sources, or cross-verification, inspect enough distinct results to support a multi-source summary before the final answer."
+        )
+
+    if func_name == "fetch_url":
+        if output.startswith("Error:"):
+            return (
+                f"{output}\n\n"
+                "Fetching this URL already failed with the same arguments. "
+                "Do not call fetch_url again for the same URL unless the user explicitly asks to retry. "
+                "Either answer from earlier evidence or choose a different URL."
+            )
+        return (
+            f"{output}\n\n"
+            "You have already fetched this URL. "
+            "Do not call fetch_url again for the same URL unless the user explicitly asks to refresh it or inspect another page. "
+            "Use the fetched content above to answer directly. "
+            "If the user asked for multiple sources or cross-verification and you still have fewer than two distinct relevant pages, fetch another distinct relevant URL before the final summary."
+        )
+
+    return None
+
+
 def _normalize_text(text: str) -> str:
     """Collapse whitespace and trim text. / 折叠空白并裁剪文本。"""
     import re
@@ -197,12 +238,52 @@ def _extract_duckduckgo_results(html: str, max_results: int) -> list[dict[str, s
     return results
 
 
+def _format_search_results(query: str, results: list[dict[str, str]]) -> str:
+    """Format search results for tool output. / 格式化搜索结果输出。"""
+    lines = [f"Search results for: {query}\n"]
+    for i, item in enumerate(results, 1):
+        lines.append(f"{i}. {item['title']}")
+        lines.append(f"   URL: {item['url']}")
+        if item["snippet"]:
+            lines.append(f"   {item['snippet']}")
+        lines.append("")
+    return "\n".join(lines)
+
+
+async def _search_with_duckduckgo(query: str, max_results: int) -> tuple[list[dict[str, str]], str | None]:
+    import httpx
+
+    try:
+        timeout = httpx.Timeout(20.0, connect=10.0)
+        async with httpx.AsyncClient(
+            timeout=timeout,
+            follow_redirects=True,
+            headers=_DEFAULT_WEB_HEADERS,
+        ) as client:
+            resp = await client.post(
+                "https://html.duckduckgo.com/html/",
+                data={"q": query},
+            )
+
+        if resp.status_code >= 400:
+            return [], f"HTTP {resp.status_code}"
+        return _extract_duckduckgo_results(resp.text, max_results), None
+    except httpx.TimeoutException:
+        return [], "timeout"
+    except Exception as exc:
+        logger.warning("DuckDuckGo search failed: {}", exc)
+        return [], str(exc)
+
+
 def _remove_noise_nodes(soup: Any) -> None:
     """Drop common non-content nodes. / 删除常见非正文节点。"""
     for tag in soup(_NOISE_TAGS):
         tag.decompose()
 
     for node in soup.find_all(True):
+        if not isinstance(getattr(node, "attrs", None), dict):
+            continue
+
         if node.has_attr("hidden") or node.get("aria-hidden") == "true":
             node.decompose()
             continue
@@ -432,6 +513,10 @@ class BuiltinToolExecutor(BaseToolExecutor):
                 name=func_name,
                 success=True,
                 output=output,
+                llm_follow_up_message=_build_builtin_follow_up_message(
+                    func_name,
+                    output,
+                ),
                 duration_ms=duration_ms,
             )
 
@@ -530,7 +615,7 @@ class BuiltinToolExecutor(BaseToolExecutor):
     @staticmethod
     async def _web_search(query: str = "", max_results: int = 5) -> str:
         """
-        Web search: search web content via DuckDuckGo HTML API. / 联网搜索：通过 DuckDuckGo HTML API 搜索网页内容。
+        Web search: automatically choose a search source and return web results. / 联网搜索：自动选择搜索源并返回网页结果。
 
         Returns a list of search results (title + snippet + link).
         返回搜索结果列表（标题 + 摘要 + 链接）。
@@ -538,45 +623,33 @@ class BuiltinToolExecutor(BaseToolExecutor):
         if not query:
             return "Error: query parameter is required"
 
-        import httpx
-
         max_results = min(max(1, max_results), 10)
-        url = "https://html.duckduckgo.com/html/"
+        providers = [("duckduckgo", _search_with_duckduckgo)]
 
-        try:
-            timeout = httpx.Timeout(20.0, connect=10.0)
-            async with httpx.AsyncClient(
-                timeout=timeout,
-                follow_redirects=True,
-                headers=_DEFAULT_WEB_HEADERS,
-            ) as client:
-                resp = await client.post(url, data={"q": query})
-
-            if resp.status_code >= 400:
-                return (
-                    "Error: Search engine returned HTTP "
-                    f"{resp.status_code} for query: {query}"
+        errors: list[str] = []
+        for provider_name, provider in providers:
+            results, error = await provider(query, max_results)
+            if results:
+                logger.info(
+                    "web_search provider selected: provider={} query={}",
+                    provider_name,
+                    query[:120],
                 )
+                return _format_search_results(query, results)
+            if error:
+                errors.append(f"{provider_name}:{error}")
 
-            results = _extract_duckduckgo_results(resp.text, max_results)
+        if errors:
+            logger.warning(
+                "web_search all providers failed: query={} errors={}",
+                query[:120],
+                errors,
+            )
+            if all(err.endswith("timeout") or ":timeout" in err for err in errors):
+                return f"Error: Search timed out for query: {query}"
+            return f"No results found for: {query}"
 
-            if not results:
-                return f"No results found for: {query}"
-
-            lines = [f"Search results for: {query}\n"]
-            for i, r in enumerate(results, 1):
-                lines.append(f"{i}. {r['title']}")
-                lines.append(f"   URL: {r['url']}")
-                if r["snippet"]:
-                    lines.append(f"   {r['snippet']}")
-                lines.append("")
-            return "\n".join(lines)
-
-        except httpx.TimeoutException:
-            return f"Error: Search timed out for query: {query}"
-        except Exception as exc:
-            logger.warning("web_search failed: {}", exc)
-            return f"Error: Search failed - {exc}"
+        return f"No results found for: {query}"
 
     @staticmethod
     async def _fetch_url(url: str = "", max_length: int = 5000) -> str:

@@ -180,7 +180,7 @@ def task_provision_ssl(self: BaseTask, domain_id: int) -> dict:
                 raise self.retry(
                     exc=exc,
                     countdown=self.get_retry_countdown() * (self.request.retries + 1),
-                )
+                ) from exc
 
     loop = asyncio.new_event_loop()
     try:
@@ -450,7 +450,7 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
                 raise self.retry(
                     exc=exc,
                     countdown=self.get_retry_countdown() * (self.request.retries + 1),
-                )
+                ) from exc
 
     loop = asyncio.new_event_loop()
     try:

@@ -25,7 +25,6 @@ from app.tasks.scheduled import (
     sync_litellm_registry,
 )
 
-
 # ── _parse_bool_safe ───────────────────────────────────────────────────────
 
 

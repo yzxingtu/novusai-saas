@@ -13,11 +13,13 @@ import {
   filterPageOperationsByPolicy,
   shouldDisablePageContext,
 } from '#/utils/ai-page-capabilities';
+import { isDevErrorMode } from '#/utils/request/app-env';
 
 import {
   collectVisualState,
   getPageContextHardLimitBytes,
   getPageContextSoftLimitBytes,
+  getSerializedPageDataBytes,
   guardPageDataSize,
   truncateFormFields,
 } from './page-context-budget';
@@ -38,11 +40,24 @@ const FALLBACK_PAGE_CONTEXT_SOURCES = new Set([
   'minimal_fallback',
 ]);
 const PAGE_AI_PREVIEW_LIMIT = 4;
+const SHOW_PAGE_AI_DIAGNOSTICS = isDevErrorMode();
 
 export interface PageAIStatBadge {
   className: string;
   key: string;
   label: string;
+}
+
+export interface PageAIDiagnostics {
+  compressed: boolean;
+  fallbackOnly: boolean;
+  finalBytes: number;
+  finalOperationCount: number;
+  hardLimitBytes: number;
+  rawBytes: number;
+  rawOperationCount: number;
+  softLimitBytes: number;
+  source: string;
 }
 
 interface UsePageAICapabilityOptions {
@@ -95,18 +110,21 @@ export function usePageAICapability(options: UsePageAICapabilityOptions) {
     );
   });
 
-  function enrichPageContextWithOperations(
+  function buildEnrichedPageAIState(
     ctx: PageContextValue,
     ops: readonly PageOperation[] = [],
-  ): PageContextValue {
+  ): {
+    context: PageContextValue;
+    diagnostics: null | PageAIDiagnostics;
+  } {
     if (!ctx) {
-      return ctx;
+      return { context: ctx, diagnostics: null };
     }
     if (
       options.normalizedPageMode.value === 'disabled' ||
       shouldDisablePageContext(options.disabledCapabilities.value)
     ) {
-      return null;
+      return { context: null, diagnostics: null };
     }
 
     let liveFormFields = ctx.page_data?.form_fields;
@@ -123,7 +141,7 @@ export function usePageAICapability(options: UsePageAICapabilityOptions) {
       ...basePageData
     } = ctx.page_data ?? {};
 
-    let pageData: Record<string, unknown> = {
+    const rawPageData: Record<string, unknown> = {
       ...basePageData,
       ...(liveFormFields ? { form_fields: liveFormFields } : {}),
       visual_state: collectVisualState(
@@ -143,33 +161,61 @@ export function usePageAICapability(options: UsePageAICapabilityOptions) {
         : {}),
     };
 
-    pageData = truncateFormFields(pageData);
     const pageContextHardLimit = getPageContextHardLimitBytes(
       options.pageContextLimitBytes.value,
     );
-    pageData = guardPageDataSize(
-      pageData,
-      getPageContextSoftLimitBytes(pageContextHardLimit),
-    );
-    return { ...ctx, page_data: pageData };
+    const softLimitBytes = getPageContextSoftLimitBytes(pageContextHardLimit);
+    const rawBytes = getSerializedPageDataBytes(rawPageData);
+    const rawOperationCount = Array.isArray(rawPageData.available_operations)
+      ? rawPageData.available_operations.length
+      : 0;
+
+    let pageData = truncateFormFields(rawPageData);
+    pageData = guardPageDataSize(pageData, softLimitBytes);
+    const finalBytes = getSerializedPageDataBytes(pageData);
+    const finalOperationCount = Array.isArray(pageData.available_operations)
+      ? pageData.available_operations.length
+      : 0;
+    const diagnostics: PageAIDiagnostics = {
+      compressed:
+        rawBytes !== finalBytes ||
+        rawOperationCount !== finalOperationCount ||
+        pageData !== rawPageData,
+      fallbackOnly: isFallbackOnlyPageContext({ ...ctx, page_data: pageData }),
+      finalBytes,
+      finalOperationCount,
+      hardLimitBytes: pageContextHardLimit,
+      rawBytes,
+      rawOperationCount,
+      softLimitBytes,
+      source:
+        getPageContextSource({ ...ctx, page_data: pageData }) || 'registered',
+    };
+
+    return {
+      context: { ...ctx, page_data: pageData },
+      diagnostics,
+    };
   }
 
-  const currentPageContext = computed(() =>
-    enrichPageContextWithOperations(
-      rawPageContext.value,
-      currentPageOperations.value,
-    ),
+  const enrichedPageAIState = computed(() =>
+    buildEnrichedPageAIState(rawPageContext.value, currentPageOperations.value),
   );
 
-  const hasFormalPageAIContext = computed(
+  const currentPageContext = computed(() => enrichedPageAIState.value.context);
+
+  const pageAIDiagnostics = computed(() =>
+    SHOW_PAGE_AI_DIAGNOSTICS ? enrichedPageAIState.value.diagnostics : null,
+  );
+
+  const pageAIFallbackOnly = computed(
     () =>
-      !!rawPageContext.value &&
-      !isFallbackOnlyPageContext(rawPageContext.value),
+      !!currentPageContext.value &&
+      isFallbackOnlyPageContext(currentPageContext.value),
   );
 
   const hasPageAI = computed(
-    () =>
-      hasFormalPageAIContext.value || currentPageOperations.value.length > 0,
+    () => !!currentPageContext.value || currentPageOperations.value.length > 0,
   );
 
   const writablePageOperations = computed(() =>
@@ -207,6 +253,14 @@ export function usePageAICapability(options: UsePageAICapabilityOptions) {
   const pageAIStatBadges = computed(() => {
     const badges: PageAIStatBadge[] = [];
 
+    if (pageAIFallbackOnly.value) {
+      badges.push({
+        className: 'bg-amber-500/10 text-amber-700',
+        key: 'fallback',
+        label: $t('common.aiPanel.pageAiFallbackBadge'),
+      });
+    }
+
     if (currentPageOperations.value.length > 0) {
       badges.push({
         className: 'bg-primary/8 text-primary/80',
@@ -241,7 +295,7 @@ export function usePageAICapability(options: UsePageAICapabilityOptions) {
   });
 
   const hasExpandablePageAIDetails = computed(
-    () => currentPageOperations.value.length > 0,
+    () => currentPageOperations.value.length > 0 || !!pageAIDiagnostics.value,
   );
 
   const pageAIVisibleOperations = computed(() =>
@@ -258,6 +312,14 @@ export function usePageAICapability(options: UsePageAICapabilityOptions) {
   );
 
   const pageAISummary = computed(() => {
+    if (pageAIFallbackOnly.value) {
+      if (currentPageOperations.value.length > 0) {
+        return $t('common.aiPanel.pageAiFallbackSummaryWithOps', {
+          count: currentPageOperations.value.length,
+        });
+      }
+      return $t('common.aiPanel.pageAiFallbackSummary');
+    }
     if (currentPageOperations.value.length > 0) {
       return $t('common.aiPanel.pageAiSummary', {
         count: currentPageOperations.value.length,
@@ -306,7 +368,9 @@ export function usePageAICapability(options: UsePageAICapabilityOptions) {
     currentPageContext,
     currentPageOperations,
     pageAIOperationCount,
+    pageAIDiagnostics,
     expandAllPageAIOperations,
+    pageAIFallbackOnly,
     hasExpandablePageAIDetails,
     hasPageAI,
     pageAIDetailsExpanded,

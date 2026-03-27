@@ -11,7 +11,17 @@ import re
 from typing import Any
 
 # SQLAlchemy 类型用于 reverse_map / SQLAlchemy types for reverse_map
-from sqlalchemy import BigInteger, Boolean, Date, DateTime, Float, Integer, Numeric, String, Text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Date,
+    DateTime,
+    Float,
+    Integer,
+    Numeric,
+    String,
+    Text,
+)
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 
 try:

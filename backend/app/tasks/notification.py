@@ -112,7 +112,7 @@ def send_notification_email(
         raise self.retry(
             exc=e,
             countdown=self.get_retry_countdown() * (self.request.retries + 1),
-        )
+        ) from e
 
 
 def _record_notification_email_log(

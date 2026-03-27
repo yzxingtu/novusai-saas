@@ -8,8 +8,8 @@ Provides platform admin login, logout, token refresh endpoints.
 from fastapi import APIRouter, Request
 
 from app.core.deps import ActiveAdmin, DbSession
-from app.core.rate_limit import check_login_rate_limit
 from app.core.i18n import _
+from app.core.rate_limit import check_login_rate_limit
 from app.core.response import success
 from app.rbac.decorators import auth_only, public
 from app.schemas.common import RefreshTokenRequest, TokenResponse
@@ -160,7 +160,7 @@ async def update_profile(
         await db.rollback()
         if "unique" in str(e).lower() and "email" in str(e).lower():
             from app.exceptions import BusinessException
-            raise BusinessException(message=_("auth.email_already_exists"))
+            raise BusinessException(message=_("auth.email_already_exists")) from e
         raise
 
     await db.refresh(current_admin)

@@ -61,6 +61,7 @@ export interface UseCommandBarOptions {
 
 export function useCommandBar(options: UseCommandBarOptions) {
   const aiPanelStore = useAIPanelStore();
+  const AGENT_CACHE_TTL_MS = 60_000;
 
   // ==================== State / 状态 ====================
 
@@ -78,6 +79,7 @@ export function useCommandBar(options: UseCommandBarOptions) {
 
   /** Agent loading state / 智能体加载中 */
   const agentsLoading = ref(false);
+  const agentsLoadedAt = ref(0);
 
   /** @mention filter keyword / @mention 过滤关键词 */
   const mentionQuery = ref('');
@@ -237,7 +239,11 @@ export function useCommandBar(options: UseCommandBarOptions) {
    */
   function _handleKeydown(e: KeyboardEvent) {
     // Ctrl+K (or Cmd+K on macOS) / 打开命令面板快捷键
-    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    if (
+      (e.ctrlKey || e.metaKey) &&
+      typeof e.key === 'string' &&
+      e.key.toLowerCase() === 'k'
+    ) {
       e.preventDefault();
       e.stopPropagation();
       toggle();
@@ -265,13 +271,18 @@ export function useCommandBar(options: UseCommandBarOptions) {
   /**
    * Load agent list / 加载智能体列表
    */
-  async function loadAgents() {
-    if (agents.value.length > 0) return;
+  async function loadAgents(force = false) {
+    if (agentsLoading.value) return;
+    const isCacheFresh =
+      agents.value.length > 0 &&
+      Date.now() - agentsLoadedAt.value < AGENT_CACHE_TTL_MS;
+    if (!force && isCacheFresh) return;
     agentsLoading.value = true;
     try {
       const prefix = unref(options.apiPrefix);
       const res = await getChatAgentsApi<AgentItem>(prefix);
       agents.value = res.items;
+      agentsLoadedAt.value = Date.now();
     } catch {
       // handled by interceptor / 错误由请求拦截器处理
     } finally {
@@ -284,7 +295,8 @@ export function useCommandBar(options: UseCommandBarOptions) {
    */
   async function refreshAgents() {
     agents.value = [];
-    await loadAgents();
+    agentsLoadedAt.value = 0;
+    await loadAgents(true);
   }
 
   // ==================== 最近对话 / recent chats ====================
@@ -328,7 +340,7 @@ export function useCommandBar(options: UseCommandBarOptions) {
   function enterMentionMode() {
     mode.value = 'mention';
     mentionQuery.value = '';
-    loadAgents();
+    void loadAgents();
   }
 
   /**
@@ -414,6 +426,7 @@ export function useCommandBar(options: UseCommandBarOptions) {
     mode.value = 'input';
     mentionQuery.value = '';
     agents.value = [];
+    agentsLoadedAt.value = 0;
     agentsLoading.value = false;
   }
 

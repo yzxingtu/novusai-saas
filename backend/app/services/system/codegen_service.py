@@ -7,19 +7,19 @@ Provides codegen config business logic.
 
 import hashlib
 import json
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from app.codegen.config_parser import ConfigParser
+from app.codegen.constants import CODEGEN_PROJECT_ROOT as _PROJECT_ROOT
 from app.codegen.db_introspector import DbIntrospector
-from app.codegen.preset_loader import get_preset as load_codegen_preset
-from app.codegen.preset_loader import list_presets as list_codegen_presets
-from dataclasses import dataclass
-
 from app.codegen.file_writer import FileWriter, WriteResult
 from app.codegen.generator import CodeGenerator, GeneratedFile
 from app.codegen.manifest import ManifestEntry, ManifestManager
+from app.codegen.preset_loader import get_preset as load_codegen_preset
+from app.codegen.preset_loader import list_presets as list_codegen_presets
 from app.codegen.rollback import CodegenRollback, RollbackResult
 from app.codegen.zip_exporter import export_zip, format_code
 from app.core.base_service import GlobalService
@@ -33,8 +33,6 @@ from app.repositories.system.codegen_config_repository import (
 from app.repositories.system.codegen_config_version_repository import (
     CodegenConfigVersionRepository,
 )
-
-from app.codegen.constants import CODEGEN_PROJECT_ROOT as _PROJECT_ROOT
 
 
 @dataclass
@@ -183,6 +181,7 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         if not table_name:
             return False
         from sqlalchemy import text
+
         from app.core.database import sync_session_factory
 
         with sync_session_factory() as session:

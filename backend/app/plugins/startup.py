@@ -492,7 +492,7 @@ async def restore_enabled_plugins(
                     "Dependency validation failed: " + "; ".join(dependency_errors)
                 )
 
-            if run_heavy:
+            if run_heavy and getattr(manifest.extensions, "tasks", None):
                 # Database startup already runs `alembic upgrade heads` with plugin
                 # version_locations injected, so plugin tables are ensured before
                 # restore_enabled_plugins() executes. Avoid spawning a second
@@ -502,11 +502,10 @@ async def restore_enabled_plugins(
                 # / 为每个插件启动一次 Alembic 子进程，避免开发态/Windows 下的冗余抖动。
                 # Restore plugin task definitions so Celery Beat can still see plugin tasks after startup recovery.
                 # / 恢复插件任务定义记录，确保启动恢复后 Celery Beat 仍能看到任务。
-                if getattr(manifest.extensions, "tasks", None):
-                    await lifecycle._sync_plugin_task_definitions(
-                        plugin.name,
-                        manifest.extensions.tasks,
-                    )
+                await lifecycle._sync_plugin_task_definitions(
+                    plugin.name,
+                    manifest.extensions.tasks,
+                )
 
             # Register all extension points (shared function, used by lifecycle.enable)
             # / 注册所有扩展点

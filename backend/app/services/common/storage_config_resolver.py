@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.configs.service import ConfigService, PLATFORM_TENANT_ID
+from app.configs.service import PLATFORM_TENANT_ID, ConfigService
 from app.core.i18n import _
 from app.enums import ErrorCode
 from app.exceptions import BusinessException
@@ -105,9 +105,7 @@ def _storage_snapshot_matches_config(
     if snapshot_root_path and snapshot_root_path != config.root_path:
         return False
     snapshot_base_url = snapshot.get("base_url")
-    if snapshot_base_url and snapshot_base_url != config.base_url:
-        return False
-    return True
+    return not (snapshot_base_url and snapshot_base_url != config.base_url)
 
 
 class StorageConfigResolver:

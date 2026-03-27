@@ -288,10 +288,12 @@ class DataPermissionFilter:
 
         scope_field = getattr(model, "__data_permission_creator_scope_field__", None)
         allowed_scopes = getattr(model, "__data_permission_creator_scopes__", None)
-        if scope_field and allowed_scopes and current_scope and current_scope not in allowed_scopes:
-            return True
-
-        return False
+        return bool(
+            scope_field
+            and allowed_scopes
+            and current_scope
+            and current_scope not in allowed_scopes
+        )
 
     @staticmethod
     def _resolve_org_field(model: type):

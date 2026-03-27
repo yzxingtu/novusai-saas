@@ -140,11 +140,28 @@ class PreparedExecution:
 
     messages: list[ChatMessage] = field(default_factory=list)
     tools: list[ToolDefinition] = field(default_factory=list)
+    all_tools: list[ToolDefinition] = field(default_factory=list)
+    continuation_context: ResearchContinuationContext | None = None
     rag_sources: list[dict[str, Any]] | None = None
     tool_consent_modes: dict[str, str] = field(default_factory=dict)
     optimize_event: dict[str, Any] | None = None
     route_result: RouteResult | None = None
     stream_runtime: Any | None = None
+
+
+@dataclass
+class ResearchContinuationContext:
+    """Runtime metadata for external web research. / 外部联网研究运行时上下文。"""
+
+    active: bool = False
+    family: str | None = None
+    origin: str = "none"
+    current_user_text: str = ""
+    effective_user_query: str = ""
+    research_target_text: str = ""
+    recent_successful_tool_names: list[str] = field(default_factory=list)
+    recent_web_queries: list[str] = field(default_factory=list)
+    requires_multi_source: bool = False
 
 
 @dataclass
@@ -190,6 +207,7 @@ __all__ = [
     "ExecutionRequest",
     "ExecutionResult",
     "PreparedExecution",
+    "ResearchContinuationContext",
     "BatchItem",
     "BatchResult",
 ]

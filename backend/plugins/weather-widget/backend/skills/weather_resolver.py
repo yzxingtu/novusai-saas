@@ -22,10 +22,10 @@ def resolve(skill, config: dict) -> list[ToolDefinition]:
         ToolDefinition(
             name="get_current_weather",
             description=(
-                "Get real-time current weather for a city. "
-                "Returns temperature, weather condition, humidity, "
-                "wind speed and UV index. "
-                "Supports both Chinese and English city names."
+                "Get real-time current weather for a city, county, district, region, "
+                "or scenic area. Use this for requests like '怀化市天气', '凤凰县天气', "
+                "'今天怀化天气怎么样'. Returns temperature, weather condition, humidity, "
+                "wind speed and UV index. Supports both Chinese and English place names."
             ),
             tool_type="toolkit",
             parameters=[
@@ -33,8 +33,8 @@ def resolve(skill, config: dict) -> list[ToolDefinition]:
                     name="city",
                     type="string",
                     description=(
-                        "City name, supports Chinese and English "
-                        "(e.g. 'Shanghai', '上海', 'Beijing', 'Tokyo')"
+                        "Place name, supports city/county/district/region/scenic area "
+                        "in Chinese or English (e.g. 'Shanghai', '上海', '怀化市', '凤凰县', 'Tokyo')"
                     ),
                     required=True,
                 ),
@@ -46,8 +46,9 @@ def resolve(skill, config: dict) -> list[ToolDefinition]:
         ToolDefinition(
             name="get_weather_forecast",
             description=(
-                "Get multi-day weather forecast for a city. "
-                "Returns daily high/low temperature and weather condition. "
+                "Get multi-day weather forecast for a city, county, district, region, "
+                "or scenic area. Use this for requests like '凤凰县未来七天天气' or "
+                "'怀化市明天天气'. Returns daily high/low temperature and weather condition. "
                 "Supports 1-7 days forecast."
             ),
             tool_type="toolkit",
@@ -56,8 +57,8 @@ def resolve(skill, config: dict) -> list[ToolDefinition]:
                     name="city",
                     type="string",
                     description=(
-                        "City name, supports Chinese and English "
-                        "(e.g. 'Shanghai', '上海', 'Beijing', 'Tokyo')"
+                        "Place name, supports city/county/district/region/scenic area "
+                        "in Chinese or English (e.g. 'Shanghai', '上海', '怀化市', '凤凰县', 'Tokyo')"
                     ),
                     required=True,
                 ),

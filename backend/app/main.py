@@ -17,7 +17,11 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import settings
-from app.core.database import close_database, get_last_db_init_failure_reason, init_database
+from app.core.database import (
+    close_database,
+    get_last_db_init_failure_reason,
+    init_database,
+)
 from app.core.i18n import _, reload_translations
 from app.core.logging import get_logger, init_logging
 from app.core.response import build_exception_debug, error, validation_error

@@ -11,7 +11,9 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from app.services.system.admin_org_authority_service import AdminOrgAuthorityService
     from app.services.system.admin_org_node_service import AdminOrgNodeService
-    from app.services.system.admin_permission_role_service import AdminPermissionRoleService
+    from app.services.system.admin_permission_role_service import (
+        AdminPermissionRoleService,
+    )
     from app.services.system.admin_role_service import AdminRoleService
     from app.services.system.admin_service import AdminService
     from app.services.system.attachment_service import AdminAttachmentService
@@ -19,14 +21,14 @@ if TYPE_CHECKING:
         OperationLogService,
         create_log_async,
     )
-    from app.services.system.task_binding_service import TaskBindingService
-    from app.services.system.task_definition_service import TaskDefinitionService
     from app.services.system.system_log_service import (
         LogCategoryInfo,
         LogContentPage,
         LogFileInfo,
         SystemLogService,
     )
+    from app.services.system.task_binding_service import TaskBindingService
+    from app.services.system.task_definition_service import TaskDefinitionService
     from app.services.system.task_log_service import TaskLogService
     from app.services.system.task_manager_service import TaskManagerService
     from app.services.system.task_run_service import TaskRunService

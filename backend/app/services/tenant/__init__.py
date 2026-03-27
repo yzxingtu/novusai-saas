@@ -14,10 +14,10 @@ from app.services.tenant.quota_service import QuotaCheckResult, QuotaService
 from app.services.tenant.tenant_admin_service import TenantAdminService
 from app.services.tenant.tenant_org_authority_service import TenantOrgAuthorityService
 from app.services.tenant.tenant_org_node_service import TenantOrgNodeService
-from app.services.tenant.tenant_plan_service import TenantPlanService
 from app.services.tenant.tenant_permission_role_service import (
     TenantPermissionRoleService,
 )
+from app.services.tenant.tenant_plan_service import TenantPlanService
 from app.services.tenant.tenant_user_service import TenantUserService
 
 __all__ = [

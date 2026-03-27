@@ -7,7 +7,7 @@ Records all AI call requests and responses for metering, billing and monitoring.
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, JSON, ForeignKey, Index, Integer, Numeric, String, Text
+from sqlalchemy import JSON, Boolean, ForeignKey, Index, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base_model import TenantModel

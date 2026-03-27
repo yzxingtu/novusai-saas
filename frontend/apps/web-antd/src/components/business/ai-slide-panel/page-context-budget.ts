@@ -58,52 +58,7 @@ export function compactAvailableOperations(
     maxParamsPerOp: number;
   },
 ): unknown[] {
-  const operationPriority: Record<string, number> = {
-    create_record: 0,
-    edit_record: 1,
-    fill_form: 2,
-    submit_form: 3,
-    get_form_state: 4,
-    validate_form: 5,
-    delete_record: 6,
-    search: 7,
-    read_visible_rows: 8,
-    capture_screenshot: 9,
-    read_current_view: 10,
-    read_current_sections: 11,
-  };
-  const normalizedOperations = operations.filter(Boolean);
-  const writableOperations = normalizedOperations.filter(
-    (operation) =>
-      typeof operation === 'object' &&
-      operation !== null &&
-      (operation as Record<string, unknown>).readonly === false,
-  );
-  const readonlyOperations = normalizedOperations.filter(
-    (operation) =>
-      !(
-        typeof operation === 'object' &&
-        operation !== null &&
-        (operation as Record<string, unknown>).readonly === false
-      ),
-  );
-  const prioritizedOperations = [...writableOperations, ...readonlyOperations]
-    .map((operation, index) => ({
-      index,
-      operation,
-      priority:
-        typeof operation === 'object' && operation !== null
-          ? (operationPriority[
-              String((operation as Record<string, unknown>).name || '')
-            ] ?? 1000)
-          : 1000,
-    }))
-    .toSorted((left, right) =>
-      left.priority === right.priority
-        ? left.index - right.index
-        : left.priority - right.priority,
-    )
-    .map((item) => item.operation);
+  const prioritizedOperations = getPrioritizedOperations(operations);
 
   return prioritizedOperations.slice(0, options.maxOps).map((operation) => {
     if (!operation || typeof operation !== 'object') {
@@ -158,6 +113,74 @@ export function compactAvailableOperations(
 
     return compact;
   });
+}
+
+function getPrioritizedOperations(operations: unknown[]): unknown[] {
+  const operationPriority: Record<string, number> = {
+    create_record: 0,
+    edit_record: 1,
+    fill_form: 2,
+    submit_form: 3,
+    get_form_state: 4,
+    validate_form: 5,
+    delete_record: 6,
+    search: 7,
+    read_visible_rows: 8,
+    capture_screenshot: 9,
+    read_current_view: 10,
+    read_current_sections: 11,
+  };
+  const normalizedOperations = operations.filter(Boolean);
+  const writableOperations = normalizedOperations.filter(
+    (operation) =>
+      typeof operation === 'object' &&
+      operation !== null &&
+      (operation as Record<string, unknown>).readonly === false,
+  );
+  const readonlyOperations = normalizedOperations.filter(
+    (operation) =>
+      !(
+        typeof operation === 'object' &&
+        operation !== null &&
+        (operation as Record<string, unknown>).readonly === false
+      ),
+  );
+  return [...writableOperations, ...readonlyOperations]
+    .map((operation, index) => ({
+      index,
+      operation,
+      priority:
+        typeof operation === 'object' && operation !== null
+          ? (operationPriority[
+              String((operation as Record<string, unknown>).name || '')
+            ] ?? 1000)
+          : 1000,
+    }))
+    .toSorted((left, right) =>
+      left.priority === right.priority
+        ? left.index - right.index
+        : left.priority - right.priority,
+    )
+    .map((item) => item.operation);
+}
+
+function compactEssentialAvailableOperations(
+  operations: unknown[],
+  maxOps: number,
+): unknown[] {
+  return getPrioritizedOperations(operations)
+    .slice(0, maxOps)
+    .map((item) => {
+      if (!item || typeof item !== 'object') {
+        return item;
+      }
+
+      const operation = item as Record<string, unknown>;
+      return {
+        name: operation.name,
+        readonly: operation.readonly,
+      };
+    });
 }
 
 function compactFormFieldsForBudget(
@@ -375,6 +398,9 @@ export function guardPageDataSize(
         maxOps: 8,
         maxParamsPerOp: 0,
       }),
+      compactEssentialAvailableOperations(aops, 6),
+      compactEssentialAvailableOperations(aops, 4),
+      compactEssentialAvailableOperations(aops, 2),
     ];
 
     for (const compactOperations of operationVariants) {
@@ -385,11 +411,6 @@ export function guardPageDataSize(
       size = getSerializedPageDataBytes(data);
       if (size <= maxPageDataBytes) return data;
     }
-
-    const { available_operations: _ao, ...rest } = data;
-    data = rest;
-    size = getSerializedPageDataBytes(data);
-    if (size <= maxPageDataBytes) return data;
   }
 
   const body = data.document_body_text;
@@ -440,6 +461,17 @@ export function guardPageDataSize(
 
     const { form_fields: _ff, ...rest } = data;
     data = rest;
+  }
+
+  if (Array.isArray(aops) && aops.length > 0) {
+    for (const maxOps of [2, 1]) {
+      data = {
+        ...data,
+        available_operations: compactEssentialAvailableOperations(aops, maxOps),
+      };
+      size = getSerializedPageDataBytes(data);
+      if (size <= maxPageDataBytes) return data;
+    }
   }
 
   return data;

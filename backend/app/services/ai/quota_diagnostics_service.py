@@ -5,7 +5,7 @@ AI 配额诊断 Service / AI quota diagnostics service
 from __future__ import annotations
 
 from app.ai.quota import QuotaExceeded, UsageTracker
-from app.ai.rate_limiter import RateLimitExceeded, RateLimiter
+from app.ai.rate_limiter import RateLimiter, RateLimitExceeded
 from app.core.base_schema import PageResponse
 from app.core.i18n import _
 from app.core.query_parser import QuerySpec
@@ -19,9 +19,9 @@ from app.repositories.ai.tenant_rate_limit_repository import (
     TenantModelRateLimitRepository,
 )
 from app.schemas.ai.quota_diagnostics import (
-    AIQuotaDiagnosticsSummary,
     AdminQuotaDiagnosticItem,
     AdminRateLimitDiagnosticItem,
+    AIQuotaDiagnosticsSummary,
 )
 from app.services.ai.tenant_rate_limit_service import TenantRateLimitService
 

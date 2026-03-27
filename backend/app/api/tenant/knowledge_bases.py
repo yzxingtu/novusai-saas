@@ -14,7 +14,13 @@ from app.core.base_controller import TenantController
 from app.core.deps import ActiveTenantAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.recycle_bin import register_tenant_recycle_bin_routes
-from app.core.response import build_public_error_text, created, deleted, paginated, success
+from app.core.response import (
+    build_public_error_text,
+    created,
+    deleted,
+    paginated,
+    success,
+)
 from app.enums.knowledge_base import DocumentStatusEnum, DocumentTypeEnum
 from app.enums.rbac import PermissionScope
 from app.exceptions import BusinessException, NotFoundException

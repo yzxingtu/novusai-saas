@@ -11,8 +11,8 @@ from starlette.requests import Request
 
 from app.core.security import TOKEN_SCOPE_ADMIN
 from app.plugins.api_dispatcher import (
-    _context_has_db_capability,
     _check_plugin_permission,
+    _context_has_db_capability,
     _dispatch_plugin_api,
     _handler_accepts_param,
 )

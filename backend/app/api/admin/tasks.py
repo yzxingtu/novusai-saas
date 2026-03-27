@@ -17,14 +17,14 @@ from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.response import paginated, success
 from app.enums.rbac import PermissionScope
+from app.models.system.task_definition import TaskDefinition
+from app.models.tenant.tenant import Tenant
 from app.rbac.decorators import (
     MenuConfig,
     action_read,
     action_update,
     permission_resource,
 )
-from app.models.system.task_definition import TaskDefinition
-from app.models.tenant.tenant import Tenant
 from app.schemas.system import (
     ActiveTaskResponse,
     TaskLogDetailResponse,

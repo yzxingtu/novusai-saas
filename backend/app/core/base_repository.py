@@ -600,7 +600,10 @@ class BaseRepository(Generic[ModelType]):
 
     def _build_data_permission_condition(self):
         """构建当前模型的数据权限条件 / Build data permission condition for the current model."""
-        from app.core.data_permission import build_data_permission_condition, data_permission_ctx
+        from app.core.data_permission import (
+            build_data_permission_condition,
+            data_permission_ctx,
+        )
 
         ctx = data_permission_ctx.get()
         if not ctx:

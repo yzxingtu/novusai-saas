@@ -10,8 +10,8 @@ from pydantic import ValidationError
 from app.api.admin.plugins import AdminPluginController, MenuOverrideItem
 from app.core.config import settings
 from app.core.response import deleted
-from app.exceptions.base import BusinessException
 from app.enums.plugin import PluginStatusEnum
+from app.exceptions.base import BusinessException
 
 
 def _build_manifest():

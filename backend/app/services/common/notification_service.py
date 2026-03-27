@@ -15,7 +15,6 @@ from sqlalchemy import and_, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.configs.service import PLATFORM_TENANT_ID
-
 from app.core.base_model import utc_now
 from app.core.logging import LogManager
 from app.models.common.notification import Notification

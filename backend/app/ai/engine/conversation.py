@@ -120,6 +120,26 @@ class ConversationEngine(BaseEngine):
                 route_result=prep.route_result,
                 log_user_type=log_user_type_for_call_log(request.user_role),
             )
+            response = await self._retry_web_research_denial_if_needed(
+                agent=agent,
+                messages=messages,
+                response=response,
+                tools=tools or [],
+                request=request,
+                route_result=prep.route_result,
+                continuation=prep.continuation_context,
+                log_user_type=log_user_type_for_call_log(request.user_role),
+            )
+            response = await self._retry_web_research_multi_source_if_needed(
+                agent=agent,
+                messages=messages,
+                response=response,
+                tools=tools or [],
+                request=request,
+                route_result=prep.route_result,
+                continuation=prep.continuation_context,
+                log_user_type=log_user_type_for_call_log(request.user_role),
+            )
 
             total_tokens = response.total_tokens or 0
 
@@ -131,9 +151,11 @@ class ConversationEngine(BaseEngine):
                     messages=messages,
                     response=response,
                     tools=tools,
+                    all_tools=prep.all_tools,
                     request=request,
                     route_result=prep.route_result,
                     tool_consent_modes=prep.tool_consent_modes,
+                    continuation_context=prep.continuation_context,
                 )
 
             # 5. Append final assistant message / 追加最终 assistant 消息

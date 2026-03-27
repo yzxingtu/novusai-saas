@@ -8,9 +8,9 @@ Provides tenant admin login, logout, token refresh endpoints
 from fastapi import APIRouter, Request
 
 from app.core.deps import ActiveTenantAdmin, DbSession
-from app.core.rate_limit import check_login_rate_limit
 from app.core.i18n import _
 from app.core.logging import ImpersonateLoggerMixin
+from app.core.rate_limit import check_login_rate_limit
 from app.core.response import success
 from app.middleware.tenant import get_tenant_context
 from app.rbac.decorators import auth_only, public
@@ -201,7 +201,7 @@ async def update_profile(
         await db.rollback()
         if "unique" in str(e).lower() and "email" in str(e).lower():
             from app.exceptions import BusinessException
-            raise BusinessException(message=_("auth.email_already_exists"))
+            raise BusinessException(message=_("auth.email_already_exists")) from e
         raise
 
     await db.refresh(current_admin)

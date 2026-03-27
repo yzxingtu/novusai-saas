@@ -6,8 +6,8 @@ Validates:
 - StorageManager only has local built-in
 - Plugin disable safety check logic"""
 
-import io
 import importlib.util
+import io
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import ANY, AsyncMock, MagicMock, patch

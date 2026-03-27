@@ -11,8 +11,8 @@ from __future__ import annotations
 import pytest
 
 from app.ai.tools.executors.crud_executor import (
-    _normalize_agent_data,
     _SAFE_COLUMN_NAME_RE,
+    _normalize_agent_data,
     _validate_column_names,
     _validate_table_name,
 )

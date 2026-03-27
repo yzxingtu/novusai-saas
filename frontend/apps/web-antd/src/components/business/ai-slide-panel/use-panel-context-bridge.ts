@@ -43,7 +43,7 @@ interface UsePanelContextBridgeOptions {
   consumePendingAgentId: () => null | number;
   ensureAgentVarsLoaded: (agentId: number) => void;
   forceRerouteNextTurn: Ref<boolean>;
-  handleSendMessage: () => Promise<boolean> | boolean;
+  handleSendMessage: () => boolean | Promise<boolean>;
   inputMessage: Ref<string>;
   loadAgents: (selectedAgentId?: number) => Promise<unknown> | unknown;
   loadConversationMessages: (
@@ -66,6 +66,7 @@ interface UsePanelContextBridgeOptions {
   showHistory: Ref<boolean>;
   showMemoryPanel: Ref<boolean>;
   startNewConversation: (forceReset?: boolean) => void;
+  storePendingAgentId: Ref<number | undefined>;
   storePendingConversationId: Ref<null | number>;
   storePendingMessage: Ref<null | string>;
   visible: Ref<boolean>;
@@ -91,7 +92,11 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
       options.pendingMessage.value?.trim() ||
       options.storePendingMessage.value?.trim?.() ||
       '';
-    return hasQueuedConversationRestore.value || Boolean(queuedMessage);
+    return (
+      hasQueuedConversationRestore.value ||
+      Boolean(queuedMessage) ||
+      peekQueuedPendingAgentId() !== null
+    );
   });
 
   const applyingExternalContext = ref(false);
@@ -100,6 +105,52 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
   function resetAuxiliaryPanels() {
     options.showHistory.value = false;
     options.showMemoryPanel.value = false;
+  }
+
+  function peekQueuedPendingAgentId(): null | number {
+    return typeof options.storePendingAgentId.value === 'number' &&
+      Number.isFinite(options.storePendingAgentId.value)
+      ? options.storePendingAgentId.value
+      : null;
+  }
+
+  function consumeQueuedPendingAgentId(): null | number {
+    const queuedPendingAgentId = peekQueuedPendingAgentId();
+    if (queuedPendingAgentId === null) {
+      return null;
+    }
+
+    const consumedAgentId = options.consumePendingAgentId();
+    return typeof consumedAgentId === 'number' &&
+      Number.isFinite(consumedAgentId)
+      ? consumedAgentId
+      : queuedPendingAgentId;
+  }
+
+  async function applyPendingAgentSelection(
+    pendingAgentId: null | number,
+    forceFreshConversation: boolean,
+  ) {
+    if (pendingAgentId === null) {
+      return;
+    }
+
+    resetAuxiliaryPanels();
+    options.forceRerouteNextTurn.value = false;
+    options.manualNewConversationAgentId.value = pendingAgentId;
+
+    await options.loadAgents(pendingAgentId);
+
+    if (
+      options.agents.value.some((agent) => agent.id === pendingAgentId) &&
+      options.selectedAgentId.value !== pendingAgentId
+    ) {
+      options.selectedAgentId.value = pendingAgentId;
+    }
+
+    if (forceFreshConversation) {
+      options.startNewConversation(true);
+    }
   }
 
   function shouldResumeExistingConversation(pendingAgentId: null | number) {
@@ -230,23 +281,42 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
       options.pendingMessage.value?.trim() ||
       options.storePendingMessage.value?.trim?.() ||
       '';
+    const pendingAgentId = consumeQueuedPendingAgentId();
 
-    if (!queuedConversationId && !queuedMessage) {
+    if (!queuedConversationId && !queuedMessage && pendingAgentId === null) {
       return;
     }
 
     applyingExternalContext.value = true;
     try {
+      if (!queuedConversationId && pendingAgentId !== null) {
+        const hasExistingConversation =
+          options.activeConversationId.value !== null ||
+          options.chatMessages.value.length > 0;
+        await applyPendingAgentSelection(
+          pendingAgentId,
+          hasExistingConversation || Boolean(queuedMessage),
+        );
+      }
+
       if (queuedConversationId) {
         options.showHistory.value = false;
         options.showMemoryPanel.value = false;
         if (options.activeConversationId.value !== queuedConversationId) {
           await options.loadConversationMessages(queuedConversationId);
         }
-        options.onConversationRestored();
+        if (options.activeConversationId.value === queuedConversationId) {
+          options.onConversationRestored();
+        }
       }
 
       if (queuedMessage) {
+        if (!queuedConversationId && pendingAgentId !== null) {
+          options.manualNewConversationAgentId.value = pendingAgentId;
+          if (options.selectedAgentId.value !== pendingAgentId) {
+            options.selectedAgentId.value = pendingAgentId;
+          }
+        }
         options.inputMessage.value = queuedMessage;
         const sent = await options.handleSendMessage();
         if (sent) {
@@ -264,7 +334,7 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
     }
 
     options.clearResolvedPageOps();
-    const pendingAgentId = options.consumePendingAgentId();
+    const pendingAgentId = consumeQueuedPendingAgentId();
     options.forceRerouteNextTurn.value = false;
     openingPanelContext.value = true;
 

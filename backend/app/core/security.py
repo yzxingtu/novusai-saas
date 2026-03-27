@@ -197,9 +197,9 @@ async def decode_token(token: str, raise_on_expired: bool = False) -> dict[str, 
         if jti and await is_token_revoked(jti):
             return None
         return payload
-    except ExpiredSignatureError:
+    except ExpiredSignatureError as exc:
         if raise_on_expired:
-            raise TokenExpiredError()
+            raise TokenExpiredError() from exc
         return None
     except JWTError:
         return None

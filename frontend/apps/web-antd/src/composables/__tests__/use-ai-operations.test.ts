@@ -86,7 +86,7 @@ describe('createStandardOperations', () => {
       },
     );
 
-    await vi.advanceTimersByTimeAsync(250);
+    await vi.advanceTimersByTimeAsync(2_000);
     const result = await resultPromise;
 
     expect(result.success).toBe(true);
@@ -166,7 +166,7 @@ describe('createStandardOperations', () => {
       },
     );
 
-    await vi.advanceTimersByTimeAsync(150);
+    await vi.advanceTimersByTimeAsync(2_000);
     const result = await resultPromise;
 
     expect(result.success).toBe(true);

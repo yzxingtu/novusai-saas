@@ -193,7 +193,7 @@ class AIModelService(BaseService[AIModel, AIModelRepository]):
             )
             raise ExternalServiceException(
                 message=_("ai.error.fetch_remote_models_failed") + f": {str(e)}"
-            )
+            ) from e
 
         # 合并 provider.config.extra_models（某些供应商的 /v1/models 不返回 embedding 等模型）
         # 格式: {"extra_models": [{"id": "text-embedding-v3", "owned_by": "dashscope"}, ...]}

@@ -37,6 +37,119 @@ function _simpleHash(s: string): string {
   return (h >>> 0).toString(36);
 }
 
+function pickStableRoutePageData(
+  pageData?: null | Record<string, unknown>,
+): null | Record<string, unknown> {
+  if (!pageData) {
+    return null;
+  }
+
+  const stableData: Record<string, unknown> = {};
+
+  for (const key of [
+    'source',
+    'entity_name',
+    'entity_description',
+    'document_title',
+  ] as const) {
+    const value = pageData[key];
+    if (typeof value === 'string' && value) {
+      stableData[key] = value;
+    }
+  }
+
+  for (const key of ['form_is_open', 'has_editor'] as const) {
+    const value = pageData[key];
+    if (typeof value === 'boolean') {
+      stableData[key] = value;
+    }
+  }
+
+  if (pageData.form_purpose && typeof pageData.form_purpose === 'object') {
+    stableData.form_purpose = pageData.form_purpose;
+  }
+
+  if (Array.isArray(pageData.available_operations)) {
+    stableData.available_operations = pageData.available_operations
+      .map((item) => {
+        if (!item || typeof item !== 'object') {
+          return null;
+        }
+        const operation = item as Record<string, unknown>;
+        const name = String(operation.name || '').trim();
+        if (!name) {
+          return null;
+        }
+        return {
+          name,
+          readonly: Boolean(operation.readonly),
+        };
+      })
+      .filter(Boolean);
+  }
+
+  if (Array.isArray(pageData.tables)) {
+    stableData.tables = pageData.tables.slice(0, 2).map((item) => {
+      if (!item || typeof item !== 'object') {
+        return item;
+      }
+      const table = item as Record<string, unknown>;
+      return {
+        columns: Array.isArray(table.columns) ? table.columns.slice(0, 4) : [],
+        row_count: table.row_count,
+      };
+    });
+  }
+
+  if (Array.isArray(pageData.forms)) {
+    stableData.forms = pageData.forms.slice(0, 2).map((item) => {
+      if (!item || typeof item !== 'object') {
+        return item;
+      }
+      const form = item as Record<string, unknown>;
+      return {
+        label_count: Array.isArray(form.labels) ? form.labels.length : 0,
+        title: form.title,
+      };
+    });
+  }
+
+  if (Array.isArray(pageData.tabs)) {
+    stableData.tabs = pageData.tabs.slice(0, 6).map((item) => {
+      if (!item || typeof item !== 'object') {
+        return item;
+      }
+      const tab = item as Record<string, unknown>;
+      return {
+        active: Boolean(tab.active),
+        label: tab.label,
+      };
+    });
+  }
+
+  if (Array.isArray(pageData.overlays)) {
+    stableData.overlays = pageData.overlays.slice(0, 2).map((item) => {
+      if (!item || typeof item !== 'object') {
+        return item;
+      }
+      const overlay = item as Record<string, unknown>;
+      return {
+        title: overlay.title,
+        type: overlay.type,
+      };
+    });
+  }
+
+  return Object.keys(stableData).length > 0 ? stableData : null;
+}
+
+export function buildRouteCachePageDataFingerprint(
+  pageData?: null | Record<string, unknown>,
+): string {
+  const stableData = pickStableRoutePageData(pageData);
+  return stableData ? _simpleHash(JSON.stringify(stableData)) : '';
+}
+
 /** Routing method constants / 路由方式常量 */
 export const ROUTED_BY = {
   DEFAULT: 'default',
@@ -176,9 +289,9 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
       ? unref(options.activeConversationId)
       : null;
     const pageKey = pageContextKey ?? pageContext?.page_key ?? 'global';
-    const pageDataHash = pageContext?.page_data
-      ? _simpleHash(JSON.stringify(pageContext.page_data))
-      : '';
+    const pageDataHash = buildRouteCachePageDataFingerprint(
+      pageContext?.page_data as Record<string, unknown> | undefined,
+    );
     const msgHash = _simpleHash(message.trim().slice(0, 200));
     const attachmentKey = [
       `img${normalizedAttachmentFlags.hasImageAttachments ? '1' : '0'}`,

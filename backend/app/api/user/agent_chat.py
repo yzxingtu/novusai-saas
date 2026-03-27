@@ -31,13 +31,13 @@ from app.rbac.decorators import (
     auth_only,
     permission_resource,
 )
+from app.rbac.services.permission_service import PermissionService
 from app.schemas.ai.agent_chat import (
     AgentChatRequest,
     AgentRouteRequest,
     UpdateConversationTitleRequest,
 )
 from app.schemas.common.query import FilterRule
-from app.rbac.services.permission_service import PermissionService
 from app.services.ai.agent_chat_service import AgentChatService
 from app.services.ai.agent_service import AgentService
 from app.services.ai.conversation_service import ConversationService

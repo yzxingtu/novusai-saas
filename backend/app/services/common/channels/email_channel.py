@@ -12,7 +12,6 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.configs.service import PLATFORM_TENANT_ID
-
 from app.core.logging import LogManager
 from app.services.common.channels.base import NotificationChannel
 

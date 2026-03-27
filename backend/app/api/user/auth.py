@@ -13,10 +13,12 @@ Migrated from api/v1/auth.py → api/user/auth.py
 from fastapi import APIRouter, Depends, Request
 from fastapi.security import OAuth2PasswordRequestForm
 
+from app.configs.service import ConfigService
 from app.core.deps import ActiveTenantUser, DbSession
-from app.core.rate_limit import check_login_rate_limit
 from app.core.i18n import _
+from app.core.rate_limit import check_login_rate_limit
 from app.core.response import success
+from app.exceptions import BusinessException
 from app.middleware.tenant import get_tenant_context
 from app.rbac.decorators import auth_only, public
 from app.schemas.common import RefreshTokenRequest, TokenResponse
@@ -35,8 +37,6 @@ from app.schemas.tenant.user import (
     TenantUserProfileUpdateRequest,
     TenantUserRegisterRequest,
 )
-from app.configs.service import ConfigService
-from app.exceptions import BusinessException
 from app.services.common import AuthService
 
 router = APIRouter(prefix="/auth", tags=["User Authentication"])

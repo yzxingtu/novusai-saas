@@ -18,7 +18,11 @@ from socketio.exceptions import ConnectionRefusedError as SocketConnectionRefuse
 
 from app.core.logging import LogManager
 from app.core.response import build_error_event, build_exception_debug
-from app.middleware.trace import extract_optional_trace_id, normalize_trace_id, trace_id_var
+from app.middleware.trace import (
+    extract_optional_trace_id,
+    normalize_trace_id,
+    trace_id_var,
+)
 from app.sio.error_utils import socket_connect_refusal
 
 logger = LogManager.get_logger("plugin.sio")

@@ -10,11 +10,9 @@ Coverage:
 """
 
 import pytest
-
 from sqlalchemy import Boolean, Column, Integer, String, Text
 
 from app.codegen.type_registry import type_registry
-
 
 # ============================================================
 # test_basic_types

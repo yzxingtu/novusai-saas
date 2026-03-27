@@ -11,7 +11,6 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.configs.service import PLATFORM_TENANT_ID
-
 from app.core.logging import LogManager
 from app.models.common.notification_preference import NotificationPreference
 

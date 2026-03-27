@@ -159,15 +159,14 @@ def validate_runtime_frontend_contract(plugin_root: Path, manifest: Any) -> dict
             )
         runtime_warnings.extend(locale_prefix_warnings)
 
-    if settings.DEBUG:
-        if dev_entry is not None and dev_entry.is_file():
-            return {
-                "has_frontend": True,
-                "mode": "dev_source",
-                "dev_entry": dev_entry,
-                "expected_locales": expected_locales,
-                "warnings": runtime_warnings,
-            }
+    if settings.DEBUG and dev_entry is not None and dev_entry.is_file():
+        return {
+            "has_frontend": True,
+            "mode": "dev_source",
+            "dev_entry": dev_entry,
+            "expected_locales": expected_locales,
+            "warnings": runtime_warnings,
+        }
 
     release_manifest = load_release_manifest(plugin_root, manifest, strict=True)
     return {

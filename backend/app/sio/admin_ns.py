@@ -13,12 +13,12 @@ import socketio
 from socketio.exceptions import ConnectionRefusedError as SocketConnectionRefusedError
 
 from app.core.logging import LogManager
-from app.middleware.trace import trace_id_var
 from app.core.security import (
     TOKEN_SCOPE_ADMIN,
     TokenExpiredError,
     verify_token_with_scope,
 )
+from app.middleware.trace import trace_id_var
 from app.sio.error_utils import socket_connect_refusal
 from app.sio.page_session import PageSessionMixin
 

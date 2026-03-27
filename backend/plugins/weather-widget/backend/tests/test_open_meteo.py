@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 _MODULE_FILE = Path(__file__).parent.parent / "open_meteo.py"
@@ -66,6 +67,10 @@ class TestWmoCodeMapping:
         info = get_wmo_info(999)
         assert info["icon"] == "cloud"
         assert info["zh"] == "未知"
+
+    def test_describe_exception_uses_repr_for_blank_connect_error(self):
+        summary = mod._describe_exception(httpx.ConnectError(""))
+        assert "ConnectError" in summary
 
 
 # ── 缓存测试 / cache tests ──
@@ -216,17 +221,21 @@ class TestGetCurrentWeather:
     @pytest.mark.asyncio
     async def test_cached(self):
         cached_data = {
-            "temperature": 20.0,
-            "weather_code": 2,
-            "weather_icon": "cloud-sun",
-            "weather_text_zh": "多云",
-            "weather_text_en": "Partly cloudy",
-            "humidity": 55,
-            "wind_speed": 10.0,
-            "uv_index": 3.0,
-            "is_day": True,
+            "current": {
+                "temperature": 20.0,
+                "weather_code": 2,
+                "weather_icon": "cloud-sun",
+                "weather_text_zh": "多云",
+                "weather_text_en": "Partly cloudy",
+                "humidity": 55,
+                "wind_speed": 10.0,
+                "uv_index": 3.0,
+                "is_day": True,
+            },
+            "daily": [],
+            "hourly": [],
         }
-        _cache_set("current:31.23:121.47", cached_data)
+        _cache_set("all:31.23:121.47:3", cached_data)
         result = await get_current_weather(31.23, 121.47)
         assert result["temperature"] == 20.0
 
@@ -267,7 +276,14 @@ class TestGetForecast:
 
     @pytest.mark.asyncio
     async def test_days_clamped(self):
-        _cache_set("forecast:31.23:121.47:7", [])
+        _cache_set(
+            "all:31.23:121.47:7",
+            {
+                "current": {},
+                "daily": [],
+                "hourly": [],
+            },
+        )
         result = await get_forecast(31.23, 121.47, 10)
         # days clamped to 7, so cache key uses 7 / days 上限为 7，缓存键按 7 计算
         assert result == []

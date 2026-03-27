@@ -392,7 +392,7 @@ class AIGateway:
                     routed_model_id=routed_model_id,
                     route_reason=route_reason,
                 )
-                raise original_error
+                raise original_error from None
 
         # 5. Calculate latency and usage / 计算延迟和使用量
         latency_ms = int((time.time() - start_time) * 1000)
@@ -753,7 +753,7 @@ class AIGateway:
                         routed_model_id=routed_model_id,
                         route_reason=route_reason,
                     )
-                    raise original_error
+                    raise original_error from None
 
         # Create completion callback / 创建完成回调
         async def on_complete(input_tokens: int, output_tokens: int, total_tokens: int):

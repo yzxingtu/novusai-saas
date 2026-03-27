@@ -10,7 +10,8 @@ Uses declarative whitelist: only models with __ai_policy__ are synced; undeclare
 from enum import Enum
 from typing import Any
 
-from sqlalchemy import delete, inspect as sa_inspect, select
+from sqlalchemy import delete, select
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapper
 

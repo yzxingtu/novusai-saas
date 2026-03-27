@@ -9,10 +9,6 @@ from fastapi import APIRouter, HTTPException, Request, status
 
 from app.captcha.runtime import resolve_public_captcha_plugin_bundle
 from app.configs.service import ConfigService
-from app.utils.config_html_sanitize import (
-    sanitize_config_html,
-    tenant_legal_html_has_meaningful_body,
-)
 from app.core.config import settings
 from app.core.deps import DbSession
 from app.core.i18n import _
@@ -26,6 +22,10 @@ from app.schemas.public import (
 )
 from app.schemas.public.platform import RuntimeLimitsPublicConfig, StoragePublicConfig
 from app.services.ai.page_context_limits import get_page_context_max_bytes
+from app.utils.config_html_sanitize import (
+    sanitize_config_html,
+    tenant_legal_html_has_meaningful_body,
+)
 
 router = APIRouter(prefix="/tenant", tags=["企业公开接口 / Tenant Public API"])
 

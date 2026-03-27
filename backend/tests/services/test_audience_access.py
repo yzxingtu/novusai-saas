@@ -29,6 +29,7 @@ for _mod in _MOCK_MODULES:
 # Now we can import enums (no heavy deps)
 from app.enums.common import AudienceEnum, UserRoleEnum  # noqa: E402
 
+
 # Test _audience_allows_role logic directly (inline, no import chain issues)
 def _audience_allows_role(target_audience: str, user_role: str | None) -> bool:
     """Inline copy of the function for isolated testing. / 测试"""

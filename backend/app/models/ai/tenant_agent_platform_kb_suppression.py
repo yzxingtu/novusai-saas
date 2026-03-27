@@ -36,6 +36,14 @@ class TenantAgentPlatformKbSuppression(TenantModel):
         ),
     )
 
+    tenant_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="企业ID / Tenant ID",
+    )
+
     agent_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("agents.id", ondelete="CASCADE"),

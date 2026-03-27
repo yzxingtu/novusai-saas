@@ -31,12 +31,6 @@ from app.enums.plugin import (
     PluginTierEnum,
     PluginVersionStatusEnum,
 )
-from app.plugins.exceptions import (
-    PluginDependencyError,
-    PluginError,
-    PluginInstallError,
-    PluginSecurityError,
-)
 from app.plugins.dependencies import (
     build_plugin_dependency_states,
     detect_direct_python_dependency_conflicts,
@@ -44,6 +38,12 @@ from app.plugins.dependencies import (
     iter_effective_python_requirements,
     normalize_plugin_dependencies,
     normalize_python_package_name,
+)
+from app.plugins.exceptions import (
+    PluginDependencyError,
+    PluginError,
+    PluginInstallError,
+    PluginSecurityError,
 )
 from app.plugins.lifecycle_guards import run_plugin_lifecycle_guards
 from app.plugins.loader import PLUGINS_DIR, PluginLoader
@@ -900,7 +900,7 @@ class PluginLifecycle:
                     exc,
                     fallback_message=_("plugin.error.install_failed"),
                 ),
-            )
+            ) from exc
         finally:
             # Release install lock / 释放安装锁
             if _redis is not None and _install_owner is not None:
@@ -982,7 +982,7 @@ class PluginLifecycle:
                 )
                 raise PluginError(
                     message=err_msg,
-                )
+                ) from exc
         else:
             await emitter.emit_step("alembic", "success", "No database migrations")
 
@@ -1092,7 +1092,7 @@ class PluginLifecycle:
                     exc,
                     fallback_message=_("common.server_error"),
                 ),
-            )
+            ) from exc
 
         try:
             await self._restore_plugin_permissions(plugin_name)

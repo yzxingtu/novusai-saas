@@ -8,7 +8,6 @@ from app.configs.definitions.groups import TENANT_REGISTRATION_GROUP
 from app.configs.meta import ConfigMeta, ConfigOption, DisplayRule, max_length
 from app.enums.config import ConfigScope, ConfigValueType
 
-
 # Whether tenant allows user self-registration / 企业是否允许用户自助注册
 TENANT_ALLOW_REGISTRATION = ConfigMeta(
     key="tenant_allow_registration",

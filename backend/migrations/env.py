@@ -7,9 +7,12 @@ import sys
 from logging.config import fileConfig
 from pathlib import Path
 
+import sqlalchemy as sa
 from sqlalchemy import engine_from_config, pool
 
 from alembic import context
+from alembic.autogenerate import rewriter
+from alembic.operations import ops as alembic_ops
 
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -154,6 +157,50 @@ target_metadata = Base.metadata
 
 _known_model_tables = set(target_metadata.tables.keys())
 
+_autogen_rewriter = rewriter.Rewriter()
+_LIFECYCLE_DATETIME_COLUMNS = {
+    "created_at",
+    "updated_at",
+    "deleted_at",
+    "promoted_to_global_at",
+}
+
+
+@_autogen_rewriter.rewrites(alembic_ops.AlterColumnOp)
+def _drop_comment_only_alter_ops(context, revision, op):
+    """Strip pure comment diffs so autogenerate focuses on structural changes."""
+    if op.modify_comment is False:
+        return op
+
+    op.modify_comment = False
+    if not op.has_changes():
+        return []
+    return op
+
+
+@_autogen_rewriter.rewrites(alembic_ops.CreateIndexOp)
+def _drop_redundant_single_id_indexes(context, revision, op):
+    """Ignore autogen requests for explicit single-column PK id indexes."""
+    column_names = tuple(
+        column if isinstance(column, str) else getattr(column, "name", None)
+        for column in op.columns
+    )
+    if not op.unique and column_names == ("id",):
+        return []
+    return op
+
+
+def _compare_type(context, inspected_column, metadata_column, inspected_type, metadata_type):
+    """Ignore timezone-only churn on shared lifecycle datetime columns."""
+    column_name = getattr(metadata_column, "name", None) or getattr(inspected_column, "name", None)
+    if (
+        column_name in _LIFECYCLE_DATETIME_COLUMNS
+        and isinstance(inspected_type, sa.DateTime)
+        and isinstance(metadata_type, sa.DateTime)
+    ):
+        return False
+    return None
+
 def _include_object(obj, name, type_, reflected, compare_to):
     """Only emit autogenerate diffs for tables registered in our models."""
     if type_ == "table" and reflected and name not in _known_model_tables:
@@ -172,9 +219,10 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        compare_type=True,
-        compare_server_default=True,
+        compare_type=_compare_type,
+        compare_server_default=False,
         include_object=_include_object,
+        process_revision_directives=_autogen_rewriter,
     )
 
     with context.begin_transaction():
@@ -196,9 +244,10 @@ def run_migrations_online() -> None:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            compare_type=True,
-            compare_server_default=True,
+            compare_type=_compare_type,
+            compare_server_default=False,
             include_object=_include_object,
+            process_revision_directives=_autogen_rewriter,
         )
 
         with context.begin_transaction():

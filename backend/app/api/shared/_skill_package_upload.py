@@ -98,7 +98,7 @@ async def process_skill_package_upload(
                     e,
                     fallback_message=_("common.validation_error"),
                 )
-            )
+            ) from e
 
         skill_name = metadata.get("name", "")
         skill_version = metadata.get("version", "")

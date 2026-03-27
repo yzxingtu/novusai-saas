@@ -153,6 +153,7 @@ export function useAIChat(options: UseAIChatOptions) {
     messagesRequestSeq += 1;
     activeConversationId.value = null;
     activeConversationAgentId.value = null;
+    clearConversationAnchor();
     chatMessages.value = [];
     clearPendingAttachments();
     clearMentionDraft();
@@ -170,6 +171,8 @@ export function useAIChat(options: UseAIChatOptions) {
   const memoryState = ref<MemoryState | null>(null);
   const memoryLoading = ref(false);
   const lastMemoryUpdated = ref(false);
+  let conversationAnchorId: null | number = null;
+  let conversationAnchorAgentId: null | number = null;
 
   /** Request sequence guard: prevents stale async responses from overriding latest state / 请求序号防护：避免旧异步响应覆盖最新状态 */
   let conversationsRequestSeq = 0;
@@ -181,6 +184,23 @@ export function useAIChat(options: UseAIChatOptions) {
   function nextClientKey(prefix: string) {
     clientMessageSeq += 1;
     return `${prefix}-${Date.now()}-${clientMessageSeq}`;
+  }
+
+  function rememberConversationAnchor(
+    conversationId: null | number,
+    agentId?: null | number,
+  ) {
+    if (typeof conversationId === 'number' && Number.isFinite(conversationId)) {
+      conversationAnchorId = conversationId;
+    }
+    if (agentId !== undefined) {
+      conversationAnchorAgentId = agentId ?? null;
+    }
+  }
+
+  function clearConversationAnchor() {
+    conversationAnchorId = null;
+    conversationAnchorAgentId = null;
   }
 
   async function loadConversations() {
@@ -222,10 +242,16 @@ export function useAIChat(options: UseAIChatOptions) {
     res: ConversationDetailResponse,
     mergedMessages = mergeMessagesForDisplay(res.message_list ?? []),
   ) {
-    if (res.agent_id) {
-      selectedAgentId.value = res.agent_id;
-      activeConversationAgentId.value = res.agent_id;
+    const resolvedAgentId =
+      res.agent_id ??
+      activeConversationAgentId.value ??
+      conversationAnchorAgentId ??
+      selectedAgentId.value;
+    if (resolvedAgentId) {
+      selectedAgentId.value = resolvedAgentId;
+      activeConversationAgentId.value = resolvedAgentId;
     }
+    rememberConversationAnchor(convId, resolvedAgentId ?? null);
 
     const agentId = selectedAgentId.value;
     if (agentId) {
@@ -316,6 +342,7 @@ export function useAIChat(options: UseAIChatOptions) {
     pendingMessages.value = [];
     activeConversationId.value = null;
     activeConversationAgentId.value = null;
+    clearConversationAnchor();
     chatMessages.value = [];
     clearMentionDraft();
     memoryState.value = null;
@@ -333,6 +360,7 @@ export function useAIChat(options: UseAIChatOptions) {
         messagesRequestSeq += 1;
         activeConversationId.value = null;
         activeConversationAgentId.value = null;
+        clearConversationAnchor();
         chatMessages.value = [];
       }
       await loadConversations();
@@ -368,8 +396,10 @@ export function useAIChat(options: UseAIChatOptions) {
     if (currentConversation?.agent_id) {
       selectedAgentId.value = currentConversation.agent_id;
       activeConversationAgentId.value = currentConversation.agent_id;
+      rememberConversationAnchor(convId, currentConversation.agent_id);
     } else {
       activeConversationAgentId.value = null;
+      rememberConversationAnchor(convId);
     }
     try {
       const prefix = unref(options.apiPrefix) as string;
@@ -1410,7 +1440,24 @@ export function useAIChat(options: UseAIChatOptions) {
     silent?: boolean;
   }): Promise<boolean> {
     const silent = opts?.silent ?? false;
-    const maybeTargetAgentId = opts?.agentId ?? selectedAgentId.value;
+    const explicitAgentSelection =
+      opts?.agentId !== null && opts?.agentId !== undefined;
+    const anchoredConversationId =
+      !explicitAgentSelection &&
+      activeConversationId.value === null &&
+      chatMessages.value.length > 0
+        ? conversationAnchorId
+        : null;
+    const effectiveConversationId =
+      activeConversationId.value ?? anchoredConversationId;
+    const effectiveConversationAgentId =
+      effectiveConversationId !== null
+        ? (activeConversationAgentId.value ?? conversationAnchorAgentId)
+        : null;
+    const maybeTargetAgentId =
+      opts?.agentId ??
+      effectiveConversationAgentId ??
+      selectedAgentId.value;
     const routeSource = opts?.routeSource ?? null;
     const pageContext =
       opts?.pageContext === undefined
@@ -1427,6 +1474,30 @@ export function useAIChat(options: UseAIChatOptions) {
       return false;
     }
     const targetAgentId = maybeTargetAgentId;
+
+    if (
+      !explicitAgentSelection &&
+      effectiveConversationId !== null &&
+      activeConversationId.value === null
+    ) {
+      activeConversationId.value = effectiveConversationId;
+    }
+    if (
+      !explicitAgentSelection &&
+      effectiveConversationAgentId !== null &&
+      activeConversationAgentId.value === null
+    ) {
+      activeConversationAgentId.value = effectiveConversationAgentId;
+    }
+    if (
+      !explicitAgentSelection &&
+      effectiveConversationAgentId !== null &&
+      selectedAgentId.value !== effectiveConversationAgentId
+    ) {
+      // Follow the conversation-bound agent unless the user explicitly started
+      // a new routed / switched-agent turn.
+      selectedAgentId.value = effectiveConversationAgentId;
+    }
 
     // Block sending if required input variables are not filled / 必填变量未填则拦截发送
     const agent = agents.value.find((a) => a.id === targetAgentId);
@@ -1451,16 +1522,23 @@ export function useAIChat(options: UseAIChatOptions) {
     }
 
     const conversationRequestState = resolveConversationRequestState({
-      activeConversationAgentId: activeConversationAgentId.value,
-      activeConversationId: activeConversationId.value,
+      activeConversationAgentId:
+        effectiveConversationAgentId ?? activeConversationAgentId.value,
+      activeConversationId: effectiveConversationId,
       targetAgentId,
     });
     if (conversationRequestState.shouldForkConversation) {
       messagesRequestSeq += 1;
       activeConversationId.value = null;
       activeConversationAgentId.value = null;
+      clearConversationAnchor();
       memoryState.value = null;
       lastMemoryUpdated.value = false;
+    } else if (conversationRequestState.conversationId !== null) {
+      rememberConversationAnchor(
+        conversationRequestState.conversationId,
+        effectiveConversationAgentId ?? targetAgentId,
+      );
     }
 
     const userMsg = inputMessage.value.trim();
@@ -1626,7 +1704,7 @@ export function useAIChat(options: UseAIChatOptions) {
     let didSseEnd = false;
     let hasReceivedStreamPayload = false;
     let shouldSyncInterruptedConversation = false;
-    let streamConversationId = activeConversationId.value;
+    let streamConversationId = activeConversationId.value ?? conversationAnchorId;
 
     function finalizeMessage() {
       const msg = chatMessages.value[assistantIdx];
@@ -1845,6 +1923,7 @@ export function useAIChat(options: UseAIChatOptions) {
               streamConversationId = event.conversation_id as number;
               activeConversationId.value = streamConversationId;
               activeConversationAgentId.value = targetAgentId;
+              rememberConversationAnchor(streamConversationId, targetAgentId);
             } else if (event.event === 'action_buttons' && event.buttons) {
               msg.actionButtons = event.buttons as typeof msg.actionButtons;
               scrollToBottom();
@@ -1869,6 +1948,7 @@ export function useAIChat(options: UseAIChatOptions) {
                 streamConversationId = event.conversation_id as number;
                 activeConversationId.value = streamConversationId;
                 activeConversationAgentId.value = targetAgentId;
+                rememberConversationAnchor(streamConversationId, targetAgentId);
               }
               if (event.memory_updated) {
                 lastMemoryUpdated.value = true;
@@ -1892,6 +1972,7 @@ export function useAIChat(options: UseAIChatOptions) {
                 streamConversationId = event.conversation_id as number;
                 activeConversationId.value = streamConversationId;
                 activeConversationAgentId.value = targetAgentId;
+                rememberConversationAnchor(streamConversationId, targetAgentId);
               }
               shouldSyncInterruptedConversation =
                 shouldSyncInterruptedConversation ||
@@ -1916,7 +1997,7 @@ export function useAIChat(options: UseAIChatOptions) {
         ...(singleText === null
           ? { messages: texts }
           : { message: singleText || ' ' }),
-        conversation_id: activeConversationId.value,
+        conversation_id: streamConversationId,
         ...(pendingInteractionUpdates.value.length > 0
           ? { interaction_updates: [...pendingInteractionUpdates.value] }
           : {}),
@@ -2108,6 +2189,7 @@ export function useAIChat(options: UseAIChatOptions) {
     // Fork to new conversation: edited message will create new conv, not append to old / 分叉新会话
     activeConversationId.value = null;
     activeConversationAgentId.value = null;
+    clearConversationAnchor();
     messagesRequestSeq += 1;
   }
 
@@ -2256,6 +2338,7 @@ export function useAIChat(options: UseAIChatOptions) {
     // Fork to new conversation: regenerate creates new branch, not overwrite in same conv / 分叉新会话
     activeConversationId.value = null;
     activeConversationAgentId.value = null;
+    clearConversationAnchor();
     messagesRequestSeq += 1;
 
     // Re-send the user message / 用原 user 内容再次发送

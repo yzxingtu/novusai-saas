@@ -47,7 +47,7 @@ sys.modules.setdefault("redis.exceptions", redis_exceptions_module)
 
 from app.ai.engine.conversation import ConversationEngine
 from app.ai.engine.types import ExecutionRequest
-from app.ai.skills.resolver import SkillResolveResult, SkillResolver, resolve_for_agent
+from app.ai.skills.resolver import SkillResolver, SkillResolveResult, resolve_for_agent
 from app.ai.tools.executors.page_context_executor import PageContextExecutor
 from app.ai.tools.types import ExecutionContext, ToolDefinition, to_openai_tools
 from app.ai.types import ChatMessage, ChatResponse
@@ -348,6 +348,36 @@ async def test_page_context_executor_prioritizes_mutation_ops_and_submit_workflo
     assert "Writable Operations Available: create_record, fill_form, submit_form" in result.output
     assert "call submit_form" in result.output
     assert "Do not claim the page is read-only" in result.output
+
+
+@pytest.mark.asyncio
+async def test_page_context_executor_includes_follow_up_guidance_to_prevent_repeat_calls() -> None:
+    executor = PageContextExecutor()
+    result = await executor.execute(
+        ToolDefinition(name="get_page_context"),
+        "call_follow_up",
+        {},
+        ExecutionContext(
+            tenant_id=1,
+            agent_id=2,
+            variables={
+                "page_context": {
+                    "page_key": "admin.ai.providers",
+                    "page_title": "供应商名称",
+                    "page_data": {
+                        "available_operations": [
+                            {"name": "read_current_view", "label": "读取当前视图", "readonly": True},
+                        ],
+                    },
+                }
+            },
+        ),
+    )
+
+    assert result.success is True
+    assert result.llm_follow_up_message is not None
+    assert "Do not call get_page_context again" in result.llm_follow_up_message
+    assert "Use the page information above to answer the user directly" in result.llm_follow_up_message
 
 
 @pytest.mark.asyncio
@@ -796,6 +826,32 @@ class TestToolOptimizerProtectedTools:
         assert "get_current_weather" in tool_names
         assert "get_weather_forecast" in tool_names
 
+    def test_web_search_alias_phrase_retains_web_search_tool(self):
+        """用户使用“联网搜索”这类强别名时，也要保留 web_search。"""
+        from app.ai.tools.optimizer import optimize_tools
+
+        tools = [
+            ToolDefinition(name="get_page_context", description="Read page context"),
+            ToolDefinition(name="invoke_page_operation", description="Page operations"),
+            ToolDefinition(name="data_query", description="Query data"),
+            ToolDefinition(name="data_create", description="Create data"),
+            ToolDefinition(name="data_update", description="Update data"),
+            ToolDefinition(name="data_delete", description="Delete data"),
+            ToolDefinition(name="web_search", description="Search the web"),
+            ToolDefinition(name="fetch_url", description="Fetch a web page"),
+            ToolDefinition(name="tool_a", description="Misc"),
+            ToolDefinition(name="tool_b", description="Misc"),
+        ]
+
+        result = optimize_tools(
+            tools,
+            "联网搜索 技能",
+            max_after_optimization=5,
+        )
+
+        tool_names = {t.name for t in result.tools}
+        assert "web_search" in tool_names
+
     def test_weather_query_prefers_weather_tools_over_web_search_bias(self):
         """天气问题不应仅因为“天气”关键词而优先保留 web_search。"""
         from app.ai.tools.optimizer import optimize_tools
@@ -821,6 +877,61 @@ class TestToolOptimizerProtectedTools:
         tool_names = {t.name for t in result.tools}
         assert "get_current_weather" in tool_names
         assert "get_weather_forecast" in tool_names
+
+    def test_weather_query_with_online_word_still_prefers_weather_tools(self):
+        """天气查询即使带“联网/查询”字样，也应优先保留天气工具。"""
+        from app.ai.tools.optimizer import optimize_tools
+
+        tools = [
+            ToolDefinition(name="get_page_context", description="Read page context"),
+            ToolDefinition(name="invoke_page_operation", description="Page operations"),
+            ToolDefinition(name="data_query", description="Query data"),
+            ToolDefinition(name="web_search", description="Search the web"),
+            ToolDefinition(name="fetch_url", description="Fetch a webpage"),
+            ToolDefinition(name="get_current_weather", description="Get current weather"),
+            ToolDefinition(name="get_weather_forecast", description="Get weather forecast"),
+            ToolDefinition(name="tool_a", description="Misc tool"),
+            ToolDefinition(name="tool_b", description="Misc tool"),
+            ToolDefinition(name="tool_c", description="Misc tool"),
+        ]
+
+        result = optimize_tools(
+            tools,
+            "联网查询一下 凤凰县未来七天的天气",
+            max_after_optimization=5,
+        )
+
+        non_protected = [
+            tool.name
+            for tool in result.tools
+            if tool.name not in {"get_page_context", "invoke_page_operation", "data_query"}
+        ]
+        assert set(non_protected[:2]) == {
+            "get_current_weather",
+            "get_weather_forecast",
+        }
+
+    def test_web_research_family_reorders_small_toolset_to_prefer_web_tools(self):
+        """即使工具数不多，web_research continuation 也应把 web 工具排到 data_* 前面。"""
+        from app.ai.tools.optimizer import optimize_tools
+
+        tools = [
+            ToolDefinition(name="get_page_context", description="Read page context"),
+            ToolDefinition(name="invoke_page_operation", description="Page operations"),
+            ToolDefinition(name="data_query", description="Query data"),
+            ToolDefinition(name="web_search", description="Search the web"),
+            ToolDefinition(name="fetch_url", description="Fetch a webpage"),
+        ]
+
+        result = optimize_tools(
+            tools,
+            "请开始",
+            used_tool_names={"web_search"},
+            preferred_family="web_research",
+        )
+
+        ordered = [tool.name for tool in result.tools]
+        assert ordered.index("web_search") < ordered.index("data_query")
 
 
 # ========================================
@@ -911,7 +1022,10 @@ class TestPageContextExecutorTruncation:
     @pytest.mark.asyncio
     async def test_large_page_data_truncated(self):
         """超大 page_data 被截断（绕过 schema 校验的内部路径防御） / page_data （ schema ..."""
-        from app.ai.tools.executors.page_context_executor import MAX_OUTPUT_CHARS, PageContextExecutor
+        from app.ai.tools.executors.page_context_executor import (
+            MAX_OUTPUT_CHARS,
+            PageContextExecutor,
+        )
 
         executor = PageContextExecutor()
         large_ctx = {

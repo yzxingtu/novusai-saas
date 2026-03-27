@@ -36,8 +36,8 @@ from app.models.ai import (
     KnowledgeDocument,
     ProviderApiKey,
     Skill,
-    SkillCapabilityBinding,
     SkillCallLog,
+    SkillCapabilityBinding,
     SkillPackage,
     SkillResource,
     TenantAgentPublication,
@@ -57,21 +57,21 @@ from app.models.auth import (
 )
 from app.models.common.notification import Notification
 from app.models.common.notification_preference import NotificationPreference
-from app.models.org import (
-    AdminOrgNode,
-    AdminOrgScopePolicy,
-    AdminOrgScopeTarget,
-    admin_org_node_permissions,
-    TenantOrgNode,
-    TenantOrgScopePolicy,
-    TenantOrgScopeTarget,
-)
 
 # 通知模型 / Notification models
 from app.models.common.notification_template import NotificationTemplate
 
 # 用户偏好 / User preferences
 from app.models.common.user_preference import UserPreference
+from app.models.org import (
+    AdminOrgNode,
+    AdminOrgScopePolicy,
+    AdminOrgScopeTarget,
+    TenantOrgNode,
+    TenantOrgScopePolicy,
+    TenantOrgScopeTarget,
+    admin_org_node_permissions,
+)
 from app.models.system import (
     Admin,
     CodegenConfig,

@@ -502,9 +502,7 @@ class SemanticChunker(BaseChunker):
         if block.count("|") >= 4 or "\t" in block:
             return True
         lines = [line.strip() for line in block.splitlines() if line.strip()]
-        if len(lines) >= 2 and all(self._LIST_RE.match(line) for line in lines):
-            return True
-        return False
+        return len(lines) >= 2 and all(self._LIST_RE.match(line) for line in lines)
 
     def _prefers_sentence_split(self, block: str) -> bool:
         return "。" in block or "！" in block or "？" in block or ". " in block

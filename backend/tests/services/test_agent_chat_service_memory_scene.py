@@ -300,3 +300,85 @@ def test_memory_event_id_is_request_unique():
     assert first.startswith("memevt:100:")
     assert second.startswith("memevt:100:")
     assert first != second
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_updates_pending_consent_state_with_string_owner_type(mock_db):
+    from unittest.mock import patch
+
+    from app.services.ai.agent_chat_service import AgentChatService
+
+    service = AgentChatService(mock_db, tenant_id=1)
+    agent = _make_agent()
+    agent.quota_config = {}
+    agent.model = None
+    service._validate_agent = AsyncMock(return_value=agent)
+    service._resolve_effective_memory_enabled = AsyncMock(return_value=False)
+    service._load_session_memory_context = AsyncMock(return_value="")
+    service._build_billing_context = AsyncMock(return_value={})
+    service.conversation_svc.get_or_create_for_chat = AsyncMock(
+        return_value=_make_conversation(),
+    )
+    service.conversation_svc.update_last_assistant_interaction_state = AsyncMock(
+        return_value=None,
+    )
+    service.conversation_svc.load_chat_history = AsyncMock(return_value=[])
+
+    engine = AsyncMock()
+    engine.stream_execute = AsyncMock(return_value=MagicMock())
+
+    with patch(
+        "app.services.ai.agent_chat_service.ConversationEngine",
+        return_value=engine,
+    ), patch(
+        "app.ai.skills.resolver.resolve_for_agent",
+        new=AsyncMock(return_value=None),
+    ), patch(
+        "app.services.ai.agent_chat_service.AgentQuotaManager.check_quota",
+        new=AsyncMock(),
+    ), patch(
+        "app.services.ai.agent_chat_service.AgentQuotaManager.check_user_quota",
+        new=AsyncMock(),
+    ), patch(
+        "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+        new=AsyncMock(),
+    ), patch(
+        "app.services.ai.agent_chat_service.AgentConcurrencyLimiter.acquire",
+        new=AsyncMock(return_value=""),
+    ), patch(
+        "app.services.ai.agent_chat_service.BaseEngine._publish_execution_started",
+        new=AsyncMock(),
+    ), patch(
+        "app.services.tenant.quota_service.QuotaService.check_api_quota_for_tenant_id",
+        new=AsyncMock(return_value=MagicMock(allowed=True, message=None)),
+    ), patch(
+        "app.configs.service.ConfigService.get_platform_config",
+        new=AsyncMock(side_effect=["normal", 256]),
+    ):
+        await service.stream_chat(
+            agent_id=1,
+            message="确认执行",
+            conversation_id=100,
+            user_id=10,
+            user_role=UserRoleEnum.TENANT_ADMIN.value,
+            interaction_updates=[
+                {
+                    "kind": "pending_consent",
+                    "rejected": False,
+                    "tool_name": "get_current_weather",
+                }
+            ],
+        )
+
+    service.conversation_svc.update_last_assistant_interaction_state.assert_awaited_once_with(
+        100,
+        [
+            {
+                "kind": "pending_consent",
+                "rejected": False,
+                "tool_name": "get_current_weather",
+            }
+        ],
+        user_id=10,
+        owner_type="tenant_admin",
+    )

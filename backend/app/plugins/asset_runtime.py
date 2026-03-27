@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from fastapi import Request
-from starlette.responses import Response
 from sqlalchemy import select
+from starlette.responses import Response
 
 from app.captcha.runtime import resolve_public_captcha_plugin_bundle
 from app.configs.service import ConfigService
@@ -17,9 +17,12 @@ from app.core.security import (
     TOKEN_TYPE_ACCESS,
     decode_token,
 )
-from app.models.system.plugin import Plugin
 from app.middleware.tenant import get_tenant_context
-from app.plugins.runtime_gate import PluginRuntimeGateResult, evaluate_plugin_runtime_gate
+from app.models.system.plugin import Plugin
+from app.plugins.runtime_gate import (
+    PluginRuntimeGateResult,
+    evaluate_plugin_runtime_gate,
+)
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession

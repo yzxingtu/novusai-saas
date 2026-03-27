@@ -19,6 +19,27 @@ from app.core.logging import get_logger
 
 logger = get_logger("plugin.weather-widget")
 
+
+def _describe_exception(exc: Exception | None) -> str:
+    """Build a readable exception summary for Loguru-based logs / 为 Loguru 日志构造可读异常摘要。"""
+    if exc is None:
+        return "unknown error"
+
+    parts: list[str] = []
+    current: Exception | BaseException | None = exc
+    seen: set[int] = set()
+
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        text = str(current).strip()
+        if text:
+            parts.append(f"{type(current).__name__}: {text}")
+        else:
+            parts.append(repr(current))
+        current = current.__cause__ or current.__context__
+
+    return " <- ".join(parts)
+
 # ── API 端点 / API endpoints ──
 _BASE_URL = "https://api.open-meteo.com/v1/forecast"
 _AQI_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
@@ -304,7 +325,7 @@ async def get_air_quality(latitude: float, longitude: float) -> dict[str, Any]:
         return result
 
     except Exception as exc:
-        logger.warning("Air quality API error: %r", exc)
+        logger.warning("Air quality API error: {}", _describe_exception(exc))
         return {"aqi": None, "pm2_5": None, "pm10": None, "european_aqi": None}
 
 
@@ -374,10 +395,14 @@ async def search_city(name: str, count: int = 5) -> list[dict]:
         return results
 
     except httpx.TimeoutException:
-        logger.warning("Nominatim search timeout for: %s", query)
+        logger.warning("Nominatim search timeout for query='{}'", query)
         return []
     except Exception as exc:
-        logger.warning("Nominatim search error for %s: %r", query, exc)
+        logger.warning(
+            "Nominatim search error for query='{}': {}",
+            query,
+            _describe_exception(exc),
+        )
         return []
 
 
@@ -449,7 +474,12 @@ async def _reverse_nominatim(latitude: float, longitude: float) -> dict | None:
         return None
 
     except Exception as exc:
-        logger.warning("Nominatim reverse error for %s,%s: %r", latitude, longitude, exc)
+        logger.warning(
+            "Nominatim reverse error for lat={} lon={}: {}",
+            latitude,
+            longitude,
+            _describe_exception(exc),
+        )
         return None
 
 
@@ -482,5 +512,10 @@ async def _reverse_open_meteo(latitude: float, longitude: float) -> dict | None:
         return None
 
     except Exception as exc:
-        logger.warning("Open-Meteo geocoding fallback error: %r", exc)
+        logger.warning(
+            "Open-Meteo geocoding fallback error for lat={} lon={}: {}",
+            latitude,
+            longitude,
+            _describe_exception(exc),
+        )
         return None

@@ -15,9 +15,9 @@ from typing import Any
 from sqlalchemy import String, Text, inspect
 from sqlalchemy.engine import Engine
 
-from app.core.database import sync_engine
-from app.core.base_model import Base
 from app.codegen.type_registry import type_registry
+from app.core.base_model import Base
+from app.core.database import sync_engine
 
 # BaseModel 基类字段（反射时排除）/ BaseModel base fields (exclude from introspection)
 _BASE_MODEL_FIELDS = frozenset(

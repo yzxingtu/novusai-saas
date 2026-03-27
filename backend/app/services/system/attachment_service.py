@@ -15,7 +15,7 @@ from typing import Any, BinaryIO
 import anyio
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.configs.service import ConfigService, PLATFORM_TENANT_ID
+from app.configs.service import PLATFORM_TENANT_ID, ConfigService
 from app.core.base_model import utc_now
 from app.core.base_service import GlobalService
 from app.core.i18n import _

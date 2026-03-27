@@ -12,7 +12,6 @@ import pytest
 
 from app.codegen.config_parser import ConfigParser, ParsedConfig, ValidationError
 
-
 # ============================================================
 # test_parse_simple_yaml
 # ============================================================

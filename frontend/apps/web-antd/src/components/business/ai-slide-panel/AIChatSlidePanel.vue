@@ -387,6 +387,7 @@ const {
   showHistory,
   showMemoryPanel,
   startNewConversation,
+  storePendingAgentId: toRef(aiPanelStore, 'pendingAgentId'),
   storePendingConversationId: toRef(aiPanelStore, 'pendingConversationId'),
   storePendingMessage: toRef(aiPanelStore, 'pendingMessage'),
   visible: toRef(aiPanelStore, 'visible'),
@@ -524,6 +525,8 @@ const expandAllPageAIOperations = pageAICapability.expandAllPageAIOperations;
 const hasExpandablePageAIDetails = pageAICapability.hasExpandablePageAIDetails;
 const hasPageAI = pageAICapability.hasPageAI;
 const pageAIDetailsExpanded = pageAICapability.pageAIDetailsExpanded;
+const pageAIDiagnostics = pageAICapability.pageAIDiagnostics;
+const pageAIFallbackOnly = pageAICapability.pageAIFallbackOnly;
 const pageAIRailTooltip = pageAICapability.pageAIRailTooltip;
 const pageAIRemainingOperationCount =
   pageAICapability.pageAIRemainingOperationCount;
@@ -1282,6 +1285,8 @@ onUnmounted(() => {
             </div>
 
             <PageAIRail
+              :diagnostics="pageAIDiagnostics"
+              :fallback-only="pageAIFallbackOnly"
               :has-page-a-i="hasPageAI"
               :has-expandable-details="hasExpandablePageAIDetails"
               :details-expanded="pageAIDetailsExpanded"

@@ -26,7 +26,6 @@ from app.services.system.tenant_domain_service import (
 )
 from tests.services.conftest import make_mock_model
 
-
 # ──────────────────────────────────────────────
 # Fixtures / 测试夹具
 # ──────────────────────────────────────────────

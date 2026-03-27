@@ -36,9 +36,9 @@ from app.ai.tools.types import ExecutionContext, ToolDefinition, ToolResult
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.core.response import build_public_error_text
-from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
 from app.enums.agent import ToolTypeEnum
 from app.enums.common import UserRoleEnum
+from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -342,7 +342,7 @@ class ToolSandbox:
             # being silently dropped when placed at top level.
             # 顶层字段白名单：拒绝未知 key，避免 content/old_html/new_html 放错位置被静默丢失
             unknown_top = [
-                k for k in arguments.keys()
+                k for k in arguments
                 if k not in _INVOKE_PAGE_OP_TOP_LEVEL_WHITELIST
             ]
             if unknown_top:
@@ -360,11 +360,10 @@ class ToolSandbox:
             variables = self.input_variables or {}
             page_ctx = variables.get(PAGE_CONTEXT_KEY) if isinstance(variables, dict) else None
 
-            if not (arguments.get("page_key") or "").strip():
-                if isinstance(page_ctx, dict):
-                    pk = (page_ctx.get("page_key") or "").strip()
-                    if pk:
-                        arguments["page_key"] = pk
+            if not (arguments.get("page_key") or "").strip() and isinstance(page_ctx, dict):
+                pk = (page_ctx.get("page_key") or "").strip()
+                if pk:
+                    arguments["page_key"] = pk
 
             if not (arguments.get("operation_name") or "").strip():
                 nested_params: dict[str, Any] = arguments.get("params") or {}

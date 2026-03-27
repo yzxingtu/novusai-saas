@@ -1,6 +1,9 @@
 <script lang="ts" setup>
 import type { PageOperation } from './page-operation-registry';
-import type { PageAIStatBadge } from './use-page-ai-capability';
+import type {
+  PageAIDiagnostics,
+  PageAIStatBadge,
+} from './use-page-ai-capability';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -11,6 +14,8 @@ import { $t } from '#/locales';
 const props = withDefaults(
   defineProps<{
     detailsExpanded?: boolean;
+    diagnostics?: null | PageAIDiagnostics;
+    fallbackOnly?: boolean;
     hasExpandableDetails?: boolean;
     hasPageAI?: boolean;
     operationCount?: number;
@@ -23,6 +28,8 @@ const props = withDefaults(
   }>(),
   {
     detailsExpanded: false,
+    diagnostics: null,
+    fallbackOnly: false,
     hasExpandableDetails: false,
     hasPageAI: false,
     operationCount: 0,
@@ -80,6 +87,12 @@ function onToggleDetails() {
             {{ $t('common.aiPanel.pageAiSupported') }}
           </span>
           <span
+            v-if="fallbackOnly"
+            class="inline-flex shrink-0 items-center rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700"
+          >
+            {{ $t('common.aiPanel.pageAiFallbackBadge') }}
+          </span>
+          <span
             v-if="operationCount > 0"
             class="inline-flex shrink-0 items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary"
           >
@@ -133,6 +146,12 @@ function onToggleDetails() {
                 {{ $t('common.aiPanel.pageAiSupported') }}
               </span>
               <span
+                v-if="fallbackOnly"
+                class="inline-flex items-center rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700"
+              >
+                {{ $t('common.aiPanel.pageAiFallbackBadge') }}
+              </span>
+              <span
                 v-if="operationCount > 0"
                 class="inline-flex items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary"
               >
@@ -167,6 +186,54 @@ function onToggleDetails() {
           >
             {{ badge.label }}
           </span>
+        </div>
+
+        <div
+          v-if="diagnostics"
+          data-testid="ai-panel-page-ai-diagnostics"
+          class="rounded-lg border border-dashed border-border/60 bg-muted/20 px-2.5 py-2"
+        >
+          <div
+            class="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground"
+          >
+            {{ $t('common.aiPanel.pageAiDiagnostics') }}
+          </div>
+          <div
+            class="mt-1 space-y-1 text-[10px] leading-4 text-muted-foreground"
+          >
+            <div>
+              {{
+                $t('common.aiPanel.pageAiDiagSource', {
+                  source: diagnostics.source,
+                })
+              }}
+            </div>
+            <div>
+              {{
+                $t('common.aiPanel.pageAiDiagBudget', {
+                  final: diagnostics.finalBytes,
+                  hard: diagnostics.hardLimitBytes,
+                  raw: diagnostics.rawBytes,
+                  soft: diagnostics.softLimitBytes,
+                })
+              }}
+            </div>
+            <div>
+              {{
+                $t('common.aiPanel.pageAiDiagOps', {
+                  current: diagnostics.finalOperationCount,
+                  raw: diagnostics.rawOperationCount,
+                })
+              }}
+            </div>
+            <div>
+              {{
+                diagnostics.compressed
+                  ? $t('common.aiPanel.pageAiDiagCompressionOn')
+                  : $t('common.aiPanel.pageAiDiagCompressionOff')
+              }}
+            </div>
+          </div>
         </div>
 
         <div

@@ -17,11 +17,11 @@ from app.ai.agent_quota import (
     AgentQuotaExceeded,
     AgentQuotaManager,
 )
-from app.configs.service import PLATFORM_TENANT_ID
 from app.ai.events.hooks import HookPoint, get_hook_registry
 from app.ai.skills.resolver import resolve_for_agent
 from app.ai.tools.sandbox import SandboxConfig, ToolSandbox
 from app.ai.utils.token_estimator import estimate_tokens
+from app.configs.service import PLATFORM_TENANT_ID
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.core.response import build_public_error_text

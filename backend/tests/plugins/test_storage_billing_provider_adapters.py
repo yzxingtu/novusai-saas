@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from datetime import date
-from decimal import Decimal
 import importlib
 import json
+from datetime import date
+from decimal import Decimal
 
 import pytest
 

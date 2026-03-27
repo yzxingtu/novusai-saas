@@ -8,6 +8,27 @@ from app.core.logging import get_logger
 logger = get_logger("plugin.weather-widget.api")
 
 
+def _describe_exception(exc: Exception | None) -> str:
+    """Build a readable exception summary for Loguru-based logs / 为 Loguru 日志构造可读异常摘要。"""
+    if exc is None:
+        return "unknown error"
+
+    parts: list[str] = []
+    current: Exception | BaseException | None = exc
+    seen: set[int] = set()
+
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        text = str(current).strip()
+        if text:
+            parts.append(f"{type(current).__name__}: {text}")
+        else:
+            parts.append(repr(current))
+        current = current.__cause__ or current.__context__
+
+    return " <- ".join(parts)
+
+
 def _get_open_meteo():
     import importlib.util
     import sys
@@ -69,9 +90,20 @@ async def get_current_weather(request, ctx) -> dict:
         except Exception as exc:
             last_exc = exc
             if attempt == 0:
-                logger.warning("Weather API attempt 1 failed, retrying: %r", exc)
+                logger.warning(
+                    "Weather API attempt {} failed for lat={} lon={}: {}",
+                    attempt + 1,
+                    latitude,
+                    longitude,
+                    _describe_exception(exc),
+                )
 
-    logger.warning("Failed to get current weather after retry: %r", last_exc)
+    logger.warning(
+        "Failed to get current weather after retry for lat={} lon={}: {}",
+        latitude,
+        longitude,
+        _describe_exception(last_exc),
+    )
     return {"error": str(last_exc) or repr(last_exc), "code": 5000}
 
 
@@ -99,9 +131,22 @@ async def get_forecast(request, ctx) -> dict:
         except Exception as exc:
             last_exc = exc
             if attempt == 0:
-                logger.warning("Forecast API attempt 1 failed, retrying: %r", exc)
+                logger.warning(
+                    "Forecast API attempt {} failed for lat={} lon={} days={}: {}",
+                    attempt + 1,
+                    latitude,
+                    longitude,
+                    days,
+                    _describe_exception(exc),
+                )
 
-    logger.warning("Failed to get forecast after retry: %r", last_exc)
+    logger.warning(
+        "Failed to get forecast after retry for lat={} lon={} days={}: {}",
+        latitude,
+        longitude,
+        days,
+        _describe_exception(last_exc),
+    )
     return {"error": str(last_exc) or repr(last_exc), "code": 5000}
 
 
@@ -120,9 +165,20 @@ async def get_hourly(request, ctx) -> dict:
         except Exception as exc:
             last_exc = exc
             if attempt == 0:
-                logger.warning("Hourly API attempt 1 failed, retrying: %r", exc)
+                logger.warning(
+                    "Hourly API attempt {} failed for lat={} lon={}: {}",
+                    attempt + 1,
+                    latitude,
+                    longitude,
+                    _describe_exception(exc),
+                )
 
-    logger.warning("Failed to get hourly after retry: %r", last_exc)
+    logger.warning(
+        "Failed to get hourly after retry for lat={} lon={}: {}",
+        latitude,
+        longitude,
+        _describe_exception(last_exc),
+    )
     return {"error": str(last_exc) or repr(last_exc), "code": 5000}
 
 
@@ -137,7 +193,12 @@ async def get_air_quality(request, ctx) -> dict:
         aqi = await _get_open_meteo().get_air_quality(latitude, longitude)
         return {"air_quality": aqi}
     except Exception as exc:
-        logger.warning("AQI API error: %r", exc)
+        logger.warning(
+            "AQI API error for lat={} lon={}: {}",
+            latitude,
+            longitude,
+            _describe_exception(exc),
+        )
         return {"air_quality": {"aqi": None, "pm2_5": None, "pm10": None, "european_aqi": None}}
 
 
@@ -157,7 +218,12 @@ async def search_city(request, ctx) -> dict:
             city = await _get_open_meteo().reverse_geocode(latitude, longitude)
             return {"cities": [city] if city else []}
         except Exception as exc:
-            logger.warning("Failed to reverse geocode: %r", exc)
+            logger.warning(
+                "Failed to reverse geocode for lat={} lon={}: {}",
+                latitude,
+                longitude,
+                _describe_exception(exc),
+            )
             return {"cities": []}
 
     if not name.strip():
@@ -172,5 +238,10 @@ async def search_city(request, ctx) -> dict:
         cities = await _get_open_meteo().search_city(name, count)
         return {"cities": cities}
     except Exception as exc:
-        logger.warning("Failed to search city: %r", exc)
+        logger.warning(
+            "Failed to search city query='{}' count={}: {}",
+            name,
+            count,
+            _describe_exception(exc),
+        )
         return {"error": str(exc) or repr(exc), "code": 5000}

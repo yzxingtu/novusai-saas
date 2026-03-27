@@ -12,10 +12,14 @@ from app.core.base_schema import PageResponse
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.recycle_bin import register_admin_recycle_bin_routes
-from app.core.response import build_exception_debug, resolve_public_error_message, success
+from app.core.response import (
+    build_exception_debug,
+    resolve_public_error_message,
+    success,
+)
 from app.enums.rbac import PermissionScope
-from app.exceptions.base import AppException
 from app.exceptions import NotFoundException
+from app.exceptions.base import AppException
 from app.rbac.decorators import (
     MenuConfig,
     action_create,
@@ -322,7 +326,7 @@ class AdminPlanController(GlobalController):
                     code=4001,
                     status_code=400,
                     debug=build_exception_debug(e),
-                )
+                ) from e
 
         @router.put("/{plan_id}", summary="更新套餐")
         @action_update("action.tenant_plan.update")

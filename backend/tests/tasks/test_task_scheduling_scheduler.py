@@ -1,8 +1,7 @@
 """Task scheduling scheduler tests."""
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from app.enums.common import ResourceScopeEnum
 from app.tasks.scheduler import (

@@ -204,7 +204,7 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
                 return await self.update(existing.id, {"agent_id": agent_id})
             raise ConflictException(
                 message=_("system_agent_assignment.error.feature_code_exists"),
-            )
+            ) from None
 
     async def delete_tenant_override(self, feature_code: str, tenant_id: int) -> bool:
         """删除企业覆盖（恢复全局默认）/ Delete tenant override (restore to global default).

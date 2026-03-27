@@ -17,12 +17,16 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
 from app.ai.sse import SSEChunkEncoder
-from app.ai.types import ChatMessage
+from app.ai.types import ChatMessage, ChatResponse
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.core.response import build_error_event, build_exception_debug, build_public_error_text
-from app.middleware.trace import trace_id_var
+from app.core.response import (
+    build_error_event,
+    build_exception_debug,
+    build_public_error_text,
+)
 from app.enums.common import UserRoleEnum
+from app.middleware.trace import trace_id_var
 
 from .base import MAX_TOOL_CALL_ROUNDS, log_user_type_for_call_log
 from .types import ExecutionRequest, ExecutionResult, PreparedExecution
@@ -116,6 +120,7 @@ class StreamExecutionHandler:
 
         messages = self.prep.messages
         tools = self.prep.tools
+        all_tools = self.prep.all_tools
         rag_sources = self.prep.rag_sources
         _optimize_event = self.prep.optimize_event
         _tool_consent_modes = self.prep.tool_consent_modes
@@ -159,6 +164,7 @@ class StreamExecutionHandler:
             processor = ToolCallProcessor(
                 sandbox=self.engine.sandbox,
                 tools=tools,
+                all_tools=all_tools,
                 consent_modes=_tool_consent_modes,
             )
 
@@ -461,6 +467,11 @@ class StreamExecutionHandler:
         _ = strip_fc_tokens  # unused in real streaming path  # 补充说明 / note
         append_final_assistant = True
         next_runtime_context = getattr(self.prep, "stream_runtime", None)
+        continuation_context = getattr(self.prep, "continuation_context", None)
+        web_research_denial_retried = False
+        multi_source_retry_count = 0
+        max_multi_source_retries = 2
+        web_research_multi_source_retries = 0
 
         # ---- Confirmation interception ---- / 确认拦截
         _last_user_text = ""
@@ -532,6 +543,8 @@ class StreamExecutionHandler:
             round_visible_thinking = ""
             round_tool_calls: list[dict[str, Any]] = []
             round_total_tokens = 0
+            round_thinking_events: list[str] = []
+            round_message_events: list[str] = []
             self._output = ""
             self._reasoning_output = ""
 
@@ -562,22 +575,26 @@ class StreamExecutionHandler:
                     round_reasoning_output += chunk.reasoning_delta
                     round_visible_thinking += chunk.reasoning_delta
                     self._reasoning_output = round_reasoning_output
-                    yield SSEChunkEncoder.encode(
-                        {
-                            "event": "thinking",
-                            "delta": chunk.reasoning_delta,
-                        }
+                    round_thinking_events.append(
+                        SSEChunkEncoder.encode(
+                            {
+                                "event": "thinking",
+                                "delta": chunk.reasoning_delta,
+                            }
+                        )
                     )
 
                 if chunk.delta:
                     round_output += chunk.delta
                     round_visible_thinking += chunk.delta
                     self._output = round_output
-                    yield SSEChunkEncoder.encode(
-                        {
-                            "event": "message",
-                            "delta": chunk.delta,
-                        }
+                    round_message_events.append(
+                        SSEChunkEncoder.encode(
+                            {
+                                "event": "message",
+                                "delta": chunk.delta,
+                            }
+                        )
                     )
 
                 if chunk.tool_calls:
@@ -595,10 +612,87 @@ class StreamExecutionHandler:
             tc_list = self._finalize_stream_tool_calls(round_tool_calls)
 
             if not tc_list:
+                denial_response = ChatResponse(
+                    message=ChatMessage(role="assistant", content=round_output),
+                    total_tokens=round_total_tokens,
+                )
+                should_retry_denial = (
+                    not web_research_denial_retried
+                    and self.engine._should_retry_web_research_denial(
+                        denial_response,
+                        tools,
+                        continuation_context,
+                    )
+                )
+                if should_retry_denial:
+                    web_research_denial_retried = True
+                    messages.append(
+                        ChatMessage(
+                            role="user",
+                            content=self.engine._build_web_research_retry_prompt(
+                                continuation_context,
+                            ),
+                            internal_only=True,
+                        )
+                    )
+                    continue
+                if (
+                    web_research_multi_source_retries < 2
+                    and self.engine._needs_more_web_research_sources(
+                        messages,
+                        tools,
+                        continuation_context,
+                    )
+                ):
+                    web_research_multi_source_retries += 1
+                    messages.append(
+                        ChatMessage(
+                            role="user",
+                            content=self.engine._build_multi_source_retry_prompt(
+                                continuation_context,
+                                messages,
+                                tools,
+                            ),
+                            internal_only=True,
+                        )
+                    )
+                    continue
+
+                should_retry_multi_source = (
+                    multi_source_retry_count < max_multi_source_retries
+                    and self.engine._needs_more_web_research_sources(
+                        messages,
+                        tools,
+                        continuation_context,
+                    )
+                )
+                if should_retry_multi_source:
+                    multi_source_retry_count += 1
+                    messages.append(
+                        ChatMessage(
+                            role="user",
+                            content=self.engine._build_multi_source_retry_prompt(
+                                continuation_context,
+                                messages,
+                                tools,
+                            ),
+                            internal_only=True,
+                        )
+                    )
+                    continue
+
+                for event in round_thinking_events:
+                    yield event
+                for event in round_message_events:
+                    yield event
                 self._output = round_output
                 self._reasoning_output = round_reasoning_output
                 break
 
+            for event in round_thinking_events:
+                yield event
+            for event in round_message_events:
+                yield event
             messages.append(
                 processor.build_assistant_tool_call_message(
                     content=round_output,

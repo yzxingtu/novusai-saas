@@ -219,7 +219,9 @@ class AgentChatService:
                 else:
                     # 降级：使用 Agent 自身绑定的模型 / Fallback: use Agent's bound model
                     if self.tenant_id == PLATFORM_TENANT_ID:
-                        from app.repositories.ai.agent_repository import AdminAgentRepository
+                        from app.repositories.ai.agent_repository import (
+                            AdminAgentRepository,
+                        )
                         agent_repo = AdminAgentRepository(llm_db)
                     else:
                         agent_repo = AgentRepository(llm_db, self.tenant_id)
@@ -557,7 +559,7 @@ class AgentChatService:
                 conversation.id,
                 interaction_updates,
                 user_id=user_id,
-                owner_type=conversation_owner_type.value,
+                owner_type=conversation_owner_type,
             )
         memory_event_id = self._build_memory_event_id(conversation.id)
 
@@ -814,7 +816,7 @@ class AgentChatService:
                 conversation.id,
                 interaction_updates,
                 user_id=user_id,
-                owner_type=conversation_owner_type.value,
+                owner_type=conversation_owner_type,
             )
         memory_event_id = self._build_memory_event_id(conversation.id)
 

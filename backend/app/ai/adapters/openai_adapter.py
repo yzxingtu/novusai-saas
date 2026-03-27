@@ -11,7 +11,6 @@ from __future__ import annotations
 import base64
 import json
 import re
-
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -21,8 +20,6 @@ from openai.types import CreateEmbeddingResponse
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
 from app.ai.adapters.base import BaseAdapter
-from app.ai.usage_mode import resolve_chat_usage
-from app.ai.utils.chat_attachment_media import resolve_image_url_for_llm
 from app.ai.exceptions import AIGatewayError, convert_openai_error
 from app.ai.tools.security import SSRFBlockedError, UrlValidator
 from app.ai.types import (
@@ -33,6 +30,8 @@ from app.ai.types import (
     ImageGenerationResponse,
     ImageResponse,
 )
+from app.ai.usage_mode import resolve_chat_usage
+from app.ai.utils.chat_attachment_media import resolve_image_url_for_llm
 from app.core.logging import LogManager
 
 logger = LogManager.get_logger("ai")

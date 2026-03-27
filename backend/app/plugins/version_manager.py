@@ -233,7 +233,7 @@ class VersionManager:
                     exc,
                     fallback_message=f"Upgrade failed for '{plugin_name}'",
                 ),
-            )
+            ) from exc
 
     async def rollback(self, plugin_id: int, target_version: str) -> None:
         """Rollback to specified version (full flow locked, avoid concurrent race conditions).

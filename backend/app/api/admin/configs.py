@@ -323,7 +323,9 @@ class AdminConfigController(GlobalController):
                 )
 
             if group_code == "platform_ssl":
-                from app.services.system.dns_provider import validate_platform_ssl_config_patch
+                from app.services.system.dns_provider import (
+                    validate_platform_ssl_config_patch,
+                )
 
                 await validate_platform_ssl_config_patch(configs)
 

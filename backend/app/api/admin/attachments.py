@@ -8,7 +8,7 @@ Provides cross-tenant attachment management endpoints (platform admin only).
 from fastapi import File, Form, Query, Request, UploadFile
 from fastapi.responses import RedirectResponse
 
-from app.configs.service import ConfigService, PLATFORM_TENANT_ID
+from app.configs.service import PLATFORM_TENANT_ID, ConfigService
 from app.core.base_controller import GlobalController
 from app.core.base_schema import PageResponse
 from app.core.deps import ActiveAdmin, DbSession, QueryParams

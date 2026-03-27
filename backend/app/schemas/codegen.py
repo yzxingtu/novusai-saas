@@ -23,8 +23,8 @@ def _validate_config_json_size(v: dict[str, Any]) -> dict[str, Any]:
     """校验 config_json 体积与深度，防 DoS / Validate size & depth to prevent DoS."""
     try:
         serialized = json.dumps(v)
-    except (TypeError, ValueError):
-        raise ValueError("config_json invalid: not JSON serializable")
+    except (TypeError, ValueError) as exc:
+        raise ValueError("config_json invalid: not JSON serializable") from exc
     if len(serialized.encode("utf-8")) > CONFIG_JSON_MAX_BYTES:
         raise ValueError(
             f"config_json too large (max {CONFIG_JSON_MAX_BYTES // 1024}KB)"

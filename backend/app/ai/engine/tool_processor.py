@@ -301,10 +301,12 @@ class ToolCallProcessor:
         self,
         sandbox: ToolSandbox,
         tools: list[ToolDefinition],
+        all_tools: list[ToolDefinition] | None = None,
         consent_modes: dict[str, str] | None = None,
     ):
         self.sandbox = sandbox
         self.tools = tools
+        self.all_tools = all_tools or tools
         self.consent_modes = consent_modes or {}
 
     # ========================================
@@ -361,11 +363,14 @@ class ToolCallProcessor:
             (result, duration_ms)
         """
         tc_start = time.perf_counter()
+        execution_definitions = self.tools
+        if not any(tool.name == func_name for tool in self.tools):
+            execution_definitions = self.all_tools
         result = await self.sandbox.execute(
             tool_call_id=tc_id,
             name=func_name,
             arguments=arguments,
-            definitions=self.tools,
+            definitions=execution_definitions,
             conversation_id=conversation_id,
         )
         duration_ms = int((time.perf_counter() - tc_start) * 1000)
@@ -747,6 +752,12 @@ class ToolCallProcessor:
     def get_skill_info(self, tool_name: str) -> dict[str, str | None]:
         """Find tool's Skill source info from ToolDefinition list / 从 ToolDefinition 列表中查找工具对应的 Skill 来源信息"""
         for td in self.tools:
+            if td.name == tool_name:
+                return {
+                    "skill_name": td.source_skill_name,
+                    "package_name": td.source_package_name,
+                }
+        for td in self.all_tools:
             if td.name == tool_name:
                 return {
                     "skill_name": td.source_skill_name,

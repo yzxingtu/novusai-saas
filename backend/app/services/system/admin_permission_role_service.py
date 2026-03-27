@@ -13,9 +13,11 @@ from app.core.base_service import GlobalService
 from app.core.i18n import _
 from app.enums import ErrorCode, RoleType
 from app.exceptions import BusinessException, NotFoundException
-from app.models.auth.permission import Permission
 from app.models.auth.admin_role import AdminRole
-from app.repositories.system.admin_permission_role_repository import AdminPermissionRoleRepository
+from app.models.auth.permission import Permission
+from app.repositories.system.admin_permission_role_repository import (
+    AdminPermissionRoleRepository,
+)
 
 
 class AdminPermissionRoleService(GlobalService[AdminRole, AdminPermissionRoleRepository]):

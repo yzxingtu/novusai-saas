@@ -94,7 +94,7 @@ class TenantAIGatewayController(TenantController):
                 raise ExternalServiceException(
                     message=_("ai.error.call_failed"),
                     debug=build_exception_debug(e),
-                )
+                ) from e
 
         @router.post("/chat/stream", summary="AI 聊天对话（流式 SSE）")
         @action_create("action.ai_gateway.chat_stream")
@@ -137,7 +137,7 @@ class TenantAIGatewayController(TenantController):
                 raise ExternalServiceException(
                     message=_("ai.error.call_failed"),
                     debug=build_exception_debug(e),
-                )
+                ) from e
 
         @router.post("/embedding", summary="文本向量化")
         @action_create("action.ai_gateway.embedding")
@@ -171,7 +171,7 @@ class TenantAIGatewayController(TenantController):
                 raise ExternalServiceException(
                     message=_("ai.error.embedding_failed"),
                     debug=build_exception_debug(e),
-                )
+                ) from e
 
 
 # 导出路由器 / Export router

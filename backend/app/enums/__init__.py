@@ -24,8 +24,8 @@ from app.enums.attachment import (
 )
 from app.enums.base import BaseEnum, IntEnum, StrEnum
 from app.enums.billing import BillingCycle
-from app.enums.codegen import CodegenConfigStatusEnum
 from app.enums.cache import CacheCategoryEnum
+from app.enums.codegen import CodegenConfigStatusEnum
 from app.enums.common import (
     ApprovalStatusEnum,
     AudienceEnum,

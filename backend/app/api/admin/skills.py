@@ -16,7 +16,13 @@ from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.core.response import build_public_error_text, created, deleted, paginated, success
+from app.core.response import (
+    build_public_error_text,
+    created,
+    deleted,
+    paginated,
+    success,
+)
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
 from app.rbac.decorators import (

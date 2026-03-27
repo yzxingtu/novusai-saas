@@ -4,9 +4,9 @@ CLI 冒烟测试 / CLI smoke tests.
 验证 novusai CLI 可导入、codegen 子命令可用
 """
 
+import json
 import subprocess
 import sys
-import json
 from pathlib import Path
 from types import SimpleNamespace
 

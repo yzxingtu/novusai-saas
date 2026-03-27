@@ -15,7 +15,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.base_model import Base, TenantModel
 from app.core.deletion import DeletionDep, DeletionStrategy
 
-
 # 用户角色-权限关联表（多对多） / User role–permission M2M link table
 tenant_user_role_permissions = Table(
     "tenant_user_role_permissions",

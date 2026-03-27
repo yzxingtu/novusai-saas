@@ -6,6 +6,7 @@ Token 黑名单单元测试 / Token blacklist unit tests.
 
 from __future__ import annotations
 
+import importlib
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -14,7 +15,7 @@ pytest.importorskip("redis", reason="redis required for token blacklist tests")
 
 # 确保 app.core.redis 已加载，以便 patch 目标存在
 # Ensure app.core.redis is loaded so patch target exists
-import app.core.redis as _redis_mod  # noqa: F401
+importlib.import_module("app.core.redis")
 
 from app.core.security import TOKEN_BLACKLIST_PREFIX, is_token_revoked, revoke_token
 

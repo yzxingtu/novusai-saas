@@ -28,12 +28,12 @@ from app.repositories.system.resource_tenant_assignment_repository import (
 )
 from app.schemas.ai.agent import AdminAgentCreate, AdminAgentUpdate
 from app.schemas.ai.agent_access import AgentAccessUpdate
-from app.schemas.ai.agent_memory import AgentMemoryToggleRequest
 from app.schemas.ai.agent_kb_binding import (
     AgentKBBatchBindRequest,
     AgentKBBindingUpdate,
     AgentKBBindRequest,
 )
+from app.schemas.ai.agent_memory import AgentMemoryToggleRequest
 from app.schemas.ai.agent_skill_grant import (
     AgentSkillGrantBatchBindRequest,
     AgentSkillGrantCreate,

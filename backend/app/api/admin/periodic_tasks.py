@@ -17,6 +17,8 @@ from app.enums.common import ResourceScopeEnum
 from app.enums.plugin import PluginStatusEnum
 from app.enums.rbac import PermissionScope
 from app.models.system.plugin import Plugin
+from app.plugins.loader import PluginLoader
+from app.plugins.preview import resolve_i18n
 from app.rbac.decorators import (
     MenuConfig,
     action_create,
@@ -33,8 +35,6 @@ from app.schemas.system import (
     PeriodicTaskToggleRequest,
     PeriodicTaskUpdateRequest,
 )
-from app.plugins.loader import PluginLoader
-from app.plugins.preview import resolve_i18n
 from app.services.system import TaskBindingService, TaskDefinitionService
 
 

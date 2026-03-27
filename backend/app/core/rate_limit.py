@@ -9,12 +9,12 @@ from __future__ import annotations
 
 import time
 from collections import defaultdict
+
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
 from app.core.i18n import _
 from app.core.response import build_error_payload
-
 
 _login_buckets: dict[str, list[float]] = defaultdict(list)
 _LOGIN_WINDOW = 60  # seconds / 窗口秒数

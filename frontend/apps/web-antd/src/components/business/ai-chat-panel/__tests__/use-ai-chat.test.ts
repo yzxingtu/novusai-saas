@@ -291,6 +291,195 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(chat.chatMessages.value[1]?.interrupted).toBe(true);
   });
 
+  it('keeps the anchored conversation binding after transient local state loss', async () => {
+    apiMocks.getChatAgentsApi.mockResolvedValue({
+      items: [
+        {
+          avatar: null,
+          description: 'Primary agent',
+          id: 1,
+          input_variables: [],
+          model_capabilities: {
+            max_image_count: 4,
+            max_image_size_mb: 10,
+            supports_vision: false,
+          },
+          model_name: 'gpt-test',
+          name: 'Agent One',
+          status: 'published',
+          tenant_id: 1,
+        },
+        {
+          avatar: null,
+          description: 'Drifted agent',
+          id: 2,
+          input_variables: [],
+          model_capabilities: {
+            max_image_count: 4,
+            max_image_size_mb: 10,
+            supports_vision: false,
+          },
+          model_name: 'gpt-test-2',
+          name: 'Agent Two',
+          status: 'published',
+          tenant_id: 1,
+        },
+      ],
+      total: 2,
+    });
+    apiMocks.getChatConversationMessagesApi.mockResolvedValue({
+      agent_id: 1,
+      message_list: [
+        {
+          content: 'hello',
+          created_at: '2024-01-01T00:00:00Z',
+          role: 'user',
+        },
+        {
+          agent_id: 1,
+          agent_name: 'Agent One',
+          content: 'hi there',
+          created_at: '2024-01-01T00:00:01Z',
+          model_name: 'gpt-test',
+          role: 'assistant',
+        },
+      ],
+    });
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          `data: ${JSON.stringify({ event: 'done', conversation_id: 42, total_tokens: 8 })}\n`,
+        );
+      },
+    );
+
+    const chat = useAIChat({
+      apiPrefix: '/tenant',
+      uploadUrl: '/tenant/attachments',
+    });
+
+    await chat.loadAgents();
+    await chat.loadConversationMessages(42);
+    await flushPromises();
+
+    chat.activeConversationId.value = null;
+    chat.selectedAgentId.value = 2;
+    chat.inputMessage.value = 'follow-up after interruption';
+
+    await chat.sendMessage({ routeSource: 'anchor-recovery-test' });
+    await flushPromises();
+
+    const lastCall = apiMocks.sendChatStreamApi.mock.calls.at(-1);
+    const requestBody = lastCall?.[2] as Record<string, unknown> | undefined;
+    expect(lastCall?.[1]).toBe(1);
+    expect(requestBody?.conversation_id).toBe(42);
+    expect(chat.activeConversationId.value).toBe(42);
+    expect(chat.selectedAgentId.value).toBe(1);
+  });
+
+  it('still forks to a new conversation when an explicit agent override is provided', async () => {
+    apiMocks.getChatAgentsApi.mockResolvedValue({
+      items: [
+        {
+          avatar: null,
+          description: 'Primary agent',
+          id: 1,
+          input_variables: [],
+          model_capabilities: {
+            max_image_count: 4,
+            max_image_size_mb: 10,
+            supports_vision: false,
+          },
+          model_name: 'gpt-test',
+          name: 'Agent One',
+          status: 'published',
+          tenant_id: 1,
+        },
+        {
+          avatar: null,
+          description: 'Secondary agent',
+          id: 2,
+          input_variables: [],
+          model_capabilities: {
+            max_image_count: 4,
+            max_image_size_mb: 10,
+            supports_vision: false,
+          },
+          model_name: 'gpt-test-2',
+          name: 'Agent Two',
+          status: 'published',
+          tenant_id: 1,
+        },
+      ],
+      total: 2,
+    });
+    apiMocks.getChatConversationMessagesApi.mockResolvedValue({
+      agent_id: 1,
+      message_list: [
+        {
+          content: 'hello',
+          created_at: '2024-01-01T00:00:00Z',
+          role: 'user',
+        },
+        {
+          agent_id: 1,
+          agent_name: 'Agent One',
+          content: 'hi there',
+          created_at: '2024-01-01T00:00:01Z',
+          model_name: 'gpt-test',
+          role: 'assistant',
+        },
+      ],
+    });
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          `data: ${JSON.stringify({ event: 'conversation', conversation_id: 84 })}\n`,
+        );
+        await options.onMessage(
+          `data: ${JSON.stringify({ event: 'done', conversation_id: 84, total_tokens: 6 })}\n`,
+        );
+      },
+    );
+
+    const chat = useAIChat({
+      apiPrefix: '/tenant',
+      uploadUrl: '/tenant/attachments',
+    });
+
+    await chat.loadAgents();
+    await chat.loadConversationMessages(42);
+    await flushPromises();
+
+    chat.inputMessage.value = 'start a fresh branch';
+
+    await chat.sendMessage({
+      agentId: 2,
+      routeSource: 'explicit-agent-switch-test',
+    });
+    await flushPromises();
+
+    const lastCall = apiMocks.sendChatStreamApi.mock.calls.at(-1);
+    const requestBody = lastCall?.[2] as Record<string, unknown> | undefined;
+    expect(lastCall?.[1]).toBe(2);
+    expect(requestBody?.conversation_id).toBeNull();
+    expect(chat.activeConversationId.value).toBe(84);
+  });
+
   it('stores summary_payload from tool_call SSE events for tool cards', async () => {
     apiMocks.sendChatStreamApi.mockImplementation(
       async (

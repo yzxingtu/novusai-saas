@@ -45,7 +45,10 @@ def test_require_permissions_alias_removed() -> None:
 
 
 def test_crud_executor_only_accepts_canonical_scopes() -> None:
-    from app.ai.tools.executors.crud_executor import _RESOURCE_SCOPE_NORMALIZE, _VALID_RESOURCE_SCOPES
+    from app.ai.tools.executors.crud_executor import (
+        _RESOURCE_SCOPE_NORMALIZE,
+        _VALID_RESOURCE_SCOPES,
+    )
 
     for key, val in _RESOURCE_SCOPE_NORMALIZE.items():
         assert key == val, f"Alias mapping found: {key!r} -> {val!r}; only identity mappings allowed"

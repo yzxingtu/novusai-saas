@@ -14,8 +14,8 @@ from fastapi import APIRouter
 from app.core.deps import ActiveTenantAdmin, DbSession
 from app.core.logging import get_logger
 from app.core.response import success
-from app.rbac.services import PermissionService
 from app.rbac.decorators import auth_only
+from app.rbac.services import PermissionService
 
 logger = get_logger(__name__)
 
@@ -128,11 +128,11 @@ async def get_plugin_slots(
       "notification_ui": [...]
     }
     """
-    from app.plugins.registry import ExtensionRegistry
-    from app.services.system.plugin_service import PluginService
     from app.api.shared._plugin_slot_filter import (
         filter_grouped_plugin_slots_by_permission_codes,
     )
+    from app.plugins.registry import ExtensionRegistry
+    from app.services.system.plugin_service import PluginService
 
     visible_names = await PluginService(db).get_tenant_visible_plugin_names(
         tenant_admin.tenant_id
