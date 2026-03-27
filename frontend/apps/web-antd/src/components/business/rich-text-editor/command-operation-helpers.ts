@@ -1,8 +1,7 @@
 import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-registry';
 
-import { $t } from '#/locales';
-
 import { createParameterizedPageOperation } from '#/composables/use-page-ai-operation-helpers';
+import { $t } from '#/locales';
 
 type EnumValueSet<TValues extends readonly string[]> = TValues[number];
 
@@ -98,10 +97,10 @@ export function resolveEditorIntParam(
 
   result = Math.trunc(result);
 
-  if (options.min != null) {
+  if (options.min !== null && options.min !== undefined) {
     result = Math.max(options.min, result);
   }
-  if (options.max != null) {
+  if (options.max !== null && options.max !== undefined) {
     result = Math.min(options.max, result);
   }
 
@@ -110,9 +109,7 @@ export function resolveEditorIntParam(
 
 export function createEditorEnumCommandOperation<
   TValues extends readonly string[],
->(
-  options: CreateEditorEnumCommandOperationOptions<TValues>,
-): PageOperation {
+>(options: CreateEditorEnumCommandOperationOptions<TValues>): PageOperation {
   return createParameterizedPageOperation({
     name: options.name,
     label: options.label,
@@ -128,7 +125,8 @@ export function createEditorEnumCommandOperation<
     action: async (params) => {
       const rawValue = params[options.paramName];
       const shouldUseDefault =
-        rawValue == null ||
+        rawValue === null ||
+        rawValue === undefined ||
         String(rawValue).trim() === '' ||
         options.fallbackOnInvalid;
       const value = resolveEditorEnumParam(rawValue, {
@@ -139,9 +137,7 @@ export function createEditorEnumCommandOperation<
       if (!value) {
         return {
           success: false,
-          message:
-            options.invalidMessage ??
-            $t('common.invalidSelection'),
+          message: options.invalidMessage ?? $t('common.invalidSelection'),
           error_type: 'invalid_input',
         };
       }

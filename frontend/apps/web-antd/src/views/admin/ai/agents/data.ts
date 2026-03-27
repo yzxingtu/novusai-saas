@@ -172,11 +172,15 @@ export function useFormSchema(
       required: true,
       ...locked,
     }),
-    ...(!isCreate ? [{
-      component: 'ImageUpload' as const,
-      fieldName: 'avatar',
-      label: $t('admin.ai.agent.avatar'),
-    }] : []),
+    ...(isCreate
+      ? []
+      : [
+          {
+            component: 'ImageUpload' as const,
+            fieldName: 'avatar',
+            label: $t('admin.ai.agent.avatar'),
+          },
+        ]),
     textareaField('description', $t('admin.ai.agent.description'), {
       rows: 2,
     }),
@@ -199,58 +203,68 @@ export function useFormSchema(
     textareaField('system_prompt', $t('admin.ai.agent.systemPrompt'), {
       rows: 5,
     }),
-    ...(isCreate ? [] : [
-      {
-        ...numberField('temperature', $t('admin.ai.agent.temperature'), {
-          min: 0,
-          max: 2,
-          precision: 1,
-          placeholder: $t('admin.ai.agent.placeholder.inputTemperature'),
-        }),
-        help: $t('admin.ai.agent.help.temperature'),
-      },
-      {
-        ...numberField('max_tokens', $t('admin.ai.agent.maxTokens'), {
-          min: 1,
-          placeholder: $t('admin.ai.agent.placeholder.inputMaxTokens'),
-        }),
-        componentProps: (values: Record<string, unknown>) => ({
-          style: { width: '100%' },
-          min: 1,
-          max:
-            resolveModelMaxOutputTokens?.(
-              values.model_id as null | number | undefined,
-            ) ?? 128_000,
-          placeholder: $t('admin.ai.agent.placeholder.inputMaxTokens'),
-        }),
-        help: $t('admin.ai.agent.help.maxTokens'),
-      },
-      {
-        ...numberField('top_p', $t('admin.ai.agent.topP'), {
-          min: 0,
-          max: 1,
-          placeholder: $t('admin.ai.agent.placeholder.inputTopP'),
-        }),
-        help: $t('admin.ai.agent.help.topP'),
-      },
-      {
-        ...textareaField('welcome_message', $t('admin.ai.agent.welcomeMessage'), {
-          rows: 3,
-          placeholder: $t('admin.ai.agent.placeholder.inputWelcomeMessage'),
-        }),
-        help: $t('admin.ai.agent.help.welcomeMessage'),
-      },
-      {
-        ...textareaField(
-          'suggested_questions',
-          $t('admin.ai.agent.suggestedQuestions'),
+    ...(isCreate
+      ? []
+      : [
           {
-            rows: 4,
-            placeholder: $t('admin.ai.agent.placeholder.inputSuggestedQuestions'),
+            ...numberField('temperature', $t('admin.ai.agent.temperature'), {
+              min: 0,
+              max: 2,
+              precision: 1,
+              placeholder: $t('admin.ai.agent.placeholder.inputTemperature'),
+            }),
+            help: $t('admin.ai.agent.help.temperature'),
           },
-        ),
-        help: $t('admin.ai.agent.help.suggestedQuestions'),
-      },
-    ]),
+          {
+            ...numberField('max_tokens', $t('admin.ai.agent.maxTokens'), {
+              min: 1,
+              placeholder: $t('admin.ai.agent.placeholder.inputMaxTokens'),
+            }),
+            componentProps: (values: Record<string, unknown>) => ({
+              style: { width: '100%' },
+              min: 1,
+              max:
+                resolveModelMaxOutputTokens?.(
+                  values.model_id as null | number | undefined,
+                ) ?? 128_000,
+              placeholder: $t('admin.ai.agent.placeholder.inputMaxTokens'),
+            }),
+            help: $t('admin.ai.agent.help.maxTokens'),
+          },
+          {
+            ...numberField('top_p', $t('admin.ai.agent.topP'), {
+              min: 0,
+              max: 1,
+              placeholder: $t('admin.ai.agent.placeholder.inputTopP'),
+            }),
+            help: $t('admin.ai.agent.help.topP'),
+          },
+          {
+            ...textareaField(
+              'welcome_message',
+              $t('admin.ai.agent.welcomeMessage'),
+              {
+                rows: 3,
+                placeholder: $t(
+                  'admin.ai.agent.placeholder.inputWelcomeMessage',
+                ),
+              },
+            ),
+            help: $t('admin.ai.agent.help.welcomeMessage'),
+          },
+          {
+            ...textareaField(
+              'suggested_questions',
+              $t('admin.ai.agent.suggestedQuestions'),
+              {
+                rows: 4,
+                placeholder: $t(
+                  'admin.ai.agent.placeholder.inputSuggestedQuestions',
+                ),
+              },
+            ),
+            help: $t('admin.ai.agent.help.suggestedQuestions'),
+          },
+        ]),
   ];
 }

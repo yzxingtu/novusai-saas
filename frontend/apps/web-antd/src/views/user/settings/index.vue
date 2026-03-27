@@ -83,7 +83,9 @@ function navigateTo(item: SettingsNavItem) {
       </nav>
 
       <!-- Mobile Tab Navigation -->
-      <nav class="flex gap-1 overflow-x-auto rounded-lg border border-border bg-card p-1 md:hidden">
+      <nav
+        class="flex gap-1 overflow-x-auto rounded-lg border border-border bg-card p-1 md:hidden"
+      >
         <button
           v-for="item in navItems"
           :key="item.key"

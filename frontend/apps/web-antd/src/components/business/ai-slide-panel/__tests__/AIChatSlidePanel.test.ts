@@ -1,4 +1,12 @@
 // @vitest-environment happy-dom
+/* eslint-disable vue/one-component-per-file */
+import type {
+  AgentItem,
+  ChatMessage,
+  RichTextAITask,
+} from '#/components/business/ai-chat-panel/types';
+import type { SourceEditorRegistration } from '#/components/business/rich-text-editor/types';
+
 /**
  * AIChatSlidePanel component render tests: confirmCountdown in real component.
  * AIChatSlidePanel 组件挂载测试：倒计时文案在真实组件中渲染。
@@ -7,9 +15,34 @@
  */
 import { flushPromises, mount } from '@vue/test-utils';
 import { defineComponent, reactive, ref } from 'vue';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import AIChatSlidePanel from '../AIChatSlidePanel.vue';
+import { useRichTextTaskOrchestration } from '../use-rich-text-task-orchestration';
+
+const useAIChatState = vi.hoisted(() => ({
+  chatMessages: undefined as unknown as { value: ChatMessage[] },
+  sending: undefined as unknown as { value: boolean },
+  streaming: undefined as unknown as { value: boolean },
+}));
+
+const sourceEditorMockState = vi.hoisted(() => ({
+  editors: new Map<string, SourceEditorRegistration>(),
+  prepareRichTextContent: vi.fn(
+    (content: string, options?: { mode?: 'formatted' | 'plain' }) =>
+      `prepared::${options?.mode ?? 'plain'}::${content}`,
+  ),
+  version: undefined as unknown as { value: number },
+}));
+
+const composerInteractionState = vi.hoisted(() => ({
+  agentKBBindings: undefined as unknown as {
+    value: Array<{ kb_name?: string; knowledge_base_id: number }>;
+  },
+  removeSelectedKnowledgeBase: vi.fn(),
+  selectedKBIds: undefined as unknown as { value: number[] },
+}));
 
 // Store mock for countdown assertions / 用于倒计时断言的 store mock
 const visible = ref(true);
@@ -49,8 +82,8 @@ const clearConversationMemoryMock = vi.fn();
 const pendingPageOpsValue = ref<
   Array<{
     invokeId: string;
-    operationLabel: string;
     operationDescription: string;
+    operationLabel: string;
     resolved: boolean;
     startedAt: number;
   }>
@@ -58,6 +91,7 @@ const pendingPageOpsValue = ref<
 const resolvePageOp = vi.fn();
 const antMessageMocks = vi.hoisted(() => ({
   error: vi.fn(),
+  info: vi.fn(),
   warning: vi.fn(),
 }));
 
@@ -177,16 +211,71 @@ vi.mock('ant-design-vue', () => {
   };
 });
 
+interface MockAIPanelStore {
+  bindRichTextConversation: ReturnType<typeof vi.fn>;
+  clearResolvedPageOps: ReturnType<typeof vi.fn>;
+  clearPendingRichTextTask: ReturnType<typeof vi.fn>;
+  close: ReturnType<typeof vi.fn>;
+  consumePendingAgentId: ReturnType<typeof vi.fn>;
+  dispatchToolCall: ReturnType<typeof vi.fn>;
+  docked: boolean;
+  getRichTextConversationBinding: ReturnType<typeof vi.fn>;
+  hasUnread: boolean;
+  markRichTextTaskApplied: ReturnType<typeof vi.fn>;
+  markRichTextTaskUndone: ReturnType<typeof vi.fn>;
+  markUnread: ReturnType<typeof vi.fn>;
+  minimize: ReturnType<typeof vi.fn>;
+  minimized: boolean;
+  mode: 'full' | 'panel';
+  open: ReturnType<typeof vi.fn>;
+  panelWidth: number;
+  pendingConversationId: null | number;
+  pendingMessage: null | string;
+  pendingPageOps: typeof pendingPageOpsValue.value;
+  pendingRichTextTask: null | RichTextAITask;
+  pinnedAgentId: null | number;
+  pinnedAgentName: null | string;
+  promoteQueuedRichTextTask: ReturnType<typeof vi.fn>;
+  queuedRichTextTask: null | RichTextAITask;
+  queueRichTextTask: ReturnType<typeof vi.fn>;
+  resetConversation: ReturnType<typeof vi.fn>;
+  resolvePageOp: typeof resolvePageOp;
+  restore: ReturnType<typeof vi.fn>;
+  setConversation: ReturnType<typeof vi.fn>;
+  toggleDock: ReturnType<typeof vi.fn>;
+  toggleMode: ReturnType<typeof vi.fn>;
+  togglePin: ReturnType<typeof vi.fn>;
+  unpinAgent: ReturnType<typeof vi.fn>;
+  visible: boolean;
+}
+
+function requireElement<T>(value: null | T | undefined, message: string): T {
+  expect(value).toBeTruthy();
+  if (value === null || value === undefined) {
+    throw new Error(message);
+  }
+  return value;
+}
+
 function createAIPanelStore() {
-  const store = reactive({
+  const store = reactive<MockAIPanelStore>({
+    bindRichTextConversation: vi.fn(),
     clearResolvedPageOps: vi.fn(),
+    clearPendingRichTextTask: vi.fn((taskId?: string) => {
+      if (!taskId || store.pendingRichTextTask?.taskId === taskId) {
+        store.pendingRichTextTask = null;
+      }
+    }),
     close: vi.fn(() => {
       store.visible = false;
     }),
     consumePendingAgentId: vi.fn(() => null),
     dispatchToolCall: vi.fn(),
     docked: true,
+    getRichTextConversationBinding: vi.fn(() => null),
     hasUnread: false,
+    markRichTextTaskApplied: vi.fn(),
+    markRichTextTaskUndone: vi.fn(),
     markUnread: vi.fn(),
     minimize: vi.fn(() => {
       store.minimized = true;
@@ -201,8 +290,28 @@ function createAIPanelStore() {
     pendingConversationId: null as null | number,
     pendingMessage: null as null | string,
     pendingPageOps: [] as typeof pendingPageOpsValue.value,
+    pendingRichTextTask: null,
     pinnedAgentId: null as null | number,
     pinnedAgentName: null as null | string,
+    promoteQueuedRichTextTask: vi.fn(() => {
+      if (!store.queuedRichTextTask) {
+        return null;
+      }
+      const nextTask: RichTextAITask = {
+        ...store.queuedRichTextTask,
+        state: 'ready',
+      };
+      store.queuedRichTextTask = null;
+      store.pendingRichTextTask = nextTask;
+      return nextTask;
+    }),
+    queuedRichTextTask: null,
+    queueRichTextTask: vi.fn((task: RichTextAITask) => {
+      store.queuedRichTextTask = {
+        ...task,
+        state: 'queued',
+      };
+    }),
     resetConversation: vi.fn(),
     resolvePageOp,
     restore: vi.fn(() => {
@@ -220,6 +329,220 @@ function createAIPanelStore() {
     visible: true,
   });
   return store;
+}
+
+function createRichTextTask(
+  overrides: Partial<RichTextAITask> = {},
+): RichTextAITask {
+  const pageKey = overrides.pageKey ?? 'tenant.docs.detail';
+  const editorInstanceId = overrides.editorInstanceId ?? 'editor-1';
+  return {
+    agentId: 1,
+    availableModes: ['plain', 'formatted'],
+    conversationId: null,
+    contextTitle: '富文本页面',
+    createdAt: 1000,
+    draft: {
+      html: '<p>Draft</p>',
+      markdown: 'Draft',
+      plainText: 'Draft',
+    },
+    editorInstanceId,
+    feature: 'rewrite',
+    message: '[Rich Text Task] Rewrite',
+    pageKey,
+    preferredApplyMode: 'formatted',
+    selectionLabel: '待改写段落',
+    selectionSnapshot: {
+      afterTextExcerpt: 'after',
+      beforeTextExcerpt: 'before',
+      editorInstanceId,
+      editorRevision: 2,
+      from: 4,
+      pageKey,
+      selectedText: '待改写段落',
+      to: 12,
+    },
+    state: 'ready',
+    summary: '已生成一版草稿',
+    taskId: 'rich-text-task-1',
+    title: 'AI Rewrite',
+    updatedAt: 1000,
+    ...overrides,
+  };
+}
+
+function createRichTextMessage(
+  task: RichTextAITask,
+  overrides: Partial<ChatMessage> = {},
+): ChatMessage {
+  const clientKey = overrides.clientKey ?? `assistant-${task.taskId}`;
+  return {
+    clientKey,
+    role: 'assistant',
+    content: task.draft.markdown ?? task.message,
+    source: 'rich_text_ai',
+    richTextAI: {
+      ...task,
+      messageClientKey: task.messageClientKey ?? clientKey,
+    },
+    ...overrides,
+  };
+}
+
+function createSourceEditorMock(
+  task: RichTextAITask,
+  options: {
+    mounted?: boolean;
+    revision?: number;
+  } = {},
+) {
+  const state = {
+    mounted: options.mounted ?? true,
+    revision: options.revision ?? task.selectionSnapshot.editorRevision,
+  };
+  const editor: SourceEditorRegistration = {
+    appendToEnd: vi.fn(() => {
+      state.revision += 1;
+      editor.revision = state.revision;
+      return true;
+    }),
+    editorInstanceId: task.editorInstanceId,
+    focus: vi.fn(),
+    getHTML: vi.fn(() => '<p>Existing</p>'),
+    getRevision: vi.fn(() => state.revision),
+    getText: vi.fn(() => 'Existing'),
+    insertAfterRange: vi.fn(() => {
+      state.revision += 1;
+      editor.revision = state.revision;
+      return true;
+    }),
+    isMounted: vi.fn(() => state.mounted),
+    pageKey: task.pageKey,
+    replaceRange: vi.fn(() => {
+      state.revision += 1;
+      editor.revision = state.revision;
+      return true;
+    }),
+    revision: state.revision,
+    undo: vi.fn(() => {
+      if (state.revision <= 0) {
+        return false;
+      }
+      state.revision -= 1;
+      editor.revision = state.revision;
+      return true;
+    }),
+  };
+  sourceEditorMockState.editors.set(
+    `${task.pageKey}::${task.editorInstanceId}`,
+    editor,
+  );
+  sourceEditorMockState.version.value += 1;
+  return editor;
+}
+
+async function flushPanel() {
+  await flushPromises();
+  await flushPromises();
+}
+
+type RichTextTaskPanelStore = Parameters<
+  typeof useRichTextTaskOrchestration
+>[0]['store'];
+
+function createRichTextTaskStoreStub(
+  overrides: Partial<RichTextTaskPanelStore> = {},
+): RichTextTaskPanelStore {
+  return {
+    bindRichTextConversation: vi.fn(),
+    clearPendingRichTextTask: vi.fn(),
+    getRichTextConversationBinding: vi.fn(() => null),
+    markRichTextTaskApplied: vi.fn(),
+    markRichTextTaskUndone: vi.fn(),
+    open: vi.fn(),
+    pendingRichTextTask: null,
+    promoteQueuedRichTextTask: vi.fn(() => null),
+    queueRichTextTask: vi.fn(),
+    visible: true,
+    ...overrides,
+  };
+}
+
+function mountRichTextOrchestrationHarness(options: {
+  activeConversationId?: null | number;
+  chatMessages: ChatMessage[];
+  store?: RichTextTaskPanelStore;
+}) {
+  const activeConversationId = ref<null | number>(
+    options.activeConversationId ?? null,
+  );
+  const agents = ref<AgentItem[]>([
+    {
+      avatar: null,
+      description: null,
+      id: 1,
+      input_variables: null,
+      name: 'AI Writer',
+      status: 'active',
+      tenant_id: 1,
+    },
+  ]);
+  const allAgentsVariables = ref<Record<number, Record<string, string>>>({});
+  const chatMessages = ref(options.chatMessages);
+  const inputMessage = ref('');
+  const manualNewConversationAgentId = ref<null | number>(null);
+  const selectedAgentId = ref<null | number>(1);
+  const showHistory = ref(false);
+  const showMemoryPanel = ref(false);
+  const sending = ref(false);
+  const streaming = ref(false);
+  const store = options.store ?? createRichTextTaskStoreStub();
+
+  const wrapper = mount(
+    defineComponent({
+      setup(_, { expose }) {
+        const orchestration = useRichTextTaskOrchestration({
+          activeConversationId,
+          agents,
+          allAgentsVariables,
+          chatMessages,
+          ensureAgentVarsLoaded: vi.fn(),
+          inputMessage,
+          loadConversationMessages: vi.fn(),
+          manualNewConversationAgentId,
+          onMissingVariables: vi.fn(),
+          onTaskQueued: vi.fn(),
+          selectedAgentId,
+          sendMessage: vi.fn(async () => true),
+          sending,
+          showHistory,
+          showMemoryPanel,
+          startNewConversation: vi.fn(),
+          store,
+          streaming,
+        });
+
+        expose({
+          activeConversationId,
+          getRichTextDraftState: (index: number) => {
+            const message = chatMessages.value[index];
+            return message
+              ? orchestration.getRichTextDraftState(message)
+              : null;
+          },
+          onRichTextApply: orchestration.onRichTextApply,
+        });
+        return () => null;
+      },
+    }),
+  );
+
+  return {
+    activeConversationId,
+    store,
+    wrapper,
+  };
 }
 
 vi.mock('#/store', () => ({
@@ -243,6 +566,9 @@ vi.mock('#/locales', () => ({
 
 vi.mock('#/components/business/ai-chat-panel/use-ai-chat', async () => {
   const vue = await import('vue');
+  useAIChatState.chatMessages = vue.ref([]);
+  useAIChatState.sending = vue.ref(false);
+  useAIChatState.streaming = vue.ref(false);
   const agents = vue.ref([
     {
       id: 1,
@@ -283,6 +609,8 @@ vi.mock('#/components/business/ai-chat-panel/use-ai-chat', async () => {
       created_at: '2024-01-01T00:00:00Z',
     },
   ]);
+  composerInteractionState.agentKBBindings ??= vue.ref([]);
+  composerInteractionState.selectedKBIds ??= vue.ref([]);
   return {
     useAIChat: () => ({
       agents,
@@ -303,7 +631,7 @@ vi.mock('#/components/business/ai-chat-panel/use-ai-chat', async () => {
       deleteConversation: deleteConversationMock,
       updateConversationTitle: updateConversationTitleMock,
       loadConversationMessages: loadConversationMessagesMock,
-      chatMessages: vue.ref([]),
+      chatMessages: useAIChatState.chatMessages,
       inputMessage: inputMessageValue,
       mentionedAgentId: vue.ref(null),
       mentionedAgent: vue.computed(() => null),
@@ -311,8 +639,8 @@ vi.mock('#/components/business/ai-chat-panel/use-ai-chat', async () => {
       mentionQuery: vue.ref(''),
       mentionCandidates: vue.ref([]),
       mentionActiveIndex: vue.ref(0),
-      sending: vue.ref(false),
-      streaming: vue.ref(false),
+      sending: useAIChatState.sending,
+      streaming: useAIChatState.streaming,
       messagesContainer: vue.ref(null),
       sendMessage: sendMessageMock,
       stopGeneration: vi.fn(),
@@ -325,8 +653,9 @@ vi.mock('#/components/business/ai-chat-panel/use-ai-chat', async () => {
       handleInputKeyDown: vi.fn(() => false),
       selectMentionAgent: vi.fn(),
       selectMentionKnowledgeBase: vi.fn(),
-      removeSelectedKnowledgeBase: vi.fn(),
-      selectedKBIds: vue.ref([]),
+      removeSelectedKnowledgeBase:
+        composerInteractionState.removeSelectedKnowledgeBase,
+      selectedKBIds: composerInteractionState.selectedKBIds,
       clearMentionedAgent: vi.fn(),
       cleanup: vi.fn(),
       pendingAttachments: pendingAttachmentsValue,
@@ -357,7 +686,7 @@ vi.mock('#/components/business/ai-chat-panel/use-ai-chat', async () => {
       exportAsPlainText: vi.fn(),
       totalTokensUsed: vue.ref(0),
       supportsVision: supportsVisionValue,
-      agentKBBindings: vue.ref([]),
+      agentKBBindings: composerInteractionState.agentKBBindings,
       allAgentsVariables: vue.ref({}),
       agentsWithVarsInConversation: vue.ref([]),
       ensureAgentVarsLoaded: vi.fn(),
@@ -365,6 +694,21 @@ vi.mock('#/components/business/ai-chat-panel/use-ai-chat', async () => {
     }),
   };
 });
+
+vi.mock(
+  '#/components/business/rich-text-editor/sourceEditorRegistry',
+  async () => {
+    const vue = await import('vue');
+    sourceEditorMockState.version = vue.ref(0);
+    return {
+      prepareRichTextContent: sourceEditorMockState.prepareRichTextContent,
+      resolveSourceEditor: (pageKey: string, editorInstanceId: string) =>
+        sourceEditorMockState.editors.get(`${pageKey}::${editorInstanceId}`) ??
+        null,
+      sourceEditorRegistryVersion: sourceEditorMockState.version,
+    };
+  },
+);
 
 vi.mock('../use-agent-router', () => ({
   useAgentRouter: () => ({
@@ -411,7 +755,7 @@ vi.mock('../page-operation-registry', () => ({
   pageOperationVersion: ref(0),
 }));
 
-describe('AIChatSlidePanel (component mount)', () => {
+describe('aIChatSlidePanel (component mount)', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(1_000_000_000_000);
@@ -428,6 +772,15 @@ describe('AIChatSlidePanel (component mount)', () => {
     pageContextValue.value = null;
     pendingPageOpsValue.value = [];
     pageOperationsValue.value = [];
+    useAIChatState.chatMessages.value = [];
+    useAIChatState.sending.value = false;
+    useAIChatState.streaming.value = false;
+    sourceEditorMockState.editors.clear();
+    sourceEditorMockState.prepareRichTextContent.mockClear();
+    sourceEditorMockState.version.value = 0;
+    composerInteractionState.agentKBBindings.value = [];
+    composerInteractionState.removeSelectedKnowledgeBase.mockClear();
+    composerInteractionState.selectedKBIds.value = [];
     aiPanelStore = createAIPanelStore();
     aiPanelStore.visible = visible.value;
     aiPanelStore.docked = docked.value;
@@ -456,6 +809,7 @@ describe('AIChatSlidePanel (component mount)', () => {
     fetchConversationMemoryMock.mockClear();
     clearConversationMemoryMock.mockClear();
     antMessageMocks.error.mockClear();
+    antMessageMocks.info.mockClear();
     antMessageMocks.warning.mockClear();
   });
 
@@ -564,9 +918,17 @@ describe('AIChatSlidePanel (component mount)', () => {
       loadConversationMessagesMock.mock.invocationCallOrder[0];
     const sendInvocationOrder = sendMessageMock.mock.invocationCallOrder[0];
 
-    expect(loadInvocationOrder).toBeDefined();
-    expect(sendInvocationOrder).toBeDefined();
-    expect(loadInvocationOrder!).toBeLessThan(sendInvocationOrder!);
+    const resolvedLoadInvocationOrder = requireElement(
+      loadInvocationOrder,
+      'Expected loadConversationMessages invocation order',
+    );
+    const resolvedSendInvocationOrder = requireElement(
+      sendInvocationOrder,
+      'Expected sendMessage invocation order',
+    );
+    expect(resolvedLoadInvocationOrder).toBeLessThan(
+      resolvedSendInvocationOrder,
+    );
 
     wrapper.unmount();
   });
@@ -709,8 +1071,10 @@ describe('AIChatSlidePanel (component mount)', () => {
 
     await flushPromises();
     const sendButton = document.body.querySelector('button.send-btn');
-    expect(sendButton).toBeTruthy();
-    sendButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    requireElement(
+      sendButton,
+      'Expected send button in active conversation test',
+    ).dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();
 
     expect(routeMessageMock).not.toHaveBeenCalled();
@@ -780,8 +1144,10 @@ describe('AIChatSlidePanel (component mount)', () => {
 
     await flushPromises();
     const sendButton = document.body.querySelector('button.send-btn');
-    expect(sendButton).toBeTruthy();
-    sendButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    requireElement(
+      sendButton,
+      'Expected send button in large context routing test',
+    ).dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();
 
     const routeBanner = document.body.querySelector(
@@ -1038,8 +1404,10 @@ describe('AIChatSlidePanel (component mount)', () => {
 
     await flushPromises();
     const sendButton = document.body.querySelector('button.send-btn');
-    expect(sendButton).toBeTruthy();
-    sendButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    requireElement(
+      sendButton,
+      'Expected send button in screenshot operation test',
+    ).dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();
 
     const routedContext = routeMessageMock.mock.calls[0]?.[2] as null | {
@@ -1055,12 +1423,12 @@ describe('AIChatSlidePanel (component mount)', () => {
     expect(
       (
         routedContext?.page_data?.list_summary as
-          | { sample_rows?: unknown[] }
           | undefined
+          | { sample_rows?: unknown[] }
       )?.sample_rows?.length ?? 0,
     ).toBeLessThanOrEqual(2);
     expect(
-      (routedContext?.page_data?.available_operations as unknown[] | undefined)
+      (routedContext?.page_data?.available_operations as undefined | unknown[])
         ?.length ?? 0,
     ).toBeLessThanOrEqual(16);
     expect(
@@ -1103,8 +1471,10 @@ describe('AIChatSlidePanel (component mount)', () => {
 
     await flushPromises();
     const sendButton = document.body.querySelector('button.send-btn');
-    expect(sendButton).toBeTruthy();
-    sendButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    requireElement(
+      sendButton,
+      'Expected send button in screenshot capability test',
+    ).dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();
 
     const routedContext = routeMessageMock.mock.calls[0]?.[2] as null | {
@@ -1144,10 +1514,14 @@ describe('AIChatSlidePanel (component mount)', () => {
       'button[aria-label="common.globalAiChat.rerouteThisTurn"]',
     );
     const sendButton = document.body.querySelector('button.send-btn');
-    expect(rerouteButton).toBeTruthy();
-    expect(sendButton).toBeTruthy();
-    rerouteButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    sendButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    requireElement(
+      rerouteButton,
+      'Expected reroute button in image reroute failure test',
+    ).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    requireElement(
+      sendButton,
+      'Expected send button in image reroute failure test',
+    ).dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();
 
     expect(routeMessageMock).toHaveBeenCalledOnce();
@@ -1175,8 +1549,10 @@ describe('AIChatSlidePanel (component mount)', () => {
 
     await flushPromises();
     const sendButton = document.body.querySelector('button.send-btn');
-    expect(sendButton).toBeTruthy();
-    sendButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    requireElement(
+      sendButton,
+      'Expected send button in audio attachment routing test',
+    ).dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();
 
     expect(routeMessageMock).toHaveBeenCalledOnce();
@@ -1191,6 +1567,456 @@ describe('AIChatSlidePanel (component mount)', () => {
       agentId: 1,
       pageContext: null,
     });
+
+    wrapper.unmount();
+  });
+
+  it('toggles the send button disabled state with composer input changes', async () => {
+    const wrapper = mount(AIChatSlidePanel, {
+      props: {
+        apiPrefix: '/tenant',
+        uploadUrl: '/upload',
+      },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          ChatMessageItem: true,
+        },
+      },
+    });
+
+    await flushPanel();
+
+    const composerInput = requireElement(
+      document.body.querySelector('[data-testid="ai-chat-input"]'),
+      'Expected composer input for send button state test',
+    ) as HTMLTextAreaElement;
+
+    let sendButton = requireElement(
+      document.body.querySelector('button.send-btn'),
+      'Expected send button for composer input state test',
+    ) as HTMLButtonElement;
+    expect(sendButton.hasAttribute('disabled')).toBe(true);
+
+    composerInput.value = 'hello composer';
+    composerInput.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushPanel();
+
+    sendButton = requireElement(
+      document.body.querySelector('button.send-btn'),
+      'Expected send button after composer input update',
+    ) as HTMLButtonElement;
+    expect(sendButton.hasAttribute('disabled')).toBe(false);
+
+    composerInput.value = '';
+    composerInput.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushPanel();
+
+    sendButton = requireElement(
+      document.body.querySelector('button.send-btn'),
+      'Expected send button after clearing composer input',
+    ) as HTMLButtonElement;
+    expect(sendButton.hasAttribute('disabled')).toBe(true);
+
+    wrapper.unmount();
+  });
+
+  it('removes selected KB chips from the current turn via the composer controls', async () => {
+    composerInteractionState.agentKBBindings.value = [
+      {
+        kb_name: 'Knowledge Base A',
+        knowledge_base_id: 101,
+      },
+    ];
+    composerInteractionState.selectedKBIds.value = [101];
+
+    const wrapper = mount(AIChatSlidePanel, {
+      props: {
+        apiPrefix: '/tenant',
+        uploadUrl: '/upload',
+      },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          ChatMessageItem: true,
+        },
+      },
+    });
+
+    await flushPanel();
+
+    expect(document.body.textContent).toContain('Knowledge Base A');
+    const removeKbButton = requireElement(
+      document.body.querySelector(
+        'button[aria-label="common.globalAiChat.removeKbFromTurn"]',
+      ),
+      'Expected remove KB button for current turn chip',
+    ) as HTMLButtonElement;
+
+    removeKbButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPanel();
+
+    expect(
+      composerInteractionState.removeSelectedKnowledgeBase,
+    ).toHaveBeenCalledWith(101);
+
+    wrapper.unmount();
+  });
+
+  it('dispatches a pending rich text task after reopening from the closed panel state', async () => {
+    visible.value = false;
+    const task = createRichTextTask({
+      message: '[Rich Text Task] Rewrite from closed panel',
+      taskId: 'rich-text-closed-task',
+    });
+    sendMessageMock.mockImplementation(async ({ agentId, routeSource }) => {
+      useAIChatState.chatMessages.value = [
+        ...useAIChatState.chatMessages.value,
+        {
+          clientKey: 'assistant-rich-text-closed',
+          content: 'Draft ready',
+          role: 'assistant',
+          agent_id: agentId ?? null,
+          routeSource: routeSource ?? null,
+        },
+      ];
+      return true;
+    });
+    aiPanelStore = createAIPanelStore();
+    aiPanelStore.visible = false;
+    aiPanelStore.pendingRichTextTask = task;
+
+    const wrapper = mount(AIChatSlidePanel, {
+      props: {
+        apiPrefix: '/tenant',
+        uploadUrl: '/upload',
+      },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          ChatMessageItem: true,
+        },
+      },
+    });
+
+    await flushPanel();
+
+    expect(aiPanelStore.open).toHaveBeenCalled();
+    expect(sendMessageMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentId: 1,
+        pageContext: null,
+        routeSource: 'rich_text_ai',
+      }),
+    );
+    expect(aiPanelStore.clearPendingRichTextTask).toHaveBeenCalledWith(
+      'rich-text-closed-task',
+    );
+    expect(useAIChatState.chatMessages.value[0]?.richTextAI?.taskId).toBe(
+      'rich-text-closed-task',
+    );
+
+    wrapper.unmount();
+  });
+
+  it('queues the latest pending rich text task while streaming', async () => {
+    useAIChatState.streaming.value = true;
+
+    const wrapper = mount(AIChatSlidePanel, {
+      props: {
+        apiPrefix: '/tenant',
+        uploadUrl: '/upload',
+      },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          ChatMessageItem: true,
+        },
+      },
+    });
+
+    await flushPanel();
+
+    aiPanelStore.pendingRichTextTask = createRichTextTask({
+      message: '[Rich Text Task] First queued draft',
+      taskId: 'rich-text-queue-1',
+    });
+    await flushPanel();
+
+    aiPanelStore.pendingRichTextTask = createRichTextTask({
+      draft: {
+        html: '<p>Second</p>',
+        markdown: 'Second',
+        plainText: 'Second',
+      },
+      message: '[Rich Text Task] Latest queued draft',
+      taskId: 'rich-text-queue-2',
+    });
+    await flushPanel();
+
+    expect(aiPanelStore.queueRichTextTask).toHaveBeenCalledTimes(2);
+    expect(aiPanelStore.queueRichTextTask).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        taskId: 'rich-text-queue-2',
+      }),
+    );
+    expect(aiPanelStore.queuedRichTextTask?.taskId).toBe('rich-text-queue-2');
+    expect(aiPanelStore.pendingRichTextTask).toBeNull();
+    expect(sendMessageMock).not.toHaveBeenCalled();
+    expect(antMessageMocks.info).toHaveBeenCalledWith(
+      'common.richTextTaskQueued',
+    );
+
+    wrapper.unmount();
+  });
+
+  it('flushes the queued rich text task once the panel returns to idle', async () => {
+    useAIChatState.streaming.value = true;
+    sendMessageMock.mockImplementation(async ({ agentId, routeSource }) => {
+      useAIChatState.chatMessages.value = [
+        ...useAIChatState.chatMessages.value,
+        {
+          clientKey: 'assistant-rich-text-queued',
+          content: 'Queued draft ready',
+          role: 'assistant',
+          agent_id: agentId ?? null,
+          routeSource: routeSource ?? null,
+        },
+      ];
+      return true;
+    });
+
+    const wrapper = mount(AIChatSlidePanel, {
+      props: {
+        apiPrefix: '/tenant',
+        uploadUrl: '/upload',
+      },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          ChatMessageItem: true,
+        },
+      },
+    });
+
+    await flushPanel();
+
+    aiPanelStore.pendingRichTextTask = createRichTextTask({
+      message: '[Rich Text Task] Flush queued draft',
+      taskId: 'rich-text-flush-1',
+    });
+    await flushPanel();
+
+    expect(aiPanelStore.queuedRichTextTask?.taskId).toBe('rich-text-flush-1');
+
+    aiPanelStore.clearPendingRichTextTask.mockClear();
+    aiPanelStore.promoteQueuedRichTextTask.mockClear();
+    sendMessageMock.mockClear();
+    useAIChatState.streaming.value = false;
+
+    await flushPanel();
+
+    expect(aiPanelStore.promoteQueuedRichTextTask).toHaveBeenCalled();
+    expect(sendMessageMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentId: 1,
+        pageContext: null,
+        routeSource: 'rich_text_ai',
+      }),
+    );
+    expect(aiPanelStore.clearPendingRichTextTask).toHaveBeenCalledWith(
+      'rich-text-flush-1',
+    );
+    expect(useAIChatState.chatMessages.value[0]?.richTextAI?.taskId).toBe(
+      'rich-text-flush-1',
+    );
+
+    wrapper.unmount();
+  });
+
+  it('wires rich text apply, discard, and undo events through the slide panel', async () => {
+    activeConversationIdValue.value = 42;
+    const task = createRichTextTask({
+      taskId: 'rich-text-actions',
+    });
+    const sourceEditor = createSourceEditorMock(task);
+    useAIChatState.chatMessages.value = [createRichTextMessage(task)];
+
+    const wrapper = mount(AIChatSlidePanel, {
+      props: {
+        apiPrefix: '/tenant',
+        uploadUrl: '/upload',
+      },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          ChatMessageItem: defineComponent({
+            name: 'ChatMessageItemStub',
+            props: {
+              index: {
+                required: true,
+                type: Number,
+              },
+              msg: {
+                required: true,
+                type: Object,
+              },
+              richTextState: {
+                default: null,
+                type: Object,
+              },
+            },
+            emits: ['rich-text-apply', 'rich-text-discard', 'rich-text-undo'],
+            template: `
+              <div data-testid="rich-text-message-item">
+                <div data-testid="rich-text-state">
+                  {{
+                    JSON.stringify({
+                      canUndo: richTextState?.canUndo ?? false,
+                      discarded: richTextState?.discarded ?? false,
+                    })
+                  }}
+                </div>
+                <button
+                  data-testid="rich-text-discard-btn"
+                  @click="$emit('rich-text-discard', index)"
+                />
+                <button
+                  data-testid="rich-text-apply-btn"
+                  @click="$emit('rich-text-apply', index, 'replace_selection', 'formatted')"
+                />
+                <button
+                  data-testid="rich-text-undo-btn"
+                  @click="$emit('rich-text-undo', index)"
+                />
+              </div>
+            `,
+          }),
+        },
+      },
+    });
+
+    await flushPanel();
+
+    const getRichTextStateText = () =>
+      requireElement(
+        document.body.querySelector('[data-testid="rich-text-state"]'),
+        'Expected rich text state output',
+      ).textContent ?? '';
+    expect(getRichTextStateText()).toContain('"discarded":false');
+    expect(getRichTextStateText()).toContain('"canUndo":false');
+
+    requireElement(
+      document.body.querySelector('[data-testid="rich-text-discard-btn"]'),
+      'Expected discard trigger',
+    ).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPanel();
+
+    expect(getRichTextStateText()).toContain('"discarded":true');
+
+    requireElement(
+      document.body.querySelector('[data-testid="rich-text-apply-btn"]'),
+      'Expected apply trigger',
+    ).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPanel();
+
+    expect(sourceEditorMockState.prepareRichTextContent).toHaveBeenCalledWith(
+      'Draft',
+      { mode: 'formatted' },
+    );
+    expect(sourceEditor.replaceRange).toHaveBeenCalledWith(
+      4,
+      12,
+      'prepared::formatted::Draft',
+    );
+    expect(aiPanelStore.markRichTextTaskApplied).toHaveBeenCalledWith(
+      'rich-text-actions',
+      {
+        conversationId: 42,
+        lastAppliedMode: 'formatted',
+      },
+    );
+    expect(getRichTextStateText()).toContain('"discarded":false');
+    expect(getRichTextStateText()).toContain('"canUndo":true');
+
+    requireElement(
+      document.body.querySelector('[data-testid="rich-text-undo-btn"]'),
+      'Expected undo trigger',
+    ).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPanel();
+
+    expect(sourceEditor.undo).toHaveBeenCalled();
+    expect(aiPanelStore.markRichTextTaskUndone).toHaveBeenCalledWith(
+      'rich-text-actions',
+      {
+        conversationId: 42,
+        lastAppliedMode: 'formatted',
+      },
+    );
+    expect(getRichTextStateText()).toContain('"canUndo":false');
+
+    wrapper.unmount();
+  });
+
+  it('invalidates rich text undo once the active conversation changes', async () => {
+    const task = createRichTextTask({
+      taskId: 'rich-text-conversation-switch',
+    });
+    createSourceEditorMock(task);
+    const { activeConversationId, wrapper } = mountRichTextOrchestrationHarness(
+      {
+        activeConversationId: 42,
+        chatMessages: [createRichTextMessage(task)],
+      },
+    );
+
+    await flushPanel();
+
+    const harness = wrapper.vm as {
+      getRichTextDraftState: (index: number) => null | { canUndo: boolean };
+      onRichTextApply: (
+        index: number,
+        target: 'replace_selection',
+        mode: 'formatted',
+      ) => void;
+    };
+
+    harness.onRichTextApply(0, 'replace_selection', 'formatted');
+    await flushPanel();
+
+    expect(harness.getRichTextDraftState(0)?.canUndo).toBe(true);
+
+    activeConversationId.value = 99;
+    await flushPanel();
+
+    expect(harness.getRichTextDraftState(0)?.canUndo).toBe(false);
+
+    wrapper.unmount();
+  });
+
+  it('keeps reopened rich text history messages read-only', async () => {
+    const historyTask = createRichTextTask({
+      messageClientKey: undefined,
+      taskId: 'rich-text-history-readonly',
+    });
+    createSourceEditorMock(historyTask);
+    const { wrapper } = mountRichTextOrchestrationHarness({
+      chatMessages: [
+        createRichTextMessage(historyTask, {
+          richTextAI: {
+            ...historyTask,
+            messageClientKey: undefined,
+          },
+        }),
+      ],
+    });
+
+    await flushPanel();
+
+    const harness = wrapper.vm as {
+      getRichTextDraftState: (index: number) => unknown;
+    };
+    expect(harness.getRichTextDraftState(0)).toBeNull();
 
     wrapper.unmount();
   });
@@ -1217,10 +2043,14 @@ describe('AIChatSlidePanel (component mount)', () => {
       'button[aria-label="common.globalAiChat.rerouteThisTurn"]',
     );
     const sendButton = document.body.querySelector('button.send-btn');
-    expect(rerouteButton).toBeTruthy();
-    expect(sendButton).toBeTruthy();
-    rerouteButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    sendButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    requireElement(
+      rerouteButton,
+      'Expected reroute button in audio reroute failure test',
+    ).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    requireElement(
+      sendButton,
+      'Expected send button in audio reroute failure test',
+    ).dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();
 
     expect(routeMessageMock).toHaveBeenCalledOnce();

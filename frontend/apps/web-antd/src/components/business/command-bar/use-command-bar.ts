@@ -1,3 +1,5 @@
+import type { Ref } from 'vue';
+
 /**
  * Command Bar State Management Composable
  * Command Bar 状态管理 Composable
@@ -19,15 +21,23 @@
  */
 import type { MenuRecordRaw } from '@vben/types';
 
-import { type Ref, computed, onMounted, onUnmounted, ref, shallowRef, unref, watch } from 'vue';
-
-import { $t } from '@vben/locales';
-import { mapTree, traverseTreeValues, uniqueByField } from '@vben/utils';
-
 import type {
   AgentItem,
   ConversationItem,
 } from '#/components/business/ai-chat-panel/types';
+
+import {
+  computed,
+  onMounted,
+  onUnmounted,
+  ref,
+  shallowRef,
+  unref,
+  watch,
+} from 'vue';
+
+import { $t } from '@vben/locales';
+import { mapTree, traverseTreeValues, uniqueByField } from '@vben/utils';
 
 import {
   getChatAgentsApi,
@@ -106,11 +116,26 @@ export function useCommandBar(options: UseCommandBarOptions) {
   );
 
   const SEARCH_SPECIAL_CHARS = new Set([
-    '$', '(', ')', '*', '+', '.', '?', '[', '\\', ']', '^', '{', '|', '}',
+    '$',
+    '(',
+    ')',
+    '*',
+    '+',
+    '.',
+    '?',
+    '[',
+    '\\',
+    ']',
+    '^',
+    '{',
+    '|',
+    '}',
   ]);
 
   function _createSearchReg(key: string): RegExp {
-    const keys = [...key].map((c) => SEARCH_SPECIAL_CHARS.has(c) ? `\\${c}` : c).join('.*');
+    const keys = [...key]
+      .map((c) => (SEARCH_SPECIAL_CHARS.has(c) ? `\\${c}` : c))
+      .join('.*');
     return new RegExp(`.*${keys}.*`);
   }
 
@@ -129,9 +154,12 @@ export function useCommandBar(options: UseCommandBarOptions) {
 
   function getMenuBreadcrumb(item: MenuRecordRaw): string {
     if (item.parents && item.parents.length > 0) {
-      return item.parents.map((p: string) => pathToNameMap.get(p)).filter(Boolean).join(' / ');
+      return item.parents
+        .map((p: string) => pathToNameMap.get(p))
+        .filter(Boolean)
+        .join(' / ');
     }
-    return item.parent ? (pathToNameMap.get(item.parent) || '') : '';
+    return item.parent ? pathToNameMap.get(item.parent) || '' : '';
   }
 
   // ==================== 计算属性 / computed ====================

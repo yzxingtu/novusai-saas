@@ -1,4 +1,7 @@
 <script lang="ts" setup>
+import type { TreeProps as AntTreeProps } from 'ant-design-vue';
+import type { Key } from 'ant-design-vue/es/_util/type';
+
 /**
  * 文件树面板 / File tree panel
  *
@@ -9,25 +12,22 @@
  * - backend/frontend
  */
 import type { PreviewFile } from '#/api/admin/codegen';
-import type { TreeProps as AntTreeProps } from 'ant-design-vue';
-import type { Key } from 'ant-design-vue/es/_util/type';
 
 import { computed, ref } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
+
 import { Button, Tree } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
 defineOptions({ name: 'FileTreePanel' });
 
-type FilterMode = 'all' | 'backend' | 'conflicts' | 'frontend' | 'modified';
-
 const props = withDefaults(
   defineProps<{
+    conflicts?: Array<Record<string, string>>;
     files: PreviewFile[];
     selectedPath?: string;
-    conflicts?: Array<Record<string, string>>;
   }>(),
   {
     selectedPath: '',
@@ -38,6 +38,8 @@ const props = withDefaults(
 const emit = defineEmits<{
   select: [path: string];
 }>();
+
+type FilterMode = 'all' | 'backend' | 'conflicts' | 'frontend' | 'modified';
 
 interface TreeNode {
   key: string;
@@ -59,8 +61,8 @@ const filterMode = ref<FilterMode>('all');
 
 function normalizePath(path: string): string {
   return (path || '')
-    .replace(/\\/g, '/')
-    .replace(/\/+/g, '/')
+    .replaceAll('\\', '/')
+    .replaceAll(/\/+/g, '/')
     .replace(/^\//, '')
     .replace(/\/$/, '');
 }
@@ -91,7 +93,7 @@ function buildTree(files: PreviewFile[]): TreeNode[] {
             path: fullPath,
             title: part,
             isLeaf,
-            type: isLeaf ? fileMap.get(fullPath)?.type ?? '' : undefined,
+            type: isLeaf ? (fileMap.get(fullPath)?.type ?? '') : undefined,
           },
           children: {},
         };
@@ -111,7 +113,7 @@ function buildTree(files: PreviewFile[]): TreeNode[] {
         }
         return node;
       })
-      .sort((left, right) => {
+      .toSorted((left, right) => {
         if (left.isLeaf !== right.isLeaf) return left.isLeaf ? 1 : -1;
         return left.title.localeCompare(right.title);
       });
@@ -129,9 +131,14 @@ const conflictPathSet = computed(
     ),
 );
 
-const createCount = computed(() => props.files.filter((file) => file.type === 'create').length);
+const createCount = computed(
+  () => props.files.filter((file) => file.type === 'create').length,
+);
 const modifyCount = computed(
-  () => props.files.filter((file) => file.type === 'modify' || file.type === 'append').length,
+  () =>
+    props.files.filter(
+      (file) => file.type === 'modify' || file.type === 'append',
+    ).length,
 );
 
 const filteredFiles = computed(() => {
@@ -139,16 +146,21 @@ const filteredFiles = computed(() => {
   return props.files.filter((file) => {
     const normalizedPath = normalizePath(file.path);
     switch (filterMode.value) {
-      case 'backend':
+      case 'backend': {
         return normalizedPath.startsWith('backend/');
-      case 'conflicts':
+      }
+      case 'conflicts': {
         return conflicts.has(normalizedPath);
-      case 'frontend':
+      }
+      case 'frontend': {
         return normalizedPath.startsWith('frontend/');
-      case 'modified':
+      }
+      case 'modified': {
         return file.type === 'modify' || file.type === 'append';
-      default:
+      }
+      default: {
         return true;
+      }
     }
   });
 });
@@ -156,7 +168,7 @@ const filteredFiles = computed(() => {
 const treeData = computed(() => buildTree(filteredFiles.value));
 
 const filterOptions = computed<
-  Array<{ key: FilterMode; label: string; count?: number }>
+  Array<{ count?: number; key: FilterMode; label: string }>
 >(() => [
   { key: 'all', label: $t('admin.system.codegen.preview.filterAll') },
   {
@@ -164,16 +176,24 @@ const filterOptions = computed<
     label: $t('admin.system.codegen.preview.filterConflicts'),
     count: props.conflicts.length,
   },
-  { key: 'modified', label: $t('admin.system.codegen.preview.filterModified'), count: modifyCount.value },
+  {
+    key: 'modified',
+    label: $t('admin.system.codegen.preview.filterModified'),
+    count: modifyCount.value,
+  },
   {
     key: 'backend',
     label: $t('admin.system.codegen.preview.filterBackend'),
-    count: props.files.filter((file) => normalizePath(file.path).startsWith('backend/')).length,
+    count: props.files.filter((file) =>
+      normalizePath(file.path).startsWith('backend/'),
+    ).length,
   },
   {
     key: 'frontend',
     label: $t('admin.system.codegen.preview.filterFrontend'),
-    count: props.files.filter((file) => normalizePath(file.path).startsWith('frontend/')).length,
+    count: props.files.filter((file) =>
+      normalizePath(file.path).startsWith('frontend/'),
+    ).length,
   },
 ]);
 
@@ -200,11 +220,13 @@ function openProblemSummary() {
         {{ $t('admin.system.codegen.preview.problemSummary') }}
       </Button>
       <div class="mt-3 text-xs leading-5 text-muted-foreground">
-        {{ $t('admin.system.codegen.generate.fileCount', {
-          total: props.files.length,
-          create: createCount,
-          modify: modifyCount,
-        }) }}
+        {{
+          $t('admin.system.codegen.generate.fileCount', {
+            total: props.files.length,
+            create: createCount,
+            modify: modifyCount,
+          })
+        }}
       </div>
     </div>
 
@@ -217,7 +239,9 @@ function openProblemSummary() {
         @click="filterMode = item.key"
       >
         {{ item.label }}
-        <span v-if="typeof item.count === 'number'" class="ml-1 opacity-80">{{ item.count }}</span>
+        <span v-if="typeof item.count === 'number'" class="ml-1 opacity-80">{{
+          item.count
+        }}</span>
       </Button>
     </div>
 
@@ -240,7 +264,7 @@ function openProblemSummary() {
       >
         <template #title="{ title, isLeaf, type, path }">
           <span
-            class="inline-flex cursor-pointer items-center gap-1.5 rounded px-1 -mx-1 hover:bg-muted/60"
+            class="-mx-1 inline-flex cursor-pointer items-center gap-1.5 rounded px-1 hover:bg-muted/60"
           >
             <IconifyIcon
               v-if="conflictPathSet.has(normalizePath(path))"

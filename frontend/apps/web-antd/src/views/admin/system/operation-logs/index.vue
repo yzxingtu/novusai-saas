@@ -125,7 +125,6 @@ onMounted(() => {
 function onSelectionChange(rows: OperationLogInfo[]) {
   selectedRows.value = rows;
 }
-
 </script>
 
 <template>

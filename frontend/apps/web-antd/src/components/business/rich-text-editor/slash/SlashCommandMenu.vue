@@ -39,18 +39,30 @@ watch(
 );
 
 function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'ArrowDown') {
-    e.preventDefault();
-    selectedIndex.value = (selectedIndex.value + 1) % filteredItems.value.length;
-  } else if (e.key === 'ArrowUp') {
-    e.preventDefault();
-    selectedIndex.value =
-      (selectedIndex.value - 1 + filteredItems.value.length) %
-      filteredItems.value.length;
-  } else if (e.key === 'Enter') {
-    e.preventDefault();
-    const item = filteredItems.value[selectedIndex.value];
-    if (item) emit('select', item);
+  switch (e.key) {
+    case 'ArrowDown': {
+      e.preventDefault();
+      selectedIndex.value =
+        (selectedIndex.value + 1) % filteredItems.value.length;
+
+      break;
+    }
+    case 'ArrowUp': {
+      e.preventDefault();
+      selectedIndex.value =
+        (selectedIndex.value - 1 + filteredItems.value.length) %
+        filteredItems.value.length;
+
+      break;
+    }
+    case 'Enter': {
+      e.preventDefault();
+      const item = filteredItems.value[selectedIndex.value];
+      if (item) emit('select', item);
+
+      break;
+    }
+    // No default
   }
 }
 
@@ -59,7 +71,7 @@ defineExpose({ onKeydown });
 
 <template>
   <div
-    v-if="filteredItems.length"
+    v-if="filteredItems.length > 0"
     class="fixed z-[9000] min-w-[220px] rounded-lg border border-border bg-popover p-1.5 shadow-lg"
   >
     <button

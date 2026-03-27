@@ -1,5 +1,7 @@
+/* eslint-disable vue/one-component-per-file */
 import { flushPromises, mount } from '@vue/test-utils';
 import { defineComponent, reactive } from 'vue';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import CommandBar from '../CommandBar.vue';
@@ -132,8 +134,10 @@ vi.mock('ant-design-vue', () => {
 function createPinnedAgentStore() {
   const store = reactive<{
     open: ReturnType<typeof vi.fn>;
+    openWithContext: ReturnType<typeof vi.fn>;
     pinnedAgentId: null | number;
     pinnedAgentName: null | string;
+    queueMessage: ReturnType<typeof vi.fn>;
     togglePin: ReturnType<typeof vi.fn>;
     unpinAgent: ReturnType<typeof vi.fn>;
     visible: boolean;
@@ -160,6 +164,14 @@ function createPinnedAgentStore() {
   return store;
 }
 
+function requireElement<T>(value: null | T | undefined, message: string): T {
+  expect(value).toBeTruthy();
+  if (value === null || value === undefined) {
+    throw new Error(message);
+  }
+  return value;
+}
+
 async function openCommandBar() {
   const wrapper = mount(CommandBar, {
     attachTo: document.body,
@@ -170,19 +182,21 @@ async function openCommandBar() {
     },
   });
 
-  await (wrapper.vm as typeof wrapper.vm & { show: () => Promise<void> }).show();
+  await (
+    wrapper.vm as typeof wrapper.vm & { show: () => Promise<void> }
+  ).show();
   await flushPromises();
 
   return wrapper;
 }
 
 function findButtonByText(text: string) {
-  return Array.from(document.body.querySelectorAll('button')).find((button) =>
+  return [...document.body.querySelectorAll('button')].find((button) =>
     button.textContent?.includes(text),
   );
 }
 
-describe('CommandBar', () => {
+describe('commandBar', () => {
   beforeEach(() => {
     aiPanelStore = createPinnedAgentStore();
     mocks.routerPush.mockReset();
@@ -230,9 +244,12 @@ describe('CommandBar', () => {
       '[data-testid="cmd-input"]',
     ) as HTMLTextAreaElement | null;
 
-    expect(textarea).toBeTruthy();
-    textarea!.value = '帮我分析今天的客户反馈';
-    textarea!.dispatchEvent(new Event('input'));
+    const resolvedTextarea = requireElement(
+      textarea,
+      'Expected command bar textarea for typing test',
+    );
+    resolvedTextarea.value = '帮我分析今天的客户反馈';
+    resolvedTextarea.dispatchEvent(new Event('input'));
     await flushPromises();
 
     expect(document.body.textContent).toContain('你好呀，主人喵~');
@@ -245,8 +262,10 @@ describe('CommandBar', () => {
     const wrapper = await openCommandBar();
     const starterButton = findButtonByText('帮我总结今天工作');
 
-    expect(starterButton).toBeTruthy();
-    starterButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    requireElement(
+      starterButton,
+      'Expected starter question button',
+    ).dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();
 
     expect(wrapper.emitted('submit')).toEqual([['帮我总结今天工作']]);
@@ -262,16 +281,19 @@ describe('CommandBar', () => {
       '[data-testid="cmd-input"]',
     ) as HTMLTextAreaElement | null;
 
-    expect(textarea).toBeTruthy();
-    textarea!.value = '@CatAgent 帮我检查供应商';
-    textarea!.dispatchEvent(new Event('input'));
+    const resolvedTextarea = requireElement(
+      textarea,
+      'Expected command bar textarea for mention submit test',
+    );
+    resolvedTextarea.value = '@CatAgent 帮我检查供应商';
+    resolvedTextarea.dispatchEvent(new Event('input'));
     await flushPromises();
 
     const keyboardEvent = new KeyboardEvent('keydown', {
       key: 'Enter',
       bubbles: true,
     });
-    textarea!.dispatchEvent(keyboardEvent);
+    resolvedTextarea.dispatchEvent(keyboardEvent);
     await flushPromises();
 
     expect(wrapper.emitted('submit')).toBeUndefined();

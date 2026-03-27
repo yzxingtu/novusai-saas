@@ -333,25 +333,17 @@ export function useFormSchema(): VbenFormSchema[] {
       help: $t('tenant.knowledgeBase.help.visionModel'),
     },
     {
-      ...select(
-        'audio_model_id',
-        $t('tenant.knowledgeBase.field.audioModel'),
-        {
-          api: getTenantAudioModelOptions,
-          required: false,
-        },
-      ),
+      ...select('audio_model_id', $t('tenant.knowledgeBase.field.audioModel'), {
+        api: getTenantAudioModelOptions,
+        required: false,
+      }),
       help: $t('tenant.knowledgeBase.help.audioModel'),
     },
     {
-      ...select(
-        'video_model_id',
-        $t('tenant.knowledgeBase.field.videoModel'),
-        {
-          api: getTenantVideoModelOptions,
-          required: false,
-        },
-      ),
+      ...select('video_model_id', $t('tenant.knowledgeBase.field.videoModel'), {
+        api: getTenantVideoModelOptions,
+        required: false,
+      }),
       help: $t('tenant.knowledgeBase.help.videoModel'),
     },
     {

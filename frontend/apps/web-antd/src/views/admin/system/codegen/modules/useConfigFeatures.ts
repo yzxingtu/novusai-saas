@@ -1,11 +1,11 @@
+import type { useCodegenBuilderStore } from '#/store';
+
 /**
  * 配置功能开关 Composable / Config features composable
  *
  * 集中获取 endpoints、batch、detail 等配置，供 WYSIWYG 预览渲染条件用
  */
 import { computed } from 'vue';
-
-import type { useCodegenBuilderStore } from '#/store';
 
 export function useConfigFeatures(
   store: ReturnType<typeof useCodegenBuilderStore>,
@@ -66,7 +66,7 @@ export function useConfigFeatures(
 
   const operationOptions = computed(() => {
     const opts = fe.value.operation_options;
-    if (Array.isArray(opts) && opts.length) return opts;
+    if (Array.isArray(opts) && opts.length > 0) return opts;
     return ['edit', 'delete'];
   });
 
@@ -115,7 +115,7 @@ export function useConfigFeatures(
   const detailGroups = computed(
     () =>
       detail.value?.groups as
-        | Array<{ title_zh?: string; title_en?: string; fields?: string[] }>[]
+        | Array<{ fields?: string[]; title_en?: string; title_zh?: string }>[]
         | undefined,
   );
 

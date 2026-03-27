@@ -28,6 +28,12 @@ export interface BackendMenuItemRaw {
   // meta field can be nested object or flat fields / meta 字段可能是嵌套对象或扁平字段
   meta?: {
     affix_tab?: boolean;
+    ai?: {
+      disabled_capabilities?: string | string[];
+      disabled_operations?: string | string[];
+      mode?: string;
+      page_context_key?: string;
+    };
     authority?: string[];
     badge?: string;
     badge_type?: string;
@@ -41,12 +47,6 @@ export interface BackendMenuItemRaw {
     link?: string;
     order?: number;
     title?: string;
-    ai?: {
-      disabled_capabilities?: string[] | string;
-      disabled_operations?: string[] | string;
-      mode?: string;
-      page_context_key?: string;
-    };
   };
   children?: BackendMenuItemRaw[];
 }
@@ -390,8 +390,7 @@ function printMissingComponentsWarning(
   missingComponents: MissingComponentInfo[],
   endpoint: ApiEndpoint,
 ): void {
-  const endpointName =
-    endpoint === 'admin' ? 'Admin' : endpoint === 'tenant' ? 'Tenant' : 'User';
+  const endpointName = getEndpointDisplayName(endpoint);
 
   const componentList = missingComponents
     .map(({ menuName, expectedFile }) => `  - "${menuName}" -> ${expectedFile}`)
@@ -483,15 +482,28 @@ export function checkOrphanedViews(
   }
 
   if (orphaned.length > 0) {
-    const endpointName =
-      endpoint === 'admin' ? 'Admin' : endpoint === 'tenant' ? 'Tenant' : 'User';
+    const endpointName = getEndpointDisplayName(endpoint);
     console.warn(
-      `[MenuCheck] ${endpointName}: ${orphaned.length} view(s) have no menu entry or static route:\n` +
-        orphaned.map((p) => `  - src/views${p}`).join('\n') +
-        `\nThese pages exist but cannot be accessed from the sidebar. ` +
+      `[MenuCheck] ${endpointName}: ${orphaned.length} view(s) have no menu entry or static route:\n${orphaned
+        .map((p) => `  - src/views${p}`)
+        .join(
+          '\n',
+        )}\nThese pages exist but cannot be accessed from the sidebar. ` +
         `Register them in backend menu definitions or frontend static routes.`,
     );
   }
+}
+
+function getEndpointDisplayName(
+  endpoint: ApiEndpoint,
+): 'Admin' | 'Tenant' | 'User' {
+  if (endpoint === 'admin') {
+    return 'Admin';
+  }
+  if (endpoint === 'tenant') {
+    return 'Tenant';
+  }
+  return 'User';
 }
 
 /**

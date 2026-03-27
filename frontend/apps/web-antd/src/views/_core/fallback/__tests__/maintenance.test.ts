@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { mount } from '@vue/test-utils';
 import { reactive } from 'vue';
+
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import MaintenancePage from '../maintenance.vue';
@@ -23,7 +24,9 @@ interface MockPublicConfigStore {
   >;
   loadTenantConfig: ReturnType<
     typeof vi.fn<
-      (options?: { skipDomainCheck?: boolean }) => Promise<MockMaintenanceConfig | null>
+      (options?: {
+        skipDomainCheck?: boolean;
+      }) => Promise<MockMaintenanceConfig | null>
     >
   >;
   platformConfig: MockMaintenanceConfig;
@@ -71,7 +74,7 @@ vi.mock('#/store', () => ({
   usePublicConfigStore: () => publicConfigState,
 }));
 
-describe('MaintenancePage', () => {
+describe('maintenancePage', () => {
   afterEach(() => {
     vi.clearAllMocks();
     vi.useRealTimers();

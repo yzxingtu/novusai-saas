@@ -105,6 +105,13 @@ const searchPanelShellStyle = computed(() => {
     : undefined;
 });
 const searchPanelBodyClass = computed(() => {
+  let compactPaddingClass = 'pb-0';
+  if (isCompactForm.value) {
+    compactPaddingClass = isSeparator.value ? 'pb-8' : 'pb-4';
+  } else if (isSeparator.value) {
+    compactPaddingClass = 'pb-4';
+  }
+
   return cn(
     'relative min-h-0 rounded py-3 transition-[opacity,transform] duration-200 ease-out',
     {
@@ -112,13 +119,7 @@ const searchPanelBodyClass = computed(() => {
         isSearchPanelCollapsed.value,
       'translate-y-0 opacity-100': !isSearchPanelCollapsed.value,
     },
-    isCompactForm.value
-      ? isSeparator.value
-        ? 'pb-8'
-        : 'pb-4'
-      : isSeparator.value
-        ? 'pb-4'
-        : 'pb-0',
+    compactPaddingClass,
   );
 });
 

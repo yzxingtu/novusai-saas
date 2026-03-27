@@ -45,7 +45,10 @@ import { RequestClient } from './request-client';
 // Configuration / 配置
 // ============================================================
 
-const { apiURL: rawApiURL } = useAppConfig(import.meta.env, import.meta.env.PROD);
+const { apiURL: rawApiURL } = useAppConfig(
+  import.meta.env,
+  import.meta.env.PROD,
+);
 
 /**
  * In dev mode, replace 127.0.0.1 with current page hostname,
@@ -152,7 +155,11 @@ async function doRefreshToken(): Promise<string> {
   }>(REFRESH_TOKEN_URLS[endpoint], { refresh_token: refreshToken });
 
   // 从响应中提取业务数据：response.data 是 HttpResponse，response.data.data 是实际数据
-  const httpResponse = (response as unknown as { data: { code: number; data: RefreshTokenResultRaw; message: string } }).data;
+  const httpResponse = (
+    response as unknown as {
+      data: { code: number; data: RefreshTokenResultRaw; message: string };
+    }
+  ).data;
   if (httpResponse.code !== 0) {
     throw new Error(httpResponse.message || 'Failed to refresh token');
   }

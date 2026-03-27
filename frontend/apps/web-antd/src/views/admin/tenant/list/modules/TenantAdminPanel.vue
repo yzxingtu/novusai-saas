@@ -101,7 +101,11 @@ function handleResetPassword(admin: TenantAdminItem) {
 async function handleForceLogout(admin: TenantAdminItem) {
   try {
     await forceLogoutTenantAdminApi(props.tenantId, admin.id);
-    message.success($t('common.auth.forceLogoutSuccess', { name: admin.nickname || admin.username }));
+    message.success(
+      $t('common.auth.forceLogoutSuccess', {
+        name: admin.nickname || admin.username,
+      }),
+    );
     await loadAdmins();
   } catch (error) {
     showRequestError(error, 'common.requestFailed');
@@ -264,7 +268,7 @@ onMounted(() => {
                     <Button
                       type="text"
                       size="small"
-                      class="hover:!text-destructive hover:!bg-destructive/10"
+                      class="hover:!bg-destructive/10 hover:!text-destructive"
                     >
                       <template #icon>
                         <IconifyIcon icon="lucide:log-out" class="size-3.5" />

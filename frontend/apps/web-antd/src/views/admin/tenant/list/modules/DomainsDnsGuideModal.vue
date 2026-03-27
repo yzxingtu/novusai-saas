@@ -139,7 +139,11 @@ function getDnsHostRecord(domain: string): string {
       <!-- 开发环境提示横幅 (仅在 Vite DEV 模式下显示 / Only shown in Vite DEV mode) -->
       <Alert
         v-if="isDev"
-        :message="$t('admin.tenant.domain.dnsGuide.devModeBanner', { domain: guideData.domain })"
+        :message="
+          $t('admin.tenant.domain.dnsGuide.devModeBanner', {
+            domain: guideData.domain,
+          })
+        "
         type="warning"
         show-icon
         banner

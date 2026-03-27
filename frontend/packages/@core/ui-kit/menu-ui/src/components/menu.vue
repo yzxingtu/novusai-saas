@@ -386,6 +386,7 @@ $namespace: vben;
 }
 
 @mixin menu-item {
+  /* stylelint-disable nesting-selector-no-missing-scoping-root */
   position: relative;
   display: flex;
   // gap: 12px;
@@ -433,6 +434,7 @@ $namespace: vben;
   * {
     vertical-align: bottom;
   }
+  /* stylelint-enable nesting-selector-no-missing-scoping-root */
 }
 
 @mixin menu-title {

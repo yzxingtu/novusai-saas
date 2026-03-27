@@ -9,6 +9,7 @@ from datetime import date, datetime, timedelta, timezone as dt_timezone
 
 from sqlalchemy import Date, case, cast, func, select
 
+from app.configs.service import PLATFORM_TENANT_ID
 from app.core.base_repository import BaseRepository
 from app.core.logging import LogManager
 from app.enums.ai import CallStatusEnum, UserTypeEnum
@@ -23,6 +24,32 @@ from app.models.tenant.tenant_user import TenantUser
 from app.schemas.common.query import FilterRule, QuerySpec
 
 logger = LogManager.get_logger("ai.call_log")
+
+
+def _normalize_actor_type(
+    actor_user_type: str | None,
+    legacy_user_type: str | None,
+) -> str | None:
+    if actor_user_type and str(actor_user_type).strip():
+        return str(actor_user_type).strip()
+    if legacy_user_type == LogUserTypeEnum.ADMIN.value:
+        return "platform_admin"
+    if legacy_user_type == LogUserTypeEnum.TENANT_ADMIN.value:
+        return "tenant_admin"
+    if legacy_user_type == LogUserTypeEnum.TENANT_USER.value:
+        return "tenant_user"
+    return legacy_user_type
+
+
+def _actor_type_fallback_name(actor_type: str | None) -> str:
+    return {
+        "platform_admin": "平台管理员",
+        "tenant_admin": "企业管理员",
+        "tenant_user": "企业用户",
+        LogUserTypeEnum.ADMIN.value: "平台管理员",
+        LogUserTypeEnum.TENANT_ADMIN.value: "企业管理员",
+        LogUserTypeEnum.TENANT_USER.value: "企业用户",
+    }.get(actor_type or "", "-")
 
 
 def _display_name(nickname: str | None, username: str | None, fallback: str) -> str:
@@ -58,6 +85,47 @@ class AICallLogRepository(BaseRepository[AICallLog]):
     """
 
     model = AICallLog
+    PLATFORM_USAGE_TENANT_NAME = "平台管理端"
+
+    @classmethod
+    def _platform_usage_tenant_expr(cls):
+        """
+        Platform internal calls are stored with tenant_id=0 and billing_tenant_id=NULL.
+        平台内部调用以 tenant_id=0、billing_tenant_id=NULL 落账。
+        """
+        return case(
+            (
+                AICallLog.tenant_id == PLATFORM_TENANT_ID,
+                PLATFORM_TENANT_ID,
+            ),
+            else_=None,
+        )
+
+    @classmethod
+    def _effective_usage_tenant_expr(cls):
+        """
+        Billing tenant wins; otherwise treat platform tenant_id=0 as a first-class usage bucket.
+        优先计费企业；若为空，则将平台 tenant_id=0 视为有效统计归属。
+        """
+        return func.coalesce(
+            AICallLog.billing_tenant_id,
+            cls._platform_usage_tenant_expr(),
+        )
+
+    @classmethod
+    def _effective_usage_tenant_name_expr(cls):
+        """Stable tenant display name for usage aggregates, including platform internal usage."""
+        return func.coalesce(
+            AICallLog.billing_tenant_name_snapshot,
+            Tenant.name,
+            case(
+                (
+                    cls._effective_usage_tenant_expr() == PLATFORM_TENANT_ID,
+                    cls.PLATFORM_USAGE_TENANT_NAME,
+                ),
+                else_=None,
+            ),
+        )
 
     @staticmethod
     def _date_filters(
@@ -92,7 +160,13 @@ class AICallLogRepository(BaseRepository[AICallLog]):
             if model_id
         }
         provider_ids = {i.provider_id for i in items if i.provider_id}
-        tenant_ids = {i.tenant_id for i in items if i.tenant_id is not None}
+        tenant_ids = set()
+        for item in items:
+            effective_tenant_id = item.billing_tenant_id
+            if effective_tenant_id is None and item.tenant_id is not None:
+                effective_tenant_id = item.tenant_id
+            if effective_tenant_id is not None:
+                tenant_ids.add(effective_tenant_id)
 
         model_map: dict[int, str] = {}
         if model_ids:
@@ -124,15 +198,16 @@ class AICallLogRepository(BaseRepository[AICallLog]):
         platform_admin_ids: set[int] = set()
         if include_caller_names:
             for i in items:
-                if not i.user_id:
+                actor_id = i.actor_user_id or i.user_id
+                actor_type = _normalize_actor_type(i.actor_user_type, i.user_type)
+                if not actor_id or not actor_type:
                     continue
-                ut = i.user_type
-                if ut == LogUserTypeEnum.TENANT_ADMIN.value:
-                    tenant_admin_ids.add(i.user_id)
-                elif ut == LogUserTypeEnum.TENANT_USER.value:
-                    tenant_user_ids.add(i.user_id)
-                elif ut == LogUserTypeEnum.ADMIN.value:
-                    platform_admin_ids.add(i.user_id)
+                if actor_type == "tenant_admin":
+                    tenant_admin_ids.add(actor_id)
+                elif actor_type == "tenant_user":
+                    tenant_user_ids.add(actor_id)
+                elif actor_type == "platform_admin":
+                    platform_admin_ids.add(actor_id)
 
         tenant_admin_display: dict[int, str] = {}
         if tenant_admin_ids:
@@ -204,20 +279,28 @@ class AICallLogRepository(BaseRepository[AICallLog]):
                 item, "billing_tenant_name_snapshot", None,
             )
             if include_tenant_names:
-                d["tenant_name"] = tenant_map.get(item.tenant_id, "-")
+                effective_tenant_id = item.billing_tenant_id
+                if effective_tenant_id is None and item.tenant_id is not None:
+                    effective_tenant_id = item.tenant_id
+                if getattr(item, "billing_tenant_name_snapshot", None):
+                    d["tenant_name"] = item.billing_tenant_name_snapshot
+                elif effective_tenant_id == PLATFORM_TENANT_ID:
+                    d["tenant_name"] = self.PLATFORM_USAGE_TENANT_NAME
+                else:
+                    d["tenant_name"] = tenant_map.get(effective_tenant_id, "-")
 
             caller = "-"
-            if include_caller_names and item.user_id:
-                ut = item.user_type
-                uid = item.user_id
-                if ut == LogUserTypeEnum.TENANT_ADMIN.value:
-                    caller = tenant_admin_display.get(uid, f"ID:{uid}")
-                elif ut == LogUserTypeEnum.TENANT_USER.value:
-                    caller = tenant_user_display.get(uid, f"ID:{uid}")
-                elif ut == LogUserTypeEnum.ADMIN.value:
-                    caller = platform_admin_display.get(uid, f"ID:{uid}")
-                else:
-                    caller = f"ID:{uid}"
+            if include_caller_names:
+                actor_id = item.actor_user_id or item.user_id
+                actor_type = _normalize_actor_type(item.actor_user_type, item.user_type)
+                if actor_id and actor_type == "tenant_admin":
+                    caller = tenant_admin_display.get(actor_id, f"ID:{actor_id}")
+                elif actor_id and actor_type == "tenant_user":
+                    caller = tenant_user_display.get(actor_id, f"ID:{actor_id}")
+                elif actor_id and actor_type == "platform_admin":
+                    caller = platform_admin_display.get(actor_id, f"ID:{actor_id}")
+                elif actor_type:
+                    caller = _actor_type_fallback_name(actor_type)
             d["caller_name"] = caller
 
             metadata = (
@@ -274,87 +357,98 @@ class AICallLogRepository(BaseRepository[AICallLog]):
         查询按日期 + 计费企业 + 模型 + 请求类型聚合的计费用量统计。
         """
         stat_date_col = cast(AICallLog.created_at, Date)
-        input_tokens_expr = func.coalesce(func.sum(AICallLog.input_tokens), 0)
-        output_tokens_expr = func.coalesce(func.sum(AICallLog.output_tokens), 0)
-        total_tokens_expr = func.coalesce(func.sum(AICallLog.total_tokens), 0)
-        call_count_expr = func.count(AICallLog.id)
-        success_count_expr = func.sum(
-            case((AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0)
-        )
-        failed_count_expr = func.sum(
-            case((AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0)
-        )
-        total_cost_expr = func.coalesce(func.sum(AICallLog.cost), 0)
-        avg_latency_expr = func.avg(AICallLog.latency_ms)
-        max_latency_expr = func.max(AICallLog.latency_ms)
-
         # 优先账本快照，避免企业/模型改名后聚合展示漂移 / Prefer billing snapshots for stable aggregates
-        tenant_name_col = func.coalesce(
-            AICallLog.billing_tenant_name_snapshot,
-            Tenant.name,
-        ).label("tenant_name")
-        model_name_col = func.coalesce(
+        model_name_expr = func.coalesce(
             AICallLog.model_name_snapshot,
             AIModel.name,
-        ).label("model_name")
+        )
 
-        query = (
+        usage_base = (
             select(
                 stat_date_col.label("stat_date"),
-                AICallLog.billing_tenant_id.label("tenant_id"),
-                tenant_name_col,
+                self._effective_usage_tenant_expr().label("tenant_id"),
+                self._effective_usage_tenant_name_expr().label("tenant_name"),
                 AICallLog.model_id.label("model_id"),
-                model_name_col,
+                model_name_expr.label("model_name"),
                 AICallLog.request_type.label("request_type"),
-                input_tokens_expr.label("input_tokens"),
-                output_tokens_expr.label("output_tokens"),
-                total_tokens_expr.label("total_tokens"),
-                call_count_expr.label("call_count"),
-                success_count_expr.label("success_count"),
-                failed_count_expr.label("failed_count"),
-                total_cost_expr.label("total_cost"),
-                avg_latency_expr.label("avg_latency_ms"),
-                max_latency_expr.label("max_latency_ms"),
+                AICallLog.input_tokens.label("input_tokens"),
+                AICallLog.output_tokens.label("output_tokens"),
+                AICallLog.total_tokens.label("total_tokens"),
+                AICallLog.cost.label("cost"),
+                AICallLog.latency_ms.label("latency_ms"),
+                AICallLog.status.label("status"),
             )
             .select_from(AICallLog)
             .join(AIModel, AIModel.id == AICallLog.model_id, isouter=True)
             .join(Tenant, Tenant.id == AICallLog.billing_tenant_id, isouter=True)
             .where(
                 AICallLog.is_deleted.is_(False),
-                AICallLog.billing_tenant_id.is_not(None),
+                self._effective_usage_tenant_expr().is_not(None),
             )
+        ).subquery("usage_base")
+
+        input_tokens_expr = func.coalesce(func.sum(usage_base.c.input_tokens), 0)
+        output_tokens_expr = func.coalesce(func.sum(usage_base.c.output_tokens), 0)
+        total_tokens_expr = func.coalesce(func.sum(usage_base.c.total_tokens), 0)
+        call_count_expr = func.count()
+        success_count_expr = func.sum(
+            case((usage_base.c.status == CallStatusEnum.SUCCESS.value, 1), else_=0)
+        )
+        failed_count_expr = func.sum(
+            case((usage_base.c.status == CallStatusEnum.FAILED.value, 1), else_=0)
+        )
+        total_cost_expr = func.coalesce(func.sum(usage_base.c.cost), 0)
+        avg_latency_expr = func.avg(usage_base.c.latency_ms)
+        max_latency_expr = func.max(usage_base.c.latency_ms)
+
+        query = select(
+            usage_base.c.stat_date.label("stat_date"),
+            usage_base.c.tenant_id.label("tenant_id"),
+            usage_base.c.tenant_name.label("tenant_name"),
+            usage_base.c.model_id.label("model_id"),
+            usage_base.c.model_name.label("model_name"),
+            usage_base.c.request_type.label("request_type"),
+            input_tokens_expr.label("input_tokens"),
+            output_tokens_expr.label("output_tokens"),
+            total_tokens_expr.label("total_tokens"),
+            call_count_expr.label("call_count"),
+            success_count_expr.label("success_count"),
+            failed_count_expr.label("failed_count"),
+            total_cost_expr.label("total_cost"),
+            avg_latency_expr.label("avg_latency_ms"),
+            max_latency_expr.label("max_latency_ms"),
         )
 
         allowed_filters = {
-            "tenant_id": AICallLog.billing_tenant_id,
-            "tenant_name": tenant_name_col,
-            "model_id": AICallLog.model_id,
-            "model_name": model_name_col,
-            "request_type": AICallLog.request_type,
-            "stat_date": stat_date_col,
+            "tenant_id": usage_base.c.tenant_id,
+            "tenant_name": usage_base.c.tenant_name,
+            "model_id": usage_base.c.model_id,
+            "model_name": usage_base.c.model_name,
+            "request_type": usage_base.c.request_type,
+            "stat_date": usage_base.c.stat_date,
         }
         if spec.filters:
             query = self._apply_filters(query, spec.filters, allowed_filters)
 
         query = query.group_by(
-            stat_date_col,
-            AICallLog.billing_tenant_id,
-            tenant_name_col,
-            AICallLog.model_id,
-            model_name_col,
-            AICallLog.request_type,
+            usage_base.c.stat_date,
+            usage_base.c.tenant_id,
+            usage_base.c.tenant_name,
+            usage_base.c.model_id,
+            usage_base.c.model_name,
+            usage_base.c.request_type,
         )
 
         count_query = select(func.count()).select_from(query.subquery())
         total = (await self.db.execute(count_query)).scalar() or 0
 
         sortable_fields = {
-            "stat_date": stat_date_col,
-            "tenant_id": AICallLog.billing_tenant_id,
-            "tenant_name": tenant_name_col,
-            "model_id": AICallLog.model_id,
-            "model_name": model_name_col,
-            "request_type": AICallLog.request_type,
+            "stat_date": usage_base.c.stat_date,
+            "tenant_id": usage_base.c.tenant_id,
+            "tenant_name": usage_base.c.tenant_name,
+            "model_id": usage_base.c.model_id,
+            "model_name": usage_base.c.model_name,
+            "request_type": usage_base.c.request_type,
             "input_tokens": input_tokens_expr,
             "output_tokens": output_tokens_expr,
             "total_tokens": total_tokens_expr,
@@ -599,7 +693,7 @@ class AICallLogRepository(BaseRepository[AICallLog]):
         从计费事实获取企业用量汇总。
         """
         filters = self._date_filters(start_date, end_date)
-        filters.append(AICallLog.billing_tenant_id == tenant_id)
+        filters.append(self._effective_usage_tenant_expr() == tenant_id)
 
         stmt = select(
             func.coalesce(func.sum(AICallLog.total_tokens), 0).label("total_tokens"),
@@ -669,7 +763,7 @@ class AICallLogRepository(BaseRepository[AICallLog]):
         """
         filters = self._date_filters(start_date, end_date)
         filters.extend([
-            AICallLog.billing_tenant_id == tenant_id,
+            self._effective_usage_tenant_expr() == tenant_id,
             AICallLog.actor_user_id == user_id,
             AICallLog.actor_user_type == UserTypeEnum.TENANT_USER.value,
         ])
@@ -710,14 +804,14 @@ class AICallLogRepository(BaseRepository[AICallLog]):
         filters = self._date_filters(start_date, end_date)
         filters.extend([
             AICallLog.model_id == model_id,
-            AICallLog.billing_tenant_id.is_not(None),
+            self._effective_usage_tenant_expr().is_not(None),
         ])
 
         stmt = select(
             func.coalesce(func.sum(AICallLog.total_tokens), 0).label("total_tokens"),
             func.count(AICallLog.id).label("call_count"),
             func.coalesce(func.sum(AICallLog.cost), 0).label("total_cost"),
-            func.count(func.distinct(AICallLog.billing_tenant_id)).label("tenant_count"),
+            func.count(func.distinct(self._effective_usage_tenant_expr())).label("tenant_count"),
             func.sum(case(
                 (AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0
             )).label("success_count"),
@@ -752,7 +846,7 @@ class AICallLogRepository(BaseRepository[AICallLog]):
         """Get tenant daily usage stats from billing facts / 从计费事实获取企业每日用量统计。"""
         stat_date_col = cast(AICallLog.created_at, Date)
         filters = self._date_filters(start_date, end_date)
-        filters.append(AICallLog.billing_tenant_id == tenant_id)
+        filters.append(self._effective_usage_tenant_expr() == tenant_id)
 
         stmt = select(
             stat_date_col.label("stat_date"),
@@ -784,7 +878,7 @@ class AICallLogRepository(BaseRepository[AICallLog]):
     ) -> list[dict]:
         """Get tenant usage stats by model from billing facts / 从计费事实获取企业按模型用量统计。"""
         filters = self._date_filters(start_date, end_date)
-        filters.append(AICallLog.billing_tenant_id == tenant_id)
+        filters.append(self._effective_usage_tenant_expr() == tenant_id)
 
         stmt = select(
             AICallLog.model_id,

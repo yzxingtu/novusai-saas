@@ -2,14 +2,27 @@
 import type { Recordable } from '@vben/types';
 
 import { computed } from 'vue';
-import { Button, Input, Tag, Tooltip } from 'ant-design-vue';
+
 import { IconifyIcon } from '@vben/icons';
+
+import { Button, Input, Tag, Tooltip } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
 import { getComponent } from './field-utils';
 
 defineOptions({ name: 'FieldCard' });
+
+const props = defineProps<{
+  field: Recordable;
+  selected: boolean;
+}>();
+
+const emit = defineEmits<{
+  (e: 'click'): void;
+  (e: 'remove'): void;
+  (e: 'update:dividerTitle', value: string): void;
+}>();
 
 const ICON_MAP: Record<string, string> = {
   ApiSelect: 'lucide:link',
@@ -32,17 +45,6 @@ const ICON_MAP: Record<string, string> = {
   switch: 'lucide:toggle-left',
   textarea: 'lucide:align-left',
 };
-
-const props = defineProps<{
-  field: Recordable;
-  selected: boolean;
-}>();
-
-const emit = defineEmits<{
-  (e: 'click'): void;
-  (e: 'remove'): void;
-  (e: 'update:dividerTitle', value: string): void;
-}>();
 
 const isDivider = computed(
   () => props.field?.type === '__divider__' || props.field?.divider,

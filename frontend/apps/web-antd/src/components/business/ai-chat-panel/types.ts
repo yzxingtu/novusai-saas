@@ -29,10 +29,11 @@ export interface MentionKnowledgeBaseBinding {
   kb_name: null | string;
 }
 
-/** Unified @ candidate: agent or bound knowledge base / 统一 @ 候选 */
-export type MentionCandidate =
-  | { kind: 'agent'; agent: AgentItem }
-  | { kind: 'knowledge_base'; binding: MentionKnowledgeBaseBinding };
+/** Unified @ candidate: bound knowledge base only / 统一 @ 候选：仅知识库 */
+export interface MentionCandidate {
+  binding: MentionKnowledgeBaseBinding;
+  kind: 'knowledge_base';
+}
 
 export interface AgentItem {
   id: number;
@@ -81,7 +82,7 @@ export interface RagSource {
 
 export interface ChatAttachment {
   attachment_id?: number;
-  type: 'file' | 'image' | 'audio' | 'video';
+  type: 'audio' | 'file' | 'image' | 'video';
   url: string;
   name?: string;
   mime_type?: string;
@@ -153,7 +154,81 @@ export interface ImageResult {
   revisedPrompt?: string;
 }
 
+export type RichTextAIApplyMode = 'formatted' | 'plain';
+export type RichTextAIApplyTarget =
+  | 'append_to_end'
+  | 'insert_after_selection'
+  | 'replace_selection';
+
+export type RichTextAITaskState = 'applied' | 'queued' | 'ready' | 'undone';
+
+export interface RichTextAIDraftContent {
+  html?: string;
+  markdown?: string;
+  plainText?: string;
+}
+
+export interface RichTextAISelectionSnapshot {
+  afterTextExcerpt: string;
+  beforeTextExcerpt: string;
+  editorInstanceId: string;
+  editorRevision: number;
+  from: number;
+  pageKey: string;
+  selectedText: string;
+  to: number;
+}
+
+export interface RichTextAITask {
+  agentId: number;
+  availableModes: RichTextAIApplyMode[];
+  conversationId?: null | number;
+  contextTitle?: string;
+  createdAt: number;
+  draft: RichTextAIDraftContent;
+  editorInstanceId: string;
+  feature?: string;
+  lastAppliedMode?: RichTextAIApplyMode;
+  lastAppliedTarget?: RichTextAIApplyTarget;
+  messageClientKey?: string;
+  message: string;
+  messageIndex?: number;
+  pageKey: string;
+  preferredApplyMode: RichTextAIApplyMode;
+  selectionLabel?: string;
+  selectionSnapshot: RichTextAISelectionSnapshot;
+  sourceToolCallId?: string;
+  state: RichTextAITaskState;
+  summary?: string;
+  taskId: string;
+  title?: string;
+  updatedAt: number;
+}
+
+export interface RichTextConversationBinding {
+  agentId: number;
+  conversationId: number;
+  editorInstanceId: string;
+  messageIndex?: number;
+  pageKey: string;
+  task: RichTextAITask;
+  updatedAt: number;
+}
+
+export interface RichTextDraftRuntimeState {
+  canAppendToEnd: boolean;
+  canCopy: boolean;
+  canInsertAfterSelection: boolean;
+  canReplaceSelection: boolean;
+  canUndo: boolean;
+  discarded?: boolean;
+  helperText?: null | string;
+  lastApplyMode?: RichTextAIApplyMode;
+  lastApplyTarget?: RichTextAIApplyTarget;
+}
+
 export interface ChatMessage {
+  clientKey: string;
   role: 'assistant' | 'user';
   content: string;
   /** Streaming thinking/reasoning content shown separately from final answer / 与最终答复分开展示的思考内容 */
@@ -188,6 +263,12 @@ export interface ChatMessage {
   actionButtonsUsed?: boolean;
   /** Generated images from image generation models / 生成图片列表 */
   imageResults?: ImageResult[];
+  /** Local-only source marker for special assistant cards / 本地特殊消息来源标记 */
+  source?: 'rich_text_ai';
+  /** Rich text feature code for UI badges / 富文本动作标识 */
+  richTextFeature?: string;
+  /** Rich text draft task rendered inline in the message / 消息内联展示的富文本草稿任务 */
+  richTextAI?: RichTextAITask;
   /** Whether session memory was updated during this response / 本次回复是否更新了会话记忆 */
   memoryUpdated?: boolean;
   /** Message creation timestamp (ISO string) / 消息创建时间 */

@@ -6,9 +6,10 @@
  * 倒计时公式：60s 内有效，秒数随时间递减且不小于 0。
  */
 import { computed, ref } from 'vue';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-describe('Countdown display (AIChatSlidePanel logic)', () => {
+describe('countdown display (AIChatSlidePanel logic)', () => {
   const countdownNow = ref(0);
   const startedAt = ref(0);
 
@@ -18,7 +19,7 @@ describe('Countdown display (AIChatSlidePanel logic)', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    const base = 1000000000000;
+    const base = 1_000_000_000_000;
     vi.setSystemTime(base);
     countdownNow.value = base;
     startedAt.value = base;
@@ -33,7 +34,7 @@ describe('Countdown display (AIChatSlidePanel logic)', () => {
   });
 
   it('decrements over time and stays >= 0', async () => {
-    const base = 1000000000000;
+    const base = 1_000_000_000_000;
     startedAt.value = base;
     countdownNow.value = base;
 
@@ -42,13 +43,13 @@ describe('Countdown display (AIChatSlidePanel logic)', () => {
     countdownNow.value = base + 5000; // 5 seconds
     expect(countdownSeconds.value).toBe(55);
 
-    countdownNow.value = base + 59000;
+    countdownNow.value = base + 59_000;
     expect(countdownSeconds.value).toBe(1);
 
-    countdownNow.value = base + 60000;
+    countdownNow.value = base + 60_000;
     expect(countdownSeconds.value).toBe(0);
 
-    countdownNow.value = base + 90000;
+    countdownNow.value = base + 90_000;
     expect(countdownSeconds.value).toBe(0);
   });
 

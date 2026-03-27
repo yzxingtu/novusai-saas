@@ -10,26 +10,17 @@
 import type { Ref } from 'vue';
 
 import type {
+  ActionButton,
   AgentItem,
   ChatAttachment,
   ChatMessage,
   ConversationItem,
   MentionCandidate,
+  PendingConfirmation,
+  PendingConsent,
   RagSource,
   ToolCallEvent,
 } from './types';
-import { getAgentInputVariables } from './types';
-import {
-  extractLeadingAgentMentionDraft,
-  filterAgentsByMentionQuery,
-  filterKnowledgeBasesByMentionQuery,
-  moveStreamingContentToThinking,
-} from './chat-input-utils';
-import { resolveConversationRequestState } from './conversation-binding';
-
-import { computed, nextTick, ref, unref, watch } from 'vue';
-
-import { message } from 'ant-design-vue';
 
 import type {
   AgentChatRequestBody,
@@ -39,18 +30,23 @@ import type {
   PageContext,
   RawMessageItem,
 } from '#/api/shared/ai-chat';
+import type { AppErrorInfo } from '#/utils/request';
+
+import { computed, nextTick, ref, unref, watch } from 'vue';
+
+import { message } from 'ant-design-vue';
 
 import {
   buildChatAttachmentFromUpload,
   clearChatConversationMemoryApi,
   deleteChatConversationApi,
-  updateChatConversationTitleApi,
   getChatAgentKBBindingsApi,
   getChatAgentsApi,
   getChatConversationMemoryApi,
   getChatConversationMessagesApi,
   getGlobalConversationsApi,
   sendChatStreamApi,
+  updateChatConversationTitleApi,
   uploadChatFileApi,
 } from '#/api/shared/ai-chat';
 import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
@@ -62,10 +58,17 @@ import { addConsent, getConsentedActions } from '#/utils/ai-consent';
 import { showRequestError } from '#/utils/error-helpers';
 import { toAvatarDisplayUrl } from '#/utils/image';
 import {
-  type AppErrorInfo,
   normalizeSseEventError,
   normalizeSseTransportError,
 } from '#/utils/request';
+
+import {
+  extractLeadingAgentMentionDraft,
+  filterKnowledgeBasesByMentionQuery,
+  moveStreamingContentToThinking,
+} from './chat-input-utils';
+import { resolveConversationRequestState } from './conversation-binding';
+import { getAgentInputVariables } from './types';
 
 export interface UseAIChatOptions {
   /** API prefix: '/admin', '/tenant', or '/api/user' / API 前缀 */
@@ -127,12 +130,13 @@ export function useAIChat(options: UseAIChatOptions) {
           avatar: avatar || null,
         };
       });
-      if (res.items.length > 0 && !selectedAgentId.value) {
+      const firstAgent = res.items[0];
+      if (firstAgent && !selectedAgentId.value) {
         const initId = overrideAgentId ?? unref(options.initialAgentId);
         selectedAgentId.value =
           initId && res.items.some((a) => a.id === initId)
             ? initId
-            : res.items[0]!.id;
+            : firstAgent.id;
       }
     } catch {
       // handled by interceptor / 错误由请求拦截器处理
@@ -151,7 +155,7 @@ export function useAIChat(options: UseAIChatOptions) {
     activeConversationAgentId.value = null;
     chatMessages.value = [];
     clearPendingAttachments();
-    clearMentionedAgent();
+    clearMentionDraft();
     // Clear cached variables when switching agents / 切换智能体时清空缓存变量
     // (they'll be re-initialized via watch + openVarsModal in the page component) / 由页面 watch 与弹窗再初始化
   }
@@ -170,8 +174,14 @@ export function useAIChat(options: UseAIChatOptions) {
   /** Request sequence guard: prevents stale async responses from overriding latest state / 请求序号防护：避免旧异步响应覆盖最新状态 */
   let conversationsRequestSeq = 0;
   let messagesRequestSeq = 0;
+  let clientMessageSeq = 0;
   const INTERRUPTED_HISTORY_SYNC_ATTEMPTS = 3;
   const INTERRUPTED_HISTORY_SYNC_RETRY_DELAY_MS = 300;
+
+  function nextClientKey(prefix: string) {
+    clientMessageSeq += 1;
+    return `${prefix}-${Date.now()}-${clientMessageSeq}`;
+  }
 
   async function loadConversations() {
     const reqSeq = ++conversationsRequestSeq;
@@ -246,7 +256,11 @@ export function useAIChat(options: UseAIChatOptions) {
     let fallbackMerged: ChatMessage[] | null = null;
     let fallbackResponse: ConversationDetailResponse | null = null;
 
-    for (let attempt = 0; attempt < INTERRUPTED_HISTORY_SYNC_ATTEMPTS; attempt++) {
+    for (
+      let attempt = 0;
+      attempt < INTERRUPTED_HISTORY_SYNC_ATTEMPTS;
+      attempt++
+    ) {
       const res = await getChatConversationMessagesApi(prefix, convId);
       if (activeConversationId.value !== convId) {
         return;
@@ -303,7 +317,7 @@ export function useAIChat(options: UseAIChatOptions) {
     activeConversationId.value = null;
     activeConversationAgentId.value = null;
     chatMessages.value = [];
-    clearMentionedAgent();
+    clearMentionDraft();
     memoryState.value = null;
     lastMemoryUpdated.value = false;
     if (!keepVars) {
@@ -347,8 +361,10 @@ export function useAIChat(options: UseAIChatOptions) {
     }
     pendingMessages.value = [];
     activeConversationId.value = convId;
-    clearMentionedAgent();
-    const currentConversation = conversations.value.find((c) => c.id === convId);
+    clearMentionDraft();
+    const currentConversation = conversations.value.find(
+      (c) => c.id === convId,
+    );
     if (currentConversation?.agent_id) {
       selectedAgentId.value = currentConversation.agent_id;
       activeConversationAgentId.value = currentConversation.agent_id;
@@ -374,7 +390,7 @@ export function useAIChat(options: UseAIChatOptions) {
   watch(
     [trustSession, activeConversationId],
     ([trust, convId]) => {
-      if (convId != null && typeof convId === 'number') {
+      if (typeof convId === 'number') {
         try {
           sessionStorage.setItem(
             `ai_trust_session_${convId}`,
@@ -426,6 +442,22 @@ export function useAIChat(options: UseAIChatOptions) {
     }
   }
 
+  function resolveToolCallStatus(
+    response: undefined | { success: boolean },
+    persistedTc: Record<string, unknown>,
+  ): ToolCallEvent['status'] {
+    if (response) {
+      return response.success ? 'success' : 'error';
+    }
+    if (persistedTc.pending_confirmation || persistedTc.pending_consent) {
+      return 'running';
+    }
+    if (persistedTc.success === true) {
+      return 'success';
+    }
+    return 'error';
+  }
+
   /**
    * Merge raw DB messages into display ChatMessages / 将原始 DB 消息合并为展示用 ChatMessages
    *
@@ -448,7 +480,17 @@ export function useAIChat(options: UseAIChatOptions) {
     // Collect tool responses keyed by tool_call_id for quick lookup / 按 tool_call_id 索引 tool 回包
     const toolResponseMap = new Map<
       string,
-      { content: string; error?: string; name?: string; success: boolean }
+      {
+        content: string;
+        displayName?: string;
+        error?: string;
+        errorType?: string;
+        name?: string;
+        resultLink?: string;
+        success: boolean;
+        summary?: string;
+        summaryPayload?: Record<string, unknown>;
+      }
     >();
     for (const m of filtered) {
       if (m.role === 'tool' && m.tool_call_id) {
@@ -458,7 +500,13 @@ export function useAIChat(options: UseAIChatOptions) {
           content: m.content ?? '',
           success: toolSuccess,
           error: (meta.tool_error as string) || undefined,
+          errorType: (meta.tool_error_type as string) || undefined,
           name: m.tool_name ?? undefined,
+          displayName: (meta.tool_display_name as string) || undefined,
+          summary: (meta.tool_summary as string) || undefined,
+          summaryPayload:
+            (meta.tool_summary_payload as Record<string, unknown>) || undefined,
+          resultLink: (meta.tool_result_link as string) || undefined,
         });
       }
     }
@@ -466,10 +514,12 @@ export function useAIChat(options: UseAIChatOptions) {
     // Group consecutive non-user messages into assistant turns / 合并连续非 user 为助手轮次
     let i = 0;
     while (i < filtered.length) {
-      const msg = filtered[i]!;
+      const msg = filtered[i];
+      if (!msg) break;
 
       if (msg.role === 'user') {
         result.push({
+          clientKey: `persisted-user-${i}-${msg.created_at ?? ''}`,
           role: 'user',
           content: msg.content ?? '',
           attachments: msg.metadata?.attachments,
@@ -495,10 +545,18 @@ export function useAIChat(options: UseAIChatOptions) {
       let turnRouteSource: null | string = null;
       let turnCreatedAt: null | string = null;
       let turnRagSources: RagSource[] | undefined;
+      let turnActionButtons: ActionButton[] | undefined;
+      let turnActionButtonsUsed = false;
+      let turnPendingConfirmation: PendingConfirmation | undefined;
+      let turnPendingConsent: PendingConsent | undefined;
       const startIdx = i;
 
-      while (i < filtered.length && filtered[i]!.role !== 'user') {
-        const cur = filtered[i]!;
+      while (i < filtered.length) {
+        const current = filtered[i];
+        if (!current || current.role === 'user') {
+          break;
+        }
+        const cur = current;
 
         if (cur.role === 'assistant') {
           if (cur.created_at) turnCreatedAt = cur.created_at;
@@ -526,14 +584,63 @@ export function useAIChat(options: UseAIChatOptions) {
                 ? cur.metadata.model_name
                 : null);
           }
-          if (turnRouteSource === null && typeof cur.metadata?.route_source === 'string') {
+          if (
+            turnRouteSource === null &&
+            typeof cur.metadata?.route_source === 'string'
+          ) {
             turnRouteSource = cur.metadata.route_source;
+          }
+          if (Array.isArray(cur.metadata?.action_buttons)) {
+            turnActionButtons = cur.metadata.action_buttons as ActionButton[];
+          }
+          if (cur.metadata?.action_buttons_used === true) {
+            turnActionButtonsUsed = true;
+          }
+          if (
+            !turnPendingConfirmation &&
+            cur.metadata?.pending_confirmation &&
+            typeof cur.metadata.pending_confirmation === 'object'
+          ) {
+            const pending = cur.metadata.pending_confirmation as Record<
+              string,
+              unknown
+            >;
+            turnPendingConfirmation = {
+              action: String(pending.action || ''),
+              table: String(pending.table || ''),
+              preview: pending.preview as Record<string, unknown> | undefined,
+              resolved: pending.resolved as boolean | undefined,
+            };
+          }
+          if (
+            !turnPendingConsent &&
+            cur.metadata?.pending_consent &&
+            typeof cur.metadata.pending_consent === 'object'
+          ) {
+            const pending = cur.metadata.pending_consent as Record<
+              string,
+              unknown
+            >;
+            turnPendingConsent = {
+              toolName: String(pending.tool_name || pending.toolName || ''),
+              arguments: pending.arguments as
+                | Record<string, unknown>
+                | undefined,
+              skillName: (pending.skill_name as string) || undefined,
+              skillType: (pending.package_name as string) || undefined,
+              resolved: pending.resolved as boolean | undefined,
+              rejected: pending.rejected as boolean | undefined,
+              autoApproved:
+                (pending.auto_approved as boolean | undefined) ??
+                (pending.autoApproved as boolean | undefined),
+            };
           }
           // Extract tool calls from this assistant message / 解析本条的 tool_calls
           if (cur.tool_calls && cur.tool_calls.length > 0) {
             for (const tc of cur.tool_calls) {
               const tcId = tc.id ?? '';
               const funcName = tc.function?.name ?? 'unknown';
+              const persistedTc = tc as Record<string, unknown>;
               let parsedArgs: Record<string, unknown> | undefined;
               try {
                 parsedArgs = tc.function?.arguments
@@ -548,19 +655,73 @@ export function useAIChat(options: UseAIChatOptions) {
               // Match with tool response (use metadata.tool_success for status) / 与 tool 回包对齐状态
               const response = tcId ? toolResponseMap.get(tcId) : undefined;
 
+              if (
+                !turnPendingConfirmation &&
+                persistedTc.pending_confirmation &&
+                typeof persistedTc.pending_confirmation === 'object'
+              ) {
+                const pending = persistedTc.pending_confirmation as Record<
+                  string,
+                  unknown
+                >;
+                turnPendingConfirmation = {
+                  action: String(pending.action || ''),
+                  table: String(pending.table || ''),
+                  preview: pending.preview as
+                    | Record<string, unknown>
+                    | undefined,
+                };
+              }
+              if (
+                !turnPendingConsent &&
+                persistedTc.pending_consent &&
+                typeof persistedTc.pending_consent === 'object'
+              ) {
+                const pending = persistedTc.pending_consent as Record<
+                  string,
+                  unknown
+                >;
+                turnPendingConsent = {
+                  toolName: String(
+                    pending.tool_name || pending.toolName || funcName,
+                  ),
+                  arguments:
+                    (pending.arguments as
+                      | Record<string, unknown>
+                      | undefined) ?? parsedArgs,
+                  skillName: (pending.skill_name as string) || undefined,
+                  skillType: (pending.package_name as string) || undefined,
+                };
+              }
+
               toolCalls.push({
+                id: tcId || undefined,
                 name: funcName,
-                status: response
-                  ? response.success
-                    ? 'success'
-                    : 'error'
-                  : 'error',
+                status: resolveToolCallStatus(response, persistedTc),
                 arguments: parsedArgs,
-                output: response?.success ? response.content : undefined,
+                output: response?.success
+                  ? response.content
+                  : (persistedTc.output as string | undefined),
                 error:
                   response && !response.success
                     ? response.error || response.content
-                    : undefined,
+                    : (persistedTc.error as string | undefined) ||
+                      response?.error,
+                durationMs: persistedTc.duration_ms as number | undefined,
+                displayName:
+                  (persistedTc.display_name as string) ?? response?.displayName,
+                summary: (persistedTc.summary as string) ?? response?.summary,
+                summaryPayload:
+                  (persistedTc.summary_payload as Record<string, unknown>) ??
+                  response?.summaryPayload,
+                resultLink:
+                  (persistedTc.result_link as string) ?? response?.resultLink,
+                errorType:
+                  (persistedTc.error_type as string) ?? response?.errorType,
+                skillName:
+                  (persistedTc.skill_name as string) ??
+                  (persistedTc.package_name as string) ??
+                  undefined,
               });
             }
           }
@@ -613,6 +774,7 @@ export function useAIChat(options: UseAIChatOptions) {
       // Only add if we actually processed something / 确有内容再推入助手消息
       if (i > startIdx) {
         const assistantMsg: ChatMessage = {
+          clientKey: `persisted-assistant-${startIdx}-${turnCreatedAt ?? ''}`,
           role: 'assistant',
           content: contentParts.join('\n\n'),
           toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
@@ -623,6 +785,9 @@ export function useAIChat(options: UseAIChatOptions) {
           model_name: turnModelName,
           routeSource: turnRouteSource,
         };
+        if (turnRouteSource === 'rich_text_ai') {
+          assistantMsg.source = 'rich_text_ai';
+        }
         if (turnCreatedAt) assistantMsg.created_at = turnCreatedAt;
         if (hasMemoryUpdated) {
           assistantMsg.memoryUpdated = true;
@@ -642,6 +807,18 @@ export function useAIChat(options: UseAIChatOptions) {
         if (turnRagSources?.length) {
           assistantMsg.ragSources = turnRagSources;
         }
+        if (turnActionButtons?.length) {
+          assistantMsg.actionButtons = turnActionButtons;
+        }
+        if (turnActionButtonsUsed === true) {
+          assistantMsg.actionButtonsUsed = true;
+        }
+        if (turnPendingConfirmation) {
+          assistantMsg.pendingConfirmation = turnPendingConfirmation;
+        }
+        if (turnPendingConsent) {
+          assistantMsg.pendingConsent = turnPendingConsent;
+        }
         result.push(assistantMsg);
       }
     }
@@ -656,29 +833,31 @@ export function useAIChat(options: UseAIChatOptions) {
 
   const chatMessages = ref<ChatMessage[]>([]);
   const inputMessage = ref('');
-  const mentionedAgentId = ref<null | number>(null);
+  const pendingInteractionUpdates = ref<
+    Array<{
+      action?: string;
+      kind: 'action_buttons' | 'pending_confirmation' | 'pending_consent';
+      rejected?: boolean;
+      table?: string;
+      tool_name?: string;
+      value?: string;
+    }>
+  >([]);
   const mentionQuery = ref('');
   const mentionActiveIndex = ref(0);
-  const mentionedAgent = computed(
-    () => agents.value.find((agent) => agent.id === mentionedAgentId.value) ?? null,
-  );
   const selectedKBIds = ref<number[]>([]);
   const agentKBBindings = ref<ChatKBBindingInfo[]>([]);
-  /** @ 候选：先智能体后知识库（键盘顺序一致）/ Agents first, then KBs for keyboard nav */
+  /** @ 候选：仅当前智能体已绑定知识库 / Only KBs bound to the current agent */
   const mentionCandidates = computed<MentionCandidate[]>(() => {
     const draft = extractLeadingAgentMentionDraft(inputMessage.value);
     if (draft === null) {
       return [];
     }
-    const agentMatches = filterAgentsByMentionQuery(agents.value, draft);
     const kbMatches = filterKnowledgeBasesByMentionQuery(
       agentKBBindings.value,
       draft,
     );
     const out: MentionCandidate[] = [];
-    for (const agent of agentMatches) {
-      out.push({ kind: 'agent', agent });
-    }
     for (const binding of kbMatches) {
       out.push({ kind: 'knowledge_base', binding });
     }
@@ -695,9 +874,6 @@ export function useAIChat(options: UseAIChatOptions) {
       mentionActiveIndex.value = 0;
       return;
     }
-    if (mentionedAgentId.value !== null) {
-      mentionedAgentId.value = null;
-    }
     mentionQuery.value = draft;
   });
 
@@ -710,13 +886,6 @@ export function useAIChat(options: UseAIChatOptions) {
       mentionActiveIndex.value = candidates.length - 1;
     }
   });
-
-  function selectMentionAgent(agent: AgentItem) {
-    mentionedAgentId.value = agent.id;
-    mentionQuery.value = '';
-    mentionActiveIndex.value = 0;
-    inputMessage.value = '';
-  }
 
   function selectMentionKnowledgeBase(
     binding: Pick<ChatKBBindingInfo, 'knowledge_base_id'>,
@@ -731,11 +900,12 @@ export function useAIChat(options: UseAIChatOptions) {
   }
 
   function removeSelectedKnowledgeBase(knowledgeBaseId: number) {
-    selectedKBIds.value = selectedKBIds.value.filter((k) => k !== knowledgeBaseId);
+    selectedKBIds.value = selectedKBIds.value.filter(
+      (k) => k !== knowledgeBaseId,
+    );
   }
 
-  function clearMentionedAgent() {
-    mentionedAgentId.value = null;
+  function clearMentionDraft() {
     mentionQuery.value = '';
     mentionActiveIndex.value = 0;
   }
@@ -752,14 +922,20 @@ export function useAIChat(options: UseAIChatOptions) {
   function _saveVarsToStorage(agentId: number, vars: Record<string, string>) {
     try {
       localStorage.setItem(_varsLocalKey(agentId), JSON.stringify(vars));
-    } catch { /* quota exceeded or private mode / 配额超限或隐私模式 */ }
+    } catch {
+      /* quota exceeded or private mode / 配额超限或隐私模式 */
+    }
   }
 
-  function _loadVarsFromStorage(agentId: number): Record<string, string> | null {
+  function _loadVarsFromStorage(
+    agentId: number,
+  ): null | Record<string, string> {
     try {
       const raw = localStorage.getItem(_varsLocalKey(agentId));
       return raw ? (JSON.parse(raw) as Record<string, string>) : null;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -776,10 +952,16 @@ export function useAIChat(options: UseAIChatOptions) {
   /**
    * Save variables for an agent / 保存某智能体的变量
    * Always updates session vars (in-memory).
+   * @param agentId - agent id to update
+   * @param values - variable values for the agent
    * @param persist - if true, also writes to localStorage (long-term, auto-injected every session)
    *                  if false, only in-memory for this browser session
    */
-  function applyVariables(agentId: number, values: Record<string, string>, persist = false) {
+  function applyVariables(
+    agentId: number,
+    values: Record<string, string>,
+    persist = false,
+  ) {
     allAgentsVariables.value[agentId] = { ...values };
     if (persist) {
       _saveVarsToStorage(agentId, { ...values });
@@ -797,14 +979,14 @@ export function useAIChat(options: UseAIChatOptions) {
   /** Agents that have appeared in the conversation AND have input_variables / 对话中出现且含 input_variables 的智能体 */
   const agentsWithVarsInConversation = computed(() => {
     const agentIdsInChat = new Set<number>(
-      chatMessages.value
-        .filter((m) => m.role === 'assistant' && m.agent_id)
-        .map((m) => m.agent_id!),
+      chatMessages.value.flatMap((message) =>
+        message.role === 'assistant' && typeof message.agent_id === 'number'
+          ? [message.agent_id]
+          : [],
+      ),
     );
     return agents.value.filter(
-      (a) =>
-        agentIdsInChat.has(a.id) &&
-        getAgentInputVariables(a).length > 0,
+      (a) => agentIdsInChat.has(a.id) && getAgentInputVariables(a).length > 0,
     );
   });
 
@@ -819,12 +1001,10 @@ export function useAIChat(options: UseAIChatOptions) {
   }
 
   /**
-   * KB 绑定随「当前生效智能体」加载：@ 指定的智能体优先于下拉选中。
-   * Bindings follow effective agent: @ mention wins over dropdown selection.
+   * KB 绑定随当前选中智能体加载。
+   * Bindings follow the currently selected agent.
    */
-  const effectiveKbAgentId = computed(
-    () => mentionedAgentId.value ?? selectedAgentId.value ?? null,
-  );
+  const effectiveKbAgentId = computed(() => selectedAgentId.value ?? null);
 
   watch(
     effectiveKbAgentId,
@@ -849,7 +1029,7 @@ export function useAIChat(options: UseAIChatOptions) {
   /** 发送前 800ms 防抖：多条消息合并为一次请求 */
   const SEND_DEBOUNCE_MS = 800;
   const pendingMessages = ref<{ text: string }[]>([]);
-  let debounceTimerId: ReturnType<typeof setTimeout> | null = null;
+  let debounceTimerId: null | ReturnType<typeof setTimeout> = null;
   const messagesContainer = ref<HTMLElement | null>(null);
 
   let streamAbortController: AbortController | null = null;
@@ -962,17 +1142,14 @@ export function useAIChat(options: UseAIChatOptions) {
     if (e.key === 'Escape') {
       e.preventDefault();
       inputMessage.value = '';
+      clearMentionDraft();
       return true;
     }
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
       const target = candidates[mentionActiveIndex.value] ?? candidates[0];
       if (target) {
-        if (target.kind === 'agent') {
-          selectMentionAgent(target.agent);
-        } else {
-          selectMentionKnowledgeBase(target.binding as ChatKBBindingInfo);
-        }
+        selectMentionKnowledgeBase(target.binding as ChatKBBindingInfo);
       }
       return true;
     }
@@ -983,8 +1160,7 @@ export function useAIChat(options: UseAIChatOptions) {
 
   /** 仅当后端明确 supports_vision=false 时禁止传图；未返回能力时保持兼容允许上传 */
   const supportsVision = computed(
-    () =>
-      selectedAgent.value?.model_capabilities?.supports_vision !== false,
+    () => selectedAgent.value?.model_capabilities?.supports_vision !== false,
   );
 
   const totalTokensUsed = computed(() =>
@@ -1119,7 +1295,10 @@ export function useAIChat(options: UseAIChatOptions) {
         fileToUpload,
         getUploadExtraData(),
       );
-      const uploadedAttachment = buildChatAttachmentFromUpload(fileToUpload, data);
+      const uploadedAttachment = buildChatAttachmentFromUpload(
+        fileToUpload,
+        data,
+      );
       return {
         ...uploadedAttachment,
         preview: isImage ? URL.createObjectURL(fileToUpload) : undefined,
@@ -1231,7 +1410,7 @@ export function useAIChat(options: UseAIChatOptions) {
     silent?: boolean;
   }): Promise<boolean> {
     const silent = opts?.silent ?? false;
-    const targetAgentId = opts?.agentId ?? selectedAgentId.value;
+    const maybeTargetAgentId = opts?.agentId ?? selectedAgentId.value;
     const routeSource = opts?.routeSource ?? null;
     const pageContext =
       opts?.pageContext === undefined
@@ -1241,18 +1420,25 @@ export function useAIChat(options: UseAIChatOptions) {
     const hasAttachments = pendingAttachments.value.length > 0;
     if (
       (!hasText && !hasAttachments) ||
-      !targetAgentId ||
+      maybeTargetAgentId === null ||
+      maybeTargetAgentId === undefined ||
       sending.value
-    )
+    ) {
       return false;
+    }
+    const targetAgentId = maybeTargetAgentId;
 
     // Block sending if required input variables are not filled / 必填变量未填则拦截发送
     const agent = agents.value.find((a) => a.id === targetAgentId);
-    const requiredVars = getAgentInputVariables(agent).filter((v) => v.required);
+    const requiredVars = getAgentInputVariables(agent).filter(
+      (v) => v.required,
+    );
     if (requiredVars.length > 0) {
       ensureAgentVarsLoaded(targetAgentId);
       const agentVars = allAgentsVariables.value[targetAgentId] ?? {};
-      const missingVars = requiredVars.filter((v) => !agentVars[v.name]?.trim());
+      const missingVars = requiredVars.filter(
+        (v) => !agentVars[v.name]?.trim(),
+      );
       if (missingVars.length > 0) {
         message.warning(
           $t('user.aiChat.varsModal.fillRequired', {
@@ -1282,13 +1468,15 @@ export function useAIChat(options: UseAIChatOptions) {
     /** 气泡展示用附件：去掉 preview，避免 clearPending 撤销 blob 后仍引用失效 URL */
     const displayAttachments =
       msgAttachments.length > 0
-        ? msgAttachments.map(({ attachment_id, type, url, name, mime_type }) => ({
-            attachment_id,
-            type,
-            url,
-            name,
-            mime_type,
-          }))
+        ? msgAttachments.map(
+            ({ attachment_id, type, url, name, mime_type }) => ({
+              attachment_id,
+              type,
+              url,
+              name,
+              mime_type,
+            }),
+          )
         : undefined;
 
     const useDebounce =
@@ -1301,6 +1489,7 @@ export function useAIChat(options: UseAIChatOptions) {
     if (useDebounce) {
       if (!silent) {
         chatMessages.value.push({
+          clientKey: nextClientKey('user'),
           role: 'user',
           content: userMsg,
           created_at: new Date().toISOString(),
@@ -1316,7 +1505,7 @@ export function useAIChat(options: UseAIChatOptions) {
       debounceTimerId = setTimeout(() => {
         debounceTimerId = null;
         flushPendingAndSend({
-          targetAgentId: targetAgentId!,
+          targetAgentId,
           pageContext,
         });
       }, SEND_DEBOUNCE_MS);
@@ -1325,6 +1514,7 @@ export function useAIChat(options: UseAIChatOptions) {
 
     if (!silent) {
       chatMessages.value.push({
+        clientKey: nextClientKey('user'),
         role: 'user',
         content: userMsg,
         attachments: displayAttachments,
@@ -1333,6 +1523,7 @@ export function useAIChat(options: UseAIChatOptions) {
     }
     const targetAgent = agents.value.find((a) => a.id === targetAgentId);
     chatMessages.value.push({
+      clientKey: nextClientKey('assistant'),
       role: 'assistant',
       content: '',
       streaming: true,
@@ -1343,6 +1534,9 @@ export function useAIChat(options: UseAIChatOptions) {
       model_name: targetAgent?.model_name ?? null,
       routeSource,
       created_at: new Date().toISOString(),
+      ...(routeSource === 'rich_text_ai'
+        ? { source: 'rich_text_ai' as const }
+        : {}),
     });
     userScrolledUp.value = false;
     scrollToBottom(true);
@@ -1355,15 +1549,17 @@ export function useAIChat(options: UseAIChatOptions) {
       texts: [userMsg],
       apiAttachments:
         msgAttachments.length > 0
-          ? msgAttachments.map(({ attachment_id, type, url, name, mime_type }) => ({
-              attachment_id,
-              type,
-              url,
-              name,
-              mime_type,
-            }))
+          ? msgAttachments.map(
+              ({ attachment_id, type, url, name, mime_type }) => ({
+                attachment_id,
+                type,
+                url,
+                name,
+                mime_type,
+              }),
+            )
           : undefined,
-      targetAgentId: targetAgentId!,
+      targetAgentId,
       pageContext,
       routeSource,
     });
@@ -1371,8 +1567,8 @@ export function useAIChat(options: UseAIChatOptions) {
   }
 
   async function flushPendingAndSend(opts: {
-    targetAgentId: number;
     pageContext: null | PageContext;
+    targetAgentId: number;
   }) {
     const msgs = [...pendingMessages.value];
     pendingMessages.value = [];
@@ -1382,6 +1578,7 @@ export function useAIChat(options: UseAIChatOptions) {
     const { targetAgentId, pageContext } = opts;
     const targetAgent = agents.value.find((a) => a.id === targetAgentId);
     chatMessages.value.push({
+      clientKey: nextClientKey('assistant'),
       role: 'assistant',
       content: '',
       streaming: true,
@@ -1405,15 +1602,16 @@ export function useAIChat(options: UseAIChatOptions) {
   }
 
   async function doStreamRequest(params: {
-    texts: string[];
     apiAttachments?:
       | Pick<ChatAttachment, 'mime_type' | 'name' | 'type' | 'url'>[]
       | undefined;
-    targetAgentId: number;
     pageContext: null | PageContext;
     routeSource?: null | string;
+    targetAgentId: number;
+    texts: string[];
   }) {
-    const { texts, apiAttachments, targetAgentId, pageContext, routeSource } = params;
+    const { texts, apiAttachments, targetAgentId, pageContext, routeSource } =
+      params;
     sending.value = true;
     streaming.value = true;
     const sseBuffer = { value: '' };
@@ -1423,7 +1621,7 @@ export function useAIChat(options: UseAIChatOptions) {
     activeStreamLifecycle = streamLifecycle;
     const assistantIdx = chatMessages.value.length - 1;
     const interruptedHistoryBaseline = chatMessages.value.length;
-    let doneAbortTimer: ReturnType<typeof setTimeout> | null = null;
+    let doneAbortTimer: null | ReturnType<typeof setTimeout> = null;
     let didReceiveDoneEvent = false;
     let didSseEnd = false;
     let hasReceivedStreamPayload = false;
@@ -1435,7 +1633,9 @@ export function useAIChat(options: UseAIChatOptions) {
       if (msg) {
         msg.streaming = false;
         if (msg.toolCalls) {
-          const orphaned = msg.toolCalls.filter((tc) => tc.status === 'running');
+          const orphaned = msg.toolCalls.filter(
+            (tc) => tc.status === 'running',
+          );
           if (orphaned.length > 0) {
             console.warn(
               '[use-ai-chat] finalizeMessage: orphaned running tool(s), marking as error',
@@ -1474,8 +1674,8 @@ export function useAIChat(options: UseAIChatOptions) {
       try {
         hasReceivedStreamPayload = true;
         const event = JSON.parse(data) as Record<string, unknown> & {
-          event?: string;
           delta?: string;
+          event?: string;
         };
         const msg = chatMessages.value[assistantIdx];
         if (!msg) return;
@@ -1505,7 +1705,9 @@ export function useAIChat(options: UseAIChatOptions) {
               (tc) => tc.name === event.name && tc.status === 'running',
             );
             if (!existing) {
-              existing = msg.toolCalls.findLast((tc) => tc.status === 'running');
+              existing = msg.toolCalls.findLast(
+                (tc) => tc.status === 'running',
+              );
             }
             if (existing) {
               existing.status = event.success ? 'success' : 'error';
@@ -1540,10 +1742,9 @@ export function useAIChat(options: UseAIChatOptions) {
                 skillType: (event.skill_type as string) || undefined,
                 displayName: (event.display_name as string) || undefined,
                 summary: (event.summary as string) || undefined,
-                summaryPayload: (event.summary_payload as Record<
-                  string,
-                  unknown
-                >) || undefined,
+                summaryPayload:
+                  (event.summary_payload as Record<string, unknown>) ||
+                  undefined,
                 resultLink: (event.result_link as string) || undefined,
               });
             }
@@ -1574,10 +1775,7 @@ export function useAIChat(options: UseAIChatOptions) {
             break;
           }
           default: {
-            if (
-              event.event === 'authorization_required' &&
-              event.consent_key
-            ) {
+            if (event.event === 'authorization_required' && event.consent_key) {
               addConsent(event.consent_key as string);
             } else if (event.event === 'confirmation_request') {
               promoteToolRoundContent();
@@ -1591,7 +1789,9 @@ export function useAIChat(options: UseAIChatOptions) {
               if (trustSession.value) {
                 msg.pendingConsent = {
                   toolName: (event.name as string) || '',
-                  arguments: event.arguments as Record<string, unknown> | undefined,
+                  arguments: event.arguments as
+                    | Record<string, unknown>
+                    | undefined,
                   skillName: (event.skill_name as string) || undefined,
                   skillType: (event.skill_type as string) || undefined,
                   resolved: true,
@@ -1602,12 +1802,42 @@ export function useAIChat(options: UseAIChatOptions) {
               } else {
                 msg.pendingConsent = {
                   toolName: (event.name as string) || '',
-                  arguments: event.arguments as Record<string, unknown> | undefined,
+                  arguments: event.arguments as
+                    | Record<string, unknown>
+                    | undefined,
                   skillName: (event.skill_name as string) || undefined,
                   skillType: (event.skill_type as string) || undefined,
                 };
               }
               scrollToBottom();
+            } else if (
+              event.event === 'knowledge_base_feedback' &&
+              (event.dropped_knowledge_base_ids ||
+                event.effective_knowledge_base_ids)
+            ) {
+              const effective = Array.isArray(
+                event.effective_knowledge_base_ids,
+              )
+                ? (event.effective_knowledge_base_ids as number[])
+                : [];
+              const dropped = Array.isArray(event.dropped_knowledge_base_ids)
+                ? (event.dropped_knowledge_base_ids as number[])
+                : [];
+              selectedKBIds.value = effective;
+              if (dropped.length > 0) {
+                const droppedLabels = dropped.map((kid) => {
+                  return (
+                    agentKBBindings.value.find(
+                      (item) => item.knowledge_base_id === kid,
+                    )?.kb_name || `KB#${kid}`
+                  );
+                });
+                message.warning(
+                  $t('common.globalAiChat.knowledgeBaseSelectionAdjusted', {
+                    dropped: droppedLabels.join('、'),
+                  }),
+                );
+              }
             } else if (
               event.event === 'conversation' &&
               event.conversation_id
@@ -1615,10 +1845,7 @@ export function useAIChat(options: UseAIChatOptions) {
               streamConversationId = event.conversation_id as number;
               activeConversationId.value = streamConversationId;
               activeConversationAgentId.value = targetAgentId;
-            } else if (
-              event.event === 'action_buttons' &&
-              event.buttons
-            ) {
+            } else if (event.event === 'action_buttons' && event.buttons) {
               msg.actionButtons = event.buttons as typeof msg.actionButtons;
               scrollToBottom();
             } else if (event.event === 'image_result' && event.url) {
@@ -1669,13 +1896,13 @@ export function useAIChat(options: UseAIChatOptions) {
               shouldSyncInterruptedConversation =
                 shouldSyncInterruptedConversation ||
                 hasReceivedStreamPayload ||
-                streamConversationId != null;
+                streamConversationId !== null;
               applyAssistantError(msg, normalizeSseEventError(event, $t));
             }
           }
         }
-      } catch (e: unknown) {
-        console.warn('[AI Chat] SSE parse error:', e);
+      } catch (error: unknown) {
+        console.warn('[AI Chat] SSE parse error:', error);
       }
     }
 
@@ -1684,15 +1911,20 @@ export function useAIChat(options: UseAIChatOptions) {
       // Refresh room binding before each request so page operations still work / 每次请求前刷新页面会话房间
       // after backend reloads or transient Socket.IO room loss. / 避免后端重启或 Socket 掉线后 pageop 失效
       refreshPageSessionRoom();
+      const singleText = texts.length === 1 ? (texts[0] ?? ' ') : null;
       const requestBody: AgentChatRequestBody = {
-        ...(texts.length === 1
-          ? { message: texts[0]! || ' ' }
-          : { messages: texts }),
+        ...(singleText === null
+          ? { messages: texts }
+          : { message: singleText || ' ' }),
         conversation_id: activeConversationId.value,
+        ...(pendingInteractionUpdates.value.length > 0
+          ? { interaction_updates: [...pendingInteractionUpdates.value] }
+          : {}),
         ...(selectedKBIds.value.length > 0
           ? { knowledge_base_ids: selectedKBIds.value }
           : {}),
-        ...((Object.keys(allAgentsVariables.value[targetAgentId] ?? {}).length > 0)
+        ...(Object.keys(allAgentsVariables.value[targetAgentId] ?? {}).length >
+        0
           ? { variables: allAgentsVariables.value[targetAgentId] }
           : {}),
         consented_actions: getConsentedActions(),
@@ -1709,54 +1941,48 @@ export function useAIChat(options: UseAIChatOptions) {
           ? { page_session_id: options.pageSessionIdGetter() || null }
           : {}),
       };
-      await sendChatStreamApi(
-        prefix,
-        targetAgentId!,
-        requestBody,
-        {
-          abortController: streamAbortController,
-          async onMessage(rawChunk: string) {
-            await parseSSEEvents(rawChunk, sseBuffer, handleSsePayload);
-          },
-          async onEnd() {
-            didSseEnd = true;
-            if (doneAbortTimer) {
-              clearTimeout(doneAbortTimer);
-              doneAbortTimer = null;
-            }
-            await parseSSEEvents('\n', sseBuffer, handleSsePayload);
-            loadConversations();
-          },
-          onError(error: AppErrorInfo | Error) {
-            const appError = normalizeSseTransportError(error, $t);
-            if ((appError.raw as { name?: string } | undefined)?.name === 'AbortError') {
-              return;
-            }
-            shouldSyncInterruptedConversation =
-              shouldSyncInterruptedConversation || hasReceivedStreamPayload;
-            const msg = chatMessages.value[assistantIdx];
-            applyAssistantError(msg, appError);
-            finalizeMessage();
-          },
+      pendingInteractionUpdates.value = [];
+      await sendChatStreamApi(prefix, targetAgentId, requestBody, {
+        abortController: streamAbortController,
+        async onMessage(rawChunk: string) {
+          await parseSSEEvents(rawChunk, sseBuffer, handleSsePayload);
         },
-      );
-    } catch (err: unknown) {
+        async onEnd() {
+          didSseEnd = true;
+          if (doneAbortTimer) {
+            clearTimeout(doneAbortTimer);
+            doneAbortTimer = null;
+          }
+          await parseSSEEvents('\n', sseBuffer, handleSsePayload);
+          loadConversations();
+        },
+        onError(error: AppErrorInfo | Error) {
+          const appError = normalizeSseTransportError(error, $t);
+          if (
+            (appError.raw as undefined | { name?: string })?.name ===
+            'AbortError'
+          ) {
+            return;
+          }
+          shouldSyncInterruptedConversation =
+            shouldSyncInterruptedConversation || hasReceivedStreamPayload;
+          const msg = chatMessages.value[assistantIdx];
+          applyAssistantError(msg, appError);
+          finalizeMessage();
+        },
+      });
+    } catch (error: unknown) {
       // sendChatStreamApi throws on non-2xx; sse.ts does not call onError for HTTP errors / 非 2xx 抛错，sse 层未必走 onError
-      const normalizedError = normalizeSseTransportError(err, $t);
-      if (
-        (normalizedError.raw as { name?: string } | undefined)?.name ===
+      const normalizedError = normalizeSseTransportError(error, $t);
+      shouldSyncInterruptedConversation =
+        (normalizedError.raw as undefined | { name?: string })?.name ===
         'AbortError'
-      ) {
-        shouldSyncInterruptedConversation =
-          shouldSyncInterruptedConversation ||
-          streamLifecycle.abortReason === 'user';
-      } else {
-        shouldSyncInterruptedConversation =
-          shouldSyncInterruptedConversation || hasReceivedStreamPayload;
-      }
+          ? shouldSyncInterruptedConversation ||
+            streamLifecycle.abortReason === 'user'
+          : shouldSyncInterruptedConversation || hasReceivedStreamPayload;
       const msg = chatMessages.value[assistantIdx];
       if (
-        (normalizedError.raw as { name?: string } | undefined)?.name !==
+        (normalizedError.raw as undefined | { name?: string })?.name !==
         'AbortError'
       ) {
         applyAssistantError(msg, normalizedError);
@@ -1781,7 +2007,7 @@ export function useAIChat(options: UseAIChatOptions) {
       const interruptedConversationId = streamConversationId;
       const shouldSyncConversationHistory =
         !didReceiveDoneEvent &&
-        interruptedConversationId != null &&
+        interruptedConversationId !== null &&
         (streamLifecycle.abortReason === 'user' ||
           shouldSyncInterruptedConversation ||
           didSseEnd);
@@ -1805,6 +2031,12 @@ export function useAIChat(options: UseAIChatOptions) {
     const msg = chatMessages.value[msgIndex];
     if (!msg?.pendingConfirmation || msg.pendingConfirmation.resolved) return;
     msg.pendingConfirmation.resolved = true;
+    pendingInteractionUpdates.value.push({
+      action: msg.pendingConfirmation.action,
+      kind: 'pending_confirmation',
+      rejected: false,
+      table: msg.pendingConfirmation.table,
+    });
     inputMessage.value = $t('common.globalAiChat.confirmExecute');
     sendMessage({ silent: true });
   }
@@ -1813,6 +2045,12 @@ export function useAIChat(options: UseAIChatOptions) {
     const msg = chatMessages.value[msgIndex];
     if (!msg?.pendingConfirmation || msg.pendingConfirmation.resolved) return;
     msg.pendingConfirmation.resolved = true;
+    pendingInteractionUpdates.value.push({
+      action: msg.pendingConfirmation.action,
+      kind: 'pending_confirmation',
+      rejected: true,
+      table: msg.pendingConfirmation.table,
+    });
     inputMessage.value = $t('common.globalAiChat.rejectExecute');
     sendMessage({ silent: true });
   }
@@ -1821,6 +2059,11 @@ export function useAIChat(options: UseAIChatOptions) {
     const msg = chatMessages.value[msgIndex];
     if (!msg?.pendingConsent || msg.pendingConsent.resolved) return;
     msg.pendingConsent.resolved = true;
+    pendingInteractionUpdates.value.push({
+      kind: 'pending_consent',
+      rejected: false,
+      tool_name: msg.pendingConsent.toolName,
+    });
     inputMessage.value = $t('common.globalAiChat.confirmExecute');
     sendMessage({ silent: true });
   }
@@ -1830,6 +2073,11 @@ export function useAIChat(options: UseAIChatOptions) {
     if (!msg?.pendingConsent || msg.pendingConsent.resolved) return;
     msg.pendingConsent.resolved = true;
     msg.pendingConsent.rejected = true;
+    pendingInteractionUpdates.value.push({
+      kind: 'pending_consent',
+      rejected: true,
+      tool_name: msg.pendingConsent.toolName,
+    });
     inputMessage.value = $t('common.globalAiChat.rejectExecute');
     sendMessage({ silent: true });
   }
@@ -1838,6 +2086,10 @@ export function useAIChat(options: UseAIChatOptions) {
     const msg = chatMessages.value[msgIndex];
     if (!msg || msg.actionButtonsUsed) return;
     msg.actionButtonsUsed = true;
+    pendingInteractionUpdates.value.push({
+      kind: 'action_buttons',
+      value,
+    });
     inputMessage.value = value;
     sendMessage();
   }
@@ -1890,7 +2142,9 @@ export function useAIChat(options: UseAIChatOptions) {
       const attachmentLabel = attachment.name || attachment.url || '-';
       lines.push(`- ${typeLabel}: ${attachmentLabel}`);
       if (attachment.attachment_id) {
-        lines.push(`  ${$t('common.globalAiChat.attachmentId')}: ${attachment.attachment_id}`);
+        lines.push(
+          `  ${$t('common.globalAiChat.attachmentId')}: ${attachment.attachment_id}`,
+        );
       }
       if (attachment.url) {
         lines.push(`  URL: ${attachment.url}`);
@@ -1911,7 +2165,8 @@ export function useAIChat(options: UseAIChatOptions) {
       '',
     ];
     for (const msg of chatMessages.value) {
-      const role = msg.role === 'user' ? `**${userLabel}**` : `**${agentName}**`;
+      const role =
+        msg.role === 'user' ? `**${userLabel}**` : `**${agentName}**`;
       lines.push(`### ${role}`, '');
       if (msg.content) lines.push(msg.content);
       lines.push(...buildExportAttachmentLines(msg.attachments, 'markdown'));
@@ -1957,11 +2212,11 @@ export function useAIChat(options: UseAIChatOptions) {
       selectedAgent.value?.name || $t('common.globalAiChat.assistant');
     const lines: string[] = [];
     for (const msg of chatMessages.value) {
-      const label = msg.role === 'user' ? $t('common.globalAiChat.user') : agentName;
+      const label =
+        msg.role === 'user' ? $t('common.globalAiChat.user') : agentName;
       lines.push(`${label}:`);
       if (msg.content) lines.push(msg.content);
-      lines.push(...buildExportAttachmentLines(msg.attachments, 'text'));
-      lines.push('');
+      lines.push(...buildExportAttachmentLines(msg.attachments, 'text'), '');
     }
     const blob = new Blob([lines.join('\n')], {
       type: 'text/plain;charset=utf-8',
@@ -1989,8 +2244,11 @@ export function useAIChat(options: UseAIChatOptions) {
     }
     if (userMsgIndex < 0) return;
 
-    const userContent = chatMessages.value[userMsgIndex]!.content;
-    const userAttachments = chatMessages.value[userMsgIndex]!.attachments;
+    const userMessage = chatMessages.value[userMsgIndex];
+    if (!userMessage || userMessage.role !== 'user') return;
+
+    const userContent = userMessage.content;
+    const userAttachments = userMessage.attachments;
 
     // Remove the assistant message (and any messages after it) / 移除该 assistant 及之后消息
     chatMessages.value.splice(msgIndex);
@@ -2067,10 +2325,7 @@ export function useAIChat(options: UseAIChatOptions) {
     // Chat / 对话与发送
     chatMessages,
     inputMessage,
-    mentionedAgentId,
-    mentionedAgent,
     mentionOpen,
-    mentionQuery,
     mentionCandidates,
     mentionActiveIndex,
     selectedKBIds,
@@ -2094,10 +2349,8 @@ export function useAIChat(options: UseAIChatOptions) {
     showScrollToTop: userNotAtTop,
     copyMessage,
     handleInputKeyDown,
-    selectMentionAgent,
     selectMentionKnowledgeBase,
     removeSelectedKnowledgeBase,
-    clearMentionedAgent,
     confirmAction,
     rejectAction,
     confirmConsent,

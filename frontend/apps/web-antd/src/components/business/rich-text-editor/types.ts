@@ -7,11 +7,13 @@
 
 import type { AnyExtension, Editor, JSONContent } from '@tiptap/core';
 
+import type { Ref, ShallowRef } from 'vue';
+
 /** 富文本编辑器组件 Props / Rich text editor component props */
 export interface RichTextEditorProps {
   modelValue?: JSONContent | null;
   defaultValue?: JSONContent | null;
-  mode?: 'full' | 'compact';
+  mode?: 'compact' | 'full';
   toolbar?: boolean | string[];
   ai?: boolean;
   upload?: boolean;
@@ -30,7 +32,7 @@ export interface RichTextEditorProps {
 export interface MountOptions {
   content?: JSONContent | null;
   defaultValue?: JSONContent | null;
-  mode?: 'full' | 'compact';
+  mode?: 'compact' | 'full';
   toolbar?: boolean | string[];
   ai?: boolean;
   upload?: boolean;
@@ -46,14 +48,68 @@ export interface MountOptions {
   onReady?: (editor: Editor) => void;
 }
 
-/** 挂载后的编辑器实例 API / Mounted editor instance API */
-export interface MountedEditor {
+export interface RichTextEditorSetContentOptions {
+  emitUpdate?: boolean;
+}
+
+export interface RichTextEditorExposed {
+  editor: ShallowRef<Editor | undefined>;
+  wordCount: Ref<number>;
+  characterCount: Ref<number>;
+  editorInstanceId: string;
+  getRevision(): number;
   getJSON(): JSONContent | null;
   getHTML(): string;
   getText(): string;
-  setContent(content: JSONContent | string): void;
+  setContent(
+    content: JSONContent | string,
+    options?: RichTextEditorSetContentOptions,
+  ): void;
+  focus(): void;
+}
+
+/** 挂载后的编辑器实例 API / Mounted editor instance API */
+export interface MountedEditor {
+  editorInstanceId: string;
+  getRevision(): number;
+  getJSON(): JSONContent | null;
+  getHTML(): string;
+  getText(): string;
+  setContent(
+    content: JSONContent | string,
+    options?: RichTextEditorSetContentOptions,
+  ): void;
   focus(): void;
   destroy(): void;
+}
+
+export interface SourceEditorRegistration {
+  pageKey: string;
+  editorInstanceId: string;
+  appendToEnd(
+    content: string,
+    options?: RichTextEditorSetContentOptions,
+  ): boolean;
+  getHTML(): string;
+  getRevision(): number;
+  getText(): string;
+  insertAfterRange(
+    from: number,
+    to: number,
+    content: string,
+    options?: RichTextEditorSetContentOptions,
+  ): boolean;
+  isMounted(): boolean;
+  focus(): void;
+  replaceRange(
+    from: number,
+    to: number,
+    content: string,
+    options?: RichTextEditorSetContentOptions,
+  ): boolean;
+  revision: number;
+  setRevision?(revision: number): void;
+  undo(): boolean;
 }
 
 /** 工具栏按钮定义 / Toolbar button definition */
@@ -68,7 +124,7 @@ export interface ToolbarButtonDef {
 
 /** 附件信息（用于上传与展示） / Attachment info (for upload and display) */
 export interface AttachmentInfo {
-  id: string | number;
+  id: number | string;
   name: string;
   size: number;
   mime_type: string;

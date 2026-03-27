@@ -218,7 +218,8 @@ function transformOrgNode(raw: TenantOrgNodeInfoRaw): TenantOrgNodeInfo {
     permissionsCount: raw.permissions_count,
     dataScope: raw.data_scope,
     customDeptIds: raw.custom_dept_ids,
-    scopeTargetCount: raw.scope_target_count ?? raw.custom_dept_ids?.length ?? 0,
+    scopeTargetCount:
+      raw.scope_target_count ?? raw.custom_dept_ids?.length ?? 0,
     scopeTargets: raw.scope_targets,
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,

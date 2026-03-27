@@ -48,9 +48,7 @@ export function permanentDeleteRecycleBinItemApi(module: string, id: number) {
 
 /** Clear all deleted records for a module / 清空指定模块的所有回收站记录 */
 export function clearRecycleBinModuleApi(module: string) {
-  return requestClient.delete<{ count: number }>(
-    `${BASE_URL}/${module}/clear`,
-  );
+  return requestClient.delete<{ count: number }>(`${BASE_URL}/${module}/clear`);
 }
 
 /** Manually trigger expired cleanup / 手动触发过期清理 */
@@ -61,15 +59,15 @@ export function triggerRecycleBinCleanupApi(
     typeof params === 'number'
       ? { retention_days: params }
       : {
-          ...(params.retentionDays !== undefined
-            ? { retention_days: params.retentionDays }
-            : {}),
-          ...(params.moduleRetentionDays !== undefined
-            ? { module_retention_days: params.moduleRetentionDays }
-            : {}),
-          ...(params.globalRetentionDays !== undefined
-            ? { global_retention_days: params.globalRetentionDays }
-            : {}),
+          ...(params.retentionDays === undefined
+            ? {}
+            : { retention_days: params.retentionDays }),
+          ...(params.moduleRetentionDays === undefined
+            ? {}
+            : { module_retention_days: params.moduleRetentionDays }),
+          ...(params.globalRetentionDays === undefined
+            ? {}
+            : { global_retention_days: params.globalRetentionDays }),
         };
 
   return requestClient.delete(`${BASE_URL}/cleanup`, {

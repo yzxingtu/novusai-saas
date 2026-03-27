@@ -394,6 +394,168 @@ class ConversationService(
         await self.db.flush()
         return conversation
 
+    async def update_last_assistant_interaction_state(
+        self,
+        conversation_id: int,
+        updates: list[dict[str, Any]],
+        user_id: int | None = None,
+        owner_type: str | None = None,
+    ) -> int:
+        """Persist client interaction state onto the latest matching assistant message / 将客户端交互状态持久化到最近匹配的 assistant 消息。"""
+        if not updates:
+            return 0
+
+        await self.get_accessible_conversation(
+            conversation_id,
+            user_id=user_id,
+            owner_type=owner_type,
+        )
+        messages = await self.message_repo.get_last_n_messages(
+            conversation_id=conversation_id,
+            n=50,
+        )
+        assistant_messages = [
+            msg
+            for msg in reversed(messages)
+            if msg.role == MessageRoleEnum.ASSISTANT.value
+        ]
+        if not assistant_messages:
+            return 0
+
+        updated = 0
+        seen_ids: set[int] = set()
+
+        def _match_action_buttons(
+            metadata: dict[str, Any],
+            value: str | None,
+        ) -> bool:
+            buttons = metadata.get("action_buttons")
+            if not isinstance(buttons, list) or not value:
+                return False
+            return any(
+                isinstance(item, dict) and item.get("value") == value
+                for item in buttons
+            )
+
+        def _match_pending_confirmation(
+            metadata: dict[str, Any],
+            tool_calls: list | None,
+            action: str | None,
+            table: str | None,
+        ) -> bool:
+            pending = metadata.get("pending_confirmation")
+            if isinstance(pending, dict):
+                if action and pending.get("action") not in (None, action):
+                    return False
+                if table and pending.get("table") not in (None, table):
+                    return False
+                return True
+            if isinstance(tool_calls, list):
+                for tc in tool_calls:
+                    if not isinstance(tc, dict):
+                        continue
+                    nested = tc.get("pending_confirmation")
+                    if not isinstance(nested, dict):
+                        continue
+                    if action and nested.get("action") not in (None, action):
+                        continue
+                    if table and nested.get("table") not in (None, table):
+                        continue
+                    return True
+            return False
+
+        def _match_pending_consent(
+            metadata: dict[str, Any],
+            tool_calls: list | None,
+            tool_name: str | None,
+        ) -> bool:
+            pending = metadata.get("pending_consent")
+            if isinstance(pending, dict):
+                if tool_name and pending.get("tool_name") not in (None, tool_name):
+                    return False
+                return True
+            if isinstance(tool_calls, list):
+                for tc in tool_calls:
+                    if not isinstance(tc, dict):
+                        continue
+                    nested = tc.get("pending_consent")
+                    if not isinstance(nested, dict):
+                        continue
+                    if tool_name and nested.get("tool_name") not in (None, tool_name):
+                        continue
+                    return True
+            return False
+
+        for raw_update in updates:
+            kind = str(raw_update.get("kind") or "")
+            if not kind:
+                continue
+            for msg in assistant_messages:
+                metadata = dict(msg.metadata_ or {})
+                tool_calls = [dict(tc) for tc in (msg.tool_calls or []) if isinstance(tc, dict)]
+
+                matched = False
+                if kind == "action_buttons":
+                    matched = _match_action_buttons(metadata, raw_update.get("value"))
+                    if matched:
+                        metadata["action_buttons_used"] = True
+                elif kind == "pending_confirmation":
+                    matched = _match_pending_confirmation(
+                        metadata,
+                        tool_calls,
+                        raw_update.get("action"),
+                        raw_update.get("table"),
+                    )
+                    if matched:
+                        pending = dict(metadata.get("pending_confirmation") or {})
+                        pending["resolved"] = True
+                        pending["rejected"] = bool(raw_update.get("rejected"))
+                        metadata["pending_confirmation"] = pending
+                        for tc in tool_calls:
+                            nested = tc.get("pending_confirmation")
+                            if isinstance(nested, dict):
+                                next_nested = dict(nested)
+                                next_nested["resolved"] = True
+                                next_nested["rejected"] = bool(raw_update.get("rejected"))
+                                tc["pending_confirmation"] = next_nested
+                elif kind == "pending_consent":
+                    matched = _match_pending_consent(
+                        metadata,
+                        tool_calls,
+                        raw_update.get("tool_name"),
+                    )
+                    if matched:
+                        pending = dict(metadata.get("pending_consent") or {})
+                        pending["resolved"] = True
+                        pending["rejected"] = bool(raw_update.get("rejected"))
+                        metadata["pending_consent"] = pending
+                        for tc in tool_calls:
+                            nested = tc.get("pending_consent")
+                            if isinstance(nested, dict):
+                                next_nested = dict(nested)
+                                next_nested["resolved"] = True
+                                next_nested["rejected"] = bool(raw_update.get("rejected"))
+                                tc["pending_consent"] = next_nested
+
+                if not matched:
+                    continue
+
+                await self.message_repo.update(
+                    msg.id,
+                    {
+                        "metadata_": metadata,
+                        "tool_calls": tool_calls or msg.tool_calls,
+                    },
+                )
+                msg.metadata_ = metadata
+                msg.tool_calls = tool_calls or msg.tool_calls
+                if msg.id not in seen_ids:
+                    updated += 1
+                    seen_ids.add(msg.id)
+                break
+
+        return updated
+
     def _get_memory_tenant_id(self) -> int:
         return self.tenant_id if self.tenant_id is not None else PLATFORM_TENANT_ID
 
@@ -941,6 +1103,7 @@ class ConversationService(
                     tool_call_id=msg.tool_call_id,
                     attachments=msg_attachments,
                     reasoning_content=msg_reasoning_content,
+                    metadata=self._copy_metadata(msg.metadata_),
                 ),
             )
 
@@ -1011,6 +1174,53 @@ class ConversationService(
 
         return result
 
+    @staticmethod
+    def _copy_metadata(raw: Any) -> dict[str, Any] | None:
+        return dict(raw) if isinstance(raw, dict) else None
+
+    @staticmethod
+    def _enrich_tool_calls_for_persistence(
+        tool_calls: list[dict[str, Any]] | None,
+        tool_result_map: dict[str, ToolResult],
+    ) -> list[dict[str, Any]] | None:
+        if not tool_calls:
+            return tool_calls
+
+        enriched: list[dict[str, Any]] = []
+        for tc in tool_calls:
+            if not isinstance(tc, dict):
+                continue
+
+            next_tc = dict(tc)
+            tc_id = str(next_tc.get("id") or "")
+            tr = tool_result_map.get(tc_id) if tc_id else None
+            if tr:
+                if tr.display_name and not next_tc.get("display_name"):
+                    next_tc["display_name"] = tr.display_name
+                if tr.summary and not next_tc.get("summary"):
+                    next_tc["summary"] = tr.summary
+                if tr.summary_payload:
+                    existing_payload = (
+                        next_tc.get("summary_payload")
+                        if isinstance(next_tc.get("summary_payload"), dict)
+                        else {}
+                    )
+                    next_tc["summary_payload"] = {
+                        **existing_payload,
+                        **tr.summary_payload,
+                    }
+                if tr.result_link and not next_tc.get("result_link"):
+                    next_tc["result_link"] = tr.result_link
+                if tr.error_type and not next_tc.get("error_type"):
+                    next_tc["error_type"] = tr.error_type
+                if tr.duration_ms and not next_tc.get("duration_ms"):
+                    next_tc["duration_ms"] = tr.duration_ms
+                next_tc["success"] = tr.success
+
+            enriched.append(next_tc)
+
+        return enriched
+
     async def persist_chat_messages(
         self,
         conversation: AgentConversation,
@@ -1060,6 +1270,7 @@ class ConversationService(
                 tool_call_id=m.get("tool_call_id"),
                 attachments=m.get("attachments"),
                 reasoning_content=m.get("reasoning_content"),
+                metadata=self._copy_metadata(m.get("metadata")),
                 internal_only=bool(m.get("internal_only", False)),
             )
             for m in new_messages_raw
@@ -1073,6 +1284,7 @@ class ConversationService(
                 "tool_call_id": m.tool_call_id,
                 "attachments": m.attachments,
                 "reasoning_content": m.reasoning_content,
+                "metadata": self._copy_metadata(m.metadata),
             }
             for m in chat_msgs
             if not m.internal_only
@@ -1103,6 +1315,11 @@ class ConversationService(
             tool_call_id = msg_dict.get("tool_call_id")
             attachments = msg_dict.get("attachments")
             reasoning_content = msg_dict.get("reasoning_content")
+            persisted_metadata = self._copy_metadata(msg_dict.get("metadata"))
+            tool_calls = self._enrich_tool_calls_for_persistence(
+                tool_calls,
+                tool_result_map,
+            )
 
             # 收集 tool_calls 用于响应
             if tool_calls:
@@ -1112,13 +1329,23 @@ class ConversationService(
             token_estimate = estimate_tokens(content) if content else 0
 
             # 附件存入 metadata
-            metadata = None
+            metadata = persisted_metadata or None
             if attachments:
-                metadata = {"attachments": attachments}
+                metadata = metadata or {}
+                metadata["attachments"] = attachments
             # assistant 消息的思考内容（chain-of-thought 模型）存入 metadata / Store reasoning for history display
             if role == "assistant" and reasoning_content and reasoning_content.strip():
                 metadata = metadata or {}
                 metadata["thinking_content"] = reasoning_content.strip()
+            if (
+                role == "assistant"
+                and persisted_metadata
+                and "action_buttons_used" in persisted_metadata
+            ):
+                metadata = metadata or {}
+                metadata["action_buttons_used"] = persisted_metadata.get(
+                    "action_buttons_used",
+                )
 
             # tool 角色消息：存储工具执行状态
             if role == "tool" and tool_call_id and tool_call_id in tool_result_map:
@@ -1127,6 +1354,18 @@ class ConversationService(
                 metadata["tool_success"] = tr.success
                 if not tr.success and tr.error:
                     metadata["tool_error"] = tr.error
+                if tr.display_name:
+                    metadata["tool_display_name"] = tr.display_name
+                if tr.summary:
+                    metadata["tool_summary"] = tr.summary
+                if tr.summary_payload:
+                    metadata["tool_summary_payload"] = tr.summary_payload
+                if tr.result_link:
+                    metadata["tool_result_link"] = tr.result_link
+                if tr.error_type:
+                    metadata["tool_error_type"] = tr.error_type
+                if tr.duration_ms:
+                    metadata["tool_duration_ms"] = tr.duration_ms
 
             # partial/interrupted: mark last plain assistant message / 中断时标记最后一条普通 assistant
             is_last_assistant = (

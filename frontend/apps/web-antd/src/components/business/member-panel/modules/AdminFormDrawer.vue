@@ -1,6 +1,6 @@
 <script lang="ts" setup>
-import type { MemberPanelMember } from '../types';
 import type { MemberRoleOption, OrgTreeApi } from '../data';
+import type { MemberPanelMember } from '../types';
 
 /**
  * Admin Create/Edit Form Drawer
@@ -125,8 +125,7 @@ async function loadRoleOptions(
     return [];
   }
 
-  const roles =
-    await tenant.getAllTenantPermissionRoleListApi();
+  const roles = await tenant.getAllTenantPermissionRoleListApi();
 
   const options = roles
     .filter((role) => role.isActive)
@@ -171,8 +170,8 @@ const [Drawer, drawerApi] = useVbenDrawer({
       nickname: values.nickname || null,
       is_active: values.is_active ?? true,
       ...(isEdit.value && avatarValue.value
-          ? { avatar: avatarValue.value }
-          : {}),
+        ? { avatar: avatarValue.value }
+        : {}),
     };
 
     drawerApi.lock();
@@ -189,7 +188,9 @@ const [Drawer, drawerApi] = useVbenDrawer({
         const data = {
           ...baseData,
           org_node_id: selectedOrgNodeId,
-          ...(props.apiPrefix === 'tenant' ? { role_id: values.role_id ?? null } : {}),
+          ...(props.apiPrefix === 'tenant'
+            ? { role_id: values.role_id ?? null }
+            : {}),
         };
         await (props.apiPrefix === 'tenant'
           ? tenant.updateTenantMemberApi(
@@ -223,7 +224,9 @@ const [Drawer, drawerApi] = useVbenDrawer({
           username: values.username,
           password: values.password,
           org_node_id: selectedOrgNodeId,
-          ...(props.apiPrefix === 'tenant' ? { role_id: values.role_id ?? null } : {}),
+          ...(props.apiPrefix === 'tenant'
+            ? { role_id: values.role_id ?? null }
+            : {}),
         };
         await (props.apiPrefix === 'tenant'
           ? tenant.createTenantMemberApi(

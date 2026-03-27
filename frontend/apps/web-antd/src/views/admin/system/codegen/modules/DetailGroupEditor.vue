@@ -35,13 +35,12 @@ const detail = computed<Record<string, unknown>>(
   () => (store.configJson.detail as Record<string, unknown>) || {},
 );
 
-const groups = computed<DetailGroup[]>(
-  () =>
-    Array.isArray(detail.value.groups)
-      ? (detail.value.groups as Partial<DetailGroup>[]).map((group) =>
-          normalizeGroup(group),
-        )
-      : [],
+const groups = computed<DetailGroup[]>(() =>
+  Array.isArray(detail.value.groups)
+    ? (detail.value.groups as Partial<DetailGroup>[]).map((group) =>
+        normalizeGroup(group),
+      )
+    : [],
 );
 
 function getGroupKey(group: DetailGroup, idx: number) {
@@ -55,7 +54,10 @@ const fields = computed(
 const fieldOptions = computed(() =>
   fields.value
     .filter((f) => f.type !== '__divider__' && !f.divider && f.name)
-    .map((f) => ({ label: `${f.name as string} (${f.comment || f.type})`, value: f.name as string })),
+    .map((f) => ({
+      label: `${f.name as string} (${f.comment || f.type})`,
+      value: f.name as string,
+    })),
 );
 
 function updateDetail(patch: Record<string, unknown>) {
@@ -63,8 +65,7 @@ function updateDetail(patch: Record<string, unknown>) {
 }
 
 function addGroup() {
-  const list = [...groups.value];
-  list.push({ title_zh: '', title_en: '', fields: [] });
+  const list = [...groups.value, { title_zh: '', title_en: '', fields: [] }];
   updateDetail({ groups: list });
 }
 
@@ -91,11 +92,7 @@ function onFieldsChange(index: number, value: unknown) {
 
 <template>
   <div class="flex flex-col gap-3">
-    <Button
-      size="small"
-      type="dashed"
-      @click="addGroup"
-    >
+    <Button size="small" type="dashed" @click="addGroup">
       {{ $t('admin.system.codegen.frontend.addGroup') }}
     </Button>
     <div
@@ -124,23 +121,20 @@ function onFieldsChange(index: number, value: unknown) {
             :options="fieldOptions"
             mode="multiple"
             class="w-full"
-            :placeholder="$t('admin.system.codegen.frontend.selectFieldsPlaceholder')"
+            :placeholder="
+              $t('admin.system.codegen.frontend.selectFieldsPlaceholder')
+            "
             @change="(value) => onFieldsChange(idx, value)"
           />
         </Form.Item>
       </Form>
-      <Button
-        danger
-        size="small"
-        type="text"
-        @click="removeGroup(idx)"
-      >
+      <Button danger size="small" type="text" @click="removeGroup(idx)">
         {{ $t('common.delete') }}
       </Button>
     </div>
     <div
       v-if="groups.length === 0"
-      class="text-muted-foreground rounded border border-dashed border-border py-4 text-center text-sm"
+      class="rounded border border-dashed border-border py-4 text-center text-sm text-muted-foreground"
     >
       {{ $t('admin.system.codegen.frontend.detailGroupsEmptyHint') }}
     </div>

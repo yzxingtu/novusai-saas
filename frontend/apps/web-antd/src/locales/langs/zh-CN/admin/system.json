@@ -507,17 +507,6 @@
       "admin_and_selected_tenants": "平台保留入口，同时定向下发给指定企业",
       "selected_tenants": "仅向指定企业分发执行"
     },
-    "adminSurface": {
-      "default": "平台统一治理入口保留",
-      "selected_tenants": "平台负责治理，运行只下发给指定企业"
-    },
-    "tenantSurface": {
-      "global_shared": "全部企业共享使用，不暴露系统配置入口",
-      "all_tenants": "全部企业纳入执行范围",
-      "selected": "仅 {count} 个绑定企业纳入执行范围",
-      "pending": "当前要求指定企业，但绑定名单为空",
-      "admin_only": "企业端不涉及"
-    },
     "bindingSummary": {
       "globalShared": "共享能力，不需要企业名单",
       "allTenants": "覆盖全部企业，不需要单独绑定",

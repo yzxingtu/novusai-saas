@@ -112,9 +112,7 @@ async function uploadAttachmentApi(
       onUploadProgress: onProgress
         ? (progressEvent) => {
             const percent = progressEvent.total
-              ? Math.round(
-                  (progressEvent.loaded * 100) / progressEvent.total,
-                )
+              ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
               : 0;
             onProgress({ percent });
           }
@@ -169,7 +167,7 @@ export async function getAttachmentPreviewUrlApi(
 export async function downloadAttachmentApi(
   attachmentId: number,
   filename: string,
-  mimeType?: string | null,
+  mimeType?: null | string,
   options?: ApiRequestOptions,
 ): Promise<void> {
   const blob = await requestClient.download<Blob>(

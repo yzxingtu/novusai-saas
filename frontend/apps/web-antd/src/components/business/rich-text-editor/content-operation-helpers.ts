@@ -39,7 +39,7 @@ interface CreateEditorContentMutationOperationOptions {
   ensureHtml: (content: string, format?: string) => string;
   execute: (
     content: ResolvedEditorContentInput,
-  ) => Promise<PageOperationResult | string> | PageOperationResult | string;
+  ) => PageOperationResult | Promise<PageOperationResult | string> | string;
   label: string;
   name: string;
   postprocessHtml?: (html: string) => string;
@@ -55,9 +55,7 @@ export function buildEditorContentParams(
   return {
     [fieldName]: {
       type: 'string',
-      description:
-        options.fieldDescription ??
-        'Editor content / 编辑器内容',
+      description: options.fieldDescription ?? 'Editor content / 编辑器内容',
       required: true,
     },
     [formatFieldName]: {
@@ -74,7 +72,9 @@ export function getEditorContentFormat(
   params: Record<string, unknown>,
   formatFieldName = 'content_format',
 ): EditorContentFormat {
-  const value = String(params[formatFieldName] ?? '').trim().toLowerCase();
+  const value = String(params[formatFieldName] ?? '')
+    .trim()
+    .toLowerCase();
   return value === 'markdown' ? 'markdown' : 'html';
 }
 

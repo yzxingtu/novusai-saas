@@ -9,9 +9,10 @@ import { computed, onMounted, ref } from 'vue';
 import { Button, Input, Select } from 'ant-design-vue';
 
 import { getCodegenParentResourcesApi } from '#/api/admin/codegen';
-import { singularize } from './infer';
 import { $t } from '#/locales';
 import { useCodegenBuilderStore } from '#/store';
+
+import { singularize } from './infer';
 
 defineOptions({ name: 'RelationsEditor' });
 
@@ -56,8 +57,8 @@ const relations = computed<RelationItem[]>(() => {
 function toPascalFromSnake(s: string): string {
   if (!s) return '';
   return s
-    .replace(/-/g, '_')
-    .replace(/(?:^|_)([a-z])/g, (_, c) => c.toUpperCase());
+    .replaceAll('-', '_')
+    .replaceAll(/(?:^|_)([a-z])/g, (_, c) => c.toUpperCase());
 }
 
 const targetOptions = computed(() => {
@@ -85,13 +86,25 @@ onMounted(async () => {
 });
 
 const typeOptions = computed(() => [
-  { label: $t('admin.system.codegen.expert.relationTypeManyToOne'), value: 'many_to_one' },
-  { label: $t('admin.system.codegen.expert.relationTypeOneToMany'), value: 'one_to_many' },
-  { label: $t('admin.system.codegen.expert.relationTypeManyToMany'), value: 'many_to_many' },
+  {
+    label: $t('admin.system.codegen.expert.relationTypeManyToOne'),
+    value: 'many_to_one',
+  },
+  {
+    label: $t('admin.system.codegen.expert.relationTypeOneToMany'),
+    value: 'one_to_many',
+  },
+  {
+    label: $t('admin.system.codegen.expert.relationTypeManyToMany'),
+    value: 'many_to_many',
+  },
 ]);
 
 function inferFkForManyToOne(target: string): string {
-  const table = target.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '');
+  const table = target
+    .replaceAll(/([A-Z])/g, '_$1')
+    .toLowerCase()
+    .replace(/^_/, '');
   const singular = singularize(table);
   return `${singular}_id`;
 }
@@ -101,13 +114,15 @@ function inferFkForOneToMany(): string {
 }
 
 function addRelation() {
-  const rels = [...relations.value];
-  rels.push({
-    type: 'many_to_one',
-    target: '',
-    foreign_key: '',
-    name: '',
-  });
+  const rels = [
+    ...relations.value,
+    {
+      type: 'many_to_one',
+      target: '',
+      foreign_key: '',
+      name: '',
+    },
+  ];
   store.updateConfig({ relations: rels });
 }
 

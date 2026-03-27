@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { RagSource } from '#/components/business/ai-chat-panel/types';
+
 /**
  * Conversation Detail Drawer (Shared Component)
  * 对话详情抽屉（共享组件）
@@ -20,12 +22,11 @@ import {
   Drawer,
   Empty,
   Spin,
+  Tabs,
   Tag,
   Timeline,
-  Tabs,
 } from 'ant-design-vue';
 
-import type { RagSource } from '#/components/business/ai-chat-panel/types';
 import { AgentProfilePopover } from '#/components/business/agent-profile-popover';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
@@ -108,9 +109,11 @@ const props = defineProps<{
   getStatusText: (status: string) => string;
   /** i18n prefix, e.g. 'admin.ai.conversation' or 'tenant.ai.conversation' / i18n 前缀 */
   i18nPrefix: string;
-  open: boolean;
   /** Optional: load AI call logs for this conversation (model trace) / 可选：按对话加载模型调用记录 */
-  loadCallLogs?: (conversationId: number) => Promise<ConversationCallLogSummary[]>;
+  loadCallLogs?: (
+    conversationId: number,
+  ) => Promise<ConversationCallLogSummary[]>;
+  open: boolean;
 }>();
 
 const emits = defineEmits<{ 'update:open': [value: boolean] }>();
@@ -273,11 +276,8 @@ defineExpose({ detail });
         </Descriptions>
 
         <div class="mt-6">
-          <Tabs v-model:activeKey="activeDetailTab">
-            <Tabs.TabPane
-              key="messages"
-              :tab="$t(`${i18nPrefix}.tabMessages`)"
-            >
+          <Tabs v-model:active-key="activeDetailTab">
+            <Tabs.TabPane key="messages" :tab="$t(`${i18nPrefix}.tabMessages`)">
               <Empty v-if="messages.length === 0" />
 
               <Timeline v-else>
@@ -307,11 +307,16 @@ defineExpose({ detail });
                         }}
                       </Avatar>
                       <span class="text-sm font-medium text-foreground">
-                        {{ detail.user_info.nickname || detail.user_info.username }}
+                        {{
+                          detail.user_info.nickname || detail.user_info.username
+                        }}
                       </span>
                     </template>
                     <template
-                      v-else-if="msg.role === 'assistant' && (msg.agent_name || detail?.agent_name)"
+                      v-else-if="
+                        msg.role === 'assistant' &&
+                        (msg.agent_name || detail?.agent_name)
+                      "
                     >
                       <Tag v-if="isMentionRoute(msg)" color="blue">
                         @ {{ msg.agent_name || detail?.agent_name }}
@@ -352,7 +357,11 @@ defineExpose({ detail });
                       · {{ formatTokens(msg.token_count) }} tokens
                     </span>
                     <Tag
-                      v-if="msg.role === 'tool' && msg.metadata && msg.metadata.tool_success === false"
+                      v-if="
+                        msg.role === 'tool' &&
+                        msg.metadata &&
+                        msg.metadata.tool_success === false
+                      "
                       color="error"
                       class="text-[10px]"
                     >
@@ -371,26 +380,38 @@ defineExpose({ detail });
                     v-if="msg.metadata?.thinking_content"
                     class="mb-2 rounded-md border border-border/40 bg-muted/30 text-xs"
                   >
-                    <summary class="cursor-pointer px-2 py-1 font-medium text-muted-foreground">
+                    <summary
+                      class="cursor-pointer px-2 py-1 font-medium text-muted-foreground"
+                    >
                       {{ $t(`${i18nPrefix}.thinkingBlock`) }}
                     </summary>
-                    <pre class="max-h-40 overflow-auto whitespace-pre-wrap p-2 text-[11px]">{{ msg.metadata.thinking_content }}</pre>
+                    <pre
+                      class="max-h-40 overflow-auto whitespace-pre-wrap p-2 text-[11px]"
+                      >{{ msg.metadata.thinking_content }}</pre
+                    >
                   </details>
 
                   <div
                     v-if="msg.metadata?.rag_sources?.length"
                     class="mb-2 rounded-md border border-amber-500/25 bg-amber-500/5 p-2 text-xs"
                   >
-                    <div class="mb-1 font-medium text-amber-800 dark:text-amber-200">
+                    <div
+                      class="mb-1 font-medium text-amber-800 dark:text-amber-200"
+                    >
                       {{ $t(`${i18nPrefix}.ragRefs`) }}
                     </div>
-                    <ul class="list-inside list-disc space-y-0.5 text-muted-foreground">
+                    <ul
+                      class="list-inside list-disc space-y-0.5 text-muted-foreground"
+                    >
                       <li
                         v-for="(rs, ri) in msg.metadata.rag_sources"
                         :key="ri"
                       >
                         <span class="font-medium text-foreground">{{
-                          rs.knowledge_base_name || (rs.knowledge_base_id != null ? `KB#${rs.knowledge_base_id}` : '—')
+                          rs.knowledge_base_name ||
+                          (rs.knowledge_base_id != null
+                            ? `KB#${rs.knowledge_base_id}`
+                            : '—')
                         }}</span>
                         · {{ rs.doc_name }}
                       </li>
@@ -416,10 +437,15 @@ defineExpose({ detail });
                       :key="ti"
                       class="rounded border border-border/30 bg-background/80 text-xs"
                     >
-                      <summary class="cursor-pointer px-2 py-1.5 font-medium text-foreground hover:bg-accent/50">
+                      <summary
+                        class="cursor-pointer px-2 py-1.5 font-medium text-foreground hover:bg-accent/50"
+                      >
                         {{ getToolCallDisplayName(tc) }}
                       </summary>
-                      <pre class="max-h-36 overflow-auto border-t border-border/20 p-2 text-[11px] text-muted-foreground">{{ JSON.stringify(tc, null, 2) }}</pre>
+                      <pre
+                        class="max-h-36 overflow-auto border-t border-border/20 p-2 text-[11px] text-muted-foreground"
+                        >{{ JSON.stringify(tc, null, 2) }}</pre
+                      >
                     </details>
                   </div>
                 </Timeline.Item>
@@ -449,7 +475,9 @@ defineExpose({ detail });
                       >
                         {{ log.status }}
                       </Tag>
-                      <span class="font-medium">{{ log.model_name || '—' }}</span>
+                      <span class="font-medium">{{
+                        log.model_name || '—'
+                      }}</span>
                       <span class="text-xs text-muted-foreground">
                         {{ formatDate(log.created_at) }}
                       </span>
@@ -458,7 +486,8 @@ defineExpose({ detail });
                       {{ $t(`${i18nPrefix}.callLogTokens`) }}:
                       {{ formatTokens(log.total_tokens) }}
                       <template v-if="log.latency_ms != null">
-                        · {{ $t(`${i18nPrefix}.callLogLatency`) }}: {{ log.latency_ms }}ms
+                        · {{ $t(`${i18nPrefix}.callLogLatency`) }}:
+                        {{ log.latency_ms }}ms
                       </template>
                       <template v-if="log.request_type">
                         · {{ log.request_type }}

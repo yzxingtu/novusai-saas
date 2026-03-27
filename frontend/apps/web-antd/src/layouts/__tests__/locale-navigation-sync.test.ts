@@ -64,9 +64,7 @@ describe('locale-navigation-sync', () => {
       locale: 'en',
       refreshPluginSlots,
       router: router as never,
-      routes: [
-        { component: {} as never, name: 'AdminRoot', path: '/admin' },
-      ],
+      routes: [{ component: {} as never, name: 'AdminRoot', path: '/admin' }],
       tabbarStore,
       translate: (key: string) => key,
       userRoles: ['super_admin'],
@@ -76,9 +74,7 @@ describe('locale-navigation-sync', () => {
       {
         roles: ['super_admin'],
         router,
-        routes: [
-          { component: {} as never, name: 'AdminRoot', path: '/admin' },
-        ],
+        routes: [{ component: {} as never, name: 'AdminRoot', path: '/admin' }],
       },
       'admin',
     );

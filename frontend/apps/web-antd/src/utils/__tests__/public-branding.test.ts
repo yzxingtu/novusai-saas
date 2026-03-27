@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  mergeBrandConfig,
-  resolveCopyrightDisplay,
-} from '../public-branding';
+import { mergeBrandConfig, resolveCopyrightDisplay } from '../public-branding';
 
 describe('public-branding helpers', () => {
   it('merges tenant brand fields over platform defaults', () => {

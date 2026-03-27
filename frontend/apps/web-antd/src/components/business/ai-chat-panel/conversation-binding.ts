@@ -12,15 +12,14 @@ export interface ConversationRequestStateResult {
 export function resolveConversationRequestState(
   input: ConversationRequestStateInput,
 ): ConversationRequestStateResult {
-  const {
-    activeConversationAgentId,
-    activeConversationId,
-    targetAgentId,
-  } = input;
+  const { activeConversationAgentId, activeConversationId, targetAgentId } =
+    input;
 
   if (
-    activeConversationId == null ||
-    activeConversationAgentId == null ||
+    activeConversationId === null ||
+    activeConversationId === undefined ||
+    activeConversationAgentId === null ||
+    activeConversationAgentId === undefined ||
     activeConversationAgentId === targetAgentId
   ) {
     return {

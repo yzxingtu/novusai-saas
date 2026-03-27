@@ -235,9 +235,7 @@ export function useColumns<T = AttachmentInfo>(
 // ============ 搜索表单 / Search form ============
 
 /** 企业选择器（搜索） / Tenant selector (search) */
-function tenantSelect(
-  options: { search?: boolean } = {},
-): VbenFormSchema {
+function tenantSelect(options: { search?: boolean } = {}): VbenFormSchema {
   const { search = true } = options;
   return select(
     search ? 'filter[tenant_id]' : 'tenant_id',

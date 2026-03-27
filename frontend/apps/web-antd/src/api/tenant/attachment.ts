@@ -174,7 +174,7 @@ export async function getStorageQuotaApi(
 export async function downloadAttachmentApi(
   attachmentId: number,
   filename: string,
-  mimeType?: string | null,
+  mimeType?: null | string,
   options?: ApiRequestOptions,
 ): Promise<void> {
   const blob = await requestClient.download<Blob>(
@@ -256,8 +256,8 @@ export interface ChunkUploadResponse {
  * POST /tenant/attachments/upload
  *
  * Permission: attachment:upload / 权限: attachment:upload
+ * @internal
  */
-/** @internal Only for smartUploadFile internal use / 仅供 smartUploadFile 内部调用 */
 async function uploadAttachmentApi(
   params: UploadAttachmentParams,
   onProgress?: (progress: { percent: number }) => void,
@@ -416,10 +416,10 @@ export interface BatchUploadResponse {
  */
 export async function batchUploadAttachmentsApi(
   params: {
+    business_id?: number;
+    business_type?: string;
     files: File[];
     visibility?: 'private' | 'public';
-    business_type?: string;
-    business_id?: number;
   },
   options?: ApiRequestOptions,
 ): Promise<BatchUploadResponse> {
@@ -442,8 +442,8 @@ export async function batchUploadAttachmentsApi(
 export interface PreflightResponse {
   exists: boolean;
   attachment: AttachmentInfoRaw | null;
-  url: string | null;
-  used_bytes: number | null;
+  url: null | string;
+  used_bytes: null | number;
 }
 
 /** Upload rules response / 上传规则响应 */
@@ -459,8 +459,8 @@ export interface UploadRulesResponse {
  */
 export async function preflightCheckApi(
   params: {
-    hash: string;
     filename: string;
+    hash: string;
     size: number;
     visibility?: 'private' | 'public';
   },
@@ -614,9 +614,7 @@ export async function smartUploadFile(
         ? (chunkProgress) => {
             const chunkBytes = (chunkProgress.percent / 100) * chunkSize;
             const totalBytes = completedBytes + chunkBytes;
-            const uploadPercent = Math.round(
-              (totalBytes / file.size) * 100,
-            );
+            const uploadPercent = Math.round((totalBytes / file.size) * 100);
             onProgress({ percent: mapProgress(Math.min(uploadPercent, 99)) });
           }
         : undefined,

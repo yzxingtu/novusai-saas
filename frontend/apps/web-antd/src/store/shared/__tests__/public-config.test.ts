@@ -9,11 +9,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { usePublicConfigStore } from '../public-config';
 
 const {
+  defineOverridesPreferences,
   ensureCaptchaPluginReady,
   getPlatformPublicConfigApi,
   getTenantPublicConfigApi,
   updatePreferences,
 } = vi.hoisted(() => ({
+  defineOverridesPreferences: vi.fn((value) => value),
   ensureCaptchaPluginReady: vi.fn(),
   getPlatformPublicConfigApi: vi.fn(),
   getTenantPublicConfigApi: vi.fn(),
@@ -21,6 +23,7 @@ const {
 }));
 
 vi.mock('@vben/preferences', () => ({
+  defineOverridesPreferences,
   updatePreferences,
 }));
 
@@ -184,7 +187,7 @@ describe('usePublicConfigStore tenant config guard', () => {
 
     expect(updatePreferences).toHaveBeenCalledWith(
       expect.objectContaining({
-        app: { name: 'NovusAI SaaS' },
+        app: { name: 'NovusAI' },
         copyright: expect.objectContaining({
           companyName: 'NovusAI',
           companySiteLink: '',

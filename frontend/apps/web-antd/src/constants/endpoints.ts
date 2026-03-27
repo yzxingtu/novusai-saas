@@ -134,12 +134,14 @@ function splitPathSuffix(path: string): { pathname: string; suffix: string } {
 
   const queryIndex = raw.indexOf('?');
   const hashIndex = raw.indexOf('#');
-  const splitIndex =
-    queryIndex === -1
-      ? hashIndex
-      : hashIndex === -1
-        ? queryIndex
-        : Math.min(queryIndex, hashIndex);
+  let splitIndex = -1;
+  if (queryIndex === -1) {
+    splitIndex = hashIndex;
+  } else if (hashIndex === -1) {
+    splitIndex = queryIndex;
+  } else {
+    splitIndex = Math.min(queryIndex, hashIndex);
+  }
 
   if (splitIndex === -1) {
     return { pathname: raw, suffix: '' };
@@ -171,7 +173,9 @@ export function isPlatformHostname(hostname: string): boolean {
  * 按域名解析根路径 `/` 的端归属。
  */
 export function resolveRootEndpoint(hostname?: string): EndpointType {
-  const currentHostname = (hostname ?? getCurrentHostname()).trim().toLowerCase();
+  const currentHostname = (hostname ?? getCurrentHostname())
+    .trim()
+    .toLowerCase();
   return isPlatformHostname(currentHostname)
     ? EndpointType.ADMIN
     : EndpointType.USER;

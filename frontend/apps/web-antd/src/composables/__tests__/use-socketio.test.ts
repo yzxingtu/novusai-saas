@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi } from 'vitest';
 
+import { withSocketTracePayload } from '../use-socketio';
+
 vi.mock('socket.io-client', () => ({
   io: vi.fn(),
 }));
-
-import { withSocketTracePayload } from '../use-socketio';
 
 describe('withSocketTracePayload', () => {
   it('injects trace_id into plain object payloads', () => {

@@ -324,6 +324,31 @@ async def test_stream_handler_emits_conversation_event_early():
 
 
 @pytest.mark.asyncio
+async def test_stream_handler_emits_knowledge_base_feedback_event():
+    engine = _FakeEngine(
+        rounds=[[ChatChunk(delta="完成", finish_reason="stop", total_tokens=3)]],
+    )
+    handler = _build_handler(engine)
+    handler.request.knowledge_base_feedback = {
+        "dropped_knowledge_base_ids": [12, 18],
+        "effective_knowledge_base_ids": [5],
+    }
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    kb_event = next(
+        event
+        for event in events
+        if event.get("event") == "knowledge_base_feedback"
+    )
+    assert kb_event["dropped_knowledge_base_ids"] == [12, 18]
+    assert kb_event["effective_knowledge_base_ids"] == [5]
+
+
+@pytest.mark.asyncio
 async def test_stream_handler_tool_rounds_keep_real_stream_and_final_answer():
     """
     工具轮次与最终回复都走真实流式；工具调用在流中增量聚合，最终答复继续流出。

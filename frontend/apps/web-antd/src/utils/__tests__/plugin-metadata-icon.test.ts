@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi } from 'vitest';
 
+import { resolvePluginMetadataIcon } from '#/utils/plugin-metadata-icon';
+
 vi.mock('#/router/access', () => ({
   getCurrentEndpoint: () => 'admin',
 }));
-
-import { resolvePluginMetadataIcon } from '#/utils/plugin-metadata-icon';
 
 describe('plugin-metadata-icon', () => {
   it('accepts plugin root icon.png path', () => {
@@ -34,9 +34,7 @@ describe('plugin-metadata-icon', () => {
   });
 
   it('falls back for non-png or external metadata icons', () => {
-    expect(
-      resolvePluginMetadataIcon('novusdoc', 'lucide:file-text'),
-    ).toEqual({
+    expect(resolvePluginMetadataIcon('novusdoc', 'lucide:file-text')).toEqual({
       kind: 'fallback',
       icon: 'lucide:plug',
     });

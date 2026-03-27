@@ -49,6 +49,7 @@ import { getDefaultPageOperations } from './page-operation-defaults';
 
 interface PageOperationParamSchema {
   default?: unknown;
+  defaultValue?: unknown;
   description?: string;
   enum?: unknown[];
   required?: boolean;

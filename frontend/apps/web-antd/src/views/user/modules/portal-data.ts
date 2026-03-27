@@ -114,7 +114,7 @@ export function useUserPortalWorkspace() {
 
   const recommendedAgents = computed(() => {
     return [...agents.value]
-      .sort(
+      .toSorted(
         (left, right) =>
           scoreAgent(right, recentConversationAgentIds.value) -
           scoreAgent(left, recentConversationAgentIds.value),
@@ -127,7 +127,8 @@ export function useUserPortalWorkspace() {
       (agent) => agent.model_capabilities?.supports_vision,
     ).length;
     const starterReadyAgents = agents.value.filter(
-      (agent) => normalizeStarterQuestions(agent.suggested_questions).length > 0,
+      (agent) =>
+        normalizeStarterQuestions(agent.suggested_questions).length > 0,
     ).length;
 
     return {
@@ -157,7 +158,7 @@ export function useUserPortalWorkspace() {
     if (agentsResult.status === 'fulfilled') {
       agents.value = agentsResult.value.items
         .slice(0, agentPageSize)
-        .map(normalizePortalAgent);
+        .map((agent) => normalizePortalAgent(agent));
     }
     if (conversationsResult.status === 'fulfilled') {
       conversations.value = conversationsResult.value.items;
@@ -183,7 +184,10 @@ export function useUserPortalWorkspace() {
 
     const results = await Promise.allSettled(
       targetIds.map(async (agentId) => {
-        const bindings = await getChatAgentKBBindingsApi(USER_API_PREFIX, agentId);
+        const bindings = await getChatAgentKBBindingsApi(
+          USER_API_PREFIX,
+          agentId,
+        );
         return { agentId, bindings };
       }),
     );
@@ -196,19 +200,18 @@ export function useUserPortalWorkspace() {
         return;
       }
 
-      if (result.status === 'fulfilled') {
-        nextSignals[agentId] = {
-          bindings: result.value.bindings,
-          count: result.value.bindings.length,
-          hasKnowledge: result.value.bindings.length > 0,
-        };
-      } else {
-        nextSignals[agentId] = {
-          bindings: [],
-          count: 0,
-          hasKnowledge: false,
-        };
-      }
+      nextSignals[agentId] =
+        result.status === 'fulfilled'
+          ? {
+              bindings: result.value.bindings,
+              count: result.value.bindings.length,
+              hasKnowledge: result.value.bindings.length > 0,
+            }
+          : {
+              bindings: [],
+              count: 0,
+              hasKnowledge: false,
+            };
 
       knowledgeRequestingIds.delete(agentId);
     });

@@ -53,7 +53,7 @@ export interface AICallLogInfo {
 /** Usage stat record / 使用量统计记录（按计费事实聚合，无独立 id） */
 export interface AIUsageStatInfo {
   id: string;
-  tenant_id: number | null;
+  tenant_id: null | number;
   model_id: number;
   request_type: string;
   stat_date: string;
@@ -127,63 +127,4 @@ export async function getAICallLogFailedApi(
     params,
     ...options,
   });
-}
-
-// ============================================================
-// API - AI usage stats / API 接口 - AI 使用量统计
-// ============================================================
-
-const USAGE_PREFIX = '/admin/ai/usage';
-
-function buildAIUsageStatRowId(item: Omit<AIUsageStatInfo, 'id'>): string {
-  return [
-    item.stat_date,
-    item.tenant_id ?? 'platform',
-    item.model_id,
-    item.request_type,
-  ].join(':');
-}
-
-/** Get usage stats list / 获取使用量统计列表 */
-export async function getAIUsageStatsApi(
-  params?: Record<string, unknown>,
-  options?: ApiRequestOptions,
-): Promise<PageResponse<AIUsageStatInfo>> {
-  const response = await requestClient.get<
-    PageResponse<Omit<AIUsageStatInfo, 'id'>>
-  >(
-    `${USAGE_PREFIX}/stats`,
-    { params, ...options },
-  );
-  return {
-    ...response,
-    items: response.items.map((item) => ({
-      ...item,
-      id: buildAIUsageStatRowId(item),
-    })),
-  };
-}
-
-/** Get tenant usage summary / 获取企业使用量汇总 */
-export async function getAITenantUsageSummaryApi(
-  tenantId: number,
-  params?: Record<string, unknown>,
-  options?: ApiRequestOptions,
-): Promise<Record<string, unknown>> {
-  return requestClient.get<Record<string, unknown>>(
-    `${USAGE_PREFIX}/summary/tenant/${tenantId}`,
-    { params, ...options },
-  );
-}
-
-/** Get model usage summary / 获取模型使用量汇总 */
-export async function getAIModelUsageSummaryApi(
-  modelId: number,
-  params?: Record<string, unknown>,
-  options?: ApiRequestOptions,
-): Promise<Record<string, unknown>> {
-  return requestClient.get<Record<string, unknown>>(
-    `${USAGE_PREFIX}/summary/model/${modelId}`,
-    { params, ...options },
-  );
 }

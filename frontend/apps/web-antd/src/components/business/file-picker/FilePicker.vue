@@ -102,7 +102,7 @@ interface UploadRules {
   maxFileSizeMb: number;
 }
 
-const uploadRules = ref<UploadRules | null>(null);
+const uploadRules = ref<null | UploadRules>(null);
 const uploadRulesLoaded = ref(false);
 
 /** Dynamically calculate max file size: prefer server rules, then prop / 动态计算最大文件大小：优先服务端规则，其次 prop */
@@ -474,8 +474,9 @@ async function executeBatchUpload(batchFiles: File[]): Promise<void> {
         }
       }
     }
-  } catch (err: unknown) {
-    const errMsg = (err as Error).message || $t('shared.filePicker.uploadFailed');
+  } catch (error: unknown) {
+    const errMsg =
+      (error as Error).message || $t('shared.filePicker.uploadFailed');
     for (const task of batchTasks) {
       if (task.status === 'uploading') {
         task.status = 'error';

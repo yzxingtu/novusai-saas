@@ -4,8 +4,8 @@
  */
 export * from './ai';
 export * from './attachment';
-export * from './codegen';
 export * from './auth';
+export * from './codegen';
 export * from './configs';
 export * from './menu';
 export * from './operation-log';

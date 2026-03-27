@@ -197,9 +197,7 @@ export function usePageAIAnchor(options: UsePageAIAnchorOptions): void {
   });
 }
 
-export function usePageAIOperations(
-  options: UsePageAIOperationsOptions,
-): void {
+export function usePageAIOperations(options: UsePageAIOperationsOptions): void {
   usePageAIRegistration({
     ...options,
     registerContext: false,

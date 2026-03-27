@@ -142,6 +142,19 @@ class StreamExecutionHandler:
                         "conversation_id": self.request.conversation_id,
                     })
                 )
+            kb_feedback = getattr(self.request, "knowledge_base_feedback", None)
+            if (
+                isinstance(kb_feedback, dict)
+                and kb_feedback.get("dropped_knowledge_base_ids")
+            ):
+                yield SSEChunkEncoder.encode(
+                    _trace_payload(
+                        {
+                            "event": "knowledge_base_feedback",
+                            **kb_feedback,
+                        }
+                    )
+                )
 
             processor = ToolCallProcessor(
                 sandbox=self.engine.sandbox,
@@ -223,15 +236,6 @@ class StreamExecutionHandler:
                     # ConversationEngine._stream_llm_chunks 尾部的 Key 计数/commit 不会执行。
                 next_runtime_context = None
 
-                messages.append(
-                    ChatMessage(
-                        role="assistant",
-                        content=output,
-                        reasoning_content=(self._reasoning_output or "").strip()
-                        or None,
-                    )
-                )
-
             # ---- Parse and send Action Buttons ---- / 解析并发送 Action Buttons
             cleaned_output, action_buttons = self._extract_action_buttons(output)
             if action_buttons:
@@ -241,6 +245,20 @@ class StreamExecutionHandler:
                         "event": "action_buttons",
                         "buttons": action_buttons,
                     }
+                )
+            if not tools:
+                messages.append(
+                    ChatMessage(
+                        role="assistant",
+                        content=output,
+                        reasoning_content=(self._reasoning_output or "").strip()
+                        or None,
+                        metadata=(
+                            {"action_buttons": action_buttons}
+                            if action_buttons
+                            else None
+                        ),
+                    )
                 )
 
             # ---- Send RAG reference source event ---- / 发送 RAG 引用来源事件
@@ -666,6 +684,7 @@ class StreamExecutionHandler:
                     continue
 
                 _skill_info = processor.get_skill_info(func_name)
+                processor.annotate_tool_call(tc, skill_info=_skill_info)
 
                 # ---- consent_mode pre-check ---- / consent_mode 前置检查
                 _consent = processor.check_consent(func_name)
@@ -681,6 +700,14 @@ class StreamExecutionHandler:
                     continue
 
                 if _consent == "ask":
+                    processor.annotate_tool_call(
+                        tc,
+                        pending_consent=processor.build_pending_consent_payload(
+                            func_name,
+                            arguments,
+                            _skill_info,
+                        ),
+                    )
                     messages.append(
                         processor.build_consent_ask_message(
                             tc_id,
@@ -715,6 +742,12 @@ class StreamExecutionHandler:
                     conversation_id=self.request.conversation_id or 0,
                 )
                 all_tool_results.append(result)
+                processor.annotate_tool_call(
+                    tc,
+                    duration_ms=tc_duration,
+                    result=result,
+                    skill_info=_skill_info,
+                )
 
                 # Track consecutive page operation failures; abort to stop apology loops / 上文为英文说明 / English above
                 _is_page_op = func_name == "invoke_page_operation" or (
@@ -753,6 +786,12 @@ class StreamExecutionHandler:
                 # Detect confirmation_request (CRUD preview confirmation) / 检测 confirmation_request（CRUD 预览确认）
                 _conf_data = processor.check_confirmation_output(result)
                 if _conf_data:
+                    processor.annotate_tool_call(
+                        tc,
+                        pending_confirmation=processor.build_pending_confirmation_payload(
+                            _conf_data,
+                        ),
+                    )
                     round_has_confirmation = True
                     yield SSEChunkEncoder.encode(
                         processor.build_confirmation_event(_conf_data)
@@ -790,11 +829,18 @@ class StreamExecutionHandler:
             )
 
         if append_final_assistant:
+            final_output, final_action_buttons = self._extract_action_buttons(self._output)
+            self._output = final_output
             messages.append(
                 ChatMessage(
                     role="assistant",
-                    content=self._output,
+                    content=final_output,
                     reasoning_content=(self._reasoning_output or "").strip() or None,
+                    metadata=(
+                        {"action_buttons": final_action_buttons}
+                        if final_action_buttons
+                        else None
+                    ),
                 )
             )
 

@@ -9,13 +9,7 @@ import { useRouter } from 'vue-router';
 
 import { IconifyIcon } from '@vben/icons';
 
-import {
-  Button,
-  Form,
-  FormItem,
-  Input,
-  message,
-} from 'ant-design-vue';
+import { Button, Form, FormItem, Input, message } from 'ant-design-vue';
 
 import { userChangePasswordApi } from '#/api/user/auth';
 import { $t } from '#/locales';
@@ -127,10 +121,7 @@ async function handleSubmit() {
           :rules="formRules"
           class="max-w-lg"
         >
-          <FormItem
-            :label="$t('user.profile.oldPassword')"
-            name="oldPassword"
-          >
+          <FormItem :label="$t('user.profile.oldPassword')" name="oldPassword">
             <Input.Password
               v-model:value="formState.oldPassword"
               :placeholder="$t('user.profile.placeholder.inputOldPassword')"
@@ -138,12 +129,9 @@ async function handleSubmit() {
             />
           </FormItem>
 
-          <div class="my-5 h-px bg-border" />
+          <div class="my-5 h-px bg-border"></div>
 
-          <FormItem
-            :label="$t('user.profile.newPassword')"
-            name="newPassword"
-          >
+          <FormItem :label="$t('user.profile.newPassword')" name="newPassword">
             <Input.Password
               v-model:value="formState.newPassword"
               :placeholder="$t('user.profile.placeholder.inputNewPassword')"
@@ -163,12 +151,10 @@ async function handleSubmit() {
           </FormItem>
         </Form>
       </div>
-      <div class="flex items-center justify-end border-t border-border px-6 py-4">
-        <Button
-          type="primary"
-          :loading="saving"
-          @click="handleSubmit"
-        >
+      <div
+        class="flex items-center justify-end border-t border-border px-6 py-4"
+      >
+        <Button type="primary" :loading="saving" @click="handleSubmit">
           <span class="flex items-center gap-1.5">
             <IconifyIcon icon="lucide:save" class="size-4" />
             {{ $t('common.save') }}

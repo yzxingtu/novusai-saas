@@ -1,13 +1,12 @@
+import type { ReplaceContentValidation } from '../replaceContentValidator';
+
 /**
  * replace_content validation unit tests.
  * replace_content 校验单元测试。
  */
 import { describe, expect, it } from 'vitest';
 
-import {
-  validateReplaceContentParams,
-  type ReplaceContentValidation,
-} from '../replaceContentValidator';
+import { validateReplaceContentParams } from '../replaceContentValidator';
 
 const passThrough = (s: string) => s;
 
@@ -35,7 +34,10 @@ describe('validateReplaceContentParams', () => {
   });
 
   it('returns invalid when params.content is whitespace only', () => {
-    const r = validateReplaceContentParams({ content: '   \n\t  ' }, processors);
+    const r = validateReplaceContentParams(
+      { content: '   \n\t  ' },
+      processors,
+    );
     expect(r.valid).toBe(false);
   });
 

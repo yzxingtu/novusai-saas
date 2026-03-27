@@ -1,7 +1,9 @@
+import type { Router, RouteRecordRaw } from 'vue-router';
+
+import type { GenerateMenuAndRoutesOptions } from '@vben/types';
+
 import type { ApiEndpoint } from '#/api';
 import type { RefreshPluginSlotsOptions } from '#/composables/use-plugin-frontend-init';
-import type { GenerateMenuAndRoutesOptions } from '@vben/types';
-import type { RouteRecordRaw, Router } from 'vue-router';
 
 import { resolveRouteMetaTitle } from '@vben/utils';
 
@@ -26,8 +28,8 @@ type TabLike = {
 
 type TabbarStoreLike = {
   getTabs: TabLike[];
-  touchTabs?: () => void;
   setUpdateTime: () => void;
+  touchTabs?: () => void;
 };
 
 type TranslateFn = (key: string, ...args: unknown[]) => string;

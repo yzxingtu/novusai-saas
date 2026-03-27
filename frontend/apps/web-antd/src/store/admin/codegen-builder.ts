@@ -6,8 +6,10 @@
  */
 
 import type { PreviewFile } from '#/api/admin/codegen';
-import { defineStore } from 'pinia';
+
 import { computed, ref } from 'vue';
+
+import { defineStore } from 'pinia';
 
 import { genKey } from '#/views/admin/system/codegen/modules/field-utils';
 import {
@@ -18,19 +20,19 @@ import {
 const MAX_HISTORY = 50;
 
 type PreviewCacheSnapshot = {
+  conflicts?: Array<Record<string, string>>;
+  error?: string;
   files: PreviewFile[];
+  step?: string;
   summary?: {
-    create_count: number;
-    modify_count: number;
     backend_files: number;
+    create_count: number;
     frontend_files: number;
+    modify_count: number;
     total_lines: number;
   };
-  warnings?: string[];
-  conflicts?: Array<Record<string, string>>;
-  step?: string;
   timestamp?: number;
-  error?: string;
+  warnings?: string[];
 };
 
 /** configJson 持久化最大体积（约 400KB），超过则不持久化 configJson 防占满 localStorage / Max size for configJson persist (~400KB) */
@@ -146,13 +148,13 @@ export const useCodegenBuilderStore = defineStore(
     const isDirty = ref(false);
 
     /** 当前选中字段的 __key / Currently selected field's __key */
-    const selectedFieldKey = ref<string | null>(null);
+    const selectedFieldKey = ref<null | string>(null);
 
     /** 当前激活的 endpoint 索引 / Active endpoint index */
     const activeEndpointIdx = ref(0);
 
     /** WYSIWYG 主视图模式 / WYSIWYG view mode */
-    const wysiwygViewMode = ref<'list' | 'form' | 'detail'>('list');
+    const wysiwygViewMode = ref<'detail' | 'form' | 'list'>('list');
 
     /** 是否显示字段管理面板（覆盖 WYSIWYG）/ Show field manager overlay */
     const showFieldManager = ref(false);
@@ -160,7 +162,7 @@ export const useCodegenBuilderStore = defineStore(
     // ── Actions / 操作 ──
 
     function pushHistory(snapshot: Record<string, unknown>) {
-      historyStack.value.push(JSON.parse(JSON.stringify(snapshot)));
+      historyStack.value.push(structuredClone(snapshot));
       if (historyStack.value.length > MAX_HISTORY) {
         historyStack.value.shift();
       }
@@ -169,7 +171,7 @@ export const useCodegenBuilderStore = defineStore(
     /** 撤销 / Undo */
     function undo() {
       if (historyStack.value.length === 0) return false;
-      redoStack.value.push(JSON.parse(JSON.stringify(configJson.value)));
+      redoStack.value.push(structuredClone(configJson.value));
       if (redoStack.value.length > MAX_HISTORY) redoStack.value.shift();
       const prev = historyStack.value.pop();
       if (prev) {
@@ -183,7 +185,7 @@ export const useCodegenBuilderStore = defineStore(
     /** 重做 / Redo */
     function redo() {
       if (redoStack.value.length === 0) return false;
-      historyStack.value.push(JSON.parse(JSON.stringify(configJson.value)));
+      historyStack.value.push(structuredClone(configJson.value));
       const next = redoStack.value.pop();
       if (next) {
         configJson.value = next;
@@ -200,10 +202,18 @@ export const useCodegenBuilderStore = defineStore(
     ): Record<string, unknown> {
       const result = { ...target };
       for (const [key, val] of Object.entries(patch)) {
-        if (val != null && typeof val === 'object' && !Array.isArray(val)) {
+        if (
+          val !== null &&
+          val !== undefined &&
+          typeof val === 'object' &&
+          !Array.isArray(val)
+        ) {
           const cur = result[key];
           result[key] = deepMerge(
-            (typeof cur === 'object' && cur != null && !Array.isArray(cur)
+            (typeof cur === 'object' &&
+            cur !== null &&
+            cur !== undefined &&
+            !Array.isArray(cur)
               ? cur
               : {}) as Record<string, unknown>,
             val as Record<string, unknown>,
@@ -263,7 +273,7 @@ export const useCodegenBuilderStore = defineStore(
     }
 
     /** 加载配置（编辑模式或导入）/ Load config (edit mode or import) */
-    function loadConfig(id: number | null, json: Record<string, unknown>) {
+    function loadConfig(id: null | number, json: Record<string, unknown>) {
       configId.value = id;
       const raw = json ?? {};
       configJson.value = ensureFieldsHaveKey(raw);

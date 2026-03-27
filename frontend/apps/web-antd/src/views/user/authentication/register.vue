@@ -62,7 +62,9 @@ const captchaProvider = computed(() => {
   return publicConfigStore.tenantCaptcha?.provider ?? 'image';
 });
 
-const privacyUrl = computed(() => publicConfigStore.tenantConfig?.privacyPolicyUrl);
+const privacyUrl = computed(
+  () => publicConfigStore.tenantConfig?.privacyPolicyUrl,
+);
 const termsUrl = computed(() => publicConfigStore.tenantConfig?.termsUrl);
 const privacyInternal = computed(
   () => publicConfigStore.tenantConfig?.privacyPolicyInternal === true,
@@ -136,7 +138,16 @@ async function handleSubmit() {
     await router.push('/auth/login');
   } catch (error: unknown) {
     const err = error as {
-      response?: { data?: { code?: number; data?: { captcha_required?: boolean; errors?: Array<{ captcha_required?: boolean }> }; message?: string } };
+      response?: {
+        data?: {
+          code?: number;
+          data?: {
+            captcha_required?: boolean;
+            errors?: Array<{ captcha_required?: boolean }>;
+          };
+          message?: string;
+        };
+      };
     };
     const responseData = err?.response?.data;
     const captchaRequired =
@@ -195,7 +206,10 @@ async function handleSubmit() {
           class="auth-input"
         >
           <template #prefix>
-            <IconifyIcon icon="lucide:user" class="size-4 text-muted-foreground" />
+            <IconifyIcon
+              icon="lucide:user"
+              class="size-4 text-muted-foreground"
+            />
           </template>
         </Input>
       </FormItem>
@@ -214,7 +228,10 @@ async function handleSubmit() {
           class="auth-input"
         >
           <template #prefix>
-            <IconifyIcon icon="lucide:mail" class="size-4 text-muted-foreground" />
+            <IconifyIcon
+              icon="lucide:mail"
+              class="size-4 text-muted-foreground"
+            />
           </template>
         </Input>
       </FormItem>
@@ -233,7 +250,10 @@ async function handleSubmit() {
           class="auth-input"
         >
           <template #prefix>
-            <IconifyIcon icon="lucide:lock" class="size-4 text-muted-foreground" />
+            <IconifyIcon
+              icon="lucide:lock"
+              class="size-4 text-muted-foreground"
+            />
           </template>
         </InputPassword>
       </FormItem>
@@ -249,7 +269,10 @@ async function handleSubmit() {
           class="auth-input"
         >
           <template #prefix>
-            <IconifyIcon icon="lucide:lock-keyhole" class="size-4 text-muted-foreground" />
+            <IconifyIcon
+              icon="lucide:lock-keyhole"
+              class="size-4 text-muted-foreground"
+            />
           </template>
         </InputPassword>
       </FormItem>
@@ -269,16 +292,17 @@ async function handleSubmit() {
               target="_blank"
               rel="noopener noreferrer"
               class="text-primary hover:text-primary/80"
-            >{{ $t('user.auth.privacyPolicy') }}</a>
+              >{{ $t('user.auth.privacyPolicy') }}</a
+            >
             <RouterLink
               v-else-if="privacyInternal"
               to="/auth/legal/privacy"
               class="text-primary hover:text-primary/80"
-            >{{ $t('user.auth.privacyPolicy') }}</RouterLink>
-            <span
-              v-else
-              class="text-muted-foreground"
-            >{{ $t('user.auth.privacyPolicy') }}</span>
+              >{{ $t('user.auth.privacyPolicy') }}</RouterLink
+            >
+            <span v-else class="text-muted-foreground">{{
+              $t('user.auth.privacyPolicy')
+            }}</span>
             &amp;
             <a
               v-if="termsUrl"
@@ -286,16 +310,17 @@ async function handleSubmit() {
               target="_blank"
               rel="noopener noreferrer"
               class="text-primary hover:text-primary/80"
-            >{{ $t('user.auth.termsOfService') }}</a>
+              >{{ $t('user.auth.termsOfService') }}</a
+            >
             <RouterLink
               v-else-if="termsInternal"
               to="/auth/legal/terms"
               class="text-primary hover:text-primary/80"
-            >{{ $t('user.auth.termsOfService') }}</RouterLink>
-            <span
-              v-else
-              class="text-muted-foreground"
-            >{{ $t('user.auth.termsOfService') }}</span>
+              >{{ $t('user.auth.termsOfService') }}</RouterLink
+            >
+            <span v-else class="text-muted-foreground">{{
+              $t('user.auth.termsOfService')
+            }}</span>
           </span>
         </Checkbox>
       </FormItem>

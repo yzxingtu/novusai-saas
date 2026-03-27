@@ -7,7 +7,7 @@ import type {
   AdminSkillSelectOptionExtra,
 } from '#/api/admin/skills';
 
-export type ConsentMode = 'auto' | 'ask' | 'reject';
+export type ConsentMode = 'ask' | 'auto' | 'reject';
 
 /** Unified draft for form + detail + batchBind payload / 表单与详情共用的技能绑定草稿 */
 export interface AgentSkillBindingDraftItem {
@@ -21,7 +21,9 @@ export interface AgentSkillBindingDraftItem {
   source_plugin: null | string;
 }
 
-export function normalizeConsentMode(v: string | undefined | null): ConsentMode {
+export function normalizeConsentMode(
+  v: null | string | undefined,
+): ConsentMode {
   if (v === 'ask' || v === 'reject' || v === 'auto') {
     return v;
   }

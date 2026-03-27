@@ -9,13 +9,13 @@ export default defineConfig({
   resolve: {
     alias: {
       '#/adapter': fileURLToPath(
-        new URL('./apps/web-antd/src/core/adapter', import.meta.url),
+        new URL('apps/web-antd/src/core/adapter', import.meta.url),
       ),
-      '#': fileURLToPath(new URL('./apps/web-antd/src', import.meta.url)),
+      '#': fileURLToPath(new URL('apps/web-antd/src', import.meta.url)),
     },
   },
   test: {
     environment: 'happy-dom',
-    exclude: [...configDefaults.exclude, '**/e2e/**'],
+    exclude: [...configDefaults.exclude, '**/e2e/**', '**/.vendor/**'],
   },
 });

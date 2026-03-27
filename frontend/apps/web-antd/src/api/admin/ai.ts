@@ -19,19 +19,19 @@ export {
   type AIAgentAccessConfig,
   type AIAgentCreateRequest,
   type AIAgentInfo,
-  type AIAgentVersionDetail,
-  type AIAgentVersionDiff,
+  type AIAgentKBBatchBindRequest,
+  type AIAgentKBBindingInfo,
+  type AIAgentKBBindingUpdateRequest,
+  type AIAgentKBBindRequest,
   type AIAgentMemoryConfig,
   type AIAgentMemoryUpdateRequest,
-  type AIAgentKBBindingInfo,
-  type AIAgentKBBindRequest,
-  type AIAgentKBBatchBindRequest,
-  type AIAgentKBBindingUpdateRequest,
   type AIAgentSkillBatchGrantRequest,
   type AIAgentSkillGrantInfo,
   type AIAgentSkillGrantRequest,
   type AIAgentSkillGrantUpdateRequest,
   type AIAgentUpdateRequest,
+  type AIAgentVersionDetail,
+  type AIAgentVersionDiff,
   type AIAgentVersionItem,
   batchBindAIAgentKBsApi,
   batchBindAIAgentSkillsApi,
@@ -70,14 +70,10 @@ export {
 
 export {
   type AICallLogInfo,
-  type AIUsageStatInfo,
   getAICallLogDetailApi,
   getAICallLogFailedApi,
   getAICallLogListApi,
   getAICallLogStatisticsApi,
-  getAIModelUsageSummaryApi,
-  getAITenantUsageSummaryApi,
-  getAIUsageStatsApi,
 } from './ai-call-logs';
 
 // ============================================================
@@ -103,8 +99,8 @@ export {
   fetchRemoteModelsApi,
   getAIModelDetailApi,
   getAIModelListApi,
-  getAIModelSelectApi,
   getAIModelsByProviderApi,
+  getAIModelSelectApi,
   type ModelType,
   type RemoteModelCapabilities,
   type RemoteModelInfo,
@@ -267,11 +263,9 @@ export async function getAITablePolicyColumnsApi(
 export async function syncAITablePoliciesApi(
   options?: ApiRequestOptions,
 ): Promise<Record<string, number> & { declared_tables?: string[] }> {
-  return requestClient.post<Record<string, number> & { declared_tables?: string[] }>(
-    `${TABLE_POLICY_PREFIX}/sync`,
-    {},
-    options,
-  );
+  return requestClient.post<
+    Record<string, number> & { declared_tables?: string[] }
+  >(`${TABLE_POLICY_PREFIX}/sync`, {}, options);
 }
 
 /** Get declared table names (models with __ai_policy__) / 获取声明了 __ai_policy__ 的表名列表 */
@@ -490,8 +484,8 @@ export async function getAIRateLimitListApi(
   return requestClient.get<PageResponse<AIRateLimitDiagnosticInfo>>(
     RATE_LIMIT_PREFIX,
     {
-    params,
-    ...options,
+      params,
+      ...options,
     },
   );
 }

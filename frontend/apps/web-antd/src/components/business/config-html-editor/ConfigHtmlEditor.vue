@@ -14,7 +14,7 @@ import { Form } from 'ant-design-vue';
 
 import RichTextEditor from '#/components/business/rich-text-editor/RichTextEditor.vue';
 
-defineOptions({ inheritAttrs: false, name: 'ConfigHtmlEditor' });
+defineOptions({ name: 'ConfigHtmlEditor', inheritAttrs: false });
 
 const props = withDefaults(
   defineProps<{
@@ -50,11 +50,10 @@ onMounted(() => {
 
 watch(
   () => model.value,
-  (v) => {
-    const next = v ?? '';
-    if (next === lastEmittedHtml.value) return;
-    lastEmittedHtml.value = next;
-    pushHtmlToEditor(next);
+  (value = '') => {
+    if (value === lastEmittedHtml.value) return;
+    lastEmittedHtml.value = value;
+    pushHtmlToEditor(value);
   },
 );
 
@@ -65,7 +64,10 @@ function onEditorChange(_json: JSONContent, html: string) {
 </script>
 
 <template>
-  <div class="config-html-editor rounded-md border border-border" v-bind="$attrs">
+  <div
+    class="config-html-editor rounded-md border border-border"
+    v-bind="$attrs"
+  >
     <Form.ItemRest>
       <RichTextEditor
         ref="rteRef"
@@ -89,6 +91,7 @@ function onEditorChange(_json: JSONContent, html: string) {
   pointer-events: auto;
   caret-color: hsl(var(--foreground));
 }
+
 .config-html-editor :deep(.rte-compact .overflow-y-auto) {
   position: relative;
   z-index: 1;

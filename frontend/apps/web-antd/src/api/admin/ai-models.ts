@@ -135,9 +135,7 @@ interface PageResponse<T> {
 const MODEL_PREFIX = '/admin/ai/models';
 
 /** Get model select options / 获取模型下拉选项 */
-export async function getAIModelSelectApi(
-  params?: Record<string, unknown>,
-) {
+export async function getAIModelSelectApi(params?: Record<string, unknown>) {
   return requestClient.get(`${MODEL_PREFIX}/select`, { params });
 }
 

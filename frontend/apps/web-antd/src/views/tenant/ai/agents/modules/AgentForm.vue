@@ -19,11 +19,8 @@ import {
 } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
+import { getAgentDetailApi, getAgentSkillsApi } from '#/api/tenant/agents';
 import { getTenantAIModelsApi } from '#/api/tenant/ai';
-import {
-  getAgentDetailApi,
-  getAgentSkillsApi,
-} from '#/api/tenant/agents';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 import {
@@ -33,8 +30,8 @@ import {
 
 import {
   getFormDefaults,
-  getWizardStepSchema,
   getWizardSteps,
+  getWizardStepSchema,
   useFormSchema,
 } from '../data';
 
@@ -55,7 +52,7 @@ const modelMaxOutputTokensMap = ref<Record<number, number | undefined>>({});
 function resolveModelMaxOutputTokens(
   modelId: null | number | undefined,
 ): number | undefined {
-  if (modelId == null) return undefined;
+  if (modelId === null || modelId === undefined) return undefined;
   return modelMaxOutputTokensMap.value[modelId];
 }
 
@@ -192,7 +189,6 @@ async function loadModelLimits() {
 }
 
 void loadModelLimits();
-
 </script>
 
 <template>

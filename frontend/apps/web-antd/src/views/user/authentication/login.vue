@@ -43,7 +43,9 @@ onMounted(async () => {
 });
 
 const showCaptcha = computed(() => publicConfigStore.shouldShowUserCaptcha);
-const registrationEnabled = computed(() => publicConfigStore.isRegistrationEnabled);
+const registrationEnabled = computed(
+  () => publicConfigStore.isRegistrationEnabled,
+);
 
 const captchaDifficulty = computed((): CaptchaDifficulty => {
   const difficulty = publicConfigStore.tenantCaptcha?.difficulty;
@@ -63,8 +65,7 @@ const captchaProvider = computed(() => {
 
 const loginSubtitle = computed(() => {
   return (
-    publicConfigStore.tenantBrand?.siteDescription ||
-    $t('user.auth.subtitle')
+    publicConfigStore.tenantBrand?.siteDescription || $t('user.auth.subtitle')
   );
 });
 
@@ -144,7 +145,10 @@ async function handleLogin() {
           class="auth-input"
         >
           <template #prefix>
-            <IconifyIcon icon="lucide:user" class="size-4 text-muted-foreground" />
+            <IconifyIcon
+              icon="lucide:user"
+              class="size-4 text-muted-foreground"
+            />
           </template>
         </Input>
       </FormItem>
@@ -160,7 +164,10 @@ async function handleLogin() {
           class="auth-input"
         >
           <template #prefix>
-            <IconifyIcon icon="lucide:lock" class="size-4 text-muted-foreground" />
+            <IconifyIcon
+              icon="lucide:lock"
+              class="size-4 text-muted-foreground"
+            />
           </template>
         </InputPassword>
       </FormItem>
@@ -207,7 +214,10 @@ async function handleLogin() {
     </Form>
 
     <!-- Register link -->
-    <div v-if="registrationEnabled" class="mt-4 text-center text-sm text-muted-foreground">
+    <div
+      v-if="registrationEnabled"
+      class="mt-4 text-center text-sm text-muted-foreground"
+    >
       {{ $t('user.auth.noAccount') }}
       <button
         type="button"

@@ -14,7 +14,12 @@ import { Drawer, Dropdown, Tooltip } from 'ant-design-vue';
 
 import ReLoginForm from '#/components/business/re-login-form/ReLoginForm.vue';
 import { $t } from '#/locales';
-import { useMultiAuthStore, usePresenceStore, usePublicConfigStore, useSocketIOStore } from '#/store';
+import {
+  useMultiAuthStore,
+  usePresenceStore,
+  usePublicConfigStore,
+  useSocketIOStore,
+} from '#/store';
 import { resolveCopyrightDisplay } from '#/utils/public-branding';
 
 defineOptions({ name: 'UserLayout' });
@@ -143,7 +148,9 @@ onBeforeUnmount(() => {
           :alt="brandName"
           class="size-7"
         />
-        <span class="hidden text-base font-semibold text-foreground sm:inline-block">
+        <span
+          class="hidden text-base font-semibold text-foreground sm:inline-block"
+        >
           {{ brandName }}
         </span>
       </div>
@@ -162,7 +169,7 @@ onBeforeUnmount(() => {
           >
             <IconifyIcon
               v-if="menu.icon && typeof menu.icon === 'string'"
-              :icon="(menu.icon as string)"
+              :icon="menu.icon as string"
               class="size-4"
             />
             <span>{{ menu.name }}</span>
@@ -191,13 +198,10 @@ onBeforeUnmount(() => {
           <button
             class="ml-1 flex items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-accent"
           >
-            <VbenAvatar
-              :src="avatar"
-              :alt="displayName"
-              class="size-7"
-              dot
-            />
-            <span class="hidden text-sm font-medium text-foreground sm:inline-block">
+            <VbenAvatar :src="avatar" :alt="displayName" class="size-7" dot />
+            <span
+              class="hidden text-sm font-medium text-foreground sm:inline-block"
+            >
               {{ displayName }}
             </span>
             <IconifyIcon
@@ -206,7 +210,9 @@ onBeforeUnmount(() => {
             />
           </button>
           <template #overlay>
-            <div class="min-w-[180px] rounded-md border border-border bg-background p-1 shadow-lg">
+            <div
+              class="min-w-[180px] rounded-md border border-border bg-background p-1 shadow-lg"
+            >
               <div class="px-3 py-2">
                 <p class="text-sm font-medium text-foreground">
                   {{ displayName }}
@@ -215,12 +221,12 @@ onBeforeUnmount(() => {
                   {{ userStore.userInfo?.username || '' }}
                 </p>
               </div>
-              <div class="my-1 h-px bg-border" />
+              <div class="my-1 h-px bg-border"></div>
               <template v-for="item in userDropdownItems" :key="item.key">
                 <div
                   v-if="item.type === 'divider'"
                   class="my-1 h-px bg-border"
-                />
+                ></div>
                 <button
                   v-else
                   class="flex w-full items-center gap-2 rounded-sm px-3 py-1.5 text-sm transition-colors"
@@ -231,7 +237,11 @@ onBeforeUnmount(() => {
                   ]"
                   @click="handleDropdownClick({ key: item.key })"
                 >
-                  <IconifyIcon v-if="item.icon" :icon="item.icon" class="size-4" />
+                  <IconifyIcon
+                    v-if="item.icon"
+                    :icon="item.icon"
+                    class="size-4"
+                  />
                   <span>{{ item.label }}</span>
                 </button>
               </template>
@@ -281,7 +291,7 @@ onBeforeUnmount(() => {
           >
             <IconifyIcon
               v-if="menu.icon && typeof menu.icon === 'string'"
-              :icon="(menu.icon as string)"
+              :icon="menu.icon as string"
               class="size-4"
             />
             <span>{{ menu.name }}</span>

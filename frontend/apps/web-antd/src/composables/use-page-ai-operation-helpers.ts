@@ -10,7 +10,7 @@ import { $t } from '#/locales';
 type AnyRecord = Record<string, unknown>;
 type MaybePromise<T> = Promise<T> | T;
 type OperationExecutionResult = MaybePromise<
-  void | null | PageOperationResult | undefined
+  null | PageOperationResult | undefined
 >;
 
 type SuccessMessageInput<TArgs extends unknown[] = [unknown]> =
@@ -25,8 +25,9 @@ interface BaseOperationOptions<TArgs extends unknown[] = [unknown]> {
   successMessage?: SuccessMessageInput<TArgs>;
 }
 
-interface ParameterizedOperationOptions<TParams extends AnyRecord = AnyRecord>
-  extends BaseOperationOptions<[TParams]> {
+interface ParameterizedOperationOptions<
+  TParams extends AnyRecord = AnyRecord,
+> extends BaseOperationOptions<[TParams]> {
   action: (params: TParams) => OperationExecutionResult;
   params?: Record<string, unknown>;
 }
@@ -164,9 +165,7 @@ interface BuildPageAIFormExtraDataOptions {
   resource?: string;
 }
 
-function isPageOperationResult(
-  value: unknown,
-): value is PageOperationResult {
+function isPageOperationResult(value: unknown): value is PageOperationResult {
   return (
     !!value &&
     typeof value === 'object' &&
@@ -206,7 +205,10 @@ function expandDotKeys(flat: AnyRecord): AnyRecord {
           : {};
       current = current[segment] as Record<string, unknown>;
     }
-    current[segments[segments.length - 1]!] = value;
+    const lastSegment = segments.at(-1);
+    if (lastSegment) {
+      current[lastSegment] = value;
+    }
   }
 
   return result;
@@ -281,7 +283,7 @@ function defaultRecordNotFoundMessage(
   operationLabel: string,
   identifier: unknown,
 ): string {
-  return identifier == null || identifier === ''
+  return identifier === null || identifier === undefined || identifier === ''
     ? $t('shared.pageOperation.msg.recordNotFound')
     : $t('shared.pageOperation.msg.recordNotFoundInList', {
         id: identifier,
@@ -334,8 +336,7 @@ export function createSavePageOperation(
     name: options.name ?? 'save_changes',
     label: options.label ?? $t('shared.pageOperation.save'),
     description:
-      options.description ??
-      'Save the current changes / 保存当前更改',
+      options.description ?? 'Save the current changes / 保存当前更改',
     readonly: false,
     successMessage: options.successMessage,
     action: async () => {
@@ -350,12 +351,11 @@ export function createCreateRecordPageOperation(
   return createSimplePageOperation({
     name: options.name ?? 'create_record',
     label: options.label ?? $t('shared.pageOperation.createRecord'),
-    description:
-      options.description ??
-      'Open the create form / 打开新建表单',
+    description: options.description ?? 'Open the create form / 打开新建表单',
     readonly: false,
     successMessage:
-      options.successMessage ?? $t('shared.pageOperation.msg.createFormOpenedEmpty'),
+      options.successMessage ??
+      $t('shared.pageOperation.msg.createFormOpenedEmpty'),
     action: async () => {
       return await options.action();
     },
@@ -368,16 +368,13 @@ export function createKeywordSearchPageOperation(
   return createParameterizedPageOperation<{ keyword?: string }>({
     name: options.name ?? 'search',
     label: options.label ?? $t('shared.pageOperation.search'),
-    description:
-      options.description ??
-      'Search by keyword / 按关键词搜索',
+    description: options.description ?? 'Search by keyword / 按关键词搜索',
     readonly: true,
     params: {
       keyword: {
         type: 'string',
         description:
-          options.keywordDescription ??
-          'Keyword used for search / 搜索关键词',
+          options.keywordDescription ?? 'Keyword used for search / 搜索关键词',
       },
     },
     successMessage: (params) =>
@@ -466,8 +463,7 @@ export function createOpenPageOperation(
     name: options.name ?? 'open_page',
     label: options.label ?? $t('shared.pageOperation.navigateTo'),
     description:
-      options.description ??
-      'Open a page or dialog / 打开页面或弹窗',
+      options.description ?? 'Open a page or dialog / 打开页面或弹窗',
     readonly: true,
     successMessage: options.successMessage,
     action: async () => {
@@ -488,8 +484,7 @@ export function createOpenCurrentPageOperation(
     name: options.name ?? 'open_current',
     label: options.label ?? $t('shared.pageOperation.viewDetail'),
     description:
-      options.description ??
-      'Open the current selection / 打开当前选中项',
+      options.description ?? 'Open the current selection / 打开当前选中项',
     readonly: true,
     successMessage: options.successMessage,
     action: async () => {
@@ -513,9 +508,7 @@ export function createOpenRecordPageOperation<
   return {
     name: options.name,
     label: options.label ?? $t('shared.pageOperation.viewDetail'),
-    description:
-      options.description ??
-      'Open a record by ID / 按 ID 打开记录',
+    description: options.description ?? 'Open a record by ID / 按 ID 打开记录',
     readonly: options.readonly ?? true,
     params: options.params,
     handler: async (rawParams) => {
@@ -590,9 +583,7 @@ export function createViewDetailPageOperation(
     params: {
       id: {
         type: 'number',
-        description:
-          options.idDescription ??
-          'Record ID / 记录 ID',
+        description: options.idDescription ?? 'Record ID / 记录 ID',
         required: true,
       },
     },
@@ -622,8 +613,8 @@ export function buildPageAIFormExtraData(
   options: BuildPageAIFormExtraDataOptions,
 ): Record<string, unknown> {
   const defaults = {
-    ...(options.baseDefaults ?? {}),
-    ...(options.defaults ?? {}),
+    ...options.baseDefaults,
+    ...options.defaults,
   };
 
   return {

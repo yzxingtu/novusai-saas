@@ -5,7 +5,7 @@
  * 状态字段选择（从 enum 字段）、transitions、颜色映射、VueFlow 流程图可视化
  * VueFlow 异步加载，加载失败时显示友好提示
  */
-import type { Node, Edge } from '@vue-flow/core';
+import type { Edge, Node } from '@vue-flow/core';
 
 import { computed, defineAsyncComponent, h } from 'vue';
 
@@ -22,13 +22,22 @@ const VueFlow = defineAsyncComponent({
   errorComponent: {
     setup() {
       const msg = $t('admin.system.codegen.enum.loadFailed');
-      return () => h('div', { class: 'rounded border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive' }, msg);
+      return () =>
+        h(
+          'div',
+          {
+            class:
+              'rounded border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive',
+          },
+          msg,
+        );
     },
   },
 });
 
 const Background = defineAsyncComponent({
-  loader: () => import('@vue-flow/background').then((m) => m.Background ?? m.default),
+  loader: () =>
+    import('@vue-flow/background').then((m) => m.Background ?? m.default),
   loadingComponent: { render: () => null },
 });
 
@@ -81,11 +90,16 @@ const fields = computed(
 );
 
 const enumFields = computed(() =>
-  fields.value.filter((f) => f.type === 'Enum' || (f.enum_values && Array.isArray(f.enum_values))),
+  fields.value.filter(
+    (f) => f.type === 'Enum' || (f.enum_values && Array.isArray(f.enum_values)),
+  ),
 );
 
 const statusFieldOptions = computed(() =>
-  enumFields.value.map((f) => ({ label: (f.name as string) || f.comment, value: f.name as string })),
+  enumFields.value.map((f) => ({
+    label: (f.name as string) || f.comment,
+    value: f.name as string,
+  })),
 );
 
 const statusValuesMap = computed(() => {
@@ -97,7 +111,8 @@ const statusValuesMap = computed(() => {
       vals.map((v) => ({
         value: String(v.value ?? v),
         label_zh: v.label_zh as string,
-        color: ((v.color as WorkflowColor | undefined) || 'default') as WorkflowColor,
+        color: ((v.color as undefined | WorkflowColor) ||
+          'default') as WorkflowColor,
       })),
     );
   }
@@ -106,11 +121,15 @@ const statusValuesMap = computed(() => {
 
 const transitions = computed<WorkflowTransition[]>(() =>
   Array.isArray(workflow.value.transitions)
-    ? workflow.value.transitions.map((transition) => normalizeTransition(transition))
+    ? workflow.value.transitions.map((transition) =>
+        normalizeTransition(transition),
+      )
     : [],
 );
 
-const statusField = computed(() => (workflow.value.status_field as string) || '');
+const statusField = computed(
+  () => (workflow.value.status_field as string) || '',
+);
 
 const currentStatusValues = computed(() => {
   if (!statusField.value) return [];
@@ -118,7 +137,10 @@ const currentStatusValues = computed(() => {
 });
 
 const statusSelectOptions = computed(() =>
-  currentStatusValues.value.map((v) => ({ label: v.label_zh || v.value, value: v.value })),
+  currentStatusValues.value.map((v) => ({
+    label: v.label_zh || v.value,
+    value: v.value,
+  })),
 );
 
 function updateWorkflow(patch: Partial<WorkflowConfig>) {
@@ -127,13 +149,23 @@ function updateWorkflow(patch: Partial<WorkflowConfig>) {
 
 function addTransition() {
   const vals = currentStatusValues.value;
-  if (!vals.length) return;
+  if (vals.length === 0) return;
   const from = vals[0]?.value ?? '';
   const to = vals[1]?.value ?? vals[0]?.value ?? '';
   const list = [...transitions.value];
-  const newT = { from, to, action: '', permission: '', requires_comment: false, label_zh: '' };
+  const newT = {
+    from,
+    to,
+    action: '',
+    permission: '',
+    requires_comment: false,
+    label_zh: '',
+  };
   const isDup = list.some(
-    (t) => String(t.from ?? '') === from && String(t.to ?? '') === to && String((t.action as string) ?? '').trim() === '',
+    (t) =>
+      String(t.from ?? '') === from &&
+      String(t.to ?? '') === to &&
+      String((t.action as string) ?? '').trim() === '',
   );
   if (isDup) return;
   list.push(newT);
@@ -228,7 +260,9 @@ const flowEdges = computed<Edge[]>(() =>
 
     <template v-if="statusField">
       <div class="flex items-center justify-between">
-        <h5 class="text-sm font-medium">{{ $t('admin.system.codegen.enum.transitions') }}</h5>
+        <h5 class="text-sm font-medium">
+          {{ $t('admin.system.codegen.enum.transitions') }}
+        </h5>
         <Button
           size="small"
           type="dashed"
@@ -273,14 +307,18 @@ const flowEdges = computed<Edge[]>(() =>
             class="w-20"
             size="small"
             :placeholder="$t('admin.system.codegen.enum.label')"
-            @update:value="(v: string) => updateTransition(idx, { label_zh: v })"
+            @update:value="
+              (v: string) => updateTransition(idx, { label_zh: v })
+            "
           />
           <Switch
             :checked="!!t.requires_comment"
             size="small"
             @change="(value) => onRequiresCommentChange(idx, value)"
           />
-          <span class="text-muted-foreground text-xs">{{ $t('admin.system.codegen.enum.requiresComment') }}</span>
+          <span class="text-xs text-muted-foreground">{{
+            $t('admin.system.codegen.enum.requiresComment')
+          }}</span>
           <Button
             danger
             size="small"
@@ -297,7 +335,9 @@ const flowEdges = computed<Edge[]>(() =>
         v-if="currentStatusValues.length > 0"
         class="mt-3 rounded border border-border p-3"
       >
-        <h5 class="mb-2 text-sm font-medium">{{ $t('admin.system.codegen.enum.colorMapping') }}</h5>
+        <h5 class="mb-2 text-sm font-medium">
+          {{ $t('admin.system.codegen.enum.colorMapping') }}
+        </h5>
         <div class="flex flex-wrap gap-2">
           <span
             v-for="v in currentStatusValues"
@@ -317,11 +357,10 @@ const flowEdges = computed<Edge[]>(() =>
       </div>
 
       <!-- VueFlow 流程图预览 / VueFlow flow diagram preview -->
-      <div
-        v-if="flowNodes.length > 0"
-        class="mt-3"
-      >
-        <h5 class="mb-2 text-sm font-medium">{{ $t('admin.system.codegen.enum.workflowDiagram') }}</h5>
+      <div v-if="flowNodes.length > 0" class="mt-3">
+        <h5 class="mb-2 text-sm font-medium">
+          {{ $t('admin.system.codegen.enum.workflowDiagram') }}
+        </h5>
         <div class="h-48 w-full min-w-0 rounded border border-border">
           <Suspense>
             <VueFlow
@@ -338,7 +377,9 @@ const flowEdges = computed<Edge[]>(() =>
               <Background color="#94a3b8" :gap="12" />
             </VueFlow>
             <template #fallback>
-              <div class="text-muted-foreground flex h-full items-center justify-center text-sm">
+              <div
+                class="flex h-full items-center justify-center text-sm text-muted-foreground"
+              >
                 {{ $t('common.loading') }}
               </div>
             </template>
@@ -349,7 +390,7 @@ const flowEdges = computed<Edge[]>(() =>
 
     <div
       v-else-if="enumFields.length === 0"
-      class="text-muted-foreground rounded border border-dashed border-border py-4 text-center text-sm"
+      class="rounded border border-dashed border-border py-4 text-center text-sm text-muted-foreground"
     >
       {{ $t('admin.system.codegen.enum.noEnumFields') }}
     </div>

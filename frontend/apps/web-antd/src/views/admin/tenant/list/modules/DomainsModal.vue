@@ -10,6 +10,7 @@ import type {
   DomainModalData,
   TenantDomainInfo,
 } from './domains-types';
+
 import type {
   DevHostDomainStatus,
   DevHostsStatus,
@@ -241,8 +242,9 @@ async function onDeleteDomain(domain: TenantDomainInfo) {
 
 function getDevHostsDomainStatus(domainId: number) {
   return (
-    devHostsOverview.value?.domains.find((item) => item.domainId === domainId) ||
-    null
+    devHostsOverview.value?.domains.find(
+      (item) => item.domainId === domainId,
+    ) || null
   );
 }
 
@@ -328,7 +330,9 @@ async function onSyncAllDevHosts() {
 
   syncingAllDevHosts.value = true;
   try {
-    const result = await admin.syncAllTenantDevHostsApi(currentTenant.value.tenantId);
+    const result = await admin.syncAllTenantDevHostsApi(
+      currentTenant.value.tenantId,
+    );
     devHostsOverview.value = {
       runtime: result.runtime,
       domains: result.domains,
@@ -368,7 +372,9 @@ async function onSyncDevHost(domain: TenantDomainInfo) {
     message.success($t('admin.tenant.domain.devHosts.syncSuccess'));
   } catch {
   } finally {
-    syncingDomainIds.value = syncingDomainIds.value.filter((id) => id !== domain.id);
+    syncingDomainIds.value = syncingDomainIds.value.filter(
+      (id) => id !== domain.id,
+    );
   }
 }
 
@@ -394,7 +400,9 @@ async function onRemoveDevHost(domain: TenantDomainInfo) {
     message.success($t('admin.tenant.domain.devHosts.removeSuccess'));
   } catch {
   } finally {
-    removingDomainIds.value = removingDomainIds.value.filter((id) => id !== domain.id);
+    removingDomainIds.value = removingDomainIds.value.filter(
+      (id) => id !== domain.id,
+    );
   }
 }
 
@@ -464,10 +472,7 @@ function open(data: DomainModalData) {
   modalApi.setData(data).open();
 }
 
-function openAddDomain(
-  data: DomainModalData,
-  defaults?: DomainCreateDefaults,
-) {
+function openAddDomain(data: DomainModalData, defaults?: DomainCreateDefaults) {
   currentTenant.value = data;
   openAddDrawer(defaults);
 }
@@ -493,7 +498,10 @@ defineExpose({ open, openAddDomain });
             :loading="syncingAllDevHosts"
             @click="onSyncAllDevHosts"
           >
-            <IconifyIcon icon="lucide:hard-drive-download" class="mr-1 size-4" />
+            <IconifyIcon
+              icon="lucide:hard-drive-download"
+              class="mr-1 size-4"
+            />
             {{ $t('admin.tenant.domain.devHosts.syncAll') }}
           </Button>
         </div>
@@ -679,14 +687,16 @@ defineExpose({ open, openAddDomain });
                 </span>
                 <Tag
                   :color="
-                    getDevHostsTagConfig(getDevHostsDomainStatus(domain.id)!.status)
-                      .color
+                    getDevHostsTagConfig(
+                      getDevHostsDomainStatus(domain.id)!.status,
+                    ).color
                   "
                 >
                   <IconifyIcon
                     :icon="
-                      getDevHostsTagConfig(getDevHostsDomainStatus(domain.id)!.status)
-                        .icon
+                      getDevHostsTagConfig(
+                        getDevHostsDomainStatus(domain.id)!.status,
+                      ).icon
                     "
                     class="mr-1 size-3"
                   />
@@ -720,7 +730,11 @@ defineExpose({ open, openAddDomain });
               v-if="getDevHostsDomainStatus(domain.id)?.reason"
               class="mt-2 text-xs text-muted-foreground"
             >
-              {{ getDevHostsReasonText(getDevHostsDomainStatus(domain.id)?.reason) }}
+              {{
+                getDevHostsReasonText(
+                  getDevHostsDomainStatus(domain.id)?.reason,
+                )
+              }}
             </div>
 
             <!-- 操作按钮 -->

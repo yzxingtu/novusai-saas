@@ -1,18 +1,22 @@
 <script lang="ts" setup>
+import type { PreviewFile } from '#/api/admin/codegen';
+
+import { computed, ref, watch } from 'vue';
+
+import { IconifyIcon } from '@vben/icons';
+
 /**
  * 代码预览弹窗 / Code Preview Modal
  *
  * 全屏 Modal (90vw, 80vh)，复用 FileTreePanel + CodePreviewPanel，底部下载 ZIP + 关闭
  */
 import { useDebounceFn } from '@vueuse/core';
-import { computed, ref, watch } from 'vue';
+import { Button, message, Modal, Spin } from 'ant-design-vue';
 
-import { Button, Modal, Spin } from 'ant-design-vue';
-import { IconifyIcon } from '@vben/icons';
-
-import { downloadCodegenPreviewZipApi, postCodegenPreviewApi } from '#/api/admin/codegen';
-import type { PreviewFile } from '#/api/admin/codegen';
-import { message } from 'ant-design-vue';
+import {
+  downloadCodegenPreviewZipApi,
+  postCodegenPreviewApi,
+} from '#/api/admin/codegen';
 import { $t } from '#/locales';
 import { useCodegenBuilderStore } from '#/store';
 
@@ -43,9 +47,12 @@ watch(
 const isDownloading = ref(false);
 let fetchId = 0;
 
-const previewFiles = computed<PreviewFile[]>(() => store.previewCache?.files ?? []);
-const selectedFile = computed(() =>
-  previewFiles.value.find((f) => f.path === selectedFilePath.value) ?? null,
+const previewFiles = computed<PreviewFile[]>(
+  () => store.previewCache?.files ?? [],
+);
+const selectedFile = computed(
+  () =>
+    previewFiles.value.find((f) => f.path === selectedFilePath.value) ?? null,
 );
 const previewSummary = computed(() => store.previewCache?.summary);
 const previewWarnings = computed(() => store.previewCache?.warnings ?? []);
@@ -55,7 +62,9 @@ async function fetchPreview() {
   const currentId = ++fetchId;
   isLoading.value = true;
   try {
-    const result = await postCodegenPreviewApi({ config_json: store.configJson });
+    const result = await postCodegenPreviewApi({
+      config_json: store.configJson,
+    });
     if (currentId !== fetchId) return;
     if (!result.success && result.error) {
       store.setPreviewCache({ files: [], error: result.error });
@@ -68,17 +77,18 @@ async function fetchPreview() {
         timestamp: Date.now(),
       });
     }
-    const hasIssues = (result.conflicts?.length ?? 0) > 0 || (result.warnings?.length ?? 0) > 0;
+    const hasIssues =
+      (result.conflicts?.length ?? 0) > 0 || (result.warnings?.length ?? 0) > 0;
     if (hasIssues) {
       selectedFilePath.value = '';
     } else if (result.files?.length && !selectedFilePath.value) {
       selectedFilePath.value = result.files[0]?.path ?? '';
     }
-  } catch (e) {
+  } catch (error) {
     if (currentId !== fetchId) return;
     store.setPreviewCache({
       files: [],
-      error: e instanceof Error ? e.message : String(e),
+      error: error instanceof Error ? error.message : String(error),
     });
   } finally {
     if (currentId === fetchId) isLoading.value = false;
@@ -97,8 +107,10 @@ async function onDownloadZip() {
       { step: undefined },
     );
     message.success($t('admin.system.codegen.messages.downloadSuccess'));
-  } catch (e) {
-    const err = e as { response?: { data?: { detail?: { error?: string } | string } } };
+  } catch (error) {
+    const err = error as {
+      response?: { data?: { detail?: string | { error?: string } } };
+    };
     const detail = err?.response?.data?.detail;
     const msg =
       (typeof detail === 'object' && detail?.error) ||
@@ -133,32 +145,60 @@ watch(
     <Spin :spinning="isLoading">
       <div class="mb-4 grid gap-3 md:grid-cols-3 xl:grid-cols-7">
         <div class="rounded-2xl border border-border bg-muted/20 p-3">
-          <div class="text-xs text-muted-foreground">{{ $t('admin.system.codegen.generate.summaryCreate') }}</div>
-          <div class="mt-2 text-xl font-semibold">{{ previewSummary?.create_count ?? 0 }}</div>
+          <div class="text-xs text-muted-foreground">
+            {{ $t('admin.system.codegen.generate.summaryCreate') }}
+          </div>
+          <div class="mt-2 text-xl font-semibold">
+            {{ previewSummary?.create_count ?? 0 }}
+          </div>
         </div>
         <div class="rounded-2xl border border-border bg-muted/20 p-3">
-          <div class="text-xs text-muted-foreground">{{ $t('admin.system.codegen.generate.summaryModify') }}</div>
-          <div class="mt-2 text-xl font-semibold">{{ previewSummary?.modify_count ?? 0 }}</div>
+          <div class="text-xs text-muted-foreground">
+            {{ $t('admin.system.codegen.generate.summaryModify') }}
+          </div>
+          <div class="mt-2 text-xl font-semibold">
+            {{ previewSummary?.modify_count ?? 0 }}
+          </div>
         </div>
         <div class="rounded-2xl border border-border bg-muted/20 p-3">
-          <div class="text-xs text-muted-foreground">{{ $t('admin.system.codegen.preview.filterBackend') }}</div>
-          <div class="mt-2 text-xl font-semibold">{{ previewSummary?.backend_files ?? 0 }}</div>
+          <div class="text-xs text-muted-foreground">
+            {{ $t('admin.system.codegen.preview.filterBackend') }}
+          </div>
+          <div class="mt-2 text-xl font-semibold">
+            {{ previewSummary?.backend_files ?? 0 }}
+          </div>
         </div>
         <div class="rounded-2xl border border-border bg-muted/20 p-3">
-          <div class="text-xs text-muted-foreground">{{ $t('admin.system.codegen.preview.filterFrontend') }}</div>
-          <div class="mt-2 text-xl font-semibold">{{ previewSummary?.frontend_files ?? 0 }}</div>
+          <div class="text-xs text-muted-foreground">
+            {{ $t('admin.system.codegen.preview.filterFrontend') }}
+          </div>
+          <div class="mt-2 text-xl font-semibold">
+            {{ previewSummary?.frontend_files ?? 0 }}
+          </div>
         </div>
         <div class="rounded-2xl border border-border bg-muted/20 p-3">
-          <div class="text-xs text-muted-foreground">{{ $t('admin.system.codegen.generate.summaryLines') }}</div>
-          <div class="mt-2 text-xl font-semibold">{{ previewSummary?.total_lines ?? 0 }}</div>
+          <div class="text-xs text-muted-foreground">
+            {{ $t('admin.system.codegen.generate.summaryLines') }}
+          </div>
+          <div class="mt-2 text-xl font-semibold">
+            {{ previewSummary?.total_lines ?? 0 }}
+          </div>
         </div>
         <div class="rounded-2xl border border-amber-200 bg-amber-50/70 p-3">
-          <div class="text-xs text-amber-700">{{ $t('admin.system.codegen.generate.conflicts') }}</div>
-          <div class="mt-2 text-xl font-semibold text-amber-700">{{ previewConflicts.length }}</div>
+          <div class="text-xs text-amber-700">
+            {{ $t('admin.system.codegen.generate.conflicts') }}
+          </div>
+          <div class="mt-2 text-xl font-semibold text-amber-700">
+            {{ previewConflicts.length }}
+          </div>
         </div>
         <div class="rounded-2xl border border-sky-200 bg-sky-50/70 p-3">
-          <div class="text-xs text-sky-700">{{ $t('admin.system.codegen.preview.warnings') }}</div>
-          <div class="mt-2 text-xl font-semibold text-sky-700">{{ previewWarnings.length }}</div>
+          <div class="text-xs text-sky-700">
+            {{ $t('admin.system.codegen.preview.warnings') }}
+          </div>
+          <div class="mt-2 text-xl font-semibold text-sky-700">
+            {{ previewWarnings.length }}
+          </div>
         </div>
       </div>
 

@@ -5,7 +5,10 @@
  * Differentiates admin/tenant via apiPrefix parameter.
  * 封装 use-ai-chat.ts 中的所有 requestClient 调用。
  */
-import type { ChatAttachment, RagSource } from '#/components/business/ai-chat-panel/types';
+import type {
+  ChatAttachment,
+  RagSource,
+} from '#/components/business/ai-chat-panel/types';
 
 import { smartUploadFile as adminSmartUploadFile } from '#/api/admin/attachment';
 import { smartUploadFile as tenantSmartUploadFile } from '#/api/tenant/attachment';
@@ -31,25 +34,71 @@ export interface RawMessageItem {
   provider_id?: null | number;
   provider_name?: null | string;
   tool_calls?: Array<{
+    display_name?: string;
+    duration_ms?: number;
+    error_type?: string;
     function?: { arguments?: string; name?: string };
     id?: string;
+    package_name?: string;
+    pending_confirmation?: {
+      action?: string;
+      preview?: Record<string, unknown>;
+      table?: string;
+    };
+    pending_consent?: {
+      arguments?: Record<string, unknown>;
+      package_name?: string;
+      skill_name?: string;
+      tool_name?: string;
+    };
+    result_link?: string;
+    skill_name?: string;
+    success?: boolean;
+    summary?: string;
+    summary_payload?: Record<string, unknown>;
   }> | null;
   tool_call_id?: null | string;
   tool_name?: null | string;
   metadata?: null | {
+    action_buttons?: Array<{
+      label: string;
+      style?: 'danger' | 'default' | 'primary';
+      value: string;
+    }>;
+    action_buttons_used?: boolean;
     attachments?: ChatAttachment[];
     completion_reason?: string;
     interrupted?: boolean;
-    model_name?: string;
     memory_updated?: boolean;
+    model_name?: string;
     partial?: boolean;
+    pending_confirmation?: {
+      action?: string;
+      preview?: Record<string, unknown>;
+      resolved?: boolean;
+      table?: string;
+    };
+    pending_consent?: {
+      arguments?: Record<string, unknown>;
+      auto_approved?: boolean;
+      package_name?: string;
+      rejected?: boolean;
+      resolved?: boolean;
+      skill_name?: string;
+      tool_name?: string;
+    };
     provider_id?: number;
     provider_name?: string;
+    rag_sources?: RagSource[];
     route_source?: string;
     thinking_content?: string;
+    tool_display_name?: string;
     tool_error?: string;
+    tool_error_type?: string;
+    tool_result_link?: string;
     tool_success?: boolean;
-    rag_sources?: RagSource[];
+    tool_summary?: string;
+    tool_summary_payload?: Record<string, unknown>;
   };
 }
 
@@ -75,7 +124,7 @@ export interface FileUploadResponse {
 
 export interface SSEOptions {
   abortController: AbortController;
-  onMessage: (rawChunk: string) => void | Promise<void>;
+  onMessage: (rawChunk: string) => Promise<void> | void;
   onEnd: () => void;
   onError: (error: Error) => void;
 }
@@ -143,8 +192,8 @@ export async function updateChatConversationTitleApi(
   apiPrefix: string,
   conversationId: number,
   title: string,
-): Promise<{ id: number; title: string | null }> {
-  return requestClient.patch<{ id: number; title: string | null }>(
+): Promise<{ id: number; title: null | string }> {
+  return requestClient.patch<{ id: number; title: null | string }>(
     `${chatBaseUrl(apiPrefix)}/conversations/${conversationId}`,
     { title },
   );
@@ -245,13 +294,14 @@ export function buildChatAttachmentFromUpload(
   const isImage = file.type.startsWith('image/');
   const isAudio = file.type.startsWith('audio/');
   const isVideo = file.type.startsWith('video/');
-  const type: ChatAttachment['type'] = isImage
-    ? 'image'
-    : isAudio
-      ? 'audio'
-      : isVideo
-        ? 'video'
-        : 'file';
+  let type: ChatAttachment['type'] = 'file';
+  if (isImage) {
+    type = 'image';
+  } else if (isAudio) {
+    type = 'audio';
+  } else if (isVideo) {
+    type = 'video';
+  }
   const previewUrl =
     upload.attachment.previewUrl || upload.attachment.preview_url || upload.url;
 
@@ -284,6 +334,14 @@ export interface AgentChatRequestBody {
   consented_actions?: string[];
   conversation_id?: null | number;
   image_params?: AgentChatImageParams;
+  interaction_updates?: Array<{
+    action?: string;
+    kind: 'action_buttons' | 'pending_confirmation' | 'pending_consent';
+    rejected?: boolean;
+    table?: string;
+    tool_name?: string;
+    value?: string;
+  }>;
   knowledge_base_ids?: number[];
   message?: string;
   /** 批量消息（800ms 内多条合并为一次请求） */
@@ -308,19 +366,19 @@ export async function routeMessageApi(
   apiPrefix: string,
   body: {
     conversation_id?: null | number;
+    /** 强制重新路由，忽略当前对话已绑定的智能体 */
+    force_reroute?: boolean;
+    /** 含音频附件时传 true，后端可感知音频能力需求 */
+    has_audio_attachments?: boolean;
+    /** 含通用文件附件时传 true，用于路由上下文 */
+    has_file_attachments?: boolean;
+    /** 含图片附件时传 true，后端强制要求视觉能力 */
+    has_image_attachments?: boolean;
+    /** 含视频附件时传 true，后端可感知视频能力需求 */
+    has_video_attachments?: boolean;
     message: string;
     page_context?: null | PageContext;
     pinned_agent_id?: null | number;
-    /** 强制重新路由，忽略当前对话已绑定的智能体 */
-    force_reroute?: boolean;
-    /** 含图片附件时传 true，后端强制要求视觉能力 */
-    has_image_attachments?: boolean;
-    /** 含音频附件时传 true，后端可感知音频能力需求 */
-    has_audio_attachments?: boolean;
-    /** 含视频附件时传 true，后端可感知视频能力需求 */
-    has_video_attachments?: boolean;
-    /** 含通用文件附件时传 true，用于路由上下文 */
-    has_file_attachments?: boolean;
   },
 ): Promise<AgentRouteResponse> {
   return requestClient.post<AgentRouteResponse>(

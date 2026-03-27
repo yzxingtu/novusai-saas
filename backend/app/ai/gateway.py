@@ -37,6 +37,7 @@ from app.ai.types import (
     TestModelResult,
     messages_to_dicts,
 )
+from app.ai.usage_mode import resolve_chat_usage
 from app.ai.usage_recorder import UsageRecorder
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.config import settings
@@ -267,10 +268,11 @@ class AIGateway:
         # 2. Atomic check+record rate limit + quota check (tenant calls only) / 原子检查+记录速率限制 + 检查配额（仅企业调用）
         estimated_input = 0
         metering_context = None
-        if should_meter_usage:
+        if should_meter_usage or should_record_call_log:
             estimated_input = TokenCounter.count_messages_tokens(
                 messages_to_dicts(messages)
             )
+        if should_meter_usage:
             metering_context = await self.usage_recorder.check_rate_and_quota(
                 tenant_id,
                 model_id,
@@ -395,12 +397,21 @@ class AIGateway:
         # 5. Calculate latency and usage / 计算延迟和使用量
         latency_ms = int((time.time() - start_time) * 1000)
 
-        input_tokens = response.input_tokens or 0
-        output_tokens = response.output_tokens or 0
-        total_tokens = response.total_tokens or (input_tokens + output_tokens)
+        usage = resolve_chat_usage(
+            messages=messages,
+            output_text=response.message.content or "",
+            input_tokens=response.input_tokens,
+            output_tokens=response.output_tokens,
+            total_tokens=response.total_tokens,
+            estimated_input=estimated_input,
+        )
+        input_tokens = usage.input_tokens
+        output_tokens = usage.output_tokens
+        total_tokens = usage.total_tokens
 
         cost = CostCalculator.calculate_cost(ai_model, input_tokens, output_tokens) if ai_model else 0
         self._attach_runtime_metadata(response, provider=provider, ai_model=ai_model)
+        response.metadata["usage_mode"] = usage.usage_mode
 
         # 6–7. 先租户计量（失败则整请求回滚，不增加 Key），再 Key 计数；Celery 日志单独 best-effort
         if should_meter_usage:

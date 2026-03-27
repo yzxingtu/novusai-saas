@@ -11,6 +11,8 @@ import type {
   AIAgentMemoryConfig,
   AIAgentSkillGrantInfo,
 } from '#/api/admin/ai';
+import type { AgentKnowledgeBaseBindingDraftItem } from '#/components/business/agent-kb-binding-picker';
+import type { AgentSkillBindingDraftItem } from '#/components/business/agent-skill-binding-picker';
 import type { InputVariable } from '#/components/business/ai-chat-panel/types';
 
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
@@ -53,13 +55,11 @@ import {
 } from '#/api/admin/ai';
 import { smartUploadFile } from '#/api/admin/attachment';
 import { getAdminSelectableKBApi } from '#/api/admin/knowledge-bases';
-import type { AgentKnowledgeBaseBindingDraftItem } from '#/components/business/agent-kb-binding-picker';
 import {
   AgentKnowledgeBaseBindingPicker,
   bindingsToDrafts as kbBindingsToDrafts,
   draftsToBatchPayload as kbDraftsToBatchPayload,
 } from '#/components/business/agent-kb-binding-picker';
-import type { AgentSkillBindingDraftItem } from '#/components/business/agent-skill-binding-picker';
 import {
   AgentSkillBindingPicker,
   draftsToBatchPayload,
@@ -309,8 +309,10 @@ async function saveModelParams() {
     ? chatModelMaxOutputTokens.value[agent.value.model_id]
     : undefined;
   if (
-    modelLimit != null &&
-    modelMaxTokens.value != null &&
+    modelLimit !== null &&
+    modelLimit !== undefined &&
+    modelMaxTokens.value !== null &&
+    modelMaxTokens.value !== undefined &&
     modelMaxTokens.value > modelLimit
   ) {
     message.warning(
@@ -398,7 +400,9 @@ const skillPickerOpen = ref(false);
 const skillPickerDrafts = ref<AgentSkillBindingDraftItem[]>([]);
 const bindingPackageCount = computed(() => {
   const keys = new Set(
-    bindings.value.map((binding) => binding.package_name || `skill:${binding.skill_id}`),
+    bindings.value.map(
+      (binding) => binding.package_name || `skill:${binding.skill_id}`,
+    ),
   );
   return keys.size;
 });
@@ -421,7 +425,9 @@ function openSkillBindingPicker() {
   skillPickerOpen.value = true;
 }
 
-async function onSkillBindingPickerConfirm(_drafts: AgentSkillBindingDraftItem[]) {
+async function onSkillBindingPickerConfirm(
+  _drafts: AgentSkillBindingDraftItem[],
+) {
   try {
     await batchBindAIAgentSkillsApi(
       agentId.value,
@@ -487,7 +493,7 @@ async function updateConsentMode(bindingId: number, mode: string) {
 }
 
 async function toggleSkillEnabled(binding: AIAgentSkillGrantInfo) {
-  if (binding.id == null) return;
+  if (binding.id === null || binding.id === undefined) return;
   try {
     await updateAIAgentSkillGrantApi(agentId.value, binding.id, {
       enabled: !binding.enabled,
@@ -522,7 +528,9 @@ const kbBindingsLoading = ref(false);
 const kbPickerOpen = ref(false);
 const kbPickerDrafts = ref<AgentKnowledgeBaseBindingDraftItem[]>([]);
 const kbBindingScopeCount = computed(() => {
-  const keys = new Set(kbBindings.value.map((binding) => binding.kb_scope || 'unknown'));
+  const keys = new Set(
+    kbBindings.value.map((binding) => binding.kb_scope || 'unknown'),
+  );
   return keys.size;
 });
 
@@ -568,10 +576,7 @@ async function onKBBindingPickerConfirm(
   drafts: AgentKnowledgeBaseBindingDraftItem[],
 ) {
   try {
-    await batchBindAIAgentKBsApi(
-      agentId.value,
-      kbDraftsToBatchPayload(drafts),
-    );
+    await batchBindAIAgentKBsApi(agentId.value, kbDraftsToBatchPayload(drafts));
     message.success($t('admin.ai.agent.detail.saveSuccess'));
     await loadKBBindings();
   } catch (error) {
@@ -744,20 +749,17 @@ async function loadAdminRoutingModelOptions() {
     });
     visionModelOptions.value = chatModels
       .filter((m) => m.supports_vision)
-      .map(toOption);
+      .map((model) => toOption(model));
     audioModelOptions.value = chatModels
       .filter((m) => m.supports_audio)
-      .map(toOption);
+      .map((model) => toOption(model));
     videoModelOptions.value = chatModels
       .filter((m) => m.supports_video)
-      .map(toOption);
+      .map((model) => toOption(model));
     chatModelMaxOutputTokens.value = Object.fromEntries(
-      chatModels.map((m) => [
-        m.id,
-        m.max_output_tokens ?? undefined,
-      ]),
+      chatModels.map((m) => [m.id, m.max_output_tokens ?? undefined]),
     );
-    chatModelOptions.value = chatModels.map(toOption);
+    chatModelOptions.value = chatModels.map((model) => toOption(model));
   } catch {
     // fallback / 回退默认值
     chatModelMaxOutputTokens.value = {};
@@ -1610,8 +1612,12 @@ useDetailPageAi({
                 />
                 <Spin :spinning="bindingsLoading">
                   <div class="flex flex-col gap-4">
-                    <div class="rounded-2xl border border-border/70 bg-muted/20 p-4">
-                      <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div
+                      class="rounded-2xl border border-border/70 bg-muted/20 p-4"
+                    >
+                      <div
+                        class="flex flex-wrap items-start justify-between gap-3"
+                      >
                         <div class="min-w-0 flex-1">
                           <div class="flex flex-wrap items-center gap-2">
                             <span class="text-sm font-semibold text-foreground">
@@ -1626,19 +1632,27 @@ useDetailPageAi({
                             </Tag>
                             <Tag class="!mr-0 !rounded-full !px-2 !text-[11px]">
                               {{
-                                $t('admin.ai.agent.skillPicker.selectionSummary', {
-                                  skills: bindings.length,
-                                  packages: bindingPackageCount,
-                                })
+                                $t(
+                                  'admin.ai.agent.skillPicker.selectionSummary',
+                                  {
+                                    skills: bindings.length,
+                                    packages: bindingPackageCount,
+                                  },
+                                )
                               }}
                             </Tag>
                           </div>
-                          <p class="mt-1 text-xs leading-5 text-muted-foreground">
+                          <p
+                            class="mt-1 text-xs leading-5 text-muted-foreground"
+                          >
                             {{ $t('admin.ai.agent.help.skillBindings') }}
                           </p>
                         </div>
                         <Button type="primary" @click="openSkillBindingPicker">
-                          <IconifyIcon icon="lucide:settings-2" class="mr-1 size-4" />
+                          <IconifyIcon
+                            icon="lucide:settings-2"
+                            class="mr-1 size-4"
+                          />
                           {{ $t('admin.ai.agent.skillPicker.manageBindings') }}
                         </Button>
                       </div>
@@ -1651,12 +1665,16 @@ useDetailPageAi({
                         class="rounded-xl border bg-background px-4 py-3 transition-colors"
                       >
                         <div class="flex items-center justify-between gap-4">
-                          <div class="min-w-0 flex flex-1 items-center gap-3">
+                          <div class="flex min-w-0 flex-1 items-center gap-3">
                             <div
                               class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10"
                             >
                               <IconifyIcon
-                                :icon="getSkillTypeIcon(binding.skill_type || 'toolkit')"
+                                :icon="
+                                  getSkillTypeIcon(
+                                    binding.skill_type || 'toolkit',
+                                  )
+                                "
                                 class="size-4"
                                 :style="{
                                   color: `var(--ant-color-${getSkillTypeColor(binding.skill_type || 'toolkit')})`,
@@ -1666,13 +1684,23 @@ useDetailPageAi({
                             <div class="min-w-0 flex-1">
                               <div class="flex items-center gap-2">
                                 <span class="truncate text-sm font-medium">
-                                  {{ binding.skill_name || `#${binding.skill_id}` }}
+                                  {{
+                                    binding.skill_name || `#${binding.skill_id}`
+                                  }}
                                 </span>
                                 <Tag
-                                  :color="getSkillTypeColor(binding.skill_type || 'toolkit')"
+                                  :color="
+                                    getSkillTypeColor(
+                                      binding.skill_type || 'toolkit',
+                                    )
+                                  "
                                   class="!mr-0 !text-[10px]"
                                 >
-                                  {{ getSkillTypeText(binding.skill_type || undefined) }}
+                                  {{
+                                    getSkillTypeText(
+                                      binding.skill_type || undefined,
+                                    )
+                                  }}
                                 </Tag>
                                 <Tag
                                   v-if="binding.package_name"
@@ -1689,7 +1717,10 @@ useDetailPageAi({
                                 </Tag>
                               </div>
                               <p
-                                v-if="binding.skill_description || binding.package_description"
+                                v-if="
+                                  binding.skill_description ||
+                                  binding.package_description
+                                "
                                 class="mt-0.5 truncate text-xs text-muted-foreground"
                               >
                                 {{
@@ -1745,11 +1776,20 @@ useDetailPageAi({
                       <div class="mt-4 text-sm font-semibold text-foreground">
                         {{ $t('admin.ai.agent.skillPicker.emptySelected') }}
                       </div>
-                      <div class="mx-auto mt-2 max-w-xl text-xs leading-6 text-muted-foreground">
+                      <div
+                        class="mx-auto mt-2 max-w-xl text-xs leading-6 text-muted-foreground"
+                      >
                         {{ $t('admin.ai.agent.skillPicker.detailEmptyHint') }}
                       </div>
-                      <Button class="mt-5" type="primary" @click="openSkillBindingPicker">
-                        <IconifyIcon icon="lucide:sparkles" class="mr-1 size-4" />
+                      <Button
+                        class="mt-5"
+                        type="primary"
+                        @click="openSkillBindingPicker"
+                      >
+                        <IconifyIcon
+                          icon="lucide:sparkles"
+                          class="mr-1 size-4"
+                        />
                         {{ $t('admin.ai.agent.skillPicker.manageBindings') }}
                       </Button>
                     </div>
@@ -1923,8 +1963,12 @@ useDetailPageAi({
                         $t('admin.ai.agent.detail.knowledgeBasesGlobalHint')
                       "
                     />
-                    <div class="rounded-2xl border border-border/70 bg-muted/20 p-4">
-                      <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div
+                      class="rounded-2xl border border-border/70 bg-muted/20 p-4"
+                    >
+                      <div
+                        class="flex flex-wrap items-start justify-between gap-3"
+                      >
                         <div class="min-w-0 flex-1">
                           <div class="flex flex-wrap items-center gap-2">
                             <span class="text-sm font-semibold text-foreground">
@@ -1946,12 +1990,17 @@ useDetailPageAi({
                               }}
                             </Tag>
                           </div>
-                          <p class="mt-1 text-xs leading-5 text-muted-foreground">
+                          <p
+                            class="mt-1 text-xs leading-5 text-muted-foreground"
+                          >
                             {{ $t('admin.ai.agent.detail.kbWeightFusionHint') }}
                           </p>
                         </div>
                         <Button type="primary" @click="openKBBindingPicker">
-                          <IconifyIcon icon="lucide:settings-2" class="mr-1 size-4" />
+                          <IconifyIcon
+                            icon="lucide:settings-2"
+                            class="mr-1 size-4"
+                          />
                           {{ $t('admin.ai.agent.kbPicker.manageBindings') }}
                         </Button>
                       </div>
@@ -2084,11 +2133,20 @@ useDetailPageAi({
                       <div class="mt-4 text-sm font-semibold text-foreground">
                         {{ $t('admin.ai.agent.kbPicker.emptySelected') }}
                       </div>
-                      <div class="mx-auto mt-2 max-w-xl text-xs leading-6 text-muted-foreground">
+                      <div
+                        class="mx-auto mt-2 max-w-xl text-xs leading-6 text-muted-foreground"
+                      >
                         {{ $t('admin.ai.agent.kbPicker.detailEmptyHint') }}
                       </div>
-                      <Button class="mt-5" type="primary" @click="openKBBindingPicker">
-                        <IconifyIcon icon="lucide:sparkles" class="mr-1 size-4" />
+                      <Button
+                        class="mt-5"
+                        type="primary"
+                        @click="openKBBindingPicker"
+                      >
+                        <IconifyIcon
+                          icon="lucide:sparkles"
+                          class="mr-1 size-4"
+                        />
                         {{ $t('admin.ai.agent.kbPicker.manageBindings') }}
                       </Button>
                     </div>

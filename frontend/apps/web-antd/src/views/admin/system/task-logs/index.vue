@@ -6,7 +6,16 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Button, Empty, Input, Select, Skeleton, Spin, Tag, message } from 'ant-design-vue';
+import {
+  Button,
+  Empty,
+  Input,
+  message,
+  Select,
+  Skeleton,
+  Spin,
+  Tag,
+} from 'ant-design-vue';
 
 import { adminApi as admin } from '#/api';
 import { $t } from '#/locales';
@@ -113,18 +122,20 @@ const toolbarChips = computed(() => {
   ];
 
   if (selectedRun.value) {
-    chips.push({
-      key: 'binding',
-      icon: 'lucide:link-2',
-      className: 'bg-cyan-50 text-cyan-700',
-      text: getBindingContextText(selectedRun.value.bindingId),
-    });
-    chips.push({
-      key: 'status',
-      icon: 'lucide:badge-check',
-      className: 'bg-emerald-50 text-emerald-700',
-      text: $t(`admin.system.taskLog.status.${selectedRun.value.status}`),
-    });
+    chips.push(
+      {
+        key: 'binding',
+        icon: 'lucide:link-2',
+        className: 'bg-cyan-50 text-cyan-700',
+        text: getBindingContextText(selectedRun.value.bindingId),
+      },
+      {
+        key: 'status',
+        icon: 'lucide:badge-check',
+        className: 'bg-emerald-50 text-emerald-700',
+        text: $t(`admin.system.taskLog.status.${selectedRun.value.status}`),
+      },
+    );
   }
 
   return chips;
@@ -208,7 +219,9 @@ async function loadRuns(nextPage = false) {
       return;
     }
 
-    const stillVisible = runs.value.some((item) => item.id === selectedRunId.value);
+    const stillVisible = runs.value.some(
+      (item) => item.id === selectedRunId.value,
+    );
     const firstRun = runs.value[0];
     if (!stillVisible && firstRun) {
       await loadDetail(firstRun.id);
@@ -341,7 +354,9 @@ onMounted(() => {
       </div>
     </section>
 
-    <section class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+    <section
+      class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[360px_minmax(0,1fr)]"
+    >
       <aside
         class="flex min-h-0 flex-col rounded-[20px] border border-border/70 bg-card p-3 shadow-sm"
       >
@@ -380,10 +395,7 @@ onMounted(() => {
 
         <div class="mt-3 min-h-0 flex-1 overflow-auto">
           <Spin :spinning="loading">
-            <div
-              v-if="loading && runs.length === 0"
-              class="space-y-3"
-            >
+            <div v-if="loading && runs.length === 0" class="space-y-3">
               <div
                 v-for="item in 4"
                 :key="item"
@@ -438,7 +450,9 @@ onMounted(() => {
                   </Tag>
                 </div>
 
-                <div class="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+                <div
+                  class="mt-3 flex items-center justify-between text-xs text-muted-foreground"
+                >
                   <span>{{ formatDuration(run.durationMs) }}</span>
                   <span>{{ formatDate(run.createdAt, 'MM-DD HH:mm') }}</span>
                 </div>
@@ -469,7 +483,9 @@ onMounted(() => {
           </div>
 
           <template v-else>
-            <div class="rounded-2xl border border-border/70 bg-background/70 p-4">
+            <div
+              class="rounded-2xl border border-border/70 bg-background/70 p-4"
+            >
               <div class="flex flex-wrap items-start justify-between gap-3">
                 <div class="min-w-0">
                   <div class="text-lg font-semibold text-foreground">
@@ -482,7 +498,9 @@ onMounted(() => {
 
                 <div class="flex flex-wrap gap-2">
                   <Tag :color="getStatusColor(selectedRun.status)">
-                    {{ $t(`admin.system.taskLog.status.${selectedRun.status}`) }}
+                    {{
+                      $t(`admin.system.taskLog.status.${selectedRun.status}`)
+                    }}
                   </Tag>
                   <Tag v-if="selectedRun.runKind" color="blue">
                     {{ getRunKindText(selectedRun.runKind) }}
@@ -503,7 +521,9 @@ onMounted(() => {
 
             <div class="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
               <div class="space-y-4">
-                <section class="rounded-2xl border border-border/70 bg-background/70 p-4">
+                <section
+                  class="rounded-2xl border border-border/70 bg-background/70 p-4"
+                >
                   <div class="mb-2 text-sm font-medium text-foreground">
                     {{ $t('admin.system.taskLog.resultInfo') }}
                   </div>
@@ -523,35 +543,58 @@ onMounted(() => {
                   <div v-else class="text-sm text-muted-foreground">-</div>
                 </section>
 
-                <section class="rounded-2xl border border-border/70 bg-background/70 p-4">
+                <section
+                  class="rounded-2xl border border-border/70 bg-background/70 p-4"
+                >
                   <div class="mb-2 text-sm font-medium text-foreground">
                     {{ $t('admin.system.taskLog.result') }}
                   </div>
                   <pre
                     class="m-0 max-h-[220px] overflow-auto whitespace-pre-wrap break-all rounded-xl bg-accent p-3 text-xs"
-                  >{{ selectedRun.result ? JSON.stringify(selectedRun.result, null, 2) : '-' }}</pre>
+                    >{{
+                      selectedRun.result
+                        ? JSON.stringify(selectedRun.result, null, 2)
+                        : '-'
+                    }}</pre
+                  >
                 </section>
 
-                <section class="rounded-2xl border border-border/70 bg-background/70 p-4">
+                <section
+                  class="rounded-2xl border border-border/70 bg-background/70 p-4"
+                >
                   <div class="mb-2 text-sm font-medium text-foreground">
                     {{ $t('admin.system.taskLog.paramsInfo') }}
                   </div>
                   <div class="grid gap-3 xl:grid-cols-2">
                     <div>
-                      <div class="mb-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                      <div
+                        class="mb-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                      >
                         {{ $t('admin.system.taskLog.args') }}
                       </div>
                       <pre
                         class="m-0 max-h-[180px] overflow-auto whitespace-pre-wrap break-all rounded-xl bg-accent p-3 text-xs"
-                      >{{ selectedRun.args ? JSON.stringify(selectedRun.args, null, 2) : '-' }}</pre>
+                        >{{
+                          selectedRun.args
+                            ? JSON.stringify(selectedRun.args, null, 2)
+                            : '-'
+                        }}</pre
+                      >
                     </div>
                     <div>
-                      <div class="mb-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                      <div
+                        class="mb-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                      >
                         {{ $t('admin.system.taskLog.kwargs') }}
                       </div>
                       <pre
                         class="m-0 max-h-[180px] overflow-auto whitespace-pre-wrap break-all rounded-xl bg-accent p-3 text-xs"
-                      >{{ selectedRun.kwargs ? JSON.stringify(selectedRun.kwargs, null, 2) : '-' }}</pre>
+                        >{{
+                          selectedRun.kwargs
+                            ? JSON.stringify(selectedRun.kwargs, null, 2)
+                            : '-'
+                        }}</pre
+                      >
                     </div>
                   </div>
                 </section>
@@ -565,12 +608,15 @@ onMounted(() => {
                   </div>
                   <pre
                     class="m-0 max-h-[260px] overflow-auto whitespace-pre-wrap break-all rounded-xl bg-destructive/5 p-3 text-xs text-destructive"
-                  >{{ selectedRun.traceback }}</pre>
+                    >{{ selectedRun.traceback }}</pre
+                  >
                 </section>
               </div>
 
               <div class="space-y-4">
-                <section class="rounded-2xl border border-border/70 bg-background/70 p-4">
+                <section
+                  class="rounded-2xl border border-border/70 bg-background/70 p-4"
+                >
                   <div class="mb-3 text-sm font-medium text-foreground">
                     {{ $t('admin.system.taskLog.relationInfo') }}
                   </div>
@@ -596,13 +642,17 @@ onMounted(() => {
                     <div>
                       {{ $t('admin.system.taskLog.effectiveTenantId') }}:
                       <span class="font-medium text-foreground">
-                        {{ getEffectiveContextText(selectedRun.effectiveTenantId) }}
+                        {{
+                          getEffectiveContextText(selectedRun.effectiveTenantId)
+                        }}
                       </span>
                     </div>
                   </div>
                 </section>
 
-                <section class="rounded-2xl border border-border/70 bg-background/70 p-4">
+                <section
+                  class="rounded-2xl border border-border/70 bg-background/70 p-4"
+                >
                   <div class="mb-3 text-sm font-medium text-foreground">
                     {{ $t('admin.system.taskLog.timeInfo') }}
                   </div>
@@ -616,13 +666,21 @@ onMounted(() => {
                     <div>
                       {{ $t('admin.system.taskLog.startedAt') }}:
                       <span class="font-medium text-foreground">
-                        {{ selectedRun.startedAt ? formatDate(selectedRun.startedAt) : '-' }}
+                        {{
+                          selectedRun.startedAt
+                            ? formatDate(selectedRun.startedAt)
+                            : '-'
+                        }}
                       </span>
                     </div>
                     <div>
                       {{ $t('admin.system.taskLog.finishedAt') }}:
                       <span class="font-medium text-foreground">
-                        {{ selectedRun.finishedAt ? formatDate(selectedRun.finishedAt) : '-' }}
+                        {{
+                          selectedRun.finishedAt
+                            ? formatDate(selectedRun.finishedAt)
+                            : '-'
+                        }}
                       </span>
                     </div>
                     <div v-if="selectedRun.traceId">

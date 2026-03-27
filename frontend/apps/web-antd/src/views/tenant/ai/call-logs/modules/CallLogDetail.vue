@@ -106,7 +106,8 @@ function formatJson(data: unknown): string {
           <Descriptions.Item
             v-if="
               detail.route_reason ||
-              (detail.routed_model_id && detail.routed_model_id !== detail.model_id)
+              (detail.routed_model_id &&
+                detail.routed_model_id !== detail.model_id)
             "
             :label="$t('tenant.ai.callLog.modelName')"
             :span="2"

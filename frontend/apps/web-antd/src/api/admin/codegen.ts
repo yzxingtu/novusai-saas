@@ -5,8 +5,8 @@
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
-import { requestClient } from '#/utils/request';
 import { downloadBlob } from '#/utils/download';
+import { requestClient } from '#/utils/request';
 
 const PREFIX = '/admin/codegen';
 
@@ -53,19 +53,19 @@ export interface CodegenWorkbenchItem {
 
 export interface CodegenWorkbenchSummary {
   stats: {
+    applied: number;
+    attention: number;
     draft: number;
     generated: number;
-    applied: number;
     rollback: number;
-    attention: number;
     total: number;
   };
   sections: {
+    applied: CodegenWorkbenchItem[];
+    attention: CodegenWorkbenchItem[];
     draft: CodegenWorkbenchItem[];
     generated: CodegenWorkbenchItem[];
-    applied: CodegenWorkbenchItem[];
     rollback: CodegenWorkbenchItem[];
-    attention: CodegenWorkbenchItem[];
   };
 }
 
@@ -107,10 +107,10 @@ export interface PreviewResult {
   error?: string;
   files: PreviewFile[];
   summary: {
-    create_count: number;
-    modify_count: number;
     backend_files: number;
+    create_count: number;
     frontend_files: number;
+    modify_count: number;
     total_lines: number;
   };
   warnings: string[];
@@ -125,17 +125,17 @@ export interface GenerateResult {
   conflicts: Array<Record<string, string>>;
   errors: string[];
   backup_dir: null | string;
-  config_id?: number | null;
-  resource?: string | null;
-  module?: string | null;
-  table_name?: string | null;
-  migration?: {
-    success?: boolean;
+  config_id?: null | number;
+  resource?: null | string;
+  module?: null | string;
+  table_name?: null | string;
+  migration?: null | {
+    error?: string;
     message?: string;
     migration_path?: string;
     phase?: string;
-    error?: string;
-  } | null;
+    success?: boolean;
+  };
 }
 
 /** 回滚结果 / Rollback result */
@@ -222,8 +222,13 @@ export interface PresetInfo {
 export async function getCodegenConfigListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
-): Promise<{ items: CodegenConfigInfo[]; total: number; page: number; page_size: number }> {
-  return requestClient.get(PREFIX + '/configs', { params, ...options });
+): Promise<{
+  items: CodegenConfigInfo[];
+  page: number;
+  page_size: number;
+  total: number;
+}> {
+  return requestClient.get(`${PREFIX}/configs`, { params, ...options });
 }
 
 export async function getCodegenWorkbenchSummaryApi(
@@ -245,7 +250,7 @@ export async function createCodegenConfigApi(
   data: CodegenConfigCreateInput,
   options?: ApiRequestOptions,
 ): Promise<CodegenConfigInfo> {
-  return requestClient.post(PREFIX + '/configs', data, options);
+  return requestClient.post(`${PREFIX}/configs`, data, options);
 }
 
 /** 更新配置 / Update config */
@@ -287,7 +292,10 @@ export async function getCodegenConfigVersionsApi(
   params?: { limit?: number },
   options?: ApiRequestOptions,
 ): Promise<CodegenVersionItem[]> {
-  return requestClient.get(`${PREFIX}/configs/${id}/versions`, { params, ...options });
+  return requestClient.get(`${PREFIX}/configs/${id}/versions`, {
+    params,
+    ...options,
+  });
 }
 
 /** 获取配置的指定版本 config_json / Get config version's config_json */
@@ -305,7 +313,11 @@ export async function postCodegenConfigRestoreVersionApi(
   vid: number,
   options?: ApiRequestOptions,
 ): Promise<CodegenConfigInfo> {
-  return requestClient.post(`${PREFIX}/configs/${id}/versions/${vid}/restore`, {}, options);
+  return requestClient.post(
+    `${PREFIX}/configs/${id}/versions/${vid}/restore`,
+    {},
+    options,
+  );
 }
 
 // ============================================================
@@ -316,28 +328,28 @@ export async function postCodegenConfigRestoreVersionApi(
 export async function getCodegenTypesApi(
   options?: ApiRequestOptions,
 ): Promise<TypeInfo[]> {
-  return requestClient.get(PREFIX + '/types', options);
+  return requestClient.get(`${PREFIX}/types`, options);
 }
 
 /** 获取组件列表 / Get component list */
 export async function getCodegenComponentsApi(
   options?: ApiRequestOptions,
 ): Promise<ComponentInfo[]> {
-  return requestClient.get(PREFIX + '/components', options);
+  return requestClient.get(`${PREFIX}/components`, options);
 }
 
 /** 获取模型列表 / Get model list */
 export async function getCodegenModelsApi(
   options?: ApiRequestOptions,
 ): Promise<string[]> {
-  return requestClient.get(PREFIX + '/models', options);
+  return requestClient.get(`${PREFIX}/models`, options);
 }
 
 /** 获取预设列表（结构化元数据）/ Get preset list (structured metadata) */
 export async function getCodegenPresetsApi(
   options?: ApiRequestOptions,
 ): Promise<PresetInfo[]> {
-  return requestClient.get(PREFIX + '/presets', options);
+  return requestClient.get(`${PREFIX}/presets`, options);
 }
 
 /** 预设详情响应 / Preset detail response */
@@ -362,7 +374,7 @@ export async function getCodegenPresetApi(
 export async function getCodegenParentResourcesApi(
   options?: ApiRequestOptions,
 ): Promise<string[]> {
-  return requestClient.get(PREFIX + '/parent-resources', options);
+  return requestClient.get(`${PREFIX}/parent-resources`, options);
 }
 
 /** 代码生成器选项（parent_resources、system_modules、field_templates）/ Codegen options */
@@ -375,7 +387,7 @@ export interface CodegenOptions {
 export async function getCodegenOptionsApi(
   options?: ApiRequestOptions,
 ): Promise<CodegenOptions> {
-  return requestClient.get(PREFIX + '/options', options);
+  return requestClient.get(`${PREFIX}/options`, options);
 }
 
 // ============================================================
@@ -386,7 +398,7 @@ export async function getCodegenOptionsApi(
 export async function getCodegenDbTablesApi(
   options?: ApiRequestOptions,
 ): Promise<TableInfo[]> {
-  return requestClient.get(PREFIX + '/db/tables', options);
+  return requestClient.get(`${PREFIX}/db/tables`, options);
 }
 
 /** 获取表列信息 / Get table columns */
@@ -410,10 +422,10 @@ export interface CodegenDbTableRowItem {
 export async function getCodegenDbTableRowsApi(
   tableName: string,
   params?: {
-    value_field?: string;
     display_field?: string;
     limit?: number;
     search?: string;
+    value_field?: string;
   },
   options?: ApiRequestOptions,
 ): Promise<{ items: CodegenDbTableRowItem[]; total: number }> {
@@ -428,7 +440,7 @@ export async function postCodegenDbImportApi(
   body: { table_name: string },
   options?: ApiRequestOptions,
 ): Promise<Record<string, unknown>> {
-  return requestClient.post(PREFIX + '/db/import', body, options);
+  return requestClient.post(`${PREFIX}/db/import`, body, options);
 }
 
 // ============================================================
@@ -443,16 +455,16 @@ export async function postCodegenValidateApi(
   },
   options?: ApiRequestOptions,
 ): Promise<ValidationResult> {
-  return requestClient.post(PREFIX + '/validate', body, options);
+  return requestClient.post(`${PREFIX}/validate`, body, options);
 }
 
 /** 预览生成 / Preview generation */
 export async function postCodegenPreviewApi(
   body: { config_json: Record<string, unknown> },
-  params?: { step?: 'model' | 'controller' | 'frontend' },
+  params?: { step?: 'controller' | 'frontend' | 'model' },
   options?: ApiRequestOptions,
 ): Promise<PreviewResult> {
-  return requestClient.post(PREFIX + '/preview', body, {
+  return requestClient.post(`${PREFIX}/preview`, body, {
     ...options,
     params,
   });
@@ -461,10 +473,10 @@ export async function postCodegenPreviewApi(
 /** 预览 ZIP 下载（不写入项目）/ Preview ZIP download (no write) */
 export async function downloadCodegenPreviewZipApi(
   body: { config_json: Record<string, unknown> },
-  params?: { step?: 'model' | 'controller' | 'frontend' },
+  params?: { step?: 'controller' | 'frontend' | 'model' },
 ): Promise<void> {
   const blob = await requestClient.download<Blob>(
-    PREFIX + '/preview/download',
+    `${PREFIX}/preview/download`,
     {
       method: 'POST',
       data: body,
@@ -487,7 +499,7 @@ export async function postCodegenGenerateApi(
   body: CodegenGenerateInput,
   options?: ApiRequestOptions,
 ): Promise<GenerateResult> {
-  return requestClient.post(PREFIX + '/generate', body, options);
+  return requestClient.post(`${PREFIX}/generate`, body, options);
 }
 
 /** 下载生成代码 ZIP / Download generated code ZIP */
@@ -504,14 +516,14 @@ export async function getCodegenHistoryApi(
   options?: ApiRequestOptions,
 ): Promise<
   Array<{
-    resource: string;
-    module: string;
-    generated_at: string;
     config_id: number;
     file_count: number;
+    generated_at: string;
+    module: string;
+    resource: string;
   }>
 > {
-  return requestClient.get(PREFIX + '/history', { params, ...options });
+  return requestClient.get(`${PREFIX}/history`, { params, ...options });
 }
 
 // ============================================================
@@ -521,7 +533,7 @@ export async function getCodegenHistoryApi(
 /** 回滚生成的代码 / Rollback generated code */
 export async function deleteCodegenRollbackApi(
   id: number,
-  params?: { force?: boolean; dry_run?: boolean },
+  params?: { dry_run?: boolean; force?: boolean },
   options?: ApiRequestOptions,
 ): Promise<RollbackResult> {
   return requestClient.delete(`${PREFIX}/configs/${id}/rollback`, {

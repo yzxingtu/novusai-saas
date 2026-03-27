@@ -68,7 +68,7 @@ const errorMsg = ref('');
 // Methods / 方法
 // ============================================================
 
-let _fetchPromise: Promise<void> | null = null;
+let _fetchPromise: null | Promise<void> = null;
 
 /**
  * Fetch captcha challenge (with deduplication: rapid consecutive calls reuse the same request)
@@ -221,7 +221,11 @@ defineExpose({
   justify-content: center;
   overflow: hidden;
   cursor: pointer;
-  background: linear-gradient(135deg, hsl(var(--muted)) 0%, hsl(var(--accent)) 100%);
+  background: linear-gradient(
+    135deg,
+    hsl(var(--muted)) 0%,
+    hsl(var(--accent)) 100%
+  );
   border: 1px solid hsl(var(--border));
   border-radius: 6px;
   transition: all 0.2s ease;

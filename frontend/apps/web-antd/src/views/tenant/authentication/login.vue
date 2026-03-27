@@ -82,8 +82,7 @@ const captchaProvider = computed(() => {
 
 const loginSubtitle = computed(() => {
   return (
-    publicConfigStore.tenantBrand?.siteDescription ||
-    $t('tenant.auth.subtitle')
+    publicConfigStore.tenantBrand?.siteDescription || $t('tenant.auth.subtitle')
   );
 });
 
@@ -186,9 +185,9 @@ async function handleLogin(values: Record<string, unknown>) {
 }
 
 :deep(input) {
-  border-radius: 10px !important;
   height: 44px !important;
   font-size: 14px !important;
+  border-radius: 10px !important;
   transition:
     border-color 0.3s ease,
     box-shadow 0.3s ease,
@@ -196,26 +195,27 @@ async function handleLogin(values: Record<string, unknown>) {
 }
 
 :deep(input:hover) {
-  border-color: hsl(var(--primary) / 0.5) !important;
-  background-color: hsl(var(--primary) / 0.05) !important;
+  background-color: hsl(var(--primary) / 5%) !important;
+  border-color: hsl(var(--primary) / 50%) !important;
 }
 
 :deep(input:focus),
 :deep(input:focus-visible) {
-  border-color: hsl(var(--primary)) !important;
-  box-shadow:
-    0 0 0 3px hsl(var(--primary) / 0.25),
-    0 4px 16px hsl(var(--primary) / 0.15) !important;
-  outline: none !important;
   --tw-ring-shadow: none !important;
   --tw-ring-color: transparent !important;
-  background-color: hsl(var(--primary) / 0.04) !important;
+
+  outline: none !important;
+  background-color: hsl(var(--primary) / 4%) !important;
+  border-color: hsl(var(--primary)) !important;
+  box-shadow:
+    0 0 0 3px hsl(var(--primary) / 25%),
+    0 4px 16px hsl(var(--primary) / 15%) !important;
 }
 
 :deep(button[aria-label='login']) {
   position: relative;
   height: 44px !important;
-  border-radius: 10px !important;
+  overflow: hidden !important;
   font-size: 15px !important;
   font-weight: 600 !important;
   background: linear-gradient(
@@ -225,18 +225,18 @@ async function handleLogin(values: Record<string, unknown>) {
     color-mix(in srgb, hsl(var(--primary)), #000 30%) 100%
   ) !important;
   border: none !important;
-  box-shadow: 0 4px 14px hsl(var(--primary) / 0.3) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 4px 14px hsl(var(--primary) / 30%) !important;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  overflow: hidden !important;
 }
 
 :deep(button[aria-label='login'])::before {
-  content: '';
   position: absolute;
   top: 0;
   left: -100%;
   width: 100%;
   height: 100%;
+  content: '';
   background: linear-gradient(
     90deg,
     transparent,
@@ -247,7 +247,7 @@ async function handleLogin(values: Record<string, unknown>) {
 }
 
 :deep(button[aria-label='login']:hover) {
-  box-shadow: 0 6px 24px hsl(var(--primary) / 0.45) !important;
+  box-shadow: 0 6px 24px hsl(var(--primary) / 45%) !important;
   transform: translateY(-2px) scale(1.01);
 }
 
@@ -256,7 +256,7 @@ async function handleLogin(values: Record<string, unknown>) {
 }
 
 :deep(button[aria-label='login']:active) {
+  box-shadow: 0 2px 8px hsl(var(--primary) / 30%) !important;
   transform: translateY(0) scale(0.98) !important;
-  box-shadow: 0 2px 8px hsl(var(--primary) / 0.3) !important;
 }
 </style>

@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from app.ai.tools.types import ToolResult
 
 from tests.services.conftest import make_mock_model
 
@@ -826,6 +827,114 @@ class TestThinkingPersistence:
         assert assistant_payload["metadata_"]["provider_name"] == "OpenAI Compatible"
 
     @pytest.mark.asyncio
+    async def test_persist_chat_messages_keeps_rich_tool_contract_and_interaction_metadata(
+        self, mock_db
+    ):
+        from app.services.ai.conversation_service import ConversationService
+
+        conversation = _make_conversation(id=891, message_count=0)
+        result = SimpleNamespace(
+            messages=[
+                {"role": "user", "content": "统计今天调用情况"},
+                {
+                    "role": "assistant",
+                    "content": "先查询数据库。",
+                    "tool_calls": [
+                        {
+                            "id": "tc_data_1",
+                            "function": {
+                                "name": "data_query",
+                                "arguments": '{"question":"统计今天调用情况"}',
+                            },
+                            "pending_consent": {
+                                "arguments": {"question": "统计今天调用情况"},
+                                "tool_name": "data_query",
+                            },
+                            "summary_payload": {"tables": ["ai_call_logs"]},
+                        }
+                    ],
+                    "metadata": {
+                        "pending_confirmation": {
+                            "action": "query",
+                            "preview": {"sql": "SELECT 1"},
+                            "table": "ai_call_logs",
+                        }
+                    },
+                    "reasoning_content": "先查询数据库。",
+                    "tool_call_id": None,
+                },
+                {
+                    "role": "tool",
+                    "content": '{"success": true}',
+                    "tool_calls": None,
+                    "tool_call_id": "tc_data_1",
+                },
+            ],
+            tool_results=[
+                ToolResult(
+                    tool_call_id="tc_data_1",
+                    name="data_query",
+                    success=True,
+                    duration_ms=123,
+                    display_name="平台数据管理",
+                    summary="按今天范围统计调用",
+                    result_link="/admin/ai/chat",
+                    summary_payload={
+                        "filters": ["today"],
+                        "tables": ["ai_call_logs"],
+                        "tool_kind": "data_query",
+                    },
+                )
+            ],
+            partial=False,
+            interrupted=False,
+            completion_reason="",
+            runtime_model_id=None,
+            runtime_model_name=None,
+            runtime_provider_id=None,
+            runtime_provider_name=None,
+            rag_sources=None,
+        )
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service._message_repo = MagicMock()
+        service._message_repo.get_next_sequence = AsyncMock(return_value=1)
+        service._message_repo.create = AsyncMock()
+
+        await service.persist_chat_messages(
+            conversation=conversation,
+            result=result,
+            history_count=0,
+            agent_id=7,
+        )
+
+        create_calls = service._message_repo.create.await_args_list
+        assistant_payload = create_calls[1].args[0]
+        tool_payload = create_calls[2].args[0]
+
+        assert assistant_payload["tool_calls"][0]["display_name"] == "平台数据管理"
+        assert assistant_payload["tool_calls"][0]["summary"] == "按今天范围统计调用"
+        assert assistant_payload["tool_calls"][0]["summary_payload"] == {
+            "filters": ["today"],
+            "tables": ["ai_call_logs"],
+            "tool_kind": "data_query",
+        }
+        assert assistant_payload["metadata_"]["pending_confirmation"] == {
+            "action": "query",
+            "preview": {"sql": "SELECT 1"},
+            "table": "ai_call_logs",
+        }
+        assert tool_payload["metadata_"]["tool_summary"] == "按今天范围统计调用"
+        assert tool_payload["metadata_"]["tool_summary_payload"] == {
+            "filters": ["today"],
+            "tables": ["ai_call_logs"],
+            "tool_kind": "data_query",
+        }
+
+    @pytest.mark.asyncio
     async def test_persist_chat_messages_skips_internal_only_messages(self, mock_db):
         from app.services.ai.conversation_service import ConversationService
 
@@ -879,6 +988,65 @@ class TestThinkingPersistence:
         create_calls = service._message_repo.create.await_args_list
         assert len(create_calls) == 2
         assert [call.args[0]["role"] for call in create_calls] == ["user", "assistant"]
+
+    @pytest.mark.asyncio
+    async def test_update_last_assistant_interaction_state_marks_metadata_and_tool_calls(
+        self, mock_db
+    ):
+        from app.services.ai.conversation_service import ConversationService
+
+        assistant = _make_message(
+            id=101,
+            role="assistant",
+            content="需要确认",
+            tool_calls=[
+                {
+                    "id": "tc_confirm_1",
+                    "function": {"name": "data_query", "arguments": "{}"},
+                    "pending_consent": {"tool_name": "data_query"},
+                }
+            ],
+        )
+        assistant.metadata_ = {
+            "action_buttons": [{"label": "查看明细", "value": "查看明细"}],
+            "pending_confirmation": {"action": "query", "table": "ai_call_logs"},
+            "pending_consent": {"tool_name": "data_query"},
+        }
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.repo.get_by_id = AsyncMock(return_value=_make_conversation(id=88))
+        service._message_repo = MagicMock()
+        service._message_repo.get_last_n_messages = AsyncMock(return_value=[assistant])
+        service._message_repo.update = AsyncMock()
+
+        updated = await service.update_last_assistant_interaction_state(
+            conversation_id=88,
+            updates=[
+                {"kind": "action_buttons", "value": "查看明细"},
+                {
+                    "action": "query",
+                    "kind": "pending_confirmation",
+                    "rejected": False,
+                    "table": "ai_call_logs",
+                },
+                {
+                    "kind": "pending_consent",
+                    "rejected": True,
+                    "tool_name": "data_query",
+                },
+            ],
+        )
+
+        assert updated == 1
+        final_update = service._message_repo.update.await_args_list[-1].args[1]
+        assert final_update["metadata_"]["action_buttons_used"] is True
+        assert final_update["metadata_"]["pending_confirmation"]["resolved"] is True
+        assert final_update["metadata_"]["pending_consent"]["resolved"] is True
+        assert final_update["metadata_"]["pending_consent"]["rejected"] is True
+        assert final_update["tool_calls"][0]["pending_consent"]["resolved"] is True
 
 
 class TestSanitizeToolMessages:

@@ -18,7 +18,6 @@
 import type { AIPageMode } from '@vben/types';
 
 import { computed, ref, watchEffect } from 'vue';
-
 import { useRoute } from 'vue-router';
 
 import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
@@ -27,11 +26,12 @@ import {
   normalizeOperationNames,
   normalizePageAIMode,
 } from '#/utils/ai-page-capabilities';
+
 import { useAIPermission } from './use-ai-permission';
 
 type RouteAIMeta = {
-  disabledCapabilities?: string[] | string;
-  disabledOperations?: string[] | string;
+  disabledCapabilities?: string | string[];
+  disabledOperations?: string | string[];
   mode?: AIPageMode;
   pageContextKey?: string;
 };
@@ -61,8 +61,8 @@ export function useCurrentPageAIPolicy() {
   );
 
   /** Effective AI mode: route config > default / 生效的 AI 模式：路由配置 > 默认值 */
-  const pageMode = computed<AIPageMode>(
-    () => normalizePageAIMode(rawAIMeta.value.mode, DEFAULT_AI_MODE),
+  const pageMode = computed<AIPageMode>(() =>
+    normalizePageAIMode(rawAIMeta.value.mode, DEFAULT_AI_MODE),
   );
 
   /** Disabled capability keys / 禁用的能力键 */
@@ -86,8 +86,7 @@ export function useCurrentPageAIPolicy() {
     () =>
       (rawAIMeta.value.pageContextKey
         ? normalizePageKey(rawAIMeta.value.pageContextKey)
-        : undefined) ??
-      (route.path ? normalizePageKey(route.path) : undefined),
+        : undefined) ?? (route.path ? normalizePageKey(route.path) : undefined),
   );
 
   /** Page AI disabled flag / 页面 AI 禁用标志 */

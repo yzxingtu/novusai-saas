@@ -36,6 +36,20 @@
  * ```
  */
 
+export { isDevErrorMode } from './app-env';
+
+export {
+  formatAppErrorMessage,
+  isAppErrorInfo,
+  normalizeHttpError,
+  normalizeSseEventError,
+  normalizeSseTransportError,
+  toErrorWithAppError,
+} from './app-error';
+
+export type { AppErrorInfo, AppErrorSource } from './app-error';
+
+export { getEndpointByUrl } from './endpoint';
 // Error codes / 错误码导出
 export {
   AUTH_ERROR_CODES,
@@ -44,10 +58,8 @@ export {
   isClientError,
   isServerError,
 } from './error-codes';
-
 // 请求实例导出 / export configured request clients
 export { baseRequestClient, requestClient } from './instance';
-
 // Interceptor creation functions / 拦截器创建函数导出
 export {
   createAuthInterceptor,
@@ -57,18 +69,6 @@ export {
   createResponseDataInterceptor,
   createSuccessMessageInterceptor,
 } from './interceptors';
-
-export { getEndpointByUrl } from './endpoint';
-export {
-  formatAppErrorMessage,
-  isAppErrorInfo,
-  normalizeHttpError,
-  normalizeSseEventError,
-  normalizeSseTransportError,
-  toErrorWithAppError,
-} from './app-error';
-export { isDevErrorMode } from './app-env';
-export type { AppErrorInfo, AppErrorSource } from './app-error';
 
 export type { AuthHandler, MessageHandler, TokenGetter } from './interceptors';
 

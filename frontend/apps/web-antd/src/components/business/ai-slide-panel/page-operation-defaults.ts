@@ -1,11 +1,11 @@
 import type { PageOperation } from './page-operation-registry';
 
-import { $t } from '#/locales';
 import {
   capturePageScreenshot,
   DEFAULT_PAGE_SCREENSHOT_EXCLUDE_SELECTORS,
   resolveScreenshotUploadTarget,
 } from '#/composables/use-page-screenshot';
+import { $t } from '#/locales';
 
 import { scanDomSemantics } from './dom-semantic-scanner';
 import { resolvePageContext } from './page-context-registry';

@@ -10,8 +10,6 @@ export interface PluginDependencyStatus {
   overall: 'installed' | 'missing';
   python: {
     declared: number;
-    installed: number;
-    missing: string[];
     details: Array<{
       installed: boolean;
       installed_version: null | string;
@@ -21,12 +19,12 @@ export interface PluginDependencyStatus {
       satisfied: boolean;
       state: 'missing' | 'ready';
     }>;
+    installed: number;
+    missing: string[];
     state: 'installed' | 'missing';
   };
   plugins: {
     declared: number;
-    installed: number;
-    missing: string[];
     details: Array<{
       enabled: boolean;
       installed: boolean;
@@ -34,14 +32,11 @@ export interface PluginDependencyStatus {
       message: string;
       plugin: string;
       source: string;
-      state:
-        | 'disabled'
-        | 'missing'
-        | 'ready'
-        | 'unknown'
-        | 'version_mismatch';
+      state: 'disabled' | 'missing' | 'ready' | 'unknown' | 'version_mismatch';
       version: string;
     }>;
+    installed: number;
+    missing: string[];
     state: 'installed' | 'missing';
   };
 }

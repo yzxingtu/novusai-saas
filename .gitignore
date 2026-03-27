@@ -19,6 +19,7 @@ __pycache__/
 build/
 !frontend/apps/web-antd/build/
 frontend/apps/web-antd/build/*
+!frontend/apps/web-antd/build/vite-plugin-novus-plugins.ts
 !frontend/apps/web-antd/build/vite-plugin-novus-plugins.d.ts
 develop-eggs/
 dist/
@@ -134,6 +135,7 @@ dist/
 .nuxt/
 .next/
 out/
+/.turbo/
 
 # Vite
 *.local
@@ -306,3 +308,6 @@ test_doc.txt
 
 # Codex / local workflow screenshots (do not commit)
 .codex-artifacts/
+
+# Vben upstream snapshots (generated locally/CI only)
+frontend/.vendor/

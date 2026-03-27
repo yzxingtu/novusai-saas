@@ -446,11 +446,11 @@ export interface AgentKBBindingInfo {
   binding_scope?: 'platform' | 'tenant';
   /** 本企业是否停用该平台全局 KB（不参与 RAG）/ Tenant opted out of platform KB */
   platform_suppressed?: boolean;
-  kb_name: string | null;
-  kb_description: string | null;
-  kb_scope: string | null;
-  kb_visibility: string | null;
-  kb_document_count: number | null;
+  kb_name: null | string;
+  kb_description: null | string;
+  kb_scope: null | string;
+  kb_visibility: null | string;
+  kb_document_count: null | number;
   kb_chunk_strategy: null | string;
   kb_embedding_model_id: null | number;
   kb_embedding_model_name: null | string;
@@ -472,8 +472,8 @@ export async function getAgentKBsApi(
 export async function bindSingleAgentKBApi(
   agentId: number,
   data: {
-    knowledge_base_id: number;
     enabled?: boolean;
+    knowledge_base_id: number;
     sort_order?: number;
     weight?: number;
   },

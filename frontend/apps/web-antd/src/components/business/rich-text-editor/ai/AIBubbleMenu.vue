@@ -2,11 +2,13 @@
 import type { Editor } from '@tiptap/core';
 
 import { nextTick } from 'vue';
+
+import { IconifyIcon } from '@vben/icons';
+import { $t } from '@vben/locales';
+
 import { isTextSelection } from '@tiptap/core';
 import { BubbleMenu } from '@tiptap/vue-3/menus';
 import { Tooltip } from 'ant-design-vue';
-import { IconifyIcon } from '@vben/icons';
-import { $t } from '@vben/locales';
 
 const props = defineProps<{
   editor: Editor;
@@ -17,8 +19,16 @@ const emit = defineEmits<{
   action: [feature: string];
 }>();
 
-function shouldShowBubble({ editor, state, from, to }: {
-  editor: Editor; state: { selection: unknown }; from: number; to: number;
+function shouldShowBubble({
+  editor,
+  state,
+  from,
+  to,
+}: {
+  editor: Editor;
+  from: number;
+  state: { selection: unknown };
+  to: number;
 }): boolean {
   if (from === to) return false;
   if (!isTextSelection(state.selection as never)) return false;
@@ -58,11 +68,23 @@ const formatActions = [
 const aiActions = [
   { icon: 'lucide:pen-line', key: 'continue', labelKey: 'common.aiContinue' },
   { icon: 'lucide:sparkles', key: 'optimize', labelKey: 'common.aiOptimize' },
-  { icon: 'lucide:spell-check', key: 'proofread', labelKey: 'common.aiProofread' },
+  {
+    icon: 'lucide:spell-check',
+    key: 'proofread',
+    labelKey: 'common.aiProofread',
+  },
   { icon: 'lucide:expand', key: 'expand', labelKey: 'common.aiExpand' },
   { icon: 'lucide:refresh-cw', key: 'rewrite', labelKey: 'common.aiRewrite' },
-  { icon: 'lucide:file-text', key: 'summarize', labelKey: 'common.aiSummarize' },
-  { icon: 'lucide:languages', key: 'translate', labelKey: 'common.aiTranslate' },
+  {
+    icon: 'lucide:file-text',
+    key: 'summarize',
+    labelKey: 'common.aiSummarize',
+  },
+  {
+    icon: 'lucide:languages',
+    key: 'translate',
+    labelKey: 'common.aiTranslate',
+  },
 ];
 
 function runFormatCommand(editor: Editor, cmd: string) {
@@ -82,7 +104,11 @@ function runFormatCommand(editor: Editor, cmd: string) {
       @keydown="onBubbleKeydown"
     >
       <div class="flex items-center gap-0.5">
-        <Tooltip v-for="act in formatActions" :key="act.key" :title="$t(`common.${act.key}`)">
+        <Tooltip
+          v-for="act in formatActions"
+          :key="act.key"
+          :title="$t(`common.${act.key}`)"
+        >
           <button
             class="rte-tbtn"
             :class="{ active: editor.isActive(act.key) }"
@@ -95,7 +121,11 @@ function runFormatCommand(editor: Editor, cmd: string) {
       </div>
 
       <div class="mt-1 flex items-center gap-0.5 border-t border-border pt-1">
-        <Tooltip v-for="act in aiActions" :key="act.key" :title="$t(act.labelKey)">
+        <Tooltip
+          v-for="act in aiActions"
+          :key="act.key"
+          :title="$t(act.labelKey)"
+        >
           <button
             class="rte-tbtn"
             :disabled="loading"
@@ -107,11 +137,16 @@ function runFormatCommand(editor: Editor, cmd: string) {
         </Tooltip>
       </div>
 
-      <div v-if="loading" class="mt-1 flex items-center gap-1 border-t border-border px-2 pt-1">
-        <span class="rte-ai-dot size-1.5 rounded-full bg-primary" />
-        <span class="rte-ai-dot size-1.5 rounded-full bg-primary" />
-        <span class="rte-ai-dot size-1.5 rounded-full bg-primary" />
-        <span class="ml-1 text-xs text-muted-foreground">{{ $t('common.aiProcessing') }}</span>
+      <div
+        v-if="loading"
+        class="mt-1 flex items-center gap-1 border-t border-border px-2 pt-1"
+      >
+        <span class="rte-ai-dot size-1.5 rounded-full bg-primary"></span>
+        <span class="rte-ai-dot size-1.5 rounded-full bg-primary"></span>
+        <span class="rte-ai-dot size-1.5 rounded-full bg-primary"></span>
+        <span class="ml-1 text-xs text-muted-foreground">{{
+          $t('common.aiProcessing')
+        }}</span>
       </div>
     </div>
   </BubbleMenu>

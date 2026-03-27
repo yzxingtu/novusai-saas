@@ -1,49 +1,45 @@
+import type { Ref } from 'vue';
+
+import type { AgentRouteResponse, PageContext } from '#/api/shared/ai-chat';
+import type { AgentItem } from '#/components/business/ai-chat-panel/types';
+
 /** Route cache TTL: 2 minutes (shorter to avoid wrong agent reuse) / 路由缓存 TTL 2 分钟 */
+/**
+ * Agent Router Composable
+ * 智能体路由 Composable
+ *
+ * Implements P1-P3 routing priority chain:
+ * P1: pinnedAgentId direct pass-through (user manually pinned)
+ * P2: Call /route API (with page_context), backend Router agent AI selection
+ * P3: Backend fallback to default_chat
+ * 实现 P1-P3 路由优先级链：
+ * P1: pinnedAgentId 直通（用户手动固定）
+ * P2: 调用 /route API（含 page_context），后端 Router 智能体 AI 选择
+ * P3: 后端 fallback 到 default_chat
+ *
+ * P3+P4 are combined into a single API call; backend handles degradation.
+ * P3+P4 合并为一次 API 调用，后端自行处理降级。
+ */
+import { ref, unref, watch } from 'vue';
+
+import { routeMessageApi } from '#/api/shared/ai-chat';
+
+import { resolvePageContext } from './page-context-registry';
+
 const ROUTE_CACHE_TTL_MS = 2 * 60 * 1000;
 
 /** Simple string hash for cache key (djb2) / 简单字符串哈希用于缓存 key */
 function _simpleHash(s: string): string {
   let h = 5381;
   for (let i = 0; i < s.length; i++) {
-    h = ((h << 5) + h) ^ s.charCodeAt(i);
+    h = ((h << 5) + h) ^ (s.codePointAt(i) ?? 0);
   }
   return (h >>> 0).toString(36);
 }
 
-/**
- * Agent Router Composable
- * 智能体路由 Composable
- *
- * Implements P1-P4 routing priority chain:
- * P1: pinnedAgentId direct pass-through (user manually pinned)
- * P2: @agent_name mention exact match
- * P3: Call /route API (with page_context), backend Router agent AI selection
- * P4: Backend fallback to default_chat
- * 实现 P1-P4 路由优先级链：
- * P1: pinnedAgentId 直通（用户手动固定）
- * P2: @agent_name mention 精确匹配
- * P3: 调用 /route API（含 page_context），后端 Router 智能体 AI 选择
- * P4: 后端 fallback 到 default_chat
- *
- * P3+P4 are combined into a single API call; backend handles degradation.
- * P3+P4 合并为一次 API 调用，后端自行处理降级。
- */
-import { type Ref, ref, unref, watch } from 'vue';
-
-import type {
-  AgentRouteResponse,
-  PageContext,
-} from '#/api/shared/ai-chat';
-import type { AgentItem } from '#/components/business/ai-chat-panel/types';
-
-import { routeMessageApi } from '#/api/shared/ai-chat';
-
-import { resolvePageContext } from './page-context-registry';
-
 /** Routing method constants / 路由方式常量 */
 export const ROUTED_BY = {
   DEFAULT: 'default',
-  MENTION: 'mention',
   PINNED: 'pinned',
   ROUTER: 'router',
 } as const;
@@ -54,8 +50,6 @@ export interface RouteResult {
   agentName: string;
   confidence: number;
   routedBy: string;
-  /** Message with @mention prefix stripped (only set when routedBy='mention') / 去掉 @mention 前缀后的消息 */
-  cleanedMessage?: string;
 }
 
 export interface RouteAttachmentFlags {
@@ -68,7 +62,7 @@ export interface RouteAttachmentFlags {
 export interface UseAgentRouterOptions {
   /** API prefix / API 前缀 */
   apiPrefix: Ref<string> | string;
-  /** Available agents list (for P2 @mention matching) / 可用智能体列表（用于 P2 @mention 匹配） */
+  /** Available agents list / 可用智能体列表 */
   agents: Ref<AgentItem[]>;
   /** Pinned agent ID / 固定的智能体 ID */
   pinnedAgentId: Ref<null | number>;
@@ -84,7 +78,7 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
   /** Route cache: key = pageKey-convId, force_reroute requests bypass cache / 路由缓存，force_reroute 时跳过 */
   const routeCache = new Map<
     string,
-    { result: RouteResult; expiresAt: number }
+    { expiresAt: number; result: RouteResult }
   >();
 
   function clearRouteCache() {
@@ -96,8 +90,8 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
   }
 
   /**
-   * Execute P1-P4 routing chain
-   * 执行 P1-P4 路由链
+   * Execute P1-P3 routing chain
+   * 执行 P1-P3 路由链
    *
    * @param message - User message / 用户消息
    * @param pageContextKey - Optional page context registry key / 可选的页面上下文 registry key
@@ -143,18 +137,12 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
       return {
         agentId: pinId,
         agentName: pinName,
-        confidence: 1.0,
+        confidence: 1,
         routedBy: ROUTED_BY.PINNED,
       };
     }
 
-    // ---- P2: @mention exact match / @mention 精确匹配 ----
-    const mentionResult = _tryMentionMatch(message);
-    if (mentionResult) {
-      return mentionResult;
-    }
-
-    // ---- P3+P4: Backend routing (with fallback) / 后端路由（含 fallback） ----
+    // ---- P2+P3: Backend routing (with fallback) / 后端路由（含 fallback） ----
     const pageCtx = pageContext ?? resolvePageContext(pageContextKey);
     return await _callRouteApi(
       message,
@@ -166,54 +154,7 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
   }
 
   /**
-   * P2: Parse @agent_name mention
-   * Match rule: message starts with @name (case-insensitive),
-   * name must exactly match an agent in the local agents list.
-   * P2: 解析 @agent_name mention
-   * 匹配规则：消息以 @name 开头（忽略大小写），
-   * name 必须在本地 agents 列表中精确匹配。
-   */
-  function _tryMentionMatch(message: string): null | RouteResult {
-    const trimmed = message.trimStart();
-    if (!trimmed.startsWith('@')) {
-      return null;
-    }
-
-    const agentList = unref(options.agents);
-    if (agentList.length === 0) {
-      return null;
-    }
-
-    // Extract text after @ (up to space or newline) / 提取 @ 后的文本（到空格或换行为止）
-    const mentionMatch = /^@(\S+)/.exec(trimmed);
-    if (!mentionMatch) {
-      return null;
-    }
-
-    const mentionName = mentionMatch[1]!.toLowerCase();
-
-    // Exact match (case-insensitive) / 精确匹配（忽略大小写）
-    const matched = agentList.find(
-      (a) => a.name.toLowerCase() === mentionName,
-    );
-
-    if (matched) {
-      // Strip @name prefix from message so LLM doesn't receive it / 去掉 @ 前缀再送模型
-      const cleaned = trimmed.slice(mentionMatch[0]!.length).trimStart();
-      return {
-        agentId: matched.id,
-        agentName: matched.name,
-        confidence: 1.0,
-        routedBy: ROUTED_BY.MENTION,
-        cleanedMessage: cleaned || undefined,
-      };
-    }
-
-    return null;
-  }
-
-  /**
-   * P3+P4: Call backend /route API (with cache)
+   * P2+P3: Call backend /route API (with cache)
    * Backend handles Router agent invocation and default_chat fallback.
    * Cache key includes message hash + page context to avoid wrong agent reuse.
    * 缓存 key 纳入消息哈希和页面上下文，避免不同问题错误复用同一 agent。
@@ -234,10 +175,7 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
     const convId = options.activeConversationId
       ? unref(options.activeConversationId)
       : null;
-    const pageKey =
-      pageContextKey ??
-      pageContext?.page_key ??
-      'global';
+    const pageKey = pageContextKey ?? pageContext?.page_key ?? 'global';
     const pageDataHash = pageContext?.page_data
       ? _simpleHash(JSON.stringify(pageContext.page_data))
       : '';
@@ -248,8 +186,7 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
       `vid${normalizedAttachmentFlags.hasVideoAttachments ? '1' : '0'}`,
       `file${normalizedAttachmentFlags.hasFileAttachments ? '1' : '0'}`,
     ].join('-');
-    const cacheKey =
-      `${pageKey}-${convId ?? 'new'}-${msgHash}-${pageDataHash}-${attachmentKey}`;
+    const cacheKey = `${pageKey}-${convId ?? 'new'}-${msgHash}-${pageDataHash}-${attachmentKey}`;
 
     const now = Date.now();
     if (!forceReroute) {

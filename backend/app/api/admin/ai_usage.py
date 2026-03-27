@@ -10,8 +10,7 @@ from datetime import date
 from fastapi import Query, Request
 
 from app.core.base_controller import GlobalController
-from app.core.base_schema import PageResponse
-from app.core.deps import ActiveAdmin, DbSession, QueryParams
+from app.core.deps import ActiveAdmin, DbSession
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.rbac import PermissionScope
@@ -20,7 +19,7 @@ from app.rbac.decorators import (
     action_read,
     permission_resource,
 )
-from app.repositories.ai import AICallLogRepository
+from app.services.ai.monitoring_service import MonitoringService
 
 
 @permission_resource(
@@ -50,81 +49,24 @@ class AdminAIUsageController(GlobalController):
         """注册路由 / Register routes"""
         router = self.router
 
-        @router.get("/summary/tenant/{tenant_id}", summary="获取企业使用量汇总")
-        @action_read("action.ai_usage.tenant_summary")
-        async def get_tenant_usage_summary(
-            request: Request,
-            db: DbSession,
-            tenant_id: int,
-            admin: ActiveAdmin,
-            start_date: date | None = Query(None, description="开始日期"),
-            end_date: date | None = Query(None, description="结束日期"),
-        ):
-            """
-            获取指定企业的使用量汇总 / Get usage summary for specified tenant
-
-            权限 / Permission: ai_usage:tenant_summary
-            """
-            repo = AICallLogRepository(db)
-            summary = await repo.get_billing_tenant_usage_summary(
-                tenant_id=tenant_id,
-                start_date=start_date,
-                end_date=end_date,
-            )
-
-            return success(data=summary, message=_("common.success"))
-
-        @router.get("/summary/model/{model_id}", summary="获取模型使用量汇总")
-        @action_read("action.ai_usage.model_summary")
-        async def get_model_usage_summary(
-            request: Request,
-            db: DbSession,
-            model_id: int,
-            admin: ActiveAdmin,
-            start_date: date | None = Query(None, description="开始日期"),
-            end_date: date | None = Query(None, description="结束日期"),
-        ):
-            """
-            获取指定模型的使用量汇总 / Get usage summary for specified model
-
-            权限 / Permission: ai_usage:model_summary
-            """
-            repo = AICallLogRepository(db)
-            summary = await repo.get_billing_model_usage_summary(
-                model_id=model_id,
-                start_date=start_date,
-                end_date=end_date,
-            )
-
-            return success(data=summary, message=_("common.success"))
-
-        @router.get("/stats", summary="查询使用量统计列表")
+        @router.get("/dashboard", summary="获取监控仪表盘")
         @action_read("action.ai_usage.stats")
-        async def list_usage_stats(
+        async def get_usage_dashboard(
             request: Request,
             db: DbSession,
-            spec: QueryParams,
             admin: ActiveAdmin,
+            start_date: date | None = Query(None, description="开始日期"),
+            end_date: date | None = Query(None, description="结束日期"),
         ):
-            """
-            查询使用量统计列表 / Query usage statistics list
-
-            支持 JSON:API 风格筛选和分页 / Supports JSON:API style filtering and pagination
-
-            权限 / Permission: ai_usage:stats
-            """
-            repo = AICallLogRepository(db)
-            items, total = await repo.query_usage_stats(spec)
-
-            return success(
-                data=PageResponse.create(
-                    items=items,
-                    total=total,
-                    page=spec.page,
-                    page_size=spec.size,
-                ),
-                message=_("common.success"),
+            _request = request
+            _admin = admin
+            monitoring = MonitoringService(db)
+            dashboard = await monitoring.get_usage_dashboard(
+                monitoring.admin_scope(),
+                start_date=start_date,
+                end_date=end_date,
             )
+            return success(data=dashboard, message=_("common.success"))
 
 
 # 导出路由器 / Export router

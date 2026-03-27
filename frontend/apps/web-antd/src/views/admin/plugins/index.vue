@@ -35,15 +35,15 @@ import {
   updatePluginMenuConfigApi,
 } from '#/api/admin/plugin';
 import {
+  createKeywordSearchPageOperation,
+  createOpenPageOperation,
+  createOpenRecordPageOperation,
+  createRefreshPageOperation,
+} from '#/composables/use-page-ai-operation-helpers';
+import {
   usePageAIContext,
   usePageAIOperations,
 } from '#/composables/use-page-ai-registration';
-import {
-  createOpenPageOperation,
-  createOpenRecordPageOperation,
-  createKeywordSearchPageOperation,
-  createRefreshPageOperation,
-} from '#/composables/use-page-ai-operation-helpers';
 import {
   handleDisableError as _handleDisableError,
   refreshAdminMenusAndPluginRoutes as _refreshRoutes,
@@ -269,7 +269,7 @@ function getPluginMenus(plugin: PluginInfo): MenuDeclItem[] {
   const extensions = (manifest.extensions || {}) as Record<string, unknown>;
   const frontend = (extensions.frontend || {}) as Record<string, unknown>;
   const pages = (frontend.pages || []) as Array<
-    MenuDeclItem & { menu?: MenuDeclItem; path?: string; component?: string }
+    MenuDeclItem & { component?: string; menu?: MenuDeclItem; path?: string }
   >;
   return pages
     .filter((page) => page.menu)
@@ -545,12 +545,12 @@ usePageAIOperations({
     createOpenPageOperation({
       name: 'open_plugin_install_wizard',
       label: $t('admin.plugin.upload'),
-      description:
-        'Open the plugin install wizard / 打开插件安装向导',
+      description: 'Open the plugin install wizard / 打开插件安装向导',
       open: async () => {
         openInstallWizard();
       },
-      successMessage: () => $t('shared.pageOperation.msg.createFormOpenedEmpty'),
+      successMessage: () =>
+        $t('shared.pageOperation.msg.createFormOpenedEmpty'),
     }),
     createOpenRecordPageOperation({
       name: 'open_plugin_config',

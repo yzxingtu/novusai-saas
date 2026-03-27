@@ -1,31 +1,34 @@
 <script lang="ts" setup>
-import { computed } from 'vue';
 import type { AppErrorInfo } from '#/utils/request';
+
+import { computed } from 'vue';
+
+import { $t } from '@vben/locales';
 
 import { Button } from 'ant-design-vue';
 import DOMPurify from 'dompurify';
 import MarkdownIt from 'markdown-it';
-import { $t } from '@vben/locales';
+
 import { isDevErrorMode } from '#/utils/request';
 
 const props = withDefaults(
   defineProps<{
-    result: string;
-    loading?: boolean;
-    error?: AppErrorInfo | null;
     /** When false, retry button is disabled (e.g. no prior stream run). / 为 false 时禁用重试按钮 */
     canRetry?: boolean;
+    error?: AppErrorInfo | null;
+    loading?: boolean;
     maxHeight?: number | string;
+    result: string;
   }>(),
   { maxHeight: 200, error: null, canRetry: true },
 );
 
 defineEmits<{
-  acceptWithFormat: [];
   acceptPlain: [];
+  acceptWithFormat: [];
   discard: [];
-  stop: [];
   retry: [];
+  stop: [];
 }>();
 
 const md = new MarkdownIt({ html: false, linkify: true, breaks: true });
@@ -61,13 +64,16 @@ const showErrorDebug = computed(
       <pre
         v-if="showErrorDebug"
         class="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-all rounded bg-black/5 p-2 text-xs text-red-500"
-      >{{ error?.debugMessage }}</pre>
+        >{{ error?.debugMessage }}</pre
+      >
     </div>
+    <!-- eslint-disable vue/no-v-html -->
     <div
       class="rte-ai-result-content mb-2 overflow-y-auto text-sm"
       :style="{ maxHeight: maxH }"
       v-html="renderedHTML"
-    />
+    ></div>
+    <!-- eslint-enable vue/no-v-html -->
     <div class="flex items-center justify-end gap-2">
       <Button
         v-if="loading"

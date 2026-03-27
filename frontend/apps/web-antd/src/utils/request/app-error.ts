@@ -40,7 +40,10 @@ function getFallbackByStatus(status?: number, t?: Translator): string {
     504: 'common.http.gatewayTimeout',
   };
   const key = status ? map[status] : undefined;
-  return key ? (t ? t(key) : key) : t ? t('common.requestFailed') : 'Request failed';
+  if (key) {
+    return t ? t(key) : key;
+  }
+  return t ? t('common.requestFailed') : 'Request failed';
 }
 
 function maybeExtractMessage(value: unknown): string | undefined {
@@ -91,14 +94,14 @@ export function normalizeHttpError(
     getTraceIdFromHeadersLike(headers) ||
     undefined;
 
-  const source: AppErrorSource =
-    error?.message?.includes?.('timeout')
-      ? 'timeout'
-      : (error?.toString?.() ?? '').includes('Network Error')
-        ? 'network'
-        : responseData?.code != null
-          ? 'business'
-          : 'http';
+  let source: AppErrorSource = 'business';
+  if (error?.message?.includes?.('timeout')) {
+    source = 'timeout';
+  } else if ((error?.toString?.() ?? '').includes('Network Error')) {
+    source = 'network';
+  } else if (responseData?.code === null || responseData?.code === undefined) {
+    source = 'http';
+  }
 
   const message =
     maybeExtractMessage(responseData?.message) ||
@@ -158,7 +161,8 @@ export function normalizeSseTransportError(
     return normalizeHttpError(
       error as any,
       t,
-      (error as Error).message || (t ? t('common.requestFailed') : 'Request failed'),
+      (error as Error).message ||
+        (t ? t('common.requestFailed') : 'Request failed'),
     );
   }
   const fallback = t ? t('common.requestFailed') : 'Request failed';

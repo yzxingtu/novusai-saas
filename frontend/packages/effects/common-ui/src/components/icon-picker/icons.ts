@@ -1,5 +1,6 @@
-import { ensureLucideIconCatalogRegistered, listIcons } from '@vben/icons';
 import type { Recordable } from '@vben/types';
+
+import { ensureLucideIconCatalogRegistered, listIcons } from '@vben/icons';
 
 /**
  * Local icon cache, populated from registered collections only.
@@ -47,7 +48,7 @@ export async function fetchIconsData(prefix: string): Promise<string[]> {
       );
       return [];
     } finally {
-      delete PENDING_REQUESTS[normalizedPrefix];
+      Reflect.deleteProperty(PENDING_REQUESTS, normalizedPrefix);
     }
   })();
 

@@ -183,9 +183,13 @@ const deps = computed(
 );
 
 const resolvedPluginMetadataIcon = computed(() =>
-  resolvePluginMetadataIcon(String(pluginInfo.value.name || 'unknown'), pluginIcon.value, {
-    endpoint: 'admin',
-  }),
+  resolvePluginMetadataIcon(
+    String(pluginInfo.value.name || 'unknown'),
+    pluginIcon.value,
+    {
+      endpoint: 'admin',
+    },
+  ),
 );
 
 defineExpose({ open });

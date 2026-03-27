@@ -19,11 +19,14 @@ export function getScheduleTypeText(
       ? 'admin.system.periodicTask'
       : 'tenant.system.periodicTask';
   switch (type) {
-    case 'cron':
+    case 'cron': {
       return $t(`${base}.scheduleType.cron`);
-    case 'interval':
+    }
+    case 'interval': {
       return $t(`${base}.scheduleType.interval`);
-    default:
+    }
+    default: {
       return type;
+    }
   }
 }

@@ -386,7 +386,7 @@ class AdminAgentController(GlobalController):
             grant_service = AgentSkillGrantService(db, agent.owner_tenant_id)
 
             updated = await grant_service.update_grant(
-                binding_id=binding_id,
+                grant_id=binding_id,
                 data=data.model_dump(exclude_unset=True),
             )
             if updated.agent_id != agent_id:

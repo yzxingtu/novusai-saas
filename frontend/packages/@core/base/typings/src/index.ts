@@ -1,4 +1,4 @@
-/// <reference path="./dom-extensions.d.ts" />
+// / <reference path="./dom-extensions.d.ts" />
 export type * from './app';
 export type * from './basic';
 export type * from './helper';

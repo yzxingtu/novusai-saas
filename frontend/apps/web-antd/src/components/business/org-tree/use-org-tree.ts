@@ -205,11 +205,9 @@ export function useOrgTree(options: UseOrgTreeOptions = {}): UseOrgTreeReturn {
     }
 
     // Reload this node's info and children / 重新加载该节点的信息和子节点，切换展开/收起状态
-    if (isCurrentlyExpanded) {
-      expandedIds.value = new Set(nodePath.slice(0, -1));
-    } else {
-      expandedIds.value = new Set(nodePath);
-    }
+    expandedIds.value = isCurrentlyExpanded
+      ? new Set(nodePath.slice(0, -1))
+      : new Set(nodePath);
   }
 
   /**

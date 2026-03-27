@@ -154,7 +154,12 @@ export async function getOperatorsApi(): Promise<OperatorItem[]> {
  */
 export async function getOperatorsSelectApi(
   params: Record<string, unknown>,
-): Promise<{ items: { label: string; value: string }[]; page: number; page_size: number; total: number }> {
+): Promise<{
+  items: { label: string; value: string }[];
+  page: number;
+  page_size: number;
+  total: number;
+}> {
   return requestClient.get(`${API_PREFIX}/operators`, { params });
 }
 

@@ -8,11 +8,11 @@ import type { PreviewFile } from '#/api/admin/codegen';
 
 import { computed, defineAsyncComponent } from 'vue';
 
-import { useClipboard } from '@vueuse/core';
+import { IconifyIcon } from '@vben/icons';
 import { usePreferences } from '@vben/preferences';
 
+import { useClipboard } from '@vueuse/core';
 import { Button, Tag } from 'ant-design-vue';
-import { IconifyIcon } from '@vben/icons';
 
 import { $t } from '#/locales';
 
@@ -20,17 +20,17 @@ defineOptions({ name: 'CodePreviewPanel' });
 
 const props = withDefaults(
   defineProps<{
-    selectedFile?: PreviewFile | null;
-    previewError?: string;
-    summary?: {
-      create_count: number;
-      modify_count: number;
-      backend_files: number;
-      frontend_files: number;
-      total_lines: number;
-    } | null;
-    warnings?: string[];
     conflicts?: Array<Record<string, string>>;
+    previewError?: string;
+    selectedFile?: null | PreviewFile;
+    summary?: null | {
+      backend_files: number;
+      create_count: number;
+      frontend_files: number;
+      modify_count: number;
+      total_lines: number;
+    };
+    warnings?: string[];
   }>(),
   {
     selectedFile: null,
@@ -43,12 +43,17 @@ const props = withDefaults(
 
 const MonacoEditor = defineAsyncComponent({
   loader: () =>
-    import('@guolao/vue-monaco-editor').then((module) => module.VueMonacoEditor ?? module.default),
+    import('@guolao/vue-monaco-editor').then(
+      (module) => module.VueMonacoEditor ?? module.default,
+    ),
   loadingComponent: { render: () => null },
 });
 
 const MonacoDiffEditor = defineAsyncComponent({
-  loader: () => import('@guolao/vue-monaco-editor').then((module) => module.VueMonacoDiffEditor),
+  loader: () =>
+    import('@guolao/vue-monaco-editor').then(
+      (module) => module.VueMonacoDiffEditor,
+    ),
   loadingComponent: { render: () => null },
 });
 
@@ -94,7 +99,7 @@ const conflictPathSet = computed(
   () =>
     new Set(
       props.conflicts
-        .map((item) => String(item.path || '').replace(/\\/g, '/'))
+        .map((item) => String(item.path || '').replaceAll('\\', '/'))
         .filter(Boolean),
     ),
 );
@@ -102,16 +107,25 @@ const conflictPathSet = computed(
 const riskTags = computed(() => {
   const file = props.selectedFile;
   if (!file) return [];
-  const path = String(file.path || '').replace(/\\/g, '/');
+  const path = String(file.path || '').replaceAll('\\', '/');
   const items: Array<{ color: string; label: string }> = [];
   if (conflictPathSet.value.has(path)) {
-    items.push({ color: 'warning', label: $t('admin.system.codegen.preview.riskConflict') });
+    items.push({
+      color: 'warning',
+      label: $t('admin.system.codegen.preview.riskConflict'),
+    });
   }
   if (file.type === 'create') {
-    items.push({ color: 'success', label: $t('admin.system.codegen.preview.riskCreate') });
+    items.push({
+      color: 'success',
+      label: $t('admin.system.codegen.preview.riskCreate'),
+    });
   }
   if (file.type === 'modify' || file.type === 'append') {
-    items.push({ color: 'processing', label: $t('admin.system.codegen.preview.riskModify') });
+    items.push({
+      color: 'processing',
+      label: $t('admin.system.codegen.preview.riskModify'),
+    });
   }
   return items;
 });
@@ -119,7 +133,8 @@ const riskTags = computed(() => {
 const contentToCopy = computed(() => {
   const file = props.selectedFile;
   if (!file || props.previewError) return '';
-  if (file.new_content !== undefined && file.new_content !== null) return file.new_content;
+  if (file.new_content !== undefined && file.new_content !== null)
+    return file.new_content;
   return file.content ?? '';
 });
 
@@ -133,9 +148,14 @@ function onCopy() {
 
 <template>
   <div class="flex h-full flex-col">
-    <div class="border-border flex items-center justify-between gap-2 border-b px-2 py-1.5 text-xs">
+    <div
+      class="flex items-center justify-between gap-2 border-b border-border px-2 py-1.5 text-xs"
+    >
       <span class="min-w-0 flex-1 truncate font-mono text-muted-foreground">
-        {{ selectedFile?.path ?? $t('admin.system.codegen.preview.problemSummary') }}
+        {{
+          selectedFile?.path ??
+          $t('admin.system.codegen.preview.problemSummary')
+        }}
       </span>
       <span class="flex shrink-0 items-center gap-1">
         <Button
@@ -146,7 +166,10 @@ function onCopy() {
           :title="$t('common.copy')"
           @click="onCopy"
         >
-          <IconifyIcon :icon="copied ? 'lucide:check' : 'lucide:copy'" class="size-3.5" />
+          <IconifyIcon
+            :icon="copied ? 'lucide:check' : 'lucide:copy'"
+            class="size-3.5"
+          />
         </Button>
         <span class="text-muted-foreground">
           {{ showDiff ? $t('admin.system.codegen.preview.diff') : language }}
@@ -157,64 +180,101 @@ function onCopy() {
     <div class="min-h-64 flex-1 overflow-hidden">
       <div
         v-if="previewError"
-        class="text-destructive flex h-full flex-col items-center justify-center gap-2 px-4 text-sm"
+        class="flex h-full flex-col items-center justify-center gap-2 px-4 text-sm text-destructive"
       >
-        <span class="font-medium">{{ $t('admin.system.codegen.generate.previewError') }}</span>
-        <span class="max-w-md truncate text-xs text-muted-foreground">{{ previewError }}</span>
+        <span class="font-medium">{{
+          $t('admin.system.codegen.generate.previewError')
+        }}</span>
+        <span class="max-w-md truncate text-xs text-muted-foreground">{{
+          previewError
+        }}</span>
       </div>
 
-      <div
-        v-else-if="!selectedFile"
-        class="h-full overflow-y-auto px-4 py-4"
-      >
+      <div v-else-if="!selectedFile" class="h-full overflow-y-auto px-4 py-4">
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <div class="rounded-2xl border border-border bg-muted/20 p-4">
-            <div class="text-xs text-muted-foreground">{{ $t('admin.system.codegen.generate.summaryCreate') }}</div>
-            <div class="mt-2 text-2xl font-semibold">{{ summary?.create_count ?? 0 }}</div>
+            <div class="text-xs text-muted-foreground">
+              {{ $t('admin.system.codegen.generate.summaryCreate') }}
+            </div>
+            <div class="mt-2 text-2xl font-semibold">
+              {{ summary?.create_count ?? 0 }}
+            </div>
           </div>
           <div class="rounded-2xl border border-border bg-muted/20 p-4">
-            <div class="text-xs text-muted-foreground">{{ $t('admin.system.codegen.generate.summaryModify') }}</div>
-            <div class="mt-2 text-2xl font-semibold">{{ summary?.modify_count ?? 0 }}</div>
+            <div class="text-xs text-muted-foreground">
+              {{ $t('admin.system.codegen.generate.summaryModify') }}
+            </div>
+            <div class="mt-2 text-2xl font-semibold">
+              {{ summary?.modify_count ?? 0 }}
+            </div>
           </div>
           <div class="rounded-2xl border border-border bg-muted/20 p-4">
-            <div class="text-xs text-muted-foreground">{{ $t('admin.system.codegen.preview.filterBackend') }}</div>
-            <div class="mt-2 text-2xl font-semibold">{{ summary?.backend_files ?? 0 }}</div>
+            <div class="text-xs text-muted-foreground">
+              {{ $t('admin.system.codegen.preview.filterBackend') }}
+            </div>
+            <div class="mt-2 text-2xl font-semibold">
+              {{ summary?.backend_files ?? 0 }}
+            </div>
           </div>
           <div class="rounded-2xl border border-border bg-muted/20 p-4">
-            <div class="text-xs text-muted-foreground">{{ $t('admin.system.codegen.preview.filterFrontend') }}</div>
-            <div class="mt-2 text-2xl font-semibold">{{ summary?.frontend_files ?? 0 }}</div>
+            <div class="text-xs text-muted-foreground">
+              {{ $t('admin.system.codegen.preview.filterFrontend') }}
+            </div>
+            <div class="mt-2 text-2xl font-semibold">
+              {{ summary?.frontend_files ?? 0 }}
+            </div>
           </div>
           <div class="rounded-2xl border border-border bg-muted/20 p-4">
-            <div class="text-xs text-muted-foreground">{{ $t('admin.system.codegen.generate.summaryLines') }}</div>
-            <div class="mt-2 text-2xl font-semibold">{{ summary?.total_lines ?? 0 }}</div>
+            <div class="text-xs text-muted-foreground">
+              {{ $t('admin.system.codegen.generate.summaryLines') }}
+            </div>
+            <div class="mt-2 text-2xl font-semibold">
+              {{ summary?.total_lines ?? 0 }}
+            </div>
           </div>
         </div>
 
         <div class="mt-4 grid gap-4 xl:grid-cols-2">
           <div class="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
-            <div class="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-800">
+            <div
+              class="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-800"
+            >
               <IconifyIcon icon="lucide:file-warning" class="size-4" />
               <span>{{ $t('admin.system.codegen.generate.conflicts') }}</span>
             </div>
-            <div v-if="conflicts.length === 0" class="text-sm text-amber-700/80">
+            <div
+              v-if="conflicts.length === 0"
+              class="text-sm text-amber-700/80"
+            >
               {{ $t('admin.system.codegen.preview.noConflicts') }}
             </div>
-            <ul v-else class="m-0 list-disc space-y-1 pl-5 text-sm text-amber-800">
-              <li v-for="(item, index) in conflicts" :key="`${item.path}-${index}`">
+            <ul
+              v-else
+              class="m-0 list-disc space-y-1 pl-5 text-sm text-amber-800"
+            >
+              <li
+                v-for="(item, index) in conflicts"
+                :key="`${item.path}-${index}`"
+              >
                 {{ item.path }}
               </li>
             </ul>
           </div>
 
           <div class="rounded-2xl border border-sky-200 bg-sky-50/70 p-4">
-            <div class="mb-2 flex items-center gap-2 text-sm font-semibold text-sky-800">
+            <div
+              class="mb-2 flex items-center gap-2 text-sm font-semibold text-sky-800"
+            >
               <IconifyIcon icon="lucide:badge-info" class="size-4" />
               <span>{{ $t('admin.system.codegen.preview.warnings') }}</span>
             </div>
             <div v-if="warnings.length === 0" class="text-sm text-sky-700/80">
               {{ $t('admin.system.codegen.preview.noWarnings') }}
             </div>
-            <ul v-else class="m-0 list-disc space-y-1 pl-5 text-sm text-sky-800">
+            <ul
+              v-else
+              class="m-0 list-disc space-y-1 pl-5 text-sm text-sky-800"
+            >
               <li v-for="(item, index) in warnings" :key="`${item}-${index}`">
                 {{ item }}
               </li>
@@ -224,7 +284,9 @@ function onCopy() {
       </div>
 
       <template v-else>
-        <div class="border-border flex flex-wrap items-center gap-2 border-b px-3 py-2">
+        <div
+          class="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2"
+        >
           <Tag
             v-for="item in riskTags"
             :key="item.label"

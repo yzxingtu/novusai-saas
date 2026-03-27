@@ -32,6 +32,7 @@ metadata:
 - 用户端：[user-endpoint](../user-endpoint/SKILL.md)
 - Codegen Builder：[codegen-builder](../codegen-builder/SKILL.md)
 - 插件开发：[plugin-development](../plugin-development/SKILL.md)
+- Vben 升级 / 前端 lint 治理：[vben-upgrade-lint-governance](../vben-upgrade-lint-governance/SKILL.md)
 
 ## 快速开始
 

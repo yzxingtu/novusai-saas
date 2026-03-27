@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { TenantDomainInfo } from './modules/domains-types';
+import type { DnsGuideData, TenantDomainInfo } from './modules/domains-types';
 
 import { computed, onMounted, ref } from 'vue';
 
@@ -26,15 +26,15 @@ import {
   verifyTenantDomainApi,
 } from '#/api/tenant/domain';
 import {
+  createOpenRecordPageOperation,
+  createPrefilledCreatePageOperation,
+  createRecordActionPageOperation,
+  createRefreshPageOperation,
+} from '#/composables/use-page-ai-operation-helpers';
+import {
   usePageAIContext,
   usePageAIOperations,
 } from '#/composables/use-page-ai-registration';
-import {
-  createOpenRecordPageOperation,
-  createPrefilledCreatePageOperation,
-  createRefreshPageOperation,
-  createRecordActionPageOperation,
-} from '#/composables/use-page-ai-operation-helpers';
 import { $t } from '#/locales';
 import { copyToClipboard, formatDate } from '#/utils/common';
 
@@ -43,7 +43,6 @@ import {
   getSslStatusConfig,
   getVerificationStatusConfig,
 } from './data';
-import type { DnsGuideData } from './modules/domains-types';
 import DomainsAddDrawer from './modules/DomainsAddDrawer.vue';
 import DomainsDetailDrawer from './modules/DomainsDetailDrawer.vue';
 import DomainsDnsGuideModal from './modules/DomainsDnsGuideModal.vue';
@@ -59,10 +58,14 @@ const domains = ref<TenantDomainInfo[]>([]);
 const loading = ref(false);
 const refreshing = ref(false);
 const verifiedDomainCount = computed(
-  () => domains.value.filter((domain) => domain.verificationStatus === 'verified').length,
+  () =>
+    domains.value.filter((domain) => domain.verificationStatus === 'verified')
+      .length,
 );
 const pendingDomainCount = computed(
-  () => domains.value.filter((domain) => domain.verificationStatus === 'pending').length,
+  () =>
+    domains.value.filter((domain) => domain.verificationStatus === 'pending')
+      .length,
 );
 const primaryDomainId = computed(
   () => domains.value.find((domain) => domain.isPrimary)?.id ?? null,
@@ -324,8 +327,7 @@ usePageAIOperations({
     createRecordActionPageOperation({
       name: 'verify_domain',
       label: t('verify'),
-      description:
-        'Verify a domain by ID / 按域名 ID 触发域名校验',
+      description: 'Verify a domain by ID / 按域名 ID 触发域名校验',
       params: {
         id: {
           type: 'number',

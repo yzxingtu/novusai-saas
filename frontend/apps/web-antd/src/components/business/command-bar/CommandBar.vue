@@ -37,11 +37,11 @@ defineOptions({ name: 'CommandBar' });
 const props = withDefaults(
   defineProps<{
     /** API prefix / API 前缀 */
-    apiPrefix: string;
+    apiPrefix?: string;
     /** Whether has AI chat permission / 是否有 AI 聊天权限 */
-    canChat: boolean;
+    canChat?: boolean;
     /** Menu tree for search / 搜索用菜单树 */
-    menus: MenuRecordRaw[];
+    menus?: MenuRecordRaw[];
   }>(),
   {
     apiPrefix: '/tenant',
@@ -92,7 +92,9 @@ const {
   menus: menusRef,
 });
 
-const inputRef = ref<{ resizableTextArea?: { textArea: HTMLTextAreaElement } } | null>(null);
+const inputRef = ref<null | {
+  resizableTextArea?: { textArea: HTMLTextAreaElement };
+}>(null);
 const selectedIndex = ref(0);
 
 watch(open, async (isOpen) => {
@@ -128,13 +130,16 @@ function handleInputChange(value: string) {
 
 const hasMenuResults = computed(() => menuSearchResults.value.length > 0);
 const showAgentStarter = computed(
-  () => !!selectedAgent.value && mode.value !== 'mention' && !hasMenuResults.value,
+  () =>
+    !!selectedAgent.value && mode.value !== 'mention' && !hasMenuResults.value,
 );
 const showOverviewContent = computed(
   () => showAgentStarter.value || !inputText.value.trim(),
 );
 const showRecentConversations = computed(
-  () => !inputText.value.trim() && (recentConversations.value.length > 0 || recentLoading.value),
+  () =>
+    !inputText.value.trim() &&
+    (recentConversations.value.length > 0 || recentLoading.value),
 );
 
 function handleKeydown(e: KeyboardEvent) {
@@ -168,7 +173,8 @@ function handleKeydown(e: KeyboardEvent) {
       scrollSearchIntoView();
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      selectedIndex.value = (selectedIndex.value - 1 + results.length) % results.length;
+      selectedIndex.value =
+        (selectedIndex.value - 1 + results.length) % results.length;
       scrollSearchIntoView();
     } else if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -190,7 +196,9 @@ function handleKeydown(e: KeyboardEvent) {
 
 function scrollSearchIntoView() {
   nextTick(() => {
-    const el = document.querySelector(`[data-cmd-search="${selectedIndex.value}"]`);
+    const el = document.querySelector(
+      `[data-cmd-search="${selectedIndex.value}"]`,
+    );
     el?.scrollIntoView({ block: 'nearest' });
   });
 }
@@ -245,7 +253,7 @@ function agentInitial(agent: AgentItem): string {
   return agent.name.charAt(0).toUpperCase();
 }
 
-let clickNavigateTimer: ReturnType<typeof setTimeout> | null = null;
+let clickNavigateTimer: null | ReturnType<typeof setTimeout> = null;
 
 function handleConversationClick(conv: ConversationItem) {
   if (editingConversationId.value === conv.id) return;
@@ -261,7 +269,7 @@ function handleConversationClick(conv: ConversationItem) {
   }, 250);
 }
 
-const editingConversationId = ref<number | null>(null);
+const editingConversationId = ref<null | number>(null);
 const editingTitle = ref('');
 
 function startEditTitle(conv: ConversationItem) {
@@ -275,7 +283,7 @@ function startEditTitle(conv: ConversationItem) {
 
 function commitEditTitle() {
   const id = editingConversationId.value;
-  if (id == null) return;
+  if (id === null || id === undefined) return;
   const title = editingTitle.value.trim().slice(0, 200);
   editingConversationId.value = null;
   editingTitle.value = '';
@@ -345,7 +353,7 @@ defineExpose({
                 :value="inputText"
                 :placeholder="$t('common.globalAiChat.inputPlaceholder')"
                 :auto-size="{ minRows: 1, maxRows: 4 }"
-                class="min-w-0 flex-1 !border-0 !bg-transparent !py-1.5 !text-sm !text-foreground !outline-none !ring-0 !shadow-none placeholder:!text-muted-foreground/60 resize-none overflow-y-auto"
+                class="min-w-0 flex-1 resize-none overflow-y-auto !border-0 !bg-transparent !py-1.5 !text-sm !text-foreground !shadow-none !outline-none !ring-0 placeholder:!text-muted-foreground/60"
                 @update:value="handleInputChange"
                 @keydown="handleKeydown"
               />
@@ -440,14 +448,20 @@ defineExpose({
           </div>
 
           <!-- Menu search results (smart detection) -->
-          <div v-else-if="hasMenuResults" class="max-h-[360px] flex flex-col">
+          <div v-else-if="hasMenuResults" class="flex max-h-[360px] flex-col">
             <div class="max-h-[300px] overflow-y-auto p-2">
               <div class="mb-2 flex items-center justify-between px-2">
-                <span class="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">
+                <span
+                  class="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60"
+                >
                   {{ $t('common.commandBar.searchResults') }}
                 </span>
                 <span class="text-[10px] tabular-nums text-muted-foreground/50">
-                  {{ $t('common.commandBar.resultsCount', { count: menuSearchResults.length }) }}
+                  {{
+                    $t('common.commandBar.resultsCount', {
+                      count: menuSearchResults.length,
+                    })
+                  }}
                 </span>
               </div>
               <div class="space-y-0.5">
@@ -472,8 +486,16 @@ defineExpose({
                         : 'bg-muted text-muted-foreground'
                     "
                   >
-                    <IconifyIcon v-if="item.icon" :icon="item.icon as string" class="size-4" />
-                    <IconifyIcon v-else icon="lucide:file-text" class="size-4" />
+                    <IconifyIcon
+                      v-if="item.icon"
+                      :icon="item.icon as string"
+                      class="size-4"
+                    />
+                    <IconifyIcon
+                      v-else
+                      icon="lucide:file-text"
+                      class="size-4"
+                    />
                   </div>
                   <div class="min-w-0 flex-1">
                     <div class="truncate text-sm font-medium">
@@ -501,8 +523,15 @@ defineExpose({
                 class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
                 @click="handleSubmit"
               >
-                <IconifyIcon icon="lucide:sparkles" class="size-3.5 text-primary" />
-                <span>{{ $t('common.commandBar.sendToAI') }}: "{{ inputText.trim() }}"</span>
+                <IconifyIcon
+                  icon="lucide:sparkles"
+                  class="size-3.5 text-primary"
+                />
+                <span
+                  >{{ $t('common.commandBar.sendToAI') }}: "{{
+                    inputText.trim()
+                  }}"</span
+                >
               </button>
             </div>
           </div>
@@ -525,7 +554,9 @@ defineExpose({
                     :alt="selectedAgent.name"
                     class="size-full object-cover"
                   />
-                  <span v-else>{{ selectedAgent ? agentInitial(selectedAgent) : '' }}</span>
+                  <span v-else>{{
+                    selectedAgent ? agentInitial(selectedAgent) : ''
+                  }}</span>
                 </div>
                 <div class="min-w-0 flex-1">
                   <div
@@ -533,7 +564,9 @@ defineExpose({
                   >
                     {{ $t('common.commandBar.agentReady') }}
                   </div>
-                  <div class="mt-1 truncate text-sm font-semibold text-foreground">
+                  <div
+                    class="mt-1 truncate text-sm font-semibold text-foreground"
+                  >
                     {{ selectedAgent?.name }}
                   </div>
                   <div class="mt-1.5 text-xs leading-5 text-muted-foreground">
@@ -561,12 +594,17 @@ defineExpose({
                 </div>
                 <div class="flex flex-wrap gap-2">
                   <button
-                    v-for="(question, questionIndex) in effectiveSuggestedQuestions"
+                    v-for="(
+                      question, questionIndex
+                    ) in effectiveSuggestedQuestions"
                     :key="questionIndex"
-                    class="group flex max-w-full items-center gap-2 rounded-full border border-border/40 bg-background/80 px-3 py-1.5 text-left text-xs text-foreground transition-colors hover:border-primary/30 hover:bg-primary/8 hover:text-primary"
+                    class="hover:bg-primary/8 group flex max-w-full items-center gap-2 rounded-full border border-border/40 bg-background/80 px-3 py-1.5 text-left text-xs text-foreground transition-colors hover:border-primary/30 hover:text-primary"
                     @click="handleStarterQuestionClick(question)"
                   >
-                    <IconifyIcon icon="lucide:message-circle" class="size-3.5 shrink-0 text-primary/60 transition-colors group-hover:text-primary" />
+                    <IconifyIcon
+                      icon="lucide:message-circle"
+                      class="size-3.5 shrink-0 text-primary/60 transition-colors group-hover:text-primary"
+                    />
                     <span class="truncate">{{ question }}</span>
                   </button>
                 </div>
@@ -577,10 +615,7 @@ defineExpose({
               class="flex items-center gap-4 text-xs text-muted-foreground/70"
               :class="showAgentStarter ? 'mt-3' : ''"
             >
-              <span
-                v-if="!showAgentStarter"
-                class="flex items-center gap-1"
-              >
+              <span v-if="!showAgentStarter" class="flex items-center gap-1">
                 <kbd
                   class="rounded border border-border/50 bg-muted/50 px-1 py-0.5 text-[10px]"
                   >@</kbd
@@ -626,9 +661,17 @@ defineExpose({
                 >
                   <Skeleton.Avatar :active="true" :size="24" shape="square" />
                   <div class="min-w-0 flex-1">
-                    <Skeleton.Input :active="true" :size="'small'" style="width: 60%; height: 16px;" />
+                    <Skeleton.Input
+                      :active="true"
+                      size="small"
+                      style="width: 60%; height: 16px"
+                    />
                   </div>
-                  <Skeleton.Input :active="true" :size="'small'" style="width: 50px; height: 12px;" />
+                  <Skeleton.Input
+                    :active="true"
+                    size="small"
+                    style="width: 50px; height: 12px"
+                  />
                 </div>
               </div>
 
@@ -650,15 +693,23 @@ defineExpose({
                       :alt="conv.agent_name || ''"
                       class="size-full rounded-md object-cover"
                     />
-                    <span v-else-if="conv.agent_name">{{ conv.agent_name.charAt(0).toUpperCase() }}</span>
-                    <IconifyIcon v-else icon="lucide:message-square" class="size-3" />
+                    <span v-else-if="conv.agent_name">{{
+                      conv.agent_name.charAt(0).toUpperCase()
+                    }}</span>
+                    <IconifyIcon
+                      v-else
+                      icon="lucide:message-square"
+                      class="size-3"
+                    />
                   </div>
                   <div class="min-w-0 flex-1">
                     <template v-if="editingConversationId === conv.id">
                       <Input
                         v-model:value="editingTitle"
                         size="small"
-                        :placeholder="$t('common.globalAiChat.conversationTitlePlaceholder')"
+                        :placeholder="
+                          $t('common.globalAiChat.conversationTitlePlaceholder')
+                        "
                         class="!h-6 text-[13px]"
                         @blur="commitEditTitle"
                         @keydown.enter="commitEditTitle"
@@ -670,8 +721,14 @@ defineExpose({
                       {{ conv.title || `#${conv.id}` }}
                     </div>
                   </div>
-                  <Tooltip v-if="editingConversationId !== conv.id" :title="formatDate(conv.created_at)" placement="left">
-                    <span class="shrink-0 text-[10px] tabular-nums text-muted-foreground/50">
+                  <Tooltip
+                    v-if="editingConversationId !== conv.id"
+                    :title="formatDate(conv.created_at)"
+                    placement="left"
+                  >
+                    <span
+                      class="shrink-0 text-[10px] tabular-nums text-muted-foreground/50"
+                    >
                       {{ formatRelativeTime(conv.created_at) }}
                     </span>
                   </Tooltip>

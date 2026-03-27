@@ -24,8 +24,8 @@ import {
 
 import {
   deleteTenantOrganizationNodeApi,
-  getTenantOrganizationTreeApi,
   getTenantOrganizationNodeDetailApi,
+  getTenantOrganizationTreeApi,
 } from '#/api/tenant/organization';
 import { MemberPanel } from '#/components/business/member-panel';
 import { OrgNodeDialog } from '#/components/business/org-node-dialog';
@@ -78,7 +78,9 @@ const nodeDialogParentType = ref<null | TenantOrgNodeType>(null);
 const nodeDialogParentName = ref('');
 const nodeDialogNodeId = ref<null | number>(null);
 
-const activeNode = computed(() => selectedNodeDetail.value ?? selectedNode.value);
+const activeNode = computed(
+  () => selectedNodeDetail.value ?? selectedNode.value,
+);
 const selectedNodeTypeConfig = computed(() => {
   if (!activeNode.value) return null;
   return NODE_TYPE_CONFIG[activeNode.value.type];
@@ -501,7 +503,10 @@ usePageAIOperations({
                       {{ activeNode?.memberCount
                       }}{{ $t('tenant.system.organization.memberUnit') }}
                     </span>
-                    <span v-if="leaderDisplayName" class="flex items-center gap-1">
+                    <span
+                      v-if="leaderDisplayName"
+                      class="flex items-center gap-1"
+                    >
                       <IconifyIcon
                         icon="lucide:crown"
                         class="h-3.5 w-3.5 text-warning"
@@ -521,7 +526,9 @@ usePageAIOperations({
                   }}</span>
                 </Button>
                 <Popconfirm
-                  :title="$t('tenant.system.organization.messages.deleteConfirm')"
+                  :title="
+                    $t('tenant.system.organization.messages.deleteConfirm')
+                  "
                   :ok-text="$t('shared.common.confirm')"
                   :cancel-text="$t('shared.common.cancel')"
                   :ok-button-props="{ danger: true }"
@@ -549,7 +556,10 @@ usePageAIOperations({
           <div class="flex-1 overflow-y-auto p-2 lg:p-4">
             <Spin :spinning="detailLoading">
               <div class="grid gap-4 xl:grid-cols-3">
-                <Card :title="$t('tenant.system.organization.basicInfo')" size="small">
+                <Card
+                  :title="$t('tenant.system.organization.basicInfo')"
+                  size="small"
+                >
                   <div class="space-y-3 text-sm">
                     <div class="flex items-center justify-between gap-4">
                       <span class="text-muted-foreground">{{
@@ -616,8 +626,12 @@ usePageAIOperations({
                         </div>
                       </div>
                     </div>
-                    <div class="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-                      {{ $t('tenant.system.organization.leaderCardDescription') }}
+                    <div
+                      class="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground"
+                    >
+                      {{
+                        $t('tenant.system.organization.leaderCardDescription')
+                      }}
                     </div>
                   </div>
                 </Card>
@@ -633,7 +647,9 @@ usePageAIOperations({
                       }}</span>
                       <Tag color="processing">{{ leaderScopeLabel }}</Tag>
                     </div>
-                    <div class="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                    <div
+                      class="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground"
+                    >
                       {{ leaderScopeDescription }}
                     </div>
                     <div

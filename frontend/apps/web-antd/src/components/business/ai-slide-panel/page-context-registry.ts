@@ -22,9 +22,9 @@
  * ```
  */
 
-import { ref } from 'vue';
-
 import type { PageContext } from '#/api/shared/ai-chat';
+
+import { ref } from 'vue';
 
 import { scanDomSemantics } from './dom-semantic-scanner';
 import { normalizePageKey } from './page-key-utils';
@@ -33,7 +33,7 @@ import { normalizePageKey } from './page-key-utils';
 export type PageContextData = PageContext;
 
 /** Context resolver function / 上下文解析函数 */
-export type PageContextResolver = () => PageContextData | null;
+export type PageContextResolver = () => null | PageContextData;
 
 /**
  * Registry: normalized page key (dot-notation) → resolver
@@ -109,7 +109,7 @@ export function registerPageContextExtras(
     const cur = extrasRegistry.get(nk);
     if (cur) {
       const idx = cur.indexOf(resolver);
-      if (idx >= 0) {
+      if (idx !== -1) {
         cur.splice(idx, 1);
         if (cur.length === 0) extrasRegistry.delete(nk);
         pageContextVersion.value++;
@@ -122,26 +122,30 @@ function mergeExtrasIntoContext(
   base: PageContextData,
   extrasList: PageContextResolver[],
 ): PageContextData {
-  let result = { ...base, page_data: { ...(base.page_data || {}) } };
+  let result = { ...base, page_data: { ...base.page_data } };
   for (const res of extrasList) {
     try {
       const ext = res();
       if (!ext?.page_data || typeof ext.page_data !== 'object') continue;
-      const extAppend = (ext.page_data as Record<string, unknown>).entity_description_append as string | undefined;
-      const merged = { ...(result.page_data as object), ...(ext.page_data as object) } as Record<string, unknown>;
+      const extAppend = (ext.page_data as Record<string, unknown>)
+        .entity_description_append as string | undefined;
+      const merged = {
+        ...(result.page_data as object),
+        ...(ext.page_data as object),
+      } as Record<string, unknown>;
       const currentDesc =
         typeof merged.entity_description === 'string'
           ? merged.entity_description
           : undefined;
       if (extAppend) {
         merged.entity_description = currentDesc
-          ? currentDesc + '\n\n' + extAppend
+          ? `${currentDesc}\n\n${extAppend}`
           : extAppend;
       }
       delete merged.entity_description_append;
       result = { ...result, page_data: merged };
-    } catch (e) {
-      console.warn('[PageContextRegistry] Extras merge error:', e);
+    } catch (error) {
+      console.warn('[PageContextRegistry] Extras merge error:', error);
     }
   }
   return result;
@@ -164,9 +168,7 @@ function mergeExtrasIntoContext(
  * @param key - Optional, specifies the resolver key (any format, auto-normalized) / 可选，指定 resolver key（任意格式，自动规范化）
  * @returns Page context data or null / 页面上下文数据或 null
  */
-export function resolvePageContext(
-  key?: string,
-): PageContextData | null {
+export function resolvePageContext(key?: string): null | PageContextData {
   if (key) {
     const nk = normalizePageKey(key);
     const resolver = registry.get(nk);
@@ -179,10 +181,7 @@ export function resolvePageContext(
         }
         return base;
       } catch (error) {
-        console.warn(
-          `[PageContextRegistry] Resolver '${key}' error:`,
-          error,
-        );
+        console.warn(`[PageContextRegistry] Resolver '${key}' error:`, error);
       }
     }
     // Fallback: use DOM semantic snapshot for unregistered pages / 降级：对未注册页面使用 DOM 语义快照
@@ -223,8 +222,8 @@ export function resolvePageContext(
   }
 
   // Fallback: iterate all resolvers, return the last non-null result (with extras merged) / 遍历解析器取最后非空
-  let result: PageContextData | null = null;
-  let resultKey: string | null = null;
+  let result: null | PageContextData = null;
+  let resultKey: null | string = null;
   for (const [registeredKey, resolver] of registry) {
     try {
       const ctx = resolver();
@@ -258,10 +257,7 @@ export function resolvePageContext(
  * 当无 resolver 注册或全部返回 null 时作为降级方案。
  */
 function buildMinimalFallbackContext(pageKey: string): PageContextData {
-  const title =
-    typeof document !== 'undefined'
-      ? document.title.trim()
-      : '';
+  const title = typeof document === 'undefined' ? '' : document.title.trim();
 
   return {
     page_key: pageKey,
@@ -275,7 +271,7 @@ function buildMinimalFallbackContext(pageKey: string): PageContextData {
 function buildDomFallbackContext(
   pageKey?: string,
   options: { allowMinimal?: boolean } = {},
-): PageContextData | null {
+): null | PageContextData {
   const inferredKey =
     pageKey || window.location.pathname.replace(/^\//, '').replaceAll('/', '.');
   const snapshot = scanDomSemantics();

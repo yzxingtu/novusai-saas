@@ -22,8 +22,7 @@ export interface TenantPermissionRoleInfoRaw {
   updated_at?: null | string;
 }
 
-export interface TenantPermissionRoleDetailRaw
-  extends TenantPermissionRoleInfoRaw {
+export interface TenantPermissionRoleDetailRaw extends TenantPermissionRoleInfoRaw {
   permission_ids: number[];
   permission_codes: string[];
 }
@@ -134,7 +133,9 @@ export async function getTenantPermissionRoleListApi(
   }>(API_PREFIX, { params, ...options });
 
   return {
-    items: response.items.map(transformTenantPermissionRoleInfo),
+    items: response.items.map((item) =>
+      transformTenantPermissionRoleInfo(item),
+    ),
     total: response.total,
     page: response.page,
     pageSize: response.page_size,

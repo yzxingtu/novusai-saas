@@ -17,7 +17,9 @@
  * ```
  */
 
-import { type Ref, ref, watch } from 'vue';
+import type { Ref } from 'vue';
+
+import { ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 
 /** Global active page_session_id (only one active page in SPA) / 全局当前活跃的 page_session_id */
@@ -36,8 +38,8 @@ function generateUUID(): string {
     return crypto.randomUUID();
   }
   // Fallback: RFC 4122 v4 UUID / 降级为伪随机 UUID
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replaceAll(/[xy]/g, (c) => {
+    const r = Math.trunc(Math.random() * 16);
     const v = c === 'x' ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });

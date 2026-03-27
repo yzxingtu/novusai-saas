@@ -12,6 +12,7 @@ import time
 from collections.abc import Callable, Coroutine
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
+from urllib.parse import parse_qs, unquote, urlparse
 
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
@@ -42,6 +43,325 @@ _SSRF_PRIVATE_PREFIXES = ("10.", "172.16.", "172.17.", "172.18.", "172.19.",
                           "172.24.", "172.25.", "172.26.", "172.27.",
                           "172.28.", "172.29.", "172.30.", "172.31.",
                           "192.168.", "fd", "fc")
+
+_DEFAULT_WEB_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept": (
+        "text/html,application/xhtml+xml,application/xml;q=0.9,"
+        "text/plain;q=0.8,*/*;q=0.7"
+    ),
+    "Accept-Language": "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7",
+}
+_MAIN_CONTENT_SELECTORS = (
+    "main",
+    "article",
+    "[role='main']",
+    "#main",
+    "#content",
+    "#main-content",
+    ".main-content",
+    ".article-content",
+    ".entry-content",
+    ".post-content",
+    ".markdown-body",
+    ".docMainContainer",
+    ".docs-body",
+)
+_TEXT_BLOCK_TAGS = ("h1", "h2", "h3", "h4", "h5", "h6", "p", "li", "blockquote", "pre", "td", "th")
+_NOISE_TAGS = (
+    "script",
+    "style",
+    "noscript",
+    "template",
+    "svg",
+    "canvas",
+    "iframe",
+    "form",
+    "button",
+    "input",
+    "select",
+    "textarea",
+    "nav",
+    "footer",
+    "header",
+    "aside",
+)
+_NOISE_HINTS = (
+    "breadcrumb",
+    "cookie",
+    "footer",
+    "header",
+    "menu",
+    "nav",
+    "navbar",
+    "pagination",
+    "share",
+    "sidebar",
+    "social",
+    "subscribe",
+    "table-of-contents",
+    "toc",
+    "toolbar",
+)
+
+
+def _normalize_text(text: str) -> str:
+    """Collapse whitespace and trim text. / 折叠空白并裁剪文本。"""
+    import re
+
+    return re.sub(r"\s+", " ", text or "").strip()
+
+
+def _truncate_text(text: str, max_length: int) -> tuple[str, bool]:
+    """Truncate text at a readable boundary. / 在较自然的边界截断文本。"""
+    if len(text) <= max_length:
+        return text, False
+
+    cut = text[:max_length].rstrip()
+    breakpoints = [
+        cut.rfind("\n\n"),
+        cut.rfind(". "),
+        cut.rfind("。"),
+        cut.rfind("! "),
+        cut.rfind("? "),
+        cut.rfind("; "),
+    ]
+    last_break = max(breakpoints)
+    if last_break >= max_length // 2:
+        cut = cut[: last_break + 1].rstrip()
+    return f"{cut}... [truncated]", True
+
+
+def _decode_duckduckgo_result_url(url: str) -> str:
+    """Decode DuckDuckGo redirect links when present. / 解码 DuckDuckGo 跳转链接。"""
+    if not url:
+        return ""
+
+    if url.startswith("//"):
+        url = f"https:{url}"
+    elif url.startswith("/"):
+        url = f"https://duckduckgo.com{url}"
+
+    parsed = urlparse(url)
+    params = parse_qs(parsed.query)
+    encoded = params.get("uddg")
+    if encoded and (
+        parsed.netloc.endswith("duckduckgo.com")
+        or parsed.path.startswith("/l/")
+    ):
+        return unquote(encoded[0])
+    return url
+
+
+def _extract_duckduckgo_results(html: str, max_results: int) -> list[dict[str, str]]:
+    """Parse DuckDuckGo HTML result page. / 解析 DuckDuckGo HTML 搜索结果页。"""
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html, "lxml")
+    results: list[dict[str, str]] = []
+    seen_urls: set[str] = set()
+
+    for link in soup.select("a.result__a"):
+        href = _decode_duckduckgo_result_url(link.get("href", "").strip())
+        title = _normalize_text(link.get_text(" ", strip=True))
+        if not href or not title or href in seen_urls:
+            continue
+
+        container = link.find_parent(
+            lambda tag: tag.name in {"article", "div", "td", "tr"}
+            and any(cls.startswith("result") for cls in tag.get("class", []))
+        )
+        snippet = ""
+        if container:
+            snippet_node = container.select_one(".result__snippet")
+            if snippet_node is None:
+                snippet_node = container.find(
+                    lambda tag: tag.name in {"a", "div", "span"}
+                    and any(
+                        cls.startswith("result__snippet")
+                        for cls in tag.get("class", [])
+                    )
+                )
+            if snippet_node is not None:
+                snippet = _normalize_text(snippet_node.get_text(" ", strip=True))
+
+        results.append({"title": title, "url": href, "snippet": snippet})
+        seen_urls.add(href)
+        if len(results) >= max_results:
+            break
+
+    return results
+
+
+def _remove_noise_nodes(soup: Any) -> None:
+    """Drop common non-content nodes. / 删除常见非正文节点。"""
+    for tag in soup(_NOISE_TAGS):
+        tag.decompose()
+
+    for node in soup.find_all(True):
+        if node.has_attr("hidden") or node.get("aria-hidden") == "true":
+            node.decompose()
+            continue
+
+        style = (node.get("style") or "").lower()
+        if "display:none" in style or "visibility:hidden" in style:
+            node.decompose()
+            continue
+
+        if node.name not in {"div", "section", "ul", "ol"}:
+            continue
+
+        hints = " ".join([
+            node.get("id", ""),
+            " ".join(node.get("class", [])),
+        ]).lower()
+        if hints and any(noise in hints for noise in _NOISE_HINTS):
+            node.decompose()
+
+
+def _score_content_node(node: Any) -> int:
+    """Rough heuristic for selecting the main content container. / 粗略评分主内容容器。"""
+    paragraph_texts = [
+        _normalize_text(item.get_text(" ", strip=True))
+        for item in node.find_all(["p", "li"], limit=80)
+    ]
+    paragraph_chars = sum(len(text) for text in paragraph_texts if text)
+    heading_count = len(node.find_all(["h1", "h2", "h3"], limit=16))
+    link_chars = sum(
+        len(_normalize_text(link.get_text(" ", strip=True)))
+        for link in node.find_all("a", limit=120)
+    )
+    total_text = len(_normalize_text(node.get_text(" ", strip=True)))
+    return paragraph_chars + (heading_count * 40) + min(total_text, 1600) - (link_chars // 3)
+
+
+def _pick_main_content_node(soup: Any) -> Any:
+    """Pick the most likely main-content node. / 选择最可能的正文节点。"""
+    body = soup.find("body") or soup
+
+    for selector in _MAIN_CONTENT_SELECTORS:
+        node = body.select_one(selector)
+        if node is not None and _score_content_node(node) >= 200:
+            return node
+
+    best_node = body
+    best_score = _score_content_node(body)
+    for node in body.find_all(["article", "main", "section", "div"], limit=240):
+        score = _score_content_node(node)
+        if score > best_score:
+            best_node = node
+            best_score = score
+
+    return best_node
+
+
+def _collect_text_blocks(node: Any, *, max_blocks: int = 120) -> list[str]:
+    """Extract readable text blocks from an HTML node. / 从 HTML 节点提取可读文本块。"""
+    blocks: list[str] = []
+    seen: set[str] = set()
+
+    for element in node.find_all(_TEXT_BLOCK_TAGS):
+        text = _normalize_text(element.get_text(" ", strip=True))
+        if not text or len(text) < 3 or text in seen:
+            continue
+
+        # Skip menus or one-word chrome fragments that still slip through.
+        if element.name in {"li", "td", "th"} and len(text) < 8:
+            continue
+
+        blocks.append(text)
+        seen.add(text)
+        if len(blocks) >= max_blocks:
+            break
+
+    if not blocks:
+        fallback = _normalize_text(node.get_text("\n", strip=True))
+        if fallback:
+            blocks.append(fallback)
+
+    return blocks
+
+
+def _extract_meta_description(soup: Any) -> str:
+    """Read meta description / 提取 meta description。"""
+    for attrs in (
+        {"name": "description"},
+        {"property": "og:description"},
+        {"name": "twitter:description"},
+    ):
+        tag = soup.find("meta", attrs=attrs)
+        content = _normalize_text(tag.get("content", "")) if tag else ""
+        if content:
+            return content
+    return ""
+
+
+def _extract_readable_page(html: str) -> dict[str, Any]:
+    """Extract title, headings and main body from HTML. / 从 HTML 提取标题、要点标题与正文。"""
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html, "lxml")
+    _remove_noise_nodes(soup)
+
+    title = ""
+    if soup.title and soup.title.string:
+        title = _normalize_text(soup.title.string)
+
+    description = _extract_meta_description(soup)
+    content_node = _pick_main_content_node(soup)
+    headings: list[str] = []
+    if content_node is not None:
+        for heading in content_node.find_all(["h1", "h2", "h3"], limit=8):
+            text = _normalize_text(heading.get_text(" ", strip=True))
+            if text and text not in headings:
+                headings.append(text)
+
+    blocks = _collect_text_blocks(content_node)
+    if title and blocks and blocks[0].lower() == title.lower():
+        blocks = blocks[1:]
+    body = "\n".join(blocks).strip()
+
+    return {
+        "title": title,
+        "description": description,
+        "headings": headings,
+        "body": body,
+    }
+
+
+def _format_html_fetch_output(
+    *,
+    requested_url: str,
+    final_url: str,
+    page: dict[str, Any],
+    max_length: int,
+) -> str:
+    """Format extracted page content for tool output. / 格式化页面提取结果。"""
+    lines = [f"Content from {final_url}"]
+    if final_url != requested_url:
+        lines.append(f"Redirected from: {requested_url}")
+    if page.get("title"):
+        lines.append(f"Title: {page['title']}")
+    if page.get("description"):
+        lines.append(f"Description: {page['description']}")
+    if page.get("headings"):
+        lines.append(f"Key sections: {', '.join(page['headings'][:6])}")
+
+    prefix = "\n".join(lines).strip()
+    body = page.get("body", "") or ""
+    if not body:
+        return (
+            f"{prefix}\n\nNo readable main content found. "
+            "The page may require JavaScript or block automated reading."
+        )
+
+    remaining = max(max_length - len(prefix) - 2, 200)
+    excerpt, _ = _truncate_text(body, remaining)
+    return f"{prefix}\n\n{excerpt}"
 
 
 def _is_ssrf_blocked(url: str) -> str | None:
@@ -218,44 +538,27 @@ class BuiltinToolExecutor(BaseToolExecutor):
         if not query:
             return "Error: query parameter is required"
 
-        import re
-        from html import unescape
-
         import httpx
 
         max_results = min(max(1, max_results), 10)
         url = "https://html.duckduckgo.com/html/"
-        headers = {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
-            ),
-        }
 
         try:
-            async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
-                resp = await client.post(url, data={"q": query}, headers=headers)
-                resp.raise_for_status()
-                html = resp.text
+            timeout = httpx.Timeout(20.0, connect=10.0)
+            async with httpx.AsyncClient(
+                timeout=timeout,
+                follow_redirects=True,
+                headers=_DEFAULT_WEB_HEADERS,
+            ) as client:
+                resp = await client.post(url, data={"q": query})
 
-            # Parse results from DuckDuckGo HTML response / 上文为英文说明 / English above
-            results: list[dict[str, str]] = []
+            if resp.status_code >= 400:
+                return (
+                    "Error: Search engine returned HTTP "
+                    f"{resp.status_code} for query: {query}"
+                )
 
-            # Extract result blocks / 上文为英文说明 / English above
-            snippet_re = re.compile(
-                r'<a[^>]+class="result__a"[^>]*href="([^"]*)"[^>]*>(.*?)</a>'
-                r'.*?<a[^>]+class="result__snippet"[^>]*>(.*?)</a>',
-                re.DOTALL,
-            )
-            for match in snippet_re.finditer(html):
-                if len(results) >= max_results:
-                    break
-                href = unescape(match.group(1))
-                title = re.sub(r"<[^>]+>", "", unescape(match.group(2))).strip()
-                snippet = re.sub(r"<[^>]+>", "", unescape(match.group(3))).strip()
-                if title and href:
-                    results.append({"title": title, "url": href, "snippet": snippet})
+            results = _extract_duckduckgo_results(resp.text, max_results)
 
             if not results:
                 return f"No results found for: {query}"
@@ -291,38 +594,52 @@ class BuiltinToolExecutor(BaseToolExecutor):
         if ssrf_err:
             return f"Error: {ssrf_err}"
 
-        import re
-
         import httpx
 
         max_length = min(max(500, max_length), 20000)
 
         try:
-            async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
-                resp = await client.get(url, headers={
-                    "User-Agent": (
-                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                        "AppleWebKit/537.36 (KHTML, like Gecko) "
-                        "Chrome/120.0.0.0 Safari/537.36"
-                    ),
-                })
-                resp.raise_for_status()
-                html = resp.text
+            timeout = httpx.Timeout(20.0, connect=10.0)
+            async with httpx.AsyncClient(
+                timeout=timeout,
+                follow_redirects=True,
+                headers=_DEFAULT_WEB_HEADERS,
+            ) as client:
+                resp = await client.get(url)
 
-            # Remove script/style/noscript tags / 上文为英文说明 / English above
-            html = re.sub(r"<(script|style|noscript)[^>]*>.*?</\1>", "", html, flags=re.DOTALL | re.IGNORECASE)
-            # Remove HTML tags / 上文为英文说明 / English above
-            text = re.sub(r"<[^>]+>", " ", html)
-            # Collapse whitespace / 上文为英文说明 / English above
-            text = re.sub(r"\s+", " ", text).strip()
+            final_url = str(resp.url)
+            content_type = (resp.headers.get("content-type") or "").lower()
+            raw_text = resp.text or ""
 
-            if len(text) > max_length:
-                text = text[:max_length] + "... [truncated]"
+            if resp.status_code >= 400:
+                page = _extract_readable_page(raw_text) if raw_text else {}
+                title = page.get("title") if page else ""
+                message = f"Error: HTTP {resp.status_code} while fetching {final_url}"
+                if title:
+                    message += f" (title: {title})"
+                return message
 
-            return f"Content from {url}:\n\n{text}" if text else f"No readable content found at {url}"
+            if "html" in content_type or "<html" in raw_text[:1000].lower():
+                page = _extract_readable_page(raw_text)
+                return _format_html_fetch_output(
+                    requested_url=url,
+                    final_url=final_url,
+                    page=page,
+                    max_length=max_length,
+                )
+
+            text, _ = _truncate_text(_normalize_text(raw_text), max_length)
+            return (
+                f"Content from {final_url}:\n\n{text}"
+                if text
+                else f"No readable content found at {final_url}"
+            )
 
         except httpx.TimeoutException:
             return f"Error: Request timed out for URL: {url}"
+        except httpx.HTTPError as exc:
+            logger.warning("fetch_url request error for {}: {}", url, exc)
+            return f"Error: Failed to fetch URL - {exc}"
         except Exception as exc:
             logger.warning("fetch_url failed for {}: {}", url, exc)
             return f"Error: Failed to fetch URL - {exc}"

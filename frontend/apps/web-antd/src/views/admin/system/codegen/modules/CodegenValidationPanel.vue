@@ -6,7 +6,7 @@
  */
 import { IconifyIcon } from '@vben/icons';
 
-const props = defineProps<{
+defineProps<{
   displayName?: string;
   expertItemCount: number;
   feMode: string;
@@ -90,7 +90,8 @@ const emit = defineEmits<{
           <span
             class="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
           >
-            {{ $t('admin.system.codegen.builder.metricFields') }} {{ fieldCount }}
+            {{ $t('admin.system.codegen.builder.metricFields') }}
+            {{ fieldCount }}
           </span>
           <span
             class="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
@@ -117,7 +118,9 @@ const emit = defineEmits<{
     </div>
 
     <div class="flex flex-col gap-2 p-2.5">
-      <section class="rounded-xl border border-border/70 bg-muted/10 px-3 py-2.5">
+      <section
+        class="rounded-xl border border-border/70 bg-muted/10 px-3 py-2.5"
+      >
         <div class="grid gap-1.5 text-sm">
           <div class="grid grid-cols-[84px_minmax(0,1fr)] items-center gap-2">
             <span class="text-xs text-muted-foreground">
@@ -223,7 +226,9 @@ const emit = defineEmits<{
         </div>
       </section>
 
-      <section class="rounded-xl border border-border/70 bg-muted/10 px-3 py-2.5">
+      <section
+        class="rounded-xl border border-border/70 bg-muted/10 px-3 py-2.5"
+      >
         <div class="mb-2 text-[11px] font-medium text-muted-foreground">
           {{ $t('admin.system.codegen.builder.panelActionsTitle') }}
         </div>

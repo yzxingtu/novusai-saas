@@ -23,13 +23,7 @@ const { Drawer, isEdit } = useCrudDrawer<TenantUserRoleInfo>({
   formApi,
   schema: useRoleFormSchema,
   defaults: getRoleFormDefaults,
-  fields: [
-    'name',
-    'code',
-    'description',
-    'sort_order',
-    'is_active',
-  ],
+  fields: ['name', 'code', 'description', 'sort_order', 'is_active'],
   onSuccess: () => {
     emits('success');
   },

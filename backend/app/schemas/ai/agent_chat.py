@@ -108,6 +108,10 @@ class AgentChatRequest(BaseModel):
         max_length=32,
         description="Frontend route source hint (e.g. mention)",
     )
+    interaction_updates: list["InteractionUpdate"] | None = Field(
+        None,
+        description="Client-side interaction state updates to persist before processing the next turn",
+    )
 
 
 class UpdateConversationTitleRequest(BaseModel):
@@ -139,6 +143,27 @@ class AgentChatResponse(BaseModel):
     duration_ms: int = Field(
         0, description=_("agent_chat.field.duration_ms"),
     )
+    effective_knowledge_base_ids: list[int] | None = Field(
+        None,
+        description="Effective knowledge base IDs applied to this turn after sanitization",
+    )
+    dropped_knowledge_base_ids: list[int] | None = Field(
+        None,
+        description="Client-selected knowledge base IDs dropped during sanitization",
+    )
+
+
+class InteractionUpdate(BaseModel):
+    kind: Literal["action_buttons", "pending_confirmation", "pending_consent"]
+    action: str | None = None
+    rejected: bool | None = None
+    table: str | None = None
+    tool_name: str | None = None
+    value: str | None = None
+
+
+class UpdateConversationInteractionStateRequest(BaseModel):
+    updates: list[InteractionUpdate] = Field(default_factory=list)
 
 
 class PageContext(BaseModel):
@@ -265,7 +290,9 @@ __all__ = [
     "PAGE_CONTEXT_KEY",
     "AgentChatRequest",
     "AgentChatResponse",
+    "InteractionUpdate",
     "PageContext",
     "AgentRouteRequest",
     "AgentRouteResponse",
+    "UpdateConversationInteractionStateRequest",
 ]

@@ -44,20 +44,7 @@ async function handleSubmit() {
   try {
     loading.value = true;
 
-    if (!codeSent.value) {
-      await userApi.userForgotPasswordApi({
-        email: formState.email,
-      });
-
-      emailValue.value = formState.email;
-      codeSent.value = true;
-
-      notification.success({
-        description: $t('user.auth.codeSentDesc'),
-        duration: 5,
-        message: $t('user.auth.codeSent'),
-      });
-    } else {
+    if (codeSent.value) {
       await userApi.userResetPasswordApi({
         code: formState.code,
         confirmPassword: formState.confirmPassword,
@@ -72,6 +59,19 @@ async function handleSubmit() {
       });
 
       await router.push('/auth/login');
+    } else {
+      await userApi.userForgotPasswordApi({
+        email: formState.email,
+      });
+
+      emailValue.value = formState.email;
+      codeSent.value = true;
+
+      notification.success({
+        description: $t('user.auth.codeSentDesc'),
+        duration: 5,
+        message: $t('user.auth.codeSent'),
+      });
     }
   } catch {
     // Error handled by axios interceptor / 错误已由 axios 拦截器处理并显示
@@ -116,7 +116,10 @@ async function handleSubmit() {
           class="auth-input"
         >
           <template #prefix>
-            <IconifyIcon icon="lucide:mail" class="size-4 text-muted-foreground" />
+            <IconifyIcon
+              icon="lucide:mail"
+              class="size-4 text-muted-foreground"
+            />
           </template>
         </Input>
       </FormItem>
@@ -137,7 +140,10 @@ async function handleSubmit() {
             class="auth-input"
           >
             <template #prefix>
-              <IconifyIcon icon="lucide:key-round" class="size-4 text-muted-foreground" />
+              <IconifyIcon
+                icon="lucide:key-round"
+                class="size-4 text-muted-foreground"
+              />
             </template>
           </Input>
         </FormItem>
@@ -156,7 +162,10 @@ async function handleSubmit() {
             class="auth-input"
           >
             <template #prefix>
-              <IconifyIcon icon="lucide:lock" class="size-4 text-muted-foreground" />
+              <IconifyIcon
+                icon="lucide:lock"
+                class="size-4 text-muted-foreground"
+              />
             </template>
           </InputPassword>
         </FormItem>
@@ -172,7 +181,10 @@ async function handleSubmit() {
             class="auth-input"
           >
             <template #prefix>
-              <IconifyIcon icon="lucide:lock-keyhole" class="size-4 text-muted-foreground" />
+              <IconifyIcon
+                icon="lucide:lock-keyhole"
+                class="size-4 text-muted-foreground"
+              />
             </template>
           </InputPassword>
         </FormItem>
@@ -194,7 +206,9 @@ async function handleSubmit() {
               class="size-4"
             />
           </template>
-          {{ codeSent ? $t('user.auth.resetPassword') : $t('user.auth.sendCode') }}
+          {{
+            codeSent ? $t('user.auth.resetPassword') : $t('user.auth.sendCode')
+          }}
         </Button>
       </FormItem>
     </Form>

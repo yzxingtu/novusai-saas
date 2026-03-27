@@ -251,8 +251,7 @@ function useFormSchema() {
       help: $t('admin.ai.skill.help.timeout'),
       dependencies: {
         triggerFields: ['type'],
-        if: (values: Record<string, unknown>) =>
-          values.type !== 'builtin',
+        if: (values: Record<string, unknown>) => values.type !== 'builtin',
       },
     },
     switchField('is_active', $t('admin.ai.skill.isActive'), {

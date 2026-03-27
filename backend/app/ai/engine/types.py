@@ -81,6 +81,7 @@ class ExecutionRequest:
 
     # Frontend page session ID (for PageOperationExecutor to locate target page instance) / 前端页面会话 ID
     page_session_id: str | None = None
+    knowledge_base_feedback: dict[str, Any] | None = None
 
 
 @dataclass

@@ -81,7 +81,7 @@ class BaseEngine(ABC):
         self,
         db: AsyncSession,
         gateway: AIGateway,
-        sandbox: ToolSandbox,
+        sandbox: ToolSandbox | None,
     ):
         """
         Args:
@@ -219,6 +219,9 @@ class BaseEngine(ABC):
         data_hint = BaseEngine._build_data_operations_hint(tools)
         if data_hint:
             hint += data_hint
+        web_hint = BaseEngine._build_web_research_hint(tools)
+        if web_hint:
+            hint += web_hint
 
         messages[0] = ChatMessage(
             role="system",
@@ -425,6 +428,42 @@ class BaseEngine(ABC):
         )
 
     @staticmethod
+    def _build_web_research_hint(tools: list[ToolDefinition]) -> str:
+        """
+        Build a WEB RESEARCH hint when web_search/fetch_url are available.
+        当存在 web_search/fetch_url 时构建 WEB RESEARCH 提示。
+        """
+        tool_names = {t.name for t in tools}
+        has_search = "web_search" in tool_names
+        has_fetch = "fetch_url" in tool_names
+        if not (has_search or has_fetch):
+            return ""
+
+        workflow = []
+        if has_search:
+            workflow.append("1) use web_search to find candidate sources")
+        if has_fetch:
+            next_step = "2" if has_search else "1"
+            workflow.append(
+                f"{next_step}) use fetch_url to read the most relevant page content"
+            )
+
+        compare_step = "3" if has_search and has_fetch else "2"
+        workflow.append(
+            f"{compare_step}) prefer official or primary sources, and compare more than one source when the user asks for current, recent, or high-stakes information"
+        )
+
+        return (
+            "\n\n[WEB RESEARCH]\n"
+            "When the user asks for internet research, latest information, or details from a specific web page, "
+            "follow this workflow: "
+            + "; ".join(workflow)
+            + ".\n"
+            "Do not answer only from search snippets when concrete page details are needed. "
+            "If fetch_url returns a site block or weak content, pick another relevant source instead of pretending the page was read successfully."
+        )
+
+    @staticmethod
     def _user_message(content: str) -> ChatMessage:
         """Build user message / 构建 user 消息"""
         return ChatMessage(role="user", content=content)
@@ -518,6 +557,13 @@ class BaseEngine(ABC):
             from app.ai.tools.page_tool_expander import expand_page_tools
 
             tools = expand_page_tools(tools, request.input_variables)
+        if tools and self.sandbox is None:
+            logger.info(
+                "Skip tool exposure because sandbox is unavailable: agent_id={} tool_count={}",
+                agent.id,
+                len(tools),
+            )
+            tools = []
 
         optimize_event: dict[str, Any] | None = None
         if tools:
@@ -612,10 +658,11 @@ class BaseEngine(ABC):
                 **(request.input_variables or {}),
                 "runtime_model_capabilities": runtime_model_capabilities,
             }
-            self.sandbox.input_variables = {
-                **(self.sandbox.input_variables or {}),
-                "runtime_model_capabilities": runtime_model_capabilities,
-            }
+            if self.sandbox is not None:
+                self.sandbox.input_variables = {
+                    **(self.sandbox.input_variables or {}),
+                    "runtime_model_capabilities": runtime_model_capabilities,
+                }
 
         return PreparedExecution(
             messages=messages,
@@ -824,11 +871,21 @@ class BaseEngine(ABC):
 
                 # consent_mode check only when args parse ok (else process_single handles parse error) / 上文为英文说明 / English above
                 if not parse_error:
+                    _skill_info = processor.get_skill_info(func_name)
+                    processor.annotate_tool_call(tc, skill_info=_skill_info)
                     _consent = processor.check_consent(func_name)
                     if _consent == "reject":
                         messages.append(processor.build_consent_reject_message(tc_id))
                         continue
                     if _consent == "ask":
+                        processor.annotate_tool_call(
+                            tc,
+                            pending_consent=processor.build_pending_consent_payload(
+                                func_name,
+                                arguments,
+                                _skill_info,
+                            ),
+                        )
                         messages.append(
                             processor.build_consent_ask_message(
                                 tc_id,
@@ -842,6 +899,13 @@ class BaseEngine(ABC):
                                     role="assistant",
                                     content=current_response.message.content or "",
                                     tool_calls=tool_calls,
+                                    metadata={
+                                        "pending_consent": processor.build_pending_consent_payload(
+                                            func_name,
+                                            arguments,
+                                            _skill_info,
+                                        ),
+                                    },
                                 ),
                                 metadata={
                                     **dict(
@@ -860,6 +924,20 @@ class BaseEngine(ABC):
                 )
                 if single.tool_result:
                     all_tool_results.append(single.tool_result)
+                    processor.annotate_tool_call(
+                        tc,
+                        duration_ms=single.duration_ms,
+                        result=single.tool_result,
+                        skill_info=processor.get_skill_info(func_name),
+                    )
+                    _conf_data = processor.check_confirmation_output(single.tool_result)
+                    if _conf_data:
+                        processor.annotate_tool_call(
+                            tc,
+                            pending_confirmation=processor.build_pending_confirmation_payload(
+                                _conf_data,
+                            ),
+                        )
                 if single.tool_message:
                     messages.append(single.tool_message)
                 if single.follow_up_message:

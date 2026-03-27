@@ -27,9 +27,18 @@ function getStatusOptions() {
 
 function getApprovalStatusOptions() {
   return [
-    { label: $t('tenant.system.user.approvalStatus.pending'), value: 'pending' },
-    { label: $t('tenant.system.user.approvalStatus.approved'), value: 'approved' },
-    { label: $t('tenant.system.user.approvalStatus.rejected'), value: 'rejected' },
+    {
+      label: $t('tenant.system.user.approvalStatus.pending'),
+      value: 'pending',
+    },
+    {
+      label: $t('tenant.system.user.approvalStatus.approved'),
+      value: 'approved',
+    },
+    {
+      label: $t('tenant.system.user.approvalStatus.rejected'),
+      value: 'rejected',
+    },
   ];
 }
 
@@ -92,7 +101,8 @@ export function useMemberColumns<T = TenantUserInfo>(
       title: $t('tenant.system.userArchitecture.permissionRoleColumn'),
       minWidth: 140,
       formatter: ({ row }: { row: TenantUserInfo }) =>
-        row.roleName || $t('tenant.system.userArchitecture.unassignedPermissionRole'),
+        row.roleName ||
+        $t('tenant.system.userArchitecture.unassignedPermissionRole'),
     },
     {
       field: 'email',
@@ -236,10 +246,16 @@ export function useUserFormSchema(isEdit: boolean): VbenFormSchema[] {
       help: $t('tenant.system.userArchitecture.orgFieldHelp'),
     },
     {
-      ...select('role_id', $t('tenant.system.userArchitecture.permissionRoleField'), {
-        options: [],
-        placeholder: $t('tenant.system.userArchitecture.selectPermissionRolePlaceholder'),
-      }),
+      ...select(
+        'role_id',
+        $t('tenant.system.userArchitecture.permissionRoleField'),
+        {
+          options: [],
+          placeholder: $t(
+            'tenant.system.userArchitecture.selectPermissionRolePlaceholder',
+          ),
+        },
+      ),
       help: $t('tenant.system.userArchitecture.permissionRoleHelp'),
     },
     switchField('is_active', $t('tenant.system.user.status'), {

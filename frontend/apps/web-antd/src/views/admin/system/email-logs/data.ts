@@ -10,7 +10,11 @@ import { $te } from '@vben/locales';
 import { searchInput, select } from '#/adapter/form';
 import { $t } from '#/locales';
 
-const LEGACY_AI_TRIGGERS = new Set(['ai_tool', 'quota_exhausted', 'quota_warning']);
+const LEGACY_AI_TRIGGERS = new Set([
+  'ai_tool',
+  'quota_exhausted',
+  'quota_warning',
+]);
 const LEGACY_SYSTEM_TRIGGERS = new Set([
   'notification',
   'password_reset',
@@ -64,7 +68,7 @@ const EMAIL_TRIGGER_VALUES = [
 function humanizeTriggerSegment(segment: string): string {
   return segment
     .replaceAll('_', ' ')
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+    .replaceAll(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function formatTriggerFallback(trigger: string): string {

@@ -16,13 +16,13 @@ export type ConfigValueType =
   | 'string'
   | 'text';
 
-export type ConfigScalar = boolean | number | string | null;
+export type ConfigScalar = boolean | null | number | string;
 
 export interface ConfigObject {
   [key: string]: ConfigValue | undefined;
 }
 
-export type ConfigValue = ConfigScalar | ConfigObject | ConfigValue[];
+export type ConfigValue = ConfigObject | ConfigScalar | ConfigValue[];
 
 export interface ValidationRuleMeta {
   type: 'max_length' | 'max_value' | 'min_length' | 'min_value' | 'pattern';

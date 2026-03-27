@@ -106,7 +106,8 @@ function getStatusColor(status: string): string {
           <Descriptions.Item
             v-if="
               detail.route_reason ||
-              (detail.routed_model_id && detail.routed_model_id !== detail.model_id)
+              (detail.routed_model_id &&
+                detail.routed_model_id !== detail.model_id)
             "
             :label="$t('admin.ai.callLog.routedModel')"
             :span="2"

@@ -22,12 +22,12 @@ import { toAvatarDisplayUrl } from '#/utils/image';
 
 const props = withDefaults(
   defineProps<{
-    /** Agent ID — required for loading skill packages / 智能体 ID，加载技能包必填 */
-    agentId?: null | number;
     /** Agent avatar URL (raw, will be resolved via toAvatarDisplayUrl) / 智能体头像 URL */
     agentAvatar?: null | string;
     /** Agent description / 智能体描述 */
     agentDescription?: null | string;
+    /** Agent ID — required for loading skill packages / 智能体 ID，加载技能包必填 */
+    agentId?: null | number;
     /** Agent display name / 智能体展示名称 */
     agentName?: null | string;
     /** API prefix: '/admin' or '/tenant' / API 前缀 */
@@ -77,9 +77,9 @@ const groupedSkillBindings = computed(() => {
 
   for (const binding of skillBindings.value) {
     const key =
-      binding.package_id != null
-        ? `pkg:${binding.package_id}`
-        : `name:${binding.package_name ?? 'ungrouped'}`;
+      binding.package_id === null || binding.package_id === undefined
+        ? `name:${binding.package_name ?? 'ungrouped'}`
+        : `pkg:${binding.package_id}`;
     let group = groups.get(key);
     if (!group) {
       group = {
@@ -146,10 +146,10 @@ const sizeClasses = {
   },
 };
 
-function getPackageDisplayName(bindingGroup: {
-  package_name: null | string;
-}) {
-  return bindingGroup.package_name || $t('common.globalAiChat.ungroupedPackage');
+function getPackageDisplayName(bindingGroup: { package_name: null | string }) {
+  return (
+    bindingGroup.package_name || $t('common.globalAiChat.ungroupedPackage')
+  );
 }
 </script>
 
@@ -173,7 +173,9 @@ function getPackageDisplayName(bindingGroup: {
               :alt="agentName || ''"
               class="size-full rounded-xl object-cover"
             />
-            <span v-else-if="agentName">{{ agentName.charAt(0).toUpperCase() }}</span>
+            <span v-else-if="agentName">{{
+              agentName.charAt(0).toUpperCase()
+            }}</span>
             <IconifyIcon v-else icon="lucide:bot" class="size-4" />
           </div>
           <div class="min-w-0 flex-1">
@@ -196,10 +198,7 @@ function getPackageDisplayName(bindingGroup: {
         >
           {{ agentDescription }}
         </div>
-        <div
-          v-else
-          class="pt-2.5 text-xs italic text-muted-foreground/50"
-        >
+        <div v-else class="pt-2.5 text-xs italic text-muted-foreground/50">
           {{ $t('common.globalAiChat.noDescription') }}
         </div>
         <!-- Granted skills grouped by package -->
@@ -207,7 +206,9 @@ function getPackageDisplayName(bindingGroup: {
           v-if="apiPrefix && agentId"
           class="mt-2.5 border-t border-border/30 pt-2.5"
         >
-          <div class="mb-1.5 flex items-center justify-between gap-2 text-[11px] font-medium text-muted-foreground">
+          <div
+            class="mb-1.5 flex items-center justify-between gap-2 text-[11px] font-medium text-muted-foreground"
+          >
             <div class="flex items-center gap-1.5">
               <IconifyIcon icon="lucide:puzzle" class="size-3" />
               <span>{{ $t('common.globalAiChat.skillPackages') }}</span>
@@ -249,7 +250,9 @@ function getPackageDisplayName(bindingGroup: {
                   icon="lucide:package"
                   class="size-3 shrink-0 text-primary/60"
                 />
-                <span class="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground">
+                <span
+                  class="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground"
+                >
                   {{ getPackageDisplayName(group) }}
                 </span>
                 <Tag
@@ -277,7 +280,9 @@ function getPackageDisplayName(bindingGroup: {
                     }"
                   />
                   <div class="min-w-0 flex-1">
-                    <div class="truncate text-[10px] font-medium text-foreground/85">
+                    <div
+                      class="truncate text-[10px] font-medium text-foreground/85"
+                    >
                       {{
                         skill.skill_name ||
                         skill.skill_key ||

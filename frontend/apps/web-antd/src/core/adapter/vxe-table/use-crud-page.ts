@@ -26,6 +26,8 @@
  * ```
  */
 
+import type { Component } from 'vue';
+
 import type {
   BaseRow,
   FormMode,
@@ -35,13 +37,12 @@ import type {
   ToggleStatusApi,
   UseCrudPageOptions,
 } from './types';
-import type { Component } from 'vue';
 
+import type { VbenFormSchema } from '#/adapter/form';
 import type {
   DeletePreviewResult,
   DependencyGroup,
 } from '#/components/business/dependency-block-modal/service';
-import type { VbenFormSchema } from '#/adapter/form';
 import type { FormPopupApi } from '#/composables/use-ai-operations';
 
 import { computed, defineComponent, h, onBeforeUnmount, ref } from 'vue';

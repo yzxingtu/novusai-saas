@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { AgentSkillBindingDraftItem, ConsentMode } from './types';
+
 /**
  * Admin agent skill binding picker (search, package filter, pagination, consent drafts).
  * 管理端智能体技能绑定选择器。
@@ -6,9 +8,10 @@
 import type { AdminSkillSelectOption } from '#/api/admin/skills';
 
 import { computed, nextTick, ref, watch } from 'vue';
-import { useDebounceFn } from '@vueuse/core';
+
 import { IconifyIcon } from '@vben/icons';
 
+import { useDebounceFn } from '@vueuse/core';
 import {
   Button,
   Checkbox,
@@ -22,29 +25,15 @@ import {
   Tag,
 } from 'ant-design-vue';
 
-import { getSkillBindingSelectApi } from '#/api/admin/skills';
 import { getSkillPackageSelectApi } from '#/api/admin/skill-packages';
+import { getSkillBindingSelectApi } from '#/api/admin/skills';
 import { $t } from '#/locales';
 import { getSkillTypeColor } from '#/utils/ai-helpers';
 import { getErrorMessage, showRequestError } from '#/utils/error-helpers';
 
-import {
-  type AgentSkillBindingDraftItem,
-  type ConsentMode,
-  selectOptionToDraft,
-} from './types';
+import { selectOptionToDraft } from './types';
 
 defineOptions({ name: 'AgentSkillBindingPicker' });
-
-const emit = defineEmits<{
-  cancel: [];
-  confirm: [AgentSkillBindingDraftItem[]];
-}>();
-
-const open = defineModel<boolean>('open', { default: false });
-const modelValue = defineModel<AgentSkillBindingDraftItem[]>('modelValue', {
-  default: () => [],
-});
 
 const props = withDefaults(
   defineProps<{
@@ -57,12 +46,20 @@ const props = withDefaults(
   },
 );
 
+const emit = defineEmits<{
+  cancel: [];
+  confirm: [AgentSkillBindingDraftItem[]];
+}>();
+
+const open = defineModel<boolean>('open', { default: false });
+const modelValue = defineModel<AgentSkillBindingDraftItem[]>('modelValue', {
+  default: () => [],
+});
+
 const drawerTitle = computed(
   () => props.title || $t('admin.ai.agent.skillPicker.title'),
 );
-const primaryText = computed(
-  () => props.confirmText || $t('common.confirm'),
-);
+const primaryText = computed(() => props.confirmText || $t('common.confirm'));
 
 const working = ref<AgentSkillBindingDraftItem[]>([]);
 const searchInput = ref('');
@@ -91,12 +88,16 @@ const consentOptions = computed(() => [
 const selectedCount = computed(() => working.value.length);
 const selectedPackageCount = computed(() => {
   const keys = new Set(
-    working.value.map((item) => item.package_id ?? `pkg:${item.package_name ?? item.skill_id}`),
+    working.value.map(
+      (item) => item.package_id ?? `pkg:${item.package_name ?? item.skill_id}`,
+    ),
   );
   return keys.size;
 });
 
-function cloneDrafts(list: AgentSkillBindingDraftItem[]): AgentSkillBindingDraftItem[] {
+function cloneDrafts(
+  list: AgentSkillBindingDraftItem[],
+): AgentSkillBindingDraftItem[] {
   return list.map((d) => ({ ...d }));
 }
 
@@ -197,8 +198,12 @@ const groupedCandidates = computed(() => {
   return [...map.values()];
 });
 const visiblePackageCount = computed(() => groupedCandidates.value.length);
-const hasActiveFilters = computed(
-  () => Boolean(searchKeyword.value || filterPackageId.value != null || !onlyActive.value),
+const hasActiveFilters = computed(() =>
+  Boolean(
+    searchKeyword.value ||
+    (filterPackageId.value !== null && filterPackageId.value !== undefined) ||
+    !onlyActive.value,
+  ),
 );
 
 async function fetchCandidates(resetPage: boolean) {
@@ -252,10 +257,12 @@ async function loadPackages(reset: boolean) {
       search: packageSearch.value || undefined,
     });
     const raw = res.items ?? [];
-    const mapped = raw.map((p) => ({
-      label: p.label,
-      value: typeof p.value === 'number' ? p.value : Number(p.value),
-    })).filter((p) => Number.isFinite(p.value));
+    const mapped = raw
+      .map((p) => ({
+        label: p.label,
+        value: typeof p.value === 'number' ? p.value : Number(p.value),
+      }))
+      .filter((p) => Number.isFinite(p.value));
     if (reset) {
       packageOptions.value = mapped;
     } else {
@@ -355,24 +362,36 @@ watch(pageSize, () => {
             </p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
-            <div class="rounded-full border border-primary/20 bg-background/90 px-3 py-1.5">
-              <div class="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+            <div
+              class="rounded-full border border-primary/20 bg-background/90 px-3 py-1.5"
+            >
+              <div
+                class="text-[11px] uppercase tracking-[0.12em] text-muted-foreground"
+              >
                 {{ $t('admin.ai.agent.skillPicker.selected') }}
               </div>
               <div class="mt-0.5 text-sm font-semibold text-foreground">
                 {{ selectedCount }}
               </div>
             </div>
-            <div class="rounded-full border border-border/70 bg-background/90 px-3 py-1.5">
-              <div class="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+            <div
+              class="rounded-full border border-border/70 bg-background/90 px-3 py-1.5"
+            >
+              <div
+                class="text-[11px] uppercase tracking-[0.12em] text-muted-foreground"
+              >
                 {{ $t('admin.ai.agent.skillPicker.packages') }}
               </div>
               <div class="mt-0.5 text-sm font-semibold text-foreground">
                 {{ visiblePackageCount }}
               </div>
             </div>
-            <div class="rounded-full border border-border/70 bg-background/90 px-3 py-1.5">
-              <div class="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+            <div
+              class="rounded-full border border-border/70 bg-background/90 px-3 py-1.5"
+            >
+              <div
+                class="text-[11px] uppercase tracking-[0.12em] text-muted-foreground"
+              >
                 {{ $t('admin.ai.agent.skillPicker.matches') }}
               </div>
               <div class="mt-0.5 text-sm font-semibold text-foreground">
@@ -382,7 +401,9 @@ watch(pageSize, () => {
           </div>
         </div>
 
-        <div class="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_240px_auto_auto]">
+        <div
+          class="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_240px_auto_auto]"
+        >
           <Input.Search
             v-model:value="searchInput"
             allow-clear
@@ -437,7 +458,9 @@ watch(pageSize, () => {
           </Button>
         </div>
 
-        <div class="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <div
+          class="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
+        >
           <span>
             {{
               $t('admin.ai.agent.skillPicker.resultSummary', {
@@ -446,7 +469,11 @@ watch(pageSize, () => {
               })
             }}
           </span>
-          <Tag v-if="hasActiveFilters" color="blue" class="!m-0 !rounded-full !px-2 !text-[11px]">
+          <Tag
+            v-if="hasActiveFilters"
+            color="blue"
+            class="!m-0 !rounded-full !px-2 !text-[11px]"
+          >
             {{ $t('admin.ai.agent.skillPicker.filtered') }}
           </Tag>
           <Tag
@@ -456,7 +483,10 @@ watch(pageSize, () => {
           </Tag>
         </div>
 
-        <div v-if="skillsError" class="mt-3 rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+        <div
+          v-if="skillsError"
+          class="mt-3 rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+        >
           {{ skillsError }}
         </div>
       </div>
@@ -492,7 +522,11 @@ watch(pageSize, () => {
             <Spin :spinning="skillsLoading">
               <template v-if="!skillsLoading && groupedCandidates.length === 0">
                 <div class="flex min-h-[320px] items-center justify-center">
-                  <Empty :description="$t('admin.ai.agent.skillPicker.emptyCandidates')" />
+                  <Empty
+                    :description="
+                      $t('admin.ai.agent.skillPicker.emptyCandidates')
+                    "
+                  />
                 </div>
               </template>
               <div v-else class="flex flex-col gap-4">
@@ -501,7 +535,9 @@ watch(pageSize, () => {
                   :key="group.package_id"
                   class="rounded-2xl border border-border/70 bg-muted/20 p-3"
                 >
-                  <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div
+                    class="mb-3 flex flex-wrap items-center justify-between gap-2"
+                  >
                     <div class="min-w-0">
                       <div class="flex flex-wrap items-center gap-2">
                         <span class="text-sm font-semibold text-foreground">{{
@@ -515,11 +551,26 @@ watch(pageSize, () => {
                           }}
                         </Tag>
                         <Tag
-                          v-if="getSourceTagMeta(group.source_plugin, group.is_system)"
-                          :color="getSourceTagMeta(group.source_plugin, group.is_system)!.color"
+                          v-if="
+                            getSourceTagMeta(
+                              group.source_plugin,
+                              group.is_system,
+                            )
+                          "
+                          :color="
+                            getSourceTagMeta(
+                              group.source_plugin,
+                              group.is_system,
+                            )!.color
+                          "
                           class="!m-0 !text-[11px]"
                         >
-                          {{ getSourceTagMeta(group.source_plugin, group.is_system)!.text }}
+                          {{
+                            getSourceTagMeta(
+                              group.source_plugin,
+                              group.is_system,
+                            )!.text
+                          }}
                         </Tag>
                       </div>
                     </div>
@@ -543,25 +594,38 @@ watch(pageSize, () => {
                         @change="() => toggleOption(opt)"
                       />
                       <div class="min-w-0 flex-1">
-                        <div class="flex flex-wrap items-start justify-between gap-2">
+                        <div
+                          class="flex flex-wrap items-start justify-between gap-2"
+                        >
                           <div class="min-w-0 flex-1">
                             <div class="flex flex-wrap items-center gap-2">
-                              <span class="text-sm font-medium text-foreground">{{
-                                opt.label
-                              }}</span>
+                              <span
+                                class="text-sm font-medium text-foreground"
+                                >{{ opt.label }}</span
+                              >
                               <Tag
                                 v-if="isSelected(opt.value)"
                                 color="blue"
                                 class="!m-0 !rounded-full !text-[11px]"
                               >
-                                {{ $t('admin.ai.agent.skillPicker.selectedBadge') }}
+                                {{
+                                  $t('admin.ai.agent.skillPicker.selectedBadge')
+                                }}
                               </Tag>
                             </div>
                           </div>
                           <IconifyIcon
-                            :icon="isSelected(opt.value) ? 'lucide:check-circle-2' : 'lucide:circle'"
+                            :icon="
+                              isSelected(opt.value)
+                                ? 'lucide:check-circle-2'
+                                : 'lucide:circle'
+                            "
                             class="mt-0.5 size-4 shrink-0"
-                            :class="isSelected(opt.value) ? 'text-primary' : 'text-muted-foreground/60'"
+                            :class="
+                              isSelected(opt.value)
+                                ? 'text-primary'
+                                : 'text-muted-foreground/60'
+                            "
                           />
                         </div>
                         <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -573,7 +637,12 @@ watch(pageSize, () => {
                             {{ opt.extra.skill_type }}
                           </Tag>
                           <Tag
-                            v-if="getSourceTagMeta(opt.extra?.source_plugin ?? null, Boolean(opt.extra?.is_system))"
+                            v-if="
+                              getSourceTagMeta(
+                                opt.extra?.source_plugin ?? null,
+                                Boolean(opt.extra?.is_system),
+                              )
+                            "
                             :color="
                               getSourceTagMeta(
                                 opt.extra?.source_plugin ?? null,
@@ -666,7 +735,9 @@ watch(pageSize, () => {
               <div class="mt-4 text-sm font-medium text-foreground">
                 {{ $t('admin.ai.agent.skillPicker.emptySelected') }}
               </div>
-              <div class="mt-1 max-w-[240px] text-xs leading-5 text-muted-foreground">
+              <div
+                class="mt-1 max-w-[240px] text-xs leading-5 text-muted-foreground"
+              >
                 {{ $t('admin.ai.agent.skillPicker.selectionHint') }}
               </div>
             </div>
@@ -697,18 +768,29 @@ watch(pageSize, () => {
                       </Tag>
                       <Tag
                         v-if="getSourceTagMeta(d.source_plugin, d.is_system)"
-                        :color="getSourceTagMeta(d.source_plugin, d.is_system)!.color"
+                        :color="
+                          getSourceTagMeta(d.source_plugin, d.is_system)!.color
+                        "
                         class="!m-0 !text-[11px]"
                       >
-                        {{ getSourceTagMeta(d.source_plugin, d.is_system)!.text }}
+                        {{
+                          getSourceTagMeta(d.source_plugin, d.is_system)!.text
+                        }}
                       </Tag>
                     </div>
                   </div>
-                  <Button type="link" danger size="small" @click="removeDraft(d.skill_id)">
+                  <Button
+                    type="link"
+                    danger
+                    size="small"
+                    @click="removeDraft(d.skill_id)"
+                  >
                     {{ $t('admin.ai.agent.skillPicker.remove') }}
                   </Button>
                 </div>
-                <div class="mt-3 text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                <div
+                  class="mt-3 text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground"
+                >
                   {{ $t('admin.ai.agent.skillPicker.defaultConsentMode') }}
                 </div>
                 <Select
@@ -716,12 +798,16 @@ watch(pageSize, () => {
                   size="small"
                   :value="d.default_consent_mode"
                   :options="consentOptions"
-                  @update:value="(v) => setConsent(d.skill_id, v as ConsentMode)"
+                  @update:value="
+                    (v) => setConsent(d.skill_id, v as ConsentMode)
+                  "
                 />
               </div>
             </div>
           </div>
-          <div class="border-t border-border/70 bg-muted/10 px-4 py-3 text-xs leading-5 text-muted-foreground">
+          <div
+            class="border-t border-border/70 bg-muted/10 px-4 py-3 text-xs leading-5 text-muted-foreground"
+          >
             {{ $t('admin.ai.agent.skillPicker.replaceNotice') }}
           </div>
         </div>

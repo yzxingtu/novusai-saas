@@ -19,9 +19,10 @@ describe('ai-starter-questions', () => {
   });
 
   it('parses JSON arrays and single JSON strings', () => {
-    expect(
-      parseStarterQuestionsInput('["Question 1", "Question 2"]'),
-    ).toEqual(['Question 1', 'Question 2']);
+    expect(parseStarterQuestionsInput('["Question 1", "Question 2"]')).toEqual([
+      'Question 1',
+      'Question 2',
+    ]);
     expect(parseStarterQuestionsInput('"Single question"')).toEqual([
       'Single question',
     ]);
@@ -38,8 +39,8 @@ describe('ai-starter-questions', () => {
   });
 
   it('formats stored arrays as one question per line', () => {
-    expect(
-      formatStarterQuestionsInput(['Question 1', 'Question 2']),
-    ).toBe('Question 1\nQuestion 2');
+    expect(formatStarterQuestionsInput(['Question 1', 'Question 2'])).toBe(
+      'Question 1\nQuestion 2',
+    );
   });
 });

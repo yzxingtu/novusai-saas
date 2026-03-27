@@ -2,6 +2,12 @@ import type { VbenFormSchema } from '#/adapter/form';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import {
+  buildDynamicFilterSchema,
+  buildRecycleColumns,
+  buildSortOptions,
+} from '../data';
+
 vi.mock('#/adapter/form', () => ({
   searchInput: (
     field: string,
@@ -25,12 +31,6 @@ vi.mock('#/adapter/form', () => ({
 vi.mock('#/locales', () => ({
   $t: (key: string) => key,
 }));
-
-import {
-  buildDynamicFilterSchema,
-  buildRecycleColumns,
-  buildSortOptions,
-} from '../data';
 
 const baseMeta = {
   columns: ['name', 'status'],
@@ -92,9 +92,10 @@ describe('shared recycle-bin helpers', () => {
   });
 
   it('adds global recycle-bin columns and default sort options', () => {
-    const columns = buildRecycleColumns(baseMeta, null, vi.fn(), {
-      includeTenantColumn: true,
-    }) ?? [];
+    const columns =
+      buildRecycleColumns(baseMeta, null, vi.fn(), {
+        includeTenantColumn: true,
+      }) ?? [];
     const sortOptions = buildSortOptions(baseMeta, null);
 
     expect(columns.map((item) => item.field)).toEqual(

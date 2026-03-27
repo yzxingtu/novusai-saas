@@ -219,27 +219,27 @@ export function getDefinitionTypeText(
 
 export function getGovernanceSummary(scope: null | string | undefined): string {
   switch (normalizeScopeValue(scope)) {
+    case 'admin_and_selected_tenants': {
+      return $t(
+        'admin.system.periodicTask.scopeSemantics.adminAndSelectedGovernance',
+      );
+    }
     case 'admin_only': {
       return $t('admin.system.periodicTask.scopeSemantics.adminOnlyGovernance');
-    }
-    case 'global_shared': {
-      return $t(
-        'admin.system.periodicTask.scopeSemantics.globalSharedGovernance',
-      );
     }
     case 'all_tenants': {
       return $t(
         'admin.system.periodicTask.scopeSemantics.allTenantsGovernance',
       );
     }
+    case 'global_shared': {
+      return $t(
+        'admin.system.periodicTask.scopeSemantics.globalSharedGovernance',
+      );
+    }
     case 'selected_tenants': {
       return $t(
         'admin.system.periodicTask.scopeSemantics.selectedTenantsGovernance',
-      );
-    }
-    case 'admin_and_selected_tenants': {
-      return $t(
-        'admin.system.periodicTask.scopeSemantics.adminAndSelectedGovernance',
       );
     }
     default: {
@@ -352,17 +352,17 @@ export function getDistributionHeadline(
   scope: null | string | undefined,
 ): string {
   switch (scope) {
-    case 'global_shared': {
-      return $t('admin.system.periodicTask.scopeGuide.globalShared');
+    case 'admin_and_selected_tenants': {
+      return $t('admin.system.periodicTask.scopeGuide.adminAndSelectedTenants');
     }
     case 'all_tenants': {
       return $t('admin.system.periodicTask.scopeGuide.allTenants');
     }
+    case 'global_shared': {
+      return $t('admin.system.periodicTask.scopeGuide.globalShared');
+    }
     case 'selected_tenants': {
       return $t('admin.system.periodicTask.scopeGuide.selectedTenants');
-    }
-    case 'admin_and_selected_tenants': {
-      return $t('admin.system.periodicTask.scopeGuide.adminAndSelectedTenants');
     }
     default: {
       return $t('admin.system.periodicTask.scopeGuide.adminOnly');
@@ -374,11 +374,11 @@ export function getAdminSurfaceSummary(
   scope: null | string | undefined,
 ): string {
   switch (scope) {
-    case 'selected_tenants': {
-      return $t('admin.system.periodicTask.adminSurface.selectedTenants');
-    }
     case 'all_tenants': {
       return $t('admin.system.periodicTask.adminSurface.allTenants');
+    }
+    case 'selected_tenants': {
+      return $t('admin.system.periodicTask.adminSurface.selectedTenants');
     }
     default: {
       return $t('admin.system.periodicTask.adminSurface.platform');
@@ -391,17 +391,6 @@ export function getTenantSurfaceSummary(
   bindingCount: number,
 ): string {
   switch (scope) {
-    case 'global_shared': {
-      return $t('admin.system.periodicTask.tenantSurface.globalShared');
-    }
-    case 'all_tenants': {
-      return $t('admin.system.periodicTask.tenantSurface.allTenants');
-    }
-    case 'selected_tenants': {
-      return $t('admin.system.periodicTask.tenantSurface.selectedTenants', {
-        count: bindingCount,
-      });
-    }
     case 'admin_and_selected_tenants': {
       return $t(
         'admin.system.periodicTask.tenantSurface.adminAndSelectedTenants',
@@ -409,6 +398,17 @@ export function getTenantSurfaceSummary(
           count: bindingCount,
         },
       );
+    }
+    case 'all_tenants': {
+      return $t('admin.system.periodicTask.tenantSurface.allTenants');
+    }
+    case 'global_shared': {
+      return $t('admin.system.periodicTask.tenantSurface.globalShared');
+    }
+    case 'selected_tenants': {
+      return $t('admin.system.periodicTask.tenantSurface.selectedTenants', {
+        count: bindingCount,
+      });
     }
     default: {
       return $t('admin.system.periodicTask.tenantSurface.none');

@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.ai.types import ChatMessage, ChatResponse
+from app.ai.utils.token_estimator import estimate_tokens
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.config import settings
 from app.enums.log import UserTypeEnum as LogUserTypeEnum
@@ -328,6 +329,86 @@ async def test_conversation_engine_stream_logs_platform_admin_calls_without_mete
     assert kwargs["response_data"]["model"] == "gpt-5.4-xhigh"
     api_key.increment_usage.assert_called_once()
     mock_db.flush.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_conversation_engine_stream_estimates_usage_when_provider_omits_tokens(
+    mock_db,
+):
+    from app.ai.engine.conversation import ConversationEngine
+    from app.ai.types import ChatChunk
+
+    provider = SimpleNamespace(
+        id=11,
+        code="provider_1",
+        type="openai_compatible",
+        base_url="https://example.com/v1",
+        config={},
+        name="响应云",
+    )
+    api_key = SimpleNamespace(
+        decrypt_key=MagicMock(return_value="sk-test"),
+        increment_usage=MagicMock(),
+    )
+    model = SimpleNamespace(
+        id=33,
+        provider=provider,
+        code="gpt-5.4-xhigh",
+        name="gpt-5.4-xhigh",
+        input_price_per_1k=0.02,
+        output_price_per_1k=0.06,
+        supports_vision=False,
+        supports_audio=False,
+        supports_video=False,
+        supports_streaming=True,
+    )
+    agent = SimpleNamespace(
+        id=59,
+        model=model,
+        temperature=0.7,
+        max_tokens=256,
+        top_p=1.0,
+    )
+
+    async def fake_stream_chat(**kwargs):
+        _ = kwargs
+        yield ChatChunk(delta="你好")
+        yield ChatChunk(delta="", finish_reason="stop", metadata={"usage_mode": "estimated"})
+
+    gateway = MagicMock()
+    gateway.get_provider_and_key = AsyncMock(return_value=(provider, api_key))
+    gateway.usage_recorder = MagicMock()
+    gateway.usage_recorder.check_rate_and_quota = AsyncMock()
+    gateway.usage_recorder.record_usage_and_adjust = AsyncMock()
+    gateway.usage_recorder.call_log_service = MagicMock()
+    gateway.usage_recorder.call_log_service.log_call_async = AsyncMock()
+    gateway._merge_model_provider_snapshots = MagicMock(side_effect=lambda billing_context, **_: billing_context)
+
+    engine = ConversationEngine(db=mock_db, gateway=gateway, sandbox=MagicMock())
+
+    with patch(
+        "app.ai.engine.conversation.AdapterRegistry.create_adapter",
+        return_value=SimpleNamespace(stream_chat=fake_stream_chat),
+    ):
+        chunks = [
+            chunk
+            async for chunk in engine._stream_llm_chunks(
+                agent=agent,
+                messages=[ChatMessage(role="user", content="测试输入")],
+                tenant_id=PLATFORM_TENANT_ID,
+                user_id=7,
+                conversation_id=454,
+            )
+        ]
+
+    assert "".join(chunk.delta for chunk in chunks) == "你好"
+    gateway.usage_recorder.call_log_service.log_call_async.assert_awaited_once()
+    kwargs = gateway.usage_recorder.call_log_service.log_call_async.await_args.kwargs
+    expected_output = estimate_tokens("你好")
+    assert kwargs["input_tokens"] > 0
+    assert kwargs["output_tokens"] == expected_output
+    assert kwargs["total_tokens"] == kwargs["input_tokens"] + expected_output
+    assert kwargs["response_data"]["usage_mode"] == "estimated"
 
 
 @pytest.mark.asyncio

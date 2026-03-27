@@ -10,6 +10,7 @@ import type {
   AgentMemoryConfig,
   AgentSkillGrantInfo,
 } from '#/api/tenant/agents';
+import type { AgentKnowledgeBaseBindingDraftItem } from '#/components/business/agent-kb-binding-picker';
 import type { InputVariable } from '#/components/business/ai-chat-panel/types';
 
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
@@ -50,7 +51,6 @@ import {
 import { getTenantAIModelsApi } from '#/api/tenant/ai';
 import { smartUploadFile } from '#/api/tenant/attachment';
 import { getTenantSelectableKBApi } from '#/api/tenant/knowledge-bases';
-import type { AgentKnowledgeBaseBindingDraftItem } from '#/components/business/agent-kb-binding-picker';
 import {
   AgentKnowledgeBaseBindingPicker,
   bindingsToDrafts as kbBindingsToDrafts,
@@ -305,7 +305,10 @@ const resolvedOwnerType = computed(() => {
   if (ownerType === 'platform' || ownerType === 'tenant') {
     return ownerType;
   }
-  return agent.value?.owner_tenant_id != null ? 'tenant' : 'platform';
+  return agent.value?.owner_tenant_id === null ||
+    agent.value?.owner_tenant_id === undefined
+    ? 'platform'
+    : 'tenant';
 });
 
 const isTenantOwned = computed(() => resolvedOwnerType.value === 'tenant');
@@ -356,8 +359,10 @@ async function saveModelParams() {
     ? chatModelMaxOutputTokens.value[agent.value.model_id]
     : undefined;
   if (
-    modelLimit != null &&
-    modelMaxTokens.value != null &&
+    modelLimit !== null &&
+    modelLimit !== undefined &&
+    modelMaxTokens.value !== null &&
+    modelMaxTokens.value !== undefined &&
     modelMaxTokens.value > modelLimit
   ) {
     message.warning(
@@ -708,16 +713,16 @@ async function loadRoutingModelOptions() {
     });
     visionModelOptions.value = models
       .filter((m) => m.type === 'chat' && m.supports_vision)
-      .map(toOption);
+      .map((model) => toOption(model));
     audioModelOptions.value = models
       .filter((m) => m.type === 'chat' && m.supports_audio)
-      .map(toOption);
+      .map((model) => toOption(model));
     videoModelOptions.value = models
       .filter((m) => m.type === 'chat' && m.supports_video)
-      .map(toOption);
+      .map((model) => toOption(model));
     chatModelOptions.value = models
       .filter((m) => m.type === 'chat')
-      .map(toOption);
+      .map((model) => toOption(model));
     chatModelMaxOutputTokens.value = Object.fromEntries(
       models
         .filter((m) => m.type === 'chat')
@@ -1574,12 +1579,16 @@ useDetailPageAi({
                         class="rounded-xl border bg-background px-4 py-3"
                       >
                         <div class="flex items-center justify-between gap-4">
-                          <div class="min-w-0 flex flex-1 items-center gap-3">
+                          <div class="flex min-w-0 flex-1 items-center gap-3">
                             <div
                               class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-sm font-bold text-primary"
                             >
                               {{
-                                (binding.skill_name || binding.package_name || '?')
+                                (
+                                  binding.skill_name ||
+                                  binding.package_name ||
+                                  '?'
+                                )
                                   .charAt(0)
                                   .toUpperCase()
                               }}
@@ -1587,7 +1596,9 @@ useDetailPageAi({
                             <div class="min-w-0 flex-1">
                               <div class="flex items-center gap-2">
                                 <span class="truncate text-sm font-medium">
-                                  {{ binding.skill_name || `#${binding.skill_id}` }}
+                                  {{
+                                    binding.skill_name || `#${binding.skill_id}`
+                                  }}
                                 </span>
                                 <Tag
                                   v-if="binding.package_name"
@@ -1597,7 +1608,10 @@ useDetailPageAi({
                                 </Tag>
                               </div>
                               <p
-                                v-if="binding.skill_description || binding.package_description"
+                                v-if="
+                                  binding.skill_description ||
+                                  binding.package_description
+                                "
                                 class="mt-0.5 truncate text-xs text-muted-foreground"
                               >
                                 {{
@@ -1817,7 +1831,9 @@ useDetailPageAi({
                       v-if="canManageKnowledgeBases"
                       class="rounded-2xl border border-border/70 bg-muted/20 p-4"
                     >
-                      <div class="flex flex-wrap items-start justify-between gap-3">
+                      <div
+                        class="flex flex-wrap items-start justify-between gap-3"
+                      >
                         <div class="min-w-0 flex-1">
                           <div class="flex flex-wrap items-center gap-2">
                             <span class="text-sm font-semibold text-foreground">
@@ -1832,19 +1848,29 @@ useDetailPageAi({
                             </Tag>
                             <Tag class="!mr-0 !rounded-full !px-2 !text-[11px]">
                               {{
-                                $t('tenant.ai.agent.kbPicker.selectionSummary', {
-                                  count: managedKbBindings.length,
-                                  scopes: kbManagedScopeCount,
-                                })
+                                $t(
+                                  'tenant.ai.agent.kbPicker.selectionSummary',
+                                  {
+                                    count: managedKbBindings.length,
+                                    scopes: kbManagedScopeCount,
+                                  },
+                                )
                               }}
                             </Tag>
                           </div>
-                          <p class="mt-1 text-xs leading-5 text-muted-foreground">
-                            {{ $t('tenant.ai.agent.detail.kbWeightFusionHint') }}
+                          <p
+                            class="mt-1 text-xs leading-5 text-muted-foreground"
+                          >
+                            {{
+                              $t('tenant.ai.agent.detail.kbWeightFusionHint')
+                            }}
                           </p>
                         </div>
                         <Button type="primary" @click="openKBBindingPicker">
-                          <IconifyIcon icon="lucide:settings-2" class="mr-1 size-4" />
+                          <IconifyIcon
+                            icon="lucide:settings-2"
+                            class="mr-1 size-4"
+                          />
                           {{ $t('tenant.ai.agent.kbPicker.manageBindings') }}
                         </Button>
                       </div>
@@ -2028,7 +2054,9 @@ useDetailPageAi({
                       <div class="mt-4 text-sm font-semibold text-foreground">
                         {{ $t('tenant.ai.agent.kbPicker.emptySelected') }}
                       </div>
-                      <div class="mx-auto mt-2 max-w-xl text-xs leading-6 text-muted-foreground">
+                      <div
+                        class="mx-auto mt-2 max-w-xl text-xs leading-6 text-muted-foreground"
+                      >
                         {{ $t('tenant.ai.agent.kbPicker.detailEmptyHint') }}
                       </div>
                       <Button
@@ -2037,7 +2065,10 @@ useDetailPageAi({
                         type="primary"
                         @click="openKBBindingPicker"
                       >
-                        <IconifyIcon icon="lucide:sparkles" class="mr-1 size-4" />
+                        <IconifyIcon
+                          icon="lucide:sparkles"
+                          class="mr-1 size-4"
+                        />
                         {{ $t('tenant.ai.agent.kbPicker.manageBindings') }}
                       </Button>
                     </div>

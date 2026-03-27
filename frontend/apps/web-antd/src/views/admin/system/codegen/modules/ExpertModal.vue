@@ -104,6 +104,9 @@ interface DetailConfig extends Record<string, unknown> {
 }
 
 function asBoolean(value: unknown): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
   return Boolean(value);
 }
 
@@ -327,7 +330,7 @@ function updateEndpoints(patch: Partial<EndpointConfig>, idx?: number) {
   if (list.length <= i) {
     while (list.length <= i) list.push({});
   }
-  list[i] = { ...(list[i] || {}), ...patch };
+  list[i] = { ...list[i], ...patch };
   store.updateConfig({ endpoints: list });
 }
 
@@ -339,7 +342,7 @@ function updateFrontend(patch: Partial<EndpointFrontend>) {
   if (modePatch && list.length > 1) {
     const next = list.map((ep) => ({
       ...ep,
-      frontend: { ...((ep.frontend as EndpointFrontend) || {}), ...patch },
+      frontend: { ...(ep.frontend as EndpointFrontend), ...patch },
     }));
     store.updateConfig({ endpoints: next });
   } else {
@@ -411,11 +414,12 @@ function updateQuickSearchFields(value: unknown) {
 function updateQuickSearchDefaultField(value: unknown) {
   const nextDefaultField = asString(value);
   const currentConfig = getQuickSearchConfig();
-  const fields = currentConfig.fields?.length
-    ? currentConfig.fields
-    : nextDefaultField
-      ? [nextDefaultField]
-      : [];
+  let fields: string[] = [];
+  if (currentConfig.fields?.length) {
+    fields = currentConfig.fields;
+  } else if (nextDefaultField) {
+    fields = [nextDefaultField];
+  }
   updateFrontend({
     quick_search: {
       ...currentConfig,
@@ -474,7 +478,7 @@ function updateDetailEnabled(enabled: boolean) {
 }
 
 const modalWidth = computed(() =>
-  typeof window !== 'undefined' ? Math.min(960, window.innerWidth * 0.9) : 900,
+  typeof window === 'undefined' ? 900 : Math.min(960, window.innerWidth * 0.9),
 );
 
 watch(

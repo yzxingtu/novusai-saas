@@ -24,9 +24,7 @@ export function getSocketTraceId(): string {
   return ensureTraceIdHeader(SOCKET_TRACE_HEADERS);
 }
 
-function isSocketPayloadObject(
-  data: unknown,
-): data is Record<string, unknown> {
+function isSocketPayloadObject(data: unknown): data is Record<string, unknown> {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     return false;
   }
@@ -54,7 +52,9 @@ interface SocketConnectErrorData {
   trace_id?: string;
 }
 
-function getSocketConnectErrorInfo(err: Error & { data?: SocketConnectErrorData }) {
+function getSocketConnectErrorInfo(
+  err: Error & { data?: SocketConnectErrorData },
+) {
   const reason = err.data?.reason || err.message;
   const traceId = err.data?.trace_id || '';
   const debugMessage =
@@ -188,44 +188,47 @@ export function useSocketIO(options: UseSocketIOOptions): UseSocketIOReturn {
     });
 
     // Token expired / auth failure handling / Token 过期认证失败处理
-    sock.on('connect_error', (err: Error & { data?: SocketConnectErrorData }) => {
-      const { debugMessage, reason, traceId } = getSocketConnectErrorInfo(err);
-      const traceSuffix = traceId ? ` (trace_id=${traceId})` : '';
-      if (
-        reason === 'token_expired' ||
-        reason === 'authentication_failed'
-      ) {
-        authErrorCount++;
-        const latestToken = getToken();
+    sock.on(
+      'connect_error',
+      (err: Error & { data?: SocketConnectErrorData }) => {
+        const { debugMessage, reason, traceId } =
+          getSocketConnectErrorInfo(err);
+        const traceSuffix = traceId ? ` (trace_id=${traceId})` : '';
+        if (reason === 'token_expired' || reason === 'authentication_failed') {
+          authErrorCount++;
+          const latestToken = getToken();
 
-        if (latestToken && latestToken !== currentToken) {
-          // Token refreshed, reconnect with new token / Token 已刷新，用新 token 重连
-          const refreshedTraceId = getSocketTraceId();
-          sock.auth = refreshedTraceId
-            ? { token: `Bearer ${latestToken}`, trace_id: refreshedTraceId }
-            : { token: `Bearer ${latestToken}` };
-          authErrorCount = 0;
-          console.warn(
-            `[Socket.IO] Token refreshed, reconnecting with new token${traceSuffix}`,
-          );
-        } else if (authErrorCount >= MAX_AUTH_ERRORS) {
-          // Multiple auth failures without token refresh, stop reconnecting / 多次认证失败停止重连
-          sock.disconnect();
-          status.value = 'disconnected';
-          console.warn(
-            `[Socket.IO] Auth failed after max retries, stopped reconnecting${traceSuffix}`,
-          );
+          if (latestToken && latestToken !== currentToken) {
+            // Token refreshed, reconnect with new token / Token 已刷新，用新 token 重连
+            const refreshedTraceId = getSocketTraceId();
+            sock.auth = refreshedTraceId
+              ? { token: `Bearer ${latestToken}`, trace_id: refreshedTraceId }
+              : { token: `Bearer ${latestToken}` };
+            authErrorCount = 0;
+            console.warn(
+              `[Socket.IO] Token refreshed, reconnecting with new token${traceSuffix}`,
+            );
+          } else if (authErrorCount >= MAX_AUTH_ERRORS) {
+            // Multiple auth failures without token refresh, stop reconnecting / 多次认证失败停止重连
+            sock.disconnect();
+            status.value = 'disconnected';
+            console.warn(
+              `[Socket.IO] Auth failed after max retries, stopped reconnecting${traceSuffix}`,
+            );
+          } else {
+            console.warn(
+              `[Socket.IO] Auth error: ${reason} (attempt ${authErrorCount}/${MAX_AUTH_ERRORS})${traceSuffix}`,
+            );
+          }
         } else {
+          const debugSuffix =
+            isDevErrorMode() && debugMessage ? ` | debug=${debugMessage}` : '';
           console.warn(
-            `[Socket.IO] Auth error: ${reason} (attempt ${authErrorCount}/${MAX_AUTH_ERRORS})${traceSuffix}`,
+            `[Socket.IO] Connect error: ${reason}${traceSuffix}${debugSuffix}`,
           );
         }
-      } else {
-        const debugSuffix =
-          isDevErrorMode() && debugMessage ? ` | debug=${debugMessage}` : '';
-        console.warn(`[Socket.IO] Connect error: ${reason}${traceSuffix}${debugSuffix}`);
-      }
-    });
+      },
+    );
 
     return sock;
   }

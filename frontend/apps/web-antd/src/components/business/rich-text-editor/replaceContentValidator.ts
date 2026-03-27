@@ -5,8 +5,8 @@
 
 /** Result of validation: either valid with html to set, or invalid with error info. */
 export type ReplaceContentValidation =
-  | { valid: true; html: string; inputLength: number }
-  | { valid: false; error_type: 'invalid_input_empty_content' };
+  | { error_type: 'invalid_input_empty_content'; valid: false }
+  | { html: string; inputLength: number; valid: true };
 
 /**
  * Validate params for replace_content. Does not touch the editor.
@@ -27,8 +27,8 @@ export function validateReplaceContentParams(
   const html = processors.sanitizeTableAttributesForSetContent(
     processors.fixTableWidthZero(processors.ensureHtml(raw)),
   );
-  const stripped = html.replace(/<[^>]+>/g, '').trim();
-  if (stripped.length < 1) {
+  const stripped = html.replaceAll(/<[^>]+>/g, '').trim();
+  if (stripped.length === 0) {
     return { valid: false, error_type: 'invalid_input_empty_content' };
   }
   return { valid: true, html, inputLength: raw.length };

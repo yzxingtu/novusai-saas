@@ -184,9 +184,7 @@ export function useScopeFields(
  * 判断 scope 是否需要企业分配
  */
 export function scopeNeedsAssignment(scope: string): boolean {
-  return (
-    scope === 'selected_tenants' || scope === 'admin_and_selected_tenants'
-  );
+  return scope === 'selected_tenants' || scope === 'admin_and_selected_tenants';
 }
 
 /**

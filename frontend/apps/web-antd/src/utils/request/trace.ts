@@ -18,11 +18,11 @@ function normalizeTraceId(value: unknown): string {
   }
 
   const text = typeof value === 'string' ? value : String(value ?? '');
-  const parts = text
+  const part_ = text
     .split(',')
     .map((part) => part.trim())
-    .filter(Boolean);
-  return parts[0] || '';
+    .find(Boolean);
+  return part_ || '';
 }
 
 export function getTraceIdFromHeaders(headers?: HeaderLike | null): string {

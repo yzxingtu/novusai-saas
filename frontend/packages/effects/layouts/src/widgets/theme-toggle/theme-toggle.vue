@@ -67,8 +67,7 @@ const PRESETS = [
         type="single"
         variant="outline"
         @update:model-value="
-          (val) =>
-            updatePreferences({ theme: { mode: val as ThemeModeType } })
+          (val) => updatePreferences({ theme: { mode: val as ThemeModeType } })
         "
       >
         <ToggleGroupItem

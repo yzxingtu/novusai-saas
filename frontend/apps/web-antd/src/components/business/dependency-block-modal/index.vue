@@ -258,7 +258,9 @@ defineExpose({ close: onCancel, openBlocked, openPreview });
               {{ $t(strategyConfig[group.strategy].labelKey) }}
             </Tag>
             <Tag color="default" class="mr-0">
-              {{ $t('common.dependency.itemCount', { count: group.dep.count }) }}
+              {{
+                $t('common.dependency.itemCount', { count: group.dep.count })
+              }}
             </Tag>
           </div>
         </div>

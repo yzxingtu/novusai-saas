@@ -8,20 +8,28 @@
  * - false (default): Full page layout with avatar, Tag status, RAG sources
  * - true: Compact drawer layout with smaller sizes, no avatar/Tag/RAG
  */
-import type { AgentItem, ChatAttachment, ChatMessage, RagSource } from './types';
+import type {
+  AgentItem,
+  ChatAttachment,
+  ChatMessage,
+  RagSource,
+  RichTextAIApplyMode,
+  RichTextAIApplyTarget,
+  RichTextDraftRuntimeState,
+} from './types';
 
 import { computed, onUnmounted, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { useAIPanelStore } from '#/store';
-
 import { Button, Modal, Tooltip } from 'ant-design-vue';
 
 import { AgentProfilePopover } from '#/components/business/agent-profile-popover';
-import { MarkdownRender } from '#/components/business/markdown-render';
 import { getPageOpErrorHintKey } from '#/components/business/ai-chat-panel/pageOpErrorHints';
+import RichTextDraftCard from '#/components/business/ai-chat-panel/RichTextDraftCard.vue';
+import { MarkdownRender } from '#/components/business/markdown-render';
 import { $t } from '#/locales';
+import { useAIPanelStore } from '#/store';
 import { formatTimeOnly } from '#/utils/common';
 import { getFileIcon } from '#/utils/file';
 import { isDevErrorMode } from '#/utils/request';
@@ -40,29 +48,52 @@ export interface PendingPageOpForDisplay {
 
 const props = withDefaults(
   defineProps<{
-    apiPrefix?: string;
     /** Agents list for resolving avatar/name by msg.agent_id (fix avatar mismatch) / 智能体列表，按 msg.agent_id 解析头像 */
     agents?: AgentItem[];
+    apiPrefix?: string;
     compact?: boolean;
+    /** Current timestamp for 60s countdown display (fallback: local now) / 用于 60s 倒计时的当前时间戳 */
+    countdownNow?: number;
     index: number;
     msg: ChatMessage;
+    /** Pending page ops for this message (filtered by toolCallId) / 本消息关联的待确认操作 */
+    pendingOps?: PendingPageOpForDisplay[];
+    richTextState?: null | RichTextDraftRuntimeState;
     selectedAgent?: AgentItem | null;
     /** Whether to show an agent-switch separator above this message / 是否在本条消息上方显示智能体切换分隔 */
     showAgentSwitch?: boolean;
-    /** Pending page ops for this message (filtered by toolCallId) / 本消息关联的待确认操作 */
-    pendingOps?: PendingPageOpForDisplay[];
-    /** Current timestamp for 60s countdown display (fallback: local now) / 用于 60s 倒计时的当前时间戳 */
-    countdownNow?: number;
   }>(),
   {
     apiPrefix: '',
     agents: () => [],
     compact: false,
+    countdownNow: undefined,
     selectedAgent: null,
     showAgentSwitch: false,
     pendingOps: () => [],
+    richTextState: null,
   },
 );
+
+const emit = defineEmits<{
+  actionClick: [index: number, value: string];
+  confirm: [index: number];
+  consentConfirm: [index: number];
+  consentReject: [index: number];
+  copy: [content: string];
+  edit: [index: number];
+  openUrl: [url: string];
+  regenerate: [index: number];
+  reject: [index: number];
+  retry: [index: number];
+  richTextApply: [
+    index: number,
+    target: RichTextAIApplyTarget,
+    mode: RichTextAIApplyMode,
+  ];
+  richTextDiscard: [index: number];
+  richTextUndo: [index: number];
+}>();
 
 /** Agent resolved by msg.agent_id from agents list (fix avatar mismatch when msg.agent_avatar is null) */
 const resolvedAgent = computed(() => {
@@ -111,7 +142,7 @@ const showRouteBadge = computed(
 );
 
 const ragDetailOpen = ref(false);
-const ragDetailItem = ref<RagSource | null>(null);
+const ragDetailItem = ref<null | RagSource>(null);
 function openRagDetail(s: RagSource) {
   ragDetailItem.value = s;
   ragDetailOpen.value = true;
@@ -124,7 +155,9 @@ const ragGroups = computed(() => {
   for (const s of list) {
     const label =
       s.knowledge_base_name ||
-      (s.knowledge_base_id != null ? `KB#${s.knowledge_base_id}` : '—');
+      (s.knowledge_base_id === null || s.knowledge_base_id === undefined
+        ? '—'
+        : `KB#${s.knowledge_base_id}`);
     const key = String(s.knowledge_base_id ?? label);
     if (!groups.has(key)) {
       groups.set(key, { label, items: [] });
@@ -133,19 +166,6 @@ const ragGroups = computed(() => {
   }
   return [...groups.values()];
 });
-
-const emit = defineEmits<{
-  actionClick: [index: number, value: string];
-  confirm: [index: number];
-  consentConfirm: [index: number];
-  consentReject: [index: number];
-  copy: [content: string];
-  edit: [index: number];
-  openUrl: [url: string];
-  regenerate: [index: number];
-  reject: [index: number];
-  retry: [index: number];
-}>();
 
 /** 用户消息图片：blob 预览失效时改用 url；仍失败则隐藏避免破图 / Image load error fallback */
 function onUserAttachmentImageError(event: Event, att: ChatAttachment) {
@@ -156,6 +176,38 @@ function onUserAttachmentImageError(event: Event, att: ChatAttachment) {
     return;
   }
   el.classList.add('hidden');
+}
+
+function pickRichTextDraftCopyContent(
+  ...values: Array<null | string | undefined>
+) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value;
+    }
+  }
+  return '';
+}
+
+function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
+  const task = props.msg.richTextAI;
+  if (!task) {
+    return props.msg.content;
+  }
+  if (mode === 'plain') {
+    return pickRichTextDraftCopyContent(
+      task.draft.plainText,
+      task.draft.markdown,
+      props.msg.content,
+      task.draft.html,
+    );
+  }
+  return pickRichTextDraftCopyContent(
+    task.draft.markdown,
+    task.draft.plainText,
+    props.msg.content,
+    task.draft.html,
+  );
 }
 
 const aiPanelStore = useAIPanelStore();
@@ -179,7 +231,10 @@ function toggleExpand(idx: number) {
 /** Thinking block: expanded during streaming, collapsed by default when done. User can toggle. */
 const thinkingExpandedMap = ref<Record<number, boolean>>({});
 function toggleThinkingExpand(idx: number) {
-  thinkingExpandedMap.value = { ...thinkingExpandedMap.value, [idx]: !thinkingExpandedMap.value[idx] };
+  thinkingExpandedMap.value = {
+    ...thinkingExpandedMap.value,
+    [idx]: !thinkingExpandedMap.value[idx],
+  };
 }
 
 interface ToolTargetBadge {
@@ -208,12 +263,15 @@ const toolRawExpandedMap = ref<Record<number, boolean>>({});
 const pendingOpExpandedMap = ref<Record<string, boolean>>({});
 
 function hasToolCardDetails(
-  tc: Pick<NonNullable<ChatMessage['toolCalls']>[number], 'arguments' | 'error' | 'output'>,
+  tc: Pick<
+    NonNullable<ChatMessage['toolCalls']>[number],
+    'arguments' | 'error' | 'output'
+  >,
 ) {
   return Boolean(
     tc.output ||
-      tc.error ||
-      (tc.arguments && Object.keys(tc.arguments).length > 0),
+    tc.error ||
+    (tc.arguments && Object.keys(tc.arguments).length > 0),
   );
 }
 
@@ -273,11 +331,11 @@ function compactValueText(text: string) {
 }
 
 function formatToolTargetValue(value: unknown): null | string {
-  if (value == null) return null;
+  if (value === null || value === undefined) return null;
   if (Array.isArray(value)) {
     const parts = value
       .map((item) => formatToolTargetValue(item))
-      .filter((item): item is string => Boolean(item));
+      .filter(Boolean);
     if (parts.length === 0) return null;
     const visible = parts.slice(0, 3).join(', ');
     return parts.length > 3 ? `${visible} +${parts.length - 3}` : visible;
@@ -300,7 +358,7 @@ function readFirstArg(
 ): unknown {
   if (!args) return undefined;
   for (const key of keys) {
-    if (args[key] != null) {
+    if (args[key] !== null && args[key] !== undefined) {
       return args[key];
     }
   }
@@ -308,7 +366,9 @@ function readFirstArg(
 }
 
 function parseSqlTableNames(text: string): string[] {
-  const matches = [...text.matchAll(/\b(?:from|join|into|update)\s+([a-zA-Z0-9_."]+)/gi)];
+  const matches = [
+    ...text.matchAll(/\b(?:from|join|into|update)\s+([\w."]+)/gi),
+  ];
   const out: string[] = [];
   for (const match of matches) {
     const raw = (match[1] ?? '').replaceAll('"', '').trim();
@@ -322,22 +382,26 @@ function parseSqlTableNames(text: string): string[] {
 }
 
 function parseSqlSelectClause(text: string): string {
-  const match = text.match(/\bselect\b([\s\S]*?)\bfrom\b/i);
-  return match?.[1]?.trim() ?? '';
+  const selectMatch = /\bselect\b/i.exec(text);
+  if (!selectMatch) return '';
+
+  const selectStart = selectMatch.index + selectMatch[0].length;
+  const fromMatch = /\bfrom\b/i.exec(text.slice(selectStart));
+  if (!fromMatch) return '';
+
+  return text.slice(selectStart, selectStart + fromMatch.index).trim();
 }
 
 function parseSqlMetrics(text: string): string[] {
   const selectClause = parseSqlSelectClause(text);
   if (!selectClause) return [];
   const matches = [
-    ...selectClause.matchAll(
-      /\b(count|sum|avg|min|max)\s*\(([\s\S]*?)\)/gi,
-    ),
+    ...selectClause.matchAll(/\b(count|sum|avg|min|max)\s*\(([\s\S]*?)\)/gi),
   ];
   const out: string[] = [];
   for (const match of matches) {
     const fnName = (match[1] ?? '').toUpperCase();
-    const arg = (match[2] ?? '').replace(/\s+/g, ' ').trim();
+    const arg = (match[2] ?? '').replaceAll(/\s+/g, ' ').trim();
     if (!fnName || !arg) continue;
     const formatted = `${fnName}(${arg})`;
     if (!out.includes(formatted)) {
@@ -348,11 +412,13 @@ function parseSqlMetrics(text: string): string[] {
 }
 
 function parseSqlGroupByColumns(text: string): string[] {
-  const match = text.match(/\bgroup\s+by\b([\s\S]*?)(?:\border\s+by\b|\blimit\b|$)/i);
+  const match = text.match(
+    /\bgroup\s+by\b([\s\S]*?)(?:\border\s+by\b|\blimit\b|$)/i,
+  );
   if (!match?.[1]) return [];
   return match[1]
     .split(',')
-    .map((item) => item.trim().replace(/\s+/g, ' '))
+    .map((item) => item.trim().replaceAll(/\s+/g, ' '))
     .filter(Boolean)
     .slice(0, 4);
 }
@@ -374,7 +440,7 @@ function parseSqlFilterHints(text: string): string[] {
   } else if (
     normalized.includes('current_date') ||
     normalized.includes("date_trunc('day'") ||
-    normalized.includes('date_trunc(\'day\'')
+    normalized.includes("date_trunc('day'")
   ) {
     hints.push($t('common.globalAiChat.toolFilterToday'));
   }
@@ -382,7 +448,9 @@ function parseSqlFilterHints(text: string): string[] {
   return hints;
 }
 
-function parseToolOutputPayload(output?: string): null | Record<string, unknown> {
+function parseToolOutputPayload(
+  output?: string,
+): null | Record<string, unknown> {
   if (!output) return null;
   try {
     const parsed = JSON.parse(output);
@@ -443,7 +511,7 @@ function getStructuredToolOutput(
   delete rest.sql;
 
   const hasMeaningfulRest = Object.entries(rest).some(([, value]) => {
-    if (value == null) return false;
+    if (value === null || value === undefined) return false;
     if (Array.isArray(value)) return value.length > 0;
     if (typeof value === 'string') return value.trim().length > 0;
     return true;
@@ -468,7 +536,7 @@ function getToolHeadlineSummary(
   if (tc.status !== 'success') return null;
   const structured = getStructuredToolOutput(tc);
   if (!structured.explanation) return null;
-  return compactValueText(structured.explanation.replace(/\s+/g, ' '));
+  return compactValueText(structured.explanation.replaceAll(/\s+/g, ' '));
 }
 
 function getToolTargetBadges(
@@ -483,7 +551,11 @@ function getToolTargetBadges(
   const pushBadge = (labelKey: string, value: unknown) => {
     const formatted = formatToolTargetValue(value);
     if (!formatted) return;
-    if (badges.some((badge) => badge.labelKey === labelKey && badge.value === formatted)) {
+    if (
+      badges.some(
+        (badge) => badge.labelKey === labelKey && badge.value === formatted,
+      )
+    ) {
       return;
     }
     badges.push({ labelKey, value: formatted });
@@ -507,7 +579,14 @@ function getToolTargetBadges(
   );
   pushBadge(
     'common.globalAiChat.toolTargetFields',
-    readFirstArg(args, ['field', 'fields', 'field_name', 'field_names', 'column', 'columns']),
+    readFirstArg(args, [
+      'field',
+      'fields',
+      'field_name',
+      'field_names',
+      'column',
+      'columns',
+    ]),
   );
   pushBadge(
     'common.globalAiChat.toolTargetRecords',
@@ -519,16 +598,18 @@ function getToolTargetBadges(
   );
 
   const parsedOutput = parseToolOutputPayload(tc.output);
-  const sqlText =
-    typeof parsedOutput?.sql === 'string'
-      ? parsedOutput.sql
-      : typeof tc.output === 'string'
-        ? tc.output
-        : '';
+  let sqlText = '';
+  if (typeof parsedOutput?.sql === 'string') {
+    sqlText = parsedOutput.sql;
+  } else if (typeof tc.output === 'string') {
+    sqlText = tc.output;
+  }
   const sqlTables = parseSqlTableNames(sqlText);
   if (
     sqlTables.length > 0 &&
-    !badges.some((badge) => badge.labelKey === 'common.globalAiChat.toolTargetTables')
+    !badges.some(
+      (badge) => badge.labelKey === 'common.globalAiChat.toolTargetTables',
+    )
   ) {
     pushBadge('common.globalAiChat.toolTargetTables', sqlTables);
   }
@@ -555,16 +636,19 @@ function getToolTargetBadges(
     pushBadge('common.globalAiChat.toolTargetMetrics', summaryPayload.metrics);
   }
   if (Array.isArray(summaryPayload?.group_by)) {
-    pushBadge('common.globalAiChat.toolTargetGrouping', summaryPayload.group_by);
+    pushBadge(
+      'common.globalAiChat.toolTargetGrouping',
+      summaryPayload.group_by,
+    );
   }
   if (Array.isArray(summaryPayload?.filters)) {
     const normalizedFilters = summaryPayload.filters.map((item) => {
       switch (item) {
-        case 'last_30_days': {
-          return $t('common.globalAiChat.toolFilterLast30Days');
-        }
         case 'last_7_days': {
           return $t('common.globalAiChat.toolFilterLast7Days');
+        }
+        case 'last_30_days': {
+          return $t('common.globalAiChat.toolFilterLast30Days');
         }
         case 'today': {
           return $t('common.globalAiChat.toolFilterToday');
@@ -597,9 +681,14 @@ const toolDisplayItems = computed<ToolDisplayItem[]>(() =>
 );
 
 /** Whether this tool call has a pending confirmation (inline) / 该工具调用是否有待确认（内联） */
-function hasPendingForToolCall(tc: { id?: string; name: string; status: string }): boolean {
+function hasPendingForToolCall(tc: {
+  id?: string;
+  name: string;
+  status: string;
+}): boolean {
   if (tc.status !== 'running') return false;
-  if (tc.name !== 'invoke_page_operation' && !tc.name.startsWith('pageop_')) return false;
+  if (tc.name !== 'invoke_page_operation' && !tc.name.startsWith('pageop_'))
+    return false;
   if (!props.pendingOps?.length) return false;
   // Prefer toolCallId match when available / 有 toolCallId 时精确匹配
   const matched = props.pendingOps.some(
@@ -611,7 +700,11 @@ function hasPendingForToolCall(tc: { id?: string; name: string; status: string }
 }
 
 /** Display sub-state for running tools: waiting_confirm vs executing / 运行中工具的展示子状态 */
-function getToolDisplayState(tc: { id?: string; name: string; status: string }): 'executing' | 'waiting_confirm' {
+function getToolDisplayState(tc: {
+  id?: string;
+  name: string;
+  status: string;
+}): 'executing' | 'waiting_confirm' {
   if (tc.status !== 'running') return 'executing';
   if (hasPendingForToolCall(tc)) return 'waiting_confirm';
   return 'executing';
@@ -619,10 +712,10 @@ function getToolDisplayState(tc: { id?: string; name: string; status: string }):
 
 /** Ticking now for "still running" countdown (8s+) / 用于“仍在执行”提示的计时 */
 const now = ref(Date.now());
-const hasRunningTool = computed(() =>
-  props.msg.toolCalls?.some((tc) => tc.status === 'running') ?? false,
+const hasRunningTool = computed(
+  () => props.msg.toolCalls?.some((tc) => tc.status === 'running') ?? false,
 );
-let tickInterval: ReturnType<typeof setInterval> | null = null;
+let tickInterval: null | ReturnType<typeof setInterval> = null;
 function startTick() {
   if (tickInterval) return;
   tickInterval = setInterval(() => {
@@ -635,10 +728,14 @@ function stopTick() {
     tickInterval = null;
   }
 }
-watch(hasRunningTool, (running) => {
-  if (running) startTick();
-  else stopTick();
-}, { immediate: true });
+watch(
+  hasRunningTool,
+  (running) => {
+    if (running) startTick();
+    else stopTick();
+  },
+  { immediate: true },
+);
 onUnmounted(stopTick);
 
 /** Auto-collapse thinking block when streaming ends. */
@@ -646,8 +743,15 @@ watch(
   () => [props.msg.streaming, props.index] as const,
   ([streaming, idx], oldVal) => {
     const prevStreaming = oldVal?.[0];
-    if (prevStreaming === true && streaming === false && typeof idx === 'number') {
-      thinkingExpandedMap.value = { ...thinkingExpandedMap.value, [idx]: false };
+    if (
+      prevStreaming === true &&
+      streaming === false &&
+      typeof idx === 'number'
+    ) {
+      thinkingExpandedMap.value = {
+        ...thinkingExpandedMap.value,
+        [idx]: false,
+      };
     }
   },
 );
@@ -660,7 +764,7 @@ watch(
     class="flex items-center gap-2 py-1"
     :class="compact ? 'mb-1' : 'mb-2'"
   >
-    <div class="h-px flex-1 bg-border/40" />
+    <div class="h-px flex-1 bg-border/40"></div>
     <div
       class="flex items-center gap-1 rounded-full bg-muted/60 px-2.5 py-0.5 text-muted-foreground"
       :class="compact ? 'text-[10px]' : 'text-xs'"
@@ -671,7 +775,7 @@ watch(
       />
       <span>{{ isMentionRoute ? `@ ${msgAgentName}` : msgAgentName }}</span>
     </div>
-    <div class="h-px flex-1 bg-border/40" />
+    <div class="h-px flex-1 bg-border/40"></div>
   </div>
 
   <div
@@ -704,7 +808,10 @@ watch(
           v-if="msgAgentName && msg.agent_id"
           :class="compact ? 'mb-0.5' : 'mb-1'"
         >
-          <span :class="compact ? 'text-[10px]' : 'text-xs'" class="font-medium text-muted-foreground">
+          <span
+            :class="compact ? 'text-[10px]' : 'text-xs'"
+            class="font-medium text-muted-foreground"
+          >
             {{ msgAgentName }}
           </span>
           <span
@@ -726,15 +833,29 @@ watch(
           class="thinking-skeleton space-y-2 rounded-xl border border-border/20 bg-accent/30 px-3 py-3"
         >
           <div class="flex items-center gap-2">
-            <div class="thinking-glow relative flex size-5 items-center justify-center rounded-full bg-primary/10">
-              <span class="typing-dots"><span /><span /><span /></span>
+            <div
+              class="thinking-glow relative flex size-5 items-center justify-center rounded-full bg-primary/10"
+            >
+              <span class="typing-dots"
+                ><span></span><span></span><span></span
+              ></span>
             </div>
-            <span class="text-xs font-medium text-muted-foreground">{{ $t('common.globalAiChat.processing') }}</span>
+            <span class="text-xs font-medium text-muted-foreground">{{
+              $t('common.globalAiChat.processing')
+            }}</span>
           </div>
           <div class="space-y-2">
-            <div class="skeleton-line h-2 w-[90%] rounded-full bg-muted/50"></div>
-            <div class="skeleton-line h-2 w-[72%] rounded-full bg-muted/50" style="animation-delay: 0.15s"></div>
-            <div class="skeleton-line h-2 w-[55%] rounded-full bg-muted/50" style="animation-delay: 0.3s"></div>
+            <div
+              class="skeleton-line h-2 w-[90%] rounded-full bg-muted/50"
+            ></div>
+            <div
+              class="skeleton-line h-2 w-[72%] rounded-full bg-muted/50"
+              style="animation-delay: 0.15s"
+            ></div>
+            <div
+              class="skeleton-line h-2 w-[55%] rounded-full bg-muted/50"
+              style="animation-delay: 0.3s"
+            ></div>
           </div>
         </div>
 
@@ -755,24 +876,40 @@ watch(
               class="size-3.5 shrink-0 text-muted-foreground/70"
               :class="msg.streaming ? 'thinking-glow text-primary/60' : ''"
             />
-            <span v-if="msg.streaming" class="typing-dots shrink-0"><span /><span /><span /></span>
-            <span class="flex-1 truncate text-xs text-muted-foreground">
-              {{ (msg.streaming && !msg.content) ? $t('common.globalAiChat.thinking') : $t('common.globalAiChat.thinkingCollapsed') }}
-              <span
-                v-if="!msg.streaming && !thinkingExpandedMap[index]"
-                class="ml-1 text-muted-foreground/60"
-              >({{ $t('common.globalAiChat.thinkingExpandHint') }})</span>
+            <span v-if="msg.streaming" class="typing-dots shrink-0"
+              ><span></span><span></span><span></span>
+              <span class="flex-1 truncate text-xs text-muted-foreground">
+                {{
+                  msg.streaming && !msg.content
+                    ? $t('common.globalAiChat.thinking')
+                    : $t('common.globalAiChat.thinkingCollapsed')
+                }}
+                <span
+                  v-if="!msg.streaming && !thinkingExpandedMap[index]"
+                  class="ml-1 text-muted-foreground/60"
+                  >({{ $t('common.globalAiChat.thinkingExpandHint') }})</span
+                >
+              </span>
+              <IconifyIcon
+                icon="lucide:chevron-down"
+                class="size-3 shrink-0 text-muted-foreground/50 transition-transform duration-150"
+                :class="[
+                  (msg.streaming && msg.thinkingContent) ||
+                  thinkingExpandedMap[index]
+                    ? 'rotate-180'
+                    : '',
+                ]"
+              />
             </span>
-            <IconifyIcon
-              icon="lucide:chevron-down"
-              class="size-3 shrink-0 text-muted-foreground/50 transition-transform duration-150"
-              :class="[(msg.streaming && msg.thinkingContent) || thinkingExpandedMap[index] ? 'rotate-180' : '']"
-            />
           </button>
           <div
             class="grid transition-[grid-template-rows] duration-200 ease-out"
             :style="{
-              gridTemplateRows: (msg.streaming && msg.thinkingContent) || thinkingExpandedMap[index] ? '1fr' : '0fr',
+              gridTemplateRows:
+                (msg.streaming && msg.thinkingContent) ||
+                thinkingExpandedMap[index]
+                  ? '1fr'
+                  : '0fr',
             }"
           >
             <div class="min-h-0 overflow-hidden border-t border-border/20">
@@ -780,7 +917,7 @@ watch(
                 class="px-2.5 pb-2 pt-0"
                 :class="compact ? 'px-2 py-1' : 'px-3 py-1.5'"
               >
-                <div class="text-xs leading-5.5 text-muted-foreground/80">
+                <div class="leading-5.5 text-xs text-muted-foreground/80">
                   <MarkdownRender
                     :content="msg.thinkingContent"
                     :streaming="!!msg.streaming && !msg.content"
@@ -821,7 +958,9 @@ watch(
         <div
           v-if="msg.error"
           class="rounded-xl border border-destructive/40 bg-destructive/5"
-          :class="compact ? 'mb-1 px-2.5 py-2 text-xs' : 'mb-2 px-3 py-2.5 text-sm'"
+          :class="
+            compact ? 'mb-1 px-2.5 py-2 text-xs' : 'mb-2 px-3 py-2.5 text-sm'
+          "
         >
           <div class="flex items-start gap-2">
             <IconifyIcon
@@ -839,7 +978,8 @@ watch(
               <pre
                 v-if="showDebugError"
                 class="mt-1 max-h-36 overflow-auto whitespace-pre-wrap break-all rounded bg-black/5 p-2 text-[11px] text-red-500"
-              >{{ msg.error?.debugMessage }}</pre>
+                >{{ msg.error?.debugMessage }}</pre
+              >
             </div>
           </div>
         </div>
@@ -847,18 +987,21 @@ watch(
         <!-- Markdown content -->
         <div
           v-if="msg.content"
-          class="rounded-2xl border border-border/30 bg-gradient-to-br from-muted/40 to-muted/20 shadow-sm overflow-hidden"
+          class="overflow-hidden rounded-2xl border border-border/30 bg-gradient-to-br from-muted/40 to-muted/20 shadow-sm"
           :class="compact ? 'px-2.5 py-1.5 text-sm' : 'px-4 py-3'"
         >
           <div
+            class="transition-[max-height] duration-200"
             :class="[
-              'transition-[max-height] duration-200',
               canCollapse && !expandedMap[index]
-                ? 'max-h-[300px] overflow-hidden relative'
+                ? 'relative max-h-[300px] overflow-hidden'
                 : '',
             ]"
           >
-            <MarkdownRender :content="msg.content" :streaming="!!msg.streaming" />
+            <MarkdownRender
+              :content="msg.content"
+              :streaming="!!msg.streaming"
+            />
             <span v-if="msg.streaming" class="streaming-cursor"></span>
             <span
               v-if="msg.stoppedByUser && !msg.streaming"
@@ -880,8 +1023,8 @@ watch(
             </span>
             <div
               v-if="canCollapse && !expandedMap[index]"
-              class="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-muted/90 to-transparent pointer-events-none"
-            />
+              class="pointer-events-none absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-muted/90 to-transparent"
+            ></div>
           </div>
           <button
             v-if="canCollapse && !msg.streaming"
@@ -889,7 +1032,11 @@ watch(
             class="mt-1 flex w-full items-center justify-center gap-1 rounded py-1 text-xs text-primary transition-colors hover:underline"
             @click="toggleExpand(index)"
           >
-            {{ expandedMap[index] ? $t('common.globalAiChat.collapseMessage') : $t('common.globalAiChat.expandMore') }}
+            {{
+              expandedMap[index]
+                ? $t('common.globalAiChat.collapseMessage')
+                : $t('common.globalAiChat.expandMore')
+            }}
           </button>
         </div>
         <!-- SSE error retry -->
@@ -914,7 +1061,9 @@ watch(
           class="flex items-center gap-1.5 px-2 py-0.5 text-muted-foreground"
           :class="compact ? 'text-[11px]' : 'text-xs'"
         >
-          <span class="typing-dots"><span /><span /><span /></span>
+          <span class="typing-dots"
+            ><span></span><span></span><span></span
+          ></span>
           <span>{{ $t('common.globalAiChat.generating') }}</span>
         </div>
 
@@ -928,8 +1077,12 @@ watch(
           <div
             v-if="msg.toolCalls.length > 1"
             class="absolute w-px bg-border/40"
-            :class="compact ? 'bottom-1 left-[4px] top-1' : 'bottom-1.5 left-[5px] top-1.5'"
-          />
+            :class="
+              compact
+                ? 'bottom-1 left-[4px] top-1'
+                : 'bottom-1.5 left-[5px] top-1.5'
+            "
+          ></div>
 
           <div
             v-for="toolItem in toolDisplayItems"
@@ -946,17 +1099,17 @@ watch(
                 v-if="toolItem.tc.status === 'running'"
                 class="tc-dot-pulse block rounded-full bg-primary"
                 :class="compact ? 'size-[7px]' : 'size-2'"
-              />
+              ></span>
               <span
                 v-else-if="toolItem.tc.status === 'success'"
                 class="block rounded-full bg-green-500"
                 :class="compact ? 'size-[7px]' : 'size-2'"
-              />
+              ></span>
               <span
                 v-else
                 class="block rounded-full bg-red-500"
                 :class="compact ? 'size-[7px]' : 'size-2'"
-              />
+              ></span>
             </div>
 
             <!-- Tool call card -->
@@ -967,7 +1120,9 @@ watch(
                 type="button"
                 class="flex w-full select-none items-center text-left"
                 :class="[
-                  compact ? 'gap-1 px-2 py-[3px] text-[11px]' : 'gap-1.5 px-2.5 py-1 text-xs',
+                  compact
+                    ? 'gap-1 px-2 py-[3px] text-[11px]'
+                    : 'gap-1.5 px-2.5 py-1 text-xs',
                   toolItem.hasDetails ? 'cursor-pointer' : 'cursor-default',
                 ]"
                 :data-testid="`tool-call-toggle-${toolItem.index}`"
@@ -988,10 +1143,17 @@ watch(
                 >
                   <IconifyIcon
                     v-if="toolItem.tc.status !== 'running'"
-                    :icon="toolItem.tc.status === 'success' ? 'lucide:check' : 'lucide:x'"
+                    :icon="
+                      toolItem.tc.status === 'success'
+                        ? 'lucide:check'
+                        : 'lucide:x'
+                    "
                     class="size-2.5"
                   />
-                  <span v-else class="tc-dot-pulse mr-0.5 inline-block size-1.5 rounded-full bg-current" />
+                  <span
+                    v-else
+                    class="tc-dot-pulse mr-0.5 inline-block size-1.5 rounded-full bg-current"
+                  ></span>
                   {{
                     toolItem.tc.status === 'running'
                       ? getToolDisplayState(toolItem.tc) === 'waiting_confirm'
@@ -1007,14 +1169,22 @@ watch(
                 <span class="min-w-0 flex-1 text-muted-foreground">
                   <span class="block truncate">
                     <template v-if="toolItem.tc.skillName">
-                      <span class="font-medium text-foreground/60">{{ toolItem.tc.skillName }}</span>
+                      <span class="font-medium text-foreground/60">{{
+                        toolItem.tc.skillName
+                      }}</span>
                       <span class="mx-0.5 text-muted-foreground/30">›</span>
                     </template>
-                    <span class="text-foreground/70">{{ toolItem.tc.displayName || toolItem.tc.name }}</span>
+                    <span class="text-foreground/70">{{
+                      toolItem.tc.displayName || toolItem.tc.name
+                    }}</span>
                     <span
-                      v-if="toolItem.headlineSummary && toolItem.tc.status === 'success'"
+                      v-if="
+                        toolItem.headlineSummary &&
+                        toolItem.tc.status === 'success'
+                      "
                       class="ml-1 text-muted-foreground/50"
-                    >— {{ toolItem.headlineSummary }}</span>
+                      >— {{ toolItem.headlineSummary }}</span
+                    >
                   </span>
                   <span
                     v-if="toolItem.targetBadges.length > 0"
@@ -1032,13 +1202,18 @@ watch(
                       <span class="shrink-0 text-muted-foreground/55">
                         {{ $t(badge.labelKey) }}
                       </span>
-                      <span class="truncate text-foreground/75">{{ badge.value }}</span>
+                      <span class="truncate text-foreground/75">{{
+                        badge.value
+                      }}</span>
                     </span>
                   </span>
                 </span>
 
                 <!-- Duration -->
-                <span v-if="toolItem.tc.durationMs" class="tabular-nums text-[10px] text-muted-foreground/40">
+                <span
+                  v-if="toolItem.tc.durationMs"
+                  class="text-[10px] tabular-nums text-muted-foreground/40"
+                >
                   {{ (toolItem.tc.durationMs / 1000).toFixed(1) }}s
                 </span>
 
@@ -1049,12 +1224,14 @@ watch(
                   class="shrink-0 text-muted-foreground/30 transition-transform duration-200"
                   :class="compact ? 'size-2.5' : 'size-3'"
                   :style="{
-                    transform: toolItem.expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transform: toolItem.expanded
+                      ? 'rotate(180deg)'
+                      : 'rotate(0deg)',
                   }"
                 />
               </button>
 
-                <!-- Expanded details -->
+              <!-- Expanded details -->
               <div
                 v-if="toolItem.hasDetails"
                 class="grid transition-[grid-template-rows,opacity] duration-200 ease-out"
@@ -1066,14 +1243,25 @@ watch(
               >
                 <div class="min-h-0 overflow-hidden border-t border-border/20">
                   <div
-                    :class="compact ? 'px-2 py-1 text-[10px]' : 'px-2.5 py-1.5 text-[11px]'"
+                    :class="
+                      compact
+                        ? 'px-2 py-1 text-[10px]'
+                        : 'px-2.5 py-1.5 text-[11px]'
+                    "
                   >
                     <div
-                      v-if="toolItem.tc.arguments && Object.keys(toolItem.tc.arguments).length > 0"
+                      v-if="
+                        toolItem.tc.arguments &&
+                        Object.keys(toolItem.tc.arguments).length > 0
+                      "
                       class="mb-1"
                     >
-                      <span class="font-medium text-muted-foreground/60">{{ $t('common.globalAiChat.args') }}</span>
-                      <code class="ml-1 rounded bg-accent/50 px-1 py-px text-[10px] text-muted-foreground">
+                      <span class="font-medium text-muted-foreground/60">{{
+                        $t('common.globalAiChat.args')
+                      }}</span>
+                      <code
+                        class="ml-1 rounded bg-accent/50 px-1 py-px text-[10px] text-muted-foreground"
+                      >
                         {{ JSON.stringify(toolItem.tc.arguments) }}
                       </code>
                     </div>
@@ -1081,7 +1269,9 @@ watch(
                       v-if="toolItem.structuredOutput.explanation"
                       class="mb-1 rounded bg-background/70 px-1.5 py-1 text-foreground/80"
                     >
-                      <span class="font-medium text-muted-foreground/60">{{ $t('common.globalAiChat.toolExplanation') }}</span>
+                      <span class="font-medium text-muted-foreground/60">{{
+                        $t('common.globalAiChat.toolExplanation')
+                      }}</span>
                       <div class="mt-0.5 whitespace-pre-wrap break-words">
                         {{ toolItem.structuredOutput.explanation }}
                       </div>
@@ -1091,17 +1281,24 @@ watch(
                       class="mb-1 rounded bg-slate-950/95 px-1.5 py-1 font-mono text-[10px] text-slate-100"
                     >
                       <div class="flex items-center gap-2">
-                        <span class="font-medium text-slate-300">{{ $t('common.globalAiChat.toolSql') }}</span>
+                        <span class="font-medium text-slate-300">{{
+                          $t('common.globalAiChat.toolSql')
+                        }}</span>
                         <button
                           type="button"
                           class="inline-flex items-center gap-1 rounded border border-slate-700/80 px-1.5 py-px text-[10px] text-slate-300 transition-colors hover:border-slate-500 hover:text-white"
-                          @click.stop="emit('copy', toolItem.structuredOutput.sql || '')"
+                          @click.stop="
+                            emit('copy', toolItem.structuredOutput.sql || '')
+                          "
                         >
                           <IconifyIcon icon="lucide:copy" class="size-2.5" />
                           {{ $t('common.globalAiChat.copySql') }}
                         </button>
                       </div>
-                      <pre class="mt-0.5 max-h-40 overflow-y-auto whitespace-pre-wrap break-all">{{ toolItem.structuredOutput.sql }}</pre>
+                      <pre
+                        class="mt-0.5 max-h-40 overflow-y-auto whitespace-pre-wrap break-all"
+                        >{{ toolItem.structuredOutput.sql }}</pre
+                      >
                     </div>
                     <div
                       v-if="toolItem.structuredOutput.raw"
@@ -1112,7 +1309,10 @@ watch(
                         class="flex w-full items-center gap-1 px-1.5 py-1 text-left transition-colors hover:bg-accent/30"
                         @click="toggleToolRawExpand(toolItem.index)"
                       >
-                        <IconifyIcon icon="lucide:braces" class="size-3 shrink-0" />
+                        <IconifyIcon
+                          icon="lucide:braces"
+                          class="size-3 shrink-0"
+                        />
                         <span class="flex-1 text-[10px] font-medium">
                           {{ $t('common.globalAiChat.rawResult') }}
                         </span>
@@ -1120,22 +1320,33 @@ watch(
                           icon="lucide:chevron-down"
                           class="size-2.5 transition-transform duration-200"
                           :style="{
-                            transform: isToolRawExpanded(toolItem.index) ? 'rotate(180deg)' : 'rotate(0deg)',
+                            transform: isToolRawExpanded(toolItem.index)
+                              ? 'rotate(180deg)'
+                              : 'rotate(0deg)',
                           }"
                         />
                       </button>
                       <div
                         class="grid transition-[grid-template-rows,opacity] duration-200 ease-out"
                         :style="{
-                          gridTemplateRows: isToolRawExpanded(toolItem.index) ? '1fr' : '0fr',
+                          gridTemplateRows: isToolRawExpanded(toolItem.index)
+                            ? '1fr'
+                            : '0fr',
                           opacity: isToolRawExpanded(toolItem.index) ? 1 : 0,
                         }"
                       >
-                        <div class="min-h-0 overflow-hidden border-t border-border/20">
+                        <div
+                          class="min-h-0 overflow-hidden border-t border-border/20"
+                        >
                           <pre
                             class="overflow-y-auto whitespace-pre-wrap break-all px-1.5 py-1"
-                            :class="[compact ? 'max-h-32 text-[10px]' : 'max-h-40 text-[11px]']"
-                          >{{ toolItem.structuredOutput.raw }}</pre>
+                            :class="[
+                              compact
+                                ? 'max-h-32 text-[10px]'
+                                : 'max-h-40 text-[11px]',
+                            ]"
+                            >{{ toolItem.structuredOutput.raw }}</pre
+                          >
                         </div>
                       </div>
                     </div>
@@ -1146,18 +1357,27 @@ watch(
                       {{ toolItem.tc.error }}
                     </div>
                     <p
-                      v-if="toolItem.tc.status === 'error' && getPageOpErrorHintKey(toolItem.tc.errorType)"
+                      v-if="
+                        toolItem.tc.status === 'error' &&
+                        getPageOpErrorHintKey(toolItem.tc.errorType)
+                      "
                       class="mt-1 text-[10px] text-muted-foreground"
                     >
                       {{ $t(getPageOpErrorHintKey(toolItem.tc.errorType)) }}
                     </p>
                     <a
-                      v-if="toolItem.tc.resultLink && toolItem.tc.status === 'success'"
+                      v-if="
+                        toolItem.tc.resultLink &&
+                        toolItem.tc.status === 'success'
+                      "
                       :href="toolItem.tc.resultLink"
                       target="_blank"
                       class="mt-1 inline-flex items-center gap-1 text-[10px] text-primary hover:underline"
                     >
-                      <IconifyIcon icon="lucide:external-link" class="size-2.5" />
+                      <IconifyIcon
+                        icon="lucide:external-link"
+                        class="size-2.5"
+                      />
                       {{ $t('common.globalAiChat.viewResult') }}
                     </a>
                   </div>
@@ -1166,10 +1386,16 @@ watch(
             </div>
             <!-- Inline confirmation card (for this tool call) / 内联确认卡片（对应本工具调用） -->
             <div
-              v-for="op in (pendingOps || []).filter(o => o.toolCallId === toolItem.tc.id)"
+              v-for="op in (pendingOps || []).filter(
+                (o) => o.toolCallId === toolItem.tc.id,
+              )"
               :key="op.invokeId"
               class="mt-1 overflow-hidden rounded-lg border"
-              :class="op.resolved ? 'border-border/20 bg-accent/10' : 'border-warning/30 bg-warning/5'"
+              :class="
+                op.resolved
+                  ? 'border-border/20 bg-accent/10'
+                  : 'border-warning/30 bg-warning/5'
+              "
             >
               <!-- Resolved state -->
               <div
@@ -1183,17 +1409,29 @@ watch(
                   :class="op.allowed ? 'text-green-600' : 'text-red-500'"
                 />
                 <span class="truncate text-muted-foreground">
-                  <span class="font-medium text-foreground/60">{{ op.operationLabel }}</span>
-                  <span v-if="op.operationDescription" class="ml-1 text-muted-foreground/60">{{ op.operationDescription }}</span>
+                  <span class="font-medium text-foreground/60">{{
+                    op.operationLabel
+                  }}</span>
+                  <span
+                    v-if="op.operationDescription"
+                    class="ml-1 text-muted-foreground/60"
+                    >{{ op.operationDescription }}</span
+                  >
                 </span>
                 <span
                   class="ml-auto shrink-0 rounded-full px-1.5 py-px font-medium"
                   :class="[
                     compact ? 'text-[9px]' : 'text-[10px]',
-                    op.allowed ? 'bg-green-50 text-green-600 dark:bg-green-950/30' : 'bg-red-50 text-red-600 dark:bg-red-950/30',
+                    op.allowed
+                      ? 'bg-green-50 text-green-600 dark:bg-green-950/30'
+                      : 'bg-red-50 text-red-600 dark:bg-red-950/30',
                   ]"
                 >
-                  {{ op.allowed ? $t('shared.pageOperation.confirmOk') : $t('shared.pageOperation.confirmCancel') }}
+                  {{
+                    op.allowed
+                      ? $t('shared.pageOperation.confirmOk')
+                      : $t('shared.pageOperation.confirmCancel')
+                  }}
                 </span>
               </div>
               <!-- Pending state -->
@@ -1202,16 +1440,36 @@ watch(
                   class="flex items-center gap-1.5 px-2.5 py-1.5"
                   :class="compact ? 'text-[10px]' : 'text-[11px]'"
                 >
-                  <IconifyIcon icon="lucide:shield-alert" class="size-3.5 shrink-0 text-warning" />
+                  <IconifyIcon
+                    icon="lucide:shield-alert"
+                    class="size-3.5 shrink-0 text-warning"
+                  />
                   <div class="min-w-0 flex-1">
                     <div class="truncate font-medium text-foreground/80">
                       {{ op.operationLabel }}
                     </div>
-                    <div v-if="op.operationDescription" class="truncate text-muted-foreground/60">
+                    <div
+                      v-if="op.operationDescription"
+                      class="truncate text-muted-foreground/60"
+                    >
                       {{ op.operationDescription }}
                     </div>
-                    <div class="mt-0.5 text-muted-foreground/50" :class="compact ? 'text-[9px]' : 'text-[10px]'">
-                      {{ $t('shared.pageOperation.confirmCountdown', { seconds: Math.max(0, 60 - Math.floor(((countdownNow ?? now) - (op.startedAt || 0)) / 1000)) }) }}
+                    <div
+                      class="mt-0.5 text-muted-foreground/50"
+                      :class="compact ? 'text-[9px]' : 'text-[10px]'"
+                    >
+                      {{
+                        $t('shared.pageOperation.confirmCountdown', {
+                          seconds: Math.max(
+                            0,
+                            60 -
+                              Math.floor(
+                                ((countdownNow ?? now) - (op.startedAt || 0)) /
+                                  1000,
+                              ),
+                          ),
+                        })
+                      }}
                     </div>
                   </div>
                   <div class="flex shrink-0 items-center gap-1">
@@ -1249,20 +1507,30 @@ watch(
                       icon="lucide:chevron-down"
                       class="size-2.5 transition-transform duration-200"
                       :style="{
-                        transform: isPendingOpExpanded(op.invokeId) ? 'rotate(180deg)' : 'rotate(0deg)',
+                        transform: isPendingOpExpanded(op.invokeId)
+                          ? 'rotate(180deg)'
+                          : 'rotate(0deg)',
                       }"
                     />
                   </button>
                   <div
                     class="grid transition-[grid-template-rows,opacity] duration-200 ease-out"
                     :style="{
-                      gridTemplateRows: isPendingOpExpanded(op.invokeId) ? '1fr' : '0fr',
+                      gridTemplateRows: isPendingOpExpanded(op.invokeId)
+                        ? '1fr'
+                        : '0fr',
                       opacity: isPendingOpExpanded(op.invokeId) ? 1 : 0,
                     }"
                   >
-                    <div class="min-h-0 overflow-hidden border-t border-border/20">
+                    <div
+                      class="min-h-0 overflow-hidden border-t border-border/20"
+                    >
                       <div class="px-2.5 py-1">
-                        <pre class="max-h-24 overflow-y-auto whitespace-pre-wrap rounded bg-accent/40 px-1.5 py-1 font-mono text-muted-foreground" :class="compact ? 'text-[9px]' : 'text-[10px]'">{{ JSON.stringify(op.params, null, 2) }}</pre>
+                        <pre
+                          class="max-h-24 overflow-y-auto whitespace-pre-wrap rounded bg-accent/40 px-1.5 py-1 font-mono text-muted-foreground"
+                          :class="compact ? 'text-[9px]' : 'text-[10px]'"
+                          >{{ JSON.stringify(op.params, null, 2) }}</pre
+                        >
                       </div>
                     </div>
                   </div>
@@ -1271,7 +1539,11 @@ watch(
             </div>
             <!-- Still running hint (8s+) - outside details so always visible / 执行超 8s 的提示 -->
             <p
-              v-if="toolItem.tc.status === 'running' && toolItem.tc.startedAt && (now - toolItem.tc.startedAt) >= 8000"
+              v-if="
+                toolItem.tc.status === 'running' &&
+                toolItem.tc.startedAt &&
+                now - toolItem.tc.startedAt >= 8000
+              "
               class="mt-0.5 pl-1 text-[10px] text-muted-foreground"
             >
               {{ $t('common.globalAiChat.toolStillRunningHint') }}
@@ -1324,6 +1596,24 @@ watch(
             </div>
           </div>
         </div>
+
+        <RichTextDraftCard
+          v-if="
+            msg.source === 'rich_text_ai' &&
+            msg.richTextAI &&
+            !msg.streaming &&
+            !richTextState?.discarded
+          "
+          :task="msg.richTextAI"
+          :state="richTextState"
+          :compact="compact"
+          @apply="
+            (target, mode) => emit('richTextApply', props.index, target, mode)
+          "
+          @copy="(mode) => emit('copy', getRichTextDraftCopyContent(mode))"
+          @discard="emit('richTextDiscard', props.index)"
+          @undo="emit('richTextUndo', props.index)"
+        />
 
         <!-- Confirmation card -->
         <div
@@ -1425,12 +1715,24 @@ watch(
             class="flex items-center gap-1.5 px-2.5 py-1 text-[11px]"
           >
             <IconifyIcon
-              :icon="msg.pendingConsent.rejected ? 'lucide:x-circle' : msg.pendingConsent.autoApproved ? 'lucide:shield-check' : 'lucide:check-circle'"
+              :icon="
+                msg.pendingConsent.rejected
+                  ? 'lucide:x-circle'
+                  : msg.pendingConsent.autoApproved
+                    ? 'lucide:shield-check'
+                    : 'lucide:check-circle'
+              "
               class="size-3 shrink-0"
-              :class="msg.pendingConsent.rejected ? 'text-red-500' : 'text-green-600'"
+              :class="
+                msg.pendingConsent.rejected ? 'text-red-500' : 'text-green-600'
+              "
             />
             <span class="truncate text-muted-foreground">
-              <span v-if="msg.pendingConsent.skillName" class="font-medium text-foreground/60">{{ msg.pendingConsent.skillName }} ›</span>
+              <span
+                v-if="msg.pendingConsent.skillName"
+                class="font-medium text-foreground/60"
+                >{{ msg.pendingConsent.skillName }} ›</span
+              >
               <code class="text-[10px]">{{ msg.pendingConsent.toolName }}</code>
             </span>
             <span
@@ -1466,8 +1768,14 @@ watch(
                 class="size-3.5 shrink-0 text-warning"
               />
               <span class="flex-1 truncate text-[11px] text-muted-foreground">
-                <span v-if="msg.pendingConsent.skillName" class="font-medium text-foreground/70">{{ msg.pendingConsent.skillName }} ›</span>
-                <code class="text-[10px] font-semibold">{{ msg.pendingConsent.toolName }}</code>
+                <span
+                  v-if="msg.pendingConsent.skillName"
+                  class="font-medium text-foreground/70"
+                  >{{ msg.pendingConsent.skillName }} ›</span
+                >
+                <code class="text-[10px] font-semibold">{{
+                  msg.pendingConsent.toolName
+                }}</code>
               </span>
               <div class="flex shrink-0 items-center gap-1">
                 <button
@@ -1494,13 +1802,23 @@ watch(
               "
               class="[&>summary::-webkit-details-marker]:hidden [&>summary]:list-none"
             >
-              <summary class="flex cursor-pointer items-center gap-1 border-t border-border/20 px-2.5 py-0.5 text-[10px] text-muted-foreground/60 hover:text-muted-foreground">
+              <summary
+                class="flex cursor-pointer items-center gap-1 border-t border-border/20 px-2.5 py-0.5 text-[10px] text-muted-foreground/60 hover:text-muted-foreground"
+              >
                 <IconifyIcon icon="lucide:code" class="size-2.5" />
                 {{ $t('common.globalAiChat.consentShowArgs') }}
-                <IconifyIcon icon="lucide:chevron-down" class="size-2.5 transition-transform duration-200 [details[open]>&]:rotate-180" />
+                <IconifyIcon
+                  icon="lucide:chevron-down"
+                  class="size-2.5 transition-transform duration-200 [details[open]>&]:rotate-180"
+                />
               </summary>
               <div class="border-t border-border/20 px-2.5 py-1">
-                <pre class="max-h-24 overflow-y-auto whitespace-pre-wrap rounded bg-accent/40 px-1.5 py-1 font-mono text-[10px] text-muted-foreground">{{ JSON.stringify(msg.pendingConsent.arguments, null, 2) }}</pre>
+                <pre
+                  class="max-h-24 overflow-y-auto whitespace-pre-wrap rounded bg-accent/40 px-1.5 py-1 font-mono text-[10px] text-muted-foreground"
+                  >{{
+                    JSON.stringify(msg.pendingConsent.arguments, null, 2)
+                  }}</pre
+                >
               </div>
             </details>
           </template>
@@ -1550,7 +1868,9 @@ watch(
                   type="button"
                   class="block w-full rounded-md bg-accent/50 text-left text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                   :class="
-                    compact ? 'mb-1 px-2 py-1 text-[11px]' : 'mb-1 px-2.5 py-1.5 text-xs'
+                    compact
+                      ? 'mb-1 px-2 py-1 text-[11px]'
+                      : 'mb-1 px-2.5 py-1.5 text-xs'
                   "
                   @click="openRagDetail(src)"
                 >
@@ -1564,9 +1884,7 @@ watch(
                   >
                     {{ src.snippet }}
                   </div>
-                  <div
-                    class="mt-0.5 text-[10px] text-primary/70"
-                  >
+                  <div class="mt-0.5 text-[10px] text-primary/70">
                     {{ $t('common.globalAiChat.ragClickForDetail') }}
                   </div>
                 </button>
@@ -1583,12 +1901,24 @@ watch(
           destroy-on-close
         >
           <div v-if="ragDetailItem" class="space-y-2 text-sm">
-            <div v-if="ragDetailItem.knowledge_base_name || ragDetailItem.knowledge_base_id != null">
-              <span class="text-muted-foreground">{{ $t('common.globalAiChat.ragKbLabel') }}:</span>
-              {{ ragDetailItem.knowledge_base_name || `KB#${ragDetailItem.knowledge_base_id}` }}
+            <div
+              v-if="
+                ragDetailItem.knowledge_base_name ||
+                ragDetailItem.knowledge_base_id != null
+              "
+            >
+              <span class="text-muted-foreground"
+                >{{ $t('common.globalAiChat.ragKbLabel') }}:</span
+              >
+              {{
+                ragDetailItem.knowledge_base_name ||
+                `KB#${ragDetailItem.knowledge_base_id}`
+              }}
             </div>
             <div>
-              <span class="text-muted-foreground">{{ $t('common.globalAiChat.ragDocLabel') }}:</span>
+              <span class="text-muted-foreground"
+                >{{ $t('common.globalAiChat.ragDocLabel') }}:</span
+              >
               {{ ragDetailItem.doc_name }}
             </div>
             <div
@@ -1596,13 +1926,19 @@ watch(
               class="text-xs text-muted-foreground"
             >
               <template v-if="ragDetailItem.page != null">
-                {{ $t('common.globalAiChat.ragPageLabel', { page: ragDetailItem.page }) }}
+                {{
+                  $t('common.globalAiChat.ragPageLabel', {
+                    page: ragDetailItem.page,
+                  })
+                }}
               </template>
               <template v-if="ragDetailItem.heading">
                 · {{ ragDetailItem.heading }}
               </template>
             </div>
-            <div class="whitespace-pre-wrap rounded-md bg-muted/50 p-3 text-foreground">
+            <div
+              class="whitespace-pre-wrap rounded-md bg-muted/50 p-3 text-foreground"
+            >
               {{ ragDetailItem.snippet }}
             </div>
           </div>
@@ -1639,14 +1975,16 @@ watch(
         <!-- Stats + Copy + Regenerate -->
         <div
           v-if="msg.content && !msg.streaming"
-          class="flex items-center text-muted-foreground/70 transition-opacity duration-200"
+          class="flex items-center text-muted-foreground/70 transition-opacity duration-200 group-hover:opacity-100"
           :class="[
             compact ? 'mt-0.5 gap-0.5 text-[11px]' : 'mt-1 gap-1 text-xs',
-            'group-hover:opacity-100',
-            compact ? 'opacity-0' : 'opacity-60 hover:opacity-100',
+            compact ? 'opacity-100' : 'opacity-60 hover:opacity-100',
           ]"
         >
-          <span v-if="msg.created_at" class="mr-0.5 text-[10px] tabular-nums text-muted-foreground/40">
+          <span
+            v-if="msg.created_at"
+            class="mr-0.5 text-[10px] tabular-nums text-muted-foreground/40"
+          >
             {{ formatTimeOnly(msg.created_at) }}
           </span>
           <span v-if="msg.tokenUsage" class="mr-0.5 tabular-nums"
@@ -1659,7 +1997,9 @@ watch(
             v-if="msg.memoryUpdated"
             :title="$t('common.globalAiChat.memoryUpdated')"
           >
-            <span class="mr-0.5 inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
+            <span
+              class="mr-0.5 inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary"
+            >
               <IconifyIcon icon="lucide:brain" class="size-2.5" />
             </span>
           </Tooltip>
@@ -1670,7 +2010,10 @@ watch(
               :class="compact ? 'size-5' : 'size-5'"
               @click="emit('copy', msg.content)"
             >
-              <IconifyIcon icon="lucide:copy" :class="compact ? 'size-2.5' : 'size-3'" />
+              <IconifyIcon
+                icon="lucide:copy"
+                :class="compact ? 'size-2.5' : 'size-3'"
+              />
             </button>
           </Tooltip>
           <Tooltip :title="$t('common.globalAiChat.regenerate')">
@@ -1697,7 +2040,10 @@ watch(
         class="flex flex-wrap justify-end"
         :class="compact ? 'mb-1 gap-1' : 'mb-1.5 gap-1.5'"
       >
-        <template v-for="(att, ati) in msg.attachments" :key="`${ati}-${att.url}`">
+        <template
+          v-for="(att, ati) in msg.attachments"
+          :key="`${ati}-${att.url}`"
+        >
           <img
             v-if="att.type === 'image'"
             :src="att.preview || att.url"
@@ -1717,7 +2063,7 @@ watch(
             :src="att.url"
             class="max-w-full rounded-lg"
             :class="compact ? 'max-w-48' : 'max-w-64'"
-          />
+          ></audio>
           <video
             v-else-if="att.type === 'video'"
             controls
@@ -1728,7 +2074,7 @@ watch(
                 ? 'max-h-32 max-w-40'
                 : 'max-h-48 max-w-60 border border-white/20'
             "
-          />
+          ></video>
           <a
             v-else
             :href="att.url"
@@ -1760,8 +2106,14 @@ watch(
         {{ msg.content }}
       </div>
       <!-- User message toolbar (timestamp + copy + edit) -->
-      <div class="mt-0.5 flex items-center justify-end gap-0.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-        <span v-if="msg.created_at" class="mr-0.5 text-[10px] tabular-nums text-muted-foreground/40">
+      <div
+        class="mt-0.5 flex items-center justify-end gap-0.5 transition-opacity duration-200"
+        :class="compact ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'"
+      >
+        <span
+          v-if="msg.created_at"
+          class="mr-0.5 text-[10px] tabular-nums text-muted-foreground/40"
+        >
           {{ formatTimeOnly(msg.created_at) }}
         </span>
         <Tooltip :title="$t('common.globalAiChat.copy')">
@@ -1786,14 +2138,6 @@ watch(
 </template>
 
 <style scoped>
-.streaming-cursor::after {
-  display: inline;
-  font-weight: bold;
-  color: hsl(var(--primary));
-  content: '▍';
-  animation: blink 0.8s step-end infinite;
-}
-
 @keyframes blink {
   0%,
   100% {
@@ -1803,11 +2147,6 @@ watch(
   50% {
     opacity: 0;
   }
-}
-
-/* Skeleton line pulse animation / 骨架线脉冲动画 */
-.skeleton-line {
-  animation: skeleton-pulse 1.5s ease-in-out infinite;
 }
 
 @keyframes skeleton-pulse {
@@ -1821,16 +2160,6 @@ watch(
   }
 }
 
-/* Thinking glow ring / 思考光环 */
-.thinking-glow::before {
-  position: absolute;
-  inset: -2px;
-  border-radius: 50%;
-  background: radial-gradient(circle, hsl(var(--primary) / 0.2), transparent 70%);
-  content: '';
-  animation: glow-pulse 2s ease-in-out infinite;
-}
-
 @keyframes glow-pulse {
   0%,
   100% {
@@ -1842,30 +2171,6 @@ watch(
     opacity: 1;
     transform: scale(1.15);
   }
-}
-
-/* Typing dots animation / 打字点点动画 */
-.typing-dots {
-  display: inline-flex;
-  gap: 3px;
-  align-items: center;
-}
-
-.typing-dots span {
-  display: inline-block;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background-color: hsl(var(--primary));
-  animation: typing-bounce 1.4s ease-in-out infinite;
-}
-
-.typing-dots span:nth-child(2) {
-  animation-delay: 0.2s;
-}
-
-.typing-dots span:nth-child(3) {
-  animation-delay: 0.4s;
 }
 
 @keyframes typing-bounce {
@@ -1882,28 +2187,17 @@ watch(
   }
 }
 
-/* Tool call timeline dot pulse (running state) / 工具调用时间线点脉冲 */
-.tc-dot-pulse {
-  animation: tc-pulse 1.5s ease-in-out infinite;
-  box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4);
-}
-
 @keyframes tc-pulse {
   0%,
   100% {
+    box-shadow: 0 0 0 0 hsl(var(--primary) / 40%);
     opacity: 0.6;
-    box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4);
   }
 
   50% {
+    box-shadow: 0 0 0 3px hsl(var(--primary) / 0%);
     opacity: 1;
-    box-shadow: 0 0 0 3px hsl(var(--primary) / 0);
   }
-}
-
-/* Tool call pill pulse (running status badge) / 工具调用药丸脉冲 */
-.tc-pill-pulse {
-  animation: tc-pill-glow 2s ease-in-out infinite;
 }
 
 @keyframes tc-pill-glow {
@@ -1915,5 +2209,67 @@ watch(
   50% {
     opacity: 1;
   }
+}
+
+.streaming-cursor::after {
+  display: inline;
+  font-weight: bold;
+  color: hsl(var(--primary));
+  content: '▍';
+  animation: blink 0.8s step-end infinite;
+}
+
+/* Skeleton line pulse animation / 骨架线脉冲动画 */
+.skeleton-line {
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+/* Thinking glow ring / 思考光环 */
+.thinking-glow::before {
+  position: absolute;
+  inset: -2px;
+  content: '';
+  background: radial-gradient(
+    circle,
+    hsl(var(--primary) / 20%),
+    transparent 70%
+  );
+  border-radius: 50%;
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+/* Typing dots animation / 打字点点动画 */
+.typing-dots {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.typing-dots span {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  background-color: hsl(var(--primary));
+  border-radius: 50%;
+  animation: typing-bounce 1.4s ease-in-out infinite;
+}
+
+.typing-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+/* Tool call timeline dot pulse (running state) / 工具调用时间线点脉冲 */
+.tc-dot-pulse {
+  box-shadow: 0 0 0 0 hsl(var(--primary) / 40%);
+  animation: tc-pulse 1.5s ease-in-out infinite;
+}
+
+/* Tool call pill pulse (running status badge) / 工具调用药丸脉冲 */
+.tc-pill-pulse {
+  animation: tc-pill-glow 2s ease-in-out infinite;
 }
 </style>

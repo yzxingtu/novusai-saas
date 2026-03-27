@@ -57,16 +57,27 @@ export const usePresenceStore = defineStore('presence', () => {
       user_id: number;
       user_type: string;
     };
-    if (user_type === 'admin') {
-      adminOnlineIds.add(user_id);
-    } else if (user_type === 'tenant_admin') {
-      tenantAdminOnlineIds.add(user_id);
-      if (tenant_id !== undefined) {
-        const ids = tenantPresenceMap.get(tenant_id);
-        if (ids) ids.add(user_id);
+    switch (user_type) {
+      case 'admin': {
+        adminOnlineIds.add(user_id);
+
+        break;
       }
-    } else if (user_type === 'tenant_user') {
-      tenantUserOnlineIds.add(user_id);
+      case 'tenant_admin': {
+        tenantAdminOnlineIds.add(user_id);
+        if (tenant_id !== undefined) {
+          const ids = tenantPresenceMap.get(tenant_id);
+          if (ids) ids.add(user_id);
+        }
+
+        break;
+      }
+      case 'tenant_user': {
+        tenantUserOnlineIds.add(user_id);
+
+        break;
+      }
+      // No default
     }
   };
 
@@ -76,16 +87,27 @@ export const usePresenceStore = defineStore('presence', () => {
       user_id: number;
       user_type: string;
     };
-    if (user_type === 'admin') {
-      adminOnlineIds.delete(user_id);
-    } else if (user_type === 'tenant_admin') {
-      tenantAdminOnlineIds.delete(user_id);
-      if (tenant_id !== undefined) {
-        const ids = tenantPresenceMap.get(tenant_id);
-        if (ids) ids.delete(user_id);
+    switch (user_type) {
+      case 'admin': {
+        adminOnlineIds.delete(user_id);
+
+        break;
       }
-    } else if (user_type === 'tenant_user') {
-      tenantUserOnlineIds.delete(user_id);
+      case 'tenant_admin': {
+        tenantAdminOnlineIds.delete(user_id);
+        if (tenant_id !== undefined) {
+          const ids = tenantPresenceMap.get(tenant_id);
+          if (ids) ids.delete(user_id);
+        }
+
+        break;
+      }
+      case 'tenant_user': {
+        tenantUserOnlineIds.delete(user_id);
+
+        break;
+      }
+      // No default
     }
   };
 
@@ -141,21 +163,32 @@ export const usePresenceStore = defineStore('presence', () => {
 
     // Determine which set to update based on current namespace / 根据当前 namespace 判断
     const endpoint = useSocketIOStore().currentEndpoint;
-    if (endpoint === 'admin') {
-      adminOnlineIds.clear();
-      for (const id of online_ids) {
-        adminOnlineIds.add(id);
+    switch (endpoint) {
+      case 'admin': {
+        adminOnlineIds.clear();
+        for (const id of online_ids) {
+          adminOnlineIds.add(id);
+        }
+
+        break;
       }
-    } else if (endpoint === 'tenant') {
-      tenantAdminOnlineIds.clear();
-      for (const id of online_ids) {
-        tenantAdminOnlineIds.add(id);
+      case 'tenant': {
+        tenantAdminOnlineIds.clear();
+        for (const id of online_ids) {
+          tenantAdminOnlineIds.add(id);
+        }
+
+        break;
       }
-    } else if (endpoint === 'user') {
-      tenantUserOnlineIds.clear();
-      for (const id of online_ids) {
-        tenantUserOnlineIds.add(id);
+      case 'user': {
+        tenantUserOnlineIds.clear();
+        for (const id of online_ids) {
+          tenantUserOnlineIds.add(id);
+        }
+
+        break;
       }
+      // No default
     }
   };
 
@@ -339,10 +372,7 @@ export const usePresenceStore = defineStore('presence', () => {
       'tenant_presence:offline',
       handleTenantPresenceOffline,
     );
-    sioStore.registerHandler(
-      'user_presence:online',
-      handleUserPresenceOnline,
-    );
+    sioStore.registerHandler('user_presence:online', handleUserPresenceOnline);
     sioStore.registerHandler(
       'user_presence:offline',
       handleUserPresenceOffline,

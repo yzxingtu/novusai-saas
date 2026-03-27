@@ -10,4 +10,3 @@
 export function isDevErrorMode(): boolean {
   return Boolean(import.meta.env.DEV);
 }
-

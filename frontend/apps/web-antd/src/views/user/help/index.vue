@@ -59,21 +59,35 @@ function toggleFaq(key: string) {
     <section
       class="relative overflow-hidden rounded-[32px] border border-border/70 bg-card px-6 py-7 shadow-sm sm:px-8"
     >
-      <div class="absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
-      <div class="absolute -right-24 top-0 size-72 rounded-full bg-primary/10 blur-3xl" />
-      <div class="absolute left-0 top-1/2 size-56 -translate-y-1/2 rounded-full bg-emerald-500/10 blur-3xl" />
+      <div
+        class="absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent"
+      ></div>
+      <div
+        class="absolute -right-24 top-0 size-72 rounded-full bg-primary/10 blur-3xl"
+      ></div>
+      <div
+        class="absolute left-0 top-1/2 size-56 -translate-y-1/2 rounded-full bg-emerald-500/10 blur-3xl"
+      ></div>
 
-      <div class="relative grid gap-8 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+      <div
+        class="relative grid gap-8 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]"
+      >
         <div class="space-y-5">
-          <div class="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/8 px-3 py-1 text-xs font-medium text-primary">
+          <div
+            class="bg-primary/8 inline-flex items-center gap-2 rounded-full border border-primary/20 px-3 py-1 text-xs font-medium text-primary"
+          >
             <IconifyIcon icon="lucide:life-buoy" class="size-3.5" />
             {{ $t('user.helpCenter.badge') }}
           </div>
           <div>
-            <h1 class="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+            <h1
+              class="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl"
+            >
               {{ $t('user.helpCenter.title') }}
             </h1>
-            <p class="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
+            <p
+              class="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base"
+            >
               {{ $t('user.helpCenter.description') }}
             </p>
           </div>
@@ -103,7 +117,9 @@ function toggleFaq(key: string) {
             :key="resource.path"
             class="rounded-[24px] border border-border/60 bg-background/90 p-4 shadow-sm"
           >
-            <span class="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <span
+              class="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary"
+            >
               <IconifyIcon :icon="resource.icon" class="size-5" />
             </span>
             <h2 class="mt-4 text-base font-semibold text-foreground">
@@ -117,10 +133,16 @@ function toggleFaq(key: string) {
       </div>
     </section>
 
-    <section class="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-      <div class="rounded-[28px] border border-border/70 bg-card p-5 shadow-sm sm:p-6">
+    <section
+      class="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]"
+    >
+      <div
+        class="rounded-[28px] border border-border/70 bg-card p-5 shadow-sm sm:p-6"
+      >
         <div class="flex items-center gap-3">
-          <span class="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+          <span
+            class="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary"
+          >
             <IconifyIcon icon="lucide:map" class="size-5" />
           </span>
           <div>
@@ -147,7 +169,9 @@ function toggleFaq(key: string) {
               <IconifyIcon :icon="journey.icon" class="size-4.5" />
             </span>
             <span class="min-w-0 flex-1">
-              <span class="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              <span
+                class="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground"
+              >
                 {{ $t('user.portal.stepLabel', { index: index + 1 }) }}
               </span>
               <span class="mt-2 block text-base font-semibold text-foreground">
@@ -165,9 +189,13 @@ function toggleFaq(key: string) {
         </div>
       </div>
 
-      <div class="rounded-[28px] border border-border/70 bg-card p-5 shadow-sm sm:p-6">
+      <div
+        class="rounded-[28px] border border-border/70 bg-card p-5 shadow-sm sm:p-6"
+      >
         <div class="flex items-center gap-3">
-          <span class="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+          <span
+            class="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary"
+          >
             <IconifyIcon icon="lucide:badge-info" class="size-5" />
           </span>
           <div>
@@ -199,7 +227,9 @@ function toggleFaq(key: string) {
       </div>
     </section>
 
-    <section class="rounded-[28px] border border-border/70 bg-card p-5 shadow-sm sm:p-6">
+    <section
+      class="rounded-[28px] border border-border/70 bg-card p-5 shadow-sm sm:p-6"
+    >
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 class="text-xl font-semibold text-foreground">

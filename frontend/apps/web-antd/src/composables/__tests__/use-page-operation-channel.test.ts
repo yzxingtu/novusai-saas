@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires, unicorn/prefer-module */
 // @vitest-environment happy-dom
 /**
  * Page session room recovery tests.
@@ -6,6 +7,14 @@
 import { effectScope, nextTick } from 'vue';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import {
+  executePageOperation,
+  findPageOperation,
+  listPageOperations,
+} from '#/components/business/ai-slide-panel/page-operation-registry';
+
+import { usePageOperationChannel } from '../use-page-operation-channel';
 
 const {
   connected,
@@ -87,13 +96,6 @@ vi.mock('@vben/locales', () => ({
   $t: (key: string) => key,
   loadLocalesMapFromDir: () => ({}),
 }));
-
-import { usePageOperationChannel } from '../use-page-operation-channel';
-import {
-  executePageOperation,
-  findPageOperation,
-  listPageOperations,
-} from '#/components/business/ai-slide-panel/page-operation-registry';
 
 describe('usePageOperationChannel', () => {
   beforeEach(() => {

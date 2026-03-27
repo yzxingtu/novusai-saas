@@ -400,6 +400,74 @@ class ToolCallProcessor:
         )
 
     @staticmethod
+    def annotate_tool_call(
+        tool_call: dict[str, Any],
+        *,
+        duration_ms: int | None = None,
+        pending_confirmation: dict[str, Any] | None = None,
+        pending_consent: dict[str, Any] | None = None,
+        result: ToolResult | None = None,
+        skill_info: dict[str, str | None] | None = None,
+    ) -> None:
+        """Attach recoverable runtime metadata onto assistant tool_calls / 将可恢复的运行态元数据挂到 assistant.tool_calls。"""
+        if skill_info:
+            if skill_info.get("skill_name"):
+                tool_call["skill_name"] = skill_info["skill_name"]
+            if skill_info.get("package_name"):
+                tool_call["package_name"] = skill_info["package_name"]
+
+        if duration_ms is not None:
+            tool_call["duration_ms"] = duration_ms
+
+        if pending_confirmation:
+            tool_call["pending_confirmation"] = pending_confirmation
+
+        if pending_consent:
+            tool_call["pending_consent"] = pending_consent
+
+        if result:
+            tool_call["success"] = result.success
+            if result.display_name:
+                tool_call["display_name"] = result.display_name
+            if result.summary:
+                tool_call["summary"] = result.summary
+            if result.summary_payload:
+                tool_call["summary_payload"] = result.summary_payload
+            if result.result_link:
+                tool_call["result_link"] = result.result_link
+            if result.error_type:
+                tool_call["error_type"] = result.error_type
+
+    @staticmethod
+    def build_pending_confirmation_payload(parsed: dict[str, Any]) -> dict[str, Any]:
+        """Build recoverable pending confirmation payload / 构建可恢复的待确认信息。"""
+        return {
+            "action": parsed.get("action", ""),
+            "table": parsed.get("table", ""),
+            "preview": (
+                parsed.get("preview") or parsed.get("diff") or parsed.get("record")
+            ),
+        }
+
+    @staticmethod
+    def build_pending_consent_payload(
+        func_name: str,
+        arguments: dict[str, Any],
+        skill_info: dict[str, str | None] | None = None,
+    ) -> dict[str, Any]:
+        """Build recoverable pending consent payload / 构建可恢复的待授权信息。"""
+        payload: dict[str, Any] = {
+            "tool_name": func_name,
+            "arguments": arguments,
+        }
+        if skill_info:
+            if skill_info.get("skill_name"):
+                payload["skill_name"] = skill_info["skill_name"]
+            if skill_info.get("package_name"):
+                payload["package_name"] = skill_info["package_name"]
+        return payload
+
+    @staticmethod
     def build_assistant_tool_call_message(
         content: str,
         tool_calls: list[dict[str, Any]],

@@ -1,6 +1,7 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, normalize } from 'node:path';
+import process from 'node:process';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -9,8 +10,8 @@ import { novusPluginsLoader } from '../../../build/vite-plugin-novus-plugins';
 function invokePluginHook<TArgs extends unknown[], TResult>(
   hook:
     | ((...args: TArgs) => TResult)
-    | { handler: (...args: TArgs) => TResult }
-    | undefined,
+    | undefined
+    | { handler: (...args: TArgs) => TResult },
   ...args: TArgs
 ): TResult | undefined {
   if (!hook) {
@@ -19,7 +20,11 @@ function invokePluginHook<TArgs extends unknown[], TResult>(
   return typeof hook === 'function' ? hook(...args) : hook.handler(...args);
 }
 
-function createPluginFixture(): { cleanup: () => void; pluginsDir: string; srcEntry: string } {
+function createPluginFixture(): {
+  cleanup: () => void;
+  pluginsDir: string;
+  srcEntry: string;
+} {
   const root = mkdtempSync(join(tmpdir(), 'novus-plugin-dev-'));
   const pluginsDir = join(root, 'backend', 'plugins');
   const pluginDir = join(pluginsDir, 'demo-plugin');
@@ -62,7 +67,7 @@ function createPluginFixture(): { cleanup: () => void; pluginsDir: string; srcEn
       '      entry: "src/index.ts"',
       '',
     ].join('\n'),
-    'utf-8',
+    'utf8',
   );
   writeFileSync(
     join(frontendDir, 'package.json'),
@@ -73,9 +78,9 @@ function createPluginFixture(): { cleanup: () => void; pluginsDir: string; srcEn
         vue: '^3.5.0',
       },
     }),
-    'utf-8',
+    'utf8',
   );
-  writeFileSync(srcEntry, 'export const DemoPage = {};', 'utf-8');
+  writeFileSync(srcEntry, 'export const DemoPage = {};', 'utf8');
 
   return {
     cleanup: () => rmSync(root, { force: true, recursive: true }),

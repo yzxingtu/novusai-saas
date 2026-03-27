@@ -25,6 +25,7 @@ export interface ApplicationConfig {
   auth: AuthConfig;
 }
 
+/* eslint-disable-next-line spaced-comment */
 /// <reference path="./shims-modules.d.ts" />
 declare global {
   interface Window {

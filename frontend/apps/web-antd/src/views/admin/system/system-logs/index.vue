@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import type { adminApi } from '#/api';
+
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 
 import { Page } from '@vben/common-ui';
@@ -19,13 +20,13 @@ import {
 
 import { adminApi as admin } from '#/api';
 import {
-  usePageAIAnchor,
-  usePageAIOperations,
-} from '#/composables/use-page-ai-registration';
-import {
   createKeywordSearchPageOperation,
   createRefreshPageOperation,
 } from '#/composables/use-page-ai-operation-helpers';
+import {
+  usePageAIAnchor,
+  usePageAIOperations,
+} from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 import { copyToClipboard, formatDate } from '#/utils/common';
 
@@ -237,14 +238,16 @@ const readerMetaChips = computed(() => {
   }
 
   if (selectedFile.value) {
-    chips.push({
-      key: 'size',
-      text: `${$t('admin.system.systemLog.size')}: ${selectedFile.value.sizeFormatted}`,
-    });
-    chips.push({
-      key: 'modified',
-      text: `${$t('admin.system.systemLog.modifiedAt')}: ${formatDate(selectedFile.value.modifiedAt, 'YYYY-MM-DD HH:mm')}`,
-    });
+    chips.push(
+      {
+        key: 'size',
+        text: `${$t('admin.system.systemLog.size')}: ${selectedFile.value.sizeFormatted}`,
+      },
+      {
+        key: 'modified',
+        text: `${$t('admin.system.systemLog.modifiedAt')}: ${formatDate(selectedFile.value.modifiedAt, 'YYYY-MM-DD HH:mm')}`,
+      },
+    );
   }
 
   if (logContent.value) {

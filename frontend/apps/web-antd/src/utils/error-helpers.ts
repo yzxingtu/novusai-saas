@@ -13,7 +13,7 @@ import {
 export function getErrorResponse(
   error: unknown,
 ): Record<string, unknown> | undefined {
-  return (error as { response?: Record<string, unknown> } | undefined)
+  return (error as undefined | { response?: Record<string, unknown> })
     ?.response;
 }
 
@@ -32,9 +32,9 @@ function isRequestLikeError(error: unknown): boolean {
   const candidate = error as Record<string, unknown>;
   return Boolean(
     candidate.appError ||
-      candidate.response ||
-      candidate.traceId ||
-      candidate.trace_id,
+    candidate.response ||
+    candidate.traceId ||
+    candidate.trace_id,
   );
 }
 
@@ -46,14 +46,11 @@ export function getErrorMessage(error: unknown, fallbackKey: string): string {
       $t,
     );
   }
-  const errorMessage = (error as { message?: string } | undefined)?.message;
+  const errorMessage = (error as undefined | { message?: string })?.message;
   return errorMessage || fallbackMessage;
 }
 
-export function showRequestError(
-  error: unknown,
-  fallbackKey: string,
-): string {
+export function showRequestError(error: unknown, fallbackKey: string): string {
   const errorMessage = getErrorMessage(error, fallbackKey);
   message.error(errorMessage);
   return errorMessage;

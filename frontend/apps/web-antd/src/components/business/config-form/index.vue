@@ -115,7 +115,7 @@ function initConfigValue(
     // Allow backend to return real value, only show placeholder when value is empty and encrypted / 允许后端返回真实值，只有在值为空且加密时才显示占位符
     // Only show placeholder when backend explicitly returns '******', otherwise use raw (may be null/undefined) / 只有当后端明确返回 '******' 时才显示占位符
     if (cfg.value_type === 'html') {
-      data[cfg.key] = raw == null || raw === undefined ? '' : String(raw);
+      data[cfg.key] = raw === null || raw === undefined ? '' : String(raw);
     } else {
       data[cfg.key] = raw;
     }
@@ -419,7 +419,8 @@ function setStringValue(
   key: string,
   value: null | number | string | undefined,
 ): void {
-  formModel[key] = value == null ? undefined : String(value);
+  formModel[key] =
+    value === null || value === undefined ? undefined : String(value);
 }
 
 function getNumberValue(key: string): number | undefined {
@@ -438,7 +439,7 @@ function setNumberValue(
   key: string,
   value: null | number | string | undefined,
 ): void {
-  if (value == null || value === '') {
+  if (value === null || value === undefined || value === '') {
     formModel[key] = undefined;
     return;
   }
@@ -461,14 +462,9 @@ function getSelectValue(key: string): number | string | undefined {
     : undefined;
 }
 
-function setSelectValue(
-  key: string,
-  value: unknown,
-): void {
+function setSelectValue(key: string, value: unknown): void {
   formModel[key] =
-    typeof value === 'number' || typeof value === 'string'
-      ? value
-      : undefined;
+    typeof value === 'number' || typeof value === 'string' ? value : undefined;
 }
 
 function getMultiSelectValue(key: string): Array<number | string> {

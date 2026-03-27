@@ -34,6 +34,16 @@ from app.schemas.ai.model import (
     AIModelResponse,
     AIModelUpdate,
 )
+from app.schemas.ai.monitoring import (
+    MonitoringActorInfo,
+    MonitoringCallTraceItem,
+    MonitoringConversationDetail,
+    MonitoringConversationListItem,
+    MonitoringUsageBreakdownItem,
+    MonitoringUsageDashboard,
+    MonitoringUsageSeriesPoint,
+    MonitoringUsageSummary,
+)
 from app.schemas.ai.provider import (
     AIProviderCreate,
     AIProviderResponse,
@@ -49,6 +59,14 @@ __all__ = [
     "AIModelCreate",
     "AIModelUpdate",
     "AIModelResponse",
+    "MonitoringActorInfo",
+    "MonitoringCallTraceItem",
+    "MonitoringConversationDetail",
+    "MonitoringConversationListItem",
+    "MonitoringUsageBreakdownItem",
+    "MonitoringUsageDashboard",
+    "MonitoringUsageSeriesPoint",
+    "MonitoringUsageSummary",
     # API Key / API 密钥
     "ProviderApiKeyCreate",
     "ProviderApiKeyUpdate",

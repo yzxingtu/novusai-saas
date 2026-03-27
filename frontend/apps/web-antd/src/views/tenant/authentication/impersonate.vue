@@ -15,8 +15,8 @@ import { useAccessStore, useUserStore } from '@vben/stores';
 import { Button, Result, Spin } from 'ant-design-vue';
 
 import { tenantApi } from '#/api';
-import { $t } from '#/locales';
 import { HOME_PATHS } from '#/constants/endpoints';
+import { $t } from '#/locales';
 import { TokenStorage } from '#/store/shared/token-storage';
 import { toAvatarDisplayUrl } from '#/utils/image';
 

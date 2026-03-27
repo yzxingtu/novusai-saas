@@ -25,13 +25,13 @@ import {
   findPageOperation,
   listPageOperations,
 } from '#/components/business/ai-slide-panel/page-operation-registry';
-import { formStateTracker } from '#/composables/use-form-state-tracker';
 import { currentPageAIExecutionPolicy } from '#/composables/use-ai-page-policy';
+import { formStateTracker } from '#/composables/use-form-state-tracker';
 import { getActivePageSessionId } from '#/composables/use-page-session';
+import { getSocketTraceId } from '#/composables/use-socketio';
 import { useSocketIOStore } from '#/store';
 import { useAIPanelStore } from '#/store/shared/ai-panel';
 import { filterPageOperationsByPolicy } from '#/utils/ai-page-capabilities';
-import { getSocketTraceId } from '#/composables/use-socketio';
 
 /** Operation invoke event from backend / 后端下发的操作调用事件 */
 export interface PageOperationInvokeEvent {
@@ -152,7 +152,7 @@ function clearTrackedInvocations(): void {
 function emitResult(
   socketIOStore: ReturnType<typeof useSocketIOStore>,
   invokeId: string,
-  result: { success: boolean; message: string; data?: Record<string, unknown> },
+  result: { data?: Record<string, unknown>; message: string; success: boolean },
   errorType?: string,
   traceId?: string,
 ): void {
@@ -198,7 +198,13 @@ export function usePageOperationChannel(): void {
     const errorType = result.success
       ? undefined
       : (result.error_type ?? 'execution_failed');
-    emitResult(socketIOStore, event.invoke_id, result, errorType, event.trace_id);
+    emitResult(
+      socketIOStore,
+      event.invoke_id,
+      result,
+      errorType,
+      event.trace_id,
+    );
   }
 
   const aiPanelStore = useAIPanelStore();
@@ -426,8 +432,8 @@ export function usePageOperationChannel(): void {
           });
         }
         await confirmAndExecute(event, operation.label, desc);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
         emitResult(
           socketIOStore,
           event.invoke_id,

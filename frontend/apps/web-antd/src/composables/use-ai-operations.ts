@@ -23,6 +23,8 @@
 
 import type { Ref } from 'vue';
 
+import type { FormState } from './use-form-state-tracker';
+
 import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-registry';
 import type { VbenFormSchema } from '#/core/adapter/form/setup';
 import type { PageAICapabilityKey } from '#/utils/ai-page-capabilities';
@@ -34,10 +36,7 @@ import { mergeDisabledOperations } from '#/utils/ai-page-capabilities';
 import { requestClient } from '#/utils/request';
 
 import { resolveFormOptionsFieldName } from './form-option-param-utils';
-import {
-  formStateTracker,
-  type FormState,
-} from './use-form-state-tracker';
+import { formStateTracker } from './use-form-state-tracker';
 
 // ============ Types / 类型定义 ============
 
@@ -355,8 +354,9 @@ export function extractSearchParams(
 
     // Filter field: filter[field] or filter[field][op] / JSON:API 过滤字段
     const filterMatch = fieldName.match(/^filter\[([^\]]+)\](?:\[[^\]]+\])?$/);
-    if (filterMatch) {
-      const field = filterMatch[1]!;
+    const filterField = filterMatch?.[1];
+    if (filterField) {
+      const field = filterField;
       params[field] = {
         type,
         description: label,
@@ -462,17 +462,18 @@ export function extractFormParams(
       component === 'ApiTreeSelect'
     ) {
       const staticOpts = extractStaticOptions(props);
+      const firstStaticOption = staticOpts?.[0];
       if (
         staticOpts &&
         staticOpts.length > 0 &&
-        typeof staticOpts[0]!.value === 'number'
+        typeof firstStaticOption?.value === 'number'
       ) {
         type = 'number';
       }
       if (
         staticOpts &&
         staticOpts.length > 0 &&
-        typeof staticOpts[0]!.value === 'boolean'
+        typeof firstStaticOption?.value === 'boolean'
       ) {
         type = 'boolean';
       }
@@ -497,11 +498,12 @@ export function extractFormParams(
     // Resolve options / 解析选项
     const staticOptions = extractStaticOptions(props);
     const isRemote = component === 'ApiSelect' || component === 'ApiTreeSelect';
-    const optionsSource: EnhancedFormFieldDescriptor['optionsSource'] = isRemote
-      ? 'remote'
-      : staticOptions
-        ? 'static'
-        : undefined;
+    let optionsSource: EnhancedFormFieldDescriptor['optionsSource'];
+    if (isRemote) {
+      optionsSource = 'remote';
+    } else if (staticOptions) {
+      optionsSource = 'static';
+    }
 
     // Resolve placeholder / 解析占位提示
     const placeholder = props?.placeholder as string | undefined;
@@ -569,14 +571,16 @@ export async function resolveRemoteOptions(
     const cacheKey = buildOptionsCacheKey(resource, fieldName);
 
     // Return cached / 直接返回缓存
-    if (_remoteOptionsCache.has(cacheKey)) {
-      result.set(fieldName, _remoteOptionsCache.get(cacheKey)!);
+    const cachedOptions = _remoteOptionsCache.get(cacheKey);
+    if (cachedOptions) {
+      result.set(fieldName, cachedOptions);
       continue;
     }
 
     // Deduplicate in-flight requests / 去重进行中的请求 / 去重正在进行的请求
-    if (_remoteOptionsPending.has(cacheKey)) {
-      tasks.push({ fieldName, promise: _remoteOptionsPending.get(cacheKey)! });
+    const pendingOptionsPromise = _remoteOptionsPending.get(cacheKey);
+    if (pendingOptionsPromise) {
+      tasks.push({ fieldName, promise: pendingOptionsPromise });
       continue;
     }
 
@@ -615,9 +619,11 @@ export async function resolveRemoteOptions(
 
   // Wait for all in-flight / 等待所有进行中的请求
   const settled = await Promise.allSettled(tasks.map((t) => t.promise));
-  for (const [i, task_] of tasks.entries()) {
-    const task = task_!;
-    const s = settled[i]!;
+  for (const [i, task] of tasks.entries()) {
+    const s = settled[i];
+    if (!s) {
+      continue;
+    }
     if (s.status === 'fulfilled' && s.value.length > 0) {
       result.set(task.fieldName, s.value);
     }
@@ -659,10 +665,17 @@ function expandDotKeys(flat: Record<string, unknown>): Record<string, unknown> {
     const parts = key.split('.');
     let current = result as Record<string, any>;
     for (let i = 0; i < parts.length - 1; i++) {
-      current[parts[i]!] = current[parts[i]!] ?? {};
-      current = current[parts[i]!];
+      const part = parts[i];
+      if (!part) {
+        continue;
+      }
+      current[part] = current[part] ?? {};
+      current = current[part];
     }
-    current[parts[parts.length - 1]!] = value;
+    const lastPart = parts.at(-1);
+    if (lastPart) {
+      current[lastPart] = value;
+    }
   }
   return result;
 }
@@ -676,7 +689,12 @@ function getByDotPath(obj: Record<string, unknown>, path: string): unknown {
   const parts = path.split('.');
   let current: unknown = obj;
   for (const part of parts) {
-    if (current == null || typeof current !== 'object') return undefined;
+    if (
+      current === null ||
+      current === undefined ||
+      typeof current !== 'object'
+    )
+      return undefined;
     current = (current as Record<string, unknown>)[part];
   }
   return current;
@@ -730,7 +748,8 @@ async function buildFillFormFeedback(
     const actual = getByDotPath(actualValues, key);
     const match =
       actual === requested ||
-      (actual == null && requested == null) ||
+      ((actual === null || actual === undefined) &&
+        (requested === null || requested === undefined)) ||
       JSON.stringify(actual) === JSON.stringify(requested);
     feedback[key] = { requested, actual, match };
     if (!match) mismatchCount++;
@@ -1040,7 +1059,8 @@ export function createStandardOperations(
         await onSearch(filterParams, { rawFormValues });
 
         const applied = Object.keys(params).filter(
-          (k) => params[k] != null && params[k] !== '',
+          (k) =>
+            params[k] !== null && params[k] !== undefined && params[k] !== '',
         );
         return {
           success: true,
@@ -1158,7 +1178,7 @@ export function createStandardOperations(
       },
       handler: async (params) => {
         const id = params.id;
-        if (id == null || id === '') {
+        if (id === null || id === undefined || id === '') {
           return {
             success: false,
             message: $t('shared.pageOperation.msg.missingIdParam'),
@@ -1426,7 +1446,7 @@ export function createStandardOperations(
           };
         }
         const id = params.id;
-        if (id == null) {
+        if (id === null || id === undefined) {
           return {
             success: false,
             message: $t('shared.pageOperation.msg.idRequired'),
@@ -1521,7 +1541,7 @@ export function createStandardOperations(
       },
       handler: async (params) => {
         const id = params.id;
-        if (id == null) {
+        if (id === null || id === undefined) {
           return {
             success: false,
             message: $t('shared.pageOperation.msg.missingIdParam'),
@@ -1561,7 +1581,7 @@ export function createStandardOperations(
       },
       handler: async (params) => {
         const id = params.id;
-        if (id == null) {
+        if (id === null || id === undefined) {
           return {
             success: false,
             message: $t('shared.pageOperation.msg.navigateIdRequired'),
@@ -1931,206 +1951,205 @@ export function createFormOperations(
     ensureRemoteOptions();
   }
 
-  const operations: PageOperation[] = [];
-
-  // get_form_state / 获取表单状态
-  operations.push({
-    name: 'get_form_state',
-    label: $t('shared.pageOperation.getFormState'),
-    description:
-      'Get the current form state: open/closed, field values, dirty fields, validation errors. Call after opening a form. / 获取当前表单状态：打开/关闭、字段值、脏字段、验证错误。在打开表单后调用。',
-    readonly: true,
-    handler: async () => {
-      const state = await formStateTracker.getStateWithFallback(pageKey);
-      return {
-        success: true,
-        message: state.isOpen
-          ? $t('shared.pageOperation.msg.formIsOpen', { mode: state.mode })
-          : $t('shared.pageOperation.msg.formNotOpen'),
-        data: {
-          isOpen: state.isOpen,
-          mode: state.mode,
-          currentValues: state.currentValues,
-          dirtyFields: state.dirtyFields,
-          validationErrors: state.validationErrors,
-          fieldDescriptors: state.fieldDescriptors,
-        },
-      };
-    },
-  });
-
-  // fill_form / 填充表单
-  operations.push({
-    name: 'fill_form',
-    label: $t('shared.pageOperation.fillForm'),
-    description:
-      'Fill form fields with provided values. Form must be open first (use create_record or edit_record). Supports all field types: input, select, switch, date, remote_select. / 用提供的值填充表单字段。需先打开表单。支持所有字段类型。',
-    readonly: false,
-    params: Object.keys(createOpParams).length > 0 ? createOpParams : undefined,
-    handler: async (params) => {
-      if (!formStateTracker.isOpenWithFallback(pageKey)) {
-        return {
-          success: false,
-          message: $t('shared.pageOperation.msg.formNotOpen'),
-        };
-      }
-
-      const trackedApi = formStateTracker.getFormApi(pageKey);
-      if (!trackedApi) {
-        return {
-          success: false,
-          message: $t('shared.pageOperation.msg.formApiNotAvailable'),
-        };
-      }
-
-      const validFields: Record<string, unknown> = {};
-      const skippedFields: string[] = [];
-      for (const [key, value] of Object.entries(params)) {
-        if (formParamsMap[key]) {
-          validFields[key] = value;
-        } else {
-          skippedFields.push(key);
-        }
-      }
-
-      if (Object.keys(validFields).length === 0) {
-        return {
-          success: false,
-          message: $t('shared.pageOperation.msg.noValidFields', {
-            fields: Object.keys(formParamsMap).join(', '),
-          }),
-        };
-      }
-
-      try {
-        trackedApi.setValues(expandDotKeys(validFields));
-        await new Promise<void>((r) => setTimeout(r, 100));
-      } catch {
-        return {
-          success: false,
-          message: $t('shared.pageOperation.msg.setFormValuesFailed'),
-        };
-      }
-
-      const filledKeys = Object.keys(validFields);
-      const { feedback, mismatchCount } = await buildFillFormFeedback(
-        trackedApi,
-        validFields,
-      );
-      const skippedInfo =
-        skippedFields.length > 0
-          ? `. ${$t('shared.pageOperation.msg.skippedUnknown', { fields: skippedFields.join(', ') })}`
-          : '';
-      return {
-        success: true,
-        message:
-          (mismatchCount > 0
-            ? $t('shared.pageOperation.msg.fillFormPartial', {
-                count: filledKeys.length,
-                mismatch: mismatchCount,
-              })
-            : $t('shared.pageOperation.msg.fillFormResult', {
-                count: filledKeys.length,
-              })) + skippedInfo,
-        data: {
-          filled: filledKeys,
-          skipped: skippedFields,
-          field_feedback: feedback,
-        },
-      };
-    },
-  });
-
-  // validate_form / 校验表单
-  operations.push({
-    name: 'validate_form',
-    label: $t('shared.pageOperation.validateForm'),
-    description:
-      'Trigger form validation and return errors. / 触发表单校验并返回错误信息。',
-    readonly: true,
-    handler: async () => {
-      if (!formStateTracker.isOpenWithFallback(pageKey)) {
-        return {
-          success: false,
-          message: $t('shared.pageOperation.msg.formNotOpen'),
-        };
-      }
-      const trackedApi = formStateTracker.getFormApi(pageKey);
-      if (!trackedApi) {
-        return {
-          success: false,
-          message: $t('shared.pageOperation.msg.formApiNotAvailable'),
-        };
-      }
-      try {
-        const { valid } = await trackedApi.validate();
+  const operations: PageOperation[] = [
+    // get_form_state / 获取表单状态
+    {
+      name: 'get_form_state',
+      label: $t('shared.pageOperation.getFormState'),
+      description:
+        'Get the current form state: open/closed, field values, dirty fields, validation errors. Call after opening a form. / 获取当前表单状态：打开/关闭、字段值、脏字段、验证错误。在打开表单后调用。',
+      readonly: true,
+      handler: async () => {
+        const state = await formStateTracker.getStateWithFallback(pageKey);
         return {
           success: true,
-          message: valid
-            ? $t('shared.pageOperation.msg.allFieldsValid')
-            : $t('shared.pageOperation.msg.formHasValidationErrors'),
-          data: { valid },
+          message: state.isOpen
+            ? $t('shared.pageOperation.msg.formIsOpen', { mode: state.mode })
+            : $t('shared.pageOperation.msg.formNotOpen'),
+          data: {
+            isOpen: state.isOpen,
+            mode: state.mode,
+            currentValues: state.currentValues,
+            dirtyFields: state.dirtyFields,
+            validationErrors: state.validationErrors,
+            fieldDescriptors: state.fieldDescriptors,
+          },
         };
-      } catch {
-        return {
-          success: false,
-          message: $t('shared.pageOperation.msg.validationFailed'),
-        };
-      }
+      },
     },
-  });
 
-  // submit_form / 提交表单
-  operations.push({
-    name: 'submit_form',
-    label: $t('shared.pageOperation.submitForm'),
-    description:
-      'Validate and submit the currently open form. The form must be filled first. / 校验并提交当前打开的表单。需先填充表单。',
-    readonly: false,
-    handler: async () => {
-      if (!formStateTracker.isOpenWithFallback(pageKey)) {
+    // fill_form / 填充表单
+    {
+      name: 'fill_form',
+      label: $t('shared.pageOperation.fillForm'),
+      description:
+        'Fill form fields with provided values. Form must be open first (use create_record or edit_record). Supports all field types: input, select, switch, date, remote_select. / 用提供的值填充表单字段。需先打开表单。支持所有字段类型。',
+      readonly: false,
+      params:
+        Object.keys(createOpParams).length > 0 ? createOpParams : undefined,
+      handler: async (params) => {
+        if (!formStateTracker.isOpenWithFallback(pageKey)) {
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.formNotOpen'),
+          };
+        }
+
+        const trackedApi = formStateTracker.getFormApi(pageKey);
+        if (!trackedApi) {
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.formApiNotAvailable'),
+          };
+        }
+
+        const validFields: Record<string, unknown> = {};
+        const skippedFields: string[] = [];
+        for (const [key, value] of Object.entries(params)) {
+          if (formParamsMap[key]) {
+            validFields[key] = value;
+          } else {
+            skippedFields.push(key);
+          }
+        }
+
+        if (Object.keys(validFields).length === 0) {
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.noValidFields', {
+              fields: Object.keys(formParamsMap).join(', '),
+            }),
+          };
+        }
+
+        try {
+          trackedApi.setValues(expandDotKeys(validFields));
+          await new Promise<void>((r) => setTimeout(r, 100));
+        } catch {
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.setFormValuesFailed'),
+          };
+        }
+
+        const filledKeys = Object.keys(validFields);
+        const { feedback, mismatchCount } = await buildFillFormFeedback(
+          trackedApi,
+          validFields,
+        );
+        const skippedInfo =
+          skippedFields.length > 0
+            ? `. ${$t('shared.pageOperation.msg.skippedUnknown', { fields: skippedFields.join(', ') })}`
+            : '';
         return {
-          success: false,
-          message: $t('shared.pageOperation.msg.formNotOpen'),
+          success: true,
+          message:
+            (mismatchCount > 0
+              ? $t('shared.pageOperation.msg.fillFormPartial', {
+                  count: filledKeys.length,
+                  mismatch: mismatchCount,
+                })
+              : $t('shared.pageOperation.msg.fillFormResult', {
+                  count: filledKeys.length,
+                })) + skippedInfo,
+          data: {
+            filled: filledKeys,
+            skipped: skippedFields,
+            field_feedback: feedback,
+          },
         };
-      }
-      const trackedApi = formStateTracker.getFormApi(pageKey);
-      if (!trackedApi) {
+      },
+    },
+    // validate_form / 校验表单
+    {
+      name: 'validate_form',
+      label: $t('shared.pageOperation.validateForm'),
+      description:
+        'Trigger form validation and return errors. / 触发表单校验并返回错误信息。',
+      readonly: true,
+      handler: async () => {
+        if (!formStateTracker.isOpenWithFallback(pageKey)) {
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.formNotOpen'),
+          };
+        }
+        const trackedApi = formStateTracker.getFormApi(pageKey);
+        if (!trackedApi) {
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.formApiNotAvailable'),
+          };
+        }
+        try {
+          const { valid } = await trackedApi.validate();
+          return {
+            success: true,
+            message: valid
+              ? $t('shared.pageOperation.msg.allFieldsValid')
+              : $t('shared.pageOperation.msg.formHasValidationErrors'),
+            data: { valid },
+          };
+        } catch {
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.validationFailed'),
+          };
+        }
+      },
+    },
+    // submit_form / 提交表单
+    {
+      name: 'submit_form',
+      label: $t('shared.pageOperation.submitForm'),
+      description:
+        'Validate and submit the currently open form. The form must be filled first. / 校验并提交当前打开的表单。需先填充表单。',
+      readonly: false,
+      handler: async () => {
+        if (!formStateTracker.isOpenWithFallback(pageKey)) {
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.formNotOpen'),
+          };
+        }
+        const trackedApi = formStateTracker.getFormApi(pageKey);
+        if (!trackedApi) {
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.formApiNotAvailable'),
+          };
+        }
+        const validResult = await trackedApi.validate();
+        const valid =
+          validResult && (validResult as { valid?: boolean }).valid !== false;
+        const errors = (validResult as { errors?: Record<string, unknown> })
+          ?.errors;
+        if (!valid && errors && Object.keys(errors).length > 0) {
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.validationFailedMsg'),
+            data: { errors },
+          };
+        }
+        if (trackedApi.submitForm) {
+          try {
+            await trackedApi.submitForm();
+            return {
+              success: true,
+              message: $t('shared.pageOperation.msg.formSubmittedSuccess'),
+            };
+          } catch (error) {
+            const msg = error instanceof Error ? error.message : String(error);
+            return { success: false, message: msg };
+          }
+        }
         return {
           success: false,
           message: $t('shared.pageOperation.msg.formApiNotAvailable'),
         };
-      }
-      const validResult = await trackedApi.validate();
-      const valid =
-        validResult && (validResult as { valid?: boolean }).valid !== false;
-      const errors = (validResult as { errors?: Record<string, unknown> })
-        ?.errors;
-      if (!valid && errors && Object.keys(errors).length > 0) {
-        return {
-          success: false,
-          message: $t('shared.pageOperation.msg.validationFailedMsg'),
-          data: { errors },
-        };
-      }
-      if (trackedApi.submitForm) {
-        try {
-          await trackedApi.submitForm();
-          return {
-            success: true,
-            message: $t('shared.pageOperation.msg.formSubmittedSuccess'),
-          };
-        } catch (error) {
-          const msg = error instanceof Error ? error.message : String(error);
-          return { success: false, message: msg };
-        }
-      }
-      return {
-        success: false,
-        message: $t('shared.pageOperation.msg.formApiNotAvailable'),
-      };
+      },
     },
-  });
+  ];
 
   // get_form_options / 获取远程下拉选项
   const remoteFields = Object.entries(formParamsMap)

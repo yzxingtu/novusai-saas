@@ -55,10 +55,7 @@ watch(open, async (isOpen) => {
 });
 
 function handleKeydown(event: KeyboardEvent) {
-  if (
-    event.key?.toLowerCase() === 'k' &&
-    (event.metaKey || event.ctrlKey)
-  ) {
+  if (event.key?.toLowerCase() === 'k' && (event.metaKey || event.ctrlKey)) {
     event.preventDefault();
     event.stopPropagation();
     if (props.enableShortcutKey) {
@@ -98,24 +95,24 @@ onUnmounted(() => {
           class="fixed left-1/2 top-[15%] z-[1101] w-full max-w-[580px] -translate-x-1/2"
         >
           <div
-            class="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-2xl"
+            class="border-border/60 bg-card overflow-hidden rounded-2xl border shadow-2xl"
             @click.stop
           >
             <!-- Input Area -->
             <div
-              class="flex items-center gap-3 border-b border-border/40 px-4 py-3"
+              class="border-border/40 flex items-center gap-3 border-b px-4 py-3"
             >
-              <Search class="size-5 shrink-0 text-primary" />
+              <Search class="text-primary size-5 shrink-0" />
               <input
                 ref="searchInputRef"
                 v-model="keyword"
                 :placeholder="$t('ui.widgets.search.searchNavigate')"
-                class="min-w-0 flex-1 border-none bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/60"
+                class="text-foreground placeholder:text-muted-foreground/60 min-w-0 flex-1 border-none bg-transparent text-sm outline-none"
                 type="text"
               />
               <kbd
                 v-if="enableShortcutKey"
-                class="hidden rounded border border-border/60 bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground sm:inline-block"
+                class="border-border/60 bg-muted/60 text-muted-foreground hidden rounded border px-1.5 py-0.5 text-[10px] font-medium sm:inline-block"
               >
                 {{ isWindowsOs() ? 'Ctrl' : '⌘' }} K
               </kbd>

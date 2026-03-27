@@ -1,4 +1,10 @@
 <script lang="ts" setup>
+import type {
+  CaptchaAdapterExpose,
+  CaptchaEndpoint,
+  CaptchaResult,
+} from './types';
+
 /**
  * Image captcha form adapter
  * Combines CaptchaImage + Input, outputs unified CaptchaResult
@@ -6,8 +12,6 @@
  * 组合 CaptchaImage + Input，输出统一 CaptchaResult
  */
 import type { CaptchaDifficulty } from '#/api/public/captcha';
-
-import type { CaptchaAdapterExpose, CaptchaEndpoint, CaptchaResult } from './types';
 
 import { ref } from 'vue';
 
@@ -21,14 +25,14 @@ defineOptions({ name: 'CaptchaImageForm' });
 
 const props = withDefaults(
   defineProps<{
-    /** Endpoint identifier / 端点标识 */
-    endpoint: CaptchaEndpoint;
-    /** Difficulty level / 难度等级 */
-    difficulty?: CaptchaDifficulty;
     /** Action type / 操作类型 */
     action?: string;
+    /** Difficulty level / 难度等级 */
+    difficulty?: CaptchaDifficulty;
     /** Whether disabled / 是否禁用 */
     disabled?: boolean;
+    /** Endpoint identifier / 端点标识 */
+    endpoint: CaptchaEndpoint;
   }>(),
   {
     action: 'login',

@@ -60,6 +60,9 @@
     "test:unit": "vitest run --dom",
     "test:e2e": "turbo run test:e2e",
     "update:deps": "npx taze -r -w",
+    "vben:diff-upstream": "node ./scripts/vben/diff-upstream.mjs",
+    "vben:sync-upstream": "node ./scripts/vben/sync-upstream.mjs",
+    "vben:verify-upgrade": "node ./scripts/vben/verify-upgrade.mjs",
     "version": "pnpm exec changeset version && pnpm install --no-frozen-lockfile",
     "catalog": "pnpx codemod pnpm/catalog"
   },
@@ -99,24 +102,15 @@
     "vue-tsc": "catalog:"
   },
   "engines": {
-    "node": ">=20.12.0",
+    "node": ">=20.19.0",
     "pnpm": ">=10.0.0"
   },
-  "packageManager": "pnpm@10.22.0",
+  "packageManager": "pnpm@10.28.2",
   "pnpm": {
     "peerDependencyRules": {
       "allowedVersions": {
         "eslint": "*"
       }
-    },
-    "overrides": {
-      "@ast-grep/napi": "catalog:",
-      "@ctrl/tinycolor": "catalog:",
-      "clsx": "catalog:",
-      "esbuild": "0.25.3",
-      "jiti": "catalog:",
-      "pinia": "catalog:",
-      "vue": "catalog:"
     },
     "neverBuiltDependencies": [
       "canvas",

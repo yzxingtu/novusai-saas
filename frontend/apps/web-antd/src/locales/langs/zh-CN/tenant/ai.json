@@ -50,7 +50,8 @@
     },
     "accessChannel": {
       "title": "按访问渠道",
-      "subtitle": "基于计费事实拆分管理员与终端用户入口",
+      "subtitle": "本页统计已包含企业管理员与企业用户端调用，并按调用来源拆分展示",
+      "topChannelLabel": "当前占比最高渠道",
       "calls": "调用次数",
       "tokens": "Tokens",
       "cost": "费用",
@@ -58,6 +59,30 @@
       "tenant_admin": "企业管理员",
       "tenant_user": "企业终端用户",
       "unknown": "未标注渠道"
+    },
+    "metrics": {
+      "successCalls": "成功",
+      "failedCalls": "失败",
+      "inputTokens": "输入",
+      "outputTokens": "输出",
+      "avgCostPerCall": "单次均值",
+      "avgTokensPerCall": "单次均值 Tokens"
+    },
+    "snapshot": {
+      "title": "观察窗口与分布快照",
+      "days": "天",
+      "rangeDays": "统计跨度",
+      "coveredModels": "覆盖模型",
+      "coveredChannels": "覆盖渠道",
+      "topModel": "主力模型",
+      "busiestDay": "峰值日期",
+      "customRange": "自定义范围",
+      "platformScope": "平台管理端",
+      "tenantScope": "当前企业",
+      "empty": "暂无数据"
+    },
+    "list": {
+      "empty": "当前时间范围暂无统计数据"
     },
     "chart": {
       "dailyTrend": "每日用量趋势",
@@ -69,7 +94,13 @@
     "dateRange": "日期范围",
     "thisMonth": "本月",
     "last7Days": "近7天",
-    "last30Days": "近30天"
+    "last30Days": "近30天",
+    "monitoring": {
+      "topModels": "热门模型",
+      "topAgents": "热门智能体",
+      "topUsers": "高频调用人",
+      "topTenants": "高频企业"
+    }
   },
   "callLog": {
     "title": "调用日志",
@@ -545,11 +576,14 @@
     "pageTitle": "对话管理",
     "name": "对话管理",
     "agentName": "智能体",
+    "tenantName": "企业",
     "user": "用户",
     "status": "状态",
+    "totalCalls": "总调用数",
     "tokenCount": "Token 数量",
     "cost": "费用",
     "createdAt": "创建时间",
+    "lastCallAt": "调用时间",
     "messageCount": "消息数",
     "messageList": "消息列表",
     "tabMessages": "消息流程",
@@ -565,6 +599,14 @@
     "untitled": "未命名对话",
     "viewDetail": "查看详情",
     "detailTitle": "对话详情",
+    "actorType": {
+      "platform_admin": "平台管理员",
+      "tenant_admin": "企业管理员",
+      "tenant_user": "企业用户",
+      "admin": "管理员",
+      "user": "用户",
+      "unknown": "未标注身份"
+    },
     "placeholder": {
       "searchTitle": "搜索对话标题",
       "allStatuses": "全部状态"

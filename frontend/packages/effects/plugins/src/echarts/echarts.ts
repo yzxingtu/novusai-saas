@@ -57,9 +57,8 @@ echarts.use([
   ToolboxComponent,
 ]);
 
-const legacyGridContainLabel = (
-  echartsFeatures as Record<string, unknown>
-).LegacyGridContainLabel;
+const legacyGridContainLabel = (echartsFeatures as Record<string, unknown>)
+  .LegacyGridContainLabel;
 
 if (legacyGridContainLabel) {
   echarts.use([legacyGridContainLabel as never]);

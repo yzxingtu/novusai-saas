@@ -8,8 +8,10 @@
 import type { JSONContent } from '@tiptap/core';
 import type { Dayjs } from 'dayjs';
 
-import dayjs from 'dayjs';
 import { computed, reactive, ref, watch } from 'vue';
+
+import { IconifyIcon } from '@vben/icons';
+
 import {
   Button,
   Cascader,
@@ -26,18 +28,15 @@ import {
   Tooltip,
   TreeSelect,
 } from 'ant-design-vue';
-import { IconifyIcon } from '@vben/icons';
-import { $t } from '#/locales';
-import { useCodegenBuilderStore } from '#/store';
+import dayjs from 'dayjs';
 
+import { getCodegenDbTableRowsApi } from '#/api/admin/codegen';
 import { ApiSelect } from '#/components/business/api-select';
 import CronPicker from '#/components/business/cron-picker/CronPicker.vue';
 import { IconPicker } from '#/components/business/icon-picker';
 import RichTextEditor from '#/components/business/rich-text-editor/RichTextEditor.vue';
-
-import {
-  getCodegenDbTableRowsApi,
-} from '#/api/admin/codegen';
+import { $t } from '#/locales';
+import { useCodegenBuilderStore } from '#/store';
 
 import {
   getComponent,
@@ -60,6 +59,9 @@ type SelectValue = SelectScalarValue | SelectScalarValue[] | undefined;
 type TreeValue = SelectScalarValue | SelectScalarValue[] | undefined;
 
 function asBoolean(value: unknown): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
   return Boolean(value);
 }
 
@@ -188,7 +190,11 @@ function setFormValue(field: BuilderField, value: unknown): void {
 
 function getArraySelectValue(field: BuilderField): SelectScalarValue[] {
   const value = getFormValue(field);
-  return Array.isArray(value) ? value.filter(isSelectScalarValue) : [];
+  return Array.isArray(value)
+    ? value.filter((item): item is SelectScalarValue =>
+        isSelectScalarValue(item),
+      )
+    : [];
 }
 
 function getBooleanValue(field: BuilderField): boolean {
@@ -252,7 +258,11 @@ function getStringValue(field: BuilderField): string {
 function getTreeValue(field: BuilderField): TreeValue {
   const value = getFormValue(field);
   if (isSelectScalarValue(value)) return value;
-  return Array.isArray(value) ? value.filter(isSelectScalarValue) : undefined;
+  return Array.isArray(value)
+    ? value.filter((item): item is SelectScalarValue =>
+        isSelectScalarValue(item),
+      )
+    : undefined;
 }
 
 function onNativeColorInput(field: BuilderField, event: Event) {
@@ -282,27 +292,53 @@ watch(
 
       if (!(fn in formValues)) {
         // 仅对新增字段初始化默认值，已存在字段保留用户输入 / Only init default for new fields, preserve user input for existing
-        if (resolvedDefault !== undefined) {
+        if (resolvedDefault === undefined) {
+          switch (comp) {
+            case 'checkbox': {
+              formValues[fn] = [];
+              break;
+            }
+            case 'ColorPicker': {
+              formValues[fn] = '#6366f1';
+              break;
+            }
+            case 'CronPicker': {
+              formValues[fn] = '';
+              break;
+            }
+            case 'Rate': {
+              formValues[fn] = 0;
+              break;
+            }
+            case 'Slider': {
+              formValues[fn] = 0;
+              break;
+            }
+            case 'switch': {
+              formValues[fn] = false;
+              break;
+            }
+            default: {
+              if (
+                (comp === 'ApiSelect' || comp === 'UserSelect') &&
+                isMultiple(f)
+              )
+                formValues[fn] = [];
+              else if (comp === 'ImageUpload' && isMultiple(f))
+                formValues[fn] = [];
+              else if (comp === 'FilePicker' && isMultiple(f))
+                formValues[fn] = [];
+              else if (
+                comp === 'CodeEditor' ||
+                String(f.type || '').trim() === 'JSON'
+              )
+                formValues[fn] = '{}';
+              else formValues[fn] = undefined;
+            }
+          }
+        } else {
           formValues[fn] = resolvedDefault;
-        } else if (comp === 'switch') formValues[fn] = false;
-        else if (comp === 'checkbox') formValues[fn] = [];
-        else if (comp === 'Rate') formValues[fn] = 0;
-        else if (comp === 'Slider') formValues[fn] = 0;
-        else if (comp === 'ColorPicker') formValues[fn] = '#6366f1';
-        else if (comp === 'CronPicker') formValues[fn] = '';
-        else if (
-          (comp === 'ApiSelect' || comp === 'UserSelect') &&
-          isMultiple(f)
-        )
-          formValues[fn] = [];
-        else if (comp === 'ImageUpload' && isMultiple(f)) formValues[fn] = [];
-        else if (comp === 'FilePicker' && isMultiple(f)) formValues[fn] = [];
-        else if (
-          comp === 'CodeEditor' ||
-          String(f.type || '').trim() === 'JSON'
-        )
-          formValues[fn] = '{}';
-        else formValues[fn] = undefined;
+        }
       }
       // 不覆盖已存在字段：字段配置变更时保留用户输入 / Do not overwrite existing: preserve user input when field config changes
     }
@@ -329,12 +365,12 @@ function isFieldSelected(f: BuilderField): boolean {
 /** 从 enum_values 构造 Select options */
 function getEnumOptions(
   f: BuilderField,
-): Array<{ label: string; value: string; disabled?: boolean }> {
+): Array<{ disabled?: boolean; label: string; value: string }> {
   const ev =
     (f.enum_values as Array<{
-      value: string;
-      label_zh?: string;
       label_en?: string;
+      label_zh?: string;
+      value: string;
     }>) || [];
   if (ev.length === 0) {
     return [
@@ -355,7 +391,7 @@ function getEnumOptions(
 function getDictMockOptions(
   f: BuilderField,
 ): Array<{ label: string; value: string }> {
-  const code = asString(f.dict_code || 'dict').replace(/_/g, ' ');
+  const code = asString(f.dict_code || 'dict').replaceAll('_', ' ');
   return [
     {
       label: `${code} ${$t('admin.system.codegen.preview.mockOptionA')}`,
@@ -378,11 +414,9 @@ function getMockRelationOptions(
 ): Array<{ label: string; value: number }> {
   const table = asString(
     f.relation_table || $t('admin.system.codegen.preview.mockRelation'),
-  ).replace(/_/g, ' ');
+  ).replaceAll('_', ' ');
   const display = String(
-    f.relation_display ||
-      f.relation_display_field ||
-      'name',
+    f.relation_display || f.relation_display_field || 'name',
   );
   return [
     { label: `${table} A (${display})`, value: 1 },
@@ -411,70 +445,68 @@ function getRelationApi(f: BuilderField) {
 
 /** 关联字段 placeholder */
 function getRelationPlaceholder(f: BuilderField): string {
-  const table = asString(f.relation_table).replace(/_/g, ' ');
+  const table = asString(f.relation_table).replaceAll('_', ' ');
   return table
-    ? $t('admin.system.codegen.preview.selectRelation') + ` (${table})`
+    ? `${$t('admin.system.codegen.preview.selectRelation')} (${table})`
     : $t('admin.system.codegen.preview.selectRelation');
 }
 
 /** 字段占位符：优先用户配置，否则 fallback */
 function getFieldPlaceholder(f: BuilderField, fallbackKey: string): string {
   const p = f.placeholder;
-  if (p != null && String(p).trim() !== '') return String(p).trim();
+  if (p !== null && p !== undefined && String(p).trim() !== '') {
+    return String(p).trim();
+  }
   return $t(fallbackKey);
 }
 
 /** 树形选择 mock 树数据（TreeSelect treeData 格式：label, value, children） */
-function getMockTreeOptions(
-  f: BuilderField,
-): Array<{
+function getMockTreeOptions(f: BuilderField): Array<{
+  children?: Array<{ label: string; value: number }>;
   label: string;
   value: number;
-  children?: Array<{ label: string; value: number }>;
 }> {
   const table = asString(
     f.relation_table || $t('admin.system.codegen.preview.mockTree'),
-  ).replace(/_/g, ' ');
+  ).replaceAll('_', ' ');
   const pre = 'admin.system.codegen.preview';
   return [
     {
-      label: `${table} ${$t(pre + '.mockParentA')}`,
+      label: `${table} ${$t(`${pre}.mockParentA`)}`,
       value: 1,
       children: [
-        { label: `${table} ${$t(pre + '.mockChildA1')}`, value: 11 },
-        { label: `${table} ${$t(pre + '.mockChildA2')}`, value: 12 },
+        { label: `${table} ${$t(`${pre}.mockChildA1`)}`, value: 11 },
+        { label: `${table} ${$t(`${pre}.mockChildA2`)}`, value: 12 },
       ],
     },
     {
-      label: `${table} ${$t(pre + '.mockParentB')}`,
+      label: `${table} ${$t(`${pre}.mockParentB`)}`,
       value: 2,
-      children: [{ label: `${table} ${$t(pre + '.mockChildB1')}`, value: 21 }],
+      children: [{ label: `${table} ${$t(`${pre}.mockChildB1`)}`, value: 21 }],
     },
   ];
 }
 
 /** 级联 mock 数据 */
-function getMockCascaderOptions(
-  _f: BuilderField,
-): Array<{
+function getMockCascaderOptions(_f: BuilderField): Array<{
+  children?: Array<{ label: string; value: string }>;
   label: string;
   value: string;
-  children?: Array<{ label: string; value: string }>;
 }> {
   const pre = 'admin.system.codegen.preview';
   return [
     {
-      label: $t(pre + '.mockProvinceA'),
+      label: $t(`${pre}.mockProvinceA`),
       value: 'a',
       children: [
-        { label: $t(pre + '.mockCityA1'), value: 'a1' },
-        { label: $t(pre + '.mockCityA2'), value: 'a2' },
+        { label: $t(`${pre}.mockCityA1`), value: 'a1' },
+        { label: $t(`${pre}.mockCityA2`), value: 'a2' },
       ],
     },
     {
-      label: $t(pre + '.mockProvinceB'),
+      label: $t(`${pre}.mockProvinceB`),
       value: 'b',
-      children: [{ label: $t(pre + '.mockCityB1'), value: 'b1' }],
+      children: [{ label: $t(`${pre}.mockCityB1`), value: 'b1' }],
     },
   ];
 }
@@ -575,10 +607,8 @@ function handleCancel() {
           >
             <template v-if="f.divider || f.type === '__divider__'">
               <div
-                :class="[
-                  'rounded-2xl border border-dashed border-border/70 bg-muted/15 px-4 py-3',
-                  features.formColumns.value === 2 && 'xl:col-span-2',
-                ]"
+                class="rounded-2xl border border-dashed border-border/70 bg-muted/15 px-4 py-3"
+                :class="[features.formColumns.value === 2 && 'xl:col-span-2']"
               >
                 <div
                   class="text-[11px] uppercase tracking-[0.16em] text-muted-foreground"
@@ -592,8 +622,8 @@ function handleCancel() {
             </template>
             <div
               v-else
+              class="flex flex-col gap-2 rounded-[20px] border border-border/70 bg-background px-4 py-4 transition-colors"
               :class="[
-                'flex flex-col gap-2 rounded-[20px] border border-border/70 bg-background px-4 py-4 transition-colors',
                 isFieldSelected(f) && 'border-primary ring-2 ring-primary/15',
               ]"
               @mousedown="onFieldClick(f)"
@@ -915,7 +945,7 @@ function handleCancel() {
                   <div
                     class="absolute inset-0"
                     :style="{ backgroundColor: getStringValue(f) || '#6366f1' }"
-                  />
+                  ></div>
                 </div>
                 <Input
                   :value="getStringValue(f)"
@@ -972,7 +1002,7 @@ function handleCancel() {
               <div
                 v-else-if="(f._comp as string) === 'CodeEditor'"
                 class="h-20 w-full rounded border border-border bg-muted/20 font-mono text-xs"
-              />
+              ></div>
               <CronPicker
                 v-else-if="(f._comp as string) === 'CronPicker'"
                 :value="getStringValue(f)"
@@ -1036,12 +1066,12 @@ function handleCancel() {
         <div
           class="flex justify-end gap-2 border-t border-border/50 bg-muted/10 px-5 py-4"
         >
-          <Button size="small" @click="handleCancel">{{
-            $t('common.cancel')
-          }}</Button>
-          <Button size="small" type="primary" @click="handleSubmit">{{
-            $t('common.confirm')
-          }}</Button>
+          <Button size="small" @click="handleCancel">
+            {{ $t('common.cancel') }}
+          </Button>
+          <Button size="small" type="primary" @click="handleSubmit">
+            {{ $t('common.confirm') }}
+          </Button>
         </div>
       </div>
     </div>

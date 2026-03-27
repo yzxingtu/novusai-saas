@@ -20,6 +20,7 @@ from fastapi.responses import StreamingResponse
 from app.ai.adapters import AdapterRegistry
 from app.ai.tools.types import ToolDefinition, to_openai_tools
 from app.ai.types import ChatChunk, ChatMessage, messages_to_dicts
+from app.ai.usage_mode import resolve_chat_usage
 from app.ai.usage_recorder import UsageRecorder
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.i18n import _
@@ -141,8 +142,23 @@ class ConversationEngine(BaseEngine):
                 and response.metadata.get("skip_final_assistant")
             )
             output = response.message.content or ""
+            cleaned_output, action_buttons = StreamExecutionHandler._extract_action_buttons(
+                output,
+            )
+            if action_buttons:
+                output = cleaned_output
             if not skip_final_assistant:
-                messages.append(ChatMessage(role="assistant", content=output))
+                messages.append(
+                    ChatMessage(
+                        role="assistant",
+                        content=output,
+                        metadata=(
+                            {"action_buttons": action_buttons}
+                            if action_buttons
+                            else None
+                        ),
+                    )
+                )
 
             duration_ms = int((time.perf_counter() - start) * 1000)
             runtime_info = dict(getattr(response, "metadata", {}) or {}).get(
@@ -336,6 +352,8 @@ class ConversationEngine(BaseEngine):
         total_tokens = 0
         input_tokens = 0
         output_tokens = 0
+        usage_mode = "actual"
+        streamed_output = ""
         runtime_info = runtime_context.runtime_info
 
         try:
@@ -358,6 +376,7 @@ class ConversationEngine(BaseEngine):
                 total_tokens = response.total_tokens or 0
                 input_tokens = response.input_tokens or 0
                 output_tokens = response.output_tokens or 0
+                streamed_output = response.message.content or ""
                 yield ChatChunk(
                     delta=response.message.content or "",
                     role=response.message.role,
@@ -386,7 +405,11 @@ class ConversationEngine(BaseEngine):
                         input_tokens = chunk.input_tokens
                     if chunk.output_tokens is not None:
                         output_tokens = chunk.output_tokens
+                    if chunk.delta:
+                        streamed_output += chunk.delta
                     chunk.metadata = dict(chunk.metadata or {})
+                    if chunk.metadata.get("usage_mode"):
+                        usage_mode = str(chunk.metadata["usage_mode"])
                     chunk.metadata.setdefault("runtime_model_info", runtime_info)
                     yield chunk
         except Exception as exc:
@@ -417,7 +440,11 @@ class ConversationEngine(BaseEngine):
                         user_type=log_user_type,
                         agent_id=getattr(agent, "id", None),
                         conversation_id=conversation_id,
-                        billing_context=billing_context,
+                        billing_context=self.gateway._merge_model_provider_snapshots(
+                            billing_context,
+                            provider=provider,
+                            ai_model=ai_model,
+                        ),
                         routed_model_id=routed_model_id,
                         route_reason=route_reason,
                     )
@@ -436,6 +463,18 @@ class ConversationEngine(BaseEngine):
         latency_ms = int((time.perf_counter() - stream_start) * 1000)
         try:
             resolved_log_type = UsageRecorder._resolve_call_user_type(tenant_id, log_user_type)
+            resolved_usage = resolve_chat_usage(
+                messages=messages,
+                output_text=streamed_output,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                total_tokens=total_tokens,
+                estimated_input=estimated_input,
+            )
+            input_tokens = resolved_usage.input_tokens
+            output_tokens = resolved_usage.output_tokens
+            total_tokens = resolved_usage.total_tokens
+            usage_mode = resolved_usage.usage_mode
 
             cost = (
                 CostCalculator.calculate_cost(ai_model, input_tokens, output_tokens)
@@ -483,6 +522,7 @@ class ConversationEngine(BaseEngine):
                             "output_tokens": output_tokens,
                             "total_tokens": total_tokens,
                             "model": model_code,
+                            "usage_mode": usage_mode,
                         },
                         input_tokens=input_tokens,
                         output_tokens=output_tokens,
@@ -494,7 +534,11 @@ class ConversationEngine(BaseEngine):
                         user_type=resolved_log_type,
                         agent_id=getattr(agent, "id", None),
                         conversation_id=conversation_id,
-                        billing_context=billing_context,
+                        billing_context=self.gateway._merge_model_provider_snapshots(
+                            billing_context,
+                            provider=provider,
+                            ai_model=ai_model,
+                        ),
                         routed_model_id=routed_model_id,
                         route_reason=route_reason,
                     )
@@ -571,10 +615,11 @@ class ConversationEngine(BaseEngine):
         metering_context = None
         should_meter_usage = tenant_id is not None and tenant_id > PLATFORM_TENANT_ID
         should_record_call_log = tenant_id is not None
-        if should_meter_usage and ai_model:
+        if should_record_call_log and ai_model:
             estimated_input = TokenCounter.count_messages_tokens(
                 messages_to_dicts(messages)
             )
+        if should_meter_usage and ai_model:
             metering_context = await self.gateway.usage_recorder.check_rate_and_quota(
                 tenant_id, ai_model.id, ai_model, estimated_input,
             )

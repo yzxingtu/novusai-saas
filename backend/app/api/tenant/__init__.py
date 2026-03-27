@@ -12,6 +12,7 @@ from fastapi import APIRouter
 
 from app.api.tenant.agent_chat import TenantAgentChatController
 from app.api.tenant.agent_chat import router as agent_chat_router
+from app.api.tenant.agent_assignments import router as agent_assignments_router
 from app.api.tenant.agents import TenantAgentController
 from app.api.tenant.agents import router as agents_router
 from app.api.tenant.ai_action_logs import TenantAIActionLogController
@@ -87,6 +88,8 @@ tenant_router.include_router(agents_router)
 tenant_router.include_router(conversations_router)
 # AI 对话 / AI chat
 tenant_router.include_router(agent_chat_router)
+# 功能分配 resolve / Feature assignment resolve
+tenant_router.include_router(agent_assignments_router)
 # AI 操作审计 / AI action logs
 tenant_router.include_router(ai_action_logs_router)
 # 知识库 / Knowledge bases

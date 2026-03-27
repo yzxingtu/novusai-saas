@@ -226,6 +226,119 @@ async def test_stream_chat_responses_output_text_done_without_completed() -> Non
 
 
 @pytest.mark.asyncio
+async def test_stream_chat_responses_output_text_done_retrieves_usage_when_event_omits_it() -> None:
+    class _FakeResponsesStream:
+        def __init__(self, events):
+            self._events = events
+            self.aclose_called = False
+
+        def __aiter__(self):
+            self._iter = iter(self._events)
+            return self
+
+        async def __anext__(self):
+            try:
+                return next(self._iter)
+            except StopIteration as exc:
+                raise StopAsyncIteration from exc
+
+        async def aclose(self) -> None:
+            self.aclose_called = True
+
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+    created_response = SimpleNamespace(id="resp_123")
+    retrieved_response = SimpleNamespace(
+        usage=SimpleNamespace(input_tokens=17, output_tokens=9, total_tokens=26),
+    )
+    rs = _FakeResponsesStream([
+        SimpleNamespace(type="response.created", response=created_response),
+        SimpleNamespace(type="response.output_text.delta", delta="A"),
+        SimpleNamespace(type="response.output_text.done", text="", usage=None),
+    ])
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(
+            create=_FakeResponses(rs).create,
+            retrieve=AsyncMock(return_value=retrieved_response),
+        ),
+        chat=SimpleNamespace(completions=_FakeChatCompletions(None)),
+    )
+
+    chunks = []
+    async for chunk in adapter.stream_chat(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-x",
+    ):
+        chunks.append(chunk)
+
+    assert "".join(c.delta for c in chunks) == "A"
+    assert chunks[-1].input_tokens == 17
+    assert chunks[-1].output_tokens == 9
+    assert chunks[-1].total_tokens == 26
+    adapter.client.responses.retrieve.assert_awaited_once_with("resp_123")
+    assert rs.aclose_called is True
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_responses_output_text_done_estimates_usage_when_retrieve_unavailable() -> None:
+    class _FakeResponsesStream:
+        def __init__(self, events):
+            self._events = events
+            self.aclose_called = False
+
+        def __aiter__(self):
+            self._iter = iter(self._events)
+            return self
+
+        async def __anext__(self):
+            try:
+                return next(self._iter)
+            except StopIteration as exc:
+                raise StopAsyncIteration from exc
+
+        async def aclose(self) -> None:
+            self.aclose_called = True
+
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+    rs = _FakeResponsesStream([
+        SimpleNamespace(
+            type="response.created",
+            response=SimpleNamespace(id="resp_404"),
+        ),
+        SimpleNamespace(type="response.output_text.delta", delta="你好"),
+        SimpleNamespace(type="response.output_text.done", text="", usage=None),
+    ])
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(
+            create=_FakeResponses(rs).create,
+            retrieve=AsyncMock(side_effect=RuntimeError("404 page not found")),
+        ),
+        chat=SimpleNamespace(completions=_FakeChatCompletions(None)),
+    )
+
+    chunks = []
+    async for chunk in adapter.stream_chat(
+        messages=[ChatMessage(role="user", content="测试输入")],
+        model="gpt-5.4-xhigh",
+    ):
+        chunks.append(chunk)
+
+    assert "".join(c.delta for c in chunks) == "你好"
+    assert chunks[-1].input_tokens > 0
+    assert chunks[-1].output_tokens > 0
+    assert chunks[-1].total_tokens == chunks[-1].input_tokens + chunks[-1].output_tokens
+    assert chunks[-1].metadata["usage_mode"] == "estimated"
+    assert rs.aclose_called is True
+
+
+@pytest.mark.asyncio
 async def test_stream_chat_responses_done_event_text_when_no_prior_deltas() -> None:
     class _FakeResponsesStream:
         def __init__(self, events):
@@ -551,3 +664,92 @@ def test_convert_responses_chat_response_extracts_reasoning_summary() -> None:
 
     assert result.message.content == "hello from responses"
     assert result.message.reasoning_content == "先读取上下文，再决定是否调用工具。"
+
+
+def test_convert_responses_chat_response_accepts_chat_style_usage_fields() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+
+    response_obj = SimpleNamespace(
+        object="response",
+        status="completed",
+        usage={
+            "prompt_tokens": 21,
+            "completion_tokens": 13,
+            "total_tokens": 34,
+        },
+        output=[_make_responses_message("兼容网关也要记 token")],
+        output_text="兼容网关也要记 token",
+        model_dump=lambda: {"ok": True},
+    )
+
+    result = adapter._convert_responses_chat_response(
+        response_obj,
+        "gpt-5.4-xhigh",
+    )
+
+    assert result.input_tokens == 21
+    assert result.output_tokens == 13
+    assert result.total_tokens == 34
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_responses_completed_accepts_chat_style_usage_fields() -> None:
+    class _FakeResponsesStream:
+        def __init__(self, events):
+            self._events = events
+
+        def __aiter__(self):
+            self._iter = iter(self._events)
+            return self
+
+        async def __anext__(self):
+            try:
+                return next(self._iter)
+            except StopIteration as exc:
+                raise StopAsyncIteration from exc
+
+        async def aclose(self) -> None:
+            return None
+
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+    completed_response = SimpleNamespace(
+        usage={
+            "prompt_tokens": 9,
+            "completion_tokens": 6,
+            "total_tokens": 15,
+        },
+        output_text="OK",
+        output=[],
+    )
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(
+            create=_FakeResponses(
+                _FakeResponsesStream([
+                    SimpleNamespace(type="response.output_text.delta", delta="O"),
+                    SimpleNamespace(type="response.output_text.delta", delta="K"),
+                    SimpleNamespace(type="response.completed", response=completed_response),
+                ])
+            ).create,
+        ),
+        chat=SimpleNamespace(completions=_FakeChatCompletions(None)),
+    )
+
+    chunks = []
+    async for chunk in adapter.stream_chat(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+    ):
+        chunks.append(chunk)
+
+    assert "".join(chunk.delta for chunk in chunks) == "OK"
+    assert chunks[-1].input_tokens == 9
+    assert chunks[-1].output_tokens == 6
+    assert chunks[-1].total_tokens == 15

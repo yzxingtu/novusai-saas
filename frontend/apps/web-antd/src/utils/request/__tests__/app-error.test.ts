@@ -55,4 +55,3 @@ describe('request app-error', () => {
     expect(formatAppErrorMessage(appError)).toContain('trace-sse-3');
   });
 });
-

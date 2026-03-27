@@ -5,35 +5,38 @@
  * 右侧属性面板，选中字段时显示
  */
 import { computed, onMounted, ref, watch } from 'vue';
+
+import { IconifyIcon } from '@vben/icons';
+
 import {
   Alert,
   Button,
   Checkbox,
   Input,
   InputNumber,
+  message,
   Select,
   Switch,
   Tag,
   Tooltip,
-  message,
 } from 'ant-design-vue';
-import { IconifyIcon } from '@vben/icons';
-import { $t } from '#/locales';
+
 import {
   getCodegenComponentsApi,
   getCodegenDbColumnsApi,
   getCodegenDbTablesApi,
   getCodegenTypesApi,
 } from '#/api/admin/codegen';
+import { $t } from '#/locales';
 import { useCodegenBuilderStore } from '#/store';
 
+import EnumValuesEditor from './EnumValuesEditor.vue';
+import { getComponent } from './field-utils';
 import {
   inferFieldConfig,
   inferFieldConfigForMerge,
   inferRelationTable,
 } from './infer';
-import EnumValuesEditor from './EnumValuesEditor.vue';
-import { getComponent } from './field-utils';
 
 defineOptions({ name: 'FieldPropertyPanel' });
 
@@ -41,7 +44,7 @@ const store = useCodegenBuilderStore();
 
 type BuilderField = Record<string, unknown>;
 type SelectOption = { label: string; value: string };
-type EnumValueItem = { value: string; label_en?: string; label_zh?: string };
+type EnumValueItem = { label_en?: string; label_zh?: string; value: string };
 
 const FIELD_ICON_MAP: Record<string, string> = {
   ApiSelect: 'lucide:link',
@@ -65,6 +68,9 @@ const FIELD_ICON_MAP: Record<string, string> = {
 };
 
 function asBoolean(value: unknown): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
   return Boolean(value);
 }
 
@@ -237,9 +243,9 @@ function hasRelationMetadata(field: BuilderField | null): boolean {
   if (!field) return false;
   return Boolean(
     asString(field.relation_table) ||
-      asString(field.relation_display) ||
-      asString(field.relation_display_field) ||
-      asString(field.relation_value_field),
+    asString(field.relation_display) ||
+    asString(field.relation_display_field) ||
+    asString(field.relation_value_field),
   );
 }
 
@@ -255,7 +261,8 @@ const showUserRelationConfig = computed(
 );
 
 const showSelectRelationConfig = computed(() => {
-  if (showTreeRelationConfig.value || showUserRelationConfig.value) return false;
+  if (showTreeRelationConfig.value || showUserRelationConfig.value)
+    return false;
   return (
     selectedFieldType.value === 'ForeignKey' ||
     selectedFormComponent.value === 'ApiSelect' ||
@@ -294,7 +301,7 @@ function updateField(patch: Partial<BuilderField>) {
   const idx = fields.findIndex(
     (f) => asString(f.__key) === key || asString(f.name) === key,
   );
-  if (idx < 0) return;
+  if (idx === -1) return;
   const nextPatch: BuilderField = { ...patch };
   if (patch.form && typeof patch.form === 'object') {
     nextPatch.form = {
@@ -385,12 +392,14 @@ function onTypeChange(value: unknown) {
     patch.enum_render = undefined;
   }
   if (
-    !['ForeignKey', 'TreeSelect', 'UserSelect', 'DeptSelect'].includes(nextType) &&
-    (
-      ['ForeignKey', 'TreeSelect', 'UserSelect', 'DeptSelect'].includes(curType) ||
+    !['DeptSelect', 'ForeignKey', 'TreeSelect', 'UserSelect'].includes(
+      nextType,
+    ) &&
+    (['DeptSelect', 'ForeignKey', 'TreeSelect', 'UserSelect'].includes(
+      curType,
+    ) ||
       ['ApiSelect', 'ApiTreeSelect'].includes(selectedFormComponent.value) ||
-      hasRelationMetadata(selectedField.value)
-    )
+      hasRelationMetadata(selectedField.value))
   ) {
     patch.relation_table = undefined;
     patch.relation_display = undefined;
@@ -402,15 +411,15 @@ function onTypeChange(value: unknown) {
   if (nextType !== 'Cascader' && curType === 'Cascader') {
     patch.cascader_options = undefined;
   }
-  const uploadTypes = [
-    'ImageUpload',
+  const uploadTypes = new Set([
+    'File',
+    'FilePicker',
+    'Files',
     'Image',
     'Images',
-    'FilePicker',
-    'File',
-    'Files',
-  ];
-  if (!uploadTypes.includes(nextType) && uploadTypes.includes(curType)) {
+    'ImageUpload',
+  ]);
+  if (!uploadTypes.has(nextType) && uploadTypes.has(curType)) {
     patch.multiple = undefined;
     patch.max_count = undefined;
   }
@@ -708,7 +717,7 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
         </div>
       </section>
 
-      <div class="h-2" />
+      <div class="h-2"></div>
 
       <section class="rounded-xl border border-border/70 bg-muted/10 p-3">
         <div class="mb-2 text-xs font-medium text-muted-foreground">
@@ -822,7 +831,7 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
         </div>
       </section>
 
-      <div class="h-2" />
+      <div class="h-2"></div>
 
       <section class="rounded-xl border border-border/70 bg-muted/10 p-3">
         <div class="mb-2 text-xs font-medium text-muted-foreground">
@@ -1047,7 +1056,7 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
       </section>
 
       <template v-if="selectedFieldType === 'Enum'">
-        <div class="h-2" />
+        <div class="h-2"></div>
         <section class="rounded-xl border border-border/70 bg-muted/10 p-3">
           <div class="mb-2 text-xs font-medium text-muted-foreground">
             {{ $t('admin.system.codegen.property.enum') }}
@@ -1102,7 +1111,7 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
       </template>
 
       <template v-if="showTreeRelationConfig">
-        <div class="h-2" />
+        <div class="h-2"></div>
         <section class="rounded-xl border border-border/70 bg-muted/10 p-3">
           <div class="mb-2 text-xs font-medium text-muted-foreground">
             {{ $t('admin.system.codegen.property.relation') }}
@@ -1173,7 +1182,7 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
       </template>
 
       <template v-if="showSelectRelationConfig">
-        <div class="h-2" />
+        <div class="h-2"></div>
         <section class="rounded-xl border border-border/70 bg-muted/10 p-3">
           <div class="mb-2 text-xs font-medium text-muted-foreground">
             {{ $t('admin.system.codegen.property.relation') }}
@@ -1265,7 +1274,7 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
       </template>
 
       <template v-if="showUserRelationConfig">
-        <div class="h-2" />
+        <div class="h-2"></div>
         <section class="rounded-xl border border-border/70 bg-muted/10 p-3">
           <div class="mb-2 text-xs font-medium text-muted-foreground">
             {{ $t('admin.system.codegen.property.relation') }}
@@ -1336,7 +1345,7 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
       </template>
 
       <template v-if="selectedFieldType === 'Cascader'">
-        <div class="h-2" />
+        <div class="h-2"></div>
         <section class="rounded-xl border border-border/70 bg-muted/10 p-3">
           <div class="mb-2 text-xs font-medium text-muted-foreground">
             {{ $t('admin.system.codegen.property.cascaderOptions') }}
@@ -1379,7 +1388,7 @@ function getEnumValues(field: BuilderField): EnumValueItem[] {
           selectedFormComponent === 'FilePicker'
         "
       >
-        <div class="h-2" />
+        <div class="h-2"></div>
         <section class="rounded-xl border border-border/70 bg-muted/10 p-3">
           <div class="mb-2 text-xs font-medium text-muted-foreground">
             {{ $t('admin.system.codegen.property.upload') }}

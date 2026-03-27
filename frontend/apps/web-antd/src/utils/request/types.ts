@@ -5,7 +5,6 @@
  * @module utils/request/types
  */
 import type { AxiosRequestConfig, AxiosResponse } from 'axios';
-import type { ApiEndpoint } from '#/types/endpoint';
 
 // ============================================================
 // Request configuration types / 请求配置类型
@@ -246,9 +245,9 @@ export type BusinessErrorHandler = (
  */
 export interface SseRequestOptions extends Omit<RequestInit, 'signal'> {
   /** Message callback（可 async，便于在回调内 await nextTick 以触发逐帧渲染）/ Message callback */
-  onMessage?: (message: string) => void | Promise<void>;
+  onMessage?: (message: string) => Promise<void> | void;
   /** End callback / 结束回调 */
-  onEnd?: () => void | Promise<void>;
+  onEnd?: () => Promise<void> | void;
   /** Error callback / 错误回调 */
   onError?: (error: Error) => void;
   /** AbortController for request cancellation / 用于取消请求的 AbortController */
@@ -294,4 +293,4 @@ export interface RequestClientOptions extends RequestOptions {
   headers?: Record<string, string>;
 }
 
-export type { ApiEndpoint };
+export { type ApiEndpoint } from '#/types/endpoint';

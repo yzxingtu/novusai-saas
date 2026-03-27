@@ -87,7 +87,7 @@ const highlights = computed(() => {
 });
 
 function scrollToSection(id: string) {
-  document.getElementById(id)?.scrollIntoView({
+  document.querySelector<HTMLElement>(`#${id}`)?.scrollIntoView({
     behavior: 'smooth',
     block: 'start',
   });
@@ -134,8 +134,8 @@ onMounted(async () => {
       <section
         class="relative overflow-hidden rounded-[36px] border border-border/70 bg-card px-6 py-8 shadow-sm sm:px-8 lg:px-10"
       >
-        <div class="absolute -right-24 top-0 size-80 rounded-full bg-primary/10 blur-3xl" />
-        <div class="absolute left-0 top-1/2 size-64 -translate-y-1/2 rounded-full bg-sky-500/10 blur-3xl" />
+        <div class="absolute -right-24 top-0 size-80 rounded-full bg-primary/10 blur-3xl"></div>
+        <div class="absolute left-0 top-1/2 size-64 -translate-y-1/2 rounded-full bg-sky-500/10 blur-3xl"></div>
 
         <div class="relative grid gap-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]">
           <div class="space-y-5">

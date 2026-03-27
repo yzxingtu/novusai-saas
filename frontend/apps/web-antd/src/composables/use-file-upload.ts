@@ -86,9 +86,9 @@ export function useFileUpload() {
       currentImageCount?: number;
       maxImageCount?: number;
       maxImageSizeMb?: number;
-      supportsVision?: boolean;
       supportsAudio?: boolean;
       supportsVideo?: boolean;
+      supportsVision?: boolean;
     } = {},
   ): FileValidationResult {
     const {

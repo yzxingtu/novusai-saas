@@ -1,23 +1,27 @@
 <script lang="ts" setup>
 import type { JSONContent } from '@tiptap/core';
 
-import { computed, ref, watch } from 'vue';
+import type { RichTextEditorProps } from './types';
 
-import { EditorContent } from '@tiptap/vue-3';
+import { computed, getCurrentInstance, onBeforeUnmount, ref, watch } from 'vue';
 
 import { $t } from '@vben/locales';
 
-import type { RichTextEditorProps } from './types';
+import { EditorContent } from '@tiptap/vue-3';
 
-import './rich-text-editor.css';
 import AIBubbleMenu from './ai/AIBubbleMenu.vue';
-import AIResultPanel from './ai/AIResultPanel.vue';
-import { useEditorAI } from './ai/useEditorAI';
-import { useEditorPageOps } from './useEditorPageOps';
+import { launchRichTextTask } from './ai/launchRichTextTask';
+import {
+  registerSourceEditor,
+  updateSourceEditorRevision,
+} from './sourceEditorRegistry';
 import EditorToolbar from './toolbar/EditorToolbar.vue';
 import MiniToolbar from './toolbar/MiniToolbar.vue';
+import { useEditorPageOps } from './useEditorPageOps';
 import { handleImageDrop, handleImagePaste } from './useEditorUpload';
 import { useRichTextEditor } from './useRichTextEditor';
+
+import './rich-text-editor.css';
 
 const props = withDefaults(defineProps<RichTextEditorProps>(), {
   mode: 'compact',
@@ -29,52 +33,96 @@ const props = withDefaults(defineProps<RichTextEditorProps>(), {
 });
 
 const emit = defineEmits<{
-  'update:modelValue': [value: JSONContent | null];
   change: [json: JSONContent, html: string, text: string];
+  'update:modelValue': [value: JSONContent | null];
 }>();
+
+const explicitProps = getCurrentInstance()?.vnode.props;
+const aiExplicitlyEnabled =
+  props.ai === true &&
+  !!explicitProps &&
+  Object.prototype.hasOwnProperty.call(explicitProps, 'ai');
+
+if (aiExplicitlyEnabled && !props.pageKey) {
+  throw new Error('RichTextEditor: pageKey is required when ai=true');
+}
 
 const isFull = computed(() => props.mode === 'full');
 
 const minH = computed(() => {
-  if (props.minHeight) return typeof props.minHeight === 'number' ? `${props.minHeight}px` : props.minHeight;
+  if (props.minHeight)
+    return typeof props.minHeight === 'number'
+      ? `${props.minHeight}px`
+      : props.minHeight;
   return isFull.value ? '400px' : '150px';
 });
 
 const maxH = computed(() => {
-  if (props.maxHeight) return typeof props.maxHeight === 'number' ? `${props.maxHeight}px` : props.maxHeight;
+  if (props.maxHeight)
+    return typeof props.maxHeight === 'number'
+      ? `${props.maxHeight}px`
+      : props.maxHeight;
   return undefined;
 });
 
-const { editor, wordCount, characterCount, setContent, getJSON, getHTML, getText, focus } =
-  useRichTextEditor({
-    content: props.modelValue || props.defaultValue || undefined,
-    editable: props.editable,
-    autofocus: props.autofocus,
-    placeholder: props.placeholder || $t('common.editorPlaceholder'),
-    extensions: props.extensions,
-    handlePaste: (_view: unknown, event: ClipboardEvent) => {
-      if (props.upload) {
-        const ed = editor.value;
-        if (ed) return handleImagePaste(ed, event);
+const {
+  editor,
+  wordCount,
+  characterCount,
+  revision,
+  setContent,
+  getJSON,
+  getHTML,
+  getText,
+  focus,
+  editorInstanceId,
+  getRevision,
+} = useRichTextEditor({
+  content: props.modelValue || props.defaultValue || undefined,
+  editable: props.editable,
+  autofocus: props.autofocus,
+  placeholder: props.placeholder || $t('common.editorPlaceholder'),
+  extensions: props.extensions,
+  handlePaste: (_view: unknown, event: ClipboardEvent) => {
+    if (props.upload) {
+      const ed = editor.value;
+      if (ed) return handleImagePaste(ed, event);
+    }
+    return false;
+  },
+  handleDrop: (
+    view: unknown,
+    event: DragEvent,
+    _slice: unknown,
+    moved: boolean,
+  ) => {
+    if (props.upload && !moved) {
+      const ed = editor.value;
+      if (ed) {
+        const coords = { left: event.clientX, top: event.clientY };
+        const pos =
+          (
+            view as {
+              posAtCoords: (c: {
+                left: number;
+                top: number;
+              }) => null | { pos: number };
+            }
+          ).posAtCoords(coords)?.pos ?? 0;
+        return handleImageDrop(ed, event, pos);
       }
-      return false;
-    },
-    handleDrop: (view: unknown, event: DragEvent, _slice: unknown, moved: boolean) => {
-      if (props.upload && !moved) {
-        const ed = editor.value;
-        if (ed) {
-          const coords = { left: event.clientX, top: event.clientY };
-          const pos = (view as { posAtCoords: (c: { left: number; top: number }) => { pos: number } | null }).posAtCoords(coords)?.pos ?? 0;
-          return handleImageDrop(ed, event, pos);
-        }
-      }
-      return false;
-    },
-    onUpdate: (json, text) => {
-      emit('update:modelValue', json);
-      emit('change', json, getHTML(), text);
-    },
-  });
+    }
+    return false;
+  },
+  onUpdate: (json, text) => {
+    emit('update:modelValue', json);
+    emit('change', json, getHTML(), text);
+  },
+});
+
+const aiEntryEnabled = computed(
+  () => props.ai !== false && !!props.pageKey && !!editor.value,
+);
 
 watch(
   () => props.modelValue,
@@ -84,6 +132,9 @@ watch(
     const newJson = JSON.stringify(val);
     if (currentJson !== newJson && val) {
       setContent(val);
+      if (sourceMode.value) {
+        sourceCode.value = getHTML();
+      }
     }
   },
 );
@@ -95,18 +146,6 @@ watch(
   },
 );
 
-const {
-  aiLoading,
-  aiResult,
-  aiError,
-  canRetry,
-  streamAI,
-  cancelAI,
-  retryAI,
-  acceptResult,
-  discardResult,
-} = useEditorAI(editor);
-
 useEditorPageOps(editor, {
   editable: computed(() => props.editable !== false),
   enabled: computed(() => props.ai !== false && !!editor.value),
@@ -115,16 +154,102 @@ useEditorPageOps(editor, {
 
 const sourceMode = ref(false);
 const sourceCode = ref('');
+let unregisterSourceEditorEntry: (() => void) | null = null;
+
+function cleanupSourceEditorRegistration() {
+  if (!unregisterSourceEditorEntry) return;
+  unregisterSourceEditorEntry();
+  unregisterSourceEditorEntry = null;
+}
+
+watch(
+  [editor, () => props.pageKey],
+  ([editorInstance, pageKey]) => {
+    cleanupSourceEditorRegistration();
+    if (!editorInstance || !pageKey) return;
+
+    unregisterSourceEditorEntry = registerSourceEditor({
+      pageKey,
+      editorInstanceId,
+      revision: getRevision(),
+      getRevision,
+      isMounted: () => !!editor.value,
+      getText,
+      getHTML,
+      focus,
+      replaceRange: (from, to, content) => {
+        if (!editor.value) return false;
+        editor.value
+          .chain()
+          .focus()
+          .deleteRange({ from, to })
+          .insertContent(content, {
+            parseOptions: { preserveWhitespace: false },
+          })
+          .run();
+        return true;
+      },
+      insertAfterRange: (_from, to, content) => {
+        if (!editor.value) return false;
+        editor.value.commands.insertContentAt(to, content, {
+          parseOptions: { preserveWhitespace: false },
+        });
+        return true;
+      },
+      appendToEnd: (content) => {
+        if (!editor.value) return false;
+        const end = editor.value.state.doc.content.size;
+        editor.value.commands.insertContentAt(end, content, {
+          parseOptions: { preserveWhitespace: false },
+        });
+        return true;
+      },
+      undo: () => {
+        if (!editor.value) return false;
+        return editor.value.chain().focus().undo().run();
+      },
+    });
+  },
+  { immediate: true },
+);
+
+watch(revision, (nextRevision) => {
+  if (!props.pageKey) return;
+  updateSourceEditorRevision(props.pageKey, editorInstanceId, nextRevision);
+});
+
+watch(sourceMode, (enabled) => {
+  if (!enabled) return;
+  sourceCode.value = getHTML();
+});
+
+onBeforeUnmount(() => {
+  cleanupSourceEditorRegistration();
+});
 
 function toggleSourceMode() {
   if (!editor.value) return;
-  if (!sourceMode.value) {
+  if (sourceMode.value) {
+    if (sourceCode.value !== getHTML()) {
+      setContent(sourceCode.value, { emitUpdate: false });
+    }
+    sourceMode.value = false;
+  } else {
     sourceCode.value = editor.value.getHTML();
     sourceMode.value = true;
-  } else {
-    editor.value.commands.setContent(sourceCode.value, { emitUpdate: false });
-    sourceMode.value = false;
   }
+}
+
+async function handleAiAction(feature: string) {
+  if (!editor.value || !props.pageKey) return;
+  await launchRichTextTask({
+    editor: editor.value,
+    editorInstanceId,
+    feature,
+    getRevision,
+    pageKey: props.pageKey,
+    contextTitle: props.contextTitle,
+  });
 }
 
 function focusEditorEnd() {
@@ -137,7 +262,9 @@ defineExpose({
   editor,
   wordCount,
   characterCount,
+  editorInstanceId,
   setContent,
+  getRevision,
   getJSON,
   getHTML,
   getText,
@@ -183,27 +310,14 @@ defineExpose({
         class="rte-source-code flex-1 resize-none bg-background p-4 font-mono text-sm text-foreground outline-none"
         :style="{ minHeight: minH }"
         spellcheck="false"
-      />
+      ></textarea>
     </div>
 
     <AIBubbleMenu
-      v-if="ai && editor"
+      v-if="aiEntryEnabled"
       :editor="editor"
-      :loading="aiLoading"
-      @action="(feat: string) => streamAI(feat, { context_title: contextTitle, withFormat: true })"
-    />
-
-    <AIResultPanel
-      v-if="ai && (aiResult || aiError || aiLoading)"
-      :result="aiResult"
-      :loading="aiLoading"
-      :error="aiError"
-      :can-retry="canRetry"
-      @accept-with-format="acceptResult(true)"
-      @accept-plain="acceptResult(false)"
-      @discard="discardResult"
-      @stop="cancelAI"
-      @retry="retryAI"
+      :loading="false"
+      @action="handleAiAction"
     />
 
     <div
@@ -215,40 +329,20 @@ defineExpose({
 
   <!-- Compact mode -->
   <div v-else class="rte-editor rte-compact">
-    <MiniToolbar
-      v-if="toolbar !== false"
-      :editor="editor"
-      :upload="upload"
-    />
+    <MiniToolbar v-if="toolbar !== false" :editor="editor" :upload="upload" />
 
     <div
       class="overflow-y-auto px-3 py-2"
       :style="{ minHeight: minH, maxHeight: maxH }"
     >
-      <EditorContent
-        v-if="editor"
-        :editor="editor"
-      />
+      <EditorContent v-if="editor" :editor="editor" />
     </div>
 
     <AIBubbleMenu
-      v-if="ai && editor"
+      v-if="aiEntryEnabled"
       :editor="editor"
-      :loading="aiLoading"
-      @action="(feat: string) => streamAI(feat, { context_title: contextTitle, withFormat: true })"
-    />
-
-    <AIResultPanel
-      v-if="ai && (aiResult || aiError || aiLoading)"
-      :result="aiResult"
-      :loading="aiLoading"
-      :error="aiError"
-      :can-retry="canRetry"
-      @accept-with-format="acceptResult(true)"
-      @accept-plain="acceptResult(false)"
-      @discard="discardResult"
-      @stop="cancelAI"
-      @retry="retryAI"
+      :loading="false"
+      @action="handleAiAction"
     />
   </div>
 </template>

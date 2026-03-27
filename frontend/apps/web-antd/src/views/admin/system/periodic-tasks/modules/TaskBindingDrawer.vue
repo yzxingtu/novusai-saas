@@ -4,7 +4,7 @@ import { computed, ref } from 'vue';
 import { useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Alert, Button, Spin, Tag, message } from 'ant-design-vue';
+import { Alert, Button, message, Spin, Tag } from 'ant-design-vue';
 
 import {
   getPeriodicTaskBindingsApi,
@@ -50,7 +50,7 @@ type TenantOption = {
 
 const emitSuccess = () => emit('success');
 
-const taskId = ref<number | null>(null);
+const taskId = ref<null | number>(null);
 const taskName = ref('');
 const originalScope = ref<BindingScope>('admin_only');
 const bindingScope = ref<BindingScope>('admin_only');
@@ -76,7 +76,7 @@ function toBindingScope(scope: null | string | undefined): BindingScope {
   }
 }
 
-function normalizeTenantId(value: number | string): number | null {
+function normalizeTenantId(value: number | string): null | number {
   const normalized = Number(value);
   return Number.isFinite(normalized) ? normalized : null;
 }
@@ -458,7 +458,7 @@ async function onSave() {
             :click-pagination="true"
             :page-size="20"
             :disabled="!requiresExplicitBindings"
-            :max-tag-count="'responsive'"
+            max-tag-count="responsive"
             :placeholder="
               $t('admin.system.periodicTask.placeholder.selectTenant')
             "

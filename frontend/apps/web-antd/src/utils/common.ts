@@ -338,9 +338,7 @@ export function formatRelativeTime(
   }
   if (days < 30) {
     return $t(
-      isPast
-        ? 'common.relativeTime.daysAgo'
-        : 'common.relativeTime.daysLater',
+      isPast ? 'common.relativeTime.daysAgo' : 'common.relativeTime.daysLater',
       { n: days },
     );
   }
@@ -353,9 +351,7 @@ export function formatRelativeTime(
     );
   }
   return $t(
-    isPast
-      ? 'common.relativeTime.yearsAgo'
-      : 'common.relativeTime.yearsLater',
+    isPast ? 'common.relativeTime.yearsAgo' : 'common.relativeTime.yearsLater',
     { n: years },
   );
 }

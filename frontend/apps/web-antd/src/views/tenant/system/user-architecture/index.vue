@@ -42,6 +42,7 @@ import {
   resetTenantUserPasswordApi,
   toggleTenantUserStatusApi,
 } from '#/api/tenant/tenant-users';
+import { OrgTreeNode, useOrgTree } from '#/components/business/org-tree';
 import {
   buildPageAIFormExtraData,
   createKeywordSearchPageOperation,
@@ -56,8 +57,6 @@ import { $t } from '#/locales';
 import { usePresenceStore } from '#/store';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 import { showRequestError } from '#/utils/error-helpers';
-
-import { OrgTreeNode, useOrgTree } from '#/components/business/org-tree';
 
 import {
   getRoleFormDefaults,
@@ -109,13 +108,16 @@ const filteredRoles = computed(() => {
   );
 });
 
-const orgFilterLabel = computed(() =>
-  selectedOrgNode.value?.name || $t('tenant.system.userArchitecture.allOrganizations'),
+const orgFilterLabel = computed(
+  () =>
+    selectedOrgNode.value?.name ||
+    $t('tenant.system.userArchitecture.allOrganizations'),
 );
 
-const roleFilterLabel = computed(() =>
-  selectedRole.value?.name ||
-  $t('tenant.system.userArchitecture.allPermissionRoles'),
+const roleFilterLabel = computed(
+  () =>
+    selectedRole.value?.name ||
+    $t('tenant.system.userArchitecture.allPermissionRoles'),
 );
 
 const [RoleFormDrawer, roleFormApi] = useVbenDrawer({
@@ -421,11 +423,15 @@ usePageAIOperations({
         await Promise.all([refreshOrgTree(), loadRoles()]);
         onMemberRefresh();
       },
-      description: $t('tenant.system.userArchitecture.aiOperations.refreshFiltersDesc'),
+      description: $t(
+        'tenant.system.userArchitecture.aiOperations.refreshFiltersDesc',
+      ),
     }),
     createKeywordSearchPageOperation({
       label: $t('shared.pageOperation.searchByKeyword'),
-      description: $t('tenant.system.userArchitecture.aiOperations.searchRoleDesc'),
+      description: $t(
+        'tenant.system.userArchitecture.aiOperations.searchRoleDesc',
+      ),
       keywordDescription: $t(
         'tenant.system.userArchitecture.aiOperations.searchRoleKeyword',
       ),
@@ -437,7 +443,9 @@ usePageAIOperations({
     createPrefilledCreatePageOperation({
       name: 'create_permission_role',
       label: $t('tenant.system.userArchitecture.createRole'),
-      description: $t('tenant.system.userArchitecture.aiOperations.createRoleDesc'),
+      description: $t(
+        'tenant.system.userArchitecture.aiOperations.createRoleDesc',
+      ),
       params: {
         description: {
           type: 'string',
@@ -493,7 +501,9 @@ usePageAIOperations({
     createPrefilledCreatePageOperation({
       name: 'create_user',
       label: $t('tenant.system.user.create'),
-      description: $t('tenant.system.userArchitecture.aiOperations.createUserDesc'),
+      description: $t(
+        'tenant.system.userArchitecture.aiOperations.createUserDesc',
+      ),
       params: {
         email: {
           type: 'string',
@@ -539,6 +549,12 @@ usePageAIOperations({
         },
       },
       normalizeParams: (params) => {
+        const fallbackOrgNodeId = selectedOrgNode.value?.id
+          ? { org_node_id: selectedOrgNode.value.id }
+          : {};
+        const fallbackRoleId = selectedRole.value?.id
+          ? { role_id: selectedRole.value.id }
+          : {};
         return {
           ...(params?.email ? { email: params.email } : {}),
           ...(typeof params?.is_active === 'boolean'
@@ -547,15 +563,11 @@ usePageAIOperations({
           ...(params?.nickname ? { nickname: params.nickname } : {}),
           ...(typeof params?.org_node_id === 'number'
             ? { org_node_id: params.org_node_id }
-            : selectedOrgNode.value?.id
-              ? { org_node_id: selectedOrgNode.value.id }
-              : {}),
+            : fallbackOrgNodeId),
           ...(params?.phone ? { phone: params.phone } : {}),
           ...(typeof params?.role_id === 'number'
             ? { role_id: params.role_id }
-            : selectedRole.value?.id
-              ? { role_id: selectedRole.value.id }
-              : {}),
+            : fallbackRoleId),
           ...(params?.username ? { username: params.username } : {}),
         };
       },
@@ -683,7 +695,10 @@ usePageAIOperations({
               @click="clearOrgFilter"
             >
               <div class="flex items-center gap-2">
-                <IconifyIcon icon="lucide:building-2" class="size-4 text-primary" />
+                <IconifyIcon
+                  icon="lucide:building-2"
+                  class="size-4 text-primary"
+                />
                 <span class="font-medium">
                   {{ $t('tenant.system.userArchitecture.allOrganizations') }}
                 </span>
@@ -719,7 +734,9 @@ usePageAIOperations({
 
           <Card
             class="mt-4"
-            :title="$t('tenant.system.userArchitecture.permissionRoleListTitle')"
+            :title="
+              $t('tenant.system.userArchitecture.permissionRoleListTitle')
+            "
             size="small"
           >
             <template #extra>
@@ -742,7 +759,10 @@ usePageAIOperations({
               class="mb-3"
             >
               <template #prefix>
-                <IconifyIcon icon="lucide:search" class="text-muted-foreground" />
+                <IconifyIcon
+                  icon="lucide:search"
+                  class="text-muted-foreground"
+                />
               </template>
             </Input>
             <div
@@ -761,7 +781,9 @@ usePageAIOperations({
                 </span>
               </div>
               <div class="mt-1 text-xs text-muted-foreground">
-                {{ $t('tenant.system.userArchitecture.allPermissionRolesDesc') }}
+                {{
+                  $t('tenant.system.userArchitecture.allPermissionRolesDesc')
+                }}
               </div>
             </div>
             <Spin :spinning="rolesLoading">
@@ -780,8 +802,12 @@ usePageAIOperations({
                   <div class="flex items-center justify-between gap-3">
                     <div class="min-w-0">
                       <div class="truncate font-medium">{{ role.name }}</div>
-                      <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <code class="rounded bg-muted px-1.5 py-0.5">{{ role.code }}</code>
+                      <div
+                        class="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
+                      >
+                        <code class="rounded bg-muted px-1.5 py-0.5">{{
+                          role.code
+                        }}</code>
                         <span>
                           {{ role.memberCount }}
                           {{ $t('tenant.system.userArchitecture.memberUnit') }}
@@ -859,7 +885,11 @@ usePageAIOperations({
                   </div>
                   <div class="min-w-0 flex-1">
                     <div class="text-xs text-muted-foreground">
-                      {{ $t('tenant.system.userArchitecture.permissionRoleListTitle') }}
+                      {{
+                        $t(
+                          'tenant.system.userArchitecture.permissionRoleListTitle',
+                        )
+                      }}
                     </div>
                     <div class="truncate text-base font-semibold">
                       {{ roleFilterLabel }}

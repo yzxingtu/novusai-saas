@@ -21,6 +21,7 @@ import type { PageOperation } from '#/components/business/ai-slide-panel/page-op
 import { useRouter } from 'vue-router';
 
 import { $t } from '#/locales';
+
 import { usePageAIOperations } from './use-page-ai-registration';
 
 /**
@@ -62,12 +63,7 @@ export interface DetailPageAiOptions {
  * 自动注册：refresh_detail、navigate_back（有 backRoute 时）
  */
 export function useDetailPageAi(opts: DetailPageAiOptions): void {
-  const {
-    refreshFn,
-    backRoute,
-    disabled = [],
-    extra = [],
-  } = opts;
+  const { refreshFn, backRoute, disabled = [], extra = [] } = opts;
 
   const router = useRouter();
 
@@ -80,12 +76,14 @@ export function useDetailPageAi(opts: DetailPageAiOptions): void {
     operations.push({
       name: 'refresh_detail',
       label: $t('shared.pageOperation.refreshDetail'),
-      description:
-        'Reload the current detail data / 刷新当前详情数据',
+      description: 'Reload the current detail data / 刷新当前详情数据',
       readonly: true,
       handler: async () => {
         await refreshFn();
-        return { success: true, message: $t('shared.pageOperation.msg.detailRefreshed') };
+        return {
+          success: true,
+          message: $t('shared.pageOperation.msg.detailRefreshed'),
+        };
       },
     });
   }
@@ -95,14 +93,15 @@ export function useDetailPageAi(opts: DetailPageAiOptions): void {
     operations.push({
       name: 'navigate_back',
       label: $t('shared.pageOperation.navigateTo'),
-      description:
-        'Navigate back to the list page / 返回列表页',
+      description: 'Navigate back to the list page / 返回列表页',
       readonly: true,
       handler: async () => {
         router.push(backRoute);
         return {
           success: true,
-          message: $t('shared.pageOperation.msg.navigatedTo', { path: backRoute }),
+          message: $t('shared.pageOperation.msg.navigatedTo', {
+            path: backRoute,
+          }),
         };
       },
     });
@@ -112,10 +111,10 @@ export function useDetailPageAi(opts: DetailPageAiOptions): void {
   // 合并额外操作（extra 可覆盖同名标准操作）
   for (const op of extra) {
     const existingIdx = operations.findIndex((o) => o.name === op.name);
-    if (existingIdx >= 0) {
-      operations[existingIdx] = op;
-    } else {
+    if (existingIdx === -1) {
       operations.push(op);
+    } else {
+      operations[existingIdx] = op;
     }
   }
 

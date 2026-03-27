@@ -11,12 +11,18 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Button, Image, message, Spin } from 'ant-design-vue';
 
-import { downloadAttachmentApi as downloadAdminAttachmentApi } from '#/api/admin/attachment';
-import { getAttachmentPreviewUrlApi as getAdminAttachmentPreviewUrlApi } from '#/api/admin/attachment';
-import { downloadAttachmentApi as downloadTenantAttachmentApi } from '#/api/tenant/attachment';
-import { getAttachmentPreviewUrlApi as getTenantAttachmentPreviewUrlApi } from '#/api/tenant/attachment';
-import { downloadAttachmentApi as downloadUserAttachmentApi } from '#/api/user/attachment';
-import { getAttachmentPreviewUrlApi as getUserAttachmentPreviewUrlApi } from '#/api/user/attachment';
+import {
+  downloadAttachmentApi as downloadAdminAttachmentApi,
+  getAttachmentPreviewUrlApi as getAdminAttachmentPreviewUrlApi,
+} from '#/api/admin/attachment';
+import {
+  downloadAttachmentApi as downloadTenantAttachmentApi,
+  getAttachmentPreviewUrlApi as getTenantAttachmentPreviewUrlApi,
+} from '#/api/tenant/attachment';
+import {
+  downloadAttachmentApi as downloadUserAttachmentApi,
+  getAttachmentPreviewUrlApi as getUserAttachmentPreviewUrlApi,
+} from '#/api/user/attachment';
 import { $t } from '#/locales';
 import { getAttachmentUrl } from '#/utils/image';
 
@@ -47,6 +53,26 @@ const isImage = computed(() => props.file?.category === 'image');
 const isVideo = computed(() => props.file?.category === 'video');
 const isAudio = computed(() => props.file?.category === 'audio');
 const isPdf = computed(() => props.file?.mimeType === 'application/pdf');
+
+function getPreviewApi() {
+  if (resolvedEndpoint.value === 'admin') {
+    return getAdminAttachmentPreviewUrlApi;
+  }
+  if (resolvedEndpoint.value === 'tenant') {
+    return getTenantAttachmentPreviewUrlApi;
+  }
+  return getUserAttachmentPreviewUrlApi;
+}
+
+function getDownloadApi() {
+  if (resolvedEndpoint.value === 'admin') {
+    return downloadAdminAttachmentApi;
+  }
+  if (resolvedEndpoint.value === 'tenant') {
+    return downloadTenantAttachmentApi;
+  }
+  return downloadUserAttachmentApi;
+}
 
 // Modal / 弹窗
 const [Modal, modalApi] = useVbenModal({
@@ -79,12 +105,7 @@ async function loadPreviewUrl() {
 
   loading.value = true;
   try {
-    const previewApi =
-      resolvedEndpoint.value === 'admin'
-        ? getAdminAttachmentPreviewUrlApi
-        : resolvedEndpoint.value === 'tenant'
-          ? getTenantAttachmentPreviewUrlApi
-          : getUserAttachmentPreviewUrlApi;
+    const previewApi = getPreviewApi();
     const result = await previewApi(props.file.id);
     previewUrl.value = result.url;
   } catch {
@@ -97,12 +118,7 @@ async function loadPreviewUrl() {
 async function handleDownload() {
   if (!props.file) return;
   try {
-    const downloadApi =
-      resolvedEndpoint.value === 'admin'
-        ? downloadAdminAttachmentApi
-        : resolvedEndpoint.value === 'tenant'
-          ? downloadTenantAttachmentApi
-          : downloadUserAttachmentApi;
+    const downloadApi = getDownloadApi();
     await downloadApi(props.file.id, props.file.name, props.file.mimeType);
   } catch {
     message.error($t('common.http.downloadFailed'));

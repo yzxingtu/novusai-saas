@@ -1,3 +1,6 @@
+/* eslint-disable vue/one-component-per-file */
+import type { PropType } from 'vue';
+
 import { mount } from '@vue/test-utils';
 import { defineComponent, h } from 'vue';
 
@@ -101,10 +104,13 @@ vi.mock('../components', () => ({
   CrudGrid: defineComponent({
     name: 'MockCrudGrid',
     props: {
-      createLabel: { default: '' },
-      createPermission: { default: '' },
-      onCreate: { default: undefined },
-      quickSearch: { default: undefined },
+      createLabel: { default: '', type: String },
+      createPermission: { default: '', type: String },
+      onCreate: { default: undefined, type: Function as PropType<() => void> },
+      quickSearch: {
+        default: undefined,
+        type: Object as PropType<Record<string, unknown>>,
+      },
     },
     setup(props) {
       mockRefs.crudGridProps.push(props as unknown as Record<string, unknown>);
@@ -342,8 +348,8 @@ describe('useCrudPage', () => {
     expect(
       (
         mockRefs.crudGridProps.at(-1)?.quickSearch as
-          | { options?: Array<Record<string, unknown>> }
           | undefined
+          | { options?: Array<Record<string, unknown>> }
       )?.options?.[0]?.placeholder,
     ).toBe('Search name');
   });

@@ -53,8 +53,12 @@ const wrapperClass = computed(() => {
 
 provideFormRenderProps(props);
 
-const { isCalculated, keepFormItemIndex, shouldShowCollapseButton, wrapperRef } =
-  useExpandable(props);
+const {
+  isCalculated,
+  keepFormItemIndex,
+  shouldShowCollapseButton,
+  wrapperRef,
+} = useExpandable(props);
 
 const shapes = computed(() => {
   const resultShapes: FormShape[] = [];
@@ -96,7 +100,7 @@ const formCollapsed = computed(() => {
 });
 
 const HEIGHT_TRANSITION_MS = 300;
-const heightBeforeTransition = ref<number | null>(null);
+const heightBeforeTransition = ref<null | number>(null);
 let activeCleanup: (() => void) | null = null;
 
 watch(
@@ -120,7 +124,7 @@ watch(
     const fromHeight = heightBeforeTransition.value;
     heightBeforeTransition.value = null;
 
-    if (fromHeight == null) return;
+    if (fromHeight === null || fromHeight === undefined) return;
 
     const cleanup = () => {
       el.removeEventListener('transitionend', onEnd);
@@ -245,7 +249,10 @@ const computedSchema = computed(
           </template>
         </FormField>
       </template>
-      <slot :shapes="shapes" :should-show-collapse-button="shouldShowCollapseButton"></slot>
+      <slot
+        :shapes="shapes"
+        :should-show-collapse-button="shouldShowCollapseButton"
+      ></slot>
     </div>
   </component>
 </template>

@@ -22,9 +22,7 @@ export function isPlatformCall(tenantId: null | number | undefined): boolean {
   return tenantId === PLATFORM_TENANT_ID;
 }
 
-export function getCallSourceText(
-  tenantId: null | number | undefined,
-): string {
+export function getCallSourceText(tenantId: null | number | undefined): string {
   return isPlatformCall(tenantId)
     ? $t('admin.ai.callLog.source_options.platform')
     : $t('admin.ai.callLog.source_options.tenant');

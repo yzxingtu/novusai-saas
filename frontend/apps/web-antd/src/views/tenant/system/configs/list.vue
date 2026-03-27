@@ -14,8 +14,8 @@ import {
   updateTenantConfigGroupApi,
 } from '#/api/tenant/configs';
 import { ConfigForm } from '#/components';
-import { usePageAIContext } from '#/composables/use-page-ai-registration';
 import PluginSettingsTabs from '#/components/business/plugin-slots/PluginSettingsTabs.vue';
+import { usePageAIContext } from '#/composables/use-page-ai-registration';
 import { $t as t } from '#/locales';
 
 // Storage config dedicated page (lazy-loaded) / 存储配置专用页面

@@ -43,11 +43,15 @@ function normalizeAction(item?: Partial<CustomActionItem>): CustomActionItem {
     icon: item?.icon ?? '',
     label_en: item?.label_en ?? '',
     label_zh: item?.label_zh ?? '',
-    method: ACTION_METHODS.has(method as ActionMethod) ? (method as ActionMethod) : 'POST',
+    method: ACTION_METHODS.has(method as ActionMethod)
+      ? (method as ActionMethod)
+      : 'POST',
     name: item?.name ?? '',
     path: item?.path ?? '',
     permission: item?.permission ?? '',
-    type: ACTION_TYPES.has(type as ActionType) ? (type as ActionType) : 'default',
+    type: ACTION_TYPES.has(type as ActionType)
+      ? (type as ActionType)
+      : 'default',
   };
 }
 
@@ -64,8 +68,14 @@ const actions = computed<CustomActionItem[]>({
 const resource = computed(() => (store.configJson.resource as string) || '');
 
 const actionTypeOptions = computed(() => [
-  { label: $t('admin.system.codegen.enum.actionTypeDefault'), value: 'default' },
-  { label: $t('admin.system.codegen.enum.actionTypePrimary'), value: 'primary' },
+  {
+    label: $t('admin.system.codegen.enum.actionTypeDefault'),
+    value: 'default',
+  },
+  {
+    label: $t('admin.system.codegen.enum.actionTypePrimary'),
+    value: 'primary',
+  },
   { label: $t('admin.system.codegen.enum.actionTypeDanger'), value: 'danger' },
 ]);
 
@@ -80,19 +90,21 @@ function toStringValue(value: unknown): string {
 }
 
 function addAction() {
-  const list = [...actions.value];
-  list.push({
-    name: '',
-    label_zh: '',
-    label_en: '',
-    method: 'POST',
-    path: `/${resource.value}s/:id/action`,
-    permission: '',
-    confirm: false,
-    icon: '',
-    type: 'default',
-    bulk: false,
-  });
+  const list = [
+    ...actions.value,
+    {
+      name: '',
+      label_zh: '',
+      label_en: '',
+      method: 'POST',
+      path: `/${resource.value}s/:id/action`,
+      permission: '',
+      confirm: false,
+      icon: '',
+      type: 'default',
+      bulk: false,
+    },
+  ];
   store.updateConfig({ actions: list });
 }
 
@@ -123,7 +135,11 @@ function onTypeChange(index: number, value: unknown) {
   }
 }
 
-function onSwitchChange(index: number, field: 'bulk' | 'confirm', value: unknown) {
+function onSwitchChange(
+  index: number,
+  field: 'bulk' | 'confirm',
+  value: unknown,
+) {
   if (field === 'bulk') {
     updateAction(index, { bulk: Boolean(value) });
     return;
@@ -134,11 +150,7 @@ function onSwitchChange(index: number, field: 'bulk' | 'confirm', value: unknown
 
 <template>
   <div class="flex flex-col gap-3">
-    <Button
-      size="small"
-      type="dashed"
-      @click="addAction"
-    >
+    <Button size="small" type="dashed" @click="addAction">
       {{ $t('admin.system.codegen.enum.addAction') }}
     </Button>
     <div
@@ -216,18 +228,13 @@ function onSwitchChange(index: number, field: 'bulk' | 'confirm', value: unknown
           />
         </Form.Item>
       </Form>
-      <Button
-        danger
-        size="small"
-        type="text"
-        @click="removeAction(idx)"
-      >
+      <Button danger size="small" type="text" @click="removeAction(idx)">
         {{ $t('common.delete') }}
       </Button>
     </div>
     <div
       v-if="actions.length === 0"
-      class="text-muted-foreground rounded border border-dashed border-border py-6 text-center text-sm"
+      class="rounded border border-dashed border-border py-6 text-center text-sm text-muted-foreground"
     >
       {{ $t('admin.system.codegen.enum.noActions') }}
     </div>

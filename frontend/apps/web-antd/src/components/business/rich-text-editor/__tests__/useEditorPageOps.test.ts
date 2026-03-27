@@ -14,6 +14,8 @@ import {
   listPageOperations,
 } from '#/components/business/ai-slide-panel/page-operation-registry';
 
+import { useEditorPageOps } from '../useEditorPageOps';
+
 vi.mock('vue-router', () => ({
   useRoute: () => ({
     meta: {},
@@ -28,8 +30,6 @@ vi.mock('@vben/locales', async (importOriginal) => {
     $t: (key: string) => key,
   };
 });
-
-import { useEditorPageOps } from '../useEditorPageOps';
 
 function createEditorStub(): Editor {
   return {
@@ -189,16 +189,19 @@ describe('useEditorPageOps', () => {
 
     const context = resolvePageContext('tenant.docs.detail');
     expect(context).not.toBeNull();
-    expect(context!.page_data?.entity_name).toBe('Document');
-    expect(context!.page_data?.resource).toBe('/tenant/docs');
-    expect(String(context!.page_data?.entity_description ?? '')).toContain(
+    if (!context) {
+      throw new Error('page context not found');
+    }
+    expect(context.page_data?.entity_name).toBe('Document');
+    expect(context.page_data?.resource).toBe('/tenant/docs');
+    expect(String(context.page_data?.entity_description ?? '')).toContain(
       'Primary document detail context.',
     );
-    expect(String(context!.page_data?.entity_description ?? '')).toContain(
+    expect(String(context.page_data?.entity_description ?? '')).toContain(
       'HTML 富文本编辑器',
     );
-    expect(context!.page_data?.has_editor).toBe(true);
-    expect(context!.page_data?.editor_editable).toBe(true);
+    expect(context.page_data?.has_editor).toBe(true);
+    expect(context.page_data?.editor_editable).toBe(true);
 
     scope.stop();
   });

@@ -16,7 +16,7 @@ export interface DomSnapshot {
   tables: Array<{ columns: string[]; row_count: number }>;
   forms: Array<{ labels: string[] }>;
   action_buttons: string[];
-  tabs: Array<{ label: string; active: boolean }>;
+  tabs: Array<{ active: boolean; label: string }>;
 }
 
 const MAX_OUTPUT_BYTES = 2048;
@@ -46,7 +46,7 @@ export function scanDomSemantics(): DomSnapshot | null {
     if (t) breadcrumb.push(t);
   });
   if (breadcrumb.length > 0) {
-    pageTitle = breadcrumb[breadcrumb.length - 1]!;
+    pageTitle = breadcrumb.at(-1) ?? '';
   }
   if (!pageTitle) {
     pageTitle =

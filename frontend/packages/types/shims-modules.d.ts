@@ -1,5 +1,6 @@
 declare module 'vue-json-viewer' {
   import type { DefineComponent } from 'vue';
+
   const component: DefineComponent<Record<string, unknown>>;
   export default component;
 }
@@ -9,33 +10,33 @@ declare module 'json-bigint' {
     storeAsString?: boolean;
     strict?: boolean;
   }
-  function jsonBigint(options?: JsonBigintOptions): {
+  export default function jsonBigint(options?: JsonBigintOptions): {
     parse: (text: string) => unknown;
     stringify: (value: unknown) => string;
   };
-  export = jsonBigint;
 }
 
 declare module 'sortablejs/modular/sortable.complete.esm.js' {
-  import type { default as Sortable } from 'sortablejs';
+  import type Sortable from 'sortablejs';
+
   const SortableMod: typeof Sortable;
   export default SortableMod;
 }
 
 declare module 'secure-ls' {
   interface SecureLSConfig {
-    encodingType?: 'aes' | 'base64' | 'lz-string' | 'rc4' | 'rabbit' | 'des';
+    encodingType?: 'aes' | 'base64' | 'des' | 'lz-string' | 'rabbit' | 'rc4';
     encryptionSecret?: string;
     encryptionNamespace?: string;
     isCompression?: boolean;
     metaKey?: string;
   }
-  class SecureLS {
+
+  export default class SecureLS {
     constructor(config?: SecureLSConfig);
-    get(key: string): string | null;
-    set(key: string, value: string): void;
-    remove(key: string): void;
     clear(): void;
+    get(key: string): null | string;
+    remove(key: string): void;
+    set(key: string, value: string): void;
   }
-  export = SecureLS;
 }

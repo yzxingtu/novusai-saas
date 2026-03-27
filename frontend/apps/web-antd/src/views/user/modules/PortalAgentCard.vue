@@ -1,12 +1,12 @@
 <script setup lang="ts">
+import type { UserPortalAgent } from './portal-data';
+
 import { computed } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
 import { $t } from '#/locales';
 import { normalizeStarterQuestions } from '#/utils/ai-starter-questions';
-
-import type { UserPortalAgent } from './portal-data';
 
 interface PortalAgentCardProps {
   agent: UserPortalAgent;
@@ -97,8 +97,12 @@ function emitQuestion(question: string) {
   <article
     class="group relative overflow-hidden rounded-[24px] border border-border/70 bg-card/95 p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5"
   >
-    <div class="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
-    <div class="absolute -right-14 top-2 size-28 rounded-full bg-primary/8 blur-2xl transition-all duration-300 group-hover:bg-primary/15" />
+    <div
+      class="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent"
+    ></div>
+    <div
+      class="bg-primary/8 absolute -right-14 top-2 size-28 rounded-full blur-2xl transition-all duration-300 group-hover:bg-primary/15"
+    ></div>
 
     <div class="relative flex items-start justify-between gap-4">
       <div class="flex min-w-0 items-center gap-3">
@@ -139,7 +143,9 @@ function emitQuestion(question: string) {
       </span>
     </div>
 
-    <p class="relative mt-4 line-clamp-2 min-h-[2.75rem] text-sm leading-6 text-muted-foreground">
+    <p
+      class="relative mt-4 line-clamp-2 min-h-[2.75rem] text-sm leading-6 text-muted-foreground"
+    >
       {{ agent.description || $t('user.portal.agentFallbackDescription') }}
     </p>
 
@@ -147,7 +153,9 @@ function emitQuestion(question: string) {
       v-if="starterQuestions.length > 0"
       class="relative mt-4 space-y-2 rounded-2xl border border-border/60 bg-background/70 p-3"
     >
-      <div class="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+      <div
+        class="flex items-center gap-2 text-xs font-medium text-muted-foreground"
+      >
         <IconifyIcon icon="lucide:sparkles" class="size-3.5 text-primary" />
         {{ $t('user.portal.recommendedQuestions') }}
       </div>
@@ -158,7 +166,10 @@ function emitQuestion(question: string) {
         type="button"
         @click="emitQuestion(question)"
       >
-        <IconifyIcon icon="lucide:message-circle-more" class="size-3.5 shrink-0 text-primary" />
+        <IconifyIcon
+          icon="lucide:message-circle-more"
+          class="size-3.5 shrink-0 text-primary"
+        />
         <span class="line-clamp-2">{{ question }}</span>
       </button>
     </div>

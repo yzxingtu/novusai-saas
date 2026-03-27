@@ -4,8 +4,9 @@
  * 加载权限树 + 勾选已分配权限 + 保存
  */
 import type { TreeProps as AntTreeProps } from 'ant-design-vue';
-import type { TenantUserRoleInfo } from '#/api/tenant/tenant-user-roles';
+
 import type { TenantPermissionNode } from '#/api/tenant/permission';
+import type { TenantUserRoleInfo } from '#/api/tenant/tenant-user-roles';
 
 import { computed, ref, watch } from 'vue';
 
@@ -22,16 +23,16 @@ import {
   Tree,
 } from 'ant-design-vue';
 
+import { getTenantPermissionTreeApi } from '#/api/tenant/permission';
 import {
   assignTenantUserRolePermissionsApi,
   getTenantUserRoleDetailApi,
 } from '#/api/tenant/tenant-user-roles';
-import { getTenantPermissionTreeApi } from '#/api/tenant/permission';
 import { $t } from '#/locales';
 
 const props = defineProps<{
   open: boolean;
-  role: TenantUserRoleInfo | null;
+  role: null | TenantUserRoleInfo;
 }>();
 
 const emit = defineEmits<{
@@ -122,7 +123,7 @@ function getBranchKeys(targetKey: number): number[] {
     current = parentKeyMap.value.get(current) ?? null;
   }
 
-  return branch.reverse();
+  return branch.toReversed();
 }
 
 async function loadData() {
@@ -172,14 +173,22 @@ function filterLeafKeys(nodes: TreeNode[], idSet: Set<number>): number[] {
 // ============================================================
 
 function onCheck(
-  checked: (number | string)[] | { checked: (number | string)[]; halfChecked: (number | string)[] },
+  checked:
+    | (number | string)[]
+    | { checked: (number | string)[]; halfChecked: (number | string)[] },
 ) {
   if (Array.isArray(checked)) {
-    checkedKeys.value = checked.filter((k): k is number => typeof k === 'number');
+    checkedKeys.value = checked.filter(
+      (k): k is number => typeof k === 'number',
+    );
     halfCheckedKeys.value = [];
   } else {
-    checkedKeys.value = checked.checked.filter((k): k is number => typeof k === 'number');
-    halfCheckedKeys.value = checked.halfChecked.filter((k): k is number => typeof k === 'number');
+    checkedKeys.value = checked.checked.filter(
+      (k): k is number => typeof k === 'number',
+    );
+    halfCheckedKeys.value = checked.halfChecked.filter(
+      (k): k is number => typeof k === 'number',
+    );
   }
 }
 
@@ -257,21 +266,41 @@ watch(
 
 function getTypeIcon(type: string): string {
   switch (type) {
-    case 'api': return 'lucide:route';
-    case 'button': return 'lucide:square';
-    case 'menu': return 'lucide:menu';
-    case 'operation': return 'lucide:mouse-pointer-click';
-    default: return 'lucide:folder';
+    case 'api': {
+      return 'lucide:route';
+    }
+    case 'button': {
+      return 'lucide:square';
+    }
+    case 'menu': {
+      return 'lucide:menu';
+    }
+    case 'operation': {
+      return 'lucide:mouse-pointer-click';
+    }
+    default: {
+      return 'lucide:folder';
+    }
   }
 }
 
 function getTypeColor(type: string): string {
   switch (type) {
-    case 'api': return 'orange';
-    case 'button': return 'cyan';
-    case 'menu': return 'blue';
-    case 'operation': return 'green';
-    default: return 'default';
+    case 'api': {
+      return 'orange';
+    }
+    case 'button': {
+      return 'cyan';
+    }
+    case 'menu': {
+      return 'blue';
+    }
+    case 'operation': {
+      return 'green';
+    }
+    default: {
+      return 'default';
+    }
   }
 }
 

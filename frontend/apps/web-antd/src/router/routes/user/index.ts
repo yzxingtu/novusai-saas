@@ -77,8 +77,7 @@ const mainRoutes: RouteRecordRaw = {
         {
           name: 'UserChangePassword',
           path: 'password',
-          component: () =>
-            import('#/views/user/profile/change-password.vue'),
+          component: () => import('#/views/user/profile/change-password.vue'),
           meta: {
             hideInMenu: true,
             title: 'user.profile.changePassword',

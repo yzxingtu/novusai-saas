@@ -173,7 +173,7 @@ export async function getAttachmentStatsByTenantApi(
 export async function downloadAttachmentApi(
   attachmentId: number,
   filename: string,
-  mimeType?: string | null,
+  mimeType?: null | string,
   options?: ApiRequestOptions,
 ): Promise<void> {
   const blob = await requestClient.download<Blob>(
@@ -241,8 +241,8 @@ export interface AdminChunkUploadResponse {
  * POST /admin/attachments/upload
  *
  * Permission: attachment:upload
+ * @internal
  */
-/** @internal Only for smartUploadFile internal use / 仅供 smartUploadFile 内部调用 */
 async function uploadAttachmentApi(
   params: {
     business_id?: number;
@@ -315,11 +315,11 @@ export interface AdminBatchUploadResponse {
  */
 export async function batchUploadAttachmentsApi(
   params: {
+    business_id?: number;
+    business_type?: string;
     files: File[];
     tenant_id?: number;
     visibility?: 'private' | 'public';
-    business_type?: string;
-    business_id?: number;
   },
   options?: ApiRequestOptions,
 ): Promise<AdminBatchUploadResponse> {
@@ -385,21 +385,17 @@ export async function uploadChunkApi(
   };
   const { data } = await requestClient.upload<{
     data: AdminChunkUploadResponse;
-  }>(
-    `${API_PREFIX}/chunk/${uploadId}`,
-    formData,
-    {
-      ...options,
-      onUploadProgress: onProgress
-        ? (progressEvent) => {
-            const percent = progressEvent.total
-              ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
-              : 0;
-            onProgress({ percent });
-          }
-        : undefined,
-    },
-  );
+  }>(`${API_PREFIX}/chunk/${uploadId}`, formData, {
+    ...options,
+    onUploadProgress: onProgress
+      ? (progressEvent) => {
+          const percent = progressEvent.total
+            ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
+            : 0;
+          onProgress({ percent });
+        }
+      : undefined,
+  });
   return data;
 }
 
@@ -433,8 +429,8 @@ export async function cancelChunkUploadApi(
 export interface AdminPreflightResponse {
   exists: boolean;
   attachment: AttachmentInfoRaw | null;
-  url: string | null;
-  used_bytes: number | null;
+  url: null | string;
+  used_bytes: null | number;
 }
 
 /** Upload rules response / 上传规则响应 */
@@ -450,8 +446,8 @@ export interface AdminUploadRulesResponse {
  */
 export async function preflightCheckApi(
   params: {
-    hash: string;
     filename: string;
+    hash: string;
     size: number;
     visibility?: 'private' | 'public';
   },

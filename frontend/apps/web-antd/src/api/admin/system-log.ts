@@ -4,8 +4,8 @@
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
-import { requestClient } from '#/utils/request';
 import { downloadBlob } from '#/utils/download';
+import { requestClient } from '#/utils/request';
 
 // ============================================================
 // Type definitions / 类型定义

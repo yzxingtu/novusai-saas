@@ -1,0 +1,38 @@
+{
+  "generated_at": "2026-03-26T20:16:07.4170133+08:00",
+  "tracking_strategy": "vendor-snapshot",
+  "remote": {
+    "name": "upstream",
+    "url": "https://github.com/vbenjs/vue-vben-admin.git"
+  },
+  "current_local_import_commit": "89a605eea2b518c534e5d727eeff0218e6ffe716",
+  "current_local_import_commit_short": "89a605ee",
+  "layout_move_commit": "cc7024a6068d12a2b83a97550bfa8a4b6a2c354d",
+  "layout_move_commit_short": "cc7024a6",
+  "current_local_label": "5.5.9",
+  "tracking_base_tag": "v5.5.9",
+  "target_upstream_tag": "v5.6.0",
+  "upstream_tags": {
+    "v5.5.9": {
+      "commit": "e147a9d2fdbb2e8f0c332a27ecedc8e421b459fc",
+      "compare_url": "https://github.com/vbenjs/vue-vben-admin/compare/v5.5.8...v5.5.9",
+      "release_url": "https://github.com/vbenjs/vue-vben-admin/releases/tag/v5.5.9"
+    },
+    "v5.6.0": {
+      "commit": "8a215fbcc7e2d91a7297c848da42db85d8c29a14",
+      "compare_url": "https://github.com/vbenjs/vue-vben-admin/compare/v5.5.9...v5.6.0",
+      "published_at": "2026-02-08T21:11:40Z",
+      "release_url": "https://github.com/vbenjs/vue-vben-admin/releases/tag/v5.6.0"
+    }
+  },
+  "engine_requirements": {
+    "node": ">=20.19.0",
+    "package_manager": "pnpm@10.28.2",
+    "pnpm": "10.28.x"
+  },
+  "notes": [
+    "tracking_base_tag is the upgrade comparison baseline, not a claim that the local import originated exactly from that upstream tag",
+    "frontend/.vendor/** is generated locally or in CI and must remain untracked",
+    "root package.json version is not used as the sole upgrade-complete signal for vben 5.6"
+  ]
+}

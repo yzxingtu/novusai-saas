@@ -76,7 +76,6 @@ export function resolveScreenshotUploadTarget(
         uploadUrl: '/tenant/attachments/upload',
       };
     }
-    case EndpointType.USER:
     default: {
       return {
         uploadUrl: '/api/user/attachments/upload',
@@ -87,7 +86,7 @@ export function resolveScreenshotUploadTarget(
 
 export async function capturePageScreenshot(
   options: ScreenshotOptions,
-): Promise<ScreenshotResult | null> {
+): Promise<null | ScreenshotResult> {
   if (globalCapturing.value) return null;
   globalCapturing.value = true;
 
@@ -133,7 +132,7 @@ export async function capturePageScreenshot(
     }
 
     // 6. Create File object / 构造上传用 File 对象
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const timestamp = new Date().toISOString().replaceAll(/[:.]/g, '-');
     const filename = `screenshot-${timestamp}.jpg`;
     const file = new File([blob], filename, {
       type: 'image/jpeg',
@@ -166,7 +165,7 @@ export async function capturePageScreenshot(
 export function usePageScreenshot() {
   async function captureAndUpload(
     options: ScreenshotOptions,
-  ): Promise<ScreenshotResult | null> {
+  ): Promise<null | ScreenshotResult> {
     return capturePageScreenshot(options);
   }
 

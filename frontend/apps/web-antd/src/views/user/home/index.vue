@@ -41,10 +41,7 @@ const isLoggedIn = computed(() => {
 });
 
 const brandName = computed(() => {
-  return (
-    publicConfigStore.tenantBrand?.siteName ||
-    preferences.app.name
-  );
+  return publicConfigStore.tenantBrand?.siteName || preferences.app.name;
 });
 
 const brandDescription = computed(() => {

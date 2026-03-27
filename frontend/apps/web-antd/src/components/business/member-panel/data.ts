@@ -22,6 +22,12 @@ export interface MemberRoleOption {
  * Admin create/edit form Schema
  * 管理员新建/编辑表单 Schema
  * @param options - Configuration options / 配置选项
+ * @param options.apiPrefix - API prefix / API 前缀
+ * @param options.isEdit - Whether in edit mode / 是否编辑模式
+ * @param options.nodeId - Current org node ID / 当前组织节点 ID
+ * @param options.nodeName - Org node name / 组织节点名称
+ * @param options.orgTreeApi - Org tree API / 组织树 API
+ * @param options.roleOptions - Permission role options / 权限角色选项
  */
 export function useAdminFormSchema(options: {
   /** API prefix / API 前缀 */
@@ -45,6 +51,44 @@ export function useAdminFormSchema(options: {
     orgTreeApi,
     roleOptions = [],
   } = options;
+  let assignmentFields: VbenFormSchema[] = [];
+
+  if (orgTreeApi) {
+    assignmentFields = [
+      {
+        component: 'ApiTreeSelect',
+        componentProps: {
+          api: orgTreeApi,
+          childrenField: 'children',
+          labelField: 'name',
+          valueField: 'id',
+          placeholder: $t('shared.memberPanel.selectOrgNode'),
+          showSearch: true,
+          treeNodeFilterProp: 'name',
+          treeDefaultExpandAll: true,
+          allowClear: true,
+          style: { width: '100%' },
+        },
+        fieldName: 'org_node_id',
+        label: $t('shared.memberPanel.orgNode'),
+        rules: 'required',
+        defaultValue: nodeId ?? undefined,
+      },
+    ];
+  } else if (nodeName) {
+    assignmentFields = [
+      {
+        component: 'Input',
+        componentProps: {
+          disabled: true,
+        },
+        fieldName: 'org_node_display',
+        label: $t('shared.memberPanel.orgNode'),
+        defaultValue: nodeName,
+        help: $t('shared.memberPanel.orgNodeBound'),
+      },
+    ];
+  }
 
   return [
     // === Basic Info / 基本信息 ===
@@ -136,42 +180,7 @@ export function useAdminFormSchema(options: {
         default: () => $t('shared.memberPanel.assignmentTitle'),
       }),
     },
-    ...(orgTreeApi
-      ? [
-          {
-            component: 'ApiTreeSelect',
-            componentProps: {
-              api: orgTreeApi,
-              childrenField: 'children',
-              labelField: 'name',
-              valueField: 'id',
-              placeholder: $t('shared.memberPanel.selectOrgNode'),
-              showSearch: true,
-              treeNodeFilterProp: 'name',
-              treeDefaultExpandAll: true,
-              allowClear: true,
-              style: { width: '100%' },
-            },
-            fieldName: 'org_node_id',
-            label: $t('shared.memberPanel.orgNode'),
-            rules: 'required',
-            defaultValue: nodeId ?? undefined,
-          },
-        ]
-      : nodeName
-        ? [
-            {
-              component: 'Input',
-              componentProps: {
-                disabled: true,
-              },
-              fieldName: 'org_node_display',
-              label: $t('shared.memberPanel.orgNode'),
-              defaultValue: nodeName,
-              help: $t('shared.memberPanel.orgNodeBound'),
-            },
-          ]
-        : []),
+    ...assignmentFields,
     ...(apiPrefix === 'tenant'
       ? [
           {
@@ -210,8 +219,8 @@ export function useAdminFormSchema(options: {
 /**
  * Admin form default values (create mode)
  * 管理员表单默认值（新建模式）
- * @param nodeName - Org node name / 组织节点名称
  * @param apiPrefix - API prefix / API 前缀
+ * @param nodeName - Org node name / 组织节点名称
  * @param nodeId - Org node ID (for default selection) / 组织节点 ID（用于默认选中）
  */
 export function getAdminFormDefaults(

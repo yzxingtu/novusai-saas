@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import type { WorkbenchTodoItem } from '../typing';
 
-import DOMPurify from 'dompurify';
-
 import {
   Card,
   CardContent,
@@ -10,6 +8,8 @@ import {
   CardTitle,
   VbenCheckbox,
 } from '@vben-core/shadcn-ui';
+
+import DOMPurify from 'dompurify';
 
 interface Props {
   items?: WorkbenchTodoItem[];

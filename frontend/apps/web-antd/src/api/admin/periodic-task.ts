@@ -77,7 +77,7 @@ export interface PeriodicTaskBindingSyncPayload {
 
 function getTaskLeafCandidates(raw: PeriodicTaskInfoRaw): string[] {
   const candidates = [raw.task_path, raw.name]
-    .filter((value): value is string => Boolean(value))
+    .filter(Boolean)
     .flatMap((value) => {
       const trimmed = value.trim();
       const leaf = trimmed.split('.').at(-1) || trimmed;
@@ -301,11 +301,11 @@ export async function syncPeriodicTaskBindingsApi(
   id: number,
   payload: number[] | PeriodicTaskBindingSyncPayload,
   options?: ApiRequestOptions,
-): Promise<{ added: number; removed: number; reenabled: number }> {
+): Promise<{ added: number; reenabled: number; removed: number }> {
   const body = Array.isArray(payload) ? { tenant_ids: payload } : payload;
   return await requestClient.put<{
     added: number;
-    removed: number;
     reenabled: number;
+    removed: number;
   }>(`${API_PREFIX}/${id}/bindings`, body, options);
 }

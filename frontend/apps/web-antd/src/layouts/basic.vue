@@ -50,6 +50,7 @@ import {
 import { useUserPreferenceStore } from '#/store/shared';
 import { usePluginSlotsStore } from '#/stores/plugin-slots';
 import { getEndpointFromPath } from '#/utils';
+
 import { syncLocaleNavigation } from './locale-navigation-sync';
 
 const router = useRouter();
@@ -307,7 +308,9 @@ async function syncLocaleDrivenState(
       : () => {};
 
     try {
-      const currentEndpoint = getEndpointFromPath(router.currentRoute.value.path);
+      const currentEndpoint = getEndpointFromPath(
+        router.currentRoute.value.path,
+      );
       const userRoles = userStore.userInfo?.roles ?? [];
 
       await syncLocaleNavigation({

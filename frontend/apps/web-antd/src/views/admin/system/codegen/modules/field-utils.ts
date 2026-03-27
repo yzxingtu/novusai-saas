@@ -3,16 +3,21 @@
  *
  * 供 FieldCardList、WysiwygCenter 共用
  */
-type FieldRecord = Record<string, unknown>;
-
 import { preferences } from '@vben/preferences';
 
 import { inferFieldConfigForMerge, inferRelationTable } from './infer';
 
+type FieldRecord = Record<string, unknown>;
+
 /** 根据当前语言获取字段显示名 / Get field display label for current locale */
 export function getFieldLabel(f: FieldRecord): string {
   const locale = String(preferences.app.locale ?? '').toLowerCase();
-  if (locale.startsWith('en') && f.display_name_en != null && String(f.display_name_en).trim() !== '') {
+  if (
+    locale.startsWith('en') &&
+    f.display_name_en !== null &&
+    f.display_name_en !== undefined &&
+    String(f.display_name_en).trim() !== ''
+  ) {
     return String(f.display_name_en).trim();
   }
   return String(f.display_name || f.name || '').trim();
@@ -20,9 +25,13 @@ export function getFieldLabel(f: FieldRecord): string {
 
 /** 永不在列表显示的组件类型 / Component types never shown in list */
 const NEVER_LIST_VISIBLE = new Set([
-  'password', 'RichText', 'CodeEditor', 'CronPicker', 'RangePicker',
+  'CodeEditor',
+  'CronPicker',
+  'password',
+  'RangePicker',
+  'RichText',
 ]);
-const NEVER_LIST_TYPES = new Set(['RichText', 'JSON', 'Images', 'Files']);
+const NEVER_LIST_TYPES = new Set(['Files', 'Images', 'JSON', 'RichText']);
 
 export interface PaletteItem {
   type: string;
@@ -41,7 +50,8 @@ export function genKey(): string {
 export function ensureFieldKeys(fields: FieldRecord[]): FieldRecord[] {
   return fields.map((f) => {
     const k = f.__key;
-    if (!k || (typeof k === 'string' && !k.trim())) return { ...f, __key: genKey() };
+    if (!k || (typeof k === 'string' && !k.trim()))
+      return { ...f, __key: genKey() };
     return f;
   });
 }
@@ -87,7 +97,7 @@ export function createFieldFromPalette(
     inferred.relation_table = inferRelationTable(item.defaultName);
   }
   const preserveTypes = ['TreeSelect', 'Cascader', 'UserSelect', 'DeptSelect'];
-  let merged: FieldRecord = preserveTypes.includes(item.type)
+  const merged: FieldRecord = preserveTypes.includes(item.type)
     ? { ...inferred, ...base, type: item.type }
     : { ...base, ...inferred };
   merged.form_component = item.component;
@@ -101,8 +111,12 @@ export function createFieldFromPalette(
   const shouldForce =
     !NEVER_LIST_VISIBLE.has(comp) &&
     !NEVER_LIST_TYPES.has(fieldType) &&
-    !(isMulti && ['ImageUpload', 'FilePicker', 'ApiSelect'].includes(comp));
-  if (merged.list_visible === false && merged.insertable !== false && shouldForce) {
+    !(isMulti && ['ApiSelect', 'FilePicker', 'ImageUpload'].includes(comp));
+  if (
+    merged.list_visible === false &&
+    merged.insertable !== false &&
+    shouldForce
+  ) {
     merged.list_visible = true;
   }
   return merged;
@@ -110,7 +124,12 @@ export function createFieldFromPalette(
 
 /** 文本型基础组件（可被 enum_render 覆盖为 select/radio/checkbox） */
 const TEXT_LIKE_COMPONENTS = new Set([
-  'input', 'Input', 'textarea', 'TextArea', 'password', 'Password',
+  'input',
+  'Input',
+  'password',
+  'Password',
+  'textarea',
+  'TextArea',
 ]);
 
 /** 获取表单组件名 / Get form component name */
@@ -120,7 +139,8 @@ export function getComponent(f: FieldRecord): string {
     (typeof form.component === 'string' ? form.component : '') ||
     (typeof f.form_component === 'string' ? f.form_component : '');
   const ev = (f.enum_values as Array<unknown>) || [];
-  const enumRender = (form.enumRender as string) || (f.enum_render as string) || 'select';
+  const enumRender =
+    (form.enumRender as string) || (f.enum_render as string) || 'select';
 
   let base: string;
   if (comp) {
@@ -130,39 +150,70 @@ export function getComponent(f: FieldRecord): string {
     const normalized = t.toLowerCase();
 
     if (t === 'RichText') base = 'RichText';
-    else if (['ImageUpload', 'Images', 'Image'].includes(t)) base = 'ImageUpload';
+    else if (['Image', 'Images', 'ImageUpload'].includes(t))
+      base = 'ImageUpload';
     else if (['File', 'Files'].includes(t)) base = 'FilePicker';
     else if (t === 'JSON') base = 'CodeEditor';
     else if (t === 'TreeSelect') base = 'ApiTreeSelect';
-    else if (['UserSelect', 'DeptSelect'].includes(t)) base = t === 'UserSelect' ? 'ApiSelect' : 'ApiTreeSelect';
-    else if (t === 'CronPicker') base = 'CronPicker';
-    else if (t === 'DictSelect') base = 'DictSelect';
-    else if (t === 'Cascader') base = 'Cascader';
-    else if (t === 'ForeignKey') base = 'ApiSelect';
-    else if (t === 'Enum') base = 'select';
-    else if (t === 'Boolean' || normalized === 'bool' || normalized.includes('boolean')) base = 'switch';
-    else if (t === 'Text') base = 'textarea';
-    else if (
-      ['Integer', 'Float', 'Decimal', 'Number'].includes(t) ||
-      normalized.includes('int') ||
-      normalized.includes('float') ||
-      normalized.includes('decimal')
-    ) {
-      base = 'number';
-    } else if (
-      t === 'Date' ||
-      t === 'DateTime' ||
-      normalized.includes('date') ||
-      normalized.includes('timestamp')
-    ) {
-      base = 'date';
-    } else {
-      base = 'input';
-    }
+    else if (['DeptSelect', 'UserSelect'].includes(t))
+      base = t === 'UserSelect' ? 'ApiSelect' : 'ApiTreeSelect';
+    else
+      switch (t) {
+        case 'Cascader': {
+          base = 'Cascader';
+          break;
+        }
+        case 'CronPicker': {
+          base = 'CronPicker';
+          break;
+        }
+        case 'DictSelect': {
+          base = 'DictSelect';
+          break;
+        }
+        case 'Enum': {
+          base = 'select';
+          break;
+        }
+        case 'ForeignKey': {
+          base = 'ApiSelect';
+          break;
+        }
+        default: {
+          if (
+            t === 'Boolean' ||
+            normalized === 'bool' ||
+            normalized.includes('boolean')
+          )
+            base = 'switch';
+          else if (t === 'Text') base = 'textarea';
+          else if (
+            ['Decimal', 'Float', 'Integer', 'Number'].includes(t) ||
+            normalized.includes('int') ||
+            normalized.includes('float') ||
+            normalized.includes('decimal')
+          ) {
+            base = 'number';
+          } else if (
+            t === 'Date' ||
+            t === 'DateTime' ||
+            normalized.includes('date') ||
+            normalized.includes('timestamp')
+          ) {
+            base = 'date';
+          } else {
+            base = 'input';
+          }
+        }
+      }
   }
 
   // 当基础组件为 Input 等文本型，且配置了枚举 + 枚举渲染方式时，优先按枚举渲染（下拉框/单选/多选）
-  if (TEXT_LIKE_COMPONENTS.has(base) && ev.length > 0 && ['select', 'radio', 'checkbox'].includes(enumRender)) {
+  if (
+    TEXT_LIKE_COMPONENTS.has(base) &&
+    ev.length > 0 &&
+    ['checkbox', 'radio', 'select'].includes(enumRender)
+  ) {
     return enumRender;
   }
   return base;
@@ -174,7 +225,8 @@ export function shouldHideInList(f: FieldRecord): boolean {
   if (NEVER_LIST_VISIBLE.has(comp)) return true;
   const t = String(f.type || '');
   if (NEVER_LIST_TYPES.has(t)) return true;
-  if (f.multiple && ['ImageUpload', 'FilePicker', 'ApiSelect'].includes(comp)) return true;
+  if (f.multiple && ['ApiSelect', 'FilePicker', 'ImageUpload'].includes(comp))
+    return true;
   return false;
 }
 
@@ -192,7 +244,9 @@ export function getTableCellRenderType(f: FieldRecord): string {
 }
 
 export function isMultiple(f: FieldRecord): boolean {
-  return !!(f.multiple || ['Images', 'Files'].includes(String(f.type || '').trim()));
+  return !!(
+    f.multiple || ['Files', 'Images'].includes(String(f.type || '').trim())
+  );
 }
 
 export function isDatetimeType(f: FieldRecord): boolean {
@@ -204,9 +258,11 @@ export function isDatetimeType(f: FieldRecord): boolean {
 export function getColumnAlign(f: FieldRecord): string {
   const comp = getComponent(f);
   const t = String(f.type || '').toLowerCase();
-  if (['Switch', 'switch', 'Rate', 'Slider'].includes(comp)) return 'text-center';
+  if (['Rate', 'Slider', 'Switch', 'switch'].includes(comp))
+    return 'text-center';
   if (t.includes('boolean')) return 'text-center';
-  if (t.includes('int') || t.includes('float') || t.includes('decimal')) return 'text-center';
+  if (t.includes('int') || t.includes('float') || t.includes('decimal'))
+    return 'text-center';
   if (t.includes('date')) return 'text-center';
   return 'text-left';
 }

@@ -207,7 +207,6 @@ const stats = computed(() => ({
   active: assignments.value.filter((a) => a.is_active).length,
   assigned: assignments.value.filter((a) => a.agent_id !== null).length,
 }));
-
 </script>
 
 <template>

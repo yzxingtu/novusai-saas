@@ -162,7 +162,9 @@ export function getLevelColor(level: string | undefined): string {
   }
 }
 
-export function getTenantDisplay(log: Pick<AdminActionLogItem, 'tenant_code' | 'tenant_id' | 'tenant_name'>): string {
+export function getTenantDisplay(
+  log: Pick<AdminActionLogItem, 'tenant_code' | 'tenant_id' | 'tenant_name'>,
+): string {
   if (log.tenant_id === PLATFORM_TENANT_ID) {
     return $t('admin.ai.actionLog.platformTenant');
   }

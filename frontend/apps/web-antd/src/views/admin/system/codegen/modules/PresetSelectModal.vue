@@ -9,9 +9,10 @@ import type { PresetInfo } from '#/api/admin/codegen';
 
 import { computed, onMounted, ref, watch } from 'vue';
 
-import { Input, Modal, Spin, Tag, message } from 'ant-design-vue';
 import { IconifyIcon } from '@vben/icons';
 import { preferences } from '@vben/preferences';
+
+import { Input, message, Modal, Spin, Tag } from 'ant-design-vue';
 
 import { getCodegenPresetsApi } from '#/api/admin/codegen';
 import { $t } from '#/locales';
@@ -20,8 +21,8 @@ defineOptions({ name: 'PresetSelectModal' });
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{
+  select: [null | string];
   'update:open': [boolean];
-  select: [string | null];
 }>();
 
 const currentLocale = computed(() => preferences.app.locale || 'zh-CN');
@@ -32,7 +33,7 @@ const modalOpen = computed({
 });
 
 const loading = ref(false);
-const loadError = ref<string | null>(null);
+const loadError = ref<null | string>(null);
 const searchText = ref('');
 const presets = ref<PresetInfo[]>([]);
 
@@ -138,18 +139,16 @@ const displayGroups = computed(() => {
     'sub_form',
     'general',
   ];
-  return orderedCategories
-    .filter((category) => groups.has(category))
-    .concat(
-      [...groups.keys()].filter(
-        (category) => !orderedCategories.includes(category),
-      ),
-    )
-    .map((category) => ({
-      category,
-      label: getCategoryText(category),
-      items: groups.get(category) || [],
-    }));
+  return [
+    ...orderedCategories.filter((category) => groups.has(category)),
+    ...[...groups.keys()].filter(
+      (category) => !orderedCategories.includes(category),
+    ),
+  ].map((category) => ({
+    category,
+    label: getCategoryText(category),
+    items: groups.get(category) || [],
+  }));
 });
 
 async function loadPresets() {
@@ -157,8 +156,9 @@ async function loadPresets() {
   loadError.value = null;
   try {
     presets.value = await getCodegenPresetsApi();
-  } catch (e) {
-    loadError.value = e instanceof Error ? e.message : $t('common.failed');
+  } catch (error) {
+    loadError.value =
+      error instanceof Error ? error.message : $t('common.failed');
     message.error(loadError.value);
     presets.value = [];
   } finally {
@@ -166,7 +166,7 @@ async function loadPresets() {
   }
 }
 
-function onSelect(presetId: string | null) {
+function onSelect(presetId: null | string) {
   modalOpen.value = false;
   emit('select', presetId);
 }

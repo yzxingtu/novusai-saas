@@ -11,6 +11,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import { message } from 'ant-design-vue';
+import DOMPurify from 'dompurify';
 import hljs from 'highlight.js/lib/core';
 import bash from 'highlight.js/lib/languages/bash';
 import css from 'highlight.js/lib/languages/css';
@@ -25,7 +26,6 @@ import sql from 'highlight.js/lib/languages/sql';
 import typescript from 'highlight.js/lib/languages/typescript';
 import xml from 'highlight.js/lib/languages/xml';
 import yaml from 'highlight.js/lib/languages/yaml';
-import DOMPurify from 'dompurify';
 import MarkdownIt from 'markdown-it';
 
 import { $t } from '#/locales';
@@ -149,7 +149,9 @@ const renderedHtml = computed(() => {
     const raw = md.render(props.content);
     return DOMPurify.sanitize(raw);
   } catch {
-    return DOMPurify.sanitize(`<pre style="white-space:pre-wrap;word-break:break-word">${md.utils.escapeHtml(props.content)}</pre>`);
+    return DOMPurify.sanitize(
+      `<pre style="white-space:pre-wrap;word-break:break-word">${md.utils.escapeHtml(props.content)}</pre>`,
+    );
   }
 });
 </script>

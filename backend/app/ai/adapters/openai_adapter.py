@@ -21,6 +21,7 @@ from openai.types import CreateEmbeddingResponse
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
 from app.ai.adapters.base import BaseAdapter
+from app.ai.usage_mode import resolve_chat_usage
 from app.ai.utils.chat_attachment_media import resolve_image_url_for_llm
 from app.ai.exceptions import AIGatewayError, convert_openai_error
 from app.ai.tools.security import SSRFBlockedError, UrlValidator
@@ -134,6 +135,69 @@ class OpenAIAdapter(BaseAdapter):
             except TypeError:
                 text = repr(payload)
         return text[:limit]
+
+    @staticmethod
+    def _extract_usage_int(usage: Any, *field_names: str) -> int | None:
+        """Extract token counts from SDK objects or dict payloads returned by compatible gateways."""
+        if usage is None:
+            return None
+
+        for field_name in field_names:
+            if isinstance(usage, dict):
+                value = usage.get(field_name)
+            else:
+                value = getattr(usage, field_name, None)
+            if value is None:
+                continue
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                logger.debug("Ignore non-integer usage field {}={!r}", field_name, value)
+                return None
+
+        return None
+
+    def _extract_usage_tokens(self, usage: Any) -> tuple[int | None, int | None, int | None]:
+        """Support both Responses-style and Chat Completions-style usage field names."""
+        input_tokens = self._extract_usage_int(usage, "input_tokens", "prompt_tokens")
+        output_tokens = self._extract_usage_int(usage, "output_tokens", "completion_tokens")
+        total_tokens = self._extract_usage_int(usage, "total_tokens")
+        if total_tokens is None and (input_tokens is not None or output_tokens is not None):
+            total_tokens = (input_tokens or 0) + (output_tokens or 0)
+        return input_tokens, output_tokens, total_tokens
+
+    async def _retrieve_responses_usage(
+        self,
+        response_id: str | None,
+    ) -> tuple[int | None, int | None, int | None]:
+        """Fallback: retrieve final response object when stream terminal event omits usage."""
+        if not response_id:
+            return (None, None, None)
+        try:
+            response = await self.client.responses.retrieve(response_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Responses usage retrieve failed: response_id={} error={}",
+                response_id,
+                str(exc),
+            )
+            return (None, None, None)
+
+        return self._extract_usage_tokens(getattr(response, "usage", None))
+
+    @staticmethod
+    def _estimate_responses_stream_usage(
+        messages: list[ChatMessage],
+        output_text: str,
+    ) -> tuple[int, int, int]:
+        usage = resolve_chat_usage(
+            messages=messages,
+            output_text=output_text,
+            input_tokens=None,
+            output_tokens=None,
+            total_tokens=None,
+        )
+        return usage.input_tokens, usage.output_tokens, usage.total_tokens
 
     def _log_upstream_request(
         self,
@@ -423,10 +487,11 @@ class OpenAIAdapter(BaseAdapter):
             )
 
             # Convert response / 转换响应
+            input_tokens, _, total_tokens = self._extract_usage_tokens(response.usage)
             return EmbeddingResponse(
                 embeddings=[item.embedding for item in response.data],
-                input_tokens=response.usage.prompt_tokens if response.usage else None,
-                total_tokens=response.usage.total_tokens if response.usage else None,
+                input_tokens=input_tokens,
+                total_tokens=total_tokens,
                 model=model,
             )
 
@@ -560,14 +625,22 @@ class OpenAIAdapter(BaseAdapter):
         stream = await self.client.responses.create(**request_params)
         emitted_text = False
         emitted_reasoning = False
+        response_id: str | None = None
+        collected_text = ""
 
         try:
             async for event in stream:
                 event_type = getattr(event, "type", "")
 
+                if event_type == "response.created":
+                    response_obj = getattr(event, "response", None)
+                    response_id = getattr(response_obj, "id", None) or response_id
+                    continue
+
                 if event_type == "response.output_text.delta":
                     delta = getattr(event, "delta", "") or ""
                     if delta:
+                        collected_text += delta
                         emitted_text = True
                         yield ChatChunk(delta=delta)
                     continue
@@ -578,14 +651,28 @@ class OpenAIAdapter(BaseAdapter):
                     text = getattr(event, "text", None) or ""
                     if text and not emitted_text:
                         yield ChatChunk(delta=text)
+                        collected_text += text
                         emitted_text = True
                     usage = getattr(event, "usage", None)
+                    usage_mode = "actual"
+                    input_tokens, output_tokens, total_tokens = self._extract_usage_tokens(usage)
+                    if input_tokens is None and output_tokens is None and total_tokens is None:
+                        input_tokens, output_tokens, total_tokens = await self._retrieve_responses_usage(
+                            response_id,
+                        )
+                    if input_tokens is None and output_tokens is None and total_tokens is None:
+                        usage_mode = "estimated"
+                        input_tokens, output_tokens, total_tokens = self._estimate_responses_stream_usage(
+                            messages,
+                            collected_text or text,
+                        )
                     yield ChatChunk(
                         delta="",
                         finish_reason="stop",
-                        input_tokens=getattr(usage, "input_tokens", None),
-                        output_tokens=getattr(usage, "output_tokens", None),
-                        total_tokens=getattr(usage, "total_tokens", None),
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        total_tokens=total_tokens,
+                        metadata={"usage_mode": usage_mode},
                     )
                     logger.info(
                         "Responses stream response.output_text.done, closing upstream: model={} wire_api=responses",
@@ -643,6 +730,7 @@ class OpenAIAdapter(BaseAdapter):
 
                 if event_type == "response.completed":
                     response = getattr(event, "response", None)
+                    response_id = getattr(response, "id", None) or response_id
                     if response is not None and not emitted_reasoning:
                         final_reasoning = self._extract_responses_reasoning_text(
                             response,
@@ -655,14 +743,29 @@ class OpenAIAdapter(BaseAdapter):
                     if response is not None and not emitted_text:
                         final_text = self._extract_responses_text(response)
                         if final_text:
+                            collected_text += final_text
                             yield ChatChunk(delta=final_text)
                     usage = getattr(response, "usage", None) if response is not None else None
+                    usage_mode = "actual"
+                    input_tokens, output_tokens, total_tokens = self._extract_usage_tokens(usage)
+                    if input_tokens is None and output_tokens is None and total_tokens is None:
+                        input_tokens, output_tokens, total_tokens = await self._retrieve_responses_usage(
+                            response_id,
+                        )
+                    if input_tokens is None and output_tokens is None and total_tokens is None:
+                        usage_mode = "estimated"
+                        final_text = self._extract_responses_text(response) if response is not None else collected_text
+                        input_tokens, output_tokens, total_tokens = self._estimate_responses_stream_usage(
+                            messages,
+                            final_text or collected_text,
+                        )
                     yield ChatChunk(
                         delta="",
                         finish_reason="stop",
-                        input_tokens=getattr(usage, "input_tokens", None),
-                        output_tokens=getattr(usage, "output_tokens", None),
-                        total_tokens=getattr(usage, "total_tokens", None),
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        total_tokens=total_tokens,
+                        metadata={"usage_mode": usage_mode},
                     )
                     logger.info(
                         "Responses stream response.completed, closing upstream: model={} wire_api=responses",
@@ -1011,6 +1114,7 @@ class OpenAIAdapter(BaseAdapter):
         tool_calls = self._extract_responses_tool_calls(response)
         reasoning_content = self._extract_responses_reasoning_text(response)
         usage = getattr(response, "usage", None)
+        input_tokens, output_tokens, total_tokens = self._extract_usage_tokens(usage)
         return ChatResponse(
             message=ChatMessage(
                 role="assistant",
@@ -1018,9 +1122,9 @@ class OpenAIAdapter(BaseAdapter):
                 reasoning_content=reasoning_content,
                 tool_calls=tool_calls,
             ),
-            input_tokens=getattr(usage, "input_tokens", None),
-            output_tokens=getattr(usage, "output_tokens", None),
-            total_tokens=getattr(usage, "total_tokens", None),
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=total_tokens,
             model=model,
             finish_reason="stop" if getattr(response, "status", None) == "completed" else getattr(response, "status", None),
             tool_calls=tool_calls,
@@ -1255,9 +1359,7 @@ class OpenAIAdapter(BaseAdapter):
 
         # Extract token usage / 提取 Token 使用量
         usage = response.usage
-        input_tokens = usage.prompt_tokens if usage else None
-        output_tokens = usage.completion_tokens if usage else None
-        total_tokens = usage.total_tokens if usage else None
+        input_tokens, output_tokens, total_tokens = self._extract_usage_tokens(usage)
 
         return ChatResponse(
             message=chat_message,
@@ -1287,9 +1389,7 @@ class OpenAIAdapter(BaseAdapter):
 
         # Extract token usage (included in the last chunk) / 提取 Token 使用量（最后一个块包含）
         usage = chunk.usage
-        input_tokens = usage.prompt_tokens if usage else None
-        output_tokens = usage.completion_tokens if usage else None
-        total_tokens = usage.total_tokens if usage else None
+        input_tokens, output_tokens, total_tokens = self._extract_usage_tokens(usage)
 
         # Convert OpenAI SDK tool_calls to serializable dict list (with index for incremental merging) / 将 OpenAI SDK tool_calls 对象转为可序列化 dict 列表
         tool_calls_dicts: list[dict] | None = None

@@ -3,18 +3,16 @@
  */
 declare global {
   interface ViewTransition {
-    ready: Promise<void>;
     finished: Promise<void>;
-    updateCallbackDone: Promise<void>;
+    ready: Promise<void>;
     skipTransition(): void;
+    updateCallbackDone: Promise<void>;
   }
 
   interface Document {
-    startViewTransition?(callback: () => void | Promise<void>): ViewTransition;
-    webkitFullscreenElement?: Element | null;
     mozFullScreenElement?: Element | null;
     msFullscreenElement?: Element | null;
+    startViewTransition?(callback: () => Promise<void> | void): ViewTransition;
+    webkitFullscreenElement?: Element | null;
   }
 }
-
-export {};

@@ -1,5 +1,3 @@
-import type { ApiEndpoint } from '#/types/endpoint';
-
 /**
  * Shared type definitions / 共享类型定义
  * Common types for multi-endpoint API / 用于多端 API 的通用类型
@@ -95,4 +93,4 @@ export interface TenantUserInfo extends BaseUserInfo {
 /** 偏好 JSON 对象 / Preferences JSON object */
 export type PreferencesData = Record<string, boolean | number | string>;
 
-export type { ApiEndpoint };
+export { type ApiEndpoint } from '#/types/endpoint';

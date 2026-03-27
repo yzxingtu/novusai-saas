@@ -31,6 +31,7 @@ import { requestClient } from '#/utils/request';
 defineOptions({ name: 'RecycleBinDrawer' });
 
 const props = withDefaults(defineProps<Props>(), {
+  globalBinPath: undefined,
   nameField: 'name',
   columns: undefined,
 });
@@ -337,11 +338,17 @@ defineExpose({ open, close, refreshCount, deletedCount });
     </template>
 
     <div class="space-y-4">
-      <div class="relative overflow-hidden rounded-3xl border border-primary/15 bg-gradient-to-br from-primary/15 via-primary/5 to-background p-4 shadow-sm">
-        <div class="absolute -right-10 top-0 size-28 rounded-full bg-primary/10 blur-3xl"></div>
+      <div
+        class="relative overflow-hidden rounded-3xl border border-primary/15 bg-gradient-to-br from-primary/15 via-primary/5 to-background p-4 shadow-sm"
+      >
+        <div
+          class="absolute -right-10 top-0 size-28 rounded-full bg-primary/10 blur-3xl"
+        ></div>
         <div class="relative flex flex-wrap items-start justify-between gap-4">
           <div class="max-w-[420px]">
-            <div class="inline-flex rounded-full bg-background/80 px-3 py-1 text-[11px] font-medium text-foreground/80">
+            <div
+              class="inline-flex rounded-full bg-background/80 px-3 py-1 text-[11px] font-medium text-foreground/80"
+            >
               {{ $t('common.recycleBin.moduleStageLabel') }}
             </div>
             <div class="mt-3 text-sm font-semibold text-foreground">
@@ -350,7 +357,9 @@ defineExpose({ open, close, refreshCount, deletedCount });
             <div class="mt-1 text-xs leading-6 text-muted-foreground">
               {{ $t(moduleStageHintKey, { days: 30 }) }}
             </div>
-            <div class="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+            <div
+              class="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground"
+            >
               <span class="rounded-full bg-background/80 px-3 py-1">
                 {{ $t('common.recycleBin.moduleRetentionDays', { days: 30 }) }}
               </span>
@@ -361,17 +370,29 @@ defineExpose({ open, close, refreshCount, deletedCount });
           </div>
 
           <div class="grid min-w-[220px] flex-1 gap-3 sm:grid-cols-2">
-            <div class="rounded-2xl border border-border/60 bg-background/85 p-3">
-              <div class="text-[11px] uppercase tracking-[0.2em] text-muted-foreground/80">
+            <div
+              class="rounded-2xl border border-border/60 bg-background/85 p-3"
+            >
+              <div
+                class="text-[11px] uppercase tracking-[0.2em] text-muted-foreground/80"
+              >
                 {{ $t('common.recycleBin.itemCountLabel') }}
               </div>
               <div class="mt-2 text-2xl font-semibold text-foreground">
                 {{ total }}
               </div>
             </div>
-            <div class="rounded-2xl border border-border/60 bg-background/85 p-3">
-              <div class="text-[11px] uppercase tracking-[0.2em] text-muted-foreground/80">
-                {{ $t('common.recycleBin.selectedCountLabel', { count: selectedRowKeys.length }) }}
+            <div
+              class="rounded-2xl border border-border/60 bg-background/85 p-3"
+            >
+              <div
+                class="text-[11px] uppercase tracking-[0.2em] text-muted-foreground/80"
+              >
+                {{
+                  $t('common.recycleBin.selectedCountLabel', {
+                    count: selectedRowKeys.length,
+                  })
+                }}
               </div>
               <div class="mt-2 text-2xl font-semibold text-foreground">
                 {{ selectedRowKeys.length }}
@@ -411,7 +432,9 @@ defineExpose({ open, close, refreshCount, deletedCount });
         </Space>
       </div>
 
-      <div class="overflow-hidden rounded-3xl border border-border/60 bg-card/80 shadow-sm">
+      <div
+        class="overflow-hidden rounded-3xl border border-border/60 bg-card/80 shadow-sm"
+      >
         <Spin :spinning="loading">
           <Table
             v-if="hasItems"

@@ -169,23 +169,6 @@ export async function deleteTenantAIKeyApi(
 }
 
 // ============================================================
-// API functions - Usage stats / API 接口 - 用量统计
-// ============================================================
-
-const USAGE_PREFIX = '/tenant/ai/usage';
-
-/** Get usage summary / 获取使用量汇总 */
-export async function getTenantAIUsageSummaryApi(
-  params?: Record<string, unknown>,
-  options?: ApiRequestOptions,
-): Promise<TenantAIUsageSummary> {
-  return requestClient.get<TenantAIUsageSummary>(`${USAGE_PREFIX}/summary`, {
-    params,
-    ...options,
-  });
-}
-
-// ============================================================
 // Type definitions - Call logs / 类型定义 - 调用日志
 // ============================================================
 

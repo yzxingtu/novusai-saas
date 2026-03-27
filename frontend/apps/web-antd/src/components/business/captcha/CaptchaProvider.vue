@@ -1,4 +1,12 @@
 <script lang="ts" setup>
+import type {
+  CaptchaAction,
+  CaptchaAdapterExpose,
+  CaptchaEndpoint,
+  CaptchaProviderType,
+  CaptchaResult,
+} from './types';
+
 /**
  * Unified captcha container component
  * Dynamically renders the corresponding captcha component based on provider type
@@ -9,14 +17,6 @@
  */
 import type { CaptchaDifficulty } from '#/api/public/captcha';
 
-import type {
-  CaptchaAction,
-  CaptchaAdapterExpose,
-  CaptchaEndpoint,
-  CaptchaProviderType,
-  CaptchaResult,
-} from './types';
-
 import { computed, ref } from 'vue';
 
 import CaptchaImageForm from './CaptchaImageForm.vue';
@@ -26,16 +26,16 @@ defineOptions({ name: 'CaptchaProvider' });
 
 const props = withDefaults(
   defineProps<{
+    /** Action type / 操作类型 */
+    action?: CaptchaAction;
+    /** Difficulty level / 难度等级 */
+    difficulty?: CaptchaDifficulty;
+    /** Whether disabled / 是否禁用 */
+    disabled?: boolean;
     /** Endpoint identifier / 端点标识 */
     endpoint: CaptchaEndpoint;
     /** Captcha provider type (read from config, defaults to 'image') / 验证码提供商类型（从配置读取，默认 'image'） */
     provider?: CaptchaProviderType;
-    /** Difficulty level / 难度等级 */
-    difficulty?: CaptchaDifficulty;
-    /** Action type / 操作类型 */
-    action?: CaptchaAction;
-    /** Whether disabled / 是否禁用 */
-    disabled?: boolean;
   }>(),
   {
     action: 'login',
@@ -63,7 +63,9 @@ const resolvedComponent = computed(() => {
     return entry.component;
   }
   if (props.provider !== 'image') {
-    console.warn(`[CaptchaProvider] provider "${props.provider}" not registered, falling back to CaptchaImageForm`);
+    console.warn(
+      `[CaptchaProvider] provider "${props.provider}" not registered, falling back to CaptchaImageForm`,
+    );
   }
   // Fallback to image if provider not registered / 未注册插件则回退图片验证码
   return CaptchaImageForm;

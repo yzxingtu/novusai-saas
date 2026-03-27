@@ -44,7 +44,7 @@ const canEdit = computed(() => publicConfigStore.isProfileEditAllowed);
 const loading = ref(false);
 const saving = ref(false);
 const avatarUploading = ref(false);
-const profile = ref<UserProfileInfo | null>(null);
+const profile = ref<null | UserProfileInfo>(null);
 
 const formState = reactive({
   avatarId: '',
@@ -197,9 +197,11 @@ onMounted(() => {
         class="relative overflow-hidden rounded-xl border border-border bg-card p-6"
       >
         <div
-          class="absolute inset-0 bg-gradient-to-br from-primary/6 via-transparent to-primary/3"
-        />
-        <div class="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-6">
+          class="from-primary/6 to-primary/3 absolute inset-0 bg-gradient-to-br via-transparent"
+        ></div>
+        <div
+          class="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-6"
+        >
           <div class="group relative flex-shrink-0">
             <Upload
               :show-upload-list="false"
@@ -245,7 +247,9 @@ onMounted(() => {
                 @{{ profile?.username }}
               </p>
             </div>
-            <div class="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+            <div
+              class="flex flex-wrap items-center gap-4 text-xs text-muted-foreground"
+            >
               <span
                 class="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 font-medium text-primary"
               >
@@ -329,12 +333,11 @@ onMounted(() => {
             </FormItem>
           </Form>
         </div>
-        <div v-if="canEdit" class="flex items-center justify-end border-t border-border px-6 py-4">
-          <Button
-            type="primary"
-            :loading="saving"
-            @click="handleSaveProfile"
-          >
+        <div
+          v-if="canEdit"
+          class="flex items-center justify-end border-t border-border px-6 py-4"
+        >
+          <Button type="primary" :loading="saving" @click="handleSaveProfile">
             <span class="flex items-center gap-1.5">
               <IconifyIcon icon="lucide:save" class="size-4" />
               {{ $t('common.save') }}

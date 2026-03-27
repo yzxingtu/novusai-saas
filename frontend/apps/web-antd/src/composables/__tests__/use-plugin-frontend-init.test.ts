@@ -53,8 +53,7 @@ const createRouterStub = (overrides: Partial<RouterStub> = {}): RouterStub => ({
   ...overrides,
 });
 
-const PLUGIN_ROUTE_NAME =
-  'plugin-storage-billing-storage-billing-admin-home';
+const PLUGIN_ROUTE_NAME = 'plugin-storage-billing-storage-billing-admin-home';
 const EMPTY_FETCH_RESULT = { pageFailures: [] };
 
 describe('use-plugin-frontend-init', () => {

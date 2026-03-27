@@ -1,10 +1,11 @@
-import { $t } from '#/locales';
-import { useGridFormSchema as useProviderSearchSchema } from '#/views/admin/ai/providers/data';
-import { useGridFormSchema as useModelSearchSchema } from '#/views/admin/ai/models/data';
-import { useGridFormSchema as usePeriodicTaskSearchSchema } from '#/views/admin/system/periodic-tasks/data';
-import { useGridFormSchema as useTenantPlanSearchSchema } from '#/views/admin/tenant/plans/data';
-import { useGridFormSchema as useTenantSearchSchema } from '#/views/admin/tenant/list/data';
 import type { RecycleBinModuleAdapter } from '#/views/_shared/recycle-bin/types';
+
+import { $t } from '#/locales';
+import { useGridFormSchema as useModelSearchSchema } from '#/views/admin/ai/models/data';
+import { useGridFormSchema as useProviderSearchSchema } from '#/views/admin/ai/providers/data';
+import { useGridFormSchema as usePeriodicTaskSearchSchema } from '#/views/admin/system/periodic-tasks/data';
+import { useGridFormSchema as useTenantSearchSchema } from '#/views/admin/tenant/list/data';
+import { useGridFormSchema as useTenantPlanSearchSchema } from '#/views/admin/tenant/plans/data';
 
 export function useAdminRecycleBinAdapters(): Record<
   string,

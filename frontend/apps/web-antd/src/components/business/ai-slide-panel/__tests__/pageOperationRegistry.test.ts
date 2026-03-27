@@ -1,10 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('#/locales', () => ({
-  $t: (key: string) => key,
-}));
-
 import { formStateTracker } from '#/composables/use-form-state-tracker';
 
 import {
@@ -15,6 +11,10 @@ import {
   registerPageOperations,
 } from '../page-operation-registry';
 
+vi.mock('#/locales', () => ({
+  $t: (key: string) => key,
+}));
+
 describe('page-operation-registry', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -24,7 +24,7 @@ describe('page-operation-registry', () => {
   });
 
   it('coerces declared params before invoking handler', async () => {
-    let receivedParams: Record<string, unknown> | null = null;
+    let receivedParams: null | Record<string, unknown> = null;
 
     registerPageOperations('tenant.demo.validation', [
       {
@@ -46,11 +46,15 @@ describe('page-operation-registry', () => {
       },
     ]);
 
-    const result = await executePageOperation('tenant.demo.validation', 'update_status', {
-      id: '12',
-      mode: 'published',
-      published: 'true',
-    });
+    const result = await executePageOperation(
+      'tenant.demo.validation',
+      'update_status',
+      {
+        id: '12',
+        mode: 'published',
+        published: 'true',
+      },
+    );
 
     expect(result.success).toBe(true);
     expect(receivedParams).toEqual({
@@ -97,7 +101,7 @@ describe('page-operation-registry', () => {
   });
 
   it('uses defaultValue before rejecting a required param', async () => {
-    let receivedParams: Record<string, unknown> | null = null;
+    let receivedParams: null | Record<string, unknown> = null;
 
     registerPageOperations('tenant.demo.defaults', [
       {
@@ -145,7 +149,7 @@ describe('page-operation-registry', () => {
           });
           const drawer = document.createElement('div');
           drawer.className = 'ant-drawer-open';
-          document.body.appendChild(drawer);
+          document.body.append(drawer);
           return {
             success: true,
             message: 'opened',
@@ -159,7 +163,10 @@ describe('page-operation-registry', () => {
       },
     ]);
 
-    const result = await executePageOperation('tenant.demo.context', 'open_editor');
+    const result = await executePageOperation(
+      'tenant.demo.context',
+      'open_editor',
+    );
 
     expect(result.success).toBe(true);
     expect(result.data?.context_diff).toMatchObject({
@@ -172,7 +179,7 @@ describe('page-operation-registry', () => {
   it('detects a newly opened form drawer even when another drawer is already visible', async () => {
     const aiDrawer = document.createElement('div');
     aiDrawer.className = 'ant-drawer-open';
-    document.body.appendChild(aiDrawer);
+    document.body.append(aiDrawer);
 
     registerPageOperations('tenant.demo.multi_drawer', [
       {
@@ -185,7 +192,7 @@ describe('page-operation-registry', () => {
           });
           const formDrawer = document.createElement('div');
           formDrawer.className = 'ant-drawer-open';
-          document.body.appendChild(formDrawer);
+          document.body.append(formDrawer);
           return {
             success: true,
             message: 'opened',

@@ -54,9 +54,15 @@ import { extendsDefaultFormatter } from './extends';
 
 // 是否加载过 / One-time VxeUI registration guard
 let isInit = false;
+let useTableFormImpl: null | typeof useVbenForm = null;
 
-// eslint-disable-next-line import/no-mutable-exports / 允许运行时注入表单 / allow runtime injection
-export let useTableForm: typeof useVbenForm;
+export function useTableForm(...args: Parameters<typeof useVbenForm>) {
+  if (!useTableFormImpl) {
+    throw new Error('setupVbenVxeTable must be called before useTableForm');
+  }
+
+  return useTableFormImpl(...args);
+}
 
 const VXE_LOCALE_MAP = {
   'zh-CN': zhCN,
@@ -131,7 +137,7 @@ export function setupVbenVxeTable(setupOptions: SetupVxeTable) {
   const { configVxeTable, useVbenForm } = setupOptions;
 
   initVxeTable();
-  useTableForm = useVbenForm;
+  useTableFormImpl = useVbenForm;
 
   const { isDark } = usePreferences();
 

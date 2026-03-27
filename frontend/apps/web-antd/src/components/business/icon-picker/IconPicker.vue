@@ -7,10 +7,10 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 
 import {
   ensureLucideIconCatalogRegistered,
+  IconifyIcon,
   isLucideCatalogIconId,
   normalizeLucideIconId,
 } from '@vben/icons';
-import { IconifyIcon } from '@vben/icons';
 
 import { useDebounceFn } from '@vueuse/core';
 import { Input, Popover, Spin, Tooltip } from 'ant-design-vue';
@@ -149,7 +149,9 @@ const displayCount = computed(() => {
   return `${displayIcons.value.length}`;
 });
 
-const selectedPreviewIcon = computed(() => getPreviewIcon(manualInputValue.value));
+const selectedPreviewIcon = computed(() =>
+  getPreviewIcon(manualInputValue.value),
+);
 
 function loadMoreBrowse() {
   if (!browseHasMore.value || browseLoading.value) return;
@@ -473,7 +475,7 @@ function onManualInput(value: string) {
       </template>
 
       <div
-        class="flex h-9 w-full cursor-pointer items-stretch overflow-hidden rounded-lg border border-input bg-background text-sm transition-colors hover:border-primary/50 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
+        class="flex h-9 w-full cursor-pointer items-stretch overflow-hidden rounded-lg border border-input bg-background text-sm transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 hover:border-primary/50"
       >
         <div
           class="flex min-w-[36px] shrink-0 items-center justify-center border-r border-border bg-muted/30"

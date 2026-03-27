@@ -1,13 +1,20 @@
+import type {
+  ChatMessage,
+  RichTextAISelectionSnapshot,
+  RichTextAITask,
+  RichTextDraftRuntimeState,
+} from '../types';
+
 /**
  * ChatMessageItem component tests: waiting_confirm, executing, 8s hint, error_type mapping.
  * ChatMessageItem 组件测试：待确认、执行中、8s 提示、error_type 映射。
  */
 import { mount } from '@vue/test-utils';
 import { ref } from 'vue';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import ChatMessageItem from '../ChatMessageItem.vue';
-import type { ChatMessage } from '../types';
 
 interface PendingPageOpTest {
   invokeId: string;
@@ -38,6 +45,7 @@ vi.mock('#/locales', () => ({
 
 function createAssistantMsg(toolCalls: ChatMessage['toolCalls']): ChatMessage {
   return {
+    clientKey: 'assistant-tool-message',
     role: 'assistant',
     content: '',
     toolCalls,
@@ -58,7 +66,79 @@ function createPendingOp(
   };
 }
 
-describe('ChatMessageItem', () => {
+function createRichTextTask(
+  overrides: Partial<RichTextAITask> & {
+    selectionSnapshot?: Partial<RichTextAISelectionSnapshot>;
+  } = {},
+): RichTextAITask {
+  const pageKey = overrides.pageKey ?? 'tenant.docs.detail';
+  const editorInstanceId = overrides.editorInstanceId ?? 'editor-1';
+  return {
+    agentId: 7,
+    availableModes: ['plain', 'formatted'],
+    conversationId: 88,
+    contextTitle: '富文档',
+    createdAt: 1000,
+    draft: {
+      html: '<p>Draft</p>',
+      markdown: 'Draft',
+      plainText: 'Draft',
+    },
+    editorInstanceId,
+    feature: 'rewrite',
+    message: '[Rich Text Task] Rewrite',
+    pageKey,
+    preferredApplyMode: 'formatted',
+    selectionLabel: '待改写段落',
+    selectionSnapshot: {
+      afterTextExcerpt: 'after',
+      beforeTextExcerpt: 'before',
+      editorInstanceId,
+      editorRevision: 2,
+      from: 4,
+      pageKey,
+      selectedText: '待改写段落',
+      to: 12,
+      ...overrides.selectionSnapshot,
+    },
+    state: 'ready',
+    summary: '已生成一版草稿',
+    taskId: 'rich-text-task-1',
+    title: 'AI Rewrite',
+    updatedAt: 1000,
+    ...overrides,
+  };
+}
+
+function createRichTextState(
+  overrides: Partial<RichTextDraftRuntimeState> = {},
+): RichTextDraftRuntimeState {
+  return {
+    canAppendToEnd: true,
+    canCopy: true,
+    canInsertAfterSelection: true,
+    canReplaceSelection: true,
+    canUndo: true,
+    helperText: '可以直接应用到原文',
+    ...overrides,
+  };
+}
+
+function createRichTextMessage(
+  overrides: Partial<ChatMessage> = {},
+): ChatMessage {
+  const { clientKey = 'assistant-rich-text-message', ...rest } = overrides;
+  return {
+    clientKey,
+    role: 'assistant',
+    content: '这是一段 AI 草稿正文',
+    source: 'rich_text_ai',
+    richTextAI: createRichTextTask(),
+    ...rest,
+  };
+}
+
+describe('chatMessageItem', () => {
   beforeEach(() => {
     pendingPageOpsValue.value = [];
     vi.useRealTimers();
@@ -145,7 +225,7 @@ describe('ChatMessageItem', () => {
 
   it('shows toolStillRunningHint when running 8s+', async () => {
     vi.useFakeTimers();
-    const baseTime = 1000000000000;
+    const baseTime = 1_000_000_000_000;
     vi.setSystemTime(baseTime);
 
     const wrapper = mount(ChatMessageItem, {
@@ -171,7 +251,9 @@ describe('ChatMessageItem', () => {
 
     await vi.advanceTimersByTimeAsync(1500);
     await wrapper.vm.$nextTick();
-    expect(wrapper.text()).toContain('common.globalAiChat.toolStillRunningHint');
+    expect(wrapper.text()).toContain(
+      'common.globalAiChat.toolStillRunningHint',
+    );
   });
 
   it('shows pageOpPendingConfirmationHint for errorType=pending_confirmation', async () => {
@@ -198,7 +280,9 @@ describe('ChatMessageItem', () => {
     });
 
     await wrapper.vm.$nextTick();
-    expect(wrapper.text()).toContain('common.globalAiChat.pageOpPendingConfirmationHint');
+    expect(wrapper.text()).toContain(
+      'common.globalAiChat.pageOpPendingConfirmationHint',
+    );
   });
 
   it('shows waiting_confirm when pendingOps has matching toolCallId', async () => {
@@ -316,13 +400,16 @@ describe('ChatMessageItem', () => {
     });
 
     await wrapper.vm.$nextTick();
-    expect(wrapper.text()).toContain('common.globalAiChat.pageOpExecFailedHint');
+    expect(wrapper.text()).toContain(
+      'common.globalAiChat.pageOpExecFailedHint',
+    );
   });
 
   it('renders streamed thinking content separately', async () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: {
+          clientKey: 'assistant-thinking-message',
           role: 'assistant',
           content: '',
           thinkingContent: '先检查上下文，再决定下一步。',
@@ -352,6 +439,7 @@ describe('ChatMessageItem', () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: {
+          clientKey: 'assistant-mention-message',
           role: 'assistant',
           content: '喵~收到',
           agent_id: 2,
@@ -374,6 +462,108 @@ describe('ChatMessageItem', () => {
     expect(wrapper.text()).toContain('@ 猫娘智能体');
   });
 
+  it('renders the rich text draft card and re-emits rich text draft actions', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: createRichTextMessage({
+          richTextAI: createRichTextTask({
+            draft: {
+              html: '<p>Formatted draft</p>',
+              markdown: '**Formatted draft**',
+              plainText: 'Plain draft',
+            },
+          }),
+        }),
+        index: 4,
+        compact: true,
+        richTextState: createRichTextState(),
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+          RichTextDraftCard: {
+            props: ['compact', 'state', 'task'],
+            template: `
+              <div data-testid="rich-text-draft-card">
+                <span>{{ task.title }}</span>
+                <span>{{ state ? state.helperText : '' }}</span>
+                <button
+                  data-testid="rich-text-apply"
+                  @click="$emit('apply', 'replace_selection', 'formatted')"
+                />
+                <button
+                  data-testid="rich-text-copy-plain"
+                  @click="$emit('copy', 'plain')"
+                />
+                <button
+                  data-testid="rich-text-copy-formatted"
+                  @click="$emit('copy', 'formatted')"
+                />
+                <button
+                  data-testid="rich-text-discard"
+                  @click="$emit('discard')"
+                />
+                <button data-testid="rich-text-undo" @click="$emit('undo')" />
+              </div>
+            `,
+          },
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    const card = wrapper.get('[data-testid="rich-text-draft-card"]');
+    expect(card.text()).toContain('AI Rewrite');
+    expect(card.text()).toContain('可以直接应用到原文');
+
+    await wrapper.get('[data-testid="rich-text-apply"]').trigger('click');
+    await wrapper.get('[data-testid="rich-text-copy-plain"]').trigger('click');
+    await wrapper
+      .get('[data-testid="rich-text-copy-formatted"]')
+      .trigger('click');
+    await wrapper.get('[data-testid="rich-text-discard"]').trigger('click');
+    await wrapper.get('[data-testid="rich-text-undo"]').trigger('click');
+
+    expect(wrapper.emitted('richTextApply')?.[0]).toEqual([
+      4,
+      'replace_selection',
+      'formatted',
+    ]);
+    expect(wrapper.emitted('copy')?.[0]).toEqual(['Plain draft']);
+    expect(wrapper.emitted('copy')?.[1]).toEqual(['**Formatted draft**']);
+    expect(wrapper.emitted('richTextDiscard')?.[0]).toEqual([4]);
+    expect(wrapper.emitted('richTextUndo')?.[0]).toEqual([4]);
+  });
+
+  it('hides the rich text draft card once the draft state is discarded', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: createRichTextMessage(),
+        index: 2,
+        compact: true,
+        richTextState: createRichTextState({ discarded: true }),
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+          RichTextDraftCard: {
+            template: '<div data-testid="rich-text-draft-card" />',
+          },
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('[data-testid="rich-text-draft-card"]').exists()).toBe(
+      false,
+    );
+  });
+
   it('renders tool target badges and toggles tool details with animated state', async () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
@@ -386,7 +576,7 @@ describe('ChatMessageItem', () => {
             },
             output: JSON.stringify({
               explanation: '按今天范围统计 AI 调用，并按租户分组。',
-              sql: "SELECT t.name, COUNT(acl.id) AS total_calls FROM ai_call_logs acl JOIN tenants t ON t.id = acl.tenant_id WHERE acl.created_at >= CURRENT_DATE GROUP BY t.name",
+              sql: 'SELECT t.name, COUNT(acl.id) AS total_calls FROM ai_call_logs acl JOIN tenants t ON t.id = acl.tenant_id WHERE acl.created_at >= CURRENT_DATE GROUP BY t.name',
               success: true,
             }),
           },
@@ -416,12 +606,16 @@ describe('ChatMessageItem', () => {
     expect(wrapper.text()).toContain('common.globalAiChat.toolFilterToday');
 
     const details = wrapper.get('[data-testid="tool-call-details-0"]');
-    expect(details.attributes('style') ?? '').toContain('grid-template-rows: 0fr');
+    expect(details.attributes('style') ?? '').toContain(
+      'grid-template-rows: 0fr',
+    );
 
     await wrapper.get('[data-testid="tool-call-toggle-0"]').trigger('click');
     await wrapper.vm.$nextTick();
 
-    expect(details.attributes('style') ?? '').toContain('grid-template-rows: 1fr');
+    expect(details.attributes('style') ?? '').toContain(
+      'grid-template-rows: 1fr',
+    );
     expect(wrapper.text()).toContain('common.globalAiChat.toolExplanation');
     expect(wrapper.text()).toContain('按今天范围统计 AI 调用，并按租户分组。');
     expect(wrapper.text()).toContain('common.globalAiChat.toolSql');
@@ -430,9 +624,12 @@ describe('ChatMessageItem', () => {
       .findAll('button')
       .find((button) => button.text().includes('common.globalAiChat.copySql'));
     expect(sqlCopyButton).toBeTruthy();
-    await sqlCopyButton!.trigger('click');
+    if (!sqlCopyButton) {
+      throw new Error('SQL copy button not found');
+    }
+    await sqlCopyButton.trigger('click');
     expect(wrapper.emitted('copy')?.[0]).toEqual([
-      "SELECT t.name, COUNT(acl.id) AS total_calls FROM ai_call_logs acl JOIN tenants t ON t.id = acl.tenant_id WHERE acl.created_at >= CURRENT_DATE GROUP BY t.name",
+      'SELECT t.name, COUNT(acl.id) AS total_calls FROM ai_call_logs acl JOIN tenants t ON t.id = acl.tenant_id WHERE acl.created_at >= CURRENT_DATE GROUP BY t.name',
     ]);
 
     expect(wrapper.text()).toContain('common.globalAiChat.rawResult');

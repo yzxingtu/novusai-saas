@@ -10,8 +10,7 @@ import { useRoute } from 'vue-router';
 
 import { IconifyIcon } from '@vben/icons';
 import { LanguageToggle, ThemeToggle } from '@vben/layouts';
-import { preferences } from '@vben/preferences';
-import { usePreferences } from '@vben/preferences';
+import { preferences, usePreferences } from '@vben/preferences';
 
 import { $t } from '#/locales';
 import { usePublicConfigStore } from '#/store';
@@ -39,11 +38,7 @@ const isTenantDomain = computed(() => publicConfigStore.isDomainTenantDomain);
 
 const siteLogo = computed(() => {
   if (isTenantDomain.value) {
-    return (
-      publicConfigStore.tenantBrand?.logo ||
-      preferences.logo.source ||
-      ''
-    );
+    return publicConfigStore.tenantBrand?.logo || preferences.logo.source || '';
   }
   return preferences.logo.source || '';
 });
@@ -76,21 +71,21 @@ const footerBranding = computed(() =>
   >
     <!-- Toolbar -->
     <div
-      class="bg-accent/80 absolute right-4 top-4 z-20 flex items-center gap-1 rounded-full px-2 py-1 backdrop-blur"
+      class="absolute right-4 top-4 z-20 flex items-center gap-1 rounded-full bg-accent/80 px-2 py-1 backdrop-blur"
     >
       <LanguageToggle v-if="preferences.widget.languageToggle" />
       <ThemeToggle v-if="preferences.widget.themeToggle" />
     </div>
 
     <!-- 3 warm blobs / 3 个大暖色块 -->
-    <div class="user-blob user-blob-1 pointer-events-none fixed" />
-    <div class="user-blob user-blob-2 pointer-events-none fixed" />
-    <div class="user-blob user-blob-3 pointer-events-none fixed" />
+    <div class="user-blob user-blob-1 pointer-events-none fixed"></div>
+    <div class="user-blob user-blob-2 pointer-events-none fixed"></div>
+    <div class="user-blob user-blob-3 pointer-events-none fixed"></div>
 
     <!-- Card with top accent bar / 带顶部彩条的卡片 -->
     <div
+      class="user-auth-card relative z-10 flex min-h-0 w-full flex-col overflow-hidden rounded-3xl border border-black/[0.06] bg-white shadow-[0_20px_60px_rgba(0,0,0,0.08),0_1px_3px_rgba(0,0,0,0.04)]"
       :class="[
-        'user-auth-card relative z-10 flex w-full min-h-0 flex-col overflow-hidden rounded-3xl border border-black/[0.06] bg-white shadow-[0_20px_60px_rgba(0,0,0,0.08),0_1px_3px_rgba(0,0,0,0.04)]',
         isLegalDocumentPage
           ? 'legal-doc-shell max-w-[min(100%,52rem)] px-5 pb-10 pt-5 sm:px-8 sm:pb-12 sm:pt-6 lg:max-w-[56rem]'
           : 'max-w-[420px] px-8 py-10 sm:px-10',
@@ -99,13 +94,10 @@ const footerBranding = computed(() =>
       <!-- Top gradient accent / 顶部 4px 彩条 -->
       <div
         class="user-card-accent absolute left-0 right-0 top-0 h-1 shrink-0"
-      />
+      ></div>
 
       <!-- Branding：登录等窄表单 / 法律页顶栏 -->
-      <div
-        v-if="!isLegalDocumentPage"
-        class="mb-8 flex flex-col items-center"
-      >
+      <div v-if="!isLegalDocumentPage" class="mb-8 flex flex-col items-center">
         <img
           v-if="siteLogo"
           :src="siteLogo"
@@ -159,7 +151,7 @@ const footerBranding = computed(() =>
     <!-- Copyright -->
     <div
       v-if="footerBranding.visible"
-      class="text-muted-foreground absolute bottom-4 left-0 right-0 text-center text-xs"
+      class="absolute bottom-4 left-0 right-0 text-center text-xs text-muted-foreground"
     >
       {{ footerBranding.companyName }}
       <span v-if="footerBranding.meta">{{ footerBranding.meta }}</span>
@@ -182,13 +174,13 @@ const footerBranding = computed(() =>
 }
 
 .user-blob-1 {
-  width: 500px;
-  height: 500px;
   top: -10%;
   right: 10%;
+  width: 500px;
+  height: 500px;
   background: radial-gradient(
     circle,
-    rgba(251, 146, 60, 0.25) 0%,
+    rgb(251 146 60 / 25%) 0%,
     transparent 70%
   );
   animation: float-a 16s ease-in-out infinite;
@@ -197,19 +189,19 @@ const footerBranding = computed(() =>
 .dark .user-blob-1 {
   background: radial-gradient(
     circle,
-    rgba(251, 146, 60, 0.12) 0%,
+    rgb(251 146 60 / 12%) 0%,
     transparent 70%
   );
 }
 
 .user-blob-2 {
-  width: 450px;
-  height: 450px;
   top: 20%;
   left: -5%;
+  width: 450px;
+  height: 450px;
   background: radial-gradient(
     circle,
-    rgba(167, 139, 250, 0.2) 0%,
+    rgb(167 139 250 / 20%) 0%,
     transparent 70%
   );
   animation: float-b 20s ease-in-out infinite;
@@ -218,30 +210,26 @@ const footerBranding = computed(() =>
 .dark .user-blob-2 {
   background: radial-gradient(
     circle,
-    rgba(167, 139, 250, 0.1) 0%,
+    rgb(167 139 250 / 10%) 0%,
     transparent 70%
   );
 }
 
 .user-blob-3 {
+  right: 30%;
+  bottom: -5%;
   width: 350px;
   height: 350px;
-  bottom: -5%;
-  right: 30%;
   background: radial-gradient(
     circle,
-    rgba(251, 191, 36, 0.15) 0%,
+    rgb(251 191 36 / 15%) 0%,
     transparent 70%
   );
   animation: float-c 14s ease-in-out infinite;
 }
 
 .dark .user-blob-3 {
-  background: radial-gradient(
-    circle,
-    rgba(251, 191, 36, 0.08) 0%,
-    transparent 70%
-  );
+  background: radial-gradient(circle, rgb(251 191 36 / 8%) 0%, transparent 70%);
 }
 
 @keyframes float-a {
@@ -249,6 +237,7 @@ const footerBranding = computed(() =>
   100% {
     transform: translate(0, 0) scale(1);
   }
+
   50% {
     transform: translate(40px, -50px) scale(1.08);
   }
@@ -259,6 +248,7 @@ const footerBranding = computed(() =>
   100% {
     transform: translate(0, 0) scale(1);
   }
+
   50% {
     transform: translate(-60px, 30px) scale(1.05);
   }
@@ -269,6 +259,7 @@ const footerBranding = computed(() =>
   100% {
     transform: translate(0, 0) scale(1);
   }
+
   50% {
     transform: translate(30px, -40px) scale(1.06);
   }
@@ -287,11 +278,11 @@ const footerBranding = computed(() =>
 }
 
 .dark .user-auth-card {
-  background: hsl(var(--card) / 0.95);
-  border-color: hsl(var(--border) / 0.5);
+  background: hsl(var(--card) / 95%);
+  border-color: hsl(var(--border) / 50%);
   box-shadow:
-    0 20px 60px rgba(0, 0, 0, 0.15),
-    0 1px 3px rgba(0, 0, 0, 0.08);
+    0 20px 60px rgb(0 0 0 / 15%),
+    0 1px 3px rgb(0 0 0 / 8%);
 }
 
 @keyframes card-pop {
@@ -299,6 +290,7 @@ const footerBranding = computed(() =>
     opacity: 0;
     transform: scale(0.92) translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: scale(1) translateY(0);

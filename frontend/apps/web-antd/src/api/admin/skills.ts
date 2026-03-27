@@ -127,10 +127,13 @@ export async function getSkillBindingSelectApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
 ): Promise<AdminSkillBindingSelectResponse> {
-  return requestClient.get<AdminSkillBindingSelectResponse>(`${PREFIX}/select`, {
-    params,
-    ...options,
-  });
+  return requestClient.get<AdminSkillBindingSelectResponse>(
+    `${PREFIX}/select`,
+    {
+      params,
+      ...options,
+    },
+  );
 }
 
 /** Get skill list (all tenants) / 获取技能列表（全企业） */

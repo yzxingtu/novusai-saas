@@ -7,22 +7,23 @@
  */
 import type { VxeTableGridOptions } from '#/adapter/vxe-table';
 
-/** VxeGrid 单列配置类型 */
-type VxeColumn = NonNullable<VxeTableGridOptions['columns']>[number];
 import {
   checkboxColumn,
-  dragColumn as vxeDragColumn,
   seqColumn,
+  dragColumn as vxeDragColumn,
 } from '#/adapter/vxe-table';
 import { $t } from '#/locales';
 
 import {
-  getComponent,
   getColumnAlign,
+  getComponent,
   getFieldLabel,
   getTableCellRenderType,
   shouldHideInList,
 } from './field-utils';
+
+/** VxeGrid 单列配置类型 */
+type VxeColumn = NonNullable<VxeTableGridOptions['columns']>[number];
 
 export type FieldRecord = Record<string, unknown>;
 
@@ -72,6 +73,18 @@ function getDefaultPreviewValue(f: FieldRecord): unknown {
 
 /** 根据字段类型生成单元格 mock 值（用于表格预览） */
 export function getMockCellValue(f: FieldRecord, rowIdx: number): unknown {
+  const getDefaultSample = () => {
+    if (rowIdx === 0) return $t('admin.system.codegen.preview.sampleA');
+    if (rowIdx === 1) return $t('admin.system.codegen.preview.sampleB');
+    return $t('admin.system.codegen.preview.sampleC');
+  };
+
+  const getDictSample = () => {
+    if (rowIdx === 0) return 'a';
+    if (rowIdx === 1) return 'b';
+    return 'c';
+  };
+
   const name = String(f.name || '').toLowerCase();
   const t = String(f.type || '').toLowerCase();
   const comp = getComponent(f);
@@ -81,7 +94,8 @@ export function getMockCellValue(f: FieldRecord, rowIdx: number): unknown {
   }
   if (name === 'id') return rowIdx + 1;
   if (t.includes('boolean')) return rowIdx === 0;
-  if (t.includes('int') || t.includes('float') || t.includes('decimal')) return 100 + rowIdx;
+  if (t.includes('int') || t.includes('float') || t.includes('decimal'))
+    return 100 + rowIdx;
   if (t.includes('date') || t.includes('datetime'))
     return `2024-01-${String(rowIdx + 1).padStart(2, '0')}`;
   if (t.includes('image')) return `https://example.com/img_${rowIdx}.jpg`;
@@ -94,13 +108,10 @@ export function getMockCellValue(f: FieldRecord, rowIdx: number): unknown {
   const ev = (f.enum_values as Array<{ value: unknown }>) || [];
   if (ev.length > 0) {
     const picked = ev[rowIdx % ev.length];
-    return (
-      picked?.value ??
-      (rowIdx === 0 ? $t('admin.system.codegen.preview.sampleA') : rowIdx === 1 ? $t('admin.system.codegen.preview.sampleB') : $t('admin.system.codegen.preview.sampleC'))
-    );
+    return picked?.value ?? getDefaultSample();
   }
-  if (f.dict_code) return rowIdx === 0 ? 'a' : rowIdx === 1 ? 'b' : 'c';
-  return rowIdx === 0 ? $t('admin.system.codegen.preview.sampleA') : rowIdx === 1 ? $t('admin.system.codegen.preview.sampleB') : $t('admin.system.codegen.preview.sampleC');
+  if (f.dict_code) return getDictSample();
+  return getDefaultSample();
 }
 
 export function getPreviewFieldSampleValue(f: FieldRecord): unknown {
@@ -128,7 +139,7 @@ export function buildMockRows(
 }
 
 /** 将 align class 转为 vxe align */
-function toVxeAlign(alignClass: string): 'left' | 'center' | 'right' {
+function toVxeAlign(alignClass: string): 'center' | 'left' | 'right' {
   if (alignClass.includes('center')) return 'center';
   if (alignClass.includes('right')) return 'right';
   return 'left';
@@ -139,9 +150,9 @@ export function buildGridColumns(
   fields: FieldRecord[],
   opts: {
     hasBatchDelete?: boolean;
-    hasDragSort?: boolean;
-    hasDetail?: boolean;
     hasClone?: boolean;
+    hasDetail?: boolean;
+    hasDragSort?: boolean;
     nameField?: string;
     onFieldClick?: (f: FieldRecord) => void;
   } = {},
@@ -207,14 +218,29 @@ export function buildGridColumns(
       };
     } else if (renderType === 'Image') {
       col.cellRender = { name: 'CellImage' };
-    } else if (renderType === 'Tag' || (f.dict_code || String(f.type || '').toLowerCase() === 'enum')) {
-      const ev = (f.enum_values as Array<{ label?: string; label_zh?: string; label_en?: string; value: unknown }>) || [];
-      const options = ev.length
-        ? ev.map((e) => ({ color: 'default', label: (e.label_zh || e.label_en || e.label || e.value) as string, value: e.value }))
-        : [
-            { color: 'success', label: $t('common.enabled'), value: 1 },
-            { color: 'error', label: $t('common.disabled'), value: 0 },
-          ];
+    } else if (
+      renderType === 'Tag' ||
+      f.dict_code ||
+      String(f.type || '').toLowerCase() === 'enum'
+    ) {
+      const ev =
+        (f.enum_values as Array<{
+          label?: string;
+          label_en?: string;
+          label_zh?: string;
+          value: unknown;
+        }>) || [];
+      const options =
+        ev.length > 0
+          ? ev.map((e) => ({
+              color: 'default',
+              label: (e.label_zh || e.label_en || e.label || e.value) as string,
+              value: e.value,
+            }))
+          : [
+              { color: 'success', label: $t('common.enabled'), value: 1 },
+              { color: 'error', label: $t('common.disabled'), value: 0 },
+            ];
       col.cellRender = { name: 'CellTag', options };
     }
     cols.push(col);
@@ -234,9 +260,19 @@ export function buildGridColumns(
         onClick: () => {},
       },
       options: [
-        ...(hasDetail ? [{ code: 'detail', text: $t('common.detail'), icon: 'lucide:eye' }] : []),
+        ...(hasDetail
+          ? [{ code: 'detail', text: $t('common.detail'), icon: 'lucide:eye' }]
+          : []),
         { code: 'edit', text: $t('common.edit'), icon: 'lucide:pencil' },
-        ...(hasClone ? [{ code: 'clone', text: $t('common.duplicate'), icon: 'lucide:copy' }] : []),
+        ...(hasClone
+          ? [
+              {
+                code: 'clone',
+                text: $t('common.duplicate'),
+                icon: 'lucide:copy',
+              },
+            ]
+          : []),
         { code: 'delete', text: $t('common.delete'), icon: 'lucide:trash-2' },
       ],
     },

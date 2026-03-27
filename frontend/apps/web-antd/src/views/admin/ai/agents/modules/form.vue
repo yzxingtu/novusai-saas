@@ -6,17 +6,14 @@
  * 仅允许修改调优参数（model_id / system_prompt / temperature / max_tokens）。
  */
 import type { AIAgentInfo } from '#/api/admin/ai';
+import type { AgentSkillBindingDraftItem } from '#/components/business/agent-skill-binding-picker';
 
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
+
 import { IconifyIcon } from '@vben/icons';
 
-import {
-  Alert,
-  Button,
-  Select as ASelect,
-  Tag as ATag,
-} from 'ant-design-vue';
+import { Alert, Select as ASelect, Tag as ATag, Button } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
 import {
@@ -29,16 +26,15 @@ import {
   AgentSkillBindingPicker,
   draftsToBatchPayload,
   grantsToDrafts,
-  type AgentSkillBindingDraftItem,
 } from '#/components/business/agent-skill-binding-picker';
 import { scopeNeedsAssignment } from '#/components/business/scope-select/use-scope-fields';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
+import { getSkillTypeColor } from '#/utils/ai-helpers';
 import {
   formatStarterQuestionsInput,
   parseStarterQuestionsInput,
 } from '#/utils/ai-starter-questions';
-import { getSkillTypeColor } from '#/utils/ai-helpers';
 import { showRequestError } from '#/utils/error-helpers';
 
 import { getFormDefaults, useFormSchema } from '../data';
@@ -56,17 +52,12 @@ const modelMaxOutputTokensMap = ref<Record<number, number | undefined>>({});
 function resolveModelMaxOutputTokens(
   modelId: null | number | undefined,
 ): number | undefined {
-  if (modelId == null) return undefined;
+  if (modelId === null || modelId === undefined) return undefined;
   return modelMaxOutputTokensMap.value[modelId];
 }
 
 function buildSchema(edit = false, isSystem = false, isCreate = false) {
-  return useFormSchema(
-    edit,
-    isSystem,
-    isCreate,
-    resolveModelMaxOutputTokens,
-  );
+  return useFormSchema(edit, isSystem, isCreate, resolveModelMaxOutputTokens);
 }
 
 const [Form, formApi] = useVbenForm({
@@ -101,11 +92,9 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } =
         result.execution_mode = values.execution_mode;
         const scope = values.scope as string;
         result.scope = scope;
-        if (scopeNeedsAssignment(scope)) {
-          result.tenant_ids = (values.tenant_ids as number[]) ?? [];
-        } else {
-          result.tenant_ids = [];
-        }
+        result.tenant_ids = scopeNeedsAssignment(scope)
+          ? ((values.tenant_ids as number[]) ?? [])
+          : [];
       }
       return result;
     },
@@ -135,7 +124,9 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } =
       const sys = !!(rowData.value as Record<string, unknown> | undefined)
         ?.is_system;
       isSystemAgent.value = sys;
-      formApi.setState({ schema: buildSchema(isEdit.value, sys, !isEdit.value) });
+      formApi.setState({
+        schema: buildSchema(isEdit.value, sys, !isEdit.value),
+      });
       if (!isEdit.value) {
         skillDrafts.value = [];
       }
@@ -187,7 +178,7 @@ const title = computed(() => {
 
 function setDraftConsent(skillId: number, mode: string) {
   const idx = skillDrafts.value.findIndex((d) => d.skill_id === skillId);
-  if (idx < 0) return;
+  if (idx === -1) return;
   const cur = skillDrafts.value[idx]!;
   if (mode === 'auto' || mode === 'ask' || mode === 'reject') {
     skillDrafts.value.splice(idx, 1, { ...cur, default_consent_mode: mode });
@@ -310,7 +301,11 @@ onMounted(() => {
                   >
                     {{ d.skill_type }}
                   </ATag>
-                  <ATag v-if="d.is_system" color="red" class="!m-0 !text-[10px]">
+                  <ATag
+                    v-if="d.is_system"
+                    color="red"
+                    class="!m-0 !text-[10px]"
+                  >
                     {{ $t('admin.ai.skillPackage.system') }}
                   </ATag>
                   <ATag
@@ -332,7 +327,9 @@ onMounted(() => {
               </Button>
             </div>
             <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
-              <div class="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+              <div
+                class="text-[11px] uppercase tracking-[0.12em] text-muted-foreground"
+              >
                 {{ $t('admin.ai.agent.skillPicker.defaultConsentMode') }}
               </div>
               <ASelect

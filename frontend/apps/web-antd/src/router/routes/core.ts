@@ -61,8 +61,7 @@ const coreRoutes: RouteRecordRaw[] = [
       {
         name: 'QrCodeLogin',
         path: 'qrcode-login',
-        component: () =>
-          import('#/views/user/authentication/qrcode-login.vue'),
+        component: () => import('#/views/user/authentication/qrcode-login.vue'),
         meta: {
           title: 'page.auth.qrcodeLogin',
         },

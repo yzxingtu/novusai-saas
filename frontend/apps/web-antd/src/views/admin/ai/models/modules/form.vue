@@ -187,23 +187,40 @@ function onRemoteModelSelect(modelId: unknown) {
 
   if (caps) {
     if (caps.model_type) values.type = caps.model_type;
-    if (caps.supports_vision != null)
+    if (caps.supports_vision !== null && caps.supports_vision !== undefined)
       values.supports_vision = caps.supports_vision;
-    if (caps.supports_audio != null) values.supports_audio = caps.supports_audio;
-    if (caps.supports_video != null) values.supports_video = caps.supports_video;
-    if (caps.supports_function_calling != null)
+    if (caps.supports_audio !== null && caps.supports_audio !== undefined)
+      values.supports_audio = caps.supports_audio;
+    if (caps.supports_video !== null && caps.supports_video !== undefined)
+      values.supports_video = caps.supports_video;
+    if (
+      caps.supports_function_calling !== null &&
+      caps.supports_function_calling !== undefined
+    )
       values.supports_function_calling = caps.supports_function_calling;
-    if (caps.supports_streaming != null)
+    if (
+      caps.supports_streaming !== null &&
+      caps.supports_streaming !== undefined
+    )
       values.supports_streaming = caps.supports_streaming;
-    if (caps.context_window != null) values.context_window = caps.context_window;
-    if (caps.max_output_tokens != null)
+    if (caps.context_window !== null && caps.context_window !== undefined)
+      values.context_window = caps.context_window;
+    if (caps.max_output_tokens !== null && caps.max_output_tokens !== undefined)
       values.max_output_tokens = caps.max_output_tokens;
-    if (caps.input_price_per_1k != null)
+    if (
+      caps.input_price_per_1k !== null &&
+      caps.input_price_per_1k !== undefined
+    )
       values.input_price_per_1k = caps.input_price_per_1k;
-    if (caps.output_price_per_1k != null)
+    if (
+      caps.output_price_per_1k !== null &&
+      caps.output_price_per_1k !== undefined
+    )
       values.output_price_per_1k = caps.output_price_per_1k;
-    if (caps.rpm_limit != null) values.rpm_limit = caps.rpm_limit;
-    if (caps.tpm_limit != null) values.tpm_limit = caps.tpm_limit;
+    if (caps.rpm_limit !== null && caps.rpm_limit !== undefined)
+      values.rpm_limit = caps.rpm_limit;
+    if (caps.tpm_limit !== null && caps.tpm_limit !== undefined)
+      values.tpm_limit = caps.tpm_limit;
   }
 
   formApi.setValues(values);
@@ -241,14 +258,16 @@ function onRemoteModelSelect(modelId: unknown) {
                 v-if="caps.supports_vision"
                 color="blue"
                 class="mr-0 leading-tight"
-                >Vision</Tag
               >
+                Vision
+              </Tag>
               <Tag
                 v-if="caps.supports_function_calling"
                 color="green"
                 class="mr-0 leading-tight"
-                >Tools</Tag
               >
+                Tools
+              </Tag>
             </template>
           </div>
         </template>

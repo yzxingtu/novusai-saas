@@ -8,12 +8,11 @@ interface ResolvePluginMetadataIconOptions {
   endpoint?: ApiEndpoint;
 }
 
-type ResolvedPluginMetadataIcon =
-  {
-    icon: string;
-    kind: 'fallback' | 'image';
-    src?: string;
-  };
+type ResolvedPluginMetadataIcon = {
+  icon: string;
+  kind: 'fallback' | 'image';
+  src?: string;
+};
 
 function isDataPngIcon(value: string): boolean {
   return /^data:image\/png(?:;|,)/i.test(value.trim());

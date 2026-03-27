@@ -177,9 +177,7 @@ interface PageResponse<T> {
 const PROVIDER_PREFIX = '/admin/ai/providers';
 
 /** Get provider select options / 获取供应商下拉选项 */
-export async function getAIProviderSelectApi(
-  params?: Record<string, unknown>,
-) {
+export async function getAIProviderSelectApi(params?: Record<string, unknown>) {
   return requestClient.get(`${PROVIDER_PREFIX}/select`, { params });
 }
 

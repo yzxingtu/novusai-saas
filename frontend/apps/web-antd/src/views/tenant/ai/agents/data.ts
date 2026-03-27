@@ -158,14 +158,10 @@ export function useGridFormSchema(): VbenFormSchema[] {
       options: getExecutionModeOptions(),
       placeholder: $t('tenant.ai.agent.placeholder.allModes'),
     }),
-    select(
-      'filter[scope][eq]',
-      $t('common.scope.label'),
-      {
-        options: getAgentScopeFilterOptions(),
-        placeholder: $t('common.scope.allScopes'),
-      },
-    ),
+    select('filter[scope][eq]', $t('common.scope.label'), {
+      options: getAgentScopeFilterOptions(),
+      placeholder: $t('common.scope.allScopes'),
+    }),
   ];
 }
 
@@ -182,11 +178,15 @@ export function useFormSchema(
       required: true,
       placeholder: $t('tenant.ai.agent.placeholder.inputName'),
     }),
-    ...(!isCreate ? [{
-      component: 'ImageUpload' as const,
-      fieldName: 'avatar',
-      label: $t('tenant.ai.agent.avatar'),
-    }] : []),
+    ...(isCreate
+      ? []
+      : [
+          {
+            component: 'ImageUpload' as const,
+            fieldName: 'avatar',
+            label: $t('tenant.ai.agent.avatar'),
+          },
+        ]),
     select('model_id', $t('tenant.ai.agent.modelName'), {
       api: getModelSelectOptions,
       required: true,
@@ -205,63 +205,67 @@ export function useFormSchema(
     textareaField('description', $t('tenant.ai.agent.description'), {
       placeholder: $t('tenant.ai.agent.placeholder.inputDescription'),
     }),
-    ...(isCreate ? [] : [
-      {
-        ...numberField('temperature', $t('tenant.ai.agent.temperature'), {
-          min: 0,
-          max: 2,
-          placeholder: $t('tenant.ai.agent.placeholder.inputTemperature'),
-        }),
-        help: $t('tenant.ai.agent.help.temperature'),
-      },
-      {
-        ...numberField('max_tokens', $t('tenant.ai.agent.maxTokens'), {
-          min: 1,
-          placeholder: $t('tenant.ai.agent.placeholder.inputMaxTokens'),
-        }),
-        componentProps: (values: Record<string, unknown>) => ({
-          style: { width: '100%' },
-          min: 1,
-          max:
-            resolveModelMaxOutputTokens?.(
-              values.model_id as null | number | undefined,
-            ) ?? 128_000,
-          placeholder: $t('tenant.ai.agent.placeholder.inputMaxTokens'),
-        }),
-        help: $t('tenant.ai.agent.help.maxTokens'),
-      },
-      {
-        ...numberField('top_p', $t('tenant.ai.agent.topP'), {
-          min: 0,
-          max: 1,
-          placeholder: $t('tenant.ai.agent.placeholder.inputTopP'),
-        }),
-        help: $t('tenant.ai.agent.help.topP'),
-      },
-      {
-        ...textareaField(
-          'welcome_message',
-          $t('tenant.ai.agent.welcomeMessage'),
+    ...(isCreate
+      ? []
+      : [
           {
-            placeholder: $t('tenant.ai.agent.placeholder.inputWelcomeMessage'),
+            ...numberField('temperature', $t('tenant.ai.agent.temperature'), {
+              min: 0,
+              max: 2,
+              placeholder: $t('tenant.ai.agent.placeholder.inputTemperature'),
+            }),
+            help: $t('tenant.ai.agent.help.temperature'),
           },
-        ),
-        help: $t('tenant.ai.agent.help.welcomeMessage'),
-      },
-      {
-        ...textareaField(
-          'suggested_questions_str',
-          $t('tenant.ai.agent.suggestedQuestions'),
           {
-            placeholder: $t(
-              'tenant.ai.agent.placeholder.inputSuggestedQuestions',
+            ...numberField('max_tokens', $t('tenant.ai.agent.maxTokens'), {
+              min: 1,
+              placeholder: $t('tenant.ai.agent.placeholder.inputMaxTokens'),
+            }),
+            componentProps: (values: Record<string, unknown>) => ({
+              style: { width: '100%' },
+              min: 1,
+              max:
+                resolveModelMaxOutputTokens?.(
+                  values.model_id as null | number | undefined,
+                ) ?? 128_000,
+              placeholder: $t('tenant.ai.agent.placeholder.inputMaxTokens'),
+            }),
+            help: $t('tenant.ai.agent.help.maxTokens'),
+          },
+          {
+            ...numberField('top_p', $t('tenant.ai.agent.topP'), {
+              min: 0,
+              max: 1,
+              placeholder: $t('tenant.ai.agent.placeholder.inputTopP'),
+            }),
+            help: $t('tenant.ai.agent.help.topP'),
+          },
+          {
+            ...textareaField(
+              'welcome_message',
+              $t('tenant.ai.agent.welcomeMessage'),
+              {
+                placeholder: $t(
+                  'tenant.ai.agent.placeholder.inputWelcomeMessage',
+                ),
+              },
             ),
-            rows: 4,
+            help: $t('tenant.ai.agent.help.welcomeMessage'),
           },
-        ),
-        help: $t('tenant.ai.agent.help.suggestedQuestions'),
-      },
-    ]),
+          {
+            ...textareaField(
+              'suggested_questions_str',
+              $t('tenant.ai.agent.suggestedQuestions'),
+              {
+                placeholder: $t(
+                  'tenant.ai.agent.placeholder.inputSuggestedQuestions',
+                ),
+                rows: 4,
+              },
+            ),
+            help: $t('tenant.ai.agent.help.suggestedQuestions'),
+          },
+        ]),
   ];
 }
 

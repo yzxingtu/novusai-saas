@@ -71,9 +71,12 @@ export interface AdminSkillPackageSelectResponse {
 
 /** Get skill package select options / 获取技能包下拉选项 */
 export function getSkillPackageSelectApi(params?: Record<string, unknown>) {
-  return requestClient.get<AdminSkillPackageSelectResponse>(`${BASE_URL}/select`, {
-    params,
-  });
+  return requestClient.get<AdminSkillPackageSelectResponse>(
+    `${BASE_URL}/select`,
+    {
+      params,
+    },
+  );
 }
 
 /** Get skill package list / 获取技能包列表 */

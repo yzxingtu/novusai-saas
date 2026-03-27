@@ -73,7 +73,10 @@ class AdminAICallLogController(GlobalController):
             权限 / Permission: ai_call_log:list
             """
             service = CallLogService(db)
-            items, total = await service.repo.query_list_with_names(spec)
+            items, total = await service.repo.query_list_with_names(
+                spec,
+                include_caller_names=True,
+            )
 
             return success(
                 data=PageResponse.create(

@@ -7,9 +7,9 @@ import { useRouter } from 'vue-router';
 import { AuthenticationLogin, z } from '@vben/common-ui';
 import { useAccessStore } from '@vben/stores';
 
-import { getEndpointFromPath, getLoginPath } from '#/utils';
 import { $t } from '#/locales';
 import { useMultiAuthStore } from '#/store';
+import { getEndpointFromPath, getLoginPath } from '#/utils';
 
 defineOptions({ name: 'ReLoginForm' });
 
@@ -21,7 +21,9 @@ const accessStore = useAccessStore();
  * 根据当前路径自动检测端点（admin / tenant / user）
  * Auto-detect endpoint from current path
  */
-const endpoint = computed(() => getEndpointFromPath(router.currentRoute.value.path));
+const endpoint = computed(() =>
+  getEndpointFromPath(router.currentRoute.value.path),
+);
 
 const formSchema = computed((): VbenFormSchema[] => {
   return [
@@ -52,10 +54,7 @@ async function handleLogin(values: Record<string, unknown>) {
     username: values.username,
   };
 
-  const result = await multiAuthStore.authLogin(
-    loginParams,
-    endpoint.value,
-  );
+  const result = await multiAuthStore.authLogin(loginParams, endpoint.value);
 
   if (result.userInfo) {
     // 登录成功，authLogin 内部已处理 setLoginExpired(false) / Login OK; expired flag cleared in authLogin

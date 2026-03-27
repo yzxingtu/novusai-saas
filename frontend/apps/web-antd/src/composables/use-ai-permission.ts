@@ -7,7 +7,6 @@
  * 根据当前路由前缀动态切换权限资源，提供响应式权限判断。
  */
 import { computed } from 'vue';
-
 import { useRoute } from 'vue-router';
 
 import { ADMIN_ROUTE_PREFIX } from '#/constants/endpoints';

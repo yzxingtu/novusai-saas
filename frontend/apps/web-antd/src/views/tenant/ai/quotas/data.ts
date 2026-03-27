@@ -89,17 +89,17 @@ export function getQuotaTypeText(type: string | undefined): string {
  */
 export function getRuntimeStatusText(status: string | undefined): string {
   switch (status) {
-    case 'healthy': {
-      return $t('tenant.ai.quota.runtimeStatus.healthy');
-    }
-    case 'warning': {
-      return $t('tenant.ai.quota.runtimeStatus.warning');
-    }
     case 'exceeded': {
       return $t('tenant.ai.quota.runtimeStatus.exceeded');
     }
+    case 'healthy': {
+      return $t('tenant.ai.quota.runtimeStatus.healthy');
+    }
     case 'inactive': {
       return $t('tenant.ai.quota.runtimeStatus.inactive');
+    }
+    case 'warning': {
+      return $t('tenant.ai.quota.runtimeStatus.warning');
     }
     default: {
       return status || '-';
@@ -112,14 +112,14 @@ export function getRuntimeStatusText(status: string | undefined): string {
  */
 export function getRuntimeStatusColor(status: string | undefined): string {
   switch (status) {
+    case 'exceeded': {
+      return 'error';
+    }
     case 'healthy': {
       return 'success';
     }
     case 'warning': {
       return 'warning';
-    }
-    case 'exceeded': {
-      return 'error';
     }
     default: {
       return 'default';
@@ -142,14 +142,14 @@ export function getActiveStateOptions() {
  */
 export function getSourceText(source: string | undefined): string {
   switch (source) {
-    case 'tenant': {
-      return $t('tenant.ai.rateLimit.source.tenant');
-    }
     case 'model': {
       return $t('tenant.ai.rateLimit.source.model');
     }
     case 'none': {
       return $t('tenant.ai.rateLimit.source.none');
+    }
+    case 'tenant': {
+      return $t('tenant.ai.rateLimit.source.tenant');
     }
     default: {
       return source || '-';
@@ -162,11 +162,11 @@ export function getSourceText(source: string | undefined): string {
  */
 export function getSourceColor(source: string | undefined): string {
   switch (source) {
-    case 'tenant': {
-      return 'blue';
-    }
     case 'model': {
       return 'geekblue';
+    }
+    case 'tenant': {
+      return 'blue';
     }
     default: {
       return 'default';

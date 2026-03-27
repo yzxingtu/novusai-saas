@@ -1,7 +1,8 @@
 <script lang="ts" setup>
 import type { Recordable } from '@vben/types';
 
-import Sortable from 'sortablejs';
+import type { PaletteItem } from './ComponentPalette.vue';
+
 import {
   computed,
   nextTick,
@@ -11,14 +12,15 @@ import {
   shallowRef,
   watch,
 } from 'vue';
-import { Button, Checkbox } from 'ant-design-vue';
+
 import { IconifyIcon } from '@vben/icons';
+
+import { Button, Checkbox } from 'ant-design-vue';
+import Sortable from 'sortablejs';
 
 import { $t } from '#/locales';
 import { useCodegenBuilderStore } from '#/store';
 
-import type { PaletteItem } from './ComponentPalette.vue';
-import FieldCard from './FieldCard.vue';
 import {
   createFieldFromPalette,
   ensureFieldKeys,
@@ -26,6 +28,7 @@ import {
   genKey,
   getComponent,
 } from './field-utils';
+import FieldCard from './FieldCard.vue';
 
 defineOptions({ name: 'FieldCardList' });
 
@@ -42,12 +45,12 @@ const store = useCodegenBuilderStore();
 const listRef = ref<HTMLElement | null>(null);
 const tableBodyRef = ref<HTMLElement | null>(null);
 const viewMode = ref<'card' | 'table'>('table');
-const sortableInstance = shallowRef<ReturnType<typeof Sortable.create> | null>(
+const sortableInstance = shallowRef<null | ReturnType<typeof Sortable.create>>(
   null,
 );
-const tableSortableInstance = shallowRef<ReturnType<
+const tableSortableInstance = shallowRef<null | ReturnType<
   typeof Sortable.create
-> | null>(null);
+>>(null);
 
 const fields = computed<Recordable[]>({
   get: () => {
@@ -209,7 +212,7 @@ function removeField(key: string) {
 function updateDividerTitle(key: string, title: string) {
   const next = [...fields.value];
   const index = next.findIndex((field) => field.__key === key);
-  if (index < 0) return;
+  if (index === -1) return;
   next[index] = { ...next[index], divider_title: title, title };
   fields.value = next;
 }
@@ -260,8 +263,10 @@ function initSortable() {
       handle: '.drag-handle',
       onEnd(event) {
         if (
-          event.oldIndex == null ||
-          event.newIndex == null ||
+          event.oldIndex === null ||
+          event.oldIndex === undefined ||
+          event.newIndex === null ||
+          event.newIndex === undefined ||
           event.oldIndex === event.newIndex
         ) {
           return;
@@ -291,8 +296,10 @@ function initSortable() {
       handle: '.table-drag-handle',
       onEnd(event) {
         if (
-          event.oldIndex == null ||
-          event.newIndex == null ||
+          event.oldIndex === null ||
+          event.oldIndex === undefined ||
+          event.newIndex === null ||
+          event.newIndex === undefined ||
           event.oldIndex === event.newIndex
         ) {
           return;
@@ -339,7 +346,8 @@ onUnmounted(destroySortable);
           <span
             class="rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground"
           >
-            {{ $t('admin.system.codegen.builder.metricFields') }} {{ fieldCount }}
+            {{ $t('admin.system.codegen.builder.metricFields') }}
+            {{ fieldCount }}
           </span>
           <span
             v-for="item in summaryCards"
@@ -665,6 +673,5 @@ onUnmounted(destroySortable);
         </div>
       </div>
     </div>
-
   </div>
 </template>

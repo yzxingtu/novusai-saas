@@ -1,8 +1,11 @@
-import type { VbenFormSchema } from '#/adapter/form';
 import type {
-  OnActionClickFn,
-  VxeTableGridOptions,
-} from '#/adapter/vxe-table';
+  RecycleBinColumnPreset,
+  RecycleBinModuleAdapter,
+  RecycleBinSortOption,
+} from './types';
+
+import type { VbenFormSchema } from '#/adapter/form';
+import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 import type {
   RecycleBinItem,
   RecycleBinModuleMeta,
@@ -10,12 +13,6 @@ import type {
 
 import { searchInput, statusSelect } from '#/adapter/form';
 import { $t } from '#/locales';
-
-import type {
-  RecycleBinColumnPreset,
-  RecycleBinModuleAdapter,
-  RecycleBinSortOption,
-} from './types';
 
 interface BuildFilterOptions {
   includeTenantFilter?: boolean;
@@ -47,7 +44,7 @@ function humanizeField(field: string) {
 }
 
 function getColumnLabel(
-  meta: RecycleBinModuleMeta | null,
+  meta: null | RecycleBinModuleMeta,
   field: string,
 ): string {
   const label = meta?.column_labels?.[field];
@@ -58,10 +55,10 @@ function getColumnLabel(
 
 function filterSupportedSchema(
   schema: VbenFormSchema[],
-  meta: RecycleBinModuleMeta | null,
+  meta: null | RecycleBinModuleMeta,
 ): VbenFormSchema[] {
   if (!meta) return schema;
-  const supported = new Set(meta.filterable ?? []);
+  const supported = new Set(meta.filterable);
   const seen = new Set<string>();
 
   return schema.filter((item) => {
@@ -91,7 +88,7 @@ function pickFallbackFilterFields(meta: RecycleBinModuleMeta): string[] {
     'created_at',
     tenantField,
   ];
-  const available = new Set(meta.filterable ?? []);
+  const available = new Set(meta.filterable);
   const picked: string[] = [];
 
   for (const field of preferredOrder) {
@@ -109,7 +106,7 @@ function pickFallbackFilterFields(meta: RecycleBinModuleMeta): string[] {
 }
 
 export function buildDynamicFilterSchema(
-  meta: RecycleBinModuleMeta | null,
+  meta: null | RecycleBinModuleMeta,
   adapter: null | RecycleBinModuleAdapter | undefined,
   options: BuildFilterOptions = {},
 ): VbenFormSchema[] {
@@ -232,7 +229,7 @@ function toVxeColumn(
 }
 
 export function buildRecycleColumns(
-  meta: RecycleBinModuleMeta | null,
+  meta: null | RecycleBinModuleMeta,
   adapter: null | RecycleBinModuleAdapter | undefined,
   onActionClick: OnActionClickFn<RecycleBinItem>,
   options: BuildColumnOptions = {},
@@ -305,7 +302,7 @@ export function buildRecycleColumns(
 }
 
 export function buildSortOptions(
-  meta: RecycleBinModuleMeta | null,
+  meta: null | RecycleBinModuleMeta,
   adapter: null | RecycleBinModuleAdapter | undefined,
 ): RecycleBinSortOption[] {
   const adapterOptions = adapter?.sortOptions?.();

@@ -38,13 +38,13 @@ interface Props {
   quickSearch?: {
     activeField: string;
     keyword: string;
+    onFieldChange: (fieldName: string) => void;
+    onKeywordChange: (keyword: string) => void;
     options: Array<{
       fieldName: string;
       label: string;
       placeholder: string;
     }>;
-    onFieldChange: (fieldName: string) => void;
-    onKeywordChange: (keyword: string) => void;
   };
   /** Original Grid component / 原始 Grid 组件 */
   grid: any;

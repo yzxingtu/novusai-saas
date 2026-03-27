@@ -330,7 +330,57 @@
       "totalTokens": "Total Tokens",
       "totalCost": "Total Cost",
       "successRate": "Success Rate"
-    }
+    },
+    "chart": {
+      "dailyTrend": "Daily Usage Trend",
+      "modelDistribution": "Model Usage Distribution"
+    },
+    "accessChannel": {
+      "title": "Access Channel",
+      "subtitle": "This page already includes platform, tenant-admin, and end-user calls, then breaks them down by call source",
+      "topChannelLabel": "Top traffic channel",
+      "calls": "Calls",
+      "tokens": "Tokens",
+      "cost": "Cost",
+      "admin_internal": "Platform / internal",
+      "tenant_admin": "Tenant admin",
+      "tenant_user": "Tenant user",
+      "unknown": "Unlabeled channel"
+    },
+    "metrics": {
+      "successCalls": "Success",
+      "failedCalls": "Failed",
+      "inputTokens": "Input",
+      "outputTokens": "Output",
+      "avgCostPerCall": "Avg / call",
+      "avgTokensPerCall": "Avg tokens / call"
+    },
+    "snapshot": {
+      "title": "Window and distribution snapshot",
+      "days": "days",
+      "rangeDays": "Time span",
+      "coveredModels": "Models covered",
+      "coveredChannels": "Channels covered",
+      "topModel": "Top model",
+      "busiestDay": "Peak day",
+      "customRange": "Custom range",
+      "platformScope": "Platform admin",
+      "tenantScope": "Current tenant",
+      "empty": "No data"
+    },
+    "list": {
+      "empty": "No statistics in the selected range"
+    },
+    "monitoring": {
+      "topModels": "Top Models",
+      "topAgents": "Top Agents",
+      "topUsers": "Top Users",
+      "topTenants": "Top Tenants"
+    },
+    "dateRange": "Date Range",
+    "thisMonth": "This Month",
+    "last7Days": "Last 7 Days",
+    "last30Days": "Last 30 Days"
   },
   "quota": {
     "name": "Quota",
@@ -559,7 +609,7 @@
     "executionMode": "Execution Mode",
     "modelName": "Model",
     "tenantId": "Tenant",
-    "version": "Version",
+    "versionLabel": "Version",
     "systemPrompt": "System Prompt",
     "temperature": "Temperature",
     "maxTokens": "Per-Reply Max Output Tokens (Output Only)",
@@ -772,9 +822,11 @@
     "tenantName": "Tenant",
     "user": "User",
     "status": "Status",
+    "totalCalls": "Total Calls",
     "tokenCount": "Token Count",
     "cost": "Cost",
     "createdAt": "Created At",
+    "lastCallAt": "Last Call At",
     "viewDetail": "View Detail",
     "messageList": "Messages",
     "tabMessages": "Message flow",
@@ -789,6 +841,15 @@
     "callLogLatency": "Latency",
     "messageCount": "Message Count",
     "conversationTitle": "Conversation Title",
+    "detailTitle": "Conversation Detail",
+    "actorType": {
+      "platform_admin": "Platform admin",
+      "tenant_admin": "Tenant admin",
+      "tenant_user": "Tenant user",
+      "admin": "Admin",
+      "user": "User",
+      "unknown": "Unknown actor"
+    },
     "status_options": {
       "active": "Active",
       "archived": "Archived",

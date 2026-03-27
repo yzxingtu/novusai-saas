@@ -98,7 +98,10 @@ function getOperatorTypeText(operatorType: null | string | undefined): string {
 }
 
 function getOperatorDisplayName(
-  log: Pick<ActionLogDetail, 'operator_id' | 'operator_name' | 'operator_nickname'>,
+  log: Pick<
+    ActionLogDetail,
+    'operator_id' | 'operator_name' | 'operator_nickname'
+  >,
 ): string {
   return (
     log.operator_nickname ||

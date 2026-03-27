@@ -18,16 +18,16 @@ import { formatDate, formatRelativeTime } from '#/utils/common';
 import { getScopeColor, getScopeIcon } from '#/utils/scope-helpers';
 
 import {
-  getDistributionCompactText,
   getDefinitionTypeText,
+  getDistributionCompactText,
   getFormDefaults,
-  normalizeScopeValue,
   getScheduleDisplay,
   getScheduleTypeText,
   getScopeModeLabel,
   getTaskIcon,
   getTaskIconBg,
   getTaskIconColor,
+  normalizeScopeValue,
   useColumns,
   useFormSchema,
   useGridFormSchema,

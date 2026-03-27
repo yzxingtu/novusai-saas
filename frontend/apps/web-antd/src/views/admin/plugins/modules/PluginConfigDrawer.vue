@@ -20,7 +20,6 @@ import { useRouter } from 'vue-router';
 import { IconifyIcon } from '@vben/icons';
 import { preferences } from '@vben/preferences';
 
-
 import {
   Alert,
   Button,
@@ -68,8 +67,8 @@ import { ConfigImagePicker } from '#/components/business/config-image-picker';
 import { MarkdownRender } from '#/components/business/markdown-render';
 import { scopeNeedsAssignment } from '#/components/business/scope-select';
 import {
-  handleDisableError,
   refreshAdminMenusAndPluginRoutes as _refreshAdminRoutes,
+  handleDisableError,
 } from '#/composables/use-plugin-admin-refresh';
 import { $t } from '#/locales';
 import { usePluginInstallProgressStore } from '#/store';
@@ -597,7 +596,10 @@ async function onDeleteBackup(backupName: string) {
 
 defineExpose({ open });
 
-function getPluginMetadataIcon(pluginName: string, icon: null | string | undefined) {
+function getPluginMetadataIcon(
+  pluginName: string,
+  icon: null | string | undefined,
+) {
   return resolvePluginMetadataIcon(pluginName, icon, {
     endpoint: 'admin',
   });
@@ -619,7 +621,9 @@ function getPluginMetadataIcon(pluginName: string, icon: null | string | undefin
           :class="plugin.status === 'enabled' ? 'bg-primary/10' : 'bg-muted/30'"
         >
           <img
-            v-if="getPluginMetadataIcon(plugin.name, plugin.icon).kind === 'image'"
+            v-if="
+              getPluginMetadataIcon(plugin.name, plugin.icon).kind === 'image'
+            "
             :src="getPluginMetadataIcon(plugin.name, plugin.icon).src"
             class="size-7 rounded"
             :alt="plugin.display_name"

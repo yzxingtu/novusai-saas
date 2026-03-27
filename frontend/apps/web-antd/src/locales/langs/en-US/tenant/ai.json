@@ -50,7 +50,8 @@
     },
     "accessChannel": {
       "title": "By access channel",
-      "subtitle": "Admin vs end-user entry points (billing facts)",
+      "subtitle": "This page already includes both tenant-admin and end-user calls, then breaks them down by call source",
+      "topChannelLabel": "Top traffic channel",
       "calls": "Calls",
       "tokens": "Tokens",
       "cost": "Cost",
@@ -58,6 +59,30 @@
       "tenant_admin": "Tenant admin",
       "tenant_user": "Tenant user",
       "unknown": "Unlabeled channel"
+    },
+    "metrics": {
+      "successCalls": "Success",
+      "failedCalls": "Failed",
+      "inputTokens": "Input",
+      "outputTokens": "Output",
+      "avgCostPerCall": "Avg / call",
+      "avgTokensPerCall": "Avg tokens / call"
+    },
+    "snapshot": {
+      "title": "Window and distribution snapshot",
+      "days": "days",
+      "rangeDays": "Time span",
+      "coveredModels": "Models covered",
+      "coveredChannels": "Channels covered",
+      "topModel": "Top model",
+      "busiestDay": "Peak day",
+      "customRange": "Custom range",
+      "platformScope": "Platform admin",
+      "tenantScope": "Current tenant",
+      "empty": "No data"
+    },
+    "list": {
+      "empty": "No statistics in the selected range"
     },
     "chart": {
       "dailyTrend": "Daily Usage Trend",
@@ -69,7 +94,13 @@
     "dateRange": "Date Range",
     "thisMonth": "This Month",
     "last7Days": "Last 7 Days",
-    "last30Days": "Last 30 Days"
+    "last30Days": "Last 30 Days",
+    "monitoring": {
+      "topModels": "Top Models",
+      "topAgents": "Top Agents",
+      "topUsers": "Top Users",
+      "topTenants": "Top Tenants"
+    }
   },
   "callLog": {
     "title": "Call Logs",
@@ -545,11 +576,14 @@
     "pageTitle": "Conversations",
     "name": "Conversations",
     "agentName": "Agent",
+    "tenantName": "Tenant",
     "user": "User",
     "status": "Status",
+    "totalCalls": "Total Calls",
     "tokenCount": "Tokens",
     "cost": "Cost",
     "createdAt": "Created At",
+    "lastCallAt": "Last Call At",
     "messageCount": "Messages",
     "messageList": "Message List",
     "tabMessages": "Message flow",
@@ -565,6 +599,14 @@
     "untitled": "Untitled Conversation",
     "viewDetail": "View Detail",
     "detailTitle": "Conversation Detail",
+    "actorType": {
+      "platform_admin": "Platform admin",
+      "tenant_admin": "Tenant admin",
+      "tenant_user": "Tenant user",
+      "admin": "Admin",
+      "user": "User",
+      "unknown": "Unknown actor"
+    },
     "placeholder": {
       "searchTitle": "Search conversation title",
       "allStatuses": "All Statuses"

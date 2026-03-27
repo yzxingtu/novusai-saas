@@ -5,21 +5,25 @@
  * 使用真实 useVbenVxeGrid + CrudGrid 渲染，与生成后的 CRUD 页面效果一致
  */
 
+import type { FieldRecord } from './preview-builders';
+
 import type { VbenFormSchema } from '#/adapter/form';
 
 import { computed, nextTick, ref, watch } from 'vue';
-import { Empty, Input, Select, Tag, Tooltip } from 'ant-design-vue';
+
 import { IconifyIcon } from '@vben/icons';
-import { $t } from '#/locales';
-import { useCodegenBuilderStore } from '#/store';
+
+import { Empty, Input, Select, Tag, Tooltip } from 'ant-design-vue';
+
+import { searchDateRange, searchInput } from '#/adapter/form';
 import { useGridSearchFormOptions, useVbenVxeGrid } from '#/adapter/vxe-table';
 import CrudGrid from '#/core/adapter/vxe-table/components/crud-grid.vue';
-import { searchDateRange, searchInput } from '#/adapter/form';
+import { $t } from '#/locales';
+import { useCodegenBuilderStore } from '#/store';
 
 import { getComponent, getFieldLabel, shouldHideInList } from './field-utils';
 import { buildGridColumns, buildMockRows } from './preview-builders';
 import { useConfigFeatures } from './useConfigFeatures';
-import type { FieldRecord } from './preview-builders';
 
 defineOptions({ name: 'WysiwygListView' });
 
@@ -41,10 +45,10 @@ type WysiwygQuickSearchConfig = {
 };
 
 type WysiwygQuickSearchOption = {
-  sourceField: string;
   fieldName: string;
   label: string;
   placeholder?: string;
+  sourceField: string;
 };
 
 type WysiwygQuickSearchResolvedOption = WysiwygQuickSearchOption & {
@@ -157,7 +161,7 @@ function buildSearchSchema(fields: FieldRecord[]): VbenFormSchema[] {
       );
     } else if (Array.isArray(f.enum_values) && f.enum_values.length > 0) {
       const opts = (
-        f.enum_values as Array<{ value: unknown; label_zh?: string }>
+        f.enum_values as Array<{ label_zh?: string; value: unknown }>
       ).map((e) => ({
         label: e.label_zh ?? String(e.value),
         value: e.value,
@@ -200,7 +204,8 @@ function buildQuickSearchOptions(
   fields: FieldRecord[],
   schema: VbenFormSchema[],
 ) {
-  return fields.reduce<WysiwygQuickSearchOption[]>((options, field, index) => {
+  const options: WysiwygQuickSearchOption[] = [];
+  for (const [index, field] of fields.entries()) {
     const schemaField = schema[index];
     if (
       !schemaField ||
@@ -208,7 +213,7 @@ function buildQuickSearchOptions(
       typeof schemaField.fieldName !== 'string' ||
       typeof schemaField.label !== 'string'
     ) {
-      return options;
+      continue;
     }
 
     const componentProps = isPlainObject(schemaField.componentProps)
@@ -225,9 +230,8 @@ function buildQuickSearchOptions(
           }
         : {}),
     });
-
-    return options;
-  }, []);
+  }
+  return options;
 }
 
 function isEmptyQuickSearchValue(value: unknown) {
@@ -242,7 +246,7 @@ const quickSearchConfig = computed(() => features.quickSearch.value);
 const quickSearchOptions = computed(() =>
   buildQuickSearchOptions(searchFields.value, searchSchema.value),
 );
-function resolveQuickSearchConfig(): WysiwygQuickSearchConfig | undefined {
+function resolveQuickSearchConfig(): undefined | WysiwygQuickSearchConfig {
   if (!isPlainObject(quickSearchConfig.value)) {
     return undefined;
   }
@@ -250,12 +254,15 @@ function resolveQuickSearchConfig(): WysiwygQuickSearchConfig | undefined {
   const { fields } = quickSearchConfig.value;
 
   return {
-    default_field:
-      typeof quickSearchConfig.value.default_field === 'string'
-        ? quickSearchConfig.value.default_field
-        : typeof quickSearchConfig.value.defaultField === 'string'
-          ? quickSearchConfig.value.defaultField
-          : undefined,
+    default_field: (() => {
+      if (typeof quickSearchConfig.value.default_field === 'string') {
+        return quickSearchConfig.value.default_field;
+      }
+      if (typeof quickSearchConfig.value.defaultField === 'string') {
+        return quickSearchConfig.value.defaultField;
+      }
+      return undefined;
+    })(),
     fields: Array.isArray(fields)
       ? fields.flatMap<WysiwygQuickSearchFieldOverride>((field) => {
           if (typeof field === 'string') {
@@ -434,9 +441,9 @@ watch(
 function getEnumLabel(f: FieldRecord, value: unknown): string {
   const ev =
     (f.enum_values as Array<{
-      value: unknown;
-      label_zh?: string;
       label_en?: string;
+      label_zh?: string;
+      value: unknown;
     }>) || [];
   const item = ev.find((e) => String(e.value) === String(value));
   return (item?.label_zh || item?.label_en || String(value ?? '—')) as string;
@@ -444,10 +451,10 @@ function getEnumLabel(f: FieldRecord, value: unknown): string {
 
 /** 从文件路径提取文件名 */
 function getFileName(val: unknown): string {
-  if (val == null || val === '') return '—';
+  if (val === null || val === undefined || val === '') return '—';
   const s = String(val);
   const idx = s.lastIndexOf('/');
-  return idx >= 0 ? s.slice(idx + 1) : s;
+  return idx === -1 ? s : s.slice(idx + 1);
 }
 
 async function applyQuickSearchValue(
@@ -483,9 +490,9 @@ function onQuickSearchChange(keyword: string) {
   void applyQuickSearchValue(keyword);
 }
 
-const previewQuickSearch = computed<WysiwygQuickSearchPayload | undefined>(
+const previewQuickSearch = computed<undefined | WysiwygQuickSearchPayload>(
   () => {
-    if (!enabledQuickSearchOptions.value.length) {
+    if (enabledQuickSearchOptions.value.length === 0) {
       return undefined;
     }
 
@@ -749,7 +756,7 @@ const cardQuickSearchPlaceholder = computed(() => {
         >
           <template
             v-for="f in columnsWithComment"
-            :key="'header-' + String(f.name)"
+            :key="`header-${String(f.name)}`"
             #[`header_comment_${f.name}`]
           >
             <Tooltip :title="f.comment">

@@ -1,3 +1,4 @@
+import type { Preferences } from '@vben/preferences';
 /**
  * User preference store / 用户偏好 Store
  *
@@ -8,11 +9,12 @@
  */
 import type { DeepPartial } from '@vben/types';
 
-import type { Preferences } from '@vben/preferences';
-
 import type { PreferencesData } from '#/api/shared/types';
 
-import { preferences as vbenPreferences, updatePreferences } from '@vben/preferences';
+import {
+  updatePreferences,
+  preferences as vbenPreferences,
+} from '@vben/preferences';
 
 import { defineStore } from 'pinia';
 
@@ -52,7 +54,7 @@ interface UserPreferenceState {
  * 全局专属 key（水印等），不参与个人偏好同步
  * Global-only keys (watermark, etc.), excluded from personal preference sync
  */
-const GLOBAL_ONLY_KEYS = new Set(['watermark_enable', 'watermark_content']);
+const GLOBAL_ONLY_KEYS = new Set(['watermark_content', 'watermark_enable']);
 
 /**
  * 后端 flat key -> Vben 嵌套路径映射表
@@ -140,10 +142,8 @@ const FLAT_TO_VBEN_MAP: Record<string, [string, string]> = {
  */
 const VBEN_TO_FLAT_MAP: Record<string, Record<string, string>> = {};
 for (const [flatKey, [group, subKey]] of Object.entries(FLAT_TO_VBEN_MAP)) {
-  if (!VBEN_TO_FLAT_MAP[group]) {
-    VBEN_TO_FLAT_MAP[group] = {};
-  }
-  VBEN_TO_FLAT_MAP[group]![subKey] = flatKey;
+  const groupMap = (VBEN_TO_FLAT_MAP[group] ??= {});
+  groupMap[subKey] = flatKey;
 }
 
 /**
@@ -159,10 +159,8 @@ export function mapToVbenPreferences(
     const path = FLAT_TO_VBEN_MAP[flatKey];
     if (!path) continue;
     const [group, subKey] = path;
-    if (!mapped[group]) {
-      mapped[group] = {};
-    }
-    mapped[group]![subKey] = value;
+    const groupMap = (mapped[group] ??= {});
+    groupMap[subKey] = value;
   }
 
   return mapped as DeepPartial<Preferences>;
@@ -227,7 +225,7 @@ export const useUserPreferenceStore = defineStore('userPreference', {
      * 登录后加载偏好并同步到框架
      * Load preferences after login and sync to framework
      */
-    async loadPreferences(side: EndpointSide): Promise<PreferencesData | null> {
+    async loadPreferences(side: EndpointSide): Promise<null | PreferencesData> {
       if (this.loading) return this.preferences;
 
       this.loading = true;
@@ -260,7 +258,7 @@ export const useUserPreferenceStore = defineStore('userPreference', {
      */
     async loadGlobalPreferences(
       side: EndpointSide,
-    ): Promise<PreferencesData | null> {
+    ): Promise<null | PreferencesData> {
       try {
         const getGlobalApi =
           side === 'admin'
@@ -291,7 +289,7 @@ export const useUserPreferenceStore = defineStore('userPreference', {
     async updateGlobalPreferences(
       side: EndpointSide,
       data: PreferencesData,
-    ): Promise<PreferencesData | null> {
+    ): Promise<null | PreferencesData> {
       try {
         const updateGlobalApi =
           side === 'admin'
@@ -322,7 +320,7 @@ export const useUserPreferenceStore = defineStore('userPreference', {
      */
     async updateMyPreferences(
       data: PreferencesData,
-    ): Promise<PreferencesData | null> {
+    ): Promise<null | PreferencesData> {
       const side = this.side;
       if (!side) return null;
 
@@ -336,10 +334,7 @@ export const useUserPreferenceStore = defineStore('userPreference', {
         this.preferences = prefs;
         return prefs;
       } catch (error) {
-        console.error(
-          '[UserPreference] Failed to update preferences:',
-          error,
-        );
+        console.error('[UserPreference] Failed to update preferences:', error);
         return null;
       }
     },
@@ -348,7 +343,7 @@ export const useUserPreferenceStore = defineStore('userPreference', {
      * 重置个人偏好（恢复全局默认）
      * Reset individual preferences (restore to global defaults)
      */
-    async resetMyPreferences(): Promise<PreferencesData | null> {
+    async resetMyPreferences(): Promise<null | PreferencesData> {
       const side = this.side;
       if (!side) return null;
 
@@ -363,10 +358,7 @@ export const useUserPreferenceStore = defineStore('userPreference', {
         this._applyToVben(prefs);
         return prefs;
       } catch (error) {
-        console.error(
-          '[UserPreference] Failed to reset preferences:',
-          error,
-        );
+        console.error('[UserPreference] Failed to reset preferences:', error);
         return null;
       }
     },

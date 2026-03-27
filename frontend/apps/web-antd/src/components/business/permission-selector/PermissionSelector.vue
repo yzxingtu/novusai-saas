@@ -91,8 +91,7 @@ const descendantKeyMap = computed(() => {
   function collect(node: PermissionNode): number[] {
     const descendants: number[] = [];
     for (const child of node.children || []) {
-      descendants.push(child.id);
-      descendants.push(...collect(child));
+      descendants.push(child.id, ...collect(child));
     }
     map.set(node.id, descendants);
     return descendants;
@@ -152,14 +151,10 @@ watch(
 watch(
   () => [props.defaultExpandedLevel, props.permissions],
   () => {
-    if (props.permissions.length > 0 && props.defaultExpandedLevel > 0) {
-      expandedKeys.value = getExpandedKeys(
-        props.permissions,
-        props.defaultExpandedLevel,
-      );
-    } else {
-      expandedKeys.value = [];
-    }
+    expandedKeys.value =
+      props.permissions.length > 0 && props.defaultExpandedLevel > 0
+        ? getExpandedKeys(props.permissions, props.defaultExpandedLevel)
+        : [];
   },
   { immediate: true },
 );
@@ -177,7 +172,7 @@ function getBranchKeys(targetKey: Key): Key[] {
     current = parentKeyMap.value.get(current) ?? null;
   }
 
-  return branch.reverse();
+  return branch.toReversed();
 }
 
 /**

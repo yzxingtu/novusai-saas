@@ -330,7 +330,57 @@
       "totalTokens": "总 Token 数",
       "totalCost": "总费用",
       "successRate": "成功率"
-    }
+    },
+    "chart": {
+      "dailyTrend": "每日用量趋势",
+      "modelDistribution": "模型用量分布"
+    },
+    "accessChannel": {
+      "title": "访问渠道",
+      "subtitle": "本页统计已包含平台、企业管理员与企业用户端调用，并按调用来源拆分展示",
+      "topChannelLabel": "当前占比最高渠道",
+      "calls": "调用次数",
+      "tokens": "Tokens",
+      "cost": "费用",
+      "admin_internal": "平台 / 内部",
+      "tenant_admin": "企业管理员",
+      "tenant_user": "企业终端用户",
+      "unknown": "未标注渠道"
+    },
+    "metrics": {
+      "successCalls": "成功",
+      "failedCalls": "失败",
+      "inputTokens": "输入",
+      "outputTokens": "输出",
+      "avgCostPerCall": "单次均值",
+      "avgTokensPerCall": "单次均值 Tokens"
+    },
+    "snapshot": {
+      "title": "观察窗口与分布快照",
+      "days": "天",
+      "rangeDays": "统计跨度",
+      "coveredModels": "覆盖模型",
+      "coveredChannels": "覆盖渠道",
+      "topModel": "主力模型",
+      "busiestDay": "峰值日期",
+      "customRange": "自定义范围",
+      "platformScope": "平台管理端",
+      "tenantScope": "当前企业",
+      "empty": "暂无数据"
+    },
+    "list": {
+      "empty": "当前时间范围暂无统计数据"
+    },
+    "monitoring": {
+      "topModels": "热门模型",
+      "topAgents": "热门智能体",
+      "topUsers": "高频调用人",
+      "topTenants": "高频企业"
+    },
+    "dateRange": "日期范围",
+    "thisMonth": "本月",
+    "last7Days": "近7天",
+    "last30Days": "近30天"
   },
   "quota": {
     "name": "配额",
@@ -559,7 +609,7 @@
     "executionMode": "执行模式",
     "modelName": "关联模型",
     "tenantId": "企业",
-    "version": "版本",
+    "versionLabel": "版本",
     "systemPrompt": "系统提示词",
     "temperature": "温度",
     "maxTokens": "单次回复最大输出 Token（仅输出）",
@@ -773,9 +823,11 @@
     "tenantName": "企业",
     "user": "用户",
     "status": "状态",
+    "totalCalls": "总调用数",
     "tokenCount": "Token 数量",
     "cost": "费用",
     "createdAt": "创建时间",
+    "lastCallAt": "调用时间",
     "viewDetail": "查看详情",
     "messageList": "消息记录",
     "tabMessages": "消息流程",
@@ -790,6 +842,15 @@
     "callLogLatency": "耗时",
     "messageCount": "消息数量",
     "conversationTitle": "对话标题",
+    "detailTitle": "对话详情",
+    "actorType": {
+      "platform_admin": "平台管理员",
+      "tenant_admin": "企业管理员",
+      "tenant_user": "企业用户",
+      "admin": "管理员",
+      "user": "用户",
+      "unknown": "未标注身份"
+    },
     "status_options": {
       "active": "进行中",
       "archived": "已归档",

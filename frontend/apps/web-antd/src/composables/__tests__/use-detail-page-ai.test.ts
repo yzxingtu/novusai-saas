@@ -8,6 +8,8 @@ import {
   listPageOperations,
 } from '#/components/business/ai-slide-panel/page-operation-registry';
 
+import { useDetailPageAi } from '../use-detail-page-ai';
+
 const { pushMock } = vi.hoisted(() => ({
   pushMock: vi.fn(),
 }));
@@ -30,8 +32,6 @@ vi.mock('#/locales', () => ({
   $t: (key: string, params?: Record<string, unknown>) =>
     params ? `${key}:${JSON.stringify(params)}` : key,
 }));
-
-import { useDetailPageAi } from '../use-detail-page-ai';
 
 describe('useDetailPageAi', () => {
   afterEach(() => {
@@ -56,6 +56,7 @@ describe('useDetailPageAi', () => {
     expect(names).toEqual([
       'read_current_view',
       'read_current_sections',
+      'capture_screenshot',
       'refresh_detail',
       'navigate_back',
     ]);
@@ -104,10 +105,11 @@ describe('useDetailPageAi', () => {
     expect(ops.map((op) => op.name)).toEqual([
       'read_current_view',
       'read_current_sections',
+      'capture_screenshot',
       'refresh_detail',
       'publish_detail',
     ]);
-    expect(ops[2]?.label).toBe('Custom Refresh');
+    expect(ops[3]?.label).toBe('Custom Refresh');
 
     scope.stop();
   });

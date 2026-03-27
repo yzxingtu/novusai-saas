@@ -1,9 +1,9 @@
+import type { Router, RouteRecordRaw } from 'vue-router';
+
 import type {
   ComponentRecordType,
   GenerateMenuAndRoutesOptions,
 } from '@vben/types';
-
-import type { RouteRecordRaw, Router } from 'vue-router';
 
 import type { ApiEndpoint } from '#/api';
 
@@ -13,12 +13,7 @@ import { useAccessStore } from '@vben/stores';
 
 import { message } from 'ant-design-vue';
 
-import {
-  adminApi,
-  setExistingComponents,
-  tenantApi,
-  userApi,
-} from '#/api';
+import { adminApi, setExistingComponents, tenantApi, userApi } from '#/api';
 import { BasicLayout, IFrameView, UserLayout } from '#/layouts';
 import { $t } from '#/locales';
 import { adminRoutes } from '#/router/routes/admin';
@@ -32,11 +27,11 @@ const ADMIN_ROOT_PATH = '/admin';
  * Normalize admin child route to absolute path for dedupe / 将管理端子路由规范为绝对路径以便去重
  */
 function adminChildAbsolutePath(childPath: string): string {
-  const p = (childPath || '').replace(/\/+/g, '/');
+  const p = (childPath || '').replaceAll(/\/+/g, '/');
   if (p.startsWith('/')) {
     return p;
   }
-  return `${ADMIN_ROOT_PATH}/${p}`.replace(/\/+/g, '/');
+  return `${ADMIN_ROOT_PATH}/${p}`.replaceAll(/\/+/g, '/');
 }
 
 /**
@@ -127,9 +122,7 @@ async function generateAccess(
       // Merge with codes already set by fetchUserInfo (e.g. super admin `*`) / 与 fetchUserInfo 已写入的权限合并（如超管 `*`），避免被菜单提取列表覆盖丢失
       const prev = accessStore.accessCodes;
       const merged =
-        prev.length > 0
-          ? [...new Set([...prev, ...permissions])]
-          : permissions;
+        prev.length > 0 ? [...new Set([...permissions, ...prev])] : permissions;
       accessStore.setAccessCodes(merged);
       return menus;
     },

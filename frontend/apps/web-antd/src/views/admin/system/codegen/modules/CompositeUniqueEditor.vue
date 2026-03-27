@@ -32,7 +32,7 @@ const fieldOptions = computed(() =>
 
 const constraints = computed(() => {
   const model = (store.configJson.model as Record<string, unknown>) || {};
-  const ut = model.unique_together as UniqueConstraintItem[] | undefined;
+  const ut = model.unique_together as undefined | UniqueConstraintItem[];
   return ut && Array.isArray(ut) ? [...ut] : [];
 });
 
@@ -50,14 +50,18 @@ function addConstraint() {
 
 function removeConstraint(idx: number) {
   const model = (store.configJson.model as Record<string, unknown>) || {};
-  const ut = [...((model.unique_together as Array<Record<string, unknown>>) || [])];
+  const ut = [
+    ...((model.unique_together as Array<Record<string, unknown>>) || []),
+  ];
   ut.splice(idx, 1);
   store.updateConfig({ model: { ...model, unique_together: ut } });
 }
 
 function updateConstraint(idx: number, patch: Partial<UniqueConstraintItem>) {
   const model = (store.configJson.model as Record<string, unknown>) || {};
-  const ut = [...((model.unique_together as Array<Record<string, unknown>>) || [])];
+  const ut = [
+    ...((model.unique_together as Array<Record<string, unknown>>) || []),
+  ];
   if (idx < 0 || idx >= ut.length) return;
   const next = { ...ut[idx], ...patch };
   const fields = (next.fields as string[]) || [];
@@ -91,12 +95,7 @@ function onConstraintFieldsChange(idx: number, value: unknown) {
         class="flex-1"
         @change="(value) => onConstraintFieldsChange(idx, value)"
       />
-      <Button
-        type="text"
-        danger
-        size="small"
-        @click="removeConstraint(idx)"
-      >
+      <Button type="text" danger size="small" @click="removeConstraint(idx)">
         {{ $t('common.delete') }}
       </Button>
     </div>

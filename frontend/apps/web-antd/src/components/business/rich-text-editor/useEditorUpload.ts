@@ -4,16 +4,16 @@
 
 import type { Editor } from '@tiptap/core';
 
-import { message } from 'ant-design-vue';
+import type { AttachmentInfo } from './types';
 
 import { $t } from '@vben/locales';
+
+import { message } from 'ant-design-vue';
 
 import { smartUploadFile as adminSmartUploadFile } from '#/api/admin/attachment';
 import { smartUploadFile as tenantSmartUploadFile } from '#/api/tenant/attachment';
 import { smartUploadFile as userSmartUploadFile } from '#/api/user/attachment';
 import { toAttachmentImageUrl } from '#/utils/image';
-
-import type { AttachmentInfo } from './types';
 
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10 MB
 const MAX_ATTACHMENT_SIZE = 50 * 1024 * 1024; // 50 MB
@@ -65,10 +65,10 @@ async function smartUpload(file: File): Promise<UploadResponseLike> {
 
 export interface UploadResult {
   url: string;
-  id: string | number;
+  id: number | string;
 }
 
-export async function uploadImage(file: File): Promise<UploadResult | null> {
+export async function uploadImage(file: File): Promise<null | UploadResult> {
   if (!file.type.startsWith('image/')) return null;
   if (file.size > MAX_IMAGE_SIZE) {
     message.error($t('common.uploadValidation.fileTooLarge', { max: 10 }));
@@ -112,7 +112,7 @@ export async function uploadAttachment(
     return {
       id: attachment.id,
       name: attachment.original_name || file.name,
-      size: attachment.size || file.size,
+      size: attachment.size ?? file.size,
       mime_type: attachment.mime_type || file.type,
       url: data.url,
     };
@@ -208,7 +208,7 @@ export function triggerImageUpload(editor: Editor) {
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/*';
-  input.onchange = () => {
+  input.addEventListener('change', () => {
     const file = input.files?.[0];
     if (!file) return;
     uploadImage(file).then((result) => {
@@ -216,14 +216,14 @@ export function triggerImageUpload(editor: Editor) {
         editor.chain().focus().setImage({ src: result.url }).run();
       }
     });
-  };
+  });
   input.click();
 }
 
 export function triggerAttachmentUpload(editor: Editor) {
   const input = document.createElement('input');
   input.type = 'file';
-  input.onchange = () => {
+  input.addEventListener('change', () => {
     const file = input.files?.[0];
     if (!file) return;
     uploadAttachment(file).then((info) => {
@@ -244,7 +244,7 @@ export function triggerAttachmentUpload(editor: Editor) {
           .run();
       }
     });
-  };
+  });
   input.click();
 }
 

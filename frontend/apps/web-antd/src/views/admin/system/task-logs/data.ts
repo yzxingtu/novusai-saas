@@ -69,7 +69,9 @@ export function getResultSummary(
   return { text: JSON.stringify(result), type: 'info' };
 }
 
-export function getTriggerSourceText(source: null | string | undefined): string {
+export function getTriggerSourceText(
+  source: null | string | undefined,
+): string {
   if (!source) return '-';
   return $t(`admin.system.taskLog.triggerSourceValues.${source}`, source);
 }

@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { getErrorMessage, showRequestError } from '../error-helpers';
+
 const { messageErrorMock } = vi.hoisted(() => ({
   messageErrorMock: vi.fn(),
 }));
@@ -13,8 +15,6 @@ vi.mock('ant-design-vue', () => ({
 vi.mock('#/locales', () => ({
   $t: (key: string) => key,
 }));
-
-import { getErrorMessage, showRequestError } from '../error-helpers';
 
 describe('error-helpers', () => {
   afterEach(() => {

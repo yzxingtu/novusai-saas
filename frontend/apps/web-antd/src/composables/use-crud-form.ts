@@ -29,6 +29,7 @@ import { useVbenDrawer } from '@vben/common-ui';
 
 import { $t } from '#/locales';
 import { requestClient } from '#/utils/request';
+
 import { extractFormParams } from './use-ai-operations';
 import { formStateTracker } from './use-form-state-tracker';
 
@@ -358,7 +359,8 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
           // Form may not be fully ready / 表单可能尚未就绪
         }
         const trackableApi = {
-          getValues: () => formApi.getValues() as Promise<Record<string, unknown>>,
+          getValues: () =>
+            formApi.getValues() as Promise<Record<string, unknown>>,
           setValues: (v: Record<string, unknown>) => formApi.setValues(v),
           validate: () => formApi.validate() as Promise<{ valid: boolean }>,
           submitForm: doSubmit,

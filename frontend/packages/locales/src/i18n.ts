@@ -87,15 +87,19 @@ function loadLocalesMapFromDir(
     const keys = path.split('/');
     let current = obj;
     for (let i = 0; i < keys.length - 1; i++) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion / 路径分段非空 / path segment
-      const key = keys[i]!;
+      const key = keys[i];
+      if (!key) {
+        continue;
+      }
       if (!current[key]) {
         current[key] = {};
       }
       current = current[key];
     }
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const lastKey = keys[keys.length - 1]!;
+    const lastKey = keys[keys.length - 1];
+    if (!lastKey) {
+      return;
+    }
     // Merge if both are objects, otherwise assign
     if (
       current[lastKey] &&

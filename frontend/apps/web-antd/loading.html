@@ -56,37 +56,47 @@
   }
 
   @keyframes fade-pulse {
-    0%, 100% { opacity: 1; }
-    50%      { opacity: 0.4; }
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.4;
+    }
   }
 
   .loading-icon {
     animation: fade-pulse 2.5s ease-in-out infinite;
   }
-
 </style>
 
 <div id="__app-loading__">
   <div class="loading-icon">
     <svg viewBox="0 0 100 50">
       <defs>
-        <linearGradient id="novus-grad" gradientUnits="userSpaceOnUse"
-          x1="12" y1="25" x2="88" y2="25">
-          <stop offset="0%"   stop-color="#FF6B35" />
-          <stop offset="33%"  stop-color="#FF2D87" />
-          <stop offset="66%"  stop-color="#9333EA" />
+        <linearGradient
+          id="novus-grad"
+          gradientUnits="userSpaceOnUse"
+          x1="12"
+          y1="25"
+          x2="88"
+          y2="25"
+        >
+          <stop offset="0%" stop-color="#FF6B35" />
+          <stop offset="33%" stop-color="#FF2D87" />
+          <stop offset="66%" stop-color="#9333EA" />
           <stop offset="100%" stop-color="#38BDF8" />
         </linearGradient>
       </defs>
       <!-- Layer 1: Full infinity path (behind) -->
-      <path class="inf-strand"
-        d="M 27 40 C 45 40 55 10 73 10 A 15 15 0 1 1 73 40 C 55 40 45 10 27 10 A 15 15 0 1 0 27 40 Z" />
+      <path
+        class="inf-strand"
+        d="M 27 40 C 45 40 55 10 73 10 A 15 15 0 1 1 73 40 C 55 40 45 10 27 10 A 15 15 0 1 0 27 40 Z"
+      />
       <!-- Layer 2: Eraser - background-colored stroke to create gap -->
-      <path class="inf-eraser"
-        d="M 35 12 C 46 17 54 33 65 38" />
+      <path class="inf-eraser" d="M 35 12 C 46 17 54 33 65 38" />
       <!-- Layer 3: The "over" diagonal drawn on top -->
-      <path class="inf-strand"
-        d="M 27 10 C 45 10 55 40 73 40" />
+      <path class="inf-strand" d="M 27 10 C 45 10 55 40 73 40" />
     </svg>
   </div>
 </div>

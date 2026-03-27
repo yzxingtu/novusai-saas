@@ -28,8 +28,8 @@ import { $t } from '#/locales';
 defineOptions({ name: 'InputVariablesEditor' });
 
 const props = defineProps<{
-  modelValue: InputVariable[] | null | undefined;
   disabled?: boolean;
+  modelValue: InputVariable[] | null | undefined;
 }>();
 
 const emit = defineEmits<{
@@ -71,13 +71,26 @@ const typeOptions = [
 <template>
   <div class="space-y-2">
     <!-- Header labels (hidden on mobile) -->
-    <div v-if="vars.length > 0" class="hidden grid-cols-[1fr_1fr_90px_56px_1fr_32px] gap-2 px-1 md:grid">
-      <span class="text-xs text-muted-foreground">{{ $t('shared.common.inputVarsEditor.colName') }}</span>
-      <span class="text-xs text-muted-foreground">{{ $t('shared.common.inputVarsEditor.colLabel') }}</span>
-      <span class="text-xs text-muted-foreground">{{ $t('shared.common.inputVarsEditor.colType') }}</span>
-      <span class="text-center text-xs text-muted-foreground">{{ $t('shared.common.inputVarsEditor.colRequired') }}</span>
-      <span class="text-xs text-muted-foreground">{{ $t('shared.common.inputVarsEditor.colDefault') }}</span>
-      <span />
+    <div
+      v-if="vars.length > 0"
+      class="hidden grid-cols-[1fr_1fr_90px_56px_1fr_32px] gap-2 px-1 md:grid"
+    >
+      <span class="text-xs text-muted-foreground">{{
+        $t('shared.common.inputVarsEditor.colName')
+      }}</span>
+      <span class="text-xs text-muted-foreground">{{
+        $t('shared.common.inputVarsEditor.colLabel')
+      }}</span>
+      <span class="text-xs text-muted-foreground">{{
+        $t('shared.common.inputVarsEditor.colType')
+      }}</span>
+      <span class="text-center text-xs text-muted-foreground">{{
+        $t('shared.common.inputVarsEditor.colRequired')
+      }}</span>
+      <span class="text-xs text-muted-foreground">{{
+        $t('shared.common.inputVarsEditor.colDefault')
+      }}</span>
+      <span></span>
     </div>
 
     <!-- Variable rows -->
@@ -88,7 +101,9 @@ const typeOptions = [
     >
       <!-- Variable name (identifier) -->
       <div class="md:hidden">
-        <span class="text-xs text-muted-foreground">{{ $t('shared.common.inputVarsEditor.colName') }}</span>
+        <span class="text-xs text-muted-foreground">{{
+          $t('shared.common.inputVarsEditor.colName')
+        }}</span>
       </div>
       <Input
         :value="v.name"
@@ -115,7 +130,11 @@ const typeOptions = [
         size="small"
         @update:value="updateField(idx, 'type', $event)"
       >
-        <SelectOption v-for="opt in typeOptions" :key="opt.value" :value="opt.value">
+        <SelectOption
+          v-for="opt in typeOptions"
+          :key="opt.value"
+          :value="opt.value"
+        >
           {{ opt.label }}
         </SelectOption>
       </Select>

@@ -110,5 +110,10 @@ export function useExpandable(props: FormRenderProps) {
     return schemaCount > keepFormItemIndex.value + 1;
   });
 
-  return { isCalculated, keepFormItemIndex, shouldShowCollapseButton, wrapperRef };
+  return {
+    isCalculated,
+    keepFormItemIndex,
+    shouldShowCollapseButton,
+    wrapperRef,
+  };
 }

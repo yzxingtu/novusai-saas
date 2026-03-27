@@ -3,7 +3,11 @@ import { computed, onMounted } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 import { LanguageToggle, ThemeToggle } from '@vben/layouts';
-import { preferences, updatePreferences, usePreferences } from '@vben/preferences';
+import {
+  preferences,
+  updatePreferences,
+  usePreferences,
+} from '@vben/preferences';
 
 import { $t } from '#/locales';
 import { usePublicConfigStore } from '#/store';
@@ -48,7 +52,7 @@ const logoSrc = computed(() => {
   >
     <!-- Toolbar -->
     <div
-      class="bg-accent/80 absolute right-4 top-4 z-10 flex items-center gap-1 rounded-full px-2 py-1 backdrop-blur"
+      class="absolute right-4 top-4 z-10 flex items-center gap-1 rounded-full bg-accent/80 px-2 py-1 backdrop-blur"
     >
       <LanguageToggle v-if="preferences.widget.languageToggle" />
       <ThemeToggle v-if="preferences.widget.themeToggle" />
@@ -61,16 +65,34 @@ const logoSrc = computed(() => {
       <!-- Decorative circles with floating animation -->
       <div
         class="animate-float-slow absolute -left-20 -top-20 size-80 rounded-full opacity-20"
-        style="background: radial-gradient(circle, hsl(var(--primary) / 0.6) 0%, transparent 70%)"
-      />
+        style="
+          background: radial-gradient(
+            circle,
+            hsl(var(--primary) / 60%) 0%,
+            transparent 70%
+          );
+        "
+      ></div>
       <div
         class="animate-float-slower absolute -bottom-32 -right-32 size-96 rounded-full opacity-15"
-        style="background: radial-gradient(circle, hsl(var(--primary) / 0.8) 0%, transparent 70%)"
-      />
+        style="
+          background: radial-gradient(
+            circle,
+            hsl(var(--primary) / 80%) 0%,
+            transparent 70%
+          );
+        "
+      ></div>
       <div
         class="animate-float-medium absolute right-10 top-1/4 size-40 rounded-full opacity-10"
-        style="background: radial-gradient(circle, hsl(var(--primary) / 0.4) 0%, transparent 70%)"
-      />
+        style="
+          background: radial-gradient(
+            circle,
+            hsl(var(--primary) / 40%) 0%,
+            transparent 70%
+          );
+        "
+      ></div>
 
       <!-- Logo -->
       <div class="absolute left-8 top-8 flex items-center gap-3">
@@ -118,7 +140,10 @@ const logoSrc = computed(() => {
             <div
               class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/20"
             >
-              <IconifyIcon icon="lucide:sparkles" class="text-lg text-primary" />
+              <IconifyIcon
+                icon="lucide:sparkles"
+                class="text-lg text-primary"
+              />
             </div>
             <div>
               <div class="text-sm font-medium text-white/90">
@@ -133,7 +158,10 @@ const logoSrc = computed(() => {
             <div
               class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/20"
             >
-              <IconifyIcon icon="lucide:shield-alert" class="text-lg text-primary" />
+              <IconifyIcon
+                icon="lucide:shield-alert"
+                class="text-lg text-primary"
+              />
             </div>
             <div>
               <div class="text-sm font-medium text-white/90">
@@ -154,12 +182,12 @@ const logoSrc = computed(() => {
           background: linear-gradient(
             90deg,
             transparent,
-            hsl(var(--primary) / 0.6),
+            hsl(var(--primary) / 60%),
             hsl(var(--primary)),
             transparent
           );
         "
-      />
+      ></div>
     </div>
 
     <!-- Right: Form Panel -->
@@ -169,7 +197,7 @@ const logoSrc = computed(() => {
       <!-- Mobile logo -->
       <div class="mb-8 flex items-center gap-3 lg:hidden">
         <img v-if="logoSrc" :alt="appName" :src="logoSrc" width="36" />
-        <span class="text-foreground text-lg font-medium">{{ appName }}</span>
+        <span class="text-lg font-medium text-foreground">{{ appName }}</span>
       </div>
 
       <div class="w-full max-w-md">
@@ -179,7 +207,7 @@ const logoSrc = computed(() => {
       <!-- Copyright -->
       <div
         v-if="footerBranding.visible"
-        class="text-muted-foreground absolute bottom-4 text-center text-xs"
+        class="absolute bottom-4 text-center text-xs text-muted-foreground"
       >
         {{ footerBranding.companyName }}
         <span v-if="footerBranding.meta">{{ footerBranding.meta }}</span>
@@ -216,23 +244,48 @@ const logoSrc = computed(() => {
 }
 
 .dark .admin-form-panel {
-  background: linear-gradient(180deg, hsl(var(--background-deep)) 0%, hsl(var(--background)) 100%);
+  background: linear-gradient(
+    180deg,
+    hsl(var(--background-deep)) 0%,
+    hsl(var(--background)) 100%
+  );
 }
 
 @keyframes float-slow {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(30px, -40px) scale(1.1); }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate(30px, -40px) scale(1.1);
+  }
 }
 
 @keyframes float-slower {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(-40px, 30px) scale(1.15); }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate(-40px, 30px) scale(1.15);
+  }
 }
 
 @keyframes float-medium {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(20px, -30px) scale(1.08); }
-  66% { transform: translate(-20px, 20px) scale(0.95); }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+
+  33% {
+    transform: translate(20px, -30px) scale(1.08);
+  }
+
+  66% {
+    transform: translate(-20px, 20px) scale(0.95);
+  }
 }
 
 .animate-float-slow {

@@ -200,9 +200,7 @@ export function useGridFormSchema(
   return [
     select('filter[username]', $t('tenant.system.operationLog.username'), {
       api: getOperatorsSelectApi,
-      placeholder: $t(
-        'tenant.system.operationLog.placeholder.searchUsername',
-      ),
+      placeholder: $t('tenant.system.operationLog.placeholder.searchUsername'),
     }),
     {
       component: 'Select',
@@ -212,21 +210,15 @@ export function useGridFormSchema(
         onChange: options?.onUserTypeChange,
         options: [
           {
-            label: $t(
-              'tenant.system.operationLog.userTypeOptions.tenantAdmin',
-            ),
+            label: $t('tenant.system.operationLog.userTypeOptions.tenantAdmin'),
             value: 'tenant_admin',
           },
           {
-            label: $t(
-              'tenant.system.operationLog.userTypeOptions.tenantUser',
-            ),
+            label: $t('tenant.system.operationLog.userTypeOptions.tenantUser'),
             value: 'tenant_user',
           },
         ],
-        placeholder: $t(
-          'tenant.system.operationLog.placeholder.allUserTypes',
-        ),
+        placeholder: $t('tenant.system.operationLog.placeholder.allUserTypes'),
       },
       fieldName: 'filter[user_type]',
       label: $t('tenant.system.operationLog.userType'),

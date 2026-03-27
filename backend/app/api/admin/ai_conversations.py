@@ -5,8 +5,10 @@
 Provides cross-tenant conversation list and read-only details for auditing and monitoring.
 """
 
+from decimal import Decimal
+
 from fastapi import Query, Request
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.configs.service import PLATFORM_TENANT_ID
@@ -14,6 +16,7 @@ from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.response import paginated, success
+from app.models.ai import AICallLog
 from app.enums.rbac import PermissionScope
 from app.models.system.admin import Admin
 from app.models.tenant.tenant import Tenant
@@ -23,16 +26,50 @@ from app.rbac.decorators import (
     action_read,
     permission_resource,
 )
+from app.services.ai.monitoring_service import MonitoringService
 from app.repositories.ai.agent_conversation_repository import (
     AdminAgentConversationRepository,
 )
 from app.services.ai.conversation_service import ConversationService
 
 
+def _safe_int(value) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _safe_float(value) -> float:
+    if isinstance(value, Decimal):
+        return float(value)
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _resolve_conversation_usage(conv, usage: dict | None = None) -> tuple[int, float]:
+    """
+    Prefer the richer of conversation counters and call-log aggregates.
+    优先使用对话统计与调用日志聚合中更可靠的一方。
+    """
+    conversation_tokens = _safe_int(getattr(conv, "token_count", 0))
+    conversation_cost = _safe_float(getattr(conv, "cost", 0))
+    if not usage:
+        return conversation_tokens, conversation_cost
+
+    return (
+        max(conversation_tokens, _safe_int(usage.get("total_tokens"))),
+        max(conversation_cost, _safe_float(usage.get("total_cost"))),
+    )
+
+
 def _build_admin_conversation_item(
     conv,
     tenant_map: dict[int, dict] | None = None,
     user_map: dict[str, dict] | None = None,
+    usage_map: dict[int, dict] | None = None,
 ) -> dict:
     """从 ORM 对象构建管理端列表项字典 / Build admin list item dict from ORM object"""
     agent_name = None
@@ -56,6 +93,11 @@ def _build_admin_conversation_item(
         key = f"{conv.tenant_id}:{conv.user_id}"
         user_info = user_map.get(key)
 
+    token_count, cost = _resolve_conversation_usage(
+        conv,
+        usage_map.get(conv.id) if usage_map else None,
+    )
+
     return {
         "id": conv.id,
         "tenant_id": conv.tenant_id,
@@ -63,8 +105,8 @@ def _build_admin_conversation_item(
         "user_id": conv.user_id,
         "title": conv.title,
         "status": conv.status,
-        "token_count": conv.token_count,
-        "cost": float(conv.cost) if conv.cost else 0,
+        "token_count": token_count,
+        "cost": cost,
         "agent_name": agent_name,
         "agent_avatar": agent_avatar,
         "tenant_name": tenant_info["name"] if tenant_info else None,
@@ -143,6 +185,36 @@ async def _batch_load_users(
     return user_map
 
 
+async def _batch_load_conversation_usage(
+    db: AsyncSession, conversation_ids: set[int],
+) -> dict[int, dict]:
+    """Batch load aggregated call-log usage by conversation / 批量加载按对话聚合的调用用量。"""
+    if not conversation_ids:
+        return {}
+
+    stmt = (
+        select(
+            AICallLog.conversation_id,
+            func.coalesce(func.sum(AICallLog.total_tokens), 0).label("total_tokens"),
+            func.coalesce(func.sum(AICallLog.cost), 0).label("total_cost"),
+        )
+        .where(
+            AICallLog.conversation_id.in_(conversation_ids),
+            AICallLog.is_deleted.is_(False),
+        )
+        .group_by(AICallLog.conversation_id)
+    )
+    result = await db.execute(stmt)
+    return {
+        row.conversation_id: {
+            "total_tokens": _safe_int(row.total_tokens),
+            "total_cost": _safe_float(row.total_cost),
+        }
+        for row in result.all()
+        if row.conversation_id is not None
+    }
+
+
 async def _load_single_user_info(
     db: AsyncSession, tenant_id: int, user_id: int | None,
 ) -> dict | None:
@@ -212,23 +284,12 @@ class AdminAIConversationController(GlobalController):
             支持 tenant_id 筛选和 JSON:API 分页排序 / Supports tenant_id filtering and JSON:API pagination/sorting
             权限 / Permission: ai_conversation:list
             """
-            if tenant_id is not None:
-                service = ConversationService(db, tenant_id)
-                items, total = await service.query_list(spec=query)
-            else:
-                # 全企业查询：使用 BaseRepository（无 tenant 过滤） / Cross-tenant query: use BaseRepository (no tenant filter)
-                repo = AdminAgentConversationRepository(db)
-                items, total = await repo.query_list(query)
-
-            # 批量加载关联信息 / Batch load associated info
-            tenant_ids = {c.tenant_id for c in items if c.tenant_id is not None}
-            tenant_map = await _batch_load_tenants(db, tenant_ids)
-            user_map = await _batch_load_users(db, items)
-
-            result = [
-                _build_admin_conversation_item(item, tenant_map, user_map)
-                for item in items
-            ]
+            _admin = admin
+            monitoring = MonitoringService(db)
+            result, total = await monitoring.list_conversations(
+                monitoring.admin_scope(),
+                query,
+            )
 
             return paginated(
                 items=result,
@@ -254,38 +315,14 @@ class AdminAIConversationController(GlobalController):
             First find conversation from global Repo to get tenant_id, then get full details via Service
             权限 / Permission: ai_conversation:detail
             """
-            service, conversation = await ConversationService.get_service_for_conversation(
-                db,
-                conversation_id,
-            )
-            detail = await service.get_conversation_detail(
+            _admin = admin
+            monitoring = MonitoringService(db)
+            detail = await monitoring.get_conversation_detail(
+                monitoring.admin_scope(),
                 conversation_id=conversation_id,
                 message_skip=message_skip,
                 message_limit=message_limit,
             )
-
-            # 补充 agent avatar / Supplement agent avatar
-            agent_obj = getattr(conversation, "agent", None)
-            if agent_obj is not None:
-                detail["agent_avatar"] = agent_obj.avatar
-            else:
-                detail["agent_avatar"] = None
-
-            # 补充企业信息 / Supplement tenant info
-            if conversation.tenant_id is not None:
-                t_map = await _batch_load_tenants(
-                    db, {conversation.tenant_id},
-                )
-                t_info = t_map.get(conversation.tenant_id)
-                detail["tenant_name"] = t_info["name"] if t_info else None
-            else:
-                detail["tenant_name"] = None
-
-            # 补充用户信息 / Supplement user info
-            detail["user_info"] = await _load_single_user_info(
-                db, conversation.tenant_id, conversation.user_id,
-            )
-
             return success(data=detail)
 
 

@@ -424,11 +424,12 @@ function transformPlatformConfig(
         }
       : undefined,
     runtimeLimits:
-      raw.runtime_limits?.page_context_max_bytes != null
-        ? {
+      raw.runtime_limits?.page_context_max_bytes === null ||
+      raw.runtime_limits?.page_context_max_bytes === undefined
+        ? undefined
+        : {
             pageContextMaxBytes: raw.runtime_limits.page_context_max_bytes,
-          }
-        : undefined,
+          },
     platformDomains: raw.platform_domains ?? [],
   };
 }
@@ -494,11 +495,12 @@ function transformTenantConfig(raw: TenantPublicConfigRaw): TenantPublicConfig {
         }
       : undefined,
     runtimeLimits:
-      raw.runtime_limits?.page_context_max_bytes != null
-        ? {
+      raw.runtime_limits?.page_context_max_bytes === null ||
+      raw.runtime_limits?.page_context_max_bytes === undefined
+        ? undefined
+        : {
             pageContextMaxBytes: raw.runtime_limits.page_context_max_bytes,
-          }
-        : undefined,
+          },
     userLoginCaptchaEnabled: raw.user_login_captcha_enabled,
     userLoginCaptchaEnableThreshold: raw.user_login_captcha_enable_threshold,
     userRegistrationCaptchaEnabled: raw.user_registration_captcha_enabled,
@@ -594,12 +596,12 @@ export async function getTenantLegalDocumentApi(
     }
     const html = responseData.data?.html ?? '';
     return { html };
-  } catch (err: unknown) {
-    const status = (err as { response?: { status?: number } })?.response
+  } catch (error: unknown) {
+    const status = (error as { response?: { status?: number } })?.response
       ?.status;
     if (status === 404) {
       return null;
     }
-    throw err;
+    throw error;
   }
 }

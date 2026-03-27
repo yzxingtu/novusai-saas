@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { RecycleBinModuleAdapter, RecycleBinPageApi } from './types';
+
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickParams } from '#/adapter/vxe-table';
 import type {
@@ -24,20 +26,26 @@ import {
   Tooltip,
 } from 'ant-design-vue';
 
-import {
-  useGridSearchFormOptions,
-  useVbenVxeGrid,
-} from '#/adapter/vxe-table';
-import CrudGrid from '#/core/adapter/vxe-table/components/crud-grid.vue';
+import { useGridSearchFormOptions, useVbenVxeGrid } from '#/adapter/vxe-table';
 import { useExportModal } from '#/core/adapter/vxe-table/components';
+import CrudGrid from '#/core/adapter/vxe-table/components/crud-grid.vue';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 import { formatFileSize } from '#/utils/file';
 
-import { buildDynamicFilterSchema, buildRecycleColumns, buildSortOptions } from './data';
-import type { RecycleBinPageApi, RecycleBinModuleAdapter } from './types';
+import {
+  buildDynamicFilterSchema,
+  buildRecycleColumns,
+  buildSortOptions,
+} from './data';
 
 defineOptions({ name: 'SharedRecycleBinPage' });
+
+const props = withDefaults(defineProps<Props>(), {
+  moduleAdapters: () => ({}),
+  showCleanup: false,
+  tenantFieldSchema: null,
+});
 
 interface Props {
   api: RecycleBinPageApi;
@@ -46,12 +54,6 @@ interface Props {
   showCleanup?: boolean;
   tenantFieldSchema?: ((fieldName: string) => VbenFormSchema) | null;
 }
-
-const props = withDefaults(defineProps<Props>(), {
-  moduleAdapters: () => ({}),
-  showCleanup: false,
-  tenantFieldSchema: null,
-});
 
 const configFetching = ref(true);
 const summary = ref<RecycleBinModuleSummary[]>([]);
@@ -64,7 +66,9 @@ const totalDeletedCount = computed(() =>
   summary.value.reduce((sum, item) => sum + item.count, 0),
 );
 const hasDeletedItems = computed(() => totalDeletedCount.value > 0);
-const availableModuleCount = computed(() => Object.keys(moduleMeta.value).length);
+const availableModuleCount = computed(
+  () => Object.keys(moduleMeta.value).length,
+);
 const hasModuleConfig = computed(() => availableModuleCount.value > 0);
 const activeModuleMeta = computed(
   () => moduleMeta.value[activeListModule.value] ?? null,
@@ -90,8 +94,9 @@ const moduleOptions = computed(() => {
         count: countByModule.get(moduleCode) ?? 0,
       };
     })
-    .sort(
-      (left, right) => right.count - left.count || left.label.localeCompare(right.label),
+    .toSorted(
+      (left, right) =>
+        right.count - left.count || left.label.localeCompare(right.label),
     );
 });
 
@@ -254,9 +259,7 @@ function handleClearModule() {
     onOk: async () => {
       const result = await props.api.clearModule(moduleCode);
       const count = result?.count ?? 0;
-      message.success(
-        $t(`${props.i18nPrefix}.clearModuleSuccess`, { count }),
-      );
+      message.success($t(`${props.i18nPrefix}.clearModuleSuccess`, { count }));
       await refreshSummaryOnly();
       await patchModuleSelectOptions();
       await syncSubmissionAndReload();
@@ -273,7 +276,8 @@ async function applyModuleChange(moduleCode: string) {
   if (lastSyncedRecycleModule.value === moduleCode) return;
   syncingModule.value = true;
   try {
-    const currentSort = String((await gridApi.formApi?.getValues())?.sort ?? '');
+    const currentValues = await gridApi.formApi?.getValues();
+    const currentSort = String(currentValues?.sort ?? '');
     const nextSort = resolveSortValue(moduleCode, currentSort || undefined);
     await gridApi.formApi?.setState({
       schema: buildFullSchema(moduleCode),
@@ -502,16 +506,26 @@ function hasDateValue(value: unknown) {
     <Spin v-else-if="configFetching" class="block py-24" />
 
     <template v-else>
-      <div class="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_repeat(2,minmax(0,0.8fr))]">
-        <Card class="relative overflow-hidden border-0 bg-gradient-to-br from-primary/15 via-primary/5 to-background shadow-none">
-          <div class="absolute -right-10 top-0 size-28 rounded-full bg-primary/10 blur-3xl"></div>
+      <div
+        class="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_repeat(2,minmax(0,0.8fr))]"
+      >
+        <Card
+          class="relative overflow-hidden border-0 bg-gradient-to-br from-primary/15 via-primary/5 to-background shadow-none"
+        >
+          <div
+            class="absolute -right-10 top-0 size-28 rounded-full bg-primary/10 blur-3xl"
+          ></div>
           <div class="relative flex items-start gap-4">
-            <div class="rounded-3xl bg-background/80 p-3 text-primary shadow-sm">
+            <div
+              class="rounded-3xl bg-background/80 p-3 text-primary shadow-sm"
+            >
               <IconifyIcon icon="lucide:archive" class="size-6" />
             </div>
             <div class="min-w-0 flex-1">
               <div class="flex flex-wrap items-center gap-2">
-                <span class="rounded-full bg-background/80 px-3 py-1 text-[11px] font-medium text-foreground/80">
+                <span
+                  class="rounded-full bg-background/80 px-3 py-1 text-[11px] font-medium text-foreground/80"
+                >
                   {{ $t('common.recycleBin.globalStageLabel') }}
                 </span>
                 <span
@@ -524,10 +538,14 @@ function hasDateValue(value: unknown) {
               <div class="mt-4 text-lg font-semibold text-foreground">
                 {{ $t('common.recycleBin.globalTitle') }}
               </div>
-              <div class="mt-2 max-w-3xl text-sm leading-7 text-muted-foreground">
+              <div
+                class="mt-2 max-w-3xl text-sm leading-7 text-muted-foreground"
+              >
                 {{ $t('common.recycleBin.twoStageHint', { days: 30 }) }}
               </div>
-              <div class="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
+              <div
+                class="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground"
+              >
                 <span class="rounded-full bg-background/80 px-3 py-1">
                   {{ $t('common.recycleBin.moduleStageLabel') }}
                 </span>
@@ -540,7 +558,9 @@ function hasDateValue(value: unknown) {
         </Card>
 
         <Card class="shadow-none">
-          <div class="text-xs uppercase tracking-[0.24em] text-muted-foreground/80">
+          <div
+            class="text-xs uppercase tracking-[0.24em] text-muted-foreground/80"
+          >
             {{ $t('common.recycleBin.itemCountLabel') }}
           </div>
           <div class="mt-3 text-3xl font-semibold text-foreground">
@@ -552,7 +572,9 @@ function hasDateValue(value: unknown) {
         </Card>
 
         <Card class="shadow-none">
-          <div class="text-xs uppercase tracking-[0.24em] text-muted-foreground/80">
+          <div
+            class="text-xs uppercase tracking-[0.24em] text-muted-foreground/80"
+          >
             {{ $t(`${i18nPrefix}.modules`) }}
           </div>
           <div class="mt-3 text-3xl font-semibold text-foreground">
@@ -582,12 +604,16 @@ function hasDateValue(value: unknown) {
               }}
             </div>
           </div>
-          <div class="rounded-full bg-muted/60 px-3 py-1 text-xs text-muted-foreground">
+          <div
+            class="rounded-full bg-muted/60 px-3 py-1 text-xs text-muted-foreground"
+          >
             {{ $t('common.recycleBin.restoreBeforeExpire') }}
           </div>
         </div>
 
-        <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5">
+        <div
+          class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5"
+        >
           <button
             v-for="item in moduleOptions"
             :key="item.module"
@@ -639,7 +665,9 @@ function hasDateValue(value: unknown) {
           <div class="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">
             {{ $t('common.recycleBin.twoStageHint', { days: 30 }) }}
           </div>
-          <div class="mt-5 flex flex-wrap justify-center gap-2 text-xs text-muted-foreground">
+          <div
+            class="mt-5 flex flex-wrap justify-center gap-2 text-xs text-muted-foreground"
+          >
             <span class="rounded-full bg-muted px-3 py-1">
               {{ $t('common.recycleBin.moduleStageLabel') }}
             </span>
@@ -667,7 +695,9 @@ function hasDateValue(value: unknown) {
         >
           <template #toolbar-tools>
             <div class="flex flex-wrap items-center justify-end gap-2">
-              <span class="rounded-full bg-muted/70 px-3 py-1 text-xs text-muted-foreground">
+              <span
+                class="rounded-full bg-muted/70 px-3 py-1 text-xs text-muted-foreground"
+              >
                 {{
                   activeListModule
                     ? `${activeModuleLabel} · ${$t('common.recycleBin.itemCount', { count: activeModuleDeletedCount })}`
@@ -708,7 +738,11 @@ function hasDateValue(value: unknown) {
           </template>
 
           <template #tenant_name_cell="{ row }">
-            <Tag v-if="row.tenant_name" color="blue" class="!rounded-md !border-0">
+            <Tag
+              v-if="row.tenant_name"
+              color="blue"
+              class="!rounded-md !border-0"
+            >
               {{ row.tenant_name }}
             </Tag>
             <span v-else class="text-muted-foreground">—</span>
@@ -737,7 +771,9 @@ function hasDateValue(value: unknown) {
           </template>
 
           <template #execution_mode_cell="{ row }">
-            <Tag color="processing">{{ formatEnumValue(row.execution_mode) }}</Tag>
+            <Tag color="processing">
+              {{ formatEnumValue(row.execution_mode) }}
+            </Tag>
           </template>
 
           <template #type_cell="{ row }">
@@ -753,7 +789,9 @@ function hasDateValue(value: unknown) {
           </template>
 
           <template #schedule_cell="{ row }">
-            <span class="text-muted-foreground">{{ formatScheduleDisplay(row) }}</span>
+            <span class="text-muted-foreground">{{
+              formatScheduleDisplay(row)
+            }}</span>
           </template>
 
           <template #size_cell="{ row }">
@@ -763,7 +801,10 @@ function hasDateValue(value: unknown) {
           </template>
 
           <template #created_at_cell="{ row }">
-            <Tooltip v-if="hasDateValue(row.created_at)" :title="formatDate(row.created_at)">
+            <Tooltip
+              v-if="hasDateValue(row.created_at)"
+              :title="formatDate(row.created_at)"
+            >
               <span class="text-muted-foreground">
                 {{ formatRelativeTime(row.created_at) }}
               </span>
@@ -772,7 +813,10 @@ function hasDateValue(value: unknown) {
           </template>
 
           <template #expires_at_cell="{ row }">
-            <Tooltip v-if="hasDateValue(row.expires_at)" :title="formatDate(row.expires_at)">
+            <Tooltip
+              v-if="hasDateValue(row.expires_at)"
+              :title="formatDate(row.expires_at)"
+            >
               <span class="text-muted-foreground">
                 {{ formatRelativeTime(row.expires_at) }}
               </span>
@@ -793,7 +837,10 @@ function hasDateValue(value: unknown) {
           </template>
 
           <template #deleted_at_cell="{ row }">
-            <Tooltip v-if="hasDateValue(row.deleted_at)" :title="formatDate(row.deleted_at)">
+            <Tooltip
+              v-if="hasDateValue(row.deleted_at)"
+              :title="formatDate(row.deleted_at)"
+            >
               <span class="text-muted-foreground">
                 {{ formatRelativeTime(row.deleted_at) }}
               </span>

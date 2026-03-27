@@ -9,23 +9,26 @@ import type { PreferencesData } from '#/api/shared/types';
 
 import { onUnmounted, watch } from 'vue';
 
-import { preferences as vbenPreferences, updatePreferences } from '@vben/preferences';
+import {
+  updatePreferences,
+  preferences as vbenPreferences,
+} from '@vben/preferences';
 
 import { useDebounceFn } from '@vueuse/core';
 
+import { useSocketIOStore } from '#/store';
 import {
   getVbenSnapshot,
   mapFromVbenPreferences,
   mapToVbenPreferences,
   useUserPreferenceStore,
 } from '#/store/shared/user-preference';
-import { useSocketIOStore } from '#/store';
 
 interface GlobalUpdatedPayload {
   preferences: Record<string, boolean | number | string>;
 }
 
-const GLOBAL_ONLY_KEYS = new Set(['watermark_enable', 'watermark_content']);
+const GLOBAL_ONLY_KEYS = new Set(['watermark_content', 'watermark_enable']);
 
 /**
  * 提取差异 key / Extract diff keys between two preference objects
@@ -33,7 +36,7 @@ const GLOBAL_ONLY_KEYS = new Set(['watermark_enable', 'watermark_content']);
 function getDiff(
   current: PreferencesData,
   snapshot: PreferencesData,
-): PreferencesData | null {
+): null | PreferencesData {
   const diff: PreferencesData = {};
   let hasDiff = false;
 

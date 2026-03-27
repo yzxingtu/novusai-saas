@@ -1,12 +1,13 @@
 <script lang="ts" setup>
-import { Tooltip } from 'ant-design-vue';
 import { IconifyIcon } from '@vben/icons';
 
+import { Tooltip } from 'ant-design-vue';
+
 defineProps<{
-  icon: string;
-  title: string;
   active?: boolean;
   disabled?: boolean;
+  icon: string;
+  title: string;
 }>();
 
 defineEmits<{

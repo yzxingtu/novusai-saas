@@ -57,7 +57,7 @@ function onAttachmentUpload() {
       @click="editor?.chain().focus().toggleStrike().run()"
     />
 
-    <span class="mx-0.5 h-4 w-px shrink-0 bg-border" />
+    <span class="mx-0.5 h-4 w-px shrink-0 bg-border"></span>
 
     <ToolbarButton
       icon="lucide:heading-2"
@@ -72,7 +72,7 @@ function onAttachmentUpload() {
       @click="editor?.chain().focus().toggleHeading({ level: 3 }).run()"
     />
 
-    <span class="mx-0.5 h-4 w-px shrink-0 bg-border" />
+    <span class="mx-0.5 h-4 w-px shrink-0 bg-border"></span>
 
     <ToolbarButton
       icon="lucide:list"
@@ -87,7 +87,7 @@ function onAttachmentUpload() {
       @click="editor?.chain().focus().toggleOrderedList().run()"
     />
 
-    <span class="mx-0.5 h-4 w-px shrink-0 bg-border" />
+    <span class="mx-0.5 h-4 w-px shrink-0 bg-border"></span>
 
     <ToolbarButton
       v-if="upload !== false"

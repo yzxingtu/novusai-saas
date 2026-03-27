@@ -1,10 +1,10 @@
 <script setup lang="ts">
+import type { AdminSslDnsReadiness } from '#/api/admin/configs';
 import type {
   ConfigGroupListItemMeta,
   ConfigItemMeta,
   ConfigSubmitPayload,
 } from '#/types/config';
-import type { AdminSslDnsReadiness } from '#/api/admin/configs';
 
 import {
   computed,
@@ -29,15 +29,15 @@ import {
   updateAdminConfigGroupApi,
 } from '#/api/admin/configs';
 import { ConfigForm } from '#/components';
-import {
-  usePageAIContext,
-  usePageAIOperations,
-} from '#/composables/use-page-ai-registration';
+import PluginSettingsTabs from '#/components/business/plugin-slots/PluginSettingsTabs.vue';
 import {
   createRefreshPageOperation,
   createSavePageOperation,
 } from '#/composables/use-page-ai-operation-helpers';
-import PluginSettingsTabs from '#/components/business/plugin-slots/PluginSettingsTabs.vue';
+import {
+  usePageAIContext,
+  usePageAIOperations,
+} from '#/composables/use-page-ai-registration';
 import { $t, $t as t } from '#/locales';
 
 // Platform storage config dedicated panel / 平台存储配置专用面板
@@ -114,10 +114,7 @@ async function syncRouteSelection(groupCode: string, configKey?: string) {
   const currentGroupCode = getRequestedGroupCode();
   const currentConfigKey = getRequestedConfigKey();
   const nextConfigKey = configKey ?? '';
-  if (
-    currentGroupCode === groupCode &&
-    currentConfigKey === nextConfigKey
-  ) {
+  if (currentGroupCode === groupCode && currentConfigKey === nextConfigKey) {
     return;
   }
 
@@ -144,7 +141,9 @@ async function syncRouteSelection(groupCode: string, configKey?: string) {
 
 async function scrollToConfigItem(configKey: string) {
   await nextTick();
-  const target = document.getElementById(`config-item-${configKey}`);
+  const target = document.querySelector<HTMLElement>(
+    `#config-item-${CSS.escape(configKey)}`,
+  );
   target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
@@ -509,10 +508,7 @@ usePageAIOperations({
               show-icon
               :message="dnsReadiness.summary"
             >
-              <template
-                v-if="dnsReadiness.issues.length > 0"
-                #description
-              >
+              <template v-if="dnsReadiness.issues.length > 0" #description>
                 <ul class="mb-0 pl-5">
                   <li
                     v-for="issue in dnsReadiness.issues"
@@ -524,10 +520,7 @@ usePageAIOperations({
                 </ul>
               </template>
             </Alert>
-            <ConfigForm
-              ref="formRef"
-              :configs="configs"
-            >
+            <ConfigForm ref="formRef" :configs="configs">
               <template #generate-ssl_private_key_encryption_key="{ setValue }">
                 <Button
                   size="small"

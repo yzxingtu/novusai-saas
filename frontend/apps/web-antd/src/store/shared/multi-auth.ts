@@ -28,9 +28,9 @@ import {
   resolveLoginPathByPath,
 } from '#/constants/endpoints';
 import { $t } from '#/locales';
+import { getEndpointFromPath } from '#/utils';
 import { toAvatarDisplayUrl } from '#/utils/image';
 import { clearPersistedTabbarStorage } from '#/utils/tabbar-storage';
-import { getEndpointFromPath } from '#/utils';
 
 import { TokenStorage } from './token-storage';
 import { useUserPreferenceStore } from './user-preference';
@@ -136,7 +136,7 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
           return undefined;
         }
         const normalized = String(value).trim();
-        return normalized ? normalized : undefined;
+        return normalized || undefined;
       };
       const username = normalizeOptional(params.username) ?? '';
       const password = normalizeOptional(params.password) ?? '';
@@ -193,7 +193,9 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
         } else {
           onSuccess
             ? await onSuccess?.()
-            : await router.push(postLoginTarget || vbenUserInfo.homePath || homePath);
+            : await router.push(
+                postLoginTarget || vbenUserInfo.homePath || homePath,
+              );
         }
 
         if (vbenUserInfo.realName) {
@@ -236,7 +238,10 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
     const ep = endpoint || currentEndpoint.value;
     const api = getAuthApi(ep);
     const loginPath = LOGIN_PATHS[ep];
-    const userHomePath = normalizeEndpointNavigationPath(HOME_PATHS.user, 'user');
+    const userHomePath = normalizeEndpointNavigationPath(
+      HOME_PATHS.user,
+      'user',
+    );
     const tabbarStore = useTabbarStore();
 
     try {

@@ -21,7 +21,12 @@ import { getOperationLogDetailApi } from '#/api/tenant/operation-log';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
-import { getMethodColor, getStatusColor, getUserTypeColor, getUserTypeLabel } from '../data';
+import {
+  getMethodColor,
+  getStatusColor,
+  getUserTypeColor,
+  getUserTypeLabel,
+} from '../data';
 
 defineOptions({ name: 'LogDetail' });
 

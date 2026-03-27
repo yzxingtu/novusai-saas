@@ -1,7 +1,7 @@
 <script lang="ts" setup>
-import { computed } from 'vue';
-
 import type { Editor } from '@tiptap/core';
+
+import { computed } from 'vue';
 
 import { $t } from '@vben/locales';
 
@@ -13,16 +13,18 @@ import ToolbarButton from './ToolbarButton.vue';
 
 const props = defineProps<{
   editor: Editor | undefined;
-  upload?: boolean;
   sourceMode?: boolean;
+  upload?: boolean;
 }>();
 
 const emit = defineEmits<{
   toggleSource: [];
 }>();
 
-const isActive = (name: string | Record<string, unknown>, attrs?: Record<string, unknown>) =>
-  props.editor?.isActive(name as string, attrs) ?? false;
+const isActive = (
+  name: Record<string, unknown> | string,
+  attrs?: Record<string, unknown>,
+) => props.editor?.isActive(name as string, attrs) ?? false;
 
 const canUndo = computed(() => props.editor?.can().undo() ?? false);
 const canRedo = computed(() => props.editor?.can().redo() ?? false);
@@ -37,13 +39,20 @@ function onAttachmentUpload() {
 
 function onInsertLink() {
   const previousUrl = props.editor?.getAttributes('link').href;
+  // Keep the lightweight native prompt here for editor link insertion.
+  // eslint-disable-next-line no-alert
   const url = window.prompt('URL', previousUrl);
   if (url === null) return;
   if (url === '') {
     props.editor?.chain().focus().extendMarkRange('link').unsetLink().run();
     return;
   }
-  props.editor?.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+  props.editor
+    ?.chain()
+    .focus()
+    .extendMarkRange('link')
+    .setLink({ href: url })
+    .run();
 }
 </script>
 
@@ -67,7 +76,7 @@ function onInsertLink() {
       @click="editor?.chain().focus().redo().run()"
     />
 
-    <span class="mx-1 h-5 w-px shrink-0 bg-border" />
+    <span class="mx-1 h-5 w-px shrink-0 bg-border"></span>
 
     <!-- Text format / 文本格式 -->
     <ToolbarButton
@@ -107,7 +116,7 @@ function onInsertLink() {
       @click="editor?.chain().focus().toggleHighlight().run()"
     />
 
-    <span class="mx-1 h-5 w-px shrink-0 bg-border" />
+    <span class="mx-1 h-5 w-px shrink-0 bg-border"></span>
 
     <!-- Headings / 标题 -->
     <ToolbarButton
@@ -129,7 +138,7 @@ function onInsertLink() {
       @click="editor?.chain().focus().toggleHeading({ level: 3 }).run()"
     />
 
-    <span class="mx-1 h-5 w-px shrink-0 bg-border" />
+    <span class="mx-1 h-5 w-px shrink-0 bg-border"></span>
 
     <!-- Lists / 列表 -->
     <ToolbarButton
@@ -151,7 +160,7 @@ function onInsertLink() {
       @click="editor?.chain().focus().toggleTaskList().run()"
     />
 
-    <span class="mx-1 h-5 w-px shrink-0 bg-border" />
+    <span class="mx-1 h-5 w-px shrink-0 bg-border"></span>
 
     <!-- Block / 块元素 -->
     <ToolbarButton
@@ -172,7 +181,7 @@ function onInsertLink() {
       @click="editor?.chain().focus().setHorizontalRule().run()"
     />
 
-    <span class="mx-1 h-5 w-px shrink-0 bg-border" />
+    <span class="mx-1 h-5 w-px shrink-0 bg-border"></span>
 
     <!-- Insert / 插入 -->
     <ToolbarButton
@@ -199,7 +208,7 @@ function onInsertLink() {
       "
     />
 
-    <span class="mx-1 h-5 w-px shrink-0 bg-border" />
+    <span class="mx-1 h-5 w-px shrink-0 bg-border"></span>
 
     <!-- Text Align / 对齐 -->
     <ToolbarButton
@@ -221,7 +230,7 @@ function onInsertLink() {
       @click="editor?.chain().focus().setTextAlign('right').run()"
     />
 
-    <span class="mx-1 h-5 w-px shrink-0 bg-border" />
+    <span class="mx-1 h-5 w-px shrink-0 bg-border"></span>
 
     <!-- Subscript / Superscript -->
     <ToolbarButton
@@ -237,7 +246,7 @@ function onInsertLink() {
       @click="editor?.chain().focus().toggleSuperscript().run()"
     />
 
-    <span class="mx-1 h-5 w-px shrink-0 bg-border" />
+    <span class="mx-1 h-5 w-px shrink-0 bg-border"></span>
 
     <!-- Link -->
     <ToolbarButton
@@ -253,12 +262,16 @@ function onInsertLink() {
       @click="editor?.chain().focus().unsetLink().run()"
     />
 
-    <span class="mx-1 h-5 w-px shrink-0 bg-border" />
+    <span class="mx-1 h-5 w-px shrink-0 bg-border"></span>
 
     <!-- Source code / 源码模式 -->
     <ToolbarButton
       icon="lucide:code-xml"
-      :title="sourceMode ? $t('common.wysiwyg') || 'WYSIWYG' : $t('common.sourceCode') || 'HTML'"
+      :title="
+        sourceMode
+          ? $t('common.wysiwyg') || 'WYSIWYG'
+          : $t('common.sourceCode') || 'HTML'
+      "
       :active="sourceMode"
       @click="emit('toggleSource')"
     />

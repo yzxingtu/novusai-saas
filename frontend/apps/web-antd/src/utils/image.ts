@@ -89,12 +89,12 @@ export function parseAttachmentId(value: unknown): null | number {
     return null;
   }
 
-  const id =
-    typeof value === 'number'
-      ? value
-      : typeof value === 'string'
-        ? Number(value.trim())
-        : Number.NaN;
+  let id = Number.NaN;
+  if (typeof value === 'number') {
+    id = value;
+  } else if (typeof value === 'string') {
+    id = Number(value.trim());
+  }
 
   if (!Number.isFinite(id) || id <= 0) {
     return null;
@@ -123,7 +123,7 @@ export function toAttachmentImageUrl(
   if (!normalized) {
     return '';
   }
-  if (/^-?\d+(\.\d+)?$/.test(normalized)) {
+  if (/^-?\d+(?:\.\d+)?$/.test(normalized)) {
     return '';
   }
   return normalized;

@@ -79,20 +79,26 @@ function onTransitionEnd() {
     >
       <svg viewBox="0 0 100 50" width="120" height="60">
         <defs>
-          <linearGradient id="spinner-grad" gradientUnits="userSpaceOnUse"
-            x1="12" y1="25" x2="88" y2="25">
+          <linearGradient
+            id="spinner-grad"
+            gradientUnits="userSpaceOnUse"
+            x1="12"
+            y1="25"
+            x2="88"
+            y2="25"
+          >
             <stop offset="0%" stop-color="#FF6B35" />
             <stop offset="33%" stop-color="#FF2D87" />
             <stop offset="66%" stop-color="#9333EA" />
             <stop offset="100%" stop-color="#38BDF8" />
           </linearGradient>
         </defs>
-        <path class="inf-strand"
-          d="M 27 40 C 45 40 55 10 73 10 A 15 15 0 1 1 73 40 C 55 40 45 10 27 10 A 15 15 0 1 0 27 40 Z" />
-        <path class="inf-eraser"
-          d="M 35 12 C 46 17 54 33 65 38" />
-        <path class="inf-strand"
-          d="M 27 10 C 45 10 55 40 73 40" />
+        <path
+          class="inf-strand"
+          d="M 27 40 C 45 40 55 10 73 10 A 15 15 0 1 1 73 40 C 55 40 45 10 27 10 A 15 15 0 1 0 27 40 Z"
+        />
+        <path class="inf-eraser" d="M 35 12 C 46 17 54 33 65 38" />
+        <path class="inf-strand" d="M 27 10 C 45 10 55 40 73 40" />
       </svg>
     </div>
   </div>
@@ -111,7 +117,7 @@ function onTransitionEnd() {
 
 .inf-strand {
   fill: none;
-  stroke: url(#spinner-grad);
+  stroke: url('#spinner-grad');
   stroke-width: 8;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -119,7 +125,7 @@ function onTransitionEnd() {
 
 .inf-eraser {
   fill: none;
-  stroke: #ffffff;
+  stroke: #fff;
   stroke-width: 12;
   stroke-linecap: butt;
 }

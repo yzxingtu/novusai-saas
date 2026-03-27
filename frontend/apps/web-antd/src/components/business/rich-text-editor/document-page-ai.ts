@@ -11,15 +11,15 @@ import {
 } from '#/components/business/ai-slide-panel';
 
 export interface RegisterRichTextDocumentPageAIOptions {
-  documentId?: MaybeRefOrGetter<number | null | undefined>;
+  documentId?: MaybeRefOrGetter<null | number | undefined>;
   documentStatus?: MaybeRefOrGetter<null | string | undefined>;
   documentTitle?: MaybeRefOrGetter<null | string | undefined>;
   editor?: MaybeRefOrGetter<
-    | {
-      getText?: () => string;
-    }
     | null
     | undefined
+    | {
+        getText?: () => string;
+      }
   >;
   entityDescriptionAppend?: MaybeRefOrGetter<string | undefined>;
   excerptLength?: number;
@@ -27,7 +27,7 @@ export interface RegisterRichTextDocumentPageAIOptions {
   operations?: MaybeRefOrGetter<PageOperation[] | undefined>;
   pageKey: MaybeRefOrGetter<string>;
   saving?: MaybeRefOrGetter<boolean | null | undefined>;
-  wordCount?: MaybeRefOrGetter<number | null | undefined>;
+  wordCount?: MaybeRefOrGetter<null | number | undefined>;
 }
 
 export interface WaitForRichTextEditorOperationsOptions {
@@ -60,37 +60,46 @@ export function registerRichTextDocumentPageAI(
       page_data: {
         ...(toValue(options.entityDescriptionAppend)
           ? {
-              entity_description_append: toValue(options.entityDescriptionAppend),
+              entity_description_append: toValue(
+                options.entityDescriptionAppend,
+              ),
             }
           : {}),
-        ...(toValue(options.documentId) != null
-          ? { document_id: toValue(options.documentId) }
-          : {}),
+        ...(() => {
+          const documentId = toValue(options.documentId);
+          return documentId === null || documentId === undefined
+            ? {}
+            : { document_id: documentId };
+        })(),
         ...(toValue(options.documentTitle)
           ? { document_title: toValue(options.documentTitle) }
           : {}),
         ...(toValue(options.documentStatus)
           ? { document_status: toValue(options.documentStatus) }
           : {}),
-        ...(toValue(options.wordCount) != null
-          ? { word_count: toValue(options.wordCount) }
-          : {}),
-        ...(toValue(options.saving) != null
-          ? { is_saving: Boolean(toValue(options.saving)) }
-          : {}),
+        ...(() => {
+          const wordCount = toValue(options.wordCount);
+          return wordCount === null || wordCount === undefined
+            ? {}
+            : { word_count: wordCount };
+        })(),
+        ...(() => {
+          const saving = toValue(options.saving);
+          return saving === null || saving === undefined
+            ? {}
+            : { is_saving: Boolean(saving) };
+        })(),
         has_editor: !!editor,
         document_body_length: fullText.length,
         document_body_text: fullText.slice(0, excerptLength),
-        ...(toValue(options.extraData) ?? {}),
+        ...toValue(options.extraData),
       },
     };
   });
 
   const operations = toValue(options.operations) ?? [];
   const cleanupOps =
-    operations.length > 0
-      ? appendPageOperations(pageKey, operations)
-      : null;
+    operations.length > 0 ? appendPageOperations(pageKey, operations) : null;
 
   return () => {
     cleanupContext();
@@ -102,8 +111,7 @@ export async function waitForRichTextEditorOperations(
   pageKey: string,
   options: WaitForRichTextEditorOperationsOptions = {},
 ): Promise<boolean> {
-  const operationName =
-    options.operationName ?? DEFAULT_EDITOR_OPERATION_NAME;
+  const operationName = options.operationName ?? DEFAULT_EDITOR_OPERATION_NAME;
   const pollMs = options.pollMs ?? DEFAULT_POLL_MS;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const deadline = Date.now() + timeoutMs;

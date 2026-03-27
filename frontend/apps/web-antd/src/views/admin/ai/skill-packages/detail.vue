@@ -161,7 +161,7 @@ function getToolTypeText(type: null | string | undefined): string {
   if (!type) return '-';
   return type
     .replaceAll('_', ' ')
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+    .replaceAll(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function getToolRequiredParamCount(tool: ResolvedTool): number {
@@ -180,12 +180,12 @@ function getValveInputType(type?: string): ValvesInputType {
     case 'object': {
       return 'json';
     }
+    case 'boolean': {
+      return 'switch';
+    }
     case 'integer':
     case 'number': {
       return 'number';
-    }
-    case 'boolean': {
-      return 'switch';
     }
     default: {
       return 'string';
@@ -332,7 +332,7 @@ const sortedValveFields = computed<ValveField[]>(() => {
       ...prop,
       isRequired: required.has(key),
     }))
-    .sort((a, b) => {
+    .toSorted((a, b) => {
       if (a.isRequired !== b.isRequired) {
         return a.isRequired ? -1 : 1;
       }
@@ -516,7 +516,9 @@ useDetailPageAi({
       </div>
 
       <div v-if="pkg" class="flex flex-col gap-4">
-        <div class="relative overflow-hidden rounded-xl border bg-card shadow-sm">
+        <div
+          class="relative overflow-hidden rounded-xl border bg-card shadow-sm"
+        >
           <div
             class="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent"
           ></div>
@@ -548,10 +550,7 @@ useDetailPageAi({
                   :disabled="!hasValves"
                   @click="focusTab('valves')"
                 >
-                  <IconifyIcon
-                    icon="lucide:settings-2"
-                    class="mr-1 size-3.5"
-                  />
+                  <IconifyIcon icon="lucide:settings-2" class="mr-1 size-3.5" />
                   {{ $t('admin.ai.skillPackage.valves.title') }}
                 </Button>
               </div>
@@ -562,7 +561,10 @@ useDetailPageAi({
                 class="flex size-16 shrink-0 items-center justify-center rounded-2xl shadow-sm ring-2 ring-offset-2 ring-offset-card"
                 :class="getPackageHeroClass()"
               >
-                <IconifyIcon :icon="getPackageIcon(pkg.avatar)" class="size-8" />
+                <IconifyIcon
+                  :icon="getPackageIcon(pkg.avatar)"
+                  class="size-8"
+                />
               </div>
 
               <div class="min-w-0 flex-1">
@@ -595,11 +597,7 @@ useDetailPageAi({
                     "
                     class="!mr-0 !text-xs"
                   >
-                    {{
-                      getRuntimeBindingModeText(
-                        pkg.runtime_binding_mode,
-                      )
-                    }}
+                    {{ getRuntimeBindingModeText(pkg.runtime_binding_mode) }}
                   </Tag>
                   <Tag
                     v-if="pkg.is_recommended"
@@ -618,7 +616,8 @@ useDetailPageAi({
                       icon="lucide:boxes"
                       class="size-3.5 text-primary/70"
                     />
-                    {{ pkg.skill_count }} {{ $t('admin.ai.skillPackage.skillCount') }}
+                    {{ pkg.skill_count }}
+                    {{ $t('admin.ai.skillPackage.skillCount') }}
                   </div>
                   <div
                     class="flex items-center gap-1.5 rounded-lg border border-border/50 bg-background px-3 py-1 text-xs text-foreground"
@@ -755,7 +754,9 @@ useDetailPageAi({
                         <div class="text-xs text-muted-foreground">
                           {{ $t('admin.ai.skillPackage.description') }}
                         </div>
-                        <div class="mt-1 text-sm leading-relaxed text-foreground">
+                        <div
+                          class="mt-1 text-sm leading-relaxed text-foreground"
+                        >
                           {{
                             pkg.description ||
                             $t('admin.ai.skillPackage.detail.noDescription')
@@ -856,7 +857,9 @@ useDetailPageAi({
                         <div class="mt-1 text-sm font-medium text-foreground">
                           {{
                             pkg.tenant_id === null
-                              ? $t('admin.ai.skillPackage.detail.platformManaged')
+                              ? $t(
+                                  'admin.ai.skillPackage.detail.platformManaged',
+                                )
                               : `#${pkg.tenant_id}`
                           }}
                         </div>
@@ -900,7 +903,11 @@ useDetailPageAi({
                             {{ $t('admin.ai.skillPackage.detail.tools') }}
                           </span>
                         </div>
-                        <Button size="small" type="link" @click="focusTab('tools')">
+                        <Button
+                          size="small"
+                          type="link"
+                          @click="focusTab('tools')"
+                        >
                           {{ $t('shared.common.viewDetail') }}
                         </Button>
                       </div>
@@ -925,7 +932,9 @@ useDetailPageAi({
                                   :icon="getToolTypeIcon(tool.tool_type)"
                                   class="size-4 text-primary/80"
                                 />
-                                <span class="truncate font-mono text-sm font-semibold">
+                                <span
+                                  class="truncate font-mono text-sm font-semibold"
+                                >
                                   {{ tool.name }}
                                 </span>
                               </div>
@@ -982,7 +991,9 @@ useDetailPageAi({
                           <div class="text-xs text-muted-foreground">
                             {{ $t('admin.ai.skillPackage.detail.envVars') }}
                           </div>
-                          <div class="mt-1 text-lg font-semibold text-foreground">
+                          <div
+                            class="mt-1 text-lg font-semibold text-foreground"
+                          >
                             {{ valvesFieldCount }}
                           </div>
                         </div>
@@ -990,7 +1001,9 @@ useDetailPageAi({
                           <div class="text-xs text-muted-foreground">
                             {{ $t('admin.ai.skillPackage.valves.required') }}
                           </div>
-                          <div class="mt-1 text-lg font-semibold text-foreground">
+                          <div
+                            class="mt-1 text-lg font-semibold text-foreground"
+                          >
                             {{ requiredValveCount }}
                           </div>
                         </div>
@@ -998,7 +1011,9 @@ useDetailPageAi({
                           <div class="text-xs text-muted-foreground">
                             {{ $t('admin.ai.skillPackage.detail.configured') }}
                           </div>
-                          <div class="mt-1 text-lg font-semibold text-foreground">
+                          <div
+                            class="mt-1 text-lg font-semibold text-foreground"
+                          >
                             {{ configuredValveCount }}
                           </div>
                         </div>
@@ -1024,7 +1039,8 @@ useDetailPageAi({
                       {{ $t('admin.ai.skillPackage.detail.skills') }}
                     </div>
                     <p class="mt-1 text-xs text-muted-foreground">
-                      {{ pkg.skill_count }} {{ $t('admin.ai.skillPackage.skillCount') }}
+                      {{ pkg.skill_count }}
+                      {{ $t('admin.ai.skillPackage.skillCount') }}
                     </p>
                   </div>
 
@@ -1036,7 +1052,11 @@ useDetailPageAi({
                       />
                       {{ $t('admin.ai.skillPackage.detail.openWorkspace') }}
                     </Button>
-                    <Button size="small" type="primary" @click="openWorkspace(true)">
+                    <Button
+                      size="small"
+                      type="primary"
+                      @click="openWorkspace(true)"
+                    >
                       <IconifyIcon icon="lucide:plus" class="mr-1 size-3.5" />
                       {{ $t('admin.ai.skill.create') }}
                     </Button>
@@ -1045,7 +1065,9 @@ useDetailPageAi({
 
                 <Spin :spinning="skillsLoading">
                   <div v-if="skills.length === 0" class="py-12">
-                    <Empty :description="$t('admin.ai.skillPackage.detail.empty')" />
+                    <Empty
+                      :description="$t('admin.ai.skillPackage.detail.empty')"
+                    />
                   </div>
 
                   <div v-else class="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -1060,14 +1082,18 @@ useDetailPageAi({
                             class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10"
                           >
                             <IconifyIcon
-                              :icon="skill.avatar || getSkillTypeIcon(skill.type)"
+                              :icon="
+                                skill.avatar || getSkillTypeIcon(skill.type)
+                              "
                               class="size-5 text-primary"
                             />
                           </div>
 
                           <div class="min-w-0 flex-1">
                             <div class="flex flex-wrap items-center gap-2">
-                              <span class="truncate text-sm font-semibold text-foreground">
+                              <span
+                                class="truncate text-sm font-semibold text-foreground"
+                              >
                                 {{ skill.name }}
                               </span>
                               <Tag
@@ -1179,7 +1205,9 @@ useDetailPageAi({
 
                 <Spin :spinning="toolsLoading">
                   <div v-if="resolvedTools.length === 0" class="py-12">
-                    <Empty :description="$t('admin.ai.skillPackage.detail.noTools')" />
+                    <Empty
+                      :description="$t('admin.ai.skillPackage.detail.noTools')"
+                    />
                   </div>
 
                   <div v-else class="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -1200,7 +1228,9 @@ useDetailPageAi({
 
                         <div class="min-w-0 flex-1">
                           <div class="flex flex-wrap items-center gap-2">
-                            <span class="font-mono text-sm font-semibold text-foreground">
+                            <span
+                              class="font-mono text-sm font-semibold text-foreground"
+                            >
                               {{ tool.name }}
                             </span>
                             <Tag
@@ -1228,38 +1258,62 @@ useDetailPageAi({
                             }}
                           </p>
 
-                          <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-                            <div class="rounded-lg border bg-background px-3 py-2">
+                          <div
+                            class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3"
+                          >
+                            <div
+                              class="rounded-lg border bg-background px-3 py-2"
+                            >
                               <div class="text-[11px] text-muted-foreground">
-                                {{ $t('admin.ai.skillPackage.detail.skillName') }}
+                                {{
+                                  $t('admin.ai.skillPackage.detail.skillName')
+                                }}
                               </div>
-                              <div class="mt-1 truncate text-sm font-medium text-foreground">
+                              <div
+                                class="mt-1 truncate text-sm font-medium text-foreground"
+                              >
                                 {{ tool.source_skill_name }}
                               </div>
                             </div>
 
-                            <div class="rounded-lg border bg-background px-3 py-2">
+                            <div
+                              class="rounded-lg border bg-background px-3 py-2"
+                            >
                               <div class="text-[11px] text-muted-foreground">
-                                {{ $t('admin.ai.skillPackage.detail.toolParams') }}
+                                {{
+                                  $t('admin.ai.skillPackage.detail.toolParams')
+                                }}
                               </div>
-                              <div class="mt-1 text-sm font-medium text-foreground">
+                              <div
+                                class="mt-1 text-sm font-medium text-foreground"
+                              >
                                 {{ tool.parameters.length }}
                               </div>
                             </div>
 
-                            <div class="rounded-lg border bg-background px-3 py-2">
+                            <div
+                              class="rounded-lg border bg-background px-3 py-2"
+                            >
                               <div class="text-[11px] text-muted-foreground">
-                                {{ $t('admin.ai.skillPackage.valves.required') }}
+                                {{
+                                  $t('admin.ai.skillPackage.valves.required')
+                                }}
                               </div>
-                              <div class="mt-1 text-sm font-medium text-foreground">
+                              <div
+                                class="mt-1 text-sm font-medium text-foreground"
+                              >
                                 {{ getToolRequiredParamCount(tool) }}
                               </div>
                             </div>
                           </div>
 
                           <div v-if="tool.parameters.length > 0" class="mt-3">
-                            <div class="mb-2 text-xs font-medium text-muted-foreground">
-                              {{ $t('admin.ai.skillPackage.detail.toolParams') }}
+                            <div
+                              class="mb-2 text-xs font-medium text-muted-foreground"
+                            >
+                              {{
+                                $t('admin.ai.skillPackage.detail.toolParams')
+                              }}
                             </div>
                             <div class="flex flex-wrap gap-2">
                               <div
@@ -1362,7 +1416,9 @@ useDetailPageAi({
                               color="gold"
                               class="!mr-0 !text-[11px]"
                             >
-                              {{ $t('admin.ai.skillPackage.valves.sensitiveHint') }}
+                              {{
+                                $t('admin.ai.skillPackage.valves.sensitiveHint')
+                              }}
                             </Tag>
                           </div>
 
@@ -1383,7 +1439,8 @@ useDetailPageAi({
                         v-if="getValveInputType(field.type) === 'switch'"
                         :checked="getBooleanValveValue(field.key)"
                         @update:checked="
-                          (value) => updateBooleanValve(field.key, Boolean(value))
+                          (value) =>
+                            updateBooleanValve(field.key, Boolean(value))
                         "
                       />
 
@@ -1411,7 +1468,9 @@ useDetailPageAi({
                         :rows="5"
                         class="font-mono text-xs"
                         :placeholder="getJsonValvePlaceholder(field)"
-                        @update:value="(value) => updateJsonValve(field.key, value)"
+                        @update:value="
+                          (value) => updateJsonValve(field.key, value)
+                        "
                       />
 
                       <div
@@ -1436,7 +1495,9 @@ useDetailPageAi({
                           class="!mr-0 cursor-pointer !text-[11px]"
                           @click="updateStringValve(field.key, '')"
                         >
-                          {{ $t('admin.ai.skillPackage.valves.secretConfigured') }}
+                          {{
+                            $t('admin.ai.skillPackage.valves.secretConfigured')
+                          }}
                         </Tag>
                       </div>
 
@@ -1457,7 +1518,9 @@ useDetailPageAi({
                 </template>
 
                 <div v-else class="py-12">
-                  <Empty :description="$t('admin.ai.skillPackage.valves.noSchema')" />
+                  <Empty
+                    :description="$t('admin.ai.skillPackage.valves.noSchema')"
+                  />
                 </div>
               </div>
             </TabPane>

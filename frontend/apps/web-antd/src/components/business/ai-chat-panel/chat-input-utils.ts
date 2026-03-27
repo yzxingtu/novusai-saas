@@ -1,6 +1,10 @@
-import type { AgentItem, ChatMessage, MentionKnowledgeBaseBinding } from './types';
+import type {
+  AgentItem,
+  ChatMessage,
+  MentionKnowledgeBaseBinding,
+} from './types';
 
-const LEADING_AGENT_MENTION_RE = /^\s*@([^\s]*)$/;
+const LEADING_AGENT_MENTION_RE = /^\s*@(\S*)$/;
 
 export function extractLeadingAgentMentionDraft(input: string): null | string {
   const match = LEADING_AGENT_MENTION_RE.exec(input);

@@ -8,8 +8,8 @@
  */
 import { getAdminListApi } from '#/api/admin/admin-user';
 import { getOrganizationRootNodesApi as getAdminOrgRootsApi } from '#/api/admin/organization';
-import { getTenantUserListApi } from '#/api/tenant/tenant-users';
 import { getTenantOrganizationRootNodesApi as getTenantOrgRootsApi } from '#/api/tenant/organization';
+import { getTenantUserListApi } from '#/api/tenant/tenant-users';
 
 function getApiPrefix(): 'admin' | 'tenant' {
   if (typeof window === 'undefined') return 'admin';
@@ -27,26 +27,44 @@ export async function getUserSelectApi(params?: { search?: string }) {
   const prefix = getApiPrefix();
   try {
     if (prefix === 'admin') {
-      const res = await getAdminListApi({ page: 1, page_size: 500, ...params } as Record<string, unknown>);
+      const res = await getAdminListApi({
+        page: 1,
+        page_size: 500,
+        ...params,
+      } as Record<string, unknown>);
       return {
-        items: (res.items || []).map((u: { id: number; username?: string; nickname?: string }) => ({
-          id: u.id,
-          value: u.id,
-          label: (u as { nickname?: string }).nickname || (u as { username?: string }).username || String(u.id),
-        })),
+        items: (res.items || []).map(
+          (u: { id: number; nickname?: string; username?: string }) => ({
+            id: u.id,
+            value: u.id,
+            label:
+              (u as { nickname?: string }).nickname ||
+              (u as { username?: string }).username ||
+              String(u.id),
+          }),
+        ),
       };
     }
-    const res = await getTenantUserListApi({ page: 1, page_size: 500, ...params } as Record<string, unknown>);
+    const res = await getTenantUserListApi({
+      page: 1,
+      page_size: 500,
+      ...params,
+    } as Record<string, unknown>);
     return {
-      items: (res.items || []).map((u: { id: number; username?: string; nickname?: string }) => ({
-        id: u.id,
-        value: u.id,
-        label: (u as { nickname?: string }).nickname || (u as { username?: string }).username || String(u.id),
-      })),
+      items: (res.items || []).map(
+        (u: { id: number; nickname?: string; username?: string }) => ({
+          id: u.id,
+          value: u.id,
+          label:
+            (u as { nickname?: string }).nickname ||
+            (u as { username?: string }).username ||
+            String(u.id),
+        }),
+      ),
     };
-  } catch (e) {
+  } catch (error) {
     if (import.meta.env.DEV) {
-      console.warn('[getUserSelectApi]', e);
+      console.warn('[getUserSelectApi]', error);
     }
     return { items: [] };
   }
@@ -61,7 +79,10 @@ export async function getUserSelectApi(params?: { search?: string }) {
 export async function getDeptTreeApi() {
   const prefix = getApiPrefix();
   try {
-    const roots = prefix === 'admin' ? await getAdminOrgRootsApi() : await getTenantOrgRootsApi();
+    const roots =
+      prefix === 'admin'
+        ? await getAdminOrgRootsApi()
+        : await getTenantOrgRootsApi();
     return {
       items: (roots || []).map((n: { id: number; name?: string }) => ({
         id: n.id,
@@ -69,9 +90,9 @@ export async function getDeptTreeApi() {
         label: (n as { name?: string }).name || String(n.id),
       })),
     };
-  } catch (e) {
+  } catch (error) {
     if (import.meta.env.DEV) {
-      console.warn('[getDeptTreeApi]', e);
+      console.warn('[getDeptTreeApi]', error);
     }
     return { items: [] };
   }

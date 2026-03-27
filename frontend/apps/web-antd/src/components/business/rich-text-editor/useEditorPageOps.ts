@@ -7,11 +7,13 @@
  */
 
 import type { Editor } from '@tiptap/core';
+
 import type { MaybeRefOrGetter, ShallowRef } from 'vue';
 
 import { toValue } from 'vue';
 
 import { $t } from '@vben/locales';
+
 import MarkdownIt from 'markdown-it';
 
 import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
@@ -23,6 +25,7 @@ import {
   usePageAIContext,
   usePageAIOperations,
 } from '#/composables/use-page-ai-registration';
+
 import {
   buildEditorEnumParam,
   buildEditorNumberParam,
@@ -49,13 +52,16 @@ function normalizeHtmlForMatch(html: string): string {
   let s = html.trim();
   // Decode common entities / 解码常见 HTML 实体
   s = s
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>');
+    .replaceAll(/&quot;/gi, '"')
+    .replaceAll('&#39;', "'")
+    .replaceAll(/&amp;/gi, '&')
+    .replaceAll(/&lt;/gi, '<')
+    .replaceAll(/&gt;/gi, '>');
   // Normalize JSON/backslash escaping that LLM may produce / 规范化 LLM 可能输出的 JSON 反斜杠转义
-  s = s.replace(/\\"/g, '"').replace(/\\&quot;/g, '"').replace(/\\\\&quot;/g, '"');
+  s = s
+    .replaceAll(String.raw`\"`, '"')
+    .replaceAll(String.raw`\&quot;`, '"')
+    .replaceAll(String.raw`\\&quot;`, '"');
   return s;
 }
 
@@ -64,10 +70,7 @@ function normalizeHtmlForMatch(html: string): string {
  * 修复 TipTap 或 AI 可能输出的错误表格样式（width: 0px → 100%）。
  */
 function fixTableWidthZero(html: string): string {
-  return html.replace(
-    /style="width:\s*0px;?"/gi,
-    'style="width: 100%;"',
-  );
+  return html.replaceAll(/style="width:\s*0px;?"/gi, 'style="width: 100%;"');
 }
 
 /**
@@ -76,9 +79,26 @@ function fixTableWidthZero(html: string): string {
  * 清理表格属性，避免 TipTap TableMap 抛出 "No cell with offset X found"；确保 colspan/rowspan 为简单数字属性。
  */
 function sanitizeTableAttributesForSetContent(html: string): string {
-  return html
-    .replace(/\bcolspan\s*=\s*["']?\\?"?\s*(\d+)\s*\\?"?["']?/gi, 'colspan="$1"')
-    .replace(/\browspan\s*=\s*["']?\\?"?\s*(\d+)\s*\\?"?["']?/gi, 'rowspan="$1"');
+  const container = document.createElement('div');
+  container.innerHTML = html;
+
+  for (const cell of container.querySelectorAll('td, th')) {
+    for (const attr of ['colspan', 'rowspan']) {
+      const rawValue = cell.getAttribute(attr);
+      if (!rawValue) {
+        continue;
+      }
+      const normalized = rawValue
+        .replaceAll('\\', '')
+        .replaceAll('"', '')
+        .trim();
+      if (/^\d+$/.test(normalized)) {
+        cell.setAttribute(attr, normalized);
+      }
+    }
+  }
+
+  return container.innerHTML;
 }
 
 /** Convert content to HTML. content_format="markdown" → render; else use as HTML (no auto-conversion). / 将内容转为 HTML。content_format=markdown 时渲染，否则按 HTML 使用（不自动转换） */
@@ -129,9 +149,7 @@ export function useEditorPageOps(
   const isEnabled = () => {
     const pageKey = effectiveKey();
     return Boolean(
-      pageKey
-        && editorRef.value
-        && (toValue(options.enabled) ?? true),
+      pageKey && editorRef.value && (toValue(options.enabled) ?? true),
     );
   };
 
@@ -145,12 +163,12 @@ export function useEditorPageOps(
     title: () => $t('common.richTextEditor'),
     entityName: () => $t('common.richTextEditor'),
     entityDescription:
-      'HTML 富文本编辑器。正文摘要在 document_body_text；完整内容用 get_editor_html 获取。\n'
-      + 'content 参数默认要求 HTML（如 <h1>标题</h1><p>正文</p>）；传 content_format="markdown" 可送 Markdown。\n'
-      + '【局部编辑】先 get_editor_html 获取完整 HTML，再用 replace_section(old_html="旧片段", new_html="新片段") 只替换目标章节。\n'
-      + '长文档时 get_editor_html 返回可能被截断，请用返回内容中的短且唯一的 HTML 片段作为 replace_section 的 old_html，勿用整篇作为 old_html。\n'
-      + '【全文替换】仅当需要重写整篇文章时才用 replace_content。\n'
-      + '【追加/插入】append_content 在末尾追加，insert_content 在光标处插入。',
+      'HTML 富文本编辑器。正文摘要在 document_body_text；完整内容用 get_editor_html 获取。\n' +
+      'content 参数默认要求 HTML（如 <h1>标题</h1><p>正文</p>）；传 content_format="markdown" 可送 Markdown。\n' +
+      '【局部编辑】先 get_editor_html 获取完整 HTML，再用 replace_section(old_html="旧片段", new_html="新片段") 只替换目标章节。\n' +
+      '长文档时 get_editor_html 返回可能被截断，请用返回内容中的短且唯一的 HTML 片段作为 replace_section 的 old_html，勿用整篇作为 old_html。\n' +
+      '【全文替换】仅当需要重写整篇文章时才用 replace_content。\n' +
+      '【追加/插入】append_content 在末尾追加，insert_content 在光标处插入。',
     data: () => {
       const editor = editorRef.value;
       const fullText = editor?.getText?.() ?? '';
@@ -203,9 +221,9 @@ export function useEditorPageOps(
             const maxLen = 8000;
             const cut = html.length <= maxLen ? html : html.slice(0, maxLen);
             const lastClose = cut.lastIndexOf('>');
-            const safe = lastClose >= 0 ? cut.slice(0, lastClose + 1) : cut;
-            const hint
-              = 'Use short, unique HTML snippets for replace_section old_html; avoid using the entire document.';
+            const safe = lastClose === -1 ? cut : cut.slice(0, lastClose + 1);
+            const hint =
+              'Use short, unique HTML snippets for replace_section old_html; avoid using the entire document.';
             return {
               success: true,
               message: $t('common.editorOp.htmlRetrieved', {
@@ -297,10 +315,10 @@ export function useEditorPageOps(
           name: 'replace_section',
           label: $t('common.replaceSection'),
           description:
-            'Find a section by its old HTML snippet and replace it with new HTML. '
-            + 'Use this for partial edits — only the matched section is replaced, '
-            + 'the rest of the document is untouched. '
-            + 'old_html should be a short unique HTML fragment from get_editor_html output.',
+            'Find a section by its old HTML snippet and replace it with new HTML. ' +
+            'Use this for partial edits — only the matched section is replaced, ' +
+            'the rest of the document is untouched. ' +
+            'old_html should be a short unique HTML fragment from get_editor_html output.',
           readonly: false,
           params: {
             old_html: {
@@ -341,9 +359,9 @@ export function useEditorPageOps(
             if (matchCount > 1) {
               return {
                 success: false,
-                message:
-                  $t('common.editorOp.oldHtmlNotFound')
-                  + ` ${$t('common.editorOp.snippetMatchesMultiple')}`,
+                message: `${$t(
+                  'common.editorOp.oldHtmlNotFound',
+                )} ${$t('common.editorOp.snippetMatchesMultiple')}`,
                 error_type: 'non_unique_match',
               };
             }
@@ -352,9 +370,9 @@ export function useEditorPageOps(
               const excerpt = currentHtml.slice(0, snippetLen);
               return {
                 success: false,
-                message:
-                  $t('common.editorOp.oldHtmlNotFound')
-                  + ` First ${snippetLen} chars of current document:\n${excerpt}${currentHtml.length > snippetLen ? '...' : ''}`,
+                message: `${$t(
+                  'common.editorOp.oldHtmlNotFound',
+                )} First ${snippetLen} chars of current document:\n${excerpt}${currentHtml.length > snippetLen ? '...' : ''}`,
                 error_type: 'target_not_found',
               };
             }
@@ -372,7 +390,10 @@ export function useEditorPageOps(
               return resolvedNewHtml;
             }
 
-            const updatedNorm = normCurrent.replace(normOld, resolvedNewHtml.html);
+            const updatedNorm = normCurrent.replace(
+              normOld,
+              resolvedNewHtml.html,
+            );
             const updatedHtml = sanitizeEditorHtml(updatedNorm);
 
             try {
@@ -382,10 +403,9 @@ export function useEditorPageOps(
                 error instanceof Error ? error.message : String(error);
               return {
                 success: false,
-                message: $t(
-                  'common.editorOp.replacementInvalidStructure',
-                  { error: errMsg },
-                ),
+                message: $t('common.editorOp.replacementInvalidStructure', {
+                  error: errMsg,
+                }),
                 error_type: 'invalid_html',
               };
             }
@@ -468,7 +488,10 @@ export function useEditorPageOps(
           defaultValue: 'bold',
           execute: async (cmd) => {
             const chain = editor.chain().focus();
-            const map: Record<(typeof TEXT_FORMAT_COMMANDS)[number], () => boolean> = {
+            const map: Record<
+              (typeof TEXT_FORMAT_COMMANDS)[number],
+              () => boolean
+            > = {
               bold: () => chain.toggleBold().run(),
               italic: () => chain.toggleItalic().run(),
               underline: () => chain.toggleUnderline().run(),

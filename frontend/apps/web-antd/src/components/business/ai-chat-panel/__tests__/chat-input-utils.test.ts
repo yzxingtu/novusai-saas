@@ -39,9 +39,15 @@ describe('chat-input-utils', () => {
       createAgent(3, 'Ops', 'Deployment helper'),
     ];
 
-    expect(filterAgentsByMentionQuery(agents, 'data').map((agent) => agent.id)).toEqual([1]);
-    expect(filterAgentsByMentionQuery(agents, 'editor').map((agent) => agent.id)).toEqual([2]);
-    expect(filterAgentsByMentionQuery(agents, '').map((agent) => agent.id)).toEqual([1, 2, 3]);
+    expect(
+      filterAgentsByMentionQuery(agents, 'data').map((agent) => agent.id),
+    ).toEqual([1]);
+    expect(
+      filterAgentsByMentionQuery(agents, 'editor').map((agent) => agent.id),
+    ).toEqual([2]);
+    expect(
+      filterAgentsByMentionQuery(agents, '').map((agent) => agent.id),
+    ).toEqual([1, 2, 3]);
   });
 
   it('filters knowledge bases by name or id', () => {
@@ -64,6 +70,7 @@ describe('chat-input-utils', () => {
 
   it('moves streamed tool-round content into the thinking block', () => {
     const message: ChatMessage = {
+      clientKey: 'assistant-streaming-message',
       role: 'assistant',
       content: '先检查数据库。',
       thinkingContent: '先分析问题。',

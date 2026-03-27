@@ -5,7 +5,9 @@
  * 模拟 Detail Drawer，支持 groups 分组
  */
 import { computed } from 'vue';
+
 import { Descriptions, Empty } from 'ant-design-vue';
+
 import { $t } from '#/locales';
 import { useCodegenBuilderStore } from '#/store';
 
@@ -43,9 +45,7 @@ function normalizeDetailGroup(group: unknown): DetailGroup | null {
 const detailGroups = computed<DetailGroup[]>(() => {
   const rawGroups = features.detailGroups.value;
   return Array.isArray(rawGroups)
-    ? rawGroups
-        .map((group) => normalizeDetailGroup(group))
-        .filter((group): group is DetailGroup => Boolean(group))
+    ? rawGroups.map((group) => normalizeDetailGroup(group)).filter(Boolean)
     : [];
 });
 const detailFields = computed<BuilderField[]>(
@@ -57,7 +57,7 @@ function getFieldsForGroup(groupFields: string[] | undefined): BuilderField[] {
   const all = (store.configJson.fields as BuilderField[]) || [];
   return groupFields
     .map((name) => all.find((field) => field.name === name))
-    .filter((field): field is BuilderField => Boolean(field));
+    .filter(Boolean);
 }
 
 function onFieldClick(field: BuilderField) {

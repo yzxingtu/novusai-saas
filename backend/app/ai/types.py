@@ -6,6 +6,7 @@ Cross-provider unified data structures, abstracting away API differences.
 """
 
 from dataclasses import dataclass, field
+from typing import Any
 from decimal import Decimal
 from typing import Literal
 
@@ -35,6 +36,7 @@ class ChatMessage:
     tool_call_id: str | None = None
     attachments: list[dict] | None = None
     reasoning_content: str | None = None
+    metadata: dict[str, Any] | None = None
     internal_only: bool = False
 
 

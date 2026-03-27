@@ -9,8 +9,8 @@ import { ref } from 'vue';
 
 import { defineStore } from 'pinia';
 
-import { resolveEndpointByPath } from '#/constants/endpoints';
 import { useNotificationToast } from '#/composables/use-notification-toast';
+import { resolveEndpointByPath } from '#/constants/endpoints';
 import { requestClient } from '#/utils/request';
 
 import { useSocketIOStore } from './socketio';

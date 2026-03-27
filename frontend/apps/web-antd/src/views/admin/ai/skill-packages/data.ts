@@ -19,8 +19,13 @@ function getFallbackTextKey(): string {
   return 'admin.ai.skillPackage.roleOptions.platform_catalog';
 }
 
-export function getPackageRoleColor(roleKey: null | string | undefined): string {
+export function getPackageRoleColor(
+  roleKey: null | string | undefined,
+): string {
   switch (roleKey) {
+    case 'platform_catalog': {
+      return 'purple';
+    }
     case 'platform_system': {
       return 'gold';
     }
@@ -29,9 +34,6 @@ export function getPackageRoleColor(roleKey: null | string | undefined): string 
     }
     case 'tenant_owned': {
       return 'green';
-    }
-    case 'platform_catalog': {
-      return 'purple';
     }
     default: {
       return 'default';
@@ -63,7 +65,9 @@ export function getRuntimeBindingModeText(
   mode: null | string | undefined,
 ): string {
   if (!mode) {
-    return $t('admin.ai.skillPackage.runtimeBindingOptions.direct_agent_skill_grant');
+    return $t(
+      'admin.ai.skillPackage.runtimeBindingOptions.direct_agent_skill_grant',
+    );
   }
   return $t(`admin.ai.skillPackage.runtimeBindingOptions.${mode}`);
 }
@@ -88,7 +92,9 @@ export function getSourceSummaryText(
     });
   }
 
-  return $t(`admin.ai.skillPackage.sourceSummaryOptions.${summary.replace(':', '_')}`);
+  return $t(
+    `admin.ai.skillPackage.sourceSummaryOptions.${summary.replace(':', '_')}`,
+  );
 }
 
 /** Table column definitions / 表格列定义 */

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { UserPortalAgent } from '#/views/user/modules/portal-data';
+
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
@@ -7,11 +9,8 @@ import { IconifyIcon } from '@vben/icons';
 import { Empty, Input, Spin } from 'ant-design-vue';
 
 import { $t } from '#/locales';
+import { useUserPortalWorkspace } from '#/views/user/modules/portal-data';
 import PortalAgentCard from '#/views/user/modules/PortalAgentCard.vue';
-import {
-  type UserPortalAgent,
-  useUserPortalWorkspace,
-} from '#/views/user/modules/portal-data';
 
 defineOptions({ name: 'UserAgents' });
 
@@ -178,21 +177,35 @@ onMounted(async () => {
     <section
       class="relative overflow-hidden rounded-[32px] border border-border/70 bg-card px-6 py-7 shadow-sm sm:px-8"
     >
-      <div class="absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
-      <div class="absolute -right-24 top-0 size-72 rounded-full bg-primary/10 blur-3xl" />
-      <div class="absolute left-0 top-1/2 size-56 -translate-y-1/2 rounded-full bg-sky-500/10 blur-3xl" />
+      <div
+        class="absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent"
+      ></div>
+      <div
+        class="absolute -right-24 top-0 size-72 rounded-full bg-primary/10 blur-3xl"
+      ></div>
+      <div
+        class="absolute left-0 top-1/2 size-56 -translate-y-1/2 rounded-full bg-sky-500/10 blur-3xl"
+      ></div>
 
-      <div class="relative grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+      <div
+        class="relative grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]"
+      >
         <div class="space-y-5">
-          <div class="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/8 px-3 py-1 text-xs font-medium text-primary">
+          <div
+            class="bg-primary/8 inline-flex items-center gap-2 rounded-full border border-primary/20 px-3 py-1 text-xs font-medium text-primary"
+          >
             <IconifyIcon icon="lucide:bot" class="size-3.5" />
             {{ $t('user.agents.badge') }}
           </div>
           <div>
-            <h1 class="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+            <h1
+              class="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl"
+            >
               {{ $t('user.agents.title') }}
             </h1>
-            <p class="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
+            <p
+              class="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base"
+            >
               {{ $t('user.agents.description') }}
             </p>
           </div>
@@ -224,10 +237,14 @@ onMounted(async () => {
             class="rounded-[24px] border border-border/60 bg-background/90 p-4 shadow-sm"
           >
             <div class="flex items-center justify-between">
-              <span class="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <span
+                class="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary"
+              >
                 <IconifyIcon :icon="stat.icon" class="size-4.5" />
               </span>
-              <span class="text-3xl font-semibold tracking-tight text-foreground">
+              <span
+                class="text-3xl font-semibold tracking-tight text-foreground"
+              >
                 {{ stat.value }}
               </span>
             </div>
@@ -239,8 +256,12 @@ onMounted(async () => {
       </div>
     </section>
 
-    <section class="rounded-[28px] border border-border/70 bg-card p-5 shadow-sm sm:p-6">
-      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <section
+      class="rounded-[28px] border border-border/70 bg-card p-5 shadow-sm sm:p-6"
+    >
+      <div
+        class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"
+      >
         <div>
           <h2 class="text-xl font-semibold text-foreground">
             {{ $t('user.agents.directoryTitle') }}
@@ -257,7 +278,10 @@ onMounted(async () => {
             class="!rounded-full"
           >
             <template #prefix>
-              <IconifyIcon icon="lucide:search" class="size-4 text-muted-foreground" />
+              <IconifyIcon
+                icon="lucide:search"
+                class="size-4 text-muted-foreground"
+              />
             </template>
           </Input>
         </div>

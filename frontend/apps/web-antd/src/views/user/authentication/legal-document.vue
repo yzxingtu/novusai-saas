@@ -40,11 +40,12 @@ onMounted(async () => {
   notFound.value = false;
   try {
     const res = await getTenantLegalDocumentApi(kind.value);
-    if (!res?.html?.trim()) {
+    const legalHtml = res?.html?.trim();
+    if (legalHtml) {
+      html.value = res.html;
+    } else {
       notFound.value = true;
       html.value = '';
-    } else {
-      html.value = res.html;
     }
   } catch {
     notFound.value = true;
@@ -70,10 +71,10 @@ onMounted(async () => {
     </div>
 
     <!-- 标题区 -->
-    <div class="legal-doc-title-wrap mb-6 rounded-2xl bg-gradient-to-br from-primary/[0.06] via-transparent to-violet-500/[0.06] px-5 py-6 sm:px-6 sm:py-8">
-      <h1
-        class="text-2xl font-bold tracking-tight text-foreground sm:text-3xl"
-      >
+    <div
+      class="legal-doc-title-wrap mb-6 rounded-2xl bg-gradient-to-br from-primary/[0.06] via-transparent to-violet-500/[0.06] px-5 py-6 sm:px-6 sm:py-8"
+    >
+      <h1 class="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
         {{ pageTitle }}
       </h1>
       <p class="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
@@ -96,12 +97,14 @@ onMounted(async () => {
 
       <article
         v-else-if="!loading"
-        class="legal-doc-paper rounded-2xl border border-black/[0.06] bg-white/80 px-5 py-8 shadow-sm dark:border-border dark:bg-card/50 sm:px-8 sm:py-10 lg:px-12 lg:py-12"
+        class="legal-doc-paper rounded-2xl border border-black/[0.06] bg-white/80 px-5 py-8 shadow-sm sm:px-8 sm:py-10 lg:px-12 lg:py-12 dark:border-border dark:bg-card/50"
       >
+        <!-- eslint-disable vue/no-v-html -->
         <div
           class="legal-document-body max-w-none text-[15px] leading-[1.75] text-foreground"
           v-html="safeHtml"
-        />
+        ></div>
+        <!-- eslint-enable vue/no-v-html -->
       </article>
     </Spin>
 
@@ -128,9 +131,11 @@ onMounted(async () => {
 .legal-document-body :deep(h1) {
   font-size: 1.375rem;
 }
+
 .legal-document-body :deep(h2) {
   font-size: 1.2rem;
 }
+
 .legal-document-body :deep(h3) {
   font-size: 1.05rem;
 }
@@ -141,8 +146,8 @@ onMounted(async () => {
 
 .legal-document-body :deep(ul),
 .legal-document-body :deep(ol) {
-  margin: 0.75em 0 1em;
   padding-left: 1.5em;
+  margin: 0.75em 0 1em;
 }
 
 .legal-document-body :deep(li) {
@@ -150,39 +155,39 @@ onMounted(async () => {
 }
 
 .legal-document-body :deep(blockquote) {
-  margin: 1em 0;
-  border-left: 4px solid hsl(var(--primary) / 0.45);
   padding-left: 1rem;
-  color: hsl(var(--muted-foreground));
+  margin: 1em 0;
   font-size: 0.95em;
+  color: hsl(var(--muted-foreground));
+  border-left: 4px solid hsl(var(--primary) / 45%);
 }
 
 .legal-document-body :deep(table) {
   width: 100%;
   margin: 1em 0;
-  border-collapse: collapse;
   font-size: 0.9em;
+  border-collapse: collapse;
 }
 
 .legal-document-body :deep(th),
 .legal-document-body :deep(td) {
-  border: 1px solid hsl(var(--border));
   padding: 0.5rem 0.75rem;
   text-align: left;
+  border: 1px solid hsl(var(--border));
 }
 
 .legal-document-body :deep(th) {
-  background: hsl(var(--muted) / 0.35);
   font-weight: 600;
+  background: hsl(var(--muted) / 35%);
 }
 
 .legal-document-body :deep(pre) {
+  padding: 1rem;
   margin: 1em 0;
   overflow-x: auto;
-  border-radius: 0.5rem;
-  padding: 1rem;
-  background: hsl(var(--muted) / 0.4);
   font-size: 0.875em;
+  background: hsl(var(--muted) / 40%);
+  border-radius: 0.5rem;
 }
 
 .legal-document-body :deep(code) {

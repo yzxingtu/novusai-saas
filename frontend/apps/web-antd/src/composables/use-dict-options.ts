@@ -1,3 +1,5 @@
+import type { Ref } from 'vue';
+
 /**
  * 数据字典选项 / Dict Options
  *
@@ -7,14 +9,15 @@
  * Placeholder: returns empty array when no Dict module. Wire to real API when available.
  */
 import { ref } from 'vue';
-import type { Ref } from 'vue';
 
 export interface DictOption {
   label: string;
-  value: string | number;
+  value: number | string;
 }
 
-export type DictOptionsFetcher = () => Promise<DictOption[] | { items: DictOption[] }>;
+export type DictOptionsFetcher = () => Promise<
+  DictOption[] | { items: DictOption[] }
+>;
 
 /**
  * 获取字典选项 API 函数 / Get dict options API function
@@ -45,7 +48,8 @@ export function getDictOptionsApi(dictCode: string): DictOptionsFetcher {
 export function useDictOptions(
   dictCode: Ref<string> | string,
 ): Ref<DictOption[]> {
-  const code = typeof dictCode === 'string' ? dictCode : (dictCode as Ref<string>).value;
+  const code =
+    typeof dictCode === 'string' ? dictCode : (dictCode as Ref<string>).value;
   // 占位：返回空数组。待 Dict 模块就绪后改为请求 API 并返回 computed。
   if (import.meta.env.DEV && code) {
     console.warn(

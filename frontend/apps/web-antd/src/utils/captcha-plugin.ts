@@ -15,13 +15,9 @@ export async function ensureCaptchaPluginReady(
   }
 
   try {
-    await loadPluginComponents(
-      plugin.pluginName,
-      plugin.frontendRuntime,
-      {
-        publicEndpoint: plugin.publicEndpoint,
-      },
-    );
+    await loadPluginComponents(plugin.pluginName, plugin.frontendRuntime, {
+      publicEndpoint: plugin.publicEndpoint,
+    });
     return true;
   } catch (error) {
     console.warn(

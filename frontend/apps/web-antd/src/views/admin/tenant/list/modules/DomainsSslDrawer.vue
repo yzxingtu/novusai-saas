@@ -367,7 +367,10 @@ defineExpose({ open });
         <div
           class="flex flex-col items-center justify-center py-12 text-muted-foreground"
         >
-          <IconifyIcon icon="lucide:shield-check" class="mb-3 size-12 text-success" />
+          <IconifyIcon
+            icon="lucide:shield-check"
+            class="mb-3 size-12 text-success"
+          />
           <p class="mb-2 text-sm font-medium text-foreground">
             {{ $t('admin.tenant.domain.ssl.platformWildcard') }}
           </p>

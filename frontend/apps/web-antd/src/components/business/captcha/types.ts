@@ -19,7 +19,11 @@ export type CaptchaProviderType =
   | (string & {});
 
 /** Captcha action type / 验证码操作类型 */
-export type CaptchaAction = 'login' | 'register' | 'reset_password' | (string & {});
+export type CaptchaAction =
+  | 'login'
+  | 'register'
+  | 'reset_password'
+  | (string & {});
 
 /** Captcha unified output result / 验证码统一输出结果 */
 export interface CaptchaResult {

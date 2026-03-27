@@ -75,8 +75,9 @@ export async function tenantRefreshTokenApi(
     `${API_PREFIX}/refresh`,
     { refresh_token: refreshToken },
   );
-  const responseData = (response as unknown as { data: HttpResponse<RefreshTokenResultRaw> })
-    .data;
+  const responseData = (
+    response as unknown as { data: HttpResponse<RefreshTokenResultRaw> }
+  ).data;
   if (responseData.code !== 0) {
     throw new Error(
       responseData.message || $t('tenant.impersonate.refreshFailed'),
@@ -219,7 +220,9 @@ export async function impersonateLoginApi(
     `${API_PREFIX}/impersonate`,
     { impersonate_token: impersonateToken },
   );
-  const responseData = (response as unknown as { data: HttpResponse<LoginResultRaw> }).data;
+  const responseData = (
+    response as unknown as { data: HttpResponse<LoginResultRaw> }
+  ).data;
   if (responseData.code !== 0) {
     throw new Error(
       responseData.message || $t('tenant.impersonate.loginFailed'),

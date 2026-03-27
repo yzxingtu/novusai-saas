@@ -224,11 +224,14 @@ function transformOrgNode(raw: OrgNodeInfoRaw): OrgNodeInfo {
     permissionCodes: raw.permission_codes,
     dataScope: raw.data_scope,
     customDeptIds: raw.custom_dept_ids,
-    scopeTargetCount: raw.scope_target_count ?? raw.custom_dept_ids?.length ?? 0,
+    scopeTargetCount:
+      raw.scope_target_count ?? raw.custom_dept_ids?.length ?? 0,
     scopeTargets: raw.scope_targets,
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
-    children: raw.children?.map((child) => transformOrgNode(child as OrgNodeInfoRaw)),
+    children: raw.children?.map((child) =>
+      transformOrgNode(child as OrgNodeInfoRaw),
+    ),
   };
 }
 

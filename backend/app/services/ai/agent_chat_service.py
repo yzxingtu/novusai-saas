@@ -120,13 +120,13 @@ class AgentChatService:
         self,
         agent_id: int,
         knowledge_base_ids: list[int] | None,
-    ) -> list[int] | None:
+    ) -> tuple[list[int] | None, list[int]]:
         """
         Keep only KB ids bound to the agent (tenant-scoped bindings). None => no narrowing.
         仅保留已绑定到智能体的知识库 ID；None 表示不按客户端列表收窄。
         """
         if not knowledge_base_ids:
-            return None
+            return None, []
         from app.ai.rag_injector import load_agent_kb_bindings
 
         bound_ids, _ = await load_agent_kb_bindings(self.db, agent_id, self.tenant_id)
@@ -139,7 +139,7 @@ class AgentChatService:
                 agent_id,
                 dropped,
             )
-        return filtered or None
+        return filtered or None, dropped
 
     async def _build_billing_context(
         self,
@@ -509,6 +509,7 @@ class AgentChatService:
         memory_source: str = "",
         page_session_id: str | None = None,
         route_source: str | None = None,
+        interaction_updates: list[dict[str, Any]] | None = None,
     ) -> AgentChatResponse:
         """
         非流式对话 / Non-streaming chat.
@@ -537,7 +538,7 @@ class AgentChatService:
 
         # 0. 加载并校验 Agent（必须已发布）/ Load and validate Agent (must be published)
         agent = await self._validate_agent(agent_id)
-        knowledge_base_ids = await self._sanitize_client_knowledge_base_ids(
+        knowledge_base_ids, dropped_knowledge_base_ids = await self._sanitize_client_knowledge_base_ids(
             agent_id, knowledge_base_ids,
         )
 
@@ -551,6 +552,13 @@ class AgentChatService:
             owner_type=conversation_owner_type,
             first_message=message,
         )
+        if interaction_updates:
+            await self.conversation_svc.update_last_assistant_interaction_state(
+                conversation.id,
+                interaction_updates,
+                user_id=user_id,
+                owner_type=conversation_owner_type.value,
+            )
         memory_event_id = self._build_memory_event_id(conversation.id)
 
         # 1.5 新对话时递增每日对话计数（用于 conversations_per_day 配额）/ Increment daily conversation count for new convos
@@ -625,6 +633,14 @@ class AgentChatService:
             memory_source=normalized_source,
             memory_enabled=memory_enabled,
             page_session_id=page_session_id,
+            knowledge_base_feedback=(
+                {
+                    "dropped_knowledge_base_ids": dropped_knowledge_base_ids,
+                    "effective_knowledge_base_ids": knowledge_base_ids or [],
+                }
+                if dropped_knowledge_base_ids
+                else None
+            ),
         )
 
         # 4.1 会话记忆注入（仅 ai_chat_page 生效）/ Session memory injection (ai_chat_page only)
@@ -723,6 +739,8 @@ class AgentChatService:
             tool_calls=tool_calls_collected or None,
             total_tokens=result.total_tokens,
             duration_ms=duration_ms,
+            effective_knowledge_base_ids=knowledge_base_ids,
+            dropped_knowledge_base_ids=dropped_knowledge_base_ids or None,
         )
 
     # ========================================
@@ -750,6 +768,7 @@ class AgentChatService:
         memory_source: str = "",
         page_session_id: str | None = None,
         route_source: str | None = None,
+        interaction_updates: list[dict[str, Any]] | None = None,
     ) -> StreamingResponse:
         """
         流式对话（返回 StreamingResponse）/ Streaming chat (returns StreamingResponse).
@@ -772,7 +791,7 @@ class AgentChatService:
 
         # 0. 加载并校验 Agent（必须已发布）/ Load and validate Agent (must be published)
         agent = await self._validate_agent(agent_id)
-        knowledge_base_ids = await self._sanitize_client_knowledge_base_ids(
+        knowledge_base_ids, dropped_knowledge_base_ids = await self._sanitize_client_knowledge_base_ids(
             agent_id, knowledge_base_ids,
         )
 
@@ -790,6 +809,13 @@ class AgentChatService:
             owner_type=conversation_owner_type,
             first_message=first_message,
         )
+        if interaction_updates:
+            await self.conversation_svc.update_last_assistant_interaction_state(
+                conversation.id,
+                interaction_updates,
+                user_id=user_id,
+                owner_type=conversation_owner_type.value,
+            )
         memory_event_id = self._build_memory_event_id(conversation.id)
 
         # 1.5 新对话时递增每日对话计数 / 1.5 Increment daily conversation count on new chat
@@ -874,6 +900,14 @@ class AgentChatService:
             memory_source=normalized_source,
             memory_enabled=memory_enabled,
             page_session_id=page_session_id,
+            knowledge_base_feedback=(
+                {
+                    "dropped_knowledge_base_ids": dropped_knowledge_base_ids,
+                    "effective_knowledge_base_ids": knowledge_base_ids or [],
+                }
+                if dropped_knowledge_base_ids
+                else None
+            ),
         )
 
         # 4.1 会话记忆注入（仅 ai_chat_page 生效）/ Session memory injection (ai_chat_page only)
@@ -1078,11 +1112,20 @@ class AgentChatService:
                             await cb_db.rollback()
                             raise
 
-                    await AgentStatsManager.record_chat(
-                        tenant_id=self.tenant_id,
-                        agent_id=agent_id,
-                        tokens=result.total_tokens,
-                    )
+                    try:
+                        await AgentStatsManager.record_chat(
+                            tenant_id=self.tenant_id,
+                            agent_id=agent_id,
+                            tokens=result.total_tokens,
+                        )
+                    except Exception as stats_exc:
+                        logger.warning(
+                            "Record agent stats failed: tenant={} agent={} conversation={} err={}",
+                            self.tenant_id,
+                            agent_id,
+                            conversation.id,
+                            str(stats_exc),
+                        )
 
                     # 写入会话记忆（流式完成后）/ Write session memory after stream complete
                     try:
@@ -1213,7 +1256,7 @@ class AgentChatService:
         - 仍保留配额检查和统计
         """
         agent = await self._validate_agent(agent_id)
-        knowledge_base_ids = await self._sanitize_client_knowledge_base_ids(
+        knowledge_base_ids, dropped_knowledge_base_ids = await self._sanitize_client_knowledge_base_ids(
             agent_id, knowledge_base_ids,
         )
 
@@ -1244,6 +1287,14 @@ class AgentChatService:
             memory_channel=MEMORY_CHANNEL_SYSTEM,
             memory_source="system.ai_writing",
             memory_enabled=False,
+            knowledge_base_feedback=(
+                {
+                    "dropped_knowledge_base_ids": dropped_knowledge_base_ids,
+                    "effective_knowledge_base_ids": knowledge_base_ids or [],
+                }
+                if dropped_knowledge_base_ids
+                else None
+            ),
         )
 
         quota_config = AgentQuotaConfig.from_dict(agent.quota_config)

@@ -11,8 +11,8 @@ import { mapTree, traverseTreeValues, uniqueByField } from '@vben/utils';
 import { VbenIcon } from '@vben-core/shadcn-ui';
 import { isHttpUrl } from '@vben-core/shared/utils';
 
-import DOMPurify from 'dompurify';
 import { onKeyStroke, useLocalStorage, useThrottleFn } from '@vueuse/core';
+import DOMPurify from 'dompurify';
 
 defineOptions({
   name: 'SearchPanel',
@@ -49,7 +49,7 @@ function buildPathToNameMap(menus: MenuRecordRaw[]) {
 
 function getParentBreadcrumb(item: MenuRecordRaw): string {
   if (!item.parents || item.parents.length === 0) {
-    return item.parent ? (pathToNameMap.get(item.parent) || '') : '';
+    return item.parent ? pathToNameMap.get(item.parent) || '' : '';
   }
   return item.parents
     .map((p) => pathToNameMap.get(p))
@@ -263,29 +263,32 @@ onMounted(() => {
   <div>
     <!-- Empty state: no keyword, no history -->
     <div v-if="!keyword && searchResults.length === 0" class="px-4 py-3">
-      <div
-        class="flex items-center gap-4 text-xs text-muted-foreground/70"
-      >
+      <div class="text-muted-foreground/70 flex items-center gap-4 text-xs">
         <span class="flex items-center gap-1">
           <kbd
-            class="rounded border border-border/50 bg-muted/50 px-1 py-0.5 text-[10px]"
-          >Enter</kbd>
+            class="border-border/50 bg-muted/50 rounded border px-1 py-0.5 text-[10px]"
+            >Enter</kbd
+          >
           {{ $t('ui.widgets.search.select') }}
         </span>
         <span class="flex items-center gap-1">
           <kbd
-            class="rounded border border-border/50 bg-muted/50 px-1 py-0.5 text-[10px]"
-          >↑↓</kbd>
+            class="border-border/50 bg-muted/50 rounded border px-1 py-0.5 text-[10px]"
+            >↑↓</kbd
+          >
           {{ $t('ui.widgets.search.navigate') }}
         </span>
         <span class="flex items-center gap-1">
           <kbd
-            class="rounded border border-border/50 bg-muted/50 px-1 py-0.5 text-[10px]"
-          >Esc</kbd>
+            class="border-border/50 bg-muted/50 rounded border px-1 py-0.5 text-[10px]"
+            >Esc</kbd
+          >
           {{ $t('ui.widgets.search.close') }}
         </span>
       </div>
-      <div class="mt-3 flex flex-col items-center justify-center border-t border-border/30 py-6">
+      <div
+        class="border-border/30 mt-3 flex flex-col items-center justify-center border-t py-6"
+      >
         <SearchX class="text-muted-foreground/30 size-8" />
         <p class="text-muted-foreground/60 mt-2 text-sm">
           {{ $t('ui.widgets.search.noRecent') }}
@@ -302,9 +305,7 @@ onMounted(() => {
       <p class="text-muted-foreground mt-3 text-sm">
         {{ $t('ui.widgets.search.noResults') }}
       </p>
-      <p class="text-muted-foreground/50 mt-1 text-xs">
-        "{{ keyword }}"
-      </p>
+      <p class="text-muted-foreground/50 mt-1 text-xs">"{{ keyword }}"</p>
     </div>
 
     <!-- Results or History -->
@@ -313,7 +314,7 @@ onMounted(() => {
         <!-- Section header -->
         <div
           v-if="!keyword && searchHistory.length > 0"
-          class="mb-2 flex items-center gap-1.5 px-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60"
+          class="text-muted-foreground/60 mb-2 flex items-center gap-1.5 px-2 text-[11px] font-medium uppercase tracking-wider"
         >
           <CornerDownLeft class="size-3" />
           {{ $t('ui.widgets.search.recent') }}
@@ -322,11 +323,17 @@ onMounted(() => {
           v-else-if="keyword"
           class="mb-2 flex items-center justify-between px-2"
         >
-          <span class="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">
+          <span
+            class="text-muted-foreground/60 text-[11px] font-medium uppercase tracking-wider"
+          >
             {{ $t('ui.widgets.search.title') }}
           </span>
-          <span class="text-[10px] tabular-nums text-muted-foreground/50">
-            {{ $t('ui.widgets.search.resultsCount', { count: displayResults.length }) }}
+          <span class="text-muted-foreground/50 text-[10px] tabular-nums">
+            {{
+              $t('ui.widgets.search.resultsCount', {
+                count: displayResults.length,
+              })
+            }}
           </span>
         </div>
 
@@ -358,20 +365,24 @@ onMounted(() => {
             </div>
 
             <div class="min-w-0 flex-1">
+              <!-- eslint-disable vue/no-v-html -->
               <div
                 class="truncate text-sm font-medium"
-                v-html="keyword ? highlightMatch(item.name, keyword) : item.name"
+                v-html="
+                  keyword ? highlightMatch(item.name, keyword) : item.name
+                "
               ></div>
+              <!-- eslint-enable vue/no-v-html -->
               <div class="flex items-center gap-2">
                 <span
                   v-if="getParentBreadcrumb(item)"
-                  class="truncate text-xs text-muted-foreground/70"
+                  class="text-muted-foreground/70 truncate text-xs"
                 >
                   {{ getParentBreadcrumb(item) }}
                 </span>
                 <span
                   v-if="item.path && !isHttpUrl(item.path)"
-                  class="shrink-0 truncate text-[10px] tabular-nums text-muted-foreground/40"
+                  class="text-muted-foreground/40 shrink-0 truncate text-[10px] tabular-nums"
                 >
                   {{ item.path }}
                 </span>
@@ -384,7 +395,7 @@ onMounted(() => {
                 class="text-primary size-3.5"
               />
               <div
-                class="flex items-center justify-center rounded-full p-1 opacity-0 transition-opacity hover:bg-accent group-hover:opacity-100"
+                class="hover:bg-accent flex items-center justify-center rounded-full p-1 opacity-0 transition-opacity group-hover:opacity-100"
                 @click.stop="removeItem(index)"
               >
                 <X class="text-muted-foreground size-3.5" />
@@ -396,24 +407,27 @@ onMounted(() => {
 
       <!-- Footer hints (when results are showing) -->
       <div
-        class="flex items-center gap-4 border-t border-border/40 px-4 py-2.5 text-xs text-muted-foreground/70"
+        class="border-border/40 text-muted-foreground/70 flex items-center gap-4 border-t px-4 py-2.5 text-xs"
       >
         <span class="flex items-center gap-1">
           <kbd
-            class="rounded border border-border/50 bg-muted/50 px-1 py-0.5 text-[10px]"
-          >Enter</kbd>
+            class="border-border/50 bg-muted/50 rounded border px-1 py-0.5 text-[10px]"
+            >Enter</kbd
+          >
           {{ $t('ui.widgets.search.select') }}
         </span>
         <span class="flex items-center gap-1">
           <kbd
-            class="rounded border border-border/50 bg-muted/50 px-1 py-0.5 text-[10px]"
-          >↑↓</kbd>
+            class="border-border/50 bg-muted/50 rounded border px-1 py-0.5 text-[10px]"
+            >↑↓</kbd
+          >
           {{ $t('ui.widgets.search.navigate') }}
         </span>
         <span class="flex items-center gap-1">
           <kbd
-            class="rounded border border-border/50 bg-muted/50 px-1 py-0.5 text-[10px]"
-          >Esc</kbd>
+            class="border-border/50 bg-muted/50 rounded border px-1 py-0.5 text-[10px]"
+            >Esc</kbd
+          >
           {{ $t('ui.widgets.search.close') }}
         </span>
       </div>

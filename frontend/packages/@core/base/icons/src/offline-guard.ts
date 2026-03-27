@@ -13,7 +13,10 @@ type IconifyQuery =
       uri: string;
     };
 
-type IconifyQueryDone = (status: 'abort' | 'next' | 'success', data: unknown) => void;
+type IconifyQueryDone = (
+  status: 'abort' | 'next' | 'success',
+  data: unknown,
+) => void;
 
 const warnedQueries = new Set<string>();
 

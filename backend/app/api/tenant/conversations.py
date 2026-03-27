@@ -21,6 +21,7 @@ from app.rbac.decorators import (
     permission_resource,
 )
 from app.services.ai.conversation_service import ConversationService
+from app.services.ai.monitoring_service import MonitoringService
 
 
 # ============================================
@@ -69,10 +70,10 @@ class TenantConversationController(TenantController):
             支持 JSON:API 分页、筛选、排序 / Supports JSON:API pagination, filtering, sorting
             权限 / Permission: agent_conversation:list
             """
-            service = ConversationService(db, tenant_admin.tenant_id)
-            items, total = await service.query_list(spec=query)
-            result = await service.enrich_conversation_list(
-                items, include_user_info=True,
+            monitoring = MonitoringService(db)
+            result, total = await monitoring.list_conversations(
+                monitoring.tenant_scope(tenant_admin.tenant_id),
+                query,
             )
             return paginated(
                 items=result,
@@ -120,17 +121,13 @@ class TenantConversationController(TenantController):
 
             权限 / Permission: agent_conversation:detail
             """
-            service = ConversationService(db, tenant_admin.tenant_id)
-            result = await service.get_conversation_detail(
+            monitoring = MonitoringService(db)
+            result = await monitoring.get_conversation_detail(
+                monitoring.tenant_scope(tenant_admin.tenant_id),
                 conversation_id=conversation_id,
                 message_skip=message_skip,
                 message_limit=message_limit,
             )
-
-            conv = await service.get_by_id(conversation_id)
-            if conv:
-                result = await service.enrich_conversation_detail(result, conv)
-
             return success(data=result)
 
         @router.post("/{conversation_id}/archive", summary="归档对话")

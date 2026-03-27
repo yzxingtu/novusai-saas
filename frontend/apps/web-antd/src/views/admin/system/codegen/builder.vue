@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { PaletteItem } from './modules/ComponentPalette.vue';
+
 /**
  * 代码生成器三栏可视化构建器 / Codegen Visual Builder
  *
@@ -10,8 +12,6 @@ import type {
   PreviewResult,
 } from '#/api/admin/codegen';
 
-import { Page } from '@vben/common-ui';
-import yaml from 'js-yaml';
 import {
   computed,
   defineAsyncComponent,
@@ -23,6 +23,9 @@ import {
   watch,
 } from 'vue';
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
+
+import { Page } from '@vben/common-ui';
+import { IconifyIcon } from '@vben/icons';
 
 import {
   Alert,
@@ -37,14 +40,14 @@ import {
   List,
   Menu,
   MenuItem,
-  Modal,
   message,
+  Modal,
   Radio,
   Select,
   Tag,
   Tooltip,
 } from 'ant-design-vue';
-import { IconifyIcon } from '@vben/icons';
+import yaml from 'js-yaml';
 
 import {
   createCodegenConfigApi,
@@ -61,14 +64,14 @@ import {
   updateCodegenConfigApi,
 } from '#/api/admin/codegen';
 import { $t } from '#/locales';
-import { formatDate } from '#/utils/common';
 import { useCodegenBuilderStore } from '#/store';
+import { formatDate } from '#/utils/common';
 import { downloadText } from '#/utils/download';
 
-import type { PaletteItem } from './modules/ComponentPalette.vue';
 import { createFieldFromPalette, ensureFieldKeys } from './modules/field-utils';
 import { inferFieldConfigForMerge, pluralize } from './modules/infer';
 
+defineOptions({ name: 'AdminSystemCodegenBuilder' });
 const ComponentPalette = defineAsyncComponent(
   () => import('./modules/ComponentPalette.vue'),
 );
@@ -91,8 +94,6 @@ const DbTableImportModal = defineAsyncComponent(
   () => import('./modules/DbTableImportModal.vue'),
 );
 
-defineOptions({ name: 'AdminSystemCodegenBuilder' });
-
 const route = useRoute();
 const router = useRouter();
 const store = useCodegenBuilderStore();
@@ -108,7 +109,7 @@ const isSaving = ref(false);
 const isGenerating = ref(false);
 const isPreparingGenerate = ref(false);
 const validationErrors = ref<
-  Array<{ code: string; message: string; path: string; field: string }>
+  Array<{ code: string; field: string; message: string; path: string }>
 >([]);
 const configMeta = ref<CodegenConfigInfo | null>(null);
 const importYamlVisible = ref(false);
@@ -123,31 +124,31 @@ const versionPreviewContent = ref('');
 const versionPreviewNote = ref('');
 const versionPreviewLoadingIds = ref<Set<number>>(new Set());
 const resultModalVisible = ref(false);
-const lastResult = ref<{
-  success: boolean;
-  files_created: string[];
-  files_modified: string[];
+const lastResult = ref<null | {
+  config_id?: null | number;
   conflicts: Array<Record<string, string>>;
   errors: string[];
-  config_id?: number | null;
-  resource?: string | null;
-  module?: string | null;
-  table_name?: string | null;
-  migration?: {
-    success?: boolean;
+  files_created: string[];
+  files_modified: string[];
+  migration?: null | {
+    error?: string;
     message?: string;
     migration_path?: string;
     phase?: string;
-    error?: string;
-  } | null;
-} | null>(null);
+    success?: boolean;
+  };
+  module?: null | string;
+  resource?: null | string;
+  success: boolean;
+  table_name?: null | string;
+}>(null);
 type GenerateNextStepKey =
   | 'checkMigration'
   | 'migrationAlreadyApplied'
   | 'migrationNoChanges'
-  | 'runMigration'
   | 'restartIfNeeded'
-  | 'reviewCode';
+  | 'reviewCode'
+  | 'runMigration';
 
 const moduleOptions = ref<Array<{ label: string; value: string }>>([]);
 const COMMON_MODULE_KEYS = ['system', 'business', 'tenant', 'ai'] as const;
@@ -194,9 +195,11 @@ const hasPreviewSnapshot = computed(() => {
 
 const configId = computed(() => {
   const id = route.params.id;
-  if (id == null || id === '' || id === 'new') return null;
+  if (id === null || id === undefined || id === '' || id === 'new') {
+    return null;
+  }
   const num = Number(id);
-  return !isNaN(num) ? num : null;
+  return Number.isNaN(num) ? null : num;
 });
 const isNewMode = computed(() => !configId.value);
 const currentLifecycleStatus = computed(
@@ -303,7 +306,7 @@ const feMode = computed({
       const next = list.map((ep) => ({
         ...ep,
         frontend: {
-          ...((ep.frontend as Record<string, unknown>) || {}),
+          ...(ep.frontend as Record<string, unknown>),
           mode: v,
         },
       }));
@@ -455,10 +458,11 @@ function syncBaseClassFromEndpoints(
   const previousSuggested = getSuggestedBaseClassFromEndpoints(previousEps);
   const nextSuggested = getSuggestedBaseClassFromEndpoints(eps);
 
-  if (!currentClass || currentClass === previousSuggested) {
-    if (currentClass !== nextSuggested) {
-      store.updateConfig({ model: { ...m, base_class: nextSuggested } });
-    }
+  if (
+    (!currentClass || currentClass === previousSuggested) &&
+    currentClass !== nextSuggested
+  ) {
+    store.updateConfig({ model: { ...m, base_class: nextSuggested } });
   }
 }
 
@@ -539,7 +543,7 @@ function onPaletteAdd(item: PaletteItem) {
   }
 }
 
-async function refreshConfigMeta(targetId?: number | null) {
+async function refreshConfigMeta(targetId?: null | number) {
   const id = targetId ?? store.configId ?? configId.value;
   if (!id) {
     configMeta.value = null;
@@ -568,7 +572,7 @@ function focusBuilderTop() {
   resourceInputRef.value?.focus?.();
 }
 
-function locateValidationIssue(item: { path?: string; field?: string }) {
+function locateValidationIssue(item: { field?: string; path?: string }) {
   const path = String(item.path || '');
   const fieldName = String(item.field || '');
 
@@ -641,7 +645,7 @@ async function onSave() {
       message.warning($t('admin.system.codegen.builder.saveValidateFailed'));
       return;
     }
-  } catch (e) {
+  } catch {
     message.error($t('common.failed'));
     return;
   }
@@ -652,7 +656,7 @@ async function onSave() {
       (json.display_name as string) ||
       $t('admin.system.codegen.unnamed');
     const displayNameEn = (json.display_name_en as string) || r;
-    if (store.configId != null) {
+    if (store.configId !== null && store.configId !== undefined) {
       const updated = await updateCodegenConfigApi(store.configId, {
         name,
         resource: r,
@@ -680,8 +684,8 @@ async function onSave() {
     validationErrors.value = [];
     message.success($t('admin.system.codegen.messages.saveSuccess'));
     router.replace(`/admin/system/codegen/${res.id}/edit`);
-  } catch (e) {
-    console.error(e);
+  } catch (error) {
+    console.error(error);
     message.error($t('common.failed'));
   } finally {
     isSaving.value = false;
@@ -701,13 +705,17 @@ async function doGenerate(force = false) {
       return;
     }
     const payload =
-      store.configId != null
-        ? { config_id: store.configId, force, auto_migrate: true }
-        : { config_json: store.configJson, force, auto_migrate: true };
+      store.configId === null || store.configId === undefined
+        ? { config_json: store.configJson, force, auto_migrate: true }
+        : { config_id: store.configId, force, auto_migrate: true };
     const result = await postCodegenGenerateApi(payload);
     lastResult.value = result;
     resultModalVisible.value = true;
-    if (store.configId == null && result.config_id != null) {
+    if (
+      (store.configId === null || store.configId === undefined) &&
+      result.config_id !== null &&
+      result.config_id !== undefined
+    ) {
       store.loadConfig(result.config_id, store.configJson);
       router.replace(`/admin/system/codegen/${result.config_id}/edit`);
     }
@@ -719,8 +727,8 @@ async function doGenerate(force = false) {
     } else if (result.errors?.length) {
       message.error(result.errors.join('; '));
     }
-  } catch (e) {
-    message.error(e instanceof Error ? e.message : $t('common.failed'));
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : $t('common.failed'));
   } finally {
     isGenerating.value = false;
   }
@@ -951,13 +959,13 @@ function onImportYamlFile(e: Event) {
   const file = input.files?.[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.addEventListener('load', () => {
     importYamlText.value = (reader.result as string) || '';
-  };
-  reader.onerror = () => {
+  });
+  reader.addEventListener('error', () => {
     message.error($t('admin.system.codegen.builder.importFileReadError'));
-  };
-  reader.readAsText(file, 'utf-8');
+  });
+  reader.readAsText(file, 'utf8');
   input.value = '';
 }
 
@@ -994,8 +1002,8 @@ async function onConfirmImportYaml() {
     validationErrors.value = [];
     importYamlVisible.value = false;
     message.success($t('admin.system.codegen.builder.importYamlSuccess'));
-  } catch (e) {
-    console.error(e);
+  } catch (error) {
+    console.error(error);
     message.error($t('common.failed'));
   } finally {
     isImporting.value = false;
@@ -1009,8 +1017,8 @@ async function onOpenVersionHistory() {
   isVersionLoading.value = true;
   try {
     versionList.value = await getCodegenConfigVersionsApi(id);
-  } catch (e) {
-    console.error(e);
+  } catch (error) {
+    console.error(error);
     message.error($t('common.failed'));
     versionHistoryVisible.value = false;
   } finally {
@@ -1036,8 +1044,8 @@ async function onRestoreVersion(v: CodegenVersionItem) {
         message.info(
           $t('admin.system.codegen.builder.versionRestoreUndoCleared'),
         );
-      } catch (e) {
-        console.error(e);
+      } catch (error) {
+        console.error(error);
         message.error($t('common.failed'));
       } finally {
         isRestoring.value = false;
@@ -1046,7 +1054,7 @@ async function onRestoreVersion(v: CodegenVersionItem) {
   });
 }
 
-function formatVersionTime(iso: string | null) {
+function formatVersionTime(iso: null | string) {
   return formatDate(iso) ?? '-';
 }
 
@@ -1070,16 +1078,16 @@ async function onPreviewVersion(v: CodegenVersionItem) {
   versionPreviewVisible.value = true;
   versionPreviewNote.value = v.note || formatVersionTime(v.created_at) || '';
   versionPreviewLoadingIds.value = new Set([
-    ...versionPreviewLoadingIds.value,
     v.id,
+    ...versionPreviewLoadingIds.value,
   ]);
   versionPreviewContent.value = '';
   try {
     const res = await getCodegenConfigVersionApi(id, v.id);
     const json = res?.config_json ?? {};
     versionPreviewContent.value = yaml.dump(json, { indent: 2, lineWidth: -1 });
-  } catch (e) {
-    console.error(e);
+  } catch (error) {
+    console.error(error);
     message.error($t('common.failed'));
     versionPreviewVisible.value = false;
   } finally {
@@ -1096,9 +1104,9 @@ async function onDownloadZip() {
       { step: undefined },
     );
     message.success($t('admin.system.codegen.messages.downloadSuccess'));
-  } catch (e) {
-    const err = e as {
-      response?: { data?: { detail?: { error?: string } | string } };
+  } catch (error) {
+    const err = error as {
+      response?: { data?: { detail?: string | { error?: string } } };
     };
     const detail = err?.response?.data?.detail;
     const msg =
@@ -1153,14 +1161,14 @@ function onDbImported(patch: Record<string, unknown>) {
 
 async function loadConfigIfEdit() {
   const id = configId.value;
-  if (id != null) {
+  if (id !== null && id !== undefined) {
     try {
       const config = await getCodegenConfigDetailApi(id);
       configMeta.value = config;
       store.loadConfig(config.id, config.config_json || {});
       store.showFieldManager = true;
-    } catch (e) {
-      const status = (e as { response?: { status?: number } })?.response
+    } catch (error) {
+      const status = (error as { response?: { status?: number } })?.response
         ?.status;
       if (status === 404) {
         message.error($t('admin.system.codegen.builder.configNotFound'));
@@ -1218,7 +1226,7 @@ function selectNextField() {
   if (!key) return;
   const idx = fields.value.findIndex((f) => f.__key === key);
   const nextField =
-    idx >= 0 && idx < fields.value.length - 1
+    idx !== -1 && idx < fields.value.length - 1
       ? fields.value[idx + 1]
       : undefined;
   if (nextField) store.selectedFieldKey = nextField.__key as string;
@@ -1604,7 +1612,7 @@ watch(
               </div>
             </div>
 
-            <div class="h-7 w-px bg-border/70" />
+            <div class="h-7 w-px bg-border/70"></div>
 
             <div>
               <div class="mb-1 text-[10px] font-medium text-muted-foreground">
@@ -1904,14 +1912,14 @@ watch(
             <div class="max-h-48 overflow-y-auto text-sm">
               <div
                 v-for="p in lastResult.files_created"
-                :key="'c-' + p"
+                :key="`c-${p}`"
                 class="text-green-600"
               >
                 + {{ p }}
               </div>
               <div
                 v-for="p in lastResult.files_modified"
-                :key="'m-' + p"
+                :key="`m-${p}`"
                 class="text-amber-600"
               >
                 ~ {{ p }}

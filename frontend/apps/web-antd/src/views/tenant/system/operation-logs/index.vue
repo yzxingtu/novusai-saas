@@ -92,7 +92,6 @@ async function loadAvatarMap() {
 onMounted(() => {
   loadAvatarMap();
 });
-
 </script>
 
 <template>

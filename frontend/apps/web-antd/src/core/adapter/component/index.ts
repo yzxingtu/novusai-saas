@@ -162,13 +162,13 @@ const withPreviewUpload = () => {
         return {
           default: () =>
             h(
-                Button,
-                {
-                  icon: h(IconifyIcon, {
-                    icon: 'lucide:upload',
-                    class: 'mb-1 size-4',
-                  }),
-                },
+              Button,
+              {
+                icon: h(IconifyIcon, {
+                  icon: 'lucide:upload',
+                  class: 'mb-1 size-4',
+                }),
+              },
               () => placeholder,
             ),
         };
@@ -182,8 +182,8 @@ const withPreviewUpload = () => {
     fileList: Ref<UploadProps['fileList']>,
   ) => {
     type UploadPreviewFile = UploadFile & {
-      previewUrl?: string;
       preview_url?: string;
+      previewUrl?: string;
     };
 
     const getPreviewSource = (item: UploadFile): string | undefined => {
@@ -209,7 +209,11 @@ const withPreviewUpload = () => {
       ]);
       const previewSource = getPreviewSource(file);
       if (previewSource) {
-        const ext = previewSource.split('?')[0]?.split('.').pop()?.toLowerCase();
+        const ext = previewSource
+          .split('?')[0]
+          ?.split('.')
+          .pop()
+          ?.toLowerCase();
         return ext ? imageExtensions.has(ext) : false;
       }
       if (!file.type) {

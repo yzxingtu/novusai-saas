@@ -1,11 +1,15 @@
 <script lang="ts" setup>
 import { computed, ref } from 'vue';
-import { Input } from 'ant-design-vue';
+
 import { IconifyIcon } from '@vben/icons';
+
+import { Input } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
 defineOptions({ name: 'ComponentPalette' });
+
+const emit = defineEmits<{ (e: 'add', item: PaletteItem): void }>();
 
 export interface PaletteItem {
   type: string;
@@ -17,9 +21,9 @@ export interface PaletteItem {
 }
 
 type PaletteGroup = {
+  items: PaletteItem[];
   key: string;
   title: string;
-  items: PaletteItem[];
 };
 
 type PaletteViewItem = PaletteItem & {
@@ -338,31 +342,29 @@ const PALETTE_GROUPS: PaletteGroup[] = [
 ];
 
 const COMMON_ITEM_SIGNATURES = new Set([
-  'input:title:String',
-  'input:name:String',
-  'input:code:String',
-  'input:email:String',
-  'input:phone:String',
-  'input:website:String',
-  'textarea:description:Text',
-  'number:sort_order:Integer',
-  'number:price:Decimal',
-  'select:status:Enum',
-  'switch:is_active:Boolean',
+  'ApiSelect:category_id:ForeignKey',
+  'ApiTreeSelect:parent_id:TreeSelect',
+  'CodeEditor:config:JSON',
   'date:created_at:DateTime',
   'date:updated_at:DateTime',
   'DictSelect:type:String',
-  'ApiSelect:category_id:ForeignKey',
-  'ApiTreeSelect:parent_id:TreeSelect',
+  'FilePicker:attachment:File',
+  'IconPicker:icon:IconPicker',
   'ImageUpload:avatar:ImageUpload',
   'ImageUpload:cover_image:ImageUpload',
-  'FilePicker:attachment:File',
+  'input:code:String',
+  'input:email:String',
+  'input:name:String',
+  'input:phone:String',
+  'input:title:String',
+  'input:website:String',
+  'number:price:Decimal',
+  'number:sort_order:Integer',
   'RichText:content:RichText',
-  'IconPicker:icon:IconPicker',
-  'CodeEditor:config:JSON',
+  'select:status:Enum',
+  'switch:is_active:Boolean',
+  'textarea:description:Text',
 ]);
-
-const emit = defineEmits<{ (e: 'add', item: PaletteItem): void }>();
 
 const searchText = ref('');
 
@@ -401,7 +403,9 @@ function itemMatches(item: PaletteViewItem): boolean {
   return getSearchTokens(item).some((token) => token.includes(query));
 }
 
-const filteredItems = computed(() => paletteItems.value.filter(itemMatches));
+const filteredItems = computed(() =>
+  paletteItems.value.filter((item) => itemMatches(item)),
+);
 
 const commonItems = computed(() =>
   filteredItems.value.filter((item) => isCommonItem(item)),
@@ -589,7 +593,7 @@ function onClick(item: PaletteItem) {
                   </span>
                   <span
                     v-if="item.multiple"
-                    class="shrink-0 rounded-full bg-primary/8 px-1.5 py-0.5 text-[10px] text-primary"
+                    class="bg-primary/8 shrink-0 rounded-full px-1.5 py-0.5 text-[10px] text-primary"
                   >
                     {{ $t('admin.system.codegen.palette.multiBadge') }}
                   </span>

@@ -5,12 +5,45 @@
  * pinned agent, tool call dispatch, etc. Replaces global-ai-chat.ts.
  * 管理 AI 侧滑面板的全局状态。
  */
+import type {
+  RichTextAIApplyMode,
+  RichTextAITask,
+  RichTextAITaskState,
+  RichTextConversationBinding,
+} from '#/components/business/ai-chat-panel/types';
+
 import { ref } from 'vue';
 
 import { defineStore } from 'pinia';
 
 /** Panel display mode / 面板显示模式 */
 export type AIPanelMode = 'full' | 'panel';
+
+function cloneRichTextTask(task: RichTextAITask): RichTextAITask {
+  return {
+    ...task,
+    availableModes: [...task.availableModes],
+    draft: { ...task.draft },
+    selectionSnapshot: { ...task.selectionSnapshot },
+  };
+}
+
+function cloneRichTextConversationBinding(
+  binding: RichTextConversationBinding,
+): RichTextConversationBinding {
+  return {
+    ...binding,
+    task: cloneRichTextTask(binding.task),
+  };
+}
+
+function getRichTextConversationBindingKey(
+  pageKey: string,
+  editorInstanceId: string,
+  agentId: number,
+): string {
+  return `${pageKey}::${editorInstanceId}::${agentId}`;
+}
 
 export const useAIPanelStore = defineStore('ai-panel', () => {
   const TRUST_SESSION_STORAGE_KEY_PREFIX = 'ai_trust_session_';
@@ -58,6 +91,17 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
 
   /** Pending conversation to restore after panel opens / 面板打开后待恢复的对话 */
   const pendingConversationId = ref<null | number>(null);
+
+  /** Rich text draft task that can be rendered immediately / 当前可直接渲染的富文本草稿任务 */
+  const pendingRichTextTask = ref<null | RichTextAITask>(null);
+
+  /** Rich text draft task waiting for panel to become idle / 等待面板空闲后渲染的富文本草稿任务 */
+  const queuedRichTextTask = ref<null | RichTextAITask>(null);
+
+  /** Latest rich text draft binding for each source editor / 来源编辑器级富文本草稿绑定 */
+  const richTextConversationBindings = ref<
+    Record<string, RichTextConversationBinding>
+  >({});
 
   /** Whether there are unread messages / 是否有未读消息 */
   const hasUnread = ref(false);
@@ -112,7 +156,7 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
 
   // ==================== Conversation actions / 对话操作 ====================
 
-  function setConversation(conversationId: number | null, agentId?: number) {
+  function setConversation(conversationId: null | number, agentId?: number) {
     activeConversationId.value = conversationId;
     if (agentId !== undefined) {
       activeAgentId.value = agentId;
@@ -157,7 +201,7 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
 
   function queueMessage(message: null | string | undefined) {
     const normalized = message?.trim();
-    pendingMessage.value = normalized ? normalized : null;
+    pendingMessage.value = normalized || null;
   }
 
   function consumePendingMessage(): null | string {
@@ -184,7 +228,10 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     conversationId?: null | number;
     message?: null | string;
   }) {
-    if (typeof options?.agentId === 'number' && Number.isFinite(options.agentId)) {
+    if (
+      typeof options?.agentId === 'number' &&
+      Number.isFinite(options.agentId)
+    ) {
       pendingAgentId.value = options.agentId;
     }
     if (options?.message !== undefined) {
@@ -209,6 +256,187 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     if (!visible.value) {
       hasUnread.value = true;
     }
+  }
+
+  // ==================== Rich Text Draft Tasks / 富文本草稿任务 ====================
+
+  function queueRichTextTask(task: RichTextAITask) {
+    queuedRichTextTask.value = {
+      ...cloneRichTextTask(task),
+      state: 'queued',
+      updatedAt: Date.now(),
+    };
+  }
+
+  function setPendingRichTextTask(task: null | RichTextAITask) {
+    pendingRichTextTask.value = task
+      ? {
+          ...cloneRichTextTask(task),
+          state: task.state === 'queued' ? 'ready' : task.state,
+          updatedAt: Date.now(),
+        }
+      : null;
+  }
+
+  function clearPendingRichTextTask(taskId?: string) {
+    if (!taskId || pendingRichTextTask.value?.taskId === taskId) {
+      pendingRichTextTask.value = null;
+    }
+  }
+
+  function clearQueuedRichTextTask(taskId?: string) {
+    if (!taskId || queuedRichTextTask.value?.taskId === taskId) {
+      queuedRichTextTask.value = null;
+    }
+  }
+
+  function promoteQueuedRichTextTask(): null | RichTextAITask {
+    if (!queuedRichTextTask.value) {
+      return null;
+    }
+    const task = {
+      ...cloneRichTextTask(queuedRichTextTask.value),
+      state: 'ready' as RichTextAITaskState,
+      updatedAt: Date.now(),
+    };
+    queuedRichTextTask.value = null;
+    pendingRichTextTask.value = task;
+    return cloneRichTextTask(task);
+  }
+
+  function bindRichTextConversation(
+    binding: Omit<RichTextConversationBinding, 'updatedAt'> & {
+      updatedAt?: number;
+    },
+  ) {
+    const key = getRichTextConversationBindingKey(
+      binding.pageKey,
+      binding.editorInstanceId,
+      binding.agentId,
+    );
+    richTextConversationBindings.value = {
+      ...richTextConversationBindings.value,
+      [key]: cloneRichTextConversationBinding({
+        ...binding,
+        updatedAt: binding.updatedAt ?? Date.now(),
+      }),
+    };
+  }
+
+  function getRichTextConversationBinding(
+    pageKey: string,
+    editorInstanceId: string,
+    agentId: number,
+  ): null | RichTextConversationBinding {
+    if (!pageKey || !editorInstanceId || !Number.isFinite(agentId)) {
+      return null;
+    }
+    const binding =
+      richTextConversationBindings.value[
+        getRichTextConversationBindingKey(pageKey, editorInstanceId, agentId)
+      ];
+    return binding ? cloneRichTextConversationBinding(binding) : null;
+  }
+
+  function clearRichTextConversationBinding(
+    pageKey: string,
+    editorInstanceId: string,
+    agentId: number,
+  ) {
+    const nextBindings = { ...richTextConversationBindings.value };
+    Reflect.deleteProperty(
+      nextBindings,
+      getRichTextConversationBindingKey(pageKey, editorInstanceId, agentId),
+    );
+    richTextConversationBindings.value = nextBindings;
+  }
+
+  function updateTaskState(
+    task: RichTextAITask,
+    state: RichTextAITaskState,
+    lastAppliedMode?: RichTextAIApplyMode,
+  ): RichTextAITask {
+    return {
+      ...cloneRichTextTask(task),
+      state,
+      updatedAt: Date.now(),
+      ...(lastAppliedMode ? { lastAppliedMode } : {}),
+    };
+  }
+
+  function updateRichTextTaskState(
+    taskId: string,
+    options: {
+      conversationId?: null | number;
+      lastAppliedMode?: RichTextAIApplyMode;
+      state: RichTextAITaskState;
+    },
+  ) {
+    if (pendingRichTextTask.value?.taskId === taskId) {
+      pendingRichTextTask.value = updateTaskState(
+        pendingRichTextTask.value,
+        options.state,
+        options.lastAppliedMode,
+      );
+    }
+    if (queuedRichTextTask.value?.taskId === taskId) {
+      queuedRichTextTask.value = updateTaskState(
+        queuedRichTextTask.value,
+        options.state,
+        options.lastAppliedMode,
+      );
+    }
+
+    const bindings = richTextConversationBindings.value;
+    const matchingEntry = Object.entries(bindings).find(
+      ([, binding]) =>
+        binding.task.taskId === taskId &&
+        (options.conversationId === null ||
+          options.conversationId === undefined ||
+          binding.conversationId === options.conversationId),
+    );
+    if (!matchingEntry) return;
+    const [bindingKey, binding] = matchingEntry;
+    richTextConversationBindings.value = {
+      ...bindings,
+      [bindingKey]: cloneRichTextConversationBinding({
+        ...binding,
+        task: updateTaskState(
+          binding.task,
+          options.state,
+          options.lastAppliedMode,
+        ),
+        updatedAt: Date.now(),
+      }),
+    };
+  }
+
+  function markRichTextTaskApplied(
+    taskId: string,
+    options?: {
+      conversationId?: null | number;
+      lastAppliedMode?: RichTextAIApplyMode;
+    },
+  ) {
+    updateRichTextTaskState(taskId, {
+      state: 'applied',
+      conversationId: options?.conversationId,
+      lastAppliedMode: options?.lastAppliedMode,
+    });
+  }
+
+  function markRichTextTaskUndone(
+    taskId: string,
+    options?: {
+      conversationId?: null | number;
+      lastAppliedMode?: RichTextAIApplyMode;
+    },
+  ) {
+    updateRichTextTaskState(taskId, {
+      state: 'undone',
+      conversationId: options?.conversationId,
+      lastAppliedMode: options?.lastAppliedMode,
+    });
   }
 
   // ==================== Page Operation Confirmation / 页面操作确认 ====================
@@ -258,10 +486,10 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
 
   function requestPageOpConfirmation(op: {
     invokeId: string;
-    pageKey: string;
-    operationName: string;
-    operationLabel: string;
     operationDescription: string;
+    operationLabel: string;
+    operationName: string;
+    pageKey: string;
     params: Record<string, unknown>;
     toolCallId?: string;
   }): Promise<boolean> {
@@ -366,6 +594,9 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     pendingAgentId.value = undefined;
     pendingMessage.value = null;
     pendingConversationId.value = null;
+    pendingRichTextTask.value = null;
+    queuedRichTextTask.value = null;
+    richTextConversationBindings.value = {};
     hasUnread.value = false;
     for (const invokeId of pageOpCleanupTimers.keys()) {
       clearPageOpCleanupTimer(invokeId);
@@ -388,6 +619,9 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     pendingAgentId,
     pendingMessage,
     pendingConversationId,
+    pendingRichTextTask,
+    queuedRichTextTask,
+    richTextConversationBindings,
     hasUnread,
 
     // Panel actions / 面板操作
@@ -419,6 +653,16 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     consumePendingConversationId,
     consumePendingAgentId,
     markUnread,
+    queueRichTextTask,
+    setPendingRichTextTask,
+    clearPendingRichTextTask,
+    clearQueuedRichTextTask,
+    promoteQueuedRichTextTask,
+    bindRichTextConversation,
+    getRichTextConversationBinding,
+    clearRichTextConversationBinding,
+    markRichTextTaskApplied,
+    markRichTextTaskUndone,
 
     // Page operation confirmation / 页面操作确认
     pendingPageOps,

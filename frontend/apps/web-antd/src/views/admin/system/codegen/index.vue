@@ -28,7 +28,6 @@ import {
   Tag,
   Tooltip,
 } from 'ant-design-vue';
-import { formatDate, formatRelativeTime } from '#/utils/common';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import {
@@ -42,9 +41,8 @@ import {
   postCodegenGenerateApi,
 } from '#/api/admin/codegen';
 import { $t } from '#/locales';
+import { formatDate, formatRelativeTime } from '#/utils/common';
 
-import DbTableImportModal from './modules/DbTableImportModal.vue';
-import PresetSelectModal from './modules/PresetSelectModal.vue';
 import {
   getManifestStatusColor,
   getManifestStatusText,
@@ -53,16 +51,18 @@ import {
   useColumns,
   useGridFormSchema,
 } from './data';
+import DbTableImportModal from './modules/DbTableImportModal.vue';
+import PresetSelectModal from './modules/PresetSelectModal.vue';
 
 defineOptions({ name: 'AdminSystemCodegenList' });
 
 type WorkbenchStat = {
-  key: Exclude<WorkbenchFilterKey, 'all'>;
+  hint: string;
   icon: string;
+  key: Exclude<WorkbenchFilterKey, 'all'>;
+  label: string;
   tone: string;
   value: number;
-  label: string;
-  hint: string;
 };
 
 type WorkbenchFilterKey =
@@ -75,12 +75,12 @@ type WorkbenchFilterKey =
 
 type WorkbenchFocusItem = {
   id: number;
+  manifestPresent: boolean;
+  message: string;
   name: string;
   resource: string;
-  status: string;
-  message: string;
-  manifestPresent: boolean;
   severity: 'error' | 'info' | 'warning';
+  status: string;
 };
 
 const router = useRouter();
@@ -125,13 +125,13 @@ function extractCheckboxChecked(event: unknown): boolean {
 function getActionErrorMessage(error: unknown, fallback: string): string {
   const response = (
     error as {
+      message?: string;
       response?: {
         data?: {
-          detail?: { error?: string } | string;
+          detail?: string | { error?: string };
           message?: string;
         };
       };
-      message?: string;
     }
   )?.response?.data;
 
@@ -176,7 +176,9 @@ function toWorkbenchFocusItem(item: CodegenWorkbenchItem): WorkbenchFocusItem {
   };
 }
 
-function getFocusSeverityIcon(severity: WorkbenchFocusItem['severity']): string {
+function getFocusSeverityIcon(
+  severity: WorkbenchFocusItem['severity'],
+): string {
   if (severity === 'error') return 'lucide:triangle-alert';
   if (severity === 'warning') return 'lucide:shield-alert';
   return 'lucide:circle-dot';
@@ -242,7 +244,7 @@ const workbenchStats = computed<WorkbenchStat[]>(() => {
 
 const workbenchIssues = computed<WorkbenchFocusItem[]>(() => {
   const items = workbenchSummary.value?.sections.attention ?? [];
-  return items.map(toWorkbenchFocusItem);
+  return items.map((item) => toWorkbenchFocusItem(item));
 });
 
 function getWorkbenchFilterConfig(key: WorkbenchFilterKey) {
@@ -269,22 +271,21 @@ const activeWorkbenchConfig = computed(() =>
 
 const activeWorkbenchItems = computed<WorkbenchFocusItem[]>(() => {
   switch (activeWorkbenchFilter.value) {
+    case 'applied':
     case 'draft':
-    case 'generated':
-    case 'applied': {
+    case 'generated': {
       return (
         workbenchSummary.value?.sections[activeWorkbenchFilter.value] ?? []
-      ).map(toWorkbenchFocusItem);
-    }
-    case 'rollback': {
-      return (workbenchSummary.value?.sections.rollback ?? []).map(
-        toWorkbenchFocusItem,
-      );
+      ).map((item) => toWorkbenchFocusItem(item));
     }
     case 'attention': {
       return workbenchIssues.value;
     }
-    case 'all':
+    case 'rollback': {
+      return (workbenchSummary.value?.sections.rollback ?? []).map((item) =>
+        toWorkbenchFocusItem(item),
+      );
+    }
     default: {
       return workbenchIssues.value;
     }
@@ -337,6 +338,45 @@ async function onActionClick(params: { code: string; row: CodegenConfigInfo }) {
   const { code, row } = params;
   if (!row?.id) return;
   switch (code) {
+    case 'delete': {
+      Modal.confirm({
+        okType: 'danger',
+        title: $t('admin.system.codegen.confirm.delete', { name: row.name }),
+        onOk: async () => {
+          try {
+            await deleteCodegenConfigApi(row.id);
+            await reloadWorkbench();
+          } catch {
+            message.error($t('common.failed'));
+          }
+        },
+      });
+      break;
+    }
+    case 'download': {
+      try {
+        await downloadCodegenZipApi(row.id);
+        message.success($t('admin.system.codegen.messages.downloadSuccess'));
+      } catch (error) {
+        message.error(
+          getActionErrorMessage(
+            error,
+            $t('admin.system.codegen.messages.downloadFail'),
+          ),
+        );
+      }
+      break;
+    }
+    case 'duplicate': {
+      try {
+        await duplicateCodegenConfigApi(row.id);
+        message.success($t('admin.system.codegen.messages.duplicateSuccess'));
+        await reloadWorkbench();
+      } catch {
+        message.error($t('common.failed'));
+      }
+      break;
+    }
     case 'edit': {
       goToBuilder(row.id);
       break;
@@ -379,14 +419,14 @@ async function onActionClick(params: { code: string; row: CodegenConfigInfo }) {
               config_id: row.id,
               force: forceGenerate.value,
             });
-            if ((result as { success?: boolean }).success !== false) {
-              message.success(
-                $t('admin.system.codegen.messages.generateSuccess'),
-              );
-            } else {
+            if ((result as { success?: boolean }).success === false) {
               const errs = (result as { errors?: string[] }).errors;
               message.error(
                 errs?.length ? errs.join('; ') : $t('common.failed'),
+              );
+            } else {
+              message.success(
+                $t('admin.system.codegen.messages.generateSuccess'),
               );
             }
           } catch (error) {
@@ -396,30 +436,6 @@ async function onActionClick(params: { code: string; row: CodegenConfigInfo }) {
           }
         },
       });
-      break;
-    }
-    case 'download': {
-      try {
-        await downloadCodegenZipApi(row.id);
-        message.success($t('admin.system.codegen.messages.downloadSuccess'));
-      } catch (error) {
-        message.error(
-          getActionErrorMessage(
-            error,
-            $t('admin.system.codegen.messages.downloadFail'),
-          ),
-        );
-      }
-      break;
-    }
-    case 'duplicate': {
-      try {
-        await duplicateCodegenConfigApi(row.id);
-        message.success($t('admin.system.codegen.messages.duplicateSuccess'));
-        await reloadWorkbench();
-      } catch {
-        message.error($t('common.failed'));
-      }
       break;
     }
     case 'rollback': {
@@ -457,35 +473,20 @@ async function onActionClick(params: { code: string; row: CodegenConfigInfo }) {
             const result = await deleteCodegenRollbackApi(row.id, {
               force: forceRollback.value,
             });
-            if ((result as { success?: boolean }).success !== false) {
-              message.success(
-                $t('admin.system.codegen.messages.rollbackSuccess'),
-              );
-            } else {
+            if ((result as { success?: boolean }).success === false) {
               const errs = (result as { errors?: string[] }).errors;
               message.error(
                 errs?.length ? errs.join('; ') : $t('common.failed'),
+              );
+            } else {
+              message.success(
+                $t('admin.system.codegen.messages.rollbackSuccess'),
               );
             }
           } catch (error) {
             message.error(getActionErrorMessage(error, $t('common.failed')));
           } finally {
             await reloadWorkbench();
-          }
-        },
-      });
-      break;
-    }
-    case 'delete': {
-      Modal.confirm({
-        okType: 'danger',
-        title: $t('admin.system.codegen.confirm.delete', { name: row.name }),
-        onOk: async () => {
-          try {
-            await deleteCodegenConfigApi(row.id);
-            await reloadWorkbench();
-          } catch {
-            message.error($t('common.failed'));
           }
         },
       });
@@ -502,7 +503,7 @@ function openPresetSelect() {
   presetSelectVisible.value = true;
 }
 
-function onPresetSelect(presetId: string | null) {
+function onPresetSelect(presetId: null | string) {
   presetSelectVisible.value = false;
   const query = presetId ? { preset: presetId } : {};
   router.replace({ path: '/admin/system/codegen/new', query });
@@ -889,7 +890,7 @@ onMounted(() => {
                     </div>
 
                     <div
-                      class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-current/70"
+                      class="text-current/70 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]"
                     >
                       <span class="font-mono">{{ item.resource }}</span>
                       <span>
@@ -899,7 +900,9 @@ onMounted(() => {
                       </span>
                     </div>
 
-                    <div class="mt-2 line-clamp-3 text-xs leading-5 text-current/85">
+                    <div
+                      class="text-current/85 mt-2 line-clamp-3 text-xs leading-5"
+                    >
                       {{ item.message }}
                     </div>
                   </div>

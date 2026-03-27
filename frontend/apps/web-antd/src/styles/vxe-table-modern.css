@@ -201,7 +201,7 @@
  * Ant Drawer offset for docked AI panel
  * ============================================================ */
 .ant-drawer-right > .ant-drawer-content-wrapper {
-  right: var(--ai-panel-right-offset, 0px) !important;
+  right: var(--ai-panel-right-offset, 0) !important;
   max-width: calc(100vw - var(--ai-panel-right-offset, 0px));
 }
 

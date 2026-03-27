@@ -62,14 +62,16 @@ async function ensureLucideIconCatalogRegistered(): Promise<readonly string[]> {
   }
 
   if (!lucideCatalogPromise) {
-    lucideCatalogPromise = import('./lucide-catalog.generated').then((module) => {
-      addCollection(module.LUCIDE_ICON_CATALOG);
-      lucideCatalogIconIds = module.LUCIDE_CATALOG_ICON_IDS;
-      lucideCatalogIconIdsSet = new Set(module.LUCIDE_CATALOG_ICON_IDS);
-      lucideCatalogRegistered = true;
+    lucideCatalogPromise = import('./lucide-catalog.generated').then(
+      (module) => {
+        addCollection(module.LUCIDE_ICON_CATALOG);
+        lucideCatalogIconIds = module.LUCIDE_CATALOG_ICON_IDS;
+        lucideCatalogIconIdsSet = new Set(module.LUCIDE_CATALOG_ICON_IDS);
+        lucideCatalogRegistered = true;
 
-      return lucideCatalogIconIds;
-    });
+        return lucideCatalogIconIds;
+      },
+    );
   }
 
   return lucideCatalogPromise;
@@ -86,10 +88,10 @@ function getLucideSubsetIconNames(): readonly string[] {
 export {
   ensureLucideIconCatalogRegistered,
   ensureLucideIconSubsetRegistered,
+  getLucideSubsetIconIds,
+  getLucideSubsetIconNames,
   isLucideCatalogIconId,
   isLucideIconId,
   isLucideSubsetIconId,
-  getLucideSubsetIconIds,
-  getLucideSubsetIconNames,
   normalizeLucideIconId,
 };

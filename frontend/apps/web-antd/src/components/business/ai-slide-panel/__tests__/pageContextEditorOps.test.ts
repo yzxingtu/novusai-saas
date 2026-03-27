@@ -9,18 +9,6 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const { capturePageScreenshotMock } = vi.hoisted(() => ({
-  capturePageScreenshotMock: vi.fn(),
-}));
-
-vi.mock('#/composables/use-page-screenshot', () => ({
-  DEFAULT_PAGE_SCREENSHOT_EXCLUDE_SELECTORS: ['[data-ai-panel]'],
-  capturePageScreenshot: capturePageScreenshotMock,
-  resolveScreenshotUploadTarget: () => ({
-    uploadUrl: '/tenant/attachments/upload',
-  }),
-}));
-
 import {
   clearPageContextRegistry,
   registerPageContext,
@@ -34,7 +22,19 @@ import {
   registerPageOperations,
 } from '../page-operation-registry';
 
-describe('Page context editor ops', () => {
+const { capturePageScreenshotMock } = vi.hoisted(() => ({
+  capturePageScreenshotMock: vi.fn(),
+}));
+
+vi.mock('#/composables/use-page-screenshot', () => ({
+  DEFAULT_PAGE_SCREENSHOT_EXCLUDE_SELECTORS: ['[data-ai-panel]'],
+  capturePageScreenshot: capturePageScreenshotMock,
+  resolveScreenshotUploadTarget: () => ({
+    uploadUrl: '/tenant/attachments/upload',
+  }),
+}));
+
+describe('page context editor ops', () => {
   const EDITOR_KEY = 'tenant.plugins.novusdoc.editor.42';
 
   afterEach(() => {
@@ -61,9 +61,12 @@ describe('Page context editor ops', () => {
     const ops = listPageOperations(EDITOR_KEY);
     const replaceSection = ops.find((o) => o.name === 'replace_section');
     expect(replaceSection).toBeDefined();
-    expect(replaceSection!.params).toBeDefined();
-    expect(replaceSection!.params!.old_html).toBeDefined();
-    expect(replaceSection!.params!.content_format).toEqual({
+    if (!replaceSection?.params) {
+      throw new Error('replace_section params not found');
+    }
+    expect(replaceSection.params).toBeDefined();
+    expect(replaceSection.params.old_html).toBeDefined();
+    expect(replaceSection.params.content_format).toEqual({
       type: 'string',
       enum: ['html', 'markdown'],
     });
@@ -148,10 +151,13 @@ describe('Page context editor ops', () => {
 
     const resolved = resolvePageContext(EDITOR_KEY);
     expect(resolved).not.toBeNull();
-    const desc = resolved!.page_data?.entity_description;
+    if (!resolved) {
+      throw new Error('resolved page context not found');
+    }
+    const desc = resolved.page_data?.entity_description;
     expect(desc).toContain(primaryDesc);
     expect(desc).toContain('update_title modifies document metadata title');
-    expect(resolved!.page_data?.document_id).toBe(42);
+    expect(resolved.page_data?.document_id).toBe(42);
   });
 
   it('enriched available_operations includes params when ops have params (payload shape for AIChatSlidePanel)', () => {
@@ -182,19 +188,19 @@ describe('Page context editor ops', () => {
       (o) => o.name === 'replace_content',
     );
     expect(replaceOp).toBeDefined();
-    expect(replaceOp!.params).toBeDefined();
-    expect(
-      (replaceOp!.params as Record<string, unknown>).content,
-    ).toBeDefined();
-    expect(
-      (replaceOp!.params as Record<string, unknown>).content_format,
-    ).toEqual({
+    if (!replaceOp?.params) {
+      throw new Error('replace_content params not found');
+    }
+    const replaceParams = replaceOp.params as Record<string, unknown>;
+    expect(replaceOp.params).toBeDefined();
+    expect(replaceParams.content).toBeDefined();
+    expect(replaceParams.content_format).toEqual({
       type: 'string',
       enum: ['html', 'markdown'],
     });
   });
 
-  it('DocumentEditor appendPageOperations: platform editor ops preserved, document ops appended', () => {
+  it('documentEditor appendPageOperations: platform editor ops preserved, document ops appended', () => {
     // Platform (useEditorPageOps) registers editor ops first / 平台先注册编辑器操作
     registerPageOperations(EDITOR_KEY, [
       {
@@ -315,7 +321,7 @@ describe('Page context editor ops', () => {
     );
   });
 
-  it('DocumentEditor-style extras: merge does not overwrite platform entity_description', () => {
+  it('documentEditor-style extras: merge does not overwrite platform entity_description', () => {
     const baseDesc = 'Base description from platform';
     registerPageContext(EDITOR_KEY, () => ({
       page_key: EDITOR_KEY,
@@ -331,10 +337,13 @@ describe('Page context editor ops', () => {
     }));
 
     const resolved = resolvePageContext(EDITOR_KEY);
-    expect(resolved!.page_data?.entity_description).toBe(
-      baseDesc + '\n\nAppended by DocumentEditor.',
+    if (!resolved) {
+      throw new Error('resolved page context not found');
+    }
+    expect(resolved.page_data?.entity_description).toBe(
+      `${baseDesc}\n\nAppended by DocumentEditor.`,
     );
-    expect(resolved!.page_data?.document_title).toBe('Doc Title');
+    expect(resolved.page_data?.document_title).toBe('Doc Title');
   });
 
   it('extras also merge into DOM fallback context when no primary resolver exists', () => {
@@ -348,9 +357,12 @@ describe('Page context editor ops', () => {
 
     const resolved = resolvePageContext(EDITOR_KEY);
     expect(resolved).not.toBeNull();
-    expect(resolved!.page_key).toBe(EDITOR_KEY);
-    expect(resolved!.page_data?.document_id).toBe(42);
-    expect(String(resolved!.page_data?.entity_description ?? '')).toContain(
+    if (!resolved) {
+      throw new Error('resolved page context not found');
+    }
+    expect(resolved.page_key).toBe(EDITOR_KEY);
+    expect(resolved.page_data?.document_id).toBe(42);
+    expect(String(resolved.page_data?.entity_description ?? '')).toContain(
       'Editor extras merged into fallback.',
     );
   });

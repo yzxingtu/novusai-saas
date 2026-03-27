@@ -44,7 +44,7 @@ export interface AIAgentInfo {
   context_config: null | Record<string, unknown>;
   input_variables: null | Record<string, unknown>[];
   output_schema?: null | unknown[];
-  rag_config?: null | AgentRagConfig;
+  rag_config?: AgentRagConfig | null;
   assigned_tenant_ids?: number[];
   created_at: string;
   updated_at: string;
@@ -72,7 +72,7 @@ export interface AIAgentCreateRequest {
   temperature?: number;
   max_tokens?: number;
   knowledge_base_ids?: number[];
-  rag_config?: null | AgentRagConfig;
+  rag_config?: AgentRagConfig | null;
 }
 
 /** Update agent request / 更新智能体请求 */
@@ -96,7 +96,7 @@ export interface AIAgentUpdateRequest {
   context_config?: null | Record<string, unknown>;
   knowledge_base_ids?: number[];
   output_schema?: null | unknown[];
-  rag_config?: null | AgentRagConfig;
+  rag_config?: AgentRagConfig | null;
 }
 
 /** Agent memory config (admin) / 智能体记忆配置（管理端） */
@@ -327,11 +327,11 @@ export interface AIAgentKBBindingInfo {
   weight: number;
   enabled: boolean;
   sort_order: number;
-  kb_name: string | null;
-  kb_description: string | null;
-  kb_scope: string | null;
-  kb_visibility: string | null;
-  kb_document_count: number | null;
+  kb_name: null | string;
+  kb_description: null | string;
+  kb_scope: null | string;
+  kb_visibility: null | string;
+  kb_document_count: null | number;
   kb_chunk_strategy: null | string;
   kb_embedding_model_id: null | number;
   kb_embedding_model_name: null | string;
@@ -353,9 +353,9 @@ export interface AIAgentKBBatchBindRequest {
 
 /** Update KB binding request / 更新知识库绑定请求 */
 export interface AIAgentKBBindingUpdateRequest {
-  weight?: number | null;
+  weight?: null | number;
   enabled?: boolean | null;
-  sort_order?: number | null;
+  sort_order?: null | number;
 }
 
 // ============================================================

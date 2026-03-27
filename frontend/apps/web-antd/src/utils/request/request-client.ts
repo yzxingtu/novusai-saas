@@ -44,14 +44,14 @@ import type {
 import axios from 'axios';
 import qs from 'qs';
 
-import { getEndpointByUrl } from './endpoint';
-import { ensureTraceIdHeader } from './trace';
 import {
   formatAppErrorMessage,
   normalizeHttpError,
   normalizeSseTransportError,
   toErrorWithAppError,
 } from './app-error';
+import { getEndpointByUrl } from './endpoint';
+import { ensureTraceIdHeader } from './trace';
 
 // ============================================================
 // Default configuration / 默认配置
@@ -227,7 +227,7 @@ export class RequestClient {
     config?: RequestClientConfig & { data?: any; method?: 'GET' | 'POST' },
   ): Promise<T> {
     const { method = 'GET', data, ...restConfig } = config || {};
-    const headers = { ...(restConfig.headers || {}) };
+    const headers = { ...restConfig.headers };
     ensureTraceIdHeader(headers);
 
     try {
@@ -273,10 +273,7 @@ export class RequestClient {
           this.t,
           this.t?.('common.http.downloadFailed') || 'Download failed',
         );
-        this.showMessage(
-          'error',
-          formatAppErrorMessage(appError, this.t),
-        );
+        this.showMessage('error', formatAppErrorMessage(appError, this.t));
       }
       throw error;
     }
@@ -355,7 +352,7 @@ export class RequestClient {
     url: string,
     config: RequestClientConfig = {},
   ): Promise<T> {
-    const headers = { ...(config.headers || {}) };
+    const headers = { ...config.headers };
     ensureTraceIdHeader(headers);
 
     // 合并选项 / merge per-request options
@@ -432,7 +429,7 @@ export class RequestClient {
 
       if (!response.ok) {
         // 尝试解析响应体并归一化错误对象 / parse error JSON if any
-        let responseBody: Record<string, unknown> | null = null;
+        let responseBody: null | Record<string, unknown> = null;
         try {
           responseBody = await response.json();
         } catch {

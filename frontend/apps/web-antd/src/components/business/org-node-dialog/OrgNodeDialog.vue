@@ -116,8 +116,13 @@ const formRulesWithScope = computed(() => ({
   customDeptIds: [
     {
       validator: (_rule: unknown, value: number[]) => {
-        if (formData.value.dataScope === 'custom' && (!value || value.length === 0)) {
-          return Promise.reject($t('shared.orgNode.validation.customScopeRequired'));
+        if (
+          formData.value.dataScope === 'custom' &&
+          (!value || value.length === 0)
+        ) {
+          return Promise.reject(
+            $t('shared.orgNode.validation.customScopeRequired'),
+          );
         }
         return Promise.resolve();
       },
@@ -289,7 +294,9 @@ async function handleSubmit() {
         props.apiPrefix === 'admin' ? formData.value.permissionIds : undefined,
       data_scope: formData.value.dataScope,
       custom_dept_ids:
-        formData.value.dataScope === 'custom' ? formData.value.customDeptIds : undefined,
+        formData.value.dataScope === 'custom'
+          ? formData.value.customDeptIds
+          : undefined,
     };
 
     const result = await (props.mode === 'edit' && props.nodeId

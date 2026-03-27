@@ -8,7 +8,9 @@
  * 为 AI 页面感知提供结构化状态（类型、标题、可见性）。
  */
 
-import { onMounted, onUnmounted, ref, type Ref } from 'vue';
+import type { Ref } from 'vue';
+
+import { onMounted, onUnmounted, ref } from 'vue';
 
 export interface ModalDetection {
   type: 'drawer' | 'modal';
@@ -32,7 +34,7 @@ const DEBOUNCE_MS = 150;
 export function useModalDetector(): UseModalDetectorReturn {
   const modalState = ref<ModalDetection[]>([]);
   let observer: MutationObserver | null = null;
-  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  let debounceTimer: null | ReturnType<typeof setTimeout> = null;
 
   function scan() {
     const results: ModalDetection[] = [];
@@ -43,14 +45,22 @@ export function useModalDetector(): UseModalDetectorReturn {
     modals.forEach((el) => {
       const title =
         el.querySelector('.ant-modal-title')?.textContent?.trim() || '';
-      results.push({ type: 'modal', title: title || 'Untitled', visible: true });
+      results.push({
+        type: 'modal',
+        title: title || 'Untitled',
+        visible: true,
+      });
     });
 
     const drawers = document.querySelectorAll('.ant-drawer-open');
     drawers.forEach((el) => {
       const title =
         el.querySelector('.ant-drawer-title')?.textContent?.trim() || '';
-      results.push({ type: 'drawer', title: title || 'Untitled', visible: true });
+      results.push({
+        type: 'drawer',
+        title: title || 'Untitled',
+        visible: true,
+      });
     });
 
     modalState.value = results;

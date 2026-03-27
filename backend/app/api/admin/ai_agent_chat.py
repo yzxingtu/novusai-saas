@@ -127,6 +127,7 @@ class AdminAgentChatController(GlobalController):
                 memory_source=MemorySceneEnum.ADMIN_CHAT.value,
                 page_session_id=data.page_session_id,
                 route_source=data.route_source,
+                interaction_updates=[item.model_dump() for item in data.interaction_updates] if data.interaction_updates else None,
             )
             return success(data=result.model_dump())
 
@@ -174,6 +175,7 @@ class AdminAgentChatController(GlobalController):
                 memory_source=MemorySceneEnum.ADMIN_CHAT.value,
                 page_session_id=data.page_session_id,
                 route_source=data.route_source,
+                interaction_updates=[item.model_dump() for item in data.interaction_updates] if data.interaction_updates else None,
             )
 
         # ========================================

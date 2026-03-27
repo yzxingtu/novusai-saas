@@ -129,7 +129,9 @@ const { Drawer, detailData: detail } = useCrudDrawer<TaskLogDetailInfo>({
           {{ $t('admin.system.taskLog.relationInfo') }}
         </div>
         <Descriptions :column="2" bordered size="small">
-          <DescriptionsItem :label="$t('admin.system.taskLog.taskDefinitionId')">
+          <DescriptionsItem
+            :label="$t('admin.system.taskLog.taskDefinitionId')"
+          >
             {{ detail.taskDefinitionId ?? '-' }}
           </DescriptionsItem>
           <DescriptionsItem :label="$t('admin.system.taskLog.bindingId')">
@@ -138,7 +140,9 @@ const { Drawer, detailData: detail } = useCrudDrawer<TaskLogDetailInfo>({
           <DescriptionsItem :label="$t('admin.system.taskLog.ownerTenantId')">
             {{ getOwnerContextText(detail.ownerTenantId) }}
           </DescriptionsItem>
-          <DescriptionsItem :label="$t('admin.system.taskLog.effectiveTenantId')">
+          <DescriptionsItem
+            :label="$t('admin.system.taskLog.effectiveTenantId')"
+          >
             {{ getEffectiveContextText(detail.effectiveTenantId) }}
           </DescriptionsItem>
         </Descriptions>

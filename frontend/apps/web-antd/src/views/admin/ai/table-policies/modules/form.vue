@@ -10,12 +10,15 @@ import type { AITablePolicyInfo } from '#/api/admin/ai';
 
 import { computed, ref, watch } from 'vue';
 
-import { Input } from 'ant-design-vue';
+import { Input, message } from 'ant-design-vue';
+
 import { useVbenForm } from '#/adapter/form';
-import { getAITablePolicyDetailApi, getAITablePolicyColumnsApi } from '#/api/admin/ai';
+import {
+  getAITablePolicyColumnsApi,
+  getAITablePolicyDetailApi,
+} from '#/api/admin/ai';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
-import { message } from 'ant-design-vue';
 
 import { loadColumnOptions, useFormSchema } from '../data';
 
@@ -23,7 +26,9 @@ defineOptions({ name: 'AITablePolicyForm' });
 
 const emits = defineEmits<{ success: [] }>();
 
-const columnList = ref<Array<{ name: string; type: string; comment?: string }>>([]);
+const columnList = ref<Array<{ comment?: string; name: string; type: string }>>(
+  [],
+);
 const columnDescs = ref<Record<string, string>>({});
 
 const [Form, formApi] = useVbenForm({
@@ -35,7 +40,7 @@ const { Drawer, recordId } = useCrudDrawer<AITablePolicyInfo>({
   formApi,
   schema: (): VbenFormSchema[] => useFormSchema(),
   toFormValues: (data) => {
-    columnDescs.value = { ...(data.column_descriptions || {}) };
+    columnDescs.value = { ...data.column_descriptions };
     return {
       table_name: data.table_name,
       label: data.label,
@@ -91,7 +96,7 @@ function updateColumnDesc(name: string, value: string) {
  * On record ID change: load column options and update form schema options
  */
 watch(recordId, async (newId) => {
-  const id = newId != null ? Number(newId) : NaN;
+  const id = newId === null || newId === undefined ? Number.NaN : Number(newId);
   if (!Number.isFinite(id)) {
     columnList.value = [];
     columnDescs.value = {};
@@ -143,10 +148,7 @@ watch(recordId, async (newId) => {
 <template>
   <Drawer :title="title" class="w-[600px]">
     <Form />
-    <div
-      v-if="recordId && columnList.length > 0"
-      class="mt-4"
-    >
+    <div v-if="recordId && columnList.length > 0" class="mt-4">
       <div class="mb-2 text-sm font-medium">
         {{ $t('admin.ai.tablePolicy.columnDescriptions') }}
       </div>
@@ -164,7 +166,8 @@ watch(recordId, async (newId) => {
             :value="columnDescs[col.name]"
             size="small"
             :placeholder="
-              col.comment || $t('admin.ai.tablePolicy.placeholder.inputColumnDesc')
+              col.comment ||
+              $t('admin.ai.tablePolicy.placeholder.inputColumnDesc')
             "
             class="flex-1"
             @update:value="(v: string) => updateColumnDesc(col.name, v)"

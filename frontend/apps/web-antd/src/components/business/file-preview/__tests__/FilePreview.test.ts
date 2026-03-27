@@ -1,6 +1,7 @@
+/* eslint-disable vue/one-component-per-file */
+import { mount } from '@vue/test-utils';
 import { defineComponent, h, nextTick } from 'vue';
 
-import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import FilePreview from '../FilePreview.vue';
@@ -93,7 +94,7 @@ vi.mock('#/utils/image', () => ({
   getAttachmentUrl: mocks.getAttachmentUrl,
 }));
 
-describe('FilePreview', () => {
+describe('filePreview', () => {
   beforeEach(() => {
     mocks.downloadAdminAttachmentApi.mockReset();
     mocks.downloadTenantAttachmentApi.mockReset();
@@ -133,8 +134,7 @@ describe('FilePreview', () => {
     expect(mocks.getAttachmentUrl).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 9,
-        previewUrl:
-          '/api/public/attachments/9/image?exp=1&sign=abc&token=jwt',
+        previewUrl: '/api/public/attachments/9/image?exp=1&sign=abc&token=jwt',
       }),
       { preset: 'preview' },
     );
@@ -174,7 +174,11 @@ describe('FilePreview', () => {
 
     const buttons = wrapper.findAll('button');
     expect(buttons.length).toBeGreaterThan(0);
-    await buttons.at(-1)!.trigger('click');
+    const downloadButton = buttons.at(-1);
+    if (!downloadButton) {
+      throw new Error('Download button not found');
+    }
+    await downloadButton.trigger('click');
 
     expect(mocks.downloadUserAttachmentApi).toHaveBeenCalledWith(
       15,

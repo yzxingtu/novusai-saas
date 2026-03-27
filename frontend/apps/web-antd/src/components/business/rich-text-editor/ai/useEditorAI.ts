@@ -4,7 +4,10 @@
  */
 
 import type { Editor } from '@tiptap/core';
+
 import type { ShallowRef } from 'vue';
+
+import type { AppErrorInfo } from '#/utils/request';
 
 import { ref, unref } from 'vue';
 
@@ -12,7 +15,6 @@ import MarkdownIt from 'markdown-it';
 
 import { $t } from '#/locales';
 import {
-  type AppErrorInfo,
   normalizeSseEventError,
   normalizeSseTransportError,
   requestClient,
@@ -116,10 +118,10 @@ export function useEditorAI(editorRef: ShallowRef<Editor | undefined>) {
           aiError.value = normalized;
         },
       });
-    } catch (err) {
-      if ((err as Error).name !== 'AbortError') {
-        console.error('AI stream error:', err);
-        aiError.value = normalizeSseTransportError(err, $t);
+    } catch (error) {
+      if ((error as Error).name !== 'AbortError') {
+        console.error('AI stream error:', error);
+        aiError.value = normalizeSseTransportError(error, $t);
       }
     } finally {
       aiLoading.value = false;
@@ -148,7 +150,7 @@ export function useEditorAI(editorRef: ShallowRef<Editor | undefined>) {
     if (withFormat) {
       const rawHtml = md.render(aiResult.value);
       // Remove newlines between tags so TipTap does not create extra blank paragraphs / 去掉标签间换行避免多余空段
-      content = rawHtml.replace(/>\s+</g, '><').trim();
+      content = rawHtml.replaceAll(/>\s+</g, '><').trim();
     } else {
       content = aiResult.value;
     }

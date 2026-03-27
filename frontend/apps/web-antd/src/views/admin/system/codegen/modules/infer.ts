@@ -20,16 +20,67 @@ export interface InferredConfig {
 
 /** 系统字段权限映射（DB 导入时自动应用）/ System field permission mapping */
 export const SYSTEM_FIELDS: Record<string, Partial<InferredConfig>> = {
-  id: { insertable: false, editable: false, listVisible: true, filterable: false },
-  created_at: { insertable: false, editable: false, listVisible: true, filterable: true, queryType: 'between' },
-  updated_at: { insertable: false, editable: false, listVisible: false, filterable: false },
-  created_by: { insertable: false, editable: false, listVisible: false, filterable: false },
-  updated_by: { insertable: false, editable: false, listVisible: false, filterable: false },
-  deleted_at: { insertable: false, editable: false, listVisible: false, filterable: false },
-  is_deleted: { insertable: false, editable: false, listVisible: false, filterable: false },
-  tenant_id: { insertable: false, editable: false, listVisible: false, filterable: false },
-  dept_id: { insertable: false, editable: false, listVisible: false, filterable: false },
-  version: { insertable: false, editable: false, listVisible: false, filterable: false },
+  id: {
+    insertable: false,
+    editable: false,
+    listVisible: true,
+    filterable: false,
+  },
+  created_at: {
+    insertable: false,
+    editable: false,
+    listVisible: true,
+    filterable: true,
+    queryType: 'between',
+  },
+  updated_at: {
+    insertable: false,
+    editable: false,
+    listVisible: false,
+    filterable: false,
+  },
+  created_by: {
+    insertable: false,
+    editable: false,
+    listVisible: false,
+    filterable: false,
+  },
+  updated_by: {
+    insertable: false,
+    editable: false,
+    listVisible: false,
+    filterable: false,
+  },
+  deleted_at: {
+    insertable: false,
+    editable: false,
+    listVisible: false,
+    filterable: false,
+  },
+  is_deleted: {
+    insertable: false,
+    editable: false,
+    listVisible: false,
+    filterable: false,
+  },
+  tenant_id: {
+    insertable: false,
+    editable: false,
+    listVisible: false,
+    filterable: false,
+  },
+  dept_id: {
+    insertable: false,
+    editable: false,
+    listVisible: false,
+    filterable: false,
+  },
+  version: {
+    insertable: false,
+    editable: false,
+    listVisible: false,
+    filterable: false,
+  },
 };
 
 interface InferRule {
@@ -87,7 +138,8 @@ const RULES: InferRule[] = [
   },
   // -- 单图 / Single image --
   {
-    pattern: /(image|avatar|cover|logo|photo|thumbnail|banner|poster|picture)$/i,
+    pattern:
+      /(image|avatar|cover|logo|photo|thumbnail|banner|poster|picture)$/i,
     config: {
       type: 'ImageUpload',
       component: 'ImageUpload',
@@ -202,8 +254,14 @@ const RULES: InferRule[] = [
   },
 
   // -- 图标 / 颜色 / Icon & color --
-  { pattern: /icon$/i, config: { type: 'IconPicker', component: 'IconPicker' } },
-  { pattern: /(color|colour)$/i, config: { type: 'String', component: 'ColorPicker', listVisible: true } },
+  {
+    pattern: /icon$/i,
+    config: { type: 'IconPicker', component: 'IconPicker' },
+  },
+  {
+    pattern: /(color|colour)$/i,
+    config: { type: 'String', component: 'ColorPicker', listVisible: true },
+  },
 
   // -- 金额（含 precision:2）/ Amount (with precision:2) --
   {
@@ -229,7 +287,8 @@ const RULES: InferRule[] = [
 
   // -- 排序（含 sortable）/ Sort order (with sortable) --
   {
-    pattern: /^(sort|sort_order|weigh|weight|position|seq|sequence|display_order|sort_num|order_num)$/i,
+    pattern:
+      /^(sort|sort_order|weigh|weight|position|seq|sequence|display_order|sort_num|order_num)$/i,
     config: {
       type: 'Integer',
       component: 'number',
@@ -250,7 +309,8 @@ const RULES: InferRule[] = [
 
   // -- 长文本（含 description）/ Long text (incl. description, moved from RichText) --
   {
-    pattern: /(text|memo|remark|comment|feedback|review|message|note|description)$/i,
+    pattern:
+      /(text|memo|remark|comment|feedback|review|message|note|description)$/i,
     config: {
       type: 'Text',
       component: 'textarea',
@@ -259,22 +319,74 @@ const RULES: InferRule[] = [
   },
 
   // -- URL / Email / Phone（IR-3/4/5）/ 链接、邮箱、电话字段 --
-  { pattern: /(url|link|href|website|homepage)$/i, config: { type: 'String', component: 'input', listVisible: true } },
-  { pattern: /(email|mail)$/i, config: { type: 'String', component: 'input', queryType: 'ilike', listVisible: true, filterable: true } },
-  { pattern: /(phone|mobile|tel|cellphone)$/i, config: { type: 'String', component: 'input', listVisible: true, filterable: true } },
+  {
+    pattern: /(url|link|href|website|homepage)$/i,
+    config: { type: 'String', component: 'input', listVisible: true },
+  },
+  {
+    pattern: /(email|mail)$/i,
+    config: {
+      type: 'String',
+      component: 'input',
+      queryType: 'ilike',
+      listVisible: true,
+      filterable: true,
+    },
+  },
+  {
+    pattern: /(phone|mobile|tel|cellphone)$/i,
+    config: {
+      type: 'String',
+      component: 'input',
+      listVisible: true,
+      filterable: true,
+    },
+  },
 
   // -- 下拉单选/多选（_list/_select/_multi/_tags）/ Select single/multi --
-  { pattern: /(_list|_select|_data)$/i, config: { type: 'String', component: 'select', queryType: 'eq', listVisible: true, filterable: true } },
-  { pattern: /(_lists|_selects|_multi|_tags)$/i, config: { type: 'JSON', component: 'select', multiple: true, queryType: 'in', listVisible: false, filterable: true } },
+  {
+    pattern: /(_list|_select|_data)$/i,
+    config: {
+      type: 'String',
+      component: 'select',
+      queryType: 'eq',
+      listVisible: true,
+      filterable: true,
+    },
+  },
+  {
+    pattern: /(_lists|_selects|_multi|_tags)$/i,
+    config: {
+      type: 'JSON',
+      component: 'select',
+      multiple: true,
+      queryType: 'in',
+      listVisible: false,
+      filterable: true,
+    },
+  },
 
   // -- 数组 / Array --
-  { pattern: /(array|_arr)$/i, config: { type: 'JSON', component: 'input', listVisible: false } },
+  {
+    pattern: /(array|_arr)$/i,
+    config: { type: 'JSON', component: 'input', listVisible: false },
+  },
 
   // -- 评分（在 percent 之前，避免 rating 被误判为 percent）--
-  { pattern: /^rating$/i, config: { type: 'Integer', component: 'Rate', listVisible: true } },
+  {
+    pattern: /^rating$/i,
+    config: { type: 'Integer', component: 'Rate', listVisible: true },
+  },
   // -- 百分比 / Percent --
-  { pattern: /^(percent|ratio)$/i, config: { type: 'Decimal', component: 'number', listVisible: true, precision: 2 } },
-
+  {
+    pattern: /^(percent|ratio)$/i,
+    config: {
+      type: 'Decimal',
+      component: 'number',
+      listVisible: true,
+      precision: 2,
+    },
+  },
 
   // -- 常见可搜索字段 / Common searchable fields --
   {
@@ -315,21 +427,53 @@ export function inferFieldConfig(fieldName: string): InferredConfig {
 /** 常见字段名对应的 display_name/comment 映射（中文优先）/ Field display_name/comment mapping (Chinese first) */
 export const FIELD_DISPLAY_NAMES: Record<
   string,
-  { display_name: string; display_name_en: string; comment?: string }
+  { comment?: string; display_name: string; display_name_en: string }
 > = {
   title: { display_name: '标题', display_name_en: 'Title', comment: '标题' },
   name: { display_name: '名称', display_name_en: 'Name', comment: '名称' },
-  content: { display_name: '内容', display_name_en: 'Content', comment: '内容' },
+  content: {
+    display_name: '内容',
+    display_name_en: 'Content',
+    comment: '内容',
+  },
   status: { display_name: '状态', display_name_en: 'Status', comment: '状态' },
-  sort_order: { display_name: '排序', display_name_en: 'Sort Order', comment: '排序号' },
+  sort_order: {
+    display_name: '排序',
+    display_name_en: 'Sort Order',
+    comment: '排序号',
+  },
   price: { display_name: '单价', display_name_en: 'Price', comment: '单价' },
   amount: { display_name: '金额', display_name_en: 'Amount', comment: '金额' },
-  quantity: { display_name: '数量', display_name_en: 'Quantity', comment: '数量' },
-  created_at: { display_name: '创建时间', display_name_en: 'Created At', comment: '创建时间' },
-  updated_at: { display_name: '更新时间', display_name_en: 'Updated At', comment: '更新时间' },
-  created_by: { display_name: '创建人', display_name_en: 'Creator', comment: '创建人' },
-  updated_by: { display_name: '更新人', display_name_en: 'Updater', comment: '更新人' },
-  description: { display_name: '描述', display_name_en: 'Description', comment: '描述' },
+  quantity: {
+    display_name: '数量',
+    display_name_en: 'Quantity',
+    comment: '数量',
+  },
+  created_at: {
+    display_name: '创建时间',
+    display_name_en: 'Created At',
+    comment: '创建时间',
+  },
+  updated_at: {
+    display_name: '更新时间',
+    display_name_en: 'Updated At',
+    comment: '更新时间',
+  },
+  created_by: {
+    display_name: '创建人',
+    display_name_en: 'Creator',
+    comment: '创建人',
+  },
+  updated_by: {
+    display_name: '更新人',
+    display_name_en: 'Updater',
+    comment: '更新人',
+  },
+  description: {
+    display_name: '描述',
+    display_name_en: 'Description',
+    comment: '描述',
+  },
   remark: { display_name: '备注', display_name_en: 'Remark', comment: '备注' },
 };
 
@@ -345,15 +489,21 @@ export function humanizeSnakeCase(name: string): string {
 /**
  * 从字段名推断 display_name / comment（仅当缺失时填充）/ Infer display_name/comment from field name (only when missing)
  */
-export function inferFieldDisplayNames(
-  fieldName: string,
-): { display_name?: string; display_name_en?: string; comment?: string } {
+export function inferFieldDisplayNames(fieldName: string): {
+  comment?: string;
+  display_name?: string;
+  display_name_en?: string;
+} {
   if (!fieldName) return {};
   const name = String(fieldName).trim();
   const known = FIELD_DISPLAY_NAMES[name];
   if (known) return known;
   const humanized = humanizeSnakeCase(name);
-  return { display_name: humanized, display_name_en: humanized, comment: humanized };
+  return {
+    display_name: humanized,
+    display_name_en: humanized,
+    comment: humanized,
+  };
 }
 
 /**
@@ -367,7 +517,9 @@ export function inferFieldConfigForMerge(
   const form: Record<string, unknown> = {};
   if (c.component) form.component = c.component;
   if (c.queryType) form.queryType = c.queryType;
-  if (c.precision != null) form.precision = c.precision;
+  if (c.precision !== null && c.precision !== undefined) {
+    form.precision = c.precision;
+  }
   const displayNames = inferFieldDisplayNames(fieldName);
   const out: Record<string, unknown> = {
     type: c.type,
@@ -377,7 +529,7 @@ export function inferFieldConfigForMerge(
     insertable: c.insertable,
     editable: c.editable,
     sortable: c.sortable,
-    ...(Object.keys(form).length ? { form } : {}),
+    ...(Object.keys(form).length > 0 ? { form } : {}),
     ...displayNames,
     _auto_detected: true,
   };
@@ -387,12 +539,16 @@ export function inferFieldConfigForMerge(
 export function pluralize(word: string): string {
   if (!word) return word;
   if (word.endsWith('y') && !/[aeiou]y$/i.test(word))
-    return word.slice(0, -1) + 'ies';
-  if (/(?:s|x|ch|sh)$/i.test(word)) return word + 'es';
-  const irregulars: Record<string, string> = { category: 'categories', person: 'people', child: 'children' };
+    return `${word.slice(0, -1)}ies`;
+  if (/(?:s|x|ch|sh)$/i.test(word)) return `${word}es`;
+  const irregulars: Record<string, string> = {
+    category: 'categories',
+    person: 'people',
+    child: 'children',
+  };
   const lower = word.toLowerCase();
   if (irregulars[lower]) return irregulars[lower];
-  return word + 's';
+  return `${word}s`;
 }
 
 /** 单数化（与后端 generator _singularize 一致）/ Singularize (aligned with backend) */
@@ -407,7 +563,7 @@ export function singularize(word: string): string {
   };
   const lower = w.toLowerCase();
   if (irregularsRev[lower]) return irregularsRev[lower];
-  if (w.endsWith('ies') && !/[aeiou]ies$/i.test(w)) return w.slice(0, -3) + 'y';
+  if (w.endsWith('ies') && !/[aeiou]ies$/i.test(w)) return `${w.slice(0, -3)}y`;
   if (/(?:s|ch|sh|x)es$/i.test(w)) return w.slice(0, -2);
   if (w.endsWith('s') && !/(?:us|as|is|os|ss)$/i.test(w)) return w.slice(0, -1);
   return w;
@@ -415,7 +571,7 @@ export function singularize(word: string): string {
 
 /** 解析数据库列注释为枚举值（借鉴 BuildAdmin），与 EnumValuesEditor 格式统一用 label_zh */
 export interface ParsedEnumItem {
-  value: string | number;
+  value: number | string;
   label_zh: string;
 }
 
@@ -423,17 +579,19 @@ export interface ParsedEnumItem {
  * 解析 `状态:0=禁用,1=启用` 或 `类型(0=普通,1=VIP)` 格式 / Parse `status:0=disabled,1=enabled` format
  * @returns 解析成功返回枚举项数组，否则返回 null / Returns ParsedEnumItem[] or null
  */
-export function parseCommentEnum(comment: string | null | undefined): ParsedEnumItem[] | null {
+export function parseCommentEnum(
+  comment: null | string | undefined,
+): null | ParsedEnumItem[] {
   if (!comment || typeof comment !== 'string') return null;
   const s = comment.trim();
   if (!s) return null;
   const colonIdx = s.indexOf(':');
   const parenStart = s.indexOf('(');
   let body = s;
-  if (colonIdx >= 0) body = s.slice(colonIdx + 1).trim();
-  else if (parenStart >= 0) {
+  if (colonIdx !== -1) body = s.slice(colonIdx + 1).trim();
+  else if (parenStart !== -1) {
     const parenEnd = s.indexOf(')', parenStart);
-    if (parenEnd >= 0) body = s.slice(parenStart + 1, parenEnd).trim();
+    if (parenEnd !== -1) body = s.slice(parenStart + 1, parenEnd).trim();
   }
   const items: ParsedEnumItem[] = [];
   for (const part of body.split(/[,，]/)) {
@@ -444,7 +602,7 @@ export function parseCommentEnum(comment: string | null | undefined): ParsedEnum
       const numText = m[1];
       const label = m[2];
       if (!numText || !label) continue;
-      const num = parseInt(numText, 10);
+      const num = Number.parseInt(numText, 10);
       items.push({ value: num, label_zh: label.trim() });
     } else {
       const m2 = trimmed.match(/^(["'])(.+)\1=(.+)$/);

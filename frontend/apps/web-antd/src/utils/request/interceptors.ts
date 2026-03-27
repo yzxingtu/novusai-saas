@@ -12,23 +12,20 @@
  * @module utils/request/interceptors
  */
 import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
-import { h } from 'vue';
 
-import { Button, notification } from 'ant-design-vue';
-
-import { getEndpointByUrl } from './endpoint';
 import type { RequestClient } from './request-client';
 import type { ApiEndpoint, RequestOptions } from './types';
 
+import { h } from 'vue';
+
+import { Button, notification } from 'ant-design-vue';
 import axios from 'axios';
 
+import { isDevErrorMode } from './app-env';
+import { formatAppErrorMessage, normalizeHttpError } from './app-error';
+import { getEndpointByUrl } from './endpoint';
 import { isAuthError } from './error-codes';
 import { ensureTraceIdHeader } from './trace';
-import { isDevErrorMode } from './app-env';
-import {
-  formatAppErrorMessage,
-  normalizeHttpError,
-} from './app-error';
 
 // ============================================================
 // Type definitions / 类型定义
@@ -444,7 +441,10 @@ export function createErrorMessageInterceptor(messageHandler: MessageHandler) {
       const errStr = error?.toString?.() ?? '';
       if (errStr.includes('Network Error')) {
         if (options.showErrorMessage !== false) {
-          messageHandler.showMessage('error', formatAppErrorMessage(appError, messageHandler.t));
+          messageHandler.showMessage(
+            'error',
+            formatAppErrorMessage(appError, messageHandler.t),
+          );
         }
         return Promise.reject(Object.assign(error, { appError }));
       }
@@ -452,7 +452,10 @@ export function createErrorMessageInterceptor(messageHandler: MessageHandler) {
       // 超时错误 / request timeout
       if (error?.message?.includes?.('timeout')) {
         if (options.showErrorMessage !== false) {
-          messageHandler.showMessage('error', formatAppErrorMessage(appError, messageHandler.t));
+          messageHandler.showMessage(
+            'error',
+            formatAppErrorMessage(appError, messageHandler.t),
+          );
         }
         return Promise.reject(Object.assign(error, { appError }));
       }
@@ -539,13 +542,16 @@ export function createBusinessErrorInterceptor(messageHandler: MessageHandler) {
       const appError = normalizeHttpError(error, messageHandler.t);
 
       // 显示业务错误消息 / show biz error toast
-      if (options.showCodeMessage !== false && responseData) {
-        if (appError.message && (!status || status < 500)) {
-          messageHandler.showMessage(
-            'error',
-            formatAppErrorMessage(appError, messageHandler.t),
-          );
-        }
+      if (
+        options.showCodeMessage !== false &&
+        responseData &&
+        appError.message &&
+        (!status || status < 500)
+      ) {
+        messageHandler.showMessage(
+          'error',
+          formatAppErrorMessage(appError, messageHandler.t),
+        );
       }
 
       return Promise.reject(Object.assign(error, { appError }));

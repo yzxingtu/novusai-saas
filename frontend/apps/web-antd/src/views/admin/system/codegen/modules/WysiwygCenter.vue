@@ -1,16 +1,18 @@
 <script lang="ts" setup>
+import type { PaletteItem } from './ComponentPalette.vue';
+
 import { computed, onMounted, ref } from 'vue';
+
 import { Segmented } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 import { useCodegenBuilderStore } from '#/store';
 
-import type { PaletteItem } from './ComponentPalette.vue';
+import { createFieldFromPalette, ensureFieldKeys } from './field-utils';
 import FieldCardList from './FieldCardList.vue';
 import WysiwygDetailView from './WysiwygDetailView.vue';
 import WysiwygFormView from './WysiwygFormView.vue';
 import WysiwygListView from './WysiwygListView.vue';
-import { createFieldFromPalette, ensureFieldKeys } from './field-utils';
 
 defineOptions({ name: 'WysiwygCenter' });
 
@@ -138,10 +140,8 @@ onMounted(() => {
 
 <template>
   <div
-    :class="[
-      'flex min-h-[620px] min-w-80 flex-1 flex-col overflow-hidden rounded-[18px] bg-background transition-all',
-      isDragOver && 'ring-2 ring-primary/50 ring-offset-2',
-    ]"
+    class="flex min-h-[620px] min-w-80 flex-1 flex-col overflow-hidden rounded-[18px] bg-background transition-all"
+    :class="[isDragOver && 'ring-2 ring-primary/50 ring-offset-2']"
     @dragenter="onDragEnter"
     @dragover="onDragOver"
     @dragleave="onDragLeave"

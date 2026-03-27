@@ -28,12 +28,12 @@ interface PermissionNode {
 const props = defineProps<{
   /** API prefix: admin or tenant / API 前缀 */
   apiPrefix?: 'admin' | 'tenant';
-  /** Source entity type / 数据来源类型 */
-  source?: 'org-node' | 'role';
   /** Node ID / 节点 ID */
   nodeId: number;
   /** Permission count / 权限数量 */
   permissionsCount: number;
+  /** Source entity type / 数据来源类型 */
+  source?: 'org-node' | 'role';
 }>();
 
 const open = ref(false);

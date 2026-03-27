@@ -240,7 +240,9 @@ export function registerRenderers(vxeUI: any) {
         );
 
         // Disabled buttons do not fire mouse events; wrap so Tooltip still works / 禁用态需包裹以显示提示
-        const trigger = isDisabled ? h('span', { class: 'inline-flex' }, [iconBtn]) : iconBtn;
+        const trigger = isDisabled
+          ? h('span', { class: 'inline-flex' }, [iconBtn])
+          : iconBtn;
 
         return h(
           Tooltip,

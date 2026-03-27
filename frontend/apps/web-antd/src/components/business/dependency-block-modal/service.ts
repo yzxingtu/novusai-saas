@@ -44,26 +44,27 @@ async function ensureDependencyBlockModal(): Promise<DependencyBlockModalExposed
   }
 
   if (typeof document === 'undefined') {
-    throw new Error('DependencyBlockModal requires browser document.');
+    throw new TypeError('DependencyBlockModal requires browser document.');
   }
 
   modalReadyPromise = new Promise<DependencyBlockModalExposed>((resolve) => {
     modalHost = document.createElement('div');
     modalHost.dataset.novusDependencyBlockModal = 'true';
-    document.body.appendChild(modalHost);
+    document.body.append(modalHost);
 
     const Root = {
       render() {
         return h(DependencyBlockModal, {
-          ref: (instance: Element | ComponentPublicInstance | null) => {
+          ref: (instance: ComponentPublicInstance | Element | null) => {
             if (!instance || instance instanceof Element) {
               return;
             }
-            const exposed = instance as ComponentPublicInstance &
-              DependencyBlockModalExposed;
+            const exposed = instance as
+              | ComponentPublicInstance
+              | DependencyBlockModalExposed;
             if (!modalApi) {
-              modalApi = exposed;
-              resolve(exposed);
+              modalApi = exposed as DependencyBlockModalExposed;
+              resolve(modalApi);
             }
           },
         });
