@@ -32,6 +32,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
     # 响应体截断阈值 (10KB)
     RESPONSE_TRUNCATE_THRESHOLD = 10 * 1024
     TRUNCATED_MARKER = "...truncated"
+    MAX_LATENCY_MS = 2_147_483_647
 
     @staticmethod
     def _sanitize_request(request_data: dict) -> dict:
@@ -123,6 +124,32 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         params_str = json.dumps(params, sort_keys=True)
         return hashlib.sha256(params_str.encode()).hexdigest()
 
+    @classmethod
+    def _normalize_latency_ms(cls, latency_ms: Any) -> int | None:
+        """Normalize latency for DB persistence / 标准化延迟字段以便安全落库。"""
+        if latency_ms is None:
+            return None
+
+        try:
+            value = int(latency_ms)
+        except (TypeError, ValueError):
+            logger.warning("Invalid AI call latency discarded: raw={}", latency_ms)
+            return None
+
+        if value < 0:
+            logger.warning("Negative AI call latency discarded: raw={}", value)
+            return None
+
+        if value > cls.MAX_LATENCY_MS:
+            logger.warning(
+                "Overflow AI call latency discarded: raw={} max={}",
+                value,
+                cls.MAX_LATENCY_MS,
+            )
+            return None
+
+        return value
+
     async def log_call(
         self,
         tenant_id: int,
@@ -185,6 +212,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
 
         # 创建日志记录 / Create log row
         billing_context = dict(billing_context or {})
+        normalized_latency_ms = self._normalize_latency_ms(latency_ms)
         call_log = AICallLog(
             tenant_id=tenant_id,
             user_id=user_id,
@@ -202,7 +230,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
             output_tokens=output_tokens,
             total_tokens=total_tokens,
             cost=cost,
-            latency_ms=latency_ms,
+            latency_ms=normalized_latency_ms,
             status=status,
             error_message=error_message,
             request_hash=request_hash,
@@ -316,6 +344,8 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         """
         from app.tasks.ai import log_ai_call_task
 
+        normalized_latency_ms = self._normalize_latency_ms(latency_ms)
+
         # 发送 Celery 任务
         log_ai_call_task.delay(
             tenant_id=tenant_id,
@@ -328,7 +358,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
             output_tokens=output_tokens,
             total_tokens=total_tokens,
             cost=float(cost),
-            latency_ms=latency_ms,
+            latency_ms=normalized_latency_ms,
             status=status,
             error_message=error_message,
             user_id=user_id,

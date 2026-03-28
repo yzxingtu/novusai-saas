@@ -11,10 +11,9 @@ import operator
 import re
 import time
 from collections.abc import Callable, Coroutine
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
-from urllib.parse import parse_qs, unquote, urlparse
-
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.core.i18n import _
@@ -109,45 +108,30 @@ _NOISE_HINTS = (
     "toolbar",
 )
 
+_SEARCH_PROVIDER_BAIDU = "baidu_public"
+_SEARCH_PROVIDER_SO360 = "so360_public"
+_SEARCH_STATUS_SUCCESS = "success"
+_SEARCH_STATUS_NO_RESULTS = "no_results"
+_SEARCH_STATUS_SOURCE_BLOCKED = "source_blocked"
+_SEARCH_STATUS_SOURCE_CHALLENGED = "source_challenged"
+_SEARCH_STATUS_SOURCE_UNAVAILABLE = "source_unavailable"
 
-def _build_builtin_follow_up_message(func_name: str, output: str) -> str | None:
-    """Provide tool-specific guidance to help the LLM stop repeating web tools. / 为内置联网工具提供收敛提示。"""
-    if not output:
-        return None
 
-    if func_name == "web_search":
-        if output.startswith("Error:"):
-            return (
-                f"{output}\n\n"
-                "The web search already failed for this exact query. "
-                "Do not call web_search again with the same query unless the user changes it. "
-                "Either answer from the evidence already in the conversation or try a different research strategy."
-            )
-        return (
-            f"{output}\n\n"
-            "You have already completed the web search for this query. "
-            "Do not call web_search again unless the user changes the query. "
-            "Answer directly from these results, or call fetch_url for specific URLs if deeper detail is needed. "
-            "If the user asked for multiple articles, multiple sources, or cross-verification, inspect enough distinct results to support a multi-source summary before the final answer."
-        )
+@dataclass
+class SearchProviderResponse:
+    provider: str
+    status: str
+    results: list[dict[str, str]]
+    error: str | None = None
 
-    if func_name == "fetch_url":
-        if output.startswith("Error:"):
-            return (
-                f"{output}\n\n"
-                "Fetching this URL already failed with the same arguments. "
-                "Do not call fetch_url again for the same URL unless the user explicitly asks to retry. "
-                "Either answer from earlier evidence or choose a different URL."
-            )
-        return (
-            f"{output}\n\n"
-            "You have already fetched this URL. "
-            "Do not call fetch_url again for the same URL unless the user explicitly asks to refresh it or inspect another page. "
-            "Use the fetched content above to answer directly. "
-            "If the user asked for multiple sources or cross-verification and you still have fewer than two distinct relevant pages, fetch another distinct relevant URL before the final summary."
-        )
 
-    return None
+@dataclass
+class WebSearchExecution:
+    output: str
+    provider: str | None
+    status: str
+    items: list[dict[str, str]]
+    failure_reason: str | None = None
 
 
 def _normalize_text(text: str) -> str:
@@ -177,59 +161,36 @@ def _truncate_text(text: str, max_length: int) -> tuple[str, bool]:
     return f"{cut}... [truncated]", True
 
 
-def _decode_duckduckgo_result_url(url: str) -> str:
-    """Decode DuckDuckGo redirect links when present. / 解码 DuckDuckGo 跳转链接。"""
-    if not url:
-        return ""
-
-    if url.startswith("//"):
-        url = f"https:{url}"
-    elif url.startswith("/"):
-        url = f"https://duckduckgo.com{url}"
-
-    parsed = urlparse(url)
-    params = parse_qs(parsed.query)
-    encoded = params.get("uddg")
-    if encoded and (
-        parsed.netloc.endswith("duckduckgo.com")
-        or parsed.path.startswith("/l/")
-    ):
-        return unquote(encoded[0])
-    return url
+def _clean_search_snippet(text: str, title: str) -> str:
+    normalized = _normalize_text(text)
+    normalized_title = _normalize_text(title)
+    if normalized_title and normalized.startswith(normalized_title):
+        normalized = _normalize_text(normalized[len(normalized_title):])
+    return normalized
 
 
-def _extract_duckduckgo_results(html: str, max_results: int) -> list[dict[str, str]]:
-    """Parse DuckDuckGo HTML result page. / 解析 DuckDuckGo HTML 搜索结果页。"""
+def _extract_baidu_public_results(html: str, max_results: int) -> list[dict[str, str]]:
+    """Parse Baidu public search result page. / 解析百度公共搜索结果页。"""
     from bs4 import BeautifulSoup
 
     soup = BeautifulSoup(html, "lxml")
     results: list[dict[str, str]] = []
     seen_urls: set[str] = set()
 
-    for link in soup.select("a.result__a"):
-        href = _decode_duckduckgo_result_url(link.get("href", "").strip())
-        title = _normalize_text(link.get_text(" ", strip=True))
+    for container in soup.select("div.result.c-container, div.c-container"):
+        title_link = container.select_one("h3 a")
+        if title_link is None:
+            continue
+
+        href = (title_link.get("href") or "").strip()
+        title = _normalize_text(title_link.get_text(" ", strip=True))
         if not href or not title or href in seen_urls:
             continue
 
-        container = link.find_parent(
-            lambda tag: tag.name in {"article", "div", "td", "tr"}
-            and any(cls.startswith("result") for cls in tag.get("class", []))
+        snippet = _clean_search_snippet(
+            container.get_text(" ", strip=True),
+            title,
         )
-        snippet = ""
-        if container:
-            snippet_node = container.select_one(".result__snippet")
-            if snippet_node is None:
-                snippet_node = container.find(
-                    lambda tag: tag.name in {"a", "div", "span"}
-                    and any(
-                        cls.startswith("result__snippet")
-                        for cls in tag.get("class", [])
-                    )
-                )
-            if snippet_node is not None:
-                snippet = _normalize_text(snippet_node.get_text(" ", strip=True))
-
         results.append({"title": title, "url": href, "snippet": snippet})
         seen_urls.add(href)
         if len(results) >= max_results:
@@ -238,7 +199,40 @@ def _extract_duckduckgo_results(html: str, max_results: int) -> list[dict[str, s
     return results
 
 
-def _format_search_results(query: str, results: list[dict[str, str]]) -> str:
+def _extract_so360_public_results(html: str, max_results: int) -> list[dict[str, str]]:
+    """Parse 360 public search result page. / 解析 360 公共搜索结果页。"""
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html, "lxml")
+    results: list[dict[str, str]] = []
+    seen_urls: set[str] = set()
+
+    for container in soup.select("li.res-list"):
+        title_link = container.select_one("h3 a")
+        if title_link is None:
+            continue
+
+        href = (title_link.get("href") or "").strip()
+        title = _normalize_text(title_link.get_text(" ", strip=True))
+        if not href or not title or href in seen_urls:
+            continue
+
+        snippet = _clean_search_snippet(
+            container.get_text(" ", strip=True),
+            title,
+        )
+        results.append({"title": title, "url": href, "snippet": snippet})
+        seen_urls.add(href)
+        if len(results) >= max_results:
+            break
+
+    return results
+
+
+def _build_search_output_text(
+    query: str,
+    results: list[dict[str, str]],
+) -> str:
     """Format search results for tool output. / 格式化搜索结果输出。"""
     lines = [f"Search results for: {query}\n"]
     for i, item in enumerate(results, 1):
@@ -250,7 +244,66 @@ def _format_search_results(query: str, results: list[dict[str, str]]) -> str:
     return "\n".join(lines)
 
 
-async def _search_with_duckduckgo(query: str, max_results: int) -> tuple[list[dict[str, str]], str | None]:
+def _build_search_summary_payload(
+    *,
+    provider: str | None,
+    status: str,
+    items: list[dict[str, str]],
+    failure_reason: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "provider": provider,
+        "status": status,
+        "result_count": len(items),
+        "items": [
+            {
+                "title": str(item.get("title") or ""),
+                "url": str(item.get("url") or ""),
+                "snippet": str(item.get("snippet") or ""),
+            }
+            for item in items
+        ],
+        **({"failure_reason": failure_reason} if failure_reason else {}),
+    }
+
+
+def _extract_title_from_html(html: str) -> str:
+    match = re.search(r"<title>(.*?)</title>", html, re.IGNORECASE | re.DOTALL)
+    if not match:
+        return ""
+    return _normalize_text(match.group(1))
+
+
+def _classify_baidu_public_html(html: str) -> str:
+    if not html:
+        return _SEARCH_STATUS_SOURCE_UNAVAILABLE
+    if "百度安全验证" in html or "安全验证" in _extract_title_from_html(html):
+        return _SEARCH_STATUS_SOURCE_CHALLENGED
+    if _extract_baidu_public_results(html, 1):
+        return _SEARCH_STATUS_SUCCESS
+    if "抱歉，没有找到与" in html or "没有找到该URL" in html:
+        return _SEARCH_STATUS_NO_RESULTS
+    return _SEARCH_STATUS_SOURCE_UNAVAILABLE
+
+
+def _classify_so360_public_html(html: str) -> str:
+    if not html:
+        return _SEARCH_STATUS_SOURCE_UNAVAILABLE
+    title = _extract_title_from_html(html)
+    normalized = _normalize_text(html)
+    if "安全验证" in title or "请输入验证码" in normalized:
+        return _SEARCH_STATUS_SOURCE_CHALLENGED
+    if _extract_so360_public_results(html, 1):
+        return _SEARCH_STATUS_SUCCESS
+    if "没有找到相关结果" in normalized or "相关结果约0个" in normalized:
+        return _SEARCH_STATUS_NO_RESULTS
+    return _SEARCH_STATUS_SOURCE_UNAVAILABLE
+
+
+async def _search_with_baidu_public(
+    query: str,
+    max_results: int,
+) -> SearchProviderResponse:
     import httpx
 
     try:
@@ -260,19 +313,174 @@ async def _search_with_duckduckgo(query: str, max_results: int) -> tuple[list[di
             follow_redirects=True,
             headers=_DEFAULT_WEB_HEADERS,
         ) as client:
-            resp = await client.post(
-                "https://html.duckduckgo.com/html/",
-                data={"q": query},
+            resp = await client.get(
+                "https://www.baidu.com/s",
+                params={"wd": query},
+            )
+        if resp.status_code >= 400:
+            return SearchProviderResponse(
+                provider=_SEARCH_PROVIDER_BAIDU,
+                status=_SEARCH_STATUS_SOURCE_BLOCKED,
+                results=[],
+                error=f"HTTP {resp.status_code}",
             )
 
-        if resp.status_code >= 400:
-            return [], f"HTTP {resp.status_code}"
-        return _extract_duckduckgo_results(resp.text, max_results), None
+        status = _classify_baidu_public_html(resp.text)
+        if status == _SEARCH_STATUS_SUCCESS:
+            return SearchProviderResponse(
+                provider=_SEARCH_PROVIDER_BAIDU,
+                status=status,
+                results=_extract_baidu_public_results(resp.text, max_results),
+            )
+        return SearchProviderResponse(
+            provider=_SEARCH_PROVIDER_BAIDU,
+            status=status,
+            results=[],
+            error=(
+                "returned safety verification"
+                if status == _SEARCH_STATUS_SOURCE_CHALLENGED
+                else "returned no results"
+                if status == _SEARCH_STATUS_NO_RESULTS
+                else "returned an unreadable page"
+            ),
+        )
     except httpx.TimeoutException:
-        return [], "timeout"
+        return SearchProviderResponse(
+            provider=_SEARCH_PROVIDER_BAIDU,
+            status=_SEARCH_STATUS_SOURCE_UNAVAILABLE,
+            results=[],
+            error="timeout",
+        )
     except Exception as exc:
-        logger.warning("DuckDuckGo search failed: {}", exc)
-        return [], str(exc)
+        logger.warning("Baidu public search failed: {}", exc)
+        return SearchProviderResponse(
+            provider=_SEARCH_PROVIDER_BAIDU,
+            status=_SEARCH_STATUS_SOURCE_UNAVAILABLE,
+            results=[],
+            error=str(exc),
+        )
+
+
+async def _search_with_so360_public(
+    query: str,
+    max_results: int,
+) -> SearchProviderResponse:
+    import httpx
+
+    try:
+        timeout = httpx.Timeout(20.0, connect=10.0)
+        async with httpx.AsyncClient(
+            timeout=timeout,
+            follow_redirects=True,
+            headers=_DEFAULT_WEB_HEADERS,
+        ) as client:
+            resp = await client.get(
+                "https://www.so.com/s",
+                params={"q": query},
+            )
+        if resp.status_code >= 400:
+            return SearchProviderResponse(
+                provider=_SEARCH_PROVIDER_SO360,
+                status=_SEARCH_STATUS_SOURCE_BLOCKED,
+                results=[],
+                error=f"HTTP {resp.status_code}",
+            )
+
+        status = _classify_so360_public_html(resp.text)
+        if status == _SEARCH_STATUS_SUCCESS:
+            return SearchProviderResponse(
+                provider=_SEARCH_PROVIDER_SO360,
+                status=status,
+                results=_extract_so360_public_results(resp.text, max_results),
+            )
+        return SearchProviderResponse(
+            provider=_SEARCH_PROVIDER_SO360,
+            status=status,
+            results=[],
+            error=(
+                "returned safety verification"
+                if status == _SEARCH_STATUS_SOURCE_CHALLENGED
+                else "returned no results"
+                if status == _SEARCH_STATUS_NO_RESULTS
+                else "returned an unreadable page"
+            ),
+        )
+    except httpx.TimeoutException:
+        return SearchProviderResponse(
+            provider=_SEARCH_PROVIDER_SO360,
+            status=_SEARCH_STATUS_SOURCE_UNAVAILABLE,
+            results=[],
+            error="timeout",
+        )
+    except Exception as exc:
+        logger.warning("360 public search failed: {}", exc)
+        return SearchProviderResponse(
+            provider=_SEARCH_PROVIDER_SO360,
+            status=_SEARCH_STATUS_SOURCE_UNAVAILABLE,
+            results=[],
+            error=str(exc),
+        )
+
+
+def _build_public_search_failure_reason(
+    attempts: list[SearchProviderResponse],
+) -> str:
+    parts: list[str] = []
+    for attempt in attempts:
+        detail = attempt.error or attempt.status
+        if detail.startswith("returned ") or detail.startswith("HTTP "):
+            parts.append(f"{attempt.provider} {detail}")
+        else:
+            parts.append(f"{attempt.provider} returned {detail}")
+    return "; ".join(parts)
+
+
+async def _run_web_search(query: str, max_results: int) -> WebSearchExecution:
+    rewritten_query = _normalize_text(query)
+    providers = [
+        _search_with_baidu_public,
+        _search_with_so360_public,
+    ]
+    attempts: list[SearchProviderResponse] = []
+
+    for index, provider in enumerate(providers):
+        attempt = await provider(rewritten_query, max_results)
+        attempts.append(attempt)
+        logger.info(
+            "web_search source attempt: provider={} status={} query={} result_count={} fallback={}",
+            attempt.provider,
+            attempt.status,
+            rewritten_query[:120],
+            len(attempt.results),
+            index > 0,
+        )
+        if attempt.status == _SEARCH_STATUS_SUCCESS and attempt.results:
+            return WebSearchExecution(
+                output=_build_search_output_text(rewritten_query, attempt.results),
+                provider=attempt.provider,
+                status=attempt.status,
+                items=attempt.results,
+            )
+        if attempt.status == _SEARCH_STATUS_NO_RESULTS:
+            continue
+
+    if attempts and any(attempt.status == _SEARCH_STATUS_NO_RESULTS for attempt in attempts):
+        return WebSearchExecution(
+            output=f"No results found for: {rewritten_query}",
+            provider=attempts[-1].provider if attempts else None,
+            status=_SEARCH_STATUS_NO_RESULTS,
+            items=[],
+            failure_reason=_build_public_search_failure_reason(attempts),
+        )
+
+    failure_reason = _build_public_search_failure_reason(attempts) or "all public search sources were unavailable"
+    return WebSearchExecution(
+        output=f"Search source unavailable: {failure_reason}",
+        provider=attempts[-1].provider if attempts else None,
+        status=_SEARCH_STATUS_SOURCE_UNAVAILABLE,
+        items=[],
+        failure_reason=failure_reason,
+    )
 
 
 def _remove_noise_nodes(soup: Any) -> None:
@@ -505,6 +713,36 @@ class BuiltinToolExecutor(BaseToolExecutor):
             )
 
         try:
+            if func_name == "web_search":
+                query = str(arguments.get("query") or "")
+                max_results = int(arguments.get("max_results") or 5)
+                execution = await _run_web_search(query, max_results)
+                duration_ms = int((time.perf_counter() - start) * 1000)
+                is_failure = execution.status in {
+                    _SEARCH_STATUS_SOURCE_BLOCKED,
+                    _SEARCH_STATUS_SOURCE_CHALLENGED,
+                    _SEARCH_STATUS_SOURCE_UNAVAILABLE,
+                }
+                return ToolResult(
+                    tool_call_id=tool_call_id,
+                    name=func_name,
+                    success=not is_failure,
+                    output="" if is_failure else execution.output,
+                    error=execution.output if is_failure else "",
+                    summary=(
+                        f"{execution.provider or 'search'}: {len(execution.items)} result(s)"
+                        if execution.status == _SEARCH_STATUS_SUCCESS
+                        else execution.failure_reason
+                    ),
+                    summary_payload=_build_search_summary_payload(
+                        provider=execution.provider,
+                        status=execution.status,
+                        items=execution.items,
+                        failure_reason=execution.failure_reason,
+                    ),
+                    duration_ms=duration_ms,
+                )
+
             output = await func(**arguments)
             duration_ms = int((time.perf_counter() - start) * 1000)
 
@@ -513,10 +751,6 @@ class BuiltinToolExecutor(BaseToolExecutor):
                 name=func_name,
                 success=True,
                 output=output,
-                llm_follow_up_message=_build_builtin_follow_up_message(
-                    func_name,
-                    output,
-                ),
                 duration_ms=duration_ms,
             )
 
@@ -624,32 +858,7 @@ class BuiltinToolExecutor(BaseToolExecutor):
             return "Error: query parameter is required"
 
         max_results = min(max(1, max_results), 10)
-        providers = [("duckduckgo", _search_with_duckduckgo)]
-
-        errors: list[str] = []
-        for provider_name, provider in providers:
-            results, error = await provider(query, max_results)
-            if results:
-                logger.info(
-                    "web_search provider selected: provider={} query={}",
-                    provider_name,
-                    query[:120],
-                )
-                return _format_search_results(query, results)
-            if error:
-                errors.append(f"{provider_name}:{error}")
-
-        if errors:
-            logger.warning(
-                "web_search all providers failed: query={} errors={}",
-                query[:120],
-                errors,
-            )
-            if all(err.endswith("timeout") or ":timeout" in err for err in errors):
-                return f"Error: Search timed out for query: {query}"
-            return f"No results found for: {query}"
-
-        return f"No results found for: {query}"
+        return (await _run_web_search(query, max_results)).output
 
     @staticmethod
     async def _fetch_url(url: str = "", max_length: int = 5000) -> str:

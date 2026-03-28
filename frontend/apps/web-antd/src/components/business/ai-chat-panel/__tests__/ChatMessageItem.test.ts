@@ -634,4 +634,73 @@ describe('chatMessageItem', () => {
 
     expect(wrapper.text()).toContain('common.globalAiChat.rawResult');
   });
+
+  it('renders structured web search results directly from summary payload', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: createAssistantMsg([
+          {
+            name: 'web_search',
+            status: 'success',
+            summaryPayload: {
+              provider: 'baidu_public',
+              status: 'success',
+              result_count: 2,
+              items: [
+                {
+                  title: '示例搜索结果一',
+                  url: 'https://example.com/result-1',
+                  snippet: '第一条摘要内容',
+                },
+                {
+                  title: '示例搜索结果二',
+                  url: 'https://example.com/result-2',
+                  snippet: '第二条摘要内容',
+                },
+              ],
+            },
+          },
+        ]),
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain('common.globalAiChat.toolSearchResults');
+    expect(wrapper.text()).toContain(
+      'common.globalAiChat.toolSearchSourceBaidu',
+    );
+    expect(wrapper.text()).toContain(
+      'common.globalAiChat.toolSearchStatusSuccess',
+    );
+    expect(wrapper.text()).toContain('示例搜索结果一');
+    expect(wrapper.text()).toContain('https://example.com/result-1');
+    expect(wrapper.text()).toContain('第一条摘要内容');
+
+    const details = wrapper.get('[data-testid="tool-call-details-0"]');
+    expect(details.attributes('style') ?? '').toContain(
+      'grid-template-rows: 1fr',
+    );
+
+    const resultButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('示例搜索结果一'));
+    expect(resultButton).toBeTruthy();
+    if (!resultButton) {
+      throw new Error('Search result button not found');
+    }
+    await resultButton.trigger('click');
+    expect(wrapper.emitted('openUrl')?.[0]).toEqual([
+      'https://example.com/result-1',
+    ]);
+  });
 });

@@ -198,15 +198,16 @@ class ReloadingPersistentScheduler(PersistentScheduler):
         self._last_db_schedule_reload_at: float | None = None
         super().__init__(*args, **kwargs)
 
-    def setup_schedule(self) -> None:
+    def _open_or_recover_schedule_store(self):
         try:
-            self._store = self._open_schedule()
-            self._store.keys()
+            store = self._open_schedule()
+            store.keys()
+            return store
         except Exception as exc:  # pylint: disable=broad-except  # 损坏调度文件容错 / tolerate corrupt schedule
-            self._store = self._destroy_open_corrupted_schedule(exc)
+            return self._destroy_open_corrupted_schedule(exc)
 
+    def _initialize_schedule_store(self) -> None:
         self._create_schedule()
-
         tz = self.app.conf.timezone
         stored_tz = self._store.get("tz")
         if stored_tz is not None and stored_tz != tz:
@@ -227,6 +228,19 @@ class ReloadingPersistentScheduler(PersistentScheduler):
             }
         )
         self.sync()
+
+    def setup_schedule(self) -> None:
+        self._store = self._open_or_recover_schedule_store()
+        try:
+            self._initialize_schedule_store()
+        except Exception as exc:  # pylint: disable=broad-except  # 启动阶段损坏文件容错 / tolerate corrupt schedule during initialization
+            logger.warning(
+                "Beat schedule store init failed, rebuilding persistent store: type={} error={}",
+                type(exc).__name__,
+                str(exc),
+            )
+            self._store = self._destroy_open_corrupted_schedule(exc)
+            self._initialize_schedule_store()
 
         static_names = set(self.app.conf.beat_schedule or {})
         if "celery.backend_cleanup" in self.schedule:

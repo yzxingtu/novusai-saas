@@ -87,6 +87,24 @@ class UsageRecorder:
             return LogUserTypeEnum.ADMIN.value
         return LogUserTypeEnum.TENANT_ADMIN.value
 
+    @staticmethod
+    def _elapsed_milliseconds(start_time: float) -> int:
+        """Compute elapsed ms from either wall-clock or monotonic start time / 兼容 wall-clock 与 monotonic 的耗时计算。"""
+        candidates: list[float] = []
+
+        wall_elapsed = time.time() - start_time
+        if wall_elapsed >= 0:
+            candidates.append(wall_elapsed)
+
+        monotonic_elapsed = time.perf_counter() - start_time
+        if monotonic_elapsed >= 0:
+            candidates.append(monotonic_elapsed)
+
+        if not candidates:
+            return 0
+
+        return int(min(candidates) * 1000)
+
     async def check_rate_and_quota(
         self,
         tenant_id: int,
@@ -220,7 +238,7 @@ class UsageRecorder:
             return
         try:
             assert tenant_id is not None
-            latency_ms = int((time.time() - start_time) * 1000)
+            latency_ms = self._elapsed_milliseconds(start_time)
             request_data = {
                 "messages": messages_to_dicts(messages),
                 "temperature": temperature,

@@ -314,11 +314,6 @@ class PageOperationExecutor(BaseToolExecutor):
                 output=output,
                 duration_ms=duration_ms,
                 attachments=[screenshot_attachment] if screenshot_attachment else None,
-                llm_follow_up_message=(
-                    _("page_operation.hint.screenshot_follow_up")
-                    if screenshot_attachment
-                    else None
-                ),
             )
 
         # Failure case with recovery guidance / 失败情况，含恢复指引

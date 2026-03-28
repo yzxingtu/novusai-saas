@@ -157,11 +157,12 @@ class ResearchContinuationContext:
     family: str | None = None
     origin: str = "none"
     current_user_text: str = ""
-    effective_user_query: str = ""
     research_target_text: str = ""
     recent_successful_tool_names: list[str] = field(default_factory=list)
     recent_web_queries: list[str] = field(default_factory=list)
-    requires_multi_source: bool = False
+    search_query_count: int = 0
+    fetched_url_count: int = 0
+    research_instruction_texts: list[str] = field(default_factory=list)
 
 
 @dataclass

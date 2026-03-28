@@ -387,20 +387,15 @@ class ToolCallProcessor:
         return ChatMessage(role="tool", content=content, tool_call_id=tc_id)
 
     @staticmethod
-    def build_follow_up_message(result: ToolResult) -> ChatMessage | None:
-        """Build internal follow-up user message for multimodal tool outputs / 为多模态工具结果构建内部后续 user 消息"""
-        if not result.success:
+    def build_attachment_relay_message(result: ToolResult) -> ChatMessage | None:
+        """Build a minimal internal attachment relay when tool output includes media. / 工具输出包含媒体时构建最小内部附件承载消息。"""
+        if not result.success or not result.attachments:
             return None
 
-        follow_up = result.llm_follow_up_message or result.output
-        if not follow_up:
-            return None
-
-        attachments = result.attachments or None
         return ChatMessage(
             role="user",
-            content=follow_up,
-            attachments=attachments,
+            content="",
+            attachments=result.attachments,
             internal_only=True,
         )
 
@@ -810,7 +805,7 @@ class ToolCallProcessor:
                 tool_result=result,
                 duration_ms=0,
                 tool_message=tool_message,
-                follow_up_message=self.build_follow_up_message(result),
+                follow_up_message=self.build_attachment_relay_message(result),
             )
 
         result, duration_ms = await self.execute_tool(
@@ -825,7 +820,7 @@ class ToolCallProcessor:
             tool_result=result,
             duration_ms=duration_ms,
             tool_message=tool_message,
-            follow_up_message=self.build_follow_up_message(result),
+            follow_up_message=self.build_attachment_relay_message(result),
         )
 
 

@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -124,6 +124,43 @@ class TestCallLogCreate:
 
         result = await service.repo.create(log)
         assert result.status == "error"
+
+    @pytest.mark.asyncio
+    async def test_log_call_async_discards_overflow_latency(self, mock_db):
+        from app.services.ai.call_log_service import CallLogService
+
+        service = CallLogService.__new__(CallLogService)
+        service.db = mock_db
+        service.tenant_id = 1
+
+        with patch("app.tasks.ai.log_ai_call_task.delay") as delay_mock:
+            await service.log_call_async(
+                tenant_id=1,
+                model_id=2,
+                provider_id=3,
+                request_type="chat",
+                request_data={"messages": []},
+                response_data={"ok": True},
+                input_tokens=0,
+                output_tokens=0,
+                total_tokens=0,
+                cost=0.0,
+                latency_ms=9_999_999_999_999,
+                status="failed",
+            )
+
+        assert delay_mock.called
+        assert delay_mock.call_args.kwargs["latency_ms"] is None
+
+
+class TestCallLogSanitization:
+
+    def test_normalize_latency_ms_returns_none_for_overflow(self):
+        from app.services.ai.call_log_service import CallLogService
+
+        assert CallLogService._normalize_latency_ms(9_999_999_999_999) is None
+        assert CallLogService._normalize_latency_ms(-1) is None
+        assert CallLogService._normalize_latency_ms(1234) == 1234
 
 
 class TestCallLogDelete:

@@ -248,11 +248,26 @@ interface StructuredToolOutput {
   sql?: string;
 }
 
+interface SearchResultItem {
+  snippet?: string;
+  title: string;
+  url: string;
+}
+
+interface SearchSummary {
+  failureReason?: string;
+  items: SearchResultItem[];
+  provider?: string;
+  resultCount: number;
+  status?: string;
+}
+
 interface ToolDisplayItem {
   expanded: boolean;
   hasDetails: boolean;
   headlineSummary: null | string;
   index: number;
+  searchSummary: null | SearchSummary;
   structuredOutput: StructuredToolOutput;
   targetBadges: ToolTargetBadge[];
   tc: NonNullable<ChatMessage['toolCalls']>[number];
@@ -265,27 +280,35 @@ const pendingOpExpandedMap = ref<Record<string, boolean>>({});
 function hasToolCardDetails(
   tc: Pick<
     NonNullable<ChatMessage['toolCalls']>[number],
-    'arguments' | 'error' | 'output'
+    'arguments' | 'error' | 'output' | 'summaryPayload'
   >,
 ) {
   return Boolean(
     tc.output ||
     tc.error ||
+    tc.summaryPayload ||
     (tc.arguments && Object.keys(tc.arguments).length > 0),
   );
 }
 
 function isToolExpanded(
-  tc: Pick<NonNullable<ChatMessage['toolCalls']>[number], 'status'>,
+  tc: Pick<
+    NonNullable<ChatMessage['toolCalls']>[number],
+    'status' | 'summaryPayload'
+  >,
   idx: number,
 ) {
-  return toolExpandedMap.value[idx] ?? tc.status === 'error';
+  const existing = toolExpandedMap.value[idx];
+  if (existing !== undefined) {
+    return existing;
+  }
+  return tc.status === 'error' || hasSearchSummary(tc) || false;
 }
 
 function toggleToolExpand(
   tc: Pick<
     NonNullable<ChatMessage['toolCalls']>[number],
-    'arguments' | 'error' | 'output' | 'status'
+    'arguments' | 'error' | 'output' | 'status' | 'summaryPayload'
   >,
   idx: number,
 ) {
@@ -468,6 +491,104 @@ function getSummaryPayload(
   return tc.summaryPayload && typeof tc.summaryPayload === 'object'
     ? tc.summaryPayload
     : null;
+}
+
+function toSearchResultItems(value: unknown): SearchResultItem[] {
+  if (!Array.isArray(value)) return [];
+  const items: SearchResultItem[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+    const title = typeof item.title === 'string' ? item.title.trim() : '';
+    const url = typeof item.url === 'string' ? item.url.trim() : '';
+    const snippet = typeof item.snippet === 'string' ? item.snippet.trim() : '';
+    if (!title || !url) continue;
+    items.push({
+      title,
+      url,
+      snippet: snippet || undefined,
+    });
+  }
+  return items;
+}
+
+function getSearchSummary(
+  tc: Pick<NonNullable<ChatMessage['toolCalls']>[number], 'summaryPayload'>,
+): null | SearchSummary {
+  const summaryPayload = getSummaryPayload(tc);
+  if (!summaryPayload) return null;
+
+  const provider =
+    typeof summaryPayload.provider === 'string'
+      ? summaryPayload.provider.trim()
+      : '';
+  const status =
+    typeof summaryPayload.status === 'string'
+      ? summaryPayload.status.trim()
+      : '';
+  const failureReason =
+    typeof summaryPayload.failure_reason === 'string'
+      ? summaryPayload.failure_reason.trim()
+      : '';
+  const items = toSearchResultItems(summaryPayload.items);
+  const resultCount =
+    typeof summaryPayload.result_count === 'number'
+      ? summaryPayload.result_count
+      : items.length;
+
+  if (!provider && !status && !failureReason && items.length === 0) {
+    return null;
+  }
+
+  return {
+    provider: provider || undefined,
+    status: status || undefined,
+    resultCount,
+    items,
+    failureReason: failureReason || undefined,
+  };
+}
+
+function hasSearchSummary(
+  tc: Pick<NonNullable<ChatMessage['toolCalls']>[number], 'summaryPayload'>,
+) {
+  return !!getSearchSummary(tc);
+}
+
+function getSearchProviderLabel(provider?: string) {
+  switch (provider) {
+    case 'baidu_public': {
+      return $t('common.globalAiChat.toolSearchSourceBaidu');
+    }
+    case 'so360_public': {
+      return $t('common.globalAiChat.toolSearchSource360');
+    }
+    default: {
+      return provider || '';
+    }
+  }
+}
+
+function getSearchStatusLabel(status?: string) {
+  switch (status) {
+    case 'success': {
+      return $t('common.globalAiChat.toolSearchStatusSuccess');
+    }
+    case 'no_results': {
+      return $t('common.globalAiChat.toolSearchStatusNoResults');
+    }
+    case 'source_blocked': {
+      return $t('common.globalAiChat.toolSearchStatusBlocked');
+    }
+    case 'source_challenged': {
+      return $t('common.globalAiChat.toolSearchStatusChallenged');
+    }
+    case 'source_unavailable': {
+      return $t('common.globalAiChat.toolSearchStatusUnavailable');
+    }
+    default: {
+      return status || '';
+    }
+  }
 }
 
 function getStructuredToolOutput(
@@ -668,12 +789,14 @@ const toolDisplayItems = computed<ToolDisplayItem[]>(() =>
   (props.msg.toolCalls ?? []).map((tc, idx) => {
     const hasDetails = hasToolCardDetails(tc);
     const structuredOutput = getStructuredToolOutput(tc);
+    const searchSummary = getSearchSummary(tc);
     return {
       index: idx,
       tc,
       hasDetails,
       expanded: hasDetails ? isToolExpanded(tc, idx) : false,
       headlineSummary: getToolHeadlineSummary(tc),
+      searchSummary,
       structuredOutput,
       targetBadges: getToolTargetBadges(tc),
     };
@@ -1264,6 +1387,60 @@ watch(
                       >
                         {{ JSON.stringify(toolItem.tc.arguments) }}
                       </code>
+                    </div>
+                    <div
+                      v-if="toolItem.searchSummary"
+                      class="mb-1 rounded bg-background/70 px-1.5 py-1 text-foreground/80"
+                    >
+                      <div
+                        class="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground"
+                      >
+                        <span class="font-medium">{{
+                          $t('common.globalAiChat.toolSearchResults')
+                        }}</span>
+                        <span v-if="toolItem.searchSummary.provider">
+                          {{ getSearchProviderLabel(toolItem.searchSummary.provider) }}
+                        </span>
+                        <span v-if="toolItem.searchSummary.status">
+                          {{ getSearchStatusLabel(toolItem.searchSummary.status) }}
+                        </span>
+                        <span>
+                          {{ toolItem.searchSummary.resultCount }}
+                        </span>
+                      </div>
+                      <div
+                        v-if="toolItem.searchSummary.failureReason"
+                        class="mt-1 whitespace-pre-wrap break-words text-muted-foreground"
+                      >
+                        {{ toolItem.searchSummary.failureReason }}
+                      </div>
+                      <ul
+                        v-else-if="toolItem.searchSummary.items.length > 0"
+                        class="mt-1 space-y-1"
+                      >
+                        <li
+                          v-for="(searchItem, searchIndex) in toolItem.searchSummary.items"
+                          :key="`${toolItem.index}-${searchIndex}-${searchItem.url}`"
+                          class="rounded border border-border/20 bg-accent/20 px-1.5 py-1"
+                        >
+                          <button
+                            type="button"
+                            class="w-full text-left text-[11px] font-medium text-foreground hover:text-primary"
+                            @click.stop="emit('openUrl', searchItem.url)"
+                          >
+                            {{ searchItem.title }}
+                          </button>
+                          <div class="mt-0.5 break-all text-[10px] text-muted-foreground">
+                            {{ searchItem.url }}
+                          </div>
+                          <div
+                            v-if="searchItem.snippet"
+                            class="mt-0.5 whitespace-pre-wrap break-words text-[10px] text-foreground/75"
+                          >
+                            {{ searchItem.snippet }}
+                          </div>
+                        </li>
+                      </ul>
                     </div>
                     <div
                       v-if="toolItem.structuredOutput.explanation"

@@ -351,11 +351,11 @@ async def test_page_context_executor_prioritizes_mutation_ops_and_submit_workflo
 
 
 @pytest.mark.asyncio
-async def test_page_context_executor_includes_follow_up_guidance_to_prevent_repeat_calls() -> None:
+async def test_page_context_executor_returns_page_snapshot() -> None:
     executor = PageContextExecutor()
     result = await executor.execute(
         ToolDefinition(name="get_page_context"),
-        "call_follow_up",
+        "call_page_context",
         {},
         ExecutionContext(
             tenant_id=1,
@@ -375,9 +375,7 @@ async def test_page_context_executor_includes_follow_up_guidance_to_prevent_repe
     )
 
     assert result.success is True
-    assert result.llm_follow_up_message is not None
-    assert "Do not call get_page_context again" in result.llm_follow_up_message
-    assert "Use the page information above to answer the user directly" in result.llm_follow_up_message
+    assert "Page: admin.ai.providers" in result.output
 
 
 @pytest.mark.asyncio
@@ -484,6 +482,48 @@ async def test_skill_resolver_exposes_get_page_context_tool_schema() -> None:
     openai_tools = to_openai_tools(result.tools)
     assert openai_tools[0]["function"]["name"] == "get_page_context"
     assert openai_tools[0]["function"]["parameters"]["properties"] == {}
+
+
+@pytest.mark.asyncio
+async def test_skill_resolver_augments_web_research_builtin_tool_descriptions() -> None:
+    skill = MagicMock()
+    skill.id = 12
+    skill.package_id = 22
+    skill.is_active = True
+    skill.config = {
+        "tools": [
+            {
+                "name": "web_search",
+                "description": "Search the web",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                },
+            },
+            {
+                "name": "fetch_url",
+                "description": "Fetch a webpage",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                },
+            },
+        ],
+    }
+    skill.name = "web_research"
+    skill.description = "Research tools"
+    skill.type = SkillTypeEnum.BUILTIN.value
+    skill.timeout = 15
+
+    result = await SkillResolver().resolve([skill])
+
+    descriptions = {tool.name: tool.description for tool in result.tools}
+    assert "candidate web sources" in descriptions["web_search"]
+    assert "does not mean the content has already been verified" in descriptions["web_search"]
+    assert "read the content of a specific web page" in descriptions["fetch_url"]
+    assert "official announcements" in descriptions["fetch_url"]
 
 
 @pytest.mark.asyncio
@@ -925,7 +965,7 @@ class TestToolOptimizerProtectedTools:
 
         result = optimize_tools(
             tools,
-            "请开始",
+            "Continue the same external research task.",
             used_tool_names={"web_search"},
             preferred_family="web_research",
         )

@@ -110,7 +110,7 @@ def test_find_pending_confirmation_keeps_consent_tool_args_clean() -> None:
                 "type": "function",
                 "function": {
                     "name": "web_search",
-                    "arguments": '{"query":"OpenAI 最新新闻","max_results":1}',
+                    "arguments": '{"query":"Sample Topic public info","max_results":1}',
                 },
             }],
         ),
@@ -123,7 +123,7 @@ def test_find_pending_confirmation_keeps_consent_tool_args_clean() -> None:
                     "action": "tool_consent",
                     "tool_name": "web_search",
                     "arguments": {
-                        "query": "OpenAI 最新新闻",
+                        "query": "Sample Topic public info",
                         "max_results": 1,
                     },
                 },
@@ -138,28 +138,40 @@ def test_find_pending_confirmation_keeps_consent_tool_args_clean() -> None:
     assert pending is not None
     assert pending["name"] == "web_search"
     assert pending["arguments"] == {
-        "query": "OpenAI 最新新闻",
+        "query": "Sample Topic public info",
         "max_results": 1,
     }
     assert "confirmed" not in pending["arguments"]
 
 
-def test_build_follow_up_message_supports_non_attachment_tools() -> None:
+def test_build_attachment_relay_message_returns_none_without_attachments() -> None:
     result = ToolResult(
-        tool_call_id="tc_weather",
-        name="get_current_weather",
+        tool_call_id="tc_result",
+        name="web_search",
         success=True,
-        output="Current weather for Beijing: 18°C",
-        llm_follow_up_message="Weather data retrieved successfully. Answer directly and do not call the same tool again.",
+        output="Search results ready.",
     )
 
-    follow_up = ToolCallProcessor.build_follow_up_message(result)
+    follow_up = ToolCallProcessor.build_attachment_relay_message(result)
+
+    assert follow_up is None
+
+
+def test_build_attachment_relay_message_relays_only_attachments() -> None:
+    result = ToolResult(
+        tool_call_id="tc_media",
+        name="invoke_page_operation",
+        success=True,
+        attachments=[{"type": "image", "url": "https://example.com/image.png"}],
+    )
+
+    follow_up = ToolCallProcessor.build_attachment_relay_message(result)
 
     assert follow_up is not None
     assert follow_up.role == "user"
     assert follow_up.internal_only is True
-    assert "do not call the same tool again" in (follow_up.content or "")
-    assert follow_up.attachments is None
+    assert follow_up.content == ""
+    assert follow_up.attachments == [{"type": "image", "url": "https://example.com/image.png"}]
 
 
 def test_execute_tool_uses_all_tools_fallback_for_pending_confirmation_replay() -> None:

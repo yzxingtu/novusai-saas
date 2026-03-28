@@ -378,19 +378,11 @@ class PageContextExecutor(BaseToolExecutor):
             page_ctx.get("page_key", "unknown") if isinstance(page_ctx, dict) else "raw",
         )
 
-        follow_up_message = (
-            f"{output}\n\n"
-            "You have already called get_page_context for this turn. "
-            "Do not call get_page_context again unless the page visibly changed. "
-            "Use the page information above to answer the user directly."
-        )
-
         return ToolResult(
             tool_call_id=tool_call_id,
             name=definition.name,
             success=True,
             output=output,
-            llm_follow_up_message=follow_up_message,
             duration_ms=duration_ms,
         )
 

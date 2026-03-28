@@ -8,7 +8,7 @@ import sys
 import types
 from dataclasses import asdict
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -153,41 +153,27 @@ class _FakeEngine:
         return [asdict(m) for m in messages]
 
     @staticmethod
-    def _should_retry_web_research_denial(response, tools, continuation):
-        from app.ai.engine.base import BaseEngine
+    def _log_web_research_contract_diagnostics(
+        *,
+        agent,
+        messages,
+        response,
+        tools,
+        continuation,
+        conversation_id,
+    ):
+        from app.ai.engine.conversation import ConversationEngine
 
-        return BaseEngine._should_retry_web_research_denial(
-            response,
-            tools,
-            continuation,
+        engine = object.__new__(ConversationEngine)
+        return ConversationEngine._log_web_research_contract_diagnostics(
+            engine,
+            agent=agent,
+            messages=messages,
+            response=response,
+            tools=tools,
+            continuation=continuation,
+            conversation_id=conversation_id,
         )
-
-    @staticmethod
-    def _build_web_research_retry_prompt(continuation):
-        from app.ai.engine.base import BaseEngine
-
-        return BaseEngine._build_web_research_retry_prompt(continuation)
-
-    @staticmethod
-    def _needs_more_web_research_sources(messages, tools, continuation):
-        from app.ai.engine.base import BaseEngine
-
-        return BaseEngine._needs_more_web_research_sources(
-            messages,
-            tools,
-            continuation,
-        )
-
-    @staticmethod
-    def _build_multi_source_retry_prompt(continuation, messages, tools):
-        from app.ai.engine.base import BaseEngine
-
-        return BaseEngine._build_multi_source_retry_prompt(
-            continuation,
-            messages,
-            tools,
-        )
-
 
 class _BrokenStreamEngine(_FakeEngine):
     async def _stream_llm_chunks(self, **kwargs):
@@ -434,77 +420,7 @@ async def test_stream_handler_tool_rounds_keep_real_stream_and_final_answer():
 
 
 @pytest.mark.asyncio
-async def test_stream_handler_retries_web_research_denial_without_emitting_wrong_text():
-    engine = _FakeEngine(
-        rounds=[
-            [
-                ChatChunk(
-                    delta="当前这轮没有真正可用的联网搜索工具。",
-                    finish_reason="stop",
-                    total_tokens=10,
-                ),
-            ],
-            [
-                ChatChunk(
-                    delta="",
-                    tool_calls=[
-                        {
-                            "id": "call_retry_1",
-                            "type": "function",
-                            "function": {
-                                "name": "web_search",
-                                "arguments": '{"query":"张雪峰 为什么死了 更多来源 交叉验证","max_results":5}',
-                            },
-                        },
-                    ],
-                    finish_reason="tool_calls",
-                    total_tokens=20,
-                ),
-            ],
-            [
-                ChatChunk(delta="继续搜索完成。", finish_reason="stop", total_tokens=30),
-            ],
-        ],
-    )
-    tools = [
-        ToolDefinition(name="web_search", description="Search the web"),
-        ToolDefinition(name="fetch_url", description="Fetch url"),
-        ToolDefinition(name="data_query", description="Query data"),
-    ]
-    continuation_context = SimpleNamespace(
-        active=True,
-        family="web_research",
-        current_user_text="请开始",
-        effective_user_query="张雪峰 为什么死了 更多来源 交叉验证",
-        research_target_text="张雪峰 为什么死了",
-        recent_successful_tool_names=["web_search"],
-        recent_web_queries=["张雪峰 为什么死了"],
-        requires_multi_source=True,
-    )
-    handler = _build_handler(
-        engine,
-        tools=tools,
-        continuation_context=continuation_context,
-    )
-
-    events: list[dict] = []
-    async for raw in handler.generate():
-        if raw.strip().startswith("data: {"):
-            events.append(_parse_sse_payload(raw))
-
-    message_text = "".join(
-        event.get("delta", "") for event in events if event.get("event") == "message"
-    )
-    assert "没有真正可用的联网搜索工具" not in message_text
-    assert "继续搜索完成" in message_text
-    assert any(
-        event.get("event") == "tool_start" and event.get("name") == "web_search"
-        for event in events
-    )
-
-
-@pytest.mark.asyncio
-async def test_stream_handler_retries_multi_source_web_research_before_final_answer():
+async def test_stream_handler_logs_summary_without_detail_page_diagnostics():
     engine = _FakeEngine(
         rounds=[
             [
@@ -516,7 +432,7 @@ async def test_stream_handler_retries_multi_source_web_research_before_final_ans
                             "type": "function",
                             "function": {
                                 "name": "web_search",
-                                "arguments": '{"query":"张雪峰 为什么死了","max_results":5}',
+                                "arguments": '{"query":"sample topic public info","max_results":5}',
                             },
                         },
                     ],
@@ -526,50 +442,9 @@ async def test_stream_handler_retries_multi_source_web_research_before_final_ans
             ],
             [
                 ChatChunk(
-                    delta="",
-                    tool_calls=[
-                        {
-                            "id": "call_fetch_1",
-                            "type": "function",
-                            "function": {
-                                "name": "fetch_url",
-                                "arguments": '{"url":"https://example.com/article-1","max_length":4000}',
-                            },
-                        },
-                    ],
-                    finish_reason="tool_calls",
+                    delta="Here is a summary based only on the search snippets.",
+                    finish_reason="stop",
                     total_tokens=20,
-                ),
-            ],
-            [
-                ChatChunk(
-                    delta="先基于一篇文章给你总结。",
-                    finish_reason="stop",
-                    total_tokens=25,
-                ),
-            ],
-            [
-                ChatChunk(
-                    delta="",
-                    tool_calls=[
-                        {
-                            "id": "call_fetch_2",
-                            "type": "function",
-                            "function": {
-                                "name": "fetch_url",
-                                "arguments": '{"url":"https://example.com/article-2","max_length":4000}',
-                            },
-                        },
-                    ],
-                    finish_reason="tool_calls",
-                    total_tokens=30,
-                ),
-            ],
-            [
-                ChatChunk(
-                    delta="综合两篇文章后总结完成。",
-                    finish_reason="stop",
-                    total_tokens=35,
                 ),
             ],
         ],
@@ -577,18 +452,18 @@ async def test_stream_handler_retries_multi_source_web_research_before_final_ans
     tools = [
         ToolDefinition(name="web_search", description="Search the web"),
         ToolDefinition(name="fetch_url", description="Fetch url"),
-        ToolDefinition(name="data_query", description="Query data"),
     ]
     continuation_context = SimpleNamespace(
         active=True,
         family="web_research",
-        origin="initial",
-        current_user_text="你帮我联网搜索 张雪峰 为什么死了 然后多查看几个文章 然后总结给我",
-        effective_user_query="张雪峰 为什么死了 更多来源 交叉验证",
-        research_target_text="张雪峰 为什么死了",
-        recent_successful_tool_names=[],
-        recent_web_queries=[],
-        requires_multi_source=True,
+        origin="continuation",
+        current_user_text="Continue reviewing the same public webpages.",
+        research_target_text="sample topic public info",
+        recent_successful_tool_names=["web_search"],
+        recent_web_queries=["sample topic public info"],
+        search_query_count=1,
+        fetched_url_count=0,
+        research_instruction_texts=["Continue reviewing the same public webpages."],
     )
     handler = _build_handler(
         engine,
@@ -597,22 +472,16 @@ async def test_stream_handler_retries_multi_source_web_research_before_final_ans
     )
 
     events: list[dict] = []
-    async for raw in handler.generate():
-        if raw.strip().startswith("data: {"):
-            events.append(_parse_sse_payload(raw))
+    with patch.object(_FakeEngine, "_log_web_research_contract_diagnostics") as diag_mock:
+        async for raw in handler.generate():
+            if raw.strip().startswith("data: {"):
+                events.append(_parse_sse_payload(raw))
 
     message_text = "".join(
         event.get("delta", "") for event in events if event.get("event") == "message"
     )
-    fetch_starts = [
-        event
-        for event in events
-        if event.get("event") == "tool_start" and event.get("name") == "fetch_url"
-    ]
-
-    assert "先基于一篇文章给你总结" not in message_text
-    assert "综合两篇文章后总结完成" in message_text
-    assert len(fetch_starts) == 2
+    assert "Here is a summary based only on the search snippets" in message_text
+    assert diag_mock.call_count >= 1
 
 
 @pytest.mark.asyncio

@@ -1126,6 +1126,24 @@ function openImagePreview(url: string) {
   previewImageVisible.value = true;
 }
 
+function isLikelyImageUrl(url: string) {
+  const normalized = (url || '').trim().toLowerCase();
+  if (!normalized) return false;
+  if (normalized.startsWith('data:image/')) return true;
+  if (normalized.startsWith('blob:')) return true;
+  const withoutQuery = normalized.split('?')[0]?.split('#')[0] || normalized;
+  return /\.(avif|bmp|gif|ico|jpe?g|png|svg|webp)$/i.test(withoutQuery);
+}
+
+function handleOpenUrl(url: string) {
+  if (!url) return;
+  if (isLikelyImageUrl(url)) {
+    openImagePreview(url);
+    return;
+  }
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
 // ============ Copy / 复制消息 ============
 
 async function onCopyMessage(content: string) {
@@ -1466,7 +1484,7 @@ onUnmounted(() => {
             @reject="rejectAction"
             @consent-confirm="confirmConsent"
             @consent-reject="rejectConsent"
-            @open-url="openImagePreview"
+            @open-url="handleOpenUrl"
             @action-click="clickActionButton"
             @regenerate="regenerateMessage"
             @edit="editAndResend"

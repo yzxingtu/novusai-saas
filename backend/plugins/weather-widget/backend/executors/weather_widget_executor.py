@@ -99,11 +99,6 @@ class WeatherWidgetExecutor(BaseToolExecutor):
                 success=True,
                 output=output,
                 duration_ms=duration_ms,
-                llm_follow_up_message=(
-                    "Weather data retrieved successfully. "
-                    "Use this result to answer the user directly in natural language. "
-                    "Do not call the same weather tool again unless the user changes the city or forecast range."
-                ),
             )
 
         except Exception as exc:

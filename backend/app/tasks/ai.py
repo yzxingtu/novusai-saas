@@ -128,6 +128,7 @@ def log_ai_call_task(
         route_reason: Route reason / 路由原因
     """
     from app.models.ai.call_log import AICallLog
+    from app.services.ai.call_log_service import CallLogService
 
     db = sync_session_factory()
     try:
@@ -135,6 +136,8 @@ def log_ai_call_task(
             "AI call log start: task={} tenant={} model={}",
             self.request.id, tenant_id, model_id,
         )
+
+        normalized_latency_ms = CallLogService._normalize_latency_ms(latency_ms)
 
         # Sanitize and truncate / 脱敏和截断处理
         sanitized_request = _sanitize_request(request_data)
@@ -164,7 +167,7 @@ def log_ai_call_task(
             output_tokens=output_tokens,
             total_tokens=total_tokens,
             cost=cost,
-            latency_ms=latency_ms,
+            latency_ms=normalized_latency_ms,
             status=status,
             error_message=error_message,
             request_hash=request_hash,

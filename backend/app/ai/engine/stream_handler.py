@@ -468,10 +468,6 @@ class StreamExecutionHandler:
         append_final_assistant = True
         next_runtime_context = getattr(self.prep, "stream_runtime", None)
         continuation_context = getattr(self.prep, "continuation_context", None)
-        web_research_denial_retried = False
-        multi_source_retry_count = 0
-        max_multi_source_retries = 2
-        web_research_multi_source_retries = 0
 
         # ---- Confirmation interception ---- / 确认拦截
         _last_user_text = ""
@@ -528,7 +524,7 @@ class StreamExecutionHandler:
                 )
             )
             messages.append(processor.build_tool_message(_result, _tc_id))
-            _follow_up_message = processor.build_follow_up_message(_result)
+            _follow_up_message = processor.build_attachment_relay_message(_result)
             if _follow_up_message:
                 messages.append(_follow_up_message)
 
@@ -616,70 +612,14 @@ class StreamExecutionHandler:
                     message=ChatMessage(role="assistant", content=round_output),
                     total_tokens=round_total_tokens,
                 )
-                should_retry_denial = (
-                    not web_research_denial_retried
-                    and self.engine._should_retry_web_research_denial(
-                        denial_response,
-                        tools,
-                        continuation_context,
-                    )
+                self.engine._log_web_research_contract_diagnostics(
+                    agent=self.agent,
+                    messages=messages,
+                    response=denial_response,
+                    tools=tools,
+                    continuation=continuation_context,
+                    conversation_id=self.request.conversation_id,
                 )
-                if should_retry_denial:
-                    web_research_denial_retried = True
-                    messages.append(
-                        ChatMessage(
-                            role="user",
-                            content=self.engine._build_web_research_retry_prompt(
-                                continuation_context,
-                            ),
-                            internal_only=True,
-                        )
-                    )
-                    continue
-                if (
-                    web_research_multi_source_retries < 2
-                    and self.engine._needs_more_web_research_sources(
-                        messages,
-                        tools,
-                        continuation_context,
-                    )
-                ):
-                    web_research_multi_source_retries += 1
-                    messages.append(
-                        ChatMessage(
-                            role="user",
-                            content=self.engine._build_multi_source_retry_prompt(
-                                continuation_context,
-                                messages,
-                                tools,
-                            ),
-                            internal_only=True,
-                        )
-                    )
-                    continue
-
-                should_retry_multi_source = (
-                    multi_source_retry_count < max_multi_source_retries
-                    and self.engine._needs_more_web_research_sources(
-                        messages,
-                        tools,
-                        continuation_context,
-                    )
-                )
-                if should_retry_multi_source:
-                    multi_source_retry_count += 1
-                    messages.append(
-                        ChatMessage(
-                            role="user",
-                            content=self.engine._build_multi_source_retry_prompt(
-                                continuation_context,
-                                messages,
-                                tools,
-                            ),
-                            internal_only=True,
-                        )
-                    )
-                    continue
 
                 for event in round_thinking_events:
                     yield event
@@ -893,7 +833,7 @@ class StreamExecutionHandler:
 
                 # Append tool message / 追加 tool 消息
                 messages.append(processor.build_tool_message(result, tc_id))
-                _follow_up_message = processor.build_follow_up_message(result)
+                _follow_up_message = processor.build_attachment_relay_message(result)
                 if _follow_up_message:
                     follow_up_messages.append(_follow_up_message)
 

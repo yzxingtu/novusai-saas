@@ -120,25 +120,13 @@ class ConversationEngine(BaseEngine):
                 route_result=prep.route_result,
                 log_user_type=log_user_type_for_call_log(request.user_role),
             )
-            response = await self._retry_web_research_denial_if_needed(
+            self._log_web_research_contract_diagnostics(
                 agent=agent,
                 messages=messages,
                 response=response,
                 tools=tools or [],
-                request=request,
-                route_result=prep.route_result,
                 continuation=prep.continuation_context,
-                log_user_type=log_user_type_for_call_log(request.user_role),
-            )
-            response = await self._retry_web_research_multi_source_if_needed(
-                agent=agent,
-                messages=messages,
-                response=response,
-                tools=tools or [],
-                request=request,
-                route_result=prep.route_result,
-                continuation=prep.continuation_context,
-                log_user_type=log_user_type_for_call_log(request.user_role),
+                conversation_id=request.conversation_id,
             )
 
             total_tokens = response.total_tokens or 0
@@ -157,6 +145,15 @@ class ConversationEngine(BaseEngine):
                     tool_consent_modes=prep.tool_consent_modes,
                     continuation_context=prep.continuation_context,
                 )
+                if response is not None:
+                    self._log_web_research_contract_diagnostics(
+                        agent=agent,
+                        messages=messages,
+                        response=response,
+                        tools=tools or [],
+                        continuation=prep.continuation_context,
+                        conversation_id=request.conversation_id,
+                    )
 
             # 5. Append final assistant message / 追加最终 assistant 消息
             skip_final_assistant = bool(

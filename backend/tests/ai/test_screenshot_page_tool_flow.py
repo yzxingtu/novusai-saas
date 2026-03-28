@@ -58,11 +58,8 @@ async def test_tool_call_loop_injects_internal_screenshot_attachment_for_next_ll
             tool_call_id="tc-shot",
             name="invoke_page_operation",
             success=True,
-            output="Screenshot captured.",
+            output="ok",
             attachments=[screenshot_attachment],
-            llm_follow_up_message=(
-                "Analyze the attached current-page screenshot together with the existing page context."
-            ),
         )
     )
 
@@ -115,6 +112,7 @@ async def test_tool_call_loop_injects_internal_screenshot_attachment_for_next_ll
         messages=messages,
         response=response,
         tools=[ToolDefinition(name="invoke_page_operation", description="invoke")],
+        all_tools=[ToolDefinition(name="invoke_page_operation", description="invoke")],
         request=request,
     )
 
@@ -128,4 +126,4 @@ async def test_tool_call_loop_injects_internal_screenshot_attachment_for_next_ll
     assert internal_user.role == "user"
     assert internal_user.internal_only is True
     assert internal_user.attachments == [screenshot_attachment]
-    assert "screenshot" in internal_user.content.lower()
+    assert internal_user.content == ""

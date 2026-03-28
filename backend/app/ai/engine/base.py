@@ -70,96 +70,6 @@ _jinja_env = Environment(
     loader=BaseLoader(), keep_trailing_newline=True, undefined=ChainableUndefined
 )
 
-_WEB_RESEARCH_CONTINUATION_HINTS = (
-    "继续",
-    "继续查",
-    "再查",
-    "请开始",
-    "开始吧",
-    "开始",
-    "多看几篇",
-    "多方面结合搜索",
-    "多方面搜索",
-    "多联网查",
-    "联网查一下",
-    "再搜",
-    "继续搜",
-    "接着查",
-    "你不试试你怎么知道",
-    "而不是仅一篇文章",
-    "而不是一篇文章",
-    "多结合几篇文章",
-    "多看几个文章",
-    "多查看几个文章",
-    "多查看几篇文章",
-)
-_WEB_RESEARCH_REQUEST_HINTS = (
-    "联网",
-    "联网搜索",
-    "上网搜索",
-    "搜索网页",
-    "网页搜索",
-    "搜索引擎",
-    "互联网",
-    "官网",
-    "网页",
-    "网址",
-    "新闻",
-    "最新",
-    "web_search",
-)
-_WEB_RESEARCH_ENTITY_REFERENCE_HINTS = (
-    "这家公司",
-    "这个公司",
-    "这家企业",
-    "这个企业",
-    "这家公司",
-    "它",
-    "这个人",
-    "他",
-    "她",
-    "这件事",
-    "这个事件",
-    "这个新闻",
-)
-_WEB_RESEARCH_MULTI_SOURCE_HINTS = (
-    "多看几篇",
-    "多看几个文章",
-    "多查看几个文章",
-    "多查看几篇文章",
-    "多方面结合搜索",
-    "多方面搜索",
-    "多联网查",
-    "交叉验证",
-    "多篇文章",
-    "更多来源",
-    "而不是仅一篇文章",
-    "而不是一篇文章",
-)
-_WEB_RESEARCH_DENIAL_HINTS = (
-    "没有联网搜索工具",
-    "没有可用的联网搜索工具",
-    "没有真正可用的联网搜索工具",
-    "不能继续联网",
-    "不能直接联网搜索网页",
-    "不能联网搜索网页",
-    "不能直接进行联网搜索",
-    "无法联网搜索",
-)
-_WEB_RESEARCH_MULTI_SOURCE_MIN_FETCHES = 2
-_WEATHER_REQUEST_HINTS = (
-    "天气",
-    "预报",
-    "气温",
-    "温度",
-    "降雨",
-    "风力",
-    "湿度",
-    "weather",
-    "forecast",
-)
-
-
 class BaseEngine(ABC):
     """
     Execution Engine Abstract Base Class / 执行引擎抽象基类
@@ -564,17 +474,15 @@ class BaseEngine(ABC):
         )
 
         return (
-            "\n\n[WEB RESEARCH]\n"
-            "When the user asks for internet research, latest information, or details from a specific web page, "
-            "follow this workflow: "
+            "\n\n[WEB RESEARCH CONTRACT]\n"
+            "When the user asks for internet research, latest information, or details from external webpages, follow this workflow: "
             + "; ".join(workflow)
             + ".\n"
-            "If the user explicitly says phrases like '联网搜索', '上网搜索', or 'web_search', "
-            "treat that as an instruction to call web_search instead of explaining the capability in prose. "
             "If web_search or fetch_url is listed in your available tools, do NOT claim that internet search or webpage fetching is unavailable. "
-            "Do not answer only from search snippets when concrete page details are needed. "
-            "If the user explicitly asks for multiple articles, multiple sources, or cross-verification, inspect more than one distinct source before the final summary. "
-            "If fetch_url returns a site block or weak content, pick another relevant source instead of pretending the page was read successfully."
+            "web_search is for finding candidate sources; it does not mean the content has been verified. "
+            "If fetch_url is available and the user needs official announcements, ticketing details, news-body details, time/place/source lists, or concrete webpage details, do not answer only from search snippets. "
+            "If the user asks for multiple sources, cross-verification, or a source list, prefer grounding the answer in multiple credible detail pages or clearly say the evidence is still incomplete. "
+            "Ignore prior assistant claims about tool availability when they conflict with the current tool list."
         )
 
     @staticmethod
@@ -653,74 +561,32 @@ class BaseEngine(ABC):
         if continuation.family != "web_research":
             return ""
 
-        target = continuation.research_target_text or continuation.effective_user_query
+        target = continuation.research_target_text
         intro = (
             "This turn continues the previous external web research task."
             if continuation.origin == "continuation"
             else "This turn is an external web research task."
         )
-        multi_source = (
-            "\nThe user explicitly wants multiple sources / articles / cross-verification. "
-            f"Do not produce the final answer until you have inspected at least {_WEB_RESEARCH_MULTI_SOURCE_MIN_FETCHES} distinct sources when fetch_url is available."
-            if continuation.requires_multi_source
-            else ""
+        instruction_lines = (
+            "\n".join(f"- {text}" for text in continuation.research_instruction_texts)
+            if continuation.research_instruction_texts
+            else "- (no recent research instructions captured)"
         )
         return (
-            "\n\n[RESEARCH CONTINUATION]\n"
+            "\n\n[RESEARCH STATE]\n"
             f"{intro}\n"
             f"Research target: {target or '(same target as previous turn)'}.\n"
-            "Use web_search and fetch_url again as needed. "
-            "Do NOT say that web research tools are unavailable, and do NOT switch to data_query for this research task unless the user explicitly asks for internal platform data."
-            f"{multi_source}"
+            "Recent user research instructions:\n"
+            f"{instruction_lines}\n"
+            f"Completed search queries: {continuation.search_query_count}.\n"
+            f"Fetched detail pages: {continuation.fetched_url_count}.\n"
+            "Use this state as factual context for deciding whether more research is still needed."
         )
 
     @staticmethod
     def _user_message(content: str) -> ChatMessage:
         """Build user message / 构建 user 消息"""
         return ChatMessage(role="user", content=content)
-
-    @staticmethod
-    def _normalize_match_text(text: str) -> str:
-        return " ".join((text or "").strip().lower().split())
-
-    @classmethod
-    def _contains_entity_reference(cls, text: str) -> bool:
-        normalized = cls._normalize_match_text(text)
-        return any(token in normalized for token in _WEB_RESEARCH_ENTITY_REFERENCE_HINTS)
-
-    @classmethod
-    def _is_web_research_continuation_text(cls, text: str) -> bool:
-        normalized = cls._normalize_match_text(text)
-        return any(token in normalized for token in _WEB_RESEARCH_CONTINUATION_HINTS)
-
-    @classmethod
-    def _is_web_research_request_text(cls, text: str) -> bool:
-        normalized = cls._normalize_match_text(text)
-        if any(token in normalized for token in _WEB_RESEARCH_REQUEST_HINTS):
-            return True
-        return "http://" in normalized or "https://" in normalized or "site:" in normalized
-
-    @classmethod
-    def _looks_like_weather_request(
-        cls,
-        text: str,
-        all_tools: list[ToolDefinition],
-    ) -> bool:
-        tool_names = {tool.name for tool in all_tools}
-        if not ({"get_current_weather", "get_weather_forecast"} & tool_names):
-            return False
-        normalized = cls._normalize_match_text(text)
-        return any(token in normalized for token in _WEATHER_REQUEST_HINTS)
-
-    @classmethod
-    def _requires_multi_source_research(cls, text: str) -> bool:
-        normalized = cls._normalize_match_text(text)
-        return any(token in normalized for token in _WEB_RESEARCH_MULTI_SOURCE_HINTS)
-
-    @classmethod
-    def _is_web_research_capability_denial(cls, text: str) -> bool:
-        normalized = cls._normalize_match_text(text)
-        return any(token in normalized for token in _WEB_RESEARCH_DENIAL_HINTS)
 
     @staticmethod
     def _parse_tool_arguments(raw_arguments: Any) -> dict[str, Any]:
@@ -828,28 +694,7 @@ class BaseEngine(ABC):
         return search_queries, fetched_urls
 
     @classmethod
-    def _needs_more_web_research_sources(
-        cls,
-        messages: list[ChatMessage],
-        tools: list[ToolDefinition],
-        continuation: ResearchContinuationContext | None,
-    ) -> bool:
-        if not continuation or not continuation.active:
-            return False
-        if continuation.family != "web_research" or not continuation.requires_multi_source:
-            return False
-
-        tool_names = {tool.name for tool in tools}
-        search_queries, fetched_urls = cls._collect_web_research_evidence(messages)
-
-        if "fetch_url" in tool_names:
-            return len(fetched_urls) < _WEB_RESEARCH_MULTI_SOURCE_MIN_FETCHES
-        if "web_search" in tool_names:
-            return len(search_queries) < _WEB_RESEARCH_MULTI_SOURCE_MIN_FETCHES
-        return False
-
-    @classmethod
-    def _extract_last_substantive_user_query(
+    def _extract_last_user_text(
         cls,
         messages: list[ChatMessage],
     ) -> str:
@@ -859,35 +704,110 @@ class BaseEngine(ABC):
             text = (msg.content or "").strip()
             if not text:
                 continue
-            if cls._is_web_research_continuation_text(text):
-                continue
-            if len(text) <= 4:
-                continue
             return text
         return ""
 
     @classmethod
-    def _extract_research_intent_terms(cls, text: str) -> list[str]:
-        normalized = cls._normalize_match_text(text)
-        terms: list[str] = []
-        mapping = (
-            ("盈利", "盈利模式"),
-            ("赚钱", "盈利模式"),
-            ("经营范围", "经营范围"),
-            ("主营", "主营业务"),
-            ("商标", "商标"),
-            ("员工", "员工人数"),
-            ("人数", "员工人数"),
-            ("招聘", "招聘"),
-            ("法人", "法人"),
-            ("地址", "地址"),
-            ("电话", "电话"),
-            ("统一社会信用代码", "统一社会信用代码"),
+    def _extract_recent_research_instruction_texts(
+        cls,
+        prior_messages: list[ChatMessage],
+        current_user_text: str,
+        *,
+        limit: int = 3,
+    ) -> list[str]:
+        texts: list[str] = []
+        if current_user_text:
+            texts.append(current_user_text)
+
+        for msg in reversed(prior_messages):
+            if msg.role != "user":
+                continue
+            text = (msg.content or "").strip()
+            if not text or text in texts:
+                continue
+            texts.append(text)
+            if len(texts) >= limit:
+                break
+
+        return list(reversed(texts))
+
+    @staticmethod
+    def _truncate_preview(text: str, *, max_chars: int = 280) -> str:
+        value = " ".join((text or "").split())
+        if len(value) <= max_chars:
+            return value
+        return f"{value[: max_chars - 3]}..."
+
+    def _log_web_research_contract_diagnostics(
+        self,
+        *,
+        agent: Agent,
+        messages: list[ChatMessage],
+        response: ChatResponse,
+        tools: list[ToolDefinition],
+        continuation: ResearchContinuationContext | None,
+        conversation_id: int | None,
+    ) -> None:
+        if not tools:
+            return
+
+        tool_names = [tool.name for tool in tools]
+        if "web_search" not in tool_names:
+            return
+
+        response_text = (response.message.content or "").strip()
+        search_queries, fetched_urls = self._collect_web_research_evidence(messages)
+        search_count = len(search_queries)
+        fetch_count = len(fetched_urls)
+        target_text = (
+            continuation.research_target_text
+            if continuation and continuation.research_target_text
+            else ""
         )
-        for needle, term in mapping:
-            if needle in normalized and term not in terms:
-                terms.append(term)
-        return terms
+        current_user_text = (
+            continuation.current_user_text
+            if continuation and continuation.current_user_text
+            else self._extract_last_user_text(messages)
+        )
+        trace_id = ""
+        try:
+            from app.middleware.trace import trace_id_var
+
+            trace_id = trace_id_var.get() or ""
+        except Exception:
+            trace_id = ""
+
+        def _emit(breach_type: str) -> None:
+            logger.warning(
+                "Web research contract breach: type={} agent_id={} conversation_id={} trace_id={} search_query_count={} fetched_url_count={} research_target={} current_user_text={} tool_names={} recent_web_queries={} response_preview={}",
+                breach_type,
+                getattr(agent, "id", None),
+                conversation_id,
+                trace_id,
+                search_count,
+                fetch_count,
+                self._truncate_preview(target_text),
+                self._truncate_preview(current_user_text),
+                tool_names,
+                search_queries,
+                self._truncate_preview(response_text),
+            )
+
+        if not continuation or not continuation.active:
+            return
+        if response.tool_calls or not response_text:
+            return
+
+        if search_count == 0:
+            _emit("web_research_capability_denial_or_no_tool_use")
+            return
+
+        if (
+            "fetch_url" in tool_names
+            and search_count > 0
+            and fetch_count == 0
+        ):
+            _emit("web_research_summary_without_fetch")
 
     @classmethod
     def _build_web_research_continuation_context(
@@ -915,271 +835,36 @@ class BaseEngine(ABC):
             prior_messages,
         )
         recent_web_queries = cls._extract_recent_web_queries(prior_messages)
-        requires_multi_source = cls._requires_multi_source_research(
+        search_queries, fetched_urls = cls._collect_web_research_evidence(
+            prior_messages,
+        )
+        research_instruction_texts = cls._extract_recent_research_instruction_texts(
+            prior_messages,
             current_user_text,
         )
-        intent_terms = cls._extract_research_intent_terms(current_user_text)
-        has_recent_web_research = any(
-            name in {"web_search", "fetch_url"}
-            for name in recent_successful_tool_names
-        )
-        if not has_recent_web_research:
-            if cls._is_web_research_request_text(
-                current_user_text,
-            ) and not cls._looks_like_weather_request(
-                current_user_text,
-                all_tools,
-            ):
-                effective_user_query = current_user_text
-                if intent_terms:
-                    effective_user_query = " ".join(
-                        part for part in [effective_user_query, *intent_terms] if part
-                    )
-                if requires_multi_source:
-                    for token in ("更多来源", "交叉验证"):
-                        if token not in effective_user_query:
-                            effective_user_query = f"{effective_user_query} {token}".strip()
-                return ResearchContinuationContext(
-                    active=True,
-                    family="web_research",
-                    origin="initial",
-                    current_user_text=current_user_text,
-                    effective_user_query=effective_user_query,
-                    research_target_text=current_user_text,
-                    recent_successful_tool_names=recent_successful_tool_names,
-                    recent_web_queries=recent_web_queries,
-                    requires_multi_source=requires_multi_source,
-                )
-            return ResearchContinuationContext(
-                current_user_text=current_user_text,
-                recent_successful_tool_names=recent_successful_tool_names,
-                recent_web_queries=recent_web_queries,
-                requires_multi_source=requires_multi_source,
-            )
-
-        is_continuation = cls._is_web_research_continuation_text(
-            current_user_text,
-        ) or cls._contains_entity_reference(current_user_text)
-        if not is_continuation:
-            return ResearchContinuationContext(
-                current_user_text=current_user_text,
-                recent_successful_tool_names=recent_successful_tool_names,
-                recent_web_queries=recent_web_queries,
-                requires_multi_source=requires_multi_source,
-            )
+        latest_successful_tool = recent_successful_tool_names[0] if recent_successful_tool_names else ""
+        active = latest_successful_tool in {"web_search", "fetch_url"}
+        origin = "continuation" if active else "none"
 
         research_target_text = (
             recent_web_queries[0]
             if recent_web_queries
-            else cls._extract_last_substantive_user_query(prior_messages)
+            else cls._extract_last_user_text(prior_messages)
+            or current_user_text
         )
 
-        if (
-            cls._contains_entity_reference(current_user_text)
-            or cls._is_web_research_continuation_text(current_user_text)
-        ):
-            effective_user_query = research_target_text or current_user_text
-        else:
-            effective_user_query = current_user_text
-
-        if intent_terms:
-            effective_user_query = " ".join(
-                part
-                for part in [effective_user_query, *intent_terms]
-                if part
-            )
-
-        if requires_multi_source:
-            for token in ("更多来源", "交叉验证"):
-                if token not in effective_user_query:
-                    effective_user_query = f"{effective_user_query} {token}".strip()
-
         return ResearchContinuationContext(
-            active=True,
-            family="web_research",
-            origin="continuation",
+            active=active,
+            family="web_research" if active else None,
+            origin=origin,
             current_user_text=current_user_text,
-            effective_user_query=effective_user_query,
             research_target_text=research_target_text,
             recent_successful_tool_names=recent_successful_tool_names,
             recent_web_queries=recent_web_queries,
-            requires_multi_source=requires_multi_source,
+            search_query_count=len(search_queries),
+            fetched_url_count=len(fetched_urls),
+            research_instruction_texts=research_instruction_texts,
         )
-
-    @classmethod
-    def _build_web_research_retry_prompt(
-        cls,
-        continuation: ResearchContinuationContext | None,
-    ) -> str:
-        query = (
-            continuation.effective_user_query
-            if continuation and continuation.effective_user_query
-            else ""
-        )
-        multi_source_note = (
-            " The user asked for multi-source verification, so continue searching and/or fetching more sources before summarizing."
-            if continuation and continuation.requires_multi_source
-            else ""
-        )
-        query_note = f" Continue the research for: {query}." if query else ""
-        return (
-            "Correction: web_search and fetch_url are available in this turn."
-            " Ignore any prior assistant claim that web research tools are unavailable."
-            " Continue the external web research instead of replying with a capability explanation or switching to internal database tools."
-            f"{query_note}{multi_source_note}"
-        )
-
-    @classmethod
-    def _build_multi_source_retry_prompt(
-        cls,
-        continuation: ResearchContinuationContext | None,
-        messages: list[ChatMessage],
-        tools: list[ToolDefinition],
-    ) -> str:
-        search_queries, fetched_urls = cls._collect_web_research_evidence(messages)
-        tool_names = {tool.name for tool in tools}
-        query = (
-            continuation.effective_user_query
-            if continuation and continuation.effective_user_query
-            else ""
-        )
-
-        if "fetch_url" in tool_names:
-            inspected = len(fetched_urls)
-            remaining = max(_WEB_RESEARCH_MULTI_SOURCE_MIN_FETCHES - inspected, 1)
-            next_step = (
-                f"Use fetch_url on at least {remaining} more distinct relevant URL(s) before writing the final answer."
-            )
-        else:
-            inspected = len(search_queries)
-            remaining = max(_WEB_RESEARCH_MULTI_SOURCE_MIN_FETCHES - inspected, 1)
-            next_step = (
-                f"Run web_search for at least {remaining} more distinct search pass(es) or query variants before writing the final answer."
-            )
-
-        query_note = f" Keep the research focused on: {query}." if query else ""
-        return (
-            "Correction: the user explicitly asked for multiple articles or source cross-verification. "
-            f"You have only inspected {inspected} distinct source step(s) so far. "
-            f"{next_step}"
-            " Do not switch to internal database tools and do not finalize the answer yet."
-            f"{query_note}"
-        )
-
-    @classmethod
-    def _should_retry_web_research_denial(
-        cls,
-        response: ChatResponse,
-        tools: list[ToolDefinition],
-        continuation: ResearchContinuationContext | None,
-    ) -> bool:
-        if not continuation or not continuation.active:
-            return False
-        if continuation.family != "web_research":
-            return False
-        if response.tool_calls:
-            return False
-        tool_names = {tool.name for tool in tools}
-        if "web_search" not in tool_names:
-            return False
-        return cls._is_web_research_capability_denial(
-            response.message.content or "",
-        )
-
-    async def _retry_web_research_denial_if_needed(
-        self,
-        *,
-        agent: Agent,
-        messages: list[ChatMessage],
-        response: ChatResponse,
-        tools: list[ToolDefinition],
-        request: ExecutionRequest,
-        route_result: Any | None,
-        continuation: ResearchContinuationContext | None,
-        log_user_type: str | None,
-    ) -> ChatResponse:
-        if not self._should_retry_web_research_denial(
-            response,
-            tools,
-            continuation,
-        ):
-            return response
-
-        retry_prompt = self._build_web_research_retry_prompt(continuation)
-        messages.append(
-            ChatMessage(
-                role="user",
-                content=retry_prompt,
-                internal_only=True,
-            )
-        )
-        retry_response = await self._call_llm(
-            agent=agent,
-            messages=messages,
-            tools=tools,
-            tenant_id=request.tenant_id,
-            user_id=request.user_id,
-            conversation_id=request.conversation_id,
-            billing_context=request.billing_context,
-            route_result=route_result,
-            log_user_type=log_user_type,
-        )
-        if response.total_tokens is not None and retry_response.total_tokens is not None:
-            retry_response.total_tokens += response.total_tokens
-        return retry_response
-
-    async def _retry_web_research_multi_source_if_needed(
-        self,
-        *,
-        agent: Agent,
-        messages: list[ChatMessage],
-        response: ChatResponse,
-        tools: list[ToolDefinition],
-        request: ExecutionRequest,
-        route_result: Any | None,
-        continuation: ResearchContinuationContext | None,
-        log_user_type: str | None,
-    ) -> ChatResponse:
-        retry_response = response
-        accumulated_tokens = response.total_tokens or 0
-        attempts = 0
-
-        while (
-            not retry_response.tool_calls
-            and attempts < 2
-            and self._needs_more_web_research_sources(
-                messages,
-                tools,
-                continuation,
-            )
-        ):
-            attempts += 1
-            messages.append(
-                ChatMessage(
-                    role="user",
-                    content=self._build_multi_source_retry_prompt(
-                        continuation,
-                        messages,
-                        tools,
-                    ),
-                    internal_only=True,
-                )
-            )
-            retry_response = await self._call_llm(
-                agent=agent,
-                messages=messages,
-                tools=tools,
-                tenant_id=request.tenant_id,
-                user_id=request.user_id,
-                conversation_id=request.conversation_id,
-                billing_context=request.billing_context,
-                route_result=route_result,
-                log_user_type=log_user_type,
-            )
-            accumulated_tokens += retry_response.total_tokens or 0
-            retry_response.total_tokens = accumulated_tokens
-
-        return retry_response
 
     # ========================================
     # Shared Pre-logic / 共享前置逻辑
@@ -1292,24 +977,12 @@ class BaseEngine(ABC):
 
         optimize_event: dict[str, Any] | None = None
         if all_tools:
-            user_query = continuation_context.effective_user_query or ""
-            if not user_query:
-                for _m in reversed(messages):
-                    if _m.role == "user":
-                        user_query = _m.content or ""
-                        break
+            user_query = self._extract_last_user_text(messages)
             from app.ai.tools.optimizer import optimize_tools
 
             opt = optimize_tools(
                 all_tools,
                 user_query,
-                used_tool_names=set(
-                    continuation_context.recent_successful_tool_names,
-                )
-                or None,
-                preferred_family=continuation_context.family
-                if continuation_context.active
-                else None,
             )
             tools = opt.tools
             if not opt.skipped:
@@ -1583,8 +1256,6 @@ class BaseEngine(ABC):
         all_tool_results: list[ToolResult] = []
         total_tokens = response.total_tokens or 0
         current_response = response
-        multi_source_retry_count = 0
-        max_multi_source_retries = 2
 
         for _round in range(MAX_TOOL_CALL_ROUNDS):
             tool_calls = current_response.tool_calls
@@ -1702,41 +1373,6 @@ class BaseEngine(ABC):
                         log_user_type=log_user_type_for_call_log(request.user_role),
                     )
                     total_tokens += peek_response.total_tokens or 0
-                    while (
-                        not peek_response.tool_calls
-                        and multi_source_retry_count < max_multi_source_retries
-                        and self._needs_more_web_research_sources(
-                            messages,
-                            tools,
-                            continuation_context,
-                        )
-                    ):
-                        multi_source_retry_count += 1
-                        messages.append(
-                            ChatMessage(
-                                role="user",
-                                content=self._build_multi_source_retry_prompt(
-                                    continuation_context,
-                                    messages,
-                                    tools,
-                                ),
-                                internal_only=True,
-                            )
-                        )
-                        peek_response = await self._call_llm(
-                            agent=agent,
-                            messages=messages,
-                            tools=tools,
-                            tenant_id=request.tenant_id,
-                            user_id=request.user_id,
-                            conversation_id=request.conversation_id,
-                            billing_context=request.billing_context,
-                            route_result=route_result,
-                            log_user_type=log_user_type_for_call_log(
-                                request.user_role
-                            ),
-                        )
-                        total_tokens += peek_response.total_tokens or 0
                     if peek_response.tool_calls:
                         current_response = peek_response
                         continue
@@ -1755,39 +1391,6 @@ class BaseEngine(ABC):
                 log_user_type=log_user_type_for_call_log(request.user_role),
             )
             total_tokens += current_response.total_tokens or 0
-            while (
-                not current_response.tool_calls
-                and multi_source_retry_count < max_multi_source_retries
-                and self._needs_more_web_research_sources(
-                    messages,
-                    tools,
-                    continuation_context,
-                )
-            ):
-                multi_source_retry_count += 1
-                messages.append(
-                    ChatMessage(
-                        role="user",
-                        content=self._build_multi_source_retry_prompt(
-                            continuation_context,
-                            messages,
-                            tools,
-                        ),
-                        internal_only=True,
-                    )
-                )
-                current_response = await self._call_llm(
-                    agent=agent,
-                    messages=messages,
-                    tools=tools,
-                    tenant_id=request.tenant_id,
-                    user_id=request.user_id,
-                    conversation_id=request.conversation_id,
-                    billing_context=request.billing_context,
-                    route_result=route_result,
-                    log_user_type=log_user_type_for_call_log(request.user_role),
-                )
-                total_tokens += current_response.total_tokens or 0
 
         return current_response, all_tool_results, total_tokens
 

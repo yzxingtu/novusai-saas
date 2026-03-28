@@ -2126,4 +2126,82 @@ describe('aIChatSlidePanel (component mount)', () => {
 
     wrapper.unmount();
   });
+
+  it('opens search result urls in a new tab instead of routing them to image preview', async () => {
+    const openSpy = vi
+      .spyOn(window, 'open')
+      .mockImplementation(() => null as unknown as Window);
+
+    const wrapper = mount(AIChatSlidePanel, {
+      props: { apiPrefix: '/tenant', uploadUrl: '/upload' },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          AIChatMessageViewport: defineComponent({
+            emits: ['openUrl'],
+            template:
+              '<button data-testid="search-open-url" @click="$emit(\'openUrl\', \'https://example.com/article\')">open</button>',
+          }),
+        },
+      },
+    });
+
+    await flushPanel();
+
+    requireElement(
+      document.body.querySelector('[data-testid="search-open-url"]'),
+      'Expected open-url trigger',
+    ).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPanel();
+
+    expect(openSpy).toHaveBeenCalledWith(
+      'https://example.com/article',
+      '_blank',
+      'noopener,noreferrer',
+    );
+    expect(
+      document.body.querySelector('.modal-stub img'),
+    ).toBeFalsy();
+
+    openSpy.mockRestore();
+    wrapper.unmount();
+  });
+
+  it('keeps image urls on the preview lightbox path', async () => {
+    const openSpy = vi
+      .spyOn(window, 'open')
+      .mockImplementation(() => null as unknown as Window);
+
+    const wrapper = mount(AIChatSlidePanel, {
+      props: { apiPrefix: '/tenant', uploadUrl: '/upload' },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          AIChatMessageViewport: defineComponent({
+            emits: ['openUrl'],
+            template:
+              '<button data-testid="image-open-url" @click="$emit(\'openUrl\', \'https://example.com/image.png\')">preview</button>',
+          }),
+        },
+      },
+    });
+
+    await flushPanel();
+
+    requireElement(
+      document.body.querySelector('[data-testid="image-open-url"]'),
+      'Expected image open-url trigger',
+    ).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPanel();
+
+    expect(openSpy).not.toHaveBeenCalled();
+    const previewImage = document.body.querySelector('.modal-stub img');
+    expect(previewImage).toBeTruthy();
+    expect((previewImage as HTMLImageElement).getAttribute('src')).toBe(
+      'https://example.com/image.png',
+    );
+
+    openSpy.mockRestore();
+    wrapper.unmount();
+  });
 });

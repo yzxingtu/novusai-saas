@@ -490,6 +490,33 @@ class SkillResolver:
     # Builtin Skill
     # ========================================
 
+    @staticmethod
+    def _augment_builtin_tool_description(
+        tool_name: str,
+        description: str,
+    ) -> str:
+        normalized = (tool_name or "").strip().lower()
+        base = (description or "").strip()
+
+        if normalized == "web_search":
+            extra = (
+                "Use this tool to find candidate web sources for current or external information. "
+                "Finding search results does not mean the content has already been verified."
+            )
+        elif normalized == "fetch_url":
+            extra = (
+                "Use this tool to read the content of a specific web page. "
+                "Use it when the user needs official announcements, ticketing details, news-body details, time/place/source lists, or concrete webpage details."
+            )
+        else:
+            return base
+
+        if not base:
+            return extra
+        if extra in base:
+            return base
+        return f"{base} {extra}"
+
     def _resolve_builtin(
         self,
         skill: Skill,
@@ -516,9 +543,13 @@ class SkillResolver:
                 tool_params = self._build_params_from_schema(
                     tool_cfg.get("parameters")
                 )
+                description = self._augment_builtin_tool_description(
+                    tool_name,
+                    tool_cfg.get("description", ""),
+                )
                 result.tools.append(ToolDefinition(
                     name=tool_name,
-                    description=tool_cfg.get("description", ""),
+                    description=description,
                     tool_type=tool_type_override,
                     parameters=tool_params,
                     config=config,
@@ -530,9 +561,13 @@ class SkillResolver:
                 ))
         else:
             params = self._build_params_from_schema(skill.input_schema)
+            description = self._augment_builtin_tool_description(
+                skill.name,
+                skill.description or "",
+            )
             result.tools.append(ToolDefinition(
                 name=skill.name,
-                description=skill.description or "",
+                description=description,
                 tool_type=tool_type_override,
                 parameters=params,
                 config=config,

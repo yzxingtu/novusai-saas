@@ -161,7 +161,6 @@ class ToolResult:
     result_link: str | None = None
     error_type: str = ""
     attachments: list[dict[str, Any]] | None = None
-    llm_follow_up_message: str | None = None
     summary_payload: dict[str, Any] | None = None
 
     @classmethod

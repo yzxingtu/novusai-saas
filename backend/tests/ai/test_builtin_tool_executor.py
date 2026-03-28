@@ -51,91 +51,52 @@ class _FakeAsyncClient:
         return self._post_response
 
 
-@pytest.mark.asyncio
-async def test_web_search_parses_results_and_decodes_duckduckgo_redirect() -> None:
+def test_extract_baidu_public_results_parses_basic_result_fields() -> None:
     html = """
     <html>
       <body>
-        <div class="result">
-          <a class="result__a" href="/l/?uddg=https%3A%2F%2Fexample.com%2Farticle">
-            Example Result
-          </a>
-          <a class="result__snippet">Useful summary text.</a>
+        <div class="result c-container">
+          <div class="_content_1q9is_4">
+            <div class="title-box_4YBsj">
+              <h3>
+                <a href="http://www.baidu.com/link?url=example">Sample Result</a>
+              </h3>
+            </div>
+            This is a short public snippet.
+          </div>
         </div>
       </body>
     </html>
     """
-    response = _make_response(
-        "POST",
-        "https://html.duckduckgo.com/html/",
-        text=html,
-    )
 
-    with patch(
-        "httpx.AsyncClient",
-        return_value=_FakeAsyncClient(post_response=response),
-    ):
-        result = await BuiltinToolExecutor._web_search("example", 5)
+    results = be._extract_baidu_public_results(html, 5)
 
-    assert "Example Result" in result
-    assert "https://example.com/article" in result
-    assert "Useful summary text." in result
+    assert len(results) == 1
+    assert results[0]["title"] == "Sample Result"
+    assert results[0]["url"] == "http://www.baidu.com/link?url=example"
+    assert "short public snippet" in results[0]["snippet"]
 
 
-@pytest.mark.asyncio
-async def test_web_search_uses_duckduckgo_for_chinese_company_queries() -> None:
-    calls: list[str] = []
+def test_extract_so360_public_results_parses_basic_result_fields() -> None:
+    html = """
+    <html>
+      <body>
+        <li class="res-list">
+          <h3 class="res-title">
+            <a href="https://www.so.com/link?m=example">Sample Result</a>
+          </h3>
+          This is another short public snippet.
+        </li>
+      </body>
+    </html>
+    """
 
-    async def fake_ddg(query: str, max_results: int):
-        calls.append(f"ddg:{query}:{max_results}")
-        return [
-            {
-                "title": "示例企业有限公司 - 企业信息",
-                "url": "https://example.com/company",
-                "snippet": "企业信息",
-            }
-        ], None
+    results = be._extract_so360_public_results(html, 5)
 
-    with patch.object(
-        be,
-        "_search_with_duckduckgo",
-        side_effect=fake_ddg,
-    ):
-        result = await BuiltinToolExecutor._web_search(
-            "示例企业有限公司 企业信息",
-            5,
-        )
-
-    assert calls == ["ddg:示例企业有限公司 企业信息:5"]
-    assert "示例企业有限公司 - 企业信息" in result
-
-
-@pytest.mark.asyncio
-async def test_web_search_prefers_duckduckgo_for_general_english_queries() -> None:
-    calls: list[str] = []
-
-    async def fake_ddg(query: str, max_results: int):
-        calls.append(f"ddg:{query}:{max_results}")
-        return [
-            {
-                "title": "OpenAI Responses API",
-                "url": "https://example.com/openai",
-                "snippet": "Official docs",
-            }
-        ], None
-
-    with patch.object(
-        be,
-        "_search_with_duckduckgo",
-        side_effect=fake_ddg,
-    ):
-        result = await BuiltinToolExecutor._web_search(
-            "OpenAI Responses API",
-            5,
-        )
-
-    assert calls == ["ddg:OpenAI Responses API:5"]
-    assert "OpenAI Responses API" in result
+    assert len(results) == 1
+    assert results[0]["title"] == "Sample Result"
+    assert "so.com/link" in results[0]["url"]
+    assert "another short public snippet" in results[0]["snippet"]
 
 
 @pytest.mark.asyncio
@@ -206,17 +167,173 @@ async def test_fetch_url_returns_clear_http_error_message_with_title() -> None:
     assert "Access Denied" in result
 
 
+@pytest.mark.asyncio
+async def test_run_web_search_uses_user_query_without_backend_rewrite() -> None:
+    captured_queries: list[str] = []
+
+    async def fake_baidu(query: str, max_results: int):
+        captured_queries.append(f"baidu:{query}:{max_results}")
+        return be.SearchProviderResponse(
+            provider="baidu_public",
+            status="success",
+            results=[
+                {
+                    "title": "Sample Result",
+                    "url": "https://example.com/result",
+                    "snippet": "Public page snippet",
+                }
+            ],
+        )
+
+    async def fake_so360(query: str, max_results: int):
+        captured_queries.append(f"so360:{query}:{max_results}")
+        return be.SearchProviderResponse(
+            provider="so360_public",
+            status="success",
+            results=[],
+        )
+
+    with patch.object(be, "_search_with_baidu_public", side_effect=fake_baidu), patch.object(
+        be,
+        "_search_with_so360_public",
+        side_effect=fake_so360,
+    ):
+        result = await be._run_web_search("sample topic public info", 5)
+
+    assert result.status == "success"
+    assert captured_queries == ["baidu:sample topic public info:5"]
+
+
+@pytest.mark.asyncio
+async def test_builtin_executor_web_search_falls_back_to_so360_and_returns_summary_payload() -> None:
+    executor = BuiltinToolExecutor()
+    definition = ToolDefinition(name="web_search", description="Search the web")
+
+    with patch.object(
+        be,
+        "_search_with_baidu_public",
+        return_value=be.SearchProviderResponse(
+            provider="baidu_public",
+            status="source_challenged",
+            results=[],
+            error="returned safety verification",
+        ),
+    ), patch.object(
+        be,
+        "_search_with_so360_public",
+        return_value=be.SearchProviderResponse(
+            provider="so360_public",
+            status="success",
+            results=[
+                {
+                    "title": "Sample Result",
+                    "url": "https://example.com/result",
+                    "snippet": "Public page snippet",
+                }
+            ],
+        ),
+    ):
+        result = await executor.execute(
+            definition,
+            "call_search_fallback",
+            {"query": "sample topic public info", "max_results": 5},
+        )
+
+    assert result.success is True
+    assert "Sample Result" in result.output
+    assert result.summary_payload is not None
+    assert result.summary_payload["provider"] == "so360_public"
+    assert result.summary_payload["status"] == "success"
+    assert result.summary_payload["result_count"] == 1
+    assert result.summary_payload["items"][0]["url"] == "https://example.com/result"
+
+
+@pytest.mark.asyncio
+async def test_builtin_executor_web_search_returns_no_results_payload() -> None:
+    executor = BuiltinToolExecutor()
+    definition = ToolDefinition(name="web_search", description="Search the web")
+
+    with patch.object(
+        be,
+        "_search_with_baidu_public",
+        return_value=be.SearchProviderResponse(
+            provider="baidu_public",
+            status="no_results",
+            results=[],
+            error="returned no results",
+        ),
+    ), patch.object(
+        be,
+        "_search_with_so360_public",
+        return_value=be.SearchProviderResponse(
+            provider="so360_public",
+            status="no_results",
+            results=[],
+            error="returned no results",
+        ),
+    ):
+        result = await executor.execute(
+            definition,
+            "call_search_empty",
+            {"query": "sample topic public info", "max_results": 5},
+        )
+
+    assert result.success is True
+    assert result.output.startswith("No results found for:")
+    assert result.summary_payload is not None
+    assert result.summary_payload["status"] == "no_results"
+    assert result.summary_payload["result_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_builtin_executor_web_search_returns_unavailable_payload_when_public_sources_fail() -> None:
+    executor = BuiltinToolExecutor()
+    definition = ToolDefinition(name="web_search", description="Search the web")
+
+    with patch.object(
+        be,
+        "_search_with_baidu_public",
+        return_value=be.SearchProviderResponse(
+            provider="baidu_public",
+            status="source_challenged",
+            results=[],
+            error="returned safety verification",
+        ),
+    ), patch.object(
+        be,
+        "_search_with_so360_public",
+        return_value=be.SearchProviderResponse(
+            provider="so360_public",
+            status="source_unavailable",
+            results=[],
+            error="returned an unreadable page",
+        ),
+    ):
+        result = await executor.execute(
+            definition,
+            "call_search_unavailable",
+            {"query": "sample topic public info", "max_results": 5},
+        )
+
+    assert result.success is False
+    assert "Search source unavailable:" in result.error
+    assert result.summary_payload is not None
+    assert result.summary_payload["status"] == "source_unavailable"
+    assert "baidu_public" in result.summary_payload["failure_reason"]
+
+
 def test_build_web_research_hint_guides_search_then_fetch_workflow() -> None:
     hint = BaseEngine._build_web_research_hint([
         ToolDefinition(name="web_search"),
         ToolDefinition(name="fetch_url"),
     ])
 
-    assert "[WEB RESEARCH]" in hint
+    assert "[WEB RESEARCH CONTRACT]" in hint
     assert "web_search" in hint
     assert "fetch_url" in hint
-    assert "Do not answer only from search snippets" in hint
+    assert "do not answer only from search snippets" in hint.lower()
     assert "do NOT claim that internet search" in hint
+    assert "web_search is for finding candidate sources" in hint
 
 
 def test_build_weather_tools_hint_guides_weather_queries() -> None:
@@ -272,11 +389,22 @@ def test_extract_readable_page_tolerates_nodes_with_none_attrs() -> None:
 
 
 @pytest.mark.asyncio
-async def test_builtin_executor_adds_follow_up_guidance_for_web_search() -> None:
+async def test_builtin_executor_returns_search_summary_payload() -> None:
     with patch.object(
-        BuiltinToolExecutor,
-        "_web_search",
-        return_value="Search results for: OpenAI\n\n1. Example",
+        be,
+        "_run_web_search",
+        return_value=be.WebSearchExecution(
+            output="Search results for: OpenAI\n\n1. Example",
+            provider="baidu_public",
+            status="success",
+            items=[
+                {
+                    "title": "Example",
+                    "url": "https://example.com",
+                    "snippet": "summary",
+                }
+            ],
+        ),
     ):
         executor = BuiltinToolExecutor()
         definition = ToolDefinition(name="web_search", description="Search the web")
@@ -287,14 +415,13 @@ async def test_builtin_executor_adds_follow_up_guidance_for_web_search() -> None
         )
 
     assert result.success is True
-    assert result.llm_follow_up_message is not None
-    assert "Do not call web_search again" in result.llm_follow_up_message
-    assert "call fetch_url" in result.llm_follow_up_message
-    assert "multiple articles" in result.llm_follow_up_message
+    assert result.summary == "baidu_public: 1 result(s)"
+    assert result.summary_payload is not None
+    assert result.summary_payload["result_count"] == 1
 
 
 @pytest.mark.asyncio
-async def test_builtin_executor_adds_follow_up_guidance_for_fetch_url() -> None:
+async def test_builtin_executor_returns_fetched_content_without_hidden_follow_up() -> None:
     with patch.object(
         BuiltinToolExecutor,
         "_fetch_url",
@@ -309,14 +436,11 @@ async def test_builtin_executor_adds_follow_up_guidance_for_fetch_url() -> None:
         )
 
     assert result.success is True
-    assert result.llm_follow_up_message is not None
-    assert "Do not call fetch_url again for the same URL" in result.llm_follow_up_message
-    assert "Use the fetched content above to answer directly" in result.llm_follow_up_message
-    assert "another distinct relevant URL" in result.llm_follow_up_message
+    assert result.output == "Content from https://example.com:\n\nExample body"
 
 
 @pytest.mark.asyncio
-async def test_builtin_executor_adds_retry_guardance_for_failed_fetch_url() -> None:
+async def test_builtin_executor_returns_failed_fetch_url_error_text() -> None:
     executor = BuiltinToolExecutor()
     definition = ToolDefinition(name="fetch_url", description="Fetch a URL")
 
@@ -331,9 +455,7 @@ async def test_builtin_executor_adds_retry_guardance_for_failed_fetch_url() -> N
     )
 
     assert result.success is True
-    assert result.llm_follow_up_message is not None
-    assert "Do not call fetch_url again for the same URL" in result.llm_follow_up_message
-    assert "choose a different URL" in result.llm_follow_up_message
+    assert result.output == "Error: HTTP 403 while fetching https://example.com/private"
 
 
 def _async_return(value: str):

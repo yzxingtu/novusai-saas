@@ -102,3 +102,30 @@ def test_reloading_scheduler_removes_db_entries_on_successful_empty_reload(
         assert scheduler._db_entry_names == set()
     finally:
         scheduler.close()
+
+
+def test_reloading_scheduler_recovers_when_create_schedule_hits_eoferror(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    original_create_schedule = ReloadingPersistentScheduler._create_schedule
+    create_calls = {"count": 0}
+
+    def flaky_create_schedule(self) -> None:
+        create_calls["count"] += 1
+        if create_calls["count"] == 1:
+            raise EOFError("Ran out of input")
+        original_create_schedule(self)
+
+    monkeypatch.setattr(
+        ReloadingPersistentScheduler,
+        "_create_schedule",
+        flaky_create_schedule,
+    )
+
+    scheduler = _build_scheduler(tmp_path, monkeypatch, [{}])
+    try:
+        assert create_calls["count"] == 2
+        assert isinstance(scheduler.schedule, dict)
+    finally:
+        scheduler.close()

@@ -242,6 +242,37 @@ async def test_log_call_failure_logs_platform_admin_calls(mock_db):
 
 
 @pytest.mark.asyncio
+async def test_log_call_failure_accepts_perf_counter_start_time(mock_db):
+    from app.ai.usage_recorder import UsageRecorder
+
+    recorder = UsageRecorder.__new__(UsageRecorder)
+    recorder.db = mock_db
+    recorder.call_log_service = MagicMock()
+    recorder.call_log_service.log_call_async = AsyncMock()
+
+    await recorder.log_call_failure(
+        error=RuntimeError("boom"),
+        start_time=time.perf_counter() - 1,
+        provider=SimpleNamespace(id=44),
+        model="gpt-test",
+        model_id=55,
+        messages=[ChatMessage(role="user", content="hello")],
+        temperature=0.7,
+        max_tokens=256,
+        top_p=1.0,
+        tools=None,
+        request_type="chat",
+        tenant_id=PLATFORM_TENANT_ID,
+        user_id=9,
+    )
+
+    recorder.call_log_service.log_call_async.assert_awaited_once()
+    kwargs = recorder.call_log_service.log_call_async.await_args.kwargs
+    assert kwargs["latency_ms"] is not None
+    assert 0 <= kwargs["latency_ms"] < 10_000
+
+
+@pytest.mark.asyncio
 async def test_conversation_engine_stream_logs_platform_admin_calls_without_metering(
     mock_db,
 ):

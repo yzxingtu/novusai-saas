@@ -3,6 +3,7 @@
 
 export const LUCIDE_ICON_NAMES = [
   "activity",
+  "activity-square",
   "alert-circle",
   "alert-triangle",
   "align-center",
@@ -13,10 +14,13 @@ export const LUCIDE_ICON_NAMES = [
   "archive-restore",
   "archive-x",
   "arrow-down",
+  "arrow-down-left",
+  "arrow-down-to-line",
   "arrow-left",
   "arrow-right",
   "arrow-up",
   "arrow-up-circle",
+  "arrow-up-from-line",
   "arrow-up-right",
   "arrow-up-to-line",
   "at-sign",
@@ -93,7 +97,6 @@ export const LUCIDE_ICON_NAMES = [
   "crown",
   "database",
   "database-zap",
-  "dollar-sign",
   "download",
   "edit",
   "edit-3",
@@ -178,6 +181,7 @@ export const LUCIDE_ICON_NAMES = [
   "list",
   "list-checks",
   "list-ordered",
+  "list-tree",
   "loader-2",
   "locate",
   "locate-fixed",
@@ -229,7 +233,6 @@ export const LUCIDE_ICON_NAMES = [
   "pencil",
   "percent",
   "phone",
-  "phone-call",
   "pin",
   "play",
   "play-circle",
@@ -253,6 +256,7 @@ export const LUCIDE_ICON_NAMES = [
   "route",
   "save",
   "scale",
+  "scan-face",
   "scan-search",
   "scroll-text",
   "search",
@@ -270,6 +274,7 @@ export const LUCIDE_ICON_NAMES = [
   "shield-question",
   "shield-x",
   "shopping-cart",
+  "sigma",
   "siren",
   "sliders",
   "sliders-horizontal",
@@ -277,7 +282,6 @@ export const LUCIDE_ICON_NAMES = [
   "snowflake",
   "sparkles",
   "spell-check",
-  "split",
   "square",
   "square-check",
   "square-pen",
@@ -291,7 +295,6 @@ export const LUCIDE_ICON_NAMES = [
   "superscript",
   "table",
   "table-2",
-  "table-properties",
   "target",
   "terminal",
   "thermometer",
@@ -313,6 +316,7 @@ export const LUCIDE_ICON_NAMES = [
   "user-cog",
   "user-minus",
   "user-plus",
+  "user-round",
   "user-round-cog",
   "user-round-minus",
   "users",
@@ -320,7 +324,6 @@ export const LUCIDE_ICON_NAMES = [
   "variable",
   "video",
   "wallet",
-  "wallet-cards",
   "wand-2",
   "waypoints",
   "webhook",
@@ -335,6 +338,7 @@ export const LUCIDE_ICON_NAMES = [
 
 export const LUCIDE_ICON_IDS = [
   "lucide:activity",
+  "lucide:activity-square",
   "lucide:alert-circle",
   "lucide:alert-triangle",
   "lucide:align-center",
@@ -345,10 +349,13 @@ export const LUCIDE_ICON_IDS = [
   "lucide:archive-restore",
   "lucide:archive-x",
   "lucide:arrow-down",
+  "lucide:arrow-down-left",
+  "lucide:arrow-down-to-line",
   "lucide:arrow-left",
   "lucide:arrow-right",
   "lucide:arrow-up",
   "lucide:arrow-up-circle",
+  "lucide:arrow-up-from-line",
   "lucide:arrow-up-right",
   "lucide:arrow-up-to-line",
   "lucide:at-sign",
@@ -425,7 +432,6 @@ export const LUCIDE_ICON_IDS = [
   "lucide:crown",
   "lucide:database",
   "lucide:database-zap",
-  "lucide:dollar-sign",
   "lucide:download",
   "lucide:edit",
   "lucide:edit-3",
@@ -510,6 +516,7 @@ export const LUCIDE_ICON_IDS = [
   "lucide:list",
   "lucide:list-checks",
   "lucide:list-ordered",
+  "lucide:list-tree",
   "lucide:loader-2",
   "lucide:locate",
   "lucide:locate-fixed",
@@ -561,7 +568,6 @@ export const LUCIDE_ICON_IDS = [
   "lucide:pencil",
   "lucide:percent",
   "lucide:phone",
-  "lucide:phone-call",
   "lucide:pin",
   "lucide:play",
   "lucide:play-circle",
@@ -585,6 +591,7 @@ export const LUCIDE_ICON_IDS = [
   "lucide:route",
   "lucide:save",
   "lucide:scale",
+  "lucide:scan-face",
   "lucide:scan-search",
   "lucide:scroll-text",
   "lucide:search",
@@ -602,6 +609,7 @@ export const LUCIDE_ICON_IDS = [
   "lucide:shield-question",
   "lucide:shield-x",
   "lucide:shopping-cart",
+  "lucide:sigma",
   "lucide:siren",
   "lucide:sliders",
   "lucide:sliders-horizontal",
@@ -609,7 +617,6 @@ export const LUCIDE_ICON_IDS = [
   "lucide:snowflake",
   "lucide:sparkles",
   "lucide:spell-check",
-  "lucide:split",
   "lucide:square",
   "lucide:square-check",
   "lucide:square-pen",
@@ -623,7 +630,6 @@ export const LUCIDE_ICON_IDS = [
   "lucide:superscript",
   "lucide:table",
   "lucide:table-2",
-  "lucide:table-properties",
   "lucide:target",
   "lucide:terminal",
   "lucide:thermometer",
@@ -645,6 +651,7 @@ export const LUCIDE_ICON_IDS = [
   "lucide:user-cog",
   "lucide:user-minus",
   "lucide:user-plus",
+  "lucide:user-round",
   "lucide:user-round-cog",
   "lucide:user-round-minus",
   "lucide:users",
@@ -652,7 +659,6 @@ export const LUCIDE_ICON_IDS = [
   "lucide:variable",
   "lucide:video",
   "lucide:wallet",
-  "lucide:wallet-cards",
   "lucide:wand-2",
   "lucide:waypoints",
   "lucide:webhook",
@@ -667,6 +673,9 @@ export const LUCIDE_ICON_IDS = [
 
 export const LUCIDE_ICON_SUBSET = {
   "aliases": {
+    "activity-square": {
+      "parent": "square-activity"
+    },
     "alert-circle": {
       "parent": "circle-alert"
     },
@@ -778,6 +787,12 @@ export const LUCIDE_ICON_SUBSET = {
     "arrow-down": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 5v14m7-7l-7 7l-7-7\"/>"
     },
+    "arrow-down-left": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M17 7L7 17m10 0H7V7\"/>"
+    },
+    "arrow-down-to-line": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 17V3m-6 8l6 6l6-6m1 10H5\"/>"
+    },
     "arrow-left": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m12 19l-7-7l7-7m7 7H5\"/>"
     },
@@ -786,6 +801,9 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "arrow-up": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m5 12l7-7l7 7m-7 7V5\"/>"
+    },
+    "arrow-up-from-line": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m18 9l-6-6l-6 6m6-6v14m-7 4h14\"/>"
     },
     "arrow-up-right": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M7 7h10v10M7 17L17 7\"/>"
@@ -1024,9 +1042,6 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "database-zap": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\"/><path d=\"M3 5v14a9 3 0 0 0 12 2.84M21 5v3m0 4l-3 5h4l-3 5\"/><path d=\"M3 12a9 3 0 0 0 11.59 2.87\"/></g>"
-    },
-    "dollar-sign": {
-      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 2v20m5-17H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6\"/>"
     },
     "download": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M12 15V3m9 12v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\"/><path d=\"m7 10l5 5l5-5\"/></g>"
@@ -1275,6 +1290,9 @@ export const LUCIDE_ICON_SUBSET = {
     "list-ordered": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M11 5h10m-10 7h10m-10 7h10M4 4h1v5M4 9h2m.5 11H3.4c0-1 2.6-1.925 2.6-3.5a1.5 1.5 0 0 0-2.6-1.02\"/>"
     },
+    "list-tree": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M8 5h13m-8 7h8m-8 7h8M3 10a2 2 0 0 0 2 2h3\"/><path d=\"M3 5v12a2 2 0 0 0 2 2h3\"/></g>"
+    },
     "loader-circle": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M21 12a9 9 0 1 1-6.219-8.56\"/>"
     },
@@ -1416,9 +1434,6 @@ export const LUCIDE_ICON_SUBSET = {
     "phone": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233a14 14 0 0 0 6.392 6.384\"/>"
     },
-    "phone-call": {
-      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M13 2a9 9 0 0 1 9 9m-9-5a5 5 0 0 1 5 5m-4.168 5.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233a14 14 0 0 0 6.392 6.384\"/>"
-    },
     "pin": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4a1 1 0 0 1 1 1z\"/>"
     },
@@ -1485,6 +1500,9 @@ export const LUCIDE_ICON_SUBSET = {
     "scale": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M12 3v18m7-13l3 8a5 5 0 0 1-6 0zV7\"/><path d=\"M3 7h1a17 17 0 0 0 8-2a17 17 0 0 0 8 2h1M5 8l3 8a5 5 0 0 1-6 0zV7m2 14h10\"/></g>"
     },
+    "scan-face": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M3 7V5a2 2 0 0 1 2-2h2m10 0h2a2 2 0 0 1 2 2v2m0 10v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2m5-3s1.5 2 4 2s4-2 4-2M9 9h.01M15 9h.01\"/>"
+    },
     "scan-search": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M3 7V5a2 2 0 0 1 2-2h2m10 0h2a2 2 0 0 1 2 2v2m0 10v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"m16 16l-1.9-1.9\"/></g>"
     },
@@ -1536,6 +1554,9 @@ export const LUCIDE_ICON_SUBSET = {
     "shopping-cart": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><circle cx=\"8\" cy=\"21\" r=\"1\"/><circle cx=\"19\" cy=\"21\" r=\"1\"/><path d=\"M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12\"/></g>"
     },
+    "sigma": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M18 7V5a1 1 0 0 0-1-1H6.5a.5.5 0 0 0-.4.8l4.5 6a2 2 0 0 1 0 2.4l-4.5 6a.5.5 0 0 0 .4.8H17a1 1 0 0 0 1-1v-2\"/>"
+    },
     "siren": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M7 18v-6a5 5 0 1 1 10 0v6M5 21a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2zm16-9h1m-3.5-7.5L18 5M2 12h1m9-10v1M4.929 4.929l.707.707M12 12v6\"/>"
     },
@@ -1557,11 +1578,11 @@ export const LUCIDE_ICON_SUBSET = {
     "spell-check": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m6 16l6-12l6 12M8 12h8m0 8l2 2l4-4\"/>"
     },
-    "split": {
-      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M16 3h5v5M8 3H3v5\"/><path d=\"M12 22v-8.3a4 4 0 0 0-1.172-2.872L3 3m12 6l6-6\"/></g>"
-    },
     "square": {
       "body": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" rx=\"2\"/>"
+    },
+    "square-activity": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"M17 12h-2l-2 5l-2-10l-2 5H7\"/></g>"
     },
     "square-check": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"m9 12l2 2l4-4\"/></g>"
@@ -1598,9 +1619,6 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "table-2": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18\"/>"
-    },
-    "table-properties": {
-      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M15 3v18\"/><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"M21 9H3m18 6H3\"/></g>"
     },
     "target": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"6\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/></g>"
@@ -1662,6 +1680,9 @@ export const LUCIDE_ICON_SUBSET = {
     "user-plus": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"M19 8v6m3-3h-6\"/></g>"
     },
+    "user-round": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><circle cx=\"12\" cy=\"8\" r=\"5\"/><path d=\"M20 21a8 8 0 0 0-16 0\"/></g>"
+    },
     "user-round-cog": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"m14.305 19.53l.923-.382m0-2.296l-.923-.383m2.547-1.241l-.383-.923m.383 6.467l-.383.924m2.679-6.468l.383-.923m-.001 7.391l-.382-.924M2 21a8 8 0 0 1 10.434-7.62m8.338 3.472l.924-.383m-.924 2.679l.924.383\"/><circle cx=\"10\" cy=\"8\" r=\"5\"/><circle cx=\"18\" cy=\"18\" r=\"3\"/></g>"
     },
@@ -1682,9 +1703,6 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "wallet": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1\"/><path d=\"M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4\"/></g>"
-    },
-    "wallet-cards": {
-      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"M3 9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2M3 11h3c.8 0 1.6.3 2.1.9l1.1.9c1.6 1.6 4.1 1.6 5.7 0l1.1-.9c.5-.5 1.3-.9 2.1-.9H21\"/></g>"
     },
     "wand-sparkles": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m21.64 3.64l-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72M14 7l3 3M5 6v4m14 4v4M10 2v2M7 8H3m18 8h-4M11 3H9\"/>"
