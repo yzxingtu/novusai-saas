@@ -5,7 +5,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.core.i18n import _
 from app.enums.common import ResourceScopeEnum
+from app.enums.plugin import PluginStatusEnum
 from app.exceptions import BusinessException
 from app.services.system.task_definition_service import TaskDefinitionService
 
@@ -40,11 +42,42 @@ async def test_trigger_now_dispatches_platform_wrapper(mock_db) -> None:
 
 
 @pytest.mark.asyncio
+async def test_trigger_now_dispatches_platform_wrapper_for_legacy_platform_scope(mock_db) -> None:
+    service = TaskDefinitionService(mock_db)
+    definition = SimpleNamespace(
+        id=6,
+        code="task.sync_litellm_registry.e36f21cd",
+        owner_tenant_id=None,
+        scope="platform",
+        default_schedule_type="cron",
+        default_cron_expression="0 4 * * *",
+        default_interval_seconds=None,
+    )
+    service.get_by_id = AsyncMock(return_value=definition)
+    service.update = AsyncMock(return_value=definition)
+    binding_rows = MagicMock()
+    binding_rows.scalars.return_value.all.return_value = []
+    mock_db.execute = AsyncMock(return_value=binding_rows)
+
+    fake_result = SimpleNamespace(id="legacy-platform-123")
+    with patch(
+        "app.services.system.task_definition_service.celery_app.send_task",
+        return_value=fake_result,
+    ) as send_task:
+        task_id = await service.trigger_now(6)
+
+    assert task_id == "legacy-platform-123"
+    assert send_task.call_args.kwargs["queue"] == "scheduled"
+    assert send_task.call_args.args[0] == "app.tasks.task_scheduling.run_task_definition"
+
+
+@pytest.mark.asyncio
 async def test_trigger_now_dispatches_binding_wrapper_for_tenant_owned_definition(mock_db) -> None:
     service = TaskDefinitionService(mock_db)
     definition = SimpleNamespace(
         id=5,
         code="tenant.job",
+        handler_path="app.ai.rag.processor.process_document",
         owner_tenant_id=42,
         scope=ResourceScopeEnum.SELECTED_TENANTS.value,
         default_schedule_type="interval",
@@ -66,7 +99,10 @@ async def test_trigger_now_dispatches_binding_wrapper_for_tenant_owned_definitio
     ]
     mock_db.execute = AsyncMock(return_value=binding_rows)
 
-    with patch("app.services.system.task_definition_service.celery_app.send_task",
+    with patch(
+        "app.services.system.task_definition_service.handler_supports_tenant_dispatch",
+        return_value=True,
+    ), patch("app.services.system.task_definition_service.celery_app.send_task",
         return_value=fake_result,
     ) as send_task:
         task_id = await service.trigger_now(5)
@@ -76,11 +112,70 @@ async def test_trigger_now_dispatches_binding_wrapper_for_tenant_owned_definitio
 
 
 @pytest.mark.asyncio
+async def test_trigger_now_dispatches_all_tenants_wrapper(mock_db) -> None:
+    service = TaskDefinitionService(mock_db)
+    definition = SimpleNamespace(
+        id=21,
+        code="tenant.all",
+        handler_path="app.ai.rag.processor.process_document",
+        owner_tenant_id=None,
+        scope=ResourceScopeEnum.ALL_TENANTS.value,
+        default_schedule_type="interval",
+        default_cron_expression=None,
+        default_interval_seconds=120,
+    )
+    service.get_by_id = AsyncMock(return_value=definition)
+    service.update = AsyncMock(return_value=definition)
+
+    fake_result = SimpleNamespace(id="all-tenants-123")
+    with patch(
+        "app.services.system.task_definition_service.handler_supports_tenant_dispatch",
+        return_value=True,
+    ), patch(
+        "app.services.system.task_definition_service.celery_app.send_task",
+        return_value=fake_result,
+    ) as send_task:
+        task_id = await service.trigger_now(21)
+
+    assert task_id == "all-tenants-123"
+    assert send_task.call_args.args[0] == "app.tasks.task_scheduling.run_all_tenants_task_definition"
+    assert send_task.call_args.kwargs["kwargs"]["trigger_source"] == "admin_manual"
+
+
+@pytest.mark.asyncio
+async def test_trigger_now_rejects_plugin_task_when_plugin_is_disabled(mock_db) -> None:
+    service = TaskDefinitionService(mock_db)
+    definition = SimpleNamespace(
+        id=16,
+        code="plugin.storage-billing.daily_reconciliation",
+        owner_tenant_id=None,
+        scope=ResourceScopeEnum.ADMIN_ONLY.value,
+        default_schedule_type="cron",
+        default_cron_expression="0 3 * * *",
+        default_interval_seconds=None,
+    )
+    service.get_by_id = AsyncMock(return_value=definition)
+
+    plugin_status_result = MagicMock()
+    plugin_status_result.scalar_one_or_none.return_value = PluginStatusEnum.DISABLED.value
+    mock_db.execute = AsyncMock(return_value=plugin_status_result)
+
+    with pytest.raises(BusinessException) as exc_info:
+        await service.trigger_now(16)
+
+    assert exc_info.value.message == _(
+        "periodic_task.error.plugin_disabled",
+        plugin="storage-billing",
+    )
+
+
+@pytest.mark.asyncio
 async def test_trigger_now_dispatches_all_bindings_and_returns_first_task_id(mock_db) -> None:
     service = TaskDefinitionService(mock_db)
     definition = SimpleNamespace(
         id=8,
         code="tenant.batch",
+        handler_path="app.ai.rag.processor.process_document",
         owner_tenant_id=None,
         scope=ResourceScopeEnum.SELECTED_TENANTS.value,
         default_schedule_type="interval",
@@ -114,6 +209,9 @@ async def test_trigger_now_dispatches_all_bindings_and_returns_first_task_id(moc
     )
 
     with patch(
+        "app.services.system.task_definition_service.handler_supports_tenant_dispatch",
+        return_value=True,
+    ), patch(
         "app.services.system.task_definition_service.celery_app.send_task",
         send_task,
     ):
@@ -133,6 +231,7 @@ async def test_trigger_now_dispatches_platform_and_selected_bindings_for_admin_a
     definition = SimpleNamespace(
         id=13,
         code="hybrid.audit",
+        handler_path="app.ai.rag.processor.process_document",
         owner_tenant_id=None,
         scope=ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
         default_schedule_type="interval",
@@ -160,6 +259,9 @@ async def test_trigger_now_dispatches_platform_and_selected_bindings_for_admin_a
     )
 
     with patch(
+        "app.services.system.task_definition_service.handler_supports_tenant_dispatch",
+        return_value=True,
+    ), patch(
         "app.services.system.task_definition_service.celery_app.send_task",
         send_task,
     ):
@@ -172,13 +274,14 @@ async def test_trigger_now_dispatches_platform_and_selected_bindings_for_admin_a
 
 
 @pytest.mark.asyncio
-async def test_trigger_now_rejects_tenant_scope_without_dispatch_targets(mock_db) -> None:
+async def test_trigger_now_rejects_selected_scope_without_dispatch_targets(mock_db) -> None:
     service = TaskDefinitionService(mock_db)
     definition = SimpleNamespace(
         id=21,
         code="tenant.missing",
+        handler_path="app.ai.rag.processor.process_document",
         owner_tenant_id=None,
-        scope=ResourceScopeEnum.ALL_TENANTS.value,
+        scope=ResourceScopeEnum.SELECTED_TENANTS.value,
         default_schedule_type="interval",
         default_cron_expression=None,
         default_interval_seconds=120,
@@ -189,5 +292,35 @@ async def test_trigger_now_rejects_tenant_scope_without_dispatch_targets(mock_db
     binding_rows.scalars.return_value.all.return_value = []
     mock_db.execute = AsyncMock(return_value=binding_rows)
 
-    with pytest.raises(BusinessException):
-        await service.trigger_now(21)
+    with pytest.raises(BusinessException) as exc_info:
+        with patch(
+            "app.services.system.task_definition_service.handler_supports_tenant_dispatch",
+            return_value=True,
+        ):
+            await service.trigger_now(21)
+
+    assert exc_info.value.message == _("periodic_task.error.binding_required")
+
+
+@pytest.mark.asyncio
+async def test_trigger_now_rejects_tenant_dispatch_scope_for_non_tenant_handler(mock_db) -> None:
+    service = TaskDefinitionService(mock_db)
+    definition = SimpleNamespace(
+        id=31,
+        code="tenant.invalid",
+        owner_tenant_id=None,
+        scope=ResourceScopeEnum.ALL_TENANTS.value,
+        handler_path="app.tasks.scheduled.clean_expired_captchas",
+        default_schedule_type="interval",
+        default_cron_expression=None,
+        default_interval_seconds=120,
+    )
+    service.get_by_id = AsyncMock(return_value=definition)
+
+    with pytest.raises(BusinessException) as exc_info:
+        await service.trigger_now(31)
+
+    assert exc_info.value.message == _(
+        "periodic_task.error.tenant_dispatch_requires_tenant_handler",
+        handler="app.tasks.scheduled.clean_expired_captchas",
+    )

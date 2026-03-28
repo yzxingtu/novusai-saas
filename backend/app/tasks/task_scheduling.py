@@ -13,6 +13,7 @@ from typing import Any
 from app.celery_app import celery_app
 from app.core.database import sync_session_factory
 from app.core.logging import LogManager
+from app.models.tenant.tenant import Tenant
 from app.enums.task import TaskRunKindEnum, TaskTriggerSourceEnum
 from app.models.system.task_definition import TaskDefinition
 from app.models.system.tenant_task_binding import TenantTaskBinding
@@ -20,6 +21,9 @@ from app.tasks.base import BaseTask, get_task_registry, register_task
 
 logger = LogManager.get_logger("queue")
 
+ALL_TENANTS_TASK_DEFINITION_WRAPPER = (
+    "app.tasks.task_scheduling.run_all_tenants_task_definition"
+)
 TASK_DEFINITION_WRAPPER = "app.tasks.task_scheduling.run_task_definition"
 TENANT_BINDING_WRAPPER = "app.tasks.task_scheduling.run_tenant_task_binding"
 
@@ -78,9 +82,23 @@ def _resolve_queue(definition: TaskDefinition) -> str:
     return str(definition.default_queue or registry_info.get("queue") or "scheduled")
 
 
-def _handler_requires_tenant(definition: TaskDefinition) -> bool:
-    registry_info = get_task_registry().get(definition.handler_path, {})
+def handler_supports_tenant_dispatch(handler_path: str) -> bool:
+    registry_info = get_task_registry().get(handler_path, {})
     return registry_info.get("base") == "TenantTask"
+
+
+def _handler_requires_tenant(definition: TaskDefinition) -> bool:
+    return handler_supports_tenant_dispatch(definition.handler_path)
+
+
+def _resolve_all_tenant_ids(session) -> list[int]:
+    rows = (
+        session.query(Tenant.id)
+        .filter(Tenant.is_deleted.is_(False))
+        .order_by(Tenant.id.asc())
+        .all()
+    )
+    return [tenant_id for tenant_id, in rows]
 
 
 @register_task(
@@ -88,7 +106,11 @@ def _handler_requires_tenant(definition: TaskDefinition) -> bool:
     description="Dispatch platform task definition / 分发平台任务定义",
     max_retries=1,
 )
-def run_task_definition(self: BaseTask, task_definition_id: int) -> dict:
+def run_task_definition(
+    self: BaseTask,
+    task_definition_id: int,
+    trigger_source: str = TaskTriggerSourceEnum.SCHEDULER.value,
+) -> dict:
     session = None
     try:
         session = sync_session_factory()
@@ -112,7 +134,7 @@ def run_task_definition(self: BaseTask, task_definition_id: int) -> dict:
         headers = _build_task_run_headers(
             definition=definition,
             binding=None,
-            trigger_source=TaskTriggerSourceEnum.SCHEDULER.value,
+            trigger_source=trigger_source,
             run_kind=TaskRunKindEnum.PLATFORM.value,
             effective_tenant_id=None,
         )
@@ -142,10 +164,92 @@ def run_task_definition(self: BaseTask, task_definition_id: int) -> dict:
 
 @register_task(
     queue="scheduled",
+    description="Dispatch all-tenant task definition / 分发全企业任务定义",
+    max_retries=1,
+)
+def run_all_tenants_task_definition(
+    self: BaseTask,
+    task_definition_id: int,
+    trigger_source: str = TaskTriggerSourceEnum.SCHEDULER.value,
+) -> dict:
+    session = None
+    try:
+        session = sync_session_factory()
+        definition = (
+            session.query(TaskDefinition)
+            .filter(
+                TaskDefinition.id == task_definition_id,
+                TaskDefinition.is_deleted.is_(False),
+            )
+            .first()
+        )
+        if not definition or not definition.is_enabled:
+            return {
+                "dispatched": False,
+                "reason": "definition_not_available",
+                "task_definition_id": task_definition_id,
+            }
+        if not handler_supports_tenant_dispatch(definition.handler_path):
+            return {
+                "dispatched": False,
+                "reason": "tenant_dispatch_unsupported",
+                "task_definition_id": task_definition_id,
+                "handler_path": definition.handler_path,
+            }
+
+        tenant_ids = _resolve_all_tenant_ids(session)
+        dispatched_task_ids: list[str] = []
+
+        for tenant_id in tenant_ids:
+            args = _resolve_args(definition.default_args, None)
+            kwargs = _merge_kwargs(definition.default_kwargs, None)
+            if _handler_requires_tenant(definition):
+                kwargs.setdefault("tenant_id", tenant_id)
+
+            headers = _build_task_run_headers(
+                definition=definition,
+                binding=None,
+                trigger_source=trigger_source,
+                run_kind=TaskRunKindEnum.TENANT_BINDING.value,
+                effective_tenant_id=tenant_id,
+            )
+
+            result = celery_app.send_task(
+                definition.handler_path,
+                args=args,
+                kwargs=kwargs,
+                queue=_resolve_queue(definition),
+                headers=headers,
+            )
+            dispatched_task_ids.append(str(result.id))
+
+        logger.info(
+            "Dispatched all-tenant task definition {} -> {} tenant task(s)",
+            definition.code,
+            len(dispatched_task_ids),
+        )
+        return {
+            "dispatched": True,
+            "task_definition_id": definition.id,
+            "handler_path": definition.handler_path,
+            "tenant_count": len(tenant_ids),
+            "dispatched_task_ids": dispatched_task_ids,
+        }
+    finally:
+        if session:
+            session.close()
+
+
+@register_task(
+    queue="scheduled",
     description="Dispatch tenant task binding / 分发企业任务绑定",
     max_retries=1,
 )
-def run_tenant_task_binding(self: BaseTask, binding_id: int) -> dict:
+def run_tenant_task_binding(
+    self: BaseTask,
+    binding_id: int,
+    trigger_source: str = TaskTriggerSourceEnum.SCHEDULER.value,
+) -> dict:
     session = None
     try:
         session = sync_session_factory()
@@ -163,6 +267,21 @@ def run_tenant_task_binding(self: BaseTask, binding_id: int) -> dict:
                 "reason": "binding_not_available",
                 "binding_id": binding_id,
             }
+        tenant = (
+            session.query(Tenant)
+            .filter(
+                Tenant.id == binding.tenant_id,
+                Tenant.is_deleted.is_(False),
+            )
+            .first()
+        )
+        if tenant is None:
+            return {
+                "dispatched": False,
+                "reason": "tenant_not_available",
+                "binding_id": binding_id,
+                "tenant_id": binding.tenant_id,
+            }
 
         definition = (
             session.query(TaskDefinition)
@@ -179,6 +298,14 @@ def run_tenant_task_binding(self: BaseTask, binding_id: int) -> dict:
                 "binding_id": binding_id,
                 "task_definition_id": binding.task_definition_id,
             }
+        if not handler_supports_tenant_dispatch(definition.handler_path):
+            return {
+                "dispatched": False,
+                "reason": "tenant_dispatch_unsupported",
+                "binding_id": binding_id,
+                "task_definition_id": binding.task_definition_id,
+                "handler_path": definition.handler_path,
+            }
 
         args = _resolve_args(definition.default_args, binding.args_override)
         kwargs = _merge_kwargs(definition.default_kwargs, binding.kwargs_override)
@@ -188,7 +315,7 @@ def run_tenant_task_binding(self: BaseTask, binding_id: int) -> dict:
         headers = _build_task_run_headers(
             definition=definition,
             binding=binding,
-            trigger_source=TaskTriggerSourceEnum.SCHEDULER.value,
+            trigger_source=trigger_source,
             run_kind=TaskRunKindEnum.TENANT_BINDING.value,
             effective_tenant_id=binding.tenant_id,
         )
@@ -220,8 +347,11 @@ def run_tenant_task_binding(self: BaseTask, binding_id: int) -> dict:
 
 
 __all__ = [
+    "ALL_TENANTS_TASK_DEFINITION_WRAPPER",
     "TASK_DEFINITION_WRAPPER",
     "TENANT_BINDING_WRAPPER",
+    "handler_supports_tenant_dispatch",
+    "run_all_tenants_task_definition",
     "run_task_definition",
     "run_tenant_task_binding",
 ]

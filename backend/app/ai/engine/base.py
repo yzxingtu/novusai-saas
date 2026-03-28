@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import re
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
@@ -53,6 +54,14 @@ from .types import (
 )
 
 logger = LogManager.get_logger("ai.engine")
+
+_TEXTUAL_TOOL_CALL_MARKER_RE = re.compile(
+    r"(?:^|\s)(?:to=)?functions\.([A-Za-z_][A-Za-z0-9_]*)",
+    re.IGNORECASE,
+)
+_TEXTUAL_CALL_SYNTAX_RE = re.compile(
+    r"(?:^|\s)([A-Za-z_][A-Za-z0-9_]*)\s*\(",
+)
 
 
 def log_user_type_for_call_log(user_role: str) -> str:
@@ -896,6 +905,42 @@ class BaseEngine(ABC):
         )
         return any(term in normalized_text for term in capability_terms)
 
+    @classmethod
+    def _extract_textual_tool_call_names(
+        cls,
+        response_text: str,
+        tools: list[ToolDefinition],
+    ) -> list[str]:
+        """
+        Detect leaked textual tool-call markers like ``to=functions.get_page_context``.
+        / 识别被模型当文本吐出的伪工具调用标记，例如 ``to=functions.get_page_context``。
+        """
+        text = " ".join((response_text or "").strip().split())
+        if not text:
+            return []
+
+        known_tool_names = {tool.name for tool in tools} if tools else None
+        matched: list[str] = []
+
+        def _append(name: str) -> None:
+            normalized = (name or "").strip()
+            if (
+                normalized
+                and (known_tool_names is None or normalized in known_tool_names)
+                and normalized not in matched
+            ):
+                matched.append(normalized)
+
+        for match in _TEXTUAL_TOOL_CALL_MARKER_RE.finditer(text):
+            _append(match.group(1))
+
+        # Some providers leak ``invoke_page_operation(...)``-style syntax directly as text.
+        if not matched:
+            for match in _TEXTUAL_CALL_SYNTAX_RE.finditer(text):
+                _append(match.group(1))
+
+        return matched
+
     @staticmethod
     def _looks_like_generic_follow_up(user_text: str) -> bool:
         normalized = " ".join((user_text or "").strip().lower().split())
@@ -1157,6 +1202,27 @@ class BaseEngine(ABC):
         normalized = " ".join((response_text or "").strip().lower().split())
         if not normalized:
             return None
+
+        leaked_tool_names = cls._extract_textual_tool_call_names(
+            response_text,
+            tools,
+        )
+        for tool_name in leaked_tool_names:
+            family = cls._tool_family_for_name(tool_name, input_variables)
+            if family == "none" and current_policy.family != "none":
+                family = current_policy.family
+            allowed_names = cls._allowed_tool_names_for_family(
+                family,
+                tools,
+                input_variables,
+            )
+            if allowed_names:
+                return cls._build_required_policy_for_family(
+                    family,
+                    tools,
+                    input_variables,
+                    reason=f"textual_tool_call_leak:{tool_name}",
+                )
 
         if current_policy.mode == "required" and current_policy.family != "none":
             return cls._build_required_policy_for_family(

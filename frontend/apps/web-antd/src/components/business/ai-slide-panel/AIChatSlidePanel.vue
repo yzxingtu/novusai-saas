@@ -52,6 +52,7 @@ import AIChatConversationFooter from './AIChatConversationFooter.vue';
 import AIChatHistoryPane from './AIChatHistoryPane.vue';
 import AIChatMessageViewport from './AIChatMessageViewport.vue';
 import AIChatPanelHeader from './AIChatPanelHeader.vue';
+import AIChatPanelUtilityActions from './AIChatPanelUtilityActions.vue';
 import PageAIRail from './PageAIRail.vue';
 import { useAgentRouter } from './use-agent-router';
 import { usePageAICapability } from './use-page-ai-capability';
@@ -486,15 +487,6 @@ const canForceReroute = computed(
     !sending.value &&
     !streaming.value,
 );
-
-const switchAgentMenuItems = computed(() =>
-  agents.value.map((agent) => ({
-    key: String(agent.id),
-    label: agent.name,
-    onClick: () => onStartNewChatWithAgent(agent.id),
-  })),
-);
-const hasHeaderStatusBadges = computed(() => forceRerouteNextTurn.value);
 
 function clearRoutingIntent() {
   forceRerouteNextTurn.value = false;
@@ -946,14 +938,6 @@ const headerMoreMenuItems = computed(() => {
     });
   }
 
-  if (switchAgentMenuItems.value.length > 1) {
-    items.push({
-      children: switchAgentMenuItems.value,
-      key: 'switch-agent',
-      label: $t('common.globalAiChat.switchAgentNewConversation'),
-    });
-  }
-
   if (activeConversationId.value) {
     items.push({
       key: 'memory',
@@ -1276,35 +1260,20 @@ onUnmounted(() => {
           :panel-title="panelTitle"
           :route-notice="routeNotice"
           :routing="routing"
-          :show-header-more-menu="showHeaderMoreMenu"
-          :show-header-vars-button="showHeaderVarsButton"
-          :show-history="showHistory"
-          :show-reroute-button="!!activeConversationId && !isPinned"
           @close="handleClose"
-          @edit-vars="onEditHeaderVars"
           @minimize="handleMinimize"
-          @new-chat="onStartNewChat"
           @toggle-dock="handleToggleDock"
-          @toggle-history="toggleHistory"
           @toggle-mode="handleToggleMode"
-          @toggle-reroute="onToggleForceReroute"
-        >
-          <span
-            v-if="hasHeaderStatusBadges"
-            data-testid="ai-panel-header-status"
-            class="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700"
-          >
-            <IconifyIcon icon="lucide:compass" class="size-2.5" />
-            {{ $t('common.globalAiChat.rerouteArmed') }}
-          </span>
-        </AIChatPanelHeader>
+        />
 
         <div
-          v-if="hasPageAI"
-          data-testid="ai-panel-page-ai-row"
+          data-testid="ai-panel-toolbar-row"
           class="w-full shrink-0 px-3 pb-2 pt-1"
+          :class="hasPageAI ? '' : 'flex justify-end'"
         >
           <PageAIRail
+            v-if="hasPageAI"
+            data-testid="ai-panel-page-ai-row"
             :diagnostics="pageAIDiagnostics"
             :fallback-only="pageAIFallbackOnly"
             :has-page-a-i="hasPageAI"
@@ -1321,6 +1290,42 @@ onUnmounted(() => {
             :resolved-page-a-i-title="resolvedPageAITitle"
             @toggle-details="togglePageAIDetails"
             @expand-all-operations="expandAllPageAIOperations"
+          >
+            <template #actions>
+              <AIChatPanelUtilityActions
+                :can-force-reroute="canForceReroute"
+                compact
+                :force-reroute-next-turn="forceRerouteNextTurn"
+                :has-header-variable-values="hasHeaderVariableValues"
+                :header-more-has-attention="headerMoreHasAttention"
+                :header-more-menu-items="headerMoreMenuItems"
+                :show-header-more-menu="showHeaderMoreMenu"
+                :show-header-vars-button="showHeaderVarsButton"
+                :show-history="showHistory"
+                :show-reroute-button="!!activeConversationId && !isPinned"
+                @edit-vars="onEditHeaderVars"
+                @new-chat="onStartNewChat"
+                @toggle-history="toggleHistory"
+                @toggle-reroute="onToggleForceReroute"
+              />
+            </template>
+          </PageAIRail>
+
+          <AIChatPanelUtilityActions
+            v-else
+            :can-force-reroute="canForceReroute"
+            :force-reroute-next-turn="forceRerouteNextTurn"
+            :has-header-variable-values="hasHeaderVariableValues"
+            :header-more-has-attention="headerMoreHasAttention"
+            :header-more-menu-items="headerMoreMenuItems"
+            :show-header-more-menu="showHeaderMoreMenu"
+            :show-header-vars-button="showHeaderVarsButton"
+            :show-history="showHistory"
+            :show-reroute-button="!!activeConversationId && !isPinned"
+            @edit-vars="onEditHeaderVars"
+            @new-chat="onStartNewChat"
+            @toggle-history="toggleHistory"
+            @toggle-reroute="onToggleForceReroute"
           />
         </div>
 
@@ -1698,29 +1703,6 @@ onUnmounted(() => {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
-}
-
-.page-ai-details-enter-active,
-.page-ai-details-leave-active {
-  overflow: hidden;
-  transition:
-    opacity 0.2s ease,
-    max-height 0.26s ease,
-    transform 0.26s ease;
-}
-
-.page-ai-details-enter-from,
-.page-ai-details-leave-to {
-  max-height: 0;
-  opacity: 0;
-  transform: translateY(-6px);
-}
-
-.page-ai-details-enter-to,
-.page-ai-details-leave-from {
-  max-height: 320px;
-  opacity: 1;
-  transform: translateY(0);
 }
 
 /* Bubble transition / 气泡过渡 */

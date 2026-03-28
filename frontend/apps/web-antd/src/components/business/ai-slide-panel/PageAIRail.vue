@@ -59,30 +59,33 @@ function onToggleDetails() {
   <div v-if="hasPageAI" class="flex w-full min-w-0 flex-col gap-2">
     <div
       data-testid="ai-panel-page-ai-card"
-      class="relative flex h-9 w-full min-w-0 items-center overflow-hidden rounded-xl border border-primary/15 bg-gradient-to-r from-primary/[0.08] via-background to-primary/[0.02] px-2 py-1 transition-colors"
-      :class="
-        hasExpandableDetails
-          ? 'cursor-pointer hover:border-primary/25 hover:bg-primary/[0.06]'
-          : ''
-      "
-      :aria-expanded="hasExpandableDetails ? detailsExpanded : undefined"
-      :aria-label="hasExpandableDetails ? pageAIRailTooltip : undefined"
-      :role="hasExpandableDetails ? 'button' : undefined"
-      :tabindex="hasExpandableDetails ? 0 : undefined"
-      @click="onToggleDetails"
-      @keydown.enter.prevent="onToggleDetails"
-      @keydown.space.prevent="onToggleDetails"
+      class="relative flex min-h-9 w-full min-w-0 items-center overflow-hidden rounded-xl border border-primary/15 bg-gradient-to-r from-primary/[0.08] via-background to-primary/[0.02] px-2 py-1"
     >
-      <div class="flex min-w-0 flex-1 items-center justify-between gap-2">
+      <div class="flex min-w-0 flex-1 items-center justify-between gap-1.5">
         <Tooltip :title="pageAIRailTooltip">
-          <div class="flex min-w-0 flex-1 items-center gap-2">
+          <div
+            data-testid="ai-panel-page-ai-trigger"
+            class="flex min-w-0 flex-1 items-center gap-1.5 rounded-lg pr-1 transition-colors"
+            :class="
+              hasExpandableDetails
+                ? 'cursor-pointer hover:bg-primary/[0.05]'
+                : ''
+            "
+            :aria-expanded="hasExpandableDetails ? detailsExpanded : undefined"
+            :aria-label="hasExpandableDetails ? pageAIRailTooltip : undefined"
+            :role="hasExpandableDetails ? 'button' : undefined"
+            :tabindex="hasExpandableDetails ? 0 : undefined"
+            @click="onToggleDetails"
+            @keydown.enter.prevent="onToggleDetails"
+            @keydown.space.prevent="onToggleDetails"
+          >
             <div
               class="bg-primary/12 flex size-6 shrink-0 items-center justify-center rounded-lg text-primary"
             >
               <IconifyIcon icon="lucide:cpu" class="size-3" />
             </div>
             <span
-              class="shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary/75"
+              class="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-primary/75"
             >
               {{ $t('common.aiPanel.pageAiSupported') }}
             </span>
@@ -100,33 +103,41 @@ function onToggleDetails() {
             </span>
           </div>
         </Tooltip>
-        <Tooltip
-          v-if="hasExpandableDetails"
-          :title="
-            detailsExpanded
-              ? $t('common.aiPanel.pageAiCollapse')
-              : $t('common.aiPanel.pageAiExpand')
-          "
+        <div
+          class="flex shrink-0 items-center gap-1"
+          @click.stop
+          @keydown.enter.stop
+          @keydown.space.stop
         >
-          <button
-            data-testid="ai-panel-page-ai-toggle"
-            class="inline-flex size-7 shrink-0 items-center justify-center rounded-lg border border-border/45 bg-background/85 text-foreground transition-colors hover:border-primary/20 hover:bg-primary/[0.05]"
-            :aria-expanded="detailsExpanded"
-            :aria-label="
+          <slot name="actions"></slot>
+          <Tooltip
+            v-if="hasExpandableDetails"
+            :title="
               detailsExpanded
                 ? $t('common.aiPanel.pageAiCollapse')
                 : $t('common.aiPanel.pageAiExpand')
             "
-            type="button"
-            @click.stop="emit('toggleDetails')"
           >
-            <IconifyIcon
-              icon="lucide:chevron-down"
-              class="size-3 transition-transform duration-200"
-              :class="detailsExpanded ? 'rotate-180' : ''"
-            />
-          </button>
-        </Tooltip>
+            <button
+              data-testid="ai-panel-page-ai-toggle"
+              class="inline-flex size-7 shrink-0 items-center justify-center rounded-lg border border-border/45 bg-background/85 text-foreground transition-colors hover:border-primary/20 hover:bg-primary/[0.05]"
+              :aria-expanded="detailsExpanded"
+              :aria-label="
+                detailsExpanded
+                  ? $t('common.aiPanel.pageAiCollapse')
+                  : $t('common.aiPanel.pageAiExpand')
+              "
+              type="button"
+              @click.stop="emit('toggleDetails')"
+            >
+              <IconifyIcon
+                icon="lucide:chevron-down"
+                class="size-3 transition-transform duration-200"
+                :class="detailsExpanded ? 'rotate-180' : ''"
+              />
+            </button>
+          </Tooltip>
+        </div>
       </div>
     </div>
 
@@ -307,3 +318,28 @@ function onToggleDetails() {
     </Transition>
   </div>
 </template>
+
+<style scoped>
+.page-ai-details-enter-active,
+.page-ai-details-leave-active {
+  overflow: hidden;
+  transition:
+    opacity 0.22s ease,
+    max-height 0.28s ease,
+    transform 0.28s ease;
+}
+
+.page-ai-details-enter-from,
+.page-ai-details-leave-to {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+.page-ai-details-enter-to,
+.page-ai-details-leave-from {
+  max-height: 320px;
+  opacity: 1;
+  transform: translateY(0);
+}
+</style>

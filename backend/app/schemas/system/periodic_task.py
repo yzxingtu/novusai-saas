@@ -7,10 +7,19 @@ Defines periodic task management API request and response data structures.
 
 from datetime import datetime
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from app.core.base_schema import BaseSchema
 from app.enums.common import ResourceScopeEnum
+
+
+ALLOWED_PERIODIC_TASK_SCOPES = {
+    ResourceScopeEnum.GLOBAL_SHARED.value,
+    ResourceScopeEnum.ADMIN_ONLY.value,
+    ResourceScopeEnum.ALL_TENANTS.value,
+    ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+    ResourceScopeEnum.SELECTED_TENANTS.value,
+}
 
 
 class PeriodicTaskResponse(BaseSchema):
@@ -75,22 +84,26 @@ class PeriodicTaskCreateRequest(BaseSchema):
     notify_on_failure: bool = Field(False, description="失败时是否通知")
     notify_emails: str | None = Field(None, description="通知邮箱列表（逗号分隔）")
 
+    @field_validator("scope")
+    @classmethod
+    def validate_scope_value(cls, value: str) -> str:
+        if value not in ALLOWED_PERIODIC_TASK_SCOPES:
+            raise ValueError("invalid scope")
+        return value
+
     @model_validator(mode="after")
     def validate_scope_owner(self):
-        selected_scopes = (
-            ResourceScopeEnum.SELECTED_TENANTS.value,
-            ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
-        )
         if self.scope in (
             ResourceScopeEnum.ADMIN_ONLY.value,
             ResourceScopeEnum.GLOBAL_SHARED.value,
             ResourceScopeEnum.ALL_TENANTS.value,
         ):
             self.owner_tenant_id = None
-        if self.scope not in selected_scopes:
+        if self.scope not in (
+            ResourceScopeEnum.SELECTED_TENANTS.value,
+            ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+        ):
             self.tenant_ids = []
-        elif not self.tenant_ids:
-            raise ValueError("tenant_ids is required for selected tenant scopes")
         return self
 
 
@@ -115,20 +128,21 @@ class PeriodicTaskUpdateRequest(BaseSchema):
     notify_on_failure: bool | None = Field(None, description="失败时是否通知")
     notify_emails: str | None = Field(None, description="通知邮箱列表")
 
+    @field_validator("scope")
+    @classmethod
+    def validate_scope_value(cls, value: str | None) -> str | None:
+        if value is not None and value not in ALLOWED_PERIODIC_TASK_SCOPES:
+            raise ValueError("invalid scope")
+        return value
+
     @model_validator(mode="after")
     def validate_selected_scope_tenants(self):
-        selected_scopes = (
-            ResourceScopeEnum.SELECTED_TENANTS.value,
-            ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
-        )
         if self.scope in (
             ResourceScopeEnum.ADMIN_ONLY.value,
             ResourceScopeEnum.GLOBAL_SHARED.value,
             ResourceScopeEnum.ALL_TENANTS.value,
         ):
             self.owner_tenant_id = None
-        if self.scope in selected_scopes and self.tenant_ids is not None and not self.tenant_ids:
-            raise ValueError("tenant_ids is required for selected tenant scopes")
         return self
 
 
@@ -160,6 +174,22 @@ class PeriodicTaskBindingSyncRequest(BaseSchema):
         None,
         description="同步后的目标作用域；不传时按是否有企业绑定自动推导",
     )
+
+    @field_validator("scope")
+    @classmethod
+    def validate_scope_value(cls, value: str | None) -> str | None:
+        if value is not None and value not in ALLOWED_PERIODIC_TASK_SCOPES:
+            raise ValueError("invalid scope")
+        return value
+
+    @model_validator(mode="after")
+    def normalize_tenant_ids_for_non_explicit_scope(self):
+        if self.scope is not None and self.scope not in (
+            ResourceScopeEnum.SELECTED_TENANTS.value,
+            ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+        ):
+            self.tenant_ids = []
+        return self
 
 
 __all__ = [

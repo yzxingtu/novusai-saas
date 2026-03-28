@@ -54,4 +54,27 @@ describe('request app-error', () => {
     expect(appError.traceId).toBe('trace-sse-3');
     expect(formatAppErrorMessage(appError)).toContain('trace-sse-3');
   });
+
+  it('keeps client-facing auth errors concise', () => {
+    const message = formatAppErrorMessage({
+      debugMessage: 'Request failed with status code 401',
+      message: '用户名或密码错误',
+      source: 'business',
+      status: 401,
+      traceId: 'trace-auth-4',
+    });
+
+    expect(message).toBe('用户名或密码错误');
+  });
+
+  it('preserves trace id for server errors', () => {
+    const message = formatAppErrorMessage({
+      message: '服务器开小差了',
+      source: 'http',
+      status: 500,
+      traceId: 'trace-server-5',
+    });
+
+    expect(message).toContain('trace-server-5');
+  });
 });

@@ -180,6 +180,25 @@ class AdminPeriodicTaskController(GlobalController):
         }
 
     @staticmethod
+    def _resolve_binding_target_scope(
+        *,
+        current_scope: str | None,
+        requested_scope: str | None,
+        tenant_ids: list[int],
+    ) -> str:
+        explicit_scopes = {
+            ResourceScopeEnum.SELECTED_TENANTS.value,
+            ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+        }
+        if requested_scope:
+            return requested_scope
+        if current_scope in explicit_scopes:
+            return str(current_scope)
+        if tenant_ids:
+            return ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value
+        return current_scope or ResourceScopeEnum.ADMIN_ONLY.value
+
+    @staticmethod
     def _serialize_definition(
         definition,
         *,
@@ -424,10 +443,10 @@ class AdminPeriodicTaskController(GlobalController):
                 raise NotFoundException(message=_("periodic_task.error.not_found"))
 
             binding_service = TaskBindingService(db)
-            target_scope = body.scope or task.scope or (
-                ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value
-                if body.tenant_ids
-                else ResourceScopeEnum.ADMIN_ONLY.value
+            target_scope = self._resolve_binding_target_scope(
+                current_scope=task.scope,
+                requested_scope=body.scope,
+                tenant_ids=body.tenant_ids,
             )
             target_tenant_ids = await binding_service.resolve_target_tenant_ids(
                 target_scope,

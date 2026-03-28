@@ -3129,6 +3129,9 @@
       "name_exists": "Periodic task with name '{name}' already exists",
       "scope_requires_tenant_id": "owner_tenant_id is required when scope is selected_tenants or admin_and_selected_tenants",
       "reject_tenant_id_field": "Field tenant_id is removed; use owner_tenant_id",
+      "binding_required": "This distribution mode requires at least one bound tenant before it can be triggered manually",
+      "tenant_dispatch_requires_tenant_handler": "Handler '{handler}' does not support tenant-dispatch scopes. Use a tenant-aware handler or switch back to a platform scope",
+      "plugin_disabled": "Plugin '{plugin}' is disabled. Enable the plugin before enabling or triggering its scheduled task",
       "edit_locked": "This task is protected and only supports toggling active status",
       "delete_locked": "Task '{name}' is protected and cannot be deleted"
     }

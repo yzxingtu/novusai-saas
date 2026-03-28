@@ -416,13 +416,10 @@ export function getTenantSurfaceSummary(
   }
 }
 
-export function isPlatformOnlyPluginTask(
-  row: Pick<PeriodicTaskInfo, 'definitionType' | 'scope'>,
+export function isPlatformOnlyTask(
+  row: Pick<PeriodicTaskInfo, 'scope'>,
 ): boolean {
-  return (
-    row.definitionType === 'plugin' &&
-    normalizeScopeValue(row.scope) === 'admin_only'
-  );
+  return normalizeScopeValue(row.scope) === 'admin_only';
 }
 
 export function useColumns<T = PeriodicTaskInfo>(
@@ -487,6 +484,8 @@ export function useColumns<T = PeriodicTaskInfo>(
             text: $t('admin.system.periodicTask.trigger'),
             icon: 'lucide:play',
             accessCodes: ['periodic_task:trigger'],
+            disabled: (row: Record<string, unknown>) =>
+              row.definitionType === 'plugin' && row.pluginEnabled === false,
           },
           {
             code: 'logs',
@@ -499,8 +498,7 @@ export function useColumns<T = PeriodicTaskInfo>(
             icon: 'lucide:building-2',
             accessCodes: ['periodic_task:bindings'],
             show: (row: Record<string, unknown>) =>
-              !isPlatformOnlyPluginTask({
-                definitionType: String(row.definitionType || ''),
+              !isPlatformOnlyTask({
                 scope:
                   typeof row.scope === 'string' || row.scope === null
                     ? row.scope
@@ -641,6 +639,7 @@ export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
       scopeDefaultValue: 'admin_only',
       scopeHelp: $t('admin.system.periodicTask.scopeHelp'),
       showTenantId: false,
+      tenantIdsRequired: false,
       tenantIdsField: 'tenant_ids',
     }),
 

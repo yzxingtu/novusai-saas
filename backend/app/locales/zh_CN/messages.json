@@ -3147,6 +3147,9 @@
       "name_exists": "名为 '{name}' 的定时任务已存在",
       "scope_requires_tenant_id": "scope 为 selected_tenants 或 admin_and_selected_tenants 时必须指定 owner_tenant_id",
       "reject_tenant_id_field": "已废弃字段 tenant_id，请使用 owner_tenant_id",
+      "binding_required": "当前分发模式需要至少绑定一个企业后才能手动触发",
+      "tenant_dispatch_requires_tenant_handler": "任务处理器 '{handler}' 不支持企业分发作用域，请改用 tenant-aware 任务处理器或切换为平台作用域",
+      "plugin_disabled": "插件 '{plugin}' 未启用，请先启用插件后再启用或触发其定时任务",
       "edit_locked": "该任务不允许编辑，仅允许切换启用状态",
       "delete_locked": "任务 '{name}' 已被保护，禁止删除"
     }

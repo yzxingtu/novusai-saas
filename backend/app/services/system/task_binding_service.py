@@ -9,13 +9,16 @@ from collections import defaultdict
 from sqlalchemy import and_, delete, select
 
 from app.core.base_service import GlobalService
+from app.core.i18n import _
 from app.enums.common import ResourceScopeEnum
+from app.exceptions import BusinessException
 from app.models.system.task_definition import TaskDefinition
 from app.models.system.tenant_task_binding import TenantTaskBinding
 from app.models.tenant.tenant import Tenant
 from app.repositories.system.tenant_task_binding_repository import (
     TenantTaskBindingRepository,
 )
+from app.tasks.task_scheduling import handler_supports_tenant_dispatch
 
 
 class TaskBindingService(
@@ -28,26 +31,38 @@ class TaskBindingService(
     model = TenantTaskBinding
     repository_class = TenantTaskBindingRepository
 
+    EXPLICIT_BINDING_SCOPES = {
+        ResourceScopeEnum.SELECTED_TENANTS.value,
+        ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+    }
+    TENANT_DISPATCH_SCOPES = EXPLICIT_BINDING_SCOPES | {
+        ResourceScopeEnum.ALL_TENANTS.value
+    }
+
+    @classmethod
+    def validate_tenant_dispatch_scope(
+        cls,
+        *,
+        handler_path: str | None,
+        scope: str | None,
+    ) -> None:
+        if scope not in cls.TENANT_DISPATCH_SCOPES:
+            return
+        if handler_path and handler_supports_tenant_dispatch(handler_path):
+            return
+        raise BusinessException(
+            message=_(
+                "periodic_task.error.tenant_dispatch_requires_tenant_handler",
+                handler=handler_path or _("common.unknown"),
+            )
+        )
+
     async def resolve_target_tenant_ids(
         self,
         target_scope: str,
         tenant_ids: list[int] | None,
     ) -> list[int]:
-        if target_scope == ResourceScopeEnum.ALL_TENANTS.value:
-            result = await self.db.execute(
-                select(Tenant.id)
-                .where(
-                    Tenant.is_deleted.is_(False),  # noqa: E712
-                    Tenant.is_active.is_(True),  # noqa: E712
-                )
-                .order_by(Tenant.id.asc())
-            )
-            return list(result.scalars().all())
-
-        if target_scope in (
-            ResourceScopeEnum.SELECTED_TENANTS.value,
-            ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
-        ):
+        if target_scope in self.EXPLICIT_BINDING_SCOPES:
             unique_ids: list[int] = []
             seen: set[int] = set()
             for tenant_id in tenant_ids or []:
@@ -58,6 +73,23 @@ class TaskBindingService(
             return unique_ids
 
         return []
+
+    async def get_active_bindings_for_dispatch(
+        self,
+        task_definition_id: int,
+    ) -> list[TenantTaskBinding]:
+        result = await self.db.execute(
+            select(TenantTaskBinding)
+            .join(Tenant, Tenant.id == TenantTaskBinding.tenant_id)
+            .where(
+                TenantTaskBinding.task_definition_id == task_definition_id,
+                TenantTaskBinding.is_deleted.is_(False),  # noqa: E712
+                TenantTaskBinding.is_enabled.is_(True),  # noqa: E712
+                Tenant.is_deleted.is_(False),  # noqa: E712
+            )
+            .order_by(TenantTaskBinding.tenant_id.asc())
+        )
+        return list(result.scalars().all())
 
     async def get_definition_binding_summary(
         self,
@@ -72,6 +104,8 @@ class TaskBindingService(
             .where(
                 TenantTaskBinding.task_definition_id.in_(task_definition_ids),
                 TenantTaskBinding.is_deleted.is_(False),  # noqa: E712
+                TenantTaskBinding.is_enabled.is_(True),  # noqa: E712
+                Tenant.is_deleted.is_(False),  # noqa: E712
             )
             .order_by(TenantTaskBinding.task_definition_id.asc(), Tenant.name.asc())
         )
@@ -94,8 +128,7 @@ class TaskBindingService(
             if isinstance(tenant_names, list):
                 tenant_names.append(tenant_name)
             item["binding_count"] = int(item["binding_count"]) + 1
-            if binding.is_enabled:
-                item["active_binding_count"] = int(item["active_binding_count"]) + 1
+            item["active_binding_count"] = int(item["active_binding_count"]) + 1
         for item in summary.values():
             tenant_names = item["assigned_tenant_names"]
             if not isinstance(tenant_names, list) or not tenant_names:
@@ -114,6 +147,8 @@ class TaskBindingService(
             .where(
                 TenantTaskBinding.task_definition_id == task_definition_id,
                 TenantTaskBinding.is_deleted.is_(False),  # noqa: E712
+                TenantTaskBinding.is_enabled.is_(True),  # noqa: E712
+                Tenant.is_deleted.is_(False),  # noqa: E712
             )
             .order_by(Tenant.name.asc())
         )
@@ -150,7 +185,18 @@ class TaskBindingService(
         existing = list(result.scalars().all())
         existing_map = {item.tenant_id: item for item in existing}
 
-        target = set(tenant_ids)
+        effective_scope = target_scope
+        if effective_scope is None:
+            if tenant_ids:
+                effective_scope = ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value
+            elif definition is not None:
+                effective_scope = definition.scope
+        self.validate_tenant_dispatch_scope(
+            handler_path=getattr(definition, "handler_path", None) if definition else None,
+            scope=effective_scope,
+        )
+
+        target = set(tenant_ids if effective_scope in self.EXPLICIT_BINDING_SCOPES else [])
         current = set(existing_map.keys())
 
         added = 0
@@ -187,12 +233,9 @@ class TaskBindingService(
         if definition is not None:
             if target_scope:
                 definition.scope = target_scope
-            elif tenant_ids:
+            elif target:
                 definition.scope = ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value
-            elif definition.scope in (
-                ResourceScopeEnum.SELECTED_TENANTS.value,
-                ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
-            ):
+            elif definition.scope in self.EXPLICIT_BINDING_SCOPES:
                 definition.scope = ResourceScopeEnum.ADMIN_ONLY.value
 
         return {

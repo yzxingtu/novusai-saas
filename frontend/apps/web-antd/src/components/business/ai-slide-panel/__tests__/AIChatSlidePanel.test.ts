@@ -1142,7 +1142,10 @@ describe('aIChatSlidePanel (component mount)', () => {
       document.body.querySelector('[data-testid="ai-panel-header-actions"]'),
     ).toBeTruthy();
     expect(
-      document.body.querySelector('[data-testid="ai-panel-header-action-stack"]'),
+      document.body.querySelector('[data-testid="ai-panel-primary-actions"]'),
+    ).toBeTruthy();
+    expect(
+      document.body.querySelector('[data-testid="ai-panel-toolbar-row"]'),
     ).toBeTruthy();
     expect(
       document.body.querySelector(
@@ -1220,7 +1223,7 @@ describe('aIChatSlidePanel (component mount)', () => {
       document.body.querySelector('[data-testid="ai-panel-page-ai-card"]'),
     ).toBeTruthy();
     const pageAiRow = document.body.querySelector(
-      '[data-testid="ai-panel-page-ai-row"]',
+      '[data-testid="ai-panel-toolbar-row"]',
     ) as HTMLDivElement | null;
     expect(pageAiRow).toBeTruthy();
     expect(pageAiRow?.className).toContain('w-full');
@@ -1238,7 +1241,21 @@ describe('aIChatSlidePanel (component mount)', () => {
     ) as HTMLDivElement | null;
     expect(capabilityRail).toBeTruthy();
     expect(capabilityRail?.className).toContain('w-full');
-    capabilityRail?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const utilityBar = document.body.querySelector(
+      '[data-testid="ai-panel-utility-bar"]',
+    ) as HTMLDivElement | null;
+    expect(utilityBar).toBeTruthy();
+    utilityBar?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPromises();
+    expect(
+      document.body.querySelector('[data-testid="ai-panel-page-ai-details"]'),
+    ).toBeFalsy();
+
+    const capabilityTriggerAgain = document.body.querySelector(
+      '[data-testid="ai-panel-page-ai-trigger"]',
+    ) as HTMLDivElement | null;
+    expect(capabilityTriggerAgain).toBeTruthy();
+    capabilityTriggerAgain?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();
 
     const pageAiDetails = document.body.querySelector(
@@ -1252,7 +1269,11 @@ describe('aIChatSlidePanel (component mount)', () => {
       ),
     ).toHaveLength(4);
 
-    capabilityRail?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const capabilityTrigger = document.body.querySelector(
+      '[data-testid="ai-panel-page-ai-trigger"]',
+    ) as HTMLDivElement | null;
+    expect(capabilityTrigger).toBeTruthy();
+    capabilityTrigger?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();
     expect(
       document.body.querySelector('[data-testid="ai-panel-page-ai-details"]'),
@@ -1329,10 +1350,10 @@ describe('aIChatSlidePanel (component mount)', () => {
       expect(
         document.body.querySelector('[data-testid="ai-panel-header-meta-row"]'),
       ).toBeFalsy();
-      const actionStack = document.body.querySelector(
-        '[data-testid="ai-panel-header-action-stack"]',
+      const toolbarRow = document.body.querySelector(
+        '[data-testid="ai-panel-toolbar-row"]',
       );
-      expect(actionStack?.contains(headerActions)).toBe(true);
+      expect(toolbarRow?.contains(headerActions)).toBe(true);
 
       wrapper.unmount();
     });
@@ -1410,10 +1431,11 @@ describe('aIChatSlidePanel (component mount)', () => {
       'common.aiPanel.pageAiFallbackBadge',
     );
 
-    const fallbackRail = document.body.querySelector(
-      '[data-testid="ai-panel-page-ai-card"]',
+    const fallbackTrigger = document.body.querySelector(
+      '[data-testid="ai-panel-page-ai-trigger"]',
     ) as HTMLDivElement | null;
-    fallbackRail?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(fallbackTrigger).toBeTruthy();
+    fallbackTrigger?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();
 
     expect(
@@ -1531,10 +1553,11 @@ describe('aIChatSlidePanel (component mount)', () => {
       String(routedContext?.page_data?.document_body_text ?? '').length,
     ).toBeLessThan(6400);
 
-    const diagnosticsRail = document.body.querySelector(
-      '[data-testid="ai-panel-page-ai-card"]',
+    const diagnosticsTrigger = document.body.querySelector(
+      '[data-testid="ai-panel-page-ai-trigger"]',
     ) as HTMLDivElement | null;
-    diagnosticsRail?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(diagnosticsTrigger).toBeTruthy();
+    diagnosticsTrigger?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();
     expect(
       document.body.querySelector(

@@ -6,52 +6,52 @@ import {
   onMounted,
   ref,
   watch,
-} from 'vue';
+} from "vue";
 
-import background1 from './assets/backgrounds/slider-bg-01.jpg';
-import background2 from './assets/backgrounds/slider-bg-02.jpg';
-import background3 from './assets/backgrounds/slider-bg-03.jpg';
-import background4 from './assets/backgrounds/slider-bg-04.jpg';
-import type { SliderCaptchaSharedAPI } from './types';
+import background1 from "./assets/backgrounds/slider-bg-01.jpg";
+import background2 from "./assets/backgrounds/slider-bg-02.jpg";
+import background3 from "./assets/backgrounds/slider-bg-03.jpg";
+import background4 from "./assets/backgrounds/slider-bg-04.jpg";
+import type { SliderCaptchaSharedAPI } from "./types";
 
-const PROVIDER_CODE = 'slider';
-const LOCALE_PREFIX = 'plugin.slider-captcha';
+const PROVIDER_CODE = "slider";
+const LOCALE_PREFIX = "plugin.slider-captcha";
 const CAPTURE_LEFT_PADDING = 3;
 const FALLBACK_TEXT = {
-  modalEyebrow: 'SECURITY CHECK',
+  modalEyebrow: "SECURITY CHECK",
   modalSubtitle:
-    'Drag the slider so the puzzle piece returns to the missing slot.',
+    "Drag the slider so the puzzle piece returns to the missing slot.",
   modalTipDefault:
-    'Align the puzzle piece and sign-in will continue automatically.',
-  modalTipRetry: 'The piece is not aligned. Please drag again.',
-  modalTipSuccess: 'Verification succeeded. Continuing sign-in...',
+    "Align the puzzle piece and sign-in will continue automatically.",
+  modalTipRetry: "The piece is not aligned. Please drag again.",
+  modalTipSuccess: "Verification succeeded. Continuing sign-in...",
   modal: {
-    close: 'Close dialog',
+    close: "Close dialog",
   },
-  modalTitle: 'Complete security verification',
+  modalTitle: "Complete security verification",
   status: {
-    default: 'Drag the slider to verify',
-    loading: 'Loading challenge...',
-    refresh: 'Refresh',
-    retry: 'Try again',
-    success: 'Verified',
+    default: "Drag the slider to verify",
+    loading: "Loading challenge...",
+    refresh: "Refresh",
+    retry: "Try again",
+    success: "Verified",
   },
   track: {
-    default: 'Drag right to complete verification',
-    loading: 'Loading challenge...',
-    retry: 'Drag right to try again',
-    success: 'Verification completed',
+    default: "Drag right to complete verification",
+    loading: "Loading challenge...",
+    retry: "Drag right to try again",
+    success: "Verification completed",
   },
   trigger: {
     action: {
-      default: 'Verify',
-      retry: 'Retry',
-      success: 'Verified',
+      default: "Verify",
+      retry: "Retry",
+      success: "Verified",
     },
     title: {
-      default: 'Complete security verification',
-      retry: 'Verification failed, please retry',
-      success: 'Security verification completed',
+      default: "Complete security verification",
+      retry: "Verification failed, please retry",
+      success: "Security verification completed",
     },
   },
 } as const;
@@ -83,19 +83,19 @@ const props = withDefaults(
   defineProps<{
     action?: string;
     disabled?: boolean;
-    difficulty?: 'easy' | 'hard' | 'medium';
+    difficulty?: "easy" | "hard" | "medium";
     endpoint: string;
   }>(),
   {
-    action: 'login',
+    action: "login",
     disabled: false,
-    difficulty: 'medium',
+    difficulty: "medium",
   },
 );
 
 const emit = defineEmits<{
-  (e: 'error', error: Error): void;
-  (e: 'verified', result: CaptchaResult): void;
+  (e: "error", error: Error): void;
+  (e: "verified", result: CaptchaResult): void;
 }>();
 
 const bundledBackgrounds = [background1, background2, background3, background4];
@@ -106,18 +106,18 @@ const boardHostRef = ref<HTMLElement | null>(null);
 const boardCanvasRef = ref<HTMLCanvasElement | null>(null);
 const pieceCanvasRef = ref<HTMLCanvasElement | null>(null);
 
-const challengeId = ref('');
+const challengeId = ref("");
 const challenge = ref<ChallengePayload | null>(null);
 const loading = ref(false);
 const dragX = ref(0);
 const solved = ref(false);
 const solvedOffset = ref<number | null>(null);
-const statusKey = ref<'default' | 'loading' | 'retry' | 'success'>('default');
+const statusKey = ref<"default" | "loading" | "retry" | "success">("default");
 const displayWidth = ref(320);
 const dragging = ref(false);
 const renderToken = ref(0);
 const modalVisible = ref(false);
-const modalPlacement = ref<'bottom' | 'top'>('bottom');
+const modalPlacement = ref<"bottom" | "top">("bottom");
 const modalPosition = ref({
   caretLeft: 48,
   left: 12,
@@ -141,21 +141,23 @@ function tLocal(path: string): string {
   const fullKey = `${LOCALE_PREFIX}.${path}`;
   const translated = getShared()?.$t?.(fullKey);
   if (!translated || translated === fullKey) {
-    const segments = path.split('.');
+    const segments = path.split(".");
     let current: unknown = FALLBACK_TEXT;
     for (const segment of segments) {
-      if (!current || typeof current !== 'object') {
+      if (!current || typeof current !== "object") {
         return fullKey;
       }
       current = (current as Record<string, unknown>)[segment];
     }
-    return typeof current === 'string' ? current : fullKey;
+    return typeof current === "string" ? current : fullKey;
   }
   return translated;
 }
 
 function getPieceCaptureLength(payload: ChallengePayload): number {
-  return payload.square_length + 2 * payload.circle_radius + CAPTURE_LEFT_PADDING;
+  return (
+    payload.square_length + 2 * payload.circle_radius + CAPTURE_LEFT_PADDING
+  );
 }
 
 function getPieceCaptureLeft(payload: ChallengePayload): number {
@@ -166,7 +168,10 @@ function getPieceCaptureTop(payload: ChallengePayload): number {
   return Math.max(0, payload.piece_y - 2 * payload.circle_radius - 1);
 }
 
-function getPieceLocalOrigin(payload: ChallengePayload): { x: number; y: number } {
+function getPieceLocalOrigin(payload: ChallengePayload): {
+  x: number;
+  y: number;
+} {
   return {
     x: payload.piece_x - getPieceCaptureLeft(payload),
     y: payload.piece_y - getPieceCaptureTop(payload),
@@ -209,7 +214,7 @@ const pieceTravelMax = computed(() => {
 });
 
 const handleWidth = computed(() => {
-  return Math.max(54, Math.min(58, boardWidth.value * 0.17));
+  return Math.max(42, Math.min(48, boardWidth.value * 0.15));
 });
 
 const handleTravelMax = computed(() => {
@@ -226,10 +231,10 @@ const handleX = computed(() => {
 const pieceStyle = computed(() => {
   if (!challenge.value) {
     return {
-      height: '0px',
-      left: '0px',
-      top: '0px',
-      width: '0px',
+      height: "0px",
+      left: "0px",
+      top: "0px",
+      width: "0px",
     };
   }
 
@@ -253,7 +258,7 @@ const boardStyle = computed(() => {
 
 const modalPanelStyle = computed(() => {
   return {
-    '--panel-caret-left': `${modalPosition.value.caretLeft}px`,
+    "--panel-caret-left": `${modalPosition.value.caretLeft}px`,
     left: `${modalPosition.value.left}px`,
     top: `${modalPosition.value.top}px`,
     width: `${modalPosition.value.width}px`,
@@ -262,50 +267,50 @@ const modalPanelStyle = computed(() => {
 
 const triggerTitle = computed(() => {
   if (solved.value) {
-    return tLocal('trigger.title.success');
+    return tLocal("trigger.title.success");
   }
-  if (statusKey.value === 'retry') {
-    return tLocal('trigger.title.retry');
+  if (statusKey.value === "retry") {
+    return tLocal("trigger.title.retry");
   }
   if (loading.value) {
-    return tLocal('status.loading');
+    return tLocal("status.loading");
   }
-  return tLocal('trigger.title.default');
+  return tLocal("trigger.title.default");
 });
 
 const triggerActionLabel = computed(() => {
   if (solved.value) {
-    return tLocal('trigger.action.success');
+    return tLocal("trigger.action.success");
   }
-  if (statusKey.value === 'retry') {
-    return tLocal('trigger.action.retry');
+  if (statusKey.value === "retry") {
+    return tLocal("trigger.action.retry");
   }
-  return tLocal('trigger.action.default');
+  return tLocal("trigger.action.default");
 });
 
 const modalStatusText = computed(() => tLocal(`status.${statusKey.value}`));
 
 const modalTipText = computed(() => {
   if (solved.value) {
-    return tLocal('modalTipSuccess');
+    return tLocal("modalTipSuccess");
   }
-  if (statusKey.value === 'retry') {
-    return tLocal('modalTipRetry');
+  if (statusKey.value === "retry") {
+    return tLocal("modalTipRetry");
   }
-  return tLocal('modalTipDefault');
+  return tLocal("modalTipDefault");
 });
 
 const sliderTrackText = computed(() => {
   if (loading.value) {
-    return tLocal('track.loading');
+    return tLocal("track.loading");
   }
   if (solved.value) {
-    return tLocal('track.success');
+    return tLocal("track.success");
   }
-  if (statusKey.value === 'retry') {
-    return tLocal('track.retry');
+  if (statusKey.value === "retry") {
+    return tLocal("track.retry");
   }
-  return tLocal('track.default');
+  return tLocal("track.default");
 });
 
 const showTrackCopy = computed(() => {
@@ -313,10 +318,17 @@ const showTrackCopy = computed(() => {
     Boolean(challenge.value) &&
     !loading.value &&
     !solved.value &&
-    statusKey.value === 'default' &&
+    statusKey.value === "default" &&
     !dragging.value &&
     handleX.value <= 1
   );
+});
+
+const progressPercent = computed(() => {
+  if (!handleTravelMax.value) {
+    return solved.value ? 100 : 0;
+  }
+  return Math.round((handleX.value / handleTravelMax.value) * 100);
 });
 
 function clearRetryTimer(): void {
@@ -335,7 +347,7 @@ function clearSuccessCloseTimer(): void {
 
 function updateDisplayWidth(): void {
   const width = boardHostRef.value?.clientWidth ?? 320;
-  displayWidth.value = Math.max(300, Math.min(360, width));
+  displayWidth.value = Math.max(280, Math.min(300, width));
 }
 
 function updateModalPosition(): void {
@@ -347,7 +359,7 @@ function updateModalPosition(): void {
   const rect = triggerEl.getBoundingClientRect();
   const viewportPadding = 12;
   const panelGap = 10;
-  const preferredWidth = Math.max(320, Math.min(392, rect.width + 18));
+  const preferredWidth = Math.max(312, Math.min(336, rect.width + 8));
   const width = Math.min(
     preferredWidth,
     Math.max(280, window.innerWidth - viewportPadding * 2),
@@ -362,14 +374,14 @@ function updateModalPosition(): void {
   );
 
   const panelHeight = modalPanelRef.value?.offsetHeight ?? 336;
-  let placement: 'bottom' | 'top' = 'bottom';
+  let placement: "bottom" | "top" = "bottom";
   let top = rect.bottom + panelGap;
 
   if (
     top + panelHeight > window.innerHeight - viewportPadding &&
     rect.top - panelGap - panelHeight >= viewportPadding
   ) {
-    placement = 'top';
+    placement = "top";
     top = rect.top - panelHeight - panelGap;
   }
 
@@ -398,6 +410,19 @@ function setPieceLeft(pieceLeft: number): void {
   );
 }
 
+function setHandlePosition(nextHandle: number): void {
+  if (!handleTravelMax.value || !pieceTravelMax.value) {
+    dragX.value = 0;
+    return;
+  }
+
+  const clampedHandle = Math.max(
+    0,
+    Math.min(handleTravelMax.value, nextHandle),
+  );
+  dragX.value = (clampedHandle / handleTravelMax.value) * pieceTravelMax.value;
+}
+
 function syncDragAfterResize(previousScale: number): void {
   if (!challenge.value || previousScale <= 0) {
     return;
@@ -417,12 +442,12 @@ function resetChallengeState(): void {
   challengeRequestToken += 1;
   renderToken.value += 1;
   loading.value = false;
-  challengeId.value = '';
+  challengeId.value = "";
   challenge.value = null;
   dragX.value = 0;
   solved.value = false;
   solvedOffset.value = null;
-  statusKey.value = 'default';
+  statusKey.value = "default";
 }
 
 function tracePieceShape(
@@ -472,17 +497,17 @@ function renderBoardSlot(
 ) {
   tracePieceShape(ctx, x, y, squareLength, circleRadius);
   ctx.save();
-  ctx.fillStyle = 'rgba(15, 23, 42, 0.3)';
-  ctx.shadowColor = 'rgba(15, 23, 42, 0.18)';
-  ctx.shadowBlur = 14;
-  ctx.shadowOffsetY = 3;
+  ctx.fillStyle = "rgba(10, 18, 34, 0.42)";
+  ctx.shadowColor = "rgba(15, 23, 42, 0.3)";
+  ctx.shadowBlur = 20;
+  ctx.shadowOffsetY = 6;
   ctx.fill();
   ctx.restore();
 
   ctx.save();
   tracePieceShape(ctx, x, y, squareLength, circleRadius);
-  ctx.lineWidth = 1;
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
+  ctx.lineWidth = 1.1;
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
   ctx.stroke();
   ctx.restore();
 
@@ -495,8 +520,9 @@ function renderBoardSlot(
     x,
     y + squareLength + circleRadius * 2,
   );
-  overlay.addColorStop(0, 'rgba(255, 255, 255, 0.08)');
-  overlay.addColorStop(1, 'rgba(15, 23, 42, 0.12)');
+  overlay.addColorStop(0, "rgba(255, 255, 255, 0.04)");
+  overlay.addColorStop(0.5, "rgba(255, 255, 255, 0.01)");
+  overlay.addColorStop(1, "rgba(15, 23, 42, 0.2)");
   ctx.fillStyle = overlay;
   ctx.fillRect(
     x - 8,
@@ -526,7 +552,23 @@ function renderPuzzlePiece(
     payload.square_length,
     payload.circle_radius,
   );
+  ctx.shadowColor = "rgba(15, 23, 42, 0.34)";
+  ctx.shadowBlur = 18;
+  ctx.shadowOffsetY = 10;
+  ctx.fillStyle = "rgba(15, 23, 42, 0.18)";
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  tracePieceShape(
+    ctx,
+    localOrigin.x,
+    localOrigin.y,
+    payload.square_length,
+    payload.circle_radius,
+  );
   ctx.clip();
+  ctx.filter = "brightness(1.03) contrast(1.09) saturate(1.08)";
   ctx.drawImage(
     image,
     captureLeft,
@@ -538,6 +580,7 @@ function renderPuzzlePiece(
     captureLength,
     captureLength,
   );
+  ctx.filter = "none";
   ctx.restore();
 
   ctx.save();
@@ -549,13 +592,16 @@ function renderPuzzlePiece(
     payload.circle_radius,
   );
   const sheen = ctx.createLinearGradient(0, 0, 0, captureLength);
-  sheen.addColorStop(0, 'rgba(255, 255, 255, 0.18)');
-  sheen.addColorStop(0.46, 'rgba(255, 255, 255, 0.02)');
-  sheen.addColorStop(1, 'rgba(15, 23, 42, 0.08)');
+  sheen.addColorStop(0, "rgba(255, 255, 255, 0.22)");
+  sheen.addColorStop(0.36, "rgba(255, 255, 255, 0.05)");
+  sheen.addColorStop(1, "rgba(15, 23, 42, 0.1)");
   ctx.fillStyle = sheen;
   ctx.fill();
-  ctx.lineWidth = 1.5;
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.96)';
+  ctx.lineWidth = 2.2;
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.98)";
+  ctx.stroke();
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.42)";
   ctx.stroke();
   ctx.restore();
 }
@@ -585,8 +631,8 @@ function renderWithImage(image: HTMLImageElement): void {
   pieceCanvas.width = captureLength;
   pieceCanvas.height = captureLength;
 
-  const boardCtx = boardCanvas.getContext('2d');
-  const pieceCtx = pieceCanvas.getContext('2d');
+  const boardCtx = boardCanvas.getContext("2d");
+  const pieceCtx = pieceCanvas.getContext("2d");
   if (!boardCtx || !pieceCtx) {
     return;
   }
@@ -624,15 +670,15 @@ async function renderChallenge(): Promise<void> {
 
   await new Promise<void>((resolve, reject) => {
     image.onload = () => resolve();
-    image.onerror = () => reject(new Error('background_load_failed'));
+    image.onerror = () => reject(new Error("background_load_failed"));
     image.src = primarySrc;
   }).catch(async () => {
     if (!fallbackSrc || fallbackSrc === primarySrc) {
-      throw new Error('background_load_failed');
+      throw new Error("background_load_failed");
     }
     await new Promise<void>((resolve, reject) => {
       image.onload = () => resolve();
-      image.onerror = () => reject(new Error('background_load_failed'));
+      image.onerror = () => reject(new Error("background_load_failed"));
       image.src = fallbackSrc;
     });
   });
@@ -652,16 +698,16 @@ async function loadChallenge(): Promise<void> {
   solved.value = false;
   solvedOffset.value = null;
   dragX.value = 0;
-  statusKey.value = 'loading';
+  statusKey.value = "loading";
 
   try {
     const shared = getShared();
     if (!shared?.requestClient) {
-      throw new Error('request_client_unavailable');
+      throw new Error("request_client_unavailable");
     }
 
     const result = await shared.requestClient.post<ChallengeResponsePayload>(
-      '/api/public/captcha/challenge',
+      "/api/public/captcha/challenge",
       {
         action: props.action,
         endpoint: props.endpoint,
@@ -669,7 +715,7 @@ async function loadChallenge(): Promise<void> {
       },
     );
     if (!result?.payload) {
-      throw new Error('challenge_request_failed');
+      throw new Error("challenge_request_failed");
     }
     if (currentRequestToken !== challengeRequestToken) {
       return;
@@ -677,7 +723,7 @@ async function loadChallenge(): Promise<void> {
 
     challengeId.value = result.challenge_id;
     challenge.value = result.payload;
-    statusKey.value = 'default';
+    statusKey.value = "default";
     await nextTick();
     updateDisplayWidth();
     await renderChallenge();
@@ -689,8 +735,8 @@ async function loadChallenge(): Promise<void> {
     if (currentRequestToken !== challengeRequestToken) {
       return;
     }
-    statusKey.value = 'retry';
-    emit('error', error instanceof Error ? error : new Error(String(error)));
+    statusKey.value = "retry";
+    emit("error", error instanceof Error ? error : new Error(String(error)));
   } finally {
     if (currentRequestToken === challengeRequestToken) {
       loading.value = false;
@@ -701,18 +747,24 @@ async function loadChallenge(): Promise<void> {
 function releaseDrag(): void {
   pointerId = null;
   dragging.value = false;
-  window.removeEventListener('pointermove', handlePointerMove);
-  window.removeEventListener('pointerup', handlePointerUp);
-  window.removeEventListener('pointercancel', handlePointerUp);
+  window.removeEventListener("pointermove", handlePointerMove);
+  window.removeEventListener("pointerup", handlePointerUp);
+  window.removeEventListener("pointercancel", handlePointerUp);
 }
 
 function resetDragAfterRetry(): void {
   clearRetryTimer();
   retryTimer = window.setTimeout(() => {
     dragX.value = 0;
-    statusKey.value = 'default';
+    statusKey.value = "default";
     retryTimer = null;
   }, 420);
+}
+
+function prepareInteraction(): void {
+  clearRetryTimer();
+  clearSuccessCloseTimer();
+  statusKey.value = "default";
 }
 
 function handlePointerMove(event: PointerEvent): void {
@@ -731,12 +783,11 @@ function handlePointerMove(event: PointerEvent): void {
     return;
   }
 
-  dragX.value = (nextHandle / handleTravelMax.value) * pieceTravelMax.value;
+  setHandlePosition(nextHandle);
 }
 
-function handlePointerUp(): void {
-  if (!challenge.value || pointerId === null) {
-    releaseDrag();
+function completeAttempt(): void {
+  if (!challenge.value) {
     return;
   }
 
@@ -744,14 +795,12 @@ function handlePointerUp(): void {
   const actualOffset = Math.round(dragX.value / scaleRatio.value);
   const tolerancePx = challenge.value.tolerance_px;
 
-  releaseDrag();
-
   if (Math.abs(actualOffset - expectedLeft) <= tolerancePx) {
     dragX.value = expectedLeft * scaleRatio.value;
     solved.value = true;
     solvedOffset.value = challenge.value.piece_x;
-    statusKey.value = 'success';
-    emit('verified', {
+    statusKey.value = "success";
+    emit("verified", {
       captchaCode: String(challenge.value.piece_x),
       challengeId: challengeId.value,
       provider: PROVIDER_CODE,
@@ -766,8 +815,62 @@ function handlePointerUp(): void {
 
   solved.value = false;
   solvedOffset.value = null;
-  statusKey.value = 'retry';
+  statusKey.value = "retry";
   resetDragAfterRetry();
+}
+
+function handlePointerUp(): void {
+  const hasActiveDrag = pointerId !== null;
+  releaseDrag();
+  if (!challenge.value || !hasActiveDrag) {
+    return;
+  }
+
+  completeAttempt();
+}
+
+function handleThumbKeydown(event: KeyboardEvent): void {
+  if (props.disabled || loading.value || !challenge.value || solved.value) {
+    return;
+  }
+
+  const step = Math.max(12, Math.round(handleTravelMax.value / 10));
+
+  switch (event.key) {
+    case "ArrowLeft": {
+      event.preventDefault();
+      prepareInteraction();
+      setHandlePosition(handleX.value - step);
+      return;
+    }
+    case "ArrowRight": {
+      event.preventDefault();
+      prepareInteraction();
+      setHandlePosition(handleX.value + step);
+      return;
+    }
+    case "End": {
+      event.preventDefault();
+      prepareInteraction();
+      setHandlePosition(handleTravelMax.value);
+      return;
+    }
+    case "Home": {
+      event.preventDefault();
+      prepareInteraction();
+      setHandlePosition(0);
+      return;
+    }
+    case "Enter":
+    case " ": {
+      event.preventDefault();
+      completeAttempt();
+      return;
+    }
+    default: {
+      return;
+    }
+  }
 }
 
 function startDrag(event: PointerEvent): void {
@@ -775,16 +878,14 @@ function startDrag(event: PointerEvent): void {
     return;
   }
 
-  clearRetryTimer();
-  clearSuccessCloseTimer();
+  prepareInteraction();
   pointerId = event.pointerId;
   dragging.value = true;
-  statusKey.value = 'default';
   pointerStartX = event.clientX;
   pointerStartHandleX = handleX.value;
-  window.addEventListener('pointermove', handlePointerMove);
-  window.addEventListener('pointerup', handlePointerUp);
-  window.addEventListener('pointercancel', handlePointerUp);
+  window.addEventListener("pointermove", handlePointerMove);
+  window.addEventListener("pointerup", handlePointerUp);
+  window.addEventListener("pointercancel", handlePointerUp);
 }
 
 function closeModal(): void {
@@ -822,7 +923,7 @@ function handleTriggerClick(): void {
   if (props.disabled || solved.value) {
     return;
   }
-  openModal(statusKey.value === 'retry' || !challenge.value);
+  openModal(statusKey.value === "retry" || !challenge.value);
 }
 
 function refresh(): void {
@@ -834,7 +935,7 @@ function refresh(): void {
 
 function getResult(): CaptchaResult | null {
   if (!solved.value || !challengeId.value || solvedOffset.value == null) {
-    openModal(statusKey.value === 'retry' || !challenge.value);
+    openModal(statusKey.value === "retry" || !challenge.value);
     return null;
   }
   return {
@@ -865,13 +966,13 @@ async function rerenderExistingChallenge(): Promise<void> {
       updateModalPosition();
     }
   } catch (error) {
-    statusKey.value = 'retry';
-    emit('error', error instanceof Error ? error : new Error(String(error)));
+    statusKey.value = "retry";
+    emit("error", error instanceof Error ? error : new Error(String(error)));
   }
 }
 
 function handleWindowKeydown(event: KeyboardEvent): void {
-  if (event.key === 'Escape' && modalVisible.value) {
+  if (event.key === "Escape" && modalVisible.value) {
     closeModal();
   }
 }
@@ -899,35 +1000,32 @@ watch(
   },
 );
 
-watch(
-  modalVisible,
-  async (visible) => {
-    if (!visible) {
-      return;
-    }
-    await nextTick();
-    updateDisplayWidth();
-    updateModalPosition();
-    if (!challenge.value) {
-      void loadChallenge();
-      return;
-    }
-    await rerenderExistingChallenge();
-  },
-);
+watch(modalVisible, async (visible) => {
+  if (!visible) {
+    return;
+  }
+  await nextTick();
+  updateDisplayWidth();
+  updateModalPosition();
+  if (!challenge.value) {
+    void loadChallenge();
+    return;
+  }
+  await rerenderExistingChallenge();
+});
 
 onMounted(() => {
-  window.addEventListener('resize', handleWindowResize);
-  window.addEventListener('scroll', handleWindowScroll, true);
-  window.addEventListener('keydown', handleWindowKeydown);
+  window.addEventListener("resize", handleWindowResize);
+  window.addEventListener("scroll", handleWindowScroll, true);
+  window.addEventListener("keydown", handleWindowKeydown);
 });
 
 onBeforeUnmount(() => {
   resetChallengeState();
   modalVisible.value = false;
-  window.removeEventListener('resize', handleWindowResize);
-  window.removeEventListener('scroll', handleWindowScroll, true);
-  window.removeEventListener('keydown', handleWindowKeydown);
+  window.removeEventListener("resize", handleWindowResize);
+  window.removeEventListener("scroll", handleWindowScroll, true);
+  window.removeEventListener("keydown", handleWindowKeydown);
 });
 </script>
 
@@ -942,6 +1040,7 @@ onBeforeUnmount(() => {
         'is-retry': statusKey === 'retry',
         'is-solved': solved,
       }"
+      :data-state="statusKey"
       :aria-expanded="modalVisible"
       :disabled="props.disabled || solved"
       @click="handleTriggerClick"
@@ -970,6 +1069,7 @@ onBeforeUnmount(() => {
           ref="modalPanelRef"
           class="captcha-modal-panel"
           :data-placement="modalPlacement"
+          :data-state="statusKey"
           :style="modalPanelStyle"
           role="dialog"
           aria-modal="true"
@@ -978,8 +1078,14 @@ onBeforeUnmount(() => {
           <span class="panel-caret" aria-hidden="true"></span>
           <div class="modal-header">
             <div class="modal-title-group">
-              <h3 class="modal-title">{{ tLocal('modalTitle') }}</h3>
-              <p class="modal-subtitle">{{ tLocal('modalSubtitle') }}</p>
+              <span class="modal-eyebrow">{{ tLocal("modalEyebrow") }}</span>
+              <div class="modal-heading-row">
+                <h3 class="modal-title">{{ tLocal("modalTitle") }}</h3>
+                <span class="modal-status-pill" :data-state="statusKey">
+                  {{ modalStatusText }}
+                </span>
+              </div>
+              <p class="modal-subtitle">{{ tLocal("modalSubtitle") }}</p>
             </div>
             <div class="modal-actions">
               <button
@@ -988,7 +1094,7 @@ onBeforeUnmount(() => {
                 :disabled="props.disabled || loading"
                 @click="refresh"
               >
-                {{ tLocal('status.refresh') }}
+                {{ tLocal("status.refresh") }}
               </button>
               <button
                 type="button"
@@ -1024,7 +1130,7 @@ onBeforeUnmount(() => {
 
                 <div v-if="loading" class="board-loading">
                   <span class="loading-dot"></span>
-                  <span>{{ tLocal('status.loading') }}</span>
+                  <span>{{ tLocal("status.loading") }}</span>
                 </div>
               </div>
             </div>
@@ -1032,6 +1138,8 @@ onBeforeUnmount(() => {
             <div class="captcha-slider">
               <div
                 class="slider-track"
+                :class="{ 'is-dragging': dragging }"
+                :data-state="statusKey"
                 :style="{ '--track-handle-width': `${handleWidth}px` }"
               >
                 <div
@@ -1039,7 +1147,7 @@ onBeforeUnmount(() => {
                   :style="{ width: `${handleX + handleWidth}px` }"
                 ></div>
                 <div v-if="showTrackCopy" class="track-copy">
-                  {{ tLocal('track.default') }}
+                  {{ tLocal("track.default") }}
                 </div>
                 <button
                   name="captcha-action"
@@ -1048,14 +1156,26 @@ onBeforeUnmount(() => {
                   :class="{ 'is-dragging': dragging, 'is-solved': solved }"
                   :disabled="props.disabled || loading"
                   :style="{ left: `${handleX}px`, width: `${handleWidth}px` }"
+                  role="slider"
+                  :aria-label="tLocal('track.default')"
+                  :aria-valuemin="0"
+                  :aria-valuemax="100"
+                  :aria-valuenow="progressPercent"
+                  :aria-valuetext="sliderTrackText"
                   @pointerdown.prevent="startDrag"
+                  @keydown="handleThumbKeydown"
                 >
                   <span class="thumb-core"></span>
                 </button>
               </div>
             </div>
 
-            <div class="slider-note" :data-state="statusKey">
+            <div
+              class="slider-note"
+              :data-state="statusKey"
+              role="status"
+              aria-live="polite"
+            >
               <span class="slider-note-dot"></span>
               <span class="slider-note-text">{{ modalTipText }}</span>
             </div>
@@ -1069,6 +1189,7 @@ onBeforeUnmount(() => {
 <style>
 .slider-captcha-plugin {
   width: 100%;
+  color-scheme: light;
 }
 
 .slider-captcha-plugin,
@@ -1076,47 +1197,204 @@ onBeforeUnmount(() => {
   --captcha-accent: rgb(37 99 235);
   --captcha-accent-soft: rgb(219 234 254);
   --captcha-accent-subtle: rgb(239 246 255);
+  --captcha-accent-ink: rgb(30 64 175);
   --captcha-border: rgb(226 232 240);
   --captcha-border-strong: rgb(203 213 225);
   --captcha-surface: rgb(255 255 255);
   --captcha-surface-muted: rgb(248 250 252);
+  --captcha-surface-elevated: rgb(255 255 255 / 0.84);
   --captcha-track: rgb(241 245 249);
-  --captcha-text: rgb(17 24 39);
+  --captcha-track-strong: rgb(225 231 239);
+  --captcha-text: rgb(15 23 42);
   --captcha-text-secondary: rgb(100 116 139);
-  --captcha-shadow: 0 24px 60px rgb(15 23 42 / 0.16);
+  --captcha-overlay: rgb(15 23 42 / 0.18);
+  --captcha-shadow: 0 24px 60px rgb(15 23 42 / 0.18);
+  --captcha-focus-ring: 0 0 0 4px rgb(59 130 246 / 0.18);
+  --captcha-danger: rgb(220 38 38);
+  --captcha-danger-border: rgb(252 165 165);
+  --captcha-danger-soft: rgb(254 242 242);
+  --captcha-success: rgb(5 150 105);
+  --captcha-success-border: rgb(167 243 208);
+  --captcha-success-soft: rgb(236 253 245);
+  --captcha-note: rgb(148 163 184);
+  --captcha-board-tint: linear-gradient(
+    180deg,
+    rgb(248 250 252),
+    rgb(241 245 249)
+  );
+  --captcha-track-fill: linear-gradient(
+    90deg,
+    rgb(219 234 254 / 0.86),
+    rgb(191 219 254 / 0.52)
+  );
+  --captcha-track-fill-retry: linear-gradient(
+    90deg,
+    rgb(254 226 226 / 0.84),
+    rgb(254 202 202 / 0.56)
+  );
+  --captcha-track-fill-success: linear-gradient(
+    90deg,
+    rgb(209 250 229 / 0.88),
+    rgb(167 243 208 / 0.54)
+  );
+  --captcha-thumb-bg: linear-gradient(
+    180deg,
+    rgb(111 160 255),
+    rgb(73 126 246)
+  );
+  --captcha-thumb-bg-active: linear-gradient(
+    180deg,
+    rgb(124 171 255),
+    rgb(66 118 237)
+  );
+  --captcha-thumb-border: rgb(92 145 255 / 0.96);
+  --captcha-board-loading-bg: rgb(255 255 255 / 0.72);
+}
+
+html.dark .slider-captcha-plugin,
+html.dark .captcha-floating-layer,
+body.dark .slider-captcha-plugin,
+body.dark .captcha-floating-layer,
+[data-theme="dark"] .slider-captcha-plugin,
+[data-theme="dark"] .captcha-floating-layer {
+  color-scheme: dark;
+  --captcha-accent: rgb(96 165 250);
+  --captcha-accent-soft: rgb(30 41 59);
+  --captcha-accent-subtle: rgb(15 23 42);
+  --captcha-accent-ink: rgb(191 219 254);
+  --captcha-border: rgb(51 65 85);
+  --captcha-border-strong: rgb(71 85 105);
+  --captcha-surface: rgb(15 23 42 / 0.96);
+  --captcha-surface-muted: rgb(15 23 42 / 0.92);
+  --captcha-surface-elevated: rgb(30 41 59 / 0.88);
+  --captcha-track: rgb(30 41 59);
+  --captcha-track-strong: rgb(51 65 85);
+  --captcha-text: rgb(226 232 240);
+  --captcha-text-secondary: rgb(148 163 184);
+  --captcha-overlay: rgb(2 6 23 / 0.46);
+  --captcha-shadow: 0 32px 80px rgb(2 6 23 / 0.58);
+  --captcha-focus-ring: 0 0 0 4px rgb(96 165 250 / 0.22);
+  --captcha-danger: rgb(248 113 113);
+  --captcha-danger-border: rgb(127 29 29);
+  --captcha-danger-soft: rgb(69 10 10 / 0.42);
+  --captcha-success: rgb(52 211 153);
+  --captcha-success-border: rgb(6 78 59);
+  --captcha-success-soft: rgb(2 44 34 / 0.58);
+  --captcha-note: rgb(100 116 139);
+  --captcha-board-tint: linear-gradient(180deg, rgb(15 23 42), rgb(2 6 23));
+  --captcha-track-fill: linear-gradient(
+    90deg,
+    rgb(30 64 175 / 0.48),
+    rgb(37 99 235 / 0.26)
+  );
+  --captcha-track-fill-retry: linear-gradient(
+    90deg,
+    rgb(127 29 29 / 0.58),
+    rgb(153 27 27 / 0.28)
+  );
+  --captcha-track-fill-success: linear-gradient(
+    90deg,
+    rgb(6 78 59 / 0.62),
+    rgb(16 185 129 / 0.26)
+  );
+  --captcha-thumb-bg: linear-gradient(180deg, rgb(30 41 59), rgb(15 23 42));
+  --captcha-thumb-bg-active: linear-gradient(
+    180deg,
+    rgb(88 134 246),
+    rgb(49 92 206)
+  );
+  --captcha-thumb-border: rgb(86 132 236 / 0.96);
+  --captcha-board-loading-bg: rgb(2 6 23 / 0.58);
+}
+
+html.dark .captcha-floating-layer .board-host,
+body.dark .captcha-floating-layer .board-host,
+[data-theme="dark"] .captcha-floating-layer .board-host {
+  border-color: rgb(71 85 105);
+  background: rgb(15 23 42 / 0.96);
+}
+
+html.dark .captcha-floating-layer .captcha-board,
+body.dark .captcha-floating-layer .captcha-board,
+[data-theme="dark"] .captcha-floating-layer .captcha-board {
+  border-color: rgb(71 85 105);
 }
 
 .slider-captcha-plugin .captcha-trigger {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  min-height: 46px;
+  min-height: 50px;
   padding: 0 14px;
+  overflow: hidden;
   border: 1px solid var(--captcha-border);
-  border-radius: 12px;
-  background: var(--captcha-surface);
-  box-shadow: 0 1px 2px rgb(15 23 42 / 0.02);
+  border-radius: 14px;
+  background: linear-gradient(
+    180deg,
+    var(--captcha-surface),
+    var(--captcha-surface-muted)
+  );
+  box-shadow:
+    0 10px 24px rgb(15 23 42 / 0.04),
+    inset 0 1px 0 rgb(255 255 255 / 0.7);
   text-align: left;
   cursor: pointer;
   transition:
     border-color 0.18s ease,
     box-shadow 0.18s ease,
-    transform 0.18s ease;
+    transform 0.18s ease,
+    background-color 0.18s ease;
+}
+
+.slider-captcha-plugin .captcha-trigger::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: linear-gradient(
+    120deg,
+    transparent 0%,
+    rgb(255 255 255 / 0.08) 22%,
+    transparent 48%
+  );
+  opacity: 0;
+  transform: translateX(-32%);
+  transition:
+    opacity 0.2s ease,
+    transform 0.3s ease;
+  pointer-events: none;
 }
 
 .slider-captcha-plugin .captcha-trigger:hover:not(:disabled) {
-  border-color: rgb(147 197 253);
-  box-shadow: 0 8px 18px rgb(37 99 235 / 0.08);
+  border-color: var(--captcha-border-strong);
+  box-shadow:
+    0 14px 30px rgb(37 99 235 / 0.1),
+    inset 0 1px 0 rgb(255 255 255 / 0.72);
+  transform: translateY(-1px);
+}
+
+.slider-captcha-plugin .captcha-trigger:hover:not(:disabled)::before {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.slider-captcha-plugin .captcha-trigger:focus-visible {
+  outline: none;
+  box-shadow: var(--captcha-focus-ring);
 }
 
 .slider-captcha-plugin .captcha-trigger.is-retry {
-  border-color: rgb(252 165 165);
+  border-color: var(--captcha-danger-border);
 }
 
 .slider-captcha-plugin .captcha-trigger.is-solved {
-  border-color: rgb(167 243 208);
-  background: rgb(240 253 250);
+  border-color: var(--captcha-success-border);
+  background: linear-gradient(
+    180deg,
+    var(--captcha-success-soft),
+    var(--captcha-surface)
+  );
   cursor: default;
 }
 
@@ -1128,11 +1406,11 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   border-radius: 999px;
   background: var(--captcha-accent-subtle);
-  box-shadow: inset 0 0 0 1px rgb(191 219 254 / 0.65);
+  box-shadow: inset 0 0 0 1px rgb(191 219 254 / 0.46);
   flex: none;
 }
 
@@ -1146,7 +1424,7 @@ onBeforeUnmount(() => {
 }
 
 .slider-captcha-plugin .trigger-icon-core::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 1px;
   left: 2px;
@@ -1166,7 +1444,7 @@ onBeforeUnmount(() => {
 .slider-captcha-plugin .trigger-title {
   color: var(--captcha-text);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.01em;
   white-space: nowrap;
   overflow: hidden;
@@ -1176,14 +1454,19 @@ onBeforeUnmount(() => {
 .slider-captcha-plugin .trigger-meta {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex: none;
   color: var(--captcha-text-secondary);
 }
 
 .slider-captcha-plugin .trigger-action-text {
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--captcha-accent-subtle);
+  color: var(--captcha-accent-ink);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
+  line-height: 1;
   white-space: nowrap;
 }
 
@@ -1194,34 +1477,67 @@ onBeforeUnmount(() => {
   border-right: 1.5px solid currentColor;
   border-bottom: 1.5px solid currentColor;
   transform: rotate(-45deg);
+  transition: transform 0.18s ease;
+}
+
+.slider-captcha-plugin
+  .captcha-trigger:hover:not(:disabled)
+  .trigger-arrow-icon {
+  transform: translateX(2px) rotate(-45deg);
 }
 
 .slider-captcha-plugin .captcha-trigger.is-retry .trigger-meta,
 .slider-captcha-plugin .captcha-trigger.is-retry .trigger-action-text {
-  color: rgb(185 28 28);
+  color: var(--captcha-danger);
 }
 
 .slider-captcha-plugin .captcha-trigger.is-solved .trigger-meta,
 .slider-captcha-plugin .captcha-trigger.is-solved .trigger-action-text {
-  color: rgb(5 150 105);
+  color: var(--captcha-success);
+}
+
+.slider-captcha-plugin .captcha-trigger.is-retry .trigger-action-text {
+  background: var(--captcha-danger-soft);
+}
+
+.slider-captcha-plugin .captcha-trigger.is-solved .trigger-action-text {
+  background: var(--captcha-success-soft);
 }
 
 .captcha-floating-layer {
   position: fixed;
   inset: 0;
   z-index: 2400;
-  background: transparent;
+  background: linear-gradient(
+    180deg,
+    rgb(15 23 42 / 0.06),
+    var(--captcha-overlay)
+  );
+  backdrop-filter: blur(10px);
 }
 
 .captcha-floating-layer .captcha-modal-panel {
   position: fixed;
-  border: 1px solid var(--captcha-border);
-  border-radius: 18px;
-  padding: 20px;
-  background: var(--captcha-surface);
-  box-shadow: var(--captcha-shadow);
-  animation: modal-rise 0.18s ease;
   overflow: visible;
+  border: 1px solid rgb(215 223 235);
+  border-top: 3px solid rgb(95 140 255);
+  border-radius: 12px;
+  padding: 14px 14px 16px;
+  background: linear-gradient(
+    180deg,
+    var(--captcha-surface),
+    var(--captcha-surface-muted)
+  );
+  box-shadow: 0 14px 28px rgb(15 23 42 / 0.12);
+  animation: modal-rise 0.18s ease;
+}
+
+.captcha-floating-layer .captcha-modal-panel[data-state="retry"] {
+  border-color: var(--captcha-danger-border);
+}
+
+.captcha-floating-layer .captcha-modal-panel[data-state="success"] {
+  border-color: var(--captcha-success-border);
 }
 
 .captcha-floating-layer .panel-caret {
@@ -1230,73 +1546,108 @@ onBeforeUnmount(() => {
   left: calc(var(--panel-caret-left, 48px) - 7px);
   width: 14px;
   height: 14px;
-  border-top: 1px solid var(--captcha-border);
-  border-left: 1px solid var(--captcha-border);
+  border-top: 1px solid rgb(215 223 235);
+  border-left: 1px solid rgb(215 223 235);
   background: var(--captcha-surface);
   transform: rotate(45deg);
 }
 
-.captcha-floating-layer .captcha-modal-panel[data-placement='top'] .panel-caret {
+.captcha-floating-layer
+  .captcha-modal-panel[data-placement="top"]
+  .panel-caret {
   top: auto;
   bottom: -7px;
   border-top: none;
   border-left: none;
-  border-right: 1px solid var(--captcha-border);
-  border-bottom: 1px solid var(--captcha-border);
+  border-right: 1px solid rgb(215 223 235);
+  border-bottom: 1px solid rgb(215 223 235);
 }
 
 .captcha-floating-layer .modal-header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  position: relative;
+  align-items: center;
+  justify-content: center;
   gap: 16px;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
 .captcha-floating-layer .modal-title-group {
   display: flex;
+  flex: 1;
   flex-direction: column;
+  align-items: center;
   min-width: 0;
+  text-align: center;
+}
+
+.captcha-floating-layer .modal-eyebrow {
+  display: none;
+}
+
+.captcha-floating-layer .modal-heading-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 .captcha-floating-layer .modal-title {
   margin: 0;
   color: var(--captcha-text);
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 600;
-  line-height: 1.25;
-  letter-spacing: -0.01em;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.captcha-floating-layer .modal-status-pill {
+  display: none;
 }
 
 .captcha-floating-layer .modal-subtitle {
-  margin: 5px 0 0;
+  margin: 4px 0 0;
   color: var(--captcha-text-secondary);
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 .captcha-floating-layer .modal-actions {
   display: flex;
   align-items: center;
   gap: 8px;
+  position: absolute;
+  right: 0;
+  top: 0;
 }
 
 .captcha-floating-layer .modal-refresh {
-  height: 28px;
-  padding: 0 4px;
-  border: none;
-  background: transparent;
-  color: rgb(71 85 105);
-  font-size: 12px;
+  min-height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--captcha-border);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.92);
+  color: var(--captcha-text-secondary);
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   transition:
+    border-color 0.18s ease,
     background-color 0.18s ease,
     color 0.18s ease;
 }
 
 .captcha-floating-layer .modal-refresh:hover:not(:disabled) {
-  color: rgb(30 41 59);
+  color: var(--captcha-text);
+  border-color: var(--captcha-border-strong);
+}
+
+.captcha-floating-layer .modal-refresh:focus-visible,
+.captcha-floating-layer .modal-close-button:focus-visible,
+.captcha-floating-layer .slider-thumb:focus-visible {
+  outline: none;
+  box-shadow: var(--captcha-focus-ring);
 }
 
 .captcha-floating-layer .modal-refresh:disabled,
@@ -1306,11 +1657,11 @@ onBeforeUnmount(() => {
 }
 
 .captcha-floating-layer .modal-close-button {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   background: transparent;
   cursor: pointer;
   transition:
@@ -1319,7 +1670,7 @@ onBeforeUnmount(() => {
 }
 
 .captcha-floating-layer .modal-close-button:hover {
-  background: rgb(248 250 252);
+  background: rgb(15 23 42 / 0.04);
 }
 
 .captcha-floating-layer .close-icon {
@@ -1332,14 +1683,14 @@ onBeforeUnmount(() => {
 
 .captcha-floating-layer .close-icon::before,
 .captcha-floating-layer .close-icon::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 6px;
   left: 1px;
   width: 12px;
   height: 1.5px;
   border-radius: 999px;
-  background: rgb(100 116 139);
+  background: rgb(148 163 184);
 }
 
 .captcha-floating-layer .close-icon::before {
@@ -1353,29 +1704,37 @@ onBeforeUnmount(() => {
 .captcha-floating-layer .modal-stage {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .captcha-floating-layer .board-host {
-  width: 100%;
   display: flex;
   justify-content: center;
+  width: 100%;
+  padding: 5px;
+  border: 1px solid rgb(223 229 239);
+  border-radius: 18px;
+  background: rgb(255 255 255);
 }
 
 .captcha-floating-layer .captcha-board {
   position: relative;
   overflow: hidden;
-  border: 1px solid var(--captcha-border);
+  border: 1px solid rgb(225 231 239);
   border-radius: 14px;
-  background: linear-gradient(180deg, rgb(248 250 252), rgb(241 245 249));
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.72);
+  background: var(--captcha-board-tint);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22);
 }
 
 .captcha-floating-layer .captcha-board.is-solved::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgb(16 185 129 / 0.02), rgb(16 185 129 / 0.08));
+  background: linear-gradient(
+    180deg,
+    rgb(16 185 129 / 0.04),
+    rgb(16 185 129 / 0.1)
+  );
 }
 
 .captcha-floating-layer .board-empty {
@@ -1388,7 +1747,7 @@ onBeforeUnmount(() => {
 .captcha-floating-layer .board-empty-title {
   color: var(--captcha-text-secondary);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .captcha-floating-layer .board-canvas {
@@ -1403,9 +1762,9 @@ onBeforeUnmount(() => {
   position: absolute;
   display: block;
   pointer-events: none;
-  filter:
-    drop-shadow(0 0 1px rgb(255 255 255 / 0.9))
-    drop-shadow(0 10px 16px rgb(15 23 42 / 0.24));
+  filter: drop-shadow(0 0 2px rgb(255 255 255 / 0.98))
+    drop-shadow(0 6px 10px rgb(255 255 255 / 0.18))
+    drop-shadow(0 14px 22px rgb(15 23 42 / 0.32));
   transition:
     left 0.14s ease,
     top 0.14s ease,
@@ -1414,16 +1773,15 @@ onBeforeUnmount(() => {
 }
 
 .captcha-floating-layer .piece-canvas.is-dragging {
-  filter:
-    drop-shadow(0 1px 0 rgb(255 255 255 / 0.92))
-    drop-shadow(0 14px 20px rgb(15 23 42 / 0.24));
+  filter: drop-shadow(0 0 2px rgb(255 255 255 / 1))
+    drop-shadow(0 8px 14px rgb(255 255 255 / 0.2))
+    drop-shadow(0 18px 26px rgb(15 23 42 / 0.34));
   transition: none;
 }
 
 .captcha-floating-layer .piece-canvas.is-solved {
-  filter:
-    drop-shadow(0 1px 0 rgb(255 255 255 / 0.94))
-    drop-shadow(0 10px 18px rgb(22 163 74 / 0.18));
+  filter: drop-shadow(0 0 2px rgb(255 255 255 / 0.96))
+    drop-shadow(0 12px 20px rgb(22 163 74 / 0.2));
 }
 
 .captcha-floating-layer .board-loading {
@@ -1433,11 +1791,11 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  background: rgb(255 255 255 / 0.74);
+  background: var(--captcha-board-loading-bg);
   color: var(--captcha-text);
   font-size: 13px;
-  font-weight: 500;
-  backdrop-filter: blur(6px);
+  font-weight: 600;
+  backdrop-filter: blur(8px);
 }
 
 .captcha-floating-layer .loading-dot {
@@ -1445,24 +1803,32 @@ onBeforeUnmount(() => {
   height: 8px;
   border-radius: 999px;
   background: var(--captcha-accent);
-  box-shadow: 0 0 0 5px rgb(219 234 254);
+  box-shadow: 0 0 0 6px rgb(219 234 254 / 0.48);
   animation: pulse-dot 1s ease-in-out infinite;
 }
 
 .captcha-floating-layer .slider-track {
   position: relative;
-  height: 48px;
+  height: 42px;
   overflow: hidden;
-  border: 1px solid rgb(225 231 239);
-  border-radius: 14px;
-  background: linear-gradient(180deg, rgb(247 249 252), rgb(238 243 248));
+  border: 1px solid var(--captcha-track-strong);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgb(244 247 251), rgb(231 237 245));
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.86),
-    inset 0 -1px 0 rgb(226 232 240 / 0.68);
+    inset 0 1px 0 rgb(255 255 255 / 0.7),
+    inset 0 -1px 0 rgb(203 213 225 / 0.38);
+}
+
+.captcha-floating-layer .slider-track[data-state="retry"] {
+  border-color: var(--captcha-danger-border);
+}
+
+.captcha-floating-layer .slider-track[data-state="success"] {
+  border-color: var(--captcha-success-border);
 }
 
 .captcha-floating-layer .slider-track::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
   border-radius: inherit;
@@ -1476,9 +1842,25 @@ onBeforeUnmount(() => {
   bottom: 0;
   left: 0;
   border-radius: inherit;
-  background: linear-gradient(90deg, rgb(219 234 254 / 0.78), rgb(191 219 254 / 0.46));
-  box-shadow: inset 0 0 0 1px rgb(191 219 254 / 0.18);
+  background: linear-gradient(
+    90deg,
+    rgb(168 202 255 / 0.42),
+    rgb(109 160 255 / 0.18)
+  );
+  box-shadow: inset 0 0 0 1px rgb(191 219 254 / 0.16);
   transition: width 0.14s ease;
+}
+
+.captcha-floating-layer .slider-track.is-dragging .track-fill {
+  transition: none;
+}
+
+.captcha-floating-layer .slider-track[data-state="retry"] .track-fill {
+  background: var(--captcha-track-fill-retry);
+}
+
+.captcha-floating-layer .slider-track[data-state="success"] .track-fill {
+  background: var(--captcha-track-fill-success);
 }
 
 .captcha-floating-layer .track-copy {
@@ -1487,9 +1869,9 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 72px;
-  color: rgb(100 116 139);
-  font-size: 12px;
+  padding: 0 60px;
+  color: var(--captcha-text-secondary);
+  font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.01em;
   pointer-events: none;
@@ -1499,38 +1881,46 @@ onBeforeUnmount(() => {
 
 .captcha-floating-layer .slider-thumb {
   position: absolute;
-  top: 4px;
-  bottom: 4px;
-  border: 1px solid rgb(213 221 233 / 0.96);
-  border-radius: 12px;
-  background: linear-gradient(180deg, rgb(255 255 255), rgb(246 249 252));
+  top: 1px;
+  bottom: 1px;
+  border: 1px solid var(--captcha-thumb-border);
+  border-radius: 11px;
+  background: var(--captcha-thumb-bg);
   box-shadow:
-    0 6px 16px rgb(15 23 42 / 0.12),
-    0 1px 3px rgb(15 23 42 / 0.06),
-    inset 0 1px 0 rgb(255 255 255 / 0.94);
+    0 10px 18px rgb(76 118 214 / 0.34),
+    0 2px 4px rgb(15 23 42 / 0.16),
+    inset 0 1px 0 rgb(255 255 255 / 0.36),
+    inset 0 -1px 0 rgb(37 99 235 / 0.28);
   cursor: grab;
   transition:
     transform 0.14s ease,
     box-shadow 0.14s ease,
-    border-color 0.14s ease;
+    border-color 0.14s ease,
+    background 0.14s ease;
 }
 
 .captcha-floating-layer .slider-thumb:hover:not(:disabled) {
-  border-color: rgb(191 219 254);
+  border-color: rgb(74 126 246 / 0.98);
 }
 
 .captcha-floating-layer .slider-thumb.is-dragging {
   cursor: grabbing;
-  transform: translateY(-1px);
+  transform: translateY(-1px) scale(1.01);
+  background: var(--captcha-thumb-bg-active);
   box-shadow:
-    0 10px 20px rgb(37 99 235 / 0.16),
-    0 3px 8px rgb(15 23 42 / 0.08),
-    inset 0 1px 0 rgb(255 255 255 / 0.96);
+    0 14px 26px rgb(76 118 214 / 0.4),
+    0 6px 12px rgb(15 23 42 / 0.2),
+    inset 0 1px 0 rgb(255 255 255 / 0.42),
+    inset 0 -1px 0 rgb(29 78 216 / 0.32);
 }
 
 .captcha-floating-layer .slider-thumb.is-solved {
-  background: rgb(236 253 245);
-  border-color: rgb(167 243 208);
+  border-color: var(--captcha-success-border);
+  background: linear-gradient(
+    180deg,
+    var(--captcha-success-soft),
+    var(--captcha-surface)
+  );
 }
 
 .captcha-floating-layer .slider-thumb:disabled {
@@ -1544,68 +1934,67 @@ onBeforeUnmount(() => {
 }
 
 .captcha-floating-layer .thumb-core::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 6px;
-  height: 6px;
-  margin-top: -3px;
-  margin-left: -6px;
-  border-top: 2px solid var(--captcha-accent);
-  border-right: 2px solid var(--captcha-accent);
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  margin-left: -4px;
+  border-top: 2px solid rgb(255 255 255 / 0.96);
+  border-right: 2px solid rgb(255 255 255 / 0.96);
   transform: rotate(45deg);
 }
 
 .captcha-floating-layer .thumb-core::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 6px;
-  height: 6px;
-  margin-top: -3px;
-  margin-left: 1px;
-  border-top: 2px solid var(--captcha-accent);
-  border-right: 2px solid var(--captcha-accent);
-  transform: rotate(45deg);
+  display: none;
 }
 
 .captcha-floating-layer .slider-note {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 4px 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
   color: var(--captcha-text-secondary);
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .captcha-floating-layer .slider-note-dot {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
   border-radius: 999px;
-  background: rgb(148 163 184);
+  background: var(--captcha-note);
   flex: none;
 }
 
-.captcha-floating-layer .slider-note[data-state='retry'] .slider-note-dot {
-  background: rgb(239 68 68);
+.captcha-floating-layer .slider-note[data-state="retry"] {
+  color: var(--captcha-danger);
+  border-color: var(--captcha-danger-border);
+  background: var(--captcha-danger-soft);
 }
 
-.captcha-floating-layer .slider-note[data-state='success'] .slider-note-dot {
-  background: rgb(34 197 94);
+.captcha-floating-layer .slider-note[data-state="retry"] .slider-note-dot {
+  background: var(--captcha-danger);
 }
 
-.captcha-floating-layer .slider-note[data-state='loading'] .slider-note-dot {
+.captcha-floating-layer .slider-note[data-state="success"] {
+  color: var(--captcha-success);
+  border-color: var(--captcha-success-border);
+  background: var(--captcha-success-soft);
+}
+
+.captcha-floating-layer .slider-note[data-state="success"] .slider-note-dot {
+  background: var(--captcha-success);
+}
+
+.captcha-floating-layer .slider-note[data-state="loading"] .slider-note-dot {
   background: var(--captcha-accent);
-}
-
-.captcha-floating-layer .slider-note[data-state='retry'] {
-  color: rgb(185 28 28);
-}
-
-.captcha-floating-layer .slider-note[data-state='success'] {
-  color: rgb(22 101 52);
 }
 
 .captcha-floating-layer .slider-note-text {
@@ -1634,15 +2023,6 @@ onBeforeUnmount(() => {
   }
 }
 
-@keyframes solved-sheen {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(100%);
-  }
-}
-
 @keyframes modal-rise {
   from {
     opacity: 0;
@@ -1656,8 +2036,12 @@ onBeforeUnmount(() => {
 
 @media (max-width: 640px) {
   .slider-captcha-plugin .captcha-trigger {
-    min-height: 46px;
+    min-height: 48px;
     padding-right: 12px;
+  }
+
+  .slider-captcha-plugin .trigger-action-text {
+    padding-inline: 8px;
   }
 
   .captcha-floating-layer .modal-header {
@@ -1673,7 +2057,11 @@ onBeforeUnmount(() => {
   }
 
   .captcha-floating-layer .track-copy {
-    padding: 0 64px;
+    padding: 0 68px;
+  }
+
+  .captcha-floating-layer .slider-note {
+    padding-inline: 10px;
   }
 }
 </style>

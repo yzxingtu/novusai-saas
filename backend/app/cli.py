@@ -1030,6 +1030,397 @@ def trace_show(
     sys.exit(0 if found else 1)
 
 
+# ============================================================
+# novusai ai / AI 对话排查
+# ============================================================
+
+
+def _truncate_cli_block(
+    value: object,
+    *,
+    max_chars: int = 600,
+    full_content: bool = False,
+) -> str:
+    text = str(value or "")
+    if full_content or len(text) <= max_chars:
+        return text
+    return f"{text[: max_chars - 3]}..."
+
+
+def _indent_cli_block(text: str, prefix: str = "    ") -> str:
+    lines = (text or "").splitlines() or [""]
+    return "\n".join(f"{prefix}{line}" for line in lines)
+
+
+def _compact_json_text(value: object) -> str:
+    import json
+
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+async def _load_ai_conversation_snapshot(
+    conversation_id: int,
+    *,
+    tail: int,
+    keyword: str | None,
+    keyword_limit: int,
+) -> dict:
+    from sqlalchemy import and_, select
+
+    from app.ai.engine.base import BaseEngine
+    from app.core.database import get_db_context
+    from app.models.ai.call_log import AICallLog
+    from app.models.ai.conversation_message import ConversationMessage
+    from app.services.ai.conversation_service import ConversationService
+
+    async with get_db_context() as db:
+        service, conversation = await ConversationService.get_service_for_conversation(
+            db,
+            conversation_id,
+        )
+        total_messages = await service.message_repo.count_by_conversation(
+            conversation_id,
+        )
+        skip = max(total_messages - tail, 0)
+        detail = await service.get_conversation_detail(
+            conversation_id,
+            message_skip=skip,
+            message_limit=tail,
+        )
+
+        keyword_hits: list[dict] = []
+        if keyword:
+            escaped = keyword.replace("%", "\\%").replace("_", "\\_")
+            stmt = (
+                select(ConversationMessage)
+                .where(
+                    and_(
+                        ConversationMessage.tenant_id == conversation.tenant_id,
+                        ConversationMessage.conversation_id == conversation_id,
+                        ConversationMessage.is_deleted.is_(False),
+                        ConversationMessage.content.ilike(f"%{escaped}%"),
+                    )
+                )
+                .order_by(ConversationMessage.sequence.asc())
+                .limit(keyword_limit)
+            )
+            matched_rows = (await db.execute(stmt)).scalars().all()
+            keyword_hits = [
+                {
+                    "id": row.id,
+                    "sequence": row.sequence,
+                    "role": row.role,
+                    "created_at": ConversationService._format_dt(row.created_at),
+                    "content": row.content or "",
+                }
+                for row in matched_rows
+            ]
+
+        call_log_stmt = (
+            select(AICallLog)
+            .where(
+                AICallLog.conversation_id == conversation_id,
+                AICallLog.is_deleted.is_(False),
+            )
+            .order_by(AICallLog.created_at.desc())
+            .limit(3)
+        )
+        call_logs = (await db.execute(call_log_stmt)).scalars().all()
+
+        recent_messages = detail.get("message_list") or []
+        last_assistant = next(
+            (
+                item
+                for item in reversed(recent_messages)
+                if item.get("role") == "assistant"
+            ),
+            None,
+        )
+        last_assistant_text = str((last_assistant or {}).get("content") or "")
+        leaked_tool_names = BaseEngine._extract_textual_tool_call_names(
+            last_assistant_text,
+            [],
+        )
+
+        return {
+            "conversation": {
+                "id": detail.get("id", conversation_id),
+                "tenant_id": detail.get("tenant_id", conversation.tenant_id),
+                "agent_id": detail.get("agent_id", conversation.agent_id),
+                "agent_name": detail.get("agent_name"),
+                "user_id": detail.get("user_id", conversation.user_id),
+                "owner_type": detail.get("owner_type", conversation.owner_type),
+                "status": detail.get("status", conversation.status),
+                "title": detail.get("title", conversation.title),
+                "message_count": total_messages,
+                "token_count": detail.get("token_count", conversation.token_count),
+                "cost": float(detail.get("cost", conversation.cost or 0) or 0),
+                "created_at": detail.get(
+                    "created_at",
+                    ConversationService._format_dt(conversation.created_at),
+                ),
+                "updated_at": detail.get(
+                    "updated_at",
+                    ConversationService._format_dt(conversation.updated_at),
+                ),
+            },
+            "recent_messages": recent_messages,
+            "keyword": keyword,
+            "keyword_hits": keyword_hits,
+            "recent_call_logs": [
+                {
+                    "id": row.id,
+                    "created_at": ConversationService._format_dt(row.created_at),
+                    "status": row.status,
+                    "provider_id": row.provider_id,
+                    "provider_name": row.provider_name_snapshot,
+                    "model_id": row.model_id,
+                    "model_name": row.model_name_snapshot,
+                    "input_tokens": row.input_tokens,
+                    "output_tokens": row.output_tokens,
+                    "total_tokens": row.total_tokens,
+                    "latency_ms": row.latency_ms,
+                    "error_message": row.error_message,
+                }
+                for row in call_logs
+            ],
+            "diagnostics": {
+                "last_assistant_looks_like_textual_tool_call": bool(leaked_tool_names),
+                "last_assistant_textual_tool_call_names": leaked_tool_names,
+                "last_assistant_message_id": (last_assistant or {}).get("id"),
+                "last_assistant_sequence": (last_assistant or {}).get("sequence"),
+            },
+        }
+
+
+def _render_ai_conversation_text(
+    snapshot: dict,
+    *,
+    full_content: bool = False,
+) -> str:
+    conversation = snapshot.get("conversation") or {}
+    recent_messages = snapshot.get("recent_messages") or []
+    keyword = snapshot.get("keyword")
+    keyword_hits = snapshot.get("keyword_hits") or []
+    recent_call_logs = snapshot.get("recent_call_logs") or []
+    diagnostics = snapshot.get("diagnostics") or {}
+
+    lines: list[str] = []
+    lines.append(
+        "Conversation #{id} tenant={tenant_id} owner={owner_type} agent={agent_id} "
+        "user={user_id} status={status} messages={message_count}".format(
+            id=conversation.get("id"),
+            tenant_id=conversation.get("tenant_id"),
+            owner_type=conversation.get("owner_type"),
+            agent_id=conversation.get("agent_id"),
+            user_id=conversation.get("user_id"),
+            status=conversation.get("status"),
+            message_count=conversation.get("message_count"),
+        )
+    )
+    if conversation.get("title"):
+        lines.append(f"Title: {conversation.get('title')}")
+    if conversation.get("agent_name"):
+        lines.append(f"Agent: {conversation.get('agent_name')}")
+    lines.append(
+        "Created: {created_at} | Updated: {updated_at} | Tokens: {token_count} | Cost: {cost}".format(
+            created_at=conversation.get("created_at"),
+            updated_at=conversation.get("updated_at"),
+            token_count=conversation.get("token_count"),
+            cost=conversation.get("cost"),
+        )
+    )
+
+    leaked_names = diagnostics.get("last_assistant_textual_tool_call_names") or []
+    if diagnostics.get("last_assistant_looks_like_textual_tool_call"):
+        lines.append(
+            "Diagnostic: last assistant message looks like leaked textual tool call -> {}".format(
+                ", ".join(leaked_names),
+            )
+        )
+
+    if recent_messages:
+        lines.append("")
+        lines.append(f"Last {len(recent_messages)} message(s):")
+        for msg in recent_messages:
+            lines.append(
+                "[seq={sequence}] role={role} id={id} time={created_at}".format(
+                    sequence=msg.get("sequence"),
+                    role=msg.get("role"),
+                    id=msg.get("id"),
+                    created_at=msg.get("created_at"),
+                )
+            )
+            content = _truncate_cli_block(
+                msg.get("content") or "",
+                full_content=full_content,
+            )
+            if content:
+                lines.append("  content:")
+                lines.append(_indent_cli_block(content))
+            if msg.get("tool_calls"):
+                lines.append("  tool_calls:")
+                lines.append(
+                    _indent_cli_block(
+                        _truncate_cli_block(
+                            _compact_json_text(msg.get("tool_calls")),
+                            max_chars=1200,
+                            full_content=full_content,
+                        )
+                    )
+                )
+            if msg.get("metadata"):
+                lines.append("  metadata:")
+                lines.append(
+                    _indent_cli_block(
+                        _truncate_cli_block(
+                            _compact_json_text(msg.get("metadata")),
+                            max_chars=1200,
+                            full_content=full_content,
+                        )
+                    )
+                )
+
+    if keyword is not None:
+        lines.append("")
+        lines.append(f"Keyword hits for {keyword!r}: {len(keyword_hits)}")
+        if not keyword_hits:
+            lines.append("  No matches found in this conversation.")
+        for msg in keyword_hits:
+            lines.append(
+                "[seq={sequence}] role={role} id={id} time={created_at}".format(
+                    sequence=msg.get("sequence"),
+                    role=msg.get("role"),
+                    id=msg.get("id"),
+                    created_at=msg.get("created_at"),
+                )
+            )
+            lines.append("  content:")
+            lines.append(
+                _indent_cli_block(
+                    _truncate_cli_block(
+                        msg.get("content") or "",
+                        full_content=full_content,
+                    )
+                )
+            )
+
+    if recent_call_logs:
+        lines.append("")
+        lines.append(f"Recent call logs ({len(recent_call_logs)}):")
+        for item in recent_call_logs:
+            lines.append(
+                "[log_id={id}] time={created_at} status={status} provider={provider_name} "
+                "model={model_name} tokens={total_tokens} latency_ms={latency_ms}".format(
+                    id=item.get("id"),
+                    created_at=item.get("created_at"),
+                    status=item.get("status"),
+                    provider_name=item.get("provider_name"),
+                    model_name=item.get("model_name"),
+                    total_tokens=item.get("total_tokens"),
+                    latency_ms=item.get("latency_ms"),
+                )
+            )
+            if item.get("error_message"):
+                lines.append(
+                    "  error: {}".format(
+                        _truncate_cli_block(
+                            item.get("error_message"),
+                            full_content=full_content,
+                        )
+                    )
+                )
+
+    return "\n".join(lines)
+
+
+@cli.group("ai", help="AI diagnostics / AI 对话排查")
+def ai_cmd() -> None:
+    pass
+
+
+@ai_cmd.group("conversation", help="Inspect AI conversations / 查询 AI 对话")
+def ai_conversation_cmd() -> None:
+    pass
+
+
+@ai_conversation_cmd.command("show")
+@click.argument("conversation_id", type=int)
+@click.option(
+    "--tail",
+    type=click.IntRange(1, 200),
+    default=8,
+    show_default=True,
+    help="Show the last N messages",
+)
+@click.option("--keyword", default=None, help="Search keyword inside this conversation")
+@click.option(
+    "--keyword-limit",
+    type=click.IntRange(1, 100),
+    default=20,
+    show_default=True,
+    help="Maximum matched messages to return for --keyword",
+)
+@click.option("--json", "output_json", is_flag=True, help="Output JSON")
+@click.option(
+    "--full-content",
+    is_flag=True,
+    help="Do not truncate long message content in text mode",
+)
+def ai_conversation_show(
+    conversation_id: int,
+    tail: int,
+    keyword: str | None,
+    keyword_limit: int,
+    output_json: bool,
+    full_content: bool,
+) -> None:
+    """Show AI conversation detail by ID / 按对话 ID 查看 AI 对话详情。"""
+    os.chdir(_BACKEND_DIR)
+
+    from app.exceptions import AppException, NotFoundException
+
+    try:
+        snapshot = _run_quietly(
+            True,
+            _run_async,
+            _load_ai_conversation_snapshot(
+                conversation_id,
+                tail=tail,
+                keyword=keyword,
+                keyword_limit=keyword_limit,
+            ),
+        )
+    except NotFoundException as e:
+        if output_json:
+            _echo_json(_json_error(e.message, code="conversation_not_found"))
+        else:
+            click.echo(f"Error: {e.message}", err=True)
+        sys.exit(1)
+    except AppException as e:
+        if output_json:
+            _echo_json(
+                _json_error(
+                    e.message,
+                    code="ai_conversation_show_failed",
+                    data=e.data if isinstance(e.data, dict) else None,
+                )
+            )
+        else:
+            click.echo(f"Error: {e.message}", err=True)
+        sys.exit(1)
+
+    if output_json:
+        _echo_json(_json_success(snapshot))
+    else:
+        click.echo(
+            _render_ai_conversation_text(
+                snapshot,
+                full_content=full_content,
+            )
+        )
+
+
 def _resolve_codegen_config_json(
     *,
     config_path: str | None,

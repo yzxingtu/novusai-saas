@@ -22,27 +22,32 @@ from app.models.system.task_definition import TaskDefinition
 from app.repositories.system.task_definition_repository import (
     TaskDefinitionRepository,
 )
-from app.repositories.system.tenant_task_binding_repository import (
-    TenantTaskBindingRepository,
-)
+from app.services.system.task_binding_service import TaskBindingService
 from app.tasks.task_scheduling import (
+    ALL_TENANTS_TASK_DEFINITION_WRAPPER,
     TASK_DEFINITION_WRAPPER,
     TENANT_BINDING_WRAPPER,
+    handler_supports_tenant_dispatch,
 )
 
 logger = LogManager.get_logger("queue")
+
+LEGACY_PLATFORM_SCOPE = "platform"
 
 PLATFORM_EXECUTION_SCOPES = {
     ResourceScopeEnum.ADMIN_ONLY.value,
     ResourceScopeEnum.GLOBAL_SHARED.value,
     ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+    LEGACY_PLATFORM_SCOPE,
 }
 
-TENANT_EXECUTION_SCOPES = {
-    ResourceScopeEnum.ALL_TENANTS.value,
+EXPLICIT_BINDING_EXECUTION_SCOPES = {
     ResourceScopeEnum.SELECTED_TENANTS.value,
     ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
 }
+
+ALL_TENANTS_DYNAMIC_SCOPE = ResourceScopeEnum.ALL_TENANTS.value
+TENANT_DISPATCH_SCOPES = EXPLICIT_BINDING_EXECUTION_SCOPES | {ALL_TENANTS_DYNAMIC_SCOPE}
 
 
 class TaskDefinitionService(GlobalService[TaskDefinition, TaskDefinitionRepository]):
@@ -90,7 +95,29 @@ class TaskDefinitionService(GlobalService[TaskDefinition, TaskDefinitionReposito
         )
         plugin_status = result.scalar_one_or_none()
         if plugin_status != PluginStatusEnum.ENABLED.value:
-            raise BusinessException(message=_("common.operation_failed"))
+            raise BusinessException(
+                message=_(
+                    "periodic_task.error.plugin_disabled",
+                    plugin=plugin_name or _("common.unknown"),
+                )
+            )
+
+    @staticmethod
+    def _validate_tenant_dispatch_scope(
+        *,
+        handler_path: str | None,
+        scope: str | None,
+    ) -> None:
+        if scope not in TENANT_DISPATCH_SCOPES:
+            return
+        if handler_path and handler_supports_tenant_dispatch(handler_path):
+            return
+        raise BusinessException(
+            message=_(
+                "periodic_task.error.tenant_dispatch_requires_tenant_handler",
+                handler=handler_path or _("common.unknown"),
+            )
+        )
 
     async def toggle_active(self, definition_id: int, is_enabled: bool) -> TaskDefinition:
         definition = await self.get_by_id(definition_id)
@@ -107,45 +134,86 @@ class TaskDefinitionService(GlobalService[TaskDefinition, TaskDefinitionReposito
     async def trigger_now(self, definition_id: int) -> str:
         definition = await self.get_by_id(definition_id)
         await self._ensure_plugin_task_available(definition)
-        binding_repo = TenantTaskBindingRepository(self.db)
-        active_bindings = await binding_repo.get_list(
-            task_definition_id=definition.id,
-            is_enabled=True,
-        )
+        binding_service = TaskBindingService(self.db)
         scope = getattr(definition, "scope", None)
+        self._validate_tenant_dispatch_scope(
+            handler_path=getattr(definition, "handler_path", None),
+            scope=scope,
+        )
 
         dispatched_task_ids: list[str] = []
-        should_dispatch_bindings = (
-            scope in TENANT_EXECUTION_SCOPES if scope else bool(active_bindings)
-        )
-        should_dispatch_platform = (
-            scope in PLATFORM_EXECUTION_SCOPES if scope else not active_bindings
-        )
+        active_bindings = []
 
-        if should_dispatch_bindings and active_bindings:
+        if scope == ALL_TENANTS_DYNAMIC_SCOPE:
+            result = celery_app.send_task(
+                ALL_TENANTS_TASK_DEFINITION_WRAPPER,
+                args=[definition.id],
+                queue="scheduled",
+                kwargs={"trigger_source": "admin_manual"},
+            )
+            dispatched_task_ids.append(str(result.id))
+        elif scope == ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value:
+            active_bindings = await binding_service.get_active_bindings_for_dispatch(
+                definition.id
+            )
             for binding in active_bindings:
                 result = celery_app.send_task(
                     TENANT_BINDING_WRAPPER,
                     args=[binding.id],
                     queue="scheduled",
+                    kwargs={"trigger_source": "admin_manual"},
                 )
                 dispatched_task_ids.append(str(result.id))
-        if should_dispatch_platform:
             result = celery_app.send_task(
                 TASK_DEFINITION_WRAPPER,
                 args=[definition.id],
                 queue="scheduled",
+                kwargs={"trigger_source": "admin_manual"},
             )
             dispatched_task_ids.append(str(result.id))
-        if not dispatched_task_ids:
-            if scope:
-                raise BusinessException(message=_("common.operation_failed"))
+        elif scope in EXPLICIT_BINDING_EXECUTION_SCOPES:
+            active_bindings = await binding_service.get_active_bindings_for_dispatch(
+                definition.id
+            )
+            if not active_bindings:
+                raise BusinessException(message=_("periodic_task.error.binding_required"))
+            for binding in active_bindings:
+                result = celery_app.send_task(
+                    TENANT_BINDING_WRAPPER,
+                    args=[binding.id],
+                    queue="scheduled",
+                    kwargs={"trigger_source": "admin_manual"},
+                )
+                dispatched_task_ids.append(str(result.id))
+        elif scope in PLATFORM_EXECUTION_SCOPES:
             result = celery_app.send_task(
                 TASK_DEFINITION_WRAPPER,
                 args=[definition.id],
                 queue="scheduled",
+                kwargs={"trigger_source": "admin_manual"},
             )
             dispatched_task_ids.append(str(result.id))
+        else:
+            active_bindings = await binding_service.get_active_bindings_for_dispatch(
+                definition.id
+            )
+            if active_bindings:
+                for binding in active_bindings:
+                    result = celery_app.send_task(
+                        TENANT_BINDING_WRAPPER,
+                        args=[binding.id],
+                        queue="scheduled",
+                        kwargs={"trigger_source": "admin_manual"},
+                    )
+                    dispatched_task_ids.append(str(result.id))
+            else:
+                result = celery_app.send_task(
+                    TASK_DEFINITION_WRAPPER,
+                    args=[definition.id],
+                    queue="scheduled",
+                    kwargs={"trigger_source": "admin_manual"},
+                )
+                dispatched_task_ids.append(str(result.id))
 
         now = utc_now()
         update_data: dict = {"last_run_at": now}
@@ -158,7 +226,7 @@ class TaskDefinitionService(GlobalService[TaskDefinition, TaskDefinitionReposito
         if next_run is not None:
             update_data["next_run_at"] = next_run
         await self.update(definition.id, update_data)
-        if should_dispatch_bindings and active_bindings:
+        if active_bindings:
             for binding in active_bindings:
                 binding_next_run = self._compute_next_run(
                     binding.schedule_type_override
@@ -173,7 +241,7 @@ class TaskDefinitionService(GlobalService[TaskDefinition, TaskDefinitionReposito
                 binding_update: dict[str, Any] = {"last_run_at": now}
                 if binding_next_run is not None:
                     binding_update["next_run_at"] = binding_next_run
-                await binding_repo.update(
+                await binding_service.repo.update(
                     binding.id,
                     binding_update,
                 )
@@ -192,11 +260,25 @@ class TaskDefinitionService(GlobalService[TaskDefinition, TaskDefinitionReposito
             raise BusinessException(
                 message=_("periodic_task.error.name_exists", name=data.get("name", code))
             )
+        self._validate_tenant_dispatch_scope(
+            handler_path=handler_path,
+            scope=data.get("scope"),
+        )
         data["code"] = code
         return data
 
     async def _before_update(self, id: int, data: dict) -> None:
         instance = await self.get_by_id(id)
+        target_handler_path = data.get("handler_path") or (
+            getattr(instance, "handler_path", None) if instance else None
+        )
+        target_scope = data.get("scope") or (
+            getattr(instance, "scope", None) if instance else None
+        )
+        self._validate_tenant_dispatch_scope(
+            handler_path=target_handler_path,
+            scope=target_scope,
+        )
         if instance and not instance.is_editable:
             allowed_fields = {"is_enabled", "last_run_at", "next_run_at"}
             non_allowed = set(data.keys()) - allowed_fields

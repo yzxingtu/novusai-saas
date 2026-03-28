@@ -27,12 +27,10 @@ export interface ScopeFieldsOptions {
   /** Default scope value exposed to form schema and AI page awareness / 作用域默认值，用于表单 schema 与 AI 页面感知 */
   scopeDefaultValue?: string;
   /**
-   * Whether to show "tenant" select when scope=all_tenants, default false.
-   * 是否在 scope=all_tenants 时显示「所属企业」单选，默认 false。
-   * Only for semantically different scenarios (e.g. scheduled tasks: all_tenants = belongs to specific tenant).
-   * 仅用于语义上不同的场景（如定时任务： all_tenants = 属于指定企业）。
-   * Regular resources (agents/knowledge bases) don't pass this, all_tenants = platform global resource.
-   * 普通资源（智能体/知识库）不传此项，all_tenants = 平台全局资源。
+   * Whether to show an owner-tenant select for special scenarios, default false.
+   * 是否显示「所属企业」单选，仅特殊场景使用，默认 false。
+   * Regular resources (agents/knowledge bases / periodic tasks) don't pass this.
+   * 普通资源（智能体/知识库/定时任务）不传此项。
    */
   showTenantId?: boolean;
   /**
@@ -55,6 +53,8 @@ export interface ScopeFieldsOptions {
   tenantIdField?: string;
   /** Assigned tenants field name, default 'tenant_ids' / 分配企业字段名，默认 'tenant_ids' */
   tenantIdsField?: string;
+  /** Whether assigned tenants multi-select is required when shown, default true / 分配企业多选展示时是否必填，默认 true */
+  tenantIdsRequired?: boolean;
 }
 
 /**
@@ -73,6 +73,7 @@ export function useScopeFields(
     ownerTenantWhenScopes = [],
     hideTenantIdsField = false,
     tenantIdRequired = true,
+    tenantIdsRequired = true,
     scopeField = 'scope',
     tenantIdField = 'tenant_id',
     tenantIdsField = 'tenant_ids',
@@ -160,7 +161,7 @@ export function useScopeFields(
       fieldName: tenantIdsField,
       label: $t('common.scope.assignedTenantsLabel'),
       help: $t('common.scope.assignedTenantsHelp'),
-      rules: 'selectRequired',
+      ...(tenantIdsRequired ? { rules: 'selectRequired' } : {}),
       componentProps: {
         api: getTenantSelectApi,
         params: { is_active: 'true' },
@@ -199,7 +200,7 @@ export function scopeNeedsAssignment(scope: string): boolean {
  *
  * @param values Form values / 表单值
  * @param scopeField Scope field name / scope 字段名
- * @param withTenantId Whether to include tenant_id (only for all_tenants scenarios needing specific tenant, e.g. scheduled tasks) / 是否包含 tenant_id
+ * @param withTenantId Whether to include tenant_id for special ownership scenarios / 是否包含 tenant_id
  */
 export function extractScopePayload(
   values: Record<string, unknown>,

@@ -316,3 +316,43 @@ def test_conversation_engine_detects_capability_denial_from_semantic_family_term
         retry_on_contract_breach=False,
         reason="capability_denial:web_research",
     )
+
+
+def test_conversation_engine_retries_when_tool_call_leaks_as_plain_text() -> None:
+    response = ChatResponse(
+        message=ChatMessage(
+            role="assistant",
+            content="to=functions.get_page_context 天天乐不json_string",
+        ),
+    )
+    current_policy = ToolUsePolicy(
+        family="none",
+        mode="auto",
+        allowed_tool_names=["get_page_context", "invoke_page_operation", "web_search"],
+        retry_on_contract_breach=True,
+        reason="default_auto",
+    )
+    tools = [
+        ToolDefinition(name="get_page_context", description="Read current page context"),
+        ToolDefinition(name="invoke_page_operation", description="Execute page operation"),
+        ToolDefinition(name="web_search", description="Search the web"),
+    ]
+
+    should_retry, retry_policy, response_text = (
+        ConversationEngine._should_retry_tool_contract_breach(
+            response=response,
+            current_policy=current_policy,
+            tools=tools,
+            input_variables={},
+        )
+    )
+
+    assert should_retry is True
+    assert response_text == "to=functions.get_page_context 天天乐不json_string"
+    assert retry_policy == ToolUsePolicy(
+        family="page_ops",
+        mode="required",
+        allowed_tool_names=["get_page_context", "invoke_page_operation"],
+        retry_on_contract_breach=False,
+        reason="textual_tool_call_leak:get_page_context",
+    )

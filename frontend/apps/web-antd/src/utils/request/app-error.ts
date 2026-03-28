@@ -178,15 +178,24 @@ export function isAppErrorInfo(error: unknown): error is AppErrorInfo {
   return typeof (error as AppErrorInfo).message === 'string';
 }
 
+function shouldExposeErrorDetails(appError: AppErrorInfo): boolean {
+  if (appError.source === 'sse') {
+    return true;
+  }
+  return typeof appError.status === 'number' && appError.status >= 500;
+}
+
 export function formatAppErrorMessage(
   appError: AppErrorInfo,
   t?: Translator,
 ): string {
+  const showDetails = shouldExposeErrorDetails(appError);
   const traceLabel = t ? t('common.http.traceId') : 'Trace ID';
-  const traceSuffix = appError.traceId
-    ? ` (${traceLabel}: ${appError.traceId})`
-    : '';
-  if (isDevErrorMode() && appError.debugMessage) {
+  const traceSuffix =
+    showDetails && appError.traceId
+      ? ` (${traceLabel}: ${appError.traceId})`
+      : '';
+  if (showDetails && isDevErrorMode() && appError.debugMessage) {
     return `${appError.message}${traceSuffix}\n${appError.debugMessage}`;
   }
   return `${appError.message}${traceSuffix}`;

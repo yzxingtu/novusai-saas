@@ -21,21 +21,30 @@ from app.core.logging import LogManager
 from app.enums.common import ResourceScopeEnum
 from app.models.system.task_definition import TaskDefinition
 from app.models.system.tenant_task_binding import TenantTaskBinding
+from app.models.tenant.tenant import Tenant
 from app.tasks.task_scheduling import (
+    ALL_TENANTS_TASK_DEFINITION_WRAPPER,
     TASK_DEFINITION_WRAPPER,
     TENANT_BINDING_WRAPPER,
+    handler_supports_tenant_dispatch,
 )
 
 logger = LogManager.get_logger("queue")
+
+LEGACY_PLATFORM_SCOPE = "platform"
 
 PLATFORM_SCHEDULE_SCOPES = (
     ResourceScopeEnum.ADMIN_ONLY.value,
     ResourceScopeEnum.GLOBAL_SHARED.value,
     ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+    LEGACY_PLATFORM_SCOPE,
 )
 
-TENANT_SCHEDULE_SCOPES = (
+ALL_TENANTS_DYNAMIC_SCHEDULE_SCOPES = (
     ResourceScopeEnum.ALL_TENANTS.value,
+)
+
+EXPLICIT_BINDING_SCHEDULE_SCOPES = (
     ResourceScopeEnum.SELECTED_TENANTS.value,
     ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
 )
@@ -109,6 +118,13 @@ def _build_tenant_task_binding_schedule(
             "kwargs": {},
             "options": {"queue": "scheduled"},
         }
+        if not handler_supports_tenant_dispatch(definition.handler_path):
+            logger.warning(
+                "Skipping tenant task binding '{}' because handler '{}' is not tenant-aware",
+                binding.id,
+                definition.handler_path,
+            )
+            continue
         schedule_type = (
             binding.schedule_type_override or definition.default_schedule_type
         )
@@ -137,6 +153,39 @@ def _build_tenant_task_binding_schedule(
     return schedule
 
 
+def _build_all_tenants_task_definition_schedule(
+    definitions: list[TaskDefinition],
+) -> dict[str, dict]:
+    schedule: dict[str, dict] = {}
+    for definition in definitions:
+        entry: dict[str, object] = {
+            "task": ALL_TENANTS_TASK_DEFINITION_WRAPPER,
+            "args": (definition.id,),
+            "kwargs": {},
+            "options": {"queue": "scheduled"},
+        }
+        if not handler_supports_tenant_dispatch(definition.handler_path):
+            logger.warning(
+                "Skipping all-tenant task definition '{}' because handler '{}' is not tenant-aware",
+                definition.code,
+                definition.handler_path,
+            )
+            continue
+        if not _apply_schedule_config(
+            entry,
+            schedule_type=definition.default_schedule_type,
+            cron_expression=definition.default_cron_expression,
+            interval_seconds=definition.default_interval_seconds,
+        ):
+            logger.warning(
+                "Skipping all-tenant task definition '{}' due to missing schedule config",
+                definition.code,
+            )
+            continue
+        schedule[f"all_tenants_task_definition:{definition.id}:{definition.code}"] = entry
+    return schedule
+
+
 def load_task_schedules_from_db(
     *,
     return_none_on_error: bool = False,
@@ -154,23 +203,36 @@ def load_task_schedules_from_db(
             )
             .all()
         )
+        all_tenants_definitions = (
+            session.query(TaskDefinition)
+            .filter(
+                TaskDefinition.is_enabled.is_(True),  # noqa: E712
+                TaskDefinition.is_deleted.is_(False),  # noqa: E712
+                TaskDefinition.owner_tenant_id.is_(None),
+                TaskDefinition.scope.in_(ALL_TENANTS_DYNAMIC_SCHEDULE_SCOPES),
+            )
+            .all()
+        )
         tenant_bindings = (
             session.query(TenantTaskBinding, TaskDefinition)
             .join(
                 TaskDefinition,
                 TaskDefinition.id == TenantTaskBinding.task_definition_id,
             )
+            .join(Tenant, Tenant.id == TenantTaskBinding.tenant_id)
             .filter(
                 TenantTaskBinding.is_enabled.is_(True),  # noqa: E712
                 TenantTaskBinding.is_deleted.is_(False),  # noqa: E712
                 TaskDefinition.is_enabled.is_(True),  # noqa: E712
                 TaskDefinition.is_deleted.is_(False),  # noqa: E712
-                TaskDefinition.scope.in_(TENANT_SCHEDULE_SCOPES),
+                TaskDefinition.scope.in_(EXPLICIT_BINDING_SCHEDULE_SCOPES),
+                Tenant.is_deleted.is_(False),  # noqa: E712
             )
             .all()
         )
         return {
             **_build_task_definition_schedule(task_definitions),
+            **_build_all_tenants_task_definition_schedule(all_tenants_definitions),
             **_build_tenant_task_binding_schedule(tenant_bindings),
         }
     except Exception as e:
