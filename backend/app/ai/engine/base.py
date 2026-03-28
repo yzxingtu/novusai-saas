@@ -38,6 +38,7 @@ from app.ai.types import ChatMessage, ChatResponse
 from app.core.base_model import utc_now
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.core.runtime_identity import get_runtime_identity_tag
 from app.enums.common import UserRoleEnum
 from app.enums.log import UserTypeEnum as LogUserTypeEnum
 from app.exceptions import BusinessException
@@ -48,6 +49,7 @@ from .types import (
     ExecutionResult,
     PreparedExecution,
     ResearchContinuationContext,
+    ToolUsePolicy,
 )
 
 logger = LogManager.get_logger("ai.engine")
@@ -738,6 +740,563 @@ class BaseEngine(ABC):
             return value
         return f"{value[: max_chars - 3]}..."
 
+    @staticmethod
+    def _has_page_context(input_variables: dict[str, Any] | None) -> bool:
+        if not input_variables:
+            return False
+        from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
+
+        page_ctx = input_variables.get(PAGE_CONTEXT_KEY)
+        if not isinstance(page_ctx, dict):
+            return False
+        return bool((page_ctx.get("page_key") or "").strip())
+
+    @classmethod
+    def _tool_family_for_name(
+        cls,
+        tool_name: str,
+        input_variables: dict[str, Any] | None = None,
+    ) -> str:
+        name = (tool_name or "").strip()
+        if not name:
+            return "none"
+        if name in {"web_search", "fetch_url"}:
+            return "web_research"
+        if name in {"get_current_weather", "get_weather_forecast"}:
+            return "weather"
+        if name.startswith("data_"):
+            return "data_ops"
+        if (
+            name in {"get_page_context", "invoke_page_operation"}
+            or name.startswith("pageop_")
+            or (name == "list_page_operations" and cls._has_page_context(input_variables))
+        ):
+            return "page_ops"
+        return "none"
+
+    @classmethod
+    def _tool_semantic_family(
+        cls,
+        tool: ToolDefinition,
+        input_variables: dict[str, Any] | None = None,
+    ) -> str:
+        family = str(getattr(tool, "semantic_family", "") or "").strip()
+        if family:
+            return family
+        return cls._tool_family_for_name(tool.name, input_variables)
+
+    @classmethod
+    def _tool_semantic_tags(cls, tool: ToolDefinition) -> list[str]:
+        tags = [
+            str(tag).strip()
+            for tag in (getattr(tool, "semantic_tags", None) or [])
+            if str(tag).strip()
+        ]
+        if tags:
+            return tags
+
+        family = cls._tool_semantic_family(tool)
+        fallback_tags = {
+            "web_research": [
+                "联网搜索",
+                "网页查询",
+                "读取网页",
+                "官方来源",
+                "最新信息",
+                "web search",
+            ],
+            "weather": ["天气查询", "天气预报", "当前天气", "实时天气", "weather forecast"],
+            "data_ops": ["数据查询", "数据库操作", "记录管理", "统计报表", "data query"],
+            "page_ops": ["页面操作", "页面交互", "读取页面", "填写表单", "提交页面", "page operation"],
+        }
+        return list(fallback_tags.get(family, ()))
+
+    @classmethod
+    def _family_capability_terms(
+        cls,
+        family: str,
+        tools: list[ToolDefinition],
+        input_variables: dict[str, Any] | None = None,
+    ) -> set[str]:
+        from app.ai.tools.optimizer import _tokenize
+
+        family_hints = {
+            "web_research": (
+                "联网搜索",
+                "网页查询",
+                "读取网页",
+                "官方来源",
+                "internet",
+                "web search",
+            ),
+            "weather": ("天气查询", "天气预报", "当前天气", "实时天气", "weather forecast"),
+            "data_ops": (
+                "数据查询",
+                "数据库操作",
+                "记录管理",
+                "统计报表",
+                "data query",
+            ),
+            "page_ops": (
+                "页面操作",
+                "页面交互",
+                "读取页面",
+                "填写表单",
+                "提交页面",
+                "page operation",
+            ),
+        }
+
+        terms: set[str] = set()
+        for hint in family_hints.get(family, ()):
+            normalized_hint = hint.strip().lower()
+            if len(normalized_hint) >= 2:
+                terms.add(normalized_hint)
+            terms |= {token for token in _tokenize(hint) if len(token) >= 2}
+
+        for tool in tools:
+            if cls._tool_semantic_family(tool, input_variables) != family:
+                continue
+            for value in [tool.name, tool.description or "", *cls._tool_semantic_tags(tool)]:
+                text = str(value or "").strip().lower()
+                if len(text) >= 2:
+                    terms.add(text)
+                terms |= {token for token in _tokenize(text) if len(token) >= 2}
+        return terms
+
+    @classmethod
+    def _response_denies_family_capability(
+        cls,
+        *,
+        normalized_text: str,
+        family: str,
+        tools: list[ToolDefinition],
+        input_variables: dict[str, Any] | None,
+    ) -> bool:
+        denial_markers = (
+            "不能",
+            "无法",
+            "没有",
+            "不可",
+            "can't",
+            "cannot",
+            "unable",
+            "no access",
+            "not able",
+            "read-only",
+            "只读",
+        )
+        if not any(marker in normalized_text for marker in denial_markers):
+            return False
+
+        capability_terms = cls._family_capability_terms(
+            family,
+            tools,
+            input_variables,
+        )
+        return any(term in normalized_text for term in capability_terms)
+
+    @staticmethod
+    def _looks_like_generic_follow_up(user_text: str) -> bool:
+        normalized = " ".join((user_text or "").strip().lower().split())
+        if not normalized:
+            return False
+        exact_markers = {
+            "continue",
+            "continue.",
+            "go on",
+            "same",
+            "same thing",
+            "继续",
+            "继续。",
+            "接着",
+            "继续吧",
+            "继续一下",
+            "按刚才的继续",
+            "继续处理",
+            "继续这个",
+        }
+        if normalized in exact_markers:
+            return True
+        if len(normalized) > 40:
+            return False
+        return any(
+            marker in normalized
+            for marker in (
+                "continue",
+                "go on",
+                "same",
+                "继续",
+                "接着",
+                "刚才",
+                "继续处理",
+                "继续看",
+                "继续查",
+            )
+        )
+
+    @classmethod
+    def _allowed_tool_names_for_family(
+        cls,
+        family: str,
+        tools: list[ToolDefinition],
+        input_variables: dict[str, Any] | None = None,
+    ) -> list[str]:
+        if family == "none":
+            return [tool.name for tool in tools]
+
+        allowed: list[str] = []
+        for tool in tools:
+            name = tool.name
+            semantic_family = cls._tool_semantic_family(tool, input_variables)
+            if semantic_family == family:
+                allowed.append(name)
+                continue
+
+            if family == "web_research" and name in {
+                "get_page_context",
+                "invoke_page_operation",
+            }:
+                allowed.append(name)
+
+        return allowed or [tool.name for tool in tools]
+
+    @staticmethod
+    def _filter_tools_for_policy(
+        tools: list[ToolDefinition],
+        policy: ToolUsePolicy,
+    ) -> list[ToolDefinition]:
+        if not tools or not policy.allowed_tool_names:
+            return tools
+        allowed = set(policy.allowed_tool_names)
+        filtered = [tool for tool in tools if tool.name in allowed]
+        return filtered or tools
+
+    @classmethod
+    def _looks_like_explicit_web_research_request(
+        cls,
+        user_text: str,
+        tools: list[ToolDefinition],
+    ) -> bool:
+        if not user_text or not tools:
+            return False
+        web_tools = [
+            tool
+            for tool in tools
+            if cls._tool_semantic_family(tool) == "web_research"
+            or tool.name in {"web_search", "fetch_url"}
+        ]
+        if not web_tools:
+            return False
+
+        from app.ai.tools.optimizer import (
+            _tokenize,
+        )
+
+        query_text = user_text.lower()
+        query_tokens = _tokenize(user_text)
+        semantic_tokens: set[str] = set()
+        for tool in web_tools:
+            semantic_source = " ".join(
+                [
+                    tool.name,
+                    tool.description or "",
+                    *cls._tool_semantic_tags(tool),
+                ]
+            )
+            semantic_tokens |= _tokenize(semantic_source)
+
+        if query_tokens & semantic_tokens:
+            return True
+
+        return any(
+            tool.name.lower() in query_text
+            or tool.name.lower().replace("_", " ") in query_text
+            for tool in web_tools
+        )
+
+    def _log_tool_selection_status(
+        self,
+        *,
+        status: str,
+        agent: Agent,
+        conversation_id: int | None,
+        current_user_text: str,
+        family: str,
+        all_tool_names: list[str],
+        selected_tool_names: list[str],
+        page_context_present: bool,
+        optimizer_total: int,
+        optimizer_selected: int,
+    ) -> None:
+        logger.warning(
+            "Tool selection status: status={} runtime={} agent_id={} conversation_id={} family={} current_user_text={} all_tool_names={} selected_tool_names={} page_context_present={} optimizer_total={} optimizer_selected={}",
+            status,
+            get_runtime_identity_tag(),
+            getattr(agent, "id", None),
+            conversation_id,
+            family,
+            self._truncate_preview(current_user_text),
+            all_tool_names,
+            selected_tool_names,
+            page_context_present,
+            optimizer_total,
+            optimizer_selected,
+        )
+
+    @classmethod
+    def _infer_tool_use_policy(
+        cls,
+        messages: list[ChatMessage],
+        tools: list[ToolDefinition],
+        input_variables: dict[str, Any] | None,
+        continuation_context: ResearchContinuationContext | None,
+    ) -> ToolUsePolicy:
+        if not tools:
+            return ToolUsePolicy()
+
+        current_user_text = cls._extract_last_user_text(messages)
+        recent_successful_tool_names = cls._extract_recent_successful_tool_names(messages)
+        latest_successful_tool = (
+            recent_successful_tool_names[0] if recent_successful_tool_names else ""
+        )
+        latest_tool = next(
+            (tool for tool in tools if tool.name == latest_successful_tool),
+            None,
+        )
+        latest_family = (
+            cls._tool_semantic_family(latest_tool, input_variables)
+            if latest_tool is not None
+            else cls._tool_family_for_name(latest_successful_tool, input_variables)
+        )
+
+        if continuation_context and continuation_context.active:
+            family = continuation_context.family or "none"
+            if family != "none":
+                return ToolUsePolicy(
+                    family=family,
+                    mode="required",
+                    allowed_tool_names=cls._allowed_tool_names_for_family(
+                        family,
+                        tools,
+                        input_variables,
+                    ),
+                    retry_on_contract_breach=True,
+                    reason=f"active_continuation:{family}",
+                )
+
+        if cls._looks_like_explicit_web_research_request(current_user_text, tools):
+            return ToolUsePolicy(
+                family="web_research",
+                mode="auto",
+                allowed_tool_names=cls._allowed_tool_names_for_family(
+                    "web_research",
+                    tools,
+                    input_variables,
+                ),
+                retry_on_contract_breach=True,
+                reason="explicit_query:web_research",
+            )
+
+        if (
+            latest_family in {"weather", "data_ops", "page_ops"}
+            and cls._looks_like_generic_follow_up(current_user_text)
+        ):
+            return ToolUsePolicy(
+                family=latest_family,
+                mode="required",
+                allowed_tool_names=cls._allowed_tool_names_for_family(
+                    latest_family,
+                    tools,
+                    input_variables,
+                ),
+                retry_on_contract_breach=True,
+                reason=f"generic_follow_up_after:{latest_successful_tool}",
+            )
+
+        return ToolUsePolicy(
+            family="none",
+            mode="auto",
+            allowed_tool_names=[tool.name for tool in tools],
+            retry_on_contract_breach=True,
+            reason="default_auto",
+        )
+
+    @classmethod
+    def _build_required_policy_for_family(
+        cls,
+        family: str,
+        tools: list[ToolDefinition],
+        input_variables: dict[str, Any] | None,
+        reason: str,
+    ) -> ToolUsePolicy:
+        return ToolUsePolicy(
+            family=family,
+            mode="required",
+            allowed_tool_names=cls._allowed_tool_names_for_family(
+                family,
+                tools,
+                input_variables,
+            ),
+            retry_on_contract_breach=False,
+            reason=reason,
+        )
+
+    @classmethod
+    def _resolve_breach_retry_policy(
+        cls,
+        *,
+        response_text: str,
+        tools: list[ToolDefinition],
+        current_policy: ToolUsePolicy,
+        input_variables: dict[str, Any] | None,
+    ) -> ToolUsePolicy | None:
+        if not tools:
+            return None
+
+        normalized = " ".join((response_text or "").strip().lower().split())
+        if not normalized:
+            return None
+
+        if current_policy.mode == "required" and current_policy.family != "none":
+            return cls._build_required_policy_for_family(
+                current_policy.family,
+                tools,
+                input_variables,
+                reason=f"required_retry:{current_policy.reason or current_policy.family}",
+            )
+
+        for family in ("web_research", "weather", "data_ops", "page_ops"):
+            if not cls._response_denies_family_capability(
+                normalized_text=normalized,
+                family=family,
+                tools=tools,
+                input_variables=input_variables,
+            ):
+                continue
+            allowed_names = cls._allowed_tool_names_for_family(
+                family,
+                tools,
+                input_variables,
+            )
+            if allowed_names:
+                return cls._build_required_policy_for_family(
+                    family,
+                    tools,
+                    input_variables,
+                    reason=f"capability_denial:{family}",
+                )
+        return None
+
+    @classmethod
+    def _should_retry_tool_contract_breach(
+        cls,
+        *,
+        response: ChatResponse,
+        current_policy: ToolUsePolicy,
+        tools: list[ToolDefinition],
+        input_variables: dict[str, Any] | None,
+    ) -> tuple[bool, ToolUsePolicy | None, str]:
+        if response.tool_calls:
+            return False, None, ""
+
+        response_text = (response.message.content or "").strip()
+        if not response_text:
+            return False, None, ""
+
+        retry_policy = cls._resolve_breach_retry_policy(
+            response_text=response_text,
+            tools=tools,
+            current_policy=current_policy,
+            input_variables=input_variables,
+        )
+        if retry_policy is None:
+            return False, None, ""
+        return True, retry_policy, response_text
+
+    @classmethod
+    def _collect_tool_family_evidence(
+        cls,
+        messages: list[ChatMessage],
+    ) -> dict[str, int]:
+        counts = {
+            "web_research": 0,
+            "weather": 0,
+            "data_ops": 0,
+            "page_ops": 0,
+        }
+        for msg in messages:
+            if msg.role != "assistant" or not msg.tool_calls:
+                continue
+            for tc in msg.tool_calls:
+                if tc.get("success") is not True:
+                    continue
+                func = tc.get("function") or {}
+                name = str(func.get("name") or tc.get("name") or "").strip()
+                family = cls._tool_family_for_name(name)
+                if family in counts:
+                    counts[family] += 1
+        return counts
+
+    def _log_tool_contract_diagnostics(
+        self,
+        *,
+        agent: Agent,
+        messages: list[ChatMessage],
+        response: ChatResponse,
+        tools: list[ToolDefinition],
+        policy: ToolUsePolicy,
+        conversation_id: int | None,
+        breach_type: str,
+        retry_result: str,
+        continuation: ResearchContinuationContext | None = None,
+    ) -> None:
+        if not tools:
+            return
+
+        response_text = (response.message.content or "").strip()
+        current_user_text = self._extract_last_user_text(messages)
+        target_text = (
+            continuation.research_target_text
+            if continuation and continuation.research_target_text
+            else ""
+        )
+        trace_id = ""
+        try:
+            from app.middleware.trace import trace_id_var
+
+            trace_id = trace_id_var.get() or ""
+        except Exception:
+            trace_id = ""
+
+        family_evidence = self._collect_tool_family_evidence(messages)
+        search_queries, fetched_urls = self._collect_web_research_evidence(messages)
+        status = {
+            "retrying": "policy_retry_started",
+            "succeeded": "policy_retry_succeeded",
+            "failed": "policy_retry_failed",
+            "logged": "policy_logged_only",
+            "no_retry": "policy_loaded_but_no_retry",
+        }.get(retry_result, retry_result or "policy_unknown")
+        logger.warning(
+            "Tool contract breach: status={} type={} retry_result={} agent_id={} conversation_id={} trace_id={} family={} tool_choice={} allowed_tool_names={} current_user_text={} response_preview={} research_target={} family_evidence={} search_query_count={} fetched_url_count={}",
+            status,
+            breach_type,
+            retry_result,
+            getattr(agent, "id", None),
+            conversation_id,
+            trace_id,
+            policy.family,
+            policy.mode,
+            policy.allowed_tool_names,
+            self._truncate_preview(current_user_text),
+            self._truncate_preview(response_text),
+            self._truncate_preview(target_text),
+            family_evidence,
+            len(search_queries),
+            len(fetched_urls),
+        )
+
     def _log_web_research_contract_diagnostics(
         self,
         *,
@@ -759,38 +1318,23 @@ class BaseEngine(ABC):
         search_queries, fetched_urls = self._collect_web_research_evidence(messages)
         search_count = len(search_queries)
         fetch_count = len(fetched_urls)
-        target_text = (
-            continuation.research_target_text
-            if continuation and continuation.research_target_text
-            else ""
-        )
-        current_user_text = (
-            continuation.current_user_text
-            if continuation and continuation.current_user_text
-            else self._extract_last_user_text(messages)
-        )
-        trace_id = ""
-        try:
-            from app.middleware.trace import trace_id_var
-
-            trace_id = trace_id_var.get() or ""
-        except Exception:
-            trace_id = ""
 
         def _emit(breach_type: str) -> None:
-            logger.warning(
-                "Web research contract breach: type={} agent_id={} conversation_id={} trace_id={} search_query_count={} fetched_url_count={} research_target={} current_user_text={} tool_names={} recent_web_queries={} response_preview={}",
-                breach_type,
-                getattr(agent, "id", None),
-                conversation_id,
-                trace_id,
-                search_count,
-                fetch_count,
-                self._truncate_preview(target_text),
-                self._truncate_preview(current_user_text),
-                tool_names,
-                search_queries,
-                self._truncate_preview(response_text),
+            self._log_tool_contract_diagnostics(
+                agent=agent,
+                messages=messages,
+                response=response,
+                tools=tools,
+                policy=self._build_required_policy_for_family(
+                    "web_research",
+                    tools,
+                    None,
+                    reason=breach_type,
+                ),
+                conversation_id=conversation_id,
+                breach_type=breach_type,
+                retry_result="logged",
+                continuation=continuation,
             )
 
         if not continuation or not continuation.active:
@@ -976,17 +1520,98 @@ class BaseEngine(ABC):
             enhance_tools_with_page_context(all_tools, request.input_variables)
 
         optimize_event: dict[str, Any] | None = None
+        tool_use_policy = ToolUsePolicy()
+        current_user_text = ""
         if all_tools:
             user_query = self._extract_last_user_text(messages)
+            current_user_text = user_query
             from app.ai.tools.optimizer import optimize_tools
 
+            tool_use_policy = self._infer_tool_use_policy(
+                messages,
+                all_tools,
+                request.input_variables,
+                continuation_context,
+            )
             opt = optimize_tools(
                 all_tools,
                 user_query,
+                preferred_family=(
+                    tool_use_policy.family
+                    if tool_use_policy.family != "none"
+                    else None
+                ),
             )
             tools = opt.tools
+            tools = self._filter_tools_for_policy(tools, tool_use_policy)
+            tool_use_policy.allowed_tool_names = [tool.name for tool in tools]
             if not opt.skipped:
-                optimize_event = {"total": opt.total, "selected": opt.selected}
+                optimize_event = {"total": opt.total, "selected": len(tools)}
+
+            all_tool_names = [tool.name for tool in all_tools]
+            selected_tool_names = [tool.name for tool in tools]
+            explicit_web_request = self._looks_like_explicit_web_research_request(
+                user_query,
+                all_tools,
+            )
+            page_context_present = self._has_page_context(request.input_variables)
+            if explicit_web_request and tool_use_policy.family == "none":
+                self._log_tool_selection_status(
+                    status="policy_not_loaded",
+                    agent=agent,
+                    conversation_id=request.conversation_id,
+                    current_user_text=user_query,
+                    family=tool_use_policy.family,
+                    all_tool_names=all_tool_names,
+                    selected_tool_names=selected_tool_names,
+                    page_context_present=page_context_present,
+                    optimizer_total=opt.total,
+                    optimizer_selected=len(tools),
+                )
+            if (
+                explicit_web_request or tool_use_policy.family == "web_research"
+            ) and (
+                {"web_search", "fetch_url"} & set(all_tool_names)
+            ) and not (
+                {"web_search", "fetch_url"} & set(selected_tool_names)
+            ):
+                self._log_tool_selection_status(
+                    status="tool_dropped_by_optimizer",
+                    agent=agent,
+                    conversation_id=request.conversation_id,
+                    current_user_text=user_query,
+                    family=tool_use_policy.family,
+                    all_tool_names=all_tool_names,
+                    selected_tool_names=selected_tool_names,
+                    page_context_present=page_context_present,
+                    optimizer_total=opt.total,
+                    optimizer_selected=len(tools),
+                )
+            elif explicit_web_request and (
+                {"web_search", "fetch_url"} & set(selected_tool_names)
+            ):
+                logger.info(
+                    "Tool selection status: status=tool_selection_ok runtime={} agent_id={} conversation_id={} family={} selected_tool_names={}",
+                    get_runtime_identity_tag(),
+                    getattr(agent, "id", None),
+                    request.conversation_id,
+                    tool_use_policy.family,
+                    selected_tool_names,
+                )
+
+        if all_tools:
+            logger.info(
+                "Prepare execution tool policy: runtime={} agent_id={} conversation_id={} family={} mode={} allowed_tool_names={} retry_on_contract_breach={} all_tool_count={} selected_tool_count={}",
+                get_runtime_identity_tag(),
+                getattr(agent, "id", None),
+                request.conversation_id,
+                tool_use_policy.family,
+                tool_use_policy.mode,
+                tool_use_policy.allowed_tool_names,
+                tool_use_policy.retry_on_contract_breach,
+                len(all_tools),
+                len(tools),
+            )
 
         # 5. Inject tool awareness hint / 注入工具感知提示
         if tools:
@@ -1072,11 +1697,14 @@ class BaseEngine(ABC):
                     "runtime_model_capabilities": runtime_model_capabilities,
                 }
 
+        request.tool_use_policy = dataclasses.replace(tool_use_policy)
+
         return PreparedExecution(
             messages=messages,
             tools=tools,
             all_tools=all_tools,
             continuation_context=continuation_context,
+            tool_use_policy=tool_use_policy,
             rag_sources=rag_sources,
             tool_consent_modes=tool_consent_modes,
             optimize_event=optimize_event,
@@ -1092,6 +1720,9 @@ class BaseEngine(ABC):
         agent: Agent,
         messages: list[ChatMessage],
         tools: list[ToolDefinition] | None = None,
+        all_tool_names: list[str] | None = None,
+        tool_use_policy: ToolUsePolicy | None = None,
+        breach_retry_result: str | None = None,
         tenant_id: int | None = None,
         user_id: int | None = None,
         conversation_id: int | None = None,
@@ -1115,6 +1746,13 @@ class BaseEngine(ABC):
         openai_tools = None
         if tools:
             openai_tools = to_openai_tools(tools)
+        effective_policy = tool_use_policy or ToolUsePolicy(
+            family="none",
+            mode="auto" if tools else "none",
+            allowed_tool_names=[tool.name for tool in (tools or [])],
+            retry_on_contract_breach=False,
+            reason="implicit_auto",
+        )
 
         routed_model_id: int | None = None
         route_reason: str | None = None
@@ -1174,6 +1812,18 @@ class BaseEngine(ABC):
                 ]
                 msg.attachments = kept if kept else None
 
+        logger.info(
+            "LLM call entry: runtime={} agent_id={} conversation_id={} provider={} model={} family={} mode={} allowed_tool_names={} tool_count={}",
+            get_runtime_identity_tag(),
+            getattr(agent, "id", None),
+            conversation_id,
+            provider_code,
+            model_code,
+            effective_policy.family,
+            effective_policy.mode,
+            effective_policy.allowed_tool_names,
+            len(tools or []),
+        )
         response = await self.gateway.chat(
             provider_code=provider_code,
             messages=messages,
@@ -1182,6 +1832,16 @@ class BaseEngine(ABC):
             max_tokens=agent.max_tokens,
             top_p=agent.top_p or 1.0,
             tools=openai_tools,
+            tool_choice=(
+                effective_policy.mode
+                if openai_tools and effective_policy.mode in {"auto", "required"}
+                else None
+            ),
+            all_tool_names=all_tool_names or [tool.name for tool in (tools or [])],
+            tool_use_policy_family=effective_policy.family,
+            tool_use_policy_mode=effective_policy.mode,
+            allowed_tool_names=effective_policy.allowed_tool_names,
+            breach_retry_result=breach_retry_result,
             tenant_id=tenant_id,
             user_id=user_id,
             user_type=log_user_type,
@@ -1365,6 +2025,7 @@ class BaseEngine(ABC):
                         agent=agent,
                         messages=messages,
                         tools=tools,
+                        all_tool_names=[tool.name for tool in (all_tools or tools or [])],
                         tenant_id=request.tenant_id,
                         user_id=request.user_id,
                         conversation_id=request.conversation_id,
@@ -1383,6 +2044,7 @@ class BaseEngine(ABC):
                 agent=agent,
                 messages=messages,
                 tools=tools,
+                all_tool_names=[tool.name for tool in (all_tools or tools or [])],
                 tenant_id=request.tenant_id,
                 user_id=request.user_id,
                 conversation_id=request.conversation_id,

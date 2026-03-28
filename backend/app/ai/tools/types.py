@@ -87,6 +87,8 @@ class ToolDefinition:
     source_skill_type: str | None = None
     source_package_name: str | None = None
     source_plugin: str | None = None
+    semantic_family: str | None = None
+    semantic_tags: list[str] = field(default_factory=list)
 
     @property
     def input_schema(self) -> dict[str, Any]:

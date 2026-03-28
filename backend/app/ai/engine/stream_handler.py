@@ -29,7 +29,7 @@ from app.enums.common import UserRoleEnum
 from app.middleware.trace import trace_id_var
 
 from .base import MAX_TOOL_CALL_ROUNDS, log_user_type_for_call_log
-from .types import ExecutionRequest, ExecutionResult, PreparedExecution
+from .types import ExecutionRequest, ExecutionResult, PreparedExecution, ToolUsePolicy
 
 if TYPE_CHECKING:
     from app.ai.tools.types import ToolDefinition, ToolResult
@@ -210,6 +210,7 @@ class StreamExecutionHandler:
                     billing_context=getattr(self.request, "billing_context", None),
                     log_user_type=log_user_type_for_call_log(_req_role),
                     runtime_context=next_runtime_context,
+                    all_tool_names=[tool.name for tool in self.prep.all_tools],
                 ):
                     if self._runtime_model_info is None and isinstance(
                         getattr(chunk, "metadata", None), dict
@@ -468,6 +469,7 @@ class StreamExecutionHandler:
         append_final_assistant = True
         next_runtime_context = getattr(self.prep, "stream_runtime", None)
         continuation_context = getattr(self.prep, "continuation_context", None)
+        round_tool_policy = getattr(self.prep, "tool_use_policy", ToolUsePolicy())
 
         # ---- Confirmation interception ---- / 确认拦截
         _last_user_text = ""
@@ -560,6 +562,8 @@ class StreamExecutionHandler:
                 billing_context=getattr(self.request, "billing_context", None),
                 log_user_type=log_user_type_for_call_log(_req_role),
                 runtime_context=next_runtime_context,
+                all_tool_names=[tool.name for tool in self.prep.all_tools],
+                tool_use_policy=round_tool_policy,
             ):
                 if self._runtime_model_info is None and isinstance(
                     getattr(chunk, "metadata", None), dict
@@ -612,14 +616,75 @@ class StreamExecutionHandler:
                     message=ChatMessage(role="assistant", content=round_output),
                     total_tokens=round_total_tokens,
                 )
-                self.engine._log_web_research_contract_diagnostics(
-                    agent=self.agent,
-                    messages=messages,
+                should_retry, retry_policy, _ = self.engine._should_retry_tool_contract_breach(
                     response=denial_response,
+                    current_policy=round_tool_policy,
                     tools=tools,
-                    continuation=continuation_context,
-                    conversation_id=self.request.conversation_id,
+                    input_variables=getattr(self.request, "input_variables", None),
                 )
+                retry_blocked = (
+                    should_retry
+                    and retry_policy is not None
+                    and not round_tool_policy.retry_on_contract_breach
+                    and round_tool_policy.mode != "required"
+                )
+                if retry_blocked:
+                    self.engine._log_tool_contract_diagnostics(
+                        agent=self.agent,
+                        messages=messages,
+                        response=denial_response,
+                        tools=tools,
+                        policy=retry_policy,
+                        conversation_id=self.request.conversation_id,
+                        breach_type="stream_capability_denial_or_no_tool_use",
+                        retry_result="no_retry",
+                        continuation=continuation_context,
+                    )
+                elif (
+                    should_retry
+                    and retry_policy is not None
+                    and round_tool_policy.retry_on_contract_breach
+                ):
+                    self.engine._log_tool_contract_diagnostics(
+                        agent=self.agent,
+                        messages=messages,
+                        response=denial_response,
+                        tools=tools,
+                        policy=retry_policy,
+                        conversation_id=self.request.conversation_id,
+                        breach_type="stream_capability_denial_or_no_tool_use",
+                        retry_result="retrying",
+                        continuation=continuation_context,
+                    )
+                    tools = self.engine._filter_tools_for_policy(
+                        getattr(self.prep, "all_tools", None) or tools,
+                        retry_policy,
+                    )
+                    round_tool_policy = retry_policy
+                    next_runtime_context = None
+                    continue
+
+                if should_retry and retry_policy is not None and not retry_blocked:
+                    self.engine._log_tool_contract_diagnostics(
+                        agent=self.agent,
+                        messages=messages,
+                        response=denial_response,
+                        tools=tools,
+                        policy=retry_policy,
+                        conversation_id=self.request.conversation_id,
+                        breach_type="stream_capability_denial_or_no_tool_use",
+                        retry_result="failed",
+                        continuation=continuation_context,
+                    )
+                else:
+                    self.engine._log_web_research_contract_diagnostics(
+                        agent=self.agent,
+                        messages=messages,
+                        response=denial_response,
+                        tools=tools,
+                        continuation=continuation_context,
+                        conversation_id=self.request.conversation_id,
+                    )
 
                 for event in round_thinking_events:
                     yield event
@@ -640,6 +705,28 @@ class StreamExecutionHandler:
                     reasoning_content=round_visible_thinking or None,
                 )
             )
+            if (
+                round_tool_policy.mode == "required"
+                and (
+                    round_tool_policy.reason.startswith("capability_denial:")
+                    or round_tool_policy.reason.startswith("required_retry:")
+                )
+            ):
+                self.engine._log_tool_contract_diagnostics(
+                    agent=self.agent,
+                    messages=messages,
+                    response=ChatResponse(
+                        message=ChatMessage(role="assistant", content=round_output),
+                        tool_calls=tc_list,
+                        total_tokens=round_total_tokens,
+                    ),
+                    tools=tools,
+                    policy=round_tool_policy,
+                    conversation_id=self.request.conversation_id,
+                    breach_type="stream_capability_denial_or_no_tool_use",
+                    retry_result="succeeded",
+                    continuation=continuation_context,
+                )
             follow_up_messages: list[ChatMessage] = []
 
             round_has_confirmation = False
@@ -846,6 +933,14 @@ class StreamExecutionHandler:
                 and not _page_op_aborted
             ):
                 messages.extend(follow_up_messages)
+
+            round_tool_policy = ToolUsePolicy(
+                family="none",
+                mode="auto",
+                allowed_tool_names=[tool.name for tool in tools],
+                retry_on_contract_breach=False,
+                reason="post_tool_auto",
+            )
 
             if round_has_confirmation or _page_op_aborted:
                 if round_has_confirmation:

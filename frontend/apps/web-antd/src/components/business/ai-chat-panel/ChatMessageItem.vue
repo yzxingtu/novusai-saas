@@ -302,7 +302,7 @@ function isToolExpanded(
   if (existing !== undefined) {
     return existing;
   }
-  return tc.status === 'error' || hasSearchSummary(tc) || false;
+  return tc.status === 'error';
 }
 
 function toggleToolExpand(

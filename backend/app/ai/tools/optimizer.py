@@ -37,32 +37,184 @@ PROTECTED_TOOL_NAMES: frozenset[str] = frozenset({
     "invoke_page_operation",
 })
 
+_FAMILY_HINT_TAGS: dict[str, tuple[str, ...]] = {
+    "web_research": (
+        "联网搜索",
+        "网页查询",
+        "读取网页",
+        "官方来源",
+        "最新信息",
+        "web search",
+    ),
+    "weather": (
+        "天气查询",
+        "天气预报",
+        "当前天气",
+        "实时天气",
+        "weather forecast",
+    ),
+    "data_ops": (
+        "数据查询",
+        "数据库操作",
+        "记录管理",
+        "统计报表",
+        "data query",
+        "data update",
+    ),
+    "page_ops": (
+        "页面操作",
+        "页面交互",
+        "读取页面",
+        "填写表单",
+        "提交页面",
+        "page operation",
+    ),
+}
+
+_FAMILY_EXPLICIT_REQUEST_HINTS: dict[str, tuple[str, ...]] = {
+    "web_research": (
+        "联网搜索",
+        "网页查询",
+        "读取网页",
+        "官方来源",
+        "web search",
+    ),
+    "weather": (
+        "天气查询",
+        "天气预报",
+        "当前天气",
+        "实时天气",
+        "weather forecast",
+    ),
+    "data_ops": (
+        "数据查询",
+        "数据库操作",
+        "记录管理",
+        "统计报表",
+        "data query",
+    ),
+    "page_ops": (
+        "页面操作",
+        "页面交互",
+        "读取页面",
+        "填写表单",
+        "提交页面",
+        "page operation",
+    ),
+}
+
+
+def _tool_family_from_name(name: str) -> str:
+    normalized = (name or "").strip()
+    if not normalized:
+        return "none"
+    if normalized in {"web_search", "fetch_url"}:
+        return "web_research"
+    if normalized in {"get_current_weather", "get_weather_forecast"}:
+        return "weather"
+    if normalized.startswith("data_"):
+        return "data_ops"
+    if normalized in {"get_page_context", "invoke_page_operation", "list_page_operations"} or normalized.startswith("pageop_"):
+        return "page_ops"
+    return "none"
+
+
+def _tool_semantic_family(tool: ToolDefinition) -> str:
+    family = str(getattr(tool, "semantic_family", "") or "").strip()
+    if family:
+        return family
+    return _tool_family_from_name(tool.name)
+
+
+def _tool_semantic_tags(tool: ToolDefinition) -> list[str]:
+    tags = [
+        str(tag).strip()
+        for tag in (getattr(tool, "semantic_tags", None) or [])
+        if str(tag).strip()
+    ]
+    if tags:
+        return tags
+    return list(_FAMILY_HINT_TAGS.get(_tool_semantic_family(tool), ()))
+
+
+def _tool_semantic_query_tokens(tool: ToolDefinition) -> set[str]:
+    return _tokenize(" ".join(_tool_semantic_tags(tool)))
+
+
+def _family_query_tokens(tools: list[ToolDefinition], family: str) -> set[str]:
+    tokens: set[str] = set()
+    for tool in tools:
+        if _tool_semantic_family(tool) != family:
+            continue
+        tokens |= _tool_semantic_query_tokens(tool)
+    return tokens
+
+
+def _query_mentions_family(
+    query_text: str,
+    query_tokens: set[str],
+    family_tokens: set[str],
+    family_hints: tuple[str, ...],
+) -> bool:
+    if family_tokens and query_tokens & family_tokens:
+        return True
+    return any(len(hint) > 1 and hint in query_text for hint in family_hints)
+
+
+def _query_forbids_family(
+    query_text: str,
+    query_tokens: set[str],
+    family_tokens: set[str],
+    family_hints: tuple[str, ...],
+) -> bool:
+    if not any(
+        marker in query_text
+        for marker in ("不要", "别", "不用", "无需", "do not", "don't", "without")
+    ):
+        return False
+    return _query_mentions_family(query_text, query_tokens, family_tokens, family_hints)
+
+
 # Dedicated editor tools (pageop_*) and data tools (data_*) are also protected when present
 # 专用 editor tools 和 data tools 存在时同样保护
-def _is_protected_tool(name: str, preferred_family: str | None = None) -> bool:
+def _is_protected_tool(
+    tool: ToolDefinition,
+    preferred_family: str | None = None,
+) -> bool:
     """Check if tool should be protected from optimization / 工具是否应被保护不被优化"""
-    if preferred_family == "web_research" and name.startswith("data_"):
-        return False
-    return (
-        name in PROTECTED_TOOL_NAMES
-        or name.startswith("pageop_")
-        or name.startswith("data_")
-    )
+    family = _tool_semantic_family(tool)
+    if preferred_family == "web_research" and family in {"data_ops", "page_ops"}:
+        return tool.name in PROTECTED_TOOL_NAMES
+    if tool.name in PROTECTED_TOOL_NAMES:
+        return True
+    if family in {"page_ops", "data_ops"}:
+        return True
+    return False
 
 
-def _is_explicitly_requested_tool(tool_name_lower: str, query_text: str) -> bool:
-    """Check whether the query explicitly asks for a tool or its strong alias. / 检查查询是否显式点名工具或其强别名。"""
+def _is_explicitly_requested_tool(
+    tool: ToolDefinition,
+    query_text: str,
+) -> bool:
+    """Check whether the query explicitly asks for a tool or its semantic capability. / 检查查询是否显式点名工具或其语义能力。"""
+    tool_name_lower = tool.name.lower()
     if tool_name_lower in query_text or tool_name_lower.replace("_", " ") in query_text:
         return True
 
-    alias_map = {
-        "fetch_url": ("抓取网页", "打开网页", "读取网页", "读取页面链接"),
-        "get_current_weather": ("查询天气", "今天天气", "实时天气", "当前天气"),
-        "get_weather_forecast": ("天气预报", "未来天气", "未来七天", "7天天气", "明天天气", "预报"),
-        "web_search": ("联网搜索", "上网搜索", "搜索网页", "web search"),
-    }
-    aliases = alias_map.get(tool_name_lower, ())
-    return any(alias in query_text for alias in aliases)
+    explicit_hints = [
+        str(hint).strip().lower()
+        for hint in _FAMILY_EXPLICIT_REQUEST_HINTS.get(_tool_semantic_family(tool), ())
+        if len(str(hint).strip()) >= 2
+    ]
+    if any(hint in query_text for hint in explicit_hints):
+        return True
+
+    semantic_phrases = [
+        str(tag).strip().lower()
+        for tag in _tool_semantic_tags(tool)
+        if len(str(tag).strip()) >= 4
+    ]
+    return any(tag in query_text for tag in semantic_phrases)
 
 # Chinese stopwords (high-frequency meaningless words) / 中文停用词
 _STOPWORDS_ZH = frozenset({
@@ -91,38 +243,12 @@ _STOPWORDS_EN = frozenset({
 
 _STOPWORDS = _STOPWORDS_ZH | _STOPWORDS_EN
 
-# Data-related keywords → boost data_* tools / 数据相关关键词
-_DATA_KEYWORDS = frozenset({
-    "数据", "查询", "统计", "记录", "表", "创建", "修改", "删除",
-    "更新", "新增", "编辑", "添加", "搜索", "筛选", "过滤", "排序",
-    "data", "query", "record", "table", "create", "update", "delete",
-    "insert", "search", "filter", "sort", "count", "statistics",
-    "report", "list", "find", "show", "display",
-})
-
 # Knowledge/document keywords → boost knowledge_base tools / 知识文档关键词
 _KB_KEYWORDS = frozenset({
     "知识", "文档", "资料", "说明", "手册", "指南", "规范", "政策",
     "制度", "流程", "标准", "参考", "介绍", "解释", "含义", "定义",
     "knowledge", "document", "manual", "guide", "reference", "policy",
     "explain", "definition", "meaning", "describe", "about",
-})
-
-# Web search keywords → boost web_search/fetch_url tools / 联网搜索关键词
-_WEB_KEYWORDS = frozenset({
-    "联网", "搜索", "搜一下", "查一下", "查阅", "上网", "网上",
-    "最新", "实时", "新闻", "百科", "维基",
-    "谁是", "生日", "简介", "官网", "网址", "链接", "网页",
-    "search", "internet", "web", "online", "latest", "news",
-    "wiki", "wikipedia", "website", "url",
-    "browse", "lookup", "fetch",
-})
-
-# Weather keywords → boost weather toolkit tools / 天气关键词
-_WEATHER_KEYWORDS = frozenset({
-    "天气", "预报", "气温", "温度", "湿度", "风速", "降雨", "北京", "上海",
-    "weather", "forecast", "temperature", "humidity", "wind", "rain",
-    "snow", "uv", "air", "quality",
 })
 
 # Chinese character regex / 中文字符正则
@@ -186,9 +312,12 @@ def _score_tool(
         Relevance score (higher is more relevant) / 相关性分数
     """
     score = 0.0
+    tool_family = _tool_semantic_family(tool)
+    semantic_query_tokens = _tool_semantic_query_tokens(tool)
+    family_hints = _FAMILY_EXPLICIT_REQUEST_HINTS.get(tool_family, ())
 
     # 1. Keyword overlap between tool name/description and query / 工具名描述与查询的关键词重叠
-    tool_text = f"{tool.name} {tool.description or ''}"
+    tool_text = " ".join([tool.name, tool.description or "", *_tool_semantic_tags(tool)])
     tool_tokens = _tokenize(tool_text)
     overlap = query_tokens & tool_tokens
     if overlap:
@@ -199,19 +328,23 @@ def _score_tool(
     if tool_name_lower in query_text or tool_name_lower.replace("_", " ") in query_text:
         score += 10.0
 
-    # 2.5 Explicit skill-family mentions / 明确点名技能族
-    if "weather" in tool_name_lower and (
-        "天气技能" in query_text
-        or "天气工具" in query_text
-        or "weather tool" in query_text
-        or "weather skill" in query_text
+    if _query_mentions_family(
+        query_text,
+        query_tokens,
+        semantic_query_tokens,
+        family_hints,
     ):
-        score += 12.0
+        score += 4.0
 
     # 3. Data tool boost / 数据类工具加权
     if (
-        (tool.name.startswith("data_") or tool.tool_type in ("text_to_sql", "crud"))
-        and query_tokens & _DATA_KEYWORDS
+        (tool_family == "data_ops" or tool.tool_type in ("text_to_sql", "crud"))
+        and _query_mentions_family(
+            query_text,
+            query_tokens,
+            semantic_query_tokens,
+            family_hints,
+        )
     ):
         score += 5.0
 
@@ -220,33 +353,35 @@ def _score_tool(
         score += 5.0
 
     # 4.5 Web search tool boost / 联网搜索工具加权
-    if (
-        ("search" in tool_name_lower or "fetch" in tool_name_lower or "web" in tool_name_lower)
-        and query_tokens & _WEB_KEYWORDS
+    if tool_family == "web_research" and _query_mentions_family(
+        query_text,
+        query_tokens,
+        semantic_query_tokens,
+        family_hints,
     ):
         score += 8.0
 
     # 4.6 Weather tool boost / 天气工具加权
-    if "weather" in tool_name_lower and query_tokens & _WEATHER_KEYWORDS:
+    if tool_family == "weather" and _query_mentions_family(
+        query_text,
+        query_tokens,
+        semantic_query_tokens,
+        family_hints,
+    ):
         score += 8.0
 
     if prefer_weather_tools:
-        if "weather" in tool_name_lower:
+        if tool_family == "weather":
             score += 12.0
-        elif "search" in tool_name_lower or "fetch" in tool_name_lower or "web" in tool_name_lower:
+        elif tool_family == "web_research":
             score -= 4.0
 
     # 4.7 Negative preference: user explicitly forbids web search / 用户明确禁止联网搜索时降低联网工具分数
-    if (
-        ("search" in tool_name_lower or "fetch" in tool_name_lower or "web" in tool_name_lower)
-        and (
-            "不要使用联网搜索" in query_text
-            or "不要联网搜索" in query_text
-            or "不要用联网搜索" in query_text
-            or "do not use web search" in query_text
-            or "don't use web search" in query_text
-            or "without web search" in query_text
-        )
+    if tool_family == "web_research" and _query_forbids_family(
+        query_text,
+        query_tokens,
+        semantic_query_tokens,
+        family_hints,
     ):
         score -= 20.0
 
@@ -255,10 +390,12 @@ def _score_tool(
         score += 3.0
 
     if preferred_family == "web_research":
-        if tool.name in {"web_search", "fetch_url"}:
+        if tool_family == "web_research":
             score += 15.0
-        elif tool.name.startswith("data_"):
+        elif tool_family == "data_ops":
             score -= 25.0
+        elif tool_family == "page_ops":
+            score -= 8.0
 
     # 6. Base score (ensure minimum score to avoid unstable sorting) / 基础分
     score += 0.1
@@ -292,6 +429,8 @@ def optimize_tools(
         OptimizeResult
     """
     total = len(tools)
+    query_text = user_query.lower()
+    query_tokens = _tokenize(user_query)
 
     # Tool count within threshold, skip optimization / 工具数量在阈值内，跳过优化
     if total <= max_without_optimization and not preferred_family:
@@ -307,12 +446,11 @@ def optimize_tools(
     explicitly_requested: list[ToolDefinition] = []
     optimizable: list[ToolDefinition] = []
     for tool in tools:
-        if _is_protected_tool(tool.name, preferred_family=preferred_family):
+        if _is_protected_tool(tool, preferred_family=preferred_family):
             protected.append(tool)
             continue
 
-        tool_name_lower = tool.name.lower()
-        if _is_explicitly_requested_tool(tool_name_lower, user_query.lower()):
+        if _is_explicitly_requested_tool(tool, query_text):
             explicitly_requested.append(tool)
         else:
             optimizable.append(tool)
@@ -326,10 +464,13 @@ def optimize_tools(
     # Optimizable tools within budget, keep all / 可优化工具在名额内，全部保留
     if len(optimizable) <= budget:
         if preferred_family:
-            query_text = user_query.lower()
-            query_tokens = _tokenize(user_query)
-            prefer_weather_tools = bool(query_tokens & _WEATHER_KEYWORDS) and any(
-                "weather" in tool.name.lower() for tool in tools
+            prefer_weather_tools = _query_mentions_family(
+                query_text,
+                query_tokens,
+                _family_query_tokens(tools, "weather"),
+                _FAMILY_EXPLICIT_REQUEST_HINTS.get("weather", ()),
+            ) and any(
+                _tool_semantic_family(tool) == "weather" for tool in tools
             )
             scored = []
             for idx, tool in enumerate(optimizable):
@@ -365,13 +506,14 @@ def optimize_tools(
             skipped=False,
         )
 
-    # Tokenize / 分词
-    query_text = user_query.lower()
-    query_tokens = _tokenize(user_query)
-
     # Score (only optimizable tools) / 打分
-    prefer_weather_tools = bool(query_tokens & _WEATHER_KEYWORDS) and any(
-        "weather" in tool.name.lower() for tool in tools
+    prefer_weather_tools = _query_mentions_family(
+        query_text,
+        query_tokens,
+        _family_query_tokens(tools, "weather"),
+        _FAMILY_EXPLICIT_REQUEST_HINTS.get("weather", ()),
+    ) and any(
+        _tool_semantic_family(tool) == "weather" for tool in tools
     )
     scored: list[tuple[float, int, ToolDefinition]] = []
     for idx, tool in enumerate(optimizable):
@@ -393,11 +535,14 @@ def optimize_tools(
     selected = protected + explicitly_requested + selected_optimizable
 
     logger.info(
-        "Tool optimizer: {} → {} tools ({} protected, {} explicit, query={})",
+        "Tool optimizer: {} → {} tools (family={} protected={} explicit={} selected_tool_names={} dropped_tool_names={} query={})",
         total,
         len(selected),
+        preferred_family or "none",
         len(protected),
         len(explicitly_requested),
+        [tool.name for tool in selected],
+        [tool.name for tool in tools if tool not in selected],
         user_query[:50],
     )
     # Loguru 无 isEnabledFor，使用 getattr 兼容 / Loguru has no isEnabledFor, use getattr for compat

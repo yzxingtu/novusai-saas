@@ -65,6 +65,78 @@ class SkillResolver:
     def __init__(self, db: AsyncSession | None = None):
         self.db = db
 
+    @staticmethod
+    def _semantic_tags(*values: str) -> list[str]:
+        tags: list[str] = []
+        for value in values:
+            text = (value or "").strip()
+            if text and text not in tags:
+                tags.append(text)
+        return tags
+
+    @classmethod
+    def _apply_tool_semantics(
+        cls,
+        tool: ToolDefinition,
+        *,
+        skill_type: str | None = None,
+    ) -> None:
+        if tool.semantic_family:
+            return
+
+        name = (tool.name or "").strip()
+        if not name:
+            return
+
+        if name in {"web_search", "fetch_url"}:
+            tool.semantic_family = "web_research"
+            tool.semantic_tags = tool.semantic_tags or cls._semantic_tags(
+                "联网搜索",
+                "网页查询",
+                "读取网页",
+                "官方来源",
+                "最新信息",
+                "website",
+                "url",
+                "search web",
+            )
+            return
+
+        if name in {"get_current_weather", "get_weather_forecast"}:
+            tool.semantic_family = "weather"
+            tool.semantic_tags = tool.semantic_tags or cls._semantic_tags(
+                "天气查询",
+                "天气预报",
+                "当前天气",
+                "实时天气",
+                "weather",
+                "forecast",
+            )
+            return
+
+        if name.startswith("data_") or skill_type == SkillTypeEnum.DATA_INTELLIGENCE.value:
+            tool.semantic_family = "data_ops"
+            tool.semantic_tags = tool.semantic_tags or cls._semantic_tags(
+                "数据查询",
+                "数据库操作",
+                "记录管理",
+                "统计报表",
+                "data query",
+                "data update",
+            )
+            return
+
+        if name in {"get_page_context", "invoke_page_operation", "list_page_operations"} or name.startswith("pageop_"):
+            tool.semantic_family = "page_ops"
+            tool.semantic_tags = tool.semantic_tags or cls._semantic_tags(
+                "页面操作",
+                "页面交互",
+                "读取页面",
+                "填写表单",
+                "page context",
+                "page operation",
+            )
+
     async def resolve(
         self,
         skills: list[Skill],
@@ -99,9 +171,12 @@ class SkillResolver:
                 merged_config.update(overrides[skill.id])
 
             source_plugin = plugin_map.get(skill.package_id)
+            before_count = len(result.tools)
 
             try:
                 await self._resolve_one(skill, merged_config, result, source_plugin)
+                for tool in result.tools[before_count:]:
+                    self._apply_tool_semantics(tool, skill_type=skill.type)
             except Exception as exc:
                 warning_msg = f"Skill '{skill.name}' (id={skill.id}) failed to load: {str(exc)}"
                 result.warnings.append(warning_msg)
@@ -320,6 +395,15 @@ class SkillResolver:
             source_skill_id=skill.id,
             source_skill_name=skill.name,
             source_skill_type=skill.type,
+            semantic_family="data_ops",
+            semantic_tags=self._semantic_tags(
+                "data",
+                "query",
+                "统计",
+                "查询",
+                "count",
+                "report",
+            ),
         ))
 
         # CRUD tools — directly controlled by Table Policy's per-table allow_create/update/delete
@@ -357,6 +441,8 @@ class SkillResolver:
                 source_skill_id=skill.id,
                 source_skill_name=skill.name,
                 source_skill_type=skill.type,
+                semantic_family="data_ops",
+                semantic_tags=self._semantic_tags("data", "create", "新增", "创建"),
             ))
 
         update_tables = crud_allowed_tables.get("update", [])
@@ -394,6 +480,8 @@ class SkillResolver:
                 source_skill_id=skill.id,
                 source_skill_name=skill.name,
                 source_skill_type=skill.type,
+                semantic_family="data_ops",
+                semantic_tags=self._semantic_tags("data", "update", "编辑", "修改"),
             ))
 
         delete_tables = crud_allowed_tables.get("delete", [])
@@ -425,6 +513,8 @@ class SkillResolver:
                 source_skill_id=skill.id,
                 source_skill_name=skill.name,
                 source_skill_type=skill.type,
+                semantic_family="data_ops",
+                semantic_tags=self._semantic_tags("data", "delete", "删除"),
             ))
 
     # ======================================== / 上文为英文说明 / English above
@@ -558,6 +648,67 @@ class SkillResolver:
                     source_skill_id=skill.id,
                     source_skill_name=skill.name,
                     source_skill_type=skill.type,
+                    semantic_family=(
+                        "web_research"
+                        if tool_name in {"web_search", "fetch_url"}
+                        else (
+                            "page_ops"
+                            if tool_name in {
+                                "get_page_context",
+                                "invoke_page_operation",
+                                "list_page_operations",
+                            }
+                            else (
+                                "weather"
+                                if tool_name in {
+                                    "get_current_weather",
+                                    "get_weather_forecast",
+                                }
+                                else None
+                            )
+                        )
+                    ),
+                    semantic_tags=self._semantic_tags(
+                        *(
+                            (
+                                "联网",
+                                "搜索",
+                                "网页",
+                                "最新",
+                                "来源",
+                                "官网",
+                                "url",
+                                "website",
+                            )
+                            if tool_name in {"web_search", "fetch_url"}
+                            else (
+                                (
+                                    "页面",
+                                    "page",
+                                    "context",
+                                    "operation",
+                                )
+                                if tool_name in {
+                                    "get_page_context",
+                                    "invoke_page_operation",
+                                    "list_page_operations",
+                                }
+                                else (
+                                    (
+                                        "天气",
+                                        "weather",
+                                        "forecast",
+                                        "temperature",
+                                    )
+                                    if tool_name in {
+                                        "get_current_weather",
+                                        "get_weather_forecast",
+                                    }
+                                    else ()
+                                )
+                            )
+                        )
+                    ),
                 ))
         else:
             params = self._build_params_from_schema(skill.input_schema)
@@ -576,6 +727,67 @@ class SkillResolver:
                 source_skill_id=skill.id,
                 source_skill_name=skill.name,
                 source_skill_type=skill.type,
+                semantic_family=(
+                    "web_research"
+                    if skill.name in {"web_search", "fetch_url"}
+                    else (
+                        "page_ops"
+                        if skill.name in {
+                            "get_page_context",
+                            "invoke_page_operation",
+                            "list_page_operations",
+                        }
+                        else (
+                            "weather"
+                            if skill.name in {
+                                "get_current_weather",
+                                "get_weather_forecast",
+                            }
+                            else None
+                        )
+                    )
+                ),
+                semantic_tags=self._semantic_tags(
+                    *(
+                        (
+                            "联网",
+                            "搜索",
+                            "网页",
+                            "最新",
+                            "来源",
+                            "官网",
+                            "url",
+                            "website",
+                        )
+                        if skill.name in {"web_search", "fetch_url"}
+                        else (
+                            (
+                                "页面",
+                                "page",
+                                "context",
+                                "operation",
+                            )
+                            if skill.name in {
+                                "get_page_context",
+                                "invoke_page_operation",
+                                "list_page_operations",
+                            }
+                            else (
+                                (
+                                    "天气",
+                                    "weather",
+                                    "forecast",
+                                    "temperature",
+                                )
+                                if skill.name in {
+                                    "get_current_weather",
+                                    "get_weather_forecast",
+                                }
+                                else ()
+                            )
+                        )
+                    )
+                ),
             ))
 
     # ======================================== / 上文为英文说明 / English above

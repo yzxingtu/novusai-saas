@@ -53,6 +53,7 @@ class BaseAdapter(ABC):
         top_p: float = 1.0,
         stream: bool = False,
         tools: list[dict] | None = None,
+        tool_choice: str | None = None,
         **kwargs
     ) -> ChatResponse:
         """
@@ -66,6 +67,7 @@ class BaseAdapter(ABC):
             top_p: Nucleus sampling parameter / 核采样参数
             stream: Whether to use streaming response / 是否使用流式响应
             tools: Tool list (Function Calling) / 工具列表
+            tool_choice: Tool choice policy (auto / required) / 工具调用策略
             **kwargs: Other parameters / 其他参数
 
         Returns:
@@ -82,6 +84,7 @@ class BaseAdapter(ABC):
         max_tokens: int | None = None,
         top_p: float = 1.0,
         tools: list[dict] | None = None,
+        tool_choice: str | None = None,
         **kwargs
     ) -> AsyncIterator[ChatChunk]:
         """
@@ -94,6 +97,7 @@ class BaseAdapter(ABC):
             max_tokens: Maximum generated tokens / 最大生成 tokens
             top_p: Nucleus sampling parameter / 核采样参数
             tools: Tool list / 工具列表
+            tool_choice: Tool choice policy (auto / required) / 工具调用策略
             **kwargs: Other parameters / 其他参数
 
         Yields:

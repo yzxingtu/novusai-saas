@@ -101,6 +101,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         messages: list,
         temperature: float,
         tools: list | None,
+        tool_choice: str | None = None,
     ) -> str:
         """
         生成请求哈希（用于缓存命中检测）/ Generate request hash for cache hit detection.
@@ -119,6 +120,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
             "messages": messages,
             "temperature": temperature,
             "tools": tools,
+            "tool_choice": tool_choice,
         }
 
         params_str = json.dumps(params, sort_keys=True)
@@ -208,7 +210,14 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         messages = request_data.get("messages", [])
         temperature = request_data.get("temperature", 0.7)
         tools = request_data.get("tools")
-        request_hash = self._generate_request_hash(model_id, messages, temperature, tools)
+        tool_choice = request_data.get("tool_choice")
+        request_hash = self._generate_request_hash(
+            model_id,
+            messages,
+            temperature,
+            tools,
+            tool_choice=tool_choice,
+        )
 
         # 创建日志记录 / Create log row
         billing_context = dict(billing_context or {})

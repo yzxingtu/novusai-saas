@@ -8,12 +8,14 @@ Configures Celery Worker, Broker (Redis), Result Backend with multi-queue routin
 from contextlib import suppress
 
 from celery import Celery
+from celery.signals import beat_init, worker_process_init
 from kombu import Exchange, Queue
 
 from app.ai.adapters import AdapterRegistry
 from app.ai.adapters.openai_adapter import OpenAIAdapter
 from app.core.config import settings
 from app.core.logging import LogManager
+from app.core.runtime_identity import get_runtime_identity_tag
 from app.middleware.trace import trace_id_var
 
 celery_app = Celery("novusai")
@@ -190,6 +192,16 @@ _bootstrap_enabled_plugin_queue_extensions()
 # AI 适配器注册（Worker 进程不走 main.py lifespan）
 # ========================================
 AdapterRegistry.register("openai_compatible", OpenAIAdapter)
+
+
+@worker_process_init.connect
+def _log_worker_runtime_identity(*_args, **_kwargs) -> None:
+    logger.info("Celery worker runtime identity: {}", get_runtime_identity_tag())
+
+
+@beat_init.connect
+def _log_beat_runtime_identity(*_args, **_kwargs) -> None:
+    logger.info("Celery beat runtime identity: {}", get_runtime_identity_tag())
 
 # ========================================
 # Result Configuration / 结果配置

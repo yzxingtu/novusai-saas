@@ -25,6 +25,7 @@ from app.ai.usage_recorder import UsageRecorder
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.core.runtime_identity import get_runtime_identity_tag
 from app.core.response import build_public_error_text
 from app.enums.ai import CallStatusEnum, RequestTypeEnum
 from app.exceptions import BusinessException, NotFoundException
@@ -33,7 +34,7 @@ from app.services.ai.usage_metrics import CostCalculator, TokenCounter
 
 from .base import BaseEngine, log_user_type_for_call_log
 from .stream_handler import StreamExecutionHandler
-from .types import ExecutionRequest, ExecutionResult
+from .types import ExecutionRequest, ExecutionResult, ToolUsePolicy
 
 if TYPE_CHECKING:
     from app.ai.skills.resolver import SkillResolveResult
@@ -107,12 +108,15 @@ class ConversationEngine(BaseEngine):
             messages = prep.messages
             tools = prep.tools
             rag_sources = prep.rag_sources
+            retry_overhead_tokens = 0
 
             # 2. Call LLM / 调用 LLM
             response = await self._call_llm(
                 agent=agent,
                 messages=messages,
                 tools=tools or None,
+                all_tool_names=[tool.name for tool in prep.all_tools],
+                tool_use_policy=prep.tool_use_policy,
                 tenant_id=request.tenant_id,
                 user_id=request.user_id,
                 conversation_id=request.conversation_id,
@@ -120,21 +124,83 @@ class ConversationEngine(BaseEngine):
                 route_result=prep.route_result,
                 log_user_type=log_user_type_for_call_log(request.user_role),
             )
-            self._log_web_research_contract_diagnostics(
-                agent=agent,
-                messages=messages,
+            should_retry, retry_policy, breach_preview = self._should_retry_tool_contract_breach(
                 response=response,
+                current_policy=prep.tool_use_policy,
                 tools=tools or [],
-                continuation=prep.continuation_context,
-                conversation_id=request.conversation_id,
+                input_variables=request.input_variables,
             )
+            del breach_preview
+            if (
+                should_retry
+                and retry_policy is not None
+                and not prep.tool_use_policy.retry_on_contract_breach
+                and prep.tool_use_policy.mode != "required"
+            ):
+                self._log_tool_contract_diagnostics(
+                    agent=agent,
+                    messages=messages,
+                    response=response,
+                    tools=tools or [],
+                    policy=retry_policy,
+                    conversation_id=request.conversation_id,
+                    breach_type="initial_capability_denial_or_no_tool_use",
+                    retry_result="no_retry",
+                    continuation=prep.continuation_context,
+                )
+            elif should_retry and retry_policy is not None:
+                retry_overhead_tokens += response.total_tokens or 0
+                self._log_tool_contract_diagnostics(
+                    agent=agent,
+                    messages=messages,
+                    response=response,
+                    tools=tools or [],
+                    policy=retry_policy,
+                    conversation_id=request.conversation_id,
+                    breach_type="initial_capability_denial_or_no_tool_use",
+                    retry_result="retrying",
+                    continuation=prep.continuation_context,
+                )
+                retry_tools = self._filter_tools_for_policy(
+                    prep.all_tools or tools or [],
+                    retry_policy,
+                )
+                retry_response = await self._call_llm(
+                    agent=agent,
+                    messages=messages,
+                    tools=retry_tools or None,
+                    all_tool_names=[tool.name for tool in prep.all_tools],
+                    tool_use_policy=retry_policy,
+                    breach_retry_result="retry_follow_up",
+                    tenant_id=request.tenant_id,
+                    user_id=request.user_id,
+                    conversation_id=request.conversation_id,
+                    billing_context=request.billing_context,
+                    route_result=prep.route_result,
+                    log_user_type=log_user_type_for_call_log(request.user_role),
+                )
+                retry_fixed = bool(retry_response.tool_calls)
+                self._log_tool_contract_diagnostics(
+                    agent=agent,
+                    messages=messages,
+                    response=retry_response,
+                    tools=retry_tools or [],
+                    policy=retry_policy,
+                    conversation_id=request.conversation_id,
+                    breach_type="initial_capability_denial_or_no_tool_use",
+                    retry_result="succeeded" if retry_fixed else "failed",
+                    continuation=prep.continuation_context,
+                )
+                response = retry_response
+                if retry_fixed:
+                    tools = retry_tools
 
-            total_tokens = response.total_tokens or 0
+            total_tokens = retry_overhead_tokens + (response.total_tokens or 0)
 
             # 4. Tool call loop (pass route_result + tool_consent_modes for unified consent semantic) / 工具调用循环（传入 route_result + tool_consent_modes 统一授权语义）
             tool_results = []
             if response.tool_calls and tools:
-                response, tool_results, total_tokens = await self._handle_tool_calls(
+                response, tool_results, loop_tokens = await self._handle_tool_calls(
                     agent=agent,
                     messages=messages,
                     response=response,
@@ -145,6 +211,7 @@ class ConversationEngine(BaseEngine):
                     tool_consent_modes=prep.tool_consent_modes,
                     continuation_context=prep.continuation_context,
                 )
+                total_tokens = retry_overhead_tokens + loop_tokens
                 if response is not None:
                     self._log_web_research_contract_diagnostics(
                         agent=agent,
@@ -302,6 +369,8 @@ class ConversationEngine(BaseEngine):
         log_user_type: str | None = None,
         billing_context: dict[str, Any] | None = None,
         runtime_context: _StreamRuntimeContext | None = None,
+        all_tool_names: list[str] | None = None,
+        tool_use_policy: ToolUsePolicy | None = None,
     ) -> AsyncIterator[ChatChunk]:
         """
         Get streaming ChatChunk via adapter (with rate limiting/quota/metering protection).
@@ -355,6 +424,46 @@ class ConversationEngine(BaseEngine):
             internal_tenant_id=tenant_id,
         )
         openai_tools = to_openai_tools(tools) if tools else None
+        effective_policy = tool_use_policy or ToolUsePolicy()
+        effective_tool_choice = (
+            effective_policy.mode
+            if openai_tools and effective_policy.mode in {"auto", "required"}
+            else None
+        )
+        request_log_data = {
+            "_stream": True,
+            "messages": messages_to_dicts(messages),
+            "temperature": agent.temperature,
+            "max_tokens": agent.max_tokens,
+            "top_p": agent.top_p or 1.0,
+            "tools": openai_tools,
+            "tool_choice": effective_tool_choice,
+            "selected_tool_names": [tool.name for tool in (tools or [])],
+            "all_tool_names": all_tool_names or [tool.name for tool in (tools or [])],
+            "tool_use_policy": {
+                "family": effective_policy.family,
+                "mode": effective_policy.mode,
+                "allowed_tool_names": effective_policy.allowed_tool_names,
+            },
+        }
+        if effective_policy.reason.startswith(("capability_denial:", "required_retry:")):
+            request_log_data["breach_retry_result"] = "retry_follow_up"
+        if openai_tools and any(
+            isinstance(tool, dict)
+            and (tool.get("function", {}) or {}).get("name") in {"web_search", "fetch_url"}
+            for tool in openai_tools
+        ) and not effective_tool_choice:
+            logger.warning(
+                "Tool policy not loaded: status=policy_not_loaded runtime={} conversation_id={} agent_id={} tool_names={}",
+                get_runtime_identity_tag(),
+                conversation_id,
+                getattr(agent, "id", None),
+                [
+                    (tool.get("function", {}) or {}).get("name")
+                    for tool in openai_tools
+                    if isinstance(tool, dict)
+                ],
+            )
 
         supports_streaming = getattr(ai_model, "supports_streaming", True) if ai_model else True
         routed_model_id = (
@@ -388,6 +497,7 @@ class ConversationEngine(BaseEngine):
                     max_tokens=agent.max_tokens,
                     top_p=agent.top_p or 1.0,
                     tools=openai_tools,
+                    tool_choice=effective_tool_choice,
                     supports_vision=bool(is_vision),
                     supports_audio=bool(is_audio),
                     supports_video=bool(is_video),
@@ -414,6 +524,7 @@ class ConversationEngine(BaseEngine):
                     max_tokens=agent.max_tokens,
                     top_p=agent.top_p or 1.0,
                     tools=openai_tools,
+                    tool_choice=effective_tool_choice,
                     supports_vision=bool(is_vision),
                     supports_audio=bool(is_audio),
                     supports_video=bool(is_video),
@@ -452,7 +563,13 @@ class ConversationEngine(BaseEngine):
                         temperature=agent.temperature,
                         max_tokens=agent.max_tokens,
                         top_p=agent.top_p or 1.0,
-                        tools=openai_tools,
+                    tools=openai_tools,
+                    tool_choice=effective_tool_choice,
+                    all_tool_names=all_tool_names or [tool.name for tool in (tools or [])],
+                    tool_use_policy_family=effective_policy.family,
+                        tool_use_policy_mode=effective_policy.mode,
+                        allowed_tool_names=effective_policy.allowed_tool_names,
+                        breach_retry_result=request_log_data.get("breach_retry_result"),
                         request_type=RequestTypeEnum.CHAT.value,
                         tenant_id=tenant_id,
                         user_id=user_id,
@@ -529,12 +646,7 @@ class ConversationEngine(BaseEngine):
                         provider_id=provider.id,
                         request_type=RequestTypeEnum.CHAT.value,
                         request_data={
-                            "_stream": True,
-                            "messages": messages_to_dicts(messages),
-                            "temperature": agent.temperature,
-                            "max_tokens": agent.max_tokens,
-                            "top_p": agent.top_p or 1.0,
-                            "tools": openai_tools,
+                            **request_log_data,
                         },
                         response_data={
                             "input_tokens": input_tokens,

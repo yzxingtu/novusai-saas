@@ -43,6 +43,7 @@ from app.configs.service import PLATFORM_TENANT_ID
 from app.core.config import settings
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.core.runtime_identity import get_runtime_identity_tag
 from app.core.response import build_public_error_text
 from app.enums.ai import CallStatusEnum, RequestTypeEnum
 from app.enums.log import UserTypeEnum as LogUserTypeEnum
@@ -104,6 +105,82 @@ class AIGateway:
         if tenant_id == PLATFORM_TENANT_ID:
             return LogUserTypeEnum.ADMIN.value
         return LogUserTypeEnum.TENANT_ADMIN.value
+
+    @staticmethod
+    def _build_request_log_data(
+        *,
+        messages: list[ChatMessage],
+        temperature: float,
+        max_tokens: int | None,
+        top_p: float,
+        tools: list[dict] | None,
+        tool_choice: str | None,
+        all_tool_names: list[str] | None = None,
+        retry_count: int = 0,
+        tool_use_policy_family: str | None = None,
+        tool_use_policy_mode: str | None = None,
+        allowed_tool_names: list[str] | None = None,
+        breach_retry_result: str | None = None,
+        stream: bool = False,
+    ) -> dict[str, object]:
+        selected_tool_names = [
+            ((tool.get("function", {}) or {}).get("name"))
+            for tool in (tools or [])
+            if isinstance(tool, dict)
+        ]
+        selected_tool_names = [name for name in selected_tool_names if name]
+        request_data: dict[str, object] = {
+            "messages": messages_to_dicts(messages),
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "top_p": top_p,
+            "tools": tools,
+            "tool_choice": tool_choice,
+            "runtime_identity": get_runtime_identity_tag(),
+            "selected_tool_names": selected_tool_names,
+            "all_tool_names": all_tool_names or selected_tool_names,
+            "tool_use_policy": {
+                "family": tool_use_policy_family or "none",
+                "mode": tool_use_policy_mode or ("auto" if tools else "none"),
+                "allowed_tool_names": allowed_tool_names or [],
+            },
+        }
+        if stream:
+            request_data["_stream"] = True
+        if retry_count > 0:
+            request_data["_retry_count"] = retry_count
+        if breach_retry_result:
+            request_data["breach_retry_result"] = breach_retry_result
+        return request_data
+
+    @staticmethod
+    def _warn_policy_not_loaded(
+        *,
+        tools: list[dict] | None,
+        tool_choice: str | None,
+        conversation_id: int | None,
+        agent_id: int | None,
+    ) -> None:
+        if not tools:
+            return
+        tool_names = {
+            (
+                tool.get("function", {}) or {}
+            ).get("name", "")
+            for tool in tools
+            if isinstance(tool, dict)
+        }
+        if not ({"web_search", "fetch_url"} & tool_names):
+            return
+        if tool_choice:
+            return
+        logger.warning(
+            "Tool policy not loaded: status=policy_not_loaded runtime={} conversation_id={} agent_id={} tool_names={}",
+            get_runtime_identity_tag(),
+            conversation_id,
+            agent_id,
+            sorted(name for name in tool_names if name),
+        )
 
     @staticmethod
     def _resolve_billing_context(
@@ -185,6 +262,12 @@ class AIGateway:
         top_p: float = 1.0,
         stream: bool = False,
         tools: list[dict] | None = None,
+        tool_choice: str | None = None,
+        all_tool_names: list[str] | None = None,
+        tool_use_policy_family: str | None = None,
+        tool_use_policy_mode: str | None = None,
+        allowed_tool_names: list[str] | None = None,
+        breach_retry_result: str | None = None,
         tenant_id: int | None = None,
         user_id: int | None = None,
         user_type: str | None = None,
@@ -256,6 +339,7 @@ class AIGateway:
                 temperature=temperature,
                 max_tokens=max_tokens,
                 tools=tools,
+                tool_choice=tool_choice,
             )
 
             cached_response = await AIResponseCache.get(cache_key)
@@ -281,6 +365,12 @@ class AIGateway:
             )
 
         # 4. Call adapter (with exponential backoff retry + failover) / 调用适配器（含指数退避重试 + 故障转移）
+        self._warn_policy_not_loaded(
+            tools=tools,
+            tool_choice=tool_choice,
+            conversation_id=conversation_id,
+            agent_id=agent_id,
+        )
         try:
             response, retry_count, used_api_key = await self.retry_service.execute_with_retry(
                 provider=provider,
@@ -289,7 +379,7 @@ class AIGateway:
                 call_fn=lambda adapter: adapter.chat(
                     messages=messages, model=model, temperature=temperature,
                     max_tokens=max_tokens, top_p=top_p, stream=stream,
-                    tools=tools, **kwargs,
+                    tools=tools, tool_choice=tool_choice, **kwargs,
                 ),
                 tenant_id=tenant_id,
                 adapter_extra={
@@ -312,6 +402,17 @@ class AIGateway:
                     max_tokens=max_tokens,
                     top_p=top_p,
                     tools=tools,
+                    tool_choice=tool_choice,
+                    selected_tool_names=[
+                        ((tool.get("function", {}) or {}).get("name"))
+                        for tool in (tools or [])
+                        if isinstance(tool, dict)
+                    ],
+                    all_tool_names=all_tool_names,
+                    tool_use_policy_family=tool_use_policy_family,
+                    tool_use_policy_mode=tool_use_policy_mode,
+                    allowed_tool_names=allowed_tool_names,
+                    breach_retry_result=breach_retry_result,
                     request_type=RequestTypeEnum.CHAT.value,
                     tenant_id=tenant_id,
                     user_id=user_id,
@@ -344,7 +445,8 @@ class AIGateway:
                     call_fn=lambda adapter: adapter.chat(
                         messages=messages, model=fallback_model.code,
                         temperature=temperature, max_tokens=max_tokens,
-                        top_p=top_p, stream=stream, tools=tools, **kwargs,
+                        top_p=top_p, stream=stream, tools=tools,
+                        tool_choice=tool_choice, **kwargs,
                     ),
                     tenant_id=tenant_id,
                     adapter_extra={
@@ -378,6 +480,17 @@ class AIGateway:
                     max_tokens=max_tokens,
                     top_p=top_p,
                     tools=tools,
+                    tool_choice=tool_choice,
+                    selected_tool_names=[
+                        ((tool.get("function", {}) or {}).get("name"))
+                        for tool in (tools or [])
+                        if isinstance(tool, dict)
+                    ],
+                    all_tool_names=all_tool_names,
+                    tool_use_policy_family=tool_use_policy_family,
+                    tool_use_policy_mode=tool_use_policy_mode,
+                    allowed_tool_names=allowed_tool_names,
+                    breach_retry_result=breach_retry_result,
                     request_type=RequestTypeEnum.CHAT.value,
                     tenant_id=tenant_id,
                     user_id=user_id,
@@ -435,15 +548,20 @@ class AIGateway:
         if should_record_call_log:
             try:
                 assert tenant_id is not None
-                request_data = {
-                    "messages": messages_to_dicts(messages),
-                    "temperature": temperature,
-                    "max_tokens": max_tokens,
-                    "top_p": top_p,
-                    "tools": tools,
-                }
-                if retry_count > 0:
-                    request_data["_retry_count"] = retry_count
+                request_data = self._build_request_log_data(
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    top_p=top_p,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    all_tool_names=all_tool_names,
+                    retry_count=retry_count,
+                    tool_use_policy_family=tool_use_policy_family,
+                    tool_use_policy_mode=tool_use_policy_mode,
+                    allowed_tool_names=allowed_tool_names,
+                    breach_retry_result=breach_retry_result,
+                )
 
                 await self.usage_recorder.call_log_service.log_call_async(
                     tenant_id=tenant_id,
@@ -497,6 +615,12 @@ class AIGateway:
         max_tokens: int | None = None,
         top_p: float = 1.0,
         tools: list[dict] | None = None,
+        tool_choice: str | None = None,
+        all_tool_names: list[str] | None = None,
+        tool_use_policy_family: str | None = None,
+        tool_use_policy_mode: str | None = None,
+        allowed_tool_names: list[str] | None = None,
+        breach_retry_result: str | None = None,
         tenant_id: int | None = None,
         user_id: int | None = None,
         user_type: str | None = None,
@@ -561,6 +685,12 @@ class AIGateway:
                 ai_model,
                 estimated_input,
             )
+        self._warn_policy_not_loaded(
+            tools=tools,
+            tool_choice=tool_choice,
+            conversation_id=conversation_id,
+            agent_id=agent_id,
+        )
 
         async def generate_chunks() -> AsyncIterator[ChatChunk]:
             """Internal async generator using pre-fetched provider, api_key, ai_model. / 内部异步生成器，使用已获取的 provider, api_key, ai_model。
@@ -597,6 +727,7 @@ class AIGateway:
                             max_tokens=max_tokens,
                             top_p=top_p,
                             tools=tools,
+                            tool_choice=tool_choice,
                             **kwargs,
                         ):
                             yield chunk
@@ -669,6 +800,17 @@ class AIGateway:
                         max_tokens=max_tokens,
                         top_p=top_p,
                         tools=tools,
+                        tool_choice=tool_choice,
+                        selected_tool_names=[
+                            ((tool.get("function", {}) or {}).get("name"))
+                            for tool in (tools or [])
+                            if isinstance(tool, dict)
+                        ],
+                        all_tool_names=all_tool_names,
+                        tool_use_policy_family=tool_use_policy_family,
+                        tool_use_policy_mode=tool_use_policy_mode,
+                        allowed_tool_names=allowed_tool_names,
+                        breach_retry_result=breach_retry_result,
                         request_type=RequestTypeEnum.CHAT.value,
                         tenant_id=tenant_id,
                         user_id=user_id,
@@ -710,6 +852,7 @@ class AIGateway:
                         max_tokens=max_tokens,
                         top_p=top_p,
                         tools=tools,
+                        tool_choice=tool_choice,
                         **kwargs,
                     ):
                         yield chunk
@@ -739,6 +882,17 @@ class AIGateway:
                         max_tokens=max_tokens,
                         top_p=top_p,
                         tools=tools,
+                        tool_choice=tool_choice,
+                        selected_tool_names=[
+                            ((tool.get("function", {}) or {}).get("name"))
+                            for tool in (tools or [])
+                            if isinstance(tool, dict)
+                        ],
+                        all_tool_names=all_tool_names,
+                        tool_use_policy_family=tool_use_policy_family,
+                        tool_use_policy_mode=tool_use_policy_mode,
+                        allowed_tool_names=allowed_tool_names,
+                        breach_retry_result=breach_retry_result,
                         request_type=RequestTypeEnum.CHAT.value,
                         tenant_id=tenant_id,
                         user_id=user_id,
@@ -790,6 +944,20 @@ class AIGateway:
                     routed_model_id=routed_model_id,
                     route_reason=route_reason,
                     metering_context=metering_context,
+                    request_data=self._build_request_log_data(
+                        messages=messages,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        top_p=top_p,
+                        tools=tools,
+                        tool_choice=tool_choice,
+                        all_tool_names=all_tool_names,
+                        tool_use_policy_family=tool_use_policy_family,
+                        tool_use_policy_mode=tool_use_policy_mode,
+                        allowed_tool_names=allowed_tool_names,
+                        breach_retry_result=breach_retry_result,
+                        stream=True,
+                    ),
                 )
 
         # Create SSE streaming response / 创建 SSE 流式响应

@@ -494,6 +494,7 @@ const switchAgentMenuItems = computed(() =>
     onClick: () => onStartNewChatWithAgent(agent.id),
   })),
 );
+const hasHeaderStatusBadges = computed(() => forceRerouteNextTurn.value);
 
 function clearRoutingIntent() {
   forceRerouteNextTurn.value = false;
@@ -1288,40 +1289,40 @@ onUnmounted(() => {
           @toggle-mode="handleToggleMode"
           @toggle-reroute="onToggleForceReroute"
         >
-          <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1">
-            <div
-              data-testid="ai-panel-header-status"
-              class="flex min-w-0 flex-1 flex-wrap items-center gap-1"
-            >
-              <span
-                v-if="forceRerouteNextTurn"
-                class="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700"
-              >
-                <IconifyIcon icon="lucide:compass" class="size-2.5" />
-                {{ $t('common.globalAiChat.rerouteArmed') }}
-              </span>
-            </div>
-
-            <PageAIRail
-              :diagnostics="pageAIDiagnostics"
-              :fallback-only="pageAIFallbackOnly"
-              :has-page-a-i="hasPageAI"
-              :has-expandable-details="hasExpandablePageAIDetails"
-              :details-expanded="pageAIDetailsExpanded"
-              :page-a-i-rail-tooltip="pageAIRailTooltip"
-              :operation-count="pageAIOperationCount"
-              :page-a-i-summary="pageAISummary"
-              :page-a-i-stat-badges="pageAIStatBadges"
-              :page-a-i-visible-operations="pageAIVisibleOperations"
-              :page-a-i-remaining-operation-count="
-                pageAIRemainingOperationCount
-              "
-              :resolved-page-a-i-title="resolvedPageAITitle"
-              @toggle-details="togglePageAIDetails"
-              @expand-all-operations="expandAllPageAIOperations"
-            />
-          </div>
+          <span
+            v-if="hasHeaderStatusBadges"
+            data-testid="ai-panel-header-status"
+            class="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700"
+          >
+            <IconifyIcon icon="lucide:compass" class="size-2.5" />
+            {{ $t('common.globalAiChat.rerouteArmed') }}
+          </span>
         </AIChatPanelHeader>
+
+        <div
+          v-if="hasPageAI"
+          data-testid="ai-panel-page-ai-row"
+          class="w-full shrink-0 px-3 pb-2 pt-1"
+        >
+          <PageAIRail
+            :diagnostics="pageAIDiagnostics"
+            :fallback-only="pageAIFallbackOnly"
+            :has-page-a-i="hasPageAI"
+            :has-expandable-details="hasExpandablePageAIDetails"
+            :details-expanded="pageAIDetailsExpanded"
+            :page-a-i-rail-tooltip="pageAIRailTooltip"
+            :operation-count="pageAIOperationCount"
+            :page-a-i-summary="pageAISummary"
+            :page-a-i-stat-badges="pageAIStatBadges"
+            :page-a-i-visible-operations="pageAIVisibleOperations"
+            :page-a-i-remaining-operation-count="
+              pageAIRemainingOperationCount
+            "
+            :resolved-page-a-i-title="resolvedPageAITitle"
+            @toggle-details="togglePageAIDetails"
+            @expand-all-operations="expandAllPageAIOperations"
+          />
+        </div>
 
         <!-- Streaming progress bar (T5) -->
         <div

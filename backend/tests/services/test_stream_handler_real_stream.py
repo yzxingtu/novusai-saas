@@ -61,6 +61,7 @@ from app.ai.engine.stream_handler import StreamExecutionHandler
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse
 from app.middleware.trace import trace_id_var
+from app.ai.engine.types import ToolUsePolicy
 
 
 def _parse_sse_payload(raw: str) -> dict:
@@ -175,6 +176,58 @@ class _FakeEngine:
             conversation_id=conversation_id,
         )
 
+    @staticmethod
+    def _log_tool_contract_diagnostics(
+        *,
+        agent,
+        messages,
+        response,
+        tools,
+        policy,
+        conversation_id,
+        breach_type,
+        retry_result,
+        continuation=None,
+    ):
+        from app.ai.engine.conversation import ConversationEngine
+
+        engine = object.__new__(ConversationEngine)
+        return ConversationEngine._log_tool_contract_diagnostics(
+            engine,
+            agent=agent,
+            messages=messages,
+            response=response,
+            tools=tools,
+            policy=policy,
+            conversation_id=conversation_id,
+            breach_type=breach_type,
+            retry_result=retry_result,
+            continuation=continuation,
+        )
+
+    @staticmethod
+    def _should_retry_tool_contract_breach(
+        *,
+        response,
+        current_policy,
+        tools,
+        input_variables,
+    ):
+        from app.ai.engine.conversation import ConversationEngine
+
+        return ConversationEngine._should_retry_tool_contract_breach(
+            response=response,
+            current_policy=current_policy,
+            tools=tools,
+            input_variables=input_variables,
+        )
+
+    @staticmethod
+    def _filter_tools_for_policy(tools, policy):
+        from app.ai.engine.conversation import ConversationEngine
+
+        return ConversationEngine._filter_tools_for_policy(tools, policy)
+
 class _BrokenStreamEngine(_FakeEngine):
     async def _stream_llm_chunks(self, **kwargs):
         _ = kwargs
@@ -186,6 +239,7 @@ def _build_handler(
     engine: _FakeEngine,
     tools: list[ToolDefinition] | None = None,
     continuation_context=None,
+    tool_use_policy: ToolUsePolicy | None = None,
 ) -> StreamExecutionHandler:
     if tools is None:
         tools = [ToolDefinition(name="query_db", description="查询数据库")]
@@ -200,6 +254,7 @@ def _build_handler(
         tools=tools,
         all_tools=tools,
         continuation_context=continuation_context,
+        tool_use_policy=tool_use_policy or ToolUsePolicy(),
         rag_sources=None,
         optimize_event=None,
         tool_consent_modes={},
@@ -482,6 +537,123 @@ async def test_stream_handler_logs_summary_without_detail_page_diagnostics():
     )
     assert "Here is a summary based only on the search snippets" in message_text
     assert diag_mock.call_count >= 1
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_retries_capability_denial_before_emitting_message() -> None:
+    engine = _FakeEngine(
+        rounds=[
+            [
+                ChatChunk(
+                    delta="我现在没有外部互联网搜索工具，只能基于已有知识回答。",
+                    finish_reason="stop",
+                    total_tokens=10,
+                ),
+            ],
+            [
+                ChatChunk(
+                    delta="",
+                    tool_calls=[
+                        {
+                            "id": "call_search_retry",
+                            "type": "function",
+                            "function": {
+                                "name": "web_search",
+                                "arguments": '{"query":"GPT 是什么","max_results":5}',
+                            },
+                        },
+                    ],
+                    finish_reason="tool_calls",
+                    total_tokens=12,
+                ),
+            ],
+            [
+                ChatChunk(delta="GPT 是生成式预训练 Transformer。", finish_reason="stop", total_tokens=18),
+            ],
+        ],
+    )
+    tools = [
+        ToolDefinition(name="web_search", description="Search the web"),
+        ToolDefinition(name="fetch_url", description="Fetch url"),
+        ToolDefinition(name="data_query", description="Query data"),
+    ]
+    handler = _build_handler(
+        engine,
+        tools=tools,
+        tool_use_policy=ToolUsePolicy(
+            family="none",
+            mode="auto",
+            allowed_tool_names=[tool.name for tool in tools],
+            retry_on_contract_breach=True,
+            reason="default_auto",
+        ),
+    )
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    message_text = "".join(
+        event.get("delta", "") for event in events if event.get("event") == "message"
+    )
+    assert "没有外部互联网搜索工具" not in message_text
+    assert "GPT 是生成式预训练 Transformer。" in message_text
+    assert any(
+        event.get("event") == "tool_start" and event.get("name") == "web_search"
+        for event in events
+    )
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_logs_failed_retry_when_required_policy_still_returns_text() -> None:
+    engine = _FakeEngine(
+        rounds=[
+            [
+                ChatChunk(
+                    delta="我现在没有外部互联网搜索工具，只能基于已有知识回答。",
+                    finish_reason="stop",
+                    total_tokens=10,
+                ),
+            ],
+            [
+                ChatChunk(
+                    delta="仍然没有联网能力。",
+                    finish_reason="stop",
+                    total_tokens=12,
+                ),
+            ],
+        ],
+    )
+    tools = [
+        ToolDefinition(name="web_search", description="Search the web"),
+        ToolDefinition(name="fetch_url", description="Fetch url"),
+    ]
+    handler = _build_handler(
+        engine,
+        tools=tools,
+        tool_use_policy=ToolUsePolicy(
+            family="none",
+            mode="auto",
+            allowed_tool_names=[tool.name for tool in tools],
+            retry_on_contract_breach=True,
+            reason="default_auto",
+        ),
+    )
+
+    events: list[dict] = []
+    with patch.object(_FakeEngine, "_log_tool_contract_diagnostics") as diag_mock:
+        async for raw in handler.generate():
+            if raw.strip().startswith("data: {"):
+                events.append(_parse_sse_payload(raw))
+
+    message_text = "".join(
+        event.get("delta", "") for event in events if event.get("event") == "message"
+    )
+    assert "仍然没有联网能力。" in message_text
+    assert diag_mock.call_count >= 2
+    retry_results = [call.kwargs["retry_result"] for call in diag_mock.call_args_list]
+    assert retry_results == ["retrying", "failed"]
 
 
 @pytest.mark.asyncio

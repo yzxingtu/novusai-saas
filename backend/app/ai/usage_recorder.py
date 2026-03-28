@@ -26,6 +26,7 @@ from app.ai.types import (
 )
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.logging import LogManager
+from app.core.runtime_identity import get_runtime_identity_tag
 from app.enums.ai import CallStatusEnum, RequestTypeEnum
 from app.enums.log import UserTypeEnum as LogUserTypeEnum
 from app.models.ai import AIModel, AIProvider, ProviderApiKey
@@ -220,6 +221,13 @@ class UsageRecorder:
         top_p: float,
         tools: list[dict] | None,
         request_type: str,
+        tool_choice: str | None = None,
+        selected_tool_names: list[str] | None = None,
+        all_tool_names: list[str] | None = None,
+        tool_use_policy_family: str | None = None,
+        tool_use_policy_mode: str | None = None,
+        allowed_tool_names: list[str] | None = None,
+        breach_retry_result: str | None = None,
         tenant_id: int | None = None,
         user_id: int | None = None,
         user_type: str | None = None,
@@ -245,7 +253,18 @@ class UsageRecorder:
                 "max_tokens": max_tokens,
                 "top_p": top_p,
                 "tools": tools,
+                "tool_choice": tool_choice,
+                "runtime_identity": get_runtime_identity_tag(),
+                "selected_tool_names": selected_tool_names or [],
+                "all_tool_names": all_tool_names or selected_tool_names or [],
+                "tool_use_policy": {
+                    "family": tool_use_policy_family or "none",
+                    "mode": tool_use_policy_mode or ("auto" if tools else "none"),
+                    "allowed_tool_names": allowed_tool_names or [],
+                },
             }
+            if breach_retry_result:
+                request_data["breach_retry_result"] = breach_retry_result
             await self.call_log_service.log_call_async(
                 tenant_id=tenant_id,
                 model_id=model_id,
@@ -291,6 +310,7 @@ class UsageRecorder:
         routed_model_id: int | None = None,
         route_reason: str | None = None,
         metering_context: UsageMeteringContext | None = None,
+        request_data: dict[str, Any] | None = None,
     ) -> None:
         """
         流式响应完成回调 / Stream response completion callback.
@@ -328,7 +348,7 @@ class UsageRecorder:
                     model_id=model_id,
                     provider_id=provider.id,
                     request_type=RequestTypeEnum.CHAT.value,
-                    request_data={"_stream": True},
+                    request_data=request_data or {"_stream": True},
                     response_data={
                         "input_tokens": input_tokens,
                         "output_tokens": output_tokens,

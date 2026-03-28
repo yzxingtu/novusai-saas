@@ -13,16 +13,20 @@ from app.ai.types import ChatMessage
 class _FakeChatCompletions:
     def __init__(self, response):
         self.response = response
+        self.last_kwargs = None
 
     async def create(self, **kwargs):
+        self.last_kwargs = kwargs
         return self.response
 
 
 class _FakeResponses:
     def __init__(self, response):
         self.response = response
+        self.last_kwargs = None
 
     async def create(self, **kwargs):
+        self.last_kwargs = kwargs
         return self.response
 
 
@@ -46,6 +50,23 @@ def _make_responses_function_call(name: str, arguments: str, call_id: str):
         arguments=arguments,
         call_id=call_id,
         id=call_id,
+    )
+
+
+def _make_chat_completion_response(text: str = "ok"):
+    return SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(
+                    role="assistant",
+                    content=text,
+                    tool_calls=None,
+                ),
+                finish_reason="stop",
+            )
+        ],
+        usage=SimpleNamespace(prompt_tokens=3, completion_tokens=2, total_tokens=5),
+        model_dump=lambda: {"ok": True},
     )
 
 
@@ -91,7 +112,7 @@ async def test_chat_does_not_fallback_when_payload_is_plain_html() -> None:
         chat_response="<!doctype html><html></html>",
         responses_response=SimpleNamespace(output_text="should not be used"),
     )
-    with pytest.raises(ProviderError, match="choices"):
+    with pytest.raises(ProviderError, match="AI 请求失败"):
         await adapter.chat(
             messages=[ChatMessage(role="user", content="hello")],
             model="gpt-4",
@@ -105,11 +126,38 @@ async def test_chat_does_not_fallback_on_error_payload_without_choices() -> None
         chat_response=SimpleNamespace(error={"message": "invalid", "type": "invalid_request_error"}),
         responses_response=SimpleNamespace(output_text="should not be used"),
     )
-    with pytest.raises(ProviderError, match="choices"):
+    with pytest.raises(ProviderError, match="AI 请求失败"):
         await adapter.chat(
             messages=[ChatMessage(role="user", content="hello")],
             model="gpt-4",
         )
+
+
+@pytest.mark.asyncio
+async def test_chat_forwards_required_tool_choice_and_subset_tools_to_chat_completions() -> None:
+    adapter = OpenAIAdapter(api_key="test-key", base_url="https://api.example.com")
+    completions = _FakeChatCompletions(_make_chat_completion_response())
+    adapter.client = SimpleNamespace(
+        chat=SimpleNamespace(completions=completions),
+        responses=_FakeResponses(None),
+    )
+
+    await adapter.chat(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        tools=[
+            {"type": "function", "function": {"name": "web_search", "parameters": {}}},
+            {"type": "function", "function": {"name": "fetch_url", "parameters": {}}},
+        ],
+        tool_choice="required",
+    )
+
+    assert completions.last_kwargs is not None
+    assert completions.last_kwargs["tool_choice"] == "required"
+    assert [tool["function"]["name"] for tool in completions.last_kwargs["tools"]] == [
+        "web_search",
+        "fetch_url",
+    ]
 
 
 def _fake_chat_completion_chunk(delta_text: str, finish_reason: str | None = None):
@@ -613,6 +661,27 @@ async def test_build_responses_request_enables_reasoning_summary_for_gpt5() -> N
     )
 
     assert request["reasoning"] == {"summary": "auto"}
+
+
+@pytest.mark.asyncio
+async def test_build_responses_request_forwards_required_tool_choice() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+
+    request = await adapter._build_responses_request(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        tools=[
+            {"type": "function", "function": {"name": "web_search", "parameters": {}}},
+        ],
+        tool_choice="required",
+    )
+
+    assert request["tool_choice"] == "required"
+    assert request["tools"][0]["name"] == "web_search"
 
 
 @pytest.mark.asyncio

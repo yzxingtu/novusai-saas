@@ -25,6 +25,7 @@ from app.core.database import (
 from app.core.i18n import _, reload_translations
 from app.core.logging import get_logger, init_logging
 from app.core.response import build_exception_debug, error, validation_error
+from app.core.runtime_identity import get_runtime_identity_tag
 from app.exceptions import AppException
 from app.middleware.access_control import AccessControlMiddleware
 from app.middleware.audit_log import AuditLogMiddleware
@@ -61,6 +62,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
         logger.info(f"Environment: {settings.APP_ENV}")
         logger.info(f"Debug mode: {settings.DEBUG}")
+        logger.info("Runtime identity: {}", get_runtime_identity_tag())
         if not settings.DEBUG and settings.SECRET_KEY == "your-secret-key-change-in-production":
             logger.warning("SECURITY WARNING: SECRET_KEY is using the default value! Change it in production.")
 

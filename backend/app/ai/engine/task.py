@@ -76,6 +76,7 @@ class TaskEngine(BaseEngine):
                 agent=agent,
                 messages=messages,
                 tools=tools or None,
+                all_tool_names=[tool.name for tool in (tools or [])],
                 tenant_id=request.tenant_id,
                 user_id=request.user_id,
                 conversation_id=request.conversation_id,

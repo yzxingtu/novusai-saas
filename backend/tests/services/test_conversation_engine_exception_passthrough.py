@@ -43,10 +43,11 @@ sys.modules.setdefault("redis.asyncio.client", redis_asyncio_client_module)
 sys.modules.setdefault("redis.exceptions", redis_exceptions_module)
 
 from app.ai.engine.conversation import ConversationEngine
-from app.ai.engine.types import ExecutionRequest, PreparedExecution
+from app.ai.engine.types import ExecutionRequest, PreparedExecution, ToolUsePolicy
 from app.ai.quota import QuotaExceeded
 from app.ai.rate_limiter import RateLimitExceeded
-from app.ai.types import ChatMessage
+from app.ai.tools.types import ToolDefinition
+from app.ai.types import ChatMessage, ChatResponse
 from app.core.config import settings
 from app.middleware.trace import trace_id_var
 
@@ -150,3 +151,168 @@ async def test_conversation_engine_execute_hides_generic_exception_in_production
     assert result.success is False
     assert "secret provider stack" not in (result.error or "")
     assert "trace-conversation-prod" in (result.error or "")
+
+
+@pytest.mark.asyncio
+async def test_conversation_engine_retries_capability_denial_with_required_tool_policy() -> None:
+    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    prep = PreparedExecution(
+        messages=[ChatMessage(role="user", content="联网帮我查一下 gpt 到底是什么东西")],
+        tools=[
+            ToolDefinition(name="web_search", description="Search the web"),
+            ToolDefinition(name="fetch_url", description="Fetch url"),
+        ],
+        all_tools=[
+            ToolDefinition(name="web_search", description="Search the web"),
+            ToolDefinition(name="fetch_url", description="Fetch url"),
+            ToolDefinition(name="data_query", description="Query data"),
+        ],
+        tool_use_policy=ToolUsePolicy(
+            family="none",
+            mode="auto",
+            allowed_tool_names=["web_search", "fetch_url"],
+            retry_on_contract_breach=True,
+            reason="default_auto",
+        ),
+        rag_sources=None,
+        tool_consent_modes={},
+        optimize_event=None,
+        route_result=None,
+    )
+    engine._prepare_execution = AsyncMock(return_value=prep)
+    engine._call_llm = AsyncMock(
+        side_effect=[
+            ChatResponse(
+                message=ChatMessage(
+                    role="assistant",
+                    content="我现在没有外部互联网搜索工具，只能基于已有知识回答。",
+                ),
+                total_tokens=10,
+            ),
+            ChatResponse(
+                message=ChatMessage(role="assistant", content=""),
+                tool_calls=[
+                    {
+                        "id": "call_search",
+                        "type": "function",
+                        "function": {
+                            "name": "web_search",
+                            "arguments": '{"query":"GPT 是什么","max_results":5}',
+                        },
+                    }
+                ],
+                total_tokens=12,
+            ),
+        ]
+    )
+    engine._handle_tool_calls = AsyncMock(
+        return_value=(
+            ChatResponse(
+                message=ChatMessage(role="assistant", content="GPT 是生成式预训练 Transformer。"),
+                total_tokens=20,
+            ),
+            [],
+            20,
+        )
+    )
+
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        user_id=1,
+        messages=[ChatMessage(role="user", content="联网帮我查一下 gpt 到底是什么东西")],
+        input_variables={},
+    )
+    agent = SimpleNamespace(id=1)
+
+    result = await engine.execute(agent, request)
+
+    assert result.success is True
+    assert result.output == "GPT 是生成式预训练 Transformer。"
+    assert len(engine._call_llm.await_args_list) == 2
+    assert engine._call_llm.await_args_list[0].kwargs["tool_use_policy"].mode == "auto"
+    assert engine._call_llm.await_args_list[1].kwargs["tool_use_policy"].mode == "required"
+    assert engine._call_llm.await_args_list[1].kwargs["tool_use_policy"].family == "web_research"
+    assert [tool.name for tool in engine._call_llm.await_args_list[1].kwargs["tools"]] == [
+        "web_search",
+        "fetch_url",
+    ]
+
+
+def test_contract_breach_retry_uses_semantic_capability_terms_for_custom_web_tool() -> None:
+    tools = [
+        ToolDefinition(
+            name="external_lookup",
+            description="Research external public sources",
+            semantic_family="web_research",
+            semantic_tags=["联网搜索", "网页查询", "最新信息", "官方来源"],
+        ),
+    ]
+
+    should_retry, retry_policy, response_text = ConversationEngine._should_retry_tool_contract_breach(
+        response=ChatResponse(
+            message=ChatMessage(
+                role="assistant",
+                content="我现在不能联网搜索公开网页，只能基于已有知识回答。",
+            ),
+        ),
+        current_policy=ToolUsePolicy(
+            family="none",
+            mode="auto",
+            allowed_tool_names=["external_lookup"],
+            retry_on_contract_breach=True,
+            reason="default_auto",
+        ),
+        tools=tools,
+        input_variables={},
+    )
+
+    assert should_retry is True
+    assert response_text == "我现在不能联网搜索公开网页，只能基于已有知识回答。"
+    assert retry_policy is not None
+    assert retry_policy.family == "web_research"
+    assert retry_policy.mode == "required"
+    assert retry_policy.allowed_tool_names == ["external_lookup"]
+
+
+def test_conversation_engine_detects_capability_denial_from_semantic_family_terms() -> None:
+    response = ChatResponse(
+        message=ChatMessage(
+            role="assistant",
+            content="当前无法使用网页来源检索能力，请直接提问。",
+        ),
+    )
+    current_policy = ToolUsePolicy(
+        family="none",
+        mode="auto",
+        allowed_tool_names=["public_lookup"],
+        retry_on_contract_breach=True,
+        reason="default_auto",
+    )
+    tools = [
+        ToolDefinition(
+            name="public_lookup",
+            description="Find external references",
+            semantic_family="web_research",
+            semantic_tags=["网页", "来源", "检索"],
+        )
+    ]
+
+    should_retry, retry_policy, response_text = (
+        ConversationEngine._should_retry_tool_contract_breach(
+            response=response,
+            current_policy=current_policy,
+            tools=tools,
+            input_variables={},
+        )
+    )
+
+    assert should_retry is True
+    assert response_text == "当前无法使用网页来源检索能力，请直接提问。"
+    assert retry_policy == ToolUsePolicy(
+        family="web_research",
+        mode="required",
+        allowed_tool_names=["public_lookup"],
+        retry_on_contract_breach=False,
+        reason="capability_denial:web_research",
+    )

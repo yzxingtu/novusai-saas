@@ -44,6 +44,7 @@ class AIResponseCache:
         temperature: float,
         max_tokens: int | None = None,
         tools: list | None = None,
+        tool_choice: str | None = None,
     ) -> str:
         """
         Generate cache key.
@@ -69,6 +70,7 @@ class AIResponseCache:
             "temperature": temperature,
             "max_tokens": max_tokens,
             "tools": tools,
+            "tool_choice": tool_choice,
         }
 
         params_str = json.dumps(params, sort_keys=True, ensure_ascii=False)

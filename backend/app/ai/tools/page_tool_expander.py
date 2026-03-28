@@ -149,6 +149,16 @@ def expand_page_tools(
 
         params_list = _params_to_parameters(meta.get("params"))
         desc = str(meta.get("description", "") or meta.get("label", op_name))
+        label = str(meta.get("label", op_name) or op_name)
+        capability_tags = [
+            "页面操作",
+            "page operation",
+            op_name,
+            label,
+        ]
+        if desc:
+            capability_tags.append(desc)
+        capability_tags.append("只读" if meta.get("readonly") else "可写")
 
         expanded.append(
             ToolDefinition(
@@ -157,6 +167,8 @@ def expand_page_tools(
                 tool_type="builtin",  # Executed via sandbox redirect to invoke_page_operation  # 补充说明 / note
                 parameters=params_list,
                 config={"underlying_operation": op_name, "page_tool": True},
+                semantic_family="page_ops",
+                semantic_tags=capability_tags,
             )
         )
 

@@ -675,6 +675,17 @@ describe('chatMessageItem', () => {
 
     await wrapper.vm.$nextTick();
 
+    const details = wrapper.get('[data-testid="tool-call-details-0"]');
+    expect(details.attributes('style') ?? '').toContain(
+      'grid-template-rows: 0fr',
+    );
+
+    await wrapper.get('[data-testid="tool-call-toggle-0"]').trigger('click');
+    await wrapper.vm.$nextTick();
+
+    expect(details.attributes('style') ?? '').toContain(
+      'grid-template-rows: 1fr',
+    );
     expect(wrapper.text()).toContain('common.globalAiChat.toolSearchResults');
     expect(wrapper.text()).toContain(
       'common.globalAiChat.toolSearchSourceBaidu',
@@ -685,11 +696,6 @@ describe('chatMessageItem', () => {
     expect(wrapper.text()).toContain('示例搜索结果一');
     expect(wrapper.text()).toContain('https://example.com/result-1');
     expect(wrapper.text()).toContain('第一条摘要内容');
-
-    const details = wrapper.get('[data-testid="tool-call-details-0"]');
-    expect(details.attributes('style') ?? '').toContain(
-      'grid-template-rows: 1fr',
-    );
 
     const resultButton = wrapper
       .findAll('button')

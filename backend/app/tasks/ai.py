@@ -57,6 +57,7 @@ def _generate_request_hash(
     messages: list,
     temperature: float,
     tools: list | None,
+    tool_choice: str | None = None,
 ) -> str:
     """Generate request hash (for cache hit detection) / 生成请求哈希（用于缓存命中检测）"""
     params = {
@@ -64,6 +65,7 @@ def _generate_request_hash(
         "messages": messages,
         "temperature": temperature,
         "tools": tools,
+        "tool_choice": tool_choice,
     }
     params_str = json.dumps(params, sort_keys=True, default=str)
     return hashlib.sha256(params_str.encode()).hexdigest()
@@ -147,7 +149,14 @@ def log_ai_call_task(
         messages = request_data.get("messages", []) if request_data else []
         temperature = request_data.get("temperature", 0.7) if request_data else 0.7
         tools = request_data.get("tools") if request_data else None
-        request_hash = _generate_request_hash(model_id, messages, temperature, tools)
+        tool_choice = request_data.get("tool_choice") if request_data else None
+        request_hash = _generate_request_hash(
+            model_id,
+            messages,
+            temperature,
+            tools,
+            tool_choice=tool_choice,
+        )
 
         # Create AICallLog record directly (sync write) / 直接创建 AICallLog 记录（同步写入）
         call_log = AICallLog(

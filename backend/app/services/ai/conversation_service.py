@@ -1031,11 +1031,7 @@ class ConversationService(
         )
 
         logger.info(
-            "Conversation created: id={} agent={} tenant={} owner_type={}",
-            conversation.id,
-            agent_id,
-            self.tenant_id,
-            owner_type,
+            f"Conversation created: id={conversation.id} agent={agent_id} tenant={self.tenant_id}"
         )
 
         return conversation

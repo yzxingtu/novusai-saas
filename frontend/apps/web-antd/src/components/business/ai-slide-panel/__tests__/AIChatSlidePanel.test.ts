@@ -1118,7 +1118,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     wrapper.unmount();
   });
 
-  it('renders the compact header rail and more-actions trigger', async () => {
+  it('renders header actions and more-actions trigger without reserving an empty status rail', async () => {
     activeConversationIdValue.value = 10;
     selectedAgentIdValue.value = 2;
 
@@ -1139,10 +1139,10 @@ describe('aIChatSlidePanel (component mount)', () => {
     await flushPromises();
 
     expect(
-      document.body.querySelector('[data-testid="ai-panel-header-status"]'),
+      document.body.querySelector('[data-testid="ai-panel-header-actions"]'),
     ).toBeTruthy();
     expect(
-      document.body.querySelector('[data-testid="ai-panel-header-actions"]'),
+      document.body.querySelector('[data-testid="ai-panel-header-action-stack"]'),
     ).toBeTruthy();
     expect(
       document.body.querySelector(
@@ -1219,6 +1219,11 @@ describe('aIChatSlidePanel (component mount)', () => {
     expect(
       document.body.querySelector('[data-testid="ai-panel-page-ai-card"]'),
     ).toBeTruthy();
+    const pageAiRow = document.body.querySelector(
+      '[data-testid="ai-panel-page-ai-row"]',
+    ) as HTMLDivElement | null;
+    expect(pageAiRow).toBeTruthy();
+    expect(pageAiRow?.className).toContain('w-full');
     expect(
       document.body.querySelector('[data-testid="ai-panel-page-ai-details"]'),
     ).toBeFalsy();
@@ -1232,12 +1237,15 @@ describe('aIChatSlidePanel (component mount)', () => {
       '[data-testid="ai-panel-page-ai-card"]',
     ) as HTMLDivElement | null;
     expect(capabilityRail).toBeTruthy();
+    expect(capabilityRail?.className).toContain('w-full');
     capabilityRail?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();
 
-    expect(
-      document.body.querySelector('[data-testid="ai-panel-page-ai-details"]'),
-    ).toBeTruthy();
+    const pageAiDetails = document.body.querySelector(
+      '[data-testid="ai-panel-page-ai-details"]',
+    ) as HTMLDivElement | null;
+    expect(pageAiDetails).toBeTruthy();
+    expect(pageAiDetails?.className).toContain('w-full');
     expect(
       document.body.querySelectorAll(
         '[data-testid="ai-panel-page-ai-preview-item"]',
@@ -1294,8 +1302,40 @@ describe('aIChatSlidePanel (component mount)', () => {
       document.body.querySelector('[data-testid="ai-panel-page-ai-details"]'),
     ).toBeFalsy();
 
-    wrapper.unmount();
-  });
+      wrapper.unmount();
+    });
+
+    it('does not reserve a blank header slot row when no status badge is shown', async () => {
+      const wrapper = mount(AIChatSlidePanel, {
+        props: {
+          apiPrefix: '/tenant',
+          pageContextKey: 'tenant.demo.page',
+          uploadUrl: '/upload',
+        },
+        attachTo: document.body,
+        global: {
+          stubs: {
+            ChatMessageItem: true,
+          },
+        },
+      });
+
+      await flushPromises();
+
+      const headerActions = document.body.querySelector(
+        '[data-testid="ai-panel-header-actions"]',
+      );
+      expect(headerActions).toBeTruthy();
+      expect(
+        document.body.querySelector('[data-testid="ai-panel-header-meta-row"]'),
+      ).toBeFalsy();
+      const actionStack = document.body.querySelector(
+        '[data-testid="ai-panel-header-action-stack"]',
+      );
+      expect(actionStack?.contains(headerActions)).toBe(true);
+
+      wrapper.unmount();
+    });
 
   it('mounts safely when page context exists before runtime size guards initialize', async () => {
     pageContextValue.value = {

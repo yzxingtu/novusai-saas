@@ -252,6 +252,7 @@ class OpenAIAdapter(BaseAdapter):
         top_p: float = 1.0,
         stream: bool = False,
         tools: list[dict] | None = None,
+        tool_choice: str | None = None,
         **kwargs
     ) -> ChatResponse:
         """
@@ -285,7 +286,7 @@ class OpenAIAdapter(BaseAdapter):
 
             if tools:
                 request_params["tools"] = tools
-                request_params["tool_choice"] = "auto"
+                request_params["tool_choice"] = tool_choice or "auto"
 
             # Add extra parameters / 添加额外参数
             request_params.update(kwargs)
@@ -298,6 +299,7 @@ class OpenAIAdapter(BaseAdapter):
                     max_tokens=max_tokens,
                     top_p=top_p,
                     tools=tools,
+                    tool_choice=tool_choice,
                     supports_vision=vision_flag,
                     supports_audio=audio_flag,
                     supports_video=video_flag,
@@ -322,6 +324,7 @@ class OpenAIAdapter(BaseAdapter):
                     max_tokens=max_tokens,
                     top_p=top_p,
                     tools=tools,
+                    tool_choice=tool_choice,
                     supports_vision=vision_flag,
                     supports_audio=audio_flag,
                     supports_video=video_flag,
@@ -346,6 +349,7 @@ class OpenAIAdapter(BaseAdapter):
         max_tokens: int | None = None,
         top_p: float = 1.0,
         tools: list[dict] | None = None,
+        tool_choice: str | None = None,
         **kwargs
     ) -> AsyncIterator[ChatChunk]:
         """
@@ -379,7 +383,7 @@ class OpenAIAdapter(BaseAdapter):
 
             if tools:
                 request_params["tools"] = tools
-                request_params["tool_choice"] = "auto"
+                request_params["tool_choice"] = tool_choice or "auto"
 
             # Add extra parameters / 添加额外参数
             request_params.update(kwargs)
@@ -392,6 +396,7 @@ class OpenAIAdapter(BaseAdapter):
                     max_tokens=max_tokens,
                     top_p=top_p,
                     tools=tools,
+                    tool_choice=tool_choice,
                     supports_vision=vision_flag,
                     supports_audio=audio_flag,
                     supports_video=video_flag,
@@ -427,6 +432,7 @@ class OpenAIAdapter(BaseAdapter):
                         max_tokens=max_tokens,
                         top_p=top_p,
                         tools=tools,
+                        tool_choice=tool_choice,
                         supports_vision=vision_flag,
                         supports_audio=audio_flag,
                         supports_video=video_flag,
@@ -579,6 +585,7 @@ class OpenAIAdapter(BaseAdapter):
         max_tokens: int | None = None,
         top_p: float = 1.0,
         tools: list[dict] | None = None,
+        tool_choice: str | None = None,
         **kwargs,
     ) -> ChatResponse:
         request_params = await self._build_responses_request(
@@ -588,6 +595,7 @@ class OpenAIAdapter(BaseAdapter):
             max_tokens=max_tokens,
             top_p=top_p,
             tools=tools,
+            tool_choice=tool_choice,
             **kwargs,
         )
         self._log_upstream_request(endpoint_path="responses", model=model, stream=False)
@@ -603,6 +611,7 @@ class OpenAIAdapter(BaseAdapter):
         max_tokens: int | None = None,
         top_p: float = 1.0,
         tools: list[dict] | None = None,
+        tool_choice: str | None = None,
         **kwargs,
     ) -> AsyncIterator[ChatChunk]:
         request_params = await self._build_responses_request(
@@ -612,6 +621,7 @@ class OpenAIAdapter(BaseAdapter):
             max_tokens=max_tokens,
             top_p=top_p,
             tools=tools,
+            tool_choice=tool_choice,
             stream=True,
             **kwargs,
         )
@@ -784,6 +794,7 @@ class OpenAIAdapter(BaseAdapter):
         max_tokens: int | None = None,
         top_p: float = 1.0,
         tools: list[dict] | None = None,
+        tool_choice: str | None = None,
         stream: bool = False,
         **kwargs,
     ) -> dict[str, Any]:
@@ -808,6 +819,8 @@ class OpenAIAdapter(BaseAdapter):
             request_params["stream"] = True
         if tools:
             request_params["tools"] = self._convert_tools_for_responses(tools)
+        if tool_choice:
+            request_params["tool_choice"] = tool_choice
         reasoning = self._build_responses_reasoning_config(
             model=model,
             explicit_reasoning=explicit_reasoning,

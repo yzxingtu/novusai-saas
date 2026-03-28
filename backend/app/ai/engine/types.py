@@ -24,6 +24,35 @@ if TYPE_CHECKING:
 
 
 @dataclass
+class ToolUsePolicy:
+    """
+    Tool-use policy for the current turn / 当前轮次的工具使用策略。
+
+    family:
+        Logical tool family currently in focus.
+        当前聚焦的工具族。
+    mode:
+        auto = model may decide; required = tool use is enforced.
+        auto = 模型自行判断；required = 强制走工具。
+    allowed_tool_names:
+        Optional tool-name subset exposed to the model when policy is strict.
+        严格模式下暴露给模型的工具名子集。
+    retry_on_contract_breach:
+        Whether one corrective retry is allowed after a capability denial / no-tool breach.
+        发生“能力否认 / 未用工具”违约后是否允许一次纠偏重试。
+    reason:
+        Human-readable internal reason for diagnostics.
+        供诊断使用的内部原因说明。
+    """
+
+    family: str = "none"
+    mode: str = "auto"
+    allowed_tool_names: list[str] = field(default_factory=list)
+    retry_on_contract_breach: bool = False
+    reason: str = ""
+
+
+@dataclass
 class ExecutionRequest:
     """
     Execution Request / 执行请求
@@ -82,6 +111,7 @@ class ExecutionRequest:
     # Frontend page session ID (for PageOperationExecutor to locate target page instance) / 前端页面会话 ID
     page_session_id: str | None = None
     knowledge_base_feedback: dict[str, Any] | None = None
+    tool_use_policy: ToolUsePolicy = field(default_factory=ToolUsePolicy)
 
 
 @dataclass
@@ -142,6 +172,7 @@ class PreparedExecution:
     tools: list[ToolDefinition] = field(default_factory=list)
     all_tools: list[ToolDefinition] = field(default_factory=list)
     continuation_context: ResearchContinuationContext | None = None
+    tool_use_policy: ToolUsePolicy = field(default_factory=ToolUsePolicy)
     rag_sources: list[dict[str, Any]] | None = None
     tool_consent_modes: dict[str, str] = field(default_factory=dict)
     optimize_event: dict[str, Any] | None = None
@@ -209,6 +240,7 @@ __all__ = [
     "ExecutionResult",
     "PreparedExecution",
     "ResearchContinuationContext",
+    "ToolUsePolicy",
     "BatchItem",
     "BatchResult",
 ]

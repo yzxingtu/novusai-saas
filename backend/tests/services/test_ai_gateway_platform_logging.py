@@ -72,6 +72,9 @@ async def test_chat_logs_platform_admin_calls_when_tenant_id_is_zero(mock_db):
     assert kwargs["tenant_id"] == PLATFORM_TENANT_ID
     assert kwargs["user_id"] == 7
     assert kwargs["user_type"] == LogUserTypeEnum.ADMIN.value
+    request_data = kwargs["request_data"]
+    assert request_data["selected_tool_names"] == []
+    assert request_data["all_tool_names"] == []
     used_api_key.increment_usage.assert_called_once()
 
 
@@ -239,6 +242,42 @@ async def test_log_call_failure_logs_platform_admin_calls(mock_db):
     assert kwargs["tenant_id"] == PLATFORM_TENANT_ID
     assert kwargs["user_id"] == 9
     assert kwargs["user_type"] == LogUserTypeEnum.ADMIN.value
+
+
+def test_build_request_log_data_records_selected_and_all_tool_names(mock_db):
+    from app.ai.gateway import AIGateway
+
+    gateway = AIGateway.__new__(AIGateway)
+    gateway.db = mock_db
+
+    payload = gateway._build_request_log_data(
+        messages=[ChatMessage(role="user", content="hello")],
+        temperature=0.7,
+        max_tokens=256,
+        top_p=1.0,
+        tools=[
+            {"type": "function", "function": {"name": "web_search"}},
+            {"type": "function", "function": {"name": "fetch_url"}},
+        ],
+        tool_choice="auto",
+        all_tool_names=[
+            "get_page_context",
+            "invoke_page_operation",
+            "web_search",
+            "fetch_url",
+        ],
+        tool_use_policy_family="web_research",
+        tool_use_policy_mode="auto",
+        allowed_tool_names=["get_page_context", "invoke_page_operation", "web_search", "fetch_url"],
+    )
+
+    assert payload["selected_tool_names"] == ["web_search", "fetch_url"]
+    assert payload["all_tool_names"] == [
+        "get_page_context",
+        "invoke_page_operation",
+        "web_search",
+        "fetch_url",
+    ]
 
 
 @pytest.mark.asyncio

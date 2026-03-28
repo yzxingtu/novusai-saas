@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.ai.engine.conversation import ConversationEngine
-from app.ai.engine.types import ExecutionRequest
+from app.ai.engine.types import ExecutionRequest, ToolUsePolicy
 from app.ai.skills.resolver import SkillResolveResult
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
@@ -128,8 +128,15 @@ async def test_prepare_execution_uses_current_user_text_for_optimizer_before_res
         "Search current public information about Sample Topic."
     )
     assert captured["user_query"] == "Search current public information about Sample Topic."
-    assert captured["kwargs"] == {}
+    assert captured["kwargs"] == {"preferred_family": "web_research"}
     assert [tool.name for tool in prep.tools] == ["web_search", "fetch_url"]
+    assert prep.tool_use_policy == ToolUsePolicy(
+        family="web_research",
+        mode="auto",
+        allowed_tool_names=["web_search", "fetch_url"],
+        retry_on_contract_breach=True,
+        reason="explicit_query:web_research",
+    )
 
 
 @pytest.mark.asyncio
@@ -212,12 +219,18 @@ async def test_prepare_execution_preserves_active_web_research_state_without_opt
         "Continue reviewing the same public webpages.",
     ]
     assert captured["user_query"] == "Continue reviewing the same public webpages."
-    assert captured["kwargs"] == {}
+    assert captured["kwargs"] == {"preferred_family": "web_research"}
     assert [tool.name for tool in prep.tools] == [
         "web_search",
         "fetch_url",
-        "data_query",
     ]
+    assert prep.tool_use_policy == ToolUsePolicy(
+        family="web_research",
+        mode="required",
+        allowed_tool_names=["web_search", "fetch_url"],
+        retry_on_contract_breach=True,
+        reason="active_continuation:web_research",
+    )
 
 
 @pytest.mark.asyncio
@@ -287,4 +300,178 @@ async def test_prepare_execution_keeps_generic_follow_up_in_research_state() -> 
     assert prep.continuation_context.search_query_count == 1
     assert prep.continuation_context.fetched_url_count == 0
     assert captured["user_query"] == "Continue."
-    assert captured["kwargs"] == {}
+    assert captured["kwargs"] == {"preferred_family": "web_research"}
+    assert prep.tool_use_policy == ToolUsePolicy(
+        family="web_research",
+        mode="required",
+        allowed_tool_names=["web_search", "fetch_url"],
+        retry_on_contract_breach=True,
+        reason="active_continuation:web_research",
+    )
+
+
+@pytest.mark.asyncio
+async def test_prepare_execution_requires_page_ops_for_generic_follow_up_after_page_tool() -> None:
+    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        user_id=1,
+        messages=[
+            ChatMessage(role="user", content="Open the form."),
+            ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=[
+                    {
+                        "id": "call_page_1",
+                        "type": "function",
+                        "function": {
+                            "name": "invoke_page_operation",
+                            "arguments": '{"page_key":"demo.form","operation_name":"fill_form"}',
+                        },
+                        "success": True,
+                    }
+                ],
+            ),
+            ChatMessage(role="tool", content="Form fill succeeded."),
+            ChatMessage(role="assistant", content="Done."),
+            ChatMessage(role="user", content="继续"),
+        ],
+        input_variables={
+            "page_context": {
+                "page_key": "demo.form",
+                "page_data": {
+                    "available_operations": [
+                        {"name": "fill_form", "readonly": False},
+                    ],
+                },
+            },
+        },
+    )
+
+    captured: dict[str, object] = {}
+
+    def _fake_optimize(tools, user_query, **kwargs):
+        captured["user_query"] = user_query
+        captured["kwargs"] = kwargs
+        return SimpleNamespace(
+            tools=tools,
+            skipped=False,
+            total=len(tools),
+            selected=len(tools),
+        )
+
+    skill_result = SkillResolveResult(
+        tools=[
+            ToolDefinition(name="invoke_page_operation", description="Operate page"),
+            ToolDefinition(name="get_page_context", description="Read page"),
+            ToolDefinition(name="web_search", description="Search the web"),
+        ]
+    )
+
+    with (
+        patch(
+            "app.ai.rag_injector.load_agent_kb_bindings",
+            new=AsyncMock(return_value=([], {})),
+        ),
+        patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
+        patch("app.ai.tools.optimizer.optimize_tools", side_effect=_fake_optimize),
+    ):
+        prep = await engine._prepare_execution(
+            _build_agent(),
+            request,
+            skill_result=skill_result,
+        )
+
+    assert captured["kwargs"] == {"preferred_family": "page_ops"}
+    assert [tool.name for tool in prep.tools] == [
+        "invoke_page_operation",
+        "get_page_context",
+        "pageop_fill_form",
+    ]
+    assert prep.tool_use_policy == ToolUsePolicy(
+        family="page_ops",
+        mode="required",
+        allowed_tool_names=[
+            "invoke_page_operation",
+            "get_page_context",
+            "pageop_fill_form",
+        ],
+        retry_on_contract_breach=True,
+        reason="generic_follow_up_after:invoke_page_operation",
+    )
+
+
+@pytest.mark.asyncio
+async def test_prepare_execution_prefers_web_research_on_first_turn_even_with_page_context() -> None:
+    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    request = ExecutionRequest(
+        agent_id=59,
+        tenant_id=0,
+        user_id=1,
+        messages=[ChatMessage(role="user", content="联网查询一下 小猫为什么 爱吃鱼")],
+        input_variables={
+            "page_context": {
+                "page_key": "admin.ai.conversations",
+                "page_data": {
+                    "available_operations": [
+                        {"name": "capture_screenshot", "readonly": True},
+                        {"name": "refresh_list", "readonly": True},
+                        {"name": "search", "readonly": True},
+                        {"name": "clear_search", "readonly": True},
+                        {"name": "read_visible_rows", "readonly": True},
+                        {"name": "next_page", "readonly": True},
+                        {"name": "prev_page", "readonly": True},
+                        {"name": "go_to_page", "readonly": True},
+                        {"name": "set_page_size", "readonly": True},
+                        {"name": "read_row_detail", "readonly": True},
+                    ],
+                },
+            },
+        },
+    )
+    skill_result = SkillResolveResult(
+        tools=[
+            ToolDefinition(name="web_search", description="Search the web"),
+            ToolDefinition(name="fetch_url", description="Fetch a webpage"),
+            ToolDefinition(name="get_page_context", description="Read page context"),
+            ToolDefinition(name="invoke_page_operation", description="Operate page"),
+            ToolDefinition(name="data_query", description="Query platform data"),
+            ToolDefinition(name="data_create", description="Create data"),
+            ToolDefinition(name="data_update", description="Update data"),
+            ToolDefinition(name="data_delete", description="Delete data"),
+        ]
+    )
+
+    with (
+        patch(
+            "app.ai.rag_injector.load_agent_kb_bindings",
+            new=AsyncMock(return_value=([], {})),
+        ),
+        patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
+    ):
+        prep = await engine._prepare_execution(
+            _build_agent(),
+            request,
+            skill_result=skill_result,
+        )
+
+    assert prep.tool_use_policy == ToolUsePolicy(
+        family="web_research",
+        mode="auto",
+        allowed_tool_names=[
+            "get_page_context",
+            "invoke_page_operation",
+            "web_search",
+            "fetch_url",
+        ],
+        retry_on_contract_breach=True,
+        reason="explicit_query:web_research",
+    )
+    assert [tool.name for tool in prep.tools] == [
+        "get_page_context",
+        "invoke_page_operation",
+        "web_search",
+        "fetch_url",
+    ]
