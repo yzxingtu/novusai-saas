@@ -114,6 +114,20 @@ class AuthenticationException(AppException):
     default_message = "common.unauthorized"
 
 
+class TokenExpiredException(AppException):
+    """
+    Token Expired Exception / 令牌过期异常
+
+    Distinct from AuthenticationException (4010) so the frontend can
+    attempt a transparent token refresh before falling back to re-login.
+    与 AuthenticationException(4010) 区分，使前端可以先尝试静默刷新令牌。
+    """
+
+    code = 4011
+    status_code = 401
+    default_message = "auth.token_expired"
+
+
 class AuthorizationException(AppException):
     """
     Authorization Exception / 授权异常
@@ -230,6 +244,7 @@ __all__ = [
     "AppException",
     "ValidationException",
     "AuthenticationException",
+    "TokenExpiredException",
     "AuthorizationException",
     "NotFoundException",
     "ConflictException",

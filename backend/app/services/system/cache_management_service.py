@@ -97,7 +97,7 @@ class CacheManagementService:
                     if mem is not None:
                         stats.size_bytes += mem
                 except Exception:
-                    pass
+                    logger.debug("MEMORY USAGE failed for key {}", key)
         except Exception as exc:
             logger.warning("Failed to scan Redis pattern {}: {}", pattern, exc)
         return stats
@@ -219,7 +219,7 @@ class CacheManagementService:
                     if mem is not None:
                         stats.size_bytes += mem
                 except Exception:
-                    pass
+                    logger.debug("MEMORY USAGE failed for key {}", key)
                 keys_to_delete.append(key)
 
                 if len(keys_to_delete) >= 500:

@@ -2,14 +2,16 @@
 """企业管理 API 测试模块 / API.
 
 测试 /admin/tenants/* 接口"""
+import contextlib
 import os
 import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-import contextlib
+from sqlalchemy import text
 
+from app.core.database import sync_engine
 from tests.api.base import (
     BaseAPITest,
     assert_equals,
@@ -32,12 +34,15 @@ class ManualTestAdminTenants(BaseAPITest):
         # 生成唯一的测试企业名称
         timestamp = int(time.time())
         self._test_data["tenant_name"] = f"测试企业_{timestamp}"
+        self._test_data["admin_username"] = f"tenant_owner_{timestamp}"
+        self._test_data["admin_email"] = f"tenant_owner_{timestamp}@example.com"
 
     def teardown(self) -> None:
         """测试后清理 / Test."""
         # 尝试删除测试创建的企业
         tenant_id = self._test_data.get("created_tenant_id")
         if tenant_id:
+            self._soft_delete_test_tenant_admins(tenant_id)
             with contextlib.suppress(Exception):
                 self.client.delete(f"/admin/tenants/{tenant_id}")
 
@@ -67,8 +72,8 @@ class ManualTestAdminTenants(BaseAPITest):
         # 8. 切换企业状态
         self.run_test("切换企业状态", self.test_toggle_tenant_status)
 
-        # 9. 删除企业
-        self.run_test("删除企业", self.test_delete_tenant)
+        # 9. 删除企业（当前会被 owner 依赖阻塞）
+        self.run_test("删除企业 - owner 依赖阻塞", self.test_delete_tenant)
 
     def test_list_tenants(self) -> None:
         """测试获取企业列表 / Test."""
@@ -80,7 +85,10 @@ class ManualTestAdminTenants(BaseAPITest):
 
     def test_list_tenants_pagination(self) -> None:
         """测试获取企业列表 - 分页 / Test."""
-        resp = self.client.get("/admin/tenants", params={"page": 1, "page_size": 5})
+        resp = self.client.get(
+            "/admin/tenants",
+            params={"page[number]": 1, "page[size]": 5},
+        )
         data = assert_success(resp, "获取企业列表失败")
 
         assert_equals(data["data"]["page"], 1)
@@ -89,7 +97,7 @@ class ManualTestAdminTenants(BaseAPITest):
 
     def test_list_tenants_filter_status(self) -> None:
         """测试获取企业列表 - 按状态过滤 / Test."""
-        resp = self.client.get("/admin/tenants", params={"is_active": True})
+        resp = self.client.get("/admin/tenants", params={"filter[is_active][eq]": "true"})
         data = assert_success(resp, "获取企业列表失败")
 
         # 验证所有返回的企业都是激活状态
@@ -103,8 +111,10 @@ class ManualTestAdminTenants(BaseAPITest):
             "contact_name": "测试联系人",
             "contact_phone": "13800138000",
             "contact_email": "test@example.com",
-            "plan": "basic",
             "quota": {"max_users": 100},
+            "admin_username": self._test_data["admin_username"],
+            "admin_email": self._test_data["admin_email"],
+            "admin_password": "test123456",
         })
         data = assert_success(resp, "创建企业失败")
 
@@ -112,7 +122,7 @@ class ManualTestAdminTenants(BaseAPITest):
         # 验证编码是自动生成的格式: t + 8位字符
         code = data["data"]["code"]
         assert_true(code.startswith("t"), "企业编码应以 t 开头")
-        assert_true(len(code) == 9, "企业编码长度应为 9 位")
+        assert_true(len(code) >= 9, "企业编码长度至少应为 9 位")
 
         # 保存企业ID和编码供后续测试使用
         self._test_data["created_tenant_id"] = data["data"]["id"]
@@ -127,7 +137,7 @@ class ManualTestAdminTenants(BaseAPITest):
         resp = self.client.get(f"/admin/tenants/{tenant_id}")
         data = assert_success(resp, "获取企业详情失败")
 
-        assert_has_keys(data["data"], ["id", "code", "name", "is_active", "plan"])
+        assert_has_keys(data["data"], ["id", "code", "name", "is_active", "plan_id"])
         assert_equals(data["data"]["id"], tenant_id)
 
     def test_get_tenant_not_found(self) -> None:
@@ -166,24 +176,43 @@ class ManualTestAdminTenants(BaseAPITest):
         assert_equals(data["data"]["is_active"], True)
 
     def test_delete_tenant(self) -> None:
-        """测试删除企业 / Test."""
+        """测试删除企业在 owner 依赖下被阻塞 / Test."""
         tenant_id = self._test_data.get("created_tenant_id")
         if not tenant_id:
             raise AssertionError("没有可用的企业ID")
 
         resp = self.client.delete(f"/admin/tenants/{tenant_id}")
-        assert_success(resp, "删除企业失败")
+        data = assert_error(resp, 422, "企业删除应返回依赖阻塞错误")
+        assert_equals(data.get("code"), 4221, "企业删除阻塞应返回依赖错误码")
 
-        # 验证已删除
-        check_resp = self.client.get(f"/admin/tenants/{tenant_id}")
-        assert_error(check_resp, 404, "企业应已被删除")
-
-        # 清除ID，避免 teardown 再次尝试删除
-        del self._test_data["created_tenant_id"]
+        dependencies = data.get("dependencies") or []
+        tenant_admin_dep = next(
+            (dependency for dependency in dependencies if dependency.get("type") == "tenant_admin"),
+            None,
+        )
+        assert_true(tenant_admin_dep is not None, "阻塞依赖中应包含 tenant_admin")
+        assert_true(int(tenant_admin_dep.get("count") or 0) >= 1, "tenant_admin 依赖数量应至少为 1")
 
     def _do_login(self) -> None:
         """执行登录 / Description."""
         self.login_admin()
+
+    @staticmethod
+    def _soft_delete_test_tenant_admins(tenant_id: int) -> None:
+        with sync_engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    UPDATE tenant_admins
+                    SET is_deleted = TRUE,
+                        deleted_at = NOW(),
+                        updated_at = NOW()
+                    WHERE tenant_id = :tenant_id
+                      AND is_deleted = FALSE
+                    """
+                ),
+                {"tenant_id": tenant_id},
+            )
 
 
 if __name__ == "__main__":

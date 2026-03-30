@@ -75,6 +75,8 @@ export interface RagSource {
   snippet: string;
   page?: number;
   heading?: string;
+  /** formal_kb vs ephemeral_doc / 正式知识库 vs 临时资料 */
+  source_kind?: 'ephemeral_doc' | 'formal_kb';
   /** Source knowledge base (when provided by RAG) / 片段所属知识库 */
   knowledge_base_id?: number;
   knowledge_base_name?: null | string;
@@ -271,6 +273,16 @@ export interface ChatMessage {
   richTextAI?: RichTextAITask;
   /** Whether session memory was updated during this response / 本次回复是否更新了会话记忆 */
   memoryUpdated?: boolean;
+  /** Whether a compacted context snapshot was used / 是否使用了压缩上下文快照 */
+  contextCompacted?: boolean;
+  /** Whether a pre-compaction memory flush was triggered / 是否触发了压缩前记忆冲刷 */
+  memoryFlushTriggered?: boolean;
+  /** Whether long-term memory recall was injected / 是否注入了长期记忆召回 */
+  memoryRecalled?: boolean;
+  /** Prompt-only pruning diagnostics / 仅 prompt 层裁剪诊断 */
+  pruneStats?: Record<string, unknown>;
+  /** RAG source kinds used in this turn / 本轮使用的 RAG 来源类型 */
+  ragSourceKinds?: string[];
   /** Message creation timestamp (ISO string) / 消息创建时间 */
   created_at?: string;
   /** Persisted partial response marker / 持久化的未完成回复标记 */

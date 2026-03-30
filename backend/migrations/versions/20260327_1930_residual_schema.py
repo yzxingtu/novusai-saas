@@ -38,7 +38,8 @@ def _rename_index(table_name: str, old_name: str, new_name: str) -> None:
     indexes = _index_names(table_name)
     if old_name not in indexes or new_name in indexes:
         return
-    op.execute(sa.text(f'ALTER INDEX "{old_name}" RENAME TO "{new_name}"'))
+    sql = 'ALTER INDEX "' + old_name + '" RENAME TO "' + new_name + '"'
+    op.execute(sa.text(sql))
 
 
 def _ensure_agent_access_legacy_columns_are_empty() -> None:

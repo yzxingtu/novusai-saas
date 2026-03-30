@@ -25,4 +25,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Intentional no-op: tenant_id and constraints are defined in the initial table migration; this revision only preserves the chain."""
     pass

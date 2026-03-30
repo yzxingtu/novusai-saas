@@ -26,7 +26,7 @@
   "readme": "说明文档",
   "create": "安装插件",
   "upload": "上传安装",
-  "marketplaceBtn": "插件市场",
+  "marketplaceBtn": "插件与技能市场",
   "allTypes": "全部类型",
   "pluginType": "插件类型",
   "type_options": {
@@ -175,6 +175,10 @@
   },
   "marketplace": {
     "title": "插件市场",
+    "combinedTitle": "插件与技能市场",
+    "tabPlugins": "插件市场",
+    "tabSkills": "技能市场",
+    "skillSubtitle": "浏览可分发技能包，并显式安装到 SkillPackage + Skill 目录层。",
     "searchPlaceholder": "搜索插件...",
     "sortDownloads": "按下载量",
     "sortRating": "按评分",
@@ -187,9 +191,8 @@
     "viewDetail": "查看详情",
     "buyNow": "购买",
     "settings": "市场设置",
+    "skillRegistrySettings": "技能市场设置",
     "mirrorSource": "镜像源",
-    "sourceAuto": "自动选择",
-    "sourceAutoDesc": "自动 ping 选择更快的源",
     "cacheTtl": "缓存时间",
     "testConnection": "测试连接",
     "category": {

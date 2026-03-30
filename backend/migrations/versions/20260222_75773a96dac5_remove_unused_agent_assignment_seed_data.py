@@ -21,4 +21,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Intentional no-op: Placeholder revision; seed rows were already removed and chain continuity is the only purpose."""
     pass

@@ -17,8 +17,37 @@ description: NovusAI AI 调用日志与使用量账本。说明 AICallLog 不可
 ## 核心数据模型
 
 - **事实表**：`ai_call_logs`（ORM：`app.models.ai.call_log.AICallLog`）。
+- **统一行为账本**：`ai_action_logs`（ORM：`app.models.ai.action_log.AIActionLog`）。
 - **设计目标**：用量与展示尽量 **不随智能体/企业/模型改名或删除而漂移** —— 关键展示与归属字段以 **调用时快照** 写入（如 `agent_name_snapshot`、`billing_tenant_name_snapshot`、`model_name_snapshot`、`provider_name_snapshot` 及发布相关快照等）。
 - **旧表**：`ai_usage_stats` 已废弃并由合并迁移删除；统计应基于 **`AICallLog` 聚合**，勿再依赖旧聚合表心智。
+
+### `AIActionLog` 当前串联字段
+
+- `trace_id`
+- `conversation_id`
+- `tool_call_id`
+- `execution_decision_id`
+
+### `ExecutionDecision` 与 `AIActionLog` 的关系
+
+- `ExecutionDecision` 是 consent / confirmation 的决策真源
+- `AIActionLog` 是副作用工具与确认动作的统一行为账本
+- 排查确认流时，优先按以下顺序追：
+  1. `trace_id`
+  2. `tool_call_id`
+  3. `execution_decision_id`
+- 如果 `AIActionLog` 里已经有 `execution_decision_id`，不要再只靠 `request_data / response_data` 里的冗余字段手工拼链
+
+规则：
+
+- 能写显式字段时，**优先写显式字段**，不要只塞进 `request_data / response_data`
+- `TextToSQL` 现在也属于统一账本的一部分，不再只写 `AIQueryLog`
+- 需要追查副作用工具时，优先在 `AIActionLog` 看：
+  - `action_type`
+  - `action_level`
+  - `trace_id`
+  - `tool_call_id`
+  - `execution_decision_id`
 
 ---
 

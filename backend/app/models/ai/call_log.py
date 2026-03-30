@@ -41,6 +41,8 @@ class AICallLog(TenantModel):
         "billing_tenant_id": "billing_tenant_id",
         "agent_id": "agent_id",
         "conversation_id": "conversation_id",
+        "trace_id": "trace_id",
+        "tool_call_id": "tool_call_id",
         "user_id": "user_id",
         "user_type": "user_type",
         "actor_user_id": "actor_user_id",
@@ -113,6 +115,19 @@ class AICallLog(TenantModel):
         nullable=True,
         index=True,
         comment="关联对话 ID / Related conversation ID",
+    )
+
+    trace_id: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        index=True,
+        comment="Trace ID / 链路追踪 ID (join with ai_action_logs)",
+    )
+    tool_call_id: Mapped[str | None] = mapped_column(
+        String(128),
+        nullable=True,
+        index=True,
+        comment="LLM tool_call_id when applicable / 工具调用 ID（如有）",
     )
 
     # 供应商和模型 / Provider and model

@@ -633,6 +633,7 @@ vi.mock('#/components/business/ai-chat-panel/use-ai-chat', async () => {
       loadConversationMessages: loadConversationMessagesMock,
       chatMessages: useAIChatState.chatMessages,
       inputMessage: inputMessageValue,
+      ephemeralRagItems: vue.ref([]),
       mentionedAgentId: vue.ref(null),
       mentionedAgent: vue.computed(() => null),
       mentionOpen: vue.ref(false),
@@ -655,6 +656,8 @@ vi.mock('#/components/business/ai-chat-panel/use-ai-chat', async () => {
       selectMentionKnowledgeBase: vi.fn(),
       removeSelectedKnowledgeBase:
         composerInteractionState.removeSelectedKnowledgeBase,
+      addEphemeralRagItem: vi.fn(),
+      removeEphemeralRagItem: vi.fn(),
       selectedKBIds: composerInteractionState.selectedKBIds,
       clearMentionedAgent: vi.fn(),
       cleanup: vi.fn(),
@@ -2102,7 +2105,7 @@ describe('aIChatSlidePanel (component mount)', () => {
 
     await flushPanel();
 
-    const harness = wrapper.vm as {
+    const harness = wrapper.vm as unknown as {
       getRichTextDraftState: (index: number) => null | { canUndo: boolean };
       onRichTextApply: (
         index: number,
@@ -2143,7 +2146,7 @@ describe('aIChatSlidePanel (component mount)', () => {
 
     await flushPanel();
 
-    const harness = wrapper.vm as {
+    const harness = wrapper.vm as unknown as {
       getRichTextDraftState: (index: number) => unknown;
     };
     expect(harness.getRichTextDraftState(0)).toBeNull();

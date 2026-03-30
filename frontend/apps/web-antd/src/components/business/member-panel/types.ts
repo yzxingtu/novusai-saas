@@ -2,7 +2,6 @@
  * Member Management Panel Component Type Definitions
  * 成员管理面板组件类型定义
  */
-import type { AdminInfo } from '#/api/admin/admin-user';
 import type { OrgMember } from '#/api/admin/organization';
 import type { TenantOrgMember } from '#/api/tenant/organization';
 
@@ -123,22 +122,3 @@ export function toResetPasswordInfo(member: MemberPanelMember): {
   };
 }
 
-/**
- * Extract info needed for admin edit drawer
- * 提取用于管理员编辑抽屉所需的信息
- */
-export function toAdminInfo(member: MemberPanelMember): AdminInfo {
-  return {
-    id: member.id,
-    username: member.username,
-    nickname: member.nickname,
-    email: member.email,
-    avatar: member.avatar,
-    isActive: member.isActive,
-    isSuper: false,
-    roleId: member.roleId,
-    roleName: member.roleName,
-    createdAt: member.createdAt || '',
-    updatedAt: member.updatedAt,
-  };
-}

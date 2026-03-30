@@ -3,9 +3,10 @@
  * 插件市场 — 与插件管理页同风格的卡片网格
  */
 import type { MarketplacePluginItem } from '#/api/admin/plugin-marketplace';
+import type { LocationQueryRaw } from 'vue-router';
 
-import { onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -31,10 +32,12 @@ import { $t } from '#/locales';
 
 import { getTierColor, getTierText } from '../data';
 import MarketplaceSettingsModal from './MarketplaceSettingsModal.vue';
+import SkillRegistryPanel from './SkillRegistryPanel.vue';
 
 defineOptions({ name: 'AdminPluginMarketplace' });
 
 const router = useRouter();
+const route = useRoute();
 const settingsRef = ref<InstanceType<typeof MarketplaceSettingsModal>>();
 const plugins = ref<MarketplacePluginItem[]>([]);
 const loading = ref(false);
@@ -43,6 +46,7 @@ const sortBy = ref('-downloads');
 const filterCategory = ref('all');
 const total = ref(0);
 const currentPage = ref(1);
+const activeCatalog = ref<'plugins' | 'skills'>('plugins');
 
 const CATEGORIES = [
   {
@@ -112,6 +116,27 @@ async function loadMarketplace() {
 }
 
 onMounted(loadMarketplace);
+
+watch(
+  () => route.query.catalog,
+  (catalog) => {
+    activeCatalog.value = catalog === 'skills' ? 'skills' : 'plugins';
+  },
+  { immediate: true },
+);
+
+function switchCatalog(next: 'plugins' | 'skills') {
+  activeCatalog.value = next;
+  const nextQuery: LocationQueryRaw = { ...route.query };
+  if (next === 'skills') {
+    nextQuery.catalog = 'skills';
+  } else {
+    delete nextQuery.catalog;
+  }
+  router.replace({
+    query: nextQuery,
+  });
+}
 
 function handleSearch() {
   currentPage.value = 1;
@@ -193,11 +218,15 @@ usePageAIRegistration({
               <IconifyIcon icon="lucide:arrow-left" class="size-4" />
             </button>
             <h1 class="text-xl font-bold text-foreground">
-              {{ $t('admin.plugin.marketplace.title') }}
+              {{ $t('admin.plugin.marketplace.combinedTitle') }}
             </h1>
           </div>
           <p class="mt-1 pl-10 text-sm text-muted-foreground">
-            {{ $t('admin.plugin.marketplace.searchPlaceholder') }}
+            {{
+              activeCatalog === 'plugins'
+                ? $t('admin.plugin.marketplace.searchPlaceholder')
+                : $t('admin.plugin.marketplace.skillSubtitle')
+            }}
           </p>
         </div>
         <!-- 搜索 + 排序 + 设置 -->
@@ -211,6 +240,7 @@ usePageAIRegistration({
             <IconifyIcon icon="lucide:settings" class="size-5" />
           </Button>
           <Input.Search
+            v-if="activeCatalog === 'plugins'"
             v-model:value="searchKeyword"
             :placeholder="$t('admin.plugin.marketplace.searchPlaceholder')"
             allow-clear
@@ -218,6 +248,7 @@ usePageAIRegistration({
             @search="handleSearch"
           />
           <Select
+            v-if="activeCatalog === 'plugins'"
             v-model:value="sortBy"
             class="!min-w-[140px]"
             @change="handleSearch"
@@ -245,8 +276,36 @@ usePageAIRegistration({
 
     <MarketplaceSettingsModal ref="settingsRef" @saved="loadMarketplace" />
 
-    <!-- ===== 分类筛选 ===== -->
     <div class="flex items-center gap-1.5">
+      <button
+        class="flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium transition-all"
+        :class="
+          activeCatalog === 'plugins'
+            ? 'border-primary/30 bg-primary/10 text-primary'
+            : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground'
+        "
+        @click="switchCatalog('plugins')"
+      >
+        <IconifyIcon icon="lucide:store" class="size-4" />
+        <span>{{ $t('admin.plugin.marketplace.tabPlugins') }}</span>
+      </button>
+      <button
+        v-access:code="['plugin_skill_registry:list']"
+        class="flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium transition-all"
+        :class="
+          activeCatalog === 'skills'
+            ? 'border-primary/30 bg-primary/10 text-primary'
+            : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground'
+        "
+        @click="switchCatalog('skills')"
+      >
+        <IconifyIcon icon="lucide:package-search" class="size-4" />
+        <span>{{ $t('admin.plugin.marketplace.tabSkills') }}</span>
+      </button>
+    </div>
+
+    <!-- ===== 分类筛选 ===== -->
+    <div v-if="activeCatalog === 'plugins'" class="flex items-center gap-1.5">
       <button
         v-for="cat in CATEGORIES"
         :key="cat.value"
@@ -267,7 +326,8 @@ usePageAIRegistration({
     </div>
 
     <!-- ===== 插件卡片网格 ===== -->
-    <Spin :spinning="loading">
+    <template v-if="activeCatalog === 'plugins'">
+      <Spin :spinning="loading">
       <div
         v-if="plugins.length > 0"
         class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
@@ -432,6 +492,10 @@ usePageAIRegistration({
           </p>
         </div>
       </div>
-    </Spin>
+      </Spin>
+    </template>
+    <div v-else v-access:code="['plugin_skill_registry:list']">
+      <SkillRegistryPanel />
+    </div>
   </Page>
 </template>

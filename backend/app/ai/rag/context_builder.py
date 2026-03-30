@@ -44,6 +44,8 @@ class SourceReference:
     chunk_index: int = 0
     knowledge_base_id: int | None = None
     knowledge_base_name: str | None = None
+    # Distinct from ephemeral RAG citations / 与临时 RAG 引用区分
+    source_kind: str = "formal_kb"
 
     def to_dict(self) -> dict:
         """Serialize / 序列化"""
@@ -248,6 +250,7 @@ class RAGContextBuilder:
             chunk_index=chunk.chunk_index,
             knowledge_base_id=kb_id,
             knowledge_base_name=kb_name,
+            source_kind="formal_kb",
         )
 
     @staticmethod

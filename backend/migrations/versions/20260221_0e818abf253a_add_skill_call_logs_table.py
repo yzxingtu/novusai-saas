@@ -21,4 +21,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Intentional no-op: Placeholder revision to preserve the Alembic chain; skill_call_logs schema is created elsewhere."""
     pass

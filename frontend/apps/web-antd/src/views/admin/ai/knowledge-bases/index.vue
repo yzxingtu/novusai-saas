@@ -9,6 +9,7 @@ import type {
 } from '#/api/admin/knowledge-bases';
 
 import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -56,6 +57,7 @@ import Detail from './modules/detail.vue';
 import Form from './modules/form.vue';
 
 defineOptions({ name: 'AdminKnowledgeBaseList' });
+const router = useRouter();
 
 // ========== Stats cards / 统计卡片 ==========
 const stats = ref<KnowledgeBaseGlobalStats | null>(null);
@@ -311,6 +313,15 @@ function onDetailSuccess() {
               </template>
             </Button>
           </Badge>
+        </Tooltip>
+      </span>
+      <span v-access:code="['ai_long_term_memory_debug:list']">
+        <Tooltip :title="$t('admin.ai.memoryDebug.title')">
+          <Button @click="router.push('/admin/ai/debug/memory')">
+            <template #icon>
+              <IconifyIcon icon="lucide:brain-circuit" class="size-4" />
+            </template>
+          </Button>
         </Tooltip>
       </span>
       <div class="flex-1"></div>

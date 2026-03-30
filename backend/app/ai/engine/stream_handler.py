@@ -98,6 +98,12 @@ class StreamExecutionHandler:
 
         async def _runner() -> None:
             try:
+                if self.prep.context_engine is not None:
+                    await self.prep.context_engine.after_turn(
+                        self.agent,
+                        self.request,
+                        result,
+                    )
                 await self.on_complete(result)
             except Exception as cb_exc:
                 logger.error("on_complete callback error: {}", str(cb_exc))
@@ -295,6 +301,11 @@ class StreamExecutionHandler:
                     "provider_name"
                 ),
                 rag_sources=rag_sources,
+                rag_source_kinds=self.prep.rag_source_kinds,
+                context_compacted=self.prep.context_compacted,
+                memory_flush_triggered=self.prep.memory_flush_triggered,
+                memory_recalled=self.prep.memory_recalled,
+                prune_stats=self.prep.prune_stats,
             )
 
             # Start callback before yielding done so client-side disconnect
@@ -311,6 +322,11 @@ class StreamExecutionHandler:
                     "conversation_id": self.request.conversation_id,
                     "total_tokens": total_tokens,
                     "duration_ms": duration_ms,
+                    "context_compacted": result.context_compacted,
+                    "memory_flush_triggered": result.memory_flush_triggered,
+                    "memory_recalled": result.memory_recalled,
+                    "prune_stats": result.prune_stats,
+                    "rag_source_kinds": result.rag_source_kinds,
                 })
             )
 
@@ -382,6 +398,11 @@ class StreamExecutionHandler:
                     interrupted=False,
                     completion_reason="error",
                     rag_sources=rag_sources,
+                    rag_source_kinds=self.prep.rag_source_kinds,
+                    context_compacted=self.prep.context_compacted,
+                    memory_flush_triggered=self.prep.memory_flush_triggered,
+                    memory_recalled=self.prep.memory_recalled,
+                    prune_stats=self.prep.prune_stats,
                 )
                 self._schedule_on_complete(failed_result)
 
@@ -437,6 +458,11 @@ class StreamExecutionHandler:
                     interrupted=True,
                     completion_reason="interrupted",
                     rag_sources=rag_sources,
+                    rag_source_kinds=self.prep.rag_source_kinds,
+                    context_compacted=self.prep.context_compacted,
+                    memory_flush_triggered=self.prep.memory_flush_triggered,
+                    memory_recalled=self.prep.memory_recalled,
+                    prune_stats=self.prep.prune_stats,
                 )
                 self._schedule_on_complete(interrupted_result)
             raise  # Must re-raise BaseException / 必须重新抛出 BaseException
@@ -470,6 +496,8 @@ class StreamExecutionHandler:
         next_runtime_context = getattr(self.prep, "stream_runtime", None)
         continuation_context = getattr(self.prep, "continuation_context", None)
         round_tool_policy = getattr(self.prep, "tool_use_policy", ToolUsePolicy())
+        tools_full = list(tools)
+        self._fetch_gate_message_sent = False
 
         # ---- Confirmation interception ---- / 确认拦截
         _last_user_text = ""
@@ -478,8 +506,14 @@ class StreamExecutionHandler:
             if _last.role == "user":
                 _last_user_text = (_last.content or "").strip()
 
+        _has_structured_confirm = any(
+            str(u.get("kind") or "") == "pending_confirmation"
+            and not u.get("rejected")
+            for u in (self.request.interaction_updates or [])
+        )
+
         _pending = None
-        if processor.is_confirmation_text(_last_user_text):
+        if _has_structured_confirm or processor.is_confirmation_text(_last_user_text):
             _pending = processor.find_pending_confirmation(messages)
 
         if _pending:
@@ -546,6 +580,30 @@ class StreamExecutionHandler:
             self._output = ""
             self._reasoning_output = ""
 
+            if (
+                self.engine._needs_fetch_url_before_summary(messages)
+                and not self._fetch_gate_message_sent
+            ):
+                messages.append(
+                    ChatMessage(
+                        role="system",
+                        content=(
+                            "[WEB RESEARCH] You already have successful web_search results in "
+                            "the conversation. You MUST call fetch_url with at least one "
+                            "candidate URL from those results before writing a final summary. "
+                            "Do not issue more web_search calls until fetch_url has been attempted."
+                        ),
+                    )
+                )
+                self._fetch_gate_message_sent = True
+
+            round_tools = self.engine._apply_fetch_url_only_gate(
+                messages,
+                tools_full,
+                getattr(self.prep, "all_tools", None) or tools_full,
+            )
+            processor.tools = round_tools
+
             _req_role = getattr(
                 self.request,
                 "user_role",
@@ -557,7 +615,7 @@ class StreamExecutionHandler:
                 tenant_id=self.request.tenant_id,
                 conversation_id=self.request.conversation_id,
                 route_result=self.prep.route_result,
-                tools=tools,
+                tools=round_tools,
                 user_id=getattr(self.request, "user_id", None),
                 billing_context=getattr(self.request, "billing_context", None),
                 log_user_type=log_user_type_for_call_log(_req_role),
@@ -616,27 +674,42 @@ class StreamExecutionHandler:
                     message=ChatMessage(role="assistant", content=round_output),
                     total_tokens=round_total_tokens,
                 )
+                breach_type = "stream_capability_denial_or_no_tool_use"
                 should_retry, retry_policy, _ = self.engine._should_retry_tool_contract_breach(
                     response=denial_response,
                     current_policy=round_tool_policy,
-                    tools=tools,
+                    tools=tools_full,
                     input_variables=getattr(self.request, "input_variables", None),
                 )
+                if not should_retry:
+                    should_retry, retry_policy, _ = (
+                        self.engine._should_retry_web_research_contract_breach(
+                            messages=messages,
+                            response=denial_response,
+                            current_policy=round_tool_policy,
+                            tools=tools_full,
+                            input_variables=getattr(self.request, "input_variables", None),
+                            continuation=continuation_context,
+                        )
+                    )
+                    if should_retry:
+                        breach_type = "web_research_summary_without_fetch"
                 retry_blocked = (
                     should_retry
                     and retry_policy is not None
                     and not round_tool_policy.retry_on_contract_breach
                     and round_tool_policy.mode != "required"
+                    and breach_type != "web_research_summary_without_fetch"
                 )
                 if retry_blocked:
                     self.engine._log_tool_contract_diagnostics(
                         agent=self.agent,
                         messages=messages,
                         response=denial_response,
-                        tools=tools,
+                        tools=tools_full,
                         policy=retry_policy,
                         conversation_id=self.request.conversation_id,
-                        breach_type="stream_capability_denial_or_no_tool_use",
+                        breach_type=breach_type,
                         retry_result="no_retry",
                         continuation=continuation_context,
                     )
@@ -649,15 +722,15 @@ class StreamExecutionHandler:
                         agent=self.agent,
                         messages=messages,
                         response=denial_response,
-                        tools=tools,
+                        tools=tools_full,
                         policy=retry_policy,
                         conversation_id=self.request.conversation_id,
-                        breach_type="stream_capability_denial_or_no_tool_use",
+                        breach_type=breach_type,
                         retry_result="retrying",
                         continuation=continuation_context,
                     )
-                    tools = self.engine._filter_tools_for_policy(
-                        getattr(self.prep, "all_tools", None) or tools,
+                    tools_full = self.engine._filter_tools_for_policy(
+                        getattr(self.prep, "all_tools", None) or tools_full,
                         retry_policy,
                     )
                     round_tool_policy = retry_policy
@@ -669,10 +742,10 @@ class StreamExecutionHandler:
                         agent=self.agent,
                         messages=messages,
                         response=denial_response,
-                        tools=tools,
+                        tools=tools_full,
                         policy=retry_policy,
                         conversation_id=self.request.conversation_id,
-                        breach_type="stream_capability_denial_or_no_tool_use",
+                        breach_type=breach_type,
                         retry_result="failed",
                         continuation=continuation_context,
                     )
@@ -681,7 +754,7 @@ class StreamExecutionHandler:
                         agent=self.agent,
                         messages=messages,
                         response=denial_response,
-                        tools=tools,
+                        tools=tools_full,
                         continuation=continuation_context,
                         conversation_id=self.request.conversation_id,
                     )
@@ -720,7 +793,7 @@ class StreamExecutionHandler:
                         tool_calls=tc_list,
                         total_tokens=round_total_tokens,
                     ),
-                    tools=tools,
+                    tools=tools_full,
                     policy=round_tool_policy,
                     conversation_id=self.request.conversation_id,
                     breach_type="stream_capability_denial_or_no_tool_use",
@@ -934,13 +1007,38 @@ class StreamExecutionHandler:
             ):
                 messages.extend(follow_up_messages)
 
-            round_tool_policy = ToolUsePolicy(
-                family="none",
-                mode="auto",
-                allowed_tool_names=[tool.name for tool in tools],
-                retry_on_contract_breach=False,
-                reason="post_tool_auto",
+            executed_web_research_round = (
+                round_tool_policy.family == "web_research"
+                and any(
+                    ((tc.get("function") or {}).get("name") or "") in {"web_search", "fetch_url"}
+                    for tc in tc_list
+                    if isinstance(tc, dict)
+                )
             )
+            if executed_web_research_round:
+                round_tool_policy = ToolUsePolicy(
+                    family="web_research",
+                    mode="required",
+                    allowed_tool_names=[tool.name for tool in tools_full],
+                    retry_on_contract_breach=not round_tool_policy.reason.startswith(
+                        "web_research_summary_without_fetch"
+                    ),
+                    reason=(
+                        "post_tool_web_research_after_retry"
+                        if round_tool_policy.reason.startswith(
+                            "web_research_summary_without_fetch"
+                        )
+                        else "post_tool_web_research"
+                    ),
+                )
+            else:
+                round_tool_policy = ToolUsePolicy(
+                    family="none",
+                    mode="auto",
+                    allowed_tool_names=[tool.name for tool in tools_full],
+                    retry_on_contract_breach=False,
+                    reason="post_tool_auto",
+                )
 
             if round_has_confirmation or _page_op_aborted:
                 if round_has_confirmation:
@@ -956,6 +1054,45 @@ class StreamExecutionHandler:
                 self.request.conversation_id,
                 MAX_TOOL_CALL_ROUNDS,
             )
+            _req_role = getattr(
+                self.request,
+                "user_role",
+                UserRoleEnum.TENANT_ADMIN.value,
+            )
+            final_round_output = ""
+            final_round_reasoning = ""
+            async for chunk in self.engine._stream_llm_chunks(
+                agent=self.agent,
+                messages=messages,
+                tenant_id=self.request.tenant_id,
+                conversation_id=self.request.conversation_id,
+                route_result=self.prep.route_result,
+                tools=None,
+                user_id=getattr(self.request, "user_id", None),
+                billing_context=getattr(self.request, "billing_context", None),
+                log_user_type=log_user_type_for_call_log(_req_role),
+                all_tool_names=[],
+            ):
+                if self._runtime_model_info is None and isinstance(
+                    getattr(chunk, "metadata", None), dict
+                ):
+                    self._runtime_model_info = chunk.metadata.get(
+                        "runtime_model_info",
+                    )
+                if chunk.reasoning_delta:
+                    final_round_reasoning += chunk.reasoning_delta
+                    yield SSEChunkEncoder.encode(
+                        {"event": "thinking", "delta": chunk.reasoning_delta}
+                    )
+                if chunk.delta:
+                    final_round_output += chunk.delta
+                    yield SSEChunkEncoder.encode(
+                        {"event": "message", "delta": chunk.delta}
+                    )
+                if chunk.total_tokens is not None:
+                    self._total_tokens += chunk.total_tokens
+            self._output = final_round_output
+            self._reasoning_output = final_round_reasoning
 
         if append_final_assistant:
             final_output, final_action_buttons = self._extract_action_buttons(self._output)

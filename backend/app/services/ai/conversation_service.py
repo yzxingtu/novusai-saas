@@ -20,17 +20,28 @@ from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage
 from app.ai.utils.token_estimator import estimate_tokens
 from app.configs.service import PLATFORM_TENANT_ID
+from app.core.base_model import utc_now
 from app.core.base_service import TenantService
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.agent import (
+    ActionLevelEnum,
     ConversationOwnerTypeEnum,
     ConversationStatusEnum,
     MessageRoleEnum,
 )
+from app.enums.execution import (
+    ExecutionDecisionScopeEnum,
+    ExecutionDecisionStatusEnum,
+    ExecutionDecisionSubjectEnum,
+    ExecutionDecisionTypeEnum,
+)
 from app.exceptions import BusinessException, NotFoundException
 from app.models.ai.agent import Agent
 from app.models.ai.agent_conversation import AgentConversation
+from app.services.ai.action_log_service import resolve_action_level, write_ai_action_log
+from app.services.ai.execution_decision_service import ExecutionDecisionService
+from app.services.ai.execution_trust_policy_service import ExecutionTrustPolicyService
 from app.models.tenant.attachment import Attachment
 from app.repositories.ai.agent_conversation_repository import (
     AdminAgentConversationRepository,
@@ -52,6 +63,7 @@ _ATTACHMENT_URL_RE = re.compile(
     r"/api/public/attachments/(\d+)/(?:access|image)",
     re.IGNORECASE,
 )
+_CONTEXT_COMPACTION_METADATA_KEY = "context_compaction"
 
 
 class ConversationService(
@@ -366,6 +378,16 @@ class ConversationService(
         except AttributeError:
             pass
 
+        result["trust_session_active"] = await ExecutionTrustPolicyService(
+            self.db,
+            self._get_memory_tenant_id(),
+        ).has_active_conversation_trust(
+            conversation_id=conversation.id,
+            agent_id=conversation.agent_id,
+            operator_id=conversation.user_id,
+            operator_type=conversation.owner_type,
+        )
+
         return result
 
     async def delete_accessible_conversation(
@@ -410,7 +432,7 @@ class ConversationService(
         if not updates:
             return 0
 
-        await self.get_accessible_conversation(
+        conversation = await self.get_accessible_conversation(
             conversation_id,
             user_id=user_id,
             owner_type=owner_type,
@@ -429,6 +451,10 @@ class ConversationService(
 
         updated = 0
         seen_ids: set[int] = set()
+        decision_service = ExecutionDecisionService(
+            self.db,
+            self._get_memory_tenant_id(),
+        )
 
         def _match_action_buttons(
             metadata: dict[str, Any],
@@ -467,6 +493,33 @@ class ConversationService(
                     return True
             return False
 
+        def _find_pending_confirmation_evidence(
+            metadata: dict[str, Any],
+            tool_calls: list | None,
+            action: str | None,
+            table: str | None,
+        ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+            pending = metadata.get("pending_confirmation")
+            if isinstance(pending, dict):
+                if action and pending.get("action") not in (None, action):
+                    return None, None
+                if table and pending.get("table") not in (None, table):
+                    return None, None
+                return dict(pending), None
+            if isinstance(tool_calls, list):
+                for tc in tool_calls:
+                    if not isinstance(tc, dict):
+                        continue
+                    nested = tc.get("pending_confirmation")
+                    if not isinstance(nested, dict):
+                        continue
+                    if action and nested.get("action") not in (None, action):
+                        continue
+                    if table and nested.get("table") not in (None, table):
+                        continue
+                    return dict(nested), dict(tc)
+            return None, None
+
         def _match_pending_consent(
             metadata: dict[str, Any],
             tool_calls: list | None,
@@ -487,6 +540,28 @@ class ConversationService(
                     return True
             return False
 
+        def _find_pending_consent_evidence(
+            metadata: dict[str, Any],
+            tool_calls: list | None,
+            tool_name: str | None,
+        ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+            pending = metadata.get("pending_consent")
+            if isinstance(pending, dict):
+                if tool_name and pending.get("tool_name") not in (None, tool_name):
+                    return None, None
+                return dict(pending), None
+            if isinstance(tool_calls, list):
+                for tc in tool_calls:
+                    if not isinstance(tc, dict):
+                        continue
+                    nested = tc.get("pending_consent")
+                    if not isinstance(nested, dict):
+                        continue
+                    if tool_name and nested.get("tool_name") not in (None, tool_name):
+                        continue
+                    return dict(nested), dict(tc)
+            return None, None
+
         for raw_update in updates:
             kind = str(raw_update.get("kind") or "")
             if not kind:
@@ -494,6 +569,7 @@ class ConversationService(
             for msg in assistant_messages:
                 metadata = dict(msg.metadata_ or {})
                 tool_calls = [dict(tc) for tc in (msg.tool_calls or []) if isinstance(tc, dict)]
+                decision_payload: dict[str, Any] | None = None
 
                 matched = False
                 if kind == "action_buttons":
@@ -501,6 +577,12 @@ class ConversationService(
                     if matched:
                         metadata["action_buttons_used"] = True
                 elif kind == "pending_confirmation":
+                    pending_evidence, matched_tool_call = _find_pending_confirmation_evidence(
+                        metadata,
+                        tool_calls,
+                        raw_update.get("action"),
+                        raw_update.get("table"),
+                    )
                     matched = _match_pending_confirmation(
                         metadata,
                         tool_calls,
@@ -519,7 +601,50 @@ class ConversationService(
                                 next_nested["resolved"] = True
                                 next_nested["rejected"] = bool(raw_update.get("rejected"))
                                 tc["pending_confirmation"] = next_nested
+                        action_name = str(raw_update.get("action") or pending.get("action") or "").strip()
+                        table_name = str(raw_update.get("table") or pending.get("table") or "").strip()
+                        tool_call_id = str((matched_tool_call or {}).get("id") or "").strip() or None
+                        tool_name = (
+                            str(((matched_tool_call or {}).get("function") or {}).get("name") or "").strip()
+                            or None
+                        )
+                        rejected = bool(raw_update.get("rejected"))
+                        decision_payload = {
+                            "tenant_id": self._get_memory_tenant_id(),
+                            "conversation_id": conversation_id,
+                            "agent_id": conversation.agent_id,
+                            "operator_id": user_id,
+                            "operator_type": owner_type,
+                            "decision_type": ExecutionDecisionTypeEnum.CONFIRMATION.value,
+                            "subject_type": ExecutionDecisionSubjectEnum.DATA_ACTION.value,
+                            "status": (
+                                ExecutionDecisionStatusEnum.REJECTED.value
+                                if rejected
+                                else ExecutionDecisionStatusEnum.APPROVED.value
+                            ),
+                            "decision_scope": ExecutionDecisionScopeEnum.ONCE.value,
+                            "risk_level": resolve_action_level(
+                                action_name,
+                                default=ActionLevelEnum.SAFE_WRITE.value,
+                            ),
+                            "auto_approved": False,
+                            "tool_call_id": tool_call_id,
+                            "tool_name": tool_name,
+                            "action_name": action_name or None,
+                            "table_name": table_name or None,
+                            "correlation_key": (
+                                f"confirmation:{conversation_id}:{msg.id}:{tool_call_id or action_name or table_name}:"
+                                f"{'rejected' if rejected else 'approved'}"
+                            ),
+                            "reason": "user_confirmation",
+                            "evidence": pending_evidence,
+                        }
                 elif kind == "pending_consent":
+                    pending_evidence, matched_tool_call = _find_pending_consent_evidence(
+                        metadata,
+                        tool_calls,
+                        raw_update.get("tool_name"),
+                    )
                     matched = _match_pending_consent(
                         metadata,
                         tool_calls,
@@ -529,6 +654,7 @@ class ConversationService(
                         pending = dict(metadata.get("pending_consent") or {})
                         pending["resolved"] = True
                         pending["rejected"] = bool(raw_update.get("rejected"))
+                        pending["auto_approved"] = bool(raw_update.get("auto_approved"))
                         metadata["pending_consent"] = pending
                         for tc in tool_calls:
                             nested = tc.get("pending_consent")
@@ -536,7 +662,57 @@ class ConversationService(
                                 next_nested = dict(nested)
                                 next_nested["resolved"] = True
                                 next_nested["rejected"] = bool(raw_update.get("rejected"))
+                                next_nested["auto_approved"] = bool(raw_update.get("auto_approved"))
                                 tc["pending_consent"] = next_nested
+                        tool_name = str(
+                            raw_update.get("tool_name")
+                            or pending.get("tool_name")
+                            or (((matched_tool_call or {}).get("function") or {}).get("name"))
+                            or ""
+                        ).strip()
+                        tool_call_id = str((matched_tool_call or {}).get("id") or "").strip() or None
+                        auto_approved = bool(raw_update.get("auto_approved"))
+                        rejected = bool(raw_update.get("rejected"))
+                        decision_payload = {
+                            "tenant_id": self._get_memory_tenant_id(),
+                            "conversation_id": conversation_id,
+                            "agent_id": conversation.agent_id,
+                            "operator_id": user_id,
+                            "operator_type": owner_type,
+                            "decision_type": ExecutionDecisionTypeEnum.CONSENT.value,
+                            "subject_type": ExecutionDecisionSubjectEnum.TOOL_CALL.value,
+                            "status": (
+                                ExecutionDecisionStatusEnum.AUTO_APPROVED.value
+                                if auto_approved
+                                else (
+                                    ExecutionDecisionStatusEnum.REJECTED.value
+                                    if rejected
+                                    else ExecutionDecisionStatusEnum.APPROVED.value
+                                )
+                            ),
+                            "decision_scope": (
+                                ExecutionDecisionScopeEnum.CONVERSATION.value
+                                if auto_approved
+                                else ExecutionDecisionScopeEnum.ONCE.value
+                            ),
+                            "risk_level": ExecutionTrustPolicyService.tool_risk_level(
+                                tool_name=tool_name,
+                                tool_family=ExecutionTrustPolicyService.tool_family_for_name(
+                                    tool_name
+                                ),
+                            ),
+                            "auto_approved": auto_approved,
+                            "tool_call_id": tool_call_id,
+                            "tool_name": tool_name or None,
+                            "action_name": None,
+                            "table_name": None,
+                            "correlation_key": (
+                                f"consent:{conversation_id}:{msg.id}:{tool_call_id or tool_name}:"
+                                f"{'auto' if auto_approved else ('rejected' if rejected else 'approved')}"
+                            ),
+                            "reason": "tool_consent",
+                            "evidence": pending_evidence,
+                        }
 
                 if not matched:
                     continue
@@ -553,6 +729,56 @@ class ConversationService(
                 if msg.id not in seen_ids:
                     updated += 1
                     seen_ids.add(msg.id)
+                if decision_payload:
+                    try:
+                        decision = await decision_service.record_decision(decision_payload)
+                        await write_ai_action_log(
+                            self.db,
+                            tenant_id=self._get_memory_tenant_id(),
+                            agent_id=conversation.agent_id,
+                            conversation_id=conversation_id,
+                            execution_decision_id=getattr(decision, "id", None),
+                            tool_call_id=decision_payload.get("tool_call_id"),
+                            operator_id=user_id,
+                            operator_type=owner_type,
+                            action_name=(
+                                decision_payload.get("tool_name")
+                                or decision_payload.get("action_name")
+                                or kind
+                            ),
+                            action_type="confirm",
+                            action_level=decision_payload.get("risk_level") or ActionLevelEnum.SAFE_WRITE.value,
+                            status=(
+                                "rejected"
+                                if decision_payload.get("status") == ExecutionDecisionStatusEnum.REJECTED.value
+                                else "success"
+                            ),
+                            request_data={
+                                "decision_id": getattr(decision, "id", None),
+                                "decision_type": decision_payload.get("decision_type"),
+                                "decision_scope": decision_payload.get("decision_scope"),
+                                "subject_type": decision_payload.get("subject_type"),
+                                "tool_call_id": decision_payload.get("tool_call_id"),
+                                "tool_name": decision_payload.get("tool_name"),
+                                "action_name": decision_payload.get("action_name"),
+                                "table_name": decision_payload.get("table_name"),
+                                "evidence": decision_payload.get("evidence"),
+                            },
+                            response_data={
+                                "decision_status": decision_payload.get("status"),
+                                "auto_approved": bool(decision_payload.get("auto_approved")),
+                                "correlation_key": decision_payload.get("correlation_key"),
+                            },
+                        )
+                    except Exception as exc:
+                        logger.warning(
+                            "Record execution decision degraded: tenant={} conversation={} message={} kind={} err={}",
+                            self._get_memory_tenant_id(),
+                            conversation_id,
+                            msg.id,
+                            kind,
+                            str(exc),
+                        )
                 break
 
         return updated
@@ -1405,6 +1631,26 @@ class ConversationService(
             ):
                 metadata = metadata or {}
                 metadata["rag_sources"] = rag_sources
+                if getattr(result, "rag_source_kinds", None):
+                    metadata["rag_source_kinds"] = result.rag_source_kinds
+
+            if (
+                role == "assistant"
+                and not tool_calls
+                and i == last_plain_assistant_idx
+            ):
+                if getattr(result, "prune_stats", None):
+                    metadata = metadata or {}
+                    metadata["prune_stats"] = result.prune_stats
+                if getattr(result, "context_compacted", False):
+                    metadata = metadata or {}
+                    metadata["context_compacted"] = True
+                if getattr(result, "memory_flush_triggered", False):
+                    metadata = metadata or {}
+                    metadata["memory_flush_triggered"] = True
+                if getattr(result, "memory_recalled", False):
+                    metadata = metadata or {}
+                    metadata["memory_recalled"] = True
 
             # assistant/tool 消息关联 agent_id（user/system 不关联）
             msg_agent_id = agent_id if role in ("assistant", "tool") else None
@@ -1453,6 +1699,42 @@ class ConversationService(
         metadata = dict(last_msg.metadata_ or {})
         metadata["memory_updated"] = True
         await self.message_repo.update(last_msg.id, {"metadata_": metadata})
+
+    async def get_context_compaction_snapshot(
+        self,
+        conversation_id: int,
+    ) -> dict[str, Any] | None:
+        """Read sidecar context compaction snapshot / 读取对话级上下文压缩快照。"""
+        conversation = await self.repo.get_by_id(conversation_id)
+        if not conversation:
+            return None
+        metadata = conversation.metadata_ if isinstance(conversation.metadata_, dict) else {}
+        snapshot = metadata.get(_CONTEXT_COMPACTION_METADATA_KEY)
+        return snapshot if isinstance(snapshot, dict) else None
+
+    async def upsert_context_compaction_snapshot(
+        self,
+        conversation_id: int,
+        *,
+        summary: str,
+        source_message_count: int,
+        source_token_estimate: int,
+    ) -> dict[str, Any] | None:
+        """Persist sidecar context compaction snapshot into conversation metadata / 将上下文压缩快照写入 conversation metadata。"""
+        conversation = await self.repo.get_by_id(conversation_id)
+        if not conversation:
+            return None
+        metadata = dict(conversation.metadata_ or {})
+        snapshot = {
+            "summary": summary,
+            "source_message_count": source_message_count,
+            "source_token_estimate": source_token_estimate,
+            "generated_at": self._format_dt(utc_now()),
+        }
+        metadata[_CONTEXT_COMPACTION_METADATA_KEY] = snapshot
+        conversation.metadata_ = metadata
+        await self.db.flush()
+        return snapshot
 
     async def update_stats(
         self,

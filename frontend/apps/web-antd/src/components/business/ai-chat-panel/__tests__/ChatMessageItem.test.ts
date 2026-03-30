@@ -709,4 +709,115 @@ describe('chatMessageItem', () => {
       'https://example.com/result-1',
     ]);
   });
+
+  it('tool group card collapses when all tools are completed', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: createAssistantMsg([
+          { name: 'web_search', status: 'success' },
+          { name: 'fetch_url', status: 'success' },
+        ]),
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+    const body = wrapper.get('[data-testid="tool-group-body"]');
+    expect(body.attributes('style') ?? '').toContain(
+      'grid-template-rows: 0fr',
+    );
+  });
+
+  it('tool group card toggles on click', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: createAssistantMsg([
+          { name: 'web_search', status: 'success' },
+        ]),
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    const body = wrapper.get('[data-testid="tool-group-body"]');
+    expect(body.attributes('style') ?? '').toContain(
+      'grid-template-rows: 0fr',
+    );
+
+    await wrapper.get('[data-testid="tool-group-toggle"]').trigger('click');
+    await wrapper.vm.$nextTick();
+
+    expect(body.attributes('style') ?? '').toContain(
+      'grid-template-rows: 1fr',
+    );
+
+    await wrapper.get('[data-testid="tool-group-toggle"]').trigger('click');
+    await wrapper.vm.$nextTick();
+
+    expect(body.attributes('style') ?? '').toContain(
+      'grid-template-rows: 0fr',
+    );
+  });
+
+  it('tool group auto-collapses when streaming ends', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          clientKey: 'assistant-streaming-tools',
+          role: 'assistant' as const,
+          content: '',
+          streaming: true,
+          toolCalls: [{ name: 'web_search', status: 'running' as const }],
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    const body = wrapper.get('[data-testid="tool-group-body"]');
+    expect(body.attributes('style') ?? '').toContain(
+      'grid-template-rows: 1fr',
+    );
+
+    await wrapper.setProps({
+      msg: {
+        clientKey: 'assistant-streaming-tools',
+        role: 'assistant' as const,
+        content: 'Final reply',
+        streaming: false,
+        toolCalls: [{ name: 'web_search', status: 'success' as const }],
+      },
+    });
+    await wrapper.vm.$nextTick();
+
+    expect(body.attributes('style') ?? '').toContain(
+      'grid-template-rows: 0fr',
+    );
+  });
 });

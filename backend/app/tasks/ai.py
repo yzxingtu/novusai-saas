@@ -99,6 +99,8 @@ def log_ai_call_task(
     billing_context: dict | None = None,
     routed_model_id: int = None,
     route_reason: str = None,
+    trace_id: str | None = None,
+    tool_call_id: str | None = None,
 ):
     """
     Async AI call log recording (sync write) / 异步记录 AI 调用日志（同步写入）
@@ -169,6 +171,8 @@ def log_ai_call_task(
             access_channel=(billing_context or {}).get("access_channel"),
             agent_id=agent_id,
             conversation_id=conversation_id,
+            trace_id=trace_id,
+            tool_call_id=tool_call_id,
             provider_id=provider_id,
             model_id=model_id,
             request_type=request_type,

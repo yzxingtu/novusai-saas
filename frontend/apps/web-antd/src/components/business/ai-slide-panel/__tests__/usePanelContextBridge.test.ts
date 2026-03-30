@@ -83,7 +83,7 @@ describe('usePanelContextBridge', () => {
             consumePendingAgentId,
             ensureAgentVarsLoaded,
             forceRerouteNextTurn,
-            handleSendMessage,
+            handleSendMessage: async () => true,
             inputMessage,
             loadAgents,
             loadConversationMessages,

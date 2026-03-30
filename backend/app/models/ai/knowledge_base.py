@@ -167,19 +167,19 @@ class KnowledgeBase(BaseModel):
         String(20),
         nullable=False,
         default=SearchModeEnum.HYBRID.value,
-        comment="DEPRECATED: use Agent.rag_config.search_mode",
+        comment="KB-level default; Agent.rag_config.search_mode overrides at runtime",
     )
     top_k: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         default=5,
-        comment="DEPRECATED: use Agent.rag_config.top_k",
+        comment="KB-level default; Agent.rag_config.top_k overrides at runtime",
     )
     score_threshold: Mapped[float] = mapped_column(
         Float,
         nullable=False,
         default=0.5,
-        comment="DEPRECATED: use Agent.rag_config.score_threshold",
+        comment="KB-level default; Agent.rag_config.score_threshold overrides at runtime",
     )
 
     document_count: Mapped[int] = mapped_column(

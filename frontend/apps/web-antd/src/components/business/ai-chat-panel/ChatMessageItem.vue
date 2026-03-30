@@ -548,12 +548,6 @@ function getSearchSummary(
   };
 }
 
-function hasSearchSummary(
-  tc: Pick<NonNullable<ChatMessage['toolCalls']>[number], 'summaryPayload'>,
-) {
-  return !!getSearchSummary(tc);
-}
-
 function getSearchProviderLabel(provider?: string) {
   switch (provider) {
     case 'baidu_public': {
@@ -861,6 +855,31 @@ watch(
 );
 onUnmounted(stopTick);
 
+const toolGroupExpandedMap = ref<Record<number, boolean>>({});
+
+const toolGroupSummary = computed(() => {
+  const tools = props.msg.toolCalls;
+  if (!tools?.length) return null;
+  const total = tools.length;
+  const success = tools.filter((tc) => tc.status === 'success').length;
+  const error = tools.filter((tc) => tc.status === 'error').length;
+  const running = tools.filter((tc) => tc.status === 'running').length;
+  return { total, success, error, running };
+});
+
+function isToolGroupExpanded(idx: number): boolean {
+  const explicit = toolGroupExpandedMap.value[idx];
+  if (explicit !== undefined) return explicit;
+  return hasRunningTool.value || !!props.msg.streaming;
+}
+
+function toggleToolGroupExpand(idx: number) {
+  toolGroupExpandedMap.value = {
+    ...toolGroupExpandedMap.value,
+    [idx]: !isToolGroupExpanded(idx),
+  };
+}
+
 /** Auto-collapse thinking block when streaming ends. */
 watch(
   () => [props.msg.streaming, props.index] as const,
@@ -873,6 +892,26 @@ watch(
     ) {
       thinkingExpandedMap.value = {
         ...thinkingExpandedMap.value,
+        [idx]: false,
+      };
+    }
+  },
+);
+
+/** Auto-collapse tool group when all tools finish or streaming ends. */
+watch(
+  () =>
+    [hasRunningTool.value, props.msg.streaming, props.index] as const,
+  ([running, streaming, idx], oldVal) => {
+    const wasRunning = oldVal?.[0];
+    const wasStreaming = oldVal?.[1];
+    if (
+      typeof idx === 'number' &&
+      ((wasRunning === true && running === false) ||
+        (wasStreaming === true && streaming === false && !running))
+    ) {
+      toolGroupExpandedMap.value = {
+        ...toolGroupExpandedMap.value,
         [idx]: false,
       };
     }
@@ -1190,20 +1229,106 @@ watch(
           <span>{{ $t('common.globalAiChat.generating') }}</span>
         </div>
 
-        <!-- Tool calls timeline (below content) -->
+        <!-- Tool calls - collapsible group card -->
         <div
           v-if="msg.toolCalls?.length"
-          class="tc-timeline relative"
-          :class="compact ? 'mt-1 pl-3' : 'mt-1.5 pl-4'"
+          class="overflow-hidden rounded-lg border border-border/25 bg-accent/10"
+          :class="compact ? 'mt-1' : 'mt-1.5'"
         >
+          <button
+            type="button"
+            class="flex w-full cursor-pointer select-none items-center text-left transition-colors hover:bg-accent/20"
+            :class="
+              compact
+                ? 'gap-1 px-2 py-1 text-[11px]'
+                : 'gap-1.5 px-2.5 py-1.5 text-xs'
+            "
+            data-testid="tool-group-toggle"
+            @click="toggleToolGroupExpand(index)"
+          >
+            <IconifyIcon
+              icon="lucide:wrench"
+              class="shrink-0 text-muted-foreground/60"
+              :class="[
+                compact ? 'size-3' : 'size-3.5',
+                toolGroupSummary?.running ? 'tc-pill-pulse' : '',
+              ]"
+            />
+            <span class="flex-1 font-medium text-muted-foreground">
+              <template v-if="toolGroupSummary?.running">
+                {{
+                  $t('common.globalAiChat.toolGroupRunning', {
+                    count: toolGroupSummary.total,
+                  })
+                }}
+              </template>
+              <template v-else>
+                {{
+                  $t('common.globalAiChat.toolGroupSummary', {
+                    count: toolGroupSummary?.total ?? 0,
+                  })
+                }}
+              </template>
+            </span>
+            <span
+              v-if="toolGroupSummary && !toolGroupSummary.running"
+              class="flex items-center gap-1.5 text-[10px]"
+            >
+              <span
+                v-if="toolGroupSummary.success"
+                class="flex items-center gap-0.5 text-green-600 dark:text-green-400"
+              >
+                <IconifyIcon icon="lucide:check" class="size-2.5" />
+                {{ toolGroupSummary.success }}
+              </span>
+              <span
+                v-if="toolGroupSummary.error"
+                class="flex items-center gap-0.5 text-red-500"
+              >
+                <IconifyIcon icon="lucide:x" class="size-2.5" />
+                {{ toolGroupSummary.error }}
+              </span>
+            </span>
+            <IconifyIcon
+              icon="lucide:chevron-down"
+              class="shrink-0 text-muted-foreground/30 transition-transform duration-300"
+              style="transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1)"
+              :class="compact ? 'size-2.5' : 'size-3'"
+              :style="{
+                transform: isToolGroupExpanded(index)
+                  ? 'rotate(180deg)'
+                  : 'rotate(0deg)',
+              }"
+            />
+          </button>
+
+          <div
+            class="grid"
+            :style="{
+              gridTemplateRows: isToolGroupExpanded(index) ? '1fr' : '0fr',
+              opacity: isToolGroupExpanded(index) ? 1 : 0,
+              transition:
+                'grid-template-rows 350ms cubic-bezier(0.4,0,0.2,1), opacity 200ms ease',
+            }"
+            data-testid="tool-group-body"
+          >
+            <div class="min-h-0 overflow-hidden">
+              <div
+                class="border-t border-border/20 transition-opacity duration-200"
+                :style="{ opacity: isToolGroupExpanded(index) ? 1 : 0 }"
+              ></div>
+              <div
+                class="tc-timeline relative"
+                :class="compact ? 'px-2 py-1 pl-5' : 'px-2.5 py-1.5 pl-6'"
+              >
           <!-- Timeline vertical line -->
           <div
             v-if="msg.toolCalls.length > 1"
             class="absolute w-px bg-border/40"
             :class="
               compact
-                ? 'bottom-1 left-[4px] top-1'
-                : 'bottom-1.5 left-[5px] top-1.5'
+                ? 'bottom-1 left-[8px] top-1'
+                : 'bottom-1.5 left-[9px] top-1.5'
             "
           ></div>
 
@@ -1725,6 +1850,9 @@ watch(
             >
               {{ $t('common.globalAiChat.toolStillRunningHint') }}
             </p>
+          </div>
+              </div>
+            </div>
           </div>
         </div>
 

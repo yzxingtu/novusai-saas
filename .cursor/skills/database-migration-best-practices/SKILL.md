@@ -15,6 +15,8 @@ description: 数据库迁移技能。当需要创建或修改 SQLAlchemy Model�
 - `alembic revision --autogenerate` 生成后必须人工清理噪音。
 - 枚举写入查询条件或 update dict 时，`LabeledStrEnum` 要用 `.value`。
 - 迁移里的 raw SQL 必须 `text(...).bindparams(...)`，不要 `text(f"...")`。
+- 重命名权限资源或唯一约束列的值时，**必须使用 `migrations.helpers`** 中的 `safe_rename_permission_resource()` / `safe_rename_unique_column_value()`，禁止手写 `REPLACE` SQL。
+- 写完迁移后运行 `python scripts/lint_migrations.py` 检查危险模式（codegen 的 `run_auto_migrate` 已自动集成此检查）。
 
 ## 按任务读取
 

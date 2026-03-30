@@ -35,5 +35,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Re-insert the plugin record (will be re-registered by plugin system on next startup)
+    """Intentional no-op: OpenAI adapter is bundled in core; restoring a DB plugin row would duplicate registration paths."""
     pass

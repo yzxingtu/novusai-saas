@@ -922,6 +922,19 @@ usePageAIOperations({
                 />
               </Button>
             </Tooltip>
+            <Tooltip :title="$t('admin.ai.skillRegistry.title')">
+              <Button
+                v-access:code="['plugin_skill_registry:list']"
+                type="text"
+                size="small"
+                @click="router.push('/admin/plugins/marketplace?catalog=skills')"
+              >
+                <IconifyIcon
+                  icon="lucide:package-search"
+                  class="size-4 text-primary"
+                />
+              </Button>
+            </Tooltip>
             <Tooltip :title="$t('admin.ai.skillPackage.uploadZip')">
               <Button
                 v-access:code="['ai_skill_package:create']"

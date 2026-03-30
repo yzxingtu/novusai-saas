@@ -255,6 +255,12 @@ onOpenChange(isOpen) {
 - 内部截图消息属于运行时中间态，禁止写入会话持久化历史
 - 专用工具展开允许把 `capture_screenshot` 展开为 `pageop_capture_screenshot`，与其它高频页面操作一致
 
+### 页面操作确认契约 / Page Operation Confirmation Contract
+
+- `requires_confirmation=true` 表示后端显式要求前端确认，优先级最高
+- `auto_approved=true` 表示后端信任策略已明确批准，前端必须直接执行，不能再按 `readonly=false` 自行弹确认
+- 若两者都不存在，前端才允许按页面操作自身的 `readonly` 与链式确认规则做默认判断
+
 ---
 
 ## 八、CrudListAiOptions 完整配置 / Full CrudListAiOptions

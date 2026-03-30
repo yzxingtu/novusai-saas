@@ -11,11 +11,11 @@
  * ```ts
  * import { adminApi as admin } from '#/api';
  *
- * const { Grid, FormDrawer, onCreate, onRefresh } = useCrudPage<AdminInfo>({
+ * const { Grid, FormDrawer, onCreate, onRefresh } = useCrudPage<UserRow>({
  *   api: {
- *     list: admin.getAdminListApi,
- *     resource: '/admin/admins',
- *     toggles: { is_active: admin.toggleAdminStatusApi },
+ *     list: userApi.listUsersApi,
+ *     resource: '/admin/users',
+ *     toggles: { is_active: userApi.toggleUserStatusApi },
  *   },
  *   columns: useColumns,
  *   searchSchema: useGridFormSchema(),

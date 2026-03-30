@@ -8,17 +8,12 @@ import {
   watch,
 } from "vue";
 
-import background1 from "./assets/backgrounds/slider-bg-01.jpg";
-import background2 from "./assets/backgrounds/slider-bg-02.jpg";
-import background3 from "./assets/backgrounds/slider-bg-03.jpg";
-import background4 from "./assets/backgrounds/slider-bg-04.jpg";
-import type { SliderCaptchaSharedAPI } from "./types";
+import type { SliderCaptchaResult, SliderCaptchaSharedAPI } from "./types";
+import { useSliderCaptchaChallenge } from "./use-slider-captcha-challenge";
 
 const PROVIDER_CODE = "slider";
 const LOCALE_PREFIX = "plugin.slider-captcha";
-const CAPTURE_LEFT_PADDING = 3;
 const FALLBACK_TEXT = {
-  modalEyebrow: "SECURITY CHECK",
   modalSubtitle:
     "Drag the slider so the puzzle piece returns to the missing slot.",
   modalTipDefault:
@@ -56,29 +51,6 @@ const FALLBACK_TEXT = {
   },
 } as const;
 
-interface CaptchaResult {
-  captchaCode: string;
-  challengeId: string;
-  provider: string;
-}
-
-interface ChallengePayload {
-  background_index?: number;
-  background_url?: string;
-  canvas_height: number;
-  canvas_width: number;
-  circle_radius: number;
-  piece_x: number;
-  piece_y: number;
-  square_length: number;
-  tolerance_px: number;
-}
-
-interface ChallengeResponsePayload {
-  challenge_id: string;
-  payload: ChallengePayload;
-}
-
 const props = withDefaults(
   defineProps<{
     action?: string;
@@ -95,10 +67,8 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (e: "error", error: Error): void;
-  (e: "verified", result: CaptchaResult): void;
+  (e: "verified", result: SliderCaptchaResult): void;
 }>();
-
-const bundledBackgrounds = [background1, background2, background3, background4];
 
 const triggerButtonRef = ref<HTMLElement | null>(null);
 const modalPanelRef = ref<HTMLElement | null>(null);
@@ -106,18 +76,13 @@ const boardHostRef = ref<HTMLElement | null>(null);
 const boardCanvasRef = ref<HTMLCanvasElement | null>(null);
 const pieceCanvasRef = ref<HTMLCanvasElement | null>(null);
 
-const challengeId = ref("");
-const challenge = ref<ChallengePayload | null>(null);
-const loading = ref(false);
 const dragX = ref(0);
 const solved = ref(false);
 const solvedOffset = ref<number | null>(null);
-const statusKey = ref<"default" | "loading" | "retry" | "success">("default");
 const displayWidth = ref(320);
 const dragging = ref(false);
-const renderToken = ref(0);
 const modalVisible = ref(false);
-const modalPlacement = ref<"bottom" | "top">("bottom");
+const modalPlacement = ref<"bottom" | "center" | "top">("top");
 const modalPosition = ref({
   caretLeft: 48,
   left: 12,
@@ -125,17 +90,45 @@ const modalPosition = ref({
   width: 360,
 });
 
+const MAX_LOCAL_RETRIES = 3;
+
 let pointerId: null | number = null;
 let pointerStartX = 0;
 let pointerStartHandleX = 0;
 let retryTimer: null | number = null;
 let successCloseTimer: null | number = null;
-let challengeRequestToken = 0;
+let consecutiveFailCount = 0;
 
 function getShared(): SliderCaptchaSharedAPI | undefined {
   return (window as unknown as { NovusPluginShared?: SliderCaptchaSharedAPI })
     .NovusPluginShared;
 }
+
+const {
+  challenge,
+  challengeId,
+  detectedTargetLeft,
+  loadChallenge,
+  loading,
+  rerenderExistingChallenge,
+  resetChallengeState,
+  statusKey,
+} = useSliderCaptchaChallenge(() => getShared()?.requestClient, {
+  action: () => props.action,
+  boardCanvasRef,
+  difficulty: () => props.difficulty,
+  dragX,
+  endpoint: () => props.endpoint,
+  getScaleRatio: () => scaleRatio.value,
+  modalVisible,
+  pieceCanvasRef,
+  releaseDrag,
+  solved,
+  solvedOffset,
+  syncDragAfterResize,
+  updateDisplayWidth,
+  updateModalPosition,
+});
 
 function tLocal(path: string): string {
   const fullKey = `${LOCALE_PREFIX}.${path}`;
@@ -152,30 +145,6 @@ function tLocal(path: string): string {
     return typeof current === "string" ? current : fullKey;
   }
   return translated;
-}
-
-function getPieceCaptureLength(payload: ChallengePayload): number {
-  return (
-    payload.square_length + 2 * payload.circle_radius + CAPTURE_LEFT_PADDING
-  );
-}
-
-function getPieceCaptureLeft(payload: ChallengePayload): number {
-  return Math.max(0, payload.piece_x - CAPTURE_LEFT_PADDING);
-}
-
-function getPieceCaptureTop(payload: ChallengePayload): number {
-  return Math.max(0, payload.piece_y - 2 * payload.circle_radius - 1);
-}
-
-function getPieceLocalOrigin(payload: ChallengePayload): {
-  x: number;
-  y: number;
-} {
-  return {
-    x: payload.piece_x - getPieceCaptureLeft(payload),
-    y: payload.piece_y - getPieceCaptureTop(payload),
-  };
 }
 
 const boardWidth = computed(() => {
@@ -203,7 +172,7 @@ const pieceLength = computed(() => {
   if (!challenge.value) {
     return 0;
   }
-  return getPieceCaptureLength(challenge.value);
+  return challenge.value.piece_width;
 });
 
 const pieceTravelMax = computed(() => {
@@ -238,14 +207,15 @@ const pieceStyle = computed(() => {
     };
   }
 
-  const pieceTop = getPieceCaptureTop(challenge.value) * scaleRatio.value;
-  const pieceSize = pieceLength.value * scaleRatio.value;
+  const pieceTop = challenge.value.piece_top * scaleRatio.value;
+  const pieceHeight = challenge.value.piece_height * scaleRatio.value;
+  const pieceWidth = challenge.value.piece_width * scaleRatio.value;
 
   return {
-    height: `${pieceSize}px`,
+    height: `${pieceHeight}px`,
     left: `${dragX.value}px`,
     top: `${pieceTop}px`,
-    width: `${pieceSize}px`,
+    width: `${pieceWidth}px`,
   };
 });
 
@@ -374,15 +344,22 @@ function updateModalPosition(): void {
   );
 
   const panelHeight = modalPanelRef.value?.offsetHeight ?? 336;
-  let placement: "bottom" | "top" = "bottom";
-  let top = rect.bottom + panelGap;
+  const topCandidate = rect.top - panelHeight - panelGap;
+  const bottomCandidate = rect.bottom + panelGap;
+  let placement: "bottom" | "center" | "top" = "top";
+  let top = topCandidate;
 
-  if (
-    top + panelHeight > window.innerHeight - viewportPadding &&
-    rect.top - panelGap - panelHeight >= viewportPadding
-  ) {
-    placement = "top";
-    top = rect.top - panelHeight - panelGap;
+  if (topCandidate < viewportPadding) {
+    if (bottomCandidate + panelHeight <= window.innerHeight - viewportPadding) {
+      placement = "bottom";
+      top = bottomCandidate;
+    } else {
+      placement = "center";
+      top = Math.max(
+        viewportPadding,
+        Math.round((window.innerHeight - panelHeight) / 2),
+      );
+    }
   }
 
   const maxTop = Math.max(
@@ -396,8 +373,17 @@ function updateModalPosition(): void {
 
   modalPlacement.value = placement;
   modalPosition.value = {
-    caretLeft,
-    left,
+    caretLeft: placement === "center" ? width / 2 : caretLeft,
+    left:
+      placement === "center"
+        ? Math.min(
+            Math.max(
+              viewportPadding,
+              Math.round((window.innerWidth - width) / 2),
+            ),
+            maxLeft,
+          )
+        : left,
     top: Math.min(Math.max(viewportPadding, top), maxTop),
     width,
   };
@@ -429,319 +415,10 @@ function syncDragAfterResize(previousScale: number): void {
   }
 
   const pieceLeft = solved.value
-    ? getPieceCaptureLeft(challenge.value)
+    ? (solvedOffset.value ?? dragX.value / previousScale)
     : dragX.value / previousScale;
 
   setPieceLeft(pieceLeft);
-}
-
-function resetChallengeState(): void {
-  clearRetryTimer();
-  clearSuccessCloseTimer();
-  releaseDrag();
-  challengeRequestToken += 1;
-  renderToken.value += 1;
-  loading.value = false;
-  challengeId.value = "";
-  challenge.value = null;
-  dragX.value = 0;
-  solved.value = false;
-  solvedOffset.value = null;
-  statusKey.value = "default";
-}
-
-function tracePieceShape(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  squareLength: number,
-  circleRadius: number,
-) {
-  const pi = Math.PI;
-  ctx.beginPath();
-  ctx.moveTo(x, y);
-  ctx.arc(
-    x + squareLength / 2,
-    y - circleRadius + 2,
-    circleRadius,
-    0.72 * pi,
-    2.26 * pi,
-  );
-  ctx.lineTo(x + squareLength, y);
-  ctx.arc(
-    x + squareLength + circleRadius - 2,
-    y + squareLength / 2,
-    circleRadius,
-    1.21 * pi,
-    2.78 * pi,
-  );
-  ctx.lineTo(x + squareLength, y + squareLength);
-  ctx.lineTo(x, y + squareLength);
-  ctx.arc(
-    x + circleRadius - 2,
-    y + squareLength / 2,
-    circleRadius + 0.4,
-    2.76 * pi,
-    1.24 * pi,
-    true,
-  );
-  ctx.lineTo(x, y);
-}
-
-function renderBoardSlot(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  squareLength: number,
-  circleRadius: number,
-) {
-  tracePieceShape(ctx, x, y, squareLength, circleRadius);
-  ctx.save();
-  ctx.fillStyle = "rgba(10, 18, 34, 0.42)";
-  ctx.shadowColor = "rgba(15, 23, 42, 0.3)";
-  ctx.shadowBlur = 20;
-  ctx.shadowOffsetY = 6;
-  ctx.fill();
-  ctx.restore();
-
-  ctx.save();
-  tracePieceShape(ctx, x, y, squareLength, circleRadius);
-  ctx.lineWidth = 1.1;
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
-  ctx.stroke();
-  ctx.restore();
-
-  ctx.save();
-  tracePieceShape(ctx, x, y, squareLength, circleRadius);
-  ctx.clip();
-  const overlay = ctx.createLinearGradient(
-    x,
-    y - circleRadius * 2,
-    x,
-    y + squareLength + circleRadius * 2,
-  );
-  overlay.addColorStop(0, "rgba(255, 255, 255, 0.04)");
-  overlay.addColorStop(0.5, "rgba(255, 255, 255, 0.01)");
-  overlay.addColorStop(1, "rgba(15, 23, 42, 0.2)");
-  ctx.fillStyle = overlay;
-  ctx.fillRect(
-    x - 8,
-    y - circleRadius * 2 - 8,
-    squareLength + circleRadius * 2 + 16,
-    squareLength + circleRadius * 4 + 16,
-  );
-  ctx.restore();
-}
-
-function renderPuzzlePiece(
-  ctx: CanvasRenderingContext2D,
-  image: HTMLImageElement,
-  payload: ChallengePayload,
-) {
-  const captureLength = getPieceCaptureLength(payload);
-  const captureLeft = getPieceCaptureLeft(payload);
-  const captureTop = getPieceCaptureTop(payload);
-  const localOrigin = getPieceLocalOrigin(payload);
-  ctx.clearRect(0, 0, captureLength, captureLength);
-
-  ctx.save();
-  tracePieceShape(
-    ctx,
-    localOrigin.x,
-    localOrigin.y,
-    payload.square_length,
-    payload.circle_radius,
-  );
-  ctx.shadowColor = "rgba(15, 23, 42, 0.34)";
-  ctx.shadowBlur = 18;
-  ctx.shadowOffsetY = 10;
-  ctx.fillStyle = "rgba(15, 23, 42, 0.18)";
-  ctx.fill();
-  ctx.restore();
-
-  ctx.save();
-  tracePieceShape(
-    ctx,
-    localOrigin.x,
-    localOrigin.y,
-    payload.square_length,
-    payload.circle_radius,
-  );
-  ctx.clip();
-  ctx.filter = "brightness(1.03) contrast(1.09) saturate(1.08)";
-  ctx.drawImage(
-    image,
-    captureLeft,
-    captureTop,
-    captureLength,
-    captureLength,
-    0,
-    0,
-    captureLength,
-    captureLength,
-  );
-  ctx.filter = "none";
-  ctx.restore();
-
-  ctx.save();
-  tracePieceShape(
-    ctx,
-    localOrigin.x,
-    localOrigin.y,
-    payload.square_length,
-    payload.circle_radius,
-  );
-  const sheen = ctx.createLinearGradient(0, 0, 0, captureLength);
-  sheen.addColorStop(0, "rgba(255, 255, 255, 0.22)");
-  sheen.addColorStop(0.36, "rgba(255, 255, 255, 0.05)");
-  sheen.addColorStop(1, "rgba(15, 23, 42, 0.1)");
-  ctx.fillStyle = sheen;
-  ctx.fill();
-  ctx.lineWidth = 2.2;
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.98)";
-  ctx.stroke();
-  ctx.lineWidth = 1;
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.42)";
-  ctx.stroke();
-  ctx.restore();
-}
-
-function getBackgroundSource(payload: ChallengePayload): string {
-  if (payload.background_url) {
-    return payload.background_url;
-  }
-  const index = Math.max(
-    0,
-    Math.min(bundledBackgrounds.length - 1, payload.background_index ?? 0),
-  );
-  return bundledBackgrounds[index]!;
-}
-
-function renderWithImage(image: HTMLImageElement): void {
-  const payload = challenge.value;
-  const boardCanvas = boardCanvasRef.value;
-  const pieceCanvas = pieceCanvasRef.value;
-  if (!payload || !boardCanvas || !pieceCanvas) {
-    return;
-  }
-
-  const captureLength = getPieceCaptureLength(payload);
-  boardCanvas.width = payload.canvas_width;
-  boardCanvas.height = payload.canvas_height;
-  pieceCanvas.width = captureLength;
-  pieceCanvas.height = captureLength;
-
-  const boardCtx = boardCanvas.getContext("2d");
-  const pieceCtx = pieceCanvas.getContext("2d");
-  if (!boardCtx || !pieceCtx) {
-    return;
-  }
-
-  boardCtx.clearRect(0, 0, payload.canvas_width, payload.canvas_height);
-  boardCtx.drawImage(image, 0, 0, payload.canvas_width, payload.canvas_height);
-  renderBoardSlot(
-    boardCtx,
-    payload.piece_x,
-    payload.piece_y,
-    payload.square_length,
-    payload.circle_radius,
-  );
-
-  renderPuzzlePiece(pieceCtx, image, payload);
-}
-
-async function renderChallenge(): Promise<void> {
-  const payload = challenge.value;
-  if (!payload) {
-    return;
-  }
-
-  const currentToken = ++renderToken.value;
-  const image = new Image();
-  const primarySrc = getBackgroundSource(payload);
-  const fallbackIndex = Math.max(
-    0,
-    Math.min(bundledBackgrounds.length - 1, payload.background_index ?? 0),
-  );
-  const fallbackSrc =
-    primarySrc === payload.background_url
-      ? bundledBackgrounds[fallbackIndex]!
-      : primarySrc;
-
-  await new Promise<void>((resolve, reject) => {
-    image.onload = () => resolve();
-    image.onerror = () => reject(new Error("background_load_failed"));
-    image.src = primarySrc;
-  }).catch(async () => {
-    if (!fallbackSrc || fallbackSrc === primarySrc) {
-      throw new Error("background_load_failed");
-    }
-    await new Promise<void>((resolve, reject) => {
-      image.onload = () => resolve();
-      image.onerror = () => reject(new Error("background_load_failed"));
-      image.src = fallbackSrc;
-    });
-  });
-
-  if (currentToken !== renderToken.value) {
-    return;
-  }
-  renderWithImage(image);
-}
-
-async function loadChallenge(): Promise<void> {
-  const currentRequestToken = ++challengeRequestToken;
-  clearRetryTimer();
-  clearSuccessCloseTimer();
-  releaseDrag();
-  loading.value = true;
-  solved.value = false;
-  solvedOffset.value = null;
-  dragX.value = 0;
-  statusKey.value = "loading";
-
-  try {
-    const shared = getShared();
-    if (!shared?.requestClient) {
-      throw new Error("request_client_unavailable");
-    }
-
-    const result = await shared.requestClient.post<ChallengeResponsePayload>(
-      "/api/public/captcha/challenge",
-      {
-        action: props.action,
-        endpoint: props.endpoint,
-        provider_code: PROVIDER_CODE,
-      },
-    );
-    if (!result?.payload) {
-      throw new Error("challenge_request_failed");
-    }
-    if (currentRequestToken !== challengeRequestToken) {
-      return;
-    }
-
-    challengeId.value = result.challenge_id;
-    challenge.value = result.payload;
-    statusKey.value = "default";
-    await nextTick();
-    updateDisplayWidth();
-    await renderChallenge();
-    if (modalVisible.value) {
-      await nextTick();
-      updateModalPosition();
-    }
-  } catch (error) {
-    if (currentRequestToken !== challengeRequestToken) {
-      return;
-    }
-    statusKey.value = "retry";
-    emit("error", error instanceof Error ? error : new Error(String(error)));
-  } finally {
-    if (currentRequestToken === challengeRequestToken) {
-      loading.value = false;
-    }
-  }
 }
 
 function releaseDrag(): void {
@@ -791,17 +468,22 @@ function completeAttempt(): void {
     return;
   }
 
-  const expectedLeft = getPieceCaptureLeft(challenge.value);
+  const expectedLeft = detectedTargetLeft.value;
   const actualOffset = Math.round(dragX.value / scaleRatio.value);
   const tolerancePx = challenge.value.tolerance_px;
+  if (expectedLeft === null) {
+    handleAttemptFail();
+    return;
+  }
 
   if (Math.abs(actualOffset - expectedLeft) <= tolerancePx) {
+    consecutiveFailCount = 0;
     dragX.value = expectedLeft * scaleRatio.value;
     solved.value = true;
-    solvedOffset.value = challenge.value.piece_x;
+    solvedOffset.value = actualOffset;
     statusKey.value = "success";
     emit("verified", {
-      captchaCode: String(challenge.value.piece_x),
+      captchaCode: String(actualOffset),
       challengeId: challengeId.value,
       provider: PROVIDER_CODE,
     });
@@ -813,8 +495,25 @@ function completeAttempt(): void {
     return;
   }
 
+  handleAttemptFail();
+}
+
+function handleAttemptFail(): void {
+  consecutiveFailCount += 1;
   solved.value = false;
   solvedOffset.value = null;
+
+  if (consecutiveFailCount >= MAX_LOCAL_RETRIES) {
+    statusKey.value = "retry";
+    clearRetryTimer();
+    retryTimer = window.setTimeout(() => {
+      retryTimer = null;
+      consecutiveFailCount = 0;
+      refresh();
+    }, 600);
+    return;
+  }
+
   statusKey.value = "retry";
   resetDragAfterRetry();
 }
@@ -909,6 +608,7 @@ function openModal(forceRefresh = false): void {
   }
 
   clearSuccessCloseTimer();
+  consecutiveFailCount = 0;
   if (forceRefresh) {
     if (modalVisible.value) {
       refresh();
@@ -927,13 +627,14 @@ function handleTriggerClick(): void {
 }
 
 function refresh(): void {
+  consecutiveFailCount = 0;
   resetChallengeState();
   if (modalVisible.value) {
-    void loadChallenge();
+    void safeLoadChallenge();
   }
 }
 
-function getResult(): CaptchaResult | null {
+function getResult(): SliderCaptchaResult | null {
   if (!solved.value || !challengeId.value || solvedOffset.value == null) {
     openModal(statusKey.value === "retry" || !challenge.value);
     return null;
@@ -950,24 +651,24 @@ defineExpose({
   refresh,
 });
 
-async function rerenderExistingChallenge(): Promise<void> {
-  const previousScale = scaleRatio.value;
-  await nextTick();
-  updateDisplayWidth();
-  syncDragAfterResize(previousScale);
-  updateModalPosition();
-  if (!challenge.value) {
-    return;
-  }
+function handlePluginError(error: unknown): void {
+  emit("error", error instanceof Error ? error : new Error(String(error)));
+}
+
+async function safeLoadChallenge(): Promise<void> {
   try {
-    await renderChallenge();
-    if (modalVisible.value) {
-      await nextTick();
-      updateModalPosition();
-    }
+    await loadChallenge();
+  } catch (error) {
+    handlePluginError(error);
+  }
+}
+
+async function safeRerenderChallenge(): Promise<void> {
+  try {
+    await rerenderExistingChallenge();
   } catch (error) {
     statusKey.value = "retry";
-    emit("error", error instanceof Error ? error : new Error(String(error)));
+    handlePluginError(error);
   }
 }
 
@@ -981,7 +682,7 @@ function handleWindowResize(): void {
   if (!modalVisible.value) {
     return;
   }
-  void rerenderExistingChallenge();
+  void safeRerenderChallenge();
 }
 
 function handleWindowScroll(): void {
@@ -995,7 +696,7 @@ watch(
   () => {
     resetChallengeState();
     if (modalVisible.value) {
-      void loadChallenge();
+      void safeLoadChallenge();
     }
   },
 );
@@ -1008,10 +709,10 @@ watch(modalVisible, async (visible) => {
   updateDisplayWidth();
   updateModalPosition();
   if (!challenge.value) {
-    void loadChallenge();
+    void safeLoadChallenge();
     return;
   }
-  await rerenderExistingChallenge();
+  await safeRerenderChallenge();
 });
 
 onMounted(() => {
@@ -1078,13 +779,7 @@ onBeforeUnmount(() => {
           <span class="panel-caret" aria-hidden="true"></span>
           <div class="modal-header">
             <div class="modal-title-group">
-              <span class="modal-eyebrow">{{ tLocal("modalEyebrow") }}</span>
-              <div class="modal-heading-row">
-                <h3 class="modal-title">{{ tLocal("modalTitle") }}</h3>
-                <span class="modal-status-pill" :data-state="statusKey">
-                  {{ modalStatusText }}
-                </span>
-              </div>
+              <h3 class="modal-title">{{ tLocal("modalTitle") }}</h3>
               <p class="modal-subtitle">{{ tLocal("modalSubtitle") }}</p>
             </div>
             <div class="modal-actions">
@@ -1522,13 +1217,15 @@ body.dark .captcha-floating-layer .captcha-board,
   border: 1px solid rgb(215 223 235);
   border-top: 3px solid rgb(95 140 255);
   border-radius: 12px;
-  padding: 14px 14px 16px;
+  padding: 14px 14px 14px;
   background: linear-gradient(
     180deg,
     var(--captcha-surface),
     var(--captcha-surface-muted)
   );
-  box-shadow: 0 14px 28px rgb(15 23 42 / 0.12);
+  box-shadow:
+    0 18px 40px rgb(15 23 42 / 0.12),
+    0 2px 6px rgb(15 23 42 / 0.05);
   animation: modal-rise 0.18s ease;
 }
 
@@ -1563,13 +1260,19 @@ body.dark .captcha-floating-layer .captcha-board,
   border-bottom: 1px solid rgb(215 223 235);
 }
 
+.captcha-floating-layer
+  .captcha-modal-panel[data-placement="center"]
+  .panel-caret {
+  display: none;
+}
+
 .captcha-floating-layer .modal-header {
   display: flex;
   position: relative;
   align-items: center;
   justify-content: center;
   gap: 16px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .captcha-floating-layer .modal-title-group {
@@ -1581,36 +1284,20 @@ body.dark .captcha-floating-layer .captcha-board,
   text-align: center;
 }
 
-.captcha-floating-layer .modal-eyebrow {
-  display: none;
-}
-
-.captcha-floating-layer .modal-heading-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-
 .captcha-floating-layer .modal-title {
   margin: 0;
   color: var(--captcha-text);
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1.2;
   letter-spacing: 0;
 }
 
-.captcha-floating-layer .modal-status-pill {
-  display: none;
-}
-
 .captcha-floating-layer .modal-subtitle {
-  margin: 4px 0 0;
+  margin: 5px 0 0;
   color: var(--captcha-text-secondary);
   font-size: 11px;
-  line-height: 1.45;
+  line-height: 1.35;
 }
 
 .captcha-floating-layer .modal-actions {
@@ -1627,13 +1314,14 @@ body.dark .captcha-floating-layer .captcha-board,
   padding: 0 10px;
   border: 1px solid var(--captcha-border);
   border-radius: 999px;
-  background: rgb(255 255 255 / 0.92);
+  background: linear-gradient(180deg, rgb(255 255 255), rgb(247 249 252));
   color: var(--captcha-text-secondary);
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   transition:
     border-color 0.18s ease,
+    box-shadow 0.18s ease,
     background-color 0.18s ease,
     color 0.18s ease;
 }
@@ -1641,6 +1329,7 @@ body.dark .captcha-floating-layer .captcha-board,
 .captcha-floating-layer .modal-refresh:hover:not(:disabled) {
   color: var(--captcha-text);
   border-color: var(--captcha-border-strong);
+  box-shadow: 0 4px 12px rgb(15 23 42 / 0.08);
 }
 
 .captcha-floating-layer .modal-refresh:focus-visible,
@@ -1711,19 +1400,24 @@ body.dark .captcha-floating-layer .captcha-board,
   display: flex;
   justify-content: center;
   width: 100%;
-  padding: 5px;
+  padding: 4px;
   border: 1px solid rgb(223 229 239);
-  border-radius: 18px;
-  background: rgb(255 255 255);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgb(255 255 255), rgb(249 250 252));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.9),
+    0 1px 2px rgb(15 23 42 / 0.03);
 }
 
 .captcha-floating-layer .captcha-board {
   position: relative;
   overflow: hidden;
   border: 1px solid rgb(225 231 239);
-  border-radius: 14px;
+  border-radius: 13px;
   background: var(--captcha-board-tint);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.22),
+    inset 0 0 0 1px rgb(255 255 255 / 0.08);
 }
 
 .captcha-floating-layer .captcha-board.is-solved::after {
@@ -1762,9 +1456,8 @@ body.dark .captcha-floating-layer .captcha-board,
   position: absolute;
   display: block;
   pointer-events: none;
-  filter: drop-shadow(0 0 2px rgb(255 255 255 / 0.98))
-    drop-shadow(0 6px 10px rgb(255 255 255 / 0.18))
-    drop-shadow(0 14px 22px rgb(15 23 42 / 0.32));
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.35))
+    drop-shadow(0 3px 8px rgb(0 0 0 / 0.18));
   transition:
     left 0.14s ease,
     top 0.14s ease,
@@ -1773,15 +1466,14 @@ body.dark .captcha-floating-layer .captcha-board,
 }
 
 .captcha-floating-layer .piece-canvas.is-dragging {
-  filter: drop-shadow(0 0 2px rgb(255 255 255 / 1))
-    drop-shadow(0 8px 14px rgb(255 255 255 / 0.2))
-    drop-shadow(0 18px 26px rgb(15 23 42 / 0.34));
+  filter: drop-shadow(0 2px 5px rgb(0 0 0 / 0.4))
+    drop-shadow(0 5px 14px rgb(0 0 0 / 0.22));
   transition: none;
 }
 
 .captcha-floating-layer .piece-canvas.is-solved {
-  filter: drop-shadow(0 0 2px rgb(255 255 255 / 0.96))
-    drop-shadow(0 12px 20px rgb(22 163 74 / 0.2));
+  filter: drop-shadow(0 2px 4px rgb(0 0 0 / 0.25))
+    drop-shadow(0 0 8px rgb(22 163 74 / 0.3));
 }
 
 .captcha-floating-layer .board-loading {
@@ -1813,10 +1505,11 @@ body.dark .captcha-floating-layer .captcha-board,
   overflow: hidden;
   border: 1px solid var(--captcha-track-strong);
   border-radius: 12px;
-  background: linear-gradient(180deg, rgb(244 247 251), rgb(231 237 245));
+  background: linear-gradient(180deg, rgb(246 248 252), rgb(232 238 246));
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.7),
-    inset 0 -1px 0 rgb(203 213 225 / 0.38);
+    inset 0 -1px 0 rgb(203 213 225 / 0.38),
+    0 1px 2px rgb(15 23 42 / 0.03);
 }
 
 .captcha-floating-layer .slider-track[data-state="retry"] {
@@ -1844,8 +1537,8 @@ body.dark .captcha-floating-layer .captcha-board,
   border-radius: inherit;
   background: linear-gradient(
     90deg,
-    rgb(168 202 255 / 0.42),
-    rgb(109 160 255 / 0.18)
+    rgb(171 205 255 / 0.48),
+    rgb(109 160 255 / 0.22)
   );
   box-shadow: inset 0 0 0 1px rgb(191 219 254 / 0.16);
   transition: width 0.14s ease;
@@ -1887,9 +1580,9 @@ body.dark .captcha-floating-layer .captcha-board,
   border-radius: 11px;
   background: var(--captcha-thumb-bg);
   box-shadow:
-    0 10px 18px rgb(76 118 214 / 0.34),
+    0 10px 18px rgb(76 118 214 / 0.32),
     0 2px 4px rgb(15 23 42 / 0.16),
-    inset 0 1px 0 rgb(255 255 255 / 0.36),
+    inset 0 1px 0 rgb(255 255 255 / 0.4),
     inset 0 -1px 0 rgb(37 99 235 / 0.28);
   cursor: grab;
   transition:
@@ -1908,9 +1601,9 @@ body.dark .captcha-floating-layer .captcha-board,
   transform: translateY(-1px) scale(1.01);
   background: var(--captcha-thumb-bg-active);
   box-shadow:
-    0 14px 26px rgb(76 118 214 / 0.4),
+    0 14px 26px rgb(76 118 214 / 0.38),
     0 6px 12px rgb(15 23 42 / 0.2),
-    inset 0 1px 0 rgb(255 255 255 / 0.42),
+    inset 0 1px 0 rgb(255 255 255 / 0.46),
     inset 0 -1px 0 rgb(29 78 216 / 0.32);
 }
 
@@ -1938,13 +1631,15 @@ body.dark .captcha-floating-layer .captcha-board,
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 8px;
-  height: 8px;
-  margin-top: -4px;
-  margin-left: -4px;
-  border-top: 2px solid rgb(255 255 255 / 0.96);
-  border-right: 2px solid rgb(255 255 255 / 0.96);
-  transform: rotate(45deg);
+  width: 2px;
+  height: 14px;
+  margin-top: -7px;
+  margin-left: -1px;
+  background: rgb(255 255 255 / 0.92);
+  border-radius: 1px;
+  box-shadow:
+    -5px 0 0 rgb(255 255 255 / 0.92),
+    5px 0 0 rgb(255 255 255 / 0.92);
 }
 
 .captcha-floating-layer .thumb-core::after {
@@ -1955,13 +1650,13 @@ body.dark .captcha-floating-layer .captcha-board,
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: 8px 4px 0;
+  padding: 6px 4px 0;
   border: none;
   border-radius: 0;
   background: transparent;
   color: var(--captcha-text-secondary);
   font-size: 11px;
-  line-height: 1.4;
+  line-height: 1.35;
 }
 
 .captcha-floating-layer .slider-note-dot {

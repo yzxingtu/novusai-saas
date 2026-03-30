@@ -214,7 +214,7 @@ def upgrade() -> None:
         ondelete="SET NULL",
     )
 
-    op.execute(
+    op.execute(sa.text(
         """
         INSERT INTO admin_org_nodes (
             id, name, code, description, is_system, is_active, sort_order,
@@ -228,9 +228,10 @@ def upgrade() -> None:
             created_at, updated_at, is_deleted, deleted_at, delete_level,
             recycle_stage, promoted_to_global_at
         FROM admin_roles
+        ON CONFLICT (id) DO NOTHING
         """
-    )
-    op.execute(
+    ))
+    op.execute(sa.text(
         """
         INSERT INTO admin_org_scope_policies (
             id, org_node_id, scope_mode, created_at, updated_at,
@@ -240,9 +241,10 @@ def upgrade() -> None:
             id, id, COALESCE(data_scope, 'dept_children'), created_at, updated_at,
             is_deleted, deleted_at, delete_level, recycle_stage, promoted_to_global_at
         FROM admin_roles
+        ON CONFLICT (id) DO NOTHING
         """
-    )
-    op.execute(
+    ))
+    op.execute(sa.text(
         """
         INSERT INTO admin_org_scope_targets (
             policy_id, target_org_node_id, created_at, updated_at,
@@ -260,11 +262,15 @@ def upgrade() -> None:
             ar.promoted_to_global_at
         FROM admin_roles ar
         CROSS JOIN LATERAL json_array_elements_text(COALESCE(ar.custom_dept_ids::json, '[]'::json)) AS target(value)
+        WHERE NOT EXISTS (
+            SELECT 1 FROM admin_org_scope_targets t
+            WHERE t.policy_id = ar.id AND t.target_org_node_id = CAST(target.value AS INTEGER)
+        )
         """
-    )
-    op.execute("UPDATE admins SET org_node_id = role_id WHERE role_id IS NOT NULL")
+    ))
+    op.execute(sa.text("UPDATE admins SET org_node_id = role_id WHERE role_id IS NOT NULL"))
 
-    op.execute(
+    op.execute(sa.text(
         """
         INSERT INTO tenant_org_nodes (
             id, tenant_id, name, code, description, is_system, is_active, sort_order,
@@ -278,9 +284,10 @@ def upgrade() -> None:
             created_at, updated_at, is_deleted, deleted_at, delete_level,
             recycle_stage, promoted_to_global_at
         FROM tenant_admin_roles
+        ON CONFLICT (id) DO NOTHING
         """
-    )
-    op.execute(
+    ))
+    op.execute(sa.text(
         """
         INSERT INTO tenant_org_scope_policies (
             id, tenant_id, org_node_id, scope_mode, created_at, updated_at,
@@ -290,9 +297,10 @@ def upgrade() -> None:
             id, tenant_id, id, COALESCE(data_scope, 'dept_children'), created_at, updated_at,
             is_deleted, deleted_at, delete_level, recycle_stage, promoted_to_global_at
         FROM tenant_admin_roles
+        ON CONFLICT (id) DO NOTHING
         """
-    )
-    op.execute(
+    ))
+    op.execute(sa.text(
         """
         INSERT INTO tenant_org_scope_targets (
             tenant_id, policy_id, target_org_node_id, created_at, updated_at,
@@ -311,21 +319,25 @@ def upgrade() -> None:
             tar.promoted_to_global_at
         FROM tenant_admin_roles tar
         CROSS JOIN LATERAL json_array_elements_text(COALESCE(tar.custom_dept_ids::json, '[]'::json)) AS target(value)
+        WHERE NOT EXISTS (
+            SELECT 1 FROM tenant_org_scope_targets t
+            WHERE t.policy_id = tar.id AND t.target_org_node_id = CAST(target.value AS INTEGER)
+        )
         """
-    )
-    op.execute("UPDATE tenant_admins SET org_node_id = role_id WHERE role_id IS NOT NULL")
+    ))
+    op.execute(sa.text("UPDATE tenant_admins SET org_node_id = role_id WHERE role_id IS NOT NULL"))
 
     op.execute(
-        "SELECT setval(pg_get_serial_sequence('admin_org_nodes', 'id'), COALESCE((SELECT MAX(id) FROM admin_org_nodes), 1), true)"
+        sa.text("SELECT setval(pg_get_serial_sequence('admin_org_nodes', 'id'), COALESCE((SELECT MAX(id) FROM admin_org_nodes), 1), true)")
     )
     op.execute(
-        "SELECT setval(pg_get_serial_sequence('admin_org_scope_policies', 'id'), COALESCE((SELECT MAX(id) FROM admin_org_scope_policies), 1), true)"
+        sa.text("SELECT setval(pg_get_serial_sequence('admin_org_scope_policies', 'id'), COALESCE((SELECT MAX(id) FROM admin_org_scope_policies), 1), true)")
     )
     op.execute(
-        "SELECT setval(pg_get_serial_sequence('tenant_org_nodes', 'id'), COALESCE((SELECT MAX(id) FROM tenant_org_nodes), 1), true)"
+        sa.text("SELECT setval(pg_get_serial_sequence('tenant_org_nodes', 'id'), COALESCE((SELECT MAX(id) FROM tenant_org_nodes), 1), true)")
     )
     op.execute(
-        "SELECT setval(pg_get_serial_sequence('tenant_org_scope_policies', 'id'), COALESCE((SELECT MAX(id) FROM tenant_org_scope_policies), 1), true)"
+        sa.text("SELECT setval(pg_get_serial_sequence('tenant_org_scope_policies', 'id'), COALESCE((SELECT MAX(id) FROM tenant_org_scope_policies), 1), true)")
     )
 
 

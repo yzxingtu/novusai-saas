@@ -25,6 +25,9 @@ from app.api.admin.ai_call_logs import AdminAICallLogController
 from app.api.admin.ai_call_logs import router as ai_call_logs_router
 from app.api.admin.ai_conversations import AdminAIConversationController
 from app.api.admin.ai_conversations import router as ai_conversations_router
+from app.api.admin.ephemeral_documents import AdminEphemeralDocumentController
+from app.api.admin.ephemeral_documents import router as ai_ephemeral_documents_router
+from app.api.admin.execution_decisions import router as execution_decisions_router
 from app.api.admin.ai_gateway import AdminAIGatewayController
 from app.api.admin.ai_gateway import router as ai_gateway_router
 from app.api.admin.ai_health import AdminAIHealthController
@@ -54,6 +57,10 @@ from app.api.admin.email_logs import AdminEmailLogController
 from app.api.admin.email_logs import router as email_logs_router
 from app.api.admin.knowledge_bases import AdminKnowledgeBaseController
 from app.api.admin.knowledge_bases import router as ai_knowledge_bases_router
+from app.api.admin.long_term_memory_debug import (
+    AdminLongTermMemoryDebugController,
+)
+from app.api.admin.long_term_memory_debug import router as ai_long_term_memory_debug_router
 from app.api.admin.notification_preferences import (
     router as notification_preferences_router,
 )
@@ -77,6 +84,8 @@ from app.api.admin.organization import AdminOrganizationController
 from app.api.admin.organization import router as organization_router
 from app.api.admin.skill_packages import AdminSkillPackageController
 from app.api.admin.skill_packages import router as ai_skill_packages_router
+from app.api.admin.skill_registry import AdminSkillRegistryController
+from app.api.admin.skill_registry import router as plugin_skill_registry_router
 from app.api.admin.skills import AdminSkillController
 from app.api.admin.skills import router as ai_skills_router
 from app.api.admin.system_logs import AdminSystemLogController
@@ -126,6 +135,8 @@ admin_router.include_router(ai_health_router)
 admin_router.include_router(ai_quotas_router)
 # 对话管理 / Conversation management
 admin_router.include_router(ai_conversations_router)
+admin_router.include_router(ai_ephemeral_documents_router)
+admin_router.include_router(execution_decisions_router)
 # 智能体引擎 / Agent engine
 admin_router.include_router(ai_agents_router)
 # AI 操作审计 / AI action audit
@@ -134,10 +145,12 @@ admin_router.include_router(ai_action_logs_router)
 admin_router.include_router(ai_agent_chat_router)
 # 知识库监控 / Knowledge base monitoring
 admin_router.include_router(ai_knowledge_bases_router)
+admin_router.include_router(ai_long_term_memory_debug_router)
 # AI 表策略 / AI table policies
 admin_router.include_router(ai_table_policies_router)
 # 技能包 & 技能管理 / Skill package & skill management
 admin_router.include_router(ai_skill_packages_router)
+admin_router.include_router(plugin_skill_registry_router)
 admin_router.include_router(ai_skills_router)
 # 系统智能体绑定 / System agent assignments
 admin_router.include_router(agent_assignments_router)
@@ -191,6 +204,7 @@ __all__ = [
     "AdminAIQuotaController",
     # 对话管理 / Conversation management
     "AdminAIConversationController",
+    "AdminEphemeralDocumentController",
     # 智能体引擎 / Agent engine
     "AdminAgentController",
     # AI 操作审计 / AI action audit
@@ -199,10 +213,12 @@ __all__ = [
     "AdminAgentChatController",
     # 知识库监控 / Knowledge base monitoring
     "AdminKnowledgeBaseController",
+    "AdminLongTermMemoryDebugController",
     # AI 表策略 / AI table policies
     "AdminAITablePolicyController",
     # 技能包 & 技能管理 / Skill package & skill management
     "AdminSkillPackageController",
+    "AdminSkillRegistryController",
     "AdminSkillController",
     # 系统智能体绑定 / System agent assignments
     "AdminAgentAssignmentController",

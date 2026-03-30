@@ -21,7 +21,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Upgrade database schema."""
     # 1. 启用 pgvector 扩展
-    op.execute('CREATE EXTENSION IF NOT EXISTS vector')
+    op.execute(sa.text('CREATE EXTENSION IF NOT EXISTS vector'))
 
     # 2. 创建 knowledge_bases 表
     op.create_table('knowledge_bases',
@@ -119,23 +119,23 @@ def upgrade() -> None:
     op.create_index(op.f('ix_document_chunks_is_deleted'), 'document_chunks', ['is_deleted'], unique=False)
 
     # 5. 添加 pgvector 向量列（需要 raw SQL，因为 alembic op 不直接支持 Vector 类型）
-    op.execute('ALTER TABLE document_chunks ADD COLUMN embedding vector(1536)')
+    op.execute(sa.text('ALTER TABLE document_chunks ADD COLUMN embedding vector(1536)'))
 
     # 6. 创建 HNSW 向量索引
-    op.execute("""
+    op.execute(sa.text("""
         CREATE INDEX ix_chunk_embedding
         ON document_chunks
         USING hnsw (embedding vector_cosine_ops)
         WITH (m = 16, ef_construction = 64)
-    """)
+    """))
 
     # 7. 创建 tsvector 生成列和 GIN 索引（用于关键词检索）
-    op.execute("""
+    op.execute(sa.text("""
         ALTER TABLE document_chunks
         ADD COLUMN content_tsv tsvector
         GENERATED ALWAYS AS (to_tsvector('simple', content)) STORED
-    """)
-    op.execute('CREATE INDEX ix_chunk_tsv ON document_chunks USING GIN (content_tsv)')
+    """))
+    op.execute(sa.text('CREATE INDEX ix_chunk_tsv ON document_chunks USING GIN (content_tsv)'))
 
     # 8. Agent 表新增 knowledge_base_ids + rag_config 字段
     op.add_column('agents', sa.Column('knowledge_base_ids', postgresql.JSON(astext_type=sa.Text()), nullable=True, comment='关联知识库 ID 列表'))
@@ -149,14 +149,14 @@ def downgrade() -> None:
     op.drop_column('agents', 'knowledge_base_ids')
 
     # 7. 删除 tsvector 索引和列
-    op.execute('DROP INDEX IF EXISTS ix_chunk_tsv')
-    op.execute('ALTER TABLE document_chunks DROP COLUMN IF EXISTS content_tsv')
+    op.execute(sa.text('DROP INDEX IF EXISTS ix_chunk_tsv'))
+    op.execute(sa.text('ALTER TABLE document_chunks DROP COLUMN IF EXISTS content_tsv'))
 
     # 6. 删除 HNSW 索引
-    op.execute('DROP INDEX IF EXISTS ix_chunk_embedding')
+    op.execute(sa.text('DROP INDEX IF EXISTS ix_chunk_embedding'))
 
     # 5. 删除向量列
-    op.execute('ALTER TABLE document_chunks DROP COLUMN IF EXISTS embedding')
+    op.execute(sa.text('ALTER TABLE document_chunks DROP COLUMN IF EXISTS embedding'))
 
     # 4. 删除 document_chunks 表
     op.drop_table('document_chunks')

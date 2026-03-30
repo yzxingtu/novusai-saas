@@ -88,6 +88,97 @@ backend/app/ai/
 
 ## 二、核心组件详解
 
+### Context Engine / 上下文操作系统
+
+- 当前对话上下文能力统一收口到 `backend/app/ai/context/`
+- 固定生命周期：
+  - `ingest(turn)`
+  - `assemble(request)`
+  - `compact(session)`
+  - `after_turn(result)`
+- 默认实现为 `LegacyContextEngine`
+- 共享约束：
+  - Prompt 裁剪只允许通过 `TransientPruning`
+  - 持久摘要只允许通过 conversation metadata sidecar snapshot
+  - unresolved `pending_consent / pending_confirmation / page_operation` 工具轮次不得被 compact / prune
+
+### Long-Term Memory / 长期记忆
+
+- 短记忆仍为 Redis 四分类 session memory：`preferences / constraints / task_states / verified_facts`
+- 长期记忆真源改为：
+  - `MemoryRecord`
+  - `ProfileSnapshot`（派生视图）
+- 运行时通过 `LongTermMemoryProvider` 接入：
+  - `capture`
+  - `recall`
+  - `search`
+  - `profile`
+- 默认 recall 是 `progressive disclosure`
+  - 先 `ProfileSnapshot`
+  - 再按当前问题 recall / search
+  - 不做每轮全量 recall
+
+### Ephemeral / Workspace RAG / 临时资料侧车
+
+- 临时资料统一经 `EphemeralRAGProvider`
+- 真源模型为 `EphemeralDocument`
+- 支持 scope：
+  - `conversation_scoped`
+  - `agent_workspace_scoped`
+  - `tenant_private_scratch`
+- 临时资料不进入正式 `KnowledgeBase`
+- promotion 必须走 `EphemeralDocument -> KnowledgeDocument -> process_document`
+- citation 必须区分：
+  - `formal_kb`
+  - `ephemeral_doc`
+
+### Skill Registry / 技能分发层
+
+- 技能市场是“分发层”，不是运行时授权层
+- 安装后仅落地到：
+  - `SkillPackage`
+  - `Skill`
+- 运行时仍由 `AgentSkillGrant` 决定是否进入 Agent tool 集
+- 管理端主入口统一在插件市场：
+  - `/admin/plugins/marketplace?catalog=skills`
+- 当前插件市场与技能市场 registry 默认按 GitHub raw 托管，不再维护 Gitee/auto 源切换
+- GitHub-only 必须落实到执行期下载校验，不能只停留在配置层或 UI 层
+- 允许：
+  - 搜索
+  - 安装
+  - 安装预览
+  - 更新检查
+  - 升级预览
+  - 单个升级 / 批量升级
+- 不允许：
+  - install 即 runtime
+  - 跳过来源锁做任意来源升级
+  - 社区 skill 自动进入企业生产运行时
+
+### Trust / Consent / 后端真相
+
+- `trustSession` 只是前端发起“希望按会话信任”的交互入口
+- 最终自动批准必须以后端 `ExecutionTrustPolicy` 为准
+- 所有 consent / confirmation 的落账必须进入 `ExecutionDecision`
+- 前端临时 consent cache 只能是当前运行时内存态，不得再依赖浏览器存储充当持久授权真相
+
+### Unified Audit / 统一行为账本
+
+- `AIActionLog` 不再只记录 data actions
+- 当前必须覆盖：
+  - CRUD data ops
+  - page ops
+  - http
+  - email
+  - toolkit
+  - code execution
+  - text-to-sql query
+- 串联主键优先使用显式字段：
+  - `trace_id`
+  - `conversation_id`
+  - `tool_call_id`
+  - `execution_decision_id`
+
 ### AI Gateway (`gateway.py`)
 
 所有 LLM 调用的统一入口，职责：
@@ -269,11 +360,11 @@ tools_schema = skill_result.to_openai_tools()
 
 #### P0 修复（2026-03 审计后落地）
 
-**1. 工具优化器保护机制** (`optimizer.py`)
+**1. 工具优化器 & 统一族解析** (`optimizer.py`, `semantic_defaults.py`)
 
-`optimize_tools()` 在工具数 >6 时按关键词相关性筛选，`get_page_context` 作为基础设施工具与用户消息无关键词关联，会被误删。
+`optimize_tools()` 在工具数 >6 时按 token 相关性筛选。基础设施工具通过 `_PROTECTED_TOOL_NAMES` 白名单始终保留。
 
-修复：新增 `_PROTECTED_TOOL_NAMES` 白名单，保护工具始终保留，优化名额仅用于剩余工具。扩展时只需往 frozenset 加工具名。
+工具族推断已统一到 `semantic_defaults.tool_family_from_name()`，optimizer 和 BaseEngine 均复用此单一真相源。`_infer_tool_use_policy()` 中的语义提示（web_research / time_ops 等）已从强制门控降级为软信号（`mode="auto"`），优先依赖 tool history 和结构信号。
 
 **2. `page_data` 大小限制** (`agent_chat.py` + `page_context_executor.py`)
 

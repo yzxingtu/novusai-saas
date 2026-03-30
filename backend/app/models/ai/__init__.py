@@ -19,9 +19,14 @@ from app.models.ai.call_log import AICallLog
 from app.models.ai.capability import Capability
 from app.models.ai.conversation_message import ConversationMessage
 from app.models.ai.document_chunk import DocumentChunk
+from app.models.ai.ephemeral_document import EphemeralDocument
+from app.models.ai.execution_trust_policy import ExecutionTrustPolicy
+from app.models.ai.execution_decision import ExecutionDecision
 from app.models.ai.knowledge_base import KnowledgeBase
 from app.models.ai.knowledge_document import KnowledgeDocument
 from app.models.ai.model import AIModel
+from app.models.ai.memory_record import MemoryRecord
+from app.models.ai.profile_snapshot import ProfileSnapshot
 from app.models.ai.provider import AIProvider
 from app.models.ai.query_log import AIQueryLog
 from app.models.ai.skill import Skill
@@ -40,6 +45,8 @@ from app.models.ai.tenant_rate_limit import TenantModelRateLimit
 __all__ = [
     "AIProvider",
     "AIModel",
+    "MemoryRecord",
+    "ProfileSnapshot",
     "ProviderApiKey",
     "AICallLog",
     "TenantModelRateLimit",
@@ -50,6 +57,8 @@ __all__ = [
     "BatchRun",
     "AgentVersion",
     "AgentAccess",
+    "ExecutionTrustPolicy",
+    "ExecutionDecision",
     "TenantAgentPublication",
     "TenantAgentPlatformKbSuppression",
     "AgentMemoryOverride",
@@ -59,6 +68,7 @@ __all__ = [
     "KnowledgeBase",
     "KnowledgeDocument",
     "DocumentChunk",
+    "EphemeralDocument",
     "AITablePolicy",
     "AITablePolicyOverride",
     "Capability",

@@ -9,6 +9,7 @@ import type {
   ActionLogItem,
   ActionLogStats,
 } from '#/api/tenant/action-logs';
+import type { ExecutionDecisionItem } from '#/api/tenant/execution-decisions';
 
 import { computed, onMounted, ref, watch } from 'vue';
 
@@ -36,6 +37,7 @@ import {
   getActionLogListApi,
   getActionLogStatsApi,
 } from '#/api/tenant/action-logs';
+import { getExecutionDecisionDetailApi } from '#/api/tenant/execution-decisions';
 import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
 import {
   createRefreshPageOperation,
@@ -54,6 +56,10 @@ import {
   getTypeText,
   useColumns,
   useGridFormSchema,
+} from './data';
+import {
+  getExecutionDecisionTypeText,
+  getExecutionDecisionStatusText,
 } from './data';
 
 defineOptions({ name: 'TenantAIActionLogList' });
@@ -291,6 +297,8 @@ const heroChips = computed(() => [
 const detailOpen = ref(false);
 const detailLoading = ref(false);
 const detailData = ref<ActionLogDetail | null>(null);
+const linkedDecision = ref<ExecutionDecisionItem | null>(null);
+const linkedDecisionLoading = ref(false);
 const activeTab = ref<DetailTabKey>('overview');
 
 async function openDetail(row: ActionLogItem) {
@@ -300,12 +308,27 @@ async function openDetail(row: ActionLogItem) {
 async function openDetailById(id: number) {
   detailOpen.value = true;
   detailLoading.value = true;
+  linkedDecision.value = null;
+  linkedDecisionLoading.value = false;
   activeTab.value = 'overview';
   try {
     detailData.value = await getActionLogDetailApi(id);
+    if (detailData.value?.execution_decision_id) {
+      linkedDecisionLoading.value = true;
+      try {
+        linkedDecision.value = await getExecutionDecisionDetailApi(
+          detailData.value.execution_decision_id,
+        );
+      } catch {
+        linkedDecision.value = null;
+      } finally {
+        linkedDecisionLoading.value = false;
+      }
+    }
     activeTab.value = detailData.value?.error_message ? 'error' : 'overview';
   } catch {
     detailData.value = null;
+    linkedDecision.value = null;
   } finally {
     detailLoading.value = false;
   }
@@ -314,6 +337,8 @@ async function openDetailById(id: number) {
 watch(detailOpen, (open) => {
   if (!open) {
     detailData.value = null;
+    linkedDecision.value = null;
+    linkedDecisionLoading.value = false;
     detailLoading.value = false;
     activeTab.value = 'overview';
   }
@@ -590,10 +615,13 @@ const { Grid, onRefresh } = useCrudPage<ActionLogItem>({
                   class="rounded-lg border border-dashed border-border bg-background p-3"
                 >
                   <div class="text-xs text-muted-foreground">
-                    {{ $t('tenant.ai.actionLog.operatorId') }}
+                    {{ $t('tenant.ai.actionLog.traceId') }}
                   </div>
                   <div class="mt-2 text-sm font-semibold">
-                    {{ detailData.operator_id ?? '-' }}
+                    {{ detailData.trace_id || '-' }}
+                  </div>
+                  <div class="mt-1 text-xs text-muted-foreground">
+                    {{ detailData.tool_call_id || '-' }}
                   </div>
                 </div>
               </div>
@@ -700,6 +728,21 @@ const { Grid, onRefresh } = useCrudPage<ActionLogItem>({
                         </div>
                       </div>
                     </Descriptions.Item>
+                    <Descriptions.Item
+                      :label="$t('tenant.ai.actionLog.traceId')"
+                    >
+                      <code>{{ detailData.trace_id || '-' }}</code>
+                    </Descriptions.Item>
+                    <Descriptions.Item
+                      :label="$t('tenant.ai.actionLog.toolCallId')"
+                    >
+                      <code>{{ detailData.tool_call_id || '-' }}</code>
+                    </Descriptions.Item>
+                    <Descriptions.Item
+                      :label="$t('tenant.ai.actionLog.executionDecisionId')"
+                    >
+                      {{ detailData.execution_decision_id ?? '-' }}
+                    </Descriptions.Item>
                   </Descriptions>
                 </Card>
 
@@ -710,6 +753,68 @@ const { Grid, onRefresh } = useCrudPage<ActionLogItem>({
                   :message="$t('tenant.ai.actionLog.errorMessage')"
                   :description="errorPayloadText"
                 />
+
+                <Card
+                  v-if="linkedDecision || linkedDecisionLoading"
+                  size="small"
+                  :title="$t('tenant.ai.actionLog.linkedDecision')"
+                >
+                  <div
+                    v-if="linkedDecisionLoading"
+                    class="flex items-center justify-center py-6"
+                  >
+                    <Skeleton active :paragraph="{ rows: 2 }" />
+                  </div>
+                  <Descriptions
+                    v-else-if="linkedDecision"
+                    :column="2"
+                    bordered
+                    size="small"
+                  >
+                    <Descriptions.Item
+                      :label="$t('tenant.ai.executionDecision.id')"
+                    >
+                      {{ linkedDecision.id }}
+                    </Descriptions.Item>
+                    <Descriptions.Item
+                      :label="$t('tenant.ai.executionDecision.createdAt')"
+                    >
+                      {{ formatDate(linkedDecision.created_at) }}
+                    </Descriptions.Item>
+                    <Descriptions.Item
+                      :label="$t('tenant.ai.executionDecision.decisionType')"
+                    >
+                      {{
+                        getExecutionDecisionTypeText(
+                          linkedDecision.decision_type,
+                        )
+                      }}
+                    </Descriptions.Item>
+                    <Descriptions.Item
+                      :label="$t('tenant.ai.executionDecision.status')"
+                    >
+                      {{
+                        getExecutionDecisionStatusText(linkedDecision.status)
+                      }}
+                    </Descriptions.Item>
+                    <Descriptions.Item
+                      :label="$t('tenant.ai.executionDecision.toolName')"
+                    >
+                      {{ linkedDecision.tool_name || '-' }}
+                    </Descriptions.Item>
+                    <Descriptions.Item
+                      :label="$t('tenant.ai.executionDecision.actionName')"
+                    >
+                      {{ linkedDecision.action_name || '-' }}
+                    </Descriptions.Item>
+                    <Descriptions.Item
+                      :label="$t('tenant.ai.executionDecision.correlationKey')"
+                      :span="2"
+                    >
+                      <code>{{ linkedDecision.correlation_key }}</code>
+                    </Descriptions.Item>
+                  </Descriptions>
+                </Card>
               </div>
             </Tabs.TabPane>
 

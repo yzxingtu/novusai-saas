@@ -10,7 +10,7 @@ import { $t } from '#/locales';
 type AnyRecord = Record<string, unknown>;
 type MaybePromise<T> = Promise<T> | T;
 type OperationExecutionResult = MaybePromise<
-  null | PageOperationResult | undefined
+  null | PageOperationResult | undefined | void
 >;
 
 type SuccessMessageInput<TArgs extends unknown[] = [unknown]> =
@@ -222,6 +222,17 @@ function normalizeExecutionResult<TParams extends AnyRecord>(input: {
 }): PageOperationResult {
   if (isPageOperationResult(input.result)) {
     return input.result;
+  }
+
+  if (input.result === null || input.result === undefined) {
+    return {
+      success: true,
+      message: resolveMessage(
+        input.successMessage,
+        input.fallbackMessage,
+        input.params,
+      ),
+    };
   }
 
   return {

@@ -69,9 +69,13 @@ export interface RawMessageItem {
     attachments?: ChatAttachment[];
     completion_reason?: string;
     interrupted?: boolean;
+    context_compacted?: boolean;
+    memory_flush_triggered?: boolean;
+    memory_recalled?: boolean;
     memory_updated?: boolean;
     model_name?: string;
     partial?: boolean;
+    prune_stats?: Record<string, unknown>;
     pending_confirmation?: {
       action?: string;
       preview?: Record<string, unknown>;
@@ -90,6 +94,7 @@ export interface RawMessageItem {
     provider_id?: number;
     provider_name?: string;
     rag_sources?: RagSource[];
+    rag_source_kinds?: string[];
     route_source?: string;
     thinking_content?: string;
     tool_display_name?: string;
@@ -105,6 +110,7 @@ export interface RawMessageItem {
 export interface ConversationDetailResponse {
   agent_id?: null | number;
   message_list: RawMessageItem[];
+  trust_session_active?: boolean;
 }
 
 export interface FileUploadResponse {
@@ -120,6 +126,25 @@ export interface FileUploadResponse {
     size?: number;
   };
   used_bytes: number;
+}
+
+export interface EphemeralRagItem {
+  kind: 'csv' | 'html' | 'markdown' | 'text' | 'url';
+  content: string;
+  scope?:
+    | 'agent_workspace_scoped'
+    | 'conversation_scoped'
+    | 'tenant_private_scratch';
+  ttl_seconds?: number;
+  title?: null | string;
+  source_ref?: null | string;
+}
+
+export interface TrustPolicyRef {
+  policy_ids?: number[];
+  allowed_tool_names?: string[];
+  tool_families?: string[];
+  risk_level_cap?: null | string;
 }
 
 export interface SSEOptions {
@@ -333,9 +358,11 @@ export interface AgentChatRequestBody {
   attachments?: ChatAttachment[];
   consented_actions?: string[];
   conversation_id?: null | number;
+  ephemeral_rag_items?: EphemeralRagItem[];
   image_params?: AgentChatImageParams;
   interaction_updates?: Array<{
     action?: string;
+    auto_approved?: boolean;
     kind: 'action_buttons' | 'pending_confirmation' | 'pending_consent';
     rejected?: boolean;
     table?: string;
@@ -349,6 +376,8 @@ export interface AgentChatRequestBody {
   page_context?: null | PageContext;
   page_session_id?: null | string;
   route_source?: null | string;
+  trust_session?: boolean;
+  trust_policy_ref?: TrustPolicyRef;
   variables?: Record<string, string>;
 }
 

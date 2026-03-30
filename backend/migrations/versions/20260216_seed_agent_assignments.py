@@ -20,4 +20,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Intentional no-op: Placeholder revision; seed data was superseded and removed in later migrations."""
     pass

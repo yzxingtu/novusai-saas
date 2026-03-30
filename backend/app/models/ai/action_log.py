@@ -38,6 +38,9 @@ class AIActionLog(TenantModel):
         "tenant_id": "tenant_id",
         "agent_id": "agent_id",
         "conversation_id": "conversation_id",
+        "execution_decision_id": "execution_decision_id",
+        "trace_id": "trace_id",
+        "tool_call_id": "tool_call_id",
         "operator_id": "operator_id",
         "operator_type": "operator_type",
         "skill_id": "skill_id",
@@ -69,6 +72,27 @@ class AIActionLog(TenantModel):
         nullable=True,
         index=True,
         comment=_("ai_action_log.field.conversation_id"),
+    )
+
+    execution_decision_id: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        index=True,
+        comment="Linked execution decision ID / 关联执行决策 ID",
+    )
+
+    trace_id: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        index=True,
+        comment="Trace ID / 链路追踪 ID",
+    )
+
+    tool_call_id: Mapped[str | None] = mapped_column(
+        String(128),
+        nullable=True,
+        index=True,
+        comment="LLM tool_call_id / LLM 工具调用 ID",
     )
 
     # 来源 Skill ID（可为 NULL，向后兼容旧数据）

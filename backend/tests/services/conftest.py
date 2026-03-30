@@ -1,11 +1,10 @@
 """Service 单元测试共享 fixtures / Test.
 
-提供 mock DB session、Redis、Celery 及常用测试数据工厂。
+提供 mock DB session、Redis、Celery 及模型/查询结果工厂辅助函数。
 所有 tests/services/ 下的测试文件自动继承这些 fixtures。"""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -56,93 +55,6 @@ def mock_celery():
     celery.send_task = MagicMock()
     celery.control.inspect.return_value.ping.return_value = {"worker@host": {"ok": "pong"}}
     return celery
-
-
-# ── Sample Data Factories ──
-
-def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-@pytest.fixture()
-def sample_admin_data() -> dict[str, Any]:
-    """平台管理员样本数据 / Description."""
-    return {
-        "id": 1,
-        "username": "admin",
-        "email": "admin@example.com",
-        "display_name": "Admin User",
-        "is_active": True,
-        "is_super": True,
-        "created_at": _utc_now(),
-        "updated_at": _utc_now(),
-    }
-
-
-@pytest.fixture()
-def sample_tenant_data() -> dict[str, Any]:
-    """企业样本数据 / Description."""
-    return {
-        "id": 1,
-        "name": "Test Tenant",
-        "slug": "test-tenant",
-        "status": "active",
-        "plan_id": 1,
-        "is_active": True,
-        "created_at": _utc_now(),
-        "updated_at": _utc_now(),
-    }
-
-
-@pytest.fixture()
-def sample_tenant_admin_data() -> dict[str, Any]:
-    """企业管理员样本数据 / Description."""
-    return {
-        "id": 1,
-        "tenant_id": 1,
-        "username": "tenant_admin",
-        "email": "admin@tenant.com",
-        "display_name": "Tenant Admin",
-        "is_active": True,
-        "created_at": _utc_now(),
-        "updated_at": _utc_now(),
-    }
-
-
-@pytest.fixture()
-def sample_agent_data() -> dict[str, Any]:
-    """AI 智能体样本数据 / AI"""
-    return {
-        "id": 1,
-        "tenant_id": 1,
-        "name": "Test Agent",
-        "description": "A test agent",
-        "model_id": 1,
-        "system_prompt": "You are a helpful assistant.",
-        "is_active": True,
-        "created_at": _utc_now(),
-        "updated_at": _utc_now(),
-    }
-
-
-@pytest.fixture()
-def sample_call_log_data() -> dict[str, Any]:
-    """AI 调用日志样本数据 / AI"""
-    return {
-        "id": 1,
-        "tenant_id": 1,
-        "agent_id": 1,
-        "provider_id": 1,
-        "model_name": "gpt-4",
-        "request_type": "chat",
-        "status": "success",
-        "input_tokens": 100,
-        "output_tokens": 200,
-        "total_tokens": 300,
-        "cost": 0.01,
-        "latency_ms": 500,
-        "created_at": _utc_now(),
-    }
 
 
 # ── Mock Model Factory ──

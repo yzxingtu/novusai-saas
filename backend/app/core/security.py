@@ -482,6 +482,7 @@ __all__ = [
     "verify_impersonate_token",
     "encrypt_data",
     "decrypt_data",
+    "TokenExpiredError",
     "TOKEN_TYPE_ACCESS",
     "TOKEN_TYPE_REFRESH",
     "TOKEN_TYPE_IMPERSONATE",

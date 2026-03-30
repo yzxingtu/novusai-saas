@@ -1,23 +1,26 @@
 """
 Plugin marketplace client. / 插件市场客户端。
 
-Fetch plugin lists and details from GitHub/Gitee index repositories, download plugin packages.
-Supports auto source selection, Redis caching, and download retries.
-/ 从 GitHub/Gitee 索引仓库获取插件列表、详情，下载插件包。
-支持自动选源、Redis 缓存、下载重试。
+Fetch plugin lists and details from the GitHub index repository, download plugin packages.
+Supports Redis caching and download retries.
+/ 从 GitHub 索引仓库获取插件列表、详情，下载插件包。
+支持 Redis 缓存和下载重试。
 """
 
 from __future__ import annotations
 
 import shutil
 import tempfile
-import time
 import zipfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import httpx
 
+from app.core.github_source_policy import (
+    open_github_only_stream,
+    validate_github_source_url,
+)
 from app.core.logging import get_logger
 from app.core.response import resolve_public_error_message
 
@@ -28,7 +31,6 @@ logger = get_logger(__name__)
 
 # Default index repository URLs / 默认索引仓库 URL
 _DEFAULT_GITHUB_URL = "https://raw.githubusercontent.com/novusai/plugin-marketplace/main"
-_DEFAULT_GITEE_URL = "https://gitee.com/novusai/plugin-marketplace/raw/main"
 _DEFAULT_CACHE_TTL = 3600
 
 # Redis cache key prefix (shared across workers) / Redis 缓存 key 前缀（多 worker 共享）
@@ -41,8 +43,6 @@ class MarketplaceClient:
     def __init__(self, db: AsyncSession | None = None) -> None:
         self._db = db
         self._github_url: str = _DEFAULT_GITHUB_URL
-        self._gitee_url: str = _DEFAULT_GITEE_URL
-        self._preferred_source: str = "auto"
         self._cache_ttl: int = _DEFAULT_CACHE_TTL
         self._selected_source: str | None = None
 
@@ -51,71 +51,27 @@ class MarketplaceClient:
         if not self._db:
             return
         try:
-            from app.services.common.config_service import ConfigService
+            from app.configs.service import ConfigService
 
             svc = ConfigService(self._db)
             self._github_url = (
-                await svc.get_value("marketplace_github_url") or _DEFAULT_GITHUB_URL
+                await svc.get_platform_config("marketplace_github_url", default=_DEFAULT_GITHUB_URL)
+                or _DEFAULT_GITHUB_URL
             )
-            self._gitee_url = (
-                await svc.get_value("marketplace_gitee_url") or _DEFAULT_GITEE_URL
-            )
-            self._preferred_source = (
-                await svc.get_value("marketplace_preferred_source") or "auto"
-            )
-            ttl = await svc.get_value("marketplace_cache_ttl")
+            ttl = await svc.get_platform_config("marketplace_cache_ttl", default=_DEFAULT_CACHE_TTL)
             if ttl:
                 self._cache_ttl = int(ttl)
         except Exception as exc:
             logger.warning("Failed to load marketplace config: {}", exc)
 
     async def _select_source(self) -> str:
-        """
-        Select source based on config and network environment.
-        / 根据配置和网络环境选择源。
-
-        auto mode: concurrently ping both sources, pick the faster one.
-        / auto 模式：并发 ping 两个源，选响应更快的。
-        """
         if self._selected_source:
             return self._selected_source
 
         await self._load_config()
-
-        if self._preferred_source == "github":
-            self._selected_source = self._github_url
-        elif self._preferred_source == "gitee":
-            self._selected_source = self._gitee_url
-        else:
-            # auto: try GitHub first, fallback to Gitee on 3s timeout
-            # / auto: 尝试 GitHub 优先，超时 3s 则用 Gitee
-            self._selected_source = await self._ping_and_select()
-
+        self._selected_source = self._github_url
         logger.info("Marketplace source selected: {}", self._selected_source)
         return self._selected_source
-
-    async def _ping_and_select(self) -> str:
-        """Concurrently ping both sources, return the faster one / 并发 ping 两个源，返回更快响应的"""
-        import asyncio
-
-        async def _ping(url: str) -> tuple[str, float]:
-            try:
-                async with httpx.AsyncClient(timeout=3.0) as client:
-                    start = time.perf_counter()
-                    await client.head(f"{url}/registry.json")
-                    return url, time.perf_counter() - start
-            except Exception:
-                return url, 999.0
-
-        results = await asyncio.gather(
-            _ping(self._github_url),
-            _ping(self._gitee_url),
-        )
-        fastest = min(results, key=lambda r: r[1])
-        if fastest[1] >= 999.0:
-            # Neither reachable, default to GitHub / 都不通，默认 GitHub
-            return self._github_url
-        return fastest[0]
 
     # ── Cache / 缓存 ──
 
@@ -356,18 +312,30 @@ class MarketplaceClient:
             )
 
         # Find download URL / 查找下载 URL
-        download_url = detail.get("download_url")
+        download_url = str(detail.get("download_url") or "").strip()
         if not download_url:
             # Try building from releases / 尝试从 releases 构建
-            repo_url = detail.get("repository_url", "")
-            if "github.com" in repo_url or "gitee.com" in repo_url:
-                download_url = f"{repo_url}/releases/download/v{version}/{slug}-{version}.zip"
-            else:
+            repo_url = str(detail.get("repository_url") or "").strip()
+            try:
+                repo_url = validate_github_source_url(repo_url).rstrip("/")
+            except ValueError as exc:
                 from app.plugins.exceptions import PluginError
 
                 raise PluginError(
                     message=f"No download URL available for '{slug}' v{version}",
-                )
+                ) from exc
+            download_url = (
+                f"{repo_url}/releases/download/v{version}/{slug}-{version}.zip"
+            )
+
+        try:
+            download_url = validate_github_source_url(download_url)
+        except ValueError as exc:
+            from app.plugins.exceptions import PluginError
+
+            raise PluginError(
+                message=f"Plugin '{slug}' download URL must be hosted on GitHub",
+            ) from exc
 
         # Download (retry up to 2 times) / 下载（重试 2 次）
         from app.plugins.exceptions import PluginInstallError
@@ -381,20 +349,21 @@ class MarketplaceClient:
 
         for attempt in range(3):
             try:
-                async with (
-                    httpx.AsyncClient(timeout=60.0) as client,
-                    client.stream("GET", download_url, follow_redirects=True) as resp,
-                ):
-                    resp.raise_for_status()
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    resp = await open_github_only_stream(client, download_url)
+                    try:
+                        resp.raise_for_status()
 
-                    downloaded = 0
-                    with open(zip_path, "wb") as f:
-                        async for chunk in resp.aiter_bytes(chunk_size=1024 * 1024):
-                            if not chunk:
-                                continue
-                            downloaded += len(chunk)
-                            ensure_package_size_limit(downloaded)
-                            f.write(chunk)
+                        downloaded = 0
+                        with open(zip_path, "wb") as f:
+                            async for chunk in resp.aiter_bytes(chunk_size=1024 * 1024):
+                                if not chunk:
+                                    continue
+                                downloaded += len(chunk)
+                                ensure_package_size_limit(downloaded)
+                                f.write(chunk)
+                    finally:
+                        await resp.aclose()
 
                 validate_plugin_zip_archive(zip_path)
 
@@ -407,6 +376,11 @@ class MarketplaceClient:
             except PluginInstallError:
                 shutil.rmtree(tmp_dir, ignore_errors=True)
                 raise
+            except ValueError as exc:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+                raise PluginInstallError(
+                    message=str(exc),
+                ) from exc
             except Exception as exc:
                 zip_path.unlink(missing_ok=True)
                 if attempt < 2:

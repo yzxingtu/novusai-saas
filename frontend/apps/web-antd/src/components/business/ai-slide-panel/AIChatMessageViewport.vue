@@ -6,6 +6,7 @@ import type {
   RichTextAIApplyTarget,
   RichTextDraftRuntimeState,
 } from '#/components/business/ai-chat-panel/types';
+import type { PendingPageOp } from '#/store/shared/ai-panel';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -30,9 +31,7 @@ withDefaults(
     countdownNow?: number;
     effectiveSuggestedQuestions?: string[];
     effectiveWelcomeMessage?: string;
-    getPendingOpsForMessage: (
-      msg: ChatMessage,
-    ) => Array<Record<string, unknown>>;
+    getPendingOpsForMessage: (msg: ChatMessage) => PendingPageOp[];
     getRichTextDraftState: (
       message: ChatMessage,
     ) => null | RichTextDraftRuntimeState;

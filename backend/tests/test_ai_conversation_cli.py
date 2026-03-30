@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from click.testing import CliRunner
 
 
@@ -84,6 +86,15 @@ def _sample_snapshot() -> dict:
     }
 
 
+def _sample_snapshot_with_datetimes() -> dict:
+    snapshot = _sample_snapshot()
+    ts = datetime(2026, 3, 28, 17, 11, 46, tzinfo=timezone.utc)
+    snapshot["recent_messages"][0]["created_at"] = ts
+    snapshot["recent_messages"][1]["metadata"]["seen_at"] = ts
+    snapshot["recent_call_logs"][0]["created_at"] = ts
+    return snapshot
+
+
 def test_ai_conversation_show_json_success(monkeypatch) -> None:
     from app.cli import cli
 
@@ -117,3 +128,39 @@ def test_ai_conversation_show_text_renders_diagnostic(monkeypatch) -> None:
     assert "Diagnostic: last assistant message looks like leaked textual tool call" in result.output
     assert "get_page_context" in result.output
     assert "对象存储对帐计费" in result.output
+
+
+def test_ai_conversation_show_json_serializes_nested_datetimes(monkeypatch) -> None:
+    from app.cli import cli
+
+    monkeypatch.setattr(
+        "app.cli._run_async",
+        _return_value(_sample_snapshot_with_datetimes()),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["ai", "conversation", "show", "563", "--json"],
+    )
+
+    assert result.exit_code == 0
+    assert "2026-03-28T17:11:46+00:00" in result.output
+
+
+def test_ai_conversation_show_text_handles_nested_datetimes(monkeypatch) -> None:
+    from app.cli import cli
+
+    monkeypatch.setattr(
+        "app.cli._run_async",
+        _return_value(_sample_snapshot_with_datetimes()),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["ai", "conversation", "show", "563"],
+    )
+
+    assert result.exit_code == 0
+    assert "seen_at" in result.output

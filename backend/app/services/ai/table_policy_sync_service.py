@@ -159,7 +159,7 @@ _COLUMN_DESC_MAP: dict[str, str] = {
     "published_version": "已发布版本号",
     "version": "版本号",
     "change_log": "变更说明",
-    "tool_bindings": "工具绑定列表",
+    "skill_grant_snapshot": "技能授权快照",
     "memory_enabled": "是否启用对话记忆",
     "input_variables": "输入变量（JSON）",
     "rag_config": "RAG 知识库配置",

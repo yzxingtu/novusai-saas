@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 from sqlalchemy.exc import IntegrityError
 
 from app.core.base_service import BaseService
+from app.core.logging import LogManager
 from app.core.i18n import _
 from app.exceptions import ConflictException, NotFoundException, ValidationException
 from app.models.ai import AIProvider
@@ -20,6 +21,8 @@ from app.schemas.ai.provider import (
     AIProviderCreate,
     AIProviderUpdate,
 )
+
+_logger = LogManager.get_logger("ai")
 
 _ALLOWED_PROVIDER_BASE_URL_SCHEMES = {"http", "https"}
 _FORBIDDEN_OPENAI_COMPATIBLE_BASE_URL_SUFFIXES = (
@@ -271,7 +274,7 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
             history_key = HEALTH_HISTORY_PREFIX.format(provider_id=id)
             await redis.delete(health_key, history_key)
         except Exception:
-            pass
+            _logger.debug("Failed to clear health cache for provider {}", id)
 
     async def toggle_status(
         self,

@@ -35,6 +35,7 @@ from app.core.security import (
     verify_password,
     verify_token_with_scope,
 )
+from app.enums import ErrorCode
 from app.enums.common import ApprovalStatusEnum
 from app.exceptions import (
     AuthenticationException,
@@ -770,7 +771,10 @@ class AuthService:
             BusinessException: 旧密码不正确或新密码不符合策略
         """
         if not verify_password(old_password, admin.password_hash):
-            raise BusinessException(message=_("auth.password_mismatch"))
+            raise BusinessException(
+                message=_("auth.password_mismatch"),
+                code=ErrorCode.OLD_PASSWORD_INCORRECT,
+            )
 
         # 验证新密码符合策略 / Validate new password policy
         await self._validate_password_policy(new_password)
@@ -1078,7 +1082,10 @@ class AuthService:
             BusinessException: 旧密码不正确或新密码不符合策略
         """
         if not verify_password(old_password, tenant_admin.password_hash):
-            raise BusinessException(message=_("auth.password_mismatch"))
+            raise BusinessException(
+                message=_("auth.password_mismatch"),
+                code=ErrorCode.OLD_PASSWORD_INCORRECT,
+            )
 
         # 验证新密码符合策略 / Validate new password policy
         await self._validate_password_policy(new_password, tenant_id=tenant_admin.tenant_id)
@@ -1493,7 +1500,10 @@ class AuthService:
             BusinessException: 旧密码不正确或新密码不符合策略
         """
         if not verify_password(old_password, user.password_hash):
-            raise BusinessException(message=_("auth.password_mismatch"))
+            raise BusinessException(
+                message=_("auth.password_mismatch"),
+                code=ErrorCode.OLD_PASSWORD_INCORRECT,
+            )
 
         # 验证新密码符合策略 / Validate new password policy
         await self._validate_password_policy(new_password, tenant_id=user.tenant_id)

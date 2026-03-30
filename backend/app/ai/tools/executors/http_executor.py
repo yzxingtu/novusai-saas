@@ -17,6 +17,9 @@ from app.ai.tools.security import SSRFBlockedError, UrlValidator
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.core.logging import LogManager
 from app.core.response import build_public_error_text
+from app.enums.agent import ActionLevelEnum, ActionStatusEnum, ActionTypeEnum
+from app.middleware.trace import trace_id_var
+from app.services.ai.action_log_service import write_ai_action_log
 
 if TYPE_CHECKING:
     from app.ai.tools.types import ExecutionContext
@@ -81,7 +84,6 @@ class HttpToolExecutor(BaseToolExecutor):
         context: ExecutionContext | None = None,
     ) -> ToolResult:
         """Execute HTTP request / 执行 HTTP 请求"""
-        _ = context
         start = time.perf_counter()
         cfg = definition.config or {}
 
@@ -170,7 +172,7 @@ class HttpToolExecutor(BaseToolExecutor):
                 )
 
             if resp.status_code >= 400:
-                return ToolResult(
+                result = ToolResult(
                     tool_call_id=tool_call_id,
                     name=definition.name,
                     success=False,
@@ -179,19 +181,53 @@ class HttpToolExecutor(BaseToolExecutor):
                     ),
                     duration_ms=duration_ms,
                 )
+                await self._audit_http_action(
+                    definition=definition,
+                    context=context,
+                    tool_call_id=tool_call_id,
+                    arguments=arguments,
+                    url=url,
+                    method=method,
+                    query_params=query_params,
+                    status=ActionStatusEnum.FAILED.value,
+                    duration_ms=duration_ms,
+                    response_summary={
+                        "status_code": resp.status_code,
+                        "response_path": response_path or None,
+                    },
+                    error_message=result.error,
+                )
+                return result
 
-            return ToolResult(
+            result = ToolResult(
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=True,
                 output=resp_text,
                 duration_ms=duration_ms,
             )
+            await self._audit_http_action(
+                definition=definition,
+                context=context,
+                tool_call_id=tool_call_id,
+                arguments=arguments,
+                url=url,
+                method=method,
+                query_params=query_params,
+                status=ActionStatusEnum.SUCCESS.value,
+                duration_ms=duration_ms,
+                response_summary={
+                    "status_code": resp.status_code,
+                    "response_path": response_path or None,
+                },
+                error_message=None,
+            )
+            return result
 
         except Exception as exc:
             duration_ms = int((time.perf_counter() - start) * 1000)
             logger.error("HTTP tool error: {} {}: {}", method, url, str(exc))
-            return ToolResult(
+            result = ToolResult(
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=False,
@@ -201,6 +237,20 @@ class HttpToolExecutor(BaseToolExecutor):
                 ),
                 duration_ms=duration_ms,
             )
+            await self._audit_http_action(
+                definition=definition,
+                context=context,
+                tool_call_id=tool_call_id,
+                arguments=arguments,
+                url=url,
+                method=method,
+                query_params=query_params,
+                status=ActionStatusEnum.FAILED.value,
+                duration_ms=duration_ms,
+                response_summary=None,
+                error_message=result.error,
+            )
+            return result
 
     async def validate(
         self,
@@ -238,6 +288,52 @@ class HttpToolExecutor(BaseToolExecutor):
                     f"{username}:{password}".encode()
                 ).decode()
                 headers["Authorization"] = f"Basic {credentials}"
+
+    async def _audit_http_action(
+        self,
+        *,
+        definition: ToolDefinition,
+        context: ExecutionContext | None,
+        tool_call_id: str,
+        arguments: dict[str, Any],
+        url: str,
+        method: str,
+        query_params: dict[str, Any],
+        status: str,
+        duration_ms: int,
+        response_summary: dict[str, Any] | None,
+        error_message: str | None,
+    ) -> None:
+        if not context or not context.db:
+            return
+        try:
+            await write_ai_action_log(
+                context.db,
+                tenant_id=context.tenant_id,
+                agent_id=context.agent_id,
+                operator_id=context.user_id,
+                operator_type=context.user_role,
+                conversation_id=context.conversation_id,
+                tool_call_id=tool_call_id,
+                skill_id=context.skill_id,
+                action_name=f"http_{method.lower()}",
+                action_type=ActionTypeEnum.ACTION.value,
+                action_level=ActionLevelEnum.DANGEROUS.value,
+                request_data={
+                    "tool_name": definition.name,
+                    "trace_id": trace_id_var.get() or None,
+                    "url": url,
+                    "method": method,
+                    "arguments": arguments,
+                    "query_params": query_params,
+                },
+                response_data=response_summary,
+                status=status,
+                error_message=error_message,
+                duration_ms=duration_ms,
+            )
+        except Exception as exc:
+            logger.warning("Failed to write HTTP tool audit log: {}", str(exc))
 
 
 __all__ = ["HttpToolExecutor"]

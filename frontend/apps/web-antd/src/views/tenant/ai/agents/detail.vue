@@ -386,6 +386,8 @@ const chatInputVars = ref<InputVariable[]>([]);
 const chatSystemPrompt = ref('');
 const chatContextMessages = ref(20);
 const chatContextTokens = ref(0);
+/** Long-term memory toggle (merged into context_config) / 长期记忆开关 */
+const chatLongTermMemoryEnabled = ref(false);
 
 /** Ref to the system prompt textarea for cursor-based variable insertion / 系统提示词输入框引用，用于插入变量 */
 const chatSystemPromptRef = ref<HTMLTextAreaElement | null>(null);
@@ -423,9 +425,22 @@ function initChatConfig() {
   chatInputVars.value = Array.isArray(agent.value.input_variables)
     ? (agent.value.input_variables as InputVariable[])
     : [];
-  const cc = (agent.value.context_config ?? {}) as Record<string, number>;
-  chatContextMessages.value = cc.max_history_messages ?? 20;
-  chatContextTokens.value = cc.max_history_tokens ?? 0;
+  const cc = (agent.value.context_config ?? {}) as Record<string, unknown>;
+  chatContextMessages.value =
+    typeof cc.max_history_messages === 'number' ? cc.max_history_messages : 20;
+  chatContextTokens.value =
+    typeof cc.max_history_tokens === 'number' ? cc.max_history_tokens : 0;
+  chatLongTermMemoryEnabled.value = Boolean(cc.long_term_memory_enabled);
+}
+
+function buildMergedContextConfig(): Record<string, unknown> {
+  const prev = (agent.value?.context_config ?? {}) as Record<string, unknown>;
+  return {
+    ...prev,
+    max_history_messages: chatContextMessages.value,
+    max_history_tokens: chatContextTokens.value,
+    long_term_memory_enabled: chatLongTermMemoryEnabled.value,
+  };
 }
 
 async function saveChatConfig() {
@@ -437,10 +452,7 @@ async function saveChatConfig() {
     suggested_questions: parseStarterQuestionsInput(chatSuggestions.value),
     input_variables:
       chatInputVars.value.length > 0 ? chatInputVars.value : null,
-    context_config: {
-      max_history_messages: chatContextMessages.value,
-      max_history_tokens: chatContextTokens.value,
-    },
+    context_config: buildMergedContextConfig(),
   });
 }
 
@@ -1523,6 +1535,22 @@ useDetailPageAi({
                     <label class="text-sm font-medium">{{
                       $t('tenant.ai.agent.contextConfig.title')
                     }}</label>
+                  </div>
+                  <div
+                    class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 bg-background/50 px-3 py-2"
+                  >
+                    <div class="min-w-0">
+                      <div class="text-sm font-medium">{{
+                        $t('tenant.ai.agent.contextConfig.longTermMemoryEnabled')
+                      }}</div>
+                      <p class="mt-0.5 text-xs text-muted-foreground">{{
+                        $t('tenant.ai.agent.contextConfig.longTermMemoryHint')
+                      }}</p>
+                    </div>
+                    <Switch
+                      v-model:checked="chatLongTermMemoryEnabled"
+                      :disabled="!isTenantOwned"
+                    />
                   </div>
                   <div class="grid grid-cols-2 gap-4">
                     <div>

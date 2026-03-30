@@ -100,5 +100,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # No safe downgrade — old config format is broken anyway
+    """Intentional no-op: Old skill config is invalid; reverting would restore a broken tool configuration."""
     pass

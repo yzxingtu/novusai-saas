@@ -32,6 +32,3 @@ export { OrgTreeNode, useOrgTree } from './business/org-tree';
 
 // 权限选择器 / permission picker
 export { PermissionSelector } from './business/permission-selector';
-
-// 角色树 / role tree
-export { RoleTreeNode } from './business/role-tree';

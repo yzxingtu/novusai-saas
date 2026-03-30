@@ -44,6 +44,8 @@ export interface PageOperationInvokeEvent {
   params: Record<string, unknown>;
   /** Whether user confirmation is needed (for readonly=false operations) / 是否需要用户确认 */
   requires_confirmation: boolean;
+  /** Whether backend trust policy already auto-approved this operation / 是否已由后端信任策略自动批准 */
+  auto_approved?: boolean;
   /** Tool call ID for associating confirmation card with chat message / 工具调用 ID，用于将确认卡片关联到聊天消息 */
   tool_call_id?: string;
   /** Trace ID supplied by backend invoke (propagated back on result) / 后端传来的 trace_id，回传时优先使用 */
@@ -168,6 +170,22 @@ function emitResult(
   socketIOStore.emit('page_operation_result', payload);
 }
 
+function attachExecutionDecisionData(
+  result: { data?: Record<string, unknown>; message: string; success: boolean },
+  decisionMeta?: Record<string, unknown>,
+) {
+  if (!decisionMeta) {
+    return result;
+  }
+  return {
+    ...result,
+    data: {
+      ...(result.data || {}),
+      _execution_decision: decisionMeta,
+    },
+  };
+}
+
 /**
  * Initialize page operation WebSocket channel (call once in layout setup)
  * 初始化页面操作 WebSocket 通道（在 layout setup 中调用一次）
@@ -188,6 +206,7 @@ export function usePageOperationChannel(): void {
    */
   async function executeAndEmit(
     event: PageOperationInvokeEvent,
+    decisionMeta?: Record<string, unknown>,
   ): Promise<void> {
     const result = await executePageOperation(
       event.page_key,
@@ -200,7 +219,7 @@ export function usePageOperationChannel(): void {
     emitResult(
       socketIOStore,
       event.invoke_id,
-      result,
+      attachExecutionDecisionData(result, decisionMeta),
       errorType,
       event.trace_id,
     );
@@ -223,14 +242,6 @@ export function usePageOperationChannel(): void {
     operationDescription: string,
   ): Promise<void> {
     aiPanelStore.open();
-
-    if (aiPanelStore.isActiveConversationTrusted()) {
-      if (CHAIN_TRIGGER_OPS.has(event.operation_name)) {
-        markChainConfirmed(event.page_key);
-      }
-      await executeAndEmit(event);
-      return;
-    }
 
     const confirmPromise = aiPanelStore.requestPageOpConfirmation({
       invokeId: event.invoke_id,
@@ -261,10 +272,18 @@ export function usePageOperationChannel(): void {
       emitResult(
         socketIOStore,
         event.invoke_id,
-        {
+        attachExecutionDecisionData(
+          {
           success: false,
           message: $t('shared.pageOperation.msg.confirmationTimedOut'),
-        },
+          },
+          {
+            auto_approved: false,
+            decision_scope: 'once',
+            reason: 'page_operation_confirmation_timeout',
+            status: 'expired',
+          },
+        ),
         'timeout',
         event.trace_id,
       );
@@ -272,15 +291,28 @@ export function usePageOperationChannel(): void {
       if (CHAIN_TRIGGER_OPS.has(event.operation_name)) {
         markChainConfirmed(event.page_key);
       }
-      await executeAndEmit(event);
+      await executeAndEmit(event, {
+        auto_approved: false,
+        decision_scope: 'once',
+        reason: 'page_operation_confirmation',
+        status: 'approved',
+      });
     } else {
       emitResult(
         socketIOStore,
         event.invoke_id,
-        {
+        attachExecutionDecisionData(
+          {
           success: false,
           message: $t('shared.pageOperation.msg.userCancelled'),
-        },
+          },
+          {
+            auto_approved: false,
+            decision_scope: 'once',
+            reason: 'page_operation_confirmation',
+            status: 'rejected',
+          },
+        ),
         'user_cancelled',
         event.trace_id,
       );
@@ -402,6 +434,20 @@ export function usePageOperationChannel(): void {
         // readonly=true → execute directly (no confirmation needed) / 直接执行（无需确认）
         if (operation.readonly) {
           await executeAndEmit(event);
+          return;
+        }
+
+        // Backend explicit auto approval overrides readonly heuristic / 后端显式自动批准优先于前端 readonly 推断
+        if (event.auto_approved) {
+          if (CHAIN_TRIGGER_OPS.has(event.operation_name)) {
+            markChainConfirmed(event.page_key);
+          }
+          await executeAndEmit(event, {
+            auto_approved: true,
+            decision_scope: 'policy',
+            reason: 'page_operation_policy_auto_approved',
+            status: 'auto_approved',
+          });
           return;
         }
 

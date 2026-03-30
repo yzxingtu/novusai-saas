@@ -11,6 +11,9 @@ import { requestClient } from '#/utils/request';
 /** Action log list item / 操作日志列表项 */
 export interface ActionLogItem {
   id: number;
+  execution_decision_id?: null | number;
+  trace_id?: null | string;
+  tool_call_id?: null | string;
   agent_avatar?: null | string;
   agent_name: null | string;
   action_name: string;

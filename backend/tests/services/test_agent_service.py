@@ -191,7 +191,7 @@ class TestPublishAgent:
         assert created_payload["rag_config"] == rag_config
         assert created_payload["context_config"] == {"max_history_messages": 12}
         assert created_payload["output_schema"] == [{"name": "answer"}]
-        assert created_payload["tool_bindings"] == []
+        assert created_payload["skill_grant_snapshot"] == []
 
 
 class TestCascadeConversationMemoryCleanup:
@@ -393,7 +393,7 @@ class TestVersionRagConfig:
             },
             context_config={"max_history_messages": 8},
             output_schema=[{"name": "summary"}],
-            tool_bindings=[
+            skill_grant_snapshot=[
                 {
                     "skill_id": 9,
                     "default_consent_mode": "auto",

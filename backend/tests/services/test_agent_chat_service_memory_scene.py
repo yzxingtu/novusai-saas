@@ -265,6 +265,7 @@ async def test_chat_non_stream_persists_session_memory(mock_db):
     service.conversation_svc.update_stats = AsyncMock(return_value=None)
     service._resolve_effective_memory_enabled = AsyncMock(return_value=True)
     service._persist_session_memory = AsyncMock(return_value=None)
+    service._resolve_runtime_trust_policy_ref = AsyncMock(return_value=None)
 
     dispatcher = AsyncMock()
     dispatcher.dispatch = AsyncMock(return_value=_make_execution_result())
@@ -289,6 +290,195 @@ async def test_chat_non_stream_persists_session_memory(mock_db):
     assert call_kwargs["message"] == "hello"
     assert call_kwargs["response"] == "ok"
     assert call_kwargs["event_id"].startswith("memevt:100:")
+
+
+@pytest.mark.asyncio
+async def test_persist_session_memory_captures_long_term_memory_candidates(mock_db):
+    from unittest.mock import patch
+
+    from app.services.ai.agent_chat_service import AgentChatService
+
+    service = AgentChatService(mock_db, tenant_id=1)
+    service._extract_memory_delta = AsyncMock(
+        return_value={
+            "preferences": ["以后邮件要正式一些"],
+            "constraints": ["不要用口语化语气"],
+            "task_states": ["正在整理邮件风格"],
+            "verified_facts": ["用户偏好正式邮件风格"],
+        }
+    )
+    provider = MagicMock()
+    provider.capture = AsyncMock(return_value=[])
+
+    request = MagicMock()
+    request.memory_enabled = True
+    request.conversation_id = 100
+    request.user_id = 10
+    request.agent_id = 1
+    request.memory_channel = MemoryChannelEnum.TENANT_CHAT.value
+    request.memory_source = MemorySceneEnum.AI_CHAT_PAGE.value
+    request.memory_scene = MemorySceneEnum.AI_CHAT_PAGE.value
+    request.long_term_memory_enabled = True
+
+    with patch(
+        "app.services.ai.agent_chat_service.get_long_term_memory_provider",
+        return_value=provider,
+    ), patch(
+        "app.services.ai.agent_chat_service.SessionMemoryService.upsert_state",
+        new=AsyncMock(return_value={}),
+    ):
+        delta = await service._persist_session_memory(
+            request=request,
+            message="以后帮我写邮件要正式一些，不要太口语化。",
+            response="好的，我会采用更正式的邮件语气。",
+            event_id="memevt:100:test",
+        )
+
+    assert delta is not None
+    provider.capture.assert_awaited_once()
+    capture_kwargs = provider.capture.await_args.kwargs
+    assert capture_kwargs["agent_id"] == 1
+    assert capture_kwargs["user_id"] == 10
+    assert capture_kwargs["source_kind"] == "conversation_turn"
+    assert capture_kwargs["items_by_type"] == {
+        "preference": ["以后邮件要正式一些"],
+        "constraint": ["不要用口语化语气"],
+        "fact": ["用户偏好正式邮件风格"],
+        "task_summary": ["正在整理邮件风格"],
+    }
+
+
+@pytest.mark.asyncio
+async def test_chat_passes_ephemeral_rag_items_to_execution_request(mock_db):
+    from app.services.ai.agent_chat_service import AgentChatService
+
+    service = AgentChatService(mock_db, tenant_id=1)
+    agent = _make_agent()
+    service._validate_agent = AsyncMock(return_value=agent)
+    service.conversation_svc.get_or_create_for_chat = AsyncMock(return_value=_make_conversation())
+    service.conversation_svc.load_chat_history = AsyncMock(return_value=[])
+    service.conversation_svc.persist_chat_messages = AsyncMock(return_value=[])
+    service.conversation_svc.update_stats = AsyncMock(return_value=None)
+    service._resolve_effective_memory_enabled = AsyncMock(return_value=False)
+
+    dispatcher = AsyncMock()
+    dispatcher.dispatch = AsyncMock(return_value=_make_execution_result())
+
+    from unittest.mock import patch
+
+    with patch("app.services.ai.agent_chat_service.ExecutionDispatcher", return_value=dispatcher), \
+            patch("app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation", new=AsyncMock()), \
+            patch("app.services.ai.agent_chat_service.AgentStatsManager.record_chat", new=AsyncMock()):
+        await service.chat(
+            agent_id=1,
+            message="hello",
+            user_id=10,
+            user_role=UserRoleEnum.TENANT_ADMIN.value,
+            ephemeral_rag_items=[
+                {
+                    "kind": "text",
+                    "title": "临时说明",
+                    "content": "这是会话内临时资料。",
+                }
+            ],
+        )
+
+    called_request = dispatcher.dispatch.call_args.args[0]
+    assert called_request.ephemeral_rag_refs == [
+        {
+            "kind": "text",
+            "title": "临时说明",
+            "content": "这是会话内临时资料。",
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_chat_passes_explicit_trust_policy_ref_to_execution_request(mock_db):
+    from app.services.ai.agent_chat_service import AgentChatService
+
+    service = AgentChatService(mock_db, tenant_id=1)
+    agent = _make_agent()
+    service._validate_agent = AsyncMock(return_value=agent)
+    service.conversation_svc.get_or_create_for_chat = AsyncMock(return_value=_make_conversation())
+    service.conversation_svc.load_chat_history = AsyncMock(return_value=[])
+    service.conversation_svc.persist_chat_messages = AsyncMock(return_value=[])
+    service.conversation_svc.update_stats = AsyncMock(return_value=None)
+    service._resolve_effective_memory_enabled = AsyncMock(return_value=False)
+
+    dispatcher = AsyncMock()
+    dispatcher.dispatch = AsyncMock(return_value=_make_execution_result())
+
+    from unittest.mock import patch
+
+    with patch("app.services.ai.agent_chat_service.ExecutionDispatcher", return_value=dispatcher), \
+            patch("app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation", new=AsyncMock()), \
+            patch("app.services.ai.agent_chat_service.AgentStatsManager.record_chat", new=AsyncMock()):
+        await service.chat(
+            agent_id=1,
+            message="hello",
+            user_id=10,
+            user_role=UserRoleEnum.TENANT_ADMIN.value,
+            trust_policy_ref={
+                "policy_ids": [11],
+                "allowed_tool_names": ["web_search"],
+                "risk_level_cap": "read",
+            },
+        )
+
+    called_request = dispatcher.dispatch.call_args.args[0]
+    assert called_request.trust_policy_ref == {
+        "policy_ids": [11],
+        "allowed_tool_names": ["web_search"],
+        "risk_level_cap": "read",
+    }
+
+
+@pytest.mark.asyncio
+async def test_chat_grants_backend_trust_policy_from_pending_consent_when_trust_session_enabled(
+    mock_db,
+):
+    from unittest.mock import patch
+
+    from app.services.ai.agent_chat_service import AgentChatService
+
+    service = AgentChatService(mock_db, tenant_id=1)
+    agent = _make_agent()
+    service._validate_agent = AsyncMock(return_value=agent)
+    service.conversation_svc.get_or_create_for_chat = AsyncMock(return_value=_make_conversation())
+    service.conversation_svc.load_chat_history = AsyncMock(return_value=[])
+    service.conversation_svc.persist_chat_messages = AsyncMock(return_value=[])
+    service.conversation_svc.update_stats = AsyncMock(return_value=None)
+    service.conversation_svc.update_last_assistant_interaction_state = AsyncMock(return_value=None)
+    service._resolve_effective_memory_enabled = AsyncMock(return_value=False)
+    service._resolve_runtime_trust_policy_ref = AsyncMock(return_value=None)
+
+    dispatcher = AsyncMock()
+    dispatcher.dispatch = AsyncMock(return_value=_make_execution_result())
+
+    with patch("app.services.ai.agent_chat_service.ExecutionDispatcher", return_value=dispatcher), \
+            patch("app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation", new=AsyncMock()), \
+            patch("app.services.ai.agent_chat_service.AgentStatsManager.record_chat", new=AsyncMock()), \
+            patch(
+                "app.services.ai.agent_chat_service.ExecutionTrustPolicyService.grant_conversation_tool_trust",
+                new_callable=AsyncMock,
+            ) as grant_trust:
+        await service.chat(
+            agent_id=1,
+            message="确认执行",
+            user_id=10,
+            user_role=UserRoleEnum.TENANT_ADMIN.value,
+            trust_session=True,
+            interaction_updates=[
+                {
+                    "kind": "pending_consent",
+                    "rejected": False,
+                    "tool_name": "web_search",
+                }
+            ],
+        )
+
+    grant_trust.assert_awaited_once()
 
 
 def test_memory_event_id_is_request_unique():

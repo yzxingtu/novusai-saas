@@ -19,6 +19,22 @@ import { defineStore } from 'pinia';
 /** Panel display mode / 面板显示模式 */
 export type AIPanelMode = 'full' | 'panel';
 
+export interface PendingPageOp {
+  invokeId: string;
+  pageKey: string;
+  operationName: string;
+  operationLabel: string;
+  operationDescription: string;
+  params: Record<string, unknown>;
+  resolved: boolean;
+  allowed?: boolean;
+  resolve: (allowed: boolean) => void;
+  /** Timestamp when confirmation was requested (for 60s countdown) / 请求确认的时间戳（用于 60s 倒计时） */
+  startedAt: number;
+  /** Tool call ID for inlining confirmation card under the message / 工具调用 ID，用于在对应消息内联显示确认卡片 */
+  toolCallId?: string;
+}
+
 function cloneRichTextTask(task: RichTextAITask): RichTextAITask {
   return {
     ...task,
@@ -46,8 +62,6 @@ function getRichTextConversationBindingKey(
 }
 
 export const useAIPanelStore = defineStore('ai-panel', () => {
-  const TRUST_SESSION_STORAGE_KEY_PREFIX = 'ai_trust_session_';
-
   // ==================== Panel state / 面板状态 ====================
 
   /** Whether panel is visible / 面板是否可见 */
@@ -441,22 +455,6 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
 
   // ==================== Page Operation Confirmation / 页面操作确认 ====================
 
-  interface PendingPageOp {
-    invokeId: string;
-    pageKey: string;
-    operationName: string;
-    operationLabel: string;
-    operationDescription: string;
-    params: Record<string, unknown>;
-    resolved: boolean;
-    allowed?: boolean;
-    resolve: (allowed: boolean) => void;
-    /** Timestamp when confirmation was requested (for 60s countdown) / 请求确认的时间戳（用于 60s 倒计时） */
-    startedAt: number;
-    /** Tool call ID for inlining confirmation card under the message / 工具调用 ID，用于在对应消息内联显示确认卡片 */
-    toolCallId?: string;
-  }
-
   const pendingPageOps = ref<PendingPageOp[]>([]);
   const RESOLVED_PAGE_OP_TTL_MS = 1500;
   const pageOpCleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -529,30 +527,6 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
       }
     }
     pendingPageOps.value = pendingPageOps.value.filter((o) => !o.resolved);
-  }
-
-  function isConversationTrusted(conversationId?: null | number): boolean {
-    if (
-      typeof conversationId !== 'number' ||
-      !Number.isFinite(conversationId) ||
-      conversationId <= 0
-    ) {
-      return false;
-    }
-
-    try {
-      return (
-        window.sessionStorage.getItem(
-          `${TRUST_SESSION_STORAGE_KEY_PREFIX}${conversationId}`,
-        ) === '1'
-      );
-    } catch {
-      return false;
-    }
-  }
-
-  function isActiveConversationTrusted(): boolean {
-    return isConversationTrusted(activeConversationId.value);
   }
 
   // ==================== Tool call dispatch / Tool Call 分发 ====================
@@ -669,8 +643,6 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     requestPageOpConfirmation,
     resolvePageOp,
     clearResolvedPageOps,
-    isConversationTrusted,
-    isActiveConversationTrusted,
 
     // Tool calls / 工具调用
     registerToolCallHandler,

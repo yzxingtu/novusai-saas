@@ -39,7 +39,9 @@ from app.configs.service import PLATFORM_TENANT_ID
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.core.response import build_public_error_text
+from app.enums.agent import ActionLevelEnum, ActionStatusEnum, ActionTypeEnum
 from app.enums.common import UserRoleEnum
+from app.middleware.trace import trace_id_var
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -371,6 +373,7 @@ class TextToSQLExecutor(BaseToolExecutor):
             await self._log_query(
                 context=context,
                 question=question,
+                tool_call_id=tool_call_id,
                 generated_sql=generated.sql,
                 final_sql=final_sql,
                 row_count=query_result.row_count,
@@ -408,6 +411,7 @@ class TextToSQLExecutor(BaseToolExecutor):
             await self._log_query(
                 context=context,
                 question=question,
+                tool_call_id=tool_call_id,
                 status="rejected",
                 error_message=str(exc),
                 duration_ms=duration_ms,
@@ -438,6 +442,7 @@ class TextToSQLExecutor(BaseToolExecutor):
             await self._log_query(
                 context=context,
                 question=question,
+                tool_call_id=tool_call_id,
                 generated_sql=_generated_sql,
                 final_sql=_final_sql,
                 status="failed",
@@ -460,6 +465,7 @@ class TextToSQLExecutor(BaseToolExecutor):
         self,
         context: ExecutionContext | None,
         question: str,
+        tool_call_id: str | None = None,
         generated_sql: str | None = None,
         final_sql: str | None = None,
         row_count: int | None = None,
@@ -473,10 +479,43 @@ class TextToSQLExecutor(BaseToolExecutor):
             return
         try:
             from app.core.database import async_session_factory
+            from app.services.ai.action_log_service import write_ai_action_log
             from app.repositories.ai.query_log_repository import AIQueryLogRepository
 
             async with async_session_factory() as log_db:
                 try:
+                    await write_ai_action_log(
+                        log_db,
+                        tenant_id=context.tenant_id,
+                        agent_id=context.agent_id,
+                        conversation_id=context.conversation_id,
+                        tool_call_id=tool_call_id,
+                        operator_id=context.user_id,
+                        operator_type=context.user_role,
+                        skill_id=context.skill_id,
+                        action_name="data_query",
+                        action_type=ActionTypeEnum.QUERY.value,
+                        action_level=ActionLevelEnum.READ.value,
+                        status=(
+                            ActionStatusEnum.SUCCESS.value
+                            if status == "success"
+                            else ActionStatusEnum.REJECTED.value
+                            if status == "rejected"
+                            else ActionStatusEnum.FAILED.value
+                        ),
+                        request_data={
+                            "trace_id": trace_id_var.get() or None,
+                            "question": question[:2000],
+                            "generated_sql": generated_sql,
+                            "final_sql": final_sql,
+                        },
+                        response_data={
+                            "row_count": row_count,
+                            "confidence": str(confidence) if confidence is not None else None,
+                        },
+                        error_message=error_message[:2000] if error_message else None,
+                        duration_ms=duration_ms,
+                    )
                     repo = AIQueryLogRepository(log_db, context.tenant_id)
                     await repo.create({
                         "tenant_id": context.tenant_id,

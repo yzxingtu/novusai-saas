@@ -220,10 +220,13 @@ function createConfiguredClient(
   });
 
   // SSE 请求通过 fetch 发送，不经过 Axios 拦截器，
-  // 需要显式设置 Token 获取函数
+  // 需要显式设置 Token / locale / auth recovery 函数
   client.setTokenGetter(tokenGetter.getToken);
   client.setMessageHandler(messageHandler.showMessage);
   client.setI18n(messageHandler.t);
+  client.setLocaleGetter(() => preferences.app.locale);
+  client.setReAuthenticateHandler(doReAuthenticate);
+  client.setRefreshTokenHandler(doRefreshToken);
 
   if (withInterceptors) {
     // 请求拦截器 / request interceptors

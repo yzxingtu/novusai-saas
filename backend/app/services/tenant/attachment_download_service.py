@@ -14,7 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.configs.service import ConfigService
 from app.core.base_model import utc_now
 from app.core.config import settings
+from app.core.logging import LogManager
 from app.core.i18n import _
+_logger = LogManager.get_logger("storage")
+
 from app.enums import ErrorCode
 from app.enums.attachment import AttachmentVisibility
 from app.exceptions import BusinessException, NotFoundException
@@ -205,7 +208,7 @@ class AttachmentDownloadService:
                 visibility = StorageVisibility(attachment.visibility)
                 return await driver.get_url(attachment.path, expires=expires, visibility=visibility)
         except Exception:
-            pass
+            _logger.debug("Storage driver URL generation failed for attachment {}, falling back", attachment.id)
 
         # Config mismatch: use stored base_url for public cloud files / 配置不一致回退 / config mismatch fallback
         direct_url = self._build_direct_cdn_url(attachment)

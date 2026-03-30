@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """add base_url to attachments table
 
 Revision ID: 20260126_0008
@@ -27,11 +27,11 @@ def upgrade() -> None:
     
     # 为现有记录设置默认值（根据 driver 推断）
     # 注意：这里使用占位符，实际运行时可能需要根据实际情况调整
-    op.execute("""
+    op.execute(sa.text("""
         UPDATE attachments 
         SET base_url = 'http://localhost:8000/files' 
         WHERE driver = 'local' AND base_url IS NULL
-    """)
+    """))
     
     # 将列改为 NOT NULL（因为旧数据已有值）
     op.alter_column("attachments", "base_url", nullable=False)

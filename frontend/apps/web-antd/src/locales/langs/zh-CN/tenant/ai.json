@@ -440,6 +440,8 @@
       "title": "历史消息上下文",
       "maxHistoryMessages": "带入上下文的历史消息条数",
       "maxHistoryTokens": "带入上下文的历史 Token 上限",
+      "longTermMemoryEnabled": "长期记忆（跨会话）",
+      "longTermMemoryHint": "开启后，将可持久化的洞察写入 MemoryRecord 并按需渐进召回；需同智能体会话记忆已启用。",
       "dataIntelligenceEnabled": "数据智能",
       "placeholder": {
         "maxHistoryMessages": "默认 20，0 使用系统默认",
@@ -674,6 +676,9 @@
     "actionType": "操作类型",
     "actionLevel": "安全等级",
     "status": "状态",
+    "traceId": "Trace ID",
+    "toolCallId": "Tool Call ID",
+    "executionDecisionId": "执行决策 ID",
     "agentName": "智能体",
     "agentUnavailable": "历史日志未记录",
     "operatorId": "操作者",
@@ -689,6 +694,7 @@
     "errorMessage": "错误信息",
     "viewDetail": "查看详情",
     "copyPayload": "复制内容",
+    "linkedDecision": "关联执行决策",
     "fieldsCount": "{count} 个字段",
     "noRequestData": "暂无请求数据",
     "noResponseData": "暂无响应数据",
@@ -719,6 +725,49 @@
     },
     "placeholder": {
       "searchName": "搜索操作名称",
+      "searchTrace": "搜索 Trace ID",
+      "searchToolCall": "搜索 Tool Call ID",
+      "searchDecision": "搜索执行决策 ID",
+      "allTypes": "全部类型",
+      "allStatuses": "全部状态"
+    }
+  },
+  "executionDecision": {
+    "title": "执行决策",
+    "name": "执行决策",
+    "pageDesc": "查看企业 AI 对话中的授权与确认决策记录。",
+    "detailTitle": "执行决策详情",
+    "id": "ID",
+    "createdAt": "创建时间",
+    "decisionType": "决策类型",
+    "status": "状态",
+    "subjectType": "主体类型",
+    "decisionScope": "决策范围",
+    "toolName": "工具名称",
+    "actionName": "动作名称",
+    "toolCallId": "Tool Call ID",
+    "riskLevel": "风险等级",
+    "conversationId": "对话",
+    "operatorId": "操作者",
+    "autoApproved": "是否自动批准",
+    "correlationKey": "关联键",
+    "reason": "原因",
+    "evidence": "证据",
+    "viewDetail": "查看详情",
+    "noDetailData": "暂无详情数据",
+    "typeOptions": {
+      "consent": "授权",
+      "confirmation": "确认"
+    },
+    "statusOptions": {
+      "approved": "已批准",
+      "rejected": "已拒绝",
+      "autoApproved": "自动批准",
+      "pending": "待处理",
+      "expired": "已过期"
+    },
+    "placeholder": {
+      "searchTool": "搜索工具名称",
       "allTypes": "全部类型",
       "allStatuses": "全部状态"
     }

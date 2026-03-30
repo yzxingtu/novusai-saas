@@ -161,4 +161,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Intentional no-op: Recycle-bin columns and indexes are already in use; dropping them would break soft-delete flows."""
     pass

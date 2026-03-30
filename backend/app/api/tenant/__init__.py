@@ -29,6 +29,7 @@ from app.api.tenant.ai_quotas import router as ai_quotas_router
 from app.api.tenant.ai_usage import TenantAIUsageController
 from app.api.tenant.ai_usage import router as ai_usage_router
 from app.api.tenant.analytics import router as analytics_router
+from app.api.tenant.execution_decisions import router as execution_decisions_router
 from app.api.tenant.attachments import TenantAttachmentController
 from app.api.tenant.attachments import router as attachments_router
 from app.api.tenant.auth import router as auth_router
@@ -106,6 +107,7 @@ tenant_router.include_router(preferences_router)
 tenant_router.include_router(plugins_router)
 # 数据分析 / Analytics
 tenant_router.include_router(analytics_router)
+tenant_router.include_router(execution_decisions_router)
 # AI 写作 / AI Writing
 tenant_router.include_router(ai_writing_router)
 

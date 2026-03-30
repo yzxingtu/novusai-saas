@@ -9,6 +9,7 @@
 
 import sys
 import types
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -301,6 +302,77 @@ class TestPageOperationExecutor:
         assert kwargs["request_data"]["page_session_id"] == "ps-123"
         assert kwargs["request_data"]["page_key"] == "admin.ai.conversations"
         assert kwargs["response_data"]["invoke_id"] == "inv-log"
+
+    @pytest.mark.asyncio
+    async def test_page_operation_decision_metadata_records_execution_decision(
+        self,
+        executor,
+        definition,
+    ):
+        """前端回传的 page op 决策元数据应落 ExecutionDecision 并串回 AIActionLog。"""
+        context = ExecutionContext(
+            tenant_id=1,
+            agent_id=2,
+            user_id=9,
+            user_role="tenant_admin",
+            skill_id=88,
+            conversation_id=77,
+            page_session_id="ps-123",
+            db=MagicMock(),
+        )
+        mock_result = {
+            "invoke_id": "inv-decision",
+            "success": True,
+            "message": "Title updated",
+            "data": {
+                "_execution_decision": {
+                    "auto_approved": True,
+                    "decision_scope": "policy",
+                    "reason": "page_operation_policy_auto_approved",
+                    "status": "auto_approved",
+                },
+                "title": "新标题",
+            },
+        }
+        audit_mock = AsyncMock()
+        record_decision_mock = AsyncMock(return_value=SimpleNamespace(id=901))
+
+        with (
+            patch(
+                "app.sio.page_session.invoke_page_operation",
+                new=AsyncMock(return_value=mock_result),
+            ),
+            patch(
+                "app.ai.tools.executors.page_operation_executor.write_ai_action_log",
+                new=audit_mock,
+            ),
+            patch(
+                "app.ai.tools.executors.page_operation_executor.ExecutionDecisionService.record_decision",
+                new=record_decision_mock,
+            ),
+        ):
+            result = await executor.execute(
+                definition,
+                "call_decision",
+                {
+                    "page_key": "admin.ai.conversations",
+                    "operation_name": "update_title",
+                    "params": {"id": 1, "title": "新标题"},
+                },
+                context,
+            )
+
+        assert result.success is True
+        record_decision_mock.assert_awaited_once()
+        decision_payload = record_decision_mock.await_args.args[0]
+        assert decision_payload["subject_type"] == "page_operation"
+        assert decision_payload["status"] == "auto_approved"
+        assert decision_payload["decision_scope"] == "policy"
+        assert decision_payload["tool_call_id"] == "call_decision"
+
+        _, audit_kwargs = audit_mock.await_args
+        assert audit_kwargs["execution_decision_id"] == 901
+        assert audit_kwargs["response_data"]["execution_decision_id"] == 901
 
     @pytest.mark.asyncio
     async def test_explicit_page_session_id_wins_over_active_mapping(
@@ -661,6 +733,49 @@ class TestPageOperationExecutor:
         assert call_kwargs["operation_name"] == "export_data"
 
     @pytest.mark.asyncio
+    async def test_auto_approved_passed_to_invoke_when_trust_policy_allows(
+        self,
+        executor,
+        definition,
+    ):
+        """后端信任策略允许时，page op 会显式透传 auto_approved / pass auto_approved."""
+        context = ExecutionContext(
+            tenant_id=1,
+            agent_id=2,
+            page_session_id="ps-123",
+            trust_policy_ref={
+                "allowed_tool_names": [],
+                "tool_families": ["page_ops"],
+                "risk_level_cap": "safe_write",
+            },
+        )
+        mock_invoke = AsyncMock(
+            return_value={
+                "invoke_id": "inv-auto",
+                "success": True,
+                "message": "Done",
+            }
+        )
+
+        with patch(
+            "app.sio.page_session.invoke_page_operation",
+            new=mock_invoke,
+        ):
+            await executor.execute(
+                definition,
+                "call_auto",
+                {
+                    "page_key": "admin.tenant.list",
+                    "operation_name": "create_record",
+                },
+                context,
+            )
+
+        call_kwargs = mock_invoke.call_args.kwargs
+        assert call_kwargs["requires_confirmation"] is False
+        assert call_kwargs["auto_approved"] is True
+
+    @pytest.mark.asyncio
     async def test_params_passed_to_invoke(self, executor, definition):
         """params 参数正确传递 / params"""
         context = ExecutionContext(
@@ -822,6 +937,40 @@ class TestInvokePageOperation:
 
         assert result["success"] is True
         assert result["message"] == "List refreshed"
+
+    @pytest.mark.asyncio
+    async def test_invoke_payload_contains_auto_approved_flag(self):
+        """invoke payload 会带上 auto_approved 标记 / payload includes auto_approved."""
+        import asyncio
+
+        from app.sio.page_session import _pending_invocations, invoke_page_operation
+
+        async def fake_emit(event, data, room=None, namespace=None):
+            invoke_id = data["invoke_id"]
+            assert data["auto_approved"] is True
+            await asyncio.sleep(0.01)
+            future = _pending_invocations.get(invoke_id)
+            if future and not future.done():
+                future.set_result(
+                    {
+                        "invoke_id": invoke_id,
+                        "success": True,
+                        "message": "Auto approved",
+                    }
+                )
+
+        _mock_sio_instance.emit = AsyncMock(side_effect=fake_emit)
+
+        result = await invoke_page_operation(
+            page_session_id="ps-test",
+            page_key="admin.tenant.list",
+            operation_name="refresh_list",
+            auto_approved=True,
+            timeout=5,
+        )
+
+        assert result["success"] is True
+        assert result["message"] == "Auto approved"
 
     @pytest.mark.asyncio
     async def test_timeout_returns_error(self):

@@ -81,15 +81,15 @@ def upgrade() -> None:
         "tenant_agent_platform_kb_suppressions",
         ["is_deleted"],
     )
-    op.execute(
+    op.execute(sa.text(
         """
         CREATE UNIQUE INDEX uq_tapks_active
         ON tenant_agent_platform_kb_suppressions (tenant_id, agent_id, knowledge_base_id)
         WHERE is_deleted = false
         """
-    )
+    ))
 
 
 def downgrade() -> None:
-    op.execute("DROP INDEX IF EXISTS uq_tapks_active")
+    op.execute(sa.text("DROP INDEX IF EXISTS uq_tapks_active"))
     op.drop_table("tenant_agent_platform_kb_suppressions")

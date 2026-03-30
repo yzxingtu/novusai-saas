@@ -16,6 +16,9 @@ from app.ai.tools.types import ToolDefinition, ToolResult
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.logging import LogManager
 from app.core.response import build_public_error_text
+from app.enums.agent import ActionLevelEnum, ActionStatusEnum, ActionTypeEnum
+from app.middleware.trace import trace_id_var
+from app.services.ai.action_log_service import write_ai_action_log
 
 if TYPE_CHECKING:
     from app.ai.tools.types import ExecutionContext
@@ -165,18 +168,30 @@ class EmailToolExecutor(BaseToolExecutor):
                 "Email tool queued: to={} subject={} skill={}",
                 ", ".join(to_list), subject, definition.source_skill_name,
             )
-            return ToolResult(
+            result = ToolResult(
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=True,
                 output=output,
                 duration_ms=duration_ms,
             )
+            await self._audit_email_action(
+                definition=definition,
+                context=context,
+                tool_call_id=tool_call_id,
+                to_list=to_list,
+                cc_list=cc_list,
+                subject=subject,
+                status=ActionStatusEnum.SUCCESS.value,
+                duration_ms=duration_ms,
+                error_message=None,
+            )
+            return result
 
         except Exception as exc:
             duration_ms = int((time.perf_counter() - start) * 1000)
             logger.error("Email tool error: {}", str(exc), exc_info=True)
-            return ToolResult(
+            result = ToolResult(
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=False,
@@ -186,6 +201,18 @@ class EmailToolExecutor(BaseToolExecutor):
                 ),
                 duration_ms=duration_ms,
             )
+            await self._audit_email_action(
+                definition=definition,
+                context=context,
+                tool_call_id=tool_call_id,
+                to_list=to_list,
+                cc_list=cc_list,
+                subject=subject,
+                status=ActionStatusEnum.FAILED.value,
+                duration_ms=duration_ms,
+                error_message=result.error,
+            )
+            return result
 
     async def validate(
         self,
@@ -195,6 +222,51 @@ class EmailToolExecutor(BaseToolExecutor):
         """Validate email parameters / 校验邮件参数"""
         _ = definition
         return bool(arguments.get("to") and arguments.get("subject"))
+
+    async def _audit_email_action(
+        self,
+        *,
+        definition: ToolDefinition,
+        context: ExecutionContext | None,
+        tool_call_id: str,
+        to_list: list[str],
+        cc_list: list[str],
+        subject: str,
+        status: str,
+        duration_ms: int,
+        error_message: str | None,
+    ) -> None:
+        if not context or not context.db:
+            return
+        try:
+            await write_ai_action_log(
+                context.db,
+                tenant_id=context.tenant_id,
+                agent_id=context.agent_id,
+                operator_id=context.user_id,
+                operator_type=context.user_role,
+                conversation_id=context.conversation_id,
+                tool_call_id=tool_call_id,
+                skill_id=context.skill_id,
+                action_name="email_send",
+                action_type=ActionTypeEnum.ACTION.value,
+                action_level=ActionLevelEnum.DANGEROUS.value,
+                request_data={
+                    "tool_name": definition.name,
+                    "trace_id": trace_id_var.get() or None,
+                    "to": to_list,
+                    "cc": cc_list,
+                    "subject": subject,
+                },
+                response_data={
+                    "recipient_count": len(to_list) + len(cc_list),
+                },
+                status=status,
+                error_message=error_message,
+                duration_ms=duration_ms,
+            )
+        except Exception as exc:
+            logger.warning("Failed to write email tool audit log: {}", str(exc))
 
 
 __all__ = ["EmailToolExecutor"]

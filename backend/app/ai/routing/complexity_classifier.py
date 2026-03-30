@@ -19,20 +19,6 @@ if TYPE_CHECKING:
 
 logger = LogManager.get_logger("ai.routing")
 
-# ==================== Keyword Scoring Rules / 关键词评分规则 ====================
-
-_KEYWORDS_SCORE_2: frozenset[str] = frozenset({
-    "分析", "推理", "规划", "代码", "编写", "实现", "设计", "对比",
-    "analyze", "analysis", "reasoning", "planning", "code", "implement",
-    "design", "compare",
-})
-
-_KEYWORDS_SCORE_1: frozenset[str] = frozenset({
-    "综合", "总结多", "评估", "证明", "数学", "公式",
-    "synthesize", "summarize", "evaluate", "prove", "math", "formula",
-    "complex", "sophisticated",
-})
-
 _TURNS_THRESHOLD_MEDIUM = 10
 _TURNS_THRESHOLD_COMPLEX = 20
 _LONG_MESSAGE_CHARS = 500
@@ -53,16 +39,14 @@ class ComplexityClassifier:
     Conversation Complexity Classifier
     对话复杂度分类器
 
-    Evaluates conversation complexity based on message turns, message length, keywords, tool count, and attachments.
-    基于消息轮数、消息长度、关键词、工具数量和附件评估对话复杂度。
+    Evaluates conversation complexity based on message turns, message length, tool count, and attachments.
+    基于消息轮数、消息长度、工具数量和附件评估对话复杂度。
 
     Scoring rules / 评分规则：
     - Message turns > 10: +2 / 消息轮数 > 10：+2 分
     - Latest user message > 500 chars: +1 / 最新用户消息 > 500 字符：+1 分
-    - Message contains +2 keywords (analyze/reasoning/code/...): +2
-      消息含 +2 关键词（分析/推理/代码/analyze/reasoning/...）：+2 分
-    - Message contains +1 keywords (synthesize/evaluate/math/...): +1
-      消息含 +1 关键词（综合/评估/数学/synthesize/evaluate/...）：+1 分
+    - Cumulative user text very long: +1 (structural proxy for depth)
+      累积用户文本过长：+1 分（结构特征，不依赖固定词表）
     - Tool count > 5: +2 / 工具数量 > 5：+2 分
     - Message turns > 20: additional +1 / 消息轮数 > 20：额外 +1 分
     - Has attachments (images, etc.): auto-elevated to MEDIUM or higher
@@ -128,12 +112,7 @@ class ComplexityClassifier:
             score += 1
 
         all_content = self._get_all_user_content(messages)
-        content_lower = all_content.lower()
-
-        if self._contains_any(content_lower, all_content, _KEYWORDS_SCORE_2):
-            score += 2
-
-        if self._contains_any(content_lower, all_content, _KEYWORDS_SCORE_1):
+        if len(all_content) > 8000:
             score += 1
 
         if tools and len(tools) > _TOOLS_THRESHOLD:
@@ -175,21 +154,5 @@ class ComplexityClassifier:
             for msg in messages
             if msg.role == "user"
         )
-
-    @staticmethod
-    def _contains_any(
-        content_lower: str,
-        content_original: str,
-        keywords: frozenset[str],
-    ) -> bool:
-        for kw in keywords:
-            if kw.isascii():
-                if kw in content_lower:
-                    return True
-            else:
-                if kw in content_original:
-                    return True
-        return False
-
 
 __all__ = ["ComplexityClassifier", "ComplexityLevel"]

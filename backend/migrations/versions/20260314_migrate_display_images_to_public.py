@@ -36,4 +36,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Intentional no-op: Reverting display image visibility would incorrectly hide admin/tenant public assets."""
     pass

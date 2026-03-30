@@ -111,8 +111,102 @@
 - 会话记忆分类固定为 `preferences` / `constraints` / `task_states` / `verified_facts`，禁止私自增加第 5 类
 - 对话归档、删除、清空记忆必须统一经 `ConversationService` 清理；不要只依赖 TTL
 - 前端统一复用 `useAIChat()` 的 `fetchConversationMemory()` / `clearConversationMemory()` / `memory_updated` 标记，禁止单页另写一套接口协议
+- 当前 Redis 四分类记忆仅是 `conversation-scoped short-term memory`，不是长期记忆真源
+- 长期记忆真源必须使用 `MemoryRecord`，画像只使用 `ProfileSnapshot` 派生视图
+- 禁止继续把跨会话 durable memory 扩进 Redis session memory；新增 durable memory 一律走 `LongTermMemoryProvider`
 
 → 完整规范见 [../skills/novusai-saas/references/session-memory-spec.md](../skills/novusai-saas/references/session-memory-spec.md)
+
+## 六-C、上下文操作系统（Context Engine）规则
+
+- 对话上下文生命周期统一收口到 `ContextEngine`
+- 固定 4 个阶段：`ingest(turn)` / `assemble(request)` / `compact(session)` / `after_turn(result)`
+- 默认实现是 `LegacyContextEngine`，所有新能力必须保持对 legacy 行为零回归
+- prompt 裁剪只能走 `TransientPruning`
+  - 只影响当前 prompt
+  - 不改数据库原始消息
+  - unresolved `pending_consent / pending_confirmation / page_operation` 轮次不得被裁掉
+- 持久摘要只能走 `Compaction sidecar snapshot`
+  - 只写 conversation metadata sidecar
+  - 第一阶段禁止直接改 conversation message 主表
+- `assemble()` 必须返回：
+  - `messages`
+  - `estimated_tokens`
+  - `system_prompt_additions`
+  - `diagnostics`
+
+## 六-D、长期记忆规则
+
+- 长期记忆 provider 统一走 `app.ai.context.long_term_memory.get_long_term_memory_provider()`
+- `MemoryRecord` 是长期记忆真源，字段语义：
+  - `memory_type`: `preference / constraint / fact / decision / pattern / task_summary / correction / relationship`
+  - `status`: `candidate / verified / suppressed / archived / expired`
+- `ProfileSnapshot` 只是派生视图，不得当作记忆真源直接编辑
+- 默认 recall 采用 `progressive disclosure`
+  - 先注入 `ProfileSnapshot`
+  - 再按当前用户问题做 `search / recall`
+  - 禁止每轮全量 recall
+- capture 默认只接 durable insight，禁止直接把原始 `tool_result`、页面快照、业务明细全文写入长期记忆
+- 第一阶段 scope 固定为：
+  - `user_agent`
+  - `tenant_agent`
+  - `tenant_shared`
+  - `conversation` 仅存在于短记忆，不进长期记忆主表
+
+## 六-E、Ephemeral / Workspace RAG 规则
+
+- 临时资料统一走 `EphemeralRAGProvider + EphemeralDocumentService`
+- 支持 3 个 scope：
+  - `conversation_scoped`
+  - `agent_workspace_scoped`
+  - `tenant_private_scratch`
+- 临时资料真源为 `EphemeralDocument`，不进入正式 `KnowledgeBase`
+- citation 必须明确区分：
+  - `formal_kb`
+  - `ephemeral_doc`
+- 允许 URL / HTML / Markdown / CSV / Text 临时摄取，但必须复用现有 parser / chunker / retriever，禁止另造算法栈
+- `EphemeralDocument.promote_to_knowledge_base` 是唯一合法 promotion path
+- 第一阶段 promotion 进入正式 `KnowledgeDocument + process_document` 链路，不允许绕过正式索引流程
+
+## 六-F、技能市场 / 分发层规则
+
+- 技能市场是分发层，不是运行时授权层
+- 市场安装后落点仍然是：
+  - `SkillPackage`
+  - `Skill`
+- 运行时真相仍然只看 `AgentSkillGrant`
+- 禁止：
+  - install 即 runtime
+  - workspace override 平台授权
+  - 社区 skill 直接进入企业生产运行时
+- 管理端主入口统一走插件市场 `/admin/plugins/marketplace?catalog=skills`；技能目录 HTTP API 为 `/admin/plugins/skill-registry`
+- 当前插件市场与技能市场 registry 配置统一按 GitHub raw 托管收口，不再维护 Gitee/auto 运行时切换
+- GitHub-only 不只是配置约束；插件/技能包的 `download_url` 与 release 回退地址在执行下载前也必须做 GitHub 域名白名单校验
+
+## 六-F-1、Trust / Consent 真相规则
+
+- `trustSession` 只允许作为前端交互入口存在
+- 前端本地内存或浏览器存储都不得作为最终授权真相
+- 最终是否自动批准，必须以后端 `ExecutionTrustPolicy + ExecutionDecision` 判定为准
+- 若前端保留临时 consent cache，也只能是当前运行时的短暂提示，不得跨刷新/跨标签页充当持久授权
+
+## 六-G、统一审计账本规则
+
+- 所有副作用工具必须统一写 `AIActionLog`
+- 当前最低覆盖要求：
+  - `data_create / data_update / data_delete`
+  - `invoke_page_operation / pageop_*`
+  - `http`
+  - `email`
+  - `toolkit`
+  - `code_execution`
+  - `text_to_sql`（query 类也纳入统一账本）
+- `AIActionLog` 必须优先使用显式字段串联：
+  - `trace_id`
+  - `conversation_id`
+  - `tool_call_id`
+  - `execution_decision_id`
+- 若某路径当前只能写到 `request_data / response_data`，视为临时兼容，不视为最终完成状态
 
 ## 七、页面感知与操作规则
 
@@ -123,6 +217,7 @@
 - 操作确认超时 60s；页面会话切换、离开 page_session 房间或连接断开时必须清理链式确认状态
 - 前端页面操作通道必须按 `invoke_id` 做幂等保护；重复事件只能回放已缓存结果，禁止重复执行或重复弹确认
 - 前端执行页面操作前必须校验 `event.page_key` 与当前活动页面一致；不一致时返回 `page_key_mismatch`
+- 若后端 `page_operation_invoke` 显式携带 `auto_approved=true`，前端必须直接执行，不得再按 `readonly=false` 自行弹确认
 - 页面截图能力统一使用 `capture_screenshot` 页面操作 + 附件上传链路；仅当当前运行模型明确支持视觉时才允许真正执行。截图结果必须作为内部多模态输入注入下一轮 LLM，禁止只返回图片 URL 文本假装“已看图”
 - `capture_screenshot` 仅用于页面视觉/布局问题或 DOM/文本上下文不足的场景；禁止把截图当作默认读取手段，优先使用 `read_current_view` / `read_current_sections` / `get_page_context`
 - 新增页面操作时必须通过 `registerPageOperations()` 注册，禁止绕过注册表直接执行
@@ -159,6 +254,14 @@
 - 不允许让 AI 直接传整个 row JSON 或组件内部数据结构
 - 纯“打开 UI”动作应标记为 `readonly: true`，避免落入确认流
 - success / error message 统一复用 `shared.pageOperation.msg.*` 或已有 i18n key
+
+## 七-D、确认/拒绝/同意交互协议
+
+- 前端确认/拒绝/同意操作**必须**通过 `interaction_updates` 结构化字段传递，**禁止**将 i18n 翻译文案作为真实 `message` 发送
+- `interaction_updates` 是机器可读协议，`kind` 字段标识交互类型（`pending_confirmation` / `pending_consent` / `action_buttons`）
+- 后端 `AgentChatRequest` 允许"空 message + interaction_updates"的协议型 turn，不强制要求自然语言文本
+- `StreamExecutionHandler` 优先检查 `interaction_updates` 中的结构化确认信号，仅当无结构化信号时才回退到自由文本正则匹配
+- `ToolUsePolicy` 推断已从强制门控降级为软信号（`mode="auto"`），优先使用 tool history 和结构信号
 
 ## 八、上传与存储规则
 

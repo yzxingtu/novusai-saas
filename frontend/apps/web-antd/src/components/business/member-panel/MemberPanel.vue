@@ -19,7 +19,7 @@ import {
   Tooltip,
 } from 'ant-design-vue';
 
-import { forceLogoutAdminApi } from '#/api/admin/admin-user';
+import { forceLogoutAdminApi } from '#/api/admin/users';
 import { forceLogoutTenantAdminApi } from '#/api/admin/tenant';
 import { getTenantAdminInfoApi } from '#/api/tenant/auth';
 import { $t } from '#/locales';

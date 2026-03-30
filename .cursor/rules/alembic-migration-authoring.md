@@ -76,7 +76,44 @@
 
 ---
 
-## 9. 合并前自检清单（PR 前）
+## 9. 唯一约束列的值重命名：使用 `migrations.helpers`
+
+当迁移需要把唯一约束列（如 `permissions.code + scope`）的值从 A 改为 B 时：
+
+- **禁止**直接 `UPDATE ... SET code = REPLACE(code, 'old', 'new')`——应用启动时 `@permission_resource` 等自动种子机制可能**已创建了新值的行**，`REPLACE` 会撞上 `UniqueViolation`。
+- **必须使用** `migrations.helpers` 中的封装函数：
+
+```python
+# 权限资源重命名（最常见场景）
+from migrations.helpers import safe_rename_permission_resource
+
+def upgrade() -> None:
+    safe_rename_permission_resource("ai_skill_registry", "plugin_skill_registry")
+
+def downgrade() -> None:
+    safe_rename_permission_resource("plugin_skill_registry", "ai_skill_registry")
+```
+
+```python
+# 通用唯一约束列值重命名
+from migrations.helpers import safe_rename_unique_column_value
+
+def upgrade() -> None:
+    safe_rename_unique_column_value(
+        "configs", "key", "old_key", "new_key",
+        unique_columns=["scope"],
+    )
+```
+
+- **`scripts/lint_migrations.py`** 会自动检测裸 `REPLACE` 和 f-string SQL，CI 或本地可运行：
+  ```bash
+  python scripts/lint_migrations.py                  # 全量扫描
+  python scripts/lint_migrations.py --since HEAD~3   # 增量扫描
+  ```
+
+---
+
+## 10. 合并前自检清单（PR 前）
 
 - [ ] 无 `f"…{table}…"` / 无未绑定标识符拼接
 - [ ] 无「失败 SQL + `except: pass`」后继续同一 `conn.execute`
@@ -84,11 +121,13 @@
 - [ ] 唯一约束前有 **去重** 或种子 **ON CONFLICT** 幂等
 - [ ] 空库无模型时 **不插入** `model_id` 为空的 agent
 - [ ] `down_revision` / merge 保证 **建表先于依赖它的变更**
+- [ ] 唯一约束列的值重命名已使用 **`migrations.helpers`** 封装函数
+- [ ] `python scripts/lint_migrations.py` 无新增 warning
 - [ ] 在干净库上跑通 **`fresh_install_migrate_test.py`** 或等价 `alembic upgrade heads`
 
 ---
 
-## 10. 与现有技能的关系
+## 11. 与现有技能的关系
 
 更完整的流程与历史问题排查见：[../skills/database-migration-best-practices/SKILL.md](../skills/database-migration-best-practices/SKILL.md)。
 **本规则侧重「写法底线 + 空库必过」**；与技能文档冲突时，以 **空库可安装** 为优先。

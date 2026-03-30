@@ -623,7 +623,9 @@
     "contextConfig": {
       "title": "历史消息上下文",
       "maxHistoryMessages": "带入上下文的历史消息条数",
-      "maxHistoryTokens": "带入上下文的历史 Token 上限"
+      "maxHistoryTokens": "带入上下文的历史 Token 上限",
+      "longTermMemoryEnabled": "长期记忆（跨会话）",
+      "longTermMemoryHint": "开启后，将可持久化的洞察写入 MemoryRecord 并按需渐进召回；需同智能体会话记忆已启用。"
     },
     "skillPackageBindings": "技能包绑定",
     "consentMode": "工具授权模式",
@@ -880,6 +882,9 @@
     "status": "状态",
     "tenantId": "企业 ID",
     "tenantInfo": "所属企业",
+    "traceId": "Trace ID",
+    "toolCallId": "Tool Call ID",
+    "executionDecisionId": "执行决策 ID",
     "platformTenant": "管理端",
     "agentName": "智能体",
     "agentUnavailable": "历史日志未记录",
@@ -912,6 +917,7 @@
     "requestData": "请求数据",
     "responseData": "响应数据",
     "copyPayload": "复制内容",
+    "linkedDecision": "关联执行决策",
     "fieldsCount": "{count} 个字段",
     "noRequestData": "暂无请求数据",
     "noResponseData": "暂无响应数据",
@@ -919,9 +925,52 @@
     "noDetailData": "暂无详情数据",
     "placeholder": {
       "searchName": "搜索操作名称",
+      "searchTrace": "搜索 Trace ID",
+      "searchToolCall": "搜索 Tool Call ID",
+      "searchDecision": "搜索执行决策 ID",
       "allTypes": "全部类型",
       "allStatuses": "全部状态",
       "allLevels": "全部等级"
+    }
+  },
+  "executionDecision": {
+    "title": "执行决策",
+    "name": "执行决策",
+    "pageDesc": "查看 AI 对话中的授权与确认决策记录。",
+    "detailTitle": "执行决策详情",
+    "id": "ID",
+    "createdAt": "创建时间",
+    "decisionType": "决策类型",
+    "status": "状态",
+    "subjectType": "主体类型",
+    "decisionScope": "决策范围",
+    "toolName": "工具名称",
+    "actionName": "动作名称",
+    "toolCallId": "Tool Call ID",
+    "riskLevel": "风险等级",
+    "conversationId": "对话",
+    "operatorId": "操作者",
+    "autoApproved": "是否自动批准",
+    "correlationKey": "关联键",
+    "reason": "原因",
+    "evidence": "证据",
+    "viewDetail": "查看详情",
+    "noDetailData": "暂无详情数据",
+    "typeOptions": {
+      "consent": "授权",
+      "confirmation": "确认"
+    },
+    "statusOptions": {
+      "approved": "已批准",
+      "rejected": "已拒绝",
+      "autoApproved": "自动批准",
+      "pending": "待处理",
+      "expired": "已过期"
+    },
+    "placeholder": {
+      "searchTool": "搜索工具名称",
+      "allTypes": "全部类型",
+      "allStatuses": "全部状态"
     }
   },
   "agentAssignments": {
@@ -1074,6 +1123,54 @@
       "resetDefaults": "重置为默认值",
       "secretConfigured": "已配置（点击清除）"
     }
+  },
+  "skillRegistry": {
+    "badge": "分发层试运行",
+    "title": "技能市场",
+    "pageDesc": "浏览可分发技能包，并按注册表来源安装到平台目录。安装完成后仍需显式 AgentSkillGrant 才会进入任何智能体运行时。",
+    "runtimeTruthHint": "市场安装只进入 SkillPackage + Skill 目录层，不会自动授予给任何智能体。",
+    "searchPlaceholder": "搜索技能包名称、描述或标签",
+    "sortDownloads": "按下载量",
+    "sortRating": "按评分",
+    "sortUpdated": "按更新时间",
+    "total": "注册表包数",
+    "installed": "已安装",
+    "rated": "有评分",
+    "version": "版本",
+    "downloads": "下载量",
+    "rating": "评分",
+    "install": "安装到平台",
+    "installSuccess": "已安装为 {name}",
+    "installConfirmTitle": "确认安装技能包",
+    "upgradeResultTitle": "批量升级结果",
+    "upgradeRequested": "请求升级",
+    "upgradeSucceeded": "升级成功",
+    "upgradeFailed": "升级失败",
+    "viewDetail": "查看详情",
+    "readme": "说明文档",
+    "noReadme": "暂无 README / Changelog",
+    "unknownAuthor": "未知作者",
+    "empty": "当前没有可用的技能市场包，请先配置 registry 源或提供本地 registry.json。",
+    "emptyDescription": "暂无描述"
+  },
+  "memoryDebug": {
+    "title": "记忆与临时资料调试",
+    "pageDesc": "查看长期记忆记录、画像快照与临时资料文档，便于核对 recall、scope 与 promotion 结果。",
+    "tabs": {
+      "records": "长期记忆记录",
+      "profiles": "画像快照",
+      "ephemeral": "临时资料文档"
+    },
+    "scopeType": "作用域",
+    "memoryType": "记忆类型",
+    "status": "状态",
+    "summary": "摘要",
+    "recordCount": "来源记录数",
+    "contentKind": "内容类型",
+    "promote": "提升为正式文档",
+    "promoteTitle": "提升临时资料",
+    "promoteSelectKb": "选择目标知识库",
+    "promoteSuccess": "已触发提升并进入正式知识库处理链"
   },
   "skill": {
     "title": "技能管理",

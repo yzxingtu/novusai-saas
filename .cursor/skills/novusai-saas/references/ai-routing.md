@@ -89,15 +89,14 @@ class RouteResult:
 
 **文件：** `backend/app/ai/routing/complexity_classifier.py`
 
-### 评分项
+### 评分项（结构信号，不依赖关键词）
 
 | 条件 | 加分 |
 |------|------|
 | 消息轮数 > 10 | +2 |
 | 消息轮数 > 20 | 额外 +1 |
 | 最新用户消息 > 500 字符 | +1 |
-| 含高复杂度关键词（分析/推理/代码/analyze/reasoning/code...） | +2 |
-| 含中复杂度关键词（综合/评估/数学/synthesize/evaluate/math...） | +1 |
+| 累计文本长度 > 3000 字符 | +1 |
 | 工具数量 > 5 | +1 |
 | 有图片附件 | 至少升为 MEDIUM |
 

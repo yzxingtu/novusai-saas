@@ -31,6 +31,9 @@ from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.core.logging import LogManager
 from app.core.response import build_public_error_text
+from app.enums.agent import ActionLevelEnum, ActionStatusEnum, ActionTypeEnum
+from app.middleware.trace import trace_id_var
+from app.services.ai.action_log_service import write_ai_action_log
 
 if TYPE_CHECKING:
     from app.ai.tools.types import ExecutionContext
@@ -163,7 +166,6 @@ class ToolkitExecutor(BaseToolExecutor):
         context: ExecutionContext | None = None,
     ) -> ToolResult:
         """Execute Toolkit method call / 执行 Toolkit 方法调用"""
-        _ = context
         start = time.perf_counter()
         method_name = definition.config.get("_toolkit_method", definition.name)
         toolkit_content = definition.config.get("_toolkit_content", "")
@@ -212,13 +214,24 @@ class ToolkitExecutor(BaseToolExecutor):
                 output = output[: self._max_output_size] + "\n... (truncated)"
 
             duration_ms = int((time.perf_counter() - start) * 1000)
-            return ToolResult(
+            result = ToolResult(
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=True,
                 output=output,
                 duration_ms=duration_ms,
             )
+            await self._audit_toolkit_action(
+                definition=definition,
+                context=context,
+                tool_call_id=tool_call_id,
+                method_name=method_name,
+                arguments=arguments,
+                status=ActionStatusEnum.SUCCESS.value,
+                duration_ms=duration_ms,
+                error_message=None,
+            )
+            return result
 
         except asyncio.TimeoutError:
             duration_ms = int((time.perf_counter() - start) * 1000)
@@ -226,13 +239,24 @@ class ToolkitExecutor(BaseToolExecutor):
                 "Toolkit execution timeout: {}.{} ({}s)",
                 definition.name, method_name, self._timeout,
             )
-            return ToolResult(
+            result = ToolResult(
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=False,
                 error=f"Execution timed out after {self._timeout}s",
                 duration_ms=duration_ms,
             )
+            await self._audit_toolkit_action(
+                definition=definition,
+                context=context,
+                tool_call_id=tool_call_id,
+                method_name=method_name,
+                arguments=arguments,
+                status=ActionStatusEnum.FAILED.value,
+                duration_ms=duration_ms,
+                error_message=result.error,
+            )
+            return result
 
         except TypeError as exc:
             # Argument mismatch / 参数不匹配
@@ -243,7 +267,7 @@ class ToolkitExecutor(BaseToolExecutor):
                 method_name,
                 str(exc),
             )
-            return ToolResult(
+            result = ToolResult(
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=False,
@@ -253,6 +277,17 @@ class ToolkitExecutor(BaseToolExecutor):
                 ),
                 duration_ms=duration_ms,
             )
+            await self._audit_toolkit_action(
+                definition=definition,
+                context=context,
+                tool_call_id=tool_call_id,
+                method_name=method_name,
+                arguments=arguments,
+                status=ActionStatusEnum.FAILED.value,
+                duration_ms=duration_ms,
+                error_message=result.error,
+            )
+            return result
 
         except Exception as exc:
             duration_ms = int((time.perf_counter() - start) * 1000)
@@ -263,7 +298,7 @@ class ToolkitExecutor(BaseToolExecutor):
                 str(exc),
                 exc_info=True,
             )
-            return ToolResult(
+            result = ToolResult(
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=False,
@@ -273,6 +308,59 @@ class ToolkitExecutor(BaseToolExecutor):
                 ),
                 duration_ms=duration_ms,
             )
+            await self._audit_toolkit_action(
+                definition=definition,
+                context=context,
+                tool_call_id=tool_call_id,
+                method_name=method_name,
+                arguments=arguments,
+                status=ActionStatusEnum.FAILED.value,
+                duration_ms=duration_ms,
+                error_message=result.error,
+            )
+            return result
+
+    async def _audit_toolkit_action(
+        self,
+        *,
+        definition: ToolDefinition,
+        context: ExecutionContext | None,
+        tool_call_id: str,
+        method_name: str,
+        arguments: dict[str, Any],
+        status: str,
+        duration_ms: int,
+        error_message: str | None,
+    ) -> None:
+        if not context or not context.db:
+            return
+        try:
+            await write_ai_action_log(
+                context.db,
+                tenant_id=context.tenant_id,
+                agent_id=context.agent_id,
+                operator_id=context.user_id,
+                operator_type=context.user_role,
+                conversation_id=context.conversation_id,
+                tool_call_id=tool_call_id,
+                skill_id=context.skill_id,
+                action_name=f"toolkit_{method_name}",
+                action_type=ActionTypeEnum.ACTION.value,
+                action_level=ActionLevelEnum.DANGEROUS.value,
+                request_data={
+                    "tool_name": definition.name,
+                    "trace_id": trace_id_var.get() or None,
+                    "method_name": method_name,
+                    "arguments": arguments,
+                    "trusted": bool(definition.config.get("_toolkit_trusted", False)),
+                },
+                response_data=None,
+                status=status,
+                error_message=error_message,
+                duration_ms=duration_ms,
+            )
+        except Exception as exc:
+            logger.warning("Failed to write toolkit audit log: {}", str(exc))
 
     async def _execute_in_subprocess(
         self,

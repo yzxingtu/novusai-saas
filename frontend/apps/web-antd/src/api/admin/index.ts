@@ -5,6 +5,8 @@
 export * from './ai';
 export * from './attachment';
 export * from './auth';
+
+export * from './long-term-memory';
 export * from './codegen';
 export * from './configs';
 export * from './menu';
@@ -14,7 +16,9 @@ export * from './periodic-task';
 export * from './permission';
 export * from './plan';
 export * from './recycle-bin';
+export * from './skill-registry';
 export * from './system-log';
 export * from './task-log';
 export * from './tenant';
 export * from './tenant-domain';
+export * from './users';

@@ -113,6 +113,67 @@ class AdminPluginController(GlobalController):
     service_class = PluginService
 
     def _register_routes(self):
+        async def _test_registry_connection(
+            *,
+            source_url: str,
+            default_url: str,
+            log_label: str,
+        ):
+            import ipaddress
+            import time as _time
+            from urllib.parse import urlparse
+
+            import httpx as _httpx
+
+            if not source_url:
+                source_url = default_url
+
+            _ALLOWED_SCHEMES = {"http", "https"}
+            _ALLOWED_HOSTS = {
+                "github.com", "raw.githubusercontent.com",
+                "api.github.com", "objects.githubusercontent.com",
+            }
+
+            parsed = urlparse(source_url)
+            if parsed.scheme not in _ALLOWED_SCHEMES:
+                from app.exceptions.base import ValidationException
+
+                raise ValidationException(message="Only http/https URLs are allowed")
+
+            hostname = (parsed.hostname or "").lower()
+            try:
+                ip = ipaddress.ip_address(hostname)
+                if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                    from app.exceptions.base import ValidationException
+
+                    raise ValidationException(message="Private/reserved IP addresses are not allowed")
+            except ValueError as exc:
+                if hostname not in _ALLOWED_HOSTS:
+                    from app.exceptions.base import ValidationException
+
+                    raise ValidationException(
+                        message=f"Host '{hostname}' is not in the allowed list. "
+                                f"Allowed: {', '.join(sorted(_ALLOWED_HOSTS))}",
+                    ) from exc
+
+            url = f"{source_url.rstrip('/')}/registry.json"
+            try:
+                start = _time.perf_counter()
+                async with _httpx.AsyncClient(timeout=5.0) as client:
+                    resp = await client.head(url)
+                latency_ms = int((_time.perf_counter() - start) * 1000)
+                return success(data={
+                    "ok": resp.status_code < 400,
+                    "status_code": resp.status_code,
+                    "latency_ms": latency_ms,
+                })
+            except Exception as exc:
+                logger.warning("{} connection test failed for {}: {}", log_label, source_url, exc)
+                return success(data={
+                    "ok": False,
+                    "error": "Connection failed. Please check the URL and try again.",
+                    "latency_ms": -1,
+                })
 
         # ── 依赖查询 / Dependency Query ──
 
@@ -267,60 +328,31 @@ class AdminPluginController(GlobalController):
             source_url: str = "",
         ):
             """测试市场镜像源连通性 / Test marketplace mirror source connectivity"""
-            import ipaddress
-            import time as _time
-            from urllib.parse import urlparse
+            _ = db, admin
+            from app.plugins.marketplace import _DEFAULT_GITHUB_URL
 
-            import httpx as _httpx
+            return await _test_registry_connection(
+                source_url=source_url,
+                default_url=_DEFAULT_GITHUB_URL,
+                log_label="Marketplace",
+            )
 
-            if not source_url:
-                from app.plugins.marketplace import _DEFAULT_GITHUB_URL
-                source_url = _DEFAULT_GITHUB_URL
+        @self.router.post("/skill-registry/test-connection")
+        @action_read("action.plugin.list")
+        async def skill_registry_test_connection(
+            db: DbSession,
+            admin: ActiveAdmin,
+            source_url: str = "",
+        ):
+            """测试技能市场镜像源连通性 / Test skill registry mirror source connectivity"""
+            _ = db, admin
+            from app.services.ai.skill_registry_service import _DEFAULT_GITHUB_URL as _SKILL_DEFAULT_GITHUB_URL
 
-            _ALLOWED_SCHEMES = {"http", "https"}
-            _ALLOWED_HOSTS = {
-                "github.com", "raw.githubusercontent.com",
-                "gitee.com", "raw.gitee.com",
-                "api.github.com", "objects.githubusercontent.com",
-            }
-
-            parsed = urlparse(source_url)
-            if parsed.scheme not in _ALLOWED_SCHEMES:
-                from app.exceptions.base import ValidationException
-                raise ValidationException(message="Only http/https URLs are allowed")
-
-            hostname = (parsed.hostname or "").lower()
-            try:
-                ip = ipaddress.ip_address(hostname)
-                if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
-                    from app.exceptions.base import ValidationException
-                    raise ValidationException(message="Private/reserved IP addresses are not allowed")
-            except ValueError as exc:
-                if hostname not in _ALLOWED_HOSTS:
-                    from app.exceptions.base import ValidationException
-                    raise ValidationException(
-                        message=f"Host '{hostname}' is not in the allowed list. "
-                                f"Allowed: {', '.join(sorted(_ALLOWED_HOSTS))}",
-                    ) from exc
-
-            url = f"{source_url.rstrip('/')}/registry.json"
-            try:
-                start = _time.perf_counter()
-                async with _httpx.AsyncClient(timeout=5.0) as client:
-                    resp = await client.head(url)
-                latency_ms = int((_time.perf_counter() - start) * 1000)
-                return success(data={
-                    "ok": resp.status_code < 400,
-                    "status_code": resp.status_code,
-                    "latency_ms": latency_ms,
-                })
-            except Exception as exc:
-                logger.warning("Marketplace connection test failed for {}: {}", source_url, exc)
-                return success(data={
-                    "ok": False,
-                    "error": "Connection failed. Please check the URL and try again.",
-                    "latency_ms": -1,
-                })
+            return await _test_registry_connection(
+                source_url=source_url,
+                default_url=_SKILL_DEFAULT_GITHUB_URL,
+                log_label="Skill registry",
+            )
 
         @self.router.get("/marketplace")
         @action_read("action.plugin.list")

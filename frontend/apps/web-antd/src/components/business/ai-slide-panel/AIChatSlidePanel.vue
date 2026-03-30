@@ -192,6 +192,7 @@ const {
   loadConversationMessages,
   chatMessages,
   inputMessage,
+  ephemeralRagItems,
   mentionOpen,
   mentionCandidates,
   mentionActiveIndex,
@@ -209,6 +210,8 @@ const {
   handleInputKeyDown,
   selectMentionKnowledgeBase,
   removeSelectedKnowledgeBase,
+  addEphemeralRagItem,
+  removeEphemeralRagItem,
   selectedKBIds,
   cleanup,
   pendingAttachments,
@@ -369,7 +372,7 @@ const {
   clearPendingRichTextTask: aiPanelStore.clearPendingRichTextTask,
   clearResolvedPageOps: () => aiPanelStore.clearResolvedPageOps?.(),
   chatMessages,
-  consumePendingAgentId: () => aiPanelStore.consumePendingAgentId(),
+  consumePendingAgentId: () => aiPanelStore.consumePendingAgentId() ?? null,
   ensureAgentVarsLoaded,
   forceRerouteNextTurn,
   handleSendMessage,
@@ -799,29 +802,6 @@ function onStartNewChat() {
   showMemoryPanel.value = false;
 }
 
-function onStartNewChatWithAgent(agentId: number) {
-  const targetAgent = agents.value.find((agent) => agent.id === agentId);
-  if (!targetAgent) return;
-
-  if (aiPanelStore.pinnedAgentId && aiPanelStore.pinnedAgentId !== agentId) {
-    aiPanelStore.unpinAgent();
-  }
-
-  selectedAgentId.value = agentId;
-  manualNewConversationAgentId.value = agentId;
-  forceRerouteNextTurn.value = false;
-  aiPanelStore.clearResolvedPageOps?.();
-  startNewConversation(true);
-  showHistory.value = false;
-  showMemoryPanel.value = false;
-  conversationSearch.value = '';
-  showRouteNotice(
-    $t('common.globalAiChat.newConversationWithAgent', {
-      agent: targetAgent.name,
-    }),
-  );
-}
-
 // ============ Panel Controls / 面板控制 ============
 
 const panelRef = ref<HTMLElement | null>(null);
@@ -1006,6 +986,25 @@ const composerSelectedKnowledgeBases = computed(() =>
       agentKBBindings.value.find(
         (binding) => binding.knowledge_base_id === knowledgeBaseId,
       )?.kb_name || `KB#${knowledgeBaseId}`,
+  })),
+);
+
+const composerEphemeralSources = computed(() =>
+  ephemeralRagItems.value.map((item, index) => ({
+    key: `${item.kind}-${index}-${item.source_ref || item.title || item.content.slice(0, 24)}`,
+    kind: (
+      item.kind === 'url' ? 'url' : item.kind === 'html' ? 'html' : 'text'
+    ) as 'html' | 'text' | 'url',
+    scope: item.scope,
+    preview:
+      item.kind === 'url'
+        ? item.content
+        : item.content.replace(/\s+/g, ' ').slice(0, 60),
+    title:
+      item.title ||
+      (item.kind === 'url'
+        ? item.content
+        : item.content.replace(/\s+/g, ' ').slice(0, 32)),
   })),
 );
 
@@ -1526,6 +1525,7 @@ onUnmounted(() => {
             :attachment-accept="chatAcceptAttribute"
             :attachments="composerAttachments"
             :attachment-limit-hint="composerAttachmentLimitHint"
+            :ephemeral-sources="composerEphemeralSources"
             :show-screenshot-button="props.showAttachments && supportsVision"
             :screenshot-disabled="agents.length === 0 || sending || capturing"
             :screenshot-loading="capturing"
@@ -1545,14 +1545,17 @@ onUnmounted(() => {
             :show-trust-session="chatMessages.length > 0"
             :trust-session="trustSession"
             :shift-enter-hint="$t('common.globalAiChat.shiftEnterHint')"
+            :show-ephemeral-button="true"
             @update:model-value="inputMessage = $event"
             @update:trust-session="trustSession = $event"
+            @add-ephemeral-source="addEphemeralRagItem"
             @dragover="handleDragOver"
             @drop="handleDrop"
             @file-select="handleFileSelect"
             @keydown="handleKeyDown"
             @paste="handlePaste"
             @capture-screenshot="handleScreenshot"
+            @remove-ephemeral-source="removeEphemeralRagItem"
             @remove-attachment="removePendingAttachment"
             @remove-selected-knowledge-base="removeSelectedKnowledgeBase"
             @select-mention-candidate="onComposerSelectMentionCandidate"

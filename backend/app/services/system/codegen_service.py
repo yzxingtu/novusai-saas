@@ -176,6 +176,26 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         return resolved, zip_path.replace("\\", "/")
 
     @staticmethod
+    def _lint_migration_file(backend_dir: Path, migration_path: Path) -> list:
+        """Run migration lint on a single file via dynamic import.
+
+        Returns a list of warning objects (empty = clean).
+        """
+        import importlib.util
+
+        lint_script = backend_dir / "scripts" / "lint_migrations.py"
+        if not lint_script.exists():
+            return []
+        spec = importlib.util.spec_from_file_location(
+            "lint_migrations", str(lint_script)
+        )
+        if spec is None or spec.loader is None:
+            return []
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod.lint_file(migration_path)
+
+    @staticmethod
     def _table_exists(table_name: str) -> bool:
         """检查表是否已存在 / Check whether table exists."""
         if not table_name:
@@ -993,6 +1013,18 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
                             f"expected schema changes for table {expected_table!r}."
                         ),
                         "phase": "validation",
+                        "migration_path": migration_path,
+                    }
+
+                lint_warnings = CodegenService._lint_migration_file(
+                    backend_dir, _mp
+                )
+                if lint_warnings:
+                    warning_text = "\n".join(str(w) for w in lint_warnings)
+                    return {
+                        "success": False,
+                        "error": f"Migration lint failed:\n{warning_text}",
+                        "phase": "lint",
                         "migration_path": migration_path,
                     }
 

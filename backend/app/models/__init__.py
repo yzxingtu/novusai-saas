@@ -24,6 +24,9 @@ from app.models.ai import (
     AIActionLog,
     AICallLog,
     AIModel,
+    EphemeralDocument,
+    MemoryRecord,
+    ProfileSnapshot,
     AIProvider,
     AIQueryLog,
     AITablePolicy,
@@ -32,6 +35,8 @@ from app.models.ai import (
     Capability,
     ConversationMessage,
     DocumentChunk,
+    ExecutionDecision,
+    ExecutionTrustPolicy,
     KnowledgeBase,
     KnowledgeDocument,
     ProviderApiKey,
@@ -143,6 +148,9 @@ __all__ = [
     # AI / 模型与用量等 AI 基础表
     "AIProvider",
     "AIModel",
+    "EphemeralDocument",
+    "MemoryRecord",
+    "ProfileSnapshot",
     "ProviderApiKey",
     "AICallLog",
     "TenantModelRateLimit",
@@ -151,6 +159,8 @@ __all__ = [
     "Agent",
     "AgentConversation",
     "ConversationMessage",
+    "ExecutionDecision",
+    "ExecutionTrustPolicy",
     # 批量运行 / Batch run
     "BatchRun",
     # 智能体版本 / Agent versions

@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.plugins.marketplace import MarketplaceClient
+from app.plugins.exceptions import PluginError
 from app.plugins.package_security import validate_plugin_zip_archive
 
 
@@ -74,6 +75,34 @@ async def test_fetch_plugin_detail_returns_none_when_not_found(monkeypatch: pyte
 
     detail = await client.fetch_plugin_detail("example-weather")
     assert detail is None
+
+
+@pytest.mark.asyncio
+async def test_download_plugin_rejects_non_github_download_url():
+    client = MarketplaceClient(db=None)
+    client.fetch_plugin_detail = AsyncMock(  # type: ignore[method-assign]
+        return_value={
+            "slug": "example-weather",
+            "download_url": "https://evil.example/download.zip",
+        }
+    )
+
+    with pytest.raises(PluginError, match="hosted on GitHub"):
+        await client.download_plugin("example-weather", "1.0.0")
+
+
+@pytest.mark.asyncio
+async def test_download_plugin_rejects_non_github_repository_fallback():
+    client = MarketplaceClient(db=None)
+    client.fetch_plugin_detail = AsyncMock(  # type: ignore[method-assign]
+        return_value={
+            "slug": "example-weather",
+            "repository_url": "https://gitee.com/example/weather",
+        }
+    )
+
+    with pytest.raises(PluginError, match="No download URL available"):
+        await client.download_plugin("example-weather", "1.0.0")
 
 
 def test_build_debug_stub_package_creates_valid_zip(tmp_path):

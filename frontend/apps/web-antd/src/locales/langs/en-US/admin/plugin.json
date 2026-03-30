@@ -26,7 +26,7 @@
   "readme": "Documentation",
   "create": "Install Plugin",
   "upload": "Upload & Install",
-  "marketplaceBtn": "Marketplace",
+  "marketplaceBtn": "Plugin & Skill Marketplace",
   "allTypes": "All Types",
   "pluginType": "Plugin Type",
   "type_options": {
@@ -175,6 +175,10 @@
   },
   "marketplace": {
     "title": "Plugin Marketplace",
+    "combinedTitle": "Plugin & Skill Marketplace",
+    "tabPlugins": "Plugins",
+    "tabSkills": "Skills",
+    "skillSubtitle": "Browse distributable skill packages and install them explicitly into the SkillPackage + Skill catalog layer.",
     "searchPlaceholder": "Search plugins...",
     "sortDownloads": "By Downloads",
     "sortRating": "By Rating",
@@ -187,9 +191,8 @@
     "viewDetail": "View Details",
     "buyNow": "Buy",
     "settings": "Marketplace Settings",
+    "skillRegistrySettings": "Skill Registry Settings",
     "mirrorSource": "Mirror Source",
-    "sourceAuto": "Auto Select",
-    "sourceAutoDesc": "Auto ping and select the faster source",
     "cacheTtl": "Cache TTL",
     "testConnection": "Test Connection",
     "category": {

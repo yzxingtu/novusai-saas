@@ -29,8 +29,10 @@ from app.core.security import (
     TOKEN_SCOPE_TENANT_ADMIN,
     TOKEN_SCOPE_TENANT_USER,
     TOKEN_TYPE_ACCESS,
+    TokenExpiredError,
     verify_token_with_scope,
 )
+from app.exceptions.base import TokenExpiredException
 from app.models import Admin, TenantAdmin, TenantUser
 
 # ========================================
@@ -98,10 +100,13 @@ async def get_current_admin(
     if token is None:
         raise credentials_exception
 
-    # 验证 Token 并检查 scope / Verify token and check scope
-    user_id, scope = await verify_token_with_scope(
-        token, TOKEN_SCOPE_ADMIN, TOKEN_TYPE_ACCESS
-    )
+    try:
+        user_id, scope = await verify_token_with_scope(
+            token, TOKEN_SCOPE_ADMIN, TOKEN_TYPE_ACCESS, raise_on_expired=True
+        )
+    except TokenExpiredError as exc:
+        raise TokenExpiredException() from exc
+
     if user_id is None:
         raise credentials_exception
 
@@ -167,10 +172,13 @@ async def get_current_tenant_admin(
     if token is None:
         raise credentials_exception
 
-    # 验证 Token 并检查 scope / Verify token and check scope
-    user_id, scope = await verify_token_with_scope(
-        token, TOKEN_SCOPE_TENANT_ADMIN, TOKEN_TYPE_ACCESS
-    )
+    try:
+        user_id, scope = await verify_token_with_scope(
+            token, TOKEN_SCOPE_TENANT_ADMIN, TOKEN_TYPE_ACCESS, raise_on_expired=True
+        )
+    except TokenExpiredError as exc:
+        raise TokenExpiredException() from exc
+
     if user_id is None:
         raise credentials_exception
 
@@ -236,10 +244,13 @@ async def get_current_tenant_user(
     if token is None:
         raise credentials_exception
 
-    # 验证 Token 并检查 scope / Verify token and check scope
-    user_id, scope = await verify_token_with_scope(
-        token, TOKEN_SCOPE_TENANT_USER, TOKEN_TYPE_ACCESS
-    )
+    try:
+        user_id, scope = await verify_token_with_scope(
+            token, TOKEN_SCOPE_TENANT_USER, TOKEN_TYPE_ACCESS, raise_on_expired=True
+        )
+    except TokenExpiredError as exc:
+        raise TokenExpiredException() from exc
+
     if user_id is None:
         raise credentials_exception
 

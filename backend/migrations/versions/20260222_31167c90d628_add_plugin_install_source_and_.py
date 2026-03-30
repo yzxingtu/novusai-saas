@@ -26,8 +26,8 @@ def upgrade() -> None:
     # ### end Alembic commands ###
 
     # Data migration: set defaults for existing plugins
-    op.execute("UPDATE plugins SET install_source = 'builtin' WHERE is_system = true AND install_source IS NULL")
-    op.execute("UPDATE plugins SET install_source = 'local' WHERE is_system = false AND install_source IS NULL")
+    op.execute(sa.text("UPDATE plugins SET install_source = 'builtin' WHERE is_system = true AND install_source IS NULL"))
+    op.execute(sa.text("UPDATE plugins SET install_source = 'local' WHERE is_system = false AND install_source IS NULL"))
 
 
 def downgrade() -> None:

@@ -42,7 +42,7 @@ onMounted(async () => {
     const res = await getTenantLegalDocumentApi(kind.value);
     const legalHtml = res?.html?.trim();
     if (legalHtml) {
-      html.value = res.html;
+      html.value = legalHtml;
     } else {
       notFound.value = true;
       html.value = '';

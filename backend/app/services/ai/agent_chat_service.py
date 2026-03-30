@@ -26,6 +26,7 @@ from app.ai.constants import (
     MEMORY_CHANNEL_SYSTEM,
 )
 from app.ai.engine.base import BaseEngine
+from app.ai.context.long_term_memory import get_long_term_memory_provider
 from app.ai.engine.conversation import ConversationEngine
 from app.ai.engine.dispatcher import ExecutionDispatcher
 from app.ai.engine.types import ExecutionRequest, ExecutionResult
@@ -50,6 +51,12 @@ from app.exceptions import BusinessException, NotFoundException
 from app.repositories.ai.agent_repository import AgentRepository
 from app.schemas.ai.agent_chat import AgentChatResponse, PageContext
 from app.services.ai.conversation_service import ConversationService
+from app.services.ai.execution_trust_policy_service import (
+    ExecutionTrustPolicyService,
+)
+from app.services.ai.long_term_memory_service import (
+    build_memory_capture_payload_from_session_delta,
+)
 from app.services.ai.session_memory_service import SessionMemoryService
 
 if TYPE_CHECKING:
@@ -343,15 +350,12 @@ class AgentChatService:
             )
             return ""
 
+        _MEMORY_SECTION_KEYS = ("constraints", "preferences", "task_states", "verified_facts")
         parts: list[str] = []
-        if state.get("constraints"):
-            parts.append("Constraints: " + " | ".join(state["constraints"][:6]))
-        if state.get("preferences"):
-            parts.append("Preferences: " + " | ".join(state["preferences"][:6]))
-        if state.get("task_states"):
-            parts.append("Task States: " + " | ".join(state["task_states"][:6]))
-        if state.get("verified_facts"):
-            parts.append("Verified Facts: " + " | ".join(state["verified_facts"][:6]))
+        for key in _MEMORY_SECTION_KEYS:
+            items = state.get(key)
+            if items:
+                parts.append(f"{key}: " + " | ".join(items[:6]))
 
         if not parts:
             logger.info(
@@ -405,6 +409,30 @@ class AgentChatService:
             delta=delta,
             metadata={"scene": request.memory_scene},
         )
+        if request.long_term_memory_enabled and request.user_id:
+            try:
+                payload = build_memory_capture_payload_from_session_delta(delta)
+                if any(payload.values()):
+                    provider = get_long_term_memory_provider(
+                        db=self.db,
+                        tenant_id=self.tenant_id,
+                    )
+                    await provider.capture(
+                        agent_id=request.agent_id,
+                        user_id=request.user_id,
+                        source_kind="conversation_turn",
+                        source_ref=f"conversation:{request.conversation_id}:{event_id}",
+                        items_by_type=payload,
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "Long-term memory capture degraded: tenant={} agent={} user={} conversation={} err={}",
+                    self.tenant_id,
+                    request.agent_id,
+                    request.user_id,
+                    request.conversation_id,
+                    str(exc),
+                )
         return delta
 
     @staticmethod
@@ -488,6 +516,72 @@ class AgentChatService:
             )
             return False
 
+    async def _resolve_runtime_trust_policy_ref(
+        self,
+        *,
+        conversation_id: int | None,
+        agent_id: int,
+        operator_id: int | None,
+        operator_type: str | None,
+        explicit_ref: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        """Resolve backend trust policy reference with fail-safe degradation / 解析后端 trust policy 引用，失败时静默降级。"""
+        if explicit_ref:
+            return explicit_ref
+        try:
+            return await ExecutionTrustPolicyService(
+                self.db,
+                self.tenant_id,
+            ).resolve_runtime_policy(
+                conversation_id=conversation_id,
+                agent_id=agent_id,
+                operator_id=operator_id,
+                operator_type=operator_type,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Resolve execution trust policy degraded: tenant={} agent={} conversation={} operator={} type={} err={}",
+                self.tenant_id,
+                agent_id,
+                conversation_id,
+                operator_id,
+                operator_type,
+                str(exc),
+            )
+            return None
+
+    async def _grant_trust_session_policies(
+        self,
+        *,
+        conversation_id: int,
+        agent_id: int,
+        operator_id: int | None,
+        operator_type: str | None,
+        interaction_updates: list[dict[str, Any]] | None,
+        trust_session: bool,
+    ) -> None:
+        if not trust_session or not interaction_updates:
+            return
+
+        service = ExecutionTrustPolicyService(self.db, self.tenant_id)
+        for update in interaction_updates:
+            if str(update.get("kind") or "") != "pending_consent":
+                continue
+            if bool(update.get("rejected")):
+                continue
+            tool_name = str(update.get("tool_name") or "").strip()
+            if not tool_name:
+                continue
+            await service.grant_conversation_tool_trust(
+                conversation_id=conversation_id,
+                agent_id=agent_id,
+                operator_id=operator_id,
+                operator_type=operator_type,
+                tool_name=tool_name,
+                granted_by=operator_id,
+                grant_reason="trust_session",
+            )
+
     # ========================================
     # 非流式对话 / Non-streaming chat
     # ========================================
@@ -512,6 +606,9 @@ class AgentChatService:
         page_session_id: str | None = None,
         route_source: str | None = None,
         interaction_updates: list[dict[str, Any]] | None = None,
+        ephemeral_rag_items: list[dict[str, Any]] | None = None,
+        trust_policy_ref: dict[str, Any] | None = None,
+        trust_session: bool = False,
     ) -> AgentChatResponse:
         """
         非流式对话 / Non-streaming chat.
@@ -561,6 +658,14 @@ class AgentChatService:
                 user_id=user_id,
                 owner_type=conversation_owner_type,
             )
+            await self._grant_trust_session_policies(
+                conversation_id=conversation.id,
+                agent_id=agent_id,
+                operator_id=user_id,
+                operator_type=conversation_owner_type,
+                interaction_updates=interaction_updates,
+                trust_session=trust_session,
+            )
         memory_event_id = self._build_memory_event_id(conversation.id)
 
         # 1.5 新对话时递增每日对话计数（用于 conversations_per_day 配额）/ Increment daily conversation count for new convos
@@ -580,11 +685,15 @@ class AgentChatService:
         )
 
         # 3. 追加新用户消息（含附件）/ Append new user message (with attachments)
-        user_msg = ChatMessage(
-            role="user", content=message,
-            attachments=[a if isinstance(a, dict) else a.model_dump() for a in attachments] if attachments else None,
-        )
-        all_messages = [*history_messages, user_msg]
+        attach_list = [a if isinstance(a, dict) else a.model_dump() for a in attachments] if attachments else None
+        if message.strip() or attach_list:
+            user_msg = ChatMessage(
+                role="user", content=message,
+                attachments=attach_list,
+            )
+            all_messages = [*history_messages, user_msg]
+        else:
+            all_messages = list(history_messages)
 
         # 3.5 BEFORE_AGENT_CHAT 钩子（插件可修改 messages/注入 system prompt/阻止对话）/ BEFORE_AGENT_CHAT hook
         hook_registry = get_hook_registry()
@@ -605,6 +714,13 @@ class AgentChatService:
             memory_scene=memory_scene,
             memory_channel=memory_channel,
             memory_source=memory_source,
+        )
+        resolved_trust_policy_ref = await self._resolve_runtime_trust_policy_ref(
+            conversation_id=conversation.id,
+            agent_id=agent_id,
+            operator_id=user_id,
+            operator_type=conversation_owner_type,
+            explicit_ref=trust_policy_ref,
         )
         memory_enabled = await self._resolve_effective_memory_enabled(
             agent_id=agent_id,
@@ -634,7 +750,11 @@ class AgentChatService:
             memory_channel=normalized_channel,
             memory_source=normalized_source,
             memory_enabled=memory_enabled,
+            long_term_memory_enabled=bool(ctx_cfg.get("long_term_memory_enabled", False)),
+            trust_policy_ref=resolved_trust_policy_ref,
             page_session_id=page_session_id,
+            ephemeral_rag_refs=ephemeral_rag_items or [],
+            interaction_updates=interaction_updates,
             knowledge_base_feedback=(
                 {
                     "dropped_knowledge_base_ids": dropped_knowledge_base_ids,
@@ -735,6 +855,13 @@ class AgentChatService:
             duration_ms,
         )
 
+        prune_stats = result.prune_stats if isinstance(result.prune_stats, dict) else None
+        rag_source_kinds = (
+            result.rag_source_kinds
+            if isinstance(result.rag_source_kinds, list)
+            else []
+        )
+
         return AgentChatResponse(
             conversation_id=conversation.id,
             message=result.output,
@@ -743,6 +870,18 @@ class AgentChatService:
             duration_ms=duration_ms,
             effective_knowledge_base_ids=knowledge_base_ids,
             dropped_knowledge_base_ids=dropped_knowledge_base_ids or None,
+            context_compacted=(
+                result.context_compacted
+                if isinstance(result.context_compacted, bool)
+                else False
+            ),
+            memory_recalled=(
+                result.memory_recalled
+                if isinstance(result.memory_recalled, bool)
+                else False
+            ),
+            prune_stats=prune_stats,
+            rag_source_kinds=rag_source_kinds,
         )
 
     # ========================================
@@ -771,6 +910,9 @@ class AgentChatService:
         page_session_id: str | None = None,
         route_source: str | None = None,
         interaction_updates: list[dict[str, Any]] | None = None,
+        ephemeral_rag_items: list[dict[str, Any]] | None = None,
+        trust_policy_ref: dict[str, Any] | None = None,
+        trust_session: bool = False,
     ) -> StreamingResponse:
         """
         流式对话（返回 StreamingResponse）/ Streaming chat (returns StreamingResponse).
@@ -818,6 +960,14 @@ class AgentChatService:
                 user_id=user_id,
                 owner_type=conversation_owner_type,
             )
+            await self._grant_trust_session_policies(
+                conversation_id=conversation.id,
+                agent_id=agent_id,
+                operator_id=user_id,
+                operator_type=conversation_owner_type,
+                interaction_updates=interaction_updates,
+                trust_session=trust_session,
+            )
         memory_event_id = self._build_memory_event_id(conversation.id)
 
         # 1.5 新对话时递增每日对话计数 / 1.5 Increment daily conversation count on new chat
@@ -846,10 +996,12 @@ class AgentChatService:
                 ChatMessage(role="user", content=m, attachments=attach_list if i == 0 else None)
                 for i, m in enumerate(batch)
             ]
-        else:
+        elif message.strip() or attach_list:
             user_msgs = [
                 ChatMessage(role="user", content=message, attachments=attach_list),
             ]
+        else:
+            user_msgs = []
         all_messages = [*history_messages, *user_msgs]
 
         # 3.5 BEFORE_AGENT_CHAT 钩子（插件可修改 messages/注入 system prompt/阻止对话）/ BEFORE_AGENT_CHAT hook
@@ -871,6 +1023,13 @@ class AgentChatService:
             memory_scene=memory_scene,
             memory_channel=memory_channel,
             memory_source=memory_source,
+        )
+        resolved_trust_policy_ref = await self._resolve_runtime_trust_policy_ref(
+            conversation_id=conversation.id,
+            agent_id=agent_id,
+            operator_id=user_id,
+            operator_type=conversation_owner_type,
+            explicit_ref=trust_policy_ref,
         )
         memory_enabled = await self._resolve_effective_memory_enabled(
             agent_id=agent_id,
@@ -901,7 +1060,11 @@ class AgentChatService:
             memory_channel=normalized_channel,
             memory_source=normalized_source,
             memory_enabled=memory_enabled,
+            long_term_memory_enabled=bool(ctx_cfg.get("long_term_memory_enabled", False)),
+            trust_policy_ref=resolved_trust_policy_ref,
             page_session_id=page_session_id,
+            ephemeral_rag_refs=ephemeral_rag_items or [],
+            interaction_updates=interaction_updates,
             knowledge_base_feedback=(
                 {
                     "dropped_knowledge_base_ids": dropped_knowledge_base_ids,
@@ -1056,6 +1219,7 @@ class AgentChatService:
                 toolkit_memory_limit_mb=int(_toolkit_memory_limit_mb),
                 input_variables=variables or {},
                 page_session_id=page_session_id,
+                trust_policy_ref=resolved_trust_policy_ref,
             )
             engine = ConversationEngine(
                 db=self.db,
@@ -1246,6 +1410,7 @@ class AgentChatService:
         user_role: str = UserRoleEnum.TENANT_ADMIN.value,
         user_role_id: int | None = None,
         permissions: set[str] | None = None,
+        ephemeral_rag_items: list[dict[str, Any]] | None = None,
     ) -> StreamingResponse:
         """
         轻量级流式调用（无对话记录，无消息持久化）/ Lightweight streaming (no conversation/message persistence).
@@ -1289,6 +1454,8 @@ class AgentChatService:
             memory_channel=MEMORY_CHANNEL_SYSTEM,
             memory_source="system.ai_writing",
             memory_enabled=False,
+            long_term_memory_enabled=False,
+            ephemeral_rag_refs=ephemeral_rag_items or [],
             knowledge_base_feedback=(
                 {
                     "dropped_knowledge_base_ids": dropped_knowledge_base_ids,

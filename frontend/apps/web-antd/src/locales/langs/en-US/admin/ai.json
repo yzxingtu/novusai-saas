@@ -623,7 +623,9 @@
     "contextConfig": {
       "title": "Chat History Context",
       "maxHistoryMessages": "History Messages Sent as Context",
-      "maxHistoryTokens": "History Token Budget Sent as Context"
+      "maxHistoryTokens": "History Token Budget Sent as Context",
+      "longTermMemoryEnabled": "Long-term memory (cross-session)",
+      "longTermMemoryHint": "When enabled, durable insights are captured into MemoryRecord and recalled progressively; requires session memory to be on for the same agent."
     },
     "skillPackageBindings": "Skill Package Bindings",
     "consentMode": "Tool Consent Mode",
@@ -879,6 +881,9 @@
     "status": "Status",
     "tenantId": "Tenant ID",
     "tenantInfo": "Tenant",
+    "traceId": "Trace ID",
+    "toolCallId": "Tool Call ID",
+    "executionDecisionId": "Execution Decision ID",
     "platformTenant": "Admin Console",
     "agentName": "Agent",
     "agentUnavailable": "Not recorded in historical log",
@@ -911,6 +916,7 @@
     "requestData": "Request Data",
     "responseData": "Response Data",
     "copyPayload": "Copy",
+    "linkedDecision": "Linked Execution Decision",
     "fieldsCount": "{count} fields",
     "noRequestData": "No request payload",
     "noResponseData": "No response payload",
@@ -918,9 +924,52 @@
     "noDetailData": "No detail data available",
     "placeholder": {
       "searchName": "Search action name",
+      "searchTrace": "Search trace ID",
+      "searchToolCall": "Search tool call ID",
+      "searchDecision": "Search execution decision ID",
       "allTypes": "All Types",
       "allStatuses": "All Statuses",
       "allLevels": "All Levels"
+    }
+  },
+  "executionDecision": {
+    "title": "Execution Decisions",
+    "name": "Execution Decisions",
+    "pageDesc": "Inspect consent and confirmation decisions resolved during AI conversations.",
+    "detailTitle": "Execution Decision Detail",
+    "id": "ID",
+    "createdAt": "Created At",
+    "decisionType": "Decision Type",
+    "status": "Status",
+    "subjectType": "Subject Type",
+    "decisionScope": "Decision Scope",
+    "toolName": "Tool Name",
+    "actionName": "Action Name",
+    "toolCallId": "Tool Call ID",
+    "riskLevel": "Risk Level",
+    "conversationId": "Conversation",
+    "operatorId": "Operator",
+    "autoApproved": "Auto Approved",
+    "correlationKey": "Correlation Key",
+    "reason": "Reason",
+    "evidence": "Evidence",
+    "viewDetail": "View Detail",
+    "noDetailData": "No detail data available",
+    "typeOptions": {
+      "consent": "Consent",
+      "confirmation": "Confirmation"
+    },
+    "statusOptions": {
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "autoApproved": "Auto Approved",
+      "pending": "Pending",
+      "expired": "Expired"
+    },
+    "placeholder": {
+      "searchTool": "Search tool name",
+      "allTypes": "All Types",
+      "allStatuses": "All Statuses"
     }
   },
   "agentAssignments": {
@@ -1073,6 +1122,54 @@
       "resetDefaults": "Reset to Defaults",
       "secretConfigured": "Configured (click to clear)"
     }
+  },
+  "skillRegistry": {
+    "badge": "Distribution Layer Beta",
+    "title": "Skill Registry",
+    "pageDesc": "Browse distributable skill packages and install them into the platform catalog from registry sources. Installed packages still require explicit AgentSkillGrant before they can enter any agent runtime.",
+    "runtimeTruthHint": "Registry install only lands in the SkillPackage + Skill catalog layer. No agent receives runtime access automatically.",
+    "searchPlaceholder": "Search by package name, description, or tag",
+    "sortDownloads": "Sort by downloads",
+    "sortRating": "Sort by rating",
+    "sortUpdated": "Sort by updated time",
+    "total": "Registry packages",
+    "installed": "Installed",
+    "rated": "Rated",
+    "version": "Version",
+    "downloads": "Downloads",
+    "rating": "Rating",
+    "install": "Install",
+    "installSuccess": "Installed as {name}",
+    "installConfirmTitle": "Confirm skill package install",
+    "upgradeResultTitle": "Batch upgrade result",
+    "upgradeRequested": "Requested",
+    "upgradeSucceeded": "Succeeded",
+    "upgradeFailed": "Failed",
+    "viewDetail": "View detail",
+    "readme": "README",
+    "noReadme": "No README / changelog available",
+    "unknownAuthor": "Unknown author",
+    "empty": "No registry packages are available yet. Configure a registry source or provide a local registry.json fallback first.",
+    "emptyDescription": "No description"
+  },
+  "memoryDebug": {
+    "title": "Memory & Ephemeral Debug",
+    "pageDesc": "Inspect long-term memory records, profile snapshots, and ephemeral documents to verify recall, scope, and promotion behavior.",
+    "tabs": {
+      "records": "Memory Records",
+      "profiles": "Profile Snapshots",
+      "ephemeral": "Ephemeral Docs"
+    },
+    "scopeType": "Scope",
+    "memoryType": "Memory Type",
+    "status": "Status",
+    "summary": "Summary",
+    "recordCount": "Source Records",
+    "contentKind": "Content Kind",
+    "promote": "Promote",
+    "promoteTitle": "Promote Ephemeral Document",
+    "promoteSelectKb": "Select target knowledge base",
+    "promoteSuccess": "Promotion queued into the formal knowledge base pipeline"
   },
   "skill": {
     "title": "Skill Management",

@@ -61,105 +61,106 @@ def upgrade() -> None:
     op.create_index("ix_skill_packages_bind_mode", "skill_packages", ["bind_mode"])
 
     # Set system packages to auto bind
-    op.execute("UPDATE skill_packages SET bind_mode = 'auto' WHERE is_system = true")
+    op.execute(sa.text("UPDATE skill_packages SET bind_mode = 'auto' WHERE is_system = true"))
 
     # ── 2. Migrate plugin_tenant_assignments data to new table ──
-    op.execute("""
+    op.execute(sa.text("""
         INSERT INTO resource_tenant_assignments (resource_type, resource_id, tenant_id, is_active, config, created_at, updated_at, is_deleted)
         SELECT 'plugin', plugin_id, tenant_id, is_active, config, created_at, updated_at, is_deleted
         FROM plugin_tenant_assignments
-    """)
+        ON CONFLICT (resource_type, resource_id, tenant_id) DO NOTHING
+    """))
 
     # ── 3. Batch UPDATE old scope values ──
     # agents: admin→admin_only, tenant→all_tenants, global→global_shared
-    op.execute("UPDATE agents SET scope = 'admin_only' WHERE scope = 'admin'")
-    op.execute("UPDATE agents SET scope = 'all_tenants' WHERE scope = 'tenant'")
-    op.execute("UPDATE agents SET scope = 'global_shared' WHERE scope = 'global'")
+    op.execute(sa.text("UPDATE agents SET scope = 'admin_only' WHERE scope = 'admin'"))
+    op.execute(sa.text("UPDATE agents SET scope = 'all_tenants' WHERE scope = 'tenant'"))
+    op.execute(sa.text("UPDATE agents SET scope = 'global_shared' WHERE scope = 'global'"))
 
     # skill_packages: same mapping
-    op.execute("UPDATE skill_packages SET scope = 'admin_only' WHERE scope = 'admin'")
-    op.execute("UPDATE skill_packages SET scope = 'all_tenants' WHERE scope = 'tenant'")
-    op.execute("UPDATE skill_packages SET scope = 'global_shared' WHERE scope = 'global'")
+    op.execute(sa.text("UPDATE skill_packages SET scope = 'admin_only' WHERE scope = 'admin'"))
+    op.execute(sa.text("UPDATE skill_packages SET scope = 'all_tenants' WHERE scope = 'tenant'"))
+    op.execute(sa.text("UPDATE skill_packages SET scope = 'global_shared' WHERE scope = 'global'"))
 
     # knowledge_bases: same mapping
-    op.execute("UPDATE knowledge_bases SET scope = 'admin_only' WHERE scope = 'admin'")
-    op.execute("UPDATE knowledge_bases SET scope = 'all_tenants' WHERE scope = 'tenant'")
-    op.execute("UPDATE knowledge_bases SET scope = 'global_shared' WHERE scope = 'global'")
+    op.execute(sa.text("UPDATE knowledge_bases SET scope = 'admin_only' WHERE scope = 'admin'"))
+    op.execute(sa.text("UPDATE knowledge_bases SET scope = 'all_tenants' WHERE scope = 'tenant'"))
+    op.execute(sa.text("UPDATE knowledge_bases SET scope = 'global_shared' WHERE scope = 'global'"))
 
     # permissions: admin→admin_only, tenant→all_tenants, both→global_shared
     # NOTE: RBAC permission sync at app startup already creates rows with new scope values.
     # Only UPDATE rows where the new-scope equivalent doesn't exist yet (avoid unique constraint).
     # Stale old-scope rows (disabled by sync) are left as-is — they have FK children and
     # will be cleaned up naturally when the sync re-parents them on next full sync.
-    op.execute("""
+    op.execute(sa.text("""
         UPDATE permissions p SET scope = 'admin_only'
         WHERE p.scope = 'admin'
         AND NOT EXISTS (
             SELECT 1 FROM permissions p2 WHERE p2.code = p.code AND p2.scope = 'admin_only'
         )
-    """)
-    op.execute("""
+    """))
+    op.execute(sa.text("""
         UPDATE permissions p SET scope = 'all_tenants'
         WHERE p.scope = 'tenant'
         AND NOT EXISTS (
             SELECT 1 FROM permissions p2 WHERE p2.code = p.code AND p2.scope = 'all_tenants'
         )
-    """)
-    op.execute("""
+    """))
+    op.execute(sa.text("""
         UPDATE permissions p SET scope = 'global_shared'
         WHERE p.scope = 'both'
         AND NOT EXISTS (
             SELECT 1 FROM permissions p2 WHERE p2.code = p.code AND p2.scope = 'global_shared'
         )
-    """)
+    """))
 
     # system_config_groups: platform→admin_only, tenant→all_tenants
-    op.execute("UPDATE system_config_groups SET scope = 'admin_only' WHERE scope = 'platform'")
-    op.execute("UPDATE system_config_groups SET scope = 'all_tenants' WHERE scope = 'tenant'")
+    op.execute(sa.text("UPDATE system_config_groups SET scope = 'admin_only' WHERE scope = 'platform'"))
+    op.execute(sa.text("UPDATE system_config_groups SET scope = 'all_tenants' WHERE scope = 'tenant'"))
 
     # system_configs: same mapping
-    op.execute("UPDATE system_configs SET scope = 'admin_only' WHERE scope = 'platform'")
-    op.execute("UPDATE system_configs SET scope = 'all_tenants' WHERE scope = 'tenant'")
+    op.execute(sa.text("UPDATE system_configs SET scope = 'admin_only' WHERE scope = 'platform'"))
+    op.execute(sa.text("UPDATE system_configs SET scope = 'all_tenants' WHERE scope = 'tenant'"))
 
     # periodic_tasks: platform→admin_only, tenant→all_tenants (all_tenants stays)
-    op.execute("UPDATE periodic_tasks SET scope = 'admin_only' WHERE scope = 'platform'")
-    op.execute("UPDATE periodic_tasks SET scope = 'all_tenants' WHERE scope = 'tenant'")
+    op.execute(sa.text("UPDATE periodic_tasks SET scope = 'admin_only' WHERE scope = 'platform'"))
+    op.execute(sa.text("UPDATE periodic_tasks SET scope = 'all_tenants' WHERE scope = 'tenant'"))
 
 
 def downgrade() -> None:
     """Downgrade database schema."""
     # ── Reverse scope value UPDATEs ──
     # periodic_tasks
-    op.execute("UPDATE periodic_tasks SET scope = 'platform' WHERE scope = 'admin_only'")
-    op.execute("UPDATE periodic_tasks SET scope = 'tenant' WHERE scope = 'all_tenants'")
+    op.execute(sa.text("UPDATE periodic_tasks SET scope = 'platform' WHERE scope = 'admin_only'"))
+    op.execute(sa.text("UPDATE periodic_tasks SET scope = 'tenant' WHERE scope = 'all_tenants'"))
 
     # system_configs
-    op.execute("UPDATE system_configs SET scope = 'platform' WHERE scope = 'admin_only'")
-    op.execute("UPDATE system_configs SET scope = 'tenant' WHERE scope = 'all_tenants'")
+    op.execute(sa.text("UPDATE system_configs SET scope = 'platform' WHERE scope = 'admin_only'"))
+    op.execute(sa.text("UPDATE system_configs SET scope = 'tenant' WHERE scope = 'all_tenants'"))
 
     # system_config_groups
-    op.execute("UPDATE system_config_groups SET scope = 'platform' WHERE scope = 'admin_only'")
-    op.execute("UPDATE system_config_groups SET scope = 'tenant' WHERE scope = 'all_tenants'")
+    op.execute(sa.text("UPDATE system_config_groups SET scope = 'platform' WHERE scope = 'admin_only'"))
+    op.execute(sa.text("UPDATE system_config_groups SET scope = 'tenant' WHERE scope = 'all_tenants'"))
 
     # permissions
-    op.execute("UPDATE permissions SET scope = 'admin' WHERE scope = 'admin_only'")
-    op.execute("UPDATE permissions SET scope = 'tenant' WHERE scope = 'all_tenants'")
-    op.execute("UPDATE permissions SET scope = 'both' WHERE scope = 'global_shared'")
+    op.execute(sa.text("UPDATE permissions SET scope = 'admin' WHERE scope = 'admin_only'"))
+    op.execute(sa.text("UPDATE permissions SET scope = 'tenant' WHERE scope = 'all_tenants'"))
+    op.execute(sa.text("UPDATE permissions SET scope = 'both' WHERE scope = 'global_shared'"))
 
     # knowledge_bases
-    op.execute("UPDATE knowledge_bases SET scope = 'admin' WHERE scope = 'admin_only'")
-    op.execute("UPDATE knowledge_bases SET scope = 'tenant' WHERE scope = 'all_tenants'")
-    op.execute("UPDATE knowledge_bases SET scope = 'global' WHERE scope = 'global_shared'")
+    op.execute(sa.text("UPDATE knowledge_bases SET scope = 'admin' WHERE scope = 'admin_only'"))
+    op.execute(sa.text("UPDATE knowledge_bases SET scope = 'tenant' WHERE scope = 'all_tenants'"))
+    op.execute(sa.text("UPDATE knowledge_bases SET scope = 'global' WHERE scope = 'global_shared'"))
 
     # skill_packages
-    op.execute("UPDATE skill_packages SET scope = 'admin' WHERE scope = 'admin_only'")
-    op.execute("UPDATE skill_packages SET scope = 'tenant' WHERE scope = 'all_tenants'")
-    op.execute("UPDATE skill_packages SET scope = 'global' WHERE scope = 'global_shared'")
+    op.execute(sa.text("UPDATE skill_packages SET scope = 'admin' WHERE scope = 'admin_only'"))
+    op.execute(sa.text("UPDATE skill_packages SET scope = 'tenant' WHERE scope = 'all_tenants'"))
+    op.execute(sa.text("UPDATE skill_packages SET scope = 'global' WHERE scope = 'global_shared'"))
 
     # agents
-    op.execute("UPDATE agents SET scope = 'admin' WHERE scope = 'admin_only'")
-    op.execute("UPDATE agents SET scope = 'tenant' WHERE scope = 'all_tenants'")
-    op.execute("UPDATE agents SET scope = 'global' WHERE scope = 'global_shared'")
+    op.execute(sa.text("UPDATE agents SET scope = 'admin' WHERE scope = 'admin_only'"))
+    op.execute(sa.text("UPDATE agents SET scope = 'tenant' WHERE scope = 'all_tenants'"))
+    op.execute(sa.text("UPDATE agents SET scope = 'global' WHERE scope = 'global_shared'"))
 
     # ── Drop bind_mode column from skill_packages ──
     op.drop_index("ix_skill_packages_bind_mode", table_name="skill_packages")

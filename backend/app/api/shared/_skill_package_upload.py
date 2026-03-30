@@ -1,10 +1,5 @@
 """
 技能包上传共享逻辑 / Skill Package Upload Shared Logic
-
-提取技能包 ZIP 上传的公共流程，
-Shared upload flow for skill package ZIP processing,
-通过参数区分归属与服务类型（tenant_id / is_system / service type）。
-differentiated by ownership and service type parameters (tenant_id / is_system / service type).
 """
 
 from __future__ import annotations
@@ -37,21 +32,38 @@ async def process_skill_package_upload(
     tenant_id: int | None,
     is_system: bool = False,
 ) -> tuple[Any, str, str]:
-    """
-    处理技能包 ZIP 上传的公共流程。
-    Common flow for processing skill package ZIP upload.
+    if not file.filename:
+        raise ValidationException(
+            message=_("skill_package.error.file_required"),
+            code=4001,
+        )
 
-    Args:
-        db: 数据库会话 / Database session
-        file: 上传的 ZIP 文件 / Uploaded ZIP file
-        package_service: 已实例化的 SkillPackageService（admin 或 tenant） / Instantiated SkillPackageService (admin or tenant)
-        skill_service: 已实例化的 SkillService（admin 或 tenant） / Instantiated SkillService (admin or tenant)
-        tenant_id: 企业 ID（admin 端为 None） / Tenant ID (None for admin)
-        is_system: 是否系统包（仅 admin 端使用） / Whether system package (admin only)
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        zip_path = FilePath(tmp_dir) / file.filename
+        content = await file.read()
+        zip_path.write_bytes(content)
+        return await process_skill_package_archive(
+            db=db,
+            archive_path=zip_path,
+            original_filename=file.filename,
+            package_service=package_service,
+            skill_service=skill_service,
+            tenant_id=tenant_id,
+            is_system=is_system,
+        )
 
-    Returns:
-        (pkg, skill_name, skill_version) 元组 / tuple
-    """
+
+async def process_skill_package_archive(
+    *,
+    db: AsyncSession,
+    archive_path: FilePath,
+    original_filename: str,
+    package_service: BaseService,
+    skill_service: BaseService,
+    tenant_id: int | None,
+    is_system: bool = False,
+    extra_skill_fields: dict[str, Any] | None = None,
+) -> tuple[Any, str, str]:
     from app.ai.skills.env_parser import parse_env_example
     from app.ai.skills.packaging import (
         ALLOWED_SKILL_EXTENSIONS,
@@ -62,51 +74,40 @@ async def process_skill_package_upload(
         read_env_example,
     )
 
-    if not file.filename:
-        raise ValidationException(
-            message=_("skill_package.error.file_required"),
-            code=4001,
-        )
-
-    ext = FilePath(file.filename).suffix.lower()
+    ext = FilePath(original_filename).suffix.lower()
     if ext not in ALLOWED_SKILL_EXTENSIONS:
         raise ValidationException(
             message=_("skill_package.error.file_must_be_zip"),
             code=4001,
         )
 
+    file_size = archive_path.stat().st_size if archive_path.exists() else 0
+    if file_size > MAX_ZIP_FILE_SIZE:
+        size_mb = file_size / (1024 * 1024)
+        limit_mb = MAX_ZIP_FILE_SIZE / (1024 * 1024)
+        raise ValidationException(
+            message=f"ZIP file too large: {size_mb:.1f}MB (limit: {limit_mb:.0f}MB)",
+            code=4001,
+        )
+
     with tempfile.TemporaryDirectory() as tmp_dir:
-        zip_path = FilePath(tmp_dir) / file.filename
-        content = await file.read()
-
-        if len(content) > MAX_ZIP_FILE_SIZE:
-            size_mb = len(content) / (1024 * 1024)
-            limit_mb = MAX_ZIP_FILE_SIZE / (1024 * 1024)
-            raise ValidationException(
-                message=f"ZIP file too large: {size_mb:.1f}MB (limit: {limit_mb:.0f}MB)",
-                code=4001,
-            )
-
-        zip_path.write_bytes(content)
-
         try:
             extract_dir = FilePath(tmp_dir) / "extracted"
-            metadata = extract_skill_package(zip_path, extract_dir)
-        except SkillPackageError as e:
+            metadata = extract_skill_package(archive_path, extract_dir)
+        except SkillPackageError as exc:
             raise ValidationException(
                 message=resolve_public_error_message(
-                    e,
+                    exc,
                     fallback_message=_("common.validation_error"),
                 )
-            ) from e
+            ) from exc
 
         skill_name = metadata.get("name", "")
-        skill_version = metadata.get("version", "")
+        skill_version = str(metadata.get("version", "") or "")
         skill_desc = metadata.get("description", "")
         raw_icon = metadata.get("icon", "")
         skill_icon = raw_icon if isinstance(raw_icon, str) and ":" in raw_icon else ""
 
-        # 环境变量需求 / Environment variable requirements
         env_requires: list[str] = []
         meta_block = metadata.get("metadata", {})
         if isinstance(meta_block, dict):
@@ -116,7 +117,6 @@ async def process_skill_package_upload(
                 if isinstance(requires, dict):
                     env_requires = requires.get("env", [])
 
-        # 解析 .env.example → valves_schema / Parse .env.example → valves_schema
         valves_schema = None
         env_example_content = read_env_example(extract_dir)
         if env_example_content:
@@ -125,7 +125,6 @@ async def process_skill_package_upload(
                 required_vars=env_requires,
             ) or None
 
-        # 创建 SkillPackage / Create SkillPackage
         pkg_data: dict[str, Any] = {
             "name": skill_name,
             "description": skill_desc,
@@ -140,35 +139,45 @@ async def process_skill_package_upload(
         pkg = await package_service.create(pkg_data)
         await db.flush()
 
-        # 从解压目录中提取 toolkit_content / Extract toolkit_content from extracted directory
         from app.ai.skills.server_converter import convert_server_to_toolkit
 
         server_dir = extract_dir / "server"
         toolkit_content = ""
         if server_dir.exists():
             toolkit_content = convert_server_to_toolkit(
-                server_dir, metadata,
+                server_dir,
+                metadata,
                 env_schema=valves_schema,
             )
 
-        # 创建 Skill (toolkit type) / Create Skill (toolkit type)
-        await skill_service.create({
+        skill_payload: dict[str, Any] = {
             "package_id": pkg.id,
             "name": skill_name,
             "description": skill_desc,
             "avatar": skill_icon,
             "type": "toolkit",
+            "version": skill_version or "1.0.0",
             "is_system": is_system,
             "is_active": True,
             "toolkit_content": toolkit_content,
             "config": {
-                "version": str(skill_version),
+                "version": skill_version,
                 "env_requires": env_requires,
             },
-        })
+        }
+        if extra_skill_fields:
+            merged = dict(extra_skill_fields)
+            extra_config = merged.pop("config", None)
+            if isinstance(extra_config, dict):
+                skill_payload["config"] = {
+                    **(skill_payload.get("config") or {}),
+                    **extra_config,
+                }
+            skill_payload.update(merged)
+
+        await skill_service.create(skill_payload)
         await db.flush()
 
-        # 拷贝到永久存储目录 / Copy to permanent storage directory
         storage_dir = get_skill_storage_dir(pkg.id)
         if storage_dir.exists():
             shutil.rmtree(storage_dir)
@@ -176,3 +185,9 @@ async def process_skill_package_upload(
 
     await db.flush()
     return pkg, skill_name, skill_version
+
+
+__all__ = [
+    "process_skill_package_archive",
+    "process_skill_package_upload",
+]

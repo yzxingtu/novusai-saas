@@ -16,6 +16,7 @@ from app.exceptions.base import (
     NotFoundException,
     RateLimitException,
     ServiceUnavailableException,
+    TokenExpiredException,
     ValidationException,
 )
 from app.exceptions.storage import (
@@ -28,6 +29,7 @@ __all__ = [
     "AppException",
     "ValidationException",
     "AuthenticationException",
+    "TokenExpiredException",
     "AuthorizationException",
     "NotFoundException",
     "ConflictException",

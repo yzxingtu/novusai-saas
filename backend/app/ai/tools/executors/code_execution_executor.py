@@ -18,6 +18,9 @@ from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.core.logging import LogManager
 from app.core.response import build_public_error_text
+from app.enums.agent import ActionLevelEnum, ActionStatusEnum, ActionTypeEnum
+from app.middleware.trace import trace_id_var
+from app.services.ai.action_log_service import write_ai_action_log
 
 if TYPE_CHECKING:
     from app.ai.tools.types import ExecutionContext
@@ -132,7 +135,6 @@ class CodeExecutionExecutor(BaseToolExecutor):
         context: ExecutionContext | None = None,
     ) -> ToolResult:
         """Execute code in a subprocess sandbox / 在子进程沙箱中执行代码"""
-        _ = context
         start = time.perf_counter()
         cfg = definition.config or {}
 
@@ -186,13 +188,23 @@ class CodeExecutionExecutor(BaseToolExecutor):
                 proc.kill()
                 await proc.wait()
                 duration_ms = int((time.perf_counter() - start) * 1000)
-                return ToolResult(
+                result = ToolResult(
                     tool_call_id=tool_call_id,
                     name=definition.name,
                     success=False,
                     error=f"Code execution timed out after {timeout}s",
                     duration_ms=duration_ms,
                 )
+                await self._audit_code_action(
+                    definition=definition,
+                    context=context,
+                    tool_call_id=tool_call_id,
+                    arguments=arguments,
+                    status=ActionStatusEnum.FAILED.value,
+                    duration_ms=duration_ms,
+                    error_message=result.error,
+                )
+                return result
 
             duration_ms = int((time.perf_counter() - start) * 1000)
             stdout_text = stdout_bytes.decode("utf-8", errors="replace").strip()
@@ -205,17 +217,27 @@ class CodeExecutionExecutor(BaseToolExecutor):
                     output = output[:_MAX_OUTPUT_SIZE] + "\n... (truncated)"
 
                 if result_data.get("success"):
-                    return ToolResult(
+                    result = ToolResult(
                         tool_call_id=tool_call_id,
                         name=definition.name,
                         success=True,
                         output=output if output else "(no output)",
                         duration_ms=duration_ms,
                     )
+                    await self._audit_code_action(
+                        definition=definition,
+                        context=context,
+                        tool_call_id=tool_call_id,
+                        arguments=arguments,
+                        status=ActionStatusEnum.SUCCESS.value,
+                        duration_ms=duration_ms,
+                        error_message=None,
+                    )
+                    return result
                 else:
                     error_msg = result_data.get("error", "Unknown error")
                     partial = result_data.get("output", "")
-                    return ToolResult(
+                    result = ToolResult(
                         tool_call_id=tool_call_id,
                         name=definition.name,
                         success=False,
@@ -229,12 +251,22 @@ class CodeExecutionExecutor(BaseToolExecutor):
                         ),
                         duration_ms=duration_ms,
                     )
+                    await self._audit_code_action(
+                        definition=definition,
+                        context=context,
+                        tool_call_id=tool_call_id,
+                        arguments=arguments,
+                        status=ActionStatusEnum.FAILED.value,
+                        duration_ms=duration_ms,
+                        error_message=result.error,
+                    )
+                    return result
             except json.JSONDecodeError:
                 # Subprocess output is not valid JSON (possibly a crash or syntax error)
                 # 子进程输出不是有效 JSON（可能是崩溃或语法错误）
                 stderr_text = stderr_bytes.decode("utf-8", errors="replace").strip()
                 error = stderr_text or stdout_text or "Unknown execution error"
-                return ToolResult(
+                result = ToolResult(
                     tool_call_id=tool_call_id,
                     name=definition.name,
                     success=False,
@@ -244,11 +276,21 @@ class CodeExecutionExecutor(BaseToolExecutor):
                     ),
                     duration_ms=duration_ms,
                 )
+                await self._audit_code_action(
+                    definition=definition,
+                    context=context,
+                    tool_call_id=tool_call_id,
+                    arguments=arguments,
+                    status=ActionStatusEnum.FAILED.value,
+                    duration_ms=duration_ms,
+                    error_message=result.error,
+                )
+                return result
 
         except Exception as exc:
             duration_ms = int((time.perf_counter() - start) * 1000)
             logger.error("Code execution error: {}", str(exc), exc_info=True)
-            return ToolResult(
+            result = ToolResult(
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=False,
@@ -258,6 +300,16 @@ class CodeExecutionExecutor(BaseToolExecutor):
                 ),
                 duration_ms=duration_ms,
             )
+            await self._audit_code_action(
+                definition=definition,
+                context=context,
+                tool_call_id=tool_call_id,
+                arguments=arguments,
+                status=ActionStatusEnum.FAILED.value,
+                duration_ms=duration_ms,
+                error_message=result.error,
+            )
+            return result
 
     async def validate(
         self,
@@ -295,6 +347,46 @@ class CodeExecutionExecutor(BaseToolExecutor):
             violations.append("File operations (open) are not allowed")
 
         return violations
+
+    async def _audit_code_action(
+        self,
+        *,
+        definition: ToolDefinition,
+        context: ExecutionContext | None,
+        tool_call_id: str,
+        arguments: dict[str, Any],
+        status: str,
+        duration_ms: int,
+        error_message: str | None,
+    ) -> None:
+        if not context or not context.db:
+            return
+        try:
+            await write_ai_action_log(
+                context.db,
+                tenant_id=context.tenant_id,
+                agent_id=context.agent_id,
+                operator_id=context.user_id,
+                operator_type=context.user_role,
+                conversation_id=context.conversation_id,
+                tool_call_id=tool_call_id,
+                skill_id=context.skill_id,
+                action_name="code_execution",
+                action_type=ActionTypeEnum.ACTION.value,
+                action_level=ActionLevelEnum.DANGEROUS.value,
+                request_data={
+                    "tool_name": definition.name,
+                    "trace_id": trace_id_var.get() or None,
+                    "language": (definition.config or {}).get("_code_language", "python"),
+                    "code_preview": str(arguments.get("code") or "")[:500],
+                },
+                response_data=None,
+                status=status,
+                error_message=error_message,
+                duration_ms=duration_ms,
+            )
+        except Exception as exc:
+            logger.warning("Failed to write code execution audit log: {}", str(exc))
 
 
 __all__ = ["CodeExecutionExecutor"]

@@ -239,6 +239,27 @@ class AIModelRepository(BaseRepository[AIModel]):
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_first_active_embedding_with_provider(self) -> AIModel | None:
+        """
+        获取第一个可用的 embedding 模型（预加载 provider）/ Get the first active embedding model with provider.
+        """
+        stmt = (
+            select(AIModel)
+            .where(
+                AIModel.type == ModelTypeEnum.EMBEDDING.value,
+                AIModel.is_active.is_(True),
+                AIModel.is_deleted.is_(False),
+            )
+            .options(selectinload(AIModel.provider))
+            .order_by(
+                nulls_last(AIModel.input_price_per_1k.asc()),
+                AIModel.id.asc(),
+            )
+            .limit(1)
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
 
 __all__ = [
     "AIModelRepository",

@@ -11,6 +11,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import re
+from datetime import datetime
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
@@ -29,14 +30,24 @@ from app.ai.events.types import (
     ExecutionFailed,
     ExecutionStarted,
 )
+from app.ai.context import get_context_engine
+from app.services.ai.execution_trust_policy_service import (
+    ExecutionTrustPolicyService,
+)
 
 if TYPE_CHECKING:
     from app.ai.gateway import AIGateway
 from app.ai.skills.resolver import SkillResolveResult
 from app.ai.tools.sandbox import ToolSandbox
+from app.ai.tools.semantic_defaults import (
+    FAMILY_HINT_TAGS as _SEMANTIC_FAMILY_HINT_TAGS,
+    tool_family_from_name as _tool_family_from_name_unified,
+    tool_semantic_family as _tool_semantic_family_unified,
+    tool_semantic_tags as _tool_semantic_tags_unified,
+)
 from app.ai.tools.types import ToolDefinition, ToolResult, to_openai_tools
 from app.ai.types import ChatMessage, ChatResponse
-from app.core.base_model import utc_now
+from app.core.config import settings
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.core.runtime_identity import get_runtime_identity_tag
@@ -61,6 +72,14 @@ _TEXTUAL_TOOL_CALL_MARKER_RE = re.compile(
 )
 _TEXTUAL_CALL_SYNTAX_RE = re.compile(
     r"(?:^|\s)([A-Za-z_][A-Za-z0-9_]*)\s*\(",
+)
+_CAPABILITY_DENIAL_PHRASE_RE = re.compile(
+    r"(无法|不能|不可以|做不到|没法|没有权限|没有|不具备|缺少权限|只读|read[- ]only|lack(?:ing)?|can't|cannot|unable|no access|not able|don't have|do not have|doesn't have)",
+    re.IGNORECASE,
+)
+# Broader than a fixed synonym tuple: catches 对吗/是不是/咋/哪里-style questions without maintaining a growing list.
+_QUESTION_INDICATOR_RE = re.compile(
+    r"(为什么|怎么[样办回事]?|如何|啥|哪[个样里些种]?|是不是|对[吗不]|咋[样办]?|几[个时点号]|多[少大长久])",
 )
 
 
@@ -137,7 +156,7 @@ class BaseEngine(ABC):
         构建 system 消息。
 
         Renders system_prompt with Jinja2, supporting built-in and custom variables.
-        Built-in: current_date, current_time, agent_name
+        Built-in: current_date, current_time, current_timezone, agent_name
         Custom: from input_variables parameter
         使用 Jinja2 渲染 system_prompt，支持内置变量和自定义变量。
 
@@ -161,10 +180,11 @@ class BaseEngine(ABC):
             prompt = f"{identity}\n\n{prompt}"
 
         # Build template variables (built-in + custom) / 构建模板变量（内置 + 自定义）
-        now = utc_now()
+        now = datetime.now(settings.tz)
         variables: dict[str, Any] = {
             "current_date": now.strftime("%Y-%m-%d"),
             "current_time": now.strftime("%H:%M:%S"),
+            "current_timezone": settings.TIMEZONE,
             "agent_name": agent_name,
         }
         if input_variables:
@@ -242,6 +262,9 @@ class BaseEngine(ABC):
         weather_hint = BaseEngine._build_weather_tools_hint(tools)
         if weather_hint:
             hint += weather_hint
+        time_hint = BaseEngine._build_time_tools_hint(tools)
+        if time_hint:
+            hint += time_hint
         capability_hint = BaseEngine._build_capability_reporting_hint(
             tools,
             input_variables,
@@ -485,15 +508,11 @@ class BaseEngine(ABC):
         )
 
         return (
-            "\n\n[WEB RESEARCH CONTRACT]\n"
-            "When the user asks for internet research, latest information, or details from external webpages, follow this workflow: "
-            + "; ".join(workflow)
-            + ".\n"
-            "If web_search or fetch_url is listed in your available tools, do NOT claim that internet search or webpage fetching is unavailable. "
-            "web_search is for finding candidate sources; it does not mean the content has been verified. "
-            "If fetch_url is available and the user needs official announcements, ticketing details, news-body details, time/place/source lists, or concrete webpage details, do not answer only from search snippets. "
-            "If the user asks for multiple sources, cross-verification, or a source list, prefer grounding the answer in multiple credible detail pages or clearly say the evidence is still incomplete. "
-            "Ignore prior assistant claims about tool availability when they conflict with the current tool list."
+            "\n\n[WEB RESEARCH]\n"
+            "Workflow: " + "; ".join(workflow) + ".\n"
+            "web_search returns candidate sources, not verified content. "
+            "Use fetch_url to read page details before summarizing when precision matters. "
+            "Never claim a listed tool is unavailable."
         )
 
     @staticmethod
@@ -515,14 +534,20 @@ class BaseEngine(ABC):
 
         return (
             "\n\n[WEATHER TOOLS]\n"
-            "When the user asks about weather, forecast, temperature, rain, humidity, wind, or named cities/counties/regions, "
+            "For weather-related questions, "
             + "; ".join(workflow)
-            + ".\n"
-            "If both weather tools and web research tools are available, prefer weather tools first for direct weather questions. "
-            "Only fall back to web_search/fetch_url when the user explicitly asks for web sources or the weather tools are unavailable. "
-            "If the request asks for both current weather and future forecast, you may use both weather tools. "
-            "If a weather tool is listed in your available tools, do NOT claim that weather tools are unavailable. "
-            "If consent is required, ask for consent or wait for confirmation instead of saying you lack the tool."
+            + ". Prefer weather tools over web search for direct weather queries."
+        )
+
+    @staticmethod
+    def _build_time_tools_hint(tools: list[ToolDefinition]) -> str:
+        tool_names = {t.name for t in tools}
+        if "get_current_time" not in tool_names:
+            return ""
+        return (
+            "\n\n[TIME TOOLS]\n"
+            "Use get_current_time for any question about the current time, date, or timezone instead of guessing. "
+            "Default to server timezone unless the user specifies another."
         )
 
     @staticmethod
@@ -555,12 +580,9 @@ class BaseEngine(ABC):
         page_line = ", ".join(page_ops) if page_ops else "none"
         return (
             "\n\n[CAPABILITY REPORTING]\n"
-            "If the user asks what tools, skills, or capabilities you currently have, "
-            "answer strictly from the tools and page operations available in this turn only.\n"
-            f"Current tools: {tool_line}.\n"
-            f"Current page operations: {page_line}.\n"
-            "Do NOT claim a listed tool is unavailable. "
-            "Do NOT invent external capabilities that are not present in the current tool list."
+            f"Available tools: {tool_line}.\n"
+            f"Available page operations: {page_line}.\n"
+            "Answer capability questions strictly from this list. Never claim a listed tool is unavailable."
         )
 
     @staticmethod
@@ -583,15 +605,23 @@ class BaseEngine(ABC):
             if continuation.research_instruction_texts
             else "- (no recent research instructions captured)"
         )
+        extra_guidance = (
+            "Search-result tool messages in the conversation history are candidate URL lists. "
+            "If fetched detail pages is 0 and fetch_url is available, pick candidate URLs from those lists and fetch them before analysis.\n"
+            if continuation.fetched_url_count == 0
+            else ""
+        )
         return (
             "\n\n[RESEARCH STATE]\n"
             f"{intro}\n"
             f"Research target: {target or '(same target as previous turn)'}.\n"
             "Recent user research instructions:\n"
             f"{instruction_lines}\n"
+            f"Recent search queries: {', '.join(continuation.recent_web_queries) if continuation.recent_web_queries else '(none)'}.\n"
             f"Completed search queries: {continuation.search_query_count}.\n"
             f"Fetched detail pages: {continuation.fetched_url_count}.\n"
-            "Use this state as factual context for deciding whether more research is still needed."
+            + extra_guidance
+            + "Use this state as factual context for deciding whether more research is still needed."
         )
 
     @staticmethod
@@ -705,6 +735,39 @@ class BaseEngine(ABC):
         return search_queries, fetched_urls
 
     @classmethod
+    def _needs_fetch_url_before_summary(cls, messages: list[ChatMessage]) -> bool:
+        """
+        True when web_search succeeded but fetch_url has not been attempted yet.
+        已成功 web_search 且尚未尝试 fetch_url（无论成功与否）时为 True。
+        """
+        has_success_search = False
+        fetch_attempted = False
+        for msg in messages:
+            if msg.role != "assistant" or not msg.tool_calls:
+                continue
+            for tc in msg.tool_calls:
+                func = tc.get("function") or {}
+                name = str(func.get("name") or tc.get("name") or "").strip()
+                if name == "web_search" and tc.get("success") is True:
+                    has_success_search = True
+                if name == "fetch_url":
+                    fetch_attempted = True
+        return bool(has_success_search and not fetch_attempted)
+
+    @classmethod
+    def _apply_fetch_url_only_gate(
+        cls,
+        messages: list[ChatMessage],
+        tools: list[ToolDefinition],
+        all_tools: list[ToolDefinition] | None,
+    ) -> list[ToolDefinition]:
+        """Narrow tool list to fetch_url only until a fetch attempt is made."""
+        if not cls._needs_fetch_url_before_summary(messages):
+            return tools
+        fetch_defs = [t for t in (all_tools or tools) if t.name == "fetch_url"]
+        return fetch_defs if fetch_defs else tools
+
+    @classmethod
     def _extract_last_user_text(
         cls,
         messages: list[ChatMessage],
@@ -751,14 +814,8 @@ class BaseEngine(ABC):
 
     @staticmethod
     def _has_page_context(input_variables: dict[str, Any] | None) -> bool:
-        if not input_variables:
-            return False
-        from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
-
-        page_ctx = input_variables.get(PAGE_CONTEXT_KEY)
-        if not isinstance(page_ctx, dict):
-            return False
-        return bool((page_ctx.get("page_key") or "").strip())
+        from app.ai.tools.semantic_defaults import _has_page_context
+        return _has_page_context(input_variables)
 
     @classmethod
     def _tool_family_for_name(
@@ -766,22 +823,7 @@ class BaseEngine(ABC):
         tool_name: str,
         input_variables: dict[str, Any] | None = None,
     ) -> str:
-        name = (tool_name or "").strip()
-        if not name:
-            return "none"
-        if name in {"web_search", "fetch_url"}:
-            return "web_research"
-        if name in {"get_current_weather", "get_weather_forecast"}:
-            return "weather"
-        if name.startswith("data_"):
-            return "data_ops"
-        if (
-            name in {"get_page_context", "invoke_page_operation"}
-            or name.startswith("pageop_")
-            or (name == "list_page_operations" and cls._has_page_context(input_variables))
-        ):
-            return "page_ops"
-        return "none"
+        return _tool_family_from_name_unified(tool_name, input_variables)
 
     @classmethod
     def _tool_semantic_family(
@@ -789,36 +831,11 @@ class BaseEngine(ABC):
         tool: ToolDefinition,
         input_variables: dict[str, Any] | None = None,
     ) -> str:
-        family = str(getattr(tool, "semantic_family", "") or "").strip()
-        if family:
-            return family
-        return cls._tool_family_for_name(tool.name, input_variables)
+        return _tool_semantic_family_unified(tool, input_variables)
 
     @classmethod
     def _tool_semantic_tags(cls, tool: ToolDefinition) -> list[str]:
-        tags = [
-            str(tag).strip()
-            for tag in (getattr(tool, "semantic_tags", None) or [])
-            if str(tag).strip()
-        ]
-        if tags:
-            return tags
-
-        family = cls._tool_semantic_family(tool)
-        fallback_tags = {
-            "web_research": [
-                "联网搜索",
-                "网页查询",
-                "读取网页",
-                "官方来源",
-                "最新信息",
-                "web search",
-            ],
-            "weather": ["天气查询", "天气预报", "当前天气", "实时天气", "weather forecast"],
-            "data_ops": ["数据查询", "数据库操作", "记录管理", "统计报表", "data query"],
-            "page_ops": ["页面操作", "页面交互", "读取页面", "填写表单", "提交页面", "page operation"],
-        }
-        return list(fallback_tags.get(family, ()))
+        return _tool_semantic_tags_unified(tool)
 
     @classmethod
     def _family_capability_terms(
@@ -829,35 +846,8 @@ class BaseEngine(ABC):
     ) -> set[str]:
         from app.ai.tools.optimizer import _tokenize
 
-        family_hints = {
-            "web_research": (
-                "联网搜索",
-                "网页查询",
-                "读取网页",
-                "官方来源",
-                "internet",
-                "web search",
-            ),
-            "weather": ("天气查询", "天气预报", "当前天气", "实时天气", "weather forecast"),
-            "data_ops": (
-                "数据查询",
-                "数据库操作",
-                "记录管理",
-                "统计报表",
-                "data query",
-            ),
-            "page_ops": (
-                "页面操作",
-                "页面交互",
-                "读取页面",
-                "填写表单",
-                "提交页面",
-                "page operation",
-            ),
-        }
-
         terms: set[str] = set()
-        for hint in family_hints.get(family, ()):
+        for hint in _SEMANTIC_FAMILY_HINT_TAGS.get(family, ()):
             normalized_hint = hint.strip().lower()
             if len(normalized_hint) >= 2:
                 terms.add(normalized_hint)
@@ -882,20 +872,8 @@ class BaseEngine(ABC):
         tools: list[ToolDefinition],
         input_variables: dict[str, Any] | None,
     ) -> bool:
-        denial_markers = (
-            "不能",
-            "无法",
-            "没有",
-            "不可",
-            "can't",
-            "cannot",
-            "unable",
-            "no access",
-            "not able",
-            "read-only",
-            "只读",
-        )
-        if not any(marker in normalized_text for marker in denial_markers):
+        # Regex over common denial phrasings — avoids maintaining a growing synonym list.
+        if not _CAPABILITY_DENIAL_PHRASE_RE.search(normalized_text):
             return False
 
         capability_terms = cls._family_capability_terms(
@@ -943,42 +921,18 @@ class BaseEngine(ABC):
 
     @staticmethod
     def _looks_like_generic_follow_up(user_text: str) -> bool:
-        normalized = " ".join((user_text or "").strip().lower().split())
-        if not normalized:
+        """Short continuation turns without a new detailed question (regex, not a growing synonym tuple)."""
+        raw = (user_text or "").strip()
+        if not raw:
             return False
-        exact_markers = {
-            "continue",
-            "continue.",
-            "go on",
-            "same",
-            "same thing",
-            "继续",
-            "继续。",
-            "接着",
-            "继续吧",
-            "继续一下",
-            "按刚才的继续",
-            "继续处理",
-            "继续这个",
-        }
-        if normalized in exact_markers:
+        if "?" in raw or "？" in raw:
+            return False
+        if _QUESTION_INDICATOR_RE.search(raw):
+            return False
+        normalized = " ".join(raw.lower().split())
+        if len(normalized) <= 24:
             return True
-        if len(normalized) > 40:
-            return False
-        return any(
-            marker in normalized
-            for marker in (
-                "continue",
-                "go on",
-                "same",
-                "继续",
-                "接着",
-                "刚才",
-                "继续处理",
-                "继续看",
-                "继续查",
-            )
-        )
+        return len(normalized) <= 44 and len(normalized.split()) <= 6
 
     @classmethod
     def _allowed_tool_names_for_family(
@@ -1060,6 +1014,37 @@ class BaseEngine(ABC):
             for tool in web_tools
         )
 
+    @classmethod
+    def _looks_like_explicit_time_request(
+        cls,
+        user_text: str,
+        tools: list[ToolDefinition],
+    ) -> bool:
+        if not user_text or not tools:
+            return False
+        time_tools = [
+            tool
+            for tool in tools
+            if cls._tool_semantic_family(tool) == "time_ops"
+            or tool.name == "get_current_time"
+        ]
+        if not time_tools:
+            return False
+        from app.ai.tools.optimizer import _tokenize
+
+        query_tokens = _tokenize(user_text)
+        semantic_tokens: set[str] = set()
+        for tool in time_tools:
+            semantic_source = " ".join(
+                [
+                    tool.name,
+                    tool.description or "",
+                    *cls._tool_semantic_tags(tool),
+                ]
+            )
+            semantic_tokens |= _tokenize(semantic_source)
+        return bool(query_tokens & semantic_tokens)
+
     def _log_tool_selection_status(
         self,
         *,
@@ -1130,41 +1115,31 @@ class BaseEngine(ABC):
                     reason=f"active_continuation:{family}",
                 )
 
-        if cls._looks_like_explicit_web_research_request(current_user_text, tools):
-            return ToolUsePolicy(
-                family="web_research",
-                mode="auto",
-                allowed_tool_names=cls._allowed_tool_names_for_family(
-                    "web_research",
-                    tools,
-                    input_variables,
-                ),
-                retry_on_contract_breach=True,
-                reason="explicit_query:web_research",
-            )
+        # Soft signal: phrase matching suggests a family preference but no longer
+        # forces mode="required".  Tool history takes priority.
+        inferred_family = "none"
+        inferred_reason = "default_auto"
 
-        if (
-            latest_family in {"weather", "data_ops", "page_ops"}
-            and cls._looks_like_generic_follow_up(current_user_text)
-        ):
-            return ToolUsePolicy(
-                family=latest_family,
-                mode="required",
-                allowed_tool_names=cls._allowed_tool_names_for_family(
-                    latest_family,
-                    tools,
-                    input_variables,
-                ),
-                retry_on_contract_breach=True,
-                reason=f"generic_follow_up_after:{latest_successful_tool}",
-            )
+        if latest_family != "none" and cls._looks_like_generic_follow_up(current_user_text):
+            inferred_family = latest_family
+            inferred_reason = f"generic_follow_up_after:{latest_successful_tool}"
+        elif cls._looks_like_explicit_web_research_request(current_user_text, tools):
+            inferred_family = "web_research"
+            inferred_reason = "soft_hint:web_research"
+        elif cls._looks_like_explicit_time_request(current_user_text, tools):
+            inferred_family = "time_ops"
+            inferred_reason = "soft_hint:time_ops"
 
         return ToolUsePolicy(
-            family="none",
+            family=inferred_family,
             mode="auto",
-            allowed_tool_names=[tool.name for tool in tools],
+            allowed_tool_names=(
+                cls._allowed_tool_names_for_family(inferred_family, tools, input_variables)
+                if inferred_family != "none"
+                else [tool.name for tool in tools]
+            ),
             retry_on_contract_breach=True,
-            reason="default_auto",
+            reason=inferred_reason,
         )
 
     @classmethod
@@ -1232,7 +1207,7 @@ class BaseEngine(ABC):
                 reason=f"required_retry:{current_policy.reason or current_policy.family}",
             )
 
-        for family in ("web_research", "weather", "data_ops", "page_ops"):
+        for family in ("web_research", "weather", "time_ops", "data_ops", "page_ops"):
             if not cls._response_denies_family_capability(
                 normalized_text=normalized,
                 family=family,
@@ -1278,6 +1253,46 @@ class BaseEngine(ABC):
         )
         if retry_policy is None:
             return False, None, ""
+        return True, retry_policy, response_text
+
+    @classmethod
+    def _should_retry_web_research_contract_breach(
+        cls,
+        *,
+        messages: list[ChatMessage],
+        response: ChatResponse,
+        current_policy: ToolUsePolicy,
+        tools: list[ToolDefinition],
+        input_variables: dict[str, Any] | None,
+        continuation: ResearchContinuationContext | None,
+    ) -> tuple[bool, ToolUsePolicy | None, str]:
+        if response.tool_calls:
+            return False, None, ""
+
+        response_text = (response.message.content or "").strip()
+        if not response_text:
+            return False, None, ""
+        if current_policy.family != "web_research" and not (
+            continuation and continuation.active
+        ):
+            return False, None, ""
+
+        tool_names = {tool.name for tool in tools}
+        if not {"web_search", "fetch_url"} <= tool_names:
+            return False, None, ""
+
+        search_queries, fetched_urls = cls._collect_web_research_evidence(messages)
+        if not search_queries or fetched_urls:
+            return False, None, ""
+
+        retry_policy = cls._build_required_policy_for_family(
+            "web_research",
+            tools,
+            input_variables,
+            reason="web_research_summary_without_fetch",
+        )
+        if current_policy.reason.startswith("web_research_summary_without_fetch"):
+            retry_policy.retry_on_contract_breach = False
         return True, retry_policy, response_text
 
     @classmethod
@@ -1516,48 +1531,23 @@ class BaseEngine(ABC):
                 user_role=getattr(request, "user_role", None),
             )
 
-        # 2. Build message list / 构建消息列表
-        messages: list[ChatMessage] = []
-        system_msg = self._build_system_message(agent, request.input_variables)
-        messages.append(system_msg)
-
-        if request.messages:
-            messages.extend(request.messages)
-
-        # 3. RAG knowledge base injection / RAG 知识库注入
-        # Dual-path merge: Agent binding table (primary) + user @ selection (auxiliary)
-        # 双路合并：Agent 绑定表（主要）+ 用户 @ 选择（辅助）
-        from app.ai.rag_injector import (
-            inject_rag_context,
-            load_agent_kb_bindings,
+        # 2. Build model context via ContextEngine / 通过 ContextEngine 组装上下文
+        context_engine = get_context_engine(
+            db=self.db,
+            base_engine=self,
+            request=request,
         )
-
-        rag_sources = None
-        agent_kb_ids, agent_kb_weights = await load_agent_kb_bindings(
-            self.db,
-            agent.id,
-            request.tenant_id,
+        await context_engine.ingest(agent, request)
+        context_assembly = await context_engine.assemble(
+            agent,
+            request,
+            skill_result=skill_result,
         )
-        # User-selected KB ids (already sanitized to bound subset in AgentChatService) narrow retrieval.
-        # 用户选中的知识库（已在 AgentChatService 校验为绑定子集）用于收窄检索范围。
-        if request.knowledge_base_ids:
-            sel = set(request.knowledge_base_ids)
-            merged_kb_ids = [kid for kid in (agent_kb_ids or []) if kid in sel]
-            if not merged_kb_ids:
-                merged_kb_ids = agent_kb_ids
-        else:
-            merged_kb_ids = agent_kb_ids
-        effective_rag_config = agent.rag_config or {}
-        if merged_kb_ids:
-            messages, rag_sources = await inject_rag_context(
-                self.db,
-                agent,
-                messages,
-                request.tenant_id,
-                kb_ids=merged_kb_ids,
-                rag_config=effective_rag_config or None,
-                kb_weights=agent_kb_weights,
-            )
+        # Explicit session compaction phase (persist sidecar snapshot when over threshold).
+        # 显式 compact 阶段（超阈值时持久化侧车摘要快照）。
+        await context_engine.compact(agent, request)
+        messages = context_assembly.messages
+        rag_sources = context_assembly.rag_sources
 
         # 4. Get tool list + expand dedicated page tools (before optimize) + optimize / 上文为英文说明 / English above
         tools = skill_result.tools if skill_result else []
@@ -1690,6 +1680,12 @@ class BaseEngine(ABC):
 
         # 6. Extract consent_modes / 提取 consent_modes
         tool_consent_modes = skill_result.tool_consent_modes if skill_result else {}
+        tool_consent_modes = self._apply_execution_trust_policy(
+            tools=tools,
+            input_variables=request.input_variables,
+            tool_consent_modes=tool_consent_modes,
+            trust_policy_ref=request.trust_policy_ref,
+        )
 
         # 7. ModelRouter multi-model routing (graceful fallback on failure) / ModelRouter 多模型路由（容错失败时自动向后兼容）
         route_result = None
@@ -1772,6 +1768,17 @@ class BaseEngine(ABC):
             continuation_context=continuation_context,
             tool_use_policy=tool_use_policy,
             rag_sources=rag_sources,
+            rag_source_kinds=context_assembly.rag_source_kinds,
+            context_engine_id=context_assembly.engine_id,
+            context_engine=context_engine,
+            compact_summary=context_assembly.compact_summary,
+            prune_stats=context_assembly.prune_stats,
+            memory_recall_slice=context_assembly.memory_recall_slice,
+            context_compacted=context_assembly.context_compacted,
+            memory_flush_triggered=context_assembly.memory_flush_triggered,
+            memory_recalled=context_assembly.memory_recalled,
+            system_prompt_additions=context_assembly.system_prompt_additions,
+            diagnostics=context_assembly.diagnostics,
             tool_consent_modes=tool_consent_modes,
             optimize_event=optimize_event,
             route_result=route_result,
@@ -1972,6 +1979,7 @@ class BaseEngine(ABC):
         """
         from .tool_processor import ToolCallProcessor
 
+        tools_full = list(tools)
         processor = ToolCallProcessor(
             sandbox=self.sandbox,
             tools=tools,
@@ -1982,6 +1990,34 @@ class BaseEngine(ABC):
         all_tool_results: list[ToolResult] = []
         total_tokens = response.total_tokens or 0
         current_response = response
+        fetch_gate_message_sent = False
+
+        def _round_tools_for_followup() -> list[ToolDefinition]:
+            """Match streaming path: narrow to fetch_url until a fetch attempt exists."""
+            nonlocal fetch_gate_message_sent
+            if (
+                self._needs_fetch_url_before_summary(messages)
+                and not fetch_gate_message_sent
+            ):
+                messages.append(
+                    ChatMessage(
+                        role="system",
+                        content=(
+                            "[WEB RESEARCH] You already have successful web_search results in "
+                            "the conversation. You MUST call fetch_url with at least one "
+                            "candidate URL from those results before writing a final summary. "
+                            "Do not issue more web_search calls until fetch_url has been attempted."
+                        ),
+                    )
+                )
+                fetch_gate_message_sent = True
+            round_tools = self._apply_fetch_url_only_gate(
+                messages,
+                tools_full,
+                all_tools or tools_full,
+            )
+            processor.tools = round_tools
+            return round_tools
 
         for _round in range(MAX_TOOL_CALL_ROUNDS):
             tool_calls = current_response.tool_calls
@@ -2087,10 +2123,11 @@ class BaseEngine(ABC):
 
             if skip_final_call:
                 if _round < MAX_TOOL_CALL_ROUNDS - 1:
+                    round_tools = _round_tools_for_followup()
                     peek_response = await self._call_llm(
                         agent=agent,
                         messages=messages,
-                        tools=tools,
+                        tools=round_tools,
                         all_tool_names=[tool.name for tool in (all_tools or tools or [])],
                         tenant_id=request.tenant_id,
                         user_id=request.user_id,
@@ -2106,11 +2143,26 @@ class BaseEngine(ABC):
                 return None, all_tool_results, total_tokens
 
             # Call LLM again (maintain same routed model as first call) / 再次调用 LLM（保持与第一次调用相同的路由模型）
+            round_tools = _round_tools_for_followup()
             current_response = await self._call_llm(
                 agent=agent,
                 messages=messages,
-                tools=tools,
+                tools=round_tools,
                 all_tool_names=[tool.name for tool in (all_tools or tools or [])],
+                tenant_id=request.tenant_id,
+                user_id=request.user_id,
+                conversation_id=request.conversation_id,
+                billing_context=request.billing_context,
+                route_result=route_result,
+                log_user_type=log_user_type_for_call_log(request.user_role),
+            )
+            total_tokens += current_response.total_tokens or 0
+        else:
+            current_response = await self._call_llm(
+                agent=agent,
+                messages=messages,
+                tools=None,
+                all_tool_names=[],
                 tenant_id=request.tenant_id,
                 user_id=request.user_id,
                 conversation_id=request.conversation_id,
@@ -2180,6 +2232,32 @@ class BaseEngine(ABC):
     def _messages_to_dicts(messages: list[ChatMessage]) -> list[dict[str, Any]]:
         """Convert ChatMessage list to dict list / 将 ChatMessage 列表转为 dict 列表"""
         return [dataclasses.asdict(msg) for msg in messages]
+
+    @classmethod
+    def _apply_execution_trust_policy(
+        cls,
+        *,
+        tools: list[ToolDefinition],
+        input_variables: dict[str, Any] | None,
+        tool_consent_modes: dict[str, str],
+        trust_policy_ref: dict[str, Any] | None,
+    ) -> dict[str, str]:
+        if not tools or not isinstance(trust_policy_ref, dict):
+            return tool_consent_modes
+
+        updated = dict(tool_consent_modes)
+        for tool in tools:
+            current_mode = updated.get(tool.name, "auto")
+            if current_mode != "ask":
+                continue
+            tool_family = cls._tool_semantic_family(tool, input_variables)
+            if ExecutionTrustPolicyService.allows_tool(
+                tool_name=tool.name,
+                tool_family=tool_family,
+                policy_ref=trust_policy_ref,
+            ):
+                updated[tool.name] = "auto"
+        return updated
 
 
 __all__ = ["BaseEngine", "log_user_type_for_call_log"]

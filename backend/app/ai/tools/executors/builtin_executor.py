@@ -14,8 +14,10 @@ from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlparse
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
+from app.core.config import settings
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.core.response import build_public_error_text
@@ -115,6 +117,21 @@ _SEARCH_STATUS_NO_RESULTS = "no_results"
 _SEARCH_STATUS_SOURCE_BLOCKED = "source_blocked"
 _SEARCH_STATUS_SOURCE_CHALLENGED = "source_challenged"
 _SEARCH_STATUS_SOURCE_UNAVAILABLE = "source_unavailable"
+_SEARCH_STATUS_PARSER_MISS = "parser_miss"
+_SEARCH_STATUS_LOW_CONFIDENCE = "low_confidence"
+
+_SEARCH_ENGINE_HOSTS = frozenset({"www.baidu.com", "baidu.com", "www.so.com", "so.com"})
+_GENERIC_SITE_LABELS = frozenset({"www", "com", "org", "net", "gov", "cn", "en", "html", "htm"})
+
+# Minimum fraction of query tokens that must appear in title+snippet for a hit to count as relevant.
+# 查询词在标题+摘要中的覆盖比例下限（不依赖固定主题词表）。
+_QUERY_RELEVANCE_MIN_RATIO = 0.28
+
+# Per-process conversation provider health (best-effort; resets on worker restart).
+_PROVIDER_FAIL_STREAK: dict[tuple[int, str], int] = {}
+_PROVIDER_DISABLED: dict[int, set[str]] = {}
+# Dedup web_search by normalized query within a conversation.
+_SEARCH_QUERY_CACHE: dict[tuple[int, str], str] = {}
 
 
 @dataclass
@@ -207,7 +224,20 @@ def _extract_so360_public_results(html: str, max_results: int) -> list[dict[str,
     results: list[dict[str, str]] = []
     seen_urls: set[str] = set()
 
-    for container in soup.select("li.res-list"):
+    selectors = (
+        "li.res-list",
+        "div.res-list",
+        "li[class*='result']",
+        "div[class*='result']",
+        "div[class*='res-list']",
+    )
+    containers = []
+    for selector in selectors:
+        containers = soup.select(selector)
+        if containers:
+            break
+
+    for container in containers:
         title_link = container.select_one("h3 a")
         if title_link is None:
             continue
@@ -235,6 +265,12 @@ def _build_search_output_text(
 ) -> str:
     """Format search results for tool output. / 格式化搜索结果输出。"""
     lines = [f"Search results for: {query}\n"]
+    any_redirect = any(_search_engine_redirect_note(item.get("url") or "") for item in results)
+    if any_redirect:
+        lines.append(
+            "Note: Some URLs below are search-engine redirect links; use fetch_url to load "
+            "the final page content (redirects are followed automatically).\n"
+        )
     for i, item in enumerate(results, 1):
         lines.append(f"{i}. {item['title']}")
         lines.append(f"   URL: {item['url']}")
@@ -274,6 +310,124 @@ def _extract_title_from_html(html: str) -> str:
     return _normalize_text(match.group(1))
 
 
+def _html_may_contain_search_results(html: str) -> bool:
+    lowered = (html or "").lower()
+    return any(
+        hint in lowered
+        for hint in (
+            "res-title",
+            "res-desc",
+            "res-link",
+            "res-list",
+            "result-item",
+            "result-card",
+            "c-container",
+            "title-box",
+        )
+    )
+
+
+def _query_tokens_for_relevance(query: str) -> set[str]:
+    """Tokens from the query (site: host stripped) for overlap scoring — no fixed topic lexicon."""
+    scrubbed = re.sub(r"site:[^\s]+", " ", query, flags=re.IGNORECASE)
+    return set(re.findall(r"[a-z]{2,}|\d{4}|[\u4e00-\u9fff]{2,}", scrubbed.lower()))
+
+
+def _result_text_tokens(result: dict[str, str], *, include_url: bool) -> set[str]:
+    parts = [str(result.get("title") or ""), str(result.get("snippet") or "")]
+    if include_url:
+        parts.append(str(result.get("url") or ""))
+    hay = _normalize_text(" ".join(parts)).lower()
+    return set(re.findall(r"[a-z]{2,}|\d{4}|[\u4e00-\u9fff]{2,}", hay))
+
+
+def _result_passes_relevance(query: str, result: dict[str, str]) -> bool:
+    """
+    True if query tokens overlap title+snippet (and URL if needed) enough — language-agnostic token Jaccard coverage.
+    """
+    q_tokens = _query_tokens_for_relevance(query)
+    url = str(result.get("url") or "")
+    if not q_tokens:
+        return not _result_is_search_wrapper(url)
+
+    ts_tokens = _result_text_tokens(result, include_url=False)
+    ts_hits = len(q_tokens & ts_tokens)
+    ts_ratio = ts_hits / len(q_tokens)
+    if ts_ratio >= _QUERY_RELEVANCE_MIN_RATIO or ts_hits >= max(1, (len(q_tokens) + 1) // 2):
+        return True
+
+    if _result_is_search_wrapper(url):
+        return False
+
+    all_tokens = _result_text_tokens(result, include_url=True)
+    all_hits = len(q_tokens & all_tokens)
+    return all_hits / len(q_tokens) >= _QUERY_RELEVANCE_MIN_RATIO
+
+
+# Structural pattern: detect queries about specific historical eras / periods
+# (explicit century, dynasty, era markers, or "ancient/historical" terms)
+_HISTORICAL_QUERY_RE = re.compile(
+    r"(\d{1,2}\s*(世纪|century)|\b\d{3}s\b|年代|朝代|dynasty|era\b|古代|ancient|medieval|战时|wartime|历史|history\b|historical\b)",
+    re.IGNORECASE,
+)
+_HISTORY_QUERY_TERMS = frozenset(
+    {
+        "历史",
+        "history",
+        "historical",
+        "年代",
+        "era",
+        "古代",
+        "ancient",
+        "世纪",
+        "战时",
+    }
+)
+
+
+def _correct_query_year(query: str) -> str:
+    """Replace stale calendar years in web_search queries unless the query is clearly historical."""
+    if not query:
+        return query
+    if _HISTORICAL_QUERY_RE.search(query):
+        return query
+    try:
+        current_year = datetime.now(settings.tz).year
+    except Exception:
+        current_year = datetime.now(timezone.utc).year
+
+    def _repl_year(match: re.Match[str]) -> str:
+        y = int(match.group(0))
+        if y != current_year and 2000 <= y <= current_year + 1:
+            return str(current_year)
+        return match.group(0)
+
+    return re.sub(r"\b(20\d{2})\b", _repl_year, query)
+
+
+def _search_engine_redirect_note(url: str) -> bool:
+    try:
+        host = (urlparse(url).hostname or "").lower()
+    except Exception:
+        return False
+    return host in _SEARCH_ENGINE_HOSTS or host.endswith(".baidu.com") or host.endswith(".so.com")
+
+
+def _result_is_search_wrapper(url: str) -> bool:
+    try:
+        host = (urlparse(url).hostname or "").lower()
+    except Exception:
+        return False
+    return host in _SEARCH_ENGINE_HOSTS
+
+
+def _filter_low_confidence_results(
+    query: str,
+    results: list[dict[str, str]],
+) -> list[dict[str, str]]:
+    return [result for result in results if _result_passes_relevance(query, result)]
+
+
 def _classify_baidu_public_html(html: str) -> str:
     if not html:
         return _SEARCH_STATUS_SOURCE_UNAVAILABLE
@@ -281,8 +435,14 @@ def _classify_baidu_public_html(html: str) -> str:
         return _SEARCH_STATUS_SOURCE_CHALLENGED
     if _extract_baidu_public_results(html, 1):
         return _SEARCH_STATUS_SUCCESS
-    if "抱歉，没有找到与" in html or "没有找到该URL" in html:
+    if (
+        "抱歉，没有找到与" in html
+        or "没有找到该URL" in html
+        or "未找到相关结果" in html
+    ):
         return _SEARCH_STATUS_NO_RESULTS
+    if _html_may_contain_search_results(html):
+        return _SEARCH_STATUS_PARSER_MISS
     return _SEARCH_STATUS_SOURCE_UNAVAILABLE
 
 
@@ -295,8 +455,15 @@ def _classify_so360_public_html(html: str) -> str:
         return _SEARCH_STATUS_SOURCE_CHALLENGED
     if _extract_so360_public_results(html, 1):
         return _SEARCH_STATUS_SUCCESS
-    if "没有找到相关结果" in normalized or "相关结果约0个" in normalized:
+    if (
+        "没有找到相关结果" in normalized
+        or "相关结果约0个" in normalized
+        or "未找到相关搜索结果" in normalized
+        or "抱歉，未找到相关搜索结果" in normalized
+    ):
         return _SEARCH_STATUS_NO_RESULTS
+    if _html_may_contain_search_results(html):
+        return _SEARCH_STATUS_PARSER_MISS
     return _SEARCH_STATUS_SOURCE_UNAVAILABLE
 
 
@@ -327,10 +494,19 @@ async def _search_with_baidu_public(
 
         status = _classify_baidu_public_html(resp.text)
         if status == _SEARCH_STATUS_SUCCESS:
+            results = _extract_baidu_public_results(resp.text, max_results)
+            filtered_results = _filter_low_confidence_results(query, results)
+            if filtered_results:
+                return SearchProviderResponse(
+                    provider=_SEARCH_PROVIDER_BAIDU,
+                    status=status,
+                    results=filtered_results,
+                )
             return SearchProviderResponse(
                 provider=_SEARCH_PROVIDER_BAIDU,
-                status=status,
-                results=_extract_baidu_public_results(resp.text, max_results),
+                status=_SEARCH_STATUS_LOW_CONFIDENCE,
+                results=[],
+                error="returned low-confidence results",
             )
         return SearchProviderResponse(
             provider=_SEARCH_PROVIDER_BAIDU,
@@ -341,6 +517,10 @@ async def _search_with_baidu_public(
                 if status == _SEARCH_STATUS_SOURCE_CHALLENGED
                 else "returned no results"
                 if status == _SEARCH_STATUS_NO_RESULTS
+                else "result parser missed current page structure"
+                if status == _SEARCH_STATUS_PARSER_MISS
+                else "returned low-confidence results"
+                if status == _SEARCH_STATUS_LOW_CONFIDENCE
                 else "returned an unreadable page"
             ),
         )
@@ -388,10 +568,19 @@ async def _search_with_so360_public(
 
         status = _classify_so360_public_html(resp.text)
         if status == _SEARCH_STATUS_SUCCESS:
+            results = _extract_so360_public_results(resp.text, max_results)
+            filtered_results = _filter_low_confidence_results(query, results)
+            if filtered_results:
+                return SearchProviderResponse(
+                    provider=_SEARCH_PROVIDER_SO360,
+                    status=status,
+                    results=filtered_results,
+                )
             return SearchProviderResponse(
                 provider=_SEARCH_PROVIDER_SO360,
-                status=status,
-                results=_extract_so360_public_results(resp.text, max_results),
+                status=_SEARCH_STATUS_LOW_CONFIDENCE,
+                results=[],
+                error="returned low-confidence results",
             )
         return SearchProviderResponse(
             provider=_SEARCH_PROVIDER_SO360,
@@ -402,6 +591,10 @@ async def _search_with_so360_public(
                 if status == _SEARCH_STATUS_SOURCE_CHALLENGED
                 else "returned no results"
                 if status == _SEARCH_STATUS_NO_RESULTS
+                else "result parser missed current page structure"
+                if status == _SEARCH_STATUS_PARSER_MISS
+                else "returned low-confidence results"
+                if status == _SEARCH_STATUS_LOW_CONFIDENCE
                 else "returned an unreadable page"
             ),
         )
@@ -435,16 +628,81 @@ def _build_public_search_failure_reason(
     return "; ".join(parts)
 
 
-async def _run_web_search(query: str, max_results: int) -> WebSearchExecution:
-    rewritten_query = _normalize_text(query)
-    providers = [
-        _search_with_baidu_public,
-        _search_with_so360_public,
+def _web_search_conv_id(context: "ExecutionContext | None") -> int:
+    if context is None or context.conversation_id is None:
+        return 0
+    return int(context.conversation_id)
+
+
+def _record_provider_outcome(conv_id: int, provider: str, status: str) -> None:
+    key = (conv_id, provider)
+    if status == _SEARCH_STATUS_SUCCESS:
+        _PROVIDER_FAIL_STREAK.pop(key, None)
+        if conv_id:
+            _PROVIDER_DISABLED.setdefault(conv_id, set()).discard(provider)
+        return
+    if status in (
+        _SEARCH_STATUS_SOURCE_CHALLENGED,
+        _SEARCH_STATUS_SOURCE_UNAVAILABLE,
+        _SEARCH_STATUS_SOURCE_BLOCKED,
+    ):
+        _PROVIDER_FAIL_STREAK[key] = _PROVIDER_FAIL_STREAK.get(key, 0) + 1
+        if conv_id and _PROVIDER_FAIL_STREAK[key] >= 2:
+            _PROVIDER_DISABLED.setdefault(conv_id, set()).add(provider)
+            logger.info(
+                "web_search provider cooling down: provider={} conv_id={} streak={}",
+                provider,
+                conv_id,
+                _PROVIDER_FAIL_STREAK[key],
+            )
+
+
+def _provider_is_skipped(conv_id: int, provider: str) -> bool:
+    return bool(conv_id) and provider in _PROVIDER_DISABLED.get(conv_id, set())
+
+
+async def _run_web_search(
+    query: str,
+    max_results: int,
+    *,
+    context: "ExecutionContext | None" = None,
+) -> WebSearchExecution:
+    conv_id = _web_search_conv_id(context)
+    rewritten_query = _normalize_text(_correct_query_year(query))
+    cache_key = (conv_id, rewritten_query.lower()) if conv_id else None
+    if cache_key and cache_key in _SEARCH_QUERY_CACHE:
+        prev = _SEARCH_QUERY_CACHE[cache_key]
+        return WebSearchExecution(
+            output=(
+                prev.output
+                + "\n\n[Note: This exact query was already searched in this conversation; "
+                "use fetch_url on a candidate URL from earlier results instead of repeating web_search.]"
+            ),
+            provider=prev.provider,
+            status=prev.status,
+            items=list(prev.items),
+            failure_reason=None,
+        )
+
+    provider_specs: list[
+        tuple[str, Callable[..., Coroutine[Any, Any, SearchProviderResponse]]]
+    ] = [
+        (_SEARCH_PROVIDER_BAIDU, _search_with_baidu_public),
+        (_SEARCH_PROVIDER_SO360, _search_with_so360_public),
     ]
     attempts: list[SearchProviderResponse] = []
 
-    for index, provider in enumerate(providers):
-        attempt = await provider(rewritten_query, max_results)
+    for index, (pname, pfunc) in enumerate(provider_specs):
+        if _provider_is_skipped(conv_id, pname):
+            logger.info(
+                "web_search skip cooled-down provider={} conv_id={} query={}",
+                pname,
+                conv_id,
+                rewritten_query[:80],
+            )
+            continue
+        attempt = await pfunc(rewritten_query, max_results)
+        _record_provider_outcome(conv_id, pname, attempt.status)
         attempts.append(attempt)
         logger.info(
             "web_search source attempt: provider={} status={} query={} result_count={} fallback={}",
@@ -455,16 +713,29 @@ async def _run_web_search(query: str, max_results: int) -> WebSearchExecution:
             index > 0,
         )
         if attempt.status == _SEARCH_STATUS_SUCCESS and attempt.results:
-            return WebSearchExecution(
+            execution = WebSearchExecution(
                 output=_build_search_output_text(rewritten_query, attempt.results),
                 provider=attempt.provider,
                 status=attempt.status,
                 items=attempt.results,
             )
+            if cache_key:
+                _SEARCH_QUERY_CACHE[cache_key] = execution
+            return execution
         if attempt.status == _SEARCH_STATUS_NO_RESULTS:
             continue
 
-    if attempts and any(attempt.status == _SEARCH_STATUS_NO_RESULTS for attempt in attempts):
+    if not attempts:
+        return WebSearchExecution(
+            output="Search sources temporarily unavailable (search providers cooling down).",
+            provider=None,
+            status=_SEARCH_STATUS_SOURCE_UNAVAILABLE,
+            items=[],
+            failure_reason="all search providers temporarily skipped",
+        )
+
+    non_no_results = [attempt for attempt in attempts if attempt.status != _SEARCH_STATUS_NO_RESULTS]
+    if attempts and non_no_results == []:
         return WebSearchExecution(
             output=f"No results found for: {rewritten_query}",
             provider=attempts[-1].provider if attempts else None,
@@ -474,6 +745,22 @@ async def _run_web_search(query: str, max_results: int) -> WebSearchExecution:
         )
 
     failure_reason = _build_public_search_failure_reason(attempts) or "all public search sources were unavailable"
+    if any(attempt.status == _SEARCH_STATUS_LOW_CONFIDENCE for attempt in attempts):
+        return WebSearchExecution(
+            output=f"Search results low confidence: {failure_reason}",
+            provider=attempts[-1].provider if attempts else None,
+            status=_SEARCH_STATUS_LOW_CONFIDENCE,
+            items=[],
+            failure_reason=failure_reason,
+        )
+    if any(attempt.status == _SEARCH_STATUS_PARSER_MISS for attempt in attempts):
+        return WebSearchExecution(
+            output=f"Search parser unavailable: {failure_reason}",
+            provider=attempts[-1].provider if attempts else None,
+            status=_SEARCH_STATUS_PARSER_MISS,
+            items=[],
+            failure_reason=failure_reason,
+        )
     return WebSearchExecution(
         output=f"Search source unavailable: {failure_reason}",
         provider=attempts[-1].provider if attempts else None,
@@ -644,7 +931,7 @@ def _format_html_fetch_output(
     body = page.get("body", "") or ""
     if not body:
         return (
-            f"{prefix}\n\nNo readable main content found. "
+            f"Error: No readable main content found at {final_url}. "
             "The page may require JavaScript or block automated reading."
         )
 
@@ -716,12 +1003,18 @@ class BuiltinToolExecutor(BaseToolExecutor):
             if func_name == "web_search":
                 query = str(arguments.get("query") or "")
                 max_results = int(arguments.get("max_results") or 5)
-                execution = await _run_web_search(query, max_results)
+                execution = await _run_web_search(
+                    query,
+                    max_results,
+                    context=context,
+                )
                 duration_ms = int((time.perf_counter() - start) * 1000)
                 is_failure = execution.status in {
                     _SEARCH_STATUS_SOURCE_BLOCKED,
                     _SEARCH_STATUS_SOURCE_CHALLENGED,
                     _SEARCH_STATUS_SOURCE_UNAVAILABLE,
+                    _SEARCH_STATUS_PARSER_MISS,
+                    _SEARCH_STATUS_LOW_CONFIDENCE,
                 }
                 return ToolResult(
                     tool_call_id=tool_call_id,
@@ -740,6 +1033,29 @@ class BuiltinToolExecutor(BaseToolExecutor):
                         items=execution.items,
                         failure_reason=execution.failure_reason,
                     ),
+                    duration_ms=duration_ms,
+                )
+
+            if func_name == "fetch_url":
+                url = str(arguments.get("url") or "")
+                max_length = int(arguments.get("max_length") or 5000)
+                ok, payload = await BuiltinToolExecutor._fetch_url_result(url, max_length)
+                duration_ms = int((time.perf_counter() - start) * 1000)
+                if not ok:
+                    return ToolResult(
+                        tool_call_id=tool_call_id,
+                        name=func_name,
+                        success=False,
+                        error=payload,
+                        summary="fetch_url failed",
+                        summary_payload={"fetch_url": True, "ok": False},
+                        duration_ms=duration_ms,
+                    )
+                return ToolResult(
+                    tool_call_id=tool_call_id,
+                    name=func_name,
+                    success=True,
+                    output=payload,
                     duration_ms=duration_ms,
                 )
 
@@ -804,7 +1120,7 @@ class BuiltinToolExecutor(BaseToolExecutor):
 
     @staticmethod
     async def _get_current_time(
-        timezone_name: str = "UTC",
+        timezone_name: str = settings.TIMEZONE,
         format: str = "%Y-%m-%d %H:%M:%S",
     ) -> str:
         """Get current time / 获取当前时间"""
@@ -861,24 +1177,26 @@ class BuiltinToolExecutor(BaseToolExecutor):
         return (await _run_web_search(query, max_results)).output
 
     @staticmethod
-    async def _fetch_url(url: str = "", max_length: int = 5000) -> str:
+    async def _fetch_url_result(url: str = "", max_length: int = 5000) -> tuple[bool, str]:
         """
-        Fetch web content: retrieve text content from a specified URL. / 抓取网页内容：获取指定 URL 的文本内容。
-
-        Automatically extracts body text, removing HTML tags and scripts.
-        自动提取正文文本，去除 HTML 标签和脚本。
+        Fetch URL; returns (success, text).
+        On failure, text is the error detail for ToolResult.error (no \"Error:\" prefix).
         """
         if not url:
-            return "Error: url parameter is required"
+            return False, "url parameter is required"
 
-        # SSRF protection: block intranet/cloud metadata access / SSRF 防护：阻止内网/云元数据访问
         ssrf_err = _is_ssrf_blocked(url)
         if ssrf_err:
-            return f"Error: {ssrf_err}"
+            return False, ssrf_err
 
         import httpx
 
         max_length = min(max(500, max_length), 20000)
+        hint = (
+            " This page may block automated access; try another candidate URL from "
+            "search results with fetch_url."
+        )
+        hint_zh = " 该页面可能被站点拦截，请从搜索结果中换其他候选 URL 后用 fetch_url 重试。"
 
         try:
             timeout = httpx.Timeout(20.0, connect=10.0)
@@ -896,35 +1214,48 @@ class BuiltinToolExecutor(BaseToolExecutor):
             if resp.status_code >= 400:
                 page = _extract_readable_page(raw_text) if raw_text else {}
                 title = page.get("title") if page else ""
-                message = f"Error: HTTP {resp.status_code} while fetching {final_url}"
+                message = f"HTTP {resp.status_code} while fetching {final_url}"
                 if title:
                     message += f" (title: {title})"
-                return message
+                if resp.status_code in (401, 403, 429):
+                    message += hint + hint_zh
+                return False, message
 
             if "html" in content_type or "<html" in raw_text[:1000].lower():
                 page = _extract_readable_page(raw_text)
-                return _format_html_fetch_output(
+                formatted = _format_html_fetch_output(
                     requested_url=url,
                     final_url=final_url,
                     page=page,
                     max_length=max_length,
                 )
+                if formatted.strip().startswith("Error:"):
+                    return False, formatted.strip()[len("Error:") :].strip() + hint_zh
+                return True, formatted
 
             text, _ = _truncate_text(_normalize_text(raw_text), max_length)
-            return (
-                f"Content from {final_url}:\n\n{text}"
-                if text
-                else f"No readable content found at {final_url}"
-            )
+            if text:
+                return True, f"Content from {final_url}:\n\n{text}"
+            return False, f"No readable content found at {final_url}"
 
         except httpx.TimeoutException:
-            return f"Error: Request timed out for URL: {url}"
+            return False, f"Request timed out for URL: {url}"
         except httpx.HTTPError as exc:
             logger.warning("fetch_url request error for {}: {}", url, exc)
-            return f"Error: Failed to fetch URL - {exc}"
+            return False, f"Failed to fetch URL - {exc}"
         except Exception as exc:
             logger.warning("fetch_url failed for {}: {}", url, exc)
-            return f"Error: Failed to fetch URL - {exc}"
+            return False, f"Failed to fetch URL - {exc}"
+
+    @staticmethod
+    async def _fetch_url(url: str = "", max_length: int = 5000) -> str:
+        """
+        Fetch web content (legacy string API for tests). / 抓取网页内容。
+        """
+        ok, text = await BuiltinToolExecutor._fetch_url_result(url, max_length)
+        if ok:
+            return text
+        return f"Error: {text}"
 
 
 # ========================================

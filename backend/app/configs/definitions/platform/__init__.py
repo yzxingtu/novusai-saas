@@ -11,6 +11,7 @@ from app.configs.definitions.platform import (
     domain,
     email,
     general,
+    marketplace,
     security,
     ssl,
     storage,
@@ -19,6 +20,7 @@ from app.configs.definitions.platform import (
 
 __all__ = [
     "general",
+    "marketplace",
     "domain",
     "security",
     "email",

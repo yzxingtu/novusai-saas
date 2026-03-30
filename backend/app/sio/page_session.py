@@ -463,6 +463,7 @@ async def invoke_page_operation(
     operation_name: str,
     params: dict[str, Any] | None = None,
     requires_confirmation: bool = False,
+    auto_approved: bool = False,
     tool_call_id: str | None = None,
     timeout: float = PAGE_OPERATION_TIMEOUT,
     namespace: str | None = None,
@@ -482,6 +483,7 @@ async def invoke_page_operation(
         operation_name: Operation name / 操作名称
         params: Operation params / 操作参数
         requires_confirmation: Whether user confirmation is needed / 是否需要用户确认
+        auto_approved: Whether backend trust policy already approved the operation / 是否已由后端信任策略自动批准
         tool_call_id: Tool call ID for frontend to associate confirmation card with message / 工具调用 ID，供前端将确认卡片关联到对应消息
         timeout: Timeout (seconds), default 60s / 超时时间（秒），默认 60s
         namespace: Socket.IO namespace, None broadcasts to all namespaces / Socket.IO namespace，None 时向所有 namespace 广播
@@ -513,6 +515,7 @@ async def invoke_page_operation(
         "operation_name": operation_name,
         "params": params or {},
         "requires_confirmation": requires_confirmation,
+        "auto_approved": auto_approved,
     }
     if tool_call_id:
         invoke_data["tool_call_id"] = tool_call_id

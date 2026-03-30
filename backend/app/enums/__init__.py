@@ -44,15 +44,29 @@ from app.enums.common import (
 from app.enums.config import ConfigScope, ConfigValueType
 from app.enums.domain import DomainSslStatus, DomainType, SslCertStatus, SslCertType
 from app.enums.error_code import ErrorCode
+from app.enums.execution import (
+    ExecutionDecisionScopeEnum,
+    ExecutionDecisionStatusEnum,
+    ExecutionDecisionSubjectEnum,
+    ExecutionDecisionTypeEnum,
+)
 from app.enums.knowledge_base import (
     ChunkStrategyEnum,
     DocumentStatusEnum,
     DocumentTypeEnum,
+    EphemeralDocScopeEnum,
+    EphemeralDocStatusEnum,
     KBStatusEnum,
     RewriteStrategyEnum,
     SearchModeEnum,
 )
 from app.enums.log import LogCategoryEnum, LogModuleEnum, UserTypeEnum
+from app.enums.memory import (
+    MemoryScopeTypeEnum,
+    MemorySourceKindEnum,
+    MemoryStatusEnum,
+    MemoryTypeEnum,
+)
 from app.enums.plugin import (
     PluginInstallSourceEnum,
     PluginLicenseTypeEnum,
@@ -103,12 +117,20 @@ __all__ = [
     "UserTypeEnum",
     "LogModuleEnum",
     "LogCategoryEnum",
+    "MemoryScopeTypeEnum",
+    "MemoryTypeEnum",
+    "MemoryStatusEnum",
+    "MemorySourceKindEnum",
     # 附件 / Attachment
     "AttachmentVisibility",
     "AttachmentStatus",
     "AttachmentSource",
     # 错误码 / Error Codes
     "ErrorCode",
+    "ExecutionDecisionTypeEnum",
+    "ExecutionDecisionSubjectEnum",
+    "ExecutionDecisionStatusEnum",
+    "ExecutionDecisionScopeEnum",
     # 任务 / Tasks
     "TaskStatusEnum",
     "ScheduleTypeEnum",
@@ -136,6 +158,8 @@ __all__ = [
     "ChunkStrategyEnum",
     "SearchModeEnum",
     "RewriteStrategyEnum",
+    "EphemeralDocScopeEnum",
+    "EphemeralDocStatusEnum",
     # 缓存 / Cache
     "CacheCategoryEnum",
     # 插件 / Plugin

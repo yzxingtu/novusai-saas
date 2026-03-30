@@ -2,6 +2,9 @@
 
 from app.plugins.base import PluginBase
 
+from . import captcha_provider
+from .captcha_provider import SliderCaptchaProvider
+
 
 class SliderCaptchaPlugin(PluginBase):
     """Slider captcha plugin. / 滑动拼图验证码插件。"""
@@ -17,3 +20,6 @@ class SliderCaptchaPlugin(PluginBase):
 
     async def on_uninstall(self, ctx) -> None:
         ctx.get_logger().info("Slider captcha plugin uninstalled")
+
+
+__all__ = ["SliderCaptchaPlugin", "SliderCaptchaProvider", "captcha_provider"]

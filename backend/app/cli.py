@@ -770,10 +770,33 @@ def _run_async(coro):
     return asyncio.run(coro)
 
 
+def _json_default(value: object) -> object:
+    from datetime import date, datetime
+    from decimal import Decimal
+
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, Decimal):
+        return float(value)
+    return str(value)
+
+
+def _ensure_utf8_stdio() -> None:
+    for stream_name in ("stdout", "stderr"):
+        stream = getattr(sys, stream_name, None)
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            try:
+                reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                continue
+
+
 def _echo_json(data: dict) -> None:
     import json
 
-    click.echo(json.dumps(data, ensure_ascii=False, indent=2))
+    _ensure_utf8_stdio()
+    click.echo(json.dumps(data, ensure_ascii=False, indent=2, default=_json_default))
 
 
 def _json_error(
@@ -1055,7 +1078,12 @@ def _indent_cli_block(text: str, prefix: str = "    ") -> str:
 def _compact_json_text(value: object) -> str:
     import json
 
-    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        default=_json_default,
+    )
 
 
 async def _load_ai_conversation_snapshot(
@@ -1377,6 +1405,7 @@ def ai_conversation_show(
 ) -> None:
     """Show AI conversation detail by ID / 按对话 ID 查看 AI 对话详情。"""
     os.chdir(_BACKEND_DIR)
+    _ensure_utf8_stdio()
 
     from app.exceptions import AppException, NotFoundException
 

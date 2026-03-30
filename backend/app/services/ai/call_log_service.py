@@ -19,6 +19,32 @@ from app.repositories.ai import AICallLogRepository
 logger = LogManager.get_logger("ai.call_log")
 
 
+def _normalize_trace_for_call_log(
+    explicit_trace_id: str | None,
+    *,
+    use_context_var: bool,
+) -> str | None:
+    """Resolve trace_id for AICallLog (explicit arg or request context var)."""
+    tid: str | None = None
+    if explicit_trace_id is not None and str(explicit_trace_id).strip():
+        tid = str(explicit_trace_id).strip()
+    elif use_context_var:
+        from app.middleware.trace import trace_id_var
+
+        raw = trace_id_var.get()
+        tid = str(raw).strip() if raw else None
+    if not tid:
+        return None
+    return tid[:64] if len(tid) > 64 else tid
+
+
+def _normalize_tool_call_id_for_call_log(tool_call_id: str | None) -> str | None:
+    if not tool_call_id or not str(tool_call_id).strip():
+        return None
+    s = str(tool_call_id).strip()
+    return s[:128] if len(s) > 128 else s
+
+
 class CallLogService(BaseService[AICallLog, AICallLogRepository]):
     """
     AI 调用日志服务 / AI Call Log Service.
@@ -174,6 +200,8 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         billing_context: dict[str, Any] | None = None,
         routed_model_id: int | None = None,
         route_reason: str | None = None,
+        trace_id: str | None = None,
+        tool_call_id: str | None = None,
     ) -> AICallLog:
         """
         记录调用日志 / Record call log.
@@ -222,6 +250,8 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         # 创建日志记录 / Create log row
         billing_context = dict(billing_context or {})
         normalized_latency_ms = self._normalize_latency_ms(latency_ms)
+        eff_trace = _normalize_trace_for_call_log(trace_id, use_context_var=True)
+        eff_tool = _normalize_tool_call_id_for_call_log(tool_call_id)
         call_log = AICallLog(
             tenant_id=tenant_id,
             user_id=user_id,
@@ -232,6 +262,8 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
             access_channel=billing_context.get("access_channel"),
             agent_id=agent_id,
             conversation_id=conversation_id,
+            trace_id=eff_trace,
+            tool_call_id=eff_tool,
             provider_id=provider_id,
             model_id=model_id,
             request_type=request_type,
@@ -344,6 +376,8 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         billing_context: dict[str, Any] | None = None,
         routed_model_id: int | None = None,
         route_reason: str | None = None,
+        trace_id: str | None = None,
+        tool_call_id: str | None = None,
     ):
         """
         异步记录调用日志 (通过 Celery) / Record call log asynchronously via Celery.
@@ -354,6 +388,8 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         from app.tasks.ai import log_ai_call_task
 
         normalized_latency_ms = self._normalize_latency_ms(latency_ms)
+        eff_trace = _normalize_trace_for_call_log(trace_id, use_context_var=True)
+        eff_tool = _normalize_tool_call_id_for_call_log(tool_call_id)
 
         # 发送 Celery 任务
         log_ai_call_task.delay(
@@ -377,6 +413,8 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
             billing_context=billing_context,
             routed_model_id=routed_model_id,
             route_reason=route_reason,
+            trace_id=eff_trace,
+            tool_call_id=eff_tool,
         )
 
         logger.debug(

@@ -46,7 +46,7 @@ from app.ai.engine.conversation import ConversationEngine
 from app.ai.engine.types import ExecutionRequest, PreparedExecution, ToolUsePolicy
 from app.ai.quota import QuotaExceeded
 from app.ai.rate_limiter import RateLimitExceeded
-from app.ai.tools.types import ToolDefinition
+from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage, ChatResponse
 from app.core.config import settings
 from app.middleware.trace import trace_id_var
@@ -237,6 +237,221 @@ async def test_conversation_engine_retries_capability_denial_with_required_tool_
         "web_search",
         "fetch_url",
     ]
+
+
+@pytest.mark.asyncio
+async def test_conversation_engine_retries_summary_without_fetch_with_fetch_url() -> None:
+    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    prep = PreparedExecution(
+        messages=[ChatMessage(role="user", content="联网查阅一下，今天乌克兰的局势")],
+        tools=[
+            ToolDefinition(name="web_search", description="Search the web"),
+            ToolDefinition(name="fetch_url", description="Fetch url"),
+        ],
+        all_tools=[
+            ToolDefinition(name="web_search", description="Search the web"),
+            ToolDefinition(name="fetch_url", description="Fetch url"),
+            ToolDefinition(name="data_query", description="Query data"),
+        ],
+        continuation_context=SimpleNamespace(
+            active=True,
+            family="web_research",
+            origin="continuation",
+            current_user_text="继续查看正文。",
+            research_target_text="乌克兰 局势 今天 最新 官方 新闻",
+            recent_successful_tool_names=["web_search"],
+            recent_web_queries=["乌克兰 局势 今天 最新 官方 新闻"],
+            search_query_count=1,
+            fetched_url_count=0,
+            research_instruction_texts=["联网查阅一下，今天乌克兰的局势"],
+        ),
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["web_search", "fetch_url"],
+            retry_on_contract_breach=True,
+            reason="active_continuation:web_research",
+        ),
+        rag_sources=None,
+        tool_consent_modes={},
+        optimize_event=None,
+        route_result=None,
+    )
+    engine._prepare_execution = AsyncMock(return_value=prep)
+
+    first_response = ChatResponse(
+        message=ChatMessage(role="assistant", content=""),
+        tool_calls=[
+            {
+                "id": "call_search",
+                "type": "function",
+                "function": {
+                    "name": "web_search",
+                    "arguments": '{"query":"乌克兰 局势 今天 最新 官方 新闻","max_results":5}',
+                },
+            }
+        ],
+        total_tokens=20,
+    )
+    retry_response = ChatResponse(
+        message=ChatMessage(role="assistant", content=""),
+        tool_calls=[
+            {
+                "id": "call_fetch",
+                "type": "function",
+                "function": {
+                    "name": "fetch_url",
+                    "arguments": '{"url":"https://example.com/ukraine-live","max_length":4000}',
+                },
+            }
+        ],
+        total_tokens=8,
+    )
+    engine._call_llm = AsyncMock(side_effect=[first_response, retry_response])
+
+    async def _fake_handle_tool_calls(
+        *,
+        messages,
+        response,
+        **kwargs,
+    ):
+        _ = kwargs
+        tool_name = response.tool_calls[0]["function"]["name"]
+        if tool_name == "web_search":
+            messages.append(
+                ChatMessage(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        {
+                            **response.tool_calls[0],
+                            "success": True,
+                        }
+                    ],
+                )
+            )
+            messages.append(
+                ChatMessage(
+                    role="tool",
+                    content="Search results for: 乌克兰 局势 今天 最新 官方 新闻",
+                    tool_call_id="call_search",
+                )
+            )
+            return (
+                ChatResponse(
+                    message=ChatMessage(
+                        role="assistant",
+                        content="Here is a summary based only on the search snippets.",
+                    ),
+                    total_tokens=12,
+                ),
+                [
+                    ToolResult(
+                        tool_call_id="call_search",
+                        name="web_search",
+                        success=True,
+                        output="Search results for: 乌克兰 局势 今天 最新 官方 新闻",
+                    )
+                ],
+                32,
+            )
+
+        messages.append(
+            ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=[
+                    {
+                        **response.tool_calls[0],
+                        "success": True,
+                    }
+                ],
+            )
+        )
+        messages.append(
+            ChatMessage(
+                role="tool",
+                content="Content from https://example.com/ukraine-live:\n\n正文内容",
+                tool_call_id="call_fetch",
+            )
+        )
+        return (
+            ChatResponse(
+                message=ChatMessage(
+                    role="assistant",
+                    content="基于正文，今天乌克兰局势仍然处于持续对抗状态。",
+                ),
+                total_tokens=15,
+            ),
+            [
+                ToolResult(
+                    tool_call_id="call_fetch",
+                    name="fetch_url",
+                    success=True,
+                    output="Content from https://example.com/ukraine-live:\n\n正文内容",
+                )
+            ],
+            23,
+        )
+
+    engine._handle_tool_calls = AsyncMock(side_effect=_fake_handle_tool_calls)
+
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        user_id=1,
+        messages=[ChatMessage(role="user", content="联网查阅一下，今天乌克兰的局势")],
+        input_variables={},
+    )
+    agent = SimpleNamespace(id=1)
+
+    result = await engine.execute(agent, request)
+
+    assert result.success is True
+    assert "基于正文" in result.output
+    assert len(engine._call_llm.await_args_list) == 2
+    assert engine._call_llm.await_args_list[1].kwargs["tool_use_policy"].reason == (
+        "web_research_summary_without_fetch"
+    )
+    assert [tool.name for tool in engine._call_llm.await_args_list[1].kwargs["tools"]] == [
+        "web_search",
+        "fetch_url",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_conversation_engine_execute_calls_context_engine_after_turn() -> None:
+    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    context_engine = AsyncMock()
+    prep = PreparedExecution(
+        messages=[ChatMessage(role="user", content="hello")],
+        tools=[],
+        rag_sources=None,
+        tool_consent_modes={},
+        optimize_event=None,
+        route_result=None,
+        context_engine=context_engine,
+    )
+    engine._prepare_execution = AsyncMock(return_value=prep)
+    engine._call_llm = AsyncMock(
+        return_value=ChatResponse(
+            message=ChatMessage(role="assistant", content="world"),
+            total_tokens=8,
+        )
+    )
+
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        user_id=1,
+        messages=[ChatMessage(role="user", content="hello")],
+    )
+    agent = SimpleNamespace(id=1)
+
+    result = await engine.execute(agent, request)
+
+    assert result.success is True
+    context_engine.after_turn.assert_awaited_once()
 
 
 def test_contract_breach_retry_uses_semantic_capability_terms_for_custom_web_tool() -> None:

@@ -122,5 +122,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # 不回退作用域，避免再次变成仅企业端
+    """Intentional no-op: Reverting scope and bindings would narrow NovusDoc Writer to tenant-only and break admin usage."""
     pass

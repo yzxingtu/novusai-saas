@@ -16,7 +16,9 @@
 2. alembic upgrade heads
 3. alembic revision --autogenerate
 4. inject codegen metadata
-5. alembic upgrade heads
+5. validation (has_ops check)
+6. lint_migrations (检测裸 REPLACE、f-string SQL 等危险模式)
+7. alembic upgrade heads
 ```
 
 这意味着：
@@ -24,6 +26,7 @@
 - 生成前先把数据库拉到最新
 - 迁移文件生成后会自动应用
 - 语义是 `upgrade heads`，不是旧的 `upgrade head`
+- 步骤 6 由 `CodegenService._lint_migration_file()` 执行，若检出 warning 则中止并返回 `phase: "lint"` 错误
 
 ## manifest 与迁移元数据
 

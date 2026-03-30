@@ -25,6 +25,27 @@
 - Q&A 批量导入（CSV / XLSX）
 - URL 网页导入
 
+### 临时资料侧车层 / Ephemeral RAG lane
+
+- 正式 KB 之外，新增 `EphemeralDocument` 作为临时资料真源
+- 支持：
+  - conversation-scoped
+  - agent workspace scoped
+  - tenant private scratch
+- 临时资料允许：
+  - HTML
+  - Markdown
+  - CSV
+  - Text
+  - URL 正文
+- 当前前端主入口在 AI Chat composer 的 scratch / 临时资料入口，不应再另造一套脱离会话的临时 RAG UI 协议
+- 临时资料检索复用正式 parser / chunker / retriever
+- 临时资料 citation 必须标记为 `ephemeral_doc`
+- 提升为正式文档时，必须走：
+  - `EphemeralDocumentService.promote_to_knowledge_base`
+  - `KnowledgeDocument`
+  - `process_document`
+
 ### 文档处理层
 
 - 文档状态：`pending / parsing / chunking / embedding / completed / error`
@@ -67,6 +88,9 @@
 - Agent 详情页有独立 `知识库 (RAG)` tab，维护 `Agent.rag_config`
 - Agent 详情页有 `知识库` 绑定 tab，维护 KB 绑定、权重、启用状态
 - 企业端对平台下发智能体可以追加本企业知识库绑定，也可对平台全局知识库做“本企业不使用”停用
+- 正式 KB 路径已补：
+  - exact technical term keyword boost
+  - relevance-gap filtering
 
 ## 核心原则
 
@@ -79,6 +103,8 @@
 - 删除文档、重建索引后要记得失效检索缓存
 - 知识库绑定权重不是展示字段，改动时要考虑真实检索融合影响
 - 检索测试是 KB 级调试能力，不等于真实 Agent 运行时最终效果
+- 临时资料不是正式 KB，不能把 `EphemeralDocument` 当成 `KnowledgeBase` 替代品
+- `Agent.rag_config` 仍然是正式 KB 运行时真相；临时资料只作为 sidecar context lane
 
 ## 当前实现边界
 

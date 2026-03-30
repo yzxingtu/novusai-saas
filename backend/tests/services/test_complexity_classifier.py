@@ -59,17 +59,20 @@ class TestComplexityClassifierBasic:
         result = classifier.classify(messages)
         assert result == ComplexityLevel.SIMPLE
 
-    def test_medium_chinese_keyword_analyze(self, classifier, ComplexityLevel):
-        """含中文「分析」关键词 → MEDIUM / 「 」 → MEDIUM"""
-        messages = [_user("请分析这段代码的性能问题。")]
+    def test_medium_from_many_user_turns(self, classifier, ComplexityLevel):
+        """>10 轮用户消息 → 结构分 +2 → MEDIUM"""
+        messages: list = []
+        for i in range(11):
+            messages.append(_user(f"第{i}问"))
+            messages.append(_assistant(f"答{i}"))
         result = classifier.classify(messages)
         assert result == ComplexityLevel.MEDIUM
 
-    def test_medium_english_keyword_analyze(self, classifier, ComplexityLevel):
-        """含英文 analyze 关键词 → MEDIUM / analyze → MEDIUM"""
+    def test_simple_single_message_no_structure_boost(self, classifier, ComplexityLevel):
+        """单条消息无轮次/长度/工具加成 → SIMPLE"""
         messages = [_user("Can you analyze this SQL query for me?")]
         result = classifier.classify(messages)
-        assert result == ComplexityLevel.MEDIUM
+        assert result == ComplexityLevel.SIMPLE
 
     def test_medium_attachment_elevates_simple(self, classifier, ComplexityLevel):
         """有图片附件时，即使评分为 SIMPLE 也自动升为 MEDIUM / ， SIMPLE MEDI..."""
@@ -79,27 +82,29 @@ class TestComplexityClassifierBasic:
 
     def test_medium_attachment_does_not_lower_complex(self, classifier, ComplexityLevel):
         """有附件时 COMPLEX 不会被降级 / COMPLEX"""
-        # 11 个 user turn + 含「分析」「对比」关键词 → 2+2=4分 → COMPLEX
-        msgs = [_user("你好"), _assistant("好的")] * 10 + [_user("请分析并对比这两个方案的区别")]
-        result = classifier.classify(msgs, has_attachments=True)
+        # 11 user turns (+2) + 6 tools (+2) + long last user msg (+1) = 5 → COMPLEX
+        msgs = [_user("你好"), _assistant("好的")] * 10
+        long_last = "请详细说明" + "x" * 520
+        msgs.append(_user(long_last))
+        tools = [{"name": f"t{i}"} for i in range(6)]
+        result = classifier.classify(msgs, tools=tools, has_attachments=True)
         assert result == ComplexityLevel.COMPLEX
 
     def test_complex_long_multi_turn_conversation(self, classifier, ComplexityLevel):
-        """多轮（>10）长对话 → COMPLEX / （>10） → COMPLEX"""
-        # 构建 11 轮对话：2分（轮数>10）+ 1分（长消息）= 3分... 还需要1分
-        # 让第12条消息包含「推理」关键词 → 3+2=5分 → COMPLEX
+        """多轮（>10）+ 长消息 + 多工具 → COMPLEX"""
         msgs = []
         for i in range(11):
             msgs.append(_user(f"这是第{i + 1}轮问题，内容比较普通"))
             msgs.append(_assistant(f"第{i + 1}轮回答"))
-        msgs.append(_user("请对这11轮对话进行推理分析"))
-        result = classifier.classify(msgs)
+        msgs.append(_user("请总结" + "y" * 520))
+        tools = [{"name": f"t{i}"} for i in range(6)]
+        result = classifier.classify(msgs, tools=tools)
         assert result == ComplexityLevel.COMPLEX
 
     def test_complex_many_tools(self, classifier, ComplexityLevel):
-        """6个工具 + 长消息 → COMPLEX / 6 + → COMPLEX"""
+        """6个工具 + 超长用户消息（结构分：长消息 + 累积超长）→ COMPLEX"""
         tools = [{"name": f"tool_{i}"} for i in range(6)]
-        long_content = "请" + "帮我实现一个复杂的数据处理管道，" * 30  # > 500 chars
+        long_content = "请" + "x" * 8500  # >500 且累积 >8000
         messages = [_user(long_content)]
         result = classifier.classify(messages, tools=tools)
         assert result == ComplexityLevel.COMPLEX
@@ -114,20 +119,16 @@ class TestComplexityClassifierBasic:
         result = classifier.classify(msgs)
         assert result == ComplexityLevel.SIMPLE
 
-    def test_medium_english_reasoning_keyword(self, classifier, ComplexityLevel):
-        """英文 reasoning 关键词 → MEDIUM / reasoning → MEDIUM"""
-        messages = [_user("Let me explain my reasoning for this approach.")]
-        result = classifier.classify(messages)
-        assert result == ComplexityLevel.MEDIUM
-
     def test_complex_very_long_multi_turn_and_keywords(self, classifier, ComplexityLevel):
-        """>20轮对话 + 关键词 → COMPLEX（额外1分） / >20 + → COMPLEX（ 1 ）"""
+        """>20 轮用户 + 超额轮次加分 → COMPLEX"""
         msgs = []
         for _ in range(21):
             msgs.append(_user("普通问题"))
             msgs.append(_assistant("回答"))
-        msgs.append(_user("请分析并实现"))  # +2 关键词（分析+实现各算一次）
-        result = classifier.classify(msgs)
+        msgs.append(_user("收尾"))
+        # 22 user turns: >20 → +2 +1 = 3; need 4+ → add 6 tools +2 → 5
+        tools = [{"name": f"t{i}"} for i in range(6)]
+        result = classifier.classify(msgs, tools=tools)
         assert result == ComplexityLevel.COMPLEX
 
 
@@ -154,7 +155,6 @@ class TestComplexityClassifierEdgeCases:
         """恰好6个工具（超过阈值）→ +2分 / 6 （ ）→ +2"""
         tools = [{"name": f"tool_{i}"} for i in range(6)]
         result = classifier.classify([_user("evaluate this")], tools=tools)
-        # evaluate → +1(score_1) + 2(tools>5) = 3 → MEDIUM
         assert result == ComplexityLevel.MEDIUM
 
     def test_only_assistant_messages(self, classifier, ComplexityLevel):

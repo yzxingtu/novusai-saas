@@ -174,6 +174,8 @@ class ToolSandbox:
         toolkit_memory_limit_mb: int = 256,
         input_variables: dict[str, Any] | None = None,
         page_session_id: str | None = None,
+        conversation_id: int | None = None,
+        trust_policy_ref: dict[str, Any] | None = None,
     ):
         """
         Args:
@@ -190,6 +192,7 @@ class ToolSandbox:
             toolkit_memory_limit_mb: Toolkit subprocess memory limit (MB) / 子进程内存限制
             input_variables: Runtime variables (page context, etc.) / 运行时变量
             page_session_id: Frontend page session ID (for PageOperationExecutor) / 页面会话 ID
+            conversation_id: Conversation ID for audit correlation / 会话 ID（用于审计串联）
         """
         self.tenant_id = tenant_id
         self.agent_id = agent_id
@@ -205,6 +208,8 @@ class ToolSandbox:
         self._toolkit_security_level = toolkit_security_level
         self._toolkit_memory_limit_mb = toolkit_memory_limit_mb
         self._page_session_id = page_session_id
+        self._conversation_id = conversation_id
+        self.trust_policy_ref = trust_policy_ref
 
         # Initialize executors / 初始化执行器
         self._executors: dict[str, BaseToolExecutor] = {}
@@ -513,9 +518,11 @@ class ToolSandbox:
             permissions=self.permissions,
             db=self._db,
             consented_actions=self.consented_actions,
+            trust_policy_ref=self.trust_policy_ref,
             skill_id=definition.source_skill_id,
             variables=self.input_variables,
             page_session_id=self._page_session_id,
+            conversation_id=self._conversation_id,
         )
 
         # 5.5 Executor-level parameter validation / 执行器级参数校验

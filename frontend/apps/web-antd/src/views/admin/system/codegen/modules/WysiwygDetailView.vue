@@ -45,7 +45,9 @@ function normalizeDetailGroup(group: unknown): DetailGroup | null {
 const detailGroups = computed<DetailGroup[]>(() => {
   const rawGroups = features.detailGroups.value;
   return Array.isArray(rawGroups)
-    ? rawGroups.map((group) => normalizeDetailGroup(group)).filter(Boolean)
+    ? rawGroups
+        .map((group) => normalizeDetailGroup(group))
+        .filter((group): group is DetailGroup => group !== null)
     : [];
 });
 const detailFields = computed<BuilderField[]>(
@@ -57,7 +59,7 @@ function getFieldsForGroup(groupFields: string[] | undefined): BuilderField[] {
   const all = (store.configJson.fields as BuilderField[]) || [];
   return groupFields
     .map((name) => all.find((field) => field.name === name))
-    .filter(Boolean);
+    .filter((field): field is BuilderField => field !== undefined);
 }
 
 function onFieldClick(field: BuilderField) {

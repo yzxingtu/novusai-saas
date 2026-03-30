@@ -15,7 +15,7 @@ interface SingleAgentVarsState {
 
 interface MultiAgentVarsState {
   id: number;
-  input_variables?: InputVariable[];
+  input_variables?: InputVariable[] | null;
   name: string;
 }
 

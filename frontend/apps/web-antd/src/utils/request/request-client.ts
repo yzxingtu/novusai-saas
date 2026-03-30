@@ -51,6 +51,7 @@ import {
   toErrorWithAppError,
 } from './app-error';
 import { getEndpointByUrl } from './endpoint';
+import { isAuthError } from './error-codes';
 import { ensureTraceIdHeader } from './trace';
 
 // ============================================================
@@ -141,6 +142,9 @@ export class RequestClient {
 
   /** Default options / 默认选项 */
   private readonly defaultOptions: Required<RequestOptions>;
+
+  /** Locale getter function (for Accept-Language in SSE) / 语言获取函数（SSE Accept-Language） */
+  private getLocale?: () => string;
 
   /** Token getter function / Token 获取函数 */
   private getToken?: (endpoint: ApiEndpoint) => null | string;
@@ -393,47 +397,58 @@ export class RequestClient {
         ? `${baseUrl.replace(/\/+$/, '')}/${url.replace(/^\/+/, '')}`
         : url;
 
-      // 构建请求头 / SSE fetch headers
-      const headers = new Headers();
-      headers.set('Accept', 'text/event-stream');
-      headers.set('Content-Type', 'application/json');
+      const buildSseHeaders = (): Headers => {
+        const headers = new Headers();
+        headers.set('Accept', 'text/event-stream');
+        headers.set('Content-Type', 'application/json');
 
-      // 添加 Token / attach Bearer
-      if (this.getToken) {
-        const endpoint = getEndpointByUrl(url);
-        const token = this.getToken(endpoint);
-        if (token) {
-          headers.set('Authorization', `Bearer ${token}`);
+        if (this.getToken) {
+          const endpoint = getEndpointByUrl(url);
+          const token = this.getToken(endpoint);
+          if (token) {
+            headers.set('Authorization', `Bearer ${token}`);
+          }
         }
-      }
 
-      // 合并自定义 headers / merge caller headers
-      if (fetchOptions?.headers) {
-        new Headers(fetchOptions.headers).forEach((v, k) => headers.set(k, v));
-      }
-      ensureTraceIdHeader(headers);
+        if (this.getLocale) {
+          headers.set('Accept-Language', this.getLocale());
+        }
 
-      // 准备请求体 / serialize body
+        if (fetchOptions?.headers) {
+          new Headers(fetchOptions.headers).forEach((v, k) =>
+            headers.set(k, v),
+          );
+        }
+        ensureTraceIdHeader(headers);
+        return headers;
+      };
+
       let body: BodyInit | null = null;
       if (data && fetchOptions?.method !== 'GET') {
         body = typeof data === 'string' ? data : JSON.stringify(data);
       }
 
-      const response = await fetch(fullUrl, {
-        ...fetchOptions,
-        method: fetchOptions?.method || 'GET',
-        headers,
-        body,
-        signal: abortController?.signal,
-      });
+      const doFetch = () =>
+        fetch(fullUrl, {
+          ...fetchOptions,
+          method: fetchOptions?.method || 'GET',
+          headers: buildSseHeaders(),
+          body,
+          signal: abortController?.signal,
+        });
+
+      let response = await doFetch();
+
+      if (response.status === 401) {
+        response = await this._handleSse401(response, doFetch);
+      }
 
       if (!response.ok) {
-        // 尝试解析响应体并归一化错误对象 / parse error JSON if any
         let responseBody: null | Record<string, unknown> = null;
         try {
           responseBody = await response.json();
         } catch {
-          // ignore JSON parse errors / 非 JSON 则忽略解析失败
+          // non-JSON body
         }
         const normalized = normalizeHttpError(
           {
@@ -471,25 +486,102 @@ export class RequestClient {
         await Promise.resolve(onMessage?.(content));
       }
     } catch (error: any) {
-      // 检查是否为取消操作 / user abort
       if (error.name === 'AbortError') {
-        // 请求被取消，不触发错误回调 / silent on cancel
         return;
       }
       const appError = normalizeSseTransportError(error, this.t);
-      // 触发错误回调 / delegate to onError
       if (onError) {
         onError(toErrorWithAppError(appError));
       } else {
-        // 没有错误回调时抛出错误 / rethrow if no handler
         throw toErrorWithAppError(appError);
       }
     }
   }
 
+  /**
+   * Handle SSE 401 by attempting token refresh, then retrying.
+   * Returns a fresh Response on success; throws on unrecoverable auth failure.
+   */
+  private async _handleSse401(
+    originalResponse: Response,
+    retryFetch: () => Promise<Response>,
+  ): Promise<Response> {
+    let responseBody: Record<string, unknown> | null = null;
+    try {
+      responseBody = await originalResponse.json();
+    } catch {
+      // non-JSON 401
+    }
+
+    const rawCode = responseBody?.code;
+    const businessCode =
+      typeof rawCode === 'number'
+        ? rawCode
+        : typeof rawCode === 'string' && /^\d+$/.test(rawCode)
+          ? Number(rawCode)
+          : undefined;
+
+    const throwOriginal = (): never => {
+      const normalized = normalizeHttpError(
+        {
+          response: {
+            data: responseBody,
+            headers: originalResponse.headers,
+            status: 401,
+          },
+        },
+        this.t,
+      );
+      throw toErrorWithAppError(normalized);
+    };
+
+    if (!businessCode || !isAuthError(businessCode)) {
+      throwOriginal();
+    }
+
+    if (businessCode === 4010 || !this.doRefreshToken) {
+      await this.doReAuthenticate?.();
+      throwOriginal();
+    }
+
+    try {
+      if (this.isRefreshing) {
+        await new Promise<string>((resolve, reject) => {
+          this.refreshTokenQueue.push({ resolve, reject });
+        });
+      } else {
+        this.isRefreshing = true;
+        try {
+          const newToken = await this.doRefreshToken();
+          this.refreshTokenQueue.forEach((item) => item.resolve(newToken));
+          this.refreshTokenQueue = [];
+        } catch (refreshError) {
+          this.refreshTokenQueue.forEach((item) =>
+            item.reject(refreshError),
+          );
+          this.refreshTokenQueue = [];
+          throw refreshError;
+        } finally {
+          this.isRefreshing = false;
+        }
+      }
+    } catch {
+      await this.doReAuthenticate?.();
+      throwOriginal();
+    }
+
+    return await retryFetch();
+  }
+
   /** Set i18n function / 设置国际化函数 */
   setI18n(fn: (key: string) => string) {
     this.t = fn;
+    return this;
+  }
+
+  /** Set locale getter (used by SSE for Accept-Language) / 设置语言获取函数（SSE Accept-Language） */
+  setLocaleGetter(fn: () => string) {
+    this.getLocale = fn;
     return this;
   }
 

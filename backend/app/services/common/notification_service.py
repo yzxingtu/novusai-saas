@@ -83,7 +83,7 @@ class NotificationService:
             if not notification_enabled:
                 return 0
         except Exception:
-            pass
+            logger.debug("Failed to check notification master switch, proceeding anyway")
 
         # 查询模板 / Query template
         template = await self._get_template(template_code)

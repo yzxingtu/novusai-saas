@@ -223,10 +223,44 @@ class _FakeEngine:
         )
 
     @staticmethod
+    def _should_retry_web_research_contract_breach(
+        *,
+        messages,
+        response,
+        current_policy,
+        tools,
+        input_variables,
+        continuation,
+    ):
+        from app.ai.engine.conversation import ConversationEngine
+
+        return ConversationEngine._should_retry_web_research_contract_breach(
+            messages=messages,
+            response=response,
+            current_policy=current_policy,
+            tools=tools,
+            input_variables=input_variables,
+            continuation=continuation,
+        )
+
+    @staticmethod
     def _filter_tools_for_policy(tools, policy):
         from app.ai.engine.conversation import ConversationEngine
 
         return ConversationEngine._filter_tools_for_policy(tools, policy)
+
+    @staticmethod
+    def _needs_fetch_url_before_summary(messages):
+        from app.ai.engine.base import BaseEngine
+
+        return BaseEngine._needs_fetch_url_before_summary(messages)
+
+    @staticmethod
+    def _apply_fetch_url_only_gate(messages, tools, all_tools):
+        from app.ai.engine.base import BaseEngine
+
+        return BaseEngine._apply_fetch_url_only_gate(messages, tools, all_tools)
+
 
 class _BrokenStreamEngine(_FakeEngine):
     async def _stream_llm_chunks(self, **kwargs):
@@ -248,6 +282,7 @@ def _build_handler(
         user_id=1,
         conversation_id=9001,
         messages=[ChatMessage(role="user", content="测试流式")],
+        interaction_updates=None,
     )
     prep = SimpleNamespace(
         messages=[ChatMessage(role="user", content="测试流式")],
@@ -256,6 +291,12 @@ def _build_handler(
         continuation_context=continuation_context,
         tool_use_policy=tool_use_policy or ToolUsePolicy(),
         rag_sources=None,
+        rag_source_kinds=[],
+        context_compacted=False,
+        memory_flush_triggered=False,
+        memory_recalled=False,
+        prune_stats=None,
+        context_engine=None,
         optimize_event=None,
         tool_consent_modes={},
         route_result=None,
@@ -475,7 +516,7 @@ async def test_stream_handler_tool_rounds_keep_real_stream_and_final_answer():
 
 
 @pytest.mark.asyncio
-async def test_stream_handler_logs_summary_without_detail_page_diagnostics():
+async def test_stream_handler_retries_summary_without_fetch_before_emitting_message():
     engine = _FakeEngine(
         rounds=[
             [
@@ -502,6 +543,30 @@ async def test_stream_handler_logs_summary_without_detail_page_diagnostics():
                     total_tokens=20,
                 ),
             ],
+            [
+                ChatChunk(
+                    delta="",
+                    tool_calls=[
+                        {
+                            "id": "call_fetch_1",
+                            "type": "function",
+                            "function": {
+                                "name": "fetch_url",
+                                "arguments": '{"url":"https://example.com/ukraine-live","max_length":4000}',
+                            },
+                        },
+                    ],
+                    finish_reason="tool_calls",
+                    total_tokens=18,
+                ),
+            ],
+            [
+                ChatChunk(
+                    delta="Based on the fetched page body.",
+                    finish_reason="stop",
+                    total_tokens=24,
+                ),
+            ],
         ],
     )
     tools = [
@@ -524,19 +589,29 @@ async def test_stream_handler_logs_summary_without_detail_page_diagnostics():
         engine,
         tools=tools,
         continuation_context=continuation_context,
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["web_search", "fetch_url"],
+            retry_on_contract_breach=True,
+            reason="active_continuation:web_research",
+        ),
     )
 
     events: list[dict] = []
-    with patch.object(_FakeEngine, "_log_web_research_contract_diagnostics") as diag_mock:
-        async for raw in handler.generate():
-            if raw.strip().startswith("data: {"):
-                events.append(_parse_sse_payload(raw))
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
 
     message_text = "".join(
         event.get("delta", "") for event in events if event.get("event") == "message"
     )
-    assert "Here is a summary based only on the search snippets" in message_text
-    assert diag_mock.call_count >= 1
+    assert "Here is a summary based only on the search snippets" not in message_text
+    assert "Based on the fetched page body." in message_text
+    assert any(
+        event.get("event") == "tool_start" and event.get("name") == "fetch_url"
+        for event in events
+    )
 
 
 @pytest.mark.asyncio

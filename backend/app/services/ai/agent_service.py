@@ -52,7 +52,7 @@ _VERSION_SNAPSHOT_FIELDS = [
     "rag_config",
     "context_config",
     "output_schema",
-    # NOTE: tool_bindings / knowledge_base_ids removed —
+    # NOTE: knowledge_base_ids removed —
     # replaced by direct AgentSkillGrant + AgentKnowledgeBaseBinding architecture / 已由 AgentSkillGrant 等替代 / replaced by grants
 ]
 
@@ -660,7 +660,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
             version_data[field_name] = getattr(agent, field_name)
 
         # 快照包含技能绑定信息 / Snapshot includes skill bindings
-        version_data["tool_bindings"] = await self._snapshot_skill_grants(agent_id)
+        version_data["skill_grant_snapshot"] = await self._snapshot_skill_grants(agent_id)
 
         await version_repo.create(version_data)
 
@@ -715,7 +715,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
 
         # 恢复技能绑定 / Restore skill bindings
         await self._restore_skill_grants(
-            agent_id, version_record.tool_bindings,
+            agent_id, version_record.skill_grant_snapshot,
         )
 
         logger.info(

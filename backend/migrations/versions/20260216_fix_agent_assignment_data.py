@@ -19,4 +19,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Intentional no-op: Original fix no longer applies; revision kept for Alembic chain continuity."""
     pass

@@ -17,7 +17,17 @@ from app.ai.tools.types import ToolDefinition, ToolResult
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.agent import ActionLevelEnum, ActionStatusEnum, ActionTypeEnum
+from app.enums.execution import (
+    ExecutionDecisionScopeEnum,
+    ExecutionDecisionStatusEnum,
+    ExecutionDecisionSubjectEnum,
+    ExecutionDecisionTypeEnum,
+)
 from app.services.ai.action_log_service import resolve_action_level, write_ai_action_log
+from app.services.ai.execution_decision_service import ExecutionDecisionService
+from app.services.ai.execution_trust_policy_service import (
+    ExecutionTrustPolicyService,
+)
 
 if TYPE_CHECKING:
     from app.ai.tools.types import ExecutionContext
@@ -137,6 +147,19 @@ class PageOperationExecutor(BaseToolExecutor):
                 error_type="session_not_found",
             )
 
+        auto_approved = bool(
+            context
+            and not requires_confirmation
+            and isinstance(context.trust_policy_ref, dict)
+            and ExecutionTrustPolicyService.allows_tool(
+                tool_name=definition.name,
+                tool_family=ExecutionTrustPolicyService.tool_family_for_name(
+                    definition.name,
+                ),
+                policy_ref=context.trust_policy_ref,
+            )
+        )
+
         logger.info(
             "Invoking page operation: page_key={} op={} page_session={}",
             page_key,
@@ -150,6 +173,7 @@ class PageOperationExecutor(BaseToolExecutor):
             operation_name=operation_name,
             params=params,
             requires_confirmation=requires_confirmation,
+            auto_approved=auto_approved,
             tool_call_id=tool_call_id,
         )
 
@@ -159,11 +183,82 @@ class PageOperationExecutor(BaseToolExecutor):
         message = result.get("message", "")
         error_type = result.get("error_type", "")
         result_data = result.get("data")
+        decision_meta = (
+            dict(result_data.get("_execution_decision"))
+            if isinstance(result_data, dict)
+            and isinstance(result_data.get("_execution_decision"), dict)
+            else None
+        )
+        llm_result_data = (
+            {
+                key: value
+                for key, value in result_data.items()
+                if key != "_execution_decision"
+            }
+            if isinstance(result_data, dict)
+            else result_data
+        )
         screenshot_attachment = (
-            _extract_screenshot_attachment(result_data)
+            _extract_screenshot_attachment(llm_result_data)
             if operation_name == "capture_screenshot"
             else None
         )
+        execution_decision_id: int | None = None
+
+        if context and context.db and decision_meta:
+            try:
+                decision = await ExecutionDecisionService(
+                    context.db,
+                    context.tenant_id,
+                ).record_decision(
+                    {
+                        "tenant_id": context.tenant_id,
+                        "conversation_id": context.conversation_id,
+                        "agent_id": context.agent_id,
+                        "operator_id": context.user_id,
+                        "operator_type": context.user_role,
+                        "decision_type": ExecutionDecisionTypeEnum.CONFIRMATION.value,
+                        "subject_type": ExecutionDecisionSubjectEnum.PAGE_OPERATION.value,
+                        "status": str(
+                            decision_meta.get("status")
+                            or ExecutionDecisionStatusEnum.APPROVED.value
+                        ),
+                        "decision_scope": str(
+                            decision_meta.get("decision_scope")
+                            or ExecutionDecisionScopeEnum.ONCE.value
+                        ),
+                        "risk_level": resolve_action_level(
+                            operation_name,
+                            default=ActionLevelEnum.SAFE_WRITE.value,
+                        ),
+                        "auto_approved": bool(decision_meta.get("auto_approved")),
+                        "tool_call_id": tool_call_id or None,
+                        "tool_name": definition.name,
+                        "action_name": operation_name,
+                        "table_name": None,
+                        "correlation_key": (
+                            f"pageop:{context.conversation_id or 0}:{invoke_id or tool_call_id or operation_name}:"
+                            f"{decision_meta.get('status') or 'approved'}"
+                        ),
+                        "reason": str(
+                            decision_meta.get("reason")
+                            or "page_operation_confirmation"
+                        ),
+                        "evidence": {
+                            "page_key": page_key,
+                            "page_session_id": session_id,
+                            "invoke_id": invoke_id,
+                            "params": params,
+                            "frontend_decision": decision_meta,
+                        },
+                    }
+                )
+                execution_decision_id = getattr(decision, "id", None)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to record page operation execution decision: {}",
+                    str(exc),
+                )
 
         async def audit_page_operation(
             status: str,
@@ -180,6 +275,9 @@ class PageOperationExecutor(BaseToolExecutor):
                     operator_id=context.user_id,
                     operator_type=context.user_role,
                     skill_id=context.skill_id,
+                    conversation_id=context.conversation_id,
+                    execution_decision_id=execution_decision_id,
+                    tool_call_id=tool_call_id,
                     action_name=operation_name,
                     action_type=(
                         ActionTypeEnum.CONFIRM.value
@@ -200,12 +298,16 @@ class PageOperationExecutor(BaseToolExecutor):
                         "operation_name": operation_name,
                         "params": params,
                         "requires_confirmation": requires_confirmation,
+                        "auto_approved": auto_approved,
+                        "execution_decision": decision_meta,
                     },
                     response_data={
                         "invoke_id": invoke_id or None,
                         "message": message,
                         "error_type": error_type or None,
-                        "data": result_data,
+                        "data": llm_result_data,
+                        "auto_approved": auto_approved,
+                        "execution_decision_id": execution_decision_id,
                     },
                     status=status,
                     error_message=error_message,
@@ -230,28 +332,28 @@ class PageOperationExecutor(BaseToolExecutor):
                 output += f" Result: {message}"
             if screenshot_attachment:
                 output += "\n" + _("page_operation.hint.screenshot_attached")
-            elif result_data and isinstance(result_data, dict):
+            elif llm_result_data and isinstance(llm_result_data, dict):
                 import json
 
-                data_str = json.dumps(result_data, ensure_ascii=False, default=str)
+                data_str = json.dumps(llm_result_data, ensure_ascii=False, default=str)
                 if len(data_str) <= 4000:
                     output += f"\nData: {data_str}"
-                elif operation_name == "get_editor_html" and "html" in result_data:
+                elif operation_name == "get_editor_html" and "html" in llm_result_data:
                     # Large document: still expose html so LLM can use it for replace_section old_html / 上文为英文说明 / English above
-                    html_content = result_data.get("html", "") or ""
+                    html_content = llm_result_data.get("html", "") or ""
                     max_html_chars = 12000
                     if len(html_content) > max_html_chars:
                         html_content = (
                             html_content[:max_html_chars] + "\n... (truncated)"
                         )
-                    hint = result_data.get("_hint") or _(
+                    hint = llm_result_data.get("_hint") or _(
                         "page_operation.hint.replace_section"
                     )
                     output += f"\n{hint}\nHTML:\n{html_content}"
                     output += "\n[Do NOT echo this HTML to the user. Use it internally for replace_section, then respond in natural language.]"
                 # Agent Loop guidance: suggest next step based on context_diff / 上文为英文说明 / English above
-                context_diff = result_data.get("context_diff", {})
-                remaining_empty_fields = result_data.get("remaining_empty_fields")
+                context_diff = llm_result_data.get("context_diff", {})
+                remaining_empty_fields = llm_result_data.get("remaining_empty_fields")
                 remaining_empty_preview = ""
                 if isinstance(remaining_empty_fields, list) and remaining_empty_fields:
                     preview = ", ".join(

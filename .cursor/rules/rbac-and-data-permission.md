@@ -33,11 +33,27 @@
 - `PermissionMiddleware` 通过 `OrgAuthorityResolver` 在每次请求开始时填充 `data_permission_ctx`，用户的 `DataScope`、可见 / 可管理组织、custom 组织列表都会被同步；公开接口、后台任务或无上下文时候 `data_permission_ctx` 为空，过滤器会返回 `None`（等同于 `DataScope.ALL`）。
 - 若模型存在 `__data_permission_parent_model__`，过滤器会递归构造父级条件以保证上下游关系一致。
 
+## RBAC 资源重命名检查清单
+
+当需要重命名 `@permission_resource(resource="...")` 的资源名时（如 `ai_skill_registry` → `plugin_skill_registry`），必须**一次性**同步以下所有位置：
+
+1. **后端 Controller**：`resource=`、`name=`、所有 `@action_read`/`@action_create` 装饰器中的 `action.{resource}.*` 字符串
+2. **后端 `__init__.py`**：`import ... as` 别名和 `include_router()` 调用中的变量名
+3. **i18n 菜单**：`locales/{en,zh_CN}/menu.json` 中 `menu.admin.{resource}` 键名
+4. **i18n 权限**：`locales/{en,zh_CN}/messages.json` 中 `action.{resource}` 块名
+5. **前端权限码**：所有 `v-access:code="['{resource}:*']"` 引用
+6. **Alembic 迁移**：为已有数据库创建数据迁移，**必须使用 `migrations.helpers.safe_rename_permission_resource()`**（见 [alembic-migration-authoring.md](alembic-migration-authoring.md) 第 9 条），禁止手写 `REPLACE` SQL
+
+遗漏任一处会导致：权限树孤立节点、前端按钮误拦截/漏拦截、迁移 `UniqueViolation` 崩溃。
+
+---
+
 ## 禁止事项
 
 - 禁止在 Service 层手动拼部门过滤 SQL
 - 禁止跳过 `messages.json` 翻译直接交付 Controller
 - 禁止新增 Controller 却不配置 `parent_resource`
+- 禁止在迁移中手写 `REPLACE` 重命名权限资源——必须使用 `migrations.helpers.safe_rename_permission_resource()`
 
 ## 参考
 

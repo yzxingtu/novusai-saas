@@ -446,7 +446,7 @@
         "max_tokens": "Max Output Tokens",
         "top_p": "Top P",
         "execution_mode": "Execution Mode",
-        "tool_bindings": "Tool Bindings",
+        "skill_grant_snapshot": "Skill Grant Snapshot",
         "input_variables": "Input Variables",
         "welcome_message": "Welcome Message",
         "suggested_questions": "Suggested Questions",
@@ -1574,6 +1574,20 @@
       "update_status": "Update Skill Package Status",
       "upload": "Upload Skill Package",
       "recycle_bin": "Recycle Bin"
+    },
+    "plugin_skill_registry": {
+      "list": "View Skill Registry",
+      "detail": "View Skill Registry Detail",
+      "install": "Install Skill Registry Package"
+    },
+    "ai_long_term_memory_debug": {
+      "list": "View Long-Term Memory Debug",
+      "detail": "View Long-Term Memory Debug Detail"
+    },
+    "ai_ephemeral_document": {
+      "list": "View Ephemeral Documents",
+      "detail": "View Ephemeral Document Detail",
+      "promote": "Promote Ephemeral Document"
     },
     "ai_skill": {
       "list": "View Skill List",
@@ -3003,6 +3017,9 @@
   "ai_action_log": {
     "not_found": "AI action log not found"
   },
+  "execution_decision": {
+    "not_found": "Execution decision not found"
+  },
   "ai_query_log": {
     "not_found": "AI query log not found",
     "field": {
@@ -3190,6 +3207,14 @@
   "enum.ai_model.max_output_tokens": "Max Output Tokens",
   "config.platform.ai_page_context_max_bytes.name": "Chat Page Context Max Bytes",
   "config.platform.ai_page_context_max_bytes.desc": "Maximum bytes allowed for page_context.page_data in AI chat/router requests. Default is 8192; this is a page-context budget, not a model input/output token limit",
+  "config.platform.marketplace_github_url.name": "Plugin Marketplace GitHub URL",
+  "config.platform.marketplace_github_url.desc": "Registry base URL for the plugin marketplace GitHub mirror",
+  "config.platform.marketplace_cache_ttl.name": "Plugin Marketplace Cache TTL",
+  "config.platform.marketplace_cache_ttl.desc": "Cache TTL in seconds for plugin marketplace registry responses",
+  "config.platform.skill_registry_github_url.name": "Skill Registry GitHub URL",
+  "config.platform.skill_registry_github_url.desc": "Registry base URL for the skill registry GitHub mirror",
+  "config.platform.skill_registry_cache_ttl.name": "Skill Registry Cache TTL",
+  "config.platform.skill_registry_cache_ttl.desc": "Cache TTL in seconds for skill registry responses",
   "config.tenant.logo_dark.name": "Tenant Dark Logo",
   "config.tenant.logo_dark.desc": "Preferred tenant logo in dark theme; falls back to the platform default when empty",
   "config.tenant.icp.name": "ICP Filing Number",

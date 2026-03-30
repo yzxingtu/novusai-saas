@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from app.ai.events.hooks import HookPoint, get_hook_registry
+from app.ai.tools.semantic_defaults import FAMILY_HINT_TAGS
 from app.ai.tools.types import ToolDefinition, ToolParameter
 from app.core.logging import LogManager
 from app.enums.agent import SkillTypeEnum, ToolTypeEnum
@@ -91,24 +92,26 @@ class SkillResolver:
         if name in {"web_search", "fetch_url"}:
             tool.semantic_family = "web_research"
             tool.semantic_tags = tool.semantic_tags or cls._semantic_tags(
-                "联网搜索",
-                "网页查询",
-                "读取网页",
-                "官方来源",
-                "最新信息",
+                *FAMILY_HINT_TAGS["web_research"],
                 "website",
                 "url",
                 "search web",
             )
             return
 
+        if name == "get_current_time":
+            tool.semantic_family = "time_ops"
+            tool.semantic_tags = tool.semantic_tags or cls._semantic_tags(
+                *FAMILY_HINT_TAGS["time_ops"],
+                "time",
+                "clock",
+            )
+            return
+
         if name in {"get_current_weather", "get_weather_forecast"}:
             tool.semantic_family = "weather"
             tool.semantic_tags = tool.semantic_tags or cls._semantic_tags(
-                "天气查询",
-                "天气预报",
-                "当前天气",
-                "实时天气",
+                *FAMILY_HINT_TAGS["weather"],
                 "weather",
                 "forecast",
             )
@@ -117,24 +120,15 @@ class SkillResolver:
         if name.startswith("data_") or skill_type == SkillTypeEnum.DATA_INTELLIGENCE.value:
             tool.semantic_family = "data_ops"
             tool.semantic_tags = tool.semantic_tags or cls._semantic_tags(
-                "数据查询",
-                "数据库操作",
-                "记录管理",
-                "统计报表",
-                "data query",
-                "data update",
+                *FAMILY_HINT_TAGS["data_ops"],
             )
             return
 
         if name in {"get_page_context", "invoke_page_operation", "list_page_operations"} or name.startswith("pageop_"):
             tool.semantic_family = "page_ops"
             tool.semantic_tags = tool.semantic_tags or cls._semantic_tags(
-                "页面操作",
-                "页面交互",
-                "读取页面",
-                "填写表单",
+                *FAMILY_HINT_TAGS["page_ops"],
                 "page context",
-                "page operation",
             )
 
     async def resolve(
@@ -590,13 +584,16 @@ class SkillResolver:
 
         if normalized == "web_search":
             extra = (
-                "Use this tool to find candidate web sources for current or external information. "
-                "Finding search results does not mean the content has already been verified."
+                "Search the web for current or external information. "
+                "Results are candidate sources; verify content with fetch_url when needed."
             )
         elif normalized == "fetch_url":
             extra = (
-                "Use this tool to read the content of a specific web page. "
-                "Use it when the user needs official announcements, ticketing details, news-body details, time/place/source lists, or concrete webpage details."
+                "Read the full content of a specific web page by URL."
+            )
+        elif normalized == "get_current_time":
+            extra = (
+                "Return the current runtime date and time in the requested timezone."
             )
         else:
             return base
@@ -648,67 +645,6 @@ class SkillResolver:
                     source_skill_id=skill.id,
                     source_skill_name=skill.name,
                     source_skill_type=skill.type,
-                    semantic_family=(
-                        "web_research"
-                        if tool_name in {"web_search", "fetch_url"}
-                        else (
-                            "page_ops"
-                            if tool_name in {
-                                "get_page_context",
-                                "invoke_page_operation",
-                                "list_page_operations",
-                            }
-                            else (
-                                "weather"
-                                if tool_name in {
-                                    "get_current_weather",
-                                    "get_weather_forecast",
-                                }
-                                else None
-                            )
-                        )
-                    ),
-                    semantic_tags=self._semantic_tags(
-                        *(
-                            (
-                                "联网",
-                                "搜索",
-                                "网页",
-                                "最新",
-                                "来源",
-                                "官网",
-                                "url",
-                                "website",
-                            )
-                            if tool_name in {"web_search", "fetch_url"}
-                            else (
-                                (
-                                    "页面",
-                                    "page",
-                                    "context",
-                                    "operation",
-                                )
-                                if tool_name in {
-                                    "get_page_context",
-                                    "invoke_page_operation",
-                                    "list_page_operations",
-                                }
-                                else (
-                                    (
-                                        "天气",
-                                        "weather",
-                                        "forecast",
-                                        "temperature",
-                                    )
-                                    if tool_name in {
-                                        "get_current_weather",
-                                        "get_weather_forecast",
-                                    }
-                                    else ()
-                                )
-                            )
-                        )
-                    ),
                 ))
         else:
             params = self._build_params_from_schema(skill.input_schema)
@@ -727,67 +663,6 @@ class SkillResolver:
                 source_skill_id=skill.id,
                 source_skill_name=skill.name,
                 source_skill_type=skill.type,
-                semantic_family=(
-                    "web_research"
-                    if skill.name in {"web_search", "fetch_url"}
-                    else (
-                        "page_ops"
-                        if skill.name in {
-                            "get_page_context",
-                            "invoke_page_operation",
-                            "list_page_operations",
-                        }
-                        else (
-                            "weather"
-                            if skill.name in {
-                                "get_current_weather",
-                                "get_weather_forecast",
-                            }
-                            else None
-                        )
-                    )
-                ),
-                semantic_tags=self._semantic_tags(
-                    *(
-                        (
-                            "联网",
-                            "搜索",
-                            "网页",
-                            "最新",
-                            "来源",
-                            "官网",
-                            "url",
-                            "website",
-                        )
-                        if skill.name in {"web_search", "fetch_url"}
-                        else (
-                            (
-                                "页面",
-                                "page",
-                                "context",
-                                "operation",
-                            )
-                            if skill.name in {
-                                "get_page_context",
-                                "invoke_page_operation",
-                                "list_page_operations",
-                            }
-                            else (
-                                (
-                                    "天气",
-                                    "weather",
-                                    "forecast",
-                                    "temperature",
-                                )
-                                if skill.name in {
-                                    "get_current_weather",
-                                    "get_weather_forecast",
-                                }
-                                else ()
-                            )
-                        )
-                    )
-                ),
             ))
 
     # ======================================== / 上文为英文说明 / English above

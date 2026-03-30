@@ -40,8 +40,9 @@ const bindProps = computed(() => {
 });
 
 function toggleTheme(event: MouseEvent) {
+  const supportsViewTransition = typeof document.startViewTransition === 'function';
   const isAppearanceTransition =
-    document.startViewTransition &&
+    supportsViewTransition &&
     !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (!isAppearanceTransition || !event) {
     isDark.value = !isDark.value;

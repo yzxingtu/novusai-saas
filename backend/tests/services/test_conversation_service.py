@@ -142,6 +142,40 @@ class TestGetConversationDetail:
         assert attachments[1]["url"].startswith("/api/public/attachments/8/access?")
         assert "token=" in attachments[1]["url"]
 
+    @pytest.mark.asyncio
+    async def test_conversation_detail_includes_trust_session_active(self, mock_db):
+        from app.services.ai.conversation_service import ConversationService
+
+        conversation = _make_conversation()
+        message = _make_message(role="user", content="hello")
+        message.to_dict.return_value = {
+            "id": 1,
+            "role": "user",
+            "content": "hello",
+            "metadata": {},
+        }
+        message.metadata_ = {}
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.get_accessible_conversation = AsyncMock(return_value=conversation)
+        service._message_repo = MagicMock()
+        service._message_repo.get_by_conversation = AsyncMock(return_value=[message])
+        service._message_repo.count_by_conversation = AsyncMock(return_value=1)
+        mock_db.execute = AsyncMock(
+            return_value=SimpleNamespace(scalars=lambda: [])
+        )
+
+        with patch(
+            "app.services.ai.conversation_service.ExecutionTrustPolicyService.has_active_conversation_trust",
+            new=AsyncMock(return_value=True),
+        ):
+            detail = await service.get_conversation_detail(1, user_id=1)
+
+        assert detail["trust_session_active"] is True
+
 
 class TestGetServiceForConversation:
     @pytest.mark.asyncio
@@ -935,6 +969,64 @@ class TestThinkingPersistence:
         }
 
     @pytest.mark.asyncio
+    async def test_persist_chat_messages_stores_context_diagnostics_on_final_assistant(
+        self, mock_db
+    ):
+        from app.services.ai.conversation_service import ConversationService
+
+        conversation = _make_conversation(id=892, message_count=0)
+        result = SimpleNamespace(
+            messages=[
+                {"role": "user", "content": "你好"},
+                {
+                    "role": "assistant",
+                    "content": "最终答复",
+                    "tool_calls": None,
+                    "tool_call_id": None,
+                    "attachments": None,
+                    "reasoning_content": None,
+                },
+            ],
+            tool_results=[],
+            partial=False,
+            interrupted=False,
+            completion_reason="",
+            runtime_model_id=None,
+            runtime_model_name=None,
+            runtime_provider_id=None,
+            runtime_provider_name=None,
+            rag_sources=[{"source": "KB", "chunk_id": 1}],
+            rag_source_kinds=["formal_kb"],
+            context_compacted=False,
+            memory_flush_triggered=False,
+            memory_recalled=True,
+            prune_stats={"mode": "transient_tool_result_pruning", "pruned_message_count": 1},
+        )
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service._message_repo = MagicMock()
+        service._message_repo.get_next_sequence = AsyncMock(return_value=1)
+        service._message_repo.create = AsyncMock()
+
+        await service.persist_chat_messages(
+            conversation=conversation,
+            result=result,
+            history_count=0,
+            agent_id=7,
+        )
+
+        assistant_payload = service._message_repo.create.await_args_list[1].args[0]
+        assert assistant_payload["metadata_"]["rag_source_kinds"] == ["formal_kb"]
+        assert assistant_payload["metadata_"]["memory_recalled"] is True
+        assert assistant_payload["metadata_"]["prune_stats"] == {
+            "mode": "transient_tool_result_pruning",
+            "pruned_message_count": 1,
+        }
+
+    @pytest.mark.asyncio
     async def test_persist_chat_messages_skips_internal_only_messages(self, mock_db):
         from app.services.ai.conversation_service import ConversationService
 
@@ -1047,6 +1139,130 @@ class TestThinkingPersistence:
         assert final_update["metadata_"]["pending_consent"]["resolved"] is True
         assert final_update["metadata_"]["pending_consent"]["rejected"] is True
         assert final_update["tool_calls"][0]["pending_consent"]["resolved"] is True
+
+    @pytest.mark.asyncio
+    async def test_update_last_assistant_interaction_state_records_execution_decisions(
+        self, mock_db
+    ):
+        from app.services.ai.conversation_service import ConversationService
+
+        assistant = _make_message(
+            id=202,
+            role="assistant",
+            content="需要确认",
+            tool_calls=[
+                {
+                    "id": "tc_confirm_2",
+                    "function": {"name": "web_search", "arguments": "{}"},
+                    "pending_consent": {"tool_name": "web_search"},
+                }
+            ],
+        )
+        assistant.metadata_ = {
+            "pending_confirmation": {"action": "delete", "table": "agents"},
+            "pending_consent": {"tool_name": "web_search"},
+        }
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.repo.get_by_id = AsyncMock(return_value=_make_conversation(id=99, agent_id=7))
+        service._message_repo = MagicMock()
+        service._message_repo.get_last_n_messages = AsyncMock(return_value=[assistant])
+        service._message_repo.update = AsyncMock()
+
+        with patch(
+            "app.services.ai.conversation_service.ExecutionDecisionService.record_decision",
+            new=AsyncMock(),
+        ) as record_decision:
+            updated = await service.update_last_assistant_interaction_state(
+                conversation_id=99,
+                user_id=1,
+                owner_type="tenant_admin",
+                updates=[
+                    {
+                        "action": "delete",
+                        "kind": "pending_confirmation",
+                        "rejected": False,
+                        "table": "agents",
+                    },
+                    {
+                        "kind": "pending_consent",
+                        "rejected": False,
+                        "auto_approved": True,
+                        "tool_name": "web_search",
+                    },
+                ],
+            )
+
+        assert updated == 1
+        assert record_decision.await_count == 2
+        first_payload = record_decision.await_args_list[0].args[0]
+        second_payload = record_decision.await_args_list[1].args[0]
+        assert first_payload["decision_type"] == "confirmation"
+        assert second_payload["decision_type"] == "consent"
+        assert second_payload["status"] == "auto_approved"
+
+    @pytest.mark.asyncio
+    async def test_update_last_assistant_interaction_state_also_writes_ai_action_log(
+        self, mock_db
+    ):
+        from app.services.ai.conversation_service import ConversationService
+
+        assistant = _make_message(
+            id=303,
+            role="assistant",
+            content="需要授权",
+            tool_calls=[
+                {
+                    "id": "tc_auto_1",
+                    "function": {"name": "web_search", "arguments": "{}"},
+                    "pending_consent": {"tool_name": "web_search"},
+                }
+            ],
+        )
+        assistant.metadata_ = {
+            "pending_consent": {"tool_name": "web_search"},
+        }
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.repo.get_by_id = AsyncMock(return_value=_make_conversation(id=77, agent_id=7))
+        service._message_repo = MagicMock()
+        service._message_repo.get_last_n_messages = AsyncMock(return_value=[assistant])
+        service._message_repo.update = AsyncMock()
+
+        with patch(
+            "app.services.ai.conversation_service.ExecutionDecisionService.record_decision",
+            new=AsyncMock(return_value=SimpleNamespace(id=901)),
+        ), patch(
+            "app.services.ai.conversation_service.write_ai_action_log",
+            new=AsyncMock(),
+        ) as write_action_log:
+            await service.update_last_assistant_interaction_state(
+                conversation_id=77,
+                user_id=1,
+                owner_type="tenant_admin",
+                updates=[
+                    {
+                        "kind": "pending_consent",
+                        "rejected": False,
+                        "auto_approved": True,
+                        "tool_name": "web_search",
+                    },
+                ],
+            )
+
+        write_action_log.assert_awaited_once()
+        log_kwargs = write_action_log.await_args.kwargs
+        assert log_kwargs["action_name"] == "web_search"
+        assert log_kwargs["action_type"] == "confirm"
+        assert log_kwargs["status"] == "success"
+        assert log_kwargs["execution_decision_id"] == 901
+        assert log_kwargs["response_data"]["decision_status"] == "auto_approved"
 
 
 class TestSanitizeToolMessages:

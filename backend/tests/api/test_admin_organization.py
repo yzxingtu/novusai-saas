@@ -42,9 +42,10 @@ class ManualTestAdminOrganization(BaseAPITest):
     def teardown(self) -> None:
         """测试后清理 / Cleanup after tests."""
         admin_id = self._test_data.get("created_admin_id")
-        if admin_id:
+        member_org_node_id = self._test_data.get("member_org_node_id")
+        if admin_id and member_org_node_id:
             with contextlib.suppress(Exception):
-                self.client.delete(f"/admin/admins/{admin_id}")
+                self.client.delete(f"/admin/organization/{member_org_node_id}/members/{admin_id}")
 
         for key in ("secondary_org_node_id", "primary_org_node_id"):
             org_node_id = self._test_data.get(key)
@@ -70,10 +71,22 @@ class ManualTestAdminOrganization(BaseAPITest):
         self.run_test("删除目标组织节点", self.test_delete_secondary_org_node)
 
     def _get_any_permission_id(self) -> int | None:
-        resp = self.client.get("/admin/permissions/list")
-        data = assert_success(resp, "获取平台权限列表失败")
-        items = data["data"]
-        return items[0]["id"] if items else None
+        resp = self.client.get("/admin/permissions")
+        data = assert_success(resp, "获取平台权限树失败")
+
+        def collect(nodes: list[dict]) -> list[int]:
+            permission_ids: list[int] = []
+            for node in nodes:
+                node_id = node.get("id")
+                if node_id is not None:
+                    permission_ids.append(node_id)
+                children = node.get("children") or []
+                if children:
+                    permission_ids.extend(collect(children))
+            return permission_ids
+
+        permission_ids = collect(data["data"])
+        return permission_ids[0] if permission_ids else None
 
     def _assert_member_mapping(self, member: dict, expected_org_node_id: int | None) -> None:
         assert_equals(member["org_node_id"], expected_org_node_id)
@@ -208,6 +221,7 @@ class ManualTestAdminOrganization(BaseAPITest):
         assert_equals(data["data"]["username"], self._test_data["member_username"])
         self._assert_member_mapping(data["data"], org_node_id)
         self._test_data["created_admin_id"] = data["data"]["id"]
+        self._test_data["member_org_node_id"] = org_node_id
 
     def test_get_org_members(self) -> None:
         """测试获取组织节点成员列表 / Test get organization members."""
@@ -248,6 +262,7 @@ class ManualTestAdminOrganization(BaseAPITest):
 
         self._assert_member_mapping(data["data"], target_org_node_id)
         assert_equals(data["data"]["nickname"], "已转移成员")
+        self._test_data["member_org_node_id"] = target_org_node_id
 
     def test_set_leader(self) -> None:
         """测试设置负责人 / Test set organization leader."""
@@ -288,6 +303,7 @@ class ManualTestAdminOrganization(BaseAPITest):
         resp = self.client.delete(f"/admin/organization/{org_node_id}/members/{admin_id}")
         data = assert_success(resp, "移除成员失败")
         self._assert_member_mapping(data["data"], None)
+        self._test_data.pop("member_org_node_id", None)
 
     def test_delete_primary_org_node(self) -> None:
         """测试删除主组织节点 / Test delete primary organization node."""

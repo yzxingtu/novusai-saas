@@ -3,11 +3,14 @@ from datetime import datetime
 from decimal import Decimal
 from types import SimpleNamespace
 
+import pytest
+
 from app.models.auth.tenant_admin_role import TenantAdminRole
 from app.services.ai.action_log_service import (
     AdminAIActionLogService,
     AIActionLogService,
     _normalize_audit_payload,
+    write_ai_action_log,
 )
 
 
@@ -171,3 +174,41 @@ def test_admin_action_log_serialize_log_merges_tenant_agent_and_operator_metadat
     assert payload['operator_name'] == 'alice'
     assert payload['operator_avatar'] == '22'
     assert payload['operator_type'] == 'tenant_admin'
+
+
+@pytest.mark.asyncio
+async def test_write_ai_action_log_persists_trace_id_and_tool_call_id(mock_db):
+    async def _empty_agent(*_args, **_kwargs):
+        return {}
+
+    async def _empty_operator(*_args, **_kwargs):
+        return {'operator_type': 'tenant_admin'}
+
+    from unittest.mock import patch
+
+    with (
+        patch(
+            'app.services.ai.action_log_service._load_agent_snapshot',
+            new=_empty_agent,
+        ),
+        patch(
+            'app.services.ai.action_log_service._load_operator_snapshot',
+            new=_empty_operator,
+        ),
+    ):
+        log = await write_ai_action_log(
+            mock_db,
+            tenant_id=9,
+            agent_id=7,
+            conversation_id=100,
+            operator_id=12,
+            operator_type='tenant_admin',
+            action_name='email_send',
+            action_level='dangerous',
+            trace_id='trace-123',
+            tool_call_id='tc_email_1',
+            request_data={'to': ['alice@example.com']},
+        )
+
+    assert log.trace_id == 'trace-123'
+    assert log.tool_call_id == 'tc_email_1'

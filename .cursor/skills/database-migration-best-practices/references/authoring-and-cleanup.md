@@ -83,4 +83,6 @@ await repo.update(id, {"status": StatusEnum.FAILED.value})
 - [ ] autogenerate 噪音已清理
 - [ ] raw SQL 已参数化
 - [ ] 枚举比较使用 `.value`
+- [ ] 唯一约束列的值重命名已使用 `migrations.helpers` 封装函数
+- [ ] `python scripts/lint_migrations.py` 无新增 warning
 - [ ] 启动或手动 `alembic upgrade heads` 验证通过

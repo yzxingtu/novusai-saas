@@ -652,7 +652,7 @@ async def _fetch_user_info(
                 return {"username": row[0], "nickname": row[1]}
 
     except Exception:
-        pass
+        _module_logger.logger.debug("Failed to resolve user info for {}:{}", user_type, user_id)
 
     return None
 

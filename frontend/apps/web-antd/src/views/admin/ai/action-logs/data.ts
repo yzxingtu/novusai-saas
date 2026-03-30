@@ -9,6 +9,34 @@ import { searchInput, select } from '#/adapter/form';
 import { PLATFORM_TENANT_ID } from '#/constants';
 import { $t } from '#/locales';
 
+export function getExecutionDecisionTypeText(value?: string): string {
+  switch (value) {
+    case 'confirmation':
+      return $t('admin.ai.executionDecision.typeOptions.confirmation');
+    case 'consent':
+      return $t('admin.ai.executionDecision.typeOptions.consent');
+    default:
+      return value || '-';
+  }
+}
+
+export function getExecutionDecisionStatusText(value?: string): string {
+  switch (value) {
+    case 'approved':
+      return $t('admin.ai.executionDecision.statusOptions.approved');
+    case 'rejected':
+      return $t('admin.ai.executionDecision.statusOptions.rejected');
+    case 'auto_approved':
+      return $t('admin.ai.executionDecision.statusOptions.autoApproved');
+    case 'pending':
+      return $t('admin.ai.executionDecision.statusOptions.pending');
+    case 'expired':
+      return $t('admin.ai.executionDecision.statusOptions.expired');
+    default:
+      return value || '-';
+  }
+}
+
 export type { AdminActionLogItem as ActionLogItem } from '#/api/admin/action-logs';
 
 function getTypeOptions() {
@@ -248,6 +276,12 @@ export function useColumns<T = AdminActionLogItem>(
       slots: { default: 'duration_cell' },
     },
     {
+      field: 'trace_id',
+      title: $t('admin.ai.actionLog.traceId'),
+      minWidth: 180,
+      slots: { default: 'trace_cell' },
+    },
+    {
       align: 'center',
       cellRender: {
         attrs: {
@@ -284,6 +318,27 @@ export function useGridFormSchema(): VbenFormSchema[] {
       $t('admin.ai.actionLog.actionName'),
       {
         placeholder: $t('admin.ai.actionLog.placeholder.searchName'),
+      },
+    ),
+    searchInput(
+      'filter[trace_id][ilike]',
+      $t('admin.ai.actionLog.traceId'),
+      {
+        placeholder: $t('admin.ai.actionLog.placeholder.searchTrace'),
+      },
+    ),
+    searchInput(
+      'filter[tool_call_id][ilike]',
+      $t('admin.ai.actionLog.toolCallId'),
+      {
+        placeholder: $t('admin.ai.actionLog.placeholder.searchToolCall'),
+      },
+    ),
+    searchInput(
+      'filter[execution_decision_id][eq]',
+      $t('admin.ai.actionLog.executionDecisionId'),
+      {
+        placeholder: $t('admin.ai.actionLog.placeholder.searchDecision'),
       },
     ),
     select('filter[action_type][eq]', $t('admin.ai.actionLog.actionType'), {

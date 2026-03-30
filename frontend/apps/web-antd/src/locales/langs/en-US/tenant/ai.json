@@ -440,6 +440,8 @@
       "title": "Chat History Context",
       "maxHistoryMessages": "History Messages Sent as Context",
       "maxHistoryTokens": "History Token Budget Sent as Context",
+      "longTermMemoryEnabled": "Long-term memory (cross-session)",
+      "longTermMemoryHint": "When enabled, durable insights are captured into MemoryRecord and recalled progressively; requires session memory to be on for the same agent.",
       "dataIntelligenceEnabled": "Data Intelligence",
       "placeholder": {
         "maxHistoryMessages": "Default 20, 0 uses system default",
@@ -674,6 +676,9 @@
     "actionType": "Action Type",
     "actionLevel": "Safety Level",
     "status": "Status",
+    "traceId": "Trace ID",
+    "toolCallId": "Tool Call ID",
+    "executionDecisionId": "Execution Decision ID",
     "agentName": "Agent",
     "agentUnavailable": "Not recorded in historical log",
     "operatorId": "Operator",
@@ -689,6 +694,7 @@
     "errorMessage": "Error Message",
     "viewDetail": "View Detail",
     "copyPayload": "Copy",
+    "linkedDecision": "Linked Execution Decision",
     "fieldsCount": "{count} fields",
     "noRequestData": "No request payload",
     "noResponseData": "No response payload",
@@ -719,6 +725,49 @@
     },
     "placeholder": {
       "searchName": "Search action name",
+      "searchTrace": "Search trace ID",
+      "searchToolCall": "Search tool call ID",
+      "searchDecision": "Search execution decision ID",
+      "allTypes": "All Types",
+      "allStatuses": "All Statuses"
+    }
+  },
+  "executionDecision": {
+    "title": "Execution Decisions",
+    "name": "Execution Decisions",
+    "pageDesc": "Inspect consent and confirmation decisions resolved during tenant AI conversations.",
+    "detailTitle": "Execution Decision Detail",
+    "id": "ID",
+    "createdAt": "Created At",
+    "decisionType": "Decision Type",
+    "status": "Status",
+    "subjectType": "Subject Type",
+    "decisionScope": "Decision Scope",
+    "toolName": "Tool Name",
+    "actionName": "Action Name",
+    "toolCallId": "Tool Call ID",
+    "riskLevel": "Risk Level",
+    "conversationId": "Conversation",
+    "operatorId": "Operator",
+    "autoApproved": "Auto Approved",
+    "correlationKey": "Correlation Key",
+    "reason": "Reason",
+    "evidence": "Evidence",
+    "viewDetail": "View Detail",
+    "noDetailData": "No detail data available",
+    "typeOptions": {
+      "consent": "Consent",
+      "confirmation": "Confirmation"
+    },
+    "statusOptions": {
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "autoApproved": "Auto Approved",
+      "pending": "Pending",
+      "expired": "Expired"
+    },
+    "placeholder": {
+      "searchTool": "Search tool name",
       "allTypes": "All Types",
       "allStatuses": "All Statuses"
     }

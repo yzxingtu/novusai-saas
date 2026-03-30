@@ -100,11 +100,11 @@ class AgentVersion(TenantModel):
         nullable=False,
         comment=_("agent.version.field.execution_mode"),
     )
-    tool_bindings: Mapped[list | None] = mapped_column(
+    skill_grant_snapshot: Mapped[list | None] = mapped_column(
         JSON,
         nullable=True,
         default=list,
-        comment=_("agent.version.field.tool_bindings"),
+        comment=_("agent.version.field.skill_grant_snapshot"),
     )
     input_variables: Mapped[list | None] = mapped_column(
         JSON,

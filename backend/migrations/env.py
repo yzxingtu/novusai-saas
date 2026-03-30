@@ -64,6 +64,9 @@ from app.models import (
     # AI 网关
     AIProvider,
     AIModel,
+    EphemeralDocument,
+    MemoryRecord,
+    ProfileSnapshot,
     ProviderApiKey,
     AICallLog,
     TenantAgentPublication,
@@ -77,6 +80,8 @@ from app.models import (
     AgentVersion,
     AgentAccess,
     AIActionLog,
+    ExecutionDecision,
+    ExecutionTrustPolicy,
     AITablePolicy,
     AITablePolicyOverride,
     # 技能包 & 技能
@@ -86,6 +91,8 @@ from app.models import (
     SkillResource,
     SkillCapabilityBinding,
     AgentSkillGrant,
+    AgentKnowledgeBaseBinding,
+    AgentMemoryOverride,
     # 域名 SSL
     DomainSslCertificate,
     # 插件
@@ -95,7 +102,7 @@ from app.models import (
     ResourceTenantAssignment,
 )
 
-# AI 子模块中有但未在 models/__init__.py 再导出的模型
+# 以下模型从子模块直接导入（部分已在 models/__init__.py 导出，此处保留显式导入以确保 autogenerate 覆盖）
 from app.models.ai.query_log import AIQueryLog
 from app.models.ai.knowledge_base import KnowledgeBase
 from app.models.ai.knowledge_document import KnowledgeDocument

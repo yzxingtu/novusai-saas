@@ -8,6 +8,7 @@ import type {
   AdminActionLogDetail,
   AdminActionLogItem,
 } from '#/api/admin/action-logs';
+import type { AdminExecutionDecisionItem } from '#/api/admin/execution-decisions';
 
 import { computed, ref, watch } from 'vue';
 
@@ -34,6 +35,7 @@ import {
   getAdminActionLogDetailApi,
   getAdminActionLogListApi,
 } from '#/api/admin/action-logs';
+import { getAdminExecutionDecisionDetailApi } from '#/api/admin/execution-decisions';
 import { createViewDetailPageOperation } from '#/composables';
 import { PLATFORM_TENANT_ID } from '#/constants';
 import { $t } from '#/locales';
@@ -45,6 +47,10 @@ import {
 import { toAvatarDisplayUrl } from '#/utils/image';
 
 import AIPageHeroCard from '../_shared/AIPageHeroCard.vue';
+import {
+  getExecutionDecisionTypeText,
+  getExecutionDecisionStatusText,
+} from './data';
 import {
   getLevelColor,
   getLevelText,
@@ -157,6 +163,8 @@ const heroChips = computed(() => [
 const detailOpen = ref(false);
 const detailLoading = ref(false);
 const detailData = ref<AdminActionLogDetail | null>(null);
+const linkedDecision = ref<AdminExecutionDecisionItem | null>(null);
+const linkedDecisionLoading = ref(false);
 const activeTab = ref<DetailTabKey>('overview');
 
 function isStructuredValue(
@@ -246,12 +254,27 @@ async function openDetail(row: AdminActionLogItem) {
 async function openDetailById(id: number) {
   detailOpen.value = true;
   detailLoading.value = true;
+  linkedDecision.value = null;
+  linkedDecisionLoading.value = false;
   activeTab.value = 'overview';
   try {
     detailData.value = await getAdminActionLogDetailApi(id);
+    if (detailData.value?.execution_decision_id) {
+      linkedDecisionLoading.value = true;
+      try {
+        linkedDecision.value = await getAdminExecutionDecisionDetailApi(
+          detailData.value.execution_decision_id,
+        );
+      } catch {
+        linkedDecision.value = null;
+      } finally {
+        linkedDecisionLoading.value = false;
+      }
+    }
     activeTab.value = detailData.value?.error_message ? 'error' : 'overview';
   } catch {
     detailData.value = null;
+    linkedDecision.value = null;
   } finally {
     detailLoading.value = false;
   }
@@ -260,6 +283,8 @@ async function openDetailById(id: number) {
 watch(detailOpen, (open) => {
   if (!open) {
     detailData.value = null;
+    linkedDecision.value = null;
+    linkedDecisionLoading.value = false;
     detailLoading.value = false;
     activeTab.value = 'overview';
   }
@@ -427,6 +452,24 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
           </span>
           <span v-else class="text-muted-foreground">-</span>
         </template>
+
+        <template #trace_cell="{ row }">
+          <div class="flex min-w-0 flex-col">
+            <code
+              v-if="row.trace_id"
+              class="truncate rounded bg-accent px-1 py-0.5 text-xs"
+            >
+              {{ row.trace_id }}
+            </code>
+            <span v-else class="text-muted-foreground">-</span>
+            <span
+              v-if="row.tool_call_id"
+              class="truncate text-[11px] text-muted-foreground"
+            >
+              {{ row.tool_call_id }}
+            </span>
+          </div>
+        </template>
       </Grid>
     </Card>
 
@@ -527,6 +570,19 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
                     {{ getOperatorDisplayName(detailData) }}
                   </div>
                 </div>
+                <div
+                  class="rounded-lg border border-dashed border-border bg-background p-3"
+                >
+                  <div class="text-xs text-muted-foreground">
+                    {{ $t('admin.ai.actionLog.traceId') }}
+                  </div>
+                  <div class="mt-2 text-sm font-semibold">
+                    {{ detailData.trace_id || '-' }}
+                  </div>
+                  <div class="mt-1 text-xs text-muted-foreground">
+                    {{ detailData.tool_call_id || '-' }}
+                  </div>
+                </div>
               </div>
             </div>
           </Card>
@@ -605,6 +661,9 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
                     >
                       {{ getTenantDisplay(detailData) }}
                     </Descriptions.Item>
+                    <Descriptions.Item :label="$t('admin.ai.actionLog.traceId')">
+                      <code>{{ detailData.trace_id || '-' }}</code>
+                    </Descriptions.Item>
                     <Descriptions.Item
                       :label="$t('admin.ai.actionLog.operatorId')"
                     >
@@ -634,6 +693,14 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
                         </div>
                       </div>
                     </Descriptions.Item>
+                    <Descriptions.Item :label="$t('admin.ai.actionLog.toolCallId')">
+                      <code>{{ detailData.tool_call_id || '-' }}</code>
+                    </Descriptions.Item>
+                    <Descriptions.Item
+                      :label="$t('admin.ai.actionLog.executionDecisionId')"
+                    >
+                      {{ detailData.execution_decision_id ?? '-' }}
+                    </Descriptions.Item>
                   </Descriptions>
                 </Card>
 
@@ -644,6 +711,68 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
                   :message="$t('admin.ai.actionLog.error')"
                   :description="errorPayloadText"
                 />
+
+                <Card
+                  v-if="linkedDecision || linkedDecisionLoading"
+                  size="small"
+                  :title="$t('admin.ai.actionLog.linkedDecision')"
+                >
+                  <div
+                    v-if="linkedDecisionLoading"
+                    class="flex items-center justify-center py-6"
+                  >
+                    <Skeleton active :paragraph="{ rows: 2 }" />
+                  </div>
+                  <Descriptions
+                    v-else-if="linkedDecision"
+                    :column="2"
+                    bordered
+                    size="small"
+                  >
+                    <Descriptions.Item
+                      :label="$t('admin.ai.executionDecision.id')"
+                    >
+                      {{ linkedDecision.id }}
+                    </Descriptions.Item>
+                    <Descriptions.Item
+                      :label="$t('admin.ai.executionDecision.createdAt')"
+                    >
+                      {{ formatDate(linkedDecision.created_at) }}
+                    </Descriptions.Item>
+                    <Descriptions.Item
+                      :label="$t('admin.ai.executionDecision.decisionType')"
+                    >
+                      {{
+                        getExecutionDecisionTypeText(
+                          linkedDecision.decision_type,
+                        )
+                      }}
+                    </Descriptions.Item>
+                    <Descriptions.Item
+                      :label="$t('admin.ai.executionDecision.status')"
+                    >
+                      {{
+                        getExecutionDecisionStatusText(linkedDecision.status)
+                      }}
+                    </Descriptions.Item>
+                    <Descriptions.Item
+                      :label="$t('admin.ai.executionDecision.toolName')"
+                    >
+                      {{ linkedDecision.tool_name || '-' }}
+                    </Descriptions.Item>
+                    <Descriptions.Item
+                      :label="$t('admin.ai.executionDecision.actionName')"
+                    >
+                      {{ linkedDecision.action_name || '-' }}
+                    </Descriptions.Item>
+                    <Descriptions.Item
+                      :label="$t('admin.ai.executionDecision.correlationKey')"
+                      :span="2"
+                    >
+                      <code>{{ linkedDecision.correlation_key }}</code>
+                    </Descriptions.Item>
+                  </Descriptions>
+                </Card>
               </div>
             </Tabs.TabPane>
 

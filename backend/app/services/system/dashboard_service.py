@@ -208,7 +208,7 @@ class AdminDashboardService:
             memory_mb = round(process.memory_info().rss / 1024 / 1024, 1)
             uptime_seconds = int(time.time() - process.create_time())
         except Exception:
-            pass
+            logger.debug("psutil unavailable, skipping memory/uptime metrics")
 
         return {
             "status": overall,

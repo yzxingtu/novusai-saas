@@ -33,7 +33,7 @@ def upgrade() -> None:
     )
 
     # backfill tenant_id for existing tenant_admin rows
-    op.execute(
+    op.execute(sa.text(
         """
         UPDATE notification_preferences np
         SET tenant_id = ta.tenant_id
@@ -41,7 +41,7 @@ def upgrade() -> None:
         WHERE np.user_type = 'tenant_admin'
           AND np.user_id = ta.id
         """
-    )
+    ))
 
     op.drop_constraint("uq_notification_pref", "notification_preferences", type_="unique")
 
@@ -56,7 +56,7 @@ def downgrade() -> None:
     op.drop_constraint("uq_notification_pref_v2", "notification_preferences", type_="unique")
 
     # delete global rows before restoring NOT NULL
-    op.execute("DELETE FROM notification_preferences WHERE user_id IS NULL")
+    op.execute(sa.text("DELETE FROM notification_preferences WHERE user_id IS NULL"))
 
     op.alter_column(
         "notification_preferences",

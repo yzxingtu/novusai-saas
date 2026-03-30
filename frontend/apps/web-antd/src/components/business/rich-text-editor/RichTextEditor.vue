@@ -277,7 +277,7 @@ defineExpose({
   <div v-if="isFull" class="rte-editor flex h-full flex-col">
     <EditorToolbar
       v-if="toolbar !== false"
-      :editor="editor"
+      :editor="editor!"
       :upload="upload"
       :source-mode="sourceMode"
       @toggle-source="toggleSourceMode"
@@ -315,7 +315,7 @@ defineExpose({
 
     <AIBubbleMenu
       v-if="aiEntryEnabled"
-      :editor="editor"
+      :editor="editor!"
       :loading="false"
       @action="handleAiAction"
     />
@@ -340,7 +340,7 @@ defineExpose({
 
     <AIBubbleMenu
       v-if="aiEntryEnabled"
-      :editor="editor"
+      :editor="editor!"
       :loading="false"
       @action="handleAiAction"
     />

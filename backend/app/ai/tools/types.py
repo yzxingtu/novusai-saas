@@ -223,9 +223,11 @@ class ExecutionContext:
     consented_actions: set[str] = field(
         default_factory=set
     )  # "read:agents", "create:agents" / 示例：已同意的 action 权限串
+    trust_policy_ref: dict[str, Any] | None = None
     skill_id: int | None = None
     variables: dict[str, Any] = field(default_factory=dict)
     page_session_id: str | None = None
+    conversation_id: int | None = None
 
     @property
     def is_platform_admin(self) -> bool:

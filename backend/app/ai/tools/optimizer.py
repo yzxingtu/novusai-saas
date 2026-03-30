@@ -20,10 +20,22 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from app.ai.tools.semantic_defaults import (
+    FAMILY_EXPLICIT_REQUEST_HINTS,
+    FAMILY_HINT_TAGS,
+    tool_family_from_name,
+    tool_semantic_family,
+    tool_semantic_tags,
+)
 from app.ai.tools.types import ToolDefinition
 from app.core.logging import LogManager
 
 logger = LogManager.get_logger("ai.tool.optimizer")
+
+_FORBID_FAMILY_RE = re.compile(
+    r"(不要|别|不用|无需|勿|甭|dont|don't|do not|without|no need)",
+    re.IGNORECASE,
+)
 
 # Skip optimization when tool count ≤ this value, pass all / 工具数≤此值时跳过优化
 MAX_TOOLS_WITHOUT_OPTIMIZATION = 6
@@ -37,104 +49,12 @@ PROTECTED_TOOL_NAMES: frozenset[str] = frozenset({
     "invoke_page_operation",
 })
 
-_FAMILY_HINT_TAGS: dict[str, tuple[str, ...]] = {
-    "web_research": (
-        "联网搜索",
-        "网页查询",
-        "读取网页",
-        "官方来源",
-        "最新信息",
-        "web search",
-    ),
-    "weather": (
-        "天气查询",
-        "天气预报",
-        "当前天气",
-        "实时天气",
-        "weather forecast",
-    ),
-    "data_ops": (
-        "数据查询",
-        "数据库操作",
-        "记录管理",
-        "统计报表",
-        "data query",
-        "data update",
-    ),
-    "page_ops": (
-        "页面操作",
-        "页面交互",
-        "读取页面",
-        "填写表单",
-        "提交页面",
-        "page operation",
-    ),
-}
-
-_FAMILY_EXPLICIT_REQUEST_HINTS: dict[str, tuple[str, ...]] = {
-    "web_research": (
-        "联网搜索",
-        "网页查询",
-        "读取网页",
-        "官方来源",
-        "web search",
-    ),
-    "weather": (
-        "天气查询",
-        "天气预报",
-        "当前天气",
-        "实时天气",
-        "weather forecast",
-    ),
-    "data_ops": (
-        "数据查询",
-        "数据库操作",
-        "记录管理",
-        "统计报表",
-        "data query",
-    ),
-    "page_ops": (
-        "页面操作",
-        "页面交互",
-        "读取页面",
-        "填写表单",
-        "提交页面",
-        "page operation",
-    ),
-}
-
-
-def _tool_family_from_name(name: str) -> str:
-    normalized = (name or "").strip()
-    if not normalized:
-        return "none"
-    if normalized in {"web_search", "fetch_url"}:
-        return "web_research"
-    if normalized in {"get_current_weather", "get_weather_forecast"}:
-        return "weather"
-    if normalized.startswith("data_"):
-        return "data_ops"
-    if normalized in {"get_page_context", "invoke_page_operation", "list_page_operations"} or normalized.startswith("pageop_"):
-        return "page_ops"
-    return "none"
-
-
 def _tool_semantic_family(tool: ToolDefinition) -> str:
-    family = str(getattr(tool, "semantic_family", "") or "").strip()
-    if family:
-        return family
-    return _tool_family_from_name(tool.name)
+    return tool_semantic_family(tool)
 
 
 def _tool_semantic_tags(tool: ToolDefinition) -> list[str]:
-    tags = [
-        str(tag).strip()
-        for tag in (getattr(tool, "semantic_tags", None) or [])
-        if str(tag).strip()
-    ]
-    if tags:
-        return tags
-    return list(_FAMILY_HINT_TAGS.get(_tool_semantic_family(tool), ()))
+    return tool_semantic_tags(tool)
 
 
 def _tool_semantic_query_tokens(tool: ToolDefinition) -> set[str]:
@@ -167,10 +87,7 @@ def _query_forbids_family(
     family_tokens: set[str],
     family_hints: tuple[str, ...],
 ) -> bool:
-    if not any(
-        marker in query_text
-        for marker in ("不要", "别", "不用", "无需", "do not", "don't", "without")
-    ):
+    if not _FORBID_FAMILY_RE.search(query_text):
         return False
     return _query_mentions_family(query_text, query_tokens, family_tokens, family_hints)
 
@@ -203,7 +120,7 @@ def _is_explicitly_requested_tool(
 
     explicit_hints = [
         str(hint).strip().lower()
-        for hint in _FAMILY_EXPLICIT_REQUEST_HINTS.get(_tool_semantic_family(tool), ())
+        for hint in FAMILY_EXPLICIT_REQUEST_HINTS.get(_tool_semantic_family(tool), ())
         if len(str(hint).strip()) >= 2
     ]
     if any(hint in query_text for hint in explicit_hints):
@@ -242,14 +159,6 @@ _STOPWORDS_EN = frozenset({
 })
 
 _STOPWORDS = _STOPWORDS_ZH | _STOPWORDS_EN
-
-# Knowledge/document keywords → boost knowledge_base tools / 知识文档关键词
-_KB_KEYWORDS = frozenset({
-    "知识", "文档", "资料", "说明", "手册", "指南", "规范", "政策",
-    "制度", "流程", "标准", "参考", "介绍", "解释", "含义", "定义",
-    "knowledge", "document", "manual", "guide", "reference", "policy",
-    "explain", "definition", "meaning", "describe", "about",
-})
 
 # Chinese character regex / 中文字符正则
 _CJK_RE = re.compile(r"[\u4e00-\u9fff]+")
@@ -314,7 +223,7 @@ def _score_tool(
     score = 0.0
     tool_family = _tool_semantic_family(tool)
     semantic_query_tokens = _tool_semantic_query_tokens(tool)
-    family_hints = _FAMILY_EXPLICIT_REQUEST_HINTS.get(tool_family, ())
+    family_hints = FAMILY_EXPLICIT_REQUEST_HINTS.get(tool_family, ())
 
     # 1. Keyword overlap between tool name/description and query / 工具名描述与查询的关键词重叠
     tool_text = " ".join([tool.name, tool.description or "", *_tool_semantic_tags(tool)])
@@ -348,9 +257,7 @@ def _score_tool(
     ):
         score += 5.0
 
-    # 4. Knowledge base tool boost / 知识库工具加权
-    if ("knowledge" in tool_name_lower or "kb" in tool_name_lower) and query_tokens & _KB_KEYWORDS:
-        score += 5.0
+    # 4. Knowledge base tools: no fixed vocabulary list — overlap with name/description/tags (steps 1 & 3) already scores relevance.
 
     # 4.5 Web search tool boost / 联网搜索工具加权
     if tool_family == "web_research" and _query_mentions_family(
@@ -369,6 +276,14 @@ def _score_tool(
         family_hints,
     ):
         score += 8.0
+
+    if tool_family == "time_ops" and _query_mentions_family(
+        query_text,
+        query_tokens,
+        semantic_query_tokens,
+        family_hints,
+    ):
+        score += 10.0
 
     if prefer_weather_tools:
         if tool_family == "weather":
@@ -395,6 +310,11 @@ def _score_tool(
         elif tool_family == "data_ops":
             score -= 25.0
         elif tool_family == "page_ops":
+            score -= 8.0
+    elif preferred_family == "time_ops":
+        if tool_family == "time_ops":
+            score += 15.0
+        elif tool_family in {"web_research", "weather", "data_ops", "page_ops"}:
             score -= 8.0
 
     # 6. Base score (ensure minimum score to avoid unstable sorting) / 基础分
@@ -468,7 +388,7 @@ def optimize_tools(
                 query_text,
                 query_tokens,
                 _family_query_tokens(tools, "weather"),
-                _FAMILY_EXPLICIT_REQUEST_HINTS.get("weather", ()),
+                FAMILY_EXPLICIT_REQUEST_HINTS.get("weather", ()),
             ) and any(
                 _tool_semantic_family(tool) == "weather" for tool in tools
             )
@@ -511,7 +431,7 @@ def optimize_tools(
         query_text,
         query_tokens,
         _family_query_tokens(tools, "weather"),
-        _FAMILY_EXPLICIT_REQUEST_HINTS.get("weather", ()),
+        FAMILY_EXPLICIT_REQUEST_HINTS.get("weather", ()),
     ) and any(
         _tool_semantic_family(tool) == "weather" for tool in tools
     )

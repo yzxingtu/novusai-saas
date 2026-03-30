@@ -446,7 +446,7 @@
         "max_tokens": "最大输出 Token",
         "top_p": "Top P",
         "execution_mode": "执行模式",
-        "tool_bindings": "工具绑定",
+        "skill_grant_snapshot": "技能授权快照",
         "input_variables": "输入变量",
         "welcome_message": "欢迎语",
         "suggested_questions": "推荐问题",
@@ -1574,6 +1574,20 @@
       "update_status": "修改技能包状态",
       "upload": "上传技能包",
       "recycle_bin": "回收站"
+    },
+    "plugin_skill_registry": {
+      "list": "查看技能市场",
+      "detail": "查看技能市场详情",
+      "install": "安装技能市场包"
+    },
+    "ai_long_term_memory_debug": {
+      "list": "查看长期记忆调试",
+      "detail": "查看长期记忆调试详情"
+    },
+    "ai_ephemeral_document": {
+      "list": "查看临时资料文档",
+      "detail": "查看临时资料文档详情",
+      "promote": "提升临时资料文档"
     },
     "ai_skill": {
       "list": "查看技能列表",
@@ -3021,6 +3035,9 @@
   "ai_action_log": {
     "not_found": "AI 操作日志不存在"
   },
+  "execution_decision": {
+    "not_found": "执行决策不存在"
+  },
   "ai_query_log": {
     "not_found": "AI 查询日志不存在",
     "field": {
@@ -3195,6 +3212,14 @@
   "config.group.tenant_registration.desc": "用户注册流程、默认角色、隐私政策和服务条款配置",
   "config.platform.ai_page_context_max_bytes.name": "聊天页面上下文最大字节数",
   "config.platform.ai_page_context_max_bytes.desc": "限制前端发送到 AI 聊天/路由接口的 page_context.page_data 最大字节数，默认 8192；这是页面上下文预算，不是模型输入或输出 token 限制",
+  "config.platform.marketplace_github_url.name": "插件市场 GitHub URL",
+  "config.platform.marketplace_github_url.desc": "插件市场 GitHub 镜像的 registry 基础地址",
+  "config.platform.marketplace_cache_ttl.name": "插件市场缓存 TTL",
+  "config.platform.marketplace_cache_ttl.desc": "插件市场 registry 响应缓存秒数",
+  "config.platform.skill_registry_github_url.name": "技能市场 GitHub URL",
+  "config.platform.skill_registry_github_url.desc": "技能市场 GitHub 镜像的 registry 基础地址",
+  "config.platform.skill_registry_cache_ttl.name": "技能市场缓存 TTL",
+  "config.platform.skill_registry_cache_ttl.desc": "技能市场 registry 响应缓存秒数",
   "config.tenant.logo_dark.name": "企业深色 Logo",
   "config.tenant.logo_dark.desc": "深色主题下优先显示的企业 Logo，留空时回退平台默认值",
   "config.tenant.icp.name": "ICP备案号",

@@ -22,6 +22,8 @@ class AICallLogResponse(TenantResponseSchema):
     actor_user_id: int | None = Field(None, description="Actor user ID")
     actor_user_type: str | None = Field(None, description="Actor user type")
     access_channel: str | None = Field(None, description="Access channel")
+    trace_id: str | None = Field(None, description="Trace ID for ledger join")
+    tool_call_id: str | None = Field(None, description="Tool call ID when applicable")
     provider_id: int = Field(..., description=_("enum.ai_call_log.provider_id"))
     model_id: int = Field(..., description=_("enum.ai_call_log.model_id"))
     request_type: str = Field(..., description=_("enum.ai_call_log.request_type"))

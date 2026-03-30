@@ -13,7 +13,7 @@ import asyncio
 import hashlib
 import math
 import re
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 
 from sqlalchemy import Integer, String, and_, bindparam, select, text
 from sqlalchemy.dialects.postgresql import ARRAY
@@ -189,6 +189,7 @@ class KeywordSearcher:
     """
 
     _QUERY_SEGMENT_RE = re.compile(r"[\u4e00-\u9fff]+|[A-Za-z0-9][A-Za-z0-9._-]*")
+    _QUOTED_TERM_RE = re.compile(r'"([^"]{2,64})"|\'([^\']{2,64})\'')
 
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -215,6 +216,61 @@ class KeywordSearcher:
                 seen.add(token)
                 deduped.append(token)
         return deduped[:12]
+
+    def _extract_exact_terms(self, query: str) -> list[str]:
+        normalized = self._normalize_query(query)
+        if not normalized:
+            return []
+
+        candidates: list[str] = []
+        for match in self._QUOTED_TERM_RE.findall(normalized):
+            value = (match[0] or match[1] or "").strip()
+            if len(value) >= 2:
+                candidates.append(value)
+
+        for token in self._QUERY_SEGMENT_RE.findall(normalized):
+            token = token.strip()
+            if len(token) < 2:
+                continue
+            has_symbol = any(ch in token for ch in "._-:/#")
+            has_digit = any(ch.isdigit() for ch in token)
+            has_upper = any(ch.isupper() for ch in token)
+            if has_symbol or has_digit or has_upper:
+                candidates.append(token)
+
+        deduped: list[str] = []
+        seen: set[str] = set()
+        for term in candidates:
+            lowered = term.lower()
+            if lowered in seen:
+                continue
+            seen.add(lowered)
+            deduped.append(term)
+        return deduped[:8]
+
+    def _technical_term_boost(
+        self,
+        *,
+        query: str,
+        content: str,
+        metadata: dict | None,
+        document_name: str,
+    ) -> float:
+        exact_terms = self._extract_exact_terms(query)
+        if not exact_terms:
+            return 0.0
+
+        haystacks = [
+            (content or "").lower(),
+            str((metadata or {}).get("heading") or "").lower(),
+            (document_name or "").lower(),
+        ]
+        boost = 0.0
+        for term in exact_terms:
+            lowered = term.lower()
+            if any(lowered in haystack for haystack in haystacks if haystack):
+                boost += 0.18 if any(ch in term for ch in "._-:/#") else 0.1
+        return min(boost, 0.72)
 
     async def search(
         self,
@@ -341,7 +397,13 @@ class KeywordSearcher:
 
         results: list[ChunkSearchResult] = []
         for row in rows:
-            rank = round(float(row[7]), 4)
+            boost = self._technical_term_boost(
+                query=normalized_query,
+                content=row[1] or "",
+                metadata=row[4],
+                document_name=row[6] or "",
+            )
+            rank = round(float(row[7]) + boost, 4)
             results.append(
                 ChunkSearchResult(
                     chunk_id=row[0],
@@ -494,6 +556,8 @@ class HybridRetriever:
             reranker = LLMReranker(self.db, self.tenant_id, llm_model)
             results = await reranker.rerank(query, results, top_k=top_k)
 
+        results = self._relevance_gap_filter(results)
+
         if hook_registry.has_hooks(HookPoint.AFTER_KB_SEARCH):
             hook_ctx = await hook_registry.trigger(
                 HookPoint.AFTER_KB_SEARCH,
@@ -522,6 +586,30 @@ class HybridRetriever:
             reranker_enabled,
         )
         return results
+
+    @staticmethod
+    def _relevance_gap_filter(
+        results: list[ChunkSearchResult],
+        *,
+        max_drop: float = 0.32,
+        min_keep: int = 1,
+    ) -> list[ChunkSearchResult]:
+        if len(results) <= min_keep:
+            return results
+
+        kept: list[ChunkSearchResult] = []
+        previous_score: float | None = None
+        for index, result in enumerate(results):
+            if index < min_keep:
+                kept.append(result)
+                previous_score = float(result.score or 0.0)
+                continue
+            current_score = float(result.score or 0.0)
+            if previous_score is not None and previous_score - current_score > max_drop:
+                break
+            kept.append(result)
+            previous_score = current_score
+        return kept
 
     def _build_kb_contexts(
         self,
@@ -598,7 +686,42 @@ class HybridRetriever:
         search_lists = await asyncio.gather(
             *[_search_for_context(context) for context in kb_contexts]
         )
-        return self._weighted_rrf_merge(search_lists, top_k)
+        merged = self._weighted_rrf_merge(search_lists, top_k)
+        return self._apply_technical_term_boost_to_vector_results(query, merged)
+
+    def _apply_technical_term_boost_to_vector_results(
+        self,
+        query: str,
+        results: list[ChunkSearchResult],
+    ) -> list[ChunkSearchResult]:
+        """
+        Align vector-only mode with keyword/hybrid technical-term boosting.
+        纯向量模式补充与关键词路径一致的技术术语/标识符加权。
+        """
+        if not results:
+            return results
+        q = (query or "").strip()
+        if not q:
+            return results
+        boosted: list[ChunkSearchResult] = []
+        for r in results:
+            boost = self.keyword_searcher._technical_term_boost(
+                query=q,
+                content=r.content or "",
+                metadata=r.metadata,
+                document_name=r.document_name or "",
+            )
+            if boost <= 0:
+                boosted.append(r)
+                continue
+            new_score = min(1.0, float(r.score or 0.0) + boost)
+            new_raw = (
+                max(float(r.raw_score or 0.0), new_score)
+                if r.raw_score is not None
+                else new_score
+            )
+            boosted.append(replace(r, score=new_score, raw_score=new_raw))
+        return sorted(boosted, key=lambda item: item.score, reverse=True)
 
     async def _keyword_search(
         self,

@@ -18,6 +18,7 @@ from app.configs.service import PLATFORM_TENANT_ID
 from app.core.base_model import BaseModel
 from app.core.base_service import GlobalService, TenantService
 from app.enums.agent import ActionLevelEnum, ActionStatusEnum, ActionTypeEnum
+from app.middleware.trace import trace_id_var
 from app.models.ai.action_log import AIActionLog
 from app.models.ai.agent import Agent
 from app.models.system.admin import Admin
@@ -278,6 +279,9 @@ async def write_ai_action_log(
     operator_id: int | None = None,
     operator_type: str | None = None,
     conversation_id: int | None = None,
+    execution_decision_id: int | None = None,
+    trace_id: str | None = None,
+    tool_call_id: str | None = None,
     skill_id: int | None = None,
     request_data: dict[str, Any] | None = None,
     response_data: dict[str, Any] | None = None,
@@ -305,6 +309,9 @@ async def write_ai_action_log(
         tenant_id=tenant_id,
         agent_id=agent_id,
         conversation_id=conversation_id,
+        execution_decision_id=execution_decision_id,
+        trace_id=trace_id or trace_id_var.get() or None,
+        tool_call_id=tool_call_id,
         skill_id=skill_id,
         operator_id=operator_id,
         operator_type=operator_snapshot.get("operator_type"),

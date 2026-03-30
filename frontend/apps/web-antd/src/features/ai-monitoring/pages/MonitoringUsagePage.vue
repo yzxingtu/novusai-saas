@@ -174,7 +174,7 @@ const busiestDay = computed(() => {
   if (daily.length === 0) {
     return null;
   }
-  let busiest = daily[0];
+  let busiest = daily[0]!;
   for (const item of daily.slice(1)) {
     if (item.call_count > busiest.call_count) {
       busiest = item;

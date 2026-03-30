@@ -16,6 +16,7 @@ tests/api/
 ├── test_admin_organization.py
 ├── test_admin_admins.py
 ├── test_admin_tenants.py
+├── test_admin_periodic_tasks.py
 ├── test_captcha_flow.py
 ├── test_tenant_auth.py
 ├── test_tenant_permission_roles.py
@@ -80,6 +81,7 @@ python -m tests.api.test_admin_permission_roles
 python -m tests.api.test_admin_organization
 python -m tests.api.test_admin_admins
 python -m tests.api.test_admin_tenants
+python -m tests.api.test_admin_periodic_tasks
 python -m tests.api.test_captcha_flow
 python -m tests.api.test_tenant_auth
 python -m tests.api.test_tenant_permission_roles
@@ -98,16 +100,13 @@ python -m tests.api.test_tenant_admins
 | 认证 | `POST /admin/auth/refresh` | 有效 Token、无效 Token |
 | 认证 | `PUT /admin/auth/password` | 正确旧密码、错误旧密码（错误旧密码返回 `422`，业务码 `4004`） |
 | 认证 | `POST /admin/auth/logout` | 登出 |
-| 权限 | `GET /admin/permissions` | 获取权限树 |
-| 权限 | `GET /admin/permissions/list` | 获取权限列表、按类型过滤 |
+| 权限 | `GET /admin/permissions` | 获取权限树、展平校验、检查 menu/operation 节点 |
 | 权限 | `GET /admin/permissions/menus` | 获取用户菜单 |
-| 权限角色 | `GET /admin/permission-roles` | 获取权限角色列表 |
-| 权限角色 | `POST /admin/permission-roles` | 创建权限角色 |
-| 权限角色 | `GET /admin/permission-roles/{role_id}` | 获取权限角色详情 |
-| 权限角色 | `PUT /admin/permission-roles/{role_id}` | 更新权限角色 |
-| 权限角色 | `PUT /admin/permission-roles/{role_id}/permissions` | 分配权限 |
-| 权限角色 | `GET /admin/permission-roles/{role_id}/permissions/effective` | 获取有效权限 |
-| 权限角色 | `DELETE /admin/permission-roles/{role_id}` | 删除权限角色 |
+| 权限绑定 | `GET /admin/permissions` | 获取平台权限树 |
+| 权限绑定 | `POST /admin/organization` | 创建带权限的组织节点 |
+| 权限绑定 | `GET /admin/organization/{org_node_id}` | 获取组织节点权限详情 |
+| 权限绑定 | `PUT /admin/organization/{org_node_id}` | 更新或清空组织节点权限绑定 |
+| 权限绑定 | `DELETE /admin/organization/{org_node_id}` | 删除权限绑定测试节点 |
 | 组织架构 | `GET /admin/organization` | 获取组织根节点 |
 | 组织架构 | `GET /admin/organization/tree` | 获取组织树 |
 | 组织架构 | `GET /admin/organization/{org_node_id}` | 获取节点详情 |
@@ -120,19 +119,23 @@ python -m tests.api.test_tenant_admins
 | 组织架构 | `PUT /admin/organization/{org_node_id}/leader` | 设置或清空负责人 |
 | 组织架构 | `DELETE /admin/organization/{org_node_id}/members/{admin_id}` | 从节点移除成员 |
 | 组织架构 | `DELETE /admin/organization/{org_node_id}` | 删除组织节点 |
-| 管理员 | `GET /admin/admins` | 列表、分页、过滤 |
-| 管理员 | `POST /admin/admins` | 创建、重复用户名 |
-| 管理员 | `GET /admin/admins/{id}` | 详情、不存在 |
-| 管理员 | `PUT /admin/admins/{id}` | 更新 |
-| 管理员 | `PUT /admin/admins/{id}/status` | 切换状态 |
-| 管理员 | `PUT /admin/admins/{id}/reset-password` | 重置密码 |
-| 管理员 | `DELETE /admin/admins/{id}` | 删除、删除自己 |
+| 管理员成员 | `POST /admin/organization/{org_node_id}/members/create` | 在组织节点下创建平台管理员成员 |
+| 管理员成员 | `GET /admin/organization/{org_node_id}/members` | 获取成员列表 |
+| 管理员成员 | `PUT /admin/organization/{org_node_id}/members/{admin_id}` | 更新成员资料或迁移节点 |
+| 管理员成员 | `PUT /admin/organization/{org_node_id}/members/{admin_id}/reset-password` | 重置成员密码 |
+| 管理员成员 | `PUT /admin/organization/{org_node_id}/members/{admin_id}/status` | 切换成员状态 |
+| 管理员成员 | `DELETE /admin/organization/{org_node_id}/members/{admin_id}` | 从组织节点移除成员 |
 | 企业 | `GET /admin/tenants` | 列表、分页、过滤 |
-| 企业 | `POST /admin/tenants` | 创建、重复代码 |
+| 企业 | `POST /admin/tenants` | 创建（需携带 owner 账号字段） |
 | 企业 | `GET /admin/tenants/{id}` | 详情、不存在 |
 | 企业 | `PUT /admin/tenants/{id}` | 更新 |
 | 企业 | `PUT /admin/tenants/{id}/status` | 切换状态 |
-| 企业 | `DELETE /admin/tenants/{id}` | 删除 |
+| 企业 | `DELETE /admin/tenants/{id}` | 当前校验 owner 依赖阻塞删除 |
+| 定时任务 | `GET /admin/periodic-tasks` | 列表 |
+| 定时任务 | `POST /admin/periodic-tasks` | 创建 selected_tenants 待绑定任务、拒绝不支持 tenant 分发的处理器 |
+| 定时任务 | `PUT /admin/periodic-tasks/{id}/bindings` | 省略 scope 更新显式绑定、保留显式作用域 |
+| 定时任务 | `PUT /admin/periodic-tasks/{id}` | 切换到 all_tenants 时清空显式 binding |
+| 定时任务 | `POST /admin/periodic-tasks/{id}/trigger` | 待绑定任务/禁用插件任务的明确错误提示 |
 
 ### 企业管理端（`/tenant`）
 

@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """add role hierarchy support
 
 为 admin_roles 和 tenant_admin_roles 表添加多级角色支持字段
@@ -79,16 +79,16 @@ def upgrade() -> None:
     
     # 初始化现有角色数据：设置 path 为 /{id}/，level 为 1
     # 使用原生 SQL 更新现有数据
-    op.execute("""
+    op.execute(sa.text("""
         UPDATE admin_roles 
         SET path = '/' || id || '/', level = 1 
         WHERE path IS NULL
-    """)
-    op.execute("""
+    """))
+    op.execute(sa.text("""
         UPDATE tenant_admin_roles 
         SET path = '/' || id || '/', level = 1 
         WHERE path IS NULL
-    """)
+    """))
 
 
 def downgrade() -> None:

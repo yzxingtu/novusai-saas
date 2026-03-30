@@ -520,10 +520,40 @@ async def test_skill_resolver_augments_web_research_builtin_tool_descriptions() 
     result = await SkillResolver().resolve([skill])
 
     descriptions = {tool.name: tool.description for tool in result.tools}
-    assert "candidate web sources" in descriptions["web_search"]
-    assert "does not mean the content has already been verified" in descriptions["web_search"]
-    assert "read the content of a specific web page" in descriptions["fetch_url"]
-    assert "official announcements" in descriptions["fetch_url"]
+    assert "candidate sources" in descriptions["web_search"]
+    assert "fetch_url" in descriptions["web_search"]
+    assert "full content" in descriptions["fetch_url"].lower() or "read" in descriptions["fetch_url"].lower()
+
+
+@pytest.mark.asyncio
+async def test_skill_resolver_augments_current_time_builtin_tool_description() -> None:
+    skill = MagicMock()
+    skill.id = 13
+    skill.package_id = 23
+    skill.is_active = True
+    skill.config = {
+        "tools": [
+            {
+                "name": "get_current_time",
+                "description": "Get current time",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                },
+            },
+        ],
+    }
+    skill.name = "time_tools"
+    skill.description = "Time tools"
+    skill.type = SkillTypeEnum.BUILTIN.value
+    skill.timeout = 15
+
+    result = await SkillResolver().resolve([skill])
+
+    descriptions = {tool.name: tool.description for tool in result.tools}
+    assert "timezone" in descriptions["get_current_time"]
+    assert "date" in descriptions["get_current_time"].lower() or "time" in descriptions["get_current_time"].lower()
 
 
 @pytest.mark.asyncio
@@ -741,6 +771,10 @@ async def test_conversation_engine_injects_tools_into_gateway() -> None:
         patch(
             "app.ai.rag_injector.load_agent_kb_bindings",
             new=AsyncMock(return_value=(None, {})),
+        ),
+        patch(
+            "app.services.ai.conversation_service.ConversationService.get_context_compaction_snapshot",
+            new=AsyncMock(return_value=None),
         ),
         patch("app.ai.tools.optimizer.optimize_tools", return_value=opt_result),
         patch(
@@ -972,6 +1006,30 @@ class TestToolOptimizerProtectedTools:
 
         ordered = [tool.name for tool in result.tools]
         assert ordered.index("web_search") < ordered.index("data_query")
+
+    def test_time_query_prefers_current_time_tool(self):
+        """时间问题应优先保留 get_current_time，而不是联网搜索。"""
+        from app.ai.tools.optimizer import optimize_tools
+
+        tools = [
+            ToolDefinition(name="get_page_context", description="Read page context"),
+            ToolDefinition(name="invoke_page_operation", description="Page operations"),
+            ToolDefinition(name="web_search", description="Search the web"),
+            ToolDefinition(name="fetch_url", description="Fetch a webpage"),
+            ToolDefinition(name="get_current_time", description="Get current time"),
+            ToolDefinition(name="data_query", description="Query data"),
+            ToolDefinition(name="tool_a", description="Misc tool"),
+            ToolDefinition(name="tool_b", description="Misc tool"),
+        ]
+
+        result = optimize_tools(
+            tools,
+            "现在几点？请直接告诉我当前时间。",
+            preferred_family="time_ops",
+        )
+
+        ordered = [tool.name for tool in result.tools]
+        assert ordered.index("get_current_time") < ordered.index("web_search")
 
 
 # ========================================

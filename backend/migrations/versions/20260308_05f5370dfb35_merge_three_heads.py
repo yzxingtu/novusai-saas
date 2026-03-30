@@ -27,5 +27,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Downgrade database schema."""
+    """Intentional no-op: Merge revision only; no schema changes to reverse."""
     pass

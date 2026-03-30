@@ -21,7 +21,6 @@ const {
   currentPageAIExecutionPolicy,
   emit,
   formIsOpenWithFallback,
-  isActiveConversationTrusted,
   openAIPanel,
   pageSessionId,
   requestPageOpConfirmation,
@@ -38,7 +37,6 @@ const {
   }),
   emit: vi.fn(),
   formIsOpenWithFallback: vi.fn(),
-  isActiveConversationTrusted: vi.fn(),
   openAIPanel: vi.fn(),
   pageSessionId: (require('vue') as typeof import('vue')).ref(
     'page-session-1' as null | string,
@@ -62,7 +60,6 @@ vi.mock('#/store', () => ({
 
 vi.mock('#/store/shared/ai-panel', () => ({
   useAIPanelStore: () => ({
-    isActiveConversationTrusted,
     open: openAIPanel,
     requestPageOpConfirmation,
     resolvePageOp,
@@ -119,8 +116,6 @@ describe('usePageOperationChannel', () => {
     resolvePageOp.mockReset();
     formIsOpenWithFallback.mockReset();
     formIsOpenWithFallback.mockReturnValue(false);
-    isActiveConversationTrusted.mockReset();
-    isActiveConversationTrusted.mockReturnValue(false);
     unregisterHandler.mockClear();
     currentPageAIExecutionPolicy.value = {
       disabledCapabilities: [],
@@ -546,9 +541,7 @@ describe('usePageOperationChannel', () => {
     scope.stop();
   });
 
-  it('auto-approves mutation page operations when the active conversation is trusted', async () => {
-    isActiveConversationTrusted.mockReturnValue(true);
-
+  it('does not bypass confirmation via local trust state anymore', async () => {
     const scope = effectScope();
     scope.run(() => {
       usePageOperationChannel();
@@ -570,7 +563,7 @@ describe('usePageOperationChannel', () => {
     ]);
     vi.mocked(executePageOperation).mockResolvedValue({
       success: true,
-      message: 'trusted-ok',
+      message: 'confirmed-ok',
     });
 
     const invokeHandler = registerHandler.mock.calls[0]?.[1] as
@@ -578,7 +571,51 @@ describe('usePageOperationChannel', () => {
       | undefined;
 
     await invokeHandler?.({
-      invoke_id: 'trusted-create',
+      invoke_id: 'confirmed-create',
+      operation_name: 'create_record',
+      page_key: 'admin.ai.agents',
+      params: {},
+      requires_confirmation: false,
+    });
+
+    expect(requestPageOpConfirmation).toHaveBeenCalledTimes(1);
+    expect(executePageOperation).toHaveBeenCalledTimes(1);
+
+    scope.stop();
+  });
+
+  it('executes immediately when backend marks the page operation as auto approved', async () => {
+    const scope = effectScope();
+    scope.run(() => {
+      usePageOperationChannel();
+    });
+
+    vi.mocked(findPageOperation).mockReturnValue({
+      description: 'Open create form',
+      label: 'Create',
+      name: 'create_record',
+      readonly: false,
+    });
+    vi.mocked(listPageOperations).mockReturnValue([
+      {
+        description: 'Open create form',
+        label: 'Create',
+        name: 'create_record',
+        readonly: false,
+      },
+    ]);
+    vi.mocked(executePageOperation).mockResolvedValue({
+      success: true,
+      message: 'policy-auto-ok',
+    });
+
+    const invokeHandler = registerHandler.mock.calls[0]?.[1] as
+      | ((data: unknown) => Promise<void>)
+      | undefined;
+
+    await invokeHandler?.({
+      auto_approved: true,
+      invoke_id: 'policy-auto-create',
       operation_name: 'create_record',
       page_key: 'admin.ai.agents',
       params: {},
@@ -587,14 +624,6 @@ describe('usePageOperationChannel', () => {
 
     expect(requestPageOpConfirmation).not.toHaveBeenCalled();
     expect(executePageOperation).toHaveBeenCalledTimes(1);
-    expect(emit).toHaveBeenCalledWith(
-      'page_operation_result',
-      expect.objectContaining({
-        invoke_id: 'trusted-create',
-        message: 'trusted-ok',
-        success: true,
-      }),
-    );
 
     scope.stop();
   });

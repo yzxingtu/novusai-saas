@@ -3,7 +3,7 @@
  */
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
-import type { AIUsageStatInfo } from '#/api/admin/ai';
+import type { AIUsageStatInfo } from '#/api/admin/ai-call-logs';
 
 import { searchDateRange, select } from '#/adapter/form';
 import { getAIModelSelectApi } from '#/api/admin/ai';

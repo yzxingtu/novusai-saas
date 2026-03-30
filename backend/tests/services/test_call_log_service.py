@@ -152,6 +152,38 @@ class TestCallLogCreate:
         assert delay_mock.called
         assert delay_mock.call_args.kwargs["latency_ms"] is None
 
+    @pytest.mark.asyncio
+    async def test_log_call_async_passes_trace_id_from_context_var(self, mock_db):
+        from app.middleware.trace import trace_id_var
+        from app.services.ai.call_log_service import CallLogService
+
+        service = CallLogService.__new__(CallLogService)
+        service.db = mock_db
+        service.tenant_id = 1
+
+        token = trace_id_var.set("trace-from-request-abc")
+        try:
+            with patch("app.tasks.ai.log_ai_call_task.delay") as delay_mock:
+                await service.log_call_async(
+                    tenant_id=1,
+                    model_id=2,
+                    provider_id=3,
+                    request_type="chat",
+                    request_data={"messages": []},
+                    response_data={"ok": True},
+                    input_tokens=0,
+                    output_tokens=0,
+                    total_tokens=0,
+                    cost=0.0,
+                    latency_ms=100,
+                    status="success",
+                )
+        finally:
+            trace_id_var.reset(token)
+
+        assert delay_mock.call_args.kwargs.get("trace_id") == "trace-from-request-abc"
+        assert delay_mock.call_args.kwargs.get("tool_call_id") is None
+
 
 class TestCallLogSanitization:
 

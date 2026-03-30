@@ -199,6 +199,7 @@ class ConversationEngine(BaseEngine):
 
             # 4. Tool call loop (pass route_result + tool_consent_modes for unified consent semantic) / 工具调用循环（传入 route_result + tool_consent_modes 统一授权语义）
             tool_results = []
+            active_policy = prep.tool_use_policy
             if response.tool_calls and tools:
                 response, tool_results, loop_tokens = await self._handle_tool_calls(
                     agent=agent,
@@ -212,6 +213,106 @@ class ConversationEngine(BaseEngine):
                     continuation_context=prep.continuation_context,
                 )
                 total_tokens = retry_overhead_tokens + loop_tokens
+                if response is not None:
+                    self._log_web_research_contract_diagnostics(
+                        agent=agent,
+                        messages=messages,
+                        response=response,
+                        tools=tools or [],
+                        continuation=prep.continuation_context,
+                        conversation_id=request.conversation_id,
+                    )
+            for web_retry_attempt in range(2):
+                del web_retry_attempt
+                if response is None:
+                    break
+                should_retry_web_research, web_retry_policy, web_breach_preview = (
+                    self._should_retry_web_research_contract_breach(
+                        messages=messages,
+                        response=response,
+                        current_policy=active_policy,
+                        tools=tools or [],
+                        input_variables=request.input_variables,
+                        continuation=prep.continuation_context,
+                    )
+                )
+                del web_breach_preview
+                if not should_retry_web_research or web_retry_policy is None:
+                    break
+                # Always retry for web_research_summary_without_fetch (same as streaming path);
+                # do not honor retry_on_contract_breach=False for this breach type.
+
+                retry_tools = self._filter_tools_for_policy(
+                    prep.all_tools or tools or [],
+                    web_retry_policy,
+                )
+                self._log_tool_contract_diagnostics(
+                    agent=agent,
+                    messages=messages,
+                    response=response,
+                    tools=retry_tools or [],
+                    policy=web_retry_policy,
+                    conversation_id=request.conversation_id,
+                    breach_type="web_research_summary_without_fetch",
+                    retry_result="retrying",
+                    continuation=prep.continuation_context,
+                )
+                retry_response = await self._call_llm(
+                    agent=agent,
+                    messages=messages,
+                    tools=retry_tools or None,
+                    all_tool_names=[tool.name for tool in prep.all_tools],
+                    tool_use_policy=web_retry_policy,
+                    breach_retry_result="retry_follow_up",
+                    tenant_id=request.tenant_id,
+                    user_id=request.user_id,
+                    conversation_id=request.conversation_id,
+                    billing_context=request.billing_context,
+                    route_result=prep.route_result,
+                    log_user_type=log_user_type_for_call_log(request.user_role),
+                )
+                active_policy = web_retry_policy
+                if not retry_response.tool_calls:
+                    total_tokens += retry_response.total_tokens or 0
+                    self._log_tool_contract_diagnostics(
+                        agent=agent,
+                        messages=messages,
+                        response=retry_response,
+                        tools=retry_tools or [],
+                        policy=web_retry_policy,
+                        conversation_id=request.conversation_id,
+                        breach_type="web_research_summary_without_fetch",
+                        retry_result="failed",
+                        continuation=prep.continuation_context,
+                    )
+                    response = retry_response
+                    break
+
+                self._log_tool_contract_diagnostics(
+                    agent=agent,
+                    messages=messages,
+                    response=retry_response,
+                    tools=retry_tools or [],
+                    policy=web_retry_policy,
+                    conversation_id=request.conversation_id,
+                    breach_type="web_research_summary_without_fetch",
+                    retry_result="succeeded",
+                    continuation=prep.continuation_context,
+                )
+                response, extra_tool_results, extra_loop_tokens = await self._handle_tool_calls(
+                    agent=agent,
+                    messages=messages,
+                    response=retry_response,
+                    tools=retry_tools,
+                    all_tools=prep.all_tools,
+                    request=request,
+                    route_result=prep.route_result,
+                    tool_consent_modes=prep.tool_consent_modes,
+                    continuation_context=prep.continuation_context,
+                )
+                tool_results.extend(extra_tool_results)
+                total_tokens += extra_loop_tokens
+                tools = retry_tools
                 if response is not None:
                     self._log_web_research_contract_diagnostics(
                         agent=agent,
@@ -264,7 +365,19 @@ class ConversationEngine(BaseEngine):
                 runtime_provider_id=runtime_info.get("provider_id"),
                 runtime_provider_name=runtime_info.get("provider_name"),
                 rag_sources=rag_sources,
+                rag_source_kinds=prep.rag_source_kinds,
+                context_compacted=prep.context_compacted,
+                memory_flush_triggered=prep.memory_flush_triggered,
+                memory_recalled=prep.memory_recalled,
+                prune_stats=prep.prune_stats,
             )
+
+            if prep.context_engine is not None:
+                await prep.context_engine.after_turn(
+                    agent,
+                    request,
+                    result,
+                )
 
             return result
 

@@ -8,6 +8,34 @@ import type { ActionLogItem } from '#/api/tenant/action-logs';
 import { searchInput, select } from '#/adapter/form';
 import { $t } from '#/locales';
 
+export function getExecutionDecisionTypeText(value?: string): string {
+  switch (value) {
+    case 'confirmation':
+      return $t('tenant.ai.executionDecision.typeOptions.confirmation');
+    case 'consent':
+      return $t('tenant.ai.executionDecision.typeOptions.consent');
+    default:
+      return value || '-';
+  }
+}
+
+export function getExecutionDecisionStatusText(value?: string): string {
+  switch (value) {
+    case 'approved':
+      return $t('tenant.ai.executionDecision.statusOptions.approved');
+    case 'rejected':
+      return $t('tenant.ai.executionDecision.statusOptions.rejected');
+    case 'auto_approved':
+      return $t('tenant.ai.executionDecision.statusOptions.autoApproved');
+    case 'pending':
+      return $t('tenant.ai.executionDecision.statusOptions.pending');
+    case 'expired':
+      return $t('tenant.ai.executionDecision.statusOptions.expired');
+    default:
+      return value || '-';
+  }
+}
+
 export type { ActionLogItem };
 
 function getTypeOptions() {
@@ -237,6 +265,23 @@ export function useGridFormSchema(): VbenFormSchema[] {
       $t('tenant.ai.actionLog.actionName'),
       {
         placeholder: $t('tenant.ai.actionLog.placeholder.searchName'),
+      },
+    ),
+    searchInput('filter[trace_id][ilike]', $t('tenant.ai.actionLog.traceId'), {
+      placeholder: $t('tenant.ai.actionLog.placeholder.searchTrace'),
+    }),
+    searchInput(
+      'filter[tool_call_id][ilike]',
+      $t('tenant.ai.actionLog.toolCallId'),
+      {
+        placeholder: $t('tenant.ai.actionLog.placeholder.searchToolCall'),
+      },
+    ),
+    searchInput(
+      'filter[execution_decision_id][eq]',
+      $t('tenant.ai.actionLog.executionDecisionId'),
+      {
+        placeholder: $t('tenant.ai.actionLog.placeholder.searchDecision'),
       },
     ),
     select('filter[action_type][eq]', $t('tenant.ai.actionLog.actionType'), {

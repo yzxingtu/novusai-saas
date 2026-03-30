@@ -69,6 +69,11 @@ def run_admin_tests() -> list[TestReport]:
     test = ManualTestAdminTenants()
     reports.append(test.run_all())
 
+    # Admin Periodic Tasks
+    from tests.api.test_admin_periodic_tasks import ManualTestAdminPeriodicTasks
+    test = ManualTestAdminPeriodicTasks()
+    reports.append(test.run_all())
+
     return reports
 
 

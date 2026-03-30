@@ -22,7 +22,7 @@ depends_on = None
 
 def upgrade() -> None:
     # 1. Drop orphaned table if it still exists (model was deleted during toolkit refactor)
-    op.execute("DROP TABLE IF EXISTS crud_generation_records CASCADE")
+    op.execute(sa.text("DROP TABLE IF EXISTS crud_generation_records CASCADE"))
 
     # 2. 多条 seed 可能插入相同 task_path；先按 task_path 去重（保留最小 id）再加唯一约束
     op.execute(

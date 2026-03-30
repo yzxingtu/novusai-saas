@@ -46,7 +46,7 @@ class AgentVersionResponse(TenantResponseSchema):
     max_tokens: int | None = Field(None, description=_("agent.version.field.max_tokens"))
     top_p: float | None = Field(None, description=_("agent.version.field.top_p"))
     execution_mode: str = Field(..., description=_("agent.version.field.execution_mode"))
-    tool_bindings: list | None = Field(None, description=_("agent.version.field.tool_bindings"))
+    skill_grant_snapshot: list | None = Field(None, description=_("agent.version.field.skill_grant_snapshot"))
     input_variables: list | None = Field(None, description=_("agent.version.field.input_variables"))
     welcome_message: str | None = Field(None, description=_("agent.version.field.welcome_message"))
     suggested_questions: list | None = Field(None, description=_("agent.version.field.suggested_questions"))

@@ -27,36 +27,14 @@ from app.core.logging import LogManager
 
 logger = LogManager.get_logger("ai.engine.tool_processor")
 
-# User confirmation/rejection trigger words / 用户确认/拒绝触发词
-_CONFIRMATION_TEXTS: frozenset[str] = frozenset(
-    {
-        "确认执行",
-        "确认",
-        "执行",
-        "好的",
-        "是",
-        "好",
-        "可以",
-        "confirm",
-        "yes",
-        "ok",
-        "sure",
-        "go ahead",
-    }
+# User confirmation/rejection — regex patterns (avoid maintaining a growing synonym list).
+_CONFIRMATION_REPLY_RE = re.compile(
+    r"^\s*(确认执行|确认|执行|好的|好[吧的]?|是[吧的]?|可以|行|嗯|没问题|妥了|confirm|yes|ok|sure|yep|yeah|go\s*ahead|proceed)(\s*[!.！。…]*)?\s*$",
+    re.IGNORECASE,
 )
-_REJECTION_TEXTS: frozenset[str] = frozenset(
-    {
-        "取消",
-        "拒绝",
-        "不执行",
-        "不",
-        "算了",
-        "cancel",
-        "no",
-        "reject",
-        "abort",
-        "stop",
-    }
+_REJECTION_REPLY_RE = re.compile(
+    r"^\s*(取消|拒绝|不执行|不[要了]?|算了|别|甭|cancel|no|reject|abort|stop|nope)(\s*[!.！。…]*)?\s*$",
+    re.IGNORECASE,
 )
 
 
@@ -609,13 +587,15 @@ class ToolCallProcessor:
 
     @staticmethod
     def is_confirmation_text(text: str) -> bool:
-        """Check if text is a confirmation trigger word / 检查文本是否为确认触发词"""
-        return text.strip() in _CONFIRMATION_TEXTS
+        """Check if text is a short confirmation reply / 检查是否为简短确认回复"""
+        t = (text or "").strip()
+        return bool(t and _CONFIRMATION_REPLY_RE.match(t))
 
     @staticmethod
     def is_rejection_text(text: str) -> bool:
-        """Check if text is a rejection trigger word / 检查文本是否为拒绝触发词"""
-        return text.strip() in _REJECTION_TEXTS
+        """Check if text is a short rejection reply / 检查是否为简短拒绝回复"""
+        t = (text or "").strip()
+        return bool(t and _REJECTION_REPLY_RE.match(t))
 
     # ========================================
     # SSE Event Building / SSE 事件构建
@@ -827,6 +807,6 @@ class ToolCallProcessor:
 __all__ = [
     "ToolCallProcessor",
     "SingleToolResult",
-    "_CONFIRMATION_TEXTS",
-    "_REJECTION_TEXTS",
+    "_CONFIRMATION_REPLY_RE",
+    "_REJECTION_REPLY_RE",
 ]

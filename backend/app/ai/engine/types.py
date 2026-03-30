@@ -77,12 +77,22 @@ class ExecutionRequest:
     stream: bool = False
     conversation_id: int | None = None
     knowledge_base_ids: list[int] | None = None
+    context_engine_id: str = "legacy"
+    system_prompt_additions: list[str] = field(default_factory=list)
+    trust_policy_ref: dict[str, Any] | None = None
+    ephemeral_rag_refs: list[dict[str, Any]] = field(default_factory=list)
 
     # User attachments (images/files, appended to latest user message) / 用户附件（图片/文件，附加到最新用户消息）
     attachments: list[dict[str, Any]] | None = None
 
-    # Session-level authorization (from frontend sessionStorage, format: ["read:agents", "create:agents"]) / 会话级授权（前端 sessionStorage 传入）
+    # Frontend transient consent hints for the current runtime only.
+    # Backend trust policy remains the source of truth.
+    # 前端当前运行时的临时授权提示，最终仍以后端信任策略为准。
     consented_actions: list[str] | None = None
+
+    # Structured interaction updates from the client (confirmation/rejection/consent).
+    # Used by stream_handler to detect interaction-only turns without text.
+    interaction_updates: list[dict[str, Any]] | None = None
 
     # User role (platform_admin / tenant_admin / tenant_user) / 用户角色
     user_role: str = UserRoleEnum.TENANT_ADMIN.value
@@ -107,6 +117,7 @@ class ExecutionRequest:
     memory_channel: str = MEMORY_CHANNEL_SYSTEM
     memory_source: str = ""
     memory_enabled: bool = False
+    long_term_memory_enabled: bool = False
 
     # Frontend page session ID (for PageOperationExecutor to locate target page instance) / 前端页面会话 ID
     page_session_id: str | None = None
@@ -149,6 +160,11 @@ class ExecutionResult:
     interrupted: bool = False
     completion_reason: str = ""
     rag_sources: list[dict[str, Any]] | None = None
+    rag_source_kinds: list[str] = field(default_factory=list)
+    context_compacted: bool = False
+    memory_flush_triggered: bool = False
+    memory_recalled: bool = False
+    prune_stats: dict[str, Any] | None = None
 
 
 @dataclass
@@ -174,6 +190,17 @@ class PreparedExecution:
     continuation_context: ResearchContinuationContext | None = None
     tool_use_policy: ToolUsePolicy = field(default_factory=ToolUsePolicy)
     rag_sources: list[dict[str, Any]] | None = None
+    rag_source_kinds: list[str] = field(default_factory=list)
+    context_engine_id: str = "legacy"
+    compact_summary: str | None = None
+    prune_stats: dict[str, Any] | None = None
+    memory_recall_slice: dict[str, Any] | None = None
+    context_compacted: bool = False
+    memory_flush_triggered: bool = False
+    memory_recalled: bool = False
+    system_prompt_additions: list[str] = field(default_factory=list)
+    diagnostics: dict[str, Any] = field(default_factory=dict)
+    context_engine: Any | None = None
     tool_consent_modes: dict[str, str] = field(default_factory=dict)
     optimize_event: dict[str, Any] | None = None
     route_result: RouteResult | None = None
