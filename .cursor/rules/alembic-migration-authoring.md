@@ -35,6 +35,11 @@
 - 若将 `scope` 等字段从短枚举改为 **`admin_and_selected_tenants`**（26 字符）等长值，必须先 **`ALTER COLUMN ... TYPE VARCHAR(40)`**（或足够长度），再执行 `UPDATE`。
 - 禁止假设历史库一直是 `VARCHAR(255)`；空库往往仍是 **`VARCHAR(20)`**。
 
+### 3.1 新迁移中的 `sa.String` 必须显式长度
+
+- 在 **`op.add_column` / `sa.Column`** 等处使用 SQLAlchemy 的 **`sa.String`** 时，**必须**写 **`sa.String(n)`**（如 64、128、255），**禁止**无参 **`sa.String()`**（不同方言 / 版本下长度不确定，空库与生产易不一致）。
+- 若需不限长文本，使用 **`sa.Text()`** 或与现有模型一致的类型。
+
 ---
 
 ## 4. 加列 / 加约束前的存在性与数据卫生

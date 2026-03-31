@@ -48,6 +48,7 @@ from app.models.ai import (
     TenantAgentPublication,
     TenantModelRateLimit,
     TenantQuota,
+    TenantAgentPlatformKbSuppression,
 )
 
 # RBAC 模型 / RBAC models
@@ -155,6 +156,7 @@ __all__ = [
     "AICallLog",
     "TenantModelRateLimit",
     "TenantQuota",
+    "TenantAgentPlatformKbSuppression",
     # 智能体 / Agents
     "Agent",
     "AgentConversation",

@@ -32,8 +32,8 @@ async def _get_auto_disable_threshold(db: AsyncSession) -> int:
         val = await config_service.get_value("plugin_auto_disable_threshold")
         if val is not None:
             return int(val)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("plugin health check failed: {}", exc)
     return DEFAULT_AUTO_DISABLE_THRESHOLD
 
 

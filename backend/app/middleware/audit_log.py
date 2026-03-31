@@ -25,6 +25,7 @@ from app.enums.log import UserTypeEnum
 # Path prefixes excluded from logging / 不记录日志的路径前缀
 EXCLUDED_PATHS = [
     "/health",
+    "/ready",
     "/docs",
     "/redoc",
     "/openapi.json",

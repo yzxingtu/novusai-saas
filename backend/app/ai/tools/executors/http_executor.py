@@ -155,8 +155,8 @@ class HttpToolExecutor(BaseToolExecutor):
                     extracted = _extract_json_path(resp_json, response_path)
                     if extracted is not None:
                         resp_text = json.dumps(extracted, ensure_ascii=False, default=str)
-                except Exception:
-                    pass
+                except Exception as json_exc:
+                    logger.debug("HTTP tool JSONPath extract failed: {}", json_exc)
 
             if 300 <= resp.status_code < 400:
                 location = resp.headers.get("location", "")

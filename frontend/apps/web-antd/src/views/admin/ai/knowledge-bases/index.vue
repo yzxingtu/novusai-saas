@@ -104,8 +104,7 @@ const {
     formSchema: useFormSchema,
     searchSchema: useGridFormSchema,
     entityName: $t('admin.knowledgeBase.name'),
-    entityDescription:
-      'Manage AI knowledge base configs, documents, and vector indexes / 管理 AI 知识库的配置、文档和向量索引',
+    entityDescription: $t('admin.knowledgeBase.ai.entityDescription'),
     openRecycleBin: () => recycleBinRef.value?.open(),
     contextExtras: () => ({
       total_knowledge_bases: stats.value?.total_knowledge_bases ?? 0,
@@ -114,17 +113,15 @@ const {
     }),
     extra: [
       createStructuredSearchPageOperation({
-        description:
-          'Search knowledge bases by keyword and optional scope filter / 按关键词和可选作用域搜索知识库',
+        description: $t('admin.knowledgeBase.ai.structuredSearchDescription'),
         params: {
           keyword: {
             type: 'string',
-            description: 'Search keyword / 搜索关键词',
+            description: $t('admin.knowledgeBase.ai.paramKeyword'),
           },
           scope: {
             type: 'string',
-            description:
-              'Resource scope filter: global_shared, admin_only, all_tenants, admin_and_selected_tenants, selected_tenants / 资源作用域过滤',
+            description: $t('admin.knowledgeBase.ai.paramScope'),
           },
         },
         normalizeParams: (params) => ({
@@ -141,12 +138,14 @@ const {
           if (keyword) parts.push(`keyword="${keyword}"`);
           if (scope) parts.push(`scope="${scope}"`);
           return parts.length > 0
-            ? `Searched: ${parts.join(', ')} / 已搜索：${parts.join(', ')}`
-            : 'Filters cleared / 已清除过滤条件';
+            ? $t('admin.knowledgeBase.ai.searchApplied', {
+                detail: parts.join(', '),
+              })
+            : $t('admin.knowledgeBase.ai.filtersCleared');
         },
       }),
       createCreateRecordPageOperation({
-        description: 'Open the create knowledge base form / 打开新建知识库表单',
+        description: $t('admin.knowledgeBase.ai.openCreateForm'),
         action: () => {
           onCreate();
         },

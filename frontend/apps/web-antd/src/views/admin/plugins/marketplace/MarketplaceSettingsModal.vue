@@ -105,7 +105,11 @@ async function handleTestConnection() {
     testResult.value = (res as Record<string, unknown>)
       ?.data as typeof testResult.value;
   } catch {
-    testResult.value = { ok: false, latency_ms: -1, error: 'Request failed' };
+    testResult.value = {
+      ok: false,
+      latency_ms: -1,
+      error: $t('admin.plugin.marketplace.requestFailed'),
+    };
   } finally {
     testing.value = false;
   }
@@ -130,7 +134,7 @@ async function handleSkillTestConnection() {
     skillTestResult.value = {
       ok: false,
       latency_ms: -1,
-      error: 'Request failed',
+      error: $t('admin.plugin.marketplace.requestFailed'),
     };
   } finally {
     testingSkills.value = false;
@@ -151,10 +155,10 @@ defineExpose({ open });
   >
     <Form layout="vertical" class="py-2">
       <!-- 自定义 URL -->
-      <FormItem label="GitHub URL">
+      <FormItem :label="$t('admin.plugin.marketplace.githubUrlLabel')">
         <Input
           v-model:value="form.github_url"
-          placeholder="https://raw.githubusercontent.com/novusai/plugin-marketplace/main"
+          :placeholder="$t('admin.plugin.marketplace.githubUrlPlaceholder')"
           allow-clear
         />
       </FormItem>
@@ -166,7 +170,7 @@ defineExpose({ open });
           :min="60"
           :max="86400"
           :step="300"
-          addon-after="s"
+          :addon-after="$t('admin.plugin.marketplace.cacheTtlSecondsSuffix')"
           class="!w-40"
         />
       </FormItem>
@@ -185,7 +189,9 @@ defineExpose({ open });
             </Tag>
             <Tag v-else color="error">
               <IconifyIcon icon="lucide:x" class="mr-0.5 inline size-3" />
-              {{ testResult.error || 'Failed' }}
+              {{
+                testResult.error || $t('admin.plugin.marketplace.connectionFailed')
+              }}
             </Tag>
           </template>
         </div>
@@ -195,10 +201,12 @@ defineExpose({ open });
         {{ $t('admin.plugin.marketplace.skillRegistrySettings') }}
       </div>
 
-      <FormItem label="Skill Registry GitHub URL">
+      <FormItem :label="$t('admin.plugin.marketplace.skillRegistryGithubUrlLabel')">
         <Input
           v-model:value="form.skill_github_url"
-          placeholder="https://raw.githubusercontent.com/novusai/skill-marketplace/main"
+          :placeholder="
+            $t('admin.plugin.marketplace.skillRegistryGithubUrlPlaceholder')
+          "
           allow-clear
         />
       </FormItem>
@@ -209,7 +217,7 @@ defineExpose({ open });
           :min="60"
           :max="86400"
           :step="300"
-          addon-after="s"
+          :addon-after="$t('admin.plugin.marketplace.cacheTtlSecondsSuffix')"
           class="!w-40"
         />
       </FormItem>
@@ -227,7 +235,10 @@ defineExpose({ open });
             </Tag>
             <Tag v-else color="error">
               <IconifyIcon icon="lucide:x" class="mr-0.5 inline size-3" />
-              {{ skillTestResult.error || 'Failed' }}
+              {{
+                skillTestResult.error ||
+                $t('admin.plugin.marketplace.connectionFailed')
+              }}
             </Tag>
           </template>
         </div>

@@ -350,8 +350,11 @@ class StreamExecutionHandler:
                     )
                 )
                 yield SSEChunkEncoder.done()
-            except Exception:
-                pass  # Ignore yield error when connection is broken / 连接已断开时忽略 yield 错误
+            except Exception as yield_exc:
+                logger.debug(
+                    "stream_handler error yield skipped (client disconnected?): {}",
+                    yield_exc,
+                )
 
             # Partial persist: pass accumulated state so history is not lost / 中断时传递已累积状态，避免历史丢失
             if self.on_complete and not self._on_complete_called:

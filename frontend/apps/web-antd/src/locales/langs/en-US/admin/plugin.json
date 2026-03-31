@@ -195,6 +195,13 @@
     "mirrorSource": "Mirror Source",
     "cacheTtl": "Cache TTL",
     "testConnection": "Test Connection",
+    "githubUrlLabel": "GitHub URL",
+    "githubUrlPlaceholder": "https://raw.githubusercontent.com/novusai/plugin-marketplace/main",
+    "skillRegistryGithubUrlLabel": "Skill Registry GitHub URL",
+    "skillRegistryGithubUrlPlaceholder": "https://raw.githubusercontent.com/novusai/skill-marketplace/main",
+    "cacheTtlSecondsSuffix": "s",
+    "requestFailed": "Request failed",
+    "connectionFailed": "Connection failed",
     "category": {
       "ai": "AI",
       "integration": "Integration",

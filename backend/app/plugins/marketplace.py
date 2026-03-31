@@ -13,7 +13,7 @@ import shutil
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import httpx
 
@@ -121,7 +121,7 @@ class MarketplaceClient:
         cache_key = "marketplace:registry"
         cached = await self._get_cached(cache_key)
         if cached is not None:
-            return cached  # type: ignore / 忽略类型检查
+            return cast(list[dict], cached)
 
         try:
             source = await self._select_source()
@@ -140,7 +140,7 @@ class MarketplaceClient:
             # Return stale cache from Redis (if available) / 返回 Redis 中的过期缓存（如果有）
             stale = await self._get_cached(cache_key)
             if stale:
-                return stale  # type: ignore / 忽略类型检查
+                return cast(list[dict], stale)
             # Final fallback to local registry / 最后回退到本地 registry
             local = self._get_local_registry()
             if local:
@@ -233,7 +233,7 @@ class MarketplaceClient:
         cache_key = f"marketplace:plugin:{slug}"
         cached = await self._get_cached(cache_key)
         if cached is not None:
-            return cached  # type: ignore / 忽略类型检查
+            return cast(dict, cached)
 
         base_url = await self._select_source()
         url = f"{base_url}/plugins/{slug}.json"
@@ -276,7 +276,7 @@ class MarketplaceClient:
         # / 最后尝试读取可能存在的旧缓存
         stale = await self._get_cached(cache_key)
         if stale:
-            return stale  # type: ignore / 忽略类型检查
+            return cast(dict, stale)
         return None
 
     async def fetch_readme(self, slug: str, locale: str = "zh-CN") -> str | None:

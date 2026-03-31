@@ -27,6 +27,24 @@ jobs:
       - run: ruff check app/
       - run: ruff format --check app/
 
+  # Aligns with backend/pyproject.toml [tool.mypy] strict; non-blocking until debt is cleared.
+  # 与 pyproject mypy strict 对齐；在类型债清理前不阻断合并。
+  backend-mypy:
+    name: Backend Mypy (informational)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev]" 2>/dev/null || pip install -e .
+      - run: mypy app/
+
   backend-test:
     name: Backend Tests
     runs-on: ubuntu-latest

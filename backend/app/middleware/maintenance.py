@@ -10,6 +10,7 @@ Config / 配置项：
 - maintenance_message: str — Maintenance message / 维护提示信息
 """
 
+from loguru import logger
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.response import error
@@ -22,6 +23,7 @@ _EXEMPT_PREFIXES = (
     "/redoc",
     "/openapi.json",
     "/health",         # Health check / 健康检查
+    "/ready",          # Readiness (DB) / 就绪探针
     "/sio",            # Socket.IO (admin connections) / Socket.IO（管理员连接）
     "/files",          # Static files / 静态文件
 )
@@ -77,8 +79,8 @@ class MaintenanceMiddleware:
             cached = await redis.get("maintenance:mode")
             if cached is not None:
                 return cached == "1"
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("maintenance Redis read failed: {}", exc)
 
         # Redis miss → read from DB / 从 DB 读取
         try:
@@ -95,11 +97,12 @@ class MaintenanceMiddleware:
             try:
                 redis = get_redis_client()
                 await redis.set("maintenance:mode", "1" if result else "0", ex=60)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("maintenance Redis cache write (mode) failed: {}", exc)
 
             return result
-        except Exception:
+        except Exception as exc:
+            logger.debug("maintenance mode read from DB failed: {}", exc)
             return False
 
     @staticmethod
@@ -111,8 +114,8 @@ class MaintenanceMiddleware:
             cached = await redis.get("maintenance:message")
             if cached:
                 return cached
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("maintenance Redis read (message) failed: {}", exc)
 
         try:
             from app.configs.service import ConfigService
@@ -127,11 +130,12 @@ class MaintenanceMiddleware:
             try:
                 redis = get_redis_client()
                 await redis.set("maintenance:message", result, ex=60)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("maintenance Redis cache write (message) failed: {}", exc)
 
             return result
-        except Exception:
+        except Exception as exc:
+            logger.debug("maintenance message read from DB failed: {}", exc)
             return "System is under maintenance. Please try again later."
 
 

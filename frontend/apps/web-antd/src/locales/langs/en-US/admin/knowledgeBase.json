@@ -2,6 +2,15 @@
   "title": "Knowledge Base Management",
   "name": "Knowledge Base Name",
   "pageDesc": "Manage all knowledge bases. Create global, tenant-specific, or admin-only knowledge bases. View documents, chunks, and storage.",
+  "ai": {
+    "entityDescription": "Manage AI knowledge base configuration, documents, and vector indexes.",
+    "structuredSearchDescription": "Search knowledge bases by keyword and optional scope filter.",
+    "paramKeyword": "Search keyword.",
+    "paramScope": "Resource scope filter: global_shared, admin_only, all_tenants, admin_and_selected_tenants, selected_tenants.",
+    "searchApplied": "Searched: {detail}",
+    "filtersCleared": "Filters cleared",
+    "openCreateForm": "Open the create knowledge base form"
+  },
   "create": "Create Knowledge Base",
   "stats": {
     "totalKnowledgeBases": "Total Knowledge Bases",

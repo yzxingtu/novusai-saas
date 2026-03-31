@@ -2,6 +2,15 @@
   "title": "知识库管理",
   "name": "知识库名称",
   "pageDesc": "管理全平台知识库，支持创建全局/企业/管理端专属知识库，查看文档、分块和存储情况。",
+  "ai": {
+    "entityDescription": "管理 AI 知识库的配置、文档和向量索引。",
+    "structuredSearchDescription": "按关键词和可选作用域搜索知识库。",
+    "paramKeyword": "搜索关键词。",
+    "paramScope": "资源作用域过滤，例如 global_shared、admin_only、all_tenants、admin_and_selected_tenants、selected_tenants。",
+    "searchApplied": "已搜索：{detail}",
+    "filtersCleared": "已清除过滤条件",
+    "openCreateForm": "打开新建知识库表单"
+  },
   "create": "创建知识库",
   "stats": {
     "totalKnowledgeBases": "知识库总数",
