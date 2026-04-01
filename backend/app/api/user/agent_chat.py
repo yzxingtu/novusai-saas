@@ -139,7 +139,7 @@ class UserAgentChatController(BaseController):
                 page_session_id=data.page_session_id,
                 route_source=data.route_source,
                 interaction_updates=[item.model_dump() for item in data.interaction_updates] if data.interaction_updates else None,
-                ephemeral_rag_items=[item.model_dump() for item in data.ephemeral_rag_items] if data.ephemeral_rag_items else None,
+                interaction_mode=data.interaction_mode,
                 trust_policy_ref=data.trust_policy_ref.model_dump() if data.trust_policy_ref else None,
             )
 
@@ -194,7 +194,7 @@ class UserAgentChatController(BaseController):
                 page_session_id=data.page_session_id,
                 route_source=data.route_source,
                 interaction_updates=[item.model_dump() for item in data.interaction_updates] if data.interaction_updates else None,
-                ephemeral_rag_items=[item.model_dump() for item in data.ephemeral_rag_items] if data.ephemeral_rag_items else None,
+                interaction_mode=data.interaction_mode,
                 trust_policy_ref=data.trust_policy_ref.model_dump() if data.trust_policy_ref else None,
             )
 

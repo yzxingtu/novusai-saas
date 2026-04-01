@@ -26,7 +26,6 @@ from app.repositories.ai.call_log_repository import AICallLogRepository
 from app.repositories.ai.conversation_message_repository import (
     ConversationMessageRepository,
 )
-from app.repositories.ai.ephemeral_document_repository import EphemeralDocumentRepository
 from app.repositories.ai.execution_decision_repository import (
     AdminExecutionDecisionRepository,
     ExecutionDecisionRepository,
@@ -72,7 +71,6 @@ __all__ = [
     "AgentConversationRepository",
     "AdminAgentConversationRepository",
     "ConversationMessageRepository",
-    "EphemeralDocumentRepository",
     "AdminExecutionDecisionRepository",
     "ExecutionDecisionRepository",
     "ExecutionTrustPolicyRepository",

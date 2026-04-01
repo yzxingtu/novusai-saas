@@ -98,8 +98,28 @@ def upgrade():
 
 
 def downgrade():
-    op.drop_index('ix_px_sm_tasks_created_at', table_name='px_storage_migration_tasks')
-    op.drop_index('ix_px_sm_tasks_status', table_name='px_storage_migration_tasks')
-    op.drop_index('ix_px_sm_logs_task_status', table_name='px_storage_migration_logs')
-    op.drop_table('px_storage_migration_logs')
-    op.drop_table('px_storage_migration_tasks')
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing_tables = set(inspector.get_table_names())
+
+    log_indexes = (
+        {idx.get("name") for idx in inspector.get_indexes("px_storage_migration_logs")}
+        if 'px_storage_migration_logs' in existing_tables
+        else set()
+    )
+    task_indexes = (
+        {idx.get("name") for idx in inspector.get_indexes("px_storage_migration_tasks")}
+        if 'px_storage_migration_tasks' in existing_tables
+        else set()
+    )
+
+    if 'ix_px_sm_tasks_created_at' in task_indexes:
+        op.drop_index('ix_px_sm_tasks_created_at', table_name='px_storage_migration_tasks')
+    if 'ix_px_sm_tasks_status' in task_indexes:
+        op.drop_index('ix_px_sm_tasks_status', table_name='px_storage_migration_tasks')
+    if 'ix_px_sm_logs_task_status' in log_indexes:
+        op.drop_index('ix_px_sm_logs_task_status', table_name='px_storage_migration_logs')
+    if 'px_storage_migration_logs' in existing_tables:
+        op.drop_table('px_storage_migration_logs')
+    if 'px_storage_migration_tasks' in existing_tables:
+        op.drop_table('px_storage_migration_tasks')

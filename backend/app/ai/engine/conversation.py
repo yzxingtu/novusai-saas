@@ -370,6 +370,7 @@ class ConversationEngine(BaseEngine):
                 memory_flush_triggered=prep.memory_flush_triggered,
                 memory_recalled=prep.memory_recalled,
                 prune_stats=prep.prune_stats,
+                tool_planner=prep.tool_planner,
             )
 
             if prep.context_engine is not None:

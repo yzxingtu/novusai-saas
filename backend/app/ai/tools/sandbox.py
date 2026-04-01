@@ -176,6 +176,7 @@ class ToolSandbox:
         page_session_id: str | None = None,
         conversation_id: int | None = None,
         trust_policy_ref: dict[str, Any] | None = None,
+        interaction_mode: str = "confirm",
     ):
         """
         Args:
@@ -210,6 +211,7 @@ class ToolSandbox:
         self._page_session_id = page_session_id
         self._conversation_id = conversation_id
         self.trust_policy_ref = trust_policy_ref
+        self.interaction_mode = interaction_mode
 
         # Initialize executors / 初始化执行器
         self._executors: dict[str, BaseToolExecutor] = {}
@@ -523,6 +525,7 @@ class ToolSandbox:
             variables=self.input_variables,
             page_session_id=self._page_session_id,
             conversation_id=self._conversation_id,
+            interaction_mode=self.interaction_mode,
         )
 
         # 5.5 Executor-level parameter validation / 执行器级参数校验

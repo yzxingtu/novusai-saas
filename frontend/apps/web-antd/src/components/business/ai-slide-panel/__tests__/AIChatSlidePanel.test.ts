@@ -184,6 +184,18 @@ vi.mock('ant-design-vue', () => {
     template: '<div v-if="open" class="modal-stub"><slot /></div>',
   });
 
+  const Drawer = defineComponent({
+    name: 'DrawerStub',
+    props: {
+      open: {
+        default: false,
+        type: Boolean,
+      },
+    },
+    emits: ['update:open'],
+    template: '<div v-if="open" class="drawer-stub"><slot /></div>',
+  });
+
   const Popover = defineComponent({
     name: 'PopoverStub',
     template: '<div class="popover-stub"><slot /><slot name="content" /></div>',
@@ -201,6 +213,7 @@ vi.mock('ant-design-vue', () => {
 
   return {
     Dropdown,
+    Drawer,
     Input,
     Menu,
     Modal,
@@ -633,7 +646,6 @@ vi.mock('#/components/business/ai-chat-panel/use-ai-chat', async () => {
       loadConversationMessages: loadConversationMessagesMock,
       chatMessages: useAIChatState.chatMessages,
       inputMessage: inputMessageValue,
-      ephemeralRagItems: vue.ref([]),
       mentionedAgentId: vue.ref(null),
       mentionedAgent: vue.computed(() => null),
       mentionOpen: vue.ref(false),
@@ -656,8 +668,6 @@ vi.mock('#/components/business/ai-chat-panel/use-ai-chat', async () => {
       selectMentionKnowledgeBase: vi.fn(),
       removeSelectedKnowledgeBase:
         composerInteractionState.removeSelectedKnowledgeBase,
-      addEphemeralRagItem: vi.fn(),
-      removeEphemeralRagItem: vi.fn(),
       selectedKBIds: composerInteractionState.selectedKBIds,
       clearMentionedAgent: vi.fn(),
       cleanup: vi.fn(),
@@ -674,7 +684,6 @@ vi.mock('#/components/business/ai-chat-panel/use-ai-chat', async () => {
       rejectAction: vi.fn(),
       confirmConsent: vi.fn(),
       rejectConsent: vi.fn(),
-      trustSession: vue.ref(false),
       clickActionButton: vi.fn(),
       regenerateMessage: vi.fn(),
       editAndResend: vi.fn(),
@@ -1258,7 +1267,9 @@ describe('aIChatSlidePanel (component mount)', () => {
       '[data-testid="ai-panel-page-ai-trigger"]',
     ) as HTMLDivElement | null;
     expect(capabilityTriggerAgain).toBeTruthy();
-    capabilityTriggerAgain?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    capabilityTriggerAgain?.dispatchEvent(
+      new MouseEvent('click', { bubbles: true }),
+    );
     await flushPromises();
 
     const pageAiDetails = document.body.querySelector(
@@ -1276,7 +1287,9 @@ describe('aIChatSlidePanel (component mount)', () => {
       '[data-testid="ai-panel-page-ai-trigger"]',
     ) as HTMLDivElement | null;
     expect(capabilityTrigger).toBeTruthy();
-    capabilityTrigger?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    capabilityTrigger?.dispatchEvent(
+      new MouseEvent('click', { bubbles: true }),
+    );
     await flushPromises();
     expect(
       document.body.querySelector('[data-testid="ai-panel-page-ai-details"]'),
@@ -1326,40 +1339,40 @@ describe('aIChatSlidePanel (component mount)', () => {
       document.body.querySelector('[data-testid="ai-panel-page-ai-details"]'),
     ).toBeFalsy();
 
-      wrapper.unmount();
+    wrapper.unmount();
+  });
+
+  it('does not reserve a blank header slot row when no status badge is shown', async () => {
+    const wrapper = mount(AIChatSlidePanel, {
+      props: {
+        apiPrefix: '/tenant',
+        pageContextKey: 'tenant.demo.page',
+        uploadUrl: '/upload',
+      },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          ChatMessageItem: true,
+        },
+      },
     });
 
-    it('does not reserve a blank header slot row when no status badge is shown', async () => {
-      const wrapper = mount(AIChatSlidePanel, {
-        props: {
-          apiPrefix: '/tenant',
-          pageContextKey: 'tenant.demo.page',
-          uploadUrl: '/upload',
-        },
-        attachTo: document.body,
-        global: {
-          stubs: {
-            ChatMessageItem: true,
-          },
-        },
-      });
+    await flushPromises();
 
-      await flushPromises();
+    const headerActions = document.body.querySelector(
+      '[data-testid="ai-panel-header-actions"]',
+    );
+    expect(headerActions).toBeTruthy();
+    expect(
+      document.body.querySelector('[data-testid="ai-panel-header-meta-row"]'),
+    ).toBeFalsy();
+    const toolbarRow = document.body.querySelector(
+      '[data-testid="ai-panel-toolbar-row"]',
+    );
+    expect(toolbarRow?.contains(headerActions)).toBe(true);
 
-      const headerActions = document.body.querySelector(
-        '[data-testid="ai-panel-header-actions"]',
-      );
-      expect(headerActions).toBeTruthy();
-      expect(
-        document.body.querySelector('[data-testid="ai-panel-header-meta-row"]'),
-      ).toBeFalsy();
-      const toolbarRow = document.body.querySelector(
-        '[data-testid="ai-panel-toolbar-row"]',
-      );
-      expect(toolbarRow?.contains(headerActions)).toBe(true);
-
-      wrapper.unmount();
-    });
+    wrapper.unmount();
+  });
 
   it('mounts safely when page context exists before runtime size guards initialize', async () => {
     pageContextValue.value = {
@@ -1560,7 +1573,9 @@ describe('aIChatSlidePanel (component mount)', () => {
       '[data-testid="ai-panel-page-ai-trigger"]',
     ) as HTMLDivElement | null;
     expect(diagnosticsTrigger).toBeTruthy();
-    diagnosticsTrigger?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    diagnosticsTrigger?.dispatchEvent(
+      new MouseEvent('click', { bubbles: true }),
+    );
     await flushPromises();
     expect(
       document.body.querySelector(
@@ -2225,9 +2240,7 @@ describe('aIChatSlidePanel (component mount)', () => {
       '_blank',
       'noopener,noreferrer',
     );
-    expect(
-      document.body.querySelector('.modal-stub img'),
-    ).toBeFalsy();
+    expect(document.body.querySelector('.modal-stub img')).toBeFalsy();
 
     openSpy.mockRestore();
     wrapper.unmount();

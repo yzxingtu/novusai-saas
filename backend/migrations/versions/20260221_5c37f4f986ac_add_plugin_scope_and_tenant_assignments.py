@@ -42,7 +42,7 @@ def upgrade() -> None:
     op.create_index(op.f('ix_plugin_tenant_assignments_is_deleted'), 'plugin_tenant_assignments', ['is_deleted'], unique=False)
     op.create_index(op.f('ix_plugin_tenant_assignments_plugin_id'), 'plugin_tenant_assignments', ['plugin_id'], unique=False)
     op.create_index(op.f('ix_plugin_tenant_assignments_tenant_id'), 'plugin_tenant_assignments', ['tenant_id'], unique=False)
-    op.add_column('plugins', sa.Column('scope', sa.String(), nullable=False, server_default='all_tenants', comment='资源作用域（admin_only/all_tenants/global_shared/admin_and_selected_tenants/selected_tenants）'))
+    op.add_column('plugins', sa.Column('scope', sa.String(length=40), nullable=False, server_default='all_tenants', comment='资源作用域（admin_only/all_tenants/global_shared/admin_and_selected_tenants/selected_tenants）'))
     # ### end Alembic commands ###
 
 

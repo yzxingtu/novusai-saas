@@ -228,6 +228,7 @@ class ExecutionContext:
     variables: dict[str, Any] = field(default_factory=dict)
     page_session_id: str | None = None
     conversation_id: int | None = None
+    interaction_mode: str = "confirm"
 
     @property
     def is_platform_admin(self) -> bool:

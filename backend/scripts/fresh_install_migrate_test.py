@@ -84,6 +84,9 @@ def _verify_schema(url: str) -> list[str]:
             return r.fetchone() is not None
 
         # 旧表应不存在
+        if has_table("ephemeral_documents"):
+            issues.append("表 ephemeral_documents 仍存在（预期已删除）")
+
         if has_table("knowledge_base_tenant_access"):
             issues.append("表 knowledge_base_tenant_access 仍存在（预期已删除）")
 
@@ -99,6 +102,12 @@ def _verify_schema(url: str) -> list[str]:
                 issues.append("knowledge_bases.visibility 仍存在（预期已删除）")
             if not has_column("knowledge_bases", "owner_tenant_id"):
                 issues.append("knowledge_bases 缺少 owner_tenant_id")
+
+        if has_table("ai_api_keys"):
+            if has_column("ai_api_keys", "tenant_id"):
+                issues.append("ai_api_keys.tenant_id 仍存在（预期已删除）")
+            if not has_column("ai_api_keys", "owner_tenant_id"):
+                issues.append("ai_api_keys 缺少 owner_tenant_id")
 
         if has_table("periodic_tasks"):
             if not has_column("periodic_tasks", "owner_tenant_id"):

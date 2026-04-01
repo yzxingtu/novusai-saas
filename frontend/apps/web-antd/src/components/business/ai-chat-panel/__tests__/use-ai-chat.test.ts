@@ -232,6 +232,7 @@ describe('useAIChat interrupted stream recovery', () => {
   it('reloads conversation history when the stream ends without a done event', async () => {
     apiMocks.getChatConversationMessagesApi.mockResolvedValue({
       agent_id: 1,
+      interaction_mode_effective: 'trusted_auto',
       message_list: [
         {
           content: 'hello again',
@@ -481,11 +482,10 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(chat.activeConversationId.value).toBe(84);
   });
 
-  it('restores trustSession from backend conversation detail when available', async () => {
-    sessionStorage.setItem('ai_trust_session_42', '0');
+  it('restores interactionMode from backend conversation detail when available', async () => {
     apiMocks.getChatConversationMessagesApi.mockResolvedValue({
       agent_id: 1,
-      trust_session_active: true,
+      interaction_mode_effective: 'trusted_auto',
       message_list: [
         {
           content: 'hello',
@@ -504,13 +504,13 @@ describe('useAIChat interrupted stream recovery', () => {
     await chat.loadConversationMessages(42);
     await flushPromises();
 
-    expect(chat.trustSession.value).toBe(true);
+    expect(chat.interactionMode.value).toBe('trusted_auto');
   });
 
-  it('does not restore trustSession from sessionStorage fallback anymore', async () => {
-    sessionStorage.setItem('ai_trust_session_42', '1');
+  it('restores confirm interactionMode from backend conversation detail', async () => {
     apiMocks.getChatConversationMessagesApi.mockResolvedValue({
       agent_id: 1,
+      interaction_mode_effective: 'confirm',
       message_list: [
         {
           content: 'hello',
@@ -529,10 +529,10 @@ describe('useAIChat interrupted stream recovery', () => {
     await chat.loadConversationMessages(42);
     await flushPromises();
 
-    expect(chat.trustSession.value).toBe(false);
+    expect(chat.interactionMode.value).toBe('confirm');
   });
 
-  it('sends auto_approved interaction update when trustSession auto-approves tool consent', async () => {
+  it('sends auto_approved interaction update when trusted_auto auto-approves tool consent', async () => {
     let streamCallCount = 0;
     apiMocks.sendChatStreamApi.mockImplementation(
       async (
@@ -568,7 +568,7 @@ describe('useAIChat interrupted stream recovery', () => {
     });
 
     await chat.loadAgents();
-    chat.trustSession.value = true;
+    chat.interactionMode.value = 'trusted_auto';
     chat.inputMessage.value = '查一下';
 
     const sendPromise = chat.sendMessage();
@@ -578,9 +578,9 @@ describe('useAIChat interrupted stream recovery', () => {
     await flushPromises();
     expect(apiMocks.sendChatStreamApi).toHaveBeenCalledTimes(2);
 
-    const autoApproveBody = apiMocks.sendChatStreamApi.mock.calls.at(-1)?.[2] as
-      | Record<string, unknown>
-      | undefined;
+    const autoApproveBody = apiMocks.sendChatStreamApi.mock.calls.at(
+      -1,
+    )?.[2] as Record<string, unknown> | undefined;
     expect(autoApproveBody?.interaction_updates).toEqual([
       {
         kind: 'pending_consent',
@@ -589,70 +589,7 @@ describe('useAIChat interrupted stream recovery', () => {
         tool_name: 'web_search',
       },
     ]);
-    expect(autoApproveBody?.trust_session).toBe(true);
-  });
-
-  it('sends ephemeral_rag_items with the chat request when scratch sources are attached', async () => {
-    apiMocks.sendChatStreamApi.mockImplementation(
-      async (
-        _prefix: string,
-        _agentId: number,
-        _body: Record<string, unknown>,
-        options: {
-          onMessage: (chunk: string) => Promise<void>;
-        },
-      ) => {
-        await options.onMessage(
-          `data: ${JSON.stringify({ event: 'conversation', conversation_id: 42 })}\n`,
-        );
-        await options.onMessage(
-          `data: ${JSON.stringify({ event: 'done', conversation_id: 42, total_tokens: 5 })}\n`,
-        );
-      },
-    );
-
-    const chat = useAIChat({
-      apiPrefix: '/tenant',
-      uploadUrl: '/tenant/attachments',
-    });
-
-    await chat.loadAgents();
-    chat.addEphemeralRagItem({
-      kind: 'url',
-      content: 'https://docs.example.com/spec',
-      source_ref: 'https://docs.example.com/spec',
-      title: 'Spec',
-    });
-    chat.addEphemeralRagItem({
-      kind: 'text',
-      content: '这里是补充背景说明',
-      title: '背景',
-    });
-    chat.inputMessage.value = '请结合这些资料回答';
-
-    const sendPromise = chat.sendMessage();
-    await vi.advanceTimersByTimeAsync(1000);
-    await sendPromise;
-    await flushPromises();
-
-    const requestBody = apiMocks.sendChatStreamApi.mock.calls.at(-1)?.[2] as
-      | Record<string, unknown>
-      | undefined;
-    expect(requestBody?.ephemeral_rag_items).toEqual([
-      {
-        kind: 'url',
-        content: 'https://docs.example.com/spec',
-        scope: 'conversation_scoped',
-        source_ref: 'https://docs.example.com/spec',
-        title: 'Spec',
-      },
-      {
-        kind: 'text',
-        content: '这里是补充背景说明',
-        scope: 'conversation_scoped',
-        title: '背景',
-      },
-    ]);
+    expect(autoApproveBody?.interaction_mode).toBe('trusted_auto');
   });
 
   it('stores summary_payload from tool_call SSE events for tool cards', async () => {
@@ -1016,7 +953,7 @@ describe('useAIChat interrupted stream recovery', () => {
     ]);
     expect(confirmBody?.message).toBe('');
 
-    chat.trustSession.value = true;
+    chat.interactionMode.value = 'trusted_auto';
     chat.confirmConsent(1);
     await flushPromises();
     const consentBody = apiMocks.sendChatStreamApi.mock.calls.at(-1)?.[2] as
@@ -1029,7 +966,7 @@ describe('useAIChat interrupted stream recovery', () => {
         tool_name: 'data_query',
       },
     ]);
-    expect(consentBody?.trust_session).toBe(true);
+    expect(consentBody?.interaction_mode).toBe('trusted_auto');
     expect(consentBody?.message).toBe('');
 
     chat.inputMessage.value = '查看明细';

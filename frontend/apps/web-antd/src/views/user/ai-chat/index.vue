@@ -143,7 +143,6 @@ const {
   rejectAction,
   confirmConsent,
   rejectConsent,
-  trustSession,
   clickActionButton,
   regenerateMessage,
   editAndResend,
@@ -1443,21 +1442,6 @@ watch(
             v-if="chatMessages.length > 0"
             class="mb-1.5 flex items-center justify-between"
           >
-            <label
-              class="flex cursor-pointer items-center gap-1 text-[11px] text-muted-foreground/60 hover:text-muted-foreground"
-            >
-              <input
-                v-model="trustSession"
-                type="checkbox"
-                class="size-3 cursor-pointer rounded accent-primary"
-              />
-              <span>{{ $t('common.globalAiChat.consentTrustSession') }}</span>
-              <Tooltip
-                :title="$t('common.globalAiChat.consentTrustSessionHint')"
-              >
-                <IconifyIcon icon="lucide:info" class="size-2.5" />
-              </Tooltip>
-            </label>
             <span class="text-[11px] text-muted-foreground/40">
               {{ $t('common.globalAiChat.shiftEnterHint') }}
             </span>

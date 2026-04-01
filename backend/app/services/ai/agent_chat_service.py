@@ -49,7 +49,7 @@ from app.enums.agent import (
 from app.enums.common import UserRoleEnum
 from app.exceptions import BusinessException, NotFoundException
 from app.repositories.ai.agent_repository import AgentRepository
-from app.schemas.ai.agent_chat import AgentChatResponse, PageContext
+from app.schemas.ai.agent_chat import AgentChatResponse, InteractionMode, PageContext
 from app.services.ai.conversation_service import ConversationService
 from app.services.ai.execution_trust_policy_service import (
     ExecutionTrustPolicyService,
@@ -550,7 +550,36 @@ class AgentChatService:
             )
             return None
 
-    async def _grant_trust_session_policies(
+    async def _resolve_interaction_mode(
+        self,
+        *,
+        requested_mode: str | None,
+        conversation_id: int | None,
+        agent_id: int,
+        operator_id: int | None,
+        operator_type: str | None,
+        explicit_trust_policy_ref: dict[str, Any] | None = None,
+    ) -> tuple[InteractionMode, dict[str, Any] | None, str | None]:
+        normalized_mode = (
+            requested_mode
+            if requested_mode in {"confirm", "trusted_auto"}
+            else "confirm"
+        )
+        if normalized_mode != "trusted_auto":
+            return normalized_mode, explicit_trust_policy_ref, None
+
+        resolved_ref = await self._resolve_runtime_trust_policy_ref(
+            conversation_id=conversation_id,
+            agent_id=agent_id,
+            operator_id=operator_id,
+            operator_type=operator_type,
+            explicit_ref=explicit_trust_policy_ref,
+        )
+        if resolved_ref:
+            return "trusted_auto", resolved_ref, None
+        return "confirm", None, "missing_runtime_trust_policy"
+
+    async def _grant_trusted_auto_policies(
         self,
         *,
         conversation_id: int,
@@ -558,9 +587,9 @@ class AgentChatService:
         operator_id: int | None,
         operator_type: str | None,
         interaction_updates: list[dict[str, Any]] | None,
-        trust_session: bool,
+        interaction_mode: str,
     ) -> None:
-        if not trust_session or not interaction_updates:
+        if interaction_mode != "trusted_auto" or not interaction_updates:
             return
 
         service = ExecutionTrustPolicyService(self.db, self.tenant_id)
@@ -579,8 +608,45 @@ class AgentChatService:
                 operator_type=operator_type,
                 tool_name=tool_name,
                 granted_by=operator_id,
-                grant_reason="trust_session",
+                grant_reason="interaction_mode:trusted_auto",
             )
+    @staticmethod
+    def _build_context_diagnostics(
+        result: ExecutionResult,
+        *,
+        interaction_mode_effective: str,
+    ) -> dict[str, Any]:
+        return {
+            "estimated_tokens": result.total_tokens,
+            "context_compacted": bool(result.context_compacted),
+            "compact_summary_present": bool(result.context_compacted),
+            "memory_recalled": bool(result.memory_recalled),
+            "memory_flush_triggered": bool(result.memory_flush_triggered),
+            "prune_stats": result.prune_stats,
+            "rag_source_kinds": list(result.rag_source_kinds or []),
+            "last_interrupted": bool(result.interrupted),
+            "interaction_mode_effective": interaction_mode_effective,
+            "tool_planner": result.tool_planner,
+        }
+
+    @staticmethod
+    def _build_last_run_summary(
+        result: ExecutionResult,
+        *,
+        interaction_mode_effective: str,
+        downgrade_reason: str | None,
+    ) -> dict[str, Any]:
+        return {
+            "duration_ms": result.duration_ms,
+            "interaction_mode_effective": interaction_mode_effective,
+            "downgrade_reason": downgrade_reason,
+            "runtime_model_name": result.runtime_model_name,
+            "runtime_provider_name": result.runtime_provider_name,
+            "success": bool(result.success),
+            "total_tokens": result.total_tokens,
+            "tool_planner": result.tool_planner,
+        }
+
 
     # ========================================
     # 非流式对话 / Non-streaming chat
@@ -606,9 +672,8 @@ class AgentChatService:
         page_session_id: str | None = None,
         route_source: str | None = None,
         interaction_updates: list[dict[str, Any]] | None = None,
-        ephemeral_rag_items: list[dict[str, Any]] | None = None,
         trust_policy_ref: dict[str, Any] | None = None,
-        trust_session: bool = False,
+        interaction_mode: InteractionMode = "confirm",
     ) -> AgentChatResponse:
         """
         非流式对话 / Non-streaming chat.
@@ -643,6 +708,18 @@ class AgentChatService:
 
         # 1. 获取或创建对话 / Get or create conversation
         is_new_conversation = conversation_id is None
+        (
+            interaction_mode_effective,
+            resolved_trust_policy_ref,
+            interaction_mode_downgrade_reason,
+        ) = await self._resolve_interaction_mode(
+            requested_mode=interaction_mode,
+            conversation_id=conversation_id,
+            agent_id=agent_id,
+            operator_id=user_id,
+            operator_type=conversation_owner_type,
+            explicit_trust_policy_ref=trust_policy_ref,
+        )
         conversation_owner_type = ConversationOwnerTypeEnum.from_user_role(user_role)
         conversation = await self.conversation_svc.get_or_create_for_chat(
             agent_id=agent_id,
@@ -650,21 +727,50 @@ class AgentChatService:
             user_id=user_id,
             owner_type=conversation_owner_type,
             first_message=message,
+        conversation_metadata = dict(conversation.metadata_ or {})
+        conversation_metadata["interaction_mode"] = interaction_mode_effective
+        conversation_metadata["interaction_mode_requested"] = interaction_mode
+        if interaction_mode_downgrade_reason:
+            conversation_metadata["interaction_mode_downgrade_reason"] = (
+                interaction_mode_downgrade_reason
+            )
+        conversation.metadata_ = conversation_metadata
         )
+            interaction_updates = [
+                {
+                    **update,
+                    "auto_approve_source": (
+                        "execution_trust_policy"
+                        if interaction_mode_effective == "trusted_auto"
+                        else None
+                    ),
+                    "downgraded_from": (
+                        interaction_mode
+                        if interaction_mode != interaction_mode_effective
+                        else None
+                    ),
+                    "downgrade_reason": interaction_mode_downgrade_reason,
+                    "interaction_mode_effective": interaction_mode_effective,
+                }
+                for update in interaction_updates
+            ]
         if interaction_updates:
             await self.conversation_svc.update_last_assistant_interaction_state(
                 conversation.id,
                 interaction_updates,
                 user_id=user_id,
+                interaction_mode_requested=interaction_mode,
+                interaction_mode_effective=interaction_mode_effective,
+                interaction_mode_downgrade_reason=interaction_mode_downgrade_reason,
                 owner_type=conversation_owner_type,
             )
-            await self._grant_trust_session_policies(
+            await self._grant_trusted_auto_policies(
                 conversation_id=conversation.id,
                 agent_id=agent_id,
                 operator_id=user_id,
                 operator_type=conversation_owner_type,
                 interaction_updates=interaction_updates,
-                trust_session=trust_session,
+                interaction_mode=interaction_mode_effective,
             )
         memory_event_id = self._build_memory_event_id(conversation.id)
 
@@ -715,13 +821,6 @@ class AgentChatService:
             memory_channel=memory_channel,
             memory_source=memory_source,
         )
-        resolved_trust_policy_ref = await self._resolve_runtime_trust_policy_ref(
-            conversation_id=conversation.id,
-            agent_id=agent_id,
-            operator_id=user_id,
-            operator_type=conversation_owner_type,
-            explicit_ref=trust_policy_ref,
-        )
         memory_enabled = await self._resolve_effective_memory_enabled(
             agent_id=agent_id,
             scene=normalized_scene,
@@ -751,9 +850,9 @@ class AgentChatService:
             memory_source=normalized_source,
             memory_enabled=memory_enabled,
             long_term_memory_enabled=bool(ctx_cfg.get("long_term_memory_enabled", False)),
+            interaction_mode=interaction_mode_effective,
             trust_policy_ref=resolved_trust_policy_ref,
             page_session_id=page_session_id,
-            ephemeral_rag_refs=ephemeral_rag_items or [],
             interaction_updates=interaction_updates,
             knowledge_base_feedback=(
                 {
@@ -805,12 +904,23 @@ class AgentChatService:
                 result.output = hook_ctx["response"]
 
         # 6. 持久化新消息（用户消息 + 引擎生成的消息）/ Persist new messages (user + engine)
+        context_diagnostics_payload = self._build_context_diagnostics(
+            result,
+            interaction_mode_effective=interaction_mode_effective,
+        )
+        last_run_summary_payload = self._build_last_run_summary(
+            result,
+            interaction_mode_effective=interaction_mode_effective,
+            downgrade_reason=interaction_mode_downgrade_reason,
+        )
         history_count = len(history_messages)
         tool_calls_collected = await self.conversation_svc.persist_chat_messages(
             conversation=conversation,
             result=result,
             history_count=history_count,
             agent_id=agent_id,
+            context_diagnostics=context_diagnostics_payload,
+            last_run_summary=last_run_summary_payload,
             route_source=route_source,
         )
 
@@ -881,6 +991,9 @@ class AgentChatService:
                 else False
             ),
             prune_stats=prune_stats,
+            interaction_mode_effective=interaction_mode_effective,
+            context_diagnostics=context_diagnostics_payload,
+            last_run_summary=last_run_summary_payload,
             rag_source_kinds=rag_source_kinds,
         )
 
@@ -910,9 +1023,8 @@ class AgentChatService:
         page_session_id: str | None = None,
         route_source: str | None = None,
         interaction_updates: list[dict[str, Any]] | None = None,
-        ephemeral_rag_items: list[dict[str, Any]] | None = None,
         trust_policy_ref: dict[str, Any] | None = None,
-        trust_session: bool = False,
+        interaction_mode: InteractionMode = "confirm",
     ) -> StreamingResponse:
         """
         流式对话（返回 StreamingResponse）/ Streaming chat (returns StreamingResponse).
@@ -945,6 +1057,18 @@ class AgentChatService:
 
         # 1. 获取或创建对话 / Get or create conversation
         is_new_conversation = conversation_id is None
+        (
+            interaction_mode_effective,
+            resolved_trust_policy_ref,
+            interaction_mode_downgrade_reason,
+        ) = await self._resolve_interaction_mode(
+            requested_mode=interaction_mode,
+            conversation_id=conversation_id,
+            agent_id=agent_id,
+            operator_id=user_id,
+            operator_type=conversation_owner_type,
+            explicit_trust_policy_ref=trust_policy_ref,
+        )
         conversation_owner_type = ConversationOwnerTypeEnum.from_user_role(user_role)
         conversation = await self.conversation_svc.get_or_create_for_chat(
             agent_id=agent_id,
@@ -952,21 +1076,50 @@ class AgentChatService:
             user_id=user_id,
             owner_type=conversation_owner_type,
             first_message=first_message,
+        conversation_metadata = dict(conversation.metadata_ or {})
+        conversation_metadata["interaction_mode"] = interaction_mode_effective
+        conversation_metadata["interaction_mode_requested"] = interaction_mode
+        if interaction_mode_downgrade_reason:
+            conversation_metadata["interaction_mode_downgrade_reason"] = (
+                interaction_mode_downgrade_reason
+            )
+        conversation.metadata_ = conversation_metadata
         )
+            interaction_updates = [
+                {
+                    **update,
+                    "auto_approve_source": (
+                        "execution_trust_policy"
+                        if interaction_mode_effective == "trusted_auto"
+                        else None
+                    ),
+                    "downgraded_from": (
+                        interaction_mode
+                        if interaction_mode != interaction_mode_effective
+                        else None
+                    ),
+                    "downgrade_reason": interaction_mode_downgrade_reason,
+                    "interaction_mode_effective": interaction_mode_effective,
+                }
+                for update in interaction_updates
+            ]
         if interaction_updates:
             await self.conversation_svc.update_last_assistant_interaction_state(
                 conversation.id,
                 interaction_updates,
                 user_id=user_id,
+                interaction_mode_requested=interaction_mode,
+                interaction_mode_effective=interaction_mode_effective,
+                interaction_mode_downgrade_reason=interaction_mode_downgrade_reason,
                 owner_type=conversation_owner_type,
             )
-            await self._grant_trust_session_policies(
+            await self._grant_trusted_auto_policies(
                 conversation_id=conversation.id,
                 agent_id=agent_id,
                 operator_id=user_id,
                 operator_type=conversation_owner_type,
                 interaction_updates=interaction_updates,
-                trust_session=trust_session,
+                interaction_mode=interaction_mode_effective,
             )
         memory_event_id = self._build_memory_event_id(conversation.id)
 
@@ -1024,13 +1177,6 @@ class AgentChatService:
             memory_channel=memory_channel,
             memory_source=memory_source,
         )
-        resolved_trust_policy_ref = await self._resolve_runtime_trust_policy_ref(
-            conversation_id=conversation.id,
-            agent_id=agent_id,
-            operator_id=user_id,
-            operator_type=conversation_owner_type,
-            explicit_ref=trust_policy_ref,
-        )
         memory_enabled = await self._resolve_effective_memory_enabled(
             agent_id=agent_id,
             scene=normalized_scene,
@@ -1061,9 +1207,9 @@ class AgentChatService:
             memory_source=normalized_source,
             memory_enabled=memory_enabled,
             long_term_memory_enabled=bool(ctx_cfg.get("long_term_memory_enabled", False)),
+            interaction_mode=interaction_mode_effective,
             trust_policy_ref=resolved_trust_policy_ref,
             page_session_id=page_session_id,
-            ephemeral_rag_refs=ephemeral_rag_items or [],
             interaction_updates=interaction_updates,
             knowledge_base_feedback=(
                 {
@@ -1219,6 +1365,7 @@ class AgentChatService:
                 toolkit_memory_limit_mb=int(_toolkit_memory_limit_mb),
                 input_variables=variables or {},
                 page_session_id=page_session_id,
+                interaction_mode=interaction_mode_effective,
                 trust_policy_ref=resolved_trust_policy_ref,
             )
             engine = ConversationEngine(
@@ -1260,12 +1407,23 @@ class AgentChatService:
                             cb_conv_svc = ConversationService(cb_db, self.tenant_id)
                             cb_conv = await cb_conv_svc.repo.get_by_id(
                                 conversation.id,
+                            context_diagnostics_payload = self._build_context_diagnostics(
+                                result,
+                                interaction_mode_effective=interaction_mode_effective,
+                            )
+                            last_run_summary_payload = self._build_last_run_summary(
+                                result,
+                                interaction_mode_effective=interaction_mode_effective,
+                                downgrade_reason=interaction_mode_downgrade_reason,
+                            )
                             )
                             await cb_conv_svc.persist_chat_messages(
                                 conversation=cb_conv,
                                 result=result,
                                 history_count=history_count,
                                 agent_id=agent_id,
+                                context_diagnostics=context_diagnostics_payload,
+                                last_run_summary=last_run_summary_payload,
                                 route_source=route_source,
                             )
                             await cb_conv_svc.update_stats(
@@ -1410,7 +1568,6 @@ class AgentChatService:
         user_role: str = UserRoleEnum.TENANT_ADMIN.value,
         user_role_id: int | None = None,
         permissions: set[str] | None = None,
-        ephemeral_rag_items: list[dict[str, Any]] | None = None,
     ) -> StreamingResponse:
         """
         轻量级流式调用（无对话记录，无消息持久化）/ Lightweight streaming (no conversation/message persistence).
@@ -1455,7 +1612,6 @@ class AgentChatService:
             memory_source="system.ai_writing",
             memory_enabled=False,
             long_term_memory_enabled=False,
-            ephemeral_rag_refs=ephemeral_rag_items or [],
             knowledge_base_feedback=(
                 {
                     "dropped_knowledge_base_ids": dropped_knowledge_base_ids,

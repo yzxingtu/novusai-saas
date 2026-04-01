@@ -25,8 +25,6 @@ from app.api.admin.ai_call_logs import AdminAICallLogController
 from app.api.admin.ai_call_logs import router as ai_call_logs_router
 from app.api.admin.ai_conversations import AdminAIConversationController
 from app.api.admin.ai_conversations import router as ai_conversations_router
-from app.api.admin.ephemeral_documents import AdminEphemeralDocumentController
-from app.api.admin.ephemeral_documents import router as ai_ephemeral_documents_router
 from app.api.admin.execution_decisions import router as execution_decisions_router
 from app.api.admin.ai_gateway import AdminAIGatewayController
 from app.api.admin.ai_gateway import router as ai_gateway_router
@@ -135,7 +133,6 @@ admin_router.include_router(ai_health_router)
 admin_router.include_router(ai_quotas_router)
 # 对话管理 / Conversation management
 admin_router.include_router(ai_conversations_router)
-admin_router.include_router(ai_ephemeral_documents_router)
 admin_router.include_router(execution_decisions_router)
 # 智能体引擎 / Agent engine
 admin_router.include_router(ai_agents_router)
@@ -204,7 +201,6 @@ __all__ = [
     "AdminAIQuotaController",
     # 对话管理 / Conversation management
     "AdminAIConversationController",
-    "AdminEphemeralDocumentController",
     # 智能体引擎 / Agent engine
     "AdminAgentController",
     # AI 操作审计 / AI action audit

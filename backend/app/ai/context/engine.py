@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING, Any
 
 from app.ai.context.pruning import PruneStats, TransientPruner
 from app.ai.context.long_term_memory import get_long_term_memory_provider
-from app.ai.context.ephemeral_rag import EphemeralRAGProvider
 from app.ai.types import ChatMessage
 from app.ai.utils.token_estimator import estimate_tokens
 from app.core.base_model import utc_now
@@ -100,7 +99,6 @@ class LegacyContextEngine(ContextEngine):
         self.db = db
         self.base_engine = base_engine
         self.pruner = TransientPruner()
-        self.ephemeral_rag_provider = EphemeralRAGProvider()
         # True after assemble() persisted a compaction snapshot; compact() skips duplicate persist.
         self._compaction_snapshot_written_in_assemble = False
 
@@ -150,19 +148,6 @@ class LegacyContextEngine(ContextEngine):
             )
             if rag_sources:
                 rag_source_kinds.append("formal_kb")
-
-        messages, ephemeral_sources = await self.ephemeral_rag_provider.inject(
-            messages=messages,
-            ephemeral_rag_refs=request.ephemeral_rag_refs,
-            db=self.db,
-            tenant_id=request.tenant_id,
-            conversation_id=request.conversation_id,
-            agent_id=agent.id,
-            user_id=request.user_id,
-        )
-        if ephemeral_sources:
-            rag_sources = list(rag_sources or []) + ephemeral_sources
-            rag_source_kinds.append("ephemeral_doc")
 
         context_config = getattr(agent, "context_config", None) or {}
         long_term_memory_enabled = bool(request.long_term_memory_enabled)

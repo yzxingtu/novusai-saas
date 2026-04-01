@@ -98,7 +98,14 @@ def upgrade():
 
 
 def downgrade():
-    op.drop_table('px_novusdoc_document_tags')
-    op.drop_table('px_novusdoc_tags')
-    op.drop_table('px_novusdoc_documents')
-    op.drop_table('px_novusdoc_folders')
+    bind = op.get_bind()
+    existing_tables = set(sa.inspect(bind).get_table_names())
+
+    if 'px_novusdoc_document_tags' in existing_tables:
+        op.drop_table('px_novusdoc_document_tags')
+    if 'px_novusdoc_tags' in existing_tables:
+        op.drop_table('px_novusdoc_tags')
+    if 'px_novusdoc_documents' in existing_tables:
+        op.drop_table('px_novusdoc_documents')
+    if 'px_novusdoc_folders' in existing_tables:
+        op.drop_table('px_novusdoc_folders')

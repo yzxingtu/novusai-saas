@@ -19,7 +19,6 @@ from app.models.ai.call_log import AICallLog
 from app.models.ai.capability import Capability
 from app.models.ai.conversation_message import ConversationMessage
 from app.models.ai.document_chunk import DocumentChunk
-from app.models.ai.ephemeral_document import EphemeralDocument
 from app.models.ai.execution_trust_policy import ExecutionTrustPolicy
 from app.models.ai.execution_decision import ExecutionDecision
 from app.models.ai.knowledge_base import KnowledgeBase
@@ -68,7 +67,6 @@ __all__ = [
     "KnowledgeBase",
     "KnowledgeDocument",
     "DocumentChunk",
-    "EphemeralDocument",
     "AITablePolicy",
     "AITablePolicyOverride",
     "Capability",

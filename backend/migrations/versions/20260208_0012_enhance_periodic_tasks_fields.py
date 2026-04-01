@@ -19,7 +19,7 @@ def upgrade() -> None:
         "periodic_tasks",
         sa.Column(
             "scope",
-            sa.String(),
+            sa.String(length=40),
             nullable=False,
             server_default="platform",
             comment="作用范围（platform/tenant/all_tenants）",

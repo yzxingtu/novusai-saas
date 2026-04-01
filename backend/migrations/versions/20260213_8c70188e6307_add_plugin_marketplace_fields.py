@@ -26,10 +26,10 @@ def upgrade() -> None:
     op.add_column('plugins', sa.Column('downloads_count', sa.Integer(), nullable=False, comment='下载/安装次数（插件市场统计）'))
     op.add_column('plugins', sa.Column('rating', sa.Float(), nullable=True, comment='评分（1.0-5.0，插件市场）'))
     op.add_column('plugins', sa.Column('tags', postgresql.JSONB(astext_type=sa.Text()), nullable=True, comment='分类标签（如 ["ai", "adapter", "openai"]）'))
-    op.add_column('plugins', sa.Column('category', sa.String(), nullable=True, comment='插件分类（如 ai-model, productivity, analytics）'))
+    op.add_column('plugins', sa.Column('category', sa.String(length=50), nullable=True, comment='插件分类（如 ai-model, productivity, analytics）'))
     op.add_column('plugins', sa.Column('screenshots', postgresql.JSONB(astext_type=sa.Text()), nullable=True, comment='截图 URL 列表（插件市场展示）'))
-    op.add_column('plugins', sa.Column('source_url', sa.String(), nullable=True, comment='插件源码仓库 URL（如 GitHub 地址）'))
-    op.add_column('plugins', sa.Column('license', sa.String(), nullable=True, comment='开源许可证（如 MIT, Apache-2.0）'))
+    op.add_column('plugins', sa.Column('source_url', sa.String(length=500), nullable=True, comment='插件源码仓库 URL（如 GitHub 地址）'))
+    op.add_column('plugins', sa.Column('license', sa.String(length=50), nullable=True, comment='开源许可证（如 MIT, Apache-2.0）'))
 
 
 def downgrade() -> None:

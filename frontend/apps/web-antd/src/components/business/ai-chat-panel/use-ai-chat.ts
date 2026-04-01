@@ -15,6 +15,7 @@ import type {
   ChatAttachment,
   ChatMessage,
   ConversationItem,
+  InteractionMode,
   MentionCandidate,
   PendingConfirmation,
   PendingConsent,
@@ -26,7 +27,6 @@ import type {
   AgentChatRequestBody,
   ChatKBBindingInfo,
   ConversationDetailResponse,
-  EphemeralRagItem,
   MemoryState,
   PageContext,
   RawMessageItem,
@@ -98,52 +98,7 @@ export function useAIChat(options: UseAIChatOptions) {
   const { validateChatFile, revokePreviewUrls } = useFileUpload();
   const socketIOStore = useSocketIOStore();
 
-  const trustSession = ref(false);
-  const ephemeralRagItems = ref<EphemeralRagItem[]>([]);
-
-  function clearEphemeralRagItems() {
-    ephemeralRagItems.value = [];
-  }
-
-  function addEphemeralRagItem(item: EphemeralRagItem) {
-    const content = (item.content || '').trim();
-    const title = (item.title || '').trim();
-    const sourceRef = (item.source_ref || '').trim();
-    const scope = item.scope || 'conversation_scoped';
-
-    if (!content) {
-      return;
-    }
-
-    const normalized: EphemeralRagItem = {
-      kind: item.kind,
-      content,
-      scope,
-      ...(typeof item.ttl_seconds === 'number' ? { ttl_seconds: item.ttl_seconds } : {}),
-      ...(title ? { title } : {}),
-      ...(sourceRef ? { source_ref: sourceRef } : {}),
-    };
-
-    const duplicateIndex = ephemeralRagItems.value.findIndex(
-      (existing) =>
-        existing.kind === normalized.kind &&
-        existing.content === normalized.content &&
-        (existing.scope || 'conversation_scoped') === normalized.scope,
-    );
-    if (duplicateIndex >= 0) {
-      ephemeralRagItems.value.splice(duplicateIndex, 1, normalized);
-      return;
-    }
-
-    ephemeralRagItems.value = [...ephemeralRagItems.value, normalized].slice(-8);
-  }
-
-  function removeEphemeralRagItem(index: number) {
-    if (index < 0 || index >= ephemeralRagItems.value.length) {
-      return;
-    }
-    ephemeralRagItems.value.splice(index, 1);
-  }
+  const interactionMode = ref<InteractionMode>('confirm');
 
   function refreshPageSessionRoom(): void {
     const pageSessionId = options.pageSessionIdGetter?.();
@@ -206,9 +161,10 @@ export function useAIChat(options: UseAIChatOptions) {
     activeConversationAgentId.value = null;
     clearConversationAnchor();
     chatMessages.value = [];
+    conversationContextDiagnostics.value = null;
+    lastRunSummary.value = null;
     clearPendingAttachments();
     clearMentionDraft();
-    clearEphemeralRagItems();
     // Clear cached variables when switching agents / 切换智能体时清空缓存变量
     // (they'll be re-initialized via watch + openVarsModal in the page component) / 由页面 watch 与弹窗再初始化
   }
@@ -219,7 +175,9 @@ export function useAIChat(options: UseAIChatOptions) {
   const conversationsLoading = ref(false);
   const activeConversationId = ref<null | number>(null);
   const activeConversationAgentId = ref<null | number>(null);
+  const conversationContextDiagnostics = ref<null | Record<string, unknown>>(null);
   const clearingMemory = ref(false);
+  const lastRunSummary = ref<null | Record<string, unknown>>(null);
   const memoryState = ref<MemoryState | null>(null);
   const memoryLoading = ref(false);
   const lastMemoryUpdated = ref(false);
@@ -311,8 +269,14 @@ export function useAIChat(options: UseAIChatOptions) {
     }
 
     chatMessages.value = mergedMessages;
+    conversationContextDiagnostics.value =
+      (res.context_diagnostics as Record<string, unknown> | null | undefined) ??
+      null;
+    lastRunSummary.value =
+      (res.last_run_summary as Record<string, unknown> | null | undefined) ??
+      null;
     lastMemoryUpdated.value = mergedMessages.some((m) => m.memoryUpdated);
-    trustSession.value = Boolean(res.trust_session_active);
+    interactionMode.value = res.interaction_mode_effective ?? 'confirm';
     scrollToBottom(true);
   }
 
@@ -392,12 +356,13 @@ export function useAIChat(options: UseAIChatOptions) {
     activeConversationAgentId.value = null;
     clearConversationAnchor();
     chatMessages.value = [];
+    conversationContextDiagnostics.value = null;
+    lastRunSummary.value = null;
     clearMentionDraft();
     memoryState.value = null;
     lastMemoryUpdated.value = false;
     if (!keepVars) {
       allAgentsVariables.value = {};
-      clearEphemeralRagItems();
     }
   }
 
@@ -412,7 +377,6 @@ export function useAIChat(options: UseAIChatOptions) {
         activeConversationAgentId.value = null;
         clearConversationAnchor();
         chatMessages.value = [];
-        clearEphemeralRagItems();
       }
       await loadConversations();
     } catch {
@@ -442,7 +406,6 @@ export function useAIChat(options: UseAIChatOptions) {
     pendingMessages.value = [];
     activeConversationId.value = convId;
     clearMentionDraft();
-    clearEphemeralRagItems();
     const currentConversation = conversations.value.find(
       (c) => c.id === convId,
     );
@@ -1128,7 +1091,7 @@ export function useAIChat(options: UseAIChatOptions) {
     }
   }
 
-  /** Deferred auto-confirm flag: set when trustSession auto-approves during active stream / 延迟自动确认标志 */
+  /** Deferred auto-confirm flag: set when trusted_auto auto-approves during active stream / 延迟自动确认标志 */
   let _deferredAutoConfirm = false;
 
   /** Whether user has manually scrolled up / 用户是否手动向上滚动 */
@@ -1901,7 +1864,7 @@ export function useAIChat(options: UseAIChatOptions) {
               };
             } else if (event.event === 'tool_consent_request') {
               promoteToolRoundContent();
-              if (trustSession.value) {
+              if (interactionMode.value === 'trusted_auto') {
                 msg.pendingConsent = {
                   toolName: (event.name as string) || '',
                   arguments: event.arguments as
@@ -1995,6 +1958,25 @@ export function useAIChat(options: UseAIChatOptions) {
               msg.ragSourceKinds = Array.isArray(event.rag_source_kinds)
                 ? (event.rag_source_kinds as string[])
                 : undefined;
+              conversationContextDiagnostics.value = {
+                context_compacted: Boolean(event.context_compacted),
+                estimated_tokens: (event.total_tokens as number) || 0,
+                interaction_mode_effective: interactionMode.value,
+                last_interrupted: false,
+                memory_flush_triggered: Boolean(event.memory_flush_triggered),
+                memory_recalled: Boolean(event.memory_recalled),
+                prune_stats:
+                  (event.prune_stats as Record<string, unknown> | undefined) ??
+                  null,
+                rag_source_kinds: Array.isArray(event.rag_source_kinds)
+                  ? (event.rag_source_kinds as string[])
+                  : [],
+              };
+              lastRunSummary.value = {
+                duration_ms: (event.duration_ms as number) || 0,
+                interaction_mode_effective: interactionMode.value,
+                total_tokens: (event.total_tokens as number) || 0,
+              };
               if (event.conversation_id) {
                 streamConversationId = event.conversation_id as number;
                 activeConversationId.value = streamConversationId;
@@ -2044,7 +2026,7 @@ export function useAIChat(options: UseAIChatOptions) {
       // after backend reloads or transient Socket.IO room loss. / 避免后端重启或 Socket 掉线后 pageop 失效
       refreshPageSessionRoom();
       const singleText = texts.length === 1 ? (texts[0] ?? '') : null;
-      const requestBody: AgentChatRequestBody = {
+        const requestBody: AgentChatRequestBody = {
         ...(singleText === null
           ? { messages: texts }
           : { message: singleText }),
@@ -2067,12 +2049,9 @@ export function useAIChat(options: UseAIChatOptions) {
         imageParams.value.n !== 1
           ? { image_params: imageParams.value }
           : {}),
-        ...(pageContext ? { page_context: pageContext } : {}),
-        ...(routeSource ? { route_source: routeSource } : {}),
-        ...(trustSession.value ? { trust_session: true } : {}),
-        ...(ephemeralRagItems.value.length > 0
-          ? { ephemeral_rag_items: [...ephemeralRagItems.value] }
-          : {}),
+          ...(pageContext ? { page_context: pageContext } : {}),
+          ...(routeSource ? { route_source: routeSource } : {}),
+          interaction_mode: interactionMode.value,
         ...(options.pageSessionIdGetter
           ? { page_session_id: options.pageSessionIdGetter() || null }
           : {}),
@@ -2443,6 +2422,7 @@ export function useAIChat(options: UseAIChatOptions) {
     conversations,
     conversationsLoading,
     activeConversationId,
+    conversationContextDiagnostics,
     loadConversations,
     startNewConversation,
     deleteConversation,
@@ -2458,7 +2438,6 @@ export function useAIChat(options: UseAIChatOptions) {
     // Chat / 对话与发送
     chatMessages,
     inputMessage,
-    ephemeralRagItems,
     mentionOpen,
     mentionCandidates,
     mentionActiveIndex,
@@ -2485,14 +2464,11 @@ export function useAIChat(options: UseAIChatOptions) {
     handleInputKeyDown,
     selectMentionKnowledgeBase,
     removeSelectedKnowledgeBase,
-    addEphemeralRagItem,
-    removeEphemeralRagItem,
-    clearEphemeralRagItems,
     confirmAction,
     rejectAction,
     confirmConsent,
     rejectConsent,
-    trustSession,
+    interactionMode,
     clickActionButton,
     regenerateMessage,
     editAndResend,
@@ -2504,6 +2480,7 @@ export function useAIChat(options: UseAIChatOptions) {
     imageParams,
     exportAsMarkdown,
     exportAsPlainText,
+    lastRunSummary,
     totalTokensUsed,
 
     // Attachments / 附件

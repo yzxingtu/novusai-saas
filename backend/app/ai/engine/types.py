@@ -80,7 +80,7 @@ class ExecutionRequest:
     context_engine_id: str = "legacy"
     system_prompt_additions: list[str] = field(default_factory=list)
     trust_policy_ref: dict[str, Any] | None = None
-    ephemeral_rag_refs: list[dict[str, Any]] = field(default_factory=list)
+    interaction_mode: str = "confirm"
 
     # User attachments (images/files, appended to latest user message) / 用户附件（图片/文件，附加到最新用户消息）
     attachments: list[dict[str, Any]] | None = None
@@ -165,6 +165,7 @@ class ExecutionResult:
     memory_flush_triggered: bool = False
     memory_recalled: bool = False
     prune_stats: dict[str, Any] | None = None
+    tool_planner: dict[str, Any] | None = None
 
 
 @dataclass
@@ -200,6 +201,7 @@ class PreparedExecution:
     memory_recalled: bool = False
     system_prompt_additions: list[str] = field(default_factory=list)
     diagnostics: dict[str, Any] = field(default_factory=dict)
+    tool_planner: dict[str, Any] | None = None
     context_engine: Any | None = None
     tool_consent_modes: dict[str, str] = field(default_factory=dict)
     optimize_event: dict[str, Any] | None = None

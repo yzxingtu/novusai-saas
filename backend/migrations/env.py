@@ -64,7 +64,6 @@ from app.models import (
     # AI 网关
     AIProvider,
     AIModel,
-    EphemeralDocument,
     MemoryRecord,
     ProfileSnapshot,
     ProviderApiKey,

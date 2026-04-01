@@ -21,6 +21,8 @@ export interface PaginatedResponse<T = Record<string, unknown>> {
   items: T[];
   total: number;
 }
+export type InteractionMode = 'confirm' | 'trusted_auto';
+
 
 export interface RawMessageItem {
   agent_avatar?: null | string;
@@ -75,7 +77,6 @@ export interface RawMessageItem {
     memory_updated?: boolean;
     model_name?: string;
     partial?: boolean;
-    prune_stats?: Record<string, unknown>;
     pending_confirmation?: {
       action?: string;
       preview?: Record<string, unknown>;
@@ -93,6 +94,7 @@ export interface RawMessageItem {
     };
     provider_id?: number;
     provider_name?: string;
+    prune_stats?: Record<string, unknown>;
     rag_sources?: RagSource[];
     rag_source_kinds?: string[];
     route_source?: string;
@@ -108,9 +110,11 @@ export interface RawMessageItem {
 }
 
 export interface ConversationDetailResponse {
+  context_diagnostics?: null | Record<string, unknown>;
+  interaction_mode_effective?: InteractionMode;
+  last_run_summary?: null | Record<string, unknown>;
   agent_id?: null | number;
   message_list: RawMessageItem[];
-  trust_session_active?: boolean;
 }
 
 export interface FileUploadResponse {
@@ -126,18 +130,6 @@ export interface FileUploadResponse {
     size?: number;
   };
   used_bytes: number;
-}
-
-export interface EphemeralRagItem {
-  kind: 'csv' | 'html' | 'markdown' | 'text' | 'url';
-  content: string;
-  scope?:
-    | 'agent_workspace_scoped'
-    | 'conversation_scoped'
-    | 'tenant_private_scratch';
-  ttl_seconds?: number;
-  title?: null | string;
-  source_ref?: null | string;
 }
 
 export interface TrustPolicyRef {
@@ -358,7 +350,7 @@ export interface AgentChatRequestBody {
   attachments?: ChatAttachment[];
   consented_actions?: string[];
   conversation_id?: null | number;
-  ephemeral_rag_items?: EphemeralRagItem[];
+  interaction_mode?: InteractionMode;
   image_params?: AgentChatImageParams;
   interaction_updates?: Array<{
     action?: string;
@@ -376,7 +368,6 @@ export interface AgentChatRequestBody {
   page_context?: null | PageContext;
   page_session_id?: null | string;
   route_source?: null | string;
-  trust_session?: boolean;
   trust_policy_ref?: TrustPolicyRef;
   variables?: Record<string, string>;
 }

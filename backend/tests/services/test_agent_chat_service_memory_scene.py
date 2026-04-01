@@ -40,6 +40,16 @@ def _make_execution_result():
     result.total_tokens = 11
     result.messages = []
     result.tool_results = []
+    result.context_compacted = False
+    result.memory_flush_triggered = False
+    result.memory_recalled = False
+    result.prune_stats = None
+    result.rag_source_kinds = []
+    result.rag_sources = []
+    result.runtime_model_name = "test-model"
+    result.runtime_provider_name = "test-provider"
+    result.duration_ms = 12
+    result.tool_planner = None
     return result
 
 
@@ -265,7 +275,7 @@ async def test_chat_non_stream_persists_session_memory(mock_db):
     service.conversation_svc.update_stats = AsyncMock(return_value=None)
     service._resolve_effective_memory_enabled = AsyncMock(return_value=True)
     service._persist_session_memory = AsyncMock(return_value=None)
-    service._resolve_runtime_trust_policy_ref = AsyncMock(return_value=None)
+    service._resolve_runtime_trust_policy_ref = AsyncMock(return_value={"policy_ids": [99]})
 
     dispatcher = AsyncMock()
     dispatcher.dispatch = AsyncMock(return_value=_make_execution_result())
@@ -290,6 +300,49 @@ async def test_chat_non_stream_persists_session_memory(mock_db):
     assert call_kwargs["message"] == "hello"
     assert call_kwargs["response"] == "ok"
     assert call_kwargs["event_id"].startswith("memevt:100:")
+
+
+@pytest.mark.asyncio
+async def test_chat_response_includes_tool_planner_diagnostics(mock_db):
+    from unittest.mock import patch
+
+    from app.services.ai.agent_chat_service import AgentChatService
+
+    service = AgentChatService(mock_db, tenant_id=1)
+    service._validate_agent = AsyncMock(return_value=_make_agent())
+    service.conversation_svc.get_or_create_for_chat = AsyncMock(return_value=_make_conversation())
+    service.conversation_svc.load_chat_history = AsyncMock(return_value=[])
+    service.conversation_svc.persist_chat_messages = AsyncMock(return_value=[])
+    service.conversation_svc.update_stats = AsyncMock(return_value=None)
+    service._resolve_effective_memory_enabled = AsyncMock(return_value=False)
+    service._persist_session_memory = AsyncMock(return_value=None)
+    service._resolve_runtime_trust_policy_ref = AsyncMock(return_value=None)
+
+    result = _make_execution_result()
+    result.tool_planner = {
+        "intent": "direct_reply",
+        "family": "none",
+        "allow_no_tool": True,
+        "allow_family_continuation": False,
+        "reason": "smalltalk_or_support_no_tool",
+        "confidence_band": "high",
+    }
+
+    dispatcher = AsyncMock()
+    dispatcher.dispatch = AsyncMock(return_value=result)
+
+    with patch("app.services.ai.agent_chat_service.ExecutionDispatcher", return_value=dispatcher), \
+            patch("app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation", new=AsyncMock()), \
+            patch("app.services.ai.agent_chat_service.AgentStatsManager.record_chat", new=AsyncMock()):
+        response = await service.chat(
+            agent_id=1,
+            message="你真聪明",
+            user_id=10,
+            user_role=UserRoleEnum.TENANT_ADMIN.value,
+        )
+
+    assert response.context_diagnostics["tool_planner"] == result.tool_planner
+    assert response.last_run_summary["tool_planner"] == result.tool_planner
 
 
 @pytest.mark.asyncio
@@ -349,51 +402,6 @@ async def test_persist_session_memory_captures_long_term_memory_candidates(mock_
 
 
 @pytest.mark.asyncio
-async def test_chat_passes_ephemeral_rag_items_to_execution_request(mock_db):
-    from app.services.ai.agent_chat_service import AgentChatService
-
-    service = AgentChatService(mock_db, tenant_id=1)
-    agent = _make_agent()
-    service._validate_agent = AsyncMock(return_value=agent)
-    service.conversation_svc.get_or_create_for_chat = AsyncMock(return_value=_make_conversation())
-    service.conversation_svc.load_chat_history = AsyncMock(return_value=[])
-    service.conversation_svc.persist_chat_messages = AsyncMock(return_value=[])
-    service.conversation_svc.update_stats = AsyncMock(return_value=None)
-    service._resolve_effective_memory_enabled = AsyncMock(return_value=False)
-
-    dispatcher = AsyncMock()
-    dispatcher.dispatch = AsyncMock(return_value=_make_execution_result())
-
-    from unittest.mock import patch
-
-    with patch("app.services.ai.agent_chat_service.ExecutionDispatcher", return_value=dispatcher), \
-            patch("app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation", new=AsyncMock()), \
-            patch("app.services.ai.agent_chat_service.AgentStatsManager.record_chat", new=AsyncMock()):
-        await service.chat(
-            agent_id=1,
-            message="hello",
-            user_id=10,
-            user_role=UserRoleEnum.TENANT_ADMIN.value,
-            ephemeral_rag_items=[
-                {
-                    "kind": "text",
-                    "title": "临时说明",
-                    "content": "这是会话内临时资料。",
-                }
-            ],
-        )
-
-    called_request = dispatcher.dispatch.call_args.args[0]
-    assert called_request.ephemeral_rag_refs == [
-        {
-            "kind": "text",
-            "title": "临时说明",
-            "content": "这是会话内临时资料。",
-        }
-    ]
-
-
-@pytest.mark.asyncio
 async def test_chat_passes_explicit_trust_policy_ref_to_execution_request(mock_db):
     from app.services.ai.agent_chat_service import AgentChatService
 
@@ -435,7 +443,7 @@ async def test_chat_passes_explicit_trust_policy_ref_to_execution_request(mock_d
 
 
 @pytest.mark.asyncio
-async def test_chat_grants_backend_trust_policy_from_pending_consent_when_trust_session_enabled(
+async def test_chat_grants_backend_trust_policy_from_pending_consent_when_trusted_auto_enabled(
     mock_db,
 ):
     from unittest.mock import patch
@@ -451,7 +459,7 @@ async def test_chat_grants_backend_trust_policy_from_pending_consent_when_trust_
     service.conversation_svc.update_stats = AsyncMock(return_value=None)
     service.conversation_svc.update_last_assistant_interaction_state = AsyncMock(return_value=None)
     service._resolve_effective_memory_enabled = AsyncMock(return_value=False)
-    service._resolve_runtime_trust_policy_ref = AsyncMock(return_value=None)
+    service._resolve_runtime_trust_policy_ref = AsyncMock(return_value={"policy_ids": [99]})
 
     dispatcher = AsyncMock()
     dispatcher.dispatch = AsyncMock(return_value=_make_execution_result())
@@ -468,7 +476,7 @@ async def test_chat_grants_backend_trust_policy_from_pending_consent_when_trust_
             message="确认执行",
             user_id=10,
             user_role=UserRoleEnum.TENANT_ADMIN.value,
-            trust_session=True,
+            interaction_mode="trusted_auto",
             interaction_updates=[
                 {
                     "kind": "pending_consent",
@@ -567,8 +575,15 @@ async def test_stream_chat_updates_pending_consent_state_with_string_owner_type(
                 "kind": "pending_consent",
                 "rejected": False,
                 "tool_name": "get_current_weather",
+                "auto_approve_source": None,
+                "downgraded_from": None,
+                "downgrade_reason": None,
+                "interaction_mode_effective": "confirm",
             }
         ],
         user_id=10,
         owner_type="tenant_admin",
+        interaction_mode_requested="confirm",
+        interaction_mode_effective="confirm",
+        interaction_mode_downgrade_reason=None,
     )

@@ -6,7 +6,6 @@ from app.services.ai.agent_service import AgentService
 from app.services.ai.agent_skill_grant_service import AgentSkillGrantService
 from app.services.ai.api_key_service import ProviderApiKeyService
 from app.services.ai.call_log_service import CallLogService
-from app.services.ai.ephemeral_document_service import EphemeralDocumentService
 from app.services.ai.execution_decision_service import (
     AdminExecutionDecisionService,
     ExecutionDecisionService,
@@ -40,7 +39,6 @@ __all__ = [
     "TokenCounter",
     "CostCalculator",
     "CallLogService",
-    "EphemeralDocumentService",
     "AdminExecutionDecisionService",
     "ExecutionDecisionService",
     "ExecutionTrustPolicyService",

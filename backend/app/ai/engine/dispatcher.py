@@ -436,6 +436,7 @@ class ExecutionDispatcher:
             page_session_id=request.page_session_id,
             conversation_id=request.conversation_id,
             trust_policy_ref=request.trust_policy_ref,
+            interaction_mode=request.interaction_mode,
         )
         # Pass frontend session-level authorization / 传递前端会话级授权
         if request.consented_actions:

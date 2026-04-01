@@ -21,10 +21,10 @@ def upgrade() -> None:
     op.create_table(
         "plugin_migrations",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
-        sa.Column("plugin_name", sa.String(), nullable=False, comment="插件名称"),
-        sa.Column("version", sa.String(), nullable=False, comment="迁移版本号"),
-        sa.Column("filename", sa.String(), nullable=False, comment="迁移文件名"),
-        sa.Column("checksum", sa.String(), nullable=False, comment="SHA256 校验和"),
+        sa.Column("plugin_name", sa.String(length=100), nullable=False, comment="插件名称"),
+        sa.Column("version", sa.String(length=50), nullable=False, comment="迁移版本号"),
+        sa.Column("filename", sa.String(length=255), nullable=False, comment="迁移文件名"),
+        sa.Column("checksum", sa.String(length=64), nullable=False, comment="SHA256 校验和"),
         sa.Column("description", sa.Text(), nullable=True, comment="迁移描述"),
         sa.Column(
             "applied_at",

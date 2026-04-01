@@ -32,13 +32,54 @@ def _index_names(table_name: str) -> set[str]:
     return {idx["name"] for idx in inspect(op.get_bind()).get_indexes(table_name)}
 
 
+_INDEX_RENAME_SQL: dict[tuple[str, str, str], str] = {
+    (
+        "agents",
+        "ix_agents_tenant_id",
+        "ix_agents_owner_tenant_id",
+    ): 'ALTER INDEX "ix_agents_tenant_id" RENAME TO "ix_agents_owner_tenant_id"',
+    (
+        "agents",
+        "ix_agents_tenant_status",
+        "ix_agents_owner_tenant_status",
+    ): 'ALTER INDEX "ix_agents_tenant_status" RENAME TO "ix_agents_owner_tenant_status"',
+    (
+        "ai_api_keys",
+        "ix_ai_api_keys_tenant_id",
+        "ix_ai_api_keys_owner_tenant_id",
+    ): 'ALTER INDEX "ix_ai_api_keys_tenant_id" RENAME TO "ix_ai_api_keys_owner_tenant_id"',
+    (
+        "knowledge_bases",
+        "ix_kb_tenant_status",
+        "ix_kb_owner_status",
+    ): 'ALTER INDEX "ix_kb_tenant_status" RENAME TO "ix_kb_owner_status"',
+    (
+        "knowledge_bases",
+        "ix_knowledge_bases_tenant_id",
+        "ix_knowledge_bases_owner_tenant_id",
+    ): 'ALTER INDEX "ix_knowledge_bases_tenant_id" RENAME TO "ix_knowledge_bases_owner_tenant_id"',
+    (
+        "tenant_agent_platform_kb_suppressions",
+        "ix_tapks_tenant_id",
+        "ix_tenant_agent_platform_kb_suppressions_tenant_id",
+    ): (
+        'ALTER INDEX "ix_tapks_tenant_id" '
+        'RENAME TO "ix_tenant_agent_platform_kb_suppressions_tenant_id"'
+    ),
+}
+
+
 def _rename_index(table_name: str, old_name: str, new_name: str) -> None:
     if not _has_table(table_name):
         return
     indexes = _index_names(table_name)
     if old_name not in indexes or new_name in indexes:
         return
-    sql = 'ALTER INDEX "' + old_name + '" RENAME TO "' + new_name + '"'
+    sql = _INDEX_RENAME_SQL.get((table_name, old_name, new_name))
+    if not sql:
+        raise ValueError(
+            f"Missing static ALTER INDEX mapping for {table_name}.{old_name} -> {new_name}"
+        )
     op.execute(sa.text(sql))
 
 

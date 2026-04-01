@@ -143,10 +143,13 @@ class TestGetConversationDetail:
         assert "token=" in attachments[1]["url"]
 
     @pytest.mark.asyncio
-    async def test_conversation_detail_includes_trust_session_active(self, mock_db):
+    async def test_conversation_detail_includes_interaction_mode_metadata(self, mock_db):
         from app.services.ai.conversation_service import ConversationService
 
         conversation = _make_conversation()
+        conversation.metadata_ = {
+            "interaction_mode": "confirm",
+        }
         message = _make_message(role="user", content="hello")
         message.to_dict.return_value = {
             "id": 1,
@@ -168,13 +171,12 @@ class TestGetConversationDetail:
             return_value=SimpleNamespace(scalars=lambda: [])
         )
 
-        with patch(
-            "app.services.ai.conversation_service.ExecutionTrustPolicyService.has_active_conversation_trust",
-            new=AsyncMock(return_value=True),
-        ):
-            detail = await service.get_conversation_detail(1, user_id=1)
+        detail = await service.get_conversation_detail(1, user_id=1)
 
-        assert detail["trust_session_active"] is True
+        assert detail["interaction_mode_effective"] == "confirm"
+        assert detail["context_diagnostics"]["interaction_mode_effective"] == "confirm"
+        assert detail["last_run_summary"]["interaction_mode_effective"] == "confirm"
+        assert detail["last_run_summary"]["downgrade_reason"] is None
 
 
 class TestGetServiceForConversation:
@@ -1027,6 +1029,59 @@ class TestThinkingPersistence:
         }
 
     @pytest.mark.asyncio
+    async def test_persist_chat_messages_records_context_and_summary_metadata(
+        self, mock_db
+    ):
+        from app.services.ai.conversation_service import ConversationService
+
+        conversation = _make_conversation(id=900, message_count=0)
+        result = SimpleNamespace(
+            messages=[
+                {"role": "user", "content": "请问"},
+                {
+                    "role": "assistant",
+                    "content": "最终答复",
+                    "tool_calls": None,
+                    "tool_call_id": None,
+                    "attachments": None,
+                    "reasoning_content": None,
+                },
+            ],
+            tool_results=[],
+            partial=False,
+            interrupted=False,
+            completion_reason="",
+            runtime_model_id=None,
+            runtime_model_name=None,
+            runtime_provider_id=None,
+            runtime_provider_name=None,
+        )
+
+        context_diag = {"dummy": "value"}
+        last_summary = {"duration_ms": 42}
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service._message_repo = MagicMock()
+        service._message_repo.get_next_sequence = AsyncMock(return_value=1)
+        service._message_repo.create = AsyncMock()
+
+        await service.persist_chat_messages(
+            conversation=conversation,
+            result=result,
+            history_count=0,
+            agent_id=7,
+            context_diagnostics=context_diag,
+            last_run_summary=last_summary,
+        )
+
+        assistant_payload = service._message_repo.create.await_args_list[1].args[0]
+        assert assistant_payload["metadata_"]["context_diagnostics"] == context_diag
+        assert assistant_payload["metadata_"]["last_run_summary"] == last_summary
+
+    @pytest.mark.asyncio
     async def test_persist_chat_messages_skips_internal_only_messages(self, mock_db):
         from app.services.ai.conversation_service import ConversationService
 
@@ -1161,6 +1216,15 @@ class TestThinkingPersistence:
         assistant.metadata_ = {
             "pending_confirmation": {"action": "delete", "table": "agents"},
             "pending_consent": {"tool_name": "web_search"},
+            "context_diagnostics": {
+                "tool_planner": {
+                    "intent": "direct_reply",
+                    "family": "none",
+                    "allow_no_tool": True,
+                    "allow_family_continuation": False,
+                    "reason": "smalltalk_or_support_no_tool",
+                }
+            },
         }
 
         service = ConversationService.__new__(ConversationService)
@@ -1201,7 +1265,9 @@ class TestThinkingPersistence:
         first_payload = record_decision.await_args_list[0].args[0]
         second_payload = record_decision.await_args_list[1].args[0]
         assert first_payload["decision_type"] == "confirmation"
+        assert first_payload["evidence"]["tool_planner"]["reason"] == "smalltalk_or_support_no_tool"
         assert second_payload["decision_type"] == "consent"
+        assert second_payload["evidence"]["tool_planner"]["reason"] == "smalltalk_or_support_no_tool"
         assert second_payload["status"] == "auto_approved"
 
     @pytest.mark.asyncio

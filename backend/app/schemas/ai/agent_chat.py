@@ -21,6 +21,7 @@ from pydantic import (
 from app.core.i18n import _
 
 PAGE_CONTEXT_KEY = "page_context"
+InteractionMode = Literal["confirm", "trusted_auto"]
 
 
 class ChatAttachment(BaseModel):
@@ -51,45 +52,6 @@ class ImageParams(BaseModel):
     quality: str = Field("standard", description=_("agent_chat.field.image_quality"))
     style: str = Field("vivid", description=_("agent_chat.field.image_style"))
     n: int = Field(1, ge=1, le=4, description=_("agent_chat.field.image_n"))
-
-
-class EphemeralRAGItem(BaseModel):
-    """临时 RAG 条目 / Ephemeral RAG item."""
-
-    kind: Literal["csv", "html", "markdown", "text", "url"] = Field(
-        ...,
-        description="Ephemeral content kind / 临时内容类型",
-    )
-    content: str = Field(
-        ...,
-        min_length=1,
-        max_length=200_000,
-        description="Inline content for ephemeral retrieval / 临时检索用内联内容",
-    )
-    title: str | None = Field(
-        None,
-        max_length=255,
-        description="Display title / 展示标题",
-    )
-    source_ref: str | None = Field(
-        None,
-        max_length=500,
-        description="Optional source reference / 可选来源引用",
-    )
-    scope: Literal[
-        "agent_workspace_scoped",
-        "conversation_scoped",
-        "tenant_private_scratch",
-    ] | None = Field(
-        None,
-        description="Ephemeral scope / 临时资料作用域",
-    )
-    ttl_seconds: int | None = Field(
-        None,
-        ge=60,
-        le=2_592_000,
-        description="Optional TTL seconds / 可选过期秒数",
-    )
 
 
 class TrustPolicyRef(BaseModel):
@@ -129,7 +91,7 @@ class AgentChatRequest(BaseModel):
     )
 
     @model_validator(mode="after")
-    def require_message_or_messages(self) -> "AgentChatRequest":
+    def require_message_or_messages(self) -> AgentChatRequest:
         msgs = self.messages or []
         single = (self.message or "").strip()
         has_interaction = bool(self.interaction_updates)
@@ -163,17 +125,13 @@ class AgentChatRequest(BaseModel):
         None,
         description=_("agent_chat.field.attachments"),
     )
-    ephemeral_rag_items: list[EphemeralRAGItem] | None = Field(
-        None,
-        description="Ephemeral RAG sidecar items / 临时 RAG 侧车条目",
-    )
     trust_policy_ref: TrustPolicyRef | None = Field(
         None,
         description="Runtime trust policy reference / 运行时信任策略引用",
     )
-    trust_session: bool = Field(
-        False,
-        description="Whether to persist conversation-scoped trust on approval flows / 是否在授权确认后持久化会话级信任",
+    interaction_mode: InteractionMode = Field(
+        "confirm",
+        description="Interaction mode / 交互模式",
     )
     image_params: ImageParams | None = Field(
         None,
@@ -189,7 +147,7 @@ class AgentChatRequest(BaseModel):
         max_length=32,
         description="Frontend route source hint (e.g. mention)",
     )
-    interaction_updates: list["InteractionUpdate"] | None = Field(
+    interaction_updates: list[InteractionUpdate] | None = Field(
         None,
         description="Client-side interaction state updates to persist before processing the next turn",
     )
@@ -247,6 +205,18 @@ class AgentChatResponse(BaseModel):
     rag_source_kinds: list[str] = Field(
         default_factory=list,
         description="Kinds of RAG sources used in this turn",
+    )
+    interaction_mode_effective: InteractionMode = Field(
+        "confirm",
+        description="Effective interaction mode for this turn / 本轮生效的交互模式",
+    )
+    context_diagnostics: dict[str, Any] | None = Field(
+        None,
+        description="Context diagnostics for this turn / 本轮上下文诊断",
+    )
+    last_run_summary: dict[str, Any] | None = Field(
+        None,
+        description="Execution summary for this turn / 本轮执行摘要",
     )
 
 
@@ -384,10 +354,10 @@ class AgentRouteResponse(BaseModel):
 
 __all__ = [
     "ChatAttachment",
-    "EphemeralRAGItem",
     "ImageParams",
     "TrustPolicyRef",
     "PAGE_CONTEXT_KEY",
+    "InteractionMode",
     "AgentChatRequest",
     "AgentChatResponse",
     "InteractionUpdate",

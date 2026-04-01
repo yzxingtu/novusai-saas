@@ -13,6 +13,7 @@ import type { ItemType } from 'ant-design-vue/es/menu';
  */
 import type { AIPageMode } from '@vben/types';
 
+import type { ConversationTimelineItem } from '#/api/shared/ai-chat';
 import type { RichTextAITask } from '#/components/business/ai-chat-panel/types';
 
 import {
@@ -28,8 +29,12 @@ import {
 
 import { IconifyIcon } from '@vben/icons';
 
-import { message, Modal, Spin, Tooltip } from 'ant-design-vue';
+import { Drawer, message, Modal, Spin, Tooltip } from 'ant-design-vue';
 
+import {
+  compactChatConversationApi,
+  getChatConversationTimelineApi,
+} from '#/api/shared/ai-chat';
 import { getAgentInputVariables } from '#/components/business/ai-chat-panel/types';
 import { useAIChat } from '#/components/business/ai-chat-panel/use-ai-chat';
 import { useModalDetector } from '#/composables/use-modal-detector';
@@ -185,6 +190,7 @@ const {
   conversations,
   conversationsLoading,
   activeConversationId,
+  conversationContextDiagnostics,
   loadConversations,
   startNewConversation,
   deleteConversation,
@@ -192,7 +198,6 @@ const {
   loadConversationMessages,
   chatMessages,
   inputMessage,
-  ephemeralRagItems,
   mentionOpen,
   mentionCandidates,
   mentionActiveIndex,
@@ -210,8 +215,6 @@ const {
   handleInputKeyDown,
   selectMentionKnowledgeBase,
   removeSelectedKnowledgeBase,
-  addEphemeralRagItem,
-  removeEphemeralRagItem,
   selectedKBIds,
   cleanup,
   pendingAttachments,
@@ -226,7 +229,7 @@ const {
   rejectAction,
   confirmConsent,
   rejectConsent,
-  trustSession,
+  interactionMode,
   clickActionButton,
   regenerateMessage,
   editAndResend,
@@ -239,6 +242,7 @@ const {
   lastMemoryUpdated,
   exportAsMarkdown,
   exportAsPlainText,
+  lastRunSummary,
   totalTokensUsed,
   supportsVision,
   agentKBBindings,
@@ -348,7 +352,13 @@ void scrollToBottom;
 
 const manualNewConversationAgentId = ref<null | number>(null);
 const showHistory = ref(false);
+const showContextDrawer = ref(false);
 const showMemoryPanel = ref(false);
+const showTimelineDrawer = ref(false);
+const timelineItems = ref<ConversationTimelineItem[]>([]);
+const timelineLoading = ref(false);
+const timelineRefreshing = ref(false);
+const compactingContext = ref(false);
 const forceRerouteNextTurn = ref(false);
 const sendPreparedRichTextTaskRef = ref<
   (task: RichTextAITask) => Promise<boolean>
@@ -531,6 +541,36 @@ const pageAIStatBadges = pageAICapability.pageAIStatBadges;
 const pageAIVisibleOperations = pageAICapability.pageAIVisibleOperations;
 const resolvedPageAITitle = pageAICapability.resolvedPageAITitle;
 const togglePageAIDetails = pageAICapability.togglePageAIDetails;
+
+const interactionModeLabel = computed(() => {
+  return interactionMode.value === 'trusted_auto'
+    ? $t('common.globalAiChat.modeTrustedAuto')
+    : $t('common.globalAiChat.modeConfirm');
+});
+
+const interactionModeRequested = computed(() => {
+  const requested = String(
+    lastRunSummary.value?.interaction_mode_requested || '',
+  );
+  return requested === 'trusted_auto'
+    ? $t('common.globalAiChat.modeTrustedAuto')
+    : $t('common.globalAiChat.modeConfirm');
+});
+
+const interactionModeDowngraded = computed(() => {
+  return (
+    lastRunSummary.value?.interaction_mode_requested === 'trusted_auto' &&
+    interactionMode.value === 'confirm'
+  );
+});
+
+const interactionModeDowngradeText = computed(() => {
+  const reason = String(lastRunSummary.value?.downgrade_reason || '');
+  if (reason === 'missing_runtime_trust_policy') {
+    return $t('common.globalAiChat.trustedAutoDowngradeMissingPolicy');
+  }
+  return reason || '';
+});
 
 // ============ Send message (routing + streaming) / 发送消息（路由 + 流式） ============
 
@@ -853,6 +893,65 @@ async function onToggleMemory() {
   showMemoryPanel.value = true;
 }
 
+function openContextDrawer() {
+  showContextDrawer.value = true;
+}
+
+async function openTimelineDrawer() {
+  if (!activeConversationId.value) {
+    return;
+  }
+  timelineLoading.value = true;
+  showTimelineDrawer.value = true;
+  try {
+    timelineItems.value = await getChatConversationTimelineApi(
+      props.apiPrefix,
+      activeConversationId.value,
+    );
+  } catch (error) {
+    timelineItems.value = [];
+    message.error(getErrorMessage(error, $t('common.loadFailed')));
+  } finally {
+    timelineLoading.value = false;
+  }
+}
+
+async function refreshTimeline() {
+  if (!activeConversationId.value) {
+    return;
+  }
+  timelineRefreshing.value = true;
+  try {
+    timelineItems.value = await getChatConversationTimelineApi(
+      props.apiPrefix,
+      activeConversationId.value,
+    );
+  } catch (error) {
+    message.error(getErrorMessage(error, $t('common.loadFailed')));
+  } finally {
+    timelineRefreshing.value = false;
+  }
+}
+
+async function rebuildContextSnapshot() {
+  if (!activeConversationId.value) {
+    return;
+  }
+  compactingContext.value = true;
+  try {
+    await compactChatConversationApi(
+      props.apiPrefix,
+      activeConversationId.value,
+    );
+    await loadConversationMessages(activeConversationId.value);
+    message.success($t('common.saveSuccess'));
+  } catch (error) {
+    message.error(getErrorMessage(error, $t('common.saveFailed')));
+  } finally {
+    compactingContext.value = false;
+  }
+}
+
 function onClearMemory() {
   Modal.confirm({
     title: $t('common.globalAiChat.clearMemoryConfirm'),
@@ -919,13 +1018,36 @@ const headerMoreMenuItems = computed(() => {
   }
 
   if (activeConversationId.value) {
-    items.push({
-      key: 'memory',
-      label: $t('common.aiPanel.memory'),
-      onClick: () => {
-        void onToggleMemory();
+    items.push(
+      {
+        key: 'context-diagnostics',
+        label: $t('common.globalAiChat.contextDiagnostics'),
+        onClick: () => {
+          openContextDrawer();
+        },
       },
-    });
+      {
+        key: 'run-timeline',
+        label: $t('common.globalAiChat.runTimeline'),
+        onClick: () => {
+          void openTimelineDrawer();
+        },
+      },
+      {
+        key: 'rebuild-context',
+        label: $t('common.globalAiChat.rebuildContextCompact'),
+        onClick: () => {
+          void rebuildContextSnapshot();
+        },
+      },
+      {
+        key: 'memory',
+        label: $t('common.aiPanel.memory'),
+        onClick: () => {
+          void onToggleMemory();
+        },
+      },
+    );
   }
 
   if (totalTokensUsed.value > 0) {
@@ -986,25 +1108,6 @@ const composerSelectedKnowledgeBases = computed(() =>
       agentKBBindings.value.find(
         (binding) => binding.knowledge_base_id === knowledgeBaseId,
       )?.kb_name || `KB#${knowledgeBaseId}`,
-  })),
-);
-
-const composerEphemeralSources = computed(() =>
-  ephemeralRagItems.value.map((item, index) => ({
-    key: `${item.kind}-${index}-${item.source_ref || item.title || item.content.slice(0, 24)}`,
-    kind: (
-      item.kind === 'url' ? 'url' : item.kind === 'html' ? 'html' : 'text'
-    ) as 'html' | 'text' | 'url',
-    scope: item.scope,
-    preview:
-      item.kind === 'url'
-        ? item.content
-        : item.content.replace(/\s+/g, ' ').slice(0, 60),
-    title:
-      item.title ||
-      (item.kind === 'url'
-        ? item.content
-        : item.content.replace(/\s+/g, ' ').slice(0, 32)),
   })),
 );
 
@@ -1116,7 +1219,7 @@ function isLikelyImageUrl(url: string) {
   if (normalized.startsWith('data:image/')) return true;
   if (normalized.startsWith('blob:')) return true;
   const withoutQuery = normalized.split('?')[0]?.split('#')[0] || normalized;
-  return /\.(avif|bmp|gif|ico|jpe?g|png|svg|webp)$/i.test(withoutQuery);
+  return /\.(?:avif|bmp|gif|ico|jpe?g|png|svg|webp)$/i.test(withoutQuery);
 }
 
 function handleOpenUrl(url: string) {
@@ -1283,9 +1386,7 @@ onUnmounted(() => {
             :page-a-i-summary="pageAISummary"
             :page-a-i-stat-badges="pageAIStatBadges"
             :page-a-i-visible-operations="pageAIVisibleOperations"
-            :page-a-i-remaining-operation-count="
-              pageAIRemainingOperationCount
-            "
+            :page-a-i-remaining-operation-count="pageAIRemainingOperationCount"
             :resolved-page-a-i-title="resolvedPageAITitle"
             @toggle-details="togglePageAIDetails"
             @expand-all-operations="expandAllPageAIOperations"
@@ -1525,7 +1626,6 @@ onUnmounted(() => {
             :attachment-accept="chatAcceptAttribute"
             :attachments="composerAttachments"
             :attachment-limit-hint="composerAttachmentLimitHint"
-            :ephemeral-sources="composerEphemeralSources"
             :show-screenshot-button="props.showAttachments && supportsVision"
             :screenshot-disabled="agents.length === 0 || sending || capturing"
             :screenshot-loading="capturing"
@@ -1542,20 +1642,17 @@ onUnmounted(() => {
             :mention-candidates="composerMentionCandidates"
             :bound-knowledge-bases="composerBoundKnowledgeBases"
             :selected-knowledge-bases="composerSelectedKnowledgeBases"
-            :show-trust-session="chatMessages.length > 0"
-            :trust-session="trustSession"
+            :show-interaction-mode="chatMessages.length > 0"
+            :interaction-mode="interactionMode"
             :shift-enter-hint="$t('common.globalAiChat.shiftEnterHint')"
-            :show-ephemeral-button="true"
             @update:model-value="inputMessage = $event"
-            @update:trust-session="trustSession = $event"
-            @add-ephemeral-source="addEphemeralRagItem"
+            @update:interaction-mode="interactionMode = $event"
             @dragover="handleDragOver"
             @drop="handleDrop"
             @file-select="handleFileSelect"
             @keydown="handleKeyDown"
             @paste="handlePaste"
             @capture-screenshot="handleScreenshot"
-            @remove-ephemeral-source="removeEphemeralRagItem"
             @remove-attachment="removePendingAttachment"
             @remove-selected-knowledge-base="removeSelectedKnowledgeBase"
             @select-mention-candidate="onComposerSelectMentionCandidate"
@@ -1588,6 +1685,110 @@ onUnmounted(() => {
         />
       </div>
     </Transition>
+
+    <Drawer
+      v-model:open="showContextDrawer"
+      :title="$t('common.globalAiChat.contextDiagnostics')"
+      width="520"
+    >
+      <div class="space-y-4">
+        <div class="rounded-2xl border border-border/60 bg-muted/10 p-3">
+          <div class="text-xs font-medium text-muted-foreground">
+            {{ $t('common.globalAiChat.interactionModeLabel') }}
+          </div>
+          <div class="mt-1 text-sm font-semibold text-foreground">
+            {{ interactionModeLabel }}
+          </div>
+          <div
+            v-if="interactionModeDowngraded"
+            class="mt-2 rounded-xl border border-amber-300/50 bg-amber-50 px-3 py-2 text-xs text-amber-800"
+          >
+            <div class="font-medium">
+              {{ $t('common.globalAiChat.trustedAutoDowngraded') }}
+            </div>
+            <div class="mt-1">
+              {{ interactionModeRequested }} -> {{ interactionModeLabel }}
+            </div>
+            <div v-if="interactionModeDowngradeText" class="mt-1 text-[11px]">
+              {{ interactionModeDowngradeText }}
+            </div>
+          </div>
+        </div>
+        <div
+          v-if="conversationContextDiagnostics"
+          class="rounded-2xl border border-border/60 bg-muted/10 p-3"
+        >
+          <div class="mb-2 text-xs font-medium text-muted-foreground">
+            {{ $t('common.detail') }}
+          </div>
+          <pre
+            class="overflow-auto whitespace-pre-wrap break-words text-xs leading-5 text-foreground"
+            >{{ JSON.stringify(conversationContextDiagnostics, null, 2) }}</pre
+          >
+        </div>
+        <div
+          v-if="lastRunSummary"
+          class="rounded-2xl border border-border/60 bg-muted/10 p-3"
+        >
+          <div class="mb-2 text-xs font-medium text-muted-foreground">
+            {{ $t('common.globalAiChat.lastRunSummary') }}
+          </div>
+          <pre
+            class="overflow-auto whitespace-pre-wrap break-words text-xs leading-5 text-foreground"
+            >{{ JSON.stringify(lastRunSummary, null, 2) }}</pre
+          >
+        </div>
+      </div>
+    </Drawer>
+
+    <Drawer
+      v-model:open="showTimelineDrawer"
+      :title="$t('common.globalAiChat.runTimeline')"
+      width="640"
+    >
+      <div class="mb-3 flex justify-end">
+        <button
+          type="button"
+          class="rounded-lg border border-border px-3 py-1 text-xs text-foreground"
+          @click="refreshTimeline"
+        >
+          {{ timelineRefreshing ? $t('common.loading') : $t('common.refresh') }}
+        </button>
+      </div>
+      <div v-if="timelineLoading" class="flex justify-center py-10">
+        <Spin />
+      </div>
+      <div
+        v-else-if="timelineItems.length === 0"
+        class="text-sm text-muted-foreground"
+      >
+        {{ $t('common.noData') }}
+      </div>
+      <div v-else class="space-y-3">
+        <div
+          v-for="(item, index) in timelineItems"
+          :key="`${item.type}-${item.occurred_at || index}`"
+          class="rounded-2xl border border-border/60 bg-muted/10 p-3"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <div class="text-sm font-semibold text-foreground">
+              {{ item.title || item.type }}
+            </div>
+            <div class="text-[11px] text-muted-foreground">
+              {{ item.occurred_at }}
+            </div>
+          </div>
+          <div class="mt-1 text-xs text-muted-foreground">
+            {{ item.summary || item.status }}
+          </div>
+          <pre
+            v-if="item.detail_payload"
+            class="mt-2 overflow-auto whitespace-pre-wrap break-words text-[11px] leading-5 text-foreground"
+            >{{ JSON.stringify(item.detail_payload, null, 2) }}</pre
+          >
+        </div>
+      </div>
+    </Drawer>
 
     <!-- Image preview lightbox -->
     <Modal

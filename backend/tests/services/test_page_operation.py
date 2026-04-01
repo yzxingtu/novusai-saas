@@ -7,6 +7,8 @@
 4. Skill Resolver — invoke_page_operation tool schema 暴露
 5. PageOperationExecutor.validate — 参数校验"""
 
+# ruff: noqa: E402, ARG002, ARG003, ARG005
+
 import sys
 import types
 from types import SimpleNamespace
@@ -122,6 +124,97 @@ class TestPageOperationExecutor:
         assert "refresh_dashboard" in result.output
         assert "Dashboard refreshed" in result.output
         assert result.duration_ms >= 0
+
+    @pytest.mark.asyncio
+    async def test_confirm_mode_allows_generic_read_operation(
+        self, executor, definition
+    ):
+        context = ExecutionContext(
+            tenant_id=1,
+            agent_id=2,
+            page_session_id="ps-123",
+            interaction_mode="confirm",
+            variables={
+                "page_context": {
+                    "page_key": "admin.dashboard",
+                    "page_data": {
+                        "available_operations": [
+                            {"name": "read_current_view", "readonly": True},
+                            {"name": "fill_form", "readonly": False},
+                        ]
+                    },
+                }
+            },
+        )
+        definition.config = {"readonly_operation_names": ["read_current_view"]}
+        mock_result = {
+            "invoke_id": "inv-readonly",
+            "success": True,
+            "message": "View captured",
+        }
+
+        with patch(
+            "app.sio.page_session.invoke_page_operation",
+            new=AsyncMock(return_value=mock_result),
+        ):
+            result = await executor.execute(
+                definition,
+                "call_readonly",
+                {
+                    "page_key": "admin.dashboard",
+                    "operation_name": "read_current_view",
+                },
+                context,
+            )
+
+        assert result.success is True
+        assert "read_current_view" in result.output
+
+    @pytest.mark.asyncio
+    async def test_trusted_auto_mode_allows_generic_write_operation(
+        self, executor, definition
+    ):
+        context = ExecutionContext(
+            tenant_id=1,
+            agent_id=2,
+            page_session_id="ps-123",
+            interaction_mode="trusted_auto",
+            variables={
+                "page_context": {
+                    "page_key": "admin.dashboard",
+                    "page_data": {
+                        "available_operations": [
+                            {"name": "read_current_view", "readonly": True},
+                            {"name": "fill_form", "readonly": False},
+                        ]
+                    },
+                }
+            },
+        )
+        definition.config = {"readonly_operation_names": ["read_current_view"]}
+
+        mock_result = {
+            "invoke_id": "inv-write",
+            "success": True,
+            "message": "Form filled",
+        }
+
+        with patch(
+            "app.sio.page_session.invoke_page_operation",
+            new=AsyncMock(return_value=mock_result),
+        ):
+            result = await executor.execute(
+                definition,
+                "call_blocked",
+                {
+                    "page_key": "admin.dashboard",
+                    "operation_name": "fill_form",
+                },
+                context,
+            )
+
+        assert result.success is True
+        assert "fill_form" in result.output
 
     @pytest.mark.asyncio
     async def test_create_record_success_guides_agent_to_fill_remaining_fields(

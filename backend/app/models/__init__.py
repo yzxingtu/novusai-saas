@@ -24,7 +24,6 @@ from app.models.ai import (
     AIActionLog,
     AICallLog,
     AIModel,
-    EphemeralDocument,
     MemoryRecord,
     ProfileSnapshot,
     AIProvider,
@@ -149,7 +148,6 @@ __all__ = [
     # AI / 模型与用量等 AI 基础表
     "AIProvider",
     "AIModel",
-    "EphemeralDocument",
     "MemoryRecord",
     "ProfileSnapshot",
     "ProviderApiKey",

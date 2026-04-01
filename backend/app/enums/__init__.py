@@ -54,8 +54,6 @@ from app.enums.knowledge_base import (
     ChunkStrategyEnum,
     DocumentStatusEnum,
     DocumentTypeEnum,
-    EphemeralDocScopeEnum,
-    EphemeralDocStatusEnum,
     KBStatusEnum,
     RewriteStrategyEnum,
     SearchModeEnum,
@@ -158,8 +156,6 @@ __all__ = [
     "ChunkStrategyEnum",
     "SearchModeEnum",
     "RewriteStrategyEnum",
-    "EphemeralDocScopeEnum",
-    "EphemeralDocStatusEnum",
     # 缓存 / Cache
     "CacheCategoryEnum",
     # 插件 / Plugin

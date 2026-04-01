@@ -24,6 +24,10 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def _has_table(conn, table_name: str) -> bool:
+    return sa.inspect(conn).has_table(table_name)
+
+
 def _generate_http_toolkit(name: str, description: str, config: dict) -> str:
     """Generate Toolkit wrapper for HTTP skill."""
     url = config.get("url", "")
@@ -194,6 +198,7 @@ class Tools:
 
 def upgrade() -> None:
     conn = op.get_bind()
+    has_skill_scripts = _has_table(conn, "skill_scripts")
 
     # 1. Migrate HTTP skills
     rows = conn.execute(text(
@@ -264,15 +269,14 @@ def upgrade() -> None:
         script_content = row[3] or ""
         script_language = row[4] or "python"
 
-        # Check if there are multi-script entries in skill_scripts table
-        try:
+        # skill_scripts is optional in some historical DB states.
+        script_rows = []
+        if has_skill_scripts:
             script_rows = conn.execute(text(
                 "SELECT filename, content, language, is_entry "
                 "FROM skill_scripts WHERE skill_id = :sid "
                 "ORDER BY sort_order"
             ), {"sid": row[0]}).fetchall()
-        except Exception:
-            script_rows = []
 
         if script_rows:
             # Use entry script content

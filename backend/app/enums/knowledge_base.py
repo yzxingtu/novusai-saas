@@ -69,27 +69,6 @@ class RewriteStrategyEnum(LabeledStrEnum):
     HYDE = ("hyde", "enum.knowledge_base.rewrite_strategy.hyde")
 
 
-class EphemeralDocScopeEnum(LabeledStrEnum):
-    CONVERSATION_SCOPED = (
-        "conversation_scoped",
-        "enum.knowledge_base.ephemeral_doc_scope.conversation_scoped",
-    )
-    AGENT_WORKSPACE_SCOPED = (
-        "agent_workspace_scoped",
-        "enum.knowledge_base.ephemeral_doc_scope.agent_workspace_scoped",
-    )
-    TENANT_PRIVATE_SCRATCH = (
-        "tenant_private_scratch",
-        "enum.knowledge_base.ephemeral_doc_scope.tenant_private_scratch",
-    )
-
-
-class EphemeralDocStatusEnum(LabeledStrEnum):
-    ACTIVE = ("active", "enum.knowledge_base.ephemeral_doc_status.active")
-    PROMOTED = ("promoted", "enum.knowledge_base.ephemeral_doc_status.promoted")
-    EXPIRED = ("expired", "enum.knowledge_base.ephemeral_doc_status.expired")
-
-
 __all__ = [
     "KBStatusEnum",
     "DocumentStatusEnum",
@@ -97,6 +76,4 @@ __all__ = [
     "ChunkStrategyEnum",
     "SearchModeEnum",
     "RewriteStrategyEnum",
-    "EphemeralDocScopeEnum",
-    "EphemeralDocStatusEnum",
 ]

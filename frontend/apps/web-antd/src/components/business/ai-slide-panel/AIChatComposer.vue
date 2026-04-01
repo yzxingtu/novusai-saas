@@ -3,10 +3,11 @@ import { computed, ref } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { Input, Modal, Spin, Tooltip } from 'ant-design-vue';
+import { Input, Spin, Tooltip } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
+type ComposerInteractionMode = 'confirm' | 'trusted_auto';
 type ComposerSendState = 'idle' | 'routing' | 'sending' | 'streaming';
 
 interface ComposerAttachmentItem {
@@ -20,14 +21,6 @@ interface ComposerAttachmentItem {
 interface ComposerKnowledgeBaseChip {
   id: number;
   label: string;
-}
-
-interface ComposerEphemeralSourceItem {
-  key: string;
-  kind: 'html' | 'text' | 'url';
-  preview: string;
-  scope?: 'agent_workspace_scoped' | 'conversation_scoped' | 'tenant_private_scratch';
-  title: string;
 }
 
 interface ComposerMentionCandidateItem {
@@ -47,7 +40,7 @@ const props = withDefaults(
     boundKnowledgeBases?: ComposerKnowledgeBaseChip[];
     characterCount?: number;
     disabled?: boolean;
-    ephemeralSources?: ComposerEphemeralSourceItem[];
+    interactionMode?: ComposerInteractionMode;
     maxLength?: number;
     mentionCandidates?: ComposerMentionCandidateItem[];
     mentionEmptyHint?: string;
@@ -62,10 +55,8 @@ const props = withDefaults(
     sendState?: ComposerSendState;
     shiftEnterHint?: string;
     showAttachments?: boolean;
-    showEphemeralButton?: boolean;
+    showInteractionMode?: boolean;
     showScreenshotButton?: boolean;
-    showTrustSession?: boolean;
-    trustSession?: boolean;
   }>(),
   {
     attachDisabled: false,
@@ -75,7 +66,7 @@ const props = withDefaults(
     boundKnowledgeBases: () => [],
     characterCount: 0,
     disabled: false,
-    ephemeralSources: () => [],
+    interactionMode: 'confirm',
     maxLength: 32_000,
     mentionCandidates: () => [],
     mentionEmptyHint: '',
@@ -85,36 +76,23 @@ const props = withDefaults(
     modelValue: '',
     screenshotDisabled: false,
     screenshotLoading: false,
-    selectedKnowledgeBases: () => [],
     sendDisabled: false,
+    selectedKnowledgeBases: () => [],
     sendState: 'idle',
     shiftEnterHint: '',
     showAttachments: true,
-    showEphemeralButton: true,
+    showInteractionMode: false,
     showScreenshotButton: false,
-    showTrustSession: false,
-    trustSession: false,
   },
 );
 
 const emit = defineEmits<{
-  (
-    e: 'addEphemeralSource',
-    payload: {
-      content: string;
-      kind: 'html' | 'text' | 'url';
-      scope?: 'agent_workspace_scoped' | 'conversation_scoped' | 'tenant_private_scratch';
-      source_ref?: string;
-      title?: string;
-    },
-  ): void;
   (e: 'captureScreenshot'): void;
   (e: 'dragover', event: DragEvent): void;
   (e: 'drop', event: DragEvent): void;
   (e: 'fileSelect', event: Event): void;
   (e: 'keydown', event: KeyboardEvent): void;
   (e: 'paste', event: ClipboardEvent): void;
-  (e: 'removeEphemeralSource', index: number): void;
   (e: 'removeAttachment', index: number): void;
   (e: 'removeSelectedKnowledgeBase', id: number): void;
   (
@@ -123,68 +101,28 @@ const emit = defineEmits<{
   ): void;
   (e: 'send'): void;
   (e: 'stop'): void;
+  (e: 'update:interactionMode', value: ComposerInteractionMode): void;
   (e: 'update:modelValue', value: string): void;
-  (e: 'update:trustSession', value: boolean): void;
 }>();
 
 const fileInputEl = ref<HTMLInputElement | null>(null);
-const ephemeralModalOpen = ref(false);
-const ephemeralDraftKind = ref<'html' | 'text' | 'url'>('url');
-const ephemeralDraftScope = ref<
-  'agent_workspace_scoped' | 'conversation_scoped' | 'tenant_private_scratch'
->('conversation_scoped');
-const ephemeralDraftTitle = ref('');
-const ephemeralDraftContent = ref('');
 const inputModel = computed({
   get: () => props.modelValue,
   set: (value: string) => emit('update:modelValue', value),
 });
-const trustSessionModel = computed({
-  get: () => props.trustSession,
-  set: (value: boolean) => emit('update:trustSession', value),
-});
+const resolvedInteractionMode = computed<ComposerInteractionMode>(
+  () => props.interactionMode ?? 'confirm',
+);
+const interactionModeOptions: Array<{
+  label: string;
+  value: ComposerInteractionMode;
+}> = [
+  { label: $t('common.globalAiChat.modeConfirm'), value: 'confirm' },
+  { label: $t('common.globalAiChat.modeTrustedAuto'), value: 'trusted_auto' },
+];
 
 function openFilePicker() {
   fileInputEl.value?.click();
-}
-
-const ephemeralSubmitEnabled = computed(() => {
-  if (props.disabled) {
-    return false;
-  }
-  return ephemeralDraftContent.value.trim().length > 0;
-});
-
-function resetEphemeralDraft() {
-  ephemeralDraftKind.value = 'url';
-  ephemeralDraftScope.value = 'conversation_scoped';
-  ephemeralDraftTitle.value = '';
-  ephemeralDraftContent.value = '';
-}
-
-function openEphemeralModal() {
-  ephemeralModalOpen.value = true;
-}
-
-function closeEphemeralModal() {
-  ephemeralModalOpen.value = false;
-  resetEphemeralDraft();
-}
-
-function commitEphemeralSource() {
-  const content = ephemeralDraftContent.value.trim();
-  const title = ephemeralDraftTitle.value.trim();
-  if (!content) {
-    return;
-  }
-  emit('addEphemeralSource', {
-    kind: ephemeralDraftKind.value,
-    content,
-    scope: ephemeralDraftScope.value,
-    ...(title ? { title } : {}),
-    ...(ephemeralDraftKind.value === 'url' ? { source_ref: content } : {}),
-  });
-  closeEphemeralModal();
 }
 
 function onSendClick() {
@@ -261,67 +199,39 @@ function onSendClick() {
       {{ attachmentLimitHint }}
     </div>
 
-    <TransitionGroup
-      v-if="ephemeralSources.length > 0"
-      name="att-pop"
-      tag="div"
-      class="mb-1.5 flex flex-wrap gap-1.5"
+    <div
+      v-if="showInteractionMode"
+      class="mb-1 flex items-center justify-between"
     >
-      <div
-        v-for="(source, sourceIndex) in ephemeralSources"
-        :key="source.key"
-        class="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] text-sky-700"
-      >
-        <IconifyIcon
-          :icon="
-            source.kind === 'url'
-              ? 'lucide:globe'
-              : source.kind === 'html'
-                ? 'lucide:file-code-2'
-                : 'lucide:file-text'
-          "
-          class="size-3"
-        />
-        <span class="max-w-[180px] truncate">
-          {{ source.title || source.preview }}
+      <div class="flex items-center gap-1">
+        <span class="text-[10px] text-muted-foreground/70">
+          {{ $t('common.globalAiChat.interactionModeLabel') }}
         </span>
-        <span
-          v-if="source.scope"
-          class="rounded-full bg-white/80 px-1.5 py-0.5 text-[9px] text-sky-700"
+        <div
+          class="flex items-center gap-1 rounded-full border border-border/60 bg-muted/20 p-1"
         >
-          {{
-            source.scope === 'agent_workspace_scoped'
-              ? $t('common.globalAiChat.ephemeralScopeWorkspace')
-              : source.scope === 'tenant_private_scratch'
-                ? $t('common.globalAiChat.ephemeralScopeScratch')
-                : $t('common.globalAiChat.ephemeralScopeConversation')
-          }}
-        </span>
-        <button
-          type="button"
-          class="rounded p-0 leading-none text-sky-500 hover:text-destructive"
-          :aria-label="$t('common.globalAiChat.removeEphemeralSource')"
-          @click="emit('removeEphemeralSource', sourceIndex)"
-        >
-          <IconifyIcon icon="lucide:x" class="size-2.5" />
-        </button>
-      </div>
-    </TransitionGroup>
-
-    <div v-if="showTrustSession" class="mb-1 flex items-center justify-between">
-      <label
-        class="flex cursor-pointer items-center gap-1 text-[10px] text-muted-foreground/60 hover:text-muted-foreground"
-      >
-        <input
-          v-model="trustSessionModel"
-          type="checkbox"
-          class="size-3 cursor-pointer rounded accent-primary"
-        />
-        <span>{{ $t('common.globalAiChat.consentTrustSession') }}</span>
-        <Tooltip :title="$t('common.globalAiChat.consentTrustSessionHint')">
-          <IconifyIcon icon="lucide:info" class="size-2.5" />
+          <button
+            v-for="option in interactionModeOptions"
+            :key="option.value"
+            type="button"
+            class="rounded-full px-2 py-0.5 text-[10px] transition-colors"
+            :class="
+              resolvedInteractionMode === option.value
+                ? 'bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            "
+            @click="emit('update:interactionMode', option.value)"
+          >
+            {{ option.label }}
+          </button>
+        </div>
+        <Tooltip :title="$t('common.globalAiChat.interactionModeHint')">
+          <IconifyIcon
+            icon="lucide:info"
+            class="size-2.5 text-muted-foreground/60"
+          />
         </Tooltip>
-      </label>
+      </div>
       <span class="text-[10px] text-muted-foreground/40">
         {{ shiftEnterHint }}
       </span>
@@ -475,19 +385,6 @@ function onSendClick() {
             <IconifyIcon v-else icon="lucide:camera" class="size-3.5" />
           </button>
         </Tooltip>
-        <Tooltip
-          v-if="showEphemeralButton"
-          :title="$t('common.globalAiChat.ephemeralAdd')"
-        >
-          <button
-            type="button"
-            class="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
-            :disabled="disabled"
-            @click="openEphemeralModal"
-          >
-            <IconifyIcon icon="lucide:folder-search-2" class="size-3.5" />
-          </button>
-        </Tooltip>
         <input
           ref="fileInputEl"
           type="file"
@@ -546,86 +443,4 @@ function onSendClick() {
       </div>
     </div>
   </div>
-
-  <Modal
-    :open="ephemeralModalOpen"
-    :title="$t('common.globalAiChat.ephemeralModalTitle')"
-    :ok-text="$t('common.globalAiChat.ephemeralAddConfirm')"
-    :cancel-text="$t('common.globalAiChat.rejectBtn')"
-    :ok-button-props="{ disabled: !ephemeralSubmitEnabled }"
-    destroy-on-close
-    @cancel="closeEphemeralModal"
-    @ok="commitEphemeralSource"
-  >
-    <div class="space-y-3">
-      <p class="text-xs text-muted-foreground">
-        {{ $t('common.globalAiChat.ephemeralModalDesc') }}
-      </p>
-      <div class="flex flex-wrap gap-2">
-        <button
-          v-for="kind in ['url', 'text', 'html']"
-          :key="kind"
-          type="button"
-          class="rounded-full border px-3 py-1 text-xs transition-colors"
-          :class="
-            ephemeralDraftKind === kind
-              ? 'border-primary bg-primary/10 text-primary'
-              : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground'
-          "
-          @click="ephemeralDraftKind = kind as 'html' | 'text' | 'url'"
-        >
-          {{
-            kind === 'url'
-              ? $t('common.globalAiChat.ephemeralTypeUrl')
-              : kind === 'html'
-                ? $t('common.globalAiChat.ephemeralTypeHtml')
-                : $t('common.globalAiChat.ephemeralTypeText')
-          }}
-        </button>
-      </div>
-      <div class="flex flex-wrap gap-2">
-        <button
-          v-for="scope in ['conversation_scoped', 'agent_workspace_scoped', 'tenant_private_scratch']"
-          :key="scope"
-          type="button"
-          class="rounded-full border px-3 py-1 text-xs transition-colors"
-          :class="
-            ephemeralDraftScope === scope
-              ? 'border-primary bg-primary/10 text-primary'
-              : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground'
-          "
-          @click="
-            ephemeralDraftScope = scope as
-              | 'agent_workspace_scoped'
-              | 'conversation_scoped'
-              | 'tenant_private_scratch'
-          "
-        >
-          {{
-            scope === 'agent_workspace_scoped'
-              ? $t('common.globalAiChat.ephemeralScopeWorkspace')
-              : scope === 'tenant_private_scratch'
-                ? $t('common.globalAiChat.ephemeralScopeScratch')
-                : $t('common.globalAiChat.ephemeralScopeConversation')
-          }}
-        </button>
-      </div>
-      <Input
-        v-model:value="ephemeralDraftTitle"
-        :maxlength="255"
-        :placeholder="$t('common.globalAiChat.ephemeralTitlePlaceholder')"
-      />
-      <Input.TextArea
-        v-model:value="ephemeralDraftContent"
-        :auto-size="{ minRows: 5, maxRows: 10 }"
-        :placeholder="
-          ephemeralDraftKind === 'url'
-            ? $t('common.globalAiChat.ephemeralUrlPlaceholder')
-            : ephemeralDraftKind === 'html'
-              ? $t('common.globalAiChat.ephemeralHtmlPlaceholder')
-              : $t('common.globalAiChat.ephemeralTextPlaceholder')
-        "
-      />
-    </div>
-  </Modal>
 </template>

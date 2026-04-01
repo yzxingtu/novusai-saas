@@ -7,6 +7,8 @@
 
 import type { AppErrorInfo } from '#/utils/request';
 
+export type InteractionMode = 'confirm' | 'trusted_auto';
+
 export interface ModelCapabilities {
   supports_vision: boolean;
   supports_audio?: boolean;
@@ -75,7 +77,7 @@ export interface RagSource {
   snippet: string;
   page?: number;
   heading?: string;
-  /** formal_kb vs ephemeral_doc / 正式知识库 vs 临时资料 */
+  /** Source classification from backend; historical records may still carry legacy values. */
   source_kind?: 'ephemeral_doc' | 'formal_kb';
   /** Source knowledge base (when provided by RAG) / 片段所属知识库 */
   knowledge_base_id?: number;

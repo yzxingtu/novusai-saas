@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 from unittest.mock import Mock
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.engine.output_parser import parse_output
@@ -37,11 +37,11 @@ from app.enums.execution import (
     ExecutionDecisionTypeEnum,
 )
 from app.exceptions import BusinessException, NotFoundException
+from app.models.ai.action_log import AIActionLog
 from app.models.ai.agent import Agent
 from app.models.ai.agent_conversation import AgentConversation
-from app.services.ai.action_log_service import resolve_action_level, write_ai_action_log
-from app.services.ai.execution_decision_service import ExecutionDecisionService
-from app.services.ai.execution_trust_policy_service import ExecutionTrustPolicyService
+from app.models.ai.call_log import AICallLog
+from app.models.ai.execution_decision import ExecutionDecision
 from app.models.tenant.attachment import Attachment
 from app.repositories.ai.agent_conversation_repository import (
     AdminAgentConversationRepository,
@@ -50,6 +50,9 @@ from app.repositories.ai.agent_conversation_repository import (
 from app.repositories.ai.conversation_message_repository import (
     ConversationMessageRepository,
 )
+from app.services.ai.action_log_service import resolve_action_level, write_ai_action_log
+from app.services.ai.execution_decision_service import ExecutionDecisionService
+from app.services.ai.execution_trust_policy_service import ExecutionTrustPolicyService
 from app.services.ai.session_memory_service import SessionMemoryService
 from app.services.tenant.attachment_download_service import AttachmentDownloadService
 
@@ -378,14 +381,29 @@ class ConversationService(
         except AttributeError:
             pass
 
-        result["trust_session_active"] = await ExecutionTrustPolicyService(
-            self.db,
-            self._get_memory_tenant_id(),
-        ).has_active_conversation_trust(
-            conversation_id=conversation.id,
-            agent_id=conversation.agent_id,
-            operator_id=conversation.user_id,
-            operator_type=conversation.owner_type,
+        last_assistant_message = next(
+            (
+                msg for msg in reversed(message_list)
+                if msg.get("role") == MessageRoleEnum.ASSISTANT.value
+            ),
+            None,
+        )
+        compaction_snapshot = await self.get_context_compaction_snapshot(conversation.id)
+        interaction_mode_effective = str(
+            (conversation.metadata_ or {}).get("interaction_mode") or "confirm"
+        )
+        result["interaction_mode_effective"] = interaction_mode_effective
+        result["context_diagnostics"] = self._build_context_diagnostics_payload(
+            last_assistant_message,
+            compaction_snapshot=compaction_snapshot,
+            interaction_mode_effective=interaction_mode_effective,
+        )
+        result["last_run_summary"] = self._build_last_run_summary_payload(
+            last_assistant_message,
+            interaction_mode_effective=interaction_mode_effective,
+            downgrade_reason=(conversation.metadata_ or {}).get(
+                "interaction_mode_downgrade_reason"
+            ),
         )
 
         return result
@@ -427,6 +445,9 @@ class ConversationService(
         updates: list[dict[str, Any]],
         user_id: int | None = None,
         owner_type: str | None = None,
+        interaction_mode_requested: str | None = None,
+        interaction_mode_effective: str | None = None,
+        interaction_mode_downgrade_reason: str | None = None,
     ) -> int:
         """Persist client interaction state onto the latest matching assistant message / 将客户端交互状态持久化到最近匹配的 assistant 消息。"""
         if not updates:
@@ -609,6 +630,16 @@ class ConversationService(
                             or None
                         )
                         rejected = bool(raw_update.get("rejected"))
+                        extra_evidence = {
+                            "interaction_mode_effective": raw_update.get(
+                                "interaction_mode_effective"
+                            ),
+                            "downgraded_from": raw_update.get("downgraded_from"),
+                            "downgrade_reason": raw_update.get("downgrade_reason"),
+                            "auto_approve_source": raw_update.get(
+                                "auto_approve_source"
+                            ),
+                        }
                         decision_payload = {
                             "tenant_id": self._get_memory_tenant_id(),
                             "conversation_id": conversation_id,
@@ -637,7 +668,14 @@ class ConversationService(
                                 f"{'rejected' if rejected else 'approved'}"
                             ),
                             "reason": "user_confirmation",
-                            "evidence": pending_evidence,
+                            "evidence": {
+                                **(pending_evidence or {}),
+                                **{
+                                    key: value
+                                    for key, value in extra_evidence.items()
+                                    if value is not None
+                                },
+                            },
                         }
                 elif kind == "pending_consent":
                     pending_evidence, matched_tool_call = _find_pending_consent_evidence(
@@ -673,6 +711,16 @@ class ConversationService(
                         tool_call_id = str((matched_tool_call or {}).get("id") or "").strip() or None
                         auto_approved = bool(raw_update.get("auto_approved"))
                         rejected = bool(raw_update.get("rejected"))
+                        extra_evidence = {
+                            "interaction_mode_effective": raw_update.get(
+                                "interaction_mode_effective"
+                            ),
+                            "downgraded_from": raw_update.get("downgraded_from"),
+                            "downgrade_reason": raw_update.get("downgrade_reason"),
+                            "auto_approve_source": raw_update.get(
+                                "auto_approve_source"
+                            ),
+                        }
                         decision_payload = {
                             "tenant_id": self._get_memory_tenant_id(),
                             "conversation_id": conversation_id,
@@ -711,7 +759,14 @@ class ConversationService(
                                 f"{'auto' if auto_approved else ('rejected' if rejected else 'approved')}"
                             ),
                             "reason": "tool_consent",
-                            "evidence": pending_evidence,
+                            "evidence": {
+                                **(pending_evidence or {}),
+                                **{
+                                    key: value
+                                    for key, value in extra_evidence.items()
+                                    if value is not None
+                                },
+                            },
                         }
 
                 if not matched:
@@ -731,6 +786,40 @@ class ConversationService(
                     seen_ids.add(msg.id)
                 if decision_payload:
                     try:
+                        interaction_context: dict[str, Any] = {}
+                        planner_context = None
+                        context_diagnostics = metadata.get("context_diagnostics")
+                        if isinstance(context_diagnostics, dict) and isinstance(
+                            context_diagnostics.get("tool_planner"), dict
+                        ):
+                            planner_context = dict(
+                                context_diagnostics.get("tool_planner") or {}
+                            )
+                        elif isinstance(metadata.get("last_run_summary"), dict) and isinstance(
+                            metadata.get("last_run_summary", {}).get("tool_planner"),
+                            dict,
+                        ):
+                            planner_context = dict(
+                                metadata.get("last_run_summary", {}).get("tool_planner")
+                                or {}
+                            )
+                        if interaction_mode_requested:
+                            interaction_context["interaction_mode_requested"] = interaction_mode_requested
+                        if interaction_mode_effective:
+                            interaction_context["interaction_mode_effective"] = interaction_mode_effective
+                        if interaction_mode_downgrade_reason:
+                            interaction_context["interaction_mode_downgrade_reason"] = interaction_mode_downgrade_reason
+                        if planner_context:
+                            interaction_context["tool_planner"] = planner_context
+                        if interaction_context:
+                            evidence_payload = dict(decision_payload.get("evidence") or {})
+                            evidence_payload.update(interaction_context)
+                            decision_payload["evidence"] = evidence_payload
+                        mode_tag = f"interaction_mode={interaction_mode_effective or 'confirm'}"
+                        reason = str(decision_payload.get("reason") or "").strip()
+                        decision_payload["reason"] = (
+                            f"{reason}|{mode_tag}" if reason else mode_tag
+                        )
                         decision = await decision_service.record_decision(decision_payload)
                         await write_ai_action_log(
                             self.db,
@@ -785,6 +874,297 @@ class ConversationService(
 
     def _get_memory_tenant_id(self) -> int:
         return self.tenant_id if self.tenant_id is not None else PLATFORM_TENANT_ID
+
+    @staticmethod
+    def _build_context_diagnostics_payload(
+        last_assistant_message: dict[str, Any] | None,
+        *,
+        compaction_snapshot: dict[str, Any] | None,
+        interaction_mode_effective: str,
+    ) -> dict[str, Any]:
+        metadata = (
+            dict(last_assistant_message.get("metadata") or {})
+            if isinstance(last_assistant_message, dict)
+            else {}
+        )
+        rag_sources = metadata.get("rag_sources")
+        rag_sources = rag_sources if isinstance(rag_sources, list) else []
+        return {
+            "estimated_tokens": (
+                last_assistant_message.get("token_count")
+                if isinstance(last_assistant_message, dict)
+                else None
+            ),
+            "context_compacted": bool(metadata.get("context_compacted")),
+            "compact_summary_present": bool(
+                (compaction_snapshot or {}).get("summary")
+            ),
+            "memory_recalled": bool(metadata.get("memory_recalled")),
+            "memory_flush_triggered": bool(metadata.get("memory_flush_triggered")),
+            "prune_stats": metadata.get("prune_stats"),
+            "rag_source_kinds": list(metadata.get("rag_source_kinds") or []),
+            "last_interrupted": bool(metadata.get("interrupted")),
+            "interaction_mode_effective": interaction_mode_effective,
+        }
+
+    @staticmethod
+    def _build_last_run_summary_payload(
+        last_assistant_message: dict[str, Any] | None,
+        *,
+        interaction_mode_effective: str,
+        downgrade_reason: Any,
+    ) -> dict[str, Any]:
+        metadata = (
+            dict(last_assistant_message.get("metadata") or {})
+            if isinstance(last_assistant_message, dict)
+            else {}
+        )
+        return {
+            "completion_reason": metadata.get("completion_reason"),
+            "created_at": (
+                last_assistant_message.get("created_at")
+                if isinstance(last_assistant_message, dict)
+                else None
+            ),
+            "downgrade_reason": downgrade_reason,
+            "interaction_mode_effective": interaction_mode_effective,
+            "interrupted": bool(metadata.get("interrupted")),
+            "provider_name": (
+                last_assistant_message.get("provider_name")
+                if isinstance(last_assistant_message, dict)
+                else None
+            ),
+            "runtime_model_name": (
+                last_assistant_message.get("model_name")
+                if isinstance(last_assistant_message, dict)
+                else None
+            ),
+        }
+
+    async def rebuild_context_compaction_snapshot(
+        self,
+        conversation_id: int,
+        *,
+        user_id: int | None = None,
+        owner_type: str | None = None,
+    ) -> dict[str, Any] | None:
+        conversation = await self.get_accessible_conversation(
+            conversation_id,
+            user_id=user_id,
+            owner_type=owner_type,
+        )
+        context_config = getattr(getattr(conversation, "agent", None), "context_config", None) or {}
+        max_chars = int(context_config.get("compact_max_summary_chars", 1600) or 1600)
+        total_messages = await self.message_repo.count_by_conversation(conversation_id)
+        messages = await self.load_chat_history(
+            conversation_id=conversation_id,
+            max_messages=max(total_messages, 1),
+            max_tokens=0,
+        )
+        if not messages:
+            return None
+
+        from app.ai.context.engine import LegacyContextEngine
+
+        summary = LegacyContextEngine._build_compact_summary(
+            messages,
+            max_chars=max_chars,
+        )
+        if not summary:
+            return None
+        source_messages = [
+            message for message in messages if message.role in {"user", "assistant"}
+        ]
+        return await self.upsert_context_compaction_snapshot(
+            conversation_id,
+            summary=summary,
+            source_message_count=len(source_messages),
+            source_token_estimate=sum(
+                estimate_tokens(message.content or "") for message in source_messages
+            ),
+        )
+
+    async def get_conversation_timeline(
+        self,
+        conversation_id: int,
+        *,
+        user_id: int | None = None,
+        owner_type: str | None = None,
+    ) -> list[dict[str, Any]]:
+        conversation = await self.get_accessible_conversation(
+            conversation_id,
+            user_id=user_id,
+            owner_type=owner_type,
+        )
+        messages = await self.message_repo.get_by_conversation(
+            conversation_id=conversation_id,
+            skip=0,
+            limit=500,
+        )
+        interaction_mode_effective = str(
+            (conversation.metadata_ or {}).get("interaction_mode") or "confirm"
+        )
+
+        items: list[dict[str, Any]] = []
+        for message in messages:
+            metadata = dict(message.metadata_ or {})
+            items.append(
+                {
+                    "type": f"message:{message.role}",
+                    "occurred_at": self._format_dt(message.created_at) or "",
+                    "status": "completed",
+                    "title": f"message.{message.role}",
+                    "summary": (message.content or "")[:300] or None,
+                    "tool_name": message.tool_name,
+                    "risk_level": None,
+                    "auto_approved": None,
+                    "interaction_mode_effective": interaction_mode_effective,
+                    "correlation_key": None,
+                    "trace_id": None,
+                    "detail_payload": {
+                        "message_id": message.id,
+                        "metadata": metadata or None,
+                        "tool_call_id": message.tool_call_id,
+                    },
+                }
+            )
+
+        decisions = (
+            await self.db.execute(
+                select(ExecutionDecision).where(
+                    ExecutionDecision.tenant_id == self._get_memory_tenant_id(),
+                    ExecutionDecision.conversation_id == conversation_id,
+                    ExecutionDecision.is_deleted.is_(False),
+                ).order_by(ExecutionDecision.created_at.asc())
+            )
+        ).scalars().all()
+        for decision in decisions:
+            evidence = dict(decision.evidence or {})
+            items.append(
+                {
+                    "type": "execution_decision",
+                    "occurred_at": self._format_dt(decision.created_at) or "",
+                    "status": decision.status,
+                    "title": decision.decision_type,
+                    "summary": decision.reason,
+                    "tool_name": decision.tool_name,
+                    "risk_level": decision.risk_level,
+                    "auto_approved": bool(decision.auto_approved),
+                    "interaction_mode_effective": (
+                        evidence.get("interaction_mode_effective")
+                        or interaction_mode_effective
+                    ),
+                    "correlation_key": decision.correlation_key,
+                    "trace_id": None,
+                    "detail_payload": decision.to_dict(),
+                }
+            )
+
+        action_logs = (
+            await self.db.execute(
+                select(AIActionLog).where(
+                    AIActionLog.tenant_id == self._get_memory_tenant_id(),
+                    AIActionLog.conversation_id == conversation_id,
+                    AIActionLog.is_deleted.is_(False),
+                ).order_by(AIActionLog.created_at.asc())
+            )
+        ).scalars().all()
+        for action_log in action_logs:
+            items.append(
+                {
+                    "type": "action_log",
+                    "occurred_at": self._format_dt(action_log.created_at) or "",
+                    "status": action_log.status,
+                    "title": action_log.action_name,
+                    "summary": action_log.error_message or None,
+                    "tool_name": action_log.action_name,
+                    "risk_level": action_log.action_level,
+                    "auto_approved": None,
+                    "interaction_mode_effective": interaction_mode_effective,
+                    "correlation_key": None,
+                    "trace_id": action_log.trace_id,
+                    "detail_payload": action_log.to_dict(),
+                }
+            )
+
+        call_logs = (
+            await self.db.execute(
+                select(AICallLog).where(
+                    AICallLog.tenant_id == self._get_memory_tenant_id(),
+                    AICallLog.conversation_id == conversation_id,
+                    AICallLog.is_deleted.is_(False),
+                ).order_by(AICallLog.created_at.asc())
+            )
+        ).scalars().all()
+        for call_log in call_logs:
+            items.append(
+                {
+                    "type": "call_log",
+                    "occurred_at": self._format_dt(call_log.created_at) or "",
+                    "status": call_log.status,
+                    "title": call_log.request_type,
+                    "summary": call_log.error_message or None,
+                    "tool_name": None,
+                    "risk_level": None,
+                    "auto_approved": None,
+                    "interaction_mode_effective": interaction_mode_effective,
+                    "correlation_key": None,
+                    "trace_id": call_log.trace_id,
+                    "detail_payload": call_log.to_dict(),
+                }
+            )
+
+        call_log_summary = await self._build_call_log_summary(conversation_id)
+        if call_log_summary:
+            items.append(
+                {
+                    "type": "call_log_summary",
+                    "occurred_at": self._format_dt(call_log_summary.get("last_call_at")) or "",
+                    "status": "summary",
+                    "title": "call_log_summary",
+                    "summary": f"{call_log_summary['call_count']} calls, {call_log_summary['total_tokens']} tokens",
+                    "tool_name": None,
+                    "risk_level": None,
+                    "auto_approved": None,
+                    "interaction_mode_effective": interaction_mode_effective,
+                    "correlation_key": None,
+                    "trace_id": None,
+                    "detail_payload": call_log_summary,
+                }
+            )
+
+        items.sort(key=lambda item: item.get("occurred_at") or "")
+        return items
+
+    async def _build_call_log_summary(
+        self,
+        conversation_id: int,
+    ) -> dict[str, Any] | None:
+        """
+        聚合 per-conversation call log stats / Aggregate per-conversation call log stats.
+        """
+        stmt = (
+            select(
+                func.count(AICallLog.id).label("call_count"),
+                func.coalesce(func.sum(AICallLog.total_tokens), 0).label("total_tokens"),
+                func.coalesce(func.sum(AICallLog.cost), 0).label("total_cost"),
+                func.max(AICallLog.created_at).label("last_call_at"),
+            )
+            .where(
+                AICallLog.tenant_id == self._get_memory_tenant_id(),
+                AICallLog.conversation_id == conversation_id,
+                AICallLog.is_deleted.is_(False),
+            )
+        )
+        row = (await self.db.execute(stmt)).one_or_none()
+        if not row or (row.call_count or 0) == 0:
+            return None
+        return {
+            "call_count": row.call_count or 0,
+            "total_tokens": row.total_tokens or 0,
+            "total_cost": float(row.total_cost or 0),
+            "last_call_at": row.last_call_at,
+        }
 
     async def get_conversation_memory_state(
         self,
@@ -1451,6 +1831,9 @@ class ConversationService(
         history_count: int,
         agent_id: int | None = None,
         route_source: str | None = None,
+        *,
+        context_diagnostics: dict[str, Any] | None = None,
+        last_run_summary: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """
         将执行过程中产生的新消息持久化为 ConversationMessage / Persist new messages from execution as ConversationMessage.
@@ -1651,6 +2034,12 @@ class ConversationService(
                 if getattr(result, "memory_recalled", False):
                     metadata = metadata or {}
                     metadata["memory_recalled"] = True
+                if context_diagnostics:
+                    metadata = metadata or {}
+                    metadata["context_diagnostics"] = context_diagnostics
+                if last_run_summary:
+                    metadata = metadata or {}
+                    metadata["last_run_summary"] = last_run_summary
 
             # assistant/tool 消息关联 agent_id（user/system 不关联）
             msg_agent_id = agent_id if role in ("assistant", "tool") else None
