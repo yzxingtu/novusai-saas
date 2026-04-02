@@ -1153,23 +1153,18 @@
     "emptyDescription": "No description"
   },
   "memoryDebug": {
-    "title": "Memory & Ephemeral Debug",
-    "pageDesc": "Inspect long-term memory records, profile snapshots, and ephemeral documents to verify recall, scope, and promotion behavior.",
+    "title": "Memory Debug",
+    "pageDesc": "Inspect long-term memory records and profile snapshots to verify recall, scope, and profile aggregation behavior.",
     "tabs": {
       "records": "Memory Records",
-      "profiles": "Profile Snapshots",
-      "ephemeral": "Ephemeral Docs"
+      "profiles": "Profile Snapshots"
     },
     "scopeType": "Scope",
     "memoryType": "Memory Type",
     "status": "Status",
     "summary": "Summary",
     "recordCount": "Source Records",
-    "contentKind": "Content Kind",
-    "promote": "Promote",
-    "promoteTitle": "Promote Ephemeral Document",
-    "promoteSelectKb": "Select target knowledge base",
-    "promoteSuccess": "Promotion queued into the formal knowledge base pipeline"
+    "contentKind": "Content Kind"
   },
   "skill": {
     "title": "Skill Management",

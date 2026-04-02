@@ -43,7 +43,12 @@ sys.modules.setdefault("redis.asyncio.client", redis_asyncio_client_module)
 sys.modules.setdefault("redis.exceptions", redis_exceptions_module)
 
 from app.ai.engine.conversation import ConversationEngine
-from app.ai.engine.types import ExecutionRequest, PreparedExecution, ToolUsePolicy
+from app.ai.engine.types import (
+    ExecutionRequest,
+    PreparedExecution,
+    ResearchContinuationContext,
+    ToolUsePolicy,
+)
 from app.ai.quota import QuotaExceeded
 from app.ai.rate_limiter import RateLimitExceeded
 from app.ai.tools.types import ToolDefinition, ToolResult
@@ -533,6 +538,46 @@ def test_conversation_engine_detects_capability_denial_from_semantic_family_term
     )
 
 
+def test_conversation_engine_retries_same_explicit_family_before_switching() -> None:
+    response = ChatResponse(
+        message=ChatMessage(
+            role="assistant",
+            content="我现在没有实时天气接口，不能直接查询今天北京天气。",
+        ),
+    )
+    current_policy = ToolUsePolicy(
+        family="weather",
+        mode="auto",
+        allowed_tool_names=["get_current_weather", "get_weather_forecast"],
+        retry_on_contract_breach=True,
+        reason="explicit_weather_request",
+    )
+    tools = [
+        ToolDefinition(name="get_current_weather", description="Get current weather"),
+        ToolDefinition(name="get_weather_forecast", description="Get weather forecast"),
+        ToolDefinition(name="get_page_context", description="Read page context"),
+    ]
+
+    should_retry, retry_policy, response_text = (
+        ConversationEngine._should_retry_tool_contract_breach(
+            response=response,
+            current_policy=current_policy,
+            tools=tools,
+            input_variables={},
+        )
+    )
+
+    assert should_retry is True
+    assert response_text == "我现在没有实时天气接口，不能直接查询今天北京天气。"
+    assert retry_policy == ToolUsePolicy(
+        family="weather",
+        mode="required",
+        allowed_tool_names=["get_current_weather", "get_weather_forecast"],
+        retry_on_contract_breach=False,
+        reason="capability_denial:weather",
+    )
+
+
 def test_conversation_engine_retries_when_tool_call_leaks_as_plain_text() -> None:
     response = ChatResponse(
         message=ChatMessage(
@@ -571,3 +616,45 @@ def test_conversation_engine_retries_when_tool_call_leaks_as_plain_text() -> Non
         retry_on_contract_breach=False,
         reason="textual_tool_call_leak:get_page_context",
     )
+
+
+def test_web_research_contract_retry_does_not_override_explicit_weather_policy() -> None:
+    response = ChatResponse(
+        message=ChatMessage(
+            role="assistant",
+            content="天气服务这次没有返回结果。",
+        ),
+    )
+    current_policy = ToolUsePolicy(
+        family="weather",
+        mode="auto",
+        allowed_tool_names=["get_current_weather", "get_weather_forecast"],
+        retry_on_contract_breach=True,
+        reason="explicit_weather_request",
+    )
+    tools = [
+        ToolDefinition(name="web_search", description="Search the web"),
+        ToolDefinition(name="fetch_url", description="Fetch a webpage"),
+        ToolDefinition(name="get_current_weather", description="Get current weather"),
+        ToolDefinition(name="get_weather_forecast", description="Get weather forecast"),
+    ]
+
+    should_retry, retry_policy, response_text = (
+        ConversationEngine._should_retry_web_research_contract_breach(
+            messages=[ChatMessage(role="user", content="今天北京天气怎么样")],
+            response=response,
+            current_policy=current_policy,
+            tools=tools,
+            input_variables={},
+            continuation=ResearchContinuationContext(
+                active=True,
+                family="web_research",
+                current_user_text="今天北京天气怎么样",
+                research_target_text="北京天气",
+            ),
+        )
+    )
+
+    assert should_retry is False
+    assert retry_policy is None
+    assert response_text == ""

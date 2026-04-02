@@ -139,8 +139,8 @@ class UserAgentChatController(BaseController):
                 page_session_id=data.page_session_id,
                 route_source=data.route_source,
                 interaction_updates=[item.model_dump() for item in data.interaction_updates] if data.interaction_updates else None,
-                interaction_mode=data.interaction_mode,
                 trust_policy_ref=data.trust_policy_ref.model_dump() if data.trust_policy_ref else None,
+                interaction_mode=data.interaction_mode,
             )
 
             return success(data=result.model_dump())
@@ -194,8 +194,8 @@ class UserAgentChatController(BaseController):
                 page_session_id=data.page_session_id,
                 route_source=data.route_source,
                 interaction_updates=[item.model_dump() for item in data.interaction_updates] if data.interaction_updates else None,
-                interaction_mode=data.interaction_mode,
                 trust_policy_ref=data.trust_policy_ref.model_dump() if data.trust_policy_ref else None,
+                interaction_mode=data.interaction_mode,
             )
 
         # ========================================
@@ -294,6 +294,45 @@ class UserAgentChatController(BaseController):
             )
             return success(data=result)
 
+        @router.get(
+            "/conversations/{conversation_id}/compact",
+            summary="获取上下文压缩快照 / Get conversation compaction snapshot",
+        )
+        @auth_only
+        async def get_conversation_compact_snapshot(
+            request: Request,
+            db: DbSession,
+            conversation_id: int,
+            current_user: ActiveTenantUser,
+        ):
+            service = ConversationService(db, current_user.tenant_id)
+            await service.get_accessible_conversation(
+                conversation_id,
+                user_id=current_user.id,
+                owner_type=ConversationOwnerTypeEnum.TENANT_USER.value,
+            )
+            snapshot = await service.get_context_compaction_snapshot(conversation_id)
+            return success(data={"snapshot": snapshot})
+
+        @router.get(
+            "/conversations/{conversation_id}/timeline",
+            summary="获取对话时间线 / Get conversation timeline",
+        )
+        @auth_only
+        async def get_conversation_timeline(
+            request: Request,
+            db: DbSession,
+            conversation_id: int,
+            current_user: ActiveTenantUser,
+        ):
+            service = ConversationService(db, current_user.tenant_id)
+            timeline = await service.get_conversation_timeline(
+                conversation_id,
+                user_id=current_user.id,
+                owner_type=ConversationOwnerTypeEnum.TENANT_USER.value,
+            )
+            return success(data={"timeline": timeline})
+
         @router.patch(
             "/conversations/{conversation_id}",
             summary="更新对话标题 / Update conversation title",
@@ -381,6 +420,45 @@ class UserAgentChatController(BaseController):
                 owner_type=ConversationOwnerTypeEnum.TENANT_USER.value,
             )
             return success(data={"deleted_count": deleted_count}, message=_("agent_chat.memory_cleared"))
+
+        @router.post(
+            "/conversations/{conversation_id}/compact",
+            summary="重建会话上下文压缩快照 / Rebuild compaction snapshot",
+        )
+        @auth_only
+        async def rebuild_conversation_compaction(
+            request: Request,
+            db: DbSession,
+            conversation_id: int,
+            current_user: ActiveTenantUser,
+        ):
+            service = ConversationService(db, current_user.tenant_id)
+            snapshot = await service.rebuild_context_compaction_snapshot(
+                conversation_id,
+                user_id=current_user.id,
+                owner_type=ConversationOwnerTypeEnum.TENANT_USER.value,
+            )
+            await db.commit()
+            return success(data=snapshot or {})
+
+        @router.get(
+            "/conversations/{conversation_id}/timeline",
+            summary="获取会话运行时间线 / Get conversation run timeline",
+        )
+        @auth_only
+        async def get_conversation_timeline(
+            request: Request,
+            db: DbSession,
+            conversation_id: int,
+            current_user: ActiveTenantUser,
+        ):
+            service = ConversationService(db, current_user.tenant_id)
+            items = await service.get_conversation_timeline(
+                conversation_id,
+                user_id=current_user.id,
+                owner_type=ConversationOwnerTypeEnum.TENANT_USER.value,
+            )
+            return success(data=items)
 
 
 # 导出路由器 / Export router

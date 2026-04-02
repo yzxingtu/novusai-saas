@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -40,12 +40,15 @@ const PREFERENCE_FORM_SECTIONS = [
   },
 ] as const;
 
-const { formData, loading, saving, onSave } = useGlobalPreferencePage(
+const { formData, isDirty, loading, saving, onSave } = useGlobalPreferencePage(
   props.side,
 );
 
 const notifSettingsRef = ref<InstanceType<typeof NotificationSettings>>();
 const notifSaving = ref(false);
+const scrollContainerRef = ref<HTMLElement>();
+const primarySaveCardRef = ref<HTMLElement>();
+const showFloatingSaveBar = ref(false);
 
 const themeModeLabelMap: Record<string, string> = {
   auto: 'preferences.followSystem',
@@ -53,6 +56,7 @@ const themeModeLabelMap: Record<string, string> = {
   light: 'preferences.theme.light',
 };
 const SECTION_SCROLL_OFFSET = 24;
+let saveCardObserver: IntersectionObserver | null = null;
 
 const layoutModeLabelMap: Record<string, string> = {
   'full-content': 'preferences.fullContent',
@@ -165,11 +169,48 @@ async function onSaveNotif() {
     notifSaving.value = false;
   }
 }
+
+function initSaveCardObserver() {
+  saveCardObserver?.disconnect();
+
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const root = scrollContainerRef.value;
+  const target = primarySaveCardRef.value;
+
+  if (!root || !target) {
+    showFloatingSaveBar.value = false;
+    return;
+  }
+
+  saveCardObserver = new IntersectionObserver(
+    ([entry]) => {
+      showFloatingSaveBar.value = !(entry?.isIntersecting ?? false);
+    },
+    {
+      root,
+      threshold: 0.4,
+    },
+  );
+
+  saveCardObserver.observe(target);
+}
+
+onMounted(() => {
+  initSaveCardObserver();
+});
+
+onBeforeUnmount(() => {
+  saveCardObserver?.disconnect();
+});
 </script>
 
 <template>
   <Page auto-content-height>
     <div
+      ref="scrollContainerRef"
       data-preference-scroll-container
       class="flex h-full flex-col gap-6 overflow-auto pb-4"
     >
@@ -251,6 +292,7 @@ async function onSaveNotif() {
           </div>
 
           <div
+            ref="primarySaveCardRef"
             class="rounded-[24px] border border-border/60 bg-background/85 p-4 shadow-sm"
           >
             <div class="space-y-4">
@@ -286,6 +328,44 @@ async function onSaveNotif() {
           </div>
         </div>
       </section>
+
+      <Transition name="fade">
+        <div
+          v-if="showFloatingSaveBar && isDirty"
+          class="pointer-events-none sticky bottom-4 z-20 flex justify-center px-3"
+        >
+          <div
+            class="bg-background/92 pointer-events-auto flex w-full max-w-[560px] items-center gap-3 rounded-full border border-border/70 px-3 py-2 shadow-lg shadow-primary/5 backdrop-blur-sm"
+          >
+            <div
+              class="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
+            >
+              <IconifyIcon icon="lucide:save" class="size-4" />
+            </div>
+
+            <div class="min-w-0 flex-1">
+              <div class="text-sm font-semibold text-foreground">
+                {{ $t('shared.config.page.unsaved_title') }}
+              </div>
+              <p class="truncate text-xs text-muted-foreground">
+                {{ $t('common.preference.globalSaveHint') }}
+              </p>
+            </div>
+
+            <Button
+              type="primary"
+              class="!rounded-full !px-5"
+              :loading="saving"
+              @click="onSave"
+            >
+              <template #icon>
+                <IconifyIcon icon="lucide:save" />
+              </template>
+              {{ $t('common.save') }}
+            </Button>
+          </div>
+        </div>
+      </Transition>
 
       <section class="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_380px]">
         <div class="min-w-0">

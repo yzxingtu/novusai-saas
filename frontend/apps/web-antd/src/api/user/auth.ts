@@ -4,11 +4,13 @@
  */
 import type {
   ChangePasswordParams,
+  LoginByCodeParams,
   LoginParams,
   LoginResult,
   LoginResultRaw,
   RefreshTokenResult,
   RefreshTokenResultRaw,
+  SendLoginCodeParams,
   TenantUserInfo,
 } from '../shared/types';
 
@@ -54,6 +56,76 @@ export async function userLoginApi(
 
   const response = await requestClient.post<LoginResultRaw>(
     `${API_PREFIX}/login/json`,
+    requestBody,
+    options,
+  );
+  return {
+    accessToken: response.access_token,
+    refreshToken: response.refresh_token,
+  };
+}
+
+/**
+ * Send login code / 发送登录验证码
+ */
+export async function userSendLoginCodeApi(
+  data: SendLoginCodeParams,
+  options?: ApiRequestOptions,
+) {
+  const requestBody: Record<string, unknown> = {
+    channel: data.channel,
+  };
+
+  if (data.email) {
+    requestBody.email = data.email;
+  }
+  if (data.phone) {
+    requestBody.phone = data.phone;
+  }
+  if (data.tenantCode) {
+    requestBody.tenant_code = data.tenantCode;
+  }
+  if (data.captchaChallengeId) {
+    requestBody.captcha_challenge_id = data.captchaChallengeId;
+  }
+  if (data.captchaSolution) {
+    requestBody.captcha_solution = data.captchaSolution;
+  }
+  if (data.captchaProviderCode) {
+    requestBody.captcha_provider_code = data.captchaProviderCode;
+  }
+
+  return requestClient.post(
+    `${API_PREFIX}/login-code/send`,
+    requestBody,
+    options,
+  );
+}
+
+/**
+ * User login by verification code / 用户验证码登录
+ */
+export async function userLoginByCodeApi(
+  data: LoginByCodeParams,
+  options?: ApiRequestOptions,
+): Promise<LoginResult> {
+  const requestBody: Record<string, unknown> = {
+    channel: data.channel,
+    code: data.code,
+  };
+
+  if (data.email) {
+    requestBody.email = data.email;
+  }
+  if (data.phone) {
+    requestBody.phone = data.phone;
+  }
+  if (data.tenantCode) {
+    requestBody.tenant_code = data.tenantCode;
+  }
+
+  const response = await requestClient.post<LoginResultRaw>(
+    `${API_PREFIX}/login-code/login`,
     requestBody,
     options,
   );

@@ -1381,31 +1381,41 @@ class AuthService:
 
         # 登录成功，重置失败计数 / Success: reset failures
         await self._reset_login_failures(user.id, "tenant_user")
+        return await self._issue_tenant_user_tokens(
+            user=user,
+            client_ip=client_ip,
+            tenant_code=tenant_code,
+            event="tenant_user.login.success",
+        )
 
-        # 更新登录信息 / Update last login
+    async def _issue_tenant_user_tokens(
+        self,
+        *,
+        user: TenantUser,
+        client_ip: str | None,
+        tenant_code: str | None = None,
+        event: str = "tenant_user.login.success",
+    ) -> dict[str, Any]:
+        """
+        为企业用户签发 Token 并记录登录态 / Issue tenant-user tokens and persist login state.
+        """
         user.last_login_at = self._utc_now_aware()
         user.last_login_ip = client_ip
 
-        # 生成 Token（优先使用企业会话配置，回退到平台配置） / Session TTL: tenant then platform
-        session_timeout = await self._config_service.get_tenant_config(
-            user.tenant_id, "tenant_session_timeout", default=None
-        )
-        if not session_timeout:
-            session_timeout = await self._config_service.get_platform_config(
-                "session_timeout_minutes", default=120
-            )
         tokens = create_token_pair(
             user.id,
             scope=TOKEN_SCOPE_TENANT_USER,
             extra_claims={"tenant_id": user.tenant_id},
         )
         await self._record_active_tokens(
-            "tenant_user", str(user.id),
-            tokens["access_jti"], tokens["refresh_jti"],
+            "tenant_user",
+            str(user.id),
+            tokens["access_jti"],
+            tokens["refresh_jti"],
         )
 
         self._log_auth_info(
-            "tenant_user.login.success",
+            event,
             user_id=user.id,
             username=user.username,
             tenant_id=user.tenant_id,
@@ -1414,6 +1424,338 @@ class AuthService:
         )
 
         return tokens
+
+    async def _resolve_tenant_user_login_tenant_id(
+        self,
+        *,
+        tenant_code: str | None,
+        tenant_id_from_ctx: int | None,
+        identifier: str | None = None,
+        client_ip: str | None = None,
+        log_reason: str = "tenant_domain_required",
+    ) -> int:
+        """
+        解析企业用户登录链路的企业 ID / Resolve tenant ID for tenant-user login flows.
+        """
+        if not tenant_code and not tenant_id_from_ctx:
+            self._log_auth_warning(
+                "tenant_user.login_code.failed",
+                identifier=self._mask_identifier(identifier),
+                client_ip=client_ip,
+                reason=log_reason,
+            )
+            raise AuthenticationException(message=_("auth.tenant_domain_required"))
+
+        tenant_id = tenant_id_from_ctx
+        if not tenant_id and tenant_code:
+            result = await self.db.execute(
+                select(Tenant).where(
+                    Tenant.code == tenant_code,
+                    Tenant.is_active.is_(True),
+                    Tenant.is_deleted.is_(False),
+                )
+            )
+            tenant = result.scalar_one_or_none()
+            if not tenant:
+                raise BusinessException(message=_("tenant.not_found"))
+            tenant_id = tenant.id
+
+        if tenant_id is None:
+            raise BusinessException(message=_("tenant.not_found"))
+        return int(tenant_id)
+
+    async def _ensure_tenant_user_login_code_channel_enabled(
+        self,
+        *,
+        tenant_id: int,
+        channel: str,
+    ) -> None:
+        """
+        校验验证码登录渠道是否启用 / Validate that the code-login channel is enabled.
+        """
+        methods = await self._config_service.get_tenant_config(
+            tenant_id,
+            "tenant_login_methods",
+            default=["password", "email"],
+        )
+        allowed_methods = {
+            str(item).strip().lower()
+            for item in (methods or [])
+            if str(item).strip()
+        }
+        if channel not in {"email", "sms"}:
+            raise ValidationException(message=_("auth.login_code_channel_invalid"))
+        if channel not in allowed_methods:
+            if channel == "sms":
+                raise BusinessException(message=_("auth.login_code_sms_not_enabled"))
+            raise BusinessException(message=_("auth.login_code_email_not_enabled"))
+
+    async def _maybe_verify_tenant_user_code_login_captcha(
+        self,
+        *,
+        tenant_id: int,
+        identifier: str,
+        client_ip: str | None,
+        captcha_challenge_id: str | None,
+        captcha_solution: str | None,
+        captcha_provider_code: str | None,
+    ) -> None:
+        """
+        按租户配置验证验证码登录发送接口的 CAPTCHA / Verify CAPTCHA for code-login send flow when enabled.
+        """
+        enabled = await self._config_service.get_tenant_config(
+            tenant_id,
+            "user_login_captcha_enabled",
+            default=True,
+        )
+        threshold = await self._config_service.get_tenant_config(
+            tenant_id,
+            "user_login_captcha_enable_threshold",
+            default=0,
+        )
+        if not enabled or (isinstance(threshold, int) and threshold > 0):
+            return
+
+        await self._verify_captcha(
+            captcha_challenge_id,
+            captcha_solution,
+            captcha_provider_code,
+            {
+                "action": "login_code_send",
+                "endpoint": "user",
+                "identifier": self._mask_identifier(identifier),
+                "ip": client_ip,
+                "tenant_id": tenant_id,
+            },
+        )
+
+    @staticmethod
+    def _build_tenant_user_login_code_key(
+        *,
+        channel: str,
+        identifier: str,
+        tenant_id: int,
+    ) -> str:
+        return f"tenant_user_login_code:{channel}:{tenant_id}:{identifier}"
+
+    @staticmethod
+    def _build_tenant_user_login_code_rate_key(
+        *,
+        channel: str,
+        identifier: str,
+        tenant_id: int,
+    ) -> str:
+        return f"tenant_user_login_code_rate:{channel}:{tenant_id}:{identifier}"
+
+    async def send_tenant_user_login_code(
+        self,
+        *,
+        channel: str,
+        email: str | None = None,
+        phone: str | None = None,
+        tenant_code: str | None = None,
+        tenant_id_from_ctx: int | None = None,
+        client_ip: str | None = None,
+        captcha_challenge_id: str | None = None,
+        captcha_solution: str | None = None,
+        captcha_provider_code: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        发送企业用户登录验证码 / Send login verification code for tenant users.
+        """
+        normalized_email = (email or "").strip().lower() or None
+        normalized_phone = (phone or "").strip() or None
+        identifier = normalized_email or normalized_phone
+        tenant_id = await self._resolve_tenant_user_login_tenant_id(
+            tenant_code=tenant_code,
+            tenant_id_from_ctx=tenant_id_from_ctx,
+            identifier=identifier,
+            client_ip=client_ip,
+        )
+        await self._ensure_tenant_user_login_code_channel_enabled(
+            tenant_id=tenant_id,
+            channel=channel,
+        )
+
+        if channel == "email":
+            if not normalized_email:
+                raise ValidationException(message=_("auth.login_code_email_required"))
+            identifier = normalized_email
+        elif channel == "sms":
+            if not normalized_phone:
+                raise ValidationException(message=_("auth.login_code_phone_required"))
+            raise BusinessException(message=_("auth.login_code_sms_not_enabled"))
+
+        await self._maybe_verify_tenant_user_code_login_captcha(
+            tenant_id=tenant_id,
+            identifier=identifier or "",
+            client_ip=client_ip,
+            captcha_challenge_id=captcha_challenge_id,
+            captcha_solution=captcha_solution,
+            captcha_provider_code=captcha_provider_code,
+        )
+
+        rate_key = self._build_tenant_user_login_code_rate_key(
+            channel=channel,
+            identifier=identifier or "",
+            tenant_id=tenant_id,
+        )
+        if await cache_get(rate_key):
+            raise BusinessException(message=_("auth.reset_rate_limited"))
+
+        if channel != "email":
+            raise BusinessException(message=_("auth.login_code_channel_invalid"))
+
+        result = await self.db.execute(
+            select(TenantUser).where(
+                and_(
+                    TenantUser.tenant_id == tenant_id,
+                    TenantUser.email == identifier,
+                    TenantUser.is_deleted.is_(False),
+                )
+            )
+        )
+        user = result.scalar_one_or_none()
+
+        await cache_set(rate_key, True, ttl=self.LOGIN_CODE_RATE_LIMIT_TTL)
+        if user is None:
+            self._log_auth_warning(
+                "tenant_user.login_code.send.skipped",
+                identifier=self._mask_identifier(identifier),
+                tenant_id=tenant_id,
+                tenant_code=tenant_code,
+                client_ip=client_ip,
+                reason="user_not_found",
+            )
+            return {"message": _("auth.login_code_sent")}
+
+        code = "".join(secrets.choice(string.digits) for _ in range(6))
+        code_key = self._build_tenant_user_login_code_key(
+            channel=channel,
+            identifier=identifier or "",
+            tenant_id=tenant_id,
+        )
+        await cache_set(
+            code_key,
+            {"code": code, "user_id": user.id},
+            ttl=self.LOGIN_CODE_TTL,
+        )
+
+        expire_minutes = self.LOGIN_CODE_TTL // 60
+        try:
+            from app.services.common.email_templates import render_login_code_email
+            from app.tasks.email import send_email_task
+
+            user_name = (user.nickname or user.username or "").strip()
+            subject, html_body, text_body = render_login_code_email(
+                user_name=user_name or identifier or "",
+                code=code,
+                expire_minutes=expire_minutes,
+            )
+            send_email_task.delay(
+                to=[identifier],
+                subject=subject,
+                html_body=html_body,
+                text_body=text_body,
+                triggered_by="login_code",
+                tenant_id=tenant_id,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to queue login code email: user_id={} tenant_id={} error={}",
+                user.id,
+                tenant_id,
+                str(exc),
+            )
+
+        self._log_auth_info(
+            "tenant_user.login_code.send.success",
+            user_id=user.id,
+            username=user.username,
+            tenant_id=tenant_id,
+            tenant_code=tenant_code,
+            client_ip=client_ip,
+        )
+        return {"message": _("auth.login_code_sent")}
+
+    async def authenticate_tenant_user_by_code(
+        self,
+        *,
+        channel: str,
+        code: str,
+        email: str | None = None,
+        phone: str | None = None,
+        tenant_code: str | None = None,
+        tenant_id_from_ctx: int | None = None,
+        client_ip: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        企业用户验证码登录 / Authenticate tenant user by verification code.
+        """
+        normalized_email = (email or "").strip().lower() or None
+        normalized_phone = (phone or "").strip() or None
+        identifier = normalized_email or normalized_phone
+        tenant_id = await self._resolve_tenant_user_login_tenant_id(
+            tenant_code=tenant_code,
+            tenant_id_from_ctx=tenant_id_from_ctx,
+            identifier=identifier,
+            client_ip=client_ip,
+        )
+        await self._ensure_tenant_user_login_code_channel_enabled(
+            tenant_id=tenant_id,
+            channel=channel,
+        )
+
+        if channel == "email":
+            if not normalized_email:
+                raise ValidationException(message=_("auth.login_code_email_required"))
+            identifier = normalized_email
+        elif channel == "sms":
+            if not normalized_phone:
+                raise ValidationException(message=_("auth.login_code_phone_required"))
+            raise BusinessException(message=_("auth.login_code_sms_not_enabled"))
+
+        code_key = self._build_tenant_user_login_code_key(
+            channel=channel,
+            identifier=identifier or "",
+            tenant_id=tenant_id,
+        )
+        stored = await cache_get(code_key)
+        if not stored or not isinstance(stored, dict):
+            raise AuthenticationException(message=_("auth.login_code_invalid"))
+        if stored.get("code") != code:
+            raise AuthenticationException(message=_("auth.login_code_invalid"))
+
+        user_id = stored.get("user_id")
+        if not user_id:
+            raise AuthenticationException(message=_("auth.login_code_invalid"))
+
+        result = await self.db.execute(
+            select(TenantUser).where(
+                and_(
+                    TenantUser.id == int(user_id),
+                    TenantUser.tenant_id == tenant_id,
+                    TenantUser.is_deleted.is_(False),
+                )
+            )
+        )
+        user = result.scalar_one_or_none()
+        if user is None:
+            raise AuthenticationException(message=_("auth.login_code_invalid"))
+
+        if await self._is_account_locked(user.id, "tenant_user"):
+            raise AuthenticationException(message=_("auth.account_locked"))
+        if not user.is_active:
+            raise AuthenticationException(message=_("auth.account_disabled"))
+
+        await self._reset_login_failures(user.id, "tenant_user")
+        await cache_delete(code_key)
+        return await self._issue_tenant_user_tokens(
+            user=user,
+            client_ip=client_ip,
+            tenant_code=tenant_code,
+            event="tenant_user.login_code.success",
+        )
 
     async def refresh_tenant_user_token(self, refresh_token: str) -> dict[str, Any]:
         """
@@ -1839,6 +2181,8 @@ class AuthService:
 
     # ==================== 忘记密码 / 重置密码 / Forgot password & reset ====================
 
+    LOGIN_CODE_TTL = 600  # 10 分钟 / 10-minute login-code TTL
+    LOGIN_CODE_RATE_LIMIT_TTL = 60  # 1 分钟内只能发一次 / One login-code request per minute
     RESET_CODE_TTL = 600  # 10 分钟 / 10-minute code TTL
     RESET_RATE_LIMIT_TTL = 60  # 1 分钟内只能发一次 / One request per minute rate limit
 

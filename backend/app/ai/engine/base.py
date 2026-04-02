@@ -11,8 +11,8 @@ from __future__ import annotations
 import dataclasses
 import json
 import re
-from datetime import datetime
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from jinja2 import (
@@ -24,13 +24,13 @@ from jinja2 import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.context import get_context_engine
 from app.ai.events.bus import get_event_bus
 from app.ai.events.types import (
     ExecutionCompleted,
     ExecutionFailed,
     ExecutionStarted,
 )
-from app.ai.context import get_context_engine
 from app.services.ai.execution_trust_policy_service import (
     ExecutionTrustPolicyService,
 )
@@ -41,8 +41,14 @@ from app.ai.skills.resolver import SkillResolveResult
 from app.ai.tools.sandbox import ToolSandbox
 from app.ai.tools.semantic_defaults import (
     FAMILY_HINT_TAGS as _SEMANTIC_FAMILY_HINT_TAGS,
+)
+from app.ai.tools.semantic_defaults import (
     tool_family_from_name as _tool_family_from_name_unified,
+)
+from app.ai.tools.semantic_defaults import (
     tool_semantic_family as _tool_semantic_family_unified,
+)
+from app.ai.tools.semantic_defaults import (
     tool_semantic_tags as _tool_semantic_tags_unified,
 )
 from app.ai.tools.types import ToolDefinition, ToolResult, to_openai_tools
@@ -56,6 +62,7 @@ from app.enums.log import UserTypeEnum as LogUserTypeEnum
 from app.exceptions import BusinessException
 from app.models.ai.agent import Agent
 
+from .tool_invocation_planner import ToolInvocationPlan, ToolInvocationPlanner
 from .types import (
     ExecutionRequest,
     ExecutionResult,
@@ -220,6 +227,10 @@ class BaseEngine(ABC):
         tools: list[ToolDefinition],
         input_variables: dict[str, Any] | None = None,
         continuation_context: ResearchContinuationContext | None = None,
+        selected_skill_names: list[str] | None = None,
+        context_sources: list[Any] | None = None,
+        ordered_requested_families: list[str] | None = None,
+        skip_capability_summary: bool = False,
     ) -> None:
         """
         Inject available tool summary into system message tail. / 将可用工具摘要注入 system 消息末尾。
@@ -230,25 +241,49 @@ class BaseEngine(ABC):
         部分 LLM（如 DeepSeek）在 system_prompt 中未提及工具时
         倾向于生成文本而非调用 function calling。
         """
-        if not tools or not messages or messages[0].role != "system":
+        if (
+            not messages
+            or messages[0].role != "system"
+            or (
+                not tools
+                and not (selected_skill_names or [])
+                and not (context_sources or [])
+            )
+        ):
             return
 
         tool_names = [t.name for t in tools]
-        hint = (
-            "\n\n---\n"
-            "[TOOL AWARENESS]\n"
-            f"You have {len(tool_names)} tool(s) available: {', '.join(tool_names)}.\n"
-            "When the user's request can be fulfilled by calling a tool, "
-            "you MUST call the appropriate tool instead of generating text-only responses. "
-            "Do NOT say you cannot access the database or perform actions — use your tools.\n"
-            "When a newer user turn conflicts with an older temporary execution constraint "
-            '(for example: "read-only", "do not write", "do not submit"), follow the latest user turn '
-            "unless the user explicitly says the earlier constraint still applies.\n"
-            "If the user asks for multiple operations or gives an ordered checklist, execute the requested operations "
-            "in that order and only summarize after you have attempted each requested step.\n"
-            "Do NOT show HTML, JSON, tool parameters or raw API output to the user. "
-            "Tools are for internal execution; return natural language results only."
-        )
+        if skip_capability_summary:
+            hint = (
+                "\n\n---\n"
+                "[TOOL USAGE RULES]\n"
+                "When the user's request can be fulfilled by calling a tool, "
+                "you MUST call the appropriate tool instead of generating text-only responses. "
+                "Do NOT say you cannot access the database or perform actions — use your tools.\n"
+                "When a newer user turn conflicts with an older temporary execution constraint "
+                '(for example: "read-only", "do not write", "do not submit"), follow the latest user turn '
+                "unless the user explicitly says the earlier constraint still applies.\n"
+                "If the user asks for multiple operations or gives an ordered checklist, execute the requested operations "
+                "in that order and only summarize after you have attempted each requested step.\n"
+                "Do NOT show HTML, JSON, tool parameters or raw API output to the user. "
+                "Tools are for internal execution; return natural language results only."
+            )
+        else:
+            hint = (
+                "\n\n---\n"
+                "[TOOL AWARENESS]\n"
+                f"You have {len(tool_names)} tool(s) available: {', '.join(tool_names)}.\n"
+                "When the user's request can be fulfilled by calling a tool, "
+                "you MUST call the appropriate tool instead of generating text-only responses. "
+                "Do NOT say you cannot access the database or perform actions — use your tools.\n"
+                "When a newer user turn conflicts with an older temporary execution constraint "
+                '(for example: "read-only", "do not write", "do not submit"), follow the latest user turn '
+                "unless the user explicitly says the earlier constraint still applies.\n"
+                "If the user asks for multiple operations or gives an ordered checklist, execute the requested operations "
+                "in that order and only summarize after you have attempted each requested step.\n"
+                "Do NOT show HTML, JSON, tool parameters or raw API output to the user. "
+                "Tools are for internal execution; return natural language results only."
+            )
 
         page_hint = BaseEngine._build_page_operations_hint(input_variables, tools)
         if page_hint:
@@ -265,12 +300,26 @@ class BaseEngine(ABC):
         time_hint = BaseEngine._build_time_tools_hint(tools)
         if time_hint:
             hint += time_hint
-        capability_hint = BaseEngine._build_capability_reporting_hint(
+        if not skip_capability_summary:
+            capability_hint = BaseEngine._build_capability_reporting_hint(
+                tools,
+                input_variables,
+            )
+            if capability_hint:
+                hint += capability_hint
+            runtime_capability_hint = BaseEngine._build_runtime_capability_hint(
+                selected_skill_names,
+                context_sources,
+            )
+            if runtime_capability_hint:
+                hint += runtime_capability_hint
+        ordered_capability_hint = BaseEngine._build_ordered_capability_hint(
+            ordered_requested_families,
             tools,
             input_variables,
         )
-        if capability_hint:
-            hint += capability_hint
+        if ordered_capability_hint:
+            hint += ordered_capability_hint
         continuation_hint = BaseEngine._build_research_continuation_hint(
             continuation_context,
         )
@@ -583,6 +632,115 @@ class BaseEngine(ABC):
             f"Available tools: {tool_line}.\n"
             f"Available page operations: {page_line}.\n"
             "Answer capability questions strictly from this list. Never claim a listed tool is unavailable."
+        )
+
+    @staticmethod
+    def _build_runtime_capability_hint(
+        selected_skill_names: list[str] | None,
+        context_sources: list[Any] | None,
+    ) -> str:
+        normalized_skill_names: list[str] = []
+        for name in selected_skill_names or []:
+            text = str(name or "").strip()
+            if text and text not in normalized_skill_names:
+                normalized_skill_names.append(text)
+
+        normalized_context_sources: list[tuple[str, str]] = []
+        context_source_kinds: list[str] = []
+        for source in context_sources or []:
+            if isinstance(source, dict):
+                kind = str(source.get("kind") or "").strip()
+                name = str(source.get("name") or "").strip()
+                active = bool(source.get("active", True))
+            else:
+                kind = str(getattr(source, "kind", "") or "").strip()
+                name = str(getattr(source, "name", "") or "").strip()
+                active = bool(getattr(source, "active", True))
+            if not active or not kind:
+                continue
+            normalized_item = (kind, name or kind)
+            if normalized_item not in normalized_context_sources:
+                normalized_context_sources.append(normalized_item)
+            if kind not in context_source_kinds:
+                context_source_kinds.append(kind)
+
+        if not normalized_skill_names and not normalized_context_sources:
+            return ""
+
+        context_line = ", ".join(
+            f"{kind}:{name}" if name and name != kind else kind
+            for kind, name in normalized_context_sources
+        )
+        hint = "\n\n[TURN CAPABILITIES]\n"
+        if normalized_skill_names:
+            hint += f"Selected skills for this turn: {', '.join(normalized_skill_names)}.\n"
+        if context_line:
+            hint += f"Active context sources: {context_line}.\n"
+        if "knowledge_base" in context_source_kinds:
+            hint += (
+                "Knowledge-base context is available this turn. "
+                "Use retrieved internal knowledge before saying no internal docs or knowledge are available.\n"
+            )
+        if "page_context" in context_source_kinds:
+            hint += (
+                "Page context is available this turn. "
+                "If the user is asking about the current page, prefer page tools over capability disclaimers.\n"
+            )
+        if (
+            "session_memory" in context_source_kinds
+            or "long_term_memory" in context_source_kinds
+        ):
+            hint += (
+                "Memory context may already be attached this turn. "
+                "Treat it as available runtime context instead of claiming memory is unavailable.\n"
+            )
+        return hint.rstrip()
+
+    @classmethod
+    def _build_ordered_capability_hint(
+        cls,
+        ordered_requested_families: list[str] | None,
+        tools: list[ToolDefinition],
+        input_variables: dict[str, Any] | None = None,
+    ) -> str:
+        ordered: list[str] = []
+        for family in ordered_requested_families or []:
+            normalized = str(family or "").strip()
+            if not normalized or normalized == "none" or normalized in ordered:
+                continue
+            ordered.append(normalized)
+
+        if len(ordered) <= 1:
+            return ""
+
+        label_map = {
+            "page_ops": "page operations",
+            "weather": "weather tools",
+            "time_ops": "time tools",
+            "data_ops": "data tools",
+            "web_research": "web research tools",
+        }
+        sequence_lines: list[str] = []
+        for idx, family in enumerate(ordered, start=1):
+            label = label_map.get(family, family.replace("_", " "))
+            family_tools = cls._allowed_tool_names_for_family(
+                family,
+                tools,
+                input_variables,
+            )
+            shown_tools = ", ".join(family_tools[:4]) if family_tools else "none"
+            suffix = "..." if len(family_tools) > 4 else ""
+            sequence_lines.append(
+                f"{idx}. {label} (tools: {shown_tools}{suffix})"
+            )
+
+        return (
+            "\n\n[ORDERED CAPABILITY INTENT]\n"
+            "This turn explicitly requests multiple capabilities in order.\n"
+            "Follow this sequence before final summary:\n"
+            f"{chr(10).join(sequence_lines)}\n"
+            "After a family has already produced a valid result, avoid repeatedly calling the same family "
+            "unless the user asks for deeper follow-up on that family."
         )
 
     @staticmethod
@@ -960,6 +1118,27 @@ class BaseEngine(ABC):
 
         return allowed or [tool.name for tool in tools]
 
+    @classmethod
+    def _allowed_tool_names_for_families(
+        cls,
+        families: list[str],
+        tools: list[ToolDefinition],
+        input_variables: dict[str, Any] | None = None,
+    ) -> list[str]:
+        ordered: list[str] = []
+        for family in families:
+            normalized = str(family or "").strip()
+            if not normalized or normalized == "none":
+                continue
+            for name in cls._allowed_tool_names_for_family(
+                normalized,
+                tools,
+                input_variables,
+            ):
+                if name not in ordered:
+                    ordered.append(name)
+        return ordered
+
     @staticmethod
     def _filter_tools_for_policy(
         tools: list[ToolDefinition],
@@ -970,6 +1149,84 @@ class BaseEngine(ABC):
         allowed = set(policy.allowed_tool_names)
         filtered = [tool for tool in tools if tool.name in allowed]
         return filtered or tools
+
+    @staticmethod
+    def _restore_explicit_family_tools(
+        *,
+        selected_tools: list[ToolDefinition],
+        all_tools: list[ToolDefinition],
+        policy: ToolUsePolicy,
+    ) -> tuple[list[ToolDefinition], bool]:
+        if (
+            policy.family == "none"
+            or not policy.allowed_tool_names
+            or not all_tools
+        ):
+            return selected_tools, False
+
+        allowed = set(policy.allowed_tool_names)
+        if any(tool.name in allowed for tool in selected_tools):
+            return selected_tools, False
+
+        restored = [tool for tool in all_tools if tool.name in allowed]
+        if restored:
+            return restored, True
+        return selected_tools, False
+
+    @classmethod
+    def _ensure_explicit_family_coverage(
+        cls,
+        *,
+        selected_tools: list[ToolDefinition],
+        all_tools: list[ToolDefinition],
+        explicit_requested_families: list[str],
+        input_variables: dict[str, Any] | None = None,
+    ) -> tuple[list[ToolDefinition], list[str]]:
+        ordered_families: list[str] = []
+        for family in explicit_requested_families:
+            normalized = str(family or "").strip()
+            if not normalized or normalized == "none" or normalized in ordered_families:
+                continue
+            ordered_families.append(normalized)
+        if len(ordered_families) <= 1:
+            return selected_tools, []
+
+        selected_names = {tool.name for tool in selected_tools}
+        selected_by_family: set[str] = set()
+        for tool in selected_tools:
+            family = cls._tool_semantic_family(tool, input_variables)
+            if family:
+                selected_by_family.add(family)
+
+        missing_families = [
+            family for family in ordered_families if family not in selected_by_family
+        ]
+        if not missing_families:
+            return selected_tools, []
+
+        restored = list(selected_tools)
+        restored_families: list[str] = []
+        for family in missing_families:
+            candidates = cls._allowed_tool_names_for_family(
+                family,
+                all_tools,
+                input_variables,
+            )
+            restored_any = False
+            for name in candidates:
+                if name in selected_names:
+                    continue
+                candidate = next((tool for tool in all_tools if tool.name == name), None)
+                if candidate is None:
+                    continue
+                restored.append(candidate)
+                selected_names.add(name)
+                restored_any = True
+                break
+            if restored_any:
+                restored_families.append(family)
+
+        return restored, restored_families
 
     @classmethod
     def _looks_like_explicit_web_research_request(
@@ -1082,64 +1339,58 @@ class BaseEngine(ABC):
         input_variables: dict[str, Any] | None,
         continuation_context: ResearchContinuationContext | None,
     ) -> ToolUsePolicy:
+        plan = cls._plan_tool_invocation(
+            messages=messages,
+            tools=tools,
+            input_variables=input_variables,
+            continuation_context=continuation_context,
+        )
+        return cls._build_tool_use_policy_from_plan(
+            plan,
+            tools=tools,
+            input_variables=input_variables,
+        )
+
+    @classmethod
+    def _plan_tool_invocation(
+        cls,
+        *,
+        messages: list[ChatMessage],
+        tools: list[ToolDefinition],
+        input_variables: dict[str, Any] | None,
+        continuation_context: ResearchContinuationContext | None,
+    ) -> ToolInvocationPlan:
+        return ToolInvocationPlanner.plan(
+            messages=messages,
+            tools=tools,
+            input_variables=input_variables,
+            continuation_context=continuation_context,
+        )
+
+    @classmethod
+    def _build_tool_use_policy_from_plan(
+        cls,
+        plan: ToolInvocationPlan,
+        *,
+        tools: list[ToolDefinition],
+        input_variables: dict[str, Any] | None,
+    ) -> ToolUsePolicy:
         if not tools:
             return ToolUsePolicy()
-
-        current_user_text = cls._extract_last_user_text(messages)
-        recent_successful_tool_names = cls._extract_recent_successful_tool_names(messages)
-        latest_successful_tool = (
-            recent_successful_tool_names[0] if recent_successful_tool_names else ""
-        )
-        latest_tool = next(
-            (tool for tool in tools if tool.name == latest_successful_tool),
-            None,
-        )
-        latest_family = (
-            cls._tool_semantic_family(latest_tool, input_variables)
-            if latest_tool is not None
-            else cls._tool_family_for_name(latest_successful_tool, input_variables)
-        )
-
-        if continuation_context and continuation_context.active:
-            family = continuation_context.family or "none"
-            if family != "none":
-                return ToolUsePolicy(
-                    family=family,
-                    mode="required",
-                    allowed_tool_names=cls._allowed_tool_names_for_family(
-                        family,
-                        tools,
-                        input_variables,
-                    ),
-                    retry_on_contract_breach=True,
-                    reason=f"active_continuation:{family}",
-                )
-
-        # Soft signal: phrase matching suggests a family preference but no longer
-        # forces mode="required".  Tool history takes priority.
-        inferred_family = "none"
-        inferred_reason = "default_auto"
-
-        if latest_family != "none" and cls._looks_like_generic_follow_up(current_user_text):
-            inferred_family = latest_family
-            inferred_reason = f"generic_follow_up_after:{latest_successful_tool}"
-        elif cls._looks_like_explicit_web_research_request(current_user_text, tools):
-            inferred_family = "web_research"
-            inferred_reason = "soft_hint:web_research"
-        elif cls._looks_like_explicit_time_request(current_user_text, tools):
-            inferred_family = "time_ops"
-            inferred_reason = "soft_hint:time_ops"
-
         return ToolUsePolicy(
-            family=inferred_family,
-            mode="auto",
+            family=plan.family,
+            mode=(
+                "required"
+                if plan.allow_family_continuation and plan.family != "none"
+                else "auto"
+            ),
             allowed_tool_names=(
-                cls._allowed_tool_names_for_family(inferred_family, tools, input_variables)
-                if inferred_family != "none"
-                else [tool.name for tool in tools]
+                cls._allowed_tool_names_for_family(plan.family, tools, input_variables)
+                if plan.family != "none"
+                else []
             ),
             retry_on_contract_breach=True,
-            reason=inferred_reason,
+            reason=plan.reason,
         )
 
     @classmethod
@@ -1207,6 +1458,14 @@ class BaseEngine(ABC):
                 reason=f"required_retry:{current_policy.reason or current_policy.family}",
             )
 
+        if current_policy.family != "none" and current_policy.allowed_tool_names:
+            return cls._build_required_policy_for_family(
+                current_policy.family,
+                tools,
+                input_variables,
+                reason=f"capability_denial:{current_policy.family}",
+            )
+
         for family in ("web_research", "weather", "time_ops", "data_ops", "page_ops"):
             if not cls._response_denies_family_capability(
                 normalized_text=normalized,
@@ -1271,6 +1530,8 @@ class BaseEngine(ABC):
 
         response_text = (response.message.content or "").strip()
         if not response_text:
+            return False, None, ""
+        if current_policy.family not in {"none", "web_research"}:
             return False, None, ""
         if current_policy.family != "web_research" and not (
             continuation and continuation.active
@@ -1535,7 +1796,6 @@ class BaseEngine(ABC):
         context_engine = get_context_engine(
             db=self.db,
             base_engine=self,
-            request=request,
         )
         await context_engine.ingest(agent, request)
         context_assembly = await context_engine.assemble(
@@ -1576,31 +1836,70 @@ class BaseEngine(ABC):
             enhance_tools_with_page_context(all_tools, request.input_variables)
 
         optimize_event: dict[str, Any] | None = None
+        tool_planner = None
         tool_use_policy = ToolUsePolicy()
-        current_user_text = ""
+        explicit_requested_families: list[str] = []
         if all_tools:
             user_query = self._extract_last_user_text(messages)
-            current_user_text = user_query
             from app.ai.tools.optimizer import optimize_tools
 
-            tool_use_policy = self._infer_tool_use_policy(
-                messages,
-                all_tools,
-                request.input_variables,
-                continuation_context,
+            tool_planner = self._plan_tool_invocation(
+                messages=messages,
+                tools=all_tools,
+                input_variables=request.input_variables,
+                continuation_context=continuation_context,
             )
+            explicit_requested_families = ToolInvocationPlanner.explicit_requested_families(
+                messages=messages,
+                tools=all_tools,
+                input_variables=request.input_variables,
+            )
+            tool_use_policy = self._build_tool_use_policy_from_plan(
+                tool_planner,
+                tools=all_tools,
+                input_variables=request.input_variables,
+            )
+            if tool_planner.family != "none":
+                effective_families = [tool_planner.family]
+                for family in explicit_requested_families:
+                    if family != tool_planner.family and family not in effective_families:
+                        effective_families.append(family)
+                mixed_allowed_names = self._allowed_tool_names_for_families(
+                    effective_families,
+                    all_tools,
+                    request.input_variables,
+                )
+                if mixed_allowed_names:
+                    tool_use_policy.allowed_tool_names = mixed_allowed_names
             opt = optimize_tools(
                 all_tools,
                 user_query,
                 preferred_family=(
-                    tool_use_policy.family
-                    if tool_use_policy.family != "none"
+                    tool_planner.family
+                    if tool_planner.family != "none"
                     else None
                 ),
             )
             tools = opt.tools
-            tools = self._filter_tools_for_policy(tools, tool_use_policy)
-            tool_use_policy.allowed_tool_names = [tool.name for tool in tools]
+            restored_family_tools = False
+            restored_coverage_families: list[str] = []
+            if tool_planner.allow_no_tool and tool_planner.family == "none":
+                tools = []
+                tool_use_policy.allowed_tool_names = []
+            else:
+                tools = self._filter_tools_for_policy(tools, tool_use_policy)
+                tools, restored_family_tools = self._restore_explicit_family_tools(
+                    selected_tools=tools,
+                    all_tools=all_tools,
+                    policy=tool_use_policy,
+                )
+                tools, restored_coverage_families = self._ensure_explicit_family_coverage(
+                    selected_tools=tools,
+                    all_tools=all_tools,
+                    explicit_requested_families=explicit_requested_families,
+                    input_variables=request.input_variables,
+                )
+                tool_use_policy.allowed_tool_names = [tool.name for tool in tools]
             if not opt.skipped:
                 optimize_event = {"total": opt.total, "selected": len(tools)}
 
@@ -1611,6 +1910,48 @@ class BaseEngine(ABC):
                 all_tools,
             )
             page_context_present = self._has_page_context(request.input_variables)
+            if not tool_planner.allow_no_tool and tool_planner.family != "none" and restored_family_tools:
+                self._log_tool_selection_status(
+                    status="family_tools_restored",
+                    agent=agent,
+                    conversation_id=request.conversation_id,
+                    current_user_text=user_query,
+                    family=tool_use_policy.family,
+                    all_tool_names=all_tool_names,
+                    selected_tool_names=selected_tool_names,
+                    page_context_present=page_context_present,
+                    optimizer_total=opt.total,
+                    optimizer_selected=len(tools),
+                )
+            if (
+                len(explicit_requested_families) > 1
+                and tool_use_policy.allowed_tool_names
+            ):
+                self._log_tool_selection_status(
+                    status="multi_family_allowed",
+                    agent=agent,
+                    conversation_id=request.conversation_id,
+                    current_user_text=user_query,
+                    family=tool_use_policy.family,
+                    all_tool_names=all_tool_names,
+                    selected_tool_names=selected_tool_names,
+                    page_context_present=page_context_present,
+                    optimizer_total=opt.total,
+                    optimizer_selected=len(tools),
+                )
+            if restored_coverage_families:
+                self._log_tool_selection_status(
+                    status="multi_family_coverage_restored",
+                    agent=agent,
+                    conversation_id=request.conversation_id,
+                    current_user_text=user_query,
+                    family=tool_use_policy.family,
+                    all_tool_names=all_tool_names,
+                    selected_tool_names=selected_tool_names,
+                    page_context_present=page_context_present,
+                    optimizer_total=opt.total,
+                    optimizer_selected=len(tools),
+                )
             if explicit_web_request and tool_use_policy.family == "none":
                 self._log_tool_selection_status(
                     status="policy_not_loaded",
@@ -1668,15 +2009,35 @@ class BaseEngine(ABC):
                 len(all_tools),
                 len(tools),
             )
+            if tool_planner is not None and explicit_requested_families:
+                logger.info(
+                    "Prepare execution capability intent: runtime={} agent_id={} conversation_id={} primary_family={} explicit_requested_families={}",
+                    get_runtime_identity_tag(),
+                    getattr(agent, "id", None),
+                    request.conversation_id,
+                    tool_use_policy.family,
+                    explicit_requested_families,
+                )
 
-        # 5. Inject tool awareness hint / 注入工具感知提示
-        if tools:
-            self._inject_tool_awareness(
-                messages,
-                tools,
-                request.input_variables,
-                continuation_context=continuation_context,
-            )
+        # 5. Inject runtime capability awareness / 注入运行时能力感知提示
+        self._inject_tool_awareness(
+            messages,
+            tools,
+            request.input_variables,
+            continuation_context=continuation_context,
+            selected_skill_names=context_assembly.capability_bundle.selected_skill_names
+            if context_assembly.capability_bundle is not None
+            else None,
+            context_sources=context_assembly.capability_bundle.context_sources
+            if context_assembly.capability_bundle is not None
+            else None,
+            ordered_requested_families=explicit_requested_families,
+            skip_capability_summary=bool(
+                context_assembly.diagnostics.get(
+                    "dynamic_capability_awareness_enabled"
+                )
+            ),
+        )
 
         # 6. Extract consent_modes / 提取 consent_modes
         tool_consent_modes = skill_result.tool_consent_modes if skill_result else {}
@@ -1760,6 +2121,8 @@ class BaseEngine(ABC):
                 }
 
         request.tool_use_policy = dataclasses.replace(tool_use_policy)
+        if tool_planner is not None:
+            context_assembly.diagnostics["tool_planner"] = tool_planner.to_dict()
 
         return PreparedExecution(
             messages=messages,
@@ -1769,7 +2132,6 @@ class BaseEngine(ABC):
             tool_use_policy=tool_use_policy,
             rag_sources=rag_sources,
             rag_source_kinds=context_assembly.rag_source_kinds,
-            context_engine_id=context_assembly.engine_id,
             context_engine=context_engine,
             compact_summary=context_assembly.compact_summary,
             prune_stats=context_assembly.prune_stats,
@@ -1779,7 +2141,9 @@ class BaseEngine(ABC):
             memory_recalled=context_assembly.memory_recalled,
             system_prompt_additions=context_assembly.system_prompt_additions,
             diagnostics=context_assembly.diagnostics,
+            tool_planner=tool_planner.to_dict() if tool_planner is not None else None,
             tool_consent_modes=tool_consent_modes,
+            capability_bundle=context_assembly.capability_bundle,
             optimize_event=optimize_event,
             route_result=route_result,
         )
@@ -1802,6 +2166,8 @@ class BaseEngine(ABC):
         billing_context: dict[str, Any] | None = None,
         route_result: Any | None = None,
         log_user_type: str | None = None,
+        selected_skill_names: list[str] | None = None,
+        context_sources: list[Any] | None = None,
     ) -> ChatResponse:
         """
         Call LLM.
@@ -1815,6 +2181,7 @@ class BaseEngine(ABC):
             user_id: User ID / 用户 ID
             route_result: ModelRouter route result (None uses agent's original model) / ModelRouter 路由结果
         """
+        del selected_skill_names, context_sources
         # Build OpenAI tools parameter / 构建 OpenAI tools 参数
         openai_tools = None
         if tools:
@@ -1953,6 +2320,8 @@ class BaseEngine(ABC):
         route_result: Any | None = None,
         tool_consent_modes: dict[str, str] | None = None,
         continuation_context: ResearchContinuationContext | None = None,
+        selected_skill_names: list[str] | None = None,
+        context_sources: list[Any] | None = None,
     ) -> tuple[ChatResponse | None, list[ToolResult], int]:
         """
         Handle tool call loop.
@@ -1977,6 +2346,7 @@ class BaseEngine(ABC):
             final_response is None when skip_final_call=True
             当 skip_final_call=True 时 final_response 为 None
         """
+        _ = continuation_context
         from .tool_processor import ToolCallProcessor
 
         tools_full = list(tools)
@@ -1985,12 +2355,22 @@ class BaseEngine(ABC):
             tools=tools,
             all_tools=all_tools,
             consent_modes=tool_consent_modes or {},
+            approved_pending_consent_tools=ToolCallProcessor.approved_pending_consent_tool_names(
+                request.interaction_updates,
+            ),
         )
 
         all_tool_results: list[ToolResult] = []
         total_tokens = response.total_tokens or 0
         current_response = response
         fetch_gate_message_sent = False
+        ordered_requested_families = ToolInvocationPlanner.explicit_requested_families(
+            messages=messages,
+            tools=all_tools or tools_full,
+            input_variables=request.input_variables,
+        )
+        executed_requested_families: set[str] = set()
+        issued_progress_hint_keys: set[str] = set()
 
         def _round_tools_for_followup() -> list[ToolDefinition]:
             """Match streaming path: narrow to fetch_url until a fetch attempt exists."""
@@ -2018,6 +2398,47 @@ class BaseEngine(ABC):
             )
             processor.tools = round_tools
             return round_tools
+
+        def _append_ordered_progress_hint() -> None:
+            if len(ordered_requested_families) <= 1:
+                return
+            if not executed_requested_families:
+                return
+            remaining_families = [
+                family
+                for family in ordered_requested_families
+                if family not in executed_requested_families
+            ]
+            if not remaining_families:
+                return
+            completed_families = [
+                family
+                for family in ordered_requested_families
+                if family in executed_requested_families
+            ]
+            hint_key = (
+                f"{'->'.join(completed_families)}|{'->'.join(remaining_families)}"
+            )
+            if hint_key in issued_progress_hint_keys:
+                return
+            issued_progress_hint_keys.add(hint_key)
+            hint = self._build_ordered_capability_hint(
+                ordered_requested_families,
+                all_tools or tools_full,
+                request.input_variables,
+            )
+            if not hint:
+                return
+            messages.append(
+                ChatMessage(
+                    role="system",
+                    content=(
+                        f"{hint}\n"
+                        f"Completed families: {', '.join(completed_families)}.\n"
+                        f"Next family to prioritize: {remaining_families[0]}."
+                    ),
+                )
+            )
 
         for _round in range(MAX_TOOL_CALL_ROUNDS):
             tool_calls = current_response.tool_calls
@@ -2097,6 +2518,12 @@ class BaseEngine(ABC):
                     tc,
                     conversation_id=request.conversation_id or 0,
                 )
+                tool_family = self._tool_family_for_name(
+                    func_name,
+                    request.input_variables,
+                )
+                if tool_family in ordered_requested_families:
+                    executed_requested_families.add(tool_family)
                 if single.tool_result:
                     all_tool_results.append(single.tool_result)
                     processor.annotate_tool_call(
@@ -2123,6 +2550,7 @@ class BaseEngine(ABC):
 
             if skip_final_call:
                 if _round < MAX_TOOL_CALL_ROUNDS - 1:
+                    _append_ordered_progress_hint()
                     round_tools = _round_tools_for_followup()
                     peek_response = await self._call_llm(
                         agent=agent,
@@ -2132,17 +2560,20 @@ class BaseEngine(ABC):
                         tenant_id=request.tenant_id,
                         user_id=request.user_id,
                         conversation_id=request.conversation_id,
-                        billing_context=request.billing_context,
-                        route_result=route_result,
-                        log_user_type=log_user_type_for_call_log(request.user_role),
-                    )
-                    total_tokens += peek_response.total_tokens or 0
-                    if peek_response.tool_calls:
+                    billing_context=request.billing_context,
+                    route_result=route_result,
+                    log_user_type=log_user_type_for_call_log(request.user_role),
+                    selected_skill_names=selected_skill_names,
+                    context_sources=context_sources,
+                )
+                total_tokens += peek_response.total_tokens or 0
+                if peek_response.tool_calls:
                         current_response = peek_response
                         continue
                 return None, all_tool_results, total_tokens
 
             # Call LLM again (maintain same routed model as first call) / 再次调用 LLM（保持与第一次调用相同的路由模型）
+            _append_ordered_progress_hint()
             round_tools = _round_tools_for_followup()
             current_response = await self._call_llm(
                 agent=agent,
@@ -2155,6 +2586,8 @@ class BaseEngine(ABC):
                 billing_context=request.billing_context,
                 route_result=route_result,
                 log_user_type=log_user_type_for_call_log(request.user_role),
+                selected_skill_names=selected_skill_names,
+                context_sources=context_sources,
             )
             total_tokens += current_response.total_tokens or 0
         else:
@@ -2169,6 +2602,8 @@ class BaseEngine(ABC):
                 billing_context=request.billing_context,
                 route_result=route_result,
                 log_user_type=log_user_type_for_call_log(request.user_role),
+                selected_skill_names=selected_skill_names,
+                context_sources=context_sources,
             )
             total_tokens += current_response.total_tokens or 0
 

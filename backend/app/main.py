@@ -12,11 +12,14 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import settings
+from app.core.cors import (
+    get_cors_headers_for_origin,
+    refresh_verified_custom_domain_cache,
+)
 from app.core.database import (
     close_database,
     get_last_db_init_failure_reason,
@@ -29,6 +32,7 @@ from app.core.runtime_identity import get_runtime_identity_tag
 from app.exceptions import AppException
 from app.middleware.access_control import AccessControlMiddleware
 from app.middleware.audit_log import AuditLogMiddleware
+from app.middleware.dynamic_cors import DynamicCORSMiddleware
 from app.middleware.i18n import I18nMiddleware
 from app.middleware.permission import PermissionMiddleware
 from app.middleware.tenant import TenantMiddleware
@@ -201,6 +205,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info("Redis initialized")
         except Exception as redis_err:
             logger.warning(f"Redis initialization failed: {redis_err}")
+
+        await refresh_verified_custom_domain_cache()
+        logger.info("Verified custom-domain CORS cache refreshed")
 
         # Register core AI adapters (hardcoded, not dependent on plugin system) / 注册核心 AI 适配器（硬编码，不依赖插件系统）
         from app.ai.adapters import AdapterRegistry
@@ -500,20 +507,9 @@ def create_application() -> FastAPI:
     # 企业识别中间件（基于 Host 头解析企业）
     app.add_middleware(TenantMiddleware)
 
-    # CORS middleware — must be registered last (= outermost layer),
-    # ensuring all middleware responses (including AccessControlMiddleware 403) carry CORS headers
-    # CORS 中间件 — 必须最后注册（= 最外层），
-    # 确保所有中间件（包括 AccessControlMiddleware 的 403）返回的响应都带 CORS headers
-    # Allow all origins for multi-tenant SaaS (subdomain + custom domains are dynamic)
-    # 多租户 SaaS 允许所有 Origin（子域名 + 自定义域名是动态的，静态白名单不可行）
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-        expose_headers=["X-Trace-ID"],
-    )
+    # Dynamic CORS middleware — validates allowed origins and reflects the exact Origin.
+    # / 动态 CORS 中间件：校验允许的 Origin，并精确回写请求来源。
+    app.add_middleware(DynamicCORSMiddleware)
 
     # Trace ID middleware (outermost = runs first; propagates X-Trace-ID for request correlation)
     # 追踪 ID 中间件（最外层 = 最先执行；传播 X-Trace-ID 用于请求关联）
@@ -523,19 +519,13 @@ def create_application() -> FastAPI:
     # Register exception handlers / 注册异常处理器
     # ========================================
 
-    def _get_cors_headers(request: Request) -> dict[str, str]:
+    async def _get_cors_headers(request: Request) -> dict[str, str]:
         """Get CORS response headers / 获取 CORS 响应头"""
-        origin = request.headers.get("origin", "")
-        return {
-            "Access-Control-Allow-Origin": origin or "*",
-            "Access-Control-Allow-Credentials": "true",
-            "Access-Control-Allow-Methods": "*",
-            "Access-Control-Allow-Headers": "*",
-        } if origin else {}
+        return await get_cors_headers_for_origin(request.headers.get("origin"))
 
-    def _get_error_response_headers(request: Request) -> dict[str, str]:
+    async def _get_error_response_headers(request: Request) -> dict[str, str]:
         """Get CORS headers for error responses / 获取错误响应所需的 CORS 头"""
-        return _get_cors_headers(request)
+        return await _get_cors_headers(request)
 
     @app.exception_handler(AppException)
     async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
@@ -543,7 +533,7 @@ def create_application() -> FastAPI:
         return JSONResponse(
             status_code=exc.status_code,
             content=exc.to_dict(),
-            headers=_get_error_response_headers(request),
+            headers=await _get_error_response_headers(request),
         )
 
     @app.exception_handler(RequestValidationError)
@@ -561,7 +551,7 @@ def create_application() -> FastAPI:
         ]
         # validation_error() returns JSONResponse / validation_error() 返回 JSONResponse
         response = validation_error(errors=errors)
-        response.headers.update(_get_error_response_headers(request))
+        response.headers.update(await _get_error_response_headers(request))
         return response
 
     @app.exception_handler(StarletteHTTPException)
@@ -597,7 +587,7 @@ def create_application() -> FastAPI:
             status_code=exc.status_code,
             debug=debug_payload,
         )
-        response.headers.update(_get_error_response_headers(request))
+        response.headers.update(await _get_error_response_headers(request))
         return response
 
     @app.exception_handler(Exception)
@@ -613,7 +603,7 @@ def create_application() -> FastAPI:
             status_code=500,
             debug=build_exception_debug(exc),
         )
-        response.headers.update(_get_error_response_headers(request))
+        response.headers.update(await _get_error_response_headers(request))
         return response
 
     # ========================================

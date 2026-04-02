@@ -1,6 +1,6 @@
 import type { Editor } from '@tiptap/core';
 
-import type { RichTextAITask } from '#/components/business/ai-chat-panel/types';
+import type { RichTextAITask } from '#/types/ai-chat';
 
 import { message } from 'ant-design-vue';
 

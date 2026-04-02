@@ -823,5 +823,9 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
             "total_count": total_count,
         }
 
+    async def get_used_storage_bytes(self) -> int:
+        """获取已使用存储字节数 / Get used storage bytes."""
+        return await self.repo.sum_size()
+
 
 __all__ = ["AttachmentService"]

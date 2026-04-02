@@ -1,8 +1,4 @@
 <script lang="ts" setup>
-import type { LocationQuery } from 'vue-router';
-
-import type { InputVariable } from '#/components/business/ai-chat-panel/types';
-
 /**
  * User AI Chat - Full Page
  * 用户端 AI 对话 — 全页
@@ -12,6 +8,10 @@ import type { InputVariable } from '#/components/business/ai-chat-panel/types';
  * 桌面：左侧栏（智能体+会话历史）+ 右侧对话区；移动端：单列对话，侧栏在 Drawer 中。
  * Reuses useAIChat composable with /user API prefix
  */
+import type { LocationQuery } from 'vue-router';
+
+import type { InputVariable } from '#/types/ai-chat';
+
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
@@ -29,9 +29,9 @@ import {
 } from 'ant-design-vue';
 
 import ChatMessageItem from '#/components/business/ai-chat-panel/ChatMessageItem.vue';
-import { getAgentInputVariables } from '#/components/business/ai-chat-panel/types';
 import { useAIChat } from '#/components/business/ai-chat-panel/use-ai-chat';
 import { $t } from '#/locales';
+import { getAgentInputVariables } from '#/types/ai-chat';
 import { normalizeStarterQuestions } from '#/utils/ai-starter-questions';
 import { getFileIcon } from '#/utils/file';
 

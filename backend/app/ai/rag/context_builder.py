@@ -44,7 +44,7 @@ class SourceReference:
     chunk_index: int = 0
     knowledge_base_id: int | None = None
     knowledge_base_name: str | None = None
-    # Distinct from ephemeral RAG citations / 与临时 RAG 引用区分
+    # Formal knowledge-base citation marker. Historical payloads may contain legacy values.
     source_kind: str = "formal_kb"
 
     def to_dict(self) -> dict:

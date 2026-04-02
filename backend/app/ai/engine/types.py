@@ -14,6 +14,7 @@ from app.ai.constants import (
     DEFAULT_MEMORY_SCENE,
     MEMORY_CHANNEL_SYSTEM,
 )
+from app.ai.runtime.types import CapabilityBundle, TurnRecord
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage
 from app.enums.agent import AgentExecutionModeEnum
@@ -77,7 +78,6 @@ class ExecutionRequest:
     stream: bool = False
     conversation_id: int | None = None
     knowledge_base_ids: list[int] | None = None
-    context_engine_id: str = "legacy"
     system_prompt_additions: list[str] = field(default_factory=list)
     trust_policy_ref: dict[str, Any] | None = None
     interaction_mode: str = "confirm"
@@ -166,6 +166,7 @@ class ExecutionResult:
     memory_recalled: bool = False
     prune_stats: dict[str, Any] | None = None
     tool_planner: dict[str, Any] | None = None
+    turn_record: TurnRecord | None = None
 
 
 @dataclass
@@ -192,7 +193,6 @@ class PreparedExecution:
     tool_use_policy: ToolUsePolicy = field(default_factory=ToolUsePolicy)
     rag_sources: list[dict[str, Any]] | None = None
     rag_source_kinds: list[str] = field(default_factory=list)
-    context_engine_id: str = "legacy"
     compact_summary: str | None = None
     prune_stats: dict[str, Any] | None = None
     memory_recall_slice: dict[str, Any] | None = None
@@ -203,6 +203,7 @@ class PreparedExecution:
     diagnostics: dict[str, Any] = field(default_factory=dict)
     tool_planner: dict[str, Any] | None = None
     context_engine: Any | None = None
+    capability_bundle: CapabilityBundle | None = None
     tool_consent_modes: dict[str, str] = field(default_factory=dict)
     optimize_event: dict[str, Any] | None = None
     route_result: RouteResult | None = None

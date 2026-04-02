@@ -23,6 +23,10 @@ from app.middleware.tenant import get_tenant_context
 from app.rbac.decorators import auth_only, public
 from app.schemas.common import RefreshTokenRequest, TokenResponse
 from app.schemas.tenant import (
+    LoginByCodeRequest,
+    SendLoginCodeRequest,
+)
+from app.schemas.tenant import (
     TenantUserChangePasswordRequest as ChangePasswordRequest,
 )
 from app.schemas.tenant import (
@@ -114,6 +118,76 @@ async def login_json(
         captcha_challenge_id=login_data.captcha_challenge_id,
         captcha_solution=login_data.captcha_solution,
         captcha_provider_code=login_data.captcha_provider_code,
+    )
+    await db.commit()
+
+    return success(
+        data=TokenResponse(**tokens),
+        message=_("auth.login_success"),
+    )
+
+
+@router.post("/login-code/send", summary="发送登录验证码 / Send login verification code")
+@public
+async def send_login_code(
+    db: DbSession,
+    request: Request,
+    payload: SendLoginCodeRequest,
+):
+    """
+    发送企业用户登录验证码 / Send tenant-user login verification code.
+    """
+    rate_limited = check_login_rate_limit(request)
+    if rate_limited:
+        return rate_limited
+
+    auth_service = AuthService(db)
+    tenant_ctx = get_tenant_context(request)
+    tenant_id_from_ctx = tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
+
+    result = await auth_service.send_tenant_user_login_code(
+        channel=payload.channel,
+        email=payload.email,
+        phone=payload.phone,
+        tenant_code=payload.tenant_code,
+        tenant_id_from_ctx=tenant_id_from_ctx,
+        client_ip=request.client.host if request.client else None,
+        captcha_challenge_id=payload.captcha_challenge_id,
+        captcha_solution=payload.captcha_solution,
+        captcha_provider_code=payload.captcha_provider_code,
+    )
+    return success(
+        data=result,
+        message=_("auth.login_code_sent"),
+    )
+
+
+@router.post("/login-code/login", summary="验证码登录 / Login with verification code")
+@public
+async def login_by_code(
+    db: DbSession,
+    request: Request,
+    payload: LoginByCodeRequest,
+):
+    """
+    企业用户验证码登录 / Tenant-user login with verification code.
+    """
+    rate_limited = check_login_rate_limit(request)
+    if rate_limited:
+        return rate_limited
+
+    auth_service = AuthService(db)
+    tenant_ctx = get_tenant_context(request)
+    tenant_id_from_ctx = tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
+
+    tokens = await auth_service.authenticate_tenant_user_by_code(
+        channel=payload.channel,
+        code=payload.code,
+        email=payload.email,
+        phone=payload.phone,
+        tenant_code=payload.tenant_code,
+        tenant_id_from_ctx=tenant_id_from_ctx,
+        client_ip=request.client.host if request.client else None,
     )
     await db.commit()
 

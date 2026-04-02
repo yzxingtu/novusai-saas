@@ -22,7 +22,7 @@
  * ```
  */
 
-import type { EnhancedFormFieldDescriptor } from './use-ai-operations';
+import type { EnhancedFormFieldDescriptor } from './ai-operation-types';
 
 import { $t } from '#/locales';
 

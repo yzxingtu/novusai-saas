@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { InputVariable } from '#/components/business/ai-chat-panel/types';
+import type { InputVariable } from '#/types/ai-chat';
 
 import { IconifyIcon } from '@vben/icons';
 

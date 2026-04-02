@@ -38,34 +38,34 @@ function reload() {
           </Button>
         </template>
       </Result>
-      <pre v-if="errorInfo && isDev" class="app-error-boundary__debug">{{
-        String(capturedError)
-      }}
-{{ errorInfo }}</pre>
+      <pre v-if="errorInfo && isDev" class="app-error-boundary__debug">
+        {{ String(capturedError) }}
+{{ errorInfo }}
+      </pre>
     </div>
   </template>
-  <slot v-else />
+  <slot v-else></slot>
 </template>
 
 <style scoped>
 .app-error-boundary {
   display: flex;
-  min-height: 40vh;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  min-height: 40vh;
   padding: 24px;
 }
 
 .app-error-boundary__debug {
-  margin-top: 16px;
   max-width: 720px;
-  overflow: auto;
   padding: 12px;
+  margin-top: 16px;
+  overflow: auto;
   font-size: 12px;
   text-align: left;
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
-  word-break: break-word;
   background: var(--ant-color-fill-quaternary, #f5f5f5);
   border-radius: 6px;
 }

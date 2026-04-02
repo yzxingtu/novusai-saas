@@ -136,6 +136,7 @@ dist/
 .next/
 out/
 /.turbo/
+output/
 
 # Vite
 *.local

@@ -183,7 +183,7 @@ async def get_tenant_public_config(request: Request, db: DbSession):
             ),
             captcha_difficulty=configs.get("tenant_captcha_difficulty"),
             captcha_enable_threshold=configs.get("tenant_captcha_enable_threshold"),
-            login_methods=configs.get("tenant_login_methods", ["password"]),
+            login_methods=configs.get("tenant_login_methods", ["password", "email"]),
             login_max_attempts=configs.get("tenant_login_max_attempts"),
             login_lockout_minutes=configs.get("tenant_login_lockout_minutes"),
             password_min_length=configs.get("tenant_password_min_length"),

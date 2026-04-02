@@ -6,9 +6,9 @@ export * from './ai';
 export * from './attachment';
 export * from './auth';
 
-export * from './long-term-memory';
 export * from './codegen';
 export * from './configs';
+export * from './long-term-memory';
 export * from './menu';
 export * from './operation-log';
 export * from './organization';

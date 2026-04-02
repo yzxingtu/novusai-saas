@@ -30,6 +30,8 @@ import type {
   MemoryState,
   PageContext,
   RawMessageItem,
+  TurnContextSourcePayload,
+  TurnRecordPayload,
 } from '#/api/shared/ai-chat';
 import type { AppErrorInfo } from '#/utils/request';
 
@@ -486,6 +488,110 @@ export function useAIChat(options: UseAIChatOptions) {
     return 'error';
   }
 
+  function normalizeStringList(value: unknown): string[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    return value
+      .map((item) => String(item ?? '').trim())
+      .filter((item) => item.length > 0);
+  }
+
+  function normalizeOptionalString(value: unknown): string | undefined {
+    if (typeof value !== 'string') {
+      return undefined;
+    }
+    const normalized = value.trim();
+    return normalized.length > 0 ? normalized : undefined;
+  }
+
+  function normalizeContextSources(value: unknown): TurnContextSourcePayload[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    const normalized: TurnContextSourcePayload[] = [];
+    for (const item of value) {
+      if (!item || typeof item !== 'object') {
+        continue;
+      }
+      const payload = item as Record<string, unknown>;
+      const source: TurnContextSourcePayload = {};
+      const kind = normalizeOptionalString(payload.kind);
+      const name = normalizeOptionalString(payload.name);
+      if (kind) {
+        source.kind = kind;
+      }
+      if (name) {
+        source.name = name;
+      }
+      if (typeof payload.active === 'boolean') {
+        source.active = payload.active;
+      }
+      if (payload.metadata && typeof payload.metadata === 'object') {
+        source.metadata = payload.metadata as Record<string, unknown>;
+      }
+      normalized.push(source);
+    }
+    return normalized;
+  }
+
+  function normalizeTurnRecord(
+    value: unknown,
+  ): null | TurnRecordPayload {
+    if (!value || typeof value !== 'object') {
+      return null;
+    }
+    const payload = value as Record<string, unknown>;
+    const turnOutcome = normalizeOptionalString(payload.turn_outcome);
+    const terminationReason = normalizeOptionalString(payload.termination_reason);
+    const protocolPath = normalizeOptionalString(payload.protocol_path);
+    const selectedToolNames = normalizeStringList(payload.selected_tool_names);
+    const selectedSkillNames = normalizeStringList(payload.selected_skill_names);
+    const contextSources = normalizeContextSources(payload.context_sources);
+    const fallbackHistory = Array.isArray(payload.fallback_history)
+      ? payload.fallback_history
+          .filter((item): item is Record<string, unknown> => {
+            return !!item && typeof item === 'object';
+          })
+          .map((item) => ({ ...item }))
+      : [];
+    const metadata =
+      payload.metadata && typeof payload.metadata === 'object'
+        ? ({ ...(payload.metadata as Record<string, unknown>) } as Record<
+            string,
+            unknown
+          >)
+        : undefined;
+    return {
+      turn_outcome: turnOutcome,
+      termination_reason: terminationReason,
+      protocol_path: protocolPath,
+      selected_tool_names: selectedToolNames,
+      selected_skill_names: selectedSkillNames,
+      context_sources: contextSources,
+      ...(fallbackHistory.length > 0
+        ? { fallback_history: fallbackHistory }
+        : {}),
+      ...(metadata ? { metadata } : {}),
+    };
+  }
+
+  function isTurnFailure(
+    turnOutcome?: string,
+    terminationReason?: string,
+  ): boolean {
+    const normalizedOutcome = normalizeOptionalString(turnOutcome);
+    const normalizedTermination = normalizeOptionalString(terminationReason);
+    const failureOutcomes = new Set(['error', 'failed', 'tool_round_failed']);
+    const failureTerminations = new Set(['error', 'failed', 'tool_error']);
+    return (
+      (normalizedOutcome ? failureOutcomes.has(normalizedOutcome) : false) ||
+      (normalizedTermination
+        ? failureTerminations.has(normalizedTermination)
+        : false)
+    );
+  }
+
   /**
    * Merge raw DB messages into display ChatMessages / 将原始 DB 消息合并为展示用 ChatMessages
    *
@@ -565,6 +671,13 @@ export function useAIChat(options: UseAIChatOptions) {
       let hasPartial = false;
       let hasInterrupted = false;
       let turnCompletionReason: string | undefined;
+      let turnTerminationReason: string | undefined;
+      let turnOutcome: string | undefined;
+      let turnProtocolPath: string | undefined;
+      let turnSelectedSkillNames: string[] = [];
+      let turnSelectedToolNames: string[] = [];
+      let turnContextSources: TurnContextSourcePayload[] = [];
+      let turnRecordPayload: TurnRecordPayload | null = null;
       let turnAgentId: null | number = null;
       let turnAgentName: null | string = null;
       let turnAgentAvatar: null | string = null;
@@ -758,14 +871,86 @@ export function useAIChat(options: UseAIChatOptions) {
           if (cur.metadata?.memory_updated) {
             hasMemoryUpdated = true;
           }
-          if (cur.metadata?.partial) {
+          const turnRecord = normalizeTurnRecord(cur.metadata?.turn_record);
+          if (turnRecord) {
+            turnRecordPayload = turnRecord;
+          }
+          const metadataTurnOutcome = normalizeOptionalString(
+            cur.metadata?.turn_outcome,
+          );
+          if (!turnOutcome && metadataTurnOutcome) {
+            turnOutcome = metadataTurnOutcome;
+          }
+          if (!turnOutcome && turnRecord?.turn_outcome) {
+            turnOutcome = turnRecord.turn_outcome;
+          }
+          const metadataTerminationReason = normalizeOptionalString(
+            cur.metadata?.termination_reason,
+          );
+          if (!turnTerminationReason && metadataTerminationReason) {
+            turnTerminationReason = metadataTerminationReason;
+          }
+          if (!turnTerminationReason && turnRecord?.termination_reason) {
+            turnTerminationReason = turnRecord.termination_reason;
+          }
+          const metadataProtocolPath = normalizeOptionalString(
+            cur.metadata?.protocol_path,
+          );
+          if (!turnProtocolPath && metadataProtocolPath) {
+            turnProtocolPath = metadataProtocolPath;
+          }
+          if (!turnProtocolPath && turnRecord?.protocol_path) {
+            turnProtocolPath = turnRecord.protocol_path;
+          }
+          const metadataSelectedToolNames = normalizeStringList(
+            cur.metadata?.selected_tool_names,
+          );
+          if (metadataSelectedToolNames.length > 0) {
+            turnSelectedToolNames = metadataSelectedToolNames;
+          } else if (
+            turnSelectedToolNames.length === 0 &&
+            (turnRecord?.selected_tool_names?.length ?? 0) > 0
+          ) {
+            turnSelectedToolNames = [...(turnRecord?.selected_tool_names ?? [])];
+          }
+          const metadataSelectedSkillNames = normalizeStringList(
+            cur.metadata?.selected_skill_names,
+          );
+          if (metadataSelectedSkillNames.length > 0) {
+            turnSelectedSkillNames = metadataSelectedSkillNames;
+          } else if (
+            turnSelectedSkillNames.length === 0 &&
+            (turnRecord?.selected_skill_names?.length ?? 0) > 0
+          ) {
+            turnSelectedSkillNames = [
+              ...(turnRecord?.selected_skill_names ?? []),
+            ];
+          }
+          const metadataContextSources = normalizeContextSources(
+            cur.metadata?.context_sources,
+          );
+          if (metadataContextSources.length > 0) {
+            turnContextSources = metadataContextSources;
+          } else if (
+            turnContextSources.length === 0 &&
+            (turnRecord?.context_sources?.length ?? 0) > 0
+          ) {
+            turnContextSources = [...(turnRecord?.context_sources ?? [])];
+          }
+          if (cur.metadata?.partial || turnOutcome === 'partial') {
             hasPartial = true;
           }
-          if (cur.metadata?.interrupted) {
+          if (cur.metadata?.interrupted || turnTerminationReason === 'interrupted') {
             hasInterrupted = true;
+          }
+          if (hasInterrupted) {
+            hasPartial = true;
           }
           if (cur.metadata?.completion_reason) {
             turnCompletionReason = cur.metadata.completion_reason;
+          }
+          if (!turnCompletionReason && turnTerminationReason) {
+            turnCompletionReason = turnTerminationReason;
           }
           const persistedThinking =
             typeof cur.metadata?.thinking_content === 'string'
@@ -826,8 +1011,32 @@ export function useAIChat(options: UseAIChatOptions) {
         if (hasInterrupted) {
           assistantMsg.interrupted = true;
         }
+        if (turnOutcome) {
+          assistantMsg.turnOutcome = turnOutcome;
+        }
+        if (turnTerminationReason) {
+          assistantMsg.terminationReason = turnTerminationReason;
+        }
+        if (turnProtocolPath) {
+          assistantMsg.protocolPath = turnProtocolPath;
+        }
+        if (turnSelectedToolNames.length > 0) {
+          assistantMsg.selectedToolNames = turnSelectedToolNames;
+        }
+        if (turnSelectedSkillNames.length > 0) {
+          assistantMsg.selectedSkillNames = turnSelectedSkillNames;
+        }
+        if (turnContextSources.length > 0) {
+          assistantMsg.contextSources = turnContextSources;
+        }
+        if (turnRecordPayload) {
+          assistantMsg.turnRecord = turnRecordPayload;
+        }
         if (turnCompletionReason) {
           assistantMsg.completionReason = turnCompletionReason;
+        }
+        if (isTurnFailure(turnOutcome, turnTerminationReason ?? turnCompletionReason)) {
+          assistantMsg.requestFailedRetry = true;
         }
         if (thinkingContentParts.length > 0) {
           assistantMsg.thinkingContent = thinkingContentParts.join('\n\n');
@@ -1744,7 +1953,12 @@ export function useAIChat(options: UseAIChatOptions) {
       if (!msg) return;
       msg.error = appError;
       msg.requestFailedRetry = true;
-      msg.content = '';
+      if (msg.content.trim().length > 0) {
+        msg.partial = true;
+      }
+      msg.terminationReason = msg.terminationReason || 'error';
+      msg.turnOutcome = msg.turnOutcome || 'failed';
+      msg.completionReason = msg.completionReason || 'error';
     }
 
     function handleSsePayload(data: string) {
@@ -1958,11 +2172,84 @@ export function useAIChat(options: UseAIChatOptions) {
               msg.ragSourceKinds = Array.isArray(event.rag_source_kinds)
                 ? (event.rag_source_kinds as string[])
                 : undefined;
-              conversationContextDiagnostics.value = {
+              const turnRecord = normalizeTurnRecord(event.turn_record);
+              const turnOutcome =
+                normalizeOptionalString(event.turn_outcome) ??
+                turnRecord?.turn_outcome;
+              const terminationReason =
+                normalizeOptionalString(event.termination_reason) ??
+                turnRecord?.termination_reason;
+              const completionReason =
+                terminationReason ??
+                normalizeOptionalString(event.completion_reason);
+              const interruptedTurn =
+                terminationReason === 'interrupted' ||
+                completionReason === 'interrupted';
+              const protocolPath =
+                normalizeOptionalString(event.protocol_path) ??
+                turnRecord?.protocol_path;
+              const selectedToolNamesFromEvent = normalizeStringList(
+                event.selected_tool_names,
+              );
+              const selectedToolNames =
+                selectedToolNamesFromEvent.length > 0
+                  ? selectedToolNamesFromEvent
+                  : (turnRecord?.selected_tool_names ?? []);
+              const selectedSkillNamesFromEvent = normalizeStringList(
+                event.selected_skill_names,
+              );
+              const selectedSkillNames =
+                selectedSkillNamesFromEvent.length > 0
+                  ? selectedSkillNamesFromEvent
+                  : (turnRecord?.selected_skill_names ?? []);
+              const contextSourcesFromEvent = normalizeContextSources(
+                event.context_sources,
+              );
+              const contextSources =
+                contextSourcesFromEvent.length > 0
+                  ? contextSourcesFromEvent
+                  : (turnRecord?.context_sources ?? []);
+
+              if (completionReason) {
+                msg.completionReason = completionReason;
+              }
+              if (turnOutcome) {
+                msg.turnOutcome = turnOutcome;
+              }
+              if (turnRecord) {
+                msg.turnRecord = turnRecord;
+              }
+              if (terminationReason) {
+                msg.terminationReason = terminationReason;
+              }
+              if (interruptedTurn) {
+                msg.interrupted = true;
+                msg.partial = true;
+              }
+              if (protocolPath) {
+                msg.protocolPath = protocolPath;
+              }
+              if (selectedToolNames.length > 0) {
+                msg.selectedToolNames = selectedToolNames;
+              }
+              if (selectedSkillNames.length > 0) {
+                msg.selectedSkillNames = selectedSkillNames;
+              }
+              if (contextSources.length > 0) {
+                msg.contextSources = contextSources;
+              }
+              if (turnOutcome === 'partial') {
+                msg.partial = true;
+              }
+              if (isTurnFailure(turnOutcome, terminationReason ?? completionReason)) {
+                msg.requestFailedRetry = true;
+              }
+
+              const nextContextDiagnostics: Record<string, unknown> = {
                 context_compacted: Boolean(event.context_compacted),
                 estimated_tokens: (event.total_tokens as number) || 0,
                 interaction_mode_effective: interactionMode.value,
-                last_interrupted: false,
+                last_interrupted: interruptedTurn,
                 memory_flush_triggered: Boolean(event.memory_flush_triggered),
                 memory_recalled: Boolean(event.memory_recalled),
                 prune_stats:
@@ -1972,11 +2259,56 @@ export function useAIChat(options: UseAIChatOptions) {
                   ? (event.rag_source_kinds as string[])
                   : [],
               };
-              lastRunSummary.value = {
+              if (turnOutcome) {
+                nextContextDiagnostics.turn_outcome = turnOutcome;
+              }
+              if (terminationReason) {
+                nextContextDiagnostics.termination_reason = terminationReason;
+              }
+              if (protocolPath) {
+                nextContextDiagnostics.protocol_path = protocolPath;
+              }
+              if (selectedToolNames.length > 0) {
+                nextContextDiagnostics.selected_tool_names = selectedToolNames;
+              }
+              if (selectedSkillNames.length > 0) {
+                nextContextDiagnostics.selected_skill_names = selectedSkillNames;
+              }
+              if (contextSources.length > 0) {
+                nextContextDiagnostics.context_sources = contextSources;
+              }
+              conversationContextDiagnostics.value = nextContextDiagnostics;
+
+              const nextLastRunSummary: Record<string, unknown> = {
                 duration_ms: (event.duration_ms as number) || 0,
                 interaction_mode_effective: interactionMode.value,
                 total_tokens: (event.total_tokens as number) || 0,
               };
+              if (completionReason) {
+                nextLastRunSummary.completion_reason = completionReason;
+              }
+              if (interruptedTurn) {
+                nextLastRunSummary.interrupted = true;
+              }
+              if (terminationReason) {
+                nextLastRunSummary.termination_reason = terminationReason;
+              }
+              if (turnOutcome) {
+                nextLastRunSummary.turn_outcome = turnOutcome;
+              }
+              if (protocolPath) {
+                nextLastRunSummary.protocol_path = protocolPath;
+              }
+              if (selectedToolNames.length > 0) {
+                nextLastRunSummary.selected_tool_names = selectedToolNames;
+              }
+              if (selectedSkillNames.length > 0) {
+                nextLastRunSummary.selected_skill_names = selectedSkillNames;
+              }
+              if (contextSources.length > 0) {
+                nextLastRunSummary.context_sources = contextSources;
+              }
+              lastRunSummary.value = nextLastRunSummary;
               if (event.conversation_id) {
                 streamConversationId = event.conversation_id as number;
                 activeConversationId.value = streamConversationId;

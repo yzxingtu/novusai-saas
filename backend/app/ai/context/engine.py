@@ -12,13 +12,24 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from app.ai.context.pruning import PruneStats, TransientPruner
+from app.ai.capabilities import CapabilityDescriptionBuilder
 from app.ai.context.long_term_memory import get_long_term_memory_provider
+from app.ai.context.pruning import TransientPruner
+from app.ai.runtime.context_assembler import (
+    ContextAssemblerState,
+    LegacyContextAssemblerAdapter,
+    get_context_assembler,
+)
+from app.ai.runtime.types import CapabilityBundle
 from app.ai.types import ChatMessage
 from app.ai.utils.token_estimator import estimate_tokens
 from app.core.base_model import utc_now
 from app.core.config import settings
 from app.core.logging import LogManager
+from app.services.ai.capability_awareness_config import (
+    get_tenant_capability_awareness_settings,
+)
+from app.services.ai.model_capability_lookup import resolve_runtime_model_capabilities
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +39,7 @@ if TYPE_CHECKING:
     from app.ai.skills.resolver import SkillResolveResult
     from app.models.ai.agent import Agent
 
+
 logger = LogManager.get_logger("ai.context_engine")
 
 
@@ -35,7 +47,6 @@ logger = LogManager.get_logger("ai.context_engine")
 class ContextAssembly:
     """Assembled context payload / 已组装的上下文载荷"""
 
-    engine_id: str = "legacy"
     messages: list[ChatMessage] = field(default_factory=list)
     estimated_tokens: int = 0
     system_prompt_additions: list[str] = field(default_factory=list)
@@ -46,16 +57,15 @@ class ContextAssembly:
     prune_stats: dict[str, Any] | None = None
     memory_recall_slice: dict[str, Any] | None = None
     context_compacted: bool = False
-    # Reserved for future explicit memory-flush signaling; legacy engine keeps False.
-    # 预留给显式记忆 flush 信号；旧版引擎保持 False。
+    # Reserved for future explicit memory-flush signaling; current engine keeps False.
+    # 预留给显式记忆 flush 信号；当前实现保持 False。
     memory_flush_triggered: bool = False
     memory_recalled: bool = False
+    capability_bundle: CapabilityBundle | None = None
 
 
 class ContextEngine(ABC):
     """Context engine interface / 上下文引擎接口"""
-
-    id = "legacy"
 
     @abstractmethod
     async def ingest(self, agent: Agent, request: ExecutionRequest) -> None:
@@ -66,7 +76,7 @@ class ContextEngine(ABC):
         self,
         agent: Agent,
         request: ExecutionRequest,
-        skill_result: "SkillResolveResult | None" = None,
+        skill_result: SkillResolveResult | None = None,
     ) -> ContextAssembly:
         """Assemble model context / 组装模型上下文"""
 
@@ -84,21 +94,21 @@ class ContextEngine(ABC):
         """Post-turn hook / 轮次结束后钩子"""
 
 
-class LegacyContextEngine(ContextEngine):
+class ConversationContextEngine(ContextEngine):
     """
-    Legacy implementation / 传统实现。
+    Default conversation context implementation / 默认对话上下文实现。
 
     Preserves current behavior while centralizing system prompt assembly, RAG
     injection, and transient prompt pruning.
     在保持当前行为的同时，收口 system prompt 组装、RAG 注入和 prompt 临时裁剪。
     """
 
-    id = "legacy"
-
     def __init__(self, db: AsyncSession, base_engine: BaseEngine) -> None:
         self.db = db
         self.base_engine = base_engine
         self.pruner = TransientPruner()
+        self.context_assembler = get_context_assembler()
+        self.context_assembler_adapter = LegacyContextAssemblerAdapter()
         # True after assemble() persisted a compaction snapshot; compact() skips duplicate persist.
         self._compaction_snapshot_written_in_assemble = False
 
@@ -109,7 +119,7 @@ class LegacyContextEngine(ContextEngine):
         self,
         agent: Agent,
         request: ExecutionRequest,
-        skill_result: "SkillResolveResult | None" = None,
+        skill_result: SkillResolveResult | None = None,
     ) -> ContextAssembly:
         self._compaction_snapshot_written_in_assemble = False
         messages: list[ChatMessage] = []
@@ -122,6 +132,11 @@ class LegacyContextEngine(ContextEngine):
 
         rag_sources = None
         rag_source_kinds: list[str] = []
+        requested_kb_ids = [
+            int(kb_id)
+            for kb_id in (request.knowledge_base_ids or [])
+            if str(kb_id).strip()
+        ]
         agent_kb_ids, agent_kb_weights = await load_agent_kb_bindings(
             self.db,
             agent.id,
@@ -134,6 +149,11 @@ class LegacyContextEngine(ContextEngine):
                 merged_kb_ids = agent_kb_ids
         else:
             merged_kb_ids = agent_kb_ids
+        dropped_kb_ids = (
+            [kb_id for kb_id in requested_kb_ids if kb_id not in (merged_kb_ids or [])]
+            if requested_kb_ids
+            else []
+        )
 
         effective_rag_config = agent.rag_config or {}
         if merged_kb_ids:
@@ -164,6 +184,9 @@ class LegacyContextEngine(ContextEngine):
         context_compacted = False
         memory_recalled = False
         memory_recall_slice: dict[str, Any] | None = None
+        dynamic_capability_awareness_enabled = False
+        capability_awareness_categories: list[str] = []
+        capability_awareness_error: str | None = None
         compaction_source_tokens = self._messages_token_estimate(messages)
         existing_snapshot = await self._load_compaction_snapshot(request)
         web_research_date_anchor = self._build_web_research_date_anchor(
@@ -172,6 +195,92 @@ class LegacyContextEngine(ContextEngine):
         )
         if web_research_date_anchor:
             system_prompt_additions.append(web_research_date_anchor)
+
+        try:
+            capability_settings = await get_tenant_capability_awareness_settings(
+                self.db,
+                request.tenant_id,
+            )
+            dynamic_capability_awareness_enabled = bool(
+                capability_settings.enable_dynamic_capability_awareness
+            )
+            if dynamic_capability_awareness_enabled:
+                capability_builder = CapabilityDescriptionBuilder(
+                    style=capability_settings.capability_description_style,
+                    max_items_per_category=(
+                        capability_settings.max_capability_items_per_category
+                    ),
+                )
+                capability_descriptions = []
+
+                if skill_result:
+                    capability_descriptions.extend(
+                        capability_builder.build_skill_descriptions(skill_result)
+                    )
+
+                if merged_kb_ids:
+                    from app.services.ai.agent_kb_binding_service import (
+                        AgentKBBindingService,
+                    )
+
+                    kb_service = AgentKBBindingService(self.db, request.tenant_id)
+                    kb_bindings = await kb_service.get_agent_kb_bindings_with_metadata(
+                        agent.id,
+                        merge_platform_bindings=True,
+                    )
+                    effective_kb_ids = set(merged_kb_ids)
+                    kb_bindings = [
+                        binding
+                        for binding in kb_bindings
+                        if int(
+                            binding.get("knowledge_base_id")
+                            or binding.get("kb_id")
+                            or 0
+                        )
+                        in effective_kb_ids
+                    ]
+                    kb_description = (
+                        capability_builder.build_knowledge_base_descriptions(
+                            kb_bindings
+                        )
+                    )
+                    if kb_description:
+                        capability_descriptions.append(kb_description)
+
+                page_context = None
+                if isinstance(request.input_variables, dict):
+                    from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
+
+                    page_context = request.input_variables.get(PAGE_CONTEXT_KEY)
+                page_description = (
+                    capability_builder.build_page_context_description(page_context)
+                )
+                if page_description:
+                    capability_descriptions.append(page_description)
+
+                memory_description = capability_builder.build_memory_description(
+                    memory_enabled=request.memory_enabled,
+                    long_term_memory_enabled=long_term_memory_enabled,
+                )
+                if memory_description:
+                    capability_descriptions.append(memory_description)
+
+                capability_awareness_categories = [
+                    description.category for description in capability_descriptions
+                ]
+                capability_block = capability_builder.format_as_system_prompt_block(
+                    capability_descriptions
+                )
+                if capability_block:
+                    system_prompt_additions.append(capability_block)
+        except Exception as exc:
+            capability_awareness_error = str(exc)
+            logger.warning(
+                "Dynamic capability awareness degraded: agent_id={} tenant_id={} err={}",
+                getattr(agent, "id", None),
+                request.tenant_id,
+                str(exc),
+            )
 
         if long_term_memory_enabled and request.user_id:
             current_user_text = self.base_engine._extract_last_user_text(messages)
@@ -254,20 +363,84 @@ class LegacyContextEngine(ContextEngine):
 
         pruned_messages, prune_stats = self.pruner.prune(messages)
         estimated_tokens = self._messages_token_estimate(pruned_messages)
+        diagnostics = {
+            "pruning_applied": bool(prune_stats.pruned_message_count),
+            "compaction_source_tokens": compaction_source_tokens,
+            "context_compacted": context_compacted,
+            "memory_recalled": memory_recalled,
+            "web_research_date_anchor": bool(web_research_date_anchor),
+            "dynamic_capability_awareness_enabled": (
+                dynamic_capability_awareness_enabled
+            ),
+            "dynamic_capability_awareness_categories": (
+                capability_awareness_categories
+            ),
+            "requested_knowledge_base_ids": requested_kb_ids,
+            "effective_knowledge_base_ids": list(merged_kb_ids or []),
+            "dropped_knowledge_base_ids": dropped_kb_ids,
+        }
+        if capability_awareness_error:
+            diagnostics["dynamic_capability_awareness_error"] = (
+                capability_awareness_error
+            )
+
+        capability_bundle: CapabilityBundle | None = None
+        try:
+            runtime_model_capabilities = await resolve_runtime_model_capabilities(
+                model=getattr(agent, "model", None),
+            )
+            assembler_state = ContextAssemblerState(
+                knowledge_base_ids=list(merged_kb_ids or []),
+                requested_knowledge_base_ids=requested_kb_ids,
+                dropped_knowledge_base_ids=dropped_kb_ids,
+                rag_sources=list(rag_sources or []),
+                rag_source_kinds=list(rag_source_kinds or []),
+                memory_recalled=memory_recalled,
+                memory_recall_slice=memory_recall_slice,
+                runtime_model_capabilities=runtime_model_capabilities,
+            )
+            capability_bundle = await self.context_assembler.assemble_bundle(
+                agent=agent,
+                request=request,
+                skill_result=skill_result,
+                state=assembler_state,
+            )
+            self.context_assembler_adapter.apply_to_skill_result(
+                skill_result=skill_result,
+                bundle=capability_bundle,
+            )
+            diagnostics.update(
+                self.context_assembler_adapter.to_diagnostics(capability_bundle),
+            )
+            if not diagnostics.get("selected_skill_names"):
+                fallback_skill_names = list(
+                    getattr(skill_result, "selected_skill_names", []) or []
+                )
+                if fallback_skill_names:
+                    diagnostics["selected_skill_names"] = list(
+                        dict.fromkeys(
+                            str(name).strip()
+                            for name in fallback_skill_names
+                            if str(name).strip()
+                        )
+                    )
+            if runtime_model_capabilities:
+                diagnostics["runtime_model_capabilities"] = dict(
+                    runtime_model_capabilities
+                )
+        except Exception as exc:
+            diagnostics["capability_bundle_error"] = str(exc)
+            logger.warning(
+                "Context capability assembly degraded: agent_id={} err={}",
+                getattr(agent, "id", None),
+                str(exc),
+            )
 
         return ContextAssembly(
-            engine_id=self.id,
             messages=pruned_messages,
             estimated_tokens=estimated_tokens,
             system_prompt_additions=system_prompt_additions,
-            diagnostics={
-                "context_engine_id": self.id,
-                "pruning_applied": bool(prune_stats.pruned_message_count),
-                "compaction_source_tokens": compaction_source_tokens,
-                "context_compacted": context_compacted,
-                "memory_recalled": memory_recalled,
-                "web_research_date_anchor": bool(web_research_date_anchor),
-            },
+            diagnostics=diagnostics,
             rag_sources=rag_sources,
             rag_source_kinds=rag_source_kinds,
             compact_summary=compact_summary,
@@ -275,6 +448,7 @@ class LegacyContextEngine(ContextEngine):
             memory_recall_slice=memory_recall_slice,
             context_compacted=context_compacted,
             memory_recalled=memory_recalled,
+            capability_bundle=capability_bundle,
         )
 
     async def compact(self, agent: Agent, request: ExecutionRequest) -> None:
@@ -605,12 +779,5 @@ def get_context_engine(
     *,
     db: AsyncSession,
     base_engine: BaseEngine,
-    request: ExecutionRequest,
 ) -> ContextEngine:
-    engine_id = (request.context_engine_id or "legacy").strip().lower()
-    if engine_id and engine_id != "legacy":
-        logger.warning(
-            "Unknown context_engine_id={}, fallback to legacy",
-            engine_id,
-        )
-    return LegacyContextEngine(db, base_engine)
+    return ConversationContextEngine(db, base_engine)

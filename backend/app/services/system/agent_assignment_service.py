@@ -159,6 +159,13 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
         """获取企业的所有覆盖绑定 / Get all tenant override bindings."""
         return await self.repo.get_all_for_tenant(tenant_id)
 
+    async def get_assignment_by_feature_code(
+        self,
+        feature_code: str,
+    ) -> SystemAgentAssignment | None:
+        """按 feature_code 获取绑定 / Get assignment by feature_code."""
+        return await self.repo.get_by_feature_code(feature_code)
+
     async def set_tenant_override(
         self, feature_code: str, tenant_id: int, agent_id: int | None, config: dict | None = None
     ) -> SystemAgentAssignment:

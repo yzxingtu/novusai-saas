@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 /* eslint-disable vue/one-component-per-file */
-import type { ChatMessage } from '#/components/business/ai-chat-panel/types';
+import type { ChatMessage } from '#/types/ai-chat';
 
 import { mount } from '@vue/test-utils';
 import { defineComponent } from 'vue';

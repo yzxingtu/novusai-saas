@@ -183,6 +183,9 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
                 updated_at=now,
             )
         )
+        await self.repo.update_statistics(instance.id)
+        from app.ai.rag.retriever import HybridRetriever
+        await HybridRetriever.invalidate_kb_cache(instance.id)
         # 级联恢复文档分块 / Cascade restore document chunks
         doc_ids_query = select(KnowledgeDocument.id).where(
             KnowledgeDocument.knowledge_base_id == instance.id,
@@ -387,6 +390,20 @@ class DocumentChunkService(TenantService[DocumentChunk, DocumentChunkRepository]
         """获取指定文档的分块列表 / Get chunk list for document."""
         return await self.repo.get_by_document(document_id, skip, limit)
 
+    async def list_document_chunks(
+        self,
+        *,
+        document_id: int,
+        page: int,
+        page_size: int,
+    ) -> list[DocumentChunk]:
+        """分页获取文档分块 / Get paginated document chunks."""
+        return await self.get_by_document(
+            document_id=document_id,
+            skip=(page - 1) * page_size,
+            limit=page_size,
+        )
+
 
 class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseRepository]):
     """
@@ -550,6 +567,9 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
                 updated_at=now,
             )
         )
+        await self.repo.update_statistics(instance.id)
+        from app.ai.rag.retriever import HybridRetriever
+        await HybridRetriever.invalidate_kb_cache(instance.id)
         doc_ids_query = select(KnowledgeDocument.id).where(
             KnowledgeDocument.knowledge_base_id == instance.id,
         )

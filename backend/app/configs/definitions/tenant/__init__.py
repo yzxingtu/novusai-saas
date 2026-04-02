@@ -5,9 +5,17 @@ Imports all tenant config modules to trigger config registration.
 """
 
 # Import config modules (triggers config registration to groups) / 导入配置模块（触发注册）
-from app.configs.definitions.tenant import branding, features, registration, security, storage
+from app.configs.definitions.tenant import (
+    ai,
+    branding,
+    features,
+    registration,
+    security,
+    storage,
+)
 
 __all__ = [
+    "ai",
     "branding",
     "security",
     "features",

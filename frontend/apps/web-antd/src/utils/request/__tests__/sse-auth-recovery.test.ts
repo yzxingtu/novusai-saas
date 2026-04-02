@@ -1,6 +1,8 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+type RequestClientType = import('../request-client').RequestClient;
+
 vi.mock('#/utils/common', () => ({
   generateUUID: () => 'test-trace-id',
 }));
@@ -9,13 +11,14 @@ vi.mock('#/constants/endpoints', () => ({
   resolveEndpointByPath: () => 'admin',
 }));
 
-import { RequestClient } from '../request-client';
-
 function json401(code: number, message: string = 'Token error') {
-  return new Response(JSON.stringify({ code, message }), {
-    status: 401,
-    headers: { 'Content-Type': 'application/json' },
-  });
+  return Response.json(
+    { code, message },
+    {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    },
+  );
 }
 
 function json200Sse() {
@@ -31,13 +34,14 @@ function json200Sse() {
   });
 }
 
-describe('SSE 401 auth recovery', () => {
-  let client: RequestClient;
-  const doRefreshToken = vi.fn<[], Promise<string>>();
-  const doReAuthenticate = vi.fn<[], Promise<void>>();
-  const getToken = vi.fn<[string], string | null>();
+describe('sse 401 auth recovery', () => {
+  let client: RequestClientType;
+  const doRefreshToken = vi.fn<() => Promise<string>>();
+  const doReAuthenticate = vi.fn<() => Promise<void>>();
+  const getToken = vi.fn<(endpoint: string) => null | string>();
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    const { RequestClient } = await import('../request-client');
     client = new RequestClient({ baseURL: 'http://test' });
     client.setTokenGetter(getToken as any);
     client.setRefreshTokenHandler(doRefreshToken);
@@ -61,19 +65,15 @@ describe('SSE 401 auth recovery', () => {
     });
 
     const messages: string[] = [];
-    await client.requestSSE(
-      '/chat/stream',
-      { text: 'hi' },
-      {
-        method: 'POST',
-        onMessage: (chunk: string) => {
-          messages.push(chunk);
-        },
-        onEnd: () => {},
-        onError: () => {},
-        abortController: new AbortController(),
-      } as any,
-    );
+    await client.requestSSE('/chat/stream', { text: 'hi' }, {
+      method: 'POST',
+      onMessage: (chunk: string) => {
+        messages.push(chunk);
+      },
+      onEnd: () => {},
+      onError: () => {},
+      abortController: new AbortController(),
+    } as any);
 
     expect(doRefreshToken).toHaveBeenCalledOnce();
     expect(fetchSpy).toHaveBeenCalledTimes(2);
@@ -90,17 +90,13 @@ describe('SSE 401 auth recovery', () => {
       return Promise.resolve(json200Sse());
     });
 
-    await client.requestSSE(
-      '/chat/stream',
-      { text: 'hi' },
-      {
-        method: 'POST',
-        onMessage: () => {},
-        onEnd: () => {},
-        onError: () => {},
-        abortController: new AbortController(),
-      } as any,
-    );
+    await client.requestSSE('/chat/stream', { text: 'hi' }, {
+      method: 'POST',
+      onMessage: () => {},
+      onEnd: () => {},
+      onError: () => {},
+      abortController: new AbortController(),
+    } as any);
 
     expect(doRefreshToken).toHaveBeenCalledOnce();
     expect(fetchSpy).toHaveBeenCalledTimes(2);
@@ -114,19 +110,15 @@ describe('SSE 401 auth recovery', () => {
       .mockResolvedValue(json401(4010));
     const errors: Error[] = [];
 
-    await client.requestSSE(
-      '/chat/stream',
-      {},
-      {
-        method: 'POST',
-        onMessage: () => {},
-        onEnd: () => {},
-        onError: (err: Error) => {
-          errors.push(err);
-        },
-        abortController: new AbortController(),
-      } as any,
-    );
+    await client.requestSSE('/chat/stream', {}, {
+      method: 'POST',
+      onMessage: () => {},
+      onEnd: () => {},
+      onError: (err: Error) => {
+        errors.push(err);
+      },
+      abortController: new AbortController(),
+    } as any);
 
     expect(doReAuthenticate).toHaveBeenCalledOnce();
     expect(doRefreshToken).not.toHaveBeenCalled();
@@ -142,19 +134,15 @@ describe('SSE 401 auth recovery', () => {
       .mockResolvedValue(json401(4011));
     const errors: Error[] = [];
 
-    await client.requestSSE(
-      '/chat/stream',
-      {},
-      {
-        method: 'POST',
-        onMessage: () => {},
-        onEnd: () => {},
-        onError: (err: Error) => {
-          errors.push(err);
-        },
-        abortController: new AbortController(),
-      } as any,
-    );
+    await client.requestSSE('/chat/stream', {}, {
+      method: 'POST',
+      onMessage: () => {},
+      onEnd: () => {},
+      onError: (err: Error) => {
+        errors.push(err);
+      },
+      abortController: new AbortController(),
+    } as any);
 
     expect(doRefreshToken).toHaveBeenCalledOnce();
     expect(doReAuthenticate).toHaveBeenCalledOnce();
@@ -169,17 +157,13 @@ describe('SSE 401 auth recovery', () => {
       .mockResolvedValue(json200Sse());
     client.setLocaleGetter(() => 'zh-CN');
 
-    await client.requestSSE(
-      '/chat/stream',
-      {},
-      {
-        method: 'POST',
-        onMessage: () => {},
-        onEnd: () => {},
-        onError: () => {},
-        abortController: new AbortController(),
-      } as any,
-    );
+    await client.requestSSE('/chat/stream', {}, {
+      method: 'POST',
+      onMessage: () => {},
+      onEnd: () => {},
+      onError: () => {},
+      abortController: new AbortController(),
+    } as any);
 
     const calledHeaders = fetchSpy.mock.calls[0]?.[1]?.headers as Headers;
     expect(calledHeaders?.get('Accept-Language')).toBe('zh-CN');
@@ -193,26 +177,25 @@ describe('SSE 401 auth recovery', () => {
       callCount++;
       if (callCount === 1) {
         return Promise.resolve(
-          new Response(JSON.stringify({ code: '4011', message: 'expired' }), {
-            status: 401,
-            headers: { 'Content-Type': 'application/json' },
-          }),
+          Response.json(
+            { code: '4011', message: 'expired' },
+            {
+              status: 401,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          ),
         );
       }
       return Promise.resolve(json200Sse());
     });
 
-    await client.requestSSE(
-      '/chat/stream',
-      {},
-      {
-        method: 'POST',
-        onMessage: () => {},
-        onEnd: () => {},
-        onError: () => {},
-        abortController: new AbortController(),
-      } as any,
-    );
+    await client.requestSSE('/chat/stream', {}, {
+      method: 'POST',
+      onMessage: () => {},
+      onEnd: () => {},
+      onError: () => {},
+      abortController: new AbortController(),
+    } as any);
 
     expect(doRefreshToken).toHaveBeenCalledOnce();
     expect(fetchSpy).toHaveBeenCalledTimes(2);
@@ -229,19 +212,15 @@ describe('SSE 401 auth recovery', () => {
     });
     const errors: Error[] = [];
 
-    await client.requestSSE(
-      '/chat/stream',
-      {},
-      {
-        method: 'POST',
-        onMessage: () => {},
-        onEnd: () => {},
-        onError: (err: Error) => {
-          errors.push(err);
-        },
-        abortController: new AbortController(),
-      } as any,
-    );
+    await client.requestSSE('/chat/stream', {}, {
+      method: 'POST',
+      onMessage: () => {},
+      onEnd: () => {},
+      onError: (err: Error) => {
+        errors.push(err);
+      },
+      abortController: new AbortController(),
+    } as any);
 
     expect(doRefreshToken).toHaveBeenCalledOnce();
     expect(doReAuthenticate).not.toHaveBeenCalled();

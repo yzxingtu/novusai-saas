@@ -2,6 +2,11 @@
 
 本目录包含针对管理端与企业端接口的手工集成测试脚本。测试风格统一继承 `BaseAPITest`，通过 `httpx` 直接请求已启动的本地 API 服务。
 
+说明：
+
+- `test_*.py` 中仅保留当前仍接入 `run_all.py` 的手工脚本。
+- `manual_*.py` 为未接入聚合器的一次性或按需运行脚本，故意不参与 pytest 收集。
+
 ## 主要文件
 
 ```text
@@ -17,7 +22,9 @@ tests/api/
 ├── test_admin_admins.py
 ├── test_admin_tenants.py
 ├── test_admin_periodic_tasks.py
-├── test_captcha_flow.py
+├── manual_admin_plans.py
+├── manual_admin_tenant_domains.py
+├── manual_captcha_flow.py
 ├── test_tenant_auth.py
 ├── test_tenant_permission_roles.py
 ├── test_tenant_organization.py
@@ -82,7 +89,9 @@ python -m tests.api.test_admin_organization
 python -m tests.api.test_admin_admins
 python -m tests.api.test_admin_tenants
 python -m tests.api.test_admin_periodic_tasks
-python -m tests.api.test_captcha_flow
+python -m tests.api.manual_admin_plans
+python -m tests.api.manual_admin_tenant_domains
+python -m tests.api.manual_captcha_flow
 python -m tests.api.test_tenant_auth
 python -m tests.api.test_tenant_permission_roles
 python -m tests.api.test_tenant_organization

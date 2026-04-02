@@ -1,4 +1,4 @@
-import type { PluginSlotData, PluginSlotsResponse } from '#/api/admin/plugin';
+import type { PluginSlotData, PluginSlotsResponse } from '#/api/shared/plugin';
 
 /**
  * Tenant plugin API / 企业端插件 API

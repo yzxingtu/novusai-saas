@@ -123,6 +123,52 @@ class AgentKBBindingService:
             items.append(item)
         return items
 
+    async def get_agent_kb_bindings_with_metadata(
+        self,
+        agent_id: int,
+        *,
+        merge_platform_bindings: bool = False,
+    ) -> list[dict[str, Any]]:
+        """
+        获取知识库绑定及能力描述所需元数据 / Get KB bindings with capability metadata.
+
+        Reuses the public binding payload and normalizes field names expected by
+        capability awareness.
+        复用现有绑定返回结构，并归一化能力感知需要的字段名。
+        """
+        bindings = await self.get_agent_kb_bindings(
+            agent_id,
+            merge_platform_bindings=merge_platform_bindings,
+        )
+
+        normalized_items: list[dict[str, Any]] = []
+        for binding in bindings:
+            kb_id = binding.get("kb_id")
+            if kb_id is None:
+                kb_id = binding.get("knowledge_base_id")
+            if kb_id is None:
+                continue
+
+            normalized_item = dict(binding)
+            normalized_item["kb_id"] = int(kb_id)
+            normalized_item["knowledge_base_id"] = int(kb_id)
+            normalized_item["kb_name"] = str(
+                binding.get("kb_name") or ""
+            ).strip()
+            normalized_item["kb_description"] = str(
+                binding.get("kb_description") or ""
+            ).strip()
+            try:
+                normalized_item["kb_document_count"] = int(
+                    binding.get("kb_document_count") or 0
+                )
+            except (TypeError, ValueError):
+                normalized_item["kb_document_count"] = 0
+
+            normalized_items.append(normalized_item)
+
+        return normalized_items
+
     def serialize_binding_public(
         self, binding: AgentKnowledgeBaseBinding
     ) -> dict[str, Any]:
@@ -205,7 +251,11 @@ class AgentKBBindingService:
                 message=_("agent_kb_binding.error.binding_not_found")
             )
 
-        await self.binding_repo.permanent_delete(binding.id)
+        # KB bindings are active rows, not recycle-bin entries. Use a direct hard delete
+        # instead of permanent_delete(), which only removes already-soft-deleted records.
+        deleted = await self.binding_repo.delete(binding.id, soft=False)
+        if not deleted:
+            raise BusinessException(message=_("common.failed"))
 
         logger.info(
             "KnowledgeBase {} unbound from agent {} (tenant={})",

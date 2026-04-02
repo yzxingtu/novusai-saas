@@ -887,8 +887,12 @@ class ConversationService(
             if isinstance(last_assistant_message, dict)
             else {}
         )
+        turn_meta = ConversationService._extract_turn_diagnostics_from_metadata(metadata)
         rag_sources = metadata.get("rag_sources")
         rag_sources = rag_sources if isinstance(rag_sources, list) else []
+        last_interrupted = bool(metadata.get("interrupted")) or (
+            turn_meta.get("termination_reason") == "interrupted"
+        )
         return {
             "estimated_tokens": (
                 last_assistant_message.get("token_count")
@@ -903,8 +907,14 @@ class ConversationService(
             "memory_flush_triggered": bool(metadata.get("memory_flush_triggered")),
             "prune_stats": metadata.get("prune_stats"),
             "rag_source_kinds": list(metadata.get("rag_source_kinds") or []),
-            "last_interrupted": bool(metadata.get("interrupted")),
+            "last_interrupted": last_interrupted,
             "interaction_mode_effective": interaction_mode_effective,
+            "turn_outcome": turn_meta.get("turn_outcome"),
+            "termination_reason": turn_meta.get("termination_reason"),
+            "protocol_path": turn_meta.get("protocol_path"),
+            "selected_tool_names": turn_meta.get("selected_tool_names") or [],
+            "selected_skill_names": turn_meta.get("selected_skill_names") or [],
+            "context_sources": turn_meta.get("context_sources") or [],
         }
 
     @staticmethod
@@ -919,8 +929,15 @@ class ConversationService(
             if isinstance(last_assistant_message, dict)
             else {}
         )
+        turn_meta = ConversationService._extract_turn_diagnostics_from_metadata(metadata)
+        completion_reason = (
+            turn_meta.get("termination_reason") or metadata.get("completion_reason")
+        )
+        interrupted = bool(metadata.get("interrupted")) or (
+            completion_reason == "interrupted"
+        )
         return {
-            "completion_reason": metadata.get("completion_reason"),
+            "completion_reason": completion_reason,
             "created_at": (
                 last_assistant_message.get("created_at")
                 if isinstance(last_assistant_message, dict)
@@ -928,7 +945,7 @@ class ConversationService(
             ),
             "downgrade_reason": downgrade_reason,
             "interaction_mode_effective": interaction_mode_effective,
-            "interrupted": bool(metadata.get("interrupted")),
+            "interrupted": interrupted,
             "provider_name": (
                 last_assistant_message.get("provider_name")
                 if isinstance(last_assistant_message, dict)
@@ -939,6 +956,12 @@ class ConversationService(
                 if isinstance(last_assistant_message, dict)
                 else None
             ),
+            "turn_outcome": turn_meta.get("turn_outcome"),
+            "termination_reason": turn_meta.get("termination_reason"),
+            "protocol_path": turn_meta.get("protocol_path"),
+            "selected_tool_names": turn_meta.get("selected_tool_names") or [],
+            "selected_skill_names": turn_meta.get("selected_skill_names") or [],
+            "context_sources": turn_meta.get("context_sources") or [],
         }
 
     async def rebuild_context_compaction_snapshot(
@@ -964,9 +987,9 @@ class ConversationService(
         if not messages:
             return None
 
-        from app.ai.context.engine import LegacyContextEngine
+        from app.ai.context.engine import ConversationContextEngine
 
-        summary = LegacyContextEngine._build_compact_summary(
+        summary = ConversationContextEngine._build_compact_summary(
             messages,
             max_chars=max_chars,
         )
@@ -1782,6 +1805,165 @@ class ConversationService(
         return dict(raw) if isinstance(raw, dict) else None
 
     @staticmethod
+    def _normalize_turn_record_payload(turn_record: Any) -> dict[str, Any] | None:
+        """Normalize runtime turn_record into JSON-safe dict / 将运行时 turn_record 规范化为可落库字典。"""
+        if turn_record is None:
+            return None
+
+        def _normalize_value(value: Any) -> Any:
+            if isinstance(value, dict):
+                return {str(k): _normalize_value(v) for k, v in value.items()}
+            if isinstance(value, list):
+                return [_normalize_value(item) for item in value]
+            if isinstance(value, tuple):
+                return [_normalize_value(item) for item in value]
+            if hasattr(value, "__dict__"):
+                return {
+                    str(k): _normalize_value(v)
+                    for k, v in vars(value).items()
+                    if not str(k).startswith("_")
+                }
+            return value
+
+        payload = _normalize_value(turn_record)
+        if not isinstance(payload, dict):
+            return None
+        return payload
+
+    @staticmethod
+    def _to_non_empty_str(value: Any) -> str | None:
+        text = str(value or "").strip()
+        return text or None
+
+    @staticmethod
+    def _normalize_string_list(value: Any) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        return [str(item).strip() for item in value if str(item).strip()]
+
+    @staticmethod
+    def _normalize_context_sources(value: Any) -> list[dict[str, Any]]:
+        if not isinstance(value, list):
+            return []
+        normalized: list[dict[str, Any]] = []
+        for item in value:
+            if not isinstance(item, dict):
+                continue
+            source_name = ConversationService._to_non_empty_str(item.get("name"))
+            source_kind = ConversationService._to_non_empty_str(item.get("kind"))
+            if not source_name and not source_kind:
+                continue
+            normalized.append(
+                {
+                    "kind": source_kind,
+                    "name": source_name,
+                    "active": bool(item.get("active", True)),
+                    "metadata": dict(item.get("metadata") or {}),
+                }
+            )
+        return normalized
+
+    @classmethod
+    def _extract_turn_diagnostics_from_metadata(
+        cls,
+        metadata: dict[str, Any],
+    ) -> dict[str, Any]:
+        turn_record = cls._normalize_turn_record_payload(metadata.get("turn_record"))
+        turn_outcome = cls._to_non_empty_str(
+            (turn_record or {}).get("turn_outcome")
+            or metadata.get("turn_outcome")
+        )
+        termination_reason = cls._to_non_empty_str(
+            (turn_record or {}).get("termination_reason")
+            or metadata.get("termination_reason")
+            or metadata.get("completion_reason")
+        )
+        if not turn_outcome:
+            if (
+                bool(metadata.get("partial"))
+                or bool(metadata.get("interrupted"))
+                or termination_reason == "interrupted"
+            ):
+                turn_outcome = "partial"
+            elif termination_reason in {
+                "error",
+                "failed",
+                "tool_error",
+                "tool_round_failed",
+            }:
+                turn_outcome = "failed"
+        protocol_path = cls._to_non_empty_str(
+            (turn_record or {}).get("protocol_path")
+            or metadata.get("protocol_path")
+        )
+        selected_tool_names = cls._normalize_string_list(
+            (turn_record or {}).get("selected_tool_names")
+            or metadata.get("selected_tool_names")
+        )
+        selected_skill_names = cls._normalize_string_list(
+            (turn_record or {}).get("selected_skill_names")
+            or metadata.get("selected_skill_names")
+        )
+        context_sources = cls._normalize_context_sources(
+            (turn_record or {}).get("context_sources")
+            or metadata.get("context_sources")
+        )
+        return {
+            "turn_record": turn_record,
+            "turn_outcome": turn_outcome,
+            "termination_reason": termination_reason,
+            "protocol_path": protocol_path,
+            "selected_tool_names": selected_tool_names,
+            "selected_skill_names": selected_skill_names,
+            "context_sources": context_sources,
+        }
+
+    @classmethod
+    def _has_pending_state(
+        cls,
+        *,
+        tool_calls: list[dict[str, Any]] | None,
+        metadata: dict[str, Any] | None,
+    ) -> bool:
+        if isinstance(metadata, dict) and (
+            isinstance(metadata.get("pending_confirmation"), dict)
+            or isinstance(metadata.get("pending_consent"), dict)
+        ):
+            return True
+
+        for tc in tool_calls or []:
+            if not isinstance(tc, dict):
+                continue
+            if isinstance(tc.get("pending_confirmation"), dict) or isinstance(
+                tc.get("pending_consent"),
+                dict,
+            ):
+                return True
+        return False
+
+    @classmethod
+    def _assistant_has_content_or_signal(
+        cls,
+        message: dict[str, Any],
+    ) -> bool:
+        content = str(message.get("content") or "").strip()
+        tool_calls = message.get("tool_calls")
+        metadata = (
+            dict(message.get("metadata") or {})
+            if isinstance(message.get("metadata"), dict)
+            else None
+        )
+        if content:
+            return True
+        if isinstance(tool_calls, list) and tool_calls:
+            return True
+        if cls._has_pending_state(tool_calls=tool_calls, metadata=metadata):
+            return True
+        if isinstance(metadata, dict) and isinstance(metadata.get("action_buttons"), list):
+            return len(metadata.get("action_buttons") or []) > 0
+        return False
+
+    @staticmethod
     def _enrich_tool_calls_for_persistence(
         tool_calls: list[dict[str, Any]] | None,
         tool_result_map: dict[str, ToolResult],
@@ -1906,13 +2088,91 @@ class ConversationService(
         # 获取下一个 sequence
         next_seq = await self.message_repo.get_next_sequence(conversation.id)
         tool_calls_collected: list[dict[str, Any]] = []
+        persisted_count = 0
         route_source_marked = False
 
         rag_sources = getattr(result, "rag_sources", None)
+        turn_meta = self._extract_turn_diagnostics_from_metadata(
+            {
+                "turn_record": getattr(result, "turn_record", None),
+                "completion_reason": getattr(result, "completion_reason", None),
+                "partial": bool(getattr(result, "partial", False)),
+                "interrupted": bool(getattr(result, "interrupted", False)),
+            }
+        )
+        turn_record_payload = turn_meta.get("turn_record")
+        turn_outcome = turn_meta.get("turn_outcome")
+        turn_termination_reason = turn_meta.get("termination_reason")
+        turn_protocol_path = turn_meta.get("protocol_path")
+        turn_selected_tools = turn_meta.get("selected_tool_names") or []
+        turn_selected_skills = turn_meta.get("selected_skill_names") or []
+        turn_context_sources = turn_meta.get("context_sources") or []
+
+        effective_context_diagnostics = (
+            dict(context_diagnostics)
+            if isinstance(context_diagnostics, dict)
+            else {}
+        )
+        if turn_outcome:
+            effective_context_diagnostics["turn_outcome"] = turn_outcome
+        if turn_termination_reason:
+            effective_context_diagnostics["termination_reason"] = turn_termination_reason
+        if turn_protocol_path:
+            effective_context_diagnostics["protocol_path"] = turn_protocol_path
+        if turn_selected_tools:
+            effective_context_diagnostics["selected_tool_names"] = turn_selected_tools
+        if turn_selected_skills:
+            effective_context_diagnostics["selected_skill_names"] = turn_selected_skills
+        if turn_context_sources:
+            effective_context_diagnostics["context_sources"] = turn_context_sources
+        effective_context_diagnostics.setdefault(
+            "last_interrupted",
+            bool(getattr(result, "interrupted", False))
+            or turn_termination_reason == "interrupted",
+        )
+
+        effective_last_run_summary = (
+            dict(last_run_summary)
+            if isinstance(last_run_summary, dict)
+            else {}
+        )
+        if turn_outcome:
+            effective_last_run_summary["turn_outcome"] = turn_outcome
+        if turn_termination_reason:
+            effective_last_run_summary["termination_reason"] = turn_termination_reason
+            effective_last_run_summary.setdefault("completion_reason", turn_termination_reason)
+        if turn_protocol_path:
+            effective_last_run_summary["protocol_path"] = turn_protocol_path
+        if turn_selected_tools:
+            effective_last_run_summary["selected_tool_names"] = turn_selected_tools
+        if turn_selected_skills:
+            effective_last_run_summary["selected_skill_names"] = turn_selected_skills
+        if turn_context_sources:
+            effective_last_run_summary["context_sources"] = turn_context_sources
+        if bool(getattr(result, "interrupted", False)) or turn_termination_reason == "interrupted":
+            effective_last_run_summary["interrupted"] = True
+
+        last_assistant_idx: int | None = None
         last_plain_assistant_idx: int | None = None
+        last_assistant_with_signal_idx: int | None = None
         for j, m in enumerate(new_messages):
-            if m.get("role") == "assistant" and not m.get("tool_calls"):
+            if m.get("role") != "assistant":
+                continue
+            last_assistant_idx = j
+            if self._assistant_has_content_or_signal(m):
+                last_assistant_with_signal_idx = j
+            if not m.get("tool_calls"):
                 last_plain_assistant_idx = j
+
+        turn_target_assistant_idx = (
+            last_plain_assistant_idx
+            if last_plain_assistant_idx is not None
+            else (
+                last_assistant_with_signal_idx
+                if last_assistant_with_signal_idx is not None
+                else last_assistant_idx
+            )
+        )
 
         for i, msg_dict in enumerate(new_messages):
             role = msg_dict.get("role", "")
@@ -1930,6 +2190,24 @@ class ConversationService(
             # 收集 tool_calls 用于响应
             if tool_calls:
                 tool_calls_collected.extend(tool_calls)
+
+            # Prevent persisting empty assistant success turns unless the turn carries
+            # pending confirmation/consent or partial/interrupted semantics.
+            should_skip_empty_assistant_success = (
+                role == "assistant"
+                and bool(getattr(result, "success", False))
+                and not bool(getattr(result, "partial", False))
+                and not bool(getattr(result, "interrupted", False))
+                and not str(content or "").strip()
+                and not bool(tool_calls)
+                and not self._has_pending_state(
+                    tool_calls=tool_calls,
+                    metadata=persisted_metadata,
+                )
+                and not isinstance((persisted_metadata or {}).get("action_buttons"), list)
+            )
+            if should_skip_empty_assistant_success:
+                continue
 
             # 估算 token 数
             token_estimate = estimate_tokens(content) if content else 0
@@ -1973,22 +2251,28 @@ class ConversationService(
                 if tr.duration_ms:
                     metadata["tool_duration_ms"] = tr.duration_ms
 
-            # partial/interrupted: mark last plain assistant message / 中断时标记最后一条普通 assistant
-            is_last_assistant = (
+            # partial/interrupted: mark turn target assistant (works with or without final plain reply)
+            # / 中断语义标记落到轮次目标 assistant（兼容无最终 plain assistant 的情况）
+            should_mark_partial_semantics = (
                 role == "assistant"
-                and not tool_calls
                 and (
                     getattr(result, "partial", False)
                     or getattr(result, "interrupted", False)
                 )
-                and i == len(new_messages) - 1
+                and i == turn_target_assistant_idx
             )
-            if is_last_assistant:
+            if should_mark_partial_semantics:
                 metadata = metadata or {}
-                metadata["partial"] = getattr(result, "partial", False)
+                metadata["partial"] = bool(
+                    getattr(result, "partial", False)
+                    or getattr(result, "interrupted", False)
+                )
                 metadata["interrupted"] = getattr(result, "interrupted", False)
-                if getattr(result, "completion_reason", ""):
-                    metadata["completion_reason"] = result.completion_reason
+                completion_reason = self._to_non_empty_str(
+                    getattr(result, "completion_reason", None)
+                )
+                if completion_reason:
+                    metadata["completion_reason"] = completion_reason
 
             if route_source and role == "assistant" and not route_source_marked:
                 metadata = metadata or {}
@@ -2020,7 +2304,7 @@ class ConversationService(
             if (
                 role == "assistant"
                 and not tool_calls
-                and i == last_plain_assistant_idx
+                and i == turn_target_assistant_idx
             ):
                 if getattr(result, "prune_stats", None):
                     metadata = metadata or {}
@@ -2034,12 +2318,34 @@ class ConversationService(
                 if getattr(result, "memory_recalled", False):
                     metadata = metadata or {}
                     metadata["memory_recalled"] = True
-                if context_diagnostics:
+                if effective_context_diagnostics:
                     metadata = metadata or {}
-                    metadata["context_diagnostics"] = context_diagnostics
-                if last_run_summary:
+                    metadata["context_diagnostics"] = effective_context_diagnostics
+                if effective_last_run_summary:
                     metadata = metadata or {}
-                    metadata["last_run_summary"] = last_run_summary
+                    metadata["last_run_summary"] = effective_last_run_summary
+
+            if role == "assistant" and i == turn_target_assistant_idx:
+                metadata = metadata or {}
+                if effective_context_diagnostics:
+                    metadata["context_diagnostics"] = effective_context_diagnostics
+                if effective_last_run_summary:
+                    metadata["last_run_summary"] = effective_last_run_summary
+                if turn_record_payload:
+                    metadata["turn_record"] = turn_record_payload
+                if turn_outcome:
+                    metadata["turn_outcome"] = turn_outcome
+                if turn_termination_reason:
+                    metadata["termination_reason"] = turn_termination_reason
+                    metadata.setdefault("completion_reason", turn_termination_reason)
+                if turn_protocol_path:
+                    metadata["protocol_path"] = turn_protocol_path
+                if turn_selected_tools:
+                    metadata["selected_tool_names"] = turn_selected_tools
+                if turn_selected_skills:
+                    metadata["selected_skill_names"] = turn_selected_skills
+                if turn_context_sources:
+                    metadata["context_sources"] = turn_context_sources
 
             # assistant/tool 消息关联 agent_id（user/system 不关联）
             msg_agent_id = agent_id if role in ("assistant", "tool") else None
@@ -2051,7 +2357,7 @@ class ConversationService(
                     "conversation_id": conversation.id,
                     "role": role,
                     "content": content,
-                    "sequence": next_seq + i,
+                    "sequence": next_seq + persisted_count,
                     "token_count": token_estimate,
                     "tool_calls": tool_calls,
                     "tool_call_id": tool_call_id,
@@ -2060,9 +2366,10 @@ class ConversationService(
                     "metadata_": metadata,
                 }
             )
+            persisted_count += 1
 
         # 递增 message_count 冗余计数
-        new_message_count = (conversation.message_count or 0) + len(new_messages)
+        new_message_count = (conversation.message_count or 0) + persisted_count
         await self.repo.update(
             conversation.id,
             {"message_count": new_message_count},

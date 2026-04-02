@@ -128,8 +128,8 @@ class AdminAgentChatController(GlobalController):
                 page_session_id=data.page_session_id,
                 route_source=data.route_source,
                 interaction_updates=[item.model_dump() for item in data.interaction_updates] if data.interaction_updates else None,
-                interaction_mode=data.interaction_mode,
                 trust_policy_ref=data.trust_policy_ref.model_dump() if data.trust_policy_ref else None,
+                interaction_mode=data.interaction_mode,
             )
             return success(data=result.model_dump())
 
@@ -178,8 +178,8 @@ class AdminAgentChatController(GlobalController):
                 page_session_id=data.page_session_id,
                 route_source=data.route_source,
                 interaction_updates=[item.model_dump() for item in data.interaction_updates] if data.interaction_updates else None,
-                interaction_mode=data.interaction_mode,
                 trust_policy_ref=data.trust_policy_ref.model_dump() if data.trust_policy_ref else None,
+                interaction_mode=data.interaction_mode,
             )
 
         # ========================================
@@ -389,6 +389,53 @@ class AdminAgentChatController(GlobalController):
                 owner_type=ConversationOwnerTypeEnum.PLATFORM_ADMIN.value,
             )
             return success(data={"deleted_count": deleted_count})
+
+        @router.post(
+            "/conversations/{conversation_id}/compact",
+            summary="Rebuild conversation compaction snapshot",
+        )
+        @action_create("action.admin_agent_chat.update_conversation")
+        async def rebuild_conversation_compaction(
+            request: Request,
+            db: DbSession,
+            conversation_id: int,
+            admin: ActiveAdmin,
+        ):
+            service, _ = await ConversationService.get_platform_admin_chat_service_for_user(
+                db,
+                conversation_id,
+                admin.id,
+            )
+            snapshot = await service.rebuild_context_compaction_snapshot(
+                conversation_id,
+                user_id=admin.id,
+                owner_type=ConversationOwnerTypeEnum.PLATFORM_ADMIN.value,
+            )
+            await db.commit()
+            return success(data=snapshot or {})
+
+        @router.get(
+            "/conversations/{conversation_id}/timeline",
+            summary="Get conversation run timeline",
+        )
+        @action_read("action.admin_agent_chat.conversation_detail")
+        async def get_conversation_timeline(
+            request: Request,
+            db: DbSession,
+            conversation_id: int,
+            admin: ActiveAdmin,
+        ):
+            service, _ = await ConversationService.get_platform_admin_chat_service_for_user(
+                db,
+                conversation_id,
+                admin.id,
+            )
+            items = await service.get_conversation_timeline(
+                conversation_id,
+                user_id=admin.id,
+                owner_type=ConversationOwnerTypeEnum.PLATFORM_ADMIN.value,
+            )
+            return success(data=items)
 
 
 # 导出路由 / Export router

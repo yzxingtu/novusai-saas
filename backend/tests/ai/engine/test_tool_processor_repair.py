@@ -217,6 +217,30 @@ def test_execute_tool_uses_all_tools_fallback_for_pending_confirmation_replay() 
     ]
 
 
+def test_check_consent_treats_approved_pending_consent_as_auto_once() -> None:
+    processor = ToolCallProcessor(
+        sandbox=None,  # type: ignore[arg-type]
+        tools=[ToolDefinition(name="get_current_weather")],
+        consent_modes={"get_current_weather": "ask"},
+        approved_pending_consent_tools={"get_current_weather"},
+    )
+
+    assert processor.check_consent("get_current_weather") == "auto"
+    assert processor.check_consent("get_current_weather") == "auto"
+
+
+def test_approved_pending_consent_tool_names_filters_rejected_updates() -> None:
+    approved = ToolCallProcessor.approved_pending_consent_tool_names(
+        [
+            {"kind": "pending_consent", "tool_name": "get_current_weather"},
+            {"kind": "pending_consent", "tool_name": "get_weather_forecast", "rejected": True},
+            {"kind": "pending_confirmation", "tool_name": "invoke_page_operation"},
+        ]
+    )
+
+    assert approved == {"get_current_weather"}
+
+
 def test_get_skill_info_falls_back_to_all_tools_when_tool_was_optimized_out() -> None:
     processor = ToolCallProcessor(
         sandbox=None,  # type: ignore[arg-type]

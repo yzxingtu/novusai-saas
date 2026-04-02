@@ -681,6 +681,94 @@ async def test_stream_handler_retries_capability_denial_before_emitting_message(
 
 
 @pytest.mark.asyncio
+async def test_stream_handler_retry_fallback_keeps_non_empty_final_assistant() -> None:
+    """
+    回放 576/577 关键形态：首轮能力否认触发 retry 后，最终 assistant 不应为空。
+    """
+    from app.ai.engine.types import ExecutionResult
+
+    captured: list[ExecutionResult] = []
+    completed = asyncio.Event()
+
+    async def on_complete(result: ExecutionResult) -> None:
+        captured.append(result)
+        completed.set()
+
+    engine = _FakeEngine(
+        rounds=[
+            [
+                ChatChunk(
+                    delta="我现在没有外部互联网搜索工具，只能基于已有知识回答。",
+                    finish_reason="stop",
+                    total_tokens=10,
+                ),
+            ],
+            [
+                ChatChunk(
+                    delta="",
+                    tool_calls=[
+                        {
+                            "id": "call_search_retry",
+                            "type": "function",
+                            "function": {
+                                "name": "web_search",
+                                "arguments": '{"query":"runtime v2 rollout","max_results":5}',
+                            },
+                        },
+                    ],
+                    finish_reason="tool_calls",
+                    total_tokens=12,
+                ),
+            ],
+            [
+                ChatChunk(
+                    delta="这是补救后的最终答复。",
+                    finish_reason="stop",
+                    total_tokens=18,
+                ),
+            ],
+        ],
+    )
+    tools = [
+        ToolDefinition(name="web_search", description="Search the web"),
+        ToolDefinition(name="fetch_url", description="Fetch url"),
+    ]
+    handler = _build_handler(
+        engine,
+        tools=tools,
+        tool_use_policy=ToolUsePolicy(
+            family="none",
+            mode="auto",
+            allowed_tool_names=[tool.name for tool in tools],
+            retry_on_contract_breach=True,
+            reason="default_auto",
+        ),
+    )
+    handler.on_complete = on_complete
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    await asyncio.wait_for(completed.wait(), timeout=1)
+
+    message_text = "".join(
+        event.get("delta", "") for event in events if event.get("event") == "message"
+    )
+    assert "没有外部互联网搜索工具" not in message_text
+    assert "这是补救后的最终答复。" in message_text
+    assert len(captured) == 1
+    assistant_plain_messages = [
+        message
+        for message in captured[0].messages
+        if message.get("role") == "assistant" and not message.get("tool_calls")
+    ]
+    assert assistant_plain_messages
+    assert assistant_plain_messages[-1].get("content", "").strip() == "这是补救后的最终答复。"
+
+
+@pytest.mark.asyncio
 async def test_stream_handler_logs_failed_retry_when_required_policy_still_returns_text() -> None:
     engine = _FakeEngine(
         rounds=[

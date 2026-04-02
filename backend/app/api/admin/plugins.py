@@ -9,10 +9,12 @@ from pathlib import Path
 
 from fastapi import File, Response, UploadFile
 from pydantic import BaseModel as PydanticBaseModel
+from pydantic import ConfigDict
 from pydantic import Field
 
 from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
+from app.core.i18n import _
 from app.core.logging import LogManager
 from app.core.response import (
     build_public_error_text,
@@ -43,7 +45,7 @@ def _sanitize_slug(slug: str) -> None:
     if not slug or not _SLUG_PATTERN.match(slug) or len(slug) > 128:
         from app.exceptions.base import ValidationException
         raise ValidationException(
-            message=f"Invalid marketplace slug: '{slug}'. Only lowercase letters, digits and hyphens allowed.",
+            message=_("plugin.error.invalid_marketplace_slug").format(slug=slug),
         )
 
 
@@ -90,8 +92,9 @@ class PluginEnableBody(PydanticBaseModel):
 
 class PluginDependencyActionBody(PydanticBaseModel):
     """安装/卸载依赖开关 / Install/uninstall dependency switches."""
+    model_config = ConfigDict(extra="forbid")
+
     python: bool = True
-    force: bool = False
 
 
 @permission_resource(
@@ -138,7 +141,9 @@ class AdminPluginController(GlobalController):
             if parsed.scheme not in _ALLOWED_SCHEMES:
                 from app.exceptions.base import ValidationException
 
-                raise ValidationException(message="Only http/https URLs are allowed")
+                raise ValidationException(
+                    message=_("plugin.error.invalid_registry_url_scheme"),
+                )
 
             hostname = (parsed.hostname or "").lower()
             try:
@@ -146,14 +151,17 @@ class AdminPluginController(GlobalController):
                 if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
                     from app.exceptions.base import ValidationException
 
-                    raise ValidationException(message="Private/reserved IP addresses are not allowed")
+                    raise ValidationException(
+                        message=_("plugin.error.invalid_registry_private_ip"),
+                    )
             except ValueError as exc:
                 if hostname not in _ALLOWED_HOSTS:
                     from app.exceptions.base import ValidationException
 
                     raise ValidationException(
-                        message=f"Host '{hostname}' is not in the allowed list. "
-                                f"Allowed: {', '.join(sorted(_ALLOWED_HOSTS))}",
+                        message=_("plugin.error.invalid_registry_host").format(
+                            host=hostname,
+                        ),
                     ) from exc
 
             url = f"{source_url.rstrip('/')}/registry.json"
@@ -171,7 +179,7 @@ class AdminPluginController(GlobalController):
                 logger.warning("{} connection test failed for {}: {}", log_label, source_url, exc)
                 return success(data={
                     "ok": False,
-                    "error": "Connection failed. Please check the URL and try again.",
+                    "error": _("plugin.error.registry_connection_failed"),
                     "latency_ms": -1,
                 })
 
@@ -223,21 +231,11 @@ class AdminPluginController(GlobalController):
             body: PluginDependencyActionBody | None = None,
         ):
             """显式卸载插件依赖（不卸载插件本体） / Explicitly uninstall plugin dependencies (without uninstalling the plugin itself)"""
-            from app.exceptions.base import ValidationException
-
             service = self.get_service(db)
             payload = body or PluginDependencyActionBody()
-            if payload.force:
-                raise ValidationException(
-                    message=(
-                        "Force dependency uninstall is disabled for safety. "
-                        "Disable plugin first."
-                    ),
-                )
             result = await service.uninstall_plugin_dependencies(
                 plugin_id,
                 uninstall_python=payload.python,
-                force=False,
             )
             return success(data=result)
 
@@ -346,7 +344,9 @@ class AdminPluginController(GlobalController):
         ):
             """测试技能市场镜像源连通性 / Test skill registry mirror source connectivity"""
             _ = db, admin
-            from app.services.ai.skill_registry_service import _DEFAULT_GITHUB_URL as _SKILL_DEFAULT_GITHUB_URL
+            from app.services.ai.skill_registry_service import (
+                _DEFAULT_GITHUB_URL as _SKILL_DEFAULT_GITHUB_URL,
+            )
 
             return await _test_registry_connection(
                 source_url=source_url,
@@ -396,7 +396,11 @@ class AdminPluginController(GlobalController):
             detail = await client.fetch_plugin_detail(slug)
             if not detail:
                 from app.plugins.exceptions import PluginNotFoundError
-                raise PluginNotFoundError(message=f"Plugin '{slug}' not found in marketplace")
+                raise PluginNotFoundError(
+                    message=_("plugin.error.marketplace_not_found").format(
+                        slug=slug,
+                    )
+                )
 
             readme = await client.fetch_readme(slug)
             detail["readme"] = readme
@@ -423,7 +427,11 @@ class AdminPluginController(GlobalController):
             detail = await client.fetch_plugin_detail(slug)
             if not detail:
                 from app.plugins.exceptions import PluginNotFoundError
-                raise PluginNotFoundError(message=f"Plugin '{slug}' not found in marketplace")
+                raise PluginNotFoundError(
+                    message=_("plugin.error.marketplace_not_found").format(
+                        slug=slug,
+                    )
+                )
 
             version = detail.get("version", "1.0.0")
             zip_path = await client.download_plugin(slug, version)
@@ -458,7 +466,11 @@ class AdminPluginController(GlobalController):
             detail = await client.fetch_plugin_detail(slug)
             if not detail:
                 from app.plugins.exceptions import PluginNotFoundError
-                raise PluginNotFoundError(message=f"Plugin '{slug}' not found in marketplace")
+                raise PluginNotFoundError(
+                    message=_("plugin.error.marketplace_not_found").format(
+                        slug=slug,
+                    )
+                )
 
             version = detail.get("version", "1.0.0")
             zip_path = await client.download_plugin(slug, version)
@@ -611,7 +623,11 @@ class AdminPluginController(GlobalController):
             plugin = await service.get_by_id(plugin_id)
             if plugin is None:
                 from app.exceptions import NotFoundException
-                raise NotFoundException(message=f"Plugin #{plugin_id} not found")
+                raise NotFoundException(
+                    message=_("plugin.error.not_found_by_id").format(
+                        plugin_id=plugin_id,
+                    )
+                )
 
             data = plugin.to_dict()
 
@@ -723,8 +739,9 @@ class AdminPluginController(GlobalController):
                 if existing.scalar_one_or_none():
                     from app.exceptions.base import BusinessException
                     raise BusinessException(
-                        message=f"Plugin '{plugin_name}' is already installed. "
-                                "Please uninstall it first or use the upgrade endpoint.",
+                        message=_("plugin.error.already_installed").format(
+                            plugin_name=plugin_name,
+                        ),
                     )
 
                 # lifecycle.install() 内部会把 plugin_dir -> plugins/{name}/ 完成文件复制 / lifecycle.install() copies plugin_dir -> plugins/{name}/ internally
@@ -857,7 +874,7 @@ class AdminPluginController(GlobalController):
                     raise BusinessException(
                         message=resolve_public_error_message(
                             exc,
-                            fallback_message="Menu config update failed",
+                            fallback_message=_("plugin.error.menu_config_update_failed"),
                         ),
                     ) from exc
 
@@ -865,7 +882,7 @@ class AdminPluginController(GlobalController):
                 sync_service = PermissionSyncService(db)
                 await sync_service.sync_plugin_permissions(plugin.name)
 
-            return success(data={"message": "Menu config updated"})
+            return success(data={"message": _("plugin.menu_config_updated")})
 
         @self.router.post("/{plugin_id}/sync-manifest")
         @action_update("action.plugin.update")
@@ -877,7 +894,7 @@ class AdminPluginController(GlobalController):
             """显式同步磁盘 manifest 到数据库；版本变化必须走 upgrade。 / Explicitly sync disk manifest to DB; version drift must use upgrade."""
             service = self.get_service(db)
             await service.sync_manifest(plugin_id)
-            return success(data={"message": "Manifest synced"})
+            return success(data={"message": _("plugin.manifest_synced")})
 
         @self.router.delete("/{plugin_id}")
         @action_delete("action.plugin.uninstall")
@@ -891,7 +908,9 @@ class AdminPluginController(GlobalController):
             service = self.get_service(db)
             plugin = await service.get_by_id(plugin_id)
             if plugin is None:
-                return deleted(message=f"Plugin #{plugin_id} already removed")
+                return deleted(
+                    message=_("plugin.deleted_already").format(plugin_id=plugin_id)
+                )
             plugin_display = plugin.display_name or plugin.name
             plugin_version = plugin.version or "1.0.0"
 
@@ -930,7 +949,7 @@ class AdminPluginController(GlobalController):
 
             # 只对 error 或 enabled 状态的插件执行修复 / Only repair plugins in error or enabled state
             if plugin.status not in (PluginStatusEnum.ERROR.value, PluginStatusEnum.ENABLED.value):
-                raise BusinessException(message="Plugin is not in error or enabled state — repair not needed")
+                raise BusinessException(message=_("plugin.error.repair_not_needed"))
 
             loader = PluginLoader()
             lifecycle = PluginLifecycle(db)
@@ -992,7 +1011,7 @@ class AdminPluginController(GlobalController):
                                 "alembic",
                                 "error",
                                 build_public_error_text(
-                                    message="DB migration failed",
+                                    message=_("plugin.error.db_migration_failed"),
                                     exc=alembic_exc,
                                 ),
                             )
@@ -1013,7 +1032,11 @@ class AdminPluginController(GlobalController):
                         await _fail_close_plugin_runtime()
                         await db.flush()
                         await emitter.emit_error(f"{len(failed)} extension(s) failed to load")
-                        raise BusinessException(message=f"Repair failed: {len(failed)} extension(s) failed")
+                        raise BusinessException(
+                            message=_("plugin.error.repair_extensions_failed").format(
+                                count=len(failed),
+                            )
+                        )
 
                     await emitter.emit_step("extensions", "success", f"Registered {registry.get_registered_count(plugin.name)} extension(s)")
 
@@ -1052,8 +1075,14 @@ class AdminPluginController(GlobalController):
                     plugin.error_message = None
                     await db.flush()
 
-                    await emitter.emit_done(f"Plugin {plugin.name} repaired successfully")
-                    return success(data={"message": "Plugin repaired and restored"})
+                    await emitter.emit_done(
+                        _("plugin.repaired_successfully").format(
+                            plugin_name=plugin.name,
+                        )
+                    )
+                    return success(
+                        data={"message": _("plugin.repaired_and_restored")}
+                    )
 
                 except BusinessException:
                     raise
@@ -1062,20 +1091,20 @@ class AdminPluginController(GlobalController):
                     plugin.error_count = (plugin.error_count or 0) + 1
                     plugin.error_message = resolve_public_error_message(
                         exc,
-                        fallback_message="Repair failed",
+                        fallback_message=_("plugin.error.repair_failed"),
                     )
                     await _fail_close_plugin_runtime()
                     await db.flush()
                     await emitter.emit_error(
                         build_public_error_text(
-                            message="Repair failed",
+                            message=_("plugin.error.repair_failed"),
                             exc=exc,
                         )
                     )
                     raise BusinessException(
                         message=resolve_public_error_message(
                             exc,
-                            fallback_message="Repair failed",
+                            fallback_message=_("plugin.error.repair_failed"),
                         )
                     ) from exc
 
@@ -1098,7 +1127,7 @@ class AdminPluginController(GlobalController):
             if plugin_dir.exists():
                 from app.exceptions.base import BusinessException
                 raise BusinessException(
-                    message="Plugin files exist on disk. Use normal uninstall instead of force cleanup.",
+                    message=_("plugin.error.force_cleanup_files_exist"),
                 )
 
             await db.execute(delete(PluginVersion).where(PluginVersion.plugin_id == plugin_id))
@@ -1152,12 +1181,13 @@ class AdminPluginController(GlobalController):
             unknown = [c for c in body.capabilities if c not in _VALID_CAPABILITIES]
             if unknown:
                 raise ValidationException(
-                    message=f"Unknown capabilities: {unknown}. "
-                    f"Valid: {sorted(_VALID_CAPABILITIES)}",
+                    message=_("plugin.error.unknown_capabilities").format(
+                        capabilities=", ".join(unknown),
+                    ),
                 )
             service = self.get_service(db)
             await service.update_capabilities(plugin_id, body.capabilities)
-            return success(data={"message": "Capabilities updated"})
+            return success(data={"message": _("plugin.capabilities_updated")})
 
         # ── 图标上传 / Icon Upload ──
 
@@ -1180,7 +1210,7 @@ class AdminPluginController(GlobalController):
             suffix = Path(file.filename).suffix.lower() if file.filename else ".png"
             if suffix not in allowed:
                 from app.exceptions.base import ValidationException
-                raise ValidationException(message="Only PNG/SVG/JPG/WebP images are allowed")
+                raise ValidationException(message=_("plugin.error.invalid_icon_type"))
 
             # 验证文件大小（最大 2MB） / Validate file size (max 2MB)
             _ICON_MAX_SIZE = 2 * 1024 * 1024
@@ -1188,7 +1218,7 @@ class AdminPluginController(GlobalController):
             if len(content) > _ICON_MAX_SIZE:
                 from app.exceptions.base import ValidationException
                 raise ValidationException(
-                    message=f"Icon file too large ({len(content)} bytes). Maximum size is 2MB.",
+                    message=_("plugin.error.icon_too_large").format(size=len(content)),
                 )
 
             # 保存文件 / Save file
@@ -1241,7 +1271,7 @@ class AdminPluginController(GlobalController):
 
                 manager = VersionManager(db)
                 await manager.upgrade(plugin_id, plugin_dir)
-                return success(data={"message": "Plugin upgraded"})
+                return success(data={"message": _("plugin.upgraded")})
 
         @self.router.post("/{plugin_id}/rollback")
         @action_update("action.plugin.rollback")
@@ -1255,7 +1285,13 @@ class AdminPluginController(GlobalController):
 
             manager = VersionManager(db)
             await manager.rollback(plugin_id, body.target_version)
-            return success(data={"message": f"Rolled back to {body.target_version}"})
+            return success(
+                data={
+                    "message": _("plugin.rolled_back_to").format(
+                        version=body.target_version,
+                    )
+                }
+            )
 
         # ── 企业分配 / Tenant Assignment ──
 
@@ -1317,7 +1353,9 @@ class AdminPluginController(GlobalController):
             result = await do_activate(plugin_id, body.license_key, db)
             if not result.get("success"):
                 from app.exceptions.base import BusinessException
-                raise BusinessException(message=result.get("message", "Activation failed"))
+                raise BusinessException(
+                    message=result.get("message", _("plugin.error.activation_failed"))
+                )
             return success(data=result)
 
         @self.router.post("/{plugin_id}/activate-trial")
@@ -1362,7 +1400,11 @@ class AdminPluginController(GlobalController):
             plugin = await self.get_service(db).get_by_id(plugin_id)
             if not plugin:
                 from app.exceptions.base import NotFoundException
-                raise NotFoundException(message=f"Plugin #{plugin_id} not found")
+                raise NotFoundException(
+                    message=_("plugin.error.not_found_by_id").format(
+                        plugin_id=plugin_id,
+                    )
+                )
             result = await db.execute(
                 select(SystemAgentAssignment).where(
                     SystemAgentAssignment.feature_code.like(f"plugin.{plugin.name}.%"),
@@ -1388,7 +1430,11 @@ class AdminPluginController(GlobalController):
 
             plugin = await self.get_service(db).get_by_id(plugin_id)
             if not plugin:
-                raise NotFoundException(message=f"Plugin #{plugin_id} not found")
+                raise NotFoundException(
+                    message=_("plugin.error.not_found_by_id").format(
+                        plugin_id=plugin_id,
+                    )
+                )
             backups = await _asyncio.to_thread(_list, plugin.name)
             return success(data=backups)
 
@@ -1403,14 +1449,18 @@ class AdminPluginController(GlobalController):
 
             # 安全校验：backup_name 只允许 [版本]_[时间戳] 格式，防路径穿越 / Security check: backup_name only allows [version]_[timestamp] format, prevents path traversal
             if not _re.match(r'^[a-zA-Z0-9._-]+$', backup_name) or '..' in backup_name:
-                raise ValidationException(message="Invalid backup name")
+                raise ValidationException(message=_("plugin.error.invalid_backup_name"))
 
             plugin = await self.get_service(db).get_by_id(plugin_id)
             if not plugin:
-                raise NotFoundException(message=f"Plugin #{plugin_id} not found")
+                raise NotFoundException(
+                    message=_("plugin.error.not_found_by_id").format(
+                        plugin_id=plugin_id,
+                    )
+                )
             backup_path = BACKUPS_DIR / plugin.name / backup_name
             if not backup_path.is_dir():
-                raise NotFoundException(message="Backup not found")
+                raise NotFoundException(message=_("plugin.error.backup_not_found"))
 
             import shutil as _shutil
             _shutil.rmtree(backup_path)
@@ -1432,7 +1482,11 @@ class AdminPluginController(GlobalController):
             plugin = await self.get_service(db).get_by_id(plugin_id)
             if not plugin:
                 from app.exceptions.base import NotFoundException
-                raise NotFoundException(message=f"Plugin #{plugin_id} not found")
+                raise NotFoundException(
+                    message=_("plugin.error.not_found_by_id").format(
+                        plugin_id=plugin_id,
+                    )
+                )
             monitor = PluginHealthMonitor(db)
             status = await monitor.get_health_status(plugin.name)
             return success(data=status)

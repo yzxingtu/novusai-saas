@@ -102,6 +102,16 @@ TENANT_FEATURES_GROUP = ConfigGroupMeta(
     sort_order=40,
 )
 
+# Tenant AI settings group / 企业 AI 设置分组
+TENANT_AI_GROUP = ConfigGroupMeta(
+    code="tenant_ai",
+    name_key="config.group.tenant_ai.name",
+    description_key="config.group.tenant_ai.desc",
+    scope=ConfigScope.ALL_TENANTS,
+    icon="lucide:bot",
+    sort_order=45,
+)
+
 # Tenant registration settings group / 企业注册设置分组
 TENANT_REGISTRATION_GROUP = ConfigGroupMeta(
     code="tenant_registration",
@@ -185,6 +195,7 @@ TENANT_CONFIG_GROUPS = [
     TENANT_APPEARANCE_GROUP,
     TENANT_REGISTRATION_GROUP,
     TENANT_FEATURES_GROUP,
+    TENANT_AI_GROUP,
     TENANT_STORAGE_GROUP,
 ]
 
@@ -209,6 +220,7 @@ __all__ = [
     "TENANT_APPEARANCE_GROUP",
     "TENANT_REGISTRATION_GROUP",
     "TENANT_FEATURES_GROUP",
+    "TENANT_AI_GROUP",
     "TENANT_STORAGE_GROUP",
     "TENANT_CONFIG_GROUPS",
     # All / 全部

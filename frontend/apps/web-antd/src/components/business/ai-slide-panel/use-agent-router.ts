@@ -1,7 +1,7 @@
 import type { Ref } from 'vue';
 
 import type { AgentRouteResponse, PageContext } from '#/api/shared/ai-chat';
-import type { AgentItem } from '#/components/business/ai-chat-panel/types';
+import type { AgentItem } from '#/types/ai-chat';
 
 /** Route cache TTL: 2 minutes (shorter to avoid wrong agent reuse) / 路由缓存 TTL 2 分钟 */
 /**

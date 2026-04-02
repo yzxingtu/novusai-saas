@@ -178,6 +178,56 @@ class TestGetConversationDetail:
         assert detail["last_run_summary"]["interaction_mode_effective"] == "confirm"
         assert detail["last_run_summary"]["downgrade_reason"] is None
 
+    @pytest.mark.asyncio
+    async def test_conversation_detail_surfaces_selected_skills_and_interrupted_signal(
+        self, mock_db
+    ):
+        from app.services.ai.conversation_service import ConversationService
+
+        conversation = _make_conversation()
+        conversation.metadata_ = {"interaction_mode": "confirm"}
+        message = _make_message(role="assistant", content="处理中")
+        message.to_dict.return_value = {
+            "id": 1,
+            "role": "assistant",
+            "content": "处理中",
+            "metadata": {
+                "completion_reason": "interrupted",
+                "turn_record": {
+                    "selected_skill_names": ["runtime.page_context"],
+                },
+            },
+        }
+        message.metadata_ = {
+            "completion_reason": "interrupted",
+            "turn_record": {
+                "selected_skill_names": ["runtime.page_context"],
+            },
+        }
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.get_accessible_conversation = AsyncMock(return_value=conversation)
+        service._message_repo = MagicMock()
+        service._message_repo.get_by_conversation = AsyncMock(return_value=[message])
+        service._message_repo.count_by_conversation = AsyncMock(return_value=1)
+        mock_db.execute = AsyncMock(
+            return_value=SimpleNamespace(scalars=lambda: [])
+        )
+
+        detail = await service.get_conversation_detail(1, user_id=1)
+
+        assert detail["context_diagnostics"]["selected_skill_names"] == [
+            "runtime.page_context"
+        ]
+        assert detail["last_run_summary"]["selected_skill_names"] == [
+            "runtime.page_context"
+        ]
+        assert detail["context_diagnostics"]["last_interrupted"] is True
+        assert detail["last_run_summary"]["interrupted"] is True
+
 
 class TestGetServiceForConversation:
     @pytest.mark.asyncio
@@ -1078,8 +1128,207 @@ class TestThinkingPersistence:
         )
 
         assistant_payload = service._message_repo.create.await_args_list[1].args[0]
-        assert assistant_payload["metadata_"]["context_diagnostics"] == context_diag
+        assert assistant_payload["metadata_"]["context_diagnostics"]["dummy"] == "value"
+        assert (
+            assistant_payload["metadata_"]["context_diagnostics"]["last_interrupted"]
+            is False
+        )
         assert assistant_payload["metadata_"]["last_run_summary"] == last_summary
+
+    @pytest.mark.asyncio
+    async def test_persist_chat_messages_persists_turn_record_shadow_diff_metadata(
+        self, mock_db
+    ):
+        from app.services.ai.conversation_service import ConversationService
+
+        conversation = _make_conversation(id=901, message_count=0)
+        result = SimpleNamespace(
+            messages=[
+                {"role": "user", "content": "请继续"},
+                {
+                    "role": "assistant",
+                    "content": "这是最终结果",
+                    "tool_calls": None,
+                    "tool_call_id": None,
+                    "attachments": None,
+                    "reasoning_content": None,
+                },
+            ],
+            tool_results=[],
+            partial=False,
+            interrupted=False,
+            completion_reason="",
+            runtime_model_id=None,
+            runtime_model_name=None,
+            runtime_provider_id=None,
+            runtime_provider_name=None,
+            turn_record={
+                "turn_outcome": "success",
+                "termination_reason": "protocol_fallback",
+                "protocol_path": "shadow",
+                "selected_tool_names": ["web_search", "fetch_url"],
+                "selected_skill_names": ["runtime.page_context", "runtime.route"],
+                "context_sources": [
+                    {
+                        "kind": "page_context",
+                        "name": "admin.ai.conversations",
+                        "active": True,
+                        "metadata": {"page_key": "admin.ai.conversations"},
+                    }
+                ],
+                "fallback_history": [
+                    {
+                        "from_protocol": "responses",
+                        "to_protocol": "chat_completions",
+                        "reason": "stream_empty_no_output",
+                        "recovered": True,
+                        "metadata": {"recovery_path": "sync_chat_completions"},
+                    }
+                ],
+                "metadata": {
+                    "shadow_diff": {
+                        "selected_tool_names": {
+                            "legacy": [],
+                            "runtime_v2": ["web_search", "fetch_url"],
+                        }
+                    }
+                },
+            },
+        )
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service._message_repo = MagicMock()
+        service._message_repo.get_next_sequence = AsyncMock(return_value=1)
+        service._message_repo.create = AsyncMock()
+
+        await service.persist_chat_messages(
+            conversation=conversation,
+            result=result,
+            history_count=0,
+            agent_id=7,
+        )
+
+        assistant_payload = service._message_repo.create.await_args_list[1].args[0]
+        metadata = assistant_payload["metadata_"]
+        assert metadata["turn_outcome"] == "success"
+        assert metadata["termination_reason"] == "protocol_fallback"
+        assert metadata["protocol_path"] == "shadow"
+        assert metadata["selected_tool_names"] == ["web_search", "fetch_url"]
+        assert metadata["selected_skill_names"] == [
+            "runtime.page_context",
+            "runtime.route",
+        ]
+        assert metadata["turn_record"]["fallback_history"][0]["recovered"] is True
+        assert metadata["turn_record"]["metadata"]["shadow_diff"] == {
+            "selected_tool_names": {
+                "legacy": [],
+                "runtime_v2": ["web_search", "fetch_url"],
+            }
+        }
+        assert metadata["context_diagnostics"]["protocol_path"] == "shadow"
+        assert metadata["context_diagnostics"]["selected_skill_names"] == [
+            "runtime.page_context",
+            "runtime.route",
+        ]
+        assert metadata["last_run_summary"]["termination_reason"] == "protocol_fallback"
+        assert metadata["last_run_summary"]["selected_skill_names"] == [
+            "runtime.page_context",
+            "runtime.route",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_persist_chat_messages_marks_interrupted_on_tool_round_without_final_plain_assistant(
+        self, mock_db
+    ):
+        from app.services.ai.conversation_service import ConversationService
+
+        conversation = _make_conversation(id=905, message_count=0)
+        result = SimpleNamespace(
+            success=False,
+            messages=[
+                {"role": "user", "content": "继续执行"},
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "id": "tc_interrupted_1",
+                            "function": {
+                                "name": "data_query",
+                                "arguments": '{"query":"today"}',
+                            },
+                        }
+                    ],
+                    "tool_call_id": None,
+                    "attachments": None,
+                    "reasoning_content": None,
+                    "metadata": {},
+                },
+                {
+                    "role": "tool",
+                    "content": '{"ok": true}',
+                    "tool_calls": None,
+                    "tool_call_id": "tc_interrupted_1",
+                    "attachments": None,
+                    "reasoning_content": None,
+                },
+            ],
+            tool_results=[],
+            partial=True,
+            interrupted=True,
+            completion_reason="interrupted",
+            runtime_model_id=None,
+            runtime_model_name=None,
+            runtime_provider_id=None,
+            runtime_provider_name=None,
+            turn_record=None,
+            rag_sources=None,
+            rag_source_kinds=[],
+            context_compacted=False,
+            memory_flush_triggered=False,
+            memory_recalled=False,
+            prune_stats=None,
+        )
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service._message_repo = MagicMock()
+        service._message_repo.get_next_sequence = AsyncMock(return_value=1)
+        service._message_repo.create = AsyncMock()
+
+        await service.persist_chat_messages(
+            conversation=conversation,
+            result=result,
+            history_count=0,
+            agent_id=7,
+        )
+
+        assistant_payload = service._message_repo.create.await_args_list[1].args[0]
+        metadata = assistant_payload["metadata_"]
+        assert metadata["partial"] is True
+        assert metadata["interrupted"] is True
+        assert metadata["completion_reason"] == "interrupted"
+        assert metadata["turn_outcome"] == "partial"
+        assert metadata["termination_reason"] == "interrupted"
+        assert metadata["context_diagnostics"]["last_interrupted"] is True
+        assert metadata["last_run_summary"]["interrupted"] is True
+
+    def test_extract_turn_diagnostics_infers_partial_from_interrupted_completion_reason(
+        self,
+    ):
+        from app.services.ai.conversation_service import ConversationService
+
+        payload = ConversationService._extract_turn_diagnostics_from_metadata(
+            {"completion_reason": "interrupted"}
+        )
+
+        assert payload["turn_outcome"] == "partial"
+        assert payload["termination_reason"] == "interrupted"
 
     @pytest.mark.asyncio
     async def test_persist_chat_messages_skips_internal_only_messages(self, mock_db):

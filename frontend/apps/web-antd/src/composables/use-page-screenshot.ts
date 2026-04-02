@@ -5,7 +5,7 @@
  * (80% quality, max 1920×1080), and uploads via the standard attachment smart-upload API.
  * Returns a ChatAttachment ready for injection into chat messages.
  */
-import type { ChatAttachment } from '#/components/business/ai-chat-panel/types';
+import type { ChatAttachment } from '#/types/ai-chat';
 
 import { ref } from 'vue';
 

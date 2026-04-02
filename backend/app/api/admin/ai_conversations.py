@@ -27,6 +27,7 @@ from app.rbac.decorators import (
     permission_resource,
 )
 from app.services.ai.monitoring_service import MonitoringService
+from app.services.ai.conversation_service import ConversationService
 
 
 def _safe_int(value) -> int:
@@ -320,6 +321,38 @@ class AdminAIConversationController(GlobalController):
                 message_limit=message_limit,
             )
             return success(data=detail)
+
+        @router.get("/{conversation_id}/compact", summary="对话上下文压缩快照")
+        @action_read("action.ai_conversation.detail")
+        async def get_conversation_compact_snapshot(
+            request: Request,
+            db: DbSession,
+            conversation_id: int,
+            admin: ActiveAdmin,
+        ):
+            _admin = admin
+            service, _ = await ConversationService.get_service_for_conversation(
+                db,
+                conversation_id,
+            )
+            snapshot = await service.get_context_compaction_snapshot(conversation_id)
+            return success(data={"snapshot": snapshot})
+
+        @router.get("/{conversation_id}/timeline", summary="对话时间线")
+        @action_read("action.ai_conversation.detail")
+        async def get_conversation_timeline(
+            request: Request,
+            db: DbSession,
+            conversation_id: int,
+            admin: ActiveAdmin,
+        ):
+            _admin = admin
+            service, _ = await ConversationService.get_service_for_conversation(
+                db,
+                conversation_id,
+            )
+            timeline = await service.get_conversation_timeline(conversation_id)
+            return success(data={"timeline": timeline})
 
 
 # 导出路由器 / Export router

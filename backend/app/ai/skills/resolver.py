@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from app.ai.events.hooks import HookPoint, get_hook_registry
+from app.ai.runtime.types import CapabilityDescriptor
 from app.ai.tools.semantic_defaults import FAMILY_HINT_TAGS
 from app.ai.tools.types import ToolDefinition, ToolParameter
 from app.core.logging import LogManager
@@ -50,7 +51,102 @@ class SkillResolveResult:
 
     tools: list[ToolDefinition] = field(default_factory=list)
     tool_consent_modes: dict[str, str] = field(default_factory=dict)
+    capability_descriptors: list[CapabilityDescriptor] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+
+    @property
+    def selected_skill_names(self) -> list[str]:
+        names: list[str] = []
+        for descriptor in self.capability_descriptors:
+            if descriptor.kind != "prompt_skill":
+                continue
+            skill_name = str(descriptor.name or "").strip()
+            if skill_name and skill_name not in names:
+                names.append(skill_name)
+        for tool in self.tools:
+            skill_name = str(getattr(tool, "source_skill_name", "") or "").strip()
+            if skill_name and skill_name not in names:
+                names.append(skill_name)
+        return names
+
+
+def build_skill_capability_descriptors(skills: list[Any]) -> list[CapabilityDescriptor]:
+    """
+    Convert resolved skill rows to runtime capability descriptors.
+    将已解析技能行转换为 runtime 能力描述符。
+    """
+    descriptors: list[CapabilityDescriptor] = []
+    seen_keys: set[tuple[int | None, str]] = set()
+
+    for skill in skills:
+        skill_name = str(getattr(skill, "name", "") or "").strip()
+        if not skill_name:
+            continue
+        skill_id = getattr(skill, "id", None)
+        key = (skill_id, skill_name)
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+
+        package = getattr(skill, "package", None)
+        package_name = str(getattr(package, "name", "") or "").strip()
+        source_plugin = str(getattr(package, "source_plugin", "") or "").strip()
+        source = f"skill_package:{package_name}" if package_name else "skill_resolver"
+        metadata: dict[str, Any] = {
+            "skill_id": skill_id,
+            "skill_type": getattr(skill, "type", None),
+            "package_id": getattr(skill, "package_id", None),
+        }
+        if package_name:
+            metadata["package_name"] = package_name
+        if source_plugin:
+            metadata["source_plugin"] = source_plugin
+
+        descriptors.append(
+            CapabilityDescriptor(
+                name=skill_name,
+                kind="prompt_skill",
+                source=source,
+                description=str(getattr(skill, "description", "") or ""),
+                metadata=metadata,
+            )
+        )
+
+    return descriptors
+
+
+def enrich_skill_capability_descriptors_with_tools(
+    *,
+    descriptors: list[CapabilityDescriptor],
+    tools: list[ToolDefinition],
+) -> None:
+    """
+    Attach resolved execution-tool metadata onto prompt_skill descriptors.
+    为 prompt_skill 描述符补齐本轮可执行工具元信息。
+    """
+    tool_names_by_skill: dict[str, list[str]] = {}
+    for tool in tools:
+        skill_name = str(getattr(tool, "source_skill_name", "") or "").strip()
+        tool_name = str(getattr(tool, "name", "") or "").strip()
+        if not skill_name or not tool_name:
+            continue
+        bucket = tool_names_by_skill.setdefault(skill_name, [])
+        if tool_name not in bucket:
+            bucket.append(tool_name)
+
+    for descriptor in descriptors:
+        if descriptor.kind != "prompt_skill":
+            continue
+        skill_name = str(descriptor.name or "").strip()
+        if not skill_name:
+            continue
+        resolved_tool_names = list(tool_names_by_skill.get(skill_name, []))
+        descriptor.metadata = {
+            **dict(descriptor.metadata or {}),
+            "resolved_tool_names": resolved_tool_names,
+            "resolved_tool_count": len(resolved_tool_names),
+            "has_execution_tools": bool(resolved_tool_names),
+        }
 
 
 class SkillResolver:
@@ -1205,6 +1301,7 @@ async def resolve_for_agent(
 
     resolver = SkillResolver(db=db)
     resolve_result = await resolver.resolve(skills, skill_config_overrides)
+    resolve_result.capability_descriptors = build_skill_capability_descriptors(skills)
 
     for tool in resolve_result.tools:
         skill_id = tool.source_skill_id
@@ -1226,6 +1323,10 @@ async def resolve_for_agent(
             tool_definitions=resolve_result.tools,
         )
         resolve_result.tools = hook_ctx.get("tool_definitions", resolve_result.tools)
+    enrich_skill_capability_descriptors_with_tools(
+        descriptors=resolve_result.capability_descriptors,
+        tools=resolve_result.tools,
+    )
 
     logger.info(
         "Resolved skills for agent={}: skill_ids={}, tools={}, warnings={}",
@@ -1237,4 +1338,10 @@ async def resolve_for_agent(
     return resolve_result
 
 
-__all__ = ["SkillResolver", "SkillResolveResult", "resolve_for_agent"]
+__all__ = [
+    "SkillResolver",
+    "SkillResolveResult",
+    "build_skill_capability_descriptors",
+    "enrich_skill_capability_descriptors_with_tools",
+    "resolve_for_agent",
+]

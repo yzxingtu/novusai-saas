@@ -4,7 +4,7 @@ import type { MenuRecordRaw } from '@vben/types';
 import type {
   AgentItem,
   ConversationItem,
-} from '#/components/business/ai-chat-panel/types';
+} from '#/types/ai-chat';
 
 /**
  * Command Bar Component

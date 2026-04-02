@@ -1086,6 +1086,158 @@ def _compact_json_text(value: object) -> str:
     )
 
 
+def _normalize_cli_string_list(raw_value: object) -> list[str]:
+    if not isinstance(raw_value, list):
+        return []
+    out: list[str] = []
+    for item in raw_value:
+        text = str(item or "").strip()
+        if text and text not in out:
+            out.append(text)
+    return out
+
+
+def _normalize_cli_context_sources(raw_value: object) -> list[dict]:
+    if not isinstance(raw_value, list):
+        return []
+    normalized: list[dict] = []
+    for item in raw_value:
+        if not isinstance(item, dict):
+            continue
+        metadata = item.get("metadata")
+        if not isinstance(metadata, dict):
+            metadata = {}
+        normalized.append(
+            {
+                "kind": str(item.get("kind") or "").strip(),
+                "name": str(item.get("name") or "").strip(),
+                "active": bool(item.get("active", True)),
+                "metadata": dict(metadata),
+            }
+        )
+    return normalized
+
+
+def _normalize_cli_fallback_history(raw_value: object) -> list[dict]:
+    if not isinstance(raw_value, list):
+        return []
+    normalized: list[dict] = []
+    for item in raw_value:
+        if not isinstance(item, dict):
+            continue
+        from_protocol = str(item.get("from_protocol") or "").strip()
+        to_protocol = str(item.get("to_protocol") or "").strip()
+        reason = str(item.get("reason") or "").strip()
+        if not (from_protocol or to_protocol or reason):
+            continue
+        metadata = item.get("metadata")
+        if not isinstance(metadata, dict):
+            metadata = {}
+        normalized.append(
+            {
+                "from_protocol": from_protocol or None,
+                "to_protocol": to_protocol or None,
+                "reason": reason or None,
+                "recovered": bool(item.get("recovered", False)),
+                "metadata": dict(metadata),
+            }
+        )
+    return normalized
+
+
+def _normalize_cli_bool(raw_value: object) -> bool | None:
+    if isinstance(raw_value, bool):
+        return raw_value
+    if raw_value is None:
+        return None
+    normalized = str(raw_value).strip().lower()
+    if normalized in {"true", "1", "yes", "y", "on"}:
+        return True
+    if normalized in {"false", "0", "no", "n", "off"}:
+        return False
+    return None
+
+
+def _extract_turn_diagnostics_from_call_log_metadata(metadata: object) -> dict:
+    if not isinstance(metadata, dict):
+        return {}
+    diagnostics = metadata.get("turn_diagnostics")
+    if not isinstance(diagnostics, dict):
+        diagnostics = {}
+    turn_record = diagnostics.get("turn_record")
+    if not isinstance(turn_record, dict):
+        turn_record = metadata.get("request", {}).get("turn_record")
+        if not isinstance(turn_record, dict):
+            turn_record = {}
+    turn_record_metadata = (
+        dict(turn_record.get("metadata") or {})
+        if isinstance(turn_record.get("metadata"), dict)
+        else {}
+    )
+    return {
+        "turn_outcome": str(
+            turn_record.get("turn_outcome")
+            or diagnostics.get("turn_outcome")
+            or ""
+        ).strip()
+        or None,
+        "termination_reason": str(
+            turn_record.get("termination_reason")
+            or diagnostics.get("termination_reason")
+            or ""
+        ).strip()
+        or None,
+        "protocol_path": str(
+            turn_record.get("protocol_path")
+            or diagnostics.get("protocol_path")
+            or ""
+        ).strip()
+        or None,
+        "selected_tool_names": _normalize_cli_string_list(
+            turn_record.get("selected_tool_names")
+            or diagnostics.get("selected_tool_names")
+        ),
+        "selected_skill_names": _normalize_cli_string_list(
+            turn_record.get("selected_skill_names")
+            or diagnostics.get("selected_skill_names")
+        ),
+        "context_sources": _normalize_cli_context_sources(
+            turn_record.get("context_sources")
+            or diagnostics.get("context_sources")
+        ),
+        "fallback_history": _normalize_cli_fallback_history(
+            turn_record.get("fallback_history")
+            or diagnostics.get("fallback_history")
+        ),
+        "sync_rescue": next(
+            (
+                parsed
+                for parsed in (
+                    _normalize_cli_bool(turn_record_metadata.get("sync_rescue")),
+                    _normalize_cli_bool(turn_record.get("sync_rescue")),
+                    _normalize_cli_bool(diagnostics.get("sync_rescue")),
+                )
+                if parsed is not None
+            ),
+            None,
+        ),
+        "should_record_call_log": next(
+            (
+                parsed
+                for parsed in (
+                    _normalize_cli_bool(
+                        turn_record_metadata.get("should_record_call_log")
+                    ),
+                    _normalize_cli_bool(turn_record.get("should_record_call_log")),
+                    _normalize_cli_bool(diagnostics.get("should_record_call_log")),
+                )
+                if parsed is not None
+            ),
+            None,
+        ),
+    }
+
+
 async def _load_ai_conversation_snapshot(
     conversation_id: int,
     *,
@@ -1169,6 +1321,214 @@ async def _load_ai_conversation_snapshot(
             last_assistant_text,
             [],
         )
+        assistant_metadata = (
+            dict((last_assistant or {}).get("metadata") or {})
+            if isinstance((last_assistant or {}).get("metadata"), dict)
+            else {}
+        )
+        detail_context_diagnostics = (
+            dict(detail.get("context_diagnostics") or {})
+            if isinstance(detail.get("context_diagnostics"), dict)
+            else {}
+        )
+        detail_last_run_summary = (
+            dict(detail.get("last_run_summary") or {})
+            if isinstance(detail.get("last_run_summary"), dict)
+            else {}
+        )
+        latest_call_log_diagnostics = {}
+        for row in call_logs:
+            request_metadata = (
+                row.request_metadata if isinstance(row.request_metadata, dict) else {}
+            )
+            diagnostics_from_log = _extract_turn_diagnostics_from_call_log_metadata(
+                request_metadata
+            )
+            if diagnostics_from_log:
+                latest_call_log_diagnostics = diagnostics_from_log
+                break
+        turn_record = (
+            dict(assistant_metadata.get("turn_record") or {})
+            if isinstance(assistant_metadata.get("turn_record"), dict)
+            else {}
+        )
+        turn_outcome = (
+            str(
+                turn_record.get("turn_outcome")
+                or assistant_metadata.get("turn_outcome")
+                or detail_context_diagnostics.get("turn_outcome")
+                or detail_last_run_summary.get("turn_outcome")
+                or latest_call_log_diagnostics.get("turn_outcome")
+                or ""
+            ).strip()
+            or None
+        )
+        termination_reason = (
+            str(
+                turn_record.get("termination_reason")
+                or assistant_metadata.get("termination_reason")
+                or detail_context_diagnostics.get("termination_reason")
+                or detail_last_run_summary.get("termination_reason")
+                or detail_last_run_summary.get("completion_reason")
+                or assistant_metadata.get("completion_reason")
+                or latest_call_log_diagnostics.get("termination_reason")
+                or ""
+            ).strip()
+            or None
+        )
+        protocol_path = (
+            str(
+                turn_record.get("protocol_path")
+                or assistant_metadata.get("protocol_path")
+                or detail_context_diagnostics.get("protocol_path")
+                or detail_last_run_summary.get("protocol_path")
+                or latest_call_log_diagnostics.get("protocol_path")
+                or ""
+            ).strip()
+            or None
+        )
+
+        selected_tool_names = (
+            _normalize_cli_string_list(turn_record.get("selected_tool_names"))
+            or _normalize_cli_string_list(assistant_metadata.get("selected_tool_names"))
+            or _normalize_cli_string_list(
+                detail_context_diagnostics.get("selected_tool_names")
+            )
+            or _normalize_cli_string_list(
+                detail_last_run_summary.get("selected_tool_names")
+            )
+            or _normalize_cli_string_list(
+                latest_call_log_diagnostics.get("selected_tool_names")
+            )
+        )
+        selected_skill_names = (
+            _normalize_cli_string_list(turn_record.get("selected_skill_names"))
+            or _normalize_cli_string_list(assistant_metadata.get("selected_skill_names"))
+            or _normalize_cli_string_list(
+                detail_context_diagnostics.get("selected_skill_names")
+            )
+            or _normalize_cli_string_list(
+                detail_last_run_summary.get("selected_skill_names")
+            )
+            or _normalize_cli_string_list(
+                latest_call_log_diagnostics.get("selected_skill_names")
+            )
+        )
+        context_sources = (
+            _normalize_cli_context_sources(turn_record.get("context_sources"))
+            or _normalize_cli_context_sources(assistant_metadata.get("context_sources"))
+            or _normalize_cli_context_sources(
+                detail_context_diagnostics.get("context_sources")
+            )
+            or _normalize_cli_context_sources(
+                detail_last_run_summary.get("context_sources")
+            )
+            or _normalize_cli_context_sources(
+                latest_call_log_diagnostics.get("context_sources")
+            )
+        )
+        fallback_history = (
+            _normalize_cli_fallback_history(turn_record.get("fallback_history"))
+            or _normalize_cli_fallback_history(
+                assistant_metadata.get("fallback_history")
+            )
+            or _normalize_cli_fallback_history(
+                detail_context_diagnostics.get("fallback_history")
+            )
+            or _normalize_cli_fallback_history(
+                detail_last_run_summary.get("fallback_history")
+            )
+            or _normalize_cli_fallback_history(
+                latest_call_log_diagnostics.get("fallback_history")
+            )
+        )
+        sync_rescue = next(
+            (
+                parsed
+                for parsed in (
+                    _normalize_cli_bool(
+                        (turn_record.get("metadata") or {}).get("sync_rescue")
+                        if isinstance(turn_record.get("metadata"), dict)
+                        else None
+                    ),
+                    _normalize_cli_bool(turn_record.get("sync_rescue")),
+                    _normalize_cli_bool(assistant_metadata.get("sync_rescue")),
+                    _normalize_cli_bool(detail_context_diagnostics.get("sync_rescue")),
+                    _normalize_cli_bool(detail_last_run_summary.get("sync_rescue")),
+                    _normalize_cli_bool(
+                        latest_call_log_diagnostics.get("sync_rescue")
+                    ),
+                )
+                if parsed is not None
+            ),
+            None,
+        )
+        should_record_call_log = next(
+            (
+                parsed
+                for parsed in (
+                    _normalize_cli_bool(
+                        (turn_record.get("metadata") or {}).get(
+                            "should_record_call_log"
+                        )
+                        if isinstance(turn_record.get("metadata"), dict)
+                        else None
+                    ),
+                    _normalize_cli_bool(turn_record.get("should_record_call_log")),
+                    _normalize_cli_bool(
+                        detail_context_diagnostics.get("should_record_call_log")
+                    ),
+                    _normalize_cli_bool(
+                        detail_last_run_summary.get("should_record_call_log")
+                    ),
+                    _normalize_cli_bool(
+                        latest_call_log_diagnostics.get("should_record_call_log")
+                    ),
+                )
+                if parsed is not None
+            ),
+            None,
+        )
+
+        recent_call_logs: list[dict] = []
+        for row in call_logs:
+            request_metadata = (
+                row.request_metadata if isinstance(row.request_metadata, dict) else {}
+            )
+            row_diagnostics = _extract_turn_diagnostics_from_call_log_metadata(
+                request_metadata
+            )
+            recent_call_logs.append(
+                {
+                    "id": row.id,
+                    "created_at": ConversationService._format_dt(row.created_at),
+                    "status": row.status,
+                    "provider_id": row.provider_id,
+                    "provider_name": row.provider_name_snapshot,
+                    "model_id": row.model_id,
+                    "model_name": row.model_name_snapshot,
+                    "input_tokens": row.input_tokens,
+                    "output_tokens": row.output_tokens,
+                    "total_tokens": row.total_tokens,
+                    "latency_ms": row.latency_ms,
+                    "error_message": row.error_message,
+                    "turn_outcome": row_diagnostics.get("turn_outcome"),
+                    "termination_reason": row_diagnostics.get("termination_reason"),
+                    "protocol_path": row_diagnostics.get("protocol_path"),
+                    "selected_tool_names": _normalize_cli_string_list(
+                        row_diagnostics.get("selected_tool_names")
+                    ),
+                    "selected_skill_names": _normalize_cli_string_list(
+                        row_diagnostics.get("selected_skill_names")
+                    ),
+                    "fallback_history": _normalize_cli_fallback_history(
+                        row_diagnostics.get("fallback_history")
+                    ),
+                    "sync_rescue": _normalize_cli_bool(
+                        row_diagnostics.get("sync_rescue")
+                    ),
+                }
+            )
 
         return {
             "conversation": {
@@ -1195,28 +1555,39 @@ async def _load_ai_conversation_snapshot(
             "recent_messages": recent_messages,
             "keyword": keyword,
             "keyword_hits": keyword_hits,
-            "recent_call_logs": [
-                {
-                    "id": row.id,
-                    "created_at": ConversationService._format_dt(row.created_at),
-                    "status": row.status,
-                    "provider_id": row.provider_id,
-                    "provider_name": row.provider_name_snapshot,
-                    "model_id": row.model_id,
-                    "model_name": row.model_name_snapshot,
-                    "input_tokens": row.input_tokens,
-                    "output_tokens": row.output_tokens,
-                    "total_tokens": row.total_tokens,
-                    "latency_ms": row.latency_ms,
-                    "error_message": row.error_message,
-                }
-                for row in call_logs
-            ],
+            "recent_call_logs": recent_call_logs,
             "diagnostics": {
                 "last_assistant_looks_like_textual_tool_call": bool(leaked_tool_names),
                 "last_assistant_textual_tool_call_names": leaked_tool_names,
                 "last_assistant_message_id": (last_assistant or {}).get("id"),
                 "last_assistant_sequence": (last_assistant or {}).get("sequence"),
+                "turn_outcome": turn_outcome,
+                "termination_reason": termination_reason,
+                "protocol_path": protocol_path,
+                "selected_tool_names": selected_tool_names,
+                "selected_skill_names": selected_skill_names,
+                "context_sources": context_sources,
+                "fallback_history": fallback_history,
+                "sync_rescue": sync_rescue,
+                "should_record_call_log": should_record_call_log,
+                "turn_record": turn_record or None,
+                "source": (
+                    "assistant_turn_record"
+                    if turn_record
+                    else (
+                        "assistant_metadata"
+                        if assistant_metadata
+                        else (
+                            "conversation_detail"
+                            if detail_context_diagnostics or detail_last_run_summary
+                            else (
+                                "call_log"
+                                if latest_call_log_diagnostics
+                                else "none"
+                            )
+                        )
+                    )
+                ),
             },
         }
 
@@ -1266,6 +1637,64 @@ def _render_ai_conversation_text(
                 ", ".join(leaked_names),
             )
         )
+
+    turn_outcome = diagnostics.get("turn_outcome")
+    termination_reason = diagnostics.get("termination_reason")
+    protocol_path = diagnostics.get("protocol_path")
+    selected_tool_names = _normalize_cli_string_list(
+        diagnostics.get("selected_tool_names")
+    )
+    selected_skill_names = _normalize_cli_string_list(
+        diagnostics.get("selected_skill_names")
+    )
+    context_sources = _normalize_cli_context_sources(diagnostics.get("context_sources"))
+    fallback_history = _normalize_cli_fallback_history(
+        diagnostics.get("fallback_history")
+    )
+    sync_rescue = _normalize_cli_bool(diagnostics.get("sync_rescue"))
+    should_record_call_log = _normalize_cli_bool(
+        diagnostics.get("should_record_call_log")
+    )
+    diagnostics_source = str(diagnostics.get("source") or "").strip() or None
+    if turn_outcome or termination_reason or protocol_path:
+        lines.append(
+            "Turn diagnostics: outcome={} termination_reason={} protocol_path={}".format(
+                turn_outcome or "-",
+                termination_reason or "-",
+                protocol_path or "-",
+            )
+        )
+    if selected_tool_names:
+        lines.append(
+            "Turn selected tools: {}".format(", ".join(str(item) for item in selected_tool_names))
+        )
+    if selected_skill_names:
+        lines.append(
+            "Turn selected skills: {}".format(
+                ", ".join(str(item) for item in selected_skill_names)
+            )
+        )
+    if fallback_history:
+        lines.append(
+            "Turn fallback history: {}".format(
+                _compact_json_text(fallback_history)
+            )
+        )
+    if sync_rescue is not None:
+        lines.append(f"Turn sync rescue: {sync_rescue}")
+    if should_record_call_log is not None:
+        lines.append(f"Turn should_record_call_log: {should_record_call_log}")
+    if diagnostics_source:
+        lines.append(f"Turn diagnostics source: {diagnostics_source}")
+    if context_sources:
+        rendered_sources: list[str] = []
+        for source in context_sources:
+            name = str(source.get("name") or "-")
+            kind = str(source.get("kind") or "-")
+            active = bool(source.get("active", True))
+            rendered_sources.append(f"{kind}:{name}(active={active})")
+        if rendered_sources:
+            lines.append("Turn context sources: {}".format(", ".join(rendered_sources)))
 
     if recent_messages:
         lines.append("")
@@ -1358,6 +1787,30 @@ def _render_ai_conversation_text(
                         )
                     )
                 )
+            call_log_turn_outcome = str(item.get("turn_outcome") or "").strip()
+            call_log_termination = str(item.get("termination_reason") or "").strip()
+            call_log_protocol = str(item.get("protocol_path") or "").strip()
+            if call_log_turn_outcome or call_log_termination or call_log_protocol:
+                lines.append(
+                    "  summary: outcome={} termination_reason={} protocol_path={}".format(
+                        call_log_turn_outcome or "-",
+                        call_log_termination or "-",
+                        call_log_protocol or "-",
+                    )
+                )
+            call_log_skills = _normalize_cli_string_list(item.get("selected_skill_names"))
+            if call_log_skills:
+                lines.append("  selected_skills: {}".format(", ".join(call_log_skills)))
+            call_log_fallback = _normalize_cli_fallback_history(
+                item.get("fallback_history")
+            )
+            if call_log_fallback:
+                lines.append(
+                    "  fallback_history: {}".format(_compact_json_text(call_log_fallback))
+                )
+            call_log_sync_rescue = _normalize_cli_bool(item.get("sync_rescue"))
+            if call_log_sync_rescue is not None:
+                lines.append(f"  sync_rescue: {call_log_sync_rescue}")
 
     return "\n".join(lines)
 

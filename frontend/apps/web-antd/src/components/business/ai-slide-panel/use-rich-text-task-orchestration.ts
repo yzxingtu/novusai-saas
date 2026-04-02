@@ -14,11 +14,11 @@ import type {
   RichTextAITask,
   RichTextConversationBinding,
   RichTextDraftRuntimeState,
-} from '#/components/business/ai-chat-panel/types';
+} from '#/types/ai-chat';
 
 import { computed, onUnmounted, ref, watch } from 'vue';
 
-import { getAgentInputVariables } from '#/components/business/ai-chat-panel/types';
+import { getAgentInputVariables } from '#/types/ai-chat';
 import { sourceEditorRegistryVersion } from '#/components/business/rich-text-editor/sourceEditorRegistry';
 
 import {

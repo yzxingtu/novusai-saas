@@ -4,7 +4,7 @@ import type {
   AgentItem,
   ChatMessage,
   RichTextAITask,
-} from '#/components/business/ai-chat-panel/types';
+} from '#/types/ai-chat';
 import type { SourceEditorRegistration } from '#/components/business/rich-text-editor/types';
 
 /**

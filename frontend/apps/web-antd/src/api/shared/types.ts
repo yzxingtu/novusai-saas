@@ -18,6 +18,31 @@ export interface LoginParams {
   captchaType?: string;
 }
 
+/** Send login code params / 发送登录验证码参数 */
+export interface SendLoginCodeParams {
+  channel: 'email' | 'sms';
+  email?: string;
+  phone?: string;
+  /** Tenant code (optional, for scoping login) / 企业编码 */
+  tenantCode?: string;
+  /** Captcha challenge ID (optional) / 验证码挑战 ID */
+  captchaChallengeId?: string;
+  /** Captcha answer (optional) / 验证码答案 */
+  captchaSolution?: string;
+  /** Captcha provider code (optional) / 验证码提供方标识 */
+  captchaProviderCode?: string;
+}
+
+/** Login by code params / 验证码登录参数 */
+export interface LoginByCodeParams {
+  channel: 'email' | 'sms';
+  code: string;
+  email?: string;
+  phone?: string;
+  /** Tenant code (optional, for scoping login) / 企业编码 */
+  tenantCode?: string;
+}
+
 /** Login result (frontend format) / 登录响应 */
 export interface LoginResult {
   accessToken: string;
@@ -92,5 +117,34 @@ export interface TenantUserInfo extends BaseUserInfo {
 
 /** 偏好 JSON 对象 / Preferences JSON object */
 export type PreferencesData = Record<string, boolean | number | string>;
+
+/** Turn context source payload / 轮次上下文来源 */
+export interface TurnContextSourcePayload {
+  active?: boolean;
+  kind?: string;
+  metadata?: Record<string, unknown>;
+  name?: string;
+}
+
+/** Turn-level diagnostics payload / 轮次级诊断负载 */
+export interface TurnFallbackRecordPayload {
+  from_protocol?: string;
+  metadata?: Record<string, unknown>;
+  reason?: string;
+  recovered?: boolean;
+  to_protocol?: string;
+}
+
+/** Turn-level diagnostics payload / 轮次级诊断负载 */
+export interface TurnRecordPayload {
+  context_sources?: TurnContextSourcePayload[];
+  fallback_history?: TurnFallbackRecordPayload[];
+  metadata?: Record<string, unknown>;
+  protocol_path?: string;
+  selected_skill_names?: string[];
+  selected_tool_names?: string[];
+  termination_reason?: string;
+  turn_outcome?: string;
+}
 
 export { type ApiEndpoint } from '#/types/endpoint';

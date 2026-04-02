@@ -1359,16 +1359,13 @@ class PluginLifecycle:
         plugin_id: int,
         *,
         uninstall_python: bool = True,
-        force: bool = False,
     ) -> dict:
         """
         Explicitly uninstall plugin dependencies (without uninstalling the plugin itself).
         / 显式卸载插件依赖（不卸载插件本体）。
 
         Safety: deps cannot be uninstalled while plugin is enabled.
-        force param kept for backward compat only, no longer allows bypass.
         / 安全策略：插件处于 enabled 状态时，禁止卸载依赖。
-        force 参数保留仅为兼容旧调用，实际不再允许绕过。
         """
         from sqlalchemy import select
 
@@ -1394,12 +1391,6 @@ class PluginLifecycle:
                     ),
                 )
 
-            if force:
-                logger.warning(
-                    "Ignoring deprecated force=true in dependency uninstall for plugin {}",
-                    plugin.name,
-                )
-
             manifest = self._loader.load_manifest(plugin.name)
             py_deps = list(plugin.installed_packages or manifest.dependencies.python or [])
             plugin_states = await self._collect_plugin_dependency_states(
@@ -1417,7 +1408,6 @@ class PluginLifecycle:
                     "attempted": uninstall_python,
                 },
                 "plugins": plugin_states,
-                "forced": False,
             }
 
     # ================================================================

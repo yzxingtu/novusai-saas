@@ -55,6 +55,7 @@
     "vue-router": "catalog:"
   },
   "devDependencies": {
+    "@playwright/test": "catalog:",
     "@types/json-bigint": "catalog:"
   }
 }

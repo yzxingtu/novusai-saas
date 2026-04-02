@@ -181,20 +181,15 @@ class AdminOrganizationController(GlobalController):
             authority = AdminOrgAuthorityService(db, current_admin)
             if current_admin.is_super:
                 return success(
-                    data=_serialize_org_tree(await service.repo.get_tree()),
+                    data=_serialize_org_tree(await service.get_visible_org_tree()),
                     message=_("common.success"),
                 )
 
             scope_ids = await authority.get_visible_org_node_ids()
-            if not scope_ids:
-                return success(data=[], message=_("common.success"))
-
-            roots: list[dict] = []
-            for org_node_id in sorted(scope_ids):
-                org_node = await service.repo.get_by_id(org_node_id)
-                if org_node and (org_node.parent_id is None or org_node.parent_id not in scope_ids):
-                    roots.extend(_serialize_org_tree(await service.repo.get_tree(parent_id=org_node_id)))
-            return success(data=roots, message=_("common.success"))
+            return success(
+                data=_serialize_org_tree(await service.get_visible_org_tree(scope_ids)),
+                message=_("common.success"),
+            )
 
         @router.get("", summary="获取组织根节点")
         @action_read("action.organization.organization")
@@ -202,15 +197,11 @@ class AdminOrganizationController(GlobalController):
             service = AdminOrgNodeService(db)
             authority = AdminOrgAuthorityService(db, current_admin)
             if current_admin.is_super:
-                nodes = await service.get_organization_root_nodes()
+                nodes = await service.get_visible_root_nodes()
                 return success(data=[_serialize_org_node(node) for node in nodes], message=_("common.success"))
 
             scope_ids = await authority.get_visible_org_node_ids()
-            items = []
-            for org_node_id in sorted(scope_ids):
-                org_node = await service.repo.get_with_members(org_node_id)
-                if org_node and (org_node.parent_id is None or org_node.parent_id not in scope_ids):
-                    items.append(_serialize_org_node(org_node))
+            items = await service.get_visible_root_nodes(scope_ids)
             return success(data=items, message=_("common.success"))
 
         @router.put("/reorder", summary="批量重排序组织节点")
@@ -242,9 +233,7 @@ class AdminOrganizationController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             await self._require_view(db, current_admin, org_node_id)
-            org_node = await AdminOrgNodeService(db).repo.get_with_members(org_node_id)
-            if not org_node:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("role.not_found"))
+            org_node = await AdminOrgNodeService(db).get_org_node_detail(org_node_id)
             return success(data=_serialize_org_node_detail(org_node), message=_("common.success"))
 
         @router.get("/{org_node_id}/children", summary="获取组织子节点")

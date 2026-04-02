@@ -14,6 +14,10 @@ from app.configs.service import ConfigService
 from app.core.base_model import utc_now
 from app.core.base_service import GlobalService, TenantService
 from app.core.config import settings
+from app.core.cors import (
+    forget_verified_custom_domain,
+    remember_verified_custom_domain,
+)
 from app.core.hosts_helper import (
     async_add_host_entry,
     async_get_domain_entry_status,
@@ -250,6 +254,8 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
         domain_str = domain_obj.domain
         deleted = await self.delete(domain_id)
+        if deleted:
+            forget_verified_custom_domain(domain_str)
 
         # ⚠️  LOCAL DEV ENVIRONMENT: remove deleted custom domain from hosts file / 本地开发移除 hosts / local dev hosts remove
         if deleted and self._should_inject_hosts() and is_dev_local():
@@ -423,6 +429,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         # ⚠️  LOCAL DEV ENVIRONMENT: auto-inject verified custom domain into hosts file / 本地开发自动写 hosts / local dev hosts inject
         if self._should_inject_hosts() and is_dev_local():
             await async_add_host_entry(domain.domain)
+        remember_verified_custom_domain(domain.domain)
 
         return result
 
@@ -798,6 +805,7 @@ class TenantDomainTenantService(TenantDomainService, TenantService[TenantDomain,
         if not result:
             raise NotFoundException(message=_("tenant_domain.not_found"))
 
+        remember_verified_custom_domain(domain.domain)
         return result
 
 

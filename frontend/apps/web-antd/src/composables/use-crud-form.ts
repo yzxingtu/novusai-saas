@@ -150,7 +150,7 @@ export interface UseCrudDrawerOptions<T = any> {
    * @param isEdit 是否编辑模式 / Whether edit mode
    */
   afterSave?: (
-    response: any,
+    response: unknown,
     formValues: Record<string, any>,
     isEdit: boolean,
   ) => Promise<void> | void;
@@ -206,7 +206,8 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
 
   // 如果提供了 fields，自动生成 transform 和 toFormValues / auto-build from fields
   const transform =
-    customTransform ?? (fields ? createTransform(fields) : (v: any) => v);
+    customTransform ??
+    (fields ? createTransform(fields) : (v: Record<string, any>) => v);
   const toFormValues =
     customToFormValues ?? (fields ? createToFormValues<T>(fields) : undefined);
 

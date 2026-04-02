@@ -95,8 +95,6 @@
     "installDependencies": "确认为插件「{name}」安装依赖？",
     "uninstallDependencies": "确认卸载插件「{name}」的依赖？",
     "uninstallDependenciesContent": "此操作会按共享依赖保护规则卸载独占依赖，建议在插件禁用状态执行。",
-    "forceUninstallDependenciesTitle": "插件「{name}」当前已启用，是否强制卸载依赖？",
-    "forceUninstallDependenciesContent": "强制卸载后插件运行时可能报错，需重新安装依赖或重新启用插件恢复。",
     "dependency_error_title": "无法禁用「{name}」",
     "dependency_error_content": "以下插件依赖于此插件，请先禁用它们：{deps}"
   },

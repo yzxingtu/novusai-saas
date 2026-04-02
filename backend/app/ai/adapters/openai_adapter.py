@@ -15,7 +15,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
-from openai import AsyncOpenAI
+from openai import APIConnectionError, APIStatusError, APITimeoutError, AsyncOpenAI
 from openai.types import CreateEmbeddingResponse
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
@@ -45,6 +45,9 @@ async def _aclose_openai_stream(stream: Any) -> None:
         await stream.aclose()
     except Exception as exc:  # noqa: BLE001
         logger.debug("OpenAI upstream stream aclose (ignored): {}", exc)
+
+
+_RESPONSES_TOOL_FALLBACK_DISABLED = {"0", "false", "no", "off"}
 
 
 # Native audio: when True and supports_audio, convert audio attachments to OpenAI input_audio block
@@ -122,6 +125,78 @@ class OpenAIAdapter(BaseAdapter):
 
     def _chat_endpoint_path(self) -> str:
         return "responses" if self._use_responses_api() else "chat/completions"
+
+    def _responses_tool_call_fallback_enabled(self) -> bool:
+        raw_value = self.provider_config.get("responses_tool_call_fallback_enabled")
+        if raw_value is None:
+            return True
+        if isinstance(raw_value, bool):
+            return raw_value
+        return str(raw_value).strip().lower() not in _RESPONSES_TOOL_FALLBACK_DISABLED
+
+    @staticmethod
+    def _extract_status_code(error: Exception) -> int | None:
+        raw_status = getattr(error, "status_code", None)
+        if raw_status is None:
+            response = getattr(error, "response", None)
+            raw_status = getattr(response, "status_code", None)
+        try:
+            return int(raw_status) if raw_status is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    def _should_fallback_from_responses_error(
+        self,
+        error: Exception,
+        *,
+        tools: list[dict] | None,
+        tool_choice: str | None,
+        use_responses_api: bool | None = None,
+    ) -> bool:
+        if not (
+            self._use_responses_api()
+            if use_responses_api is None
+            else bool(use_responses_api)
+        ):
+            return False
+        if not self._responses_tool_call_fallback_enabled():
+            return False
+        if not tools and not tool_choice:
+            return False
+
+        if isinstance(
+            error,
+            (
+                APIConnectionError,
+                APITimeoutError,
+                httpx.ConnectError,
+                httpx.TimeoutException,
+            ),
+        ):
+            return True
+
+        if isinstance(error, AIGatewayError):
+            status_code = self._extract_status_code(error)
+            return bool(status_code is not None and 500 <= status_code < 600)
+
+        status_code = self._extract_status_code(error)
+        return bool(status_code is not None and 500 <= status_code < 600)
+
+    def _log_responses_tool_call_fallback(
+        self,
+        *,
+        model: str,
+        stream: bool,
+        error: Exception,
+    ) -> None:
+        logger.warning(
+            "Responses tool call failed, fallback to chat.completions: model={} stream={} error_type={} status_code={} error={}",
+            model,
+            stream,
+            type(error).__name__,
+            self._extract_status_code(error),
+            str(error),
+        )
 
     def _format_preview(self, payload: Any, limit: int = 400) -> str:
         if payload is None:
@@ -204,10 +279,11 @@ class OpenAIAdapter(BaseAdapter):
         endpoint_path: str,
         model: str,
         stream: bool,
+        wire_api: str | None = None,
     ) -> None:
         logger.info(
             "AI upstream request: wire_api={} method=POST url={} model={} stream={} auth_header=Bearer content_type=application/json accept={}",
-            self.wire_api,
+            wire_api or self.wire_api,
             self._build_endpoint_url(endpoint_path),
             model,
             stream,
@@ -220,6 +296,7 @@ class OpenAIAdapter(BaseAdapter):
         *,
         endpoint_path: str,
         model: str,
+        wire_api: str | None = None,
     ) -> None:
         response = getattr(error, "response", None)
         request = getattr(response, "request", None)
@@ -235,13 +312,132 @@ class OpenAIAdapter(BaseAdapter):
         body_preview = self._format_preview(getattr(error, "body", None) or getattr(response, "text", None))
         logger.warning(
             "AI upstream error: wire_api={} url={} model={} status_code={} content_type={} response_preview={}",
-            self.wire_api,
+            wire_api or self.wire_api,
             request_url,
             model,
             status_code,
             content_type or "",
             body_preview,
         )
+
+    def _build_chat_completions_request(
+        self,
+        *,
+        openai_messages: list[dict[str, Any]],
+        model: str,
+        temperature: float,
+        max_tokens: int | None,
+        top_p: float,
+        tools: list[dict] | None,
+        tool_choice: str | None,
+        stream: bool,
+        **kwargs,
+    ) -> dict[str, Any]:
+        request_params: dict[str, Any] = {
+            "model": model,
+            "messages": openai_messages,
+            "temperature": temperature,
+            "top_p": top_p,
+        }
+        if max_tokens is not None:
+            request_params["max_tokens"] = max_tokens
+        if stream:
+            request_params["stream"] = True
+        if tools:
+            request_params["tools"] = tools
+            request_params["tool_choice"] = tool_choice or "auto"
+        request_params.update(kwargs)
+        return request_params
+
+    async def _chat_via_chat_completions(
+        self,
+        *,
+        request_params: dict[str, Any],
+        messages: list[ChatMessage],
+        model: str,
+        fallback_to_responses: bool = True,
+        responses_kwargs: dict[str, Any] | None = None,
+    ) -> ChatResponse:
+        self._log_upstream_request(
+            endpoint_path="chat/completions",
+            model=model,
+            stream=False,
+            wire_api="chat_completions",
+        )
+        logger.info("Chat request: model={} messages={}", model, len(messages))
+        response = await self.client.chat.completions.create(**request_params)
+
+        if fallback_to_responses and self._should_fallback_to_responses(response):
+            logger.warning(
+                "Chat response missing choices; fallback to responses API: model={} response_type={}",
+                model,
+                type(response).__name__,
+            )
+            return await self._chat_via_responses(**(responses_kwargs or {}))
+
+        return self._convert_chat_response(response, model)
+
+    async def _stream_chat_via_chat_completions(
+        self,
+        *,
+        request_params: dict[str, Any],
+        messages: list[ChatMessage],
+        model: str,
+        fallback_to_responses: bool = True,
+        responses_kwargs: dict[str, Any] | None = None,
+    ) -> AsyncIterator[ChatChunk]:
+        self._log_upstream_request(
+            endpoint_path="chat/completions",
+            model=model,
+            stream=True,
+            wire_api="chat_completions",
+        )
+        logger.info("Stream chat request: model={}", model)
+        stream = await self.client.chat.completions.create(**request_params)
+        stream_closed = False
+
+        try:
+            first_chunk = await anext(stream, None)
+            if first_chunk is None:
+                return
+
+            if fallback_to_responses and self._should_fallback_to_responses(first_chunk):
+                logger.warning(
+                    "Stream chunk missing choices; fallback to responses API: model={} chunk_type={}",
+                    model,
+                    type(first_chunk).__name__,
+                )
+                await _aclose_openai_stream(stream)
+                stream_closed = True
+                async for chunk in self._stream_chat_via_responses(
+                    **(responses_kwargs or {}),
+                ):
+                    yield chunk
+                return
+
+            first_chat_chunk = self._convert_chat_chunk(first_chunk, model)
+            yield first_chat_chunk
+            if first_chat_chunk.finish_reason is not None:
+                logger.info(
+                    "Stream finish_reason on first chunk, closing upstream: model={} finish_reason={} wire_api=chat_completions",
+                    model,
+                    first_chat_chunk.finish_reason,
+                )
+                return
+
+            async for chunk in stream:
+                chat_chunk = self._convert_chat_chunk(chunk, model)
+                yield chat_chunk
+                if chat_chunk.finish_reason is not None:
+                    logger.info(
+                        "Stream finish_reason received, closing upstream: model={} finish_reason={} wire_api=chat_completions",
+                        model,
+                        chat_chunk.finish_reason,
+                    )
+                    break
+        finally:
+            if not stream_closed:
+                await _aclose_openai_stream(stream)
 
     async def chat(
         self,
@@ -259,7 +455,18 @@ class OpenAIAdapter(BaseAdapter):
         Chat conversation (synchronous mode) / 聊天对话（同步模式）
         """
         _ = stream
+        active_endpoint_path = "responses" if self._use_responses_api() else "chat/completions"
+        active_wire_api = "responses" if self._use_responses_api() else "chat_completions"
         try:
+            runtime_force_wire_api = kwargs.pop("_runtime_force_wire_api", None)
+            runtime_disable_cross_protocol_fallback = bool(
+                kwargs.pop("_runtime_disable_cross_protocol_fallback", False),
+            )
+            runtime_wire_api = self._resolve_runtime_wire_api(runtime_force_wire_api)
+            use_responses_api = runtime_wire_api == "responses"
+            active_endpoint_path = "responses" if use_responses_api else "chat/completions"
+            active_wire_api = "responses" if use_responses_api else "chat_completions"
+
             # Pop adapter-only flags before building request params / 提取适配器专用标志，避免传入 API
             vision_flag = kwargs.pop("supports_vision", True)
             audio_flag = kwargs.pop("supports_audio", False)
@@ -273,71 +480,85 @@ class OpenAIAdapter(BaseAdapter):
                 supports_video=video_flag,
             )
 
-            # Build request parameters / 构建请求参数
-            request_params: dict = {
+            request_params = self._build_chat_completions_request(
+                openai_messages=openai_messages,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                top_p=top_p,
+                tools=tools,
+                tool_choice=tool_choice,
+                stream=False,
+                **kwargs,
+            )
+            responses_kwargs = {
+                "messages": messages,
                 "model": model,
-                "messages": openai_messages,
                 "temperature": temperature,
+                "max_tokens": max_tokens,
                 "top_p": top_p,
+                "tools": tools,
+                "tool_choice": tool_choice,
+                "supports_vision": vision_flag,
+                "supports_audio": audio_flag,
+                "supports_video": video_flag,
+                **kwargs,
             }
 
-            if max_tokens is not None:
-                request_params["max_tokens"] = max_tokens
-
-            if tools:
-                request_params["tools"] = tools
-                request_params["tool_choice"] = tool_choice or "auto"
-
-            # Add extra parameters / 添加额外参数
-            request_params.update(kwargs)
-
-            if self._use_responses_api():
-                return await self._chat_via_responses(
+            if use_responses_api:
+                try:
+                    response = await self._chat_via_responses(**responses_kwargs)
+                except Exception as responses_error:
+                    if (
+                        not runtime_disable_cross_protocol_fallback
+                        and self._should_fallback_from_responses_error(
+                            responses_error,
+                            tools=tools,
+                            tool_choice=tool_choice,
+                            use_responses_api=use_responses_api,
+                        )
+                    ):
+                        self._log_responses_tool_call_fallback(
+                            model=model,
+                            stream=False,
+                            error=responses_error,
+                        )
+                        active_endpoint_path = "chat/completions"
+                        active_wire_api = "chat_completions"
+                        response = await self._chat_via_chat_completions(
+                            request_params=request_params,
+                            messages=messages,
+                            model=model,
+                            fallback_to_responses=False,
+                        )
+                    else:
+                        raise
+            else:
+                response = await self._chat_via_chat_completions(
+                    request_params=request_params,
                     messages=messages,
                     model=model,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    top_p=top_p,
-                    tools=tools,
-                    tool_choice=tool_choice,
-                    supports_vision=vision_flag,
-                    supports_audio=audio_flag,
-                    supports_video=video_flag,
-                    **kwargs,
+                    fallback_to_responses=not runtime_disable_cross_protocol_fallback,
+                    responses_kwargs=(
+                        responses_kwargs
+                        if not runtime_disable_cross_protocol_fallback
+                        else None
+                    ),
                 )
 
-            # Call API / 调用 API
-            self._log_upstream_request(endpoint_path=self._chat_endpoint_path(), model=model, stream=False)
-            logger.info("Chat request: model={} messages={}", model, len(messages))
-            response = await self.client.chat.completions.create(**request_params)
-
-            if self._should_fallback_to_responses(response):
-                logger.warning(
-                    "Chat response missing choices; fallback to responses API: model={} response_type={}",
-                    model,
-                    type(response).__name__,
-                )
-                return await self._chat_via_responses(
-                    messages=messages,
-                    model=model,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    top_p=top_p,
-                    tools=tools,
-                    tool_choice=tool_choice,
-                    supports_vision=vision_flag,
-                    supports_audio=audio_flag,
-                    supports_video=video_flag,
-                    **kwargs,
-                )
-
-            # Convert response / 转换响应
-            return self._convert_chat_response(response, model)
+            response.metadata = dict(response.metadata or {})
+            response.metadata.setdefault("protocol_path", active_wire_api)
+            return response
 
         except AIGatewayError:
             raise
         except Exception as e:
-            self._log_upstream_error(e, endpoint_path=self._chat_endpoint_path(), model=model)
+            self._log_upstream_error(
+                e,
+                endpoint_path=active_endpoint_path,
+                model=model,
+                wire_api=active_wire_api,
+            )
             logger.error("Chat error: model={} error={}", model, str(e))
             raise convert_openai_error(e, provider_code="openai", model_code=model) from e
 
@@ -355,7 +576,18 @@ class OpenAIAdapter(BaseAdapter):
         """
         Chat conversation (streaming mode) / 聊天对话（流式模式）
         """
+        active_endpoint_path = "responses" if self._use_responses_api() else "chat/completions"
+        active_wire_api = "responses" if self._use_responses_api() else "chat_completions"
         try:
+            runtime_force_wire_api = kwargs.pop("_runtime_force_wire_api", None)
+            runtime_disable_cross_protocol_fallback = bool(
+                kwargs.pop("_runtime_disable_cross_protocol_fallback", False),
+            )
+            runtime_wire_api = self._resolve_runtime_wire_api(runtime_force_wire_api)
+            use_responses_api = runtime_wire_api == "responses"
+            active_endpoint_path = "responses" if use_responses_api else "chat/completions"
+            active_wire_api = "responses" if use_responses_api else "chat_completions"
+
             # Pop adapter-only flags before building request params / 提取适配器专用标志，避免传入 API
             vision_flag = kwargs.pop("supports_vision", True)
             audio_flag = kwargs.pop("supports_audio", False)
@@ -369,106 +601,99 @@ class OpenAIAdapter(BaseAdapter):
                 supports_video=video_flag,
             )
 
-            # Build request parameters / 构建请求参数
-            request_params: dict = {
+            request_params = self._build_chat_completions_request(
+                openai_messages=openai_messages,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                top_p=top_p,
+                tools=tools,
+                tool_choice=tool_choice,
+                stream=True,
+                **kwargs,
+            )
+            responses_kwargs = {
+                "messages": messages,
                 "model": model,
-                "messages": openai_messages,
                 "temperature": temperature,
+                "max_tokens": max_tokens,
                 "top_p": top_p,
-                "stream": True,
+                "tools": tools,
+                "tool_choice": tool_choice,
+                "supports_vision": vision_flag,
+                "supports_audio": audio_flag,
+                "supports_video": video_flag,
+                **kwargs,
             }
 
-            if max_tokens is not None:
-                request_params["max_tokens"] = max_tokens
-
-            if tools:
-                request_params["tools"] = tools
-                request_params["tool_choice"] = tool_choice or "auto"
-
-            # Add extra parameters / 添加额外参数
-            request_params.update(kwargs)
-
-            if self._use_responses_api():
-                async for chunk in self._stream_chat_via_responses(
-                    messages=messages,
-                    model=model,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    top_p=top_p,
-                    tools=tools,
-                    tool_choice=tool_choice,
-                    supports_vision=vision_flag,
-                    supports_audio=audio_flag,
-                    supports_video=video_flag,
-                    **kwargs,
-                ):
-                    yield chunk
-                return
-
-            # Call streaming API / 调用流式 API
-            self._log_upstream_request(endpoint_path=self._chat_endpoint_path(), model=model, stream=True)
-            logger.info("Stream chat request: model={}", model)
-            stream = await self.client.chat.completions.create(**request_params)
-            stream_closed = False
-
-            try:
-                # Convert streaming response / 转换流式响应
-                first_chunk = await anext(stream, None)
-                if first_chunk is None:
-                    return
-
-                if self._should_fallback_to_responses(first_chunk):
-                    logger.warning(
-                        "Stream chunk missing choices; fallback to responses API: model={} chunk_type={}",
-                        model,
-                        type(first_chunk).__name__,
-                    )
-                    await _aclose_openai_stream(stream)
-                    stream_closed = True
+            if use_responses_api:
+                responses_stream_emitted_meaningful_chunk = False
+                try:
                     async for chunk in self._stream_chat_via_responses(
-                        messages=messages,
-                        model=model,
-                        temperature=temperature,
-                        max_tokens=max_tokens,
-                        top_p=top_p,
-                        tools=tools,
-                        tool_choice=tool_choice,
-                        supports_vision=vision_flag,
-                        supports_audio=audio_flag,
-                        supports_video=video_flag,
-                        **kwargs,
+                        **responses_kwargs,
                     ):
+                        if self._is_meaningful_stream_chunk(chunk):
+                            responses_stream_emitted_meaningful_chunk = True
                         yield chunk
                     return
-
-                first_chat_chunk = self._convert_chat_chunk(first_chunk, model)
-                yield first_chat_chunk
-                if first_chat_chunk.finish_reason is not None:
-                    logger.info(
-                        "Stream finish_reason on first chunk, closing upstream: model={} finish_reason={} wire_api=chat_completions",
-                        model,
-                        first_chat_chunk.finish_reason,
-                    )
-                    return
-
-                async for chunk in stream:
-                    chat_chunk = self._convert_chat_chunk(chunk, model)
-                    yield chat_chunk
-                    if chat_chunk.finish_reason is not None:
-                        logger.info(
-                            "Stream finish_reason received, closing upstream: model={} finish_reason={} wire_api=chat_completions",
-                            model,
-                            chat_chunk.finish_reason,
+                except Exception as responses_error:
+                    if (
+                        not responses_stream_emitted_meaningful_chunk
+                        and
+                        not runtime_disable_cross_protocol_fallback
+                        and self._should_fallback_from_responses_error(
+                            responses_error,
+                            tools=tools,
+                            tool_choice=tool_choice,
+                            use_responses_api=use_responses_api,
                         )
-                        break
-            finally:
-                if not stream_closed:
-                    await _aclose_openai_stream(stream)
+                    ):
+                        self._log_responses_tool_call_fallback(
+                            model=model,
+                            stream=True,
+                            error=responses_error,
+                        )
+                        active_endpoint_path = "chat/completions"
+                        active_wire_api = "chat_completions"
+                        async for chunk in self._stream_chat_via_chat_completions(
+                            request_params=request_params,
+                            messages=messages,
+                            model=model,
+                            fallback_to_responses=False,
+                        ):
+                            yield chunk
+                        return
+                    if responses_stream_emitted_meaningful_chunk:
+                        logger.warning(
+                            "Responses stream failed after meaningful chunk; skip cross-protocol fallback: model={} error_type={} error={}",
+                            model,
+                            type(responses_error).__name__,
+                            str(responses_error),
+                        )
+                    raise
+
+            async for chunk in self._stream_chat_via_chat_completions(
+                request_params=request_params,
+                messages=messages,
+                model=model,
+                fallback_to_responses=not runtime_disable_cross_protocol_fallback,
+                responses_kwargs=(
+                    responses_kwargs
+                    if not runtime_disable_cross_protocol_fallback
+                    else None
+                ),
+            ):
+                yield chunk
 
         except AIGatewayError:
             raise
         except Exception as e:
-            self._log_upstream_error(e, endpoint_path=self._chat_endpoint_path(), model=model)
+            self._log_upstream_error(
+                e,
+                endpoint_path=active_endpoint_path,
+                model=model,
+                wire_api=active_wire_api,
+            )
             logger.error("Stream chat error: model={} error={}", model, str(e))
             raise convert_openai_error(e, provider_code="openai", model_code=model) from e
 
@@ -537,6 +762,21 @@ class OpenAIAdapter(BaseAdapter):
         if value in {"responses", "response", "responses_api"}:
             return "responses"
         return "chat_completions"
+
+    def _resolve_runtime_wire_api(self, runtime_force_wire_api: Any) -> str:
+        if runtime_force_wire_api is None:
+            return self.wire_api
+        return self._normalize_wire_api(runtime_force_wire_api)
+
+    @staticmethod
+    def _is_meaningful_stream_chunk(chunk: ChatChunk) -> bool:
+        if chunk is None:
+            return False
+        if str(getattr(chunk, "delta", "") or "").strip():
+            return True
+        if str(getattr(chunk, "reasoning_delta", "") or "").strip():
+            return True
+        return bool(getattr(chunk, "tool_calls", None))
 
     def _use_responses_api(self) -> bool:
         return self.wire_api == "responses"
@@ -1136,6 +1376,7 @@ class OpenAIAdapter(BaseAdapter):
             model=model,
             finish_reason="stop" if getattr(response, "status", None) == "completed" else getattr(response, "status", None),
             tool_calls=tool_calls,
+            metadata={"protocol_path": "responses"},
             raw_response=response.model_dump() if hasattr(response, "model_dump") else None,
         )
 
@@ -1339,6 +1580,7 @@ class OpenAIAdapter(BaseAdapter):
                 message=ChatMessage(role="assistant", content=""),
                 model=model,
                 finish_reason="stop",
+                metadata={"protocol_path": "chat_completions"},
             )
         choice = response.choices[0]
         message = choice.message
@@ -1377,6 +1619,7 @@ class OpenAIAdapter(BaseAdapter):
             model=model,
             finish_reason=choice.finish_reason,
             tool_calls=tool_calls_dicts,
+            metadata={"protocol_path": "chat_completions"},
             raw_response=response.model_dump() if hasattr(response, "model_dump") else None,
         )
 

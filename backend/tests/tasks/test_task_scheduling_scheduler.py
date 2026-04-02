@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, patch
 from app.enums.common import ResourceScopeEnum
 from app.tasks.scheduler import (
     _build_all_tenants_task_definition_schedule,
-    LEGACY_PLATFORM_SCOPE,
     PLATFORM_SCHEDULE_SCOPES,
     _build_task_definition_schedule,
     _build_tenant_task_binding_schedule,
@@ -171,7 +170,9 @@ def test_load_task_schedules_includes_all_tenants_definitions_without_bindings()
         schedules = load_task_schedules_from_db()
 
     assert "all_tenants_task_definition:18:tenant.everyone" in schedules
-
-
-def test_platform_schedule_scopes_include_legacy_platform_scope() -> None:
-    assert LEGACY_PLATFORM_SCOPE in PLATFORM_SCHEDULE_SCOPES
+def test_platform_schedule_scopes_match_current_platform_scopes() -> None:
+    assert PLATFORM_SCHEDULE_SCOPES == (
+        ResourceScopeEnum.ADMIN_ONLY.value,
+        ResourceScopeEnum.GLOBAL_SHARED.value,
+        ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+    )

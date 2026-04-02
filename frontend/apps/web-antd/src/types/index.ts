@@ -3,6 +3,9 @@
  * 类型定义统一导出
  */
 
+// AI chat shared types / AI 对话共享类型
+export * from './ai-chat';
+
 // Attachment type definitions / 附件类型定义
 export * from './attachment';
 

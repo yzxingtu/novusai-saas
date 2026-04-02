@@ -10,6 +10,7 @@ Integrated with FastAPI via ASGI mode.
 import socketio
 
 from app.core.config import settings
+from app.core.cors import is_origin_allowed_sync
 from app.core.logging import LogManager
 
 logger = LogManager.get_logger("app")
@@ -27,12 +28,12 @@ _redis_manager = socketio.AsyncRedisManager(
 # AsyncServer 实例
 # ========================================
 
-# Allow all origins for multi-tenant SaaS (subdomain + custom domains are dynamic)
-# 多租户 SaaS 允许所有 Origin（子域名 + 自定义域名是动态的）
+# Dynamic Origin policy shared with HTTP CORS handling.
+# / 与 HTTP CORS 共享的动态 Origin 策略。
 sio = socketio.AsyncServer(
     async_mode="asgi",
     client_manager=_redis_manager,
-    cors_allowed_origins="*",
+    cors_allowed_origins=is_origin_allowed_sync,
     ping_interval=25,
     ping_timeout=20,
     logger=False,

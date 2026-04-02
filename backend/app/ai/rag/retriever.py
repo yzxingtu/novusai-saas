@@ -437,6 +437,47 @@ class HybridRetriever:
         self.vector_searcher = VectorSearcher(db, self.embedding_service)
         self.keyword_searcher = KeywordSearcher(db)
 
+    @staticmethod
+    def _normalize_retrieval_query(query: str) -> str:
+        normalized = re.sub(r"\s+", " ", (query or "").strip())
+        if not normalized:
+            return ""
+
+        # Remove retrieval wrappers so recall focuses on the user's core question.
+        # 去掉“基于内部知识库回答”等包装语，避免污染检索 query。
+        prefix_patterns = [
+            r"^(请(?:你)?|麻烦(?:你)?|帮我)?\s*(根据|基于|依据|依照|参考|结合|从)\s*(内部|当前|已绑定|已提供)?\s*(知识库|知识内容|文档)(中|里)?(的内容|信息)?[，,:： ]*",
+            r"^(请(?:你)?|麻烦(?:你)?|帮我)?\s*(先)?\s*(在|于)\s*(内部|当前|已绑定)?\s*(知识库|文档)(中|里)?[，,:： ]*",
+            r"^(please\s+)?(answer|respond|explain)\s+(based on|using|from)\s+(the\s+)?(internal|provided)\s+(knowledge\s*base|knowledge|docs?)\s*[,:\-]?\s*",
+            r"^(please\s+)?(based on|using|from)\s+(the\s+)?(internal|provided)\s+(knowledge\s*base|knowledge|docs?)\s*[,:\-]?\s*",
+        ]
+        suffix_patterns = [
+            r"[\?？。，,:： ]*(请)?(只|仅|务必)?\s*(基于|依据|根据|参考)\s*(内部|当前|已提供)?\s*(知识(库|内容)?|文档)\s*(来)?(回答|作答|回复|说明|分析)(即可)?[。！! ]*$",
+            r"[\?？。，,:： ]*(请)?(不要|别)\s*(使用|参考)?\s*(外部|网络|互联网|联网)\s*(资料|信息|知识|内容|来源)?[。！! ]*$",
+            r"[\?？。，,:： ]*(请)?(仅|只)\s*(使用|参考)?\s*(内部|当前)\s*(知识(库|内容)|文档)[。！! ]*$",
+            r"[\?？。，,:： ]*(please\s+)?(answer|respond)\s+(strictly\s+)?(based on|using)\s+(the\s+)?(internal|provided)\s+(knowledge\s*base|knowledge|docs?)(\s+only)?[. ]*$",
+            r"[\?？。，,:： ]*(please\s+)?(do\s+not|don't)\s+use\s+(external|internet|web)\s+(sources|knowledge|information)?[. ]*$",
+        ]
+        leading_filler_patterns = [
+            r"^(请(?:你)?|麻烦(?:你)?|帮我)\s*(回答|回复|说明|分析|总结)\s*[:：,， ]*",
+        ]
+
+        stripped = normalized
+        while True:
+            updated = stripped
+            for pattern in prefix_patterns:
+                updated = re.sub(pattern, "", updated, flags=re.IGNORECASE)
+            if updated == stripped:
+                break
+            stripped = updated
+
+        for pattern in suffix_patterns:
+            stripped = re.sub(pattern, "", stripped, flags=re.IGNORECASE)
+        for pattern in leading_filler_patterns:
+            stripped = re.sub(pattern, "", stripped, flags=re.IGNORECASE)
+        stripped = stripped.strip(" ，,。：:；;！？!?")
+        return stripped or normalized
+
     async def search(
         self,
         knowledge_base: KnowledgeBase | None = None,
@@ -456,6 +497,7 @@ class HybridRetriever:
         Hybrid search (with query rewriting and reranking support)
         混合检索（支持查询改写和重排序）。
         """
+        effective_query = self._normalize_retrieval_query(query) or query
         kb_contexts = self._build_kb_contexts(
             knowledge_base=knowledge_base,
             knowledge_bases=knowledge_bases,
@@ -478,11 +520,11 @@ class HybridRetriever:
             hook_ctx = await hook_registry.trigger(
                 HookPoint.BEFORE_KB_SEARCH,
                 tenant_id=self.tenant_id,
-                query=query,
+                query=effective_query,
                 kb_ids=target_kb_ids,
                 top_k=top_k,
             )
-            query = hook_ctx.get("query", query)
+            effective_query = hook_ctx.get("query", effective_query)
             target_kb_ids = hook_ctx.get("kb_ids", target_kb_ids)
             top_k = hook_ctx.get("top_k", top_k)
 
@@ -492,7 +534,7 @@ class HybridRetriever:
 
         cache_key = self._build_cache_key(
             kb_contexts,
-            query,
+            effective_query,
             mode,
             top_k,
             score_threshold,
@@ -506,7 +548,7 @@ class HybridRetriever:
                 hook_ctx = await hook_registry.trigger(
                     HookPoint.AFTER_KB_SEARCH,
                     tenant_id=self.tenant_id,
-                    query=query,
+                    query=effective_query,
                     results=cached,
                 )
                 cached = hook_ctx.get("results", cached)
@@ -515,7 +557,7 @@ class HybridRetriever:
         from app.ai.rag.query_rewriter import get_rewriter
 
         rewriter = get_rewriter(rewrite_strategy, self.db, self.tenant_id, llm_model)
-        queries = await rewriter.rewrite(query)
+        queries = await rewriter.rewrite(effective_query)
 
         best_results: dict[int, ChunkSearchResult] = {}
         for rewritten_query in queries:
@@ -554,7 +596,7 @@ class HybridRetriever:
             from app.ai.rag.reranker import LLMReranker
 
             reranker = LLMReranker(self.db, self.tenant_id, llm_model)
-            results = await reranker.rerank(query, results, top_k=top_k)
+            results = await reranker.rerank(effective_query, results, top_k=top_k)
 
         results = self._relevance_gap_filter(results)
 
@@ -562,7 +604,7 @@ class HybridRetriever:
             hook_ctx = await hook_registry.trigger(
                 HookPoint.AFTER_KB_SEARCH,
                 tenant_id=self.tenant_id,
-                query=query,
+                query=effective_query,
                 results=results,
             )
             results = hook_ctx.get("results", results)
@@ -572,7 +614,7 @@ class HybridRetriever:
         logger.info(
             "Search: mode={}, query_len={}, kb_contexts={}, results={}, rewrite={}, rerank={}",
             mode,
-            len(query),
+            len(effective_query),
             [
                 {
                     "kb_id": ctx.kb_id,

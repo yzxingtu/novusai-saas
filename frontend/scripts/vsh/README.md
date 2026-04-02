@@ -51,6 +51,6 @@ pnpm vsh [command]
 
 ## 命令列表
 
-- `vsh check-deps`: 检查项目依赖
-- `vsh scan-circular`: 扫描循环依赖
-- `vsh publish-check`: 检查包发布配置
+- `vsh check-dep`: 检查项目依赖
+- `vsh check-circular`: 扫描循环依赖
+- `vsh publint`: 检查包发布配置

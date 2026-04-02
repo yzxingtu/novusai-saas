@@ -1154,23 +1154,18 @@
     "emptyDescription": "暂无描述"
   },
   "memoryDebug": {
-    "title": "记忆与临时资料调试",
-    "pageDesc": "查看长期记忆记录、画像快照与临时资料文档，便于核对 recall、scope 与 promotion 结果。",
+    "title": "记忆调试",
+    "pageDesc": "查看长期记忆记录与画像快照，便于核对 recall、scope 与画像聚合结果。",
     "tabs": {
       "records": "长期记忆记录",
-      "profiles": "画像快照",
-      "ephemeral": "临时资料文档"
+      "profiles": "画像快照"
     },
     "scopeType": "作用域",
     "memoryType": "记忆类型",
     "status": "状态",
     "summary": "摘要",
     "recordCount": "来源记录数",
-    "contentKind": "内容类型",
-    "promote": "提升为正式文档",
-    "promoteTitle": "提升临时资料",
-    "promoteSelectKb": "选择目标知识库",
-    "promoteSuccess": "已触发提升并进入正式知识库处理链"
+    "contentKind": "内容类型"
   },
   "skill": {
     "title": "技能管理",

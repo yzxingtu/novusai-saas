@@ -106,7 +106,7 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm run lint
-      - run: pnpm run typecheck
+      - run: pnpm run check:type
 
   frontend-build:
     name: Frontend Build

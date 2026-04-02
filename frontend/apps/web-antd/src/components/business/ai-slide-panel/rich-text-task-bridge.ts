@@ -4,7 +4,7 @@ import type {
   RichTextAIApplyTarget,
   RichTextAITask,
   RichTextDraftRuntimeState,
-} from '#/components/business/ai-chat-panel/types';
+} from '#/types/ai-chat';
 
 import {
   prepareRichTextContent,

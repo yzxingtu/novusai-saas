@@ -100,8 +100,12 @@ def _is_protected_tool(
 ) -> bool:
     """Check if tool should be protected from optimization / 工具是否应被保护不被优化"""
     family = _tool_semantic_family(tool)
-    if preferred_family == "web_research" and family in {"data_ops", "page_ops"}:
-        return tool.name in PROTECTED_TOOL_NAMES
+    if preferred_family:
+        if family == preferred_family:
+            return True
+        if preferred_family == "web_research":
+            return tool.name in PROTECTED_TOOL_NAMES
+        return False
     if tool.name in PROTECTED_TOOL_NAMES:
         return True
     if family in {"page_ops", "data_ops"}:
@@ -311,10 +315,27 @@ def _score_tool(
             score -= 25.0
         elif tool_family == "page_ops":
             score -= 8.0
+        elif tool_family in {"weather", "time_ops"}:
+            score -= 6.0
+    elif preferred_family == "weather":
+        if tool_family == "weather":
+            score += 15.0
+        elif tool_family in {"web_research", "data_ops", "page_ops", "time_ops"}:
+            score -= 10.0
     elif preferred_family == "time_ops":
         if tool_family == "time_ops":
             score += 15.0
         elif tool_family in {"web_research", "weather", "data_ops", "page_ops"}:
+            score -= 8.0
+    elif preferred_family == "data_ops":
+        if tool_family == "data_ops":
+            score += 15.0
+        elif tool_family in {"web_research", "weather", "time_ops", "page_ops"}:
+            score -= 8.0
+    elif preferred_family == "page_ops":
+        if tool_family == "page_ops":
+            score += 15.0
+        elif tool_family in {"web_research", "weather", "time_ops", "data_ops"}:
             score -= 8.0
 
     # 6. Base score (ensure minimum score to avoid unstable sorting) / 基础分

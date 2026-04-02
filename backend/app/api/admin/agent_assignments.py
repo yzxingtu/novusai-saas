@@ -131,7 +131,7 @@ class AdminAgentAssignmentController(GlobalController):
         ):
             """按 feature_code 获取绑定详情 / Get assignment details by feature_code"""
             service = AgentAssignmentService(db)
-            assignment = await service.repo.get_by_feature_code(feature_code)
+            assignment = await service.get_assignment_by_feature_code(feature_code)
             if not assignment:
                 raise NotFoundException(
                     message=_("system_agent_assignment.error.not_found"),
@@ -150,7 +150,7 @@ class AdminAgentAssignmentController(GlobalController):
         ):
             """更新绑定（agent_id, config, is_active） / Update assignment (agent_id, config, is_active)"""
             service = AgentAssignmentService(db)
-            assignment = await service.repo.get_by_feature_code(feature_code)
+            assignment = await service.get_assignment_by_feature_code(feature_code)
             if not assignment:
                 raise NotFoundException(
                     message=_("system_agent_assignment.error.not_found"),

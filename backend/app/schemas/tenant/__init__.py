@@ -69,7 +69,9 @@ from app.schemas.tenant.tenant_permission_role import (
 )
 from app.schemas.tenant.user import (
     ForgotPasswordRequest,
+    LoginByCodeRequest,
     ResetPasswordRequest,
+    SendLoginCodeRequest,
     TenantUserChangePasswordRequest,
     TenantUserCreateRequest,
     TenantUserLoginRequest,
@@ -96,6 +98,8 @@ __all__ = [
     "TenantAdminUpdateProfileRequest",
     # TenantUser / 企业用户
     "TenantUserLoginRequest",
+    "SendLoginCodeRequest",
+    "LoginByCodeRequest",
     "TenantUserResponse",
     "TenantUserCreateRequest",
     "TenantUserUpdateRequest",

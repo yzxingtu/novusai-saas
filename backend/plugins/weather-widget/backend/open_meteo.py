@@ -79,6 +79,23 @@ def _make_client(timeout: float = _WEATHER_TIMEOUT) -> httpx.AsyncClient:
 _cache: dict[str, tuple[float, Any]] = {}
 _CACHE_TTL = 600
 
+_CITY_QUERY_ALIASES: dict[str, tuple[str, ...]] = {
+    "北京": ("北京市", "Beijing"),
+    "北京市": ("北京", "Beijing"),
+    "beijing": ("北京市", "北京"),
+    "上海": ("上海市", "Shanghai"),
+    "上海市": ("上海", "Shanghai"),
+    "shanghai": ("上海市", "上海"),
+    "天津": ("天津市", "Tianjin"),
+    "天津市": ("天津", "Tianjin"),
+    "tianjin": ("天津市", "天津"),
+    "重庆": ("重庆市", "Chongqing"),
+    "重庆市": ("重庆", "Chongqing"),
+    "chongqing": ("重庆市", "重庆"),
+}
+
+_CITY_SUFFIXES = ("市", "区", "县", "州", "省", "自治区", "特别行政区")
+
 
 def _cache_get(key: str) -> Any | None:
     entry = _cache.get(key)
@@ -97,6 +114,109 @@ def _cache_set(key: str, value: Any) -> None:
         sorted_keys = sorted(_cache, key=lambda k: _cache[k][0])
         for k in sorted_keys[:100]:
             _cache.pop(k, None)
+
+
+def _merge_city_results(
+    results: list[dict[str, Any]],
+    incoming: list[dict[str, Any]],
+    *,
+    limit: int,
+) -> list[dict[str, Any]]:
+    merged = list(results)
+    seen = {
+        (
+            round(float(item.get("latitude", 0.0)), 2),
+            round(float(item.get("longitude", 0.0)), 2),
+        )
+        for item in merged
+    }
+    for item in incoming:
+        lat = item.get("latitude")
+        lon = item.get("longitude")
+        if lat is None or lon is None:
+            continue
+        dedup_key = (round(float(lat), 2), round(float(lon), 2))
+        if dedup_key in seen:
+            continue
+        seen.add(dedup_key)
+        merged.append(item)
+        if len(merged) >= limit:
+            break
+    return merged[:limit]
+
+
+def _expand_city_queries(name: str) -> list[str]:
+    query = (name or "").strip()
+    if not query:
+        return []
+
+    expanded: list[str] = [query]
+    lowered = query.lower()
+    for alias in _CITY_QUERY_ALIASES.get(lowered, ()) + _CITY_QUERY_ALIASES.get(query, ()):
+        text = str(alias or "").strip()
+        if text and text not in expanded:
+            expanded.append(text)
+
+    has_cjk = any("\u4e00" <= ch <= "\u9fff" for ch in query)
+    if has_cjk and not query.endswith(_CITY_SUFFIXES):
+        with_suffix = f"{query}市"
+        if with_suffix not in expanded:
+            expanded.append(with_suffix)
+
+    if query.endswith("市"):
+        without_suffix = query[:-1].strip()
+        if without_suffix and without_suffix not in expanded:
+            expanded.append(without_suffix)
+
+    return expanded
+
+
+def _normalize_city_label(value: str) -> str:
+    text = str(value or "").strip().lower()
+    text = text.replace(" ", "")
+    if text.endswith("市"):
+        return text[:-1]
+    return text
+
+
+def _rank_city_candidate(
+    *,
+    original_query: str,
+    expanded_queries: list[str],
+    candidate: dict[str, Any],
+) -> tuple[int, str]:
+    query_norm = _normalize_city_label(original_query)
+    expanded_norms = {_normalize_city_label(item) for item in expanded_queries if item}
+
+    name = str(candidate.get("name") or "").strip()
+    admin1 = str(candidate.get("admin1") or "").strip()
+    country = str(candidate.get("country") or "").strip()
+    name_norm = _normalize_city_label(name)
+    admin1_norm = _normalize_city_label(admin1)
+
+    score = 0
+    if name_norm == query_norm:
+        score += 12
+    if name in expanded_queries:
+        score += 8
+    if name_norm in expanded_norms:
+        score += 10
+    if admin1_norm == query_norm:
+        score += 8
+    if admin1 in expanded_queries:
+        score += 6
+    if admin1_norm in expanded_norms:
+        score += 6
+    if query_norm and query_norm in name_norm:
+        score += 4
+    if query_norm and query_norm in admin1_norm:
+        score += 3
+    if name.endswith("市"):
+        score += 5
+    if country in {"中国", "China"}:
+        score += 1
+
+    return (score, name)
 
 
 # ── WMO Weather Code 映射 ──
@@ -342,68 +462,141 @@ async def search_city(name: str, count: int = 5) -> list[dict]:
     if cached is not None:
         return cached
 
+    queries = _expand_city_queries(query)
+    merged_results: list[dict[str, Any]] = []
+    try:
+        for candidate in queries[:1]:
+            results = await _search_city_nominatim(candidate, count)
+            merged_results = _merge_city_results(merged_results, results, limit=count)
+
+        for candidate in queries:
+            results = await _search_city_open_meteo(candidate, count)
+            merged_results = _merge_city_results(
+                merged_results,
+                results,
+                limit=max(count * 4, count),
+            )
+
+        merged_results = sorted(
+            merged_results,
+            key=lambda item: _rank_city_candidate(
+                original_query=query,
+                expanded_queries=queries,
+                candidate=item,
+            ),
+            reverse=True,
+        )[:count]
+
+        _cache_set(cache_key, merged_results)
+        return merged_results
+    except Exception as exc:
+        logger.warning(
+            "City search error for query='{}': {}",
+            query,
+            _describe_exception(exc),
+        )
+        return merged_results
+
+
+async def _search_city_nominatim(name: str, count: int) -> list[dict[str, Any]]:
     try:
         await _nominatim_throttle()
         async with _make_client(timeout=_NOMINATIM_TIMEOUT) as client:
             resp = await client.get(
                 _NOMINATIM_SEARCH_URL,
                 params={
-                    "q": query,
+                    "q": name,
                     "format": "json",
                     "limit": count,
                     "accept-language": "zh",
                     "addressdetails": 1,
-                    "featuretype": "city",
                 },
                 headers=_NOMINATIM_HEADERS,
             )
             resp.raise_for_status()
             data = resp.json()
+    except httpx.TimeoutException:
+        logger.warning("Nominatim search timeout for query='{}'", name)
+        return []
+    except Exception as exc:
+        logger.warning(
+            "Nominatim search error for query='{}': {}",
+            name,
+            _describe_exception(exc),
+        )
+        return []
 
-        results = []
-        seen: set[str] = set()
-        for item in data:
-            lat = item.get("lat")
-            lon = item.get("lon")
-            if lat is None or lon is None:
-                continue
+    results = []
+    for item in data:
+        lat = item.get("lat")
+        lon = item.get("lon")
+        if lat is None or lon is None:
+            continue
 
-            address = item.get("address", {})
-            city_name = (
-                address.get("city")
-                or address.get("town")
-                or address.get("county")
-                or item.get("display_name", "").split(",")[0]
-            )
-            if not city_name:
-                continue
+        address = item.get("address", {})
+        city_name = (
+            address.get("city")
+            or address.get("town")
+            or address.get("county")
+            or address.get("state")
+            or item.get("display_name", "").split(",")[0]
+        )
+        if not city_name:
+            continue
 
-            dedup_key = f"{float(lat):.2f},{float(lon):.2f}"
-            if dedup_key in seen:
-                continue
-            seen.add(dedup_key)
-
-            results.append({
+        results.append(
+            {
                 "name": city_name,
                 "country": address.get("country", ""),
                 "admin1": address.get("state", ""),
                 "latitude": float(lat),
                 "longitude": float(lon),
-            })
+            }
+        )
+    return results[:count]
 
-        _cache_set(cache_key, results)
-        return results
 
-    except httpx.TimeoutException:
-        logger.warning("Nominatim search timeout for query='{}'", query)
-        return []
+async def _search_city_open_meteo(name: str, count: int) -> list[dict[str, Any]]:
+    try:
+        async with _make_client() as client:
+            resp = await client.get(
+                _GEOCODING_URL,
+                params={
+                    "name": name,
+                    "count": count,
+                    "language": "zh",
+                    "format": "json",
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
     except Exception as exc:
         logger.warning(
-            "Nominatim search error for query='{}': {}",
-            query,
+            "Open-Meteo geocoding search error for query='{}': {}",
+            name,
             _describe_exception(exc),
         )
         return []
+
+    results = []
+    for item in data.get("results", []) or []:
+        lat = item.get("latitude")
+        lon = item.get("longitude")
+        if lat is None or lon is None:
+            continue
+        city_name = str(item.get("name") or "").strip()
+        if not city_name:
+            continue
+        results.append(
+            {
+                "name": city_name,
+                "country": item.get("country", ""),
+                "admin1": item.get("admin1", ""),
+                "latitude": float(lat),
+                "longitude": float(lon),
+            }
+        )
+    return results[:count]
 
 
 # ── 反向地理编码 / reverse geocoding ──

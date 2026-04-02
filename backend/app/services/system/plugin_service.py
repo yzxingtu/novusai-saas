@@ -187,13 +187,11 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         plugin_id: int,
         *,
         uninstall_python: bool = True,
-        force: bool = False,
     ) -> dict:
         """显式卸载插件依赖（不卸载插件本体） / Uninstall plugin deps (plugin itself remains)."""
         return await self._lifecycle.uninstall_dependencies(
             plugin_id,
             uninstall_python=uninstall_python,
-            force=force,
         )
 
     async def uninstall_plugin(

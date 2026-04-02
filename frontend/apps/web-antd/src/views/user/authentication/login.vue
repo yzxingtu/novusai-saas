@@ -46,6 +46,11 @@ const showCaptcha = computed(() => publicConfigStore.shouldShowUserCaptcha);
 const registrationEnabled = computed(
   () => publicConfigStore.isRegistrationEnabled,
 );
+const showCodeLogin = computed(() =>
+  Boolean(
+    publicConfigStore.tenantConfig?.login.allowedMethods.includes('email'),
+  ),
+);
 
 const captchaDifficulty = computed((): CaptchaDifficulty => {
   const difficulty = publicConfigStore.tenantCaptcha?.difficulty;
@@ -173,7 +178,15 @@ async function handleLogin() {
       </FormItem>
 
       <!-- Forgot password link -->
-      <div class="-mt-2 mb-4 flex justify-end">
+      <div class="-mt-2 mb-4 flex items-center justify-between gap-3">
+        <button
+          v-if="showCodeLogin"
+          type="button"
+          class="text-xs text-primary transition-colors hover:text-primary/80"
+          @click="router.push('/auth/code-login')"
+        >
+          {{ $t('user.auth.emailCodeLogin') }}
+        </button>
         <button
           type="button"
           class="text-xs text-muted-foreground transition-colors hover:text-primary"

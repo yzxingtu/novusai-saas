@@ -7,15 +7,26 @@
  */
 
 import { reactive, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
+import { useAccessStore, useTabbarStore, useUserStore } from '@vben/stores';
 import { Modal } from 'ant-design-vue';
 import { defineStore } from 'pinia';
 
+import {
+  HOME_PATHS,
+  LOGIN_PATHS,
+  normalizeEndpointNavigationPath,
+  resolveEndpointByPath,
+} from '#/constants/endpoints';
 import { $t } from '#/locales';
 import { requestClient } from '#/utils/request';
+import { clearPersistedTabbarStorage } from '#/utils/tabbar-storage';
 
-import { useMultiAuthStore } from './multi-auth';
+import { TokenStorage } from './token-storage';
+import { useNotificationStore } from './notification';
 import { useSocketIOStore } from './socketio';
+import { useUserPreferenceStore } from './user-preference';
 
 /** Presence detail / 在线状态详情 */
 interface PresenceDetail {
@@ -31,6 +42,12 @@ interface PresenceResponse {
 }
 
 export const usePresenceStore = defineStore('presence', () => {
+  const accessStore = useAccessStore();
+  const tabbarStore = useTabbarStore();
+  const userStore = useUserStore();
+  const router = useRouter();
+  const route = useRoute();
+
   // ============================================================
   // State / 状态
   // ============================================================
@@ -115,8 +132,51 @@ export const usePresenceStore = defineStore('presence', () => {
     Modal.warning({
       content: `${$t('common.auth.forceLogoutMessage')} ${$t('common.auth.forceLogoutUnsavedHint')}`,
       okText: $t('common.confirm'),
-      onOk: () => {
-        useMultiAuthStore().logout(true);
+      onOk: async () => {
+        const endpoint = resolveEndpointByPath(
+          route.path,
+          window.location.hostname,
+        );
+        const loginPath = LOGIN_PATHS[endpoint];
+        const userHomePath = normalizeEndpointNavigationPath(
+          HOME_PATHS.user,
+          'user',
+        );
+
+        useSocketIOStore().$reset();
+        useNotificationStore().$reset();
+        $reset();
+
+        TokenStorage.clearToken(endpoint);
+        accessStore.setAccessToken(null);
+        accessStore.setRefreshToken(null);
+        accessStore.setLoginExpired(false);
+        accessStore.setAccessMenus([]);
+        accessStore.setAccessRoutes([]);
+        accessStore.setAccessCodes([]);
+        accessStore.setIsAccessChecked(false);
+        userStore.setUserInfo(null);
+        tabbarStore.$patch({ tabs: [], cachedTabs: new Set() });
+        clearPersistedTabbarStorage();
+        useUserPreferenceStore().clearPreferences();
+
+        if (endpoint === 'user') {
+          await router.replace({
+            path: userHomePath,
+            query: {},
+          });
+          return;
+        }
+
+        await router.replace({
+          path: loginPath,
+          query: {
+            redirect: normalizeEndpointNavigationPath(
+              router.currentRoute.value.fullPath,
+              endpoint,
+            ),
+          },
+        });
       },
     });
   };

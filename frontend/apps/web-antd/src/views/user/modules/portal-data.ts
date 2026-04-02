@@ -1,8 +1,5 @@
 import type { ChatKBBindingInfo } from '#/api/shared/ai-chat';
-import type {
-  AgentItem,
-  ConversationItem,
-} from '#/components/business/ai-chat-panel/types';
+import type { AgentItem, ConversationItem } from '#/types/ai-chat';
 
 import { computed, ref } from 'vue';
 

@@ -1,4 +1,4 @@
-import type { PageOperation } from './page-operation-registry';
+import type { PageOperation } from './page-operation-types';
 
 import {
   capturePageScreenshot,

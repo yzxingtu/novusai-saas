@@ -748,8 +748,19 @@ async def test_conversation_engine_injects_tools_into_gateway() -> None:
         agent_id=99,
         tenant_id=1,
         user_id=10,
-        messages=[ChatMessage(role="user", content="hello")],
+        messages=[ChatMessage(role="user", content="please read this page content")],
         conversation_id=123,
+        input_variables={
+            "page_context": {
+                "page_key": "admin.ai.conversations",
+                "page_title": "Conversation Management",
+                "page_data": {
+                    "available_operations": [
+                        {"name": "read_visible_rows", "readonly": True},
+                    ]
+                },
+            }
+        },
     )
     skill_result = SkillResolveResult(
         tools=[
@@ -789,9 +800,10 @@ async def test_conversation_engine_injects_tools_into_gateway() -> None:
         result = await engine.execute(agent, request, skill_result=skill_result)
 
     assert result.success is True
-    gateway.chat.assert_called_once()
-    sent_tools = gateway.chat.call_args.kwargs.get(
-        "tools", gateway.chat.call_args[1].get("tools")
+    assert gateway.chat.call_count >= 1
+    first_call = gateway.chat.call_args_list[0]
+    sent_tools = first_call.kwargs.get(
+        "tools", first_call[1].get("tools")
     )
     assert sent_tools is not None
     assert sent_tools[0]["function"]["name"] == "get_page_context"

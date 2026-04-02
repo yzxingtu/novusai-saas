@@ -5,7 +5,7 @@
 import type {
   RichTextAISelectionSnapshot,
   RichTextAITask,
-} from '#/components/business/ai-chat-panel/types';
+} from '#/types/ai-chat';
 
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

@@ -5,7 +5,7 @@ import type {
   RichTextAIApplyMode,
   RichTextAIApplyTarget,
   RichTextDraftRuntimeState,
-} from '#/components/business/ai-chat-panel/types';
+} from '#/types/ai-chat';
 import type { PendingPageOp } from '#/store/shared/ai-panel';
 
 import { IconifyIcon } from '@vben/icons';

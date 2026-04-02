@@ -154,7 +154,9 @@ class AgentSkillGrantService:
                 message=_("agent_skill_grant.error.binding_not_found"),
             )
 
-        await self.grant_repo.permanent_delete(grant.id)
+        deleted = await self.grant_repo.delete(grant.id, soft=False)
+        if not deleted:
+            raise BusinessException(message=_("common.failed"))
 
         logger.info(
             "Skill {} unbound from agent {} (tenant={})",

@@ -58,6 +58,27 @@ def _make_tenant(**overrides):
     return make_mock_model(**defaults)
 
 
+def _make_tenant_user(**overrides):
+    defaults = {
+        "id": 11,
+        "tenant_id": 1,
+        "username": "tenant_user",
+        "email": "user@example.com",
+        "phone": "13800000000",
+        "password_hash": "hashed_password",
+        "is_active": True,
+        "is_deleted": False,
+        "login_fail_count": 0,
+        "last_fail_at": None,
+        "locked_until": None,
+        "last_login_at": None,
+        "last_login_ip": None,
+        "nickname": "Tenant User",
+    }
+    defaults.update(overrides)
+    return make_mock_model(**defaults)
+
+
 # ── Tests ──
 
 class TestPasswordPolicy:
@@ -293,7 +314,7 @@ class TestTenantUserLogin:
             pytest.raises(AuthenticationException),
         ):
             service._config_service.get_tenant_config = AsyncMock(
-                side_effect=lambda tenant_id, key, default=None: {
+                side_effect=lambda _tenant_id, key, default=None: {
                     "user_login_captcha_enabled": True,
                     "user_login_captcha_enable_threshold": 0,
                 }.get(key, default)
@@ -353,7 +374,7 @@ class TestTenantUserLogin:
             pytest.raises(AuthenticationException),
         ):
             service._config_service.get_tenant_config = AsyncMock(
-                side_effect=lambda tenant_id, key, default=None: {
+                side_effect=lambda _tenant_id, key, default=None: {
                     "user_login_captcha_enabled": False,
                     "user_login_captcha_enable_threshold": 0,
                 }.get(key, default)
@@ -366,6 +387,155 @@ class TestTenantUserLogin:
             )
 
         mock_verify_captcha.assert_not_awaited()
+
+
+class TestTenantUserCodeLogin:
+    """企业用户验证码登录测试 / Tenant user code-login tests."""
+
+    @pytest.mark.asyncio
+    async def test_send_login_code_requires_captcha_when_enabled(self, mock_db):
+        from app.exceptions import AuthenticationException
+        from app.services.common.auth_service import AuthService
+
+        service = AuthService(mock_db)
+        service._config_service.get_tenant_config = AsyncMock(
+            side_effect=lambda _tenant_id, key, default=None: {
+                "tenant_login_methods": ["password", "email"],
+                "user_login_captcha_enabled": True,
+            }.get(key, default)
+        )
+
+        with pytest.raises(AuthenticationException):
+            await service.send_tenant_user_login_code(
+                channel="email",
+                email="user@example.com",
+                tenant_id_from_ctx=1,
+                client_ip="127.0.0.1",
+            )
+
+    @pytest.mark.asyncio
+    async def test_send_login_code_returns_uniform_success_for_missing_user(self, mock_db):
+        from app.services.common.auth_service import AuthService
+
+        service = AuthService(mock_db)
+        service._config_service.get_tenant_config = AsyncMock(
+            side_effect=lambda _tenant_id, key, default=None: {
+                "tenant_login_methods": ["password", "email"],
+                "user_login_captcha_enabled": False,
+            }.get(key, default)
+        )
+        mock_db.execute.return_value = make_scalar_result(None)
+
+        with patch("app.services.common.auth_service.cache_get", new_callable=AsyncMock, return_value=None), patch(
+            "app.services.common.auth_service.cache_set",
+            new_callable=AsyncMock,
+        ) as mock_cache_set:
+            result = await service.send_tenant_user_login_code(
+                channel="email",
+                email="missing@example.com",
+                tenant_id_from_ctx=1,
+                client_ip="127.0.0.1",
+            )
+
+        assert result["message"]
+        assert mock_cache_set.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_send_login_code_success_queues_email(self, mock_db):
+        from app.services.common.auth_service import AuthService
+
+        service = AuthService(mock_db)
+        user = _make_tenant_user()
+        service._config_service.get_tenant_config = AsyncMock(
+            side_effect=lambda _tenant_id, key, default=None: {
+                "tenant_login_methods": ["password", "email"],
+                "user_login_captcha_enabled": False,
+            }.get(key, default)
+        )
+        mock_db.execute.return_value = make_scalar_result(user)
+
+        with patch("app.services.common.auth_service.cache_get", new_callable=AsyncMock, return_value=None), patch(
+            "app.services.common.auth_service.cache_set",
+            new_callable=AsyncMock,
+        ) as mock_cache_set, patch(
+            "app.tasks.email.send_email_task.delay",
+        ) as mock_delay, patch(
+            "app.services.common.email_templates.render_login_code_email",
+            return_value=("subject", "<p>html</p>", "text"),
+        ):
+            result = await service.send_tenant_user_login_code(
+                channel="email",
+                email="user@example.com",
+                tenant_id_from_ctx=1,
+                client_ip="127.0.0.1",
+            )
+
+        assert result["message"]
+        assert mock_cache_set.await_count == 2
+        assert mock_delay.called
+
+    @pytest.mark.asyncio
+    async def test_login_by_code_success(self, mock_db):
+        from app.services.common.auth_service import AuthService
+
+        service = AuthService(mock_db)
+        user = _make_tenant_user()
+        service._config_service.get_tenant_config = AsyncMock(
+            side_effect=lambda _tenant_id, key, default=None: {
+                "tenant_login_methods": ["password", "email"],
+            }.get(key, default)
+        )
+        mock_db.execute.return_value = make_scalar_result(user)
+
+        with patch("app.services.common.auth_service.cache_get", new_callable=AsyncMock, return_value={"code": "123456", "user_id": user.id}), patch(
+            "app.services.common.auth_service.cache_delete",
+            new_callable=AsyncMock,
+        ) as mock_cache_delete, patch.object(
+            service,
+            "_is_account_locked",
+            new_callable=AsyncMock,
+            return_value=False,
+        ), patch.object(
+            service,
+            "_reset_login_failures",
+            new_callable=AsyncMock,
+        ), patch.object(
+            service,
+            "_issue_tenant_user_tokens",
+            new_callable=AsyncMock,
+            return_value={"access_token": "token"},
+        ) as mock_issue_tokens:
+            result = await service.authenticate_tenant_user_by_code(
+                channel="email",
+                code="123456",
+                email="user@example.com",
+                tenant_id_from_ctx=1,
+                client_ip="127.0.0.1",
+            )
+
+        assert result == {"access_token": "token"}
+        mock_cache_delete.assert_awaited_once()
+        mock_issue_tokens.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_login_by_code_sms_not_enabled(self, mock_db):
+        from app.exceptions import BusinessException
+        from app.services.common.auth_service import AuthService
+
+        service = AuthService(mock_db)
+        service._config_service.get_tenant_config = AsyncMock(
+            side_effect=lambda _tenant_id, key, default=None: {
+                "tenant_login_methods": ["password", "email"],
+            }.get(key, default)
+        )
+
+        with pytest.raises(BusinessException):
+            await service.authenticate_tenant_user_by_code(
+                channel="sms",
+                code="123456",
+                phone="13800000000",
+                tenant_id_from_ctx=1,
+            )
 
 
 # ── 真实密码 Hash 测试（无 Mock，测试 security 模块）──

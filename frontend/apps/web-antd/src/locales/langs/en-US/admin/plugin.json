@@ -95,8 +95,6 @@
     "installDependencies": "Install dependencies for plugin \"{name}\"?",
     "uninstallDependencies": "Uninstall dependencies for plugin \"{name}\"?",
     "uninstallDependenciesContent": "Only plugin-exclusive dependencies are removed. It is recommended to run this while plugin is disabled.",
-    "forceUninstallDependenciesTitle": "Plugin \"{name}\" is enabled. Force dependency uninstall?",
-    "forceUninstallDependenciesContent": "Force uninstall may break runtime behavior until dependencies are installed again.",
     "dependency_error_title": "Cannot disable \"{name}\"",
     "dependency_error_content": "The following plugins depend on this plugin. Please disable them first: {deps}"
   },

@@ -11,7 +11,7 @@ import type {
   AgentSkillGrantInfo,
 } from '#/api/tenant/agents';
 import type { AgentKnowledgeBaseBindingDraftItem } from '#/components/business/agent-kb-binding-picker';
-import type { InputVariable } from '#/components/business/ai-chat-panel/types';
+import type { InputVariable } from '#/types/ai-chat';
 
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';

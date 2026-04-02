@@ -5,7 +5,6 @@
 Orchestrates full chat flow: create/resume conversation → load history → call ExecutionDispatcher → persist messages.
 """
 
-import json
 import time
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
@@ -25,8 +24,8 @@ from app.ai.constants import (
     DEFAULT_MEMORY_SCENE,
     MEMORY_CHANNEL_SYSTEM,
 )
-from app.ai.engine.base import BaseEngine
 from app.ai.context.long_term_memory import get_long_term_memory_provider
+from app.ai.engine.base import BaseEngine
 from app.ai.engine.conversation import ConversationEngine
 from app.ai.engine.dispatcher import ExecutionDispatcher
 from app.ai.engine.types import ExecutionRequest, ExecutionResult
@@ -57,6 +56,7 @@ from app.services.ai.execution_trust_policy_service import (
 from app.services.ai.long_term_memory_service import (
     build_memory_capture_payload_from_session_delta,
 )
+from app.services.ai.memory_extraction_service import MemoryExtractionService
 from app.services.ai.session_memory_service import SessionMemoryService
 
 if TYPE_CHECKING:
@@ -203,119 +203,14 @@ class AgentChatService:
             "task_states": [],
             "verified_facts": [],
         }
-
-        text = (message or "").strip()
-        if not text or len(text) < 4:
-            return empty
-
-        try:
-            async with async_session_factory() as llm_db:
-                # 优先使用平台配置的记忆提取专用模型（成本更低）/ Prefer platform memory-extraction model (lower cost)
-                from app.configs.service import ConfigService
-                cfg = ConfigService(llm_db)
-                cfg_provider = await cfg.get_platform_config(
-                    "memory_extraction_provider", default="",
-                )
-                cfg_model = await cfg.get_platform_config(
-                    "memory_extraction_model", default="",
-                )
-
-                if cfg_provider and cfg_model:
-                    provider_code = cfg_provider
-                    model_code = cfg_model
-                else:
-                    # 降级：使用 Agent 自身绑定的模型 / Fallback: use Agent's bound model
-                    if self.tenant_id == PLATFORM_TENANT_ID:
-                        from app.repositories.ai.agent_repository import (
-                            AdminAgentRepository,
-                        )
-                        agent_repo = AdminAgentRepository(llm_db)
-                    else:
-                        agent_repo = AgentRepository(llm_db, self.tenant_id)
-
-                    agent = await agent_repo.get_by_id(agent_id)
-                    if not agent:
-                        return empty
-
-                    model_obj = getattr(agent, "model", None)
-                    if not model_obj or not getattr(model_obj, "provider", None):
-                        return empty
-
-                    provider_code = model_obj.provider.code
-                    model_code = model_obj.code
-                    if not provider_code or not model_code:
-                        return empty
-
-                extraction_prompt = (
-                    "Analyze this conversation turn and extract information worth remembering.\n\n"
-                    f"User message:\n{text[:1500]}\n\n"
-                    f"Assistant response:\n{(response or '')[:1500]}\n\n"
-                    "Extract ONLY genuinely important items into these categories:\n"
-                    "- preferences: User's stated preferences, likes, dislikes, preferred formats/tools/styles\n"
-                    "- constraints: Explicit restrictions, rules, things to avoid, 'don't do X'\n"
-                    "- task_states: Current task progress, todos, next steps, ongoing work\n"
-                    "- verified_facts: User's personal facts (name, role, company, tech stack, etc.)\n\n"
-                    "Rules:\n"
-                    "1. Only extract items the user explicitly stated or strongly implied\n"
-                    "2. Summarize each item concisely (1 short sentence max)\n"
-                    "3. If nothing worth remembering, return all empty arrays\n"
-                    "4. Do NOT extract trivial greetings, acknowledgments, or filler\n"
-                    "5. Do NOT repeat what the assistant said unless the user confirmed it as a preference\n\n"
-                    'Respond ONLY with valid JSON (no markdown, no explanation):\n'
-                    '{"preferences": [], "constraints": [], "task_states": [], "verified_facts": []}'
-                )
-
-                gateway = AIGateway(llm_db)
-                llm_response = await gateway.chat(
-                    provider_code=provider_code,
-                    messages=[ChatMessage(role="user", content=extraction_prompt)],
-                    model=model_code,
-                    temperature=0.1,
-                    max_tokens=500,
-                    tenant_id=(
-                        self.tenant_id
-                        if self.tenant_id > PLATFORM_TENANT_ID
-                        else None
-                    ),
-                )
-
-                content = (llm_response.message.content or "").strip()
-                # 处理 markdown 代码块包裹 / Strip markdown code block wrapper
-                if content.startswith("```"):
-                    lines = content.split("\n")
-                    content = "\n".join(lines[1:])
-                    if content.endswith("```"):
-                        content = content[:-3].strip()
-
-                data = json.loads(content)
-
-                result: dict[str, list[str]] = {}
-                for key in ("preferences", "constraints", "task_states", "verified_facts"):
-                    raw_list = data.get(key) or []
-                    result[key] = [
-                        str(item).strip()[:300]
-                        for item in raw_list
-                        if item and str(item).strip()
-                    ][:5]
-
-                if any(result.values()):
-                    logger.info(
-                        "LLM memory extraction: tenant={} agent={} prefs={} constraints={} tasks={} facts={}",
-                        self.tenant_id, agent_id,
-                        len(result["preferences"]),
-                        len(result["constraints"]),
-                        len(result["task_states"]),
-                        len(result["verified_facts"]),
-                    )
-
-                return result
-
-        except Exception as exc:
-            logger.warning(
-                "LLM memory extraction failed, returning empty: tenant={} agent={} err={}",
-                self.tenant_id, agent_id, str(exc),
-            )
-            return empty
+        result = await MemoryExtractionService(
+            self.tenant_id,
+        ).extract_turn_memory(
+            agent_id=agent_id,
+            message=message,
+            response=response,
+        )
+        return result or empty
 
     async def _load_session_memory_context(
         self,
@@ -610,13 +505,26 @@ class AgentChatService:
                 granted_by=operator_id,
                 grant_reason="interaction_mode:trusted_auto",
             )
+
+    @staticmethod
+    def _extract_turn_meta_from_result(result: ExecutionResult) -> dict[str, Any]:
+        return ConversationService._extract_turn_diagnostics_from_metadata(
+            {
+                "turn_record": getattr(result, "turn_record", None),
+                "completion_reason": getattr(result, "completion_reason", None),
+                "partial": bool(getattr(result, "partial", False)),
+                "interrupted": bool(getattr(result, "interrupted", False)),
+            }
+        )
+
     @staticmethod
     def _build_context_diagnostics(
         result: ExecutionResult,
         *,
         interaction_mode_effective: str,
     ) -> dict[str, Any]:
-        return {
+        turn_meta = AgentChatService._extract_turn_meta_from_result(result)
+        payload: dict[str, Any] = {
             "estimated_tokens": result.total_tokens,
             "context_compacted": bool(result.context_compacted),
             "compact_summary_present": bool(result.context_compacted),
@@ -628,6 +536,19 @@ class AgentChatService:
             "interaction_mode_effective": interaction_mode_effective,
             "tool_planner": result.tool_planner,
         }
+        if turn_meta.get("turn_outcome"):
+            payload["turn_outcome"] = turn_meta["turn_outcome"]
+        if turn_meta.get("termination_reason"):
+            payload["termination_reason"] = turn_meta["termination_reason"]
+        if turn_meta.get("protocol_path"):
+            payload["protocol_path"] = turn_meta["protocol_path"]
+        if turn_meta.get("selected_tool_names"):
+            payload["selected_tool_names"] = turn_meta["selected_tool_names"]
+        if turn_meta.get("selected_skill_names"):
+            payload["selected_skill_names"] = turn_meta["selected_skill_names"]
+        if turn_meta.get("context_sources"):
+            payload["context_sources"] = turn_meta["context_sources"]
+        return payload
 
     @staticmethod
     def _build_last_run_summary(
@@ -636,7 +557,8 @@ class AgentChatService:
         interaction_mode_effective: str,
         downgrade_reason: str | None,
     ) -> dict[str, Any]:
-        return {
+        turn_meta = AgentChatService._extract_turn_meta_from_result(result)
+        payload: dict[str, Any] = {
             "duration_ms": result.duration_ms,
             "interaction_mode_effective": interaction_mode_effective,
             "downgrade_reason": downgrade_reason,
@@ -646,7 +568,25 @@ class AgentChatService:
             "total_tokens": result.total_tokens,
             "tool_planner": result.tool_planner,
         }
-
+        completion_reason = (
+            turn_meta.get("termination_reason")
+            or str(getattr(result, "completion_reason", "") or "").strip()
+            or None
+        )
+        if completion_reason:
+            payload["completion_reason"] = completion_reason
+            payload["termination_reason"] = completion_reason
+        if turn_meta.get("turn_outcome"):
+            payload["turn_outcome"] = turn_meta["turn_outcome"]
+        if turn_meta.get("protocol_path"):
+            payload["protocol_path"] = turn_meta["protocol_path"]
+        if turn_meta.get("selected_tool_names"):
+            payload["selected_tool_names"] = turn_meta["selected_tool_names"]
+        if turn_meta.get("selected_skill_names"):
+            payload["selected_skill_names"] = turn_meta["selected_skill_names"]
+        if turn_meta.get("context_sources"):
+            payload["context_sources"] = turn_meta["context_sources"]
+        return payload
 
     # ========================================
     # 非流式对话 / Non-streaming chat
@@ -708,6 +648,7 @@ class AgentChatService:
 
         # 1. 获取或创建对话 / Get or create conversation
         is_new_conversation = conversation_id is None
+        conversation_owner_type = ConversationOwnerTypeEnum.from_user_role(user_role)
         (
             interaction_mode_effective,
             resolved_trust_policy_ref,
@@ -720,13 +661,13 @@ class AgentChatService:
             operator_type=conversation_owner_type,
             explicit_trust_policy_ref=trust_policy_ref,
         )
-        conversation_owner_type = ConversationOwnerTypeEnum.from_user_role(user_role)
         conversation = await self.conversation_svc.get_or_create_for_chat(
             agent_id=agent_id,
             conversation_id=conversation_id,
             user_id=user_id,
             owner_type=conversation_owner_type,
             first_message=message,
+        )
         conversation_metadata = dict(conversation.metadata_ or {})
         conversation_metadata["interaction_mode"] = interaction_mode_effective
         conversation_metadata["interaction_mode_requested"] = interaction_mode
@@ -735,7 +676,7 @@ class AgentChatService:
                 interaction_mode_downgrade_reason
             )
         conversation.metadata_ = conversation_metadata
-        )
+        if interaction_updates:
             interaction_updates = [
                 {
                     **update,
@@ -754,15 +695,14 @@ class AgentChatService:
                 }
                 for update in interaction_updates
             ]
-        if interaction_updates:
             await self.conversation_svc.update_last_assistant_interaction_state(
                 conversation.id,
                 interaction_updates,
                 user_id=user_id,
+                owner_type=conversation_owner_type,
                 interaction_mode_requested=interaction_mode,
                 interaction_mode_effective=interaction_mode_effective,
                 interaction_mode_downgrade_reason=interaction_mode_downgrade_reason,
-                owner_type=conversation_owner_type,
             )
             await self._grant_trusted_auto_policies(
                 conversation_id=conversation.id,
@@ -850,8 +790,8 @@ class AgentChatService:
             memory_source=normalized_source,
             memory_enabled=memory_enabled,
             long_term_memory_enabled=bool(ctx_cfg.get("long_term_memory_enabled", False)),
-            interaction_mode=interaction_mode_effective,
             trust_policy_ref=resolved_trust_policy_ref,
+            interaction_mode=interaction_mode_effective,
             page_session_id=page_session_id,
             interaction_updates=interaction_updates,
             knowledge_base_feedback=(
@@ -904,6 +844,7 @@ class AgentChatService:
                 result.output = hook_ctx["response"]
 
         # 6. 持久化新消息（用户消息 + 引擎生成的消息）/ Persist new messages (user + engine)
+        history_count = len(history_messages)
         context_diagnostics_payload = self._build_context_diagnostics(
             result,
             interaction_mode_effective=interaction_mode_effective,
@@ -913,15 +854,14 @@ class AgentChatService:
             interaction_mode_effective=interaction_mode_effective,
             downgrade_reason=interaction_mode_downgrade_reason,
         )
-        history_count = len(history_messages)
         tool_calls_collected = await self.conversation_svc.persist_chat_messages(
             conversation=conversation,
             result=result,
             history_count=history_count,
             agent_id=agent_id,
+            route_source=route_source,
             context_diagnostics=context_diagnostics_payload,
             last_run_summary=last_run_summary_payload,
-            route_source=route_source,
         )
 
         # 7. 更新对话统计 + 智能体用量统计 / Update conversation stats and agent usage
@@ -991,10 +931,10 @@ class AgentChatService:
                 else False
             ),
             prune_stats=prune_stats,
+            rag_source_kinds=rag_source_kinds,
             interaction_mode_effective=interaction_mode_effective,
             context_diagnostics=context_diagnostics_payload,
             last_run_summary=last_run_summary_payload,
-            rag_source_kinds=rag_source_kinds,
         )
 
     # ========================================
@@ -1057,6 +997,7 @@ class AgentChatService:
 
         # 1. 获取或创建对话 / Get or create conversation
         is_new_conversation = conversation_id is None
+        conversation_owner_type = ConversationOwnerTypeEnum.from_user_role(user_role)
         (
             interaction_mode_effective,
             resolved_trust_policy_ref,
@@ -1069,13 +1010,13 @@ class AgentChatService:
             operator_type=conversation_owner_type,
             explicit_trust_policy_ref=trust_policy_ref,
         )
-        conversation_owner_type = ConversationOwnerTypeEnum.from_user_role(user_role)
         conversation = await self.conversation_svc.get_or_create_for_chat(
             agent_id=agent_id,
             conversation_id=conversation_id,
             user_id=user_id,
             owner_type=conversation_owner_type,
             first_message=first_message,
+        )
         conversation_metadata = dict(conversation.metadata_ or {})
         conversation_metadata["interaction_mode"] = interaction_mode_effective
         conversation_metadata["interaction_mode_requested"] = interaction_mode
@@ -1084,7 +1025,7 @@ class AgentChatService:
                 interaction_mode_downgrade_reason
             )
         conversation.metadata_ = conversation_metadata
-        )
+        if interaction_updates:
             interaction_updates = [
                 {
                     **update,
@@ -1103,15 +1044,14 @@ class AgentChatService:
                 }
                 for update in interaction_updates
             ]
-        if interaction_updates:
             await self.conversation_svc.update_last_assistant_interaction_state(
                 conversation.id,
                 interaction_updates,
                 user_id=user_id,
+                owner_type=conversation_owner_type,
                 interaction_mode_requested=interaction_mode,
                 interaction_mode_effective=interaction_mode_effective,
                 interaction_mode_downgrade_reason=interaction_mode_downgrade_reason,
-                owner_type=conversation_owner_type,
             )
             await self._grant_trusted_auto_policies(
                 conversation_id=conversation.id,
@@ -1207,8 +1147,8 @@ class AgentChatService:
             memory_source=normalized_source,
             memory_enabled=memory_enabled,
             long_term_memory_enabled=bool(ctx_cfg.get("long_term_memory_enabled", False)),
-            interaction_mode=interaction_mode_effective,
             trust_policy_ref=resolved_trust_policy_ref,
+            interaction_mode=interaction_mode_effective,
             page_session_id=page_session_id,
             interaction_updates=interaction_updates,
             knowledge_base_feedback=(
@@ -1365,8 +1305,8 @@ class AgentChatService:
                 toolkit_memory_limit_mb=int(_toolkit_memory_limit_mb),
                 input_variables=variables or {},
                 page_session_id=page_session_id,
-                interaction_mode=interaction_mode_effective,
                 trust_policy_ref=resolved_trust_policy_ref,
+                interaction_mode=interaction_mode_effective,
             )
             engine = ConversationEngine(
                 db=self.db,
@@ -1407,6 +1347,7 @@ class AgentChatService:
                             cb_conv_svc = ConversationService(cb_db, self.tenant_id)
                             cb_conv = await cb_conv_svc.repo.get_by_id(
                                 conversation.id,
+                            )
                             context_diagnostics_payload = self._build_context_diagnostics(
                                 result,
                                 interaction_mode_effective=interaction_mode_effective,
@@ -1416,15 +1357,14 @@ class AgentChatService:
                                 interaction_mode_effective=interaction_mode_effective,
                                 downgrade_reason=interaction_mode_downgrade_reason,
                             )
-                            )
                             await cb_conv_svc.persist_chat_messages(
                                 conversation=cb_conv,
                                 result=result,
                                 history_count=history_count,
                                 agent_id=agent_id,
+                                route_source=route_source,
                                 context_diagnostics=context_diagnostics_payload,
                                 last_run_summary=last_run_summary_payload,
-                                route_source=route_source,
                             )
                             await cb_conv_svc.update_stats(
                                 cb_conv,

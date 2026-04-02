@@ -205,6 +205,31 @@ def render_verification_code_email(
     return subject, html, text
 
 
+def render_login_code_email(
+    user_name: str,
+    code: str,
+    expire_minutes: int = 15,
+    platform_name: str | None = None,
+    lang: str = "zh-CN",
+) -> tuple[str, str, str]:
+    """
+    渲染登录验证码邮件 / Render login verification code email.
+
+    Returns:
+        (subject, html_body, text_body)
+    """
+    platform_name = platform_name or _default_platform_name()
+    t = _get_translations(lang)
+    subject = t["login_code"]["subject"].format(platform_name=platform_name)
+    html, text = render_email("login_code", {
+        "user_name": user_name,
+        "code": code,
+        "expire_minutes": expire_minutes,
+        "platform_name": platform_name,
+    }, lang=lang)
+    return subject, html, text
+
+
 def render_welcome_email(
     tenant_name: str,
     admin_name: str,
@@ -355,6 +380,13 @@ _TRANSLATIONS: dict[str, dict[str, Any]] = {
             "expire_notice": "验证码将在 {expire_minutes} 分钟后失效。",
             "ignore_notice": "如果您未请求重置密码，请忽略此邮件。",
         },
+        "login_code": {
+            "subject": "[{platform_name}] 登录验证码",
+            "title": "登录验证码",
+            "body": "您正在登录，请在登录页面输入以下验证码：",
+            "expire_notice": "验证码将在 {expire_minutes} 分钟后失效。",
+            "ignore_notice": "如果这不是您的操作，请忽略此邮件。",
+        },
         "welcome": {
             "subject": "欢迎加入 {platform_name}",
             "title": "欢迎加入！",
@@ -411,6 +443,13 @@ _TRANSLATIONS: dict[str, dict[str, Any]] = {
             "expire_notice": "The verification code will expire in {expire_minutes} minutes.",
             "ignore_notice": "If you did not request a password reset, please ignore this email.",
         },
+        "login_code": {
+            "subject": "[{platform_name}] Login Verification Code",
+            "title": "Login Verification Code",
+            "body": "You are signing in. Please enter the following verification code on the login page:",
+            "expire_notice": "The verification code will expire in {expire_minutes} minutes.",
+            "ignore_notice": "If this was not you, please ignore this email.",
+        },
         "welcome": {
             "subject": "Welcome to {platform_name}",
             "title": "Welcome!",
@@ -449,6 +488,7 @@ __all__ = [
     "render_task_failure_email",
     "render_password_reset_email",
     "render_verification_code_email",
+    "render_login_code_email",
     "render_welcome_email",
     "render_ssl_expiry_email",
 ]

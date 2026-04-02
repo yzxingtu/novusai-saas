@@ -22,8 +22,6 @@
   "dependencies": {
     "@vben-core/shared": "workspace:*",
     "@vben-core/typings": "workspace:*",
-    "@vben/locales": "workspace:*",
-    "@vben/preferences": "workspace:*",
     "vue-router": "catalog:"
   }
 }

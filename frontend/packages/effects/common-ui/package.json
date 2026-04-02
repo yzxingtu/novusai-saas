@@ -50,6 +50,7 @@
     "vue-tippy": "catalog:"
   },
   "devDependencies": {
+    "@vue/test-utils": "catalog:",
     "@types/qrcode": "catalog:"
   }
 }

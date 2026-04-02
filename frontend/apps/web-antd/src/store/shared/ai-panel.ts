@@ -10,7 +10,7 @@ import type {
   RichTextAITask,
   RichTextAITaskState,
   RichTextConversationBinding,
-} from '#/components/business/ai-chat-panel/types';
+} from '#/types/ai-chat';
 
 import { ref } from 'vue';
 

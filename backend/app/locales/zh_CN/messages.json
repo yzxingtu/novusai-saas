@@ -121,6 +121,13 @@
     "email_taken": "邮箱已被注册",
     "phone_taken": "手机号已被注册",
     "register_success": "注册成功",
+    "login_code_sent": "登录验证码已发送，请查收邮箱",
+    "login_code_invalid": "登录验证码无效或已过期",
+    "login_code_email_required": "请输入邮箱",
+    "login_code_phone_required": "请输入手机号",
+    "login_code_channel_invalid": "不支持的验证码登录渠道",
+    "login_code_email_not_enabled": "当前企业未启用邮箱验证码登录",
+    "login_code_sms_not_enabled": "短信验证码登录暂未启用",
     "reset_code_sent": "验证码已发送，请查收邮箱",
     "reset_code_invalid": "验证码无效或已过期",
     "reset_rate_limited": "操作过于频繁，请稍后再试",
@@ -1584,11 +1591,6 @@
       "list": "查看长期记忆调试",
       "detail": "查看长期记忆调试详情"
     },
-    "ai_ephemeral_document": {
-      "list": "查看临时资料文档",
-      "detail": "查看临时资料文档详情",
-      "promote": "提升临时资料文档"
-    },
     "ai_skill": {
       "list": "查看技能列表",
       "detail": "查看技能详情",
@@ -2174,9 +2176,56 @@
       "license_expired": "插件许可证已过期",
       "license_already_activated": "该许可证密钥已被激活",
       "conflict": "插件与已有扩展冲突",
-      "install_failed": "插件安装失败"
+      "install_failed": "插件安装失败",
+      "invalid_marketplace_slug": "无效的 marketplace 标识：{slug}",
+      "invalid_registry_url_scheme": "只允许使用 http/https 地址",
+      "invalid_registry_private_ip": "不允许使用私有或保留 IP 地址",
+      "invalid_registry_host": "不允许的 registry 主机：{host}",
+      "registry_connection_failed": "连接测试失败，请检查地址后重试",
+      "marketplace_not_found": "插件市场中未找到插件：{slug}",
+      "not_found_by_id": "插件不存在：#{plugin_id}",
+      "already_installed": "插件 {plugin_name} 已安装，请先卸载或使用升级接口",
+      "menu_config_update_failed": "菜单配置更新失败",
+      "repair_not_needed": "插件当前状态无需修复",
+      "db_migration_failed": "数据库迁移失败",
+      "repair_extensions_failed": "修复失败：有 {count} 个扩展加载失败",
+      "repair_failed": "修复失败",
+      "force_cleanup_files_exist": "插件文件仍存在，请使用普通卸载而不是强制清理",
+      "unknown_capabilities": "存在未知能力标识：{capabilities}",
+      "invalid_icon_type": "仅支持 PNG/SVG/JPG/WebP 图标",
+      "icon_too_large": "图标文件过大（{size} 字节），最大 2MB",
+      "activation_failed": "激活失败",
+      "invalid_backup_name": "无效的备份名称",
+      "backup_not_found": "备份不存在",
+      "raw_session_forbidden": "插件沙箱中禁止访问原始数据库会话",
+      "rollback_forbidden": "插件不能回滚整个数据库事务，请使用 flush() 持久化插件数据",
+      "table_prefix_violation": "插件只能操作前缀为 {prefixes} 的表，当前表为 {table}",
+      "table_access_forbidden": "插件只能访问前缀为 {prefixes} 的表，当前尝试访问 {table}",
+      "capability_required": "插件 {plugin_name} 缺少能力 {capability}",
+      "storage_capability_required": "插件 {plugin_name} 缺少存储访问能力",
+      "http_request_scheme_invalid": "插件 HTTP 请求仅支持 http/https，当前协议为 {scheme}",
+      "invalid_url_missing_host": "无效 URL：缺少主机名",
+      "ssrf_private_ip": "已阻止 SSRF：插件 HTTP 请求不能访问私有或保留 IP {host}",
+      "ssrf_blocked_host": "已阻止 SSRF：插件 HTTP 请求不能访问 {host}",
+      "ai_feature_unbound": "AI 功能 {feature_code} 尚未绑定智能体，请先在插件管理中配置",
+      "ai_feature_agent_unavailable": "AI 功能 {feature_code} 绑定的智能体 #{agent_id} 当前不可用",
+      "ai_call_failed": "AI 调用失败",
+      "path_traversal_detected": "检测到非法存储路径：{path}"
     },
-    "license_activated": "许可证激活成功"
+    "license_activated": "许可证激活成功",
+    "enabled": "插件已启用",
+    "disabled": "插件已禁用",
+    "menu_config_updated": "菜单配置已更新",
+    "manifest_synced": "插件清单已同步",
+    "deleted_already": "插件 #{plugin_id} 已被移除",
+    "capabilities_updated": "插件能力已更新",
+    "upgraded": "插件已升级",
+    "rolled_back_to": "插件已回滚到版本 {version}",
+    "repaired_successfully": "插件 {plugin_name} 修复成功",
+    "repaired_and_restored": "插件已修复并恢复运行"
+  },
+  "ai_writing": {
+    "invalid_feature": "不支持的 AI 写作功能：{feature}"
   },
   "crud_generation_record": {
     "field": {
@@ -2242,6 +2291,10 @@
       "tenant_features": {
         "name": "会员设置",
         "desc": "注册、通知、文件上传等会员功能开关"
+      },
+      "tenant_ai": {
+        "name": "AI 能力感知",
+        "desc": "控制 AI 对话中注入的运行时能力描述"
       },
       "tenant_storage": {
         "name": "存储设置",
@@ -2706,6 +2759,20 @@
       "allow_profile_edit": {
         "name": "允许修改资料",
         "desc": "是否允许用户修改自己的个人资料"
+      },
+      "enable_dynamic_capability_awareness": {
+        "name": "动态能力感知",
+        "desc": "在 AI system prompt 中注入当前技能、知识库、页面上下文与记忆能力描述"
+      },
+      "capability_description_style": {
+        "name": "能力描述风格",
+        "desc": "选择能力描述使用详细还是简洁表述",
+        "detailed": "详细",
+        "concise": "简洁"
+      },
+      "max_capability_items_per_category": {
+        "name": "每类能力最大条目数",
+        "desc": "system prompt 中每个能力类别最多展示的能力项数量"
       },
       "email_notification": {
         "name": "邮件通知",
@@ -3203,6 +3270,14 @@
   "config.tenant.user_default_role_id.name": "默认用户角色",
   "config.tenant.user_default_role_id.desc": "新注册用户自动分配的角色，选择「不分配角色」则用户注册后无角色",
   "config.tenant.user_default_role_id.option_none": "不分配角色",
+  "config.tenant.enable_dynamic_capability_awareness.name": "动态能力感知",
+  "config.tenant.enable_dynamic_capability_awareness.desc": "在 AI system prompt 中注入当前技能、知识库、页面上下文与记忆能力描述",
+  "config.tenant.capability_description_style.name": "能力描述风格",
+  "config.tenant.capability_description_style.desc": "选择能力描述使用详细还是简洁表述",
+  "config.tenant.capability_description_style.detailed": "详细",
+  "config.tenant.capability_description_style.concise": "简洁",
+  "config.tenant.max_capability_items_per_category.name": "每类能力最大条目数",
+  "config.tenant.max_capability_items_per_category.desc": "system prompt 中每个能力类别最多展示的能力项数量",
   "enum.agent_model.max_tokens": "最大输出 Token",
   "agent.version.field.max_tokens": "最大输出 Token",
   "enum.ai_model.max_output_tokens": "最大输出 Token",
@@ -3210,6 +3285,8 @@
   "config.group.platform_domain.desc": "企业默认域名后缀与自定义域名验证配置",
   "config.group.tenant_registration.name": "注册与协议",
   "config.group.tenant_registration.desc": "用户注册流程、默认角色、隐私政策和服务条款配置",
+  "config.group.tenant_ai.name": "AI 能力感知",
+  "config.group.tenant_ai.desc": "控制 AI 对话中注入的运行时能力描述",
   "config.platform.ai_page_context_max_bytes.name": "聊天页面上下文最大字节数",
   "config.platform.ai_page_context_max_bytes.desc": "限制前端发送到 AI 聊天/路由接口的 page_context.page_data 最大字节数，默认 8192；这是页面上下文预算，不是模型输入或输出 token 限制",
   "config.platform.marketplace_github_url.name": "插件市场 GitHub URL",

@@ -132,7 +132,7 @@ UI 层展示也统一复用了这套能力。
 
 这里需要特别说明：
 
-- `sessionStorage` 中的 `ai_trust_session_{convId}` 只是“自动确认操作”的 UI 偏好
+- 历史上前端曾用 `sessionStorage` 记录会话级自动确认偏好，但它从来不是授权真相
 - 它不是会话记忆本体
 - 真正的会话记忆仍然在 Redis + `memory-state` API
 

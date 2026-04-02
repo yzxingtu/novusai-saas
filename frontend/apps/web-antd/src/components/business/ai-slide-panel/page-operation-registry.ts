@@ -46,6 +46,11 @@ import { $t } from '#/locales';
 
 import { normalizePageKey } from './page-key-utils';
 import { getDefaultPageOperations } from './page-operation-defaults';
+import type {
+  PageOperation,
+  PageOperationHandler,
+  PageOperationResult,
+} from './page-operation-types';
 
 interface PageOperationParamSchema {
   default?: unknown;
@@ -349,47 +354,6 @@ async function waitForContextSnapshotChange(
   return latest;
 }
 
-/** Operation execution result / 操作执行结果 */
-export interface PageOperationResult {
-  /** Whether execution succeeded / 是否执行成功 */
-  success: boolean;
-  /** Result message (returned to LLM) / 结果消息（返回给 LLM） */
-  message: string;
-  /** Additional data (optional, structured result for LLM analysis) / 附加数据（可选，结构化结果供 LLM 分析） */
-  data?: Record<string, unknown>;
-  /** Error type for failure classification (invalid_input_empty_content, execution_failed, etc.) / 失败分类（invalid_input_empty_content、execution_failed 等） */
-  error_type?: string;
-}
-
-/** Operation handler function type / 操作处理函数类型 */
-export type PageOperationHandler = (
-  params: Record<string, unknown>,
-) => PageOperationResult | Promise<PageOperationResult>;
-
-/**
- * Page operation declaration
- * 页面操作声明
- *
- * readonly=true:  Read-only operation (e.g. refresh, export), executed without confirmation
- * readonly=false: Mutation operation (e.g. update, delete), requires user confirmation before execution
- * readonly=true:  只读操作（如刷新、导出），直接执行无需确认
- * readonly=false: 变更操作（如更新、删除），执行前需用户确认
- */
-export interface PageOperation {
-  /** Operation unique identifier / 操作唯一标识 */
-  name: string;
-  /** Human-readable label / 人类可读标签 */
-  label: string;
-  /** Operation description (for LLM intent understanding) / 操作描述（供 LLM 理解意图） */
-  description?: string;
-  /** Whether it is a read-only operation / 是否为只读操作 */
-  readonly: boolean;
-  /** Parameter schema (JSON Schema subset, for LLM to build parameters) / 参数 schema（JSON Schema 子集，供 LLM 构建参数） */
-  params?: Record<string, unknown>;
-  /** Operation handler function (if not provided, operation is discoverable but not executable) / 操作处理函数（未提供时操作不可执行，仅可发现） */
-  handler?: PageOperationHandler;
-}
-
 /**
  * Registry: normalized page key (dot-notation) → operations[]
  * Keys are automatically normalized via normalizePageKey().
@@ -653,3 +617,5 @@ export function clearPageOperationRegistry(): void {
   extrasRegistry.clear();
   pageOperationVersion.value++;
 }
+
+export type { PageOperation, PageOperationHandler, PageOperationResult };

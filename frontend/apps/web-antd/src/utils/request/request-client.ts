@@ -54,6 +54,8 @@ import { getEndpointByUrl } from './endpoint';
 import { isAuthError } from './error-codes';
 import { ensureTraceIdHeader } from './trace';
 
+/* eslint-disable perfectionist/sort-classes */
+
 // ============================================================
 // Default configuration / 默认配置
 // ============================================================
@@ -506,7 +508,7 @@ export class RequestClient {
     originalResponse: Response,
     retryFetch: () => Promise<Response>,
   ): Promise<Response> {
-    let responseBody: Record<string, unknown> | null = null;
+    let responseBody: null | Record<string, unknown> = null;
     try {
       responseBody = await originalResponse.json();
     } catch {
@@ -514,12 +516,12 @@ export class RequestClient {
     }
 
     const rawCode = responseBody?.code;
-    const businessCode =
-      typeof rawCode === 'number'
-        ? rawCode
-        : typeof rawCode === 'string' && /^\d+$/.test(rawCode)
-          ? Number(rawCode)
-          : undefined;
+    let businessCode: number | undefined;
+    if (typeof rawCode === 'number') {
+      businessCode = rawCode;
+    } else if (typeof rawCode === 'string' && /^\d+$/.test(rawCode)) {
+      businessCode = Number(rawCode);
+    }
 
     const throwOriginal = (): never => {
       const normalized = normalizeHttpError(
@@ -539,10 +541,17 @@ export class RequestClient {
       throwOriginal();
     }
 
-    if (businessCode === 4010 || !this.doRefreshToken) {
+    const refreshTokenHandler = this.doRefreshToken;
+
+    if (businessCode === 4010 || !refreshTokenHandler) {
       await this.doReAuthenticate?.();
       throwOriginal();
     }
+    const guaranteedRefreshTokenHandler =
+      refreshTokenHandler ??
+      (async () => {
+        throw new Error('refresh token handler missing');
+      });
 
     try {
       if (this.isRefreshing) {
@@ -552,13 +561,11 @@ export class RequestClient {
       } else {
         this.isRefreshing = true;
         try {
-          const newToken = await this.doRefreshToken();
+          const newToken = await guaranteedRefreshTokenHandler();
           this.refreshTokenQueue.forEach((item) => item.resolve(newToken));
           this.refreshTokenQueue = [];
         } catch (refreshError) {
-          this.refreshTokenQueue.forEach((item) =>
-            item.reject(refreshError),
-          );
+          this.refreshTokenQueue.forEach((item) => item.reject(refreshError));
           this.refreshTokenQueue = [];
           throw refreshError;
         } finally {

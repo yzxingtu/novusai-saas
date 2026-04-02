@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
+
 # Per-family short phrases used for tool optimization and capability-term expansion.
 # 按族的短语文本，用于工具优化与能力词扩展。
 FAMILY_HINT_TAGS: dict[str, tuple[str, ...]] = {
@@ -53,6 +55,9 @@ FAMILY_HINT_TAGS: dict[str, tuple[str, ...]] = {
     "page_ops": (
         "页面操作",
         "页面交互",
+        "页面感知能力",
+        "页面感知交互",
+        "页面能力",
         "读取页面",
         "填写表单",
         "提交页面",
@@ -83,7 +88,7 @@ FAMILY_EXPLICIT_REQUEST_HINTS: dict[str, tuple[str, ...]] = {
 def _has_page_context(input_variables: dict[str, Any] | None) -> bool:
     if not input_variables:
         return False
-    page_ctx = input_variables.get("__page_context__")
+    page_ctx = input_variables.get(PAGE_CONTEXT_KEY)
     if not isinstance(page_ctx, dict):
         return False
     return bool((page_ctx.get("page_key") or "").strip())

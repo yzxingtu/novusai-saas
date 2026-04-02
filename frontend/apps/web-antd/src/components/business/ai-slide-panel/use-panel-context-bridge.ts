@@ -5,7 +5,7 @@ import type { PageContextData } from './page-context-registry';
 import type {
   InputVariable,
   RichTextAITask,
-} from '#/components/business/ai-chat-panel/types';
+} from '#/types/ai-chat';
 
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 

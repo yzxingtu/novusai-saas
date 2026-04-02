@@ -276,6 +276,53 @@ class TenantOrgNodeService(TenantService[TenantOrgNode, TenantOrgNodeRepository]
     async def get_organization_root_nodes(self) -> list[TenantOrgNode]:
         return await self.repo.get_organization_root_nodes()
 
+    async def get_visible_org_tree(
+        self,
+        visible_org_node_ids: list[int] | None = None,
+    ) -> list[TenantOrgNode]:
+        """按可见范围获取组织树 / Get organization tree within the visible scope."""
+        if visible_org_node_ids is None:
+            return await self.repo.get_tree()
+        if not visible_org_node_ids:
+            return []
+
+        scope_ids = set(visible_org_node_ids)
+        roots: list[TenantOrgNode] = []
+        for org_node_id in sorted(scope_ids):
+            org_node = await self.repo.get_by_id(org_node_id)
+            if org_node and (
+                org_node.parent_id is None or org_node.parent_id not in scope_ids
+            ):
+                roots.extend(await self.repo.get_tree(parent_id=org_node_id))
+        return roots
+
+    async def get_visible_root_nodes(
+        self,
+        visible_org_node_ids: list[int] | None = None,
+    ) -> list[TenantOrgNode]:
+        """按可见范围获取根节点 / Get root nodes within the visible scope."""
+        if visible_org_node_ids is None:
+            return await self.get_organization_root_nodes()
+        if not visible_org_node_ids:
+            return []
+
+        scope_ids = set(visible_org_node_ids)
+        items: list[TenantOrgNode] = []
+        for org_node_id in sorted(scope_ids):
+            org_node = await self.repo.get_with_members(org_node_id)
+            if org_node and (
+                org_node.parent_id is None or org_node.parent_id not in scope_ids
+            ):
+                items.append(org_node)
+        return items
+
+    async def get_org_node_detail(self, org_node_id: int) -> TenantOrgNode:
+        """获取组织节点详情 / Get organization node detail."""
+        org_node = await self.repo.get_with_members(org_node_id)
+        if not org_node:
+            raise NotFoundException(message=_("role.not_found"))
+        return org_node
+
     async def get_organization_children(self, org_node_id: int) -> list[TenantOrgNode]:
         return await self.repo.get_children_with_details(org_node_id)
 

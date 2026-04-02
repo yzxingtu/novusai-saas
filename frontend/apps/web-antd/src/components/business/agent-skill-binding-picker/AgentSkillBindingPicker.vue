@@ -18,7 +18,6 @@ import {
   Drawer,
   Empty,
   Input,
-  message,
   Pagination,
   Select,
   Spin,
@@ -228,7 +227,6 @@ async function fetchCandidates(resetPage: boolean) {
     skillsError.value = getErrorMessage(error, 'common.loadFailed');
     candidateItems.value = [];
     total.value = 0;
-    message.error(skillsError.value);
   } finally {
     skillsLoading.value = false;
   }

@@ -8,7 +8,7 @@
  * Non-technical user friendly: name/label/type/required/default each with independent input.
  * 非技术人员友好：名称/标签/类型/必填/默认值每项独立输入。
  */
-import type { InputVariable } from '#/components/business/ai-chat-panel/types';
+import type { InputVariable } from '#/types/ai-chat';
 
 import { computed } from 'vue';
 

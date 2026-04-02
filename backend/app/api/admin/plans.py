@@ -169,7 +169,7 @@ class AdminPlanController(GlobalController):
 
             # 批量获取企业数量（高效 COUNT 查询，避免加载全部企业对象） / Batch get tenant counts (efficient COUNT query, avoids loading all tenant objects)
             plan_ids = [item.id for item in items]
-            tenant_counts = await service.repo.get_tenant_counts_batch(plan_ids)
+            tenant_counts = await service.get_tenant_counts_batch(plan_ids)
             for item in items:
                 item.tenants_count = tenant_counts.get(item.id, 0)
 

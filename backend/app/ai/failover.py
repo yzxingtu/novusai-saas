@@ -58,7 +58,7 @@ class FailoverService:
                 return True
 
             health = json.loads(data)
-            return health.get("is_available", True)
+            return bool(health.get("is_healthy", health.get("is_available", True)))
 
         except (RedisError, json.JSONDecodeError) as e:
             logger.error("Failover health check failed: {}", str(e))

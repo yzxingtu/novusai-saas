@@ -186,7 +186,7 @@ export function sanitizeUserHtml(dirty: string): string {
 ### 验收标准
 
 - [ ] 三处均通过统一封装调用（法律文档若需更宽标签，可 **第二个 profile** `sanitizeLegalHtml`，并在注释写清原因）。
-- [ ] `pnpm run lint` / `pnpm run typecheck` 通过。
+- [ ] `pnpm run lint` / `pnpm run check:type` 通过。
 
 ---
 

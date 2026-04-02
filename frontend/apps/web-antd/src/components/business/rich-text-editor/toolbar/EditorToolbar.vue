@@ -121,19 +121,19 @@ function onInsertLink() {
     <!-- Headings / 标题 -->
     <ToolbarButton
       icon="lucide:heading-1"
-      title="H1"
+      :title="$t('common.heading1')"
       :active="isActive('heading', { level: 1 })"
       @click="editor?.chain().focus().toggleHeading({ level: 1 }).run()"
     />
     <ToolbarButton
       icon="lucide:heading-2"
-      title="H2"
+      :title="$t('common.heading2')"
       :active="isActive('heading', { level: 2 })"
       @click="editor?.chain().focus().toggleHeading({ level: 2 }).run()"
     />
     <ToolbarButton
       icon="lucide:heading-3"
-      title="H3"
+      :title="$t('common.heading3')"
       :active="isActive('heading', { level: 3 })"
       @click="editor?.chain().focus().toggleHeading({ level: 3 }).run()"
     />

@@ -32,13 +32,10 @@ from app.tasks.task_scheduling import (
 
 logger = LogManager.get_logger("queue")
 
-LEGACY_PLATFORM_SCOPE = "platform"
-
 PLATFORM_EXECUTION_SCOPES = {
     ResourceScopeEnum.ADMIN_ONLY.value,
     ResourceScopeEnum.GLOBAL_SHARED.value,
     ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
-    LEGACY_PLATFORM_SCOPE,
 }
 
 EXPLICIT_BINDING_EXECUTION_SCOPES = {

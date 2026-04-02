@@ -118,6 +118,13 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
         """
         return await self.repo.get_active_plans()
 
+    async def get_tenant_counts_batch(
+        self,
+        plan_ids: list[int],
+    ) -> dict[int, int]:
+        """批量获取套餐的企业数量 / Batch get tenant counts for plans."""
+        return await self.repo.get_tenant_counts_batch(plan_ids)
+
     async def _generate_plan_code(self) -> str:
         """
         生成唯一的套餐代码 / Generate unique plan code.

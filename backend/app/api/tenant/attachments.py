@@ -268,7 +268,7 @@ class TenantAttachmentController(TenantController):
                         ),
                     ))
             success_count = sum(1 for i in items if i.success)
-            used_bytes = await service.repo.sum_size()
+            used_bytes = await service.get_used_storage_bytes()
             return success(
                 data=BatchSafeUploadResponse(
                     items=items,

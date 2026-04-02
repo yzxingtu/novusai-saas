@@ -7,7 +7,7 @@
  */
 import type { PreferencesData } from '#/api/shared/types';
 
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import { updatePreferences } from '@vben/preferences';
 
@@ -29,9 +29,14 @@ export function useGlobalPreferencePage(side: Side) {
   const formData = ref<PreferencesData>({});
   const loading = ref(false);
   const saving = ref(false);
+  const loaded = ref(false);
+  const savedFormSnapshot = ref('');
 
   let vbenSnapshot: PreferencesData = {};
-  let loaded = false;
+
+  function serializePreferences(data: PreferencesData) {
+    return JSON.stringify(data);
+  }
 
   async function loadData() {
     loading.value = true;
@@ -40,6 +45,7 @@ export function useGlobalPreferencePage(side: Side) {
       if (data) {
         formData.value = { ...data };
       }
+      savedFormSnapshot.value = serializePreferences(formData.value);
     } catch (error) {
       showRequestError(error, 'common.preference.loadFailed');
     } finally {
@@ -56,6 +62,7 @@ export function useGlobalPreferencePage(side: Side) {
       );
       if (result) {
         formData.value = { ...result };
+        savedFormSnapshot.value = serializePreferences(formData.value);
         vbenSnapshot = getVbenSnapshot();
         message.success($t('common.preference.saveSuccess'));
       } else {
@@ -79,10 +86,17 @@ export function useGlobalPreferencePage(side: Side) {
     applyPreview(vbenSnapshot);
   }
 
+  const isDirty = computed(() => {
+    if (!loaded.value) {
+      return false;
+    }
+    return serializePreferences(formData.value) !== savedFormSnapshot.value;
+  });
+
   watch(
     formData,
     (val) => {
-      if (!loaded) return;
+      if (!loaded.value) return;
       applyPreview(val);
     },
     { deep: true },
@@ -92,7 +106,7 @@ export function useGlobalPreferencePage(side: Side) {
     vbenSnapshot = getVbenSnapshot();
     preferenceStore.globalPreviewActive = true;
     await loadData();
-    loaded = true;
+    loaded.value = true;
   });
 
   onBeforeUnmount(() => {
@@ -102,6 +116,7 @@ export function useGlobalPreferencePage(side: Side) {
 
   return {
     formData,
+    isDirty,
     loading,
     saving,
     loadData,

@@ -464,7 +464,7 @@ function transformTenantConfig(raw: TenantPublicConfigRaw): TenantPublicConfig {
             }
           : undefined,
       },
-      allowedMethods: raw.login_methods ?? ['password'],
+      allowedMethods: raw.login_methods ?? ['password', 'email'],
       maxAttempts: raw.login_max_attempts,
       lockoutMinutes: raw.login_lockout_minutes,
     },

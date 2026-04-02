@@ -106,6 +106,277 @@ class UsageRecorder:
 
         return int(min(candidates) * 1000)
 
+    @staticmethod
+    def _normalize_turn_record_payload(turn_record: Any) -> dict[str, Any] | None:
+        if turn_record is None:
+            return None
+        if isinstance(turn_record, dict):
+            return dict(turn_record)
+        if hasattr(turn_record, "__dict__"):
+            return {
+                str(k): v
+                for k, v in vars(turn_record).items()
+                if not str(k).startswith("_")
+            }
+        return None
+
+    @staticmethod
+    def _normalize_string_list(value: Any) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        normalized: list[str] = []
+        for item in value:
+            text = str(item).strip()
+            if text and text not in normalized:
+                normalized.append(text)
+        return normalized
+
+    @staticmethod
+    def _normalize_bool(value: Any) -> bool | None:
+        if isinstance(value, bool):
+            return value
+        if value is None:
+            return None
+        normalized = str(value).strip().lower()
+        if normalized in {"true", "1", "yes", "y", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "n", "off"}:
+            return False
+        return None
+
+    @classmethod
+    def _pick_first_bool(cls, values: list[Any]) -> bool | None:
+        for raw in values:
+            parsed = cls._normalize_bool(raw)
+            if parsed is not None:
+                return parsed
+        return None
+
+    @classmethod
+    def _normalize_context_sources(cls, value: Any) -> list[dict[str, Any]]:
+        if not isinstance(value, list):
+            return []
+        normalized: list[dict[str, Any]] = []
+        for raw in value:
+            if isinstance(raw, dict):
+                source = dict(raw)
+            elif hasattr(raw, "__dict__"):
+                source = {
+                    str(k): v
+                    for k, v in vars(raw).items()
+                    if not str(k).startswith("_")
+                }
+            else:
+                continue
+            metadata = source.get("metadata")
+            if not isinstance(metadata, dict):
+                metadata = {}
+            normalized.append(
+                {
+                    "kind": str(source.get("kind") or "").strip(),
+                    "name": str(source.get("name") or "").strip(),
+                    "active": bool(source.get("active", True)),
+                    "metadata": dict(metadata),
+                }
+            )
+        return normalized
+
+    @classmethod
+    def _normalize_fallback_history(cls, value: Any) -> list[dict[str, Any]]:
+        if not isinstance(value, list):
+            return []
+        normalized: list[dict[str, Any]] = []
+        for raw in value:
+            if isinstance(raw, dict):
+                item = dict(raw)
+            elif hasattr(raw, "__dict__"):
+                item = {
+                    str(k): v
+                    for k, v in vars(raw).items()
+                    if not str(k).startswith("_")
+                }
+            else:
+                continue
+            from_protocol = str(item.get("from_protocol") or "").strip()
+            to_protocol = str(item.get("to_protocol") or "").strip()
+            reason = str(item.get("reason") or "").strip()
+            if not (from_protocol or to_protocol or reason):
+                continue
+            metadata = item.get("metadata")
+            if not isinstance(metadata, dict):
+                metadata = {}
+            normalized.append(
+                {
+                    "from_protocol": from_protocol or None,
+                    "to_protocol": to_protocol or None,
+                    "reason": reason or None,
+                    "recovered": bool(item.get("recovered", False)),
+                    "metadata": dict(metadata),
+                }
+            )
+        return normalized
+
+    @classmethod
+    def _inject_turn_diagnostics(
+        cls,
+        request_data: dict[str, Any] | None,
+        *,
+        status: str,
+        default_termination_reason: str,
+        selected_tool_names: list[str] | None = None,
+        selected_skill_names: list[str] | None = None,
+        turn_record: dict[str, Any] | None = None,
+        protocol_path: str | None = None,
+        context_sources: list[dict[str, Any]] | None = None,
+        fallback_history: list[dict[str, Any]] | None = None,
+        sync_rescue: bool | None = None,
+        should_record_call_log: bool | None = None,
+    ) -> dict[str, Any]:
+        payload = dict(request_data or {})
+        normalized_turn_record = cls._normalize_turn_record_payload(
+            payload.get("turn_record") or turn_record
+        )
+        turn_record_metadata = (
+            dict((normalized_turn_record or {}).get("metadata") or {})
+            if isinstance((normalized_turn_record or {}).get("metadata"), dict)
+            else {}
+        )
+        outcome_from_record = (
+            str(normalized_turn_record.get("turn_outcome")).strip()
+            if isinstance(normalized_turn_record, dict)
+            and str(normalized_turn_record.get("turn_outcome") or "").strip()
+            else None
+        )
+        termination_from_record = (
+            str(normalized_turn_record.get("termination_reason")).strip()
+            if isinstance(normalized_turn_record, dict)
+            and str(normalized_turn_record.get("termination_reason") or "").strip()
+            else None
+        )
+        selected_tools = cls._normalize_string_list(
+            (normalized_turn_record or {}).get("selected_tool_names")
+            if isinstance(normalized_turn_record, dict)
+            else selected_tool_names
+        )
+        if not selected_tools:
+            selected_tools = cls._normalize_string_list(
+                payload.get("selected_tool_names") or selected_tool_names
+            )
+        selected_skills = cls._normalize_string_list(
+            (normalized_turn_record or {}).get("selected_skill_names")
+            if isinstance(normalized_turn_record, dict)
+            else selected_skill_names
+        )
+        if not selected_skills:
+            selected_skills = cls._normalize_string_list(
+                payload.get("selected_skill_names") or selected_skill_names
+            )
+        effective_protocol_path = (
+            str((normalized_turn_record or {}).get("protocol_path") or "").strip()
+            if isinstance(normalized_turn_record, dict)
+            and str((normalized_turn_record or {}).get("protocol_path") or "").strip()
+            else (str(protocol_path or "").strip() or None)
+        )
+        effective_context_sources = (
+            cls._normalize_context_sources((normalized_turn_record or {}).get("context_sources"))
+            if isinstance(normalized_turn_record, dict)
+            else []
+        ) or cls._normalize_context_sources(payload.get("context_sources")) or cls._normalize_context_sources(
+            context_sources or []
+        )
+        effective_fallback_history = (
+            cls._normalize_fallback_history((normalized_turn_record or {}).get("fallback_history"))
+            if isinstance(normalized_turn_record, dict)
+            else []
+        ) or cls._normalize_fallback_history(payload.get("fallback_history")) or cls._normalize_fallback_history(
+            fallback_history or []
+        )
+        effective_sync_rescue = cls._pick_first_bool(
+            [
+                sync_rescue,
+                turn_record_metadata.get("sync_rescue"),
+                (normalized_turn_record or {}).get("sync_rescue"),
+                payload.get("sync_rescue"),
+            ]
+        )
+        effective_should_record_call_log = cls._pick_first_bool(
+            [
+                should_record_call_log,
+                turn_record_metadata.get("should_record_call_log"),
+                (normalized_turn_record or {}).get("should_record_call_log"),
+                payload.get("should_record_call_log"),
+            ]
+        )
+        turn_outcome = (
+            outcome_from_record
+            or ("success" if status == CallStatusEnum.SUCCESS.value else "failed")
+        )
+        termination_reason = termination_from_record or default_termination_reason
+
+        turn_diagnostics: dict[str, Any] = {
+            "turn_outcome": turn_outcome,
+            "termination_reason": termination_reason,
+            "selected_tool_names": selected_tools,
+            "selected_skill_names": selected_skills,
+            "context_sources": effective_context_sources,
+        }
+        if effective_protocol_path:
+            turn_diagnostics["protocol_path"] = effective_protocol_path
+        if effective_fallback_history:
+            turn_diagnostics["fallback_history"] = effective_fallback_history
+        if effective_sync_rescue is not None:
+            turn_diagnostics["sync_rescue"] = effective_sync_rescue
+        if effective_should_record_call_log is not None:
+            turn_diagnostics["should_record_call_log"] = (
+                effective_should_record_call_log
+            )
+        if normalized_turn_record:
+            if selected_tools:
+                normalized_turn_record["selected_tool_names"] = selected_tools
+            if selected_skills:
+                normalized_turn_record["selected_skill_names"] = selected_skills
+            if effective_protocol_path:
+                normalized_turn_record["protocol_path"] = effective_protocol_path
+            if effective_context_sources:
+                normalized_turn_record["context_sources"] = effective_context_sources
+            if effective_fallback_history:
+                normalized_turn_record["fallback_history"] = effective_fallback_history
+            if (
+                effective_sync_rescue is not None
+                or effective_should_record_call_log is not None
+            ):
+                metadata = (
+                    dict(normalized_turn_record.get("metadata") or {})
+                    if isinstance(normalized_turn_record.get("metadata"), dict)
+                    else {}
+                )
+                if effective_sync_rescue is not None:
+                    metadata["sync_rescue"] = effective_sync_rescue
+                if effective_should_record_call_log is not None:
+                    metadata["should_record_call_log"] = (
+                        effective_should_record_call_log
+                    )
+                normalized_turn_record["metadata"] = metadata
+            turn_diagnostics["turn_record"] = normalized_turn_record
+            payload["turn_record"] = normalized_turn_record
+        if selected_tools:
+            payload["selected_tool_names"] = selected_tools
+        if selected_skills:
+            payload["selected_skill_names"] = selected_skills
+        if effective_protocol_path:
+            payload["protocol_path"] = effective_protocol_path
+        if effective_context_sources:
+            payload["context_sources"] = effective_context_sources
+        if effective_fallback_history:
+            payload["fallback_history"] = effective_fallback_history
+        if effective_sync_rescue is not None:
+            payload["sync_rescue"] = effective_sync_rescue
+        if effective_should_record_call_log is not None:
+            payload["should_record_call_log"] = effective_should_record_call_log
+
+        payload["turn_diagnostics"] = turn_diagnostics
+        return payload
+
     async def check_rate_and_quota(
         self,
         tenant_id: int,
@@ -236,6 +507,9 @@ class UsageRecorder:
         billing_context: dict[str, Any] | None = None,
         routed_model_id: int | None = None,
         route_reason: str | None = None,
+        turn_record: dict[str, Any] | None = None,
+        protocol_path: str | None = None,
+        context_sources: list[dict[str, Any]] | None = None,
         metering_context: UsageMeteringContext | None = None,
     ) -> None:
         """
@@ -265,6 +539,31 @@ class UsageRecorder:
             }
             if breach_retry_result:
                 request_data["breach_retry_result"] = breach_retry_result
+            request_data = self._inject_turn_diagnostics(
+                request_data,
+                status=CallStatusEnum.FAILED.value,
+                default_termination_reason="error",
+                selected_tool_names=selected_tool_names,
+                selected_skill_names=self._normalize_string_list(
+                    (turn_record or {}).get("selected_skill_names")
+                    if isinstance(turn_record, dict)
+                    else []
+                ),
+                turn_record=turn_record,
+                protocol_path=protocol_path,
+                context_sources=context_sources,
+                fallback_history=(
+                    (turn_record or {}).get("fallback_history")
+                    if isinstance(turn_record, dict)
+                    else None
+                ),
+                sync_rescue=(
+                    (turn_record or {}).get("metadata", {}).get("sync_rescue")
+                    if isinstance((turn_record or {}).get("metadata"), dict)
+                    else None
+                ),
+                should_record_call_log=True,
+            )
             await self.call_log_service.log_call_async(
                 tenant_id=tenant_id,
                 model_id=model_id,
@@ -278,6 +577,7 @@ class UsageRecorder:
                 cost=0,
                 latency_ms=latency_ms,
                 status=CallStatusEnum.FAILED.value,
+                error_message=str(error),
                 user_id=user_id,
                 user_type=self._resolve_call_user_type(tenant_id, user_type),
                 agent_id=agent_id,
@@ -285,6 +585,18 @@ class UsageRecorder:
                 billing_context=billing_context,
                 routed_model_id=routed_model_id,
                 route_reason=route_reason,
+                turn_record=turn_record,
+                protocol_path=protocol_path,
+                context_sources=context_sources,
+                selected_tool_names=self._normalize_string_list(
+                    request_data.get("selected_tool_names")
+                ),
+                selected_skill_names=self._normalize_string_list(
+                    request_data.get("selected_skill_names")
+                ),
+                fallback_history=request_data.get("fallback_history"),
+                sync_rescue=request_data.get("sync_rescue"),
+                should_record_call_log=True,
             )
         except Exception as log_err:
             logger.error("Record usage failed: {}", str(log_err))
@@ -309,6 +621,9 @@ class UsageRecorder:
         billing_context: dict[str, Any] | None = None,
         routed_model_id: int | None = None,
         route_reason: str | None = None,
+        turn_record: dict[str, Any] | None = None,
+        protocol_path: str | None = None,
+        context_sources: list[dict[str, Any]] | None = None,
         metering_context: UsageMeteringContext | None = None,
         request_data: dict[str, Any] | None = None,
     ) -> None:
@@ -343,12 +658,37 @@ class UsageRecorder:
         if should_record_call_log:
             try:
                 assert tenant_id is not None
+                request_payload = self._inject_turn_diagnostics(
+                    request_data or {"_stream": True},
+                    status=CallStatusEnum.SUCCESS.value,
+                    default_termination_reason="completed",
+                    selected_tool_names=self._normalize_string_list(
+                        (request_data or {}).get("selected_tool_names")
+                    ),
+                    selected_skill_names=self._normalize_string_list(
+                        (request_data or {}).get("selected_skill_names")
+                    ),
+                    turn_record=turn_record,
+                    protocol_path=protocol_path,
+                    context_sources=context_sources,
+                    fallback_history=(
+                        (turn_record or {}).get("fallback_history")
+                        if isinstance(turn_record, dict)
+                        else None
+                    ),
+                    sync_rescue=(
+                        (turn_record or {}).get("metadata", {}).get("sync_rescue")
+                        if isinstance((turn_record or {}).get("metadata"), dict)
+                        else None
+                    ),
+                    should_record_call_log=True,
+                )
                 await self.call_log_service.log_call_async(
                     tenant_id=tenant_id,
                     model_id=model_id,
                     provider_id=provider.id,
                     request_type=RequestTypeEnum.CHAT.value,
-                    request_data=request_data or {"_stream": True},
+                    request_data=request_payload,
                     response_data={
                         "input_tokens": input_tokens,
                         "output_tokens": output_tokens,
@@ -367,6 +707,18 @@ class UsageRecorder:
                     billing_context=billing_context,
                     routed_model_id=routed_model_id,
                     route_reason=route_reason,
+                    turn_record=turn_record,
+                    protocol_path=protocol_path,
+                    context_sources=context_sources,
+                    selected_tool_names=self._normalize_string_list(
+                        request_payload.get("selected_tool_names")
+                    ),
+                    selected_skill_names=self._normalize_string_list(
+                        request_payload.get("selected_skill_names")
+                    ),
+                    fallback_history=request_payload.get("fallback_history"),
+                    sync_rescue=request_payload.get("sync_rescue"),
+                    should_record_call_log=True,
                 )
             except Exception as e:
                 logger.error("AI call log enqueue failed: {}", str(e))

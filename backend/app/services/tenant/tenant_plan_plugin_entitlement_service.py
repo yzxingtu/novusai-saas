@@ -121,7 +121,7 @@ class TenantPlanPluginEntitlementService:
             payload,
         )
         await self._db.flush()
-        logger.info("Plan %s: granted %d plugin permission(s)", plan_id, len(perms))
+        logger.info("Plan {}: granted {} plugin permission(s)", plan_id, len(perms))
 
     async def _revoke_permissions(self, plan_id: int, permission_ids: Iterable[int]) -> None:
         perms = list(dict.fromkeys(permission_ids))
@@ -136,7 +136,7 @@ class TenantPlanPluginEntitlementService:
         )
         await self._db.execute(stmt)
         await self._db.flush()
-        logger.info("Plan %s: revoked %d plugin permission(s)", plan_id, len(perms))
+        logger.info("Plan {}: revoked {} plugin permission(s)", plan_id, len(perms))
 
     async def sync_plan_permissions(self, plan_id: int, features: dict[str, Any] | None) -> None:
         """Ensure plugin permissions align with the provided feature flags."""

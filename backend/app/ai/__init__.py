@@ -5,73 +5,102 @@ Unified AI call interface with multi-provider adapters and SSE streaming.
 提供统一的 AI 调用接口，支持多供应商适配和 SSE 流式响应。
 """
 
-# Export unified data types / 导出统一数据类型
-from app.ai.adapters import AdapterRegistry
+from __future__ import annotations
 
-# Export adapters / 导出适配器
-from app.ai.adapters.base import BaseAdapter
+from importlib import import_module
+from typing import TYPE_CHECKING, Any
 
-# Export agent quota & concurrency control / 导出智能体配额与并发控制
-from app.ai.agent_quota import (
-    AgentConcurrencyExceeded,
-    AgentConcurrencyLimiter,
-    AgentQuotaConfig,
-    AgentQuotaExceeded,
-    AgentQuotaManager,
-)
+if TYPE_CHECKING:
+    from app.ai.adapters import AdapterRegistry
+    from app.ai.adapters.base import BaseAdapter
+    from app.ai.agent_quota import (
+        AgentConcurrencyExceeded,
+        AgentConcurrencyLimiter,
+        AgentQuotaConfig,
+        AgentQuotaExceeded,
+        AgentQuotaManager,
+    )
+    from app.ai.engine import ExecutionDispatcher
+    from app.ai.events import EventBus, HookRegistry, get_event_bus, get_hook_registry
+    from app.ai.exceptions import (
+        AIGatewayError,
+        ContentFilterError,
+        ContextLengthExceededError,
+        ModelNotFoundError,
+        ProviderAuthError,
+        ProviderConnectionError,
+        ProviderError,
+        ProviderRateLimitError,
+        ProviderTimeoutError,
+        is_retryable,
+    )
+    from app.ai.gateway import AIGateway
+    from app.ai.sse import SSEChunkEncoder, SSEStreamingResponse
+    from app.ai.tools import ToolSandbox
+    from app.ai.types import (
+        ChatChunk,
+        ChatMessage,
+        ChatResponse,
+        EmbeddingResponse,
+        ImageResponse,
+    )
 
-# Export execution engine / 导出执行引擎
-from app.ai.engine import ExecutionDispatcher
+_EXPORT_MAP = {
+    "AdapterRegistry": "app.ai.adapters",
+    "BaseAdapter": "app.ai.adapters.base",
+    "AgentConcurrencyExceeded": "app.ai.agent_quota",
+    "AgentConcurrencyLimiter": "app.ai.agent_quota",
+    "AgentQuotaConfig": "app.ai.agent_quota",
+    "AgentQuotaExceeded": "app.ai.agent_quota",
+    "AgentQuotaManager": "app.ai.agent_quota",
+    "ExecutionDispatcher": "app.ai.engine",
+    "EventBus": "app.ai.events",
+    "HookRegistry": "app.ai.events",
+    "get_event_bus": "app.ai.events",
+    "get_hook_registry": "app.ai.events",
+    "AIGatewayError": "app.ai.exceptions",
+    "ContentFilterError": "app.ai.exceptions",
+    "ContextLengthExceededError": "app.ai.exceptions",
+    "ModelNotFoundError": "app.ai.exceptions",
+    "ProviderAuthError": "app.ai.exceptions",
+    "ProviderConnectionError": "app.ai.exceptions",
+    "ProviderError": "app.ai.exceptions",
+    "ProviderRateLimitError": "app.ai.exceptions",
+    "ProviderTimeoutError": "app.ai.exceptions",
+    "is_retryable": "app.ai.exceptions",
+    "AIGateway": "app.ai.gateway",
+    "SSEChunkEncoder": "app.ai.sse",
+    "SSEStreamingResponse": "app.ai.sse",
+    "ToolSandbox": "app.ai.tools",
+    "ChatChunk": "app.ai.types",
+    "ChatMessage": "app.ai.types",
+    "ChatResponse": "app.ai.types",
+    "EmbeddingResponse": "app.ai.types",
+    "ImageResponse": "app.ai.types",
+}
 
-# Export events & hooks / 导出事件与钩子系统
-from app.ai.events import EventBus, HookRegistry, get_event_bus, get_hook_registry
 
-# Export unified exceptions / 导出统一异常
-from app.ai.exceptions import (
-    AIGatewayError,
-    ContentFilterError,
-    ContextLengthExceededError,
-    ModelNotFoundError,
-    ProviderAuthError,
-    ProviderConnectionError,
-    ProviderError,
-    ProviderRateLimitError,
-    ProviderTimeoutError,
-    is_retryable,
-)
+def __getattr__(name: str) -> Any:
+    module_path = _EXPORT_MAP.get(name)
+    if not module_path:
+        raise AttributeError(name)
+    module = import_module(module_path)
+    value = getattr(module, name)
+    globals()[name] = value
+    return value
 
-# Export gateway / 导出网关
-from app.ai.gateway import AIGateway
-
-# Export SSE streaming response / 导出 SSE 流式响应
-from app.ai.sse import SSEChunkEncoder, SSEStreamingResponse
-
-# Export tool execution sandbox / 导出工具执行沙箱
-from app.ai.tools import ToolSandbox
-from app.ai.types import (
-    ChatChunk,
-    ChatMessage,
-    ChatResponse,
-    EmbeddingResponse,
-    ImageResponse,
-)
 
 __all__ = [
-    # Data types / 数据类型
     "ChatMessage",
     "ChatResponse",
     "ChatChunk",
     "EmbeddingResponse",
     "ImageResponse",
-    # SSE streaming / SSE 流式响应
     "SSEChunkEncoder",
     "SSEStreamingResponse",
-    # Adapters / 适配器
     "BaseAdapter",
     "AdapterRegistry",
-    # Gateway / 网关
     "AIGateway",
-    # Exceptions / 异常
     "AIGatewayError",
     "ProviderError",
     "ProviderRateLimitError",
@@ -82,19 +111,15 @@ __all__ = [
     "ContentFilterError",
     "ContextLengthExceededError",
     "is_retryable",
-    # Events & hooks / 事件与钩子
     "EventBus",
     "get_event_bus",
     "HookRegistry",
     "get_hook_registry",
-    # Tool sandbox / 工具沙箱
     "ToolSandbox",
-    # Agent quota & concurrency / 智能体配额与并发
     "AgentQuotaConfig",
     "AgentQuotaManager",
     "AgentQuotaExceeded",
     "AgentConcurrencyLimiter",
     "AgentConcurrencyExceeded",
-    # Execution engine / 执行引擎
     "ExecutionDispatcher",
 ]

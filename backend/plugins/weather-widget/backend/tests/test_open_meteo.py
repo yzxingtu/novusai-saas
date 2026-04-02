@@ -28,6 +28,8 @@ get_wmo_info = mod.get_wmo_info
 _cache = mod._cache
 _cache_get = mod._cache_get
 _cache_set = mod._cache_set
+_expand_city_queries = mod._expand_city_queries
+_rank_city_candidate = mod._rank_city_candidate
 
 
 # ── WMO Code 映射测试 ──
@@ -178,6 +180,91 @@ class TestSearchCity:
         result = await search_city("Shanghai")
         assert len(result) == 1
         assert result[0]["name"] == "Shanghai"
+
+    def test_expand_city_queries_adds_common_beijing_aliases(self):
+        expanded = _expand_city_queries("北京")
+        assert expanded[0] == "北京"
+        assert "北京市" in expanded
+        assert "Beijing" in expanded
+
+    @pytest.mark.asyncio
+    async def test_search_city_falls_back_to_open_meteo_when_nominatim_empty(self):
+        with (
+            patch.object(mod, "_search_city_nominatim", new=AsyncMock(return_value=[])),
+            patch.object(
+                mod,
+                "_search_city_open_meteo",
+                new=AsyncMock(
+                    return_value=[
+                        {
+                            "name": "北京市",
+                            "country": "China",
+                            "admin1": "北京市",
+                            "latitude": 39.9042,
+                            "longitude": 116.4074,
+                        }
+                    ]
+                ),
+            ),
+        ):
+            result = await search_city("北京", count=1)
+
+        assert len(result) == 1
+        assert result[0]["name"] == "北京市"
+
+    def test_rank_city_candidate_prefers_municipality_match(self):
+        expanded = _expand_city_queries("北京")
+        beijing_city = {
+            "name": "北京市",
+            "country": "中国",
+            "admin1": "北京",
+            "latitude": 39.9075,
+            "longitude": 116.39723,
+        }
+        county_homonym = {
+            "name": "北京",
+            "country": "中国",
+            "admin1": "重庆市",
+            "latitude": 30.72608,
+            "longitude": 108.67483,
+        }
+
+        assert _rank_city_candidate(
+            original_query="北京",
+            expanded_queries=expanded,
+            candidate=beijing_city,
+        ) > _rank_city_candidate(
+            original_query="北京",
+            expanded_queries=expanded,
+            candidate=county_homonym,
+        )
+
+    def test_rank_city_candidate_prefers_beijing_city_for_english_query(self):
+        expanded = _expand_city_queries("Beijing")
+        beijing_city = {
+            "name": "北京市",
+            "country": "中国",
+            "admin1": "北京",
+            "latitude": 39.9075,
+            "longitude": 116.39723,
+        }
+        county_homonym = {
+            "name": "Beijing",
+            "country": "中国",
+            "admin1": "山西",
+            "latitude": 35.20917,
+            "longitude": 110.73278,
+        }
+
+        assert _rank_city_candidate(
+            original_query="Beijing",
+            expanded_queries=expanded,
+            candidate=beijing_city,
+        ) > _rank_city_candidate(
+            original_query="Beijing",
+            expanded_queries=expanded,
+            candidate=county_homonym,
+        )
 
 
 class TestGetCurrentWeather:

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ConversationItem } from '#/components/business/ai-chat-panel/types';
+import type { ConversationItem } from '#/types/ai-chat';
 import type { UserPortalAgent } from '#/views/user/modules/portal-data';
 
 import { computed, onMounted, ref, watch } from 'vue';

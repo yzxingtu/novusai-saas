@@ -242,6 +242,7 @@ async def test_log_call_failure_logs_platform_admin_calls(mock_db):
     assert kwargs["tenant_id"] == PLATFORM_TENANT_ID
     assert kwargs["user_id"] == 9
     assert kwargs["user_type"] == LogUserTypeEnum.ADMIN.value
+    assert kwargs["error_message"] == "boom"
 
 
 def test_build_request_log_data_records_selected_and_all_tool_names(mock_db):
@@ -278,6 +279,277 @@ def test_build_request_log_data_records_selected_and_all_tool_names(mock_db):
         "web_search",
         "fetch_url",
     ]
+
+
+def test_build_request_log_data_keeps_non_empty_selected_tools_with_mixed_inputs(
+    mock_db,
+):
+    from app.ai.gateway import AIGateway
+
+    gateway = AIGateway.__new__(AIGateway)
+    gateway.db = mock_db
+
+    payload = gateway._build_request_log_data(
+        messages=[ChatMessage(role="user", content="hello")],
+        temperature=0.7,
+        max_tokens=128,
+        top_p=1.0,
+        tools=[
+            {"type": "function", "function": {"name": "web_search"}},
+            {"type": "function", "function": {}},
+            {"type": "function"},
+            "invalid-tool-entry",
+        ],
+        tool_choice="auto",
+        all_tool_names=["web_search", "fetch_url", "get_page_context"],
+    )
+
+    assert payload["selected_tool_names"] == ["web_search"]
+    assert len(payload["selected_tool_names"]) == 1
+    assert payload["all_tool_names"] == ["web_search", "fetch_url", "get_page_context"]
+
+
+def test_usage_recorder_turn_diagnostics_preserves_shadow_diff_payload() -> None:
+    from app.ai.usage_recorder import UsageRecorder
+
+    payload = UsageRecorder._inject_turn_diagnostics(
+        {"selected_tool_names": []},
+        status="success",
+        default_termination_reason="completed",
+        turn_record={
+            "turn_outcome": "success",
+            "termination_reason": "completed",
+            "protocol_path": "shadow",
+            "selected_tool_names": ["web_search", "fetch_url"],
+            "selected_skill_names": ["Plugin Research Skill", "Plugin Research Skill"],
+            "fallback_history": [
+                {
+                    "from_protocol": "responses",
+                    "to_protocol": "chat_completions",
+                    "reason": "stream_empty_no_output",
+                    "recovered": True,
+                    "metadata": {"recovery_path": "sync_chat_completions"},
+                }
+            ],
+            "context_sources": [
+                {
+                    "kind": "page_context",
+                    "name": "admin.ai.conversations",
+                    "active": True,
+                    "metadata": {"page_key": "admin.ai.conversations"},
+                }
+            ],
+            "sync_rescue": True,
+            "should_record_call_log": True,
+            "metadata": {
+                "shadow_diff": {
+                    "selected_tool_names": {
+                        "legacy": [],
+                        "runtime_v2": ["web_search", "fetch_url"],
+                    },
+                    "protocol_path": {
+                        "legacy": "chat_completions",
+                        "runtime_v2": "responses",
+                    },
+                },
+                "sync_rescue": True,
+                "should_record_call_log": True,
+            },
+        },
+        protocol_path="shadow",
+        should_record_call_log=True,
+    )
+
+    diagnostics = payload["turn_diagnostics"]
+    assert diagnostics["turn_outcome"] == "success"
+    assert diagnostics["termination_reason"] == "completed"
+    assert diagnostics["protocol_path"] == "shadow"
+    assert diagnostics["selected_tool_names"] == ["web_search", "fetch_url"]
+    assert diagnostics["selected_skill_names"] == ["Plugin Research Skill"]
+    assert diagnostics["sync_rescue"] is True
+    assert diagnostics["should_record_call_log"] is True
+    assert diagnostics["fallback_history"] == [
+        {
+            "from_protocol": "responses",
+            "to_protocol": "chat_completions",
+            "reason": "stream_empty_no_output",
+            "recovered": True,
+            "metadata": {"recovery_path": "sync_chat_completions"},
+        }
+    ]
+    assert payload["turn_record"]["metadata"]["shadow_diff"] == {
+        "selected_tool_names": {
+            "legacy": [],
+            "runtime_v2": ["web_search", "fetch_url"],
+        },
+        "protocol_path": {
+            "legacy": "chat_completions",
+            "runtime_v2": "responses",
+        },
+    }
+    assert payload["turn_record"]["metadata"]["sync_rescue"] is True
+    assert payload["turn_record"]["metadata"]["should_record_call_log"] is True
+
+
+def test_usage_recorder_should_record_call_log_for_platform_tenant() -> None:
+    from app.ai.usage_recorder import UsageRecorder
+
+    assert UsageRecorder._should_record_call_log(PLATFORM_TENANT_ID) is True
+    assert UsageRecorder._should_record_call_log(PLATFORM_TENANT_ID + 1) is True
+    assert UsageRecorder._should_record_call_log(None) is False
+
+
+@pytest.mark.asyncio
+async def test_call_log_service_log_call_async_injects_runtime_turn_fields(mock_db):
+    from app.services.ai.call_log_service import CallLogService
+
+    service = CallLogService(mock_db)
+
+    with patch("app.tasks.ai.log_ai_call_task.delay") as delay_mock:
+        await service.log_call_async(
+            tenant_id=PLATFORM_TENANT_ID,
+            model_id=33,
+            provider_id=11,
+            request_type="chat",
+            request_data={"messages": [{"role": "user", "content": "hello"}]},
+            response_data={"ok": True},
+            input_tokens=10,
+            output_tokens=5,
+            total_tokens=15,
+            cost=0.1,
+            latency_ms=123,
+            selected_tool_names=["web_search"],
+            selected_skill_names=["Plugin Research Skill"],
+            protocol_path="responses",
+            context_sources=[
+                {
+                    "kind": "page_context",
+                    "name": "admin.ai.conversations",
+                    "active": True,
+                    "metadata": {"page_key": "admin.ai.conversations"},
+                }
+            ],
+            fallback_history=[
+                {
+                    "from_protocol": "responses",
+                    "to_protocol": "chat_completions",
+                    "reason": "stream_empty_no_output",
+                    "recovered": True,
+                    "metadata": {"recovery_path": "sync_chat_completions"},
+                }
+            ],
+            sync_rescue=True,
+            should_record_call_log=True,
+        )
+
+    delay_mock.assert_called_once()
+    kwargs = delay_mock.call_args.kwargs
+    request_payload = kwargs["request_data"]
+    diagnostics = request_payload["turn_diagnostics"]
+
+    assert kwargs["tenant_id"] == PLATFORM_TENANT_ID
+    assert "turn_record" not in kwargs
+    assert "protocol_path" not in kwargs
+    assert "context_sources" not in kwargs
+    assert diagnostics["protocol_path"] == "responses"
+    assert diagnostics["selected_tool_names"] == ["web_search"]
+    assert diagnostics["selected_skill_names"] == ["Plugin Research Skill"]
+    assert diagnostics["sync_rescue"] is True
+    assert diagnostics["should_record_call_log"] is True
+    assert diagnostics["fallback_history"] == [
+        {
+            "from_protocol": "responses",
+            "to_protocol": "chat_completions",
+            "reason": "stream_empty_no_output",
+            "recovered": True,
+            "metadata": {"recovery_path": "sync_chat_completions"},
+        }
+    ]
+    assert request_payload["turn_record"]["protocol_path"] == "responses"
+
+
+def test_cli_conversation_summary_renders_runtime_turn_and_call_log_diagnostics() -> None:
+    from app.cli import _render_ai_conversation_text
+
+    text = _render_ai_conversation_text(
+        {
+            "conversation": {
+                "id": 42,
+                "tenant_id": 0,
+                "owner_type": "admin",
+                "agent_id": 9,
+                "user_id": 7,
+                "status": "active",
+                "message_count": 3,
+                "token_count": 12,
+                "cost": 0.0,
+                "created_at": "2026-04-02T10:00:00+08:00",
+                "updated_at": "2026-04-02T10:01:00+08:00",
+            },
+            "recent_messages": [],
+            "keyword": None,
+            "keyword_hits": [],
+            "recent_call_logs": [
+                {
+                    "id": 1001,
+                    "created_at": "2026-04-02T10:01:00+08:00",
+                    "status": "success",
+                    "provider_name": "响应云",
+                    "model_name": "gpt-5.4-xhigh",
+                    "total_tokens": 20,
+                    "latency_ms": 321,
+                    "turn_outcome": "success",
+                    "termination_reason": "protocol_fallback",
+                    "protocol_path": "chat_completions",
+                    "selected_skill_names": ["Plugin Research Skill"],
+                    "fallback_history": [
+                        {
+                            "from_protocol": "responses",
+                            "to_protocol": "chat_completions",
+                            "reason": "stream_empty_no_output",
+                            "recovered": True,
+                            "metadata": {"recovery_path": "sync_chat_completions"},
+                        }
+                    ],
+                    "sync_rescue": True,
+                }
+            ],
+            "diagnostics": {
+                "turn_outcome": "success",
+                "termination_reason": "protocol_fallback",
+                "protocol_path": "chat_completions",
+                "selected_tool_names": ["web_search"],
+                "selected_skill_names": ["Plugin Research Skill"],
+                "fallback_history": [
+                    {
+                        "from_protocol": "responses",
+                        "to_protocol": "chat_completions",
+                        "reason": "stream_empty_no_output",
+                        "recovered": True,
+                        "metadata": {"recovery_path": "sync_chat_completions"},
+                    }
+                ],
+                "sync_rescue": True,
+                "should_record_call_log": True,
+                "context_sources": [
+                    {
+                        "kind": "page_context",
+                        "name": "admin.ai.conversations",
+                        "active": True,
+                        "metadata": {"page_key": "admin.ai.conversations"},
+                    }
+                ],
+                "source": "call_log",
+            },
+        }
+    )
+
+    assert "Turn selected skills: Plugin Research Skill" in text
+    assert "Turn sync rescue: True" in text
+    assert "Turn should_record_call_log: True" in text
+    assert "Turn diagnostics source: call_log" in text
+    assert "selected_skills: Plugin Research Skill" in text
+    assert "fallback_history:" in text
 
 
 @pytest.mark.asyncio
@@ -486,6 +758,8 @@ async def test_conversation_engine_stream_logs_failure_before_done(
     mock_db,
 ):
     from app.ai.engine.conversation import ConversationEngine
+    from app.ai.engine.types import ToolUsePolicy
+    from app.ai.tools.types import ToolDefinition
 
     provider = SimpleNamespace(
         id=11,
@@ -547,6 +821,16 @@ async def test_conversation_engine_stream_logs_failure_before_done(
                 tenant_id=PLATFORM_TENANT_ID,
                 user_id=7,
                 conversation_id=386,
+                tools=[
+                    ToolDefinition(name="get_page_context", description="Read current page"),
+                    ToolDefinition(name="invoke_page_operation", description="Operate page"),
+                ],
+                all_tool_names=["get_page_context", "invoke_page_operation"],
+                tool_use_policy=ToolUsePolicy(
+                    family="page_ops",
+                    mode="required",
+                    allowed_tool_names=["get_page_context", "invoke_page_operation"],
+                ),
             )
         ]
 
@@ -558,6 +842,9 @@ async def test_conversation_engine_stream_logs_failure_before_done(
     assert kwargs["conversation_id"] == 386
     assert kwargs["model_id"] == 33
     assert kwargs["provider"] is provider
+    assert kwargs["tool_choice"] == "required"
+    assert kwargs["selected_tool_names"] == ["get_page_context", "invoke_page_operation"]
+    assert kwargs["allowed_tool_names"] == ["get_page_context", "invoke_page_operation"]
     gateway.usage_recorder.call_log_service.log_call_async.assert_not_awaited()
     gateway.usage_recorder.record_usage_and_adjust.assert_not_awaited()
     api_key.increment_usage.assert_not_called()

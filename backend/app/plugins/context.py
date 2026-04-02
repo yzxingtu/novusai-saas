@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from app.configs.service import PLATFORM_TENANT_ID
+from app.core.i18n import _
 from app.core.logging import get_logger
 from app.core.response import resolve_public_error_message
 from app.enums.agent import (
@@ -91,7 +92,7 @@ class PluginDbProxy:
     def session(self) -> AsyncSession:
         """Forbidden: do not expose raw session to avoid bypassing sandbox checks. / 禁止暴露原始 session，避免绕过沙箱检查。"""
         raise PluginSecurityError(
-            message="Access to raw session is forbidden in plugin sandbox",
+            message=_("plugin.error.raw_session_forbidden"),
         )
 
     async def execute(self, statement: Any, *args: Any, **kwargs: Any) -> Any:
@@ -130,8 +131,7 @@ class PluginDbProxy:
         请避免在 on_enable 等 Hook 中写入 DB 或使用业务逻辑判断。
         """
         raise PluginSecurityError(
-            message="Plugins cannot rollback the database session — "
-            "this would undo lifecycle changes. Use flush() to persist your data.",
+            message=_("plugin.error.rollback_forbidden"),
         )
 
     def add(self, instance: Any) -> None:
@@ -155,8 +155,10 @@ class PluginDbProxy:
         table_name = getattr(entity, "__tablename__", "")
         if table_name and not self._is_allowed_table(table_name):
             raise PluginSecurityError(
-                message=f"Plugin can only operate on allowed table prefixes {self._allowed_prefixes}, "
-                f"got '{table_name}'",
+                message=_("plugin.error.table_prefix_violation").format(
+                    prefixes=", ".join(self._allowed_prefixes),
+                    table=table_name,
+                ),
             )
         return await self._db.get(entity, ident, **kwargs)
 
@@ -170,8 +172,10 @@ class PluginDbProxy:
         table_name = getattr(instance.__class__, "__tablename__", "")
         if table_name and not self._is_allowed_table(table_name):
             raise PluginSecurityError(
-                message=f"Plugin can only operate on allowed table prefixes {self._allowed_prefixes}, "
-                f"got '{table_name}'",
+                message=_("plugin.error.table_prefix_violation").format(
+                    prefixes=", ".join(self._allowed_prefixes),
+                    table=table_name,
+                ),
             )
 
     def _is_allowed_table(self, table_name: str) -> bool:
@@ -213,8 +217,10 @@ class PluginDbProxy:
             # / 允许的表：插件自有表（由 allowed_prefixes 限定）+ 允许名单
             if table_name and not self._is_allowed_table(table_name) and table_name not in _ALLOW_LIST:
                 raise PluginSecurityError(
-                    message=f"Plugin can only access tables with prefixes "
-                    f"{self._allowed_prefixes}, attempted: '{table_name}'",
+                    message=_("plugin.error.table_access_forbidden").format(
+                        prefixes=", ".join(self._allowed_prefixes),
+                        table=table_name,
+                    ),
                 )
 
 
@@ -249,8 +255,10 @@ class PluginContext:
         """Check if plugin has the specified capability, raise PluginSecurityError if not / 检查插件是否拥有指定能力，无则抛出 PluginSecurityError"""
         if cap not in self._granted_capabilities:
             raise PluginSecurityError(
-                message=f"Plugin '{self.plugin_name}' requires capability '{cap}' "
-                f"which has not been granted",
+                message=_("plugin.error.capability_required").format(
+                    plugin_name=self.plugin_name,
+                    capability=cap,
+                ),
             )
 
     def has_capability(self, cap: str) -> bool:
@@ -406,8 +414,9 @@ class PluginContext:
         """
         if not (self.has_capability("storage:read") or self.has_capability("storage:write")):
             raise PluginSecurityError(
-                message=f"Plugin '{self.plugin_name}' requires 'storage:read' or "
-                f"'storage:write' capability for storage access",
+                message=_("plugin.error.storage_capability_required").format(
+                    plugin_name=self.plugin_name,
+                ),
             )
         from app.services.common.config_service import ConfigService
         from app.storage.base import StorageConfig
@@ -475,12 +484,14 @@ class PluginContext:
         scheme = (parsed.scheme or "").lower()
         if scheme not in ("http", "https"):
             raise PluginSecurityError(
-                message=f"Plugin http_request only supports http/https (got '{scheme}')",
+                message=_("plugin.error.http_request_scheme_invalid").format(
+                    scheme=scheme,
+                ),
             )
 
         host = parsed.hostname or ""
         if not host:
-            raise PluginSecurityError(message="Invalid URL: missing host")
+            raise PluginSecurityError(message=_("plugin.error.invalid_url_missing_host"))
 
         try:
             addr = ipaddress.ip_address(host)
@@ -497,7 +508,7 @@ class PluginContext:
                 or addr.is_multicast
             ):
                 raise PluginSecurityError(
-                    message=f"SSRF blocked: plugin http_request cannot access private/reserved IP '{host}'",
+                    message=_("plugin.error.ssrf_private_ip").format(host=host),
                 )
         except ValueError as exc:
             # host is a domain name (not an IP literal) — allow it / 非 IP 字面量则视为域名放行
@@ -506,7 +517,7 @@ class PluginContext:
             blocked_domains = ("localhost", "metadata.google.internal")
             if host.lower() in blocked_domains or host.lower().endswith(".local"):
                 raise PluginSecurityError(
-                    message=f"SSRF blocked: plugin http_request cannot access '{host}'",
+                    message=_("plugin.error.ssrf_blocked_host").format(host=host),
                 ) from exc
 
     # ── AI / AI 功能 ──
@@ -560,8 +571,9 @@ class PluginContext:
             from app.plugins.exceptions import PluginError
 
             raise PluginError(
-                message=f"AI feature '{feature_code}' is not bound to any Agent. "
-                f"Please configure it in plugin management.",
+                message=_("plugin.error.ai_feature_unbound").format(
+                    feature_code=feature_code,
+                ),
             )
 
         # Verify the bound Agent still exists and is published / 校验绑定的 Agent 仍然存在且已发布
@@ -579,8 +591,10 @@ class PluginContext:
             from app.plugins.exceptions import PluginError
 
             raise PluginError(
-                message=f"AI feature '{feature_code}' is bound to Agent #{agent_id} "
-                f"which is no longer available (deleted or unpublished).",
+                message=_("plugin.error.ai_feature_agent_unavailable").format(
+                    feature_code=feature_code,
+                    agent_id=agent_id,
+                ),
             )
 
         # effective_tenant_id used for AgentChatService to create conversation records
@@ -762,7 +776,7 @@ class PluginContext:
                 raise PluginError(
                     message=resolve_public_error_message(
                         exc,
-                        fallback_message="AI call failed",
+                        fallback_message=_("plugin.error.ai_call_failed"),
                     )
                 ) from exc
 
@@ -1038,7 +1052,7 @@ class _NamespacedStorageProxy:
         if normalized.startswith("..") or normalized == ".":
             from app.plugins.exceptions import PluginSecurityError
             raise PluginSecurityError(
-                message=f"Path traversal attempt detected in storage access: '{path}'",
+                message=_("plugin.error.path_traversal_detected").format(path=path),
             )
         return f"{self._namespace}/{normalized}"
 

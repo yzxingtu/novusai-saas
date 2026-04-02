@@ -624,10 +624,10 @@ class AdminKnowledgeBaseController(GlobalController):
                 )
 
             chunk_service = DocumentChunkService(db, tenant_id)
-            chunks = await chunk_service.repo.get_by_document(
+            chunks = await chunk_service.list_document_chunks(
                 document_id=doc_id,
-                skip=(page - 1) * page_size,
-                limit=page_size,
+                page=page,
+                page_size=page_size,
             )
 
             return success(data={

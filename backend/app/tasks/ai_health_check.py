@@ -11,6 +11,7 @@ import json
 import time
 
 import redis
+import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -28,6 +29,7 @@ HEALTH_HISTORY_PREFIX = "ai:provider:{provider_id}:health_history"
 HEALTH_TTL = 600
 HEALTH_HISTORY_TTL = 86400
 CONSECUTIVE_FAILURES_THRESHOLD = 3
+_FALSE_VALUES = {"0", "false", "no", "off"}
 
 
 def _get_sync_redis() -> redis.Redis:
@@ -101,6 +103,15 @@ def _check_provider_health(provider: object, db: Session, redis_client: redis.Re
     is_healthy = False
     error_message = None
     response_time_ms = 0
+    base_connectivity_healthy = False
+    tool_calling_healthy: bool | None = None
+    tool_probe_model: str | None = None
+    tool_probe_error_message: str | None = None
+    wire_api = _normalize_wire_api(
+        (provider.config or {}).get("wire_api")
+        if isinstance(getattr(provider, "config", None), dict)
+        else None
+    )
 
     try:
         # Get provider's API Key / 获取供应商的 API Key
@@ -121,11 +132,30 @@ def _check_provider_health(provider: object, db: Session, redis_client: redis.Re
                 provider.code,
             )
         else:
-            # Send lightweight test request / 发送轻量级测试请求
-            is_healthy = _send_health_probe(
-                provider_type=provider.type,
+            base_connectivity_healthy, base_error = _send_base_health_probe(
                 api_key=api_key.decrypt_key(),
                 base_url=provider.base_url,
+            )
+            if base_error:
+                error_message = base_error
+
+            tool_model = _resolve_tool_probe_model(provider, db)
+            if base_connectivity_healthy and tool_model is not None:
+                tool_probe_model = tool_model.code
+                tool_calling_healthy, tool_probe_error_message = (
+                    _send_responses_tool_probe(
+                        api_key=api_key.decrypt_key(),
+                        base_url=provider.base_url,
+                        model_code=tool_model.code,
+                    )
+                    if _provider_needs_responses_tool_probe(provider, tool_model)
+                    else (None, None)
+                )
+                if tool_calling_healthy is False:
+                    error_message = tool_probe_error_message or error_message
+
+            is_healthy = base_connectivity_healthy and (
+                tool_calling_healthy is not False
             )
             response_time_ms = int((time.time() - start_time) * 1000)
 
@@ -159,7 +189,12 @@ def _check_provider_health(provider: object, db: Session, redis_client: redis.Re
         "provider_id": provider_id,
         "provider_code": provider.code,
         "provider_name": provider.name,
+        "wire_api": wire_api,
         "is_healthy": is_healthy,
+        "base_connectivity_healthy": base_connectivity_healthy,
+        "tool_calling_healthy": tool_calling_healthy,
+        "tool_probe_model": tool_probe_model,
+        "tool_probe_error_message": tool_probe_error_message,
         "response_time_ms": response_time_ms,
         "error_message": error_message,
         "consecutive_failures": consecutive_failures,
@@ -176,6 +211,8 @@ def _check_provider_health(provider: object, db: Session, redis_client: redis.Re
     # Append to history (sorted set, score = timestamp) / 追加到历史记录（使用 sorted set，score 为时间戳）
     history_entry = json.dumps({
         "is_healthy": is_healthy,
+        "base_connectivity_healthy": base_connectivity_healthy,
+        "tool_calling_healthy": tool_calling_healthy,
         "response_time_ms": response_time_ms,
         "error_message": error_message,
         "checked_at": utc_now().isoformat(),
@@ -188,20 +225,74 @@ def _check_provider_health(provider: object, db: Session, redis_client: redis.Re
     redis_client.expire(history_key, HEALTH_HISTORY_TTL)
 
     logger.info(
-        "{} provider={} is_healthy={} consecutive_failures={} response_time_ms={}",
+        "{} provider={} is_healthy={} base_connectivity_healthy={} tool_calling_healthy={} tool_probe_model={} consecutive_failures={} response_time_ms={}",
         _("ai.log.health_check_result"),
         provider.code,
         is_healthy,
+        base_connectivity_healthy,
+        tool_calling_healthy,
+        tool_probe_model or "",
         consecutive_failures,
         response_time_ms,
     )
 
 
-def _send_health_probe(
-    provider_type: str,
+def _normalize_wire_api(wire_api: str | None) -> str:
+    value = str(wire_api or "").strip().lower().replace("-", "_")
+    if value in {"responses", "response", "responses_api"}:
+        return "responses"
+    return "chat_completions"
+
+
+def _config_enabled(value: object, *, default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() not in _FALSE_VALUES
+
+
+def _resolve_tool_probe_model(provider: object, db: Session):
+    from app.models.ai import AIModel
+
+    stmt = (
+        select(AIModel)
+        .where(
+            AIModel.provider_id == provider.id,
+            AIModel.is_active.is_(True),
+            AIModel.is_deleted.is_(False),
+            AIModel.type == "chat",
+            AIModel.supports_function_calling.is_(True),
+        )
+        .order_by(AIModel.id.asc())
+        .limit(1)
+    )
+    return db.execute(stmt).scalar_one_or_none()
+
+
+def _provider_needs_responses_tool_probe(provider: object, tool_model: object | None) -> bool:
+    if tool_model is None:
+        return False
+    wire_api = _normalize_wire_api(
+        (provider.config or {}).get("wire_api")
+        if isinstance(getattr(provider, "config", None), dict)
+        else None
+    )
+    if wire_api != "responses":
+        return False
+    if not bool(getattr(tool_model, "supports_function_calling", False)):
+        return False
+    config = provider.config if isinstance(getattr(provider, "config", None), dict) else {}
+    return _config_enabled(
+        config.get("responses_tool_probe_enabled"),
+        default=True,
+    )
+
+
+def _send_base_health_probe(
     api_key: str,
     base_url: str | None = None,
-) -> bool:
+) -> tuple[bool, str | None]:
     """
     Send lightweight health probe request / 发送轻量级健康探测请求
 
@@ -209,15 +300,12 @@ def _send_health_probe(
     使用同步 HTTP 请求（Celery Worker 是同步环境）
 
     Args:
-        provider_type: Provider type / 供应商类型
         api_key: API key / API 密钥
         base_url: Base URL / 基础 URL
 
     Returns:
-        Whether healthy / 是否健康
+        Probe result / 探测结果
     """
-    import httpx
-
     try:
         # OpenAI compatible: use models list interface (lightest)
         # base_url should already contain the full path (e.g. https://api.openai.com/v1)
@@ -230,14 +318,73 @@ def _send_health_probe(
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=10.0,
         )
-        return response.status_code < 500
+        if response.status_code < 500:
+            return True, None
+        return False, f"GET /models -> HTTP {response.status_code}"
 
     except httpx.TimeoutException:
-        return False
+        return False, "GET /models timed out"
     except httpx.ConnectError:
-        return False
-    except Exception:
-        return False
+        return False, "GET /models connect error"
+    except Exception as exc:
+        return False, str(exc)
+
+
+def _send_responses_tool_probe(
+    *,
+    api_key: str,
+    base_url: str | None,
+    model_code: str,
+) -> tuple[bool, str | None]:
+    url = f"{(base_url or 'https://api.openai.com/v1').rstrip('/')}/responses"
+    payload = {
+        "model": model_code,
+        "input": [
+            {
+                "role": "user",
+                "content": [{"type": "input_text", "text": "health check"}],
+            }
+        ],
+        "tools": [
+            {
+                "type": "function",
+                "name": "health_check_tool",
+                "description": "Provider health probe tool",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                },
+            }
+        ],
+        "tool_choice": "required",
+        "max_output_tokens": 1,
+    }
+
+    try:
+        response = httpx.post(
+            url,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=10.0,
+        )
+        if 200 <= response.status_code < 400:
+            return True, None
+        preview = (response.text or "").strip()
+        if len(preview) > 200:
+            preview = f"{preview[:197]}..."
+        detail = f"POST /responses tool probe -> HTTP {response.status_code}"
+        if preview:
+            detail = f"{detail}: {preview}"
+        return False, detail
+    except httpx.TimeoutException:
+        return False, "POST /responses tool probe timed out"
+    except httpx.ConnectError:
+        return False, "POST /responses tool probe connect error"
+    except Exception as exc:
+        return False, str(exc)
 
 
 __all__ = ["ai_provider_health_check"]

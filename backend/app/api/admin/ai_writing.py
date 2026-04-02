@@ -49,7 +49,7 @@ async def admin_ai_writing(
     if feature not in VALID_FEATURES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid feature '{feature}'. Valid: {', '.join(sorted(VALID_FEATURES))}",
+            detail=_("ai_writing.invalid_feature").format(feature=feature),
         )
 
     async def _generate():

@@ -121,6 +121,13 @@
     "email_taken": "Email is already registered",
     "phone_taken": "Phone number is already registered",
     "register_success": "Registration successful",
+    "login_code_sent": "Login verification code has been sent to your email",
+    "login_code_invalid": "Login verification code is invalid or expired",
+    "login_code_email_required": "Email is required",
+    "login_code_phone_required": "Phone number is required",
+    "login_code_channel_invalid": "Unsupported code login channel",
+    "login_code_email_not_enabled": "Email code login is not enabled for this tenant",
+    "login_code_sms_not_enabled": "SMS code login is not enabled yet",
     "reset_code_sent": "Verification code has been sent to your email",
     "reset_code_invalid": "Verification code is invalid or expired",
     "reset_rate_limited": "Too many requests, please try again later",
@@ -1584,11 +1591,6 @@
       "list": "View Long-Term Memory Debug",
       "detail": "View Long-Term Memory Debug Detail"
     },
-    "ai_ephemeral_document": {
-      "list": "View Ephemeral Documents",
-      "detail": "View Ephemeral Document Detail",
-      "promote": "Promote Ephemeral Document"
-    },
     "ai_skill": {
       "list": "View Skill List",
       "detail": "View Skill Detail",
@@ -2165,9 +2167,56 @@
       "license_expired": "Plugin license has expired",
       "license_already_activated": "This license key has already been activated",
       "conflict": "Plugin conflicts with existing extensions",
-      "install_failed": "Plugin installation failed"
+      "install_failed": "Plugin installation failed",
+      "invalid_marketplace_slug": "Invalid marketplace slug: {slug}",
+      "invalid_registry_url_scheme": "Only http/https URLs are allowed",
+      "invalid_registry_private_ip": "Private or reserved IP addresses are not allowed",
+      "invalid_registry_host": "Host is not allowed for registry access: {host}",
+      "registry_connection_failed": "Connection test failed. Please check the URL and try again.",
+      "marketplace_not_found": "Plugin not found in marketplace: {slug}",
+      "not_found_by_id": "Plugin not found: #{plugin_id}",
+      "already_installed": "Plugin {plugin_name} is already installed. Uninstall it first or use the upgrade endpoint.",
+      "menu_config_update_failed": "Menu configuration update failed",
+      "repair_not_needed": "Plugin does not need repair in its current state",
+      "db_migration_failed": "Database migration failed",
+      "repair_extensions_failed": "Repair failed: {count} extension(s) failed to load",
+      "repair_failed": "Repair failed",
+      "force_cleanup_files_exist": "Plugin files still exist on disk. Use normal uninstall instead of force cleanup.",
+      "unknown_capabilities": "Unknown capabilities: {capabilities}",
+      "invalid_icon_type": "Only PNG/SVG/JPG/WebP icons are allowed",
+      "icon_too_large": "Icon file too large ({size} bytes). Maximum size is 2MB.",
+      "activation_failed": "Activation failed",
+      "invalid_backup_name": "Invalid backup name",
+      "backup_not_found": "Backup not found",
+      "raw_session_forbidden": "Access to the raw database session is forbidden in plugin sandbox",
+      "rollback_forbidden": "Plugins cannot rollback the entire database transaction. Use flush() to persist plugin data.",
+      "table_prefix_violation": "Plugins can only operate on tables with prefixes {prefixes}; got {table}",
+      "table_access_forbidden": "Plugins can only access tables with prefixes {prefixes}; attempted {table}",
+      "capability_required": "Plugin {plugin_name} requires capability {capability}",
+      "storage_capability_required": "Plugin {plugin_name} requires storage access capability",
+      "http_request_scheme_invalid": "Plugin HTTP requests only support http/https, got {scheme}",
+      "invalid_url_missing_host": "Invalid URL: missing host",
+      "ssrf_private_ip": "SSRF blocked: plugin HTTP request cannot access private or reserved IP {host}",
+      "ssrf_blocked_host": "SSRF blocked: plugin HTTP request cannot access {host}",
+      "ai_feature_unbound": "AI feature {feature_code} is not bound to any agent yet. Configure it in plugin management first.",
+      "ai_feature_agent_unavailable": "AI feature {feature_code} is bound to agent #{agent_id}, which is no longer available",
+      "ai_call_failed": "AI call failed",
+      "path_traversal_detected": "Path traversal detected in storage access: {path}"
     },
-    "license_activated": "License activated successfully"
+    "license_activated": "License activated successfully",
+    "enabled": "Plugin enabled",
+    "disabled": "Plugin disabled",
+    "menu_config_updated": "Menu configuration updated",
+    "manifest_synced": "Plugin manifest synced",
+    "deleted_already": "Plugin #{plugin_id} has already been removed",
+    "capabilities_updated": "Plugin capabilities updated",
+    "upgraded": "Plugin upgraded",
+    "rolled_back_to": "Plugin rolled back to version {version}",
+    "repaired_successfully": "Plugin {plugin_name} repaired successfully",
+    "repaired_and_restored": "Plugin repaired and restored"
+  },
+  "ai_writing": {
+    "invalid_feature": "Unsupported AI writing feature: {feature}"
   },
   "crud_generation_record": {
     "field": {
@@ -2233,6 +2282,10 @@
       "tenant_features": {
         "name": "Member Settings",
         "desc": "Registration, notifications, file upload and other member features"
+      },
+      "tenant_ai": {
+        "name": "AI Capability Awareness",
+        "desc": "Controls runtime capability descriptions injected into AI conversations"
       },
       "tenant_storage": {
         "name": "Storage Settings",
@@ -2689,6 +2742,20 @@
       "allow_profile_edit": {
         "name": "Allow Profile Edit",
         "desc": "Allow users to edit their profile"
+      },
+      "enable_dynamic_capability_awareness": {
+        "name": "Dynamic Capability Awareness",
+        "desc": "Inject current skills, knowledge bases, page context and memory capabilities into AI system prompts"
+      },
+      "capability_description_style": {
+        "name": "Capability Description Style",
+        "desc": "Choose whether capability descriptions use detailed or concise wording",
+        "detailed": "Detailed",
+        "concise": "Concise"
+      },
+      "max_capability_items_per_category": {
+        "name": "Max Capability Items Per Category",
+        "desc": "Maximum number of capability items shown for each category in the system prompt"
       },
       "email_notification": {
         "name": "Email Notifications",
@@ -3179,6 +3246,8 @@
   "config.group.platform_domain.desc": "Tenant domain suffix and custom-domain verification settings",
   "config.group.tenant_registration.name": "Registration & Legal",
   "config.group.tenant_registration.desc": "User registration flow, default role, privacy policy and terms settings",
+  "config.group.tenant_ai.name": "AI Capability Awareness",
+  "config.group.tenant_ai.desc": "Controls runtime capability descriptions injected into AI conversations",
   "config.platform.platform_default_memory_enabled.name": "Default Memory Enabled",
   "config.platform.platform_default_memory_enabled.desc": "Default memory switch for all agents",
   "config.platform.memory_extraction_provider.name": "Memory Extraction Provider",
@@ -3202,6 +3271,14 @@
   "config.tenant.user_default_role_id.name": "Default User Role",
   "config.tenant.user_default_role_id.desc": "Role automatically assigned to newly registered users. Select 'No Role' to leave users without a role",
   "config.tenant.user_default_role_id.option_none": "No Role",
+  "config.tenant.enable_dynamic_capability_awareness.name": "Dynamic Capability Awareness",
+  "config.tenant.enable_dynamic_capability_awareness.desc": "Inject current skills, knowledge bases, page context and memory capabilities into AI system prompts",
+  "config.tenant.capability_description_style.name": "Capability Description Style",
+  "config.tenant.capability_description_style.desc": "Choose whether capability descriptions use detailed or concise wording",
+  "config.tenant.capability_description_style.detailed": "Detailed",
+  "config.tenant.capability_description_style.concise": "Concise",
+  "config.tenant.max_capability_items_per_category.name": "Max Capability Items Per Category",
+  "config.tenant.max_capability_items_per_category.desc": "Maximum number of capability items shown for each category in the system prompt",
   "enum.agent_model.max_tokens": "Max Output Tokens",
   "agent.version.field.max_tokens": "Max Output Tokens",
   "enum.ai_model.max_output_tokens": "Max Output Tokens",

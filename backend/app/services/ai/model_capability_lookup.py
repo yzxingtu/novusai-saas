@@ -313,6 +313,86 @@ def _find_entry(
     return None
 
 
+def _extract_capabilities_from_model(model: Any | None) -> dict[str, Any]:
+    """Extract local DB model capability fields. / 从本地模型对象提取能力字段。"""
+    if model is None:
+        return {}
+
+    caps: dict[str, Any] = {}
+    for key in (
+        "supports_audio",
+        "supports_video",
+        "supports_vision",
+        "supports_function_calling",
+        "supports_streaming",
+        "context_window",
+        "max_output_tokens",
+        "rpm_limit",
+        "tpm_limit",
+        "input_price_per_1k",
+        "output_price_per_1k",
+        "type",
+    ):
+        value = getattr(model, key, None)
+        if value is None or value == "":
+            continue
+        if key == "type":
+            caps["model_type"] = value
+            continue
+        caps[key] = value
+    return caps
+
+
+async def resolve_runtime_model_capabilities(
+    *,
+    model: Any | None = None,
+    model_code: str | None = None,
+    provider_code: str | None = None,
+) -> dict[str, Any]:
+    """
+    Resolve merged runtime model capabilities (Redis registry + local model object).
+    解析合并后的运行时模型能力（Redis 注册表 + 本地模型对象）。
+
+    Priority / 优先级:
+    - Local DB model fields override registry values.
+    - 本地 DB 模型字段优先覆盖注册表值。
+    """
+    effective_model_code = str(
+        model_code or getattr(model, "code", "") or ""
+    ).strip()
+    provider = getattr(model, "provider", None)
+    effective_provider_code = str(
+        provider_code or getattr(provider, "code", "") or ""
+    ).strip() or None
+
+    merged: dict[str, Any] = {}
+    remote_caps: dict[str, Any] | None = None
+    if effective_model_code:
+        remote_caps = await lookup(
+            effective_model_code,
+            provider_code=effective_provider_code,
+        )
+        if remote_caps:
+            merged.update(remote_caps)
+
+    local_caps = _extract_capabilities_from_model(model)
+    if local_caps:
+        merged.update(local_caps)
+
+    if remote_caps and local_caps:
+        merged["capability_source"] = "registry+local"
+    elif local_caps:
+        merged["capability_source"] = "local"
+    elif remote_caps:
+        merged["capability_source"] = "registry"
+
+    if effective_model_code and "model_code" not in merged:
+        merged["model_code"] = effective_model_code
+    if effective_provider_code and "provider_code" not in merged:
+        merged["provider_code"] = effective_provider_code
+    return merged
+
+
 async def lookup(
     model_code: str,
     provider_code: str | None = None,
@@ -357,4 +437,8 @@ async def enrich_remote_models(
     return enriched
 
 
-__all__ = ["enrich_remote_models", "lookup"]
+__all__ = [
+    "enrich_remote_models",
+    "lookup",
+    "resolve_runtime_model_capabilities",
+]

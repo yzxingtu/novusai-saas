@@ -140,3 +140,30 @@ class TestKBQuota:
 
         with pytest.raises(BusinessException):
             await service.check_kb_quota()
+
+
+class TestKBRestore:
+
+    @pytest.mark.asyncio
+    async def test_after_restore_updates_statistics_and_invalidates_cache(self, mock_db):
+        from app.services.ai.knowledge_base_service import KnowledgeBaseService
+
+        service = KnowledgeBaseService.__new__(KnowledgeBaseService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.repo.db = AsyncMock()
+        service.repo.update_statistics = AsyncMock(return_value=None)
+
+        kb = _make_kb(id=1)
+
+        with pytest.MonkeyPatch.context() as mp:
+            invalidate = AsyncMock(return_value=None)
+            mp.setattr(
+                "app.ai.rag.retriever.HybridRetriever.invalidate_kb_cache",
+                invalidate,
+            )
+            await service._after_restore(kb)
+
+        service.repo.update_statistics.assert_awaited_once_with(1)
+        invalidate.assert_awaited_once_with(1)

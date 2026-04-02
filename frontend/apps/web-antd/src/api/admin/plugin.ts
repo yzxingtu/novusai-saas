@@ -1,6 +1,8 @@
 /**
  * Platform plugin management API / 平台端插件管理 API
  */
+import type { PluginSlotData, PluginSlotsResponse } from '#/api/shared/plugin';
+
 import { requestClient } from '#/utils/request';
 
 const BASE_URL = '/admin/plugins';
@@ -226,7 +228,7 @@ export function disablePluginApi(id: number, force = false) {
 /** Install plugin dependencies / 安装插件依赖 */
 export function installPluginDependenciesApi(
   id: number,
-  payload: { force?: boolean; python?: boolean } = {},
+  payload: { python?: boolean } = {},
 ) {
   return requestClient.post(`${BASE_URL}/${id}/dependencies/install`, payload, {
     timeout: 300_000,
@@ -236,7 +238,7 @@ export function installPluginDependenciesApi(
 /** Uninstall plugin dependencies / 卸载插件依赖 */
 export function uninstallPluginDependenciesApi(
   id: number,
-  payload: { force?: boolean; python?: boolean } = {},
+  payload: { python?: boolean } = {},
 ) {
   return requestClient.post(
     `${BASE_URL}/${id}/dependencies/uninstall`,
@@ -402,48 +404,12 @@ export function getPluginHealthApi(id: number) {
 
 // ── Frontend slots / 前端插槽 ──
 
-/** Plugin slot data / 插件插槽数据 */
-export interface PluginSlotData {
-  frontend_runtime?: {
-    dev_entry?: string;
-    release_manifest?: string;
-  };
-  slot_type: string;
-  plugin_name: string;
-  name: string;
-  component?: string;
-  title?: Record<string, string> | string;
-  sort_order?: number;
-  scope?: string;
-  path?: string;
-  grid?: Record<string, number>;
-  icon?: string;
-  position?: string;
-  event?: string;
-  access_codes?: string[];
-  ai?: {
-    disabled_capabilities?: string[];
-    disabled_operations?: string[];
-    mode?: string;
-    page_context_key?: string;
-  };
-  [key: string]: unknown;
-}
-
-/** Plugin slots response / 插件插槽响应 */
-export interface PluginSlotsResponse {
-  header_widgets: PluginSlotData[];
-  dashboard_widgets: PluginSlotData[];
-  settings_tabs: PluginSlotData[];
-  floating_panels: PluginSlotData[];
-  pages: PluginSlotData[];
-  notification_ui: PluginSlotData[];
-}
-
 /** Get plugin slots / 获取插件插槽 */
 export function getPluginSlotsApi() {
   return requestClient.get<PluginSlotsResponse>(`${BASE_URL}/slots`);
 }
+
+export type { PluginSlotData, PluginSlotsResponse };
 
 // ── Backup / 备份 ──
 

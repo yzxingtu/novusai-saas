@@ -5,15 +5,18 @@
  * Differentiates admin/tenant via apiPrefix parameter.
  * 封装 use-ai-chat.ts 中的所有 requestClient 调用。
  */
+import type { ChatAttachment, RagSource } from '#/types/ai-chat';
 import type {
-  ChatAttachment,
-  RagSource,
-} from '#/components/business/ai-chat-panel/types';
+  TurnContextSourcePayload,
+  TurnRecordPayload,
+} from '#/api/shared/types';
 
 import { smartUploadFile as adminSmartUploadFile } from '#/api/admin/attachment';
 import { smartUploadFile as tenantSmartUploadFile } from '#/api/tenant/attachment';
 import { smartUploadFile as userSmartUploadFile } from '#/api/user/attachment';
 import { requestClient } from '#/utils/request';
+
+export type { TurnContextSourcePayload, TurnRecordPayload };
 
 // ============ Types / 类型 ============
 
@@ -21,8 +24,8 @@ export interface PaginatedResponse<T = Record<string, unknown>> {
   items: T[];
   total: number;
 }
-export type InteractionMode = 'confirm' | 'trusted_auto';
 
+export type InteractionMode = 'confirm' | 'trusted_auto';
 
 export interface RawMessageItem {
   agent_avatar?: null | string;
@@ -70,8 +73,9 @@ export interface RawMessageItem {
     action_buttons_used?: boolean;
     attachments?: ChatAttachment[];
     completion_reason?: string;
-    interrupted?: boolean;
     context_compacted?: boolean;
+    context_sources?: TurnContextSourcePayload[];
+    interrupted?: boolean;
     memory_flush_triggered?: boolean;
     memory_recalled?: boolean;
     memory_updated?: boolean;
@@ -92,12 +96,16 @@ export interface RawMessageItem {
       skill_name?: string;
       tool_name?: string;
     };
+    protocol_path?: string;
     provider_id?: number;
     provider_name?: string;
     prune_stats?: Record<string, unknown>;
-    rag_sources?: RagSource[];
     rag_source_kinds?: string[];
+    rag_sources?: RagSource[];
     route_source?: string;
+    selected_skill_names?: string[];
+    selected_tool_names?: string[];
+    termination_reason?: string;
     thinking_content?: string;
     tool_display_name?: string;
     tool_error?: string;
@@ -106,14 +114,16 @@ export interface RawMessageItem {
     tool_success?: boolean;
     tool_summary?: string;
     tool_summary_payload?: Record<string, unknown>;
+    turn_outcome?: string;
+    turn_record?: TurnRecordPayload;
   };
 }
 
 export interface ConversationDetailResponse {
+  agent_id?: null | number;
   context_diagnostics?: null | Record<string, unknown>;
   interaction_mode_effective?: InteractionMode;
   last_run_summary?: null | Record<string, unknown>;
-  agent_id?: null | number;
   message_list: RawMessageItem[];
 }
 
@@ -261,6 +271,24 @@ export async function getChatConversationMessagesApi(
   );
 }
 
+export async function compactChatConversationApi(
+  apiPrefix: string,
+  conversationId: number,
+): Promise<Record<string, unknown>> {
+  return requestClient.post<Record<string, unknown>>(
+    `${chatBaseUrl(apiPrefix)}/conversations/${conversationId}/compact`,
+  );
+}
+
+export async function getChatConversationTimelineApi(
+  apiPrefix: string,
+  conversationId: number,
+): Promise<ConversationTimelineItem[]> {
+  return requestClient.get<ConversationTimelineItem[]>(
+    `${chatBaseUrl(apiPrefix)}/conversations/${conversationId}/timeline`,
+  );
+}
+
 function resolveChatUploadEndpoint(uploadUrl: string): ChatUploadEndpoint {
   if (uploadUrl.startsWith('/admin/')) {
     return 'admin';
@@ -350,8 +378,8 @@ export interface AgentChatRequestBody {
   attachments?: ChatAttachment[];
   consented_actions?: string[];
   conversation_id?: null | number;
-  interaction_mode?: InteractionMode;
   image_params?: AgentChatImageParams;
+  interaction_mode?: InteractionMode;
   interaction_updates?: Array<{
     action?: string;
     auto_approved?: boolean;
@@ -370,6 +398,21 @@ export interface AgentChatRequestBody {
   route_source?: null | string;
   trust_policy_ref?: TrustPolicyRef;
   variables?: Record<string, string>;
+}
+
+export interface ConversationTimelineItem {
+  auto_approved?: boolean;
+  correlation_key?: null | string;
+  detail_payload?: null | Record<string, unknown>;
+  interaction_mode_effective?: InteractionMode;
+  occurred_at: string;
+  risk_level?: null | string;
+  status: string;
+  summary?: null | string;
+  title: string;
+  tool_name?: null | string;
+  trace_id?: null | string;
+  type: string;
 }
 
 export interface AgentRouteResponse {

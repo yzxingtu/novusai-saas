@@ -57,3 +57,35 @@ def test_hybrid_retriever_relevance_gap_filter_stops_after_large_drop() -> None:
     kept = HybridRetriever._relevance_gap_filter(results, max_drop=0.32)
 
     assert [item.chunk_id for item in kept] == [1, 2]
+
+
+def test_hybrid_retriever_normalizes_instruction_wrapped_kb_query() -> None:
+    normalized = HybridRetriever._normalize_retrieval_query(
+        "根据内部知识库，NovusAI 的核心功能有哪些？请只基于内部知识回答。"
+    )
+
+    assert normalized == "NovusAI 的核心功能有哪些"
+
+
+def test_hybrid_retriever_keeps_plain_query_when_no_wrapper_present() -> None:
+    normalized = HybridRetriever._normalize_retrieval_query(
+        "NovusAI 的核心功能有哪些"
+    )
+
+    assert normalized == "NovusAI 的核心功能有哪些"
+
+
+def test_hybrid_retriever_normalizes_multilingual_wrapper_suffix() -> None:
+    normalized = HybridRetriever._normalize_retrieval_query(
+        "Please answer based on the internal knowledge base: What integrations does NovusAI support? Please do not use external sources."
+    )
+
+    assert normalized == "What integrations does NovusAI support"
+
+
+def test_hybrid_retriever_does_not_strip_core_question_with_kb_wording() -> None:
+    normalized = HybridRetriever._normalize_retrieval_query(
+        "内部知识库绑定失败的根因是什么？"
+    )
+
+    assert normalized == "内部知识库绑定失败的根因是什么"

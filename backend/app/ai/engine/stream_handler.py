@@ -140,6 +140,7 @@ class StreamExecutionHandler:
         )
         self._total_tokens = 0
         self._runtime_model_info: dict[str, Any] | None = None
+        self._runtime_turn_record: dict[str, Any] | None = None
         self._on_complete_called = False
 
         try:
@@ -172,6 +173,19 @@ class StreamExecutionHandler:
                 tools=tools,
                 all_tools=all_tools,
                 consent_modes=_tool_consent_modes,
+                approved_pending_consent_tools=ToolCallProcessor.approved_pending_consent_tool_names(
+                    self.request.interaction_updates,
+                ),
+            )
+            bundle_selected_skill_names = (
+                list(getattr(self.prep.capability_bundle, "selected_skill_names", []) or [])
+                if getattr(self.prep, "capability_bundle", None) is not None
+                else []
+            )
+            bundle_context_sources = (
+                getattr(self.prep.capability_bundle, "context_sources", None)
+                if getattr(self.prep, "capability_bundle", None) is not None
+                else None
             )
 
             # Push tool optimization event / 推送工具优化事件
@@ -217,6 +231,8 @@ class StreamExecutionHandler:
                     log_user_type=log_user_type_for_call_log(_req_role),
                     runtime_context=next_runtime_context,
                     all_tool_names=[tool.name for tool in self.prep.all_tools],
+                    selected_skill_names=bundle_selected_skill_names,
+                    context_sources=bundle_context_sources,
                 ):
                     if self._runtime_model_info is None and isinstance(
                         getattr(chunk, "metadata", None), dict
@@ -224,6 +240,16 @@ class StreamExecutionHandler:
                         self._runtime_model_info = chunk.metadata.get(
                             "runtime_model_info",
                         )
+                    if self._runtime_turn_record is None and isinstance(
+                        getattr(chunk, "metadata", None), dict
+                    ):
+                        raw_turn_record = chunk.metadata.get("runtime_turn_record")
+                        if isinstance(raw_turn_record, dict):
+                            self._runtime_turn_record = dict(raw_turn_record)
+                        elif hasattr(raw_turn_record, "__dict__"):
+                            self._runtime_turn_record = dict(
+                                getattr(raw_turn_record, "__dict__", {}) or {}
+                            )
                     if chunk.reasoning_delta:
                         self._reasoning_output += chunk.reasoning_delta
                         yield SSEChunkEncoder.encode(
@@ -286,6 +312,8 @@ class StreamExecutionHandler:
             # ---- Build result ---- / 构建结果
             duration_ms = int((time.perf_counter() - self.start_time) * 1000)
 
+            tool_planner = getattr(self.prep, "tool_planner", None)
+
             result = ExecutionResult(
                 success=True,
                 output=output,
@@ -306,6 +334,8 @@ class StreamExecutionHandler:
                 memory_flush_triggered=self.prep.memory_flush_triggered,
                 memory_recalled=self.prep.memory_recalled,
                 prune_stats=self.prep.prune_stats,
+                tool_planner=tool_planner,
+                turn_record=self._runtime_turn_record,
             )
 
             # Start callback before yielding done so client-side disconnect
@@ -375,6 +405,8 @@ class StreamExecutionHandler:
                             reasoning_content=reasoning,
                         )
                     )
+                tool_planner = getattr(self.prep, "tool_planner", None)
+
                 failed_result = ExecutionResult(
                     success=False,
                     output=partial_output,
@@ -406,6 +438,8 @@ class StreamExecutionHandler:
                     memory_flush_triggered=self.prep.memory_flush_triggered,
                     memory_recalled=self.prep.memory_recalled,
                     prune_stats=self.prep.prune_stats,
+                    tool_planner=tool_planner,
+                    turn_record=self._runtime_turn_record,
                 )
                 self._schedule_on_complete(failed_result)
 
@@ -435,6 +469,8 @@ class StreamExecutionHandler:
                             reasoning_content=reasoning,
                         )
                     )
+                tool_planner = getattr(self.prep, "tool_planner", None)
+
                 interrupted_result = ExecutionResult(
                     success=False,
                     output=partial_output,
@@ -466,6 +502,8 @@ class StreamExecutionHandler:
                     memory_flush_triggered=self.prep.memory_flush_triggered,
                     memory_recalled=self.prep.memory_recalled,
                     prune_stats=self.prep.prune_stats,
+                    tool_planner=tool_planner,
+                    turn_record=self._runtime_turn_record,
                 )
                 self._schedule_on_complete(interrupted_result)
             raise  # Must re-raise BaseException / 必须重新抛出 BaseException
@@ -501,6 +539,16 @@ class StreamExecutionHandler:
         round_tool_policy = getattr(self.prep, "tool_use_policy", ToolUsePolicy())
         tools_full = list(tools)
         self._fetch_gate_message_sent = False
+        bundle_selected_skill_names = (
+            list(getattr(self.prep.capability_bundle, "selected_skill_names", []) or [])
+            if getattr(self.prep, "capability_bundle", None) is not None
+            else []
+        )
+        bundle_context_sources = (
+            getattr(self.prep.capability_bundle, "context_sources", None)
+            if getattr(self.prep, "capability_bundle", None) is not None
+            else None
+        )
 
         # ---- Confirmation interception ---- / 确认拦截
         _last_user_text = ""
@@ -624,6 +672,8 @@ class StreamExecutionHandler:
                 log_user_type=log_user_type_for_call_log(_req_role),
                 runtime_context=next_runtime_context,
                 all_tool_names=[tool.name for tool in self.prep.all_tools],
+                selected_skill_names=bundle_selected_skill_names,
+                context_sources=bundle_context_sources,
                 tool_use_policy=round_tool_policy,
             ):
                 if self._runtime_model_info is None and isinstance(
@@ -632,6 +682,16 @@ class StreamExecutionHandler:
                     self._runtime_model_info = chunk.metadata.get(
                         "runtime_model_info",
                     )
+                if self._runtime_turn_record is None and isinstance(
+                    getattr(chunk, "metadata", None), dict
+                ):
+                    raw_turn_record = chunk.metadata.get("runtime_turn_record")
+                    if isinstance(raw_turn_record, dict):
+                        self._runtime_turn_record = dict(raw_turn_record)
+                    elif hasattr(raw_turn_record, "__dict__"):
+                        self._runtime_turn_record = dict(
+                            getattr(raw_turn_record, "__dict__", {}) or {}
+                        )
                 if chunk.reasoning_delta:
                     round_reasoning_output += chunk.reasoning_delta
                     round_visible_thinking += chunk.reasoning_delta

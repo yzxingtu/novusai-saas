@@ -14,7 +14,7 @@ import type { ItemType } from 'ant-design-vue/es/menu';
 import type { AIPageMode } from '@vben/types';
 
 import type { ConversationTimelineItem } from '#/api/shared/ai-chat';
-import type { RichTextAITask } from '#/components/business/ai-chat-panel/types';
+import type { RichTextAITask } from '#/types/ai-chat';
 
 import {
   computed,
@@ -35,7 +35,6 @@ import {
   compactChatConversationApi,
   getChatConversationTimelineApi,
 } from '#/api/shared/ai-chat';
-import { getAgentInputVariables } from '#/components/business/ai-chat-panel/types';
 import { useAIChat } from '#/components/business/ai-chat-panel/use-ai-chat';
 import { useModalDetector } from '#/composables/use-modal-detector';
 import {
@@ -46,6 +45,7 @@ import { getActivePageSessionId } from '#/composables/use-page-session';
 import { $t } from '#/locales';
 import { useAIPanelStore } from '#/store';
 import { usePublicConfigStore } from '#/store/shared/public-config';
+import { getAgentInputVariables } from '#/types/ai-chat';
 import { normalizePageAIMode } from '#/utils/ai-page-capabilities';
 import { normalizeStarterQuestions } from '#/utils/ai-starter-questions';
 import { getErrorMessage } from '#/utils/error-helpers';
@@ -1923,6 +1923,7 @@ onUnmounted(() => {
 }
 
 /* Attachment pop transition / 附件弹出过渡 */
+
 /* Routing shimmer effect / 路由闪烁效果 */
 .routing-shimmer {
   background: linear-gradient(

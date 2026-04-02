@@ -9,7 +9,12 @@
  */
 import type { UserInfo } from '@vben/types';
 
-import type { ApiEndpoint, BaseUserInfo, LoginParams } from '#/api';
+import type {
+  ApiEndpoint,
+  BaseUserInfo,
+  LoginByCodeParams,
+  LoginParams,
+} from '#/api';
 
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -101,11 +106,78 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
           changePassword: userApi.userChangePasswordApi,
           getUserInfo: userApi.getUserInfoApi,
           login: userApi.userLoginApi,
+          loginByCode: userApi.userLoginByCodeApi,
           logout: userApi.userLogoutApi,
           refreshToken: userApi.userRefreshTokenApi,
+          sendLoginCode: userApi.userSendLoginCodeApi,
         };
       }
     }
+  }
+
+  async function finalizeLoginSuccess(
+    endpoint: ApiEndpoint,
+    tokens: { accessToken: string; refreshToken?: string },
+    onSuccess?: () => Promise<void> | void,
+  ): Promise<BaseUserInfo | null> {
+    const { accessToken, refreshToken } = tokens;
+    const homePath = normalizeEndpointNavigationPath(
+      HOME_PATHS[endpoint],
+      endpoint,
+    );
+    const postLoginTarget = resolvePostLoginTarget(endpoint);
+
+    if (!accessToken) {
+      return null;
+    }
+
+    TokenStorage.setToken(endpoint, accessToken);
+    if (refreshToken) {
+      TokenStorage.setRefreshToken(endpoint, refreshToken);
+    }
+
+    accessStore.setAccessToken(accessToken);
+    if (refreshToken) {
+      accessStore.setRefreshToken(refreshToken);
+    }
+
+    const userInfo = await fetchUserInfo(endpoint);
+
+    const preferenceStore = useUserPreferenceStore();
+    if (endpoint === 'admin' || endpoint === 'tenant') {
+      preferenceStore.loadPreferences(endpoint).catch(() => {});
+    }
+
+    const vbenUserInfo: UserInfo = {
+      avatar: toAvatarDisplayUrl(userInfo?.avatar),
+      desc: '',
+      homePath: normalizeEndpointNavigationPath(userInfo?.homePath, endpoint),
+      realName: userInfo?.realName || '',
+      roles: userInfo?.roles || [],
+      token: accessToken,
+      userId: String(userInfo?.id || ''),
+      username: userInfo?.username || '',
+    };
+
+    userStore.setUserInfo(vbenUserInfo);
+
+    if (accessStore.loginExpired) {
+      accessStore.setLoginExpired(false);
+    } else if (onSuccess) {
+      await onSuccess();
+    } else {
+      await router.push(postLoginTarget || vbenUserInfo.homePath || homePath);
+    }
+
+    if (vbenUserInfo.realName) {
+      notification.success({
+        description: `${$t('authentication.loginSuccessDesc')}:${vbenUserInfo.realName}`,
+        duration: 3,
+        message: $t('authentication.loginSuccess'),
+      });
+    }
+
+    return userInfo;
   }
 
   /**
@@ -122,8 +194,6 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
   ) {
     const ep = endpoint || currentEndpoint.value;
     const api = getAuthApi(ep);
-    const homePath = normalizeEndpointNavigationPath(HOME_PATHS[ep], ep);
-    const postLoginTarget = resolvePostLoginTarget(ep);
 
     let userInfo: BaseUserInfo | null = null;
     let captchaRequired = false;
@@ -152,60 +222,11 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
         username,
       });
 
-      if (accessToken) {
-        // Store token per endpoint via TokenStorage (multi-endpoint separated) / 按端存储 Token
-        TokenStorage.setToken(ep, accessToken);
-        if (refreshToken) {
-          TokenStorage.setRefreshToken(ep, refreshToken);
-        }
-
-        // Also set in accessStore (Vben framework compat) / 同时设置到 accessStore
-        accessStore.setAccessToken(accessToken);
-        if (refreshToken) {
-          accessStore.setRefreshToken(refreshToken);
-        }
-
-        // Fetch user info / 获取用户信息
-        userInfo = await fetchUserInfo(ep);
-
-        // Load user preferences and sync to UI framework / 加载用户偏好并同步到 UI 框架
-        const preferenceStore = useUserPreferenceStore();
-        if (ep === 'admin' || ep === 'tenant') {
-          preferenceStore.loadPreferences(ep).catch(() => {});
-        }
-
-        // Convert to Vben UserInfo format / 转换为 vben UserInfo 格式
-        const vbenUserInfo: UserInfo = {
-          avatar: toAvatarDisplayUrl(userInfo?.avatar),
-          desc: '',
-          homePath: normalizeEndpointNavigationPath(userInfo?.homePath, ep),
-          realName: userInfo?.realName || '',
-          roles: userInfo?.roles || [],
-          token: accessToken,
-          userId: String(userInfo?.id || ''),
-          username: userInfo?.username || '',
-        };
-
-        userStore.setUserInfo(vbenUserInfo);
-
-        if (accessStore.loginExpired) {
-          accessStore.setLoginExpired(false);
-        } else {
-          onSuccess
-            ? await onSuccess?.()
-            : await router.push(
-                postLoginTarget || vbenUserInfo.homePath || homePath,
-              );
-        }
-
-        if (vbenUserInfo.realName) {
-          notification.success({
-            description: `${$t('authentication.loginSuccessDesc')}:${vbenUserInfo.realName}`,
-            duration: 3,
-            message: $t('authentication.loginSuccess'),
-          });
-        }
-      }
+      userInfo = await finalizeLoginSuccess(
+        ep,
+        { accessToken, refreshToken },
+        onSuccess,
+      );
     } catch (error: unknown) {
       // Check if error response contains captcha_required field / 检查错误响应中是否包含 captcha_required
       const err = error as {
@@ -222,6 +243,66 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
         captchaRequired = true;
       }
       // Error handled by axios interceptor; catch to prevent bubbling / 错误已由拦截器处理
+    } finally {
+      loginLoading.value = false;
+    }
+
+    return { captchaRequired, userInfo };
+  }
+
+  async function authCodeLogin(
+    params: LoginByCodeParams | Record<string, unknown>,
+    endpoint?: ApiEndpoint,
+    onSuccess?: () => Promise<void> | void,
+  ) {
+    const ep = endpoint || currentEndpoint.value;
+    const api = getAuthApi(ep);
+
+    let userInfo: BaseUserInfo | null = null;
+    let captchaRequired = false;
+
+    try {
+      loginLoading.value = true;
+
+      const normalizeOptional = (value: unknown): string | undefined => {
+        if (value === null || value === undefined) {
+          return undefined;
+        }
+        const normalized = String(value).trim();
+        return normalized || undefined;
+      };
+
+      if (!('loginByCode' in api) || typeof api.loginByCode !== 'function') {
+        throw new Error(`Code login is not supported for endpoint: ${ep}`);
+      }
+
+      const { accessToken, refreshToken } = await api.loginByCode({
+        channel: (params.channel as 'email' | 'sms') ?? 'email',
+        code: normalizeOptional(params.code) ?? '',
+        email: normalizeOptional(params.email),
+        phone: normalizeOptional(params.phone),
+        tenantCode: normalizeOptional(params.tenantCode),
+      });
+
+      userInfo = await finalizeLoginSuccess(
+        ep,
+        { accessToken, refreshToken },
+        onSuccess,
+      );
+    } catch (error: unknown) {
+      const err = error as {
+        response?: {
+          data?: {
+            data?: {
+              captcha_required?: boolean;
+            };
+          };
+        };
+      };
+      const responseData = err?.response?.data;
+      if (responseData?.data?.captcha_required) {
+        captchaRequired = true;
+      }
     } finally {
       loginLoading.value = false;
     }
@@ -429,6 +510,7 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
   return {
     $reset,
     authLogin,
+    authCodeLogin,
     currentEndpoint,
     currentHomePath,
     currentLoginPath,

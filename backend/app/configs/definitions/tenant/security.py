@@ -94,7 +94,7 @@ TENANT_LOGIN_METHODS = ConfigMeta(
     description_key="config.tenant.login_methods.desc",
     scope=ConfigScope.ALL_TENANTS,
     value_type=ConfigValueType.MULTI_SELECT,
-    default_value=["password", "sms"],
+    default_value=["password", "email"],
     options=[
         option("password", "config.tenant.login_methods.password"),
         option("sms", "config.tenant.login_methods.sms"),

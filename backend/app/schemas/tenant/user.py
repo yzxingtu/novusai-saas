@@ -6,6 +6,7 @@ Defines tenant user (end-user) API request and response data structures.
 """
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import Field, model_validator
 
@@ -21,6 +22,28 @@ class TenantUserLoginRequest(BaseSchema):
     captcha_challenge_id: str | None = Field(None, description="验证码挑战 ID")
     captcha_solution: str | None = Field(None, description="验证码答案")
     captcha_provider_code: str | None = Field(None, description="验证码提供方标识")
+
+
+class SendLoginCodeRequest(BaseSchema):
+    """发送登录验证码请求 / Send login code request."""
+
+    channel: Literal["email", "sms"] = Field("email", description="验证码渠道: email/sms")
+    email: str | None = Field(None, max_length=255, description="邮箱")
+    phone: str | None = Field(None, max_length=20, description="手机号")
+    tenant_code: str | None = Field(None, max_length=50, description="企业编码")
+    captcha_challenge_id: str | None = Field(None, description="验证码挑战 ID")
+    captcha_solution: str | None = Field(None, description="验证码答案")
+    captcha_provider_code: str | None = Field(None, description="验证码提供方标识")
+
+
+class LoginByCodeRequest(BaseSchema):
+    """验证码登录请求 / Login by code request."""
+
+    channel: Literal["email", "sms"] = Field("email", description="验证码渠道: email/sms")
+    code: str = Field(..., min_length=4, max_length=10, description="验证码")
+    email: str | None = Field(None, max_length=255, description="邮箱")
+    phone: str | None = Field(None, max_length=20, description="手机号")
+    tenant_code: str | None = Field(None, max_length=50, description="企业编码")
 
 
 class TenantUserResponse(BaseSchema):
@@ -135,6 +158,8 @@ class ResetPasswordRequest(BaseSchema):
 
 __all__ = [
     "TenantUserLoginRequest",
+    "SendLoginCodeRequest",
+    "LoginByCodeRequest",
     "TenantUserResponse",
     "TenantUserCreateRequest",
     "TenantUserUpdateRequest",

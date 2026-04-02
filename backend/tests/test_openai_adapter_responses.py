@@ -7,7 +7,20 @@ import pytest
 
 from app.ai.adapters.openai_adapter import OpenAIAdapter
 from app.ai.exceptions import ProviderError
+from app.ai.runtime.query_engine import ConversationQueryEngine
 from app.ai.types import ChatMessage
+
+
+class _FakeStatusError(Exception):
+    def __init__(self, status_code: int, message: str):
+        super().__init__(message)
+        self.status_code = status_code
+        self.response = SimpleNamespace(
+            status_code=status_code,
+            text=message,
+            headers={"content-type": "application/json"},
+            request=SimpleNamespace(url="https://api.example.com/responses"),
+        )
 
 
 class _FakeChatCompletions:
@@ -94,6 +107,7 @@ async def test_chat_falls_back_to_responses_when_chat_payload_has_no_choices() -
 
     assert result.message.content == "hello from responses"
     assert result.total_tokens == 20
+    assert result.metadata["protocol_path"] == "responses"
     assert result.tool_calls == [{
         "id": "call_1",
         "type": "function",
@@ -160,6 +174,91 @@ async def test_chat_forwards_required_tool_choice_and_subset_tools_to_chat_compl
     ]
 
 
+@pytest.mark.asyncio
+async def test_chat_runtime_force_wire_api_uses_responses_path() -> None:
+    adapter = OpenAIAdapter(api_key="test-key", base_url="https://api.example.com")
+    response_obj = SimpleNamespace(
+        object="response",
+        status="completed",
+        usage=SimpleNamespace(input_tokens=10, output_tokens=5, total_tokens=15),
+        output=[_make_responses_message("forced responses")],
+        output_text="forced responses",
+        model_dump=lambda: {"ok": True},
+    )
+    responses_create = AsyncMock(return_value=response_obj)
+    completions_create = AsyncMock(return_value=_make_chat_completion_response("chat path"))
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(create=responses_create),
+        chat=SimpleNamespace(completions=SimpleNamespace(create=completions_create)),
+    )
+
+    result = await adapter.chat(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        _runtime_force_wire_api="responses",
+        _runtime_disable_cross_protocol_fallback=True,
+    )
+
+    assert result.message.content == "forced responses"
+    assert result.metadata["protocol_path"] == "responses"
+    assert responses_create.await_count == 1
+    assert completions_create.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_chat_falls_back_to_chat_completions_when_responses_tool_call_returns_5xx() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+    completions = _FakeChatCompletions(_make_chat_completion_response("fallback ok"))
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(
+            create=AsyncMock(side_effect=_FakeStatusError(502, "Upstream request failed")),
+        ),
+        chat=SimpleNamespace(completions=completions),
+    )
+
+    result = await adapter.chat(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        tools=[{"type": "function", "function": {"name": "get_page_context", "parameters": {}}}],
+        tool_choice="required",
+    )
+
+    assert result.message.content == "fallback ok"
+    assert result.metadata["protocol_path"] == "chat_completions"
+    assert completions.last_kwargs is not None
+    assert completions.last_kwargs["tool_choice"] == "required"
+
+
+@pytest.mark.asyncio
+async def test_chat_does_not_fallback_to_chat_completions_on_responses_4xx() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+    completions = _FakeChatCompletions(_make_chat_completion_response("fallback ok"))
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(
+            create=AsyncMock(side_effect=_FakeStatusError(400, "invalid request")),
+        ),
+        chat=SimpleNamespace(completions=completions),
+    )
+
+    with pytest.raises(ProviderError, match="AI 请求失败"):
+        await adapter.chat(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4-xhigh",
+            tools=[{"type": "function", "function": {"name": "get_page_context", "parameters": {}}}],
+            tool_choice="required",
+        )
+
+    assert completions.last_kwargs is None
+
+
 def _fake_chat_completion_chunk(delta_text: str, finish_reason: str | None = None):
     choice = SimpleNamespace(
         delta=SimpleNamespace(
@@ -218,6 +317,273 @@ async def test_stream_chat_chat_completions_breaks_on_finish_reason_and_acloses(
     assert "".join(c.delta for c in chunks) == "hi"
     assert chunks[-1].finish_reason == "stop"
     assert stream.aclose_called is True
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_falls_back_to_chat_completions_when_responses_tool_call_returns_5xx() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+    stream = _FakeChatStream(
+        [
+            _fake_chat_completion_chunk("hi", None),
+            _fake_chat_completion_chunk("", "stop"),
+        ]
+    )
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(
+            create=AsyncMock(side_effect=_FakeStatusError(502, "Upstream request failed")),
+        ),
+        chat=SimpleNamespace(completions=SimpleNamespace(create=AsyncMock(return_value=stream))),
+    )
+
+    chunks = []
+    async for chunk in adapter.stream_chat(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        tools=[{"type": "function", "function": {"name": "get_page_context", "parameters": {}}}],
+        tool_choice="required",
+    ):
+        chunks.append(chunk)
+
+    assert "".join(chunk.delta for chunk in chunks) == "hi"
+    assert chunks[-1].finish_reason == "stop"
+    assert stream.aclose_called is True
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_runtime_disable_cross_protocol_fallback_keeps_responses_error() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+    stream = _FakeChatStream(
+        [
+            _fake_chat_completion_chunk("hi", None),
+            _fake_chat_completion_chunk("", "stop"),
+        ]
+    )
+    chat_create = AsyncMock(return_value=stream)
+    responses_create = AsyncMock(side_effect=_FakeStatusError(502, "Upstream request failed"))
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(create=responses_create),
+        chat=SimpleNamespace(completions=SimpleNamespace(create=chat_create)),
+    )
+
+    with pytest.raises(ProviderError, match="AI 请求失败"):
+        async for _ in adapter.stream_chat(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4-xhigh",
+            tools=[{"type": "function", "function": {"name": "get_page_context", "parameters": {}}}],
+            tool_choice="required",
+            _runtime_disable_cross_protocol_fallback=True,
+        ):
+            pass
+
+    assert chat_create.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_responses_error_after_meaningful_chunk_does_not_fallback() -> None:
+    class _FailAfterFirstResponsesStream:
+        def __init__(self) -> None:
+            self._step = 0
+            self.aclose_called = False
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            if self._step == 0:
+                self._step += 1
+                return SimpleNamespace(type="response.output_text.delta", delta="partial")
+            raise _FakeStatusError(502, "stream interrupted")
+
+        async def aclose(self) -> None:
+            self.aclose_called = True
+
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+    stream = _FailAfterFirstResponsesStream()
+    chat_create = AsyncMock(
+        return_value=_FakeChatStream(
+            [
+                _fake_chat_completion_chunk("fallback", None),
+                _fake_chat_completion_chunk("", "stop"),
+            ]
+        ),
+    )
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(create=AsyncMock(return_value=stream)),
+        chat=SimpleNamespace(completions=SimpleNamespace(create=chat_create)),
+    )
+
+    with pytest.raises(ProviderError, match="AI 请求失败"):
+        async for _ in adapter.stream_chat(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4-xhigh",
+            tools=[{"type": "function", "function": {"name": "get_page_context", "parameters": {}}}],
+            tool_choice="required",
+        ):
+            pass
+
+    assert chat_create.await_count == 0
+    assert stream.aclose_called is True
+
+
+class _RuntimeFakeAdapter:
+    def __init__(self, *, wire_api: str = "responses"):
+        self.wire_api = wire_api
+        self.stream_calls: list[dict] = []
+        self.chat_calls: list[dict] = []
+        self._stream_behaviors: dict[str, list] = {"responses": [], "chat_completions": []}
+        self._chat_behaviors: dict[str, object] = {"responses": None, "chat_completions": None}
+
+    def set_stream(self, protocol: str, chunks: list) -> None:
+        self._stream_behaviors[protocol] = list(chunks)
+
+    def set_chat(self, protocol: str, response: object) -> None:
+        self._chat_behaviors[protocol] = response
+
+    async def stream_chat(self, **kwargs):
+        forced = kwargs.get("_runtime_force_wire_api") or self.wire_api
+        protocol = "responses" if str(forced).startswith("responses") else "chat_completions"
+        self.stream_calls.append({"protocol": protocol, **kwargs})
+        for chunk in list(self._stream_behaviors.get(protocol, [])):
+            yield chunk
+
+    async def chat(self, **kwargs):
+        forced = kwargs.get("_runtime_force_wire_api") or self.wire_api
+        protocol = "responses" if str(forced).startswith("responses") else "chat_completions"
+        self.chat_calls.append({"protocol": protocol, **kwargs})
+        result = self._chat_behaviors.get(protocol)
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+
+@pytest.mark.asyncio
+async def test_runtime_query_engine_required_empty_without_tool_calls_fails() -> None:
+    adapter = _RuntimeFakeAdapter(wire_api="chat_completions")
+    adapter.set_stream(
+        "chat_completions",
+        [SimpleNamespace(delta="", tool_calls=None, metadata={}, input_tokens=None, output_tokens=None, total_tokens=None)],
+    )
+    query_engine = ConversationQueryEngine(adapter=adapter, strict_contract=True)
+
+    with pytest.raises(RuntimeError, match="required_tool_round_empty_no_tool_calls"):
+        await query_engine.run_stream_turn(
+            messages=[ChatMessage(role="user", content="请调用工具")],
+            model="gpt-5.4-xhigh",
+            temperature=0.7,
+            max_tokens=None,
+            top_p=1.0,
+            tools=[{"type": "function", "function": {"name": "web_search", "parameters": {}}}],
+            tool_choice="required",
+            supports_vision=True,
+            supports_audio=False,
+            supports_video=False,
+        )
+
+
+@pytest.mark.asyncio
+async def test_runtime_query_engine_stream_empty_after_fallback_sync_rescue_success() -> None:
+    adapter = _RuntimeFakeAdapter(wire_api="responses")
+    adapter.set_stream("responses", [])
+    adapter.set_stream("chat_completions", [])
+    adapter.set_chat(
+        "chat_completions",
+        SimpleNamespace(
+            message=SimpleNamespace(
+                role="assistant",
+                content="rescued reply",
+                reasoning_content=None,
+                tool_calls=None,
+            ),
+            finish_reason="stop",
+            input_tokens=5,
+            output_tokens=7,
+            total_tokens=12,
+            tool_calls=None,
+            metadata={},
+        ),
+    )
+    query_engine = ConversationQueryEngine(adapter=adapter, strict_contract=False)
+
+    chunks = await query_engine.run_stream_turn(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        temperature=0.7,
+        max_tokens=None,
+        top_p=1.0,
+        tools=[{"type": "function", "function": {"name": "web_search", "parameters": {}}}],
+        tool_choice="required",
+        supports_vision=True,
+        supports_audio=False,
+        supports_video=False,
+    )
+
+    assert len(chunks) == 1
+    assert chunks[0].delta == "rescued reply"
+    assert query_engine.turn_record.termination_reason == "protocol_fallback"
+    assert query_engine.turn_record.metadata["sync_rescue"] is True
+    assert [call["protocol"] for call in adapter.stream_calls] == ["responses", "chat_completions"]
+    assert [call["protocol"] for call in adapter.chat_calls] == ["chat_completions"]
+
+
+@pytest.mark.asyncio
+async def test_runtime_query_engine_chat_turn_records_protocol_fallback_history() -> None:
+    adapter = _RuntimeFakeAdapter(wire_api="responses")
+    adapter.set_chat("responses", RuntimeError("responses upstream timeout"))
+    adapter.set_chat(
+        "chat_completions",
+        SimpleNamespace(
+            message=SimpleNamespace(
+                role="assistant",
+                content="fallback chat result",
+                reasoning_content=None,
+                tool_calls=None,
+            ),
+            finish_reason="stop",
+            input_tokens=9,
+            output_tokens=6,
+            total_tokens=15,
+            tool_calls=None,
+            metadata={},
+        ),
+    )
+    query_engine = ConversationQueryEngine(adapter=adapter, strict_contract=False)
+
+    response = await query_engine.run_chat_turn(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        temperature=0.7,
+        max_tokens=None,
+        top_p=1.0,
+        tools=[{"type": "function", "function": {"name": "web_search", "parameters": {}}}],
+        tool_choice="auto",
+        supports_vision=True,
+        supports_audio=False,
+        supports_video=False,
+    )
+
+    assert response.message.content == "fallback chat result"
+    assert query_engine.turn_record.termination_reason == "protocol_fallback"
+    assert len(query_engine.turn_record.fallback_history) == 1
+    assert query_engine.turn_record.fallback_history[0].from_protocol == "responses"
+    assert query_engine.turn_record.fallback_history[0].to_protocol == "chat_completions"
+    assert query_engine.turn_record.fallback_history[0].reason == "exception:RuntimeError"
+    assert response.metadata["runtime_turn_record"] is query_engine.turn_record
+    assert [call["protocol"] for call in adapter.chat_calls] == [
+        "responses",
+        "chat_completions",
+    ]
 
 
 @pytest.mark.asyncio

@@ -281,11 +281,17 @@ class ToolCallProcessor:
         tools: list[ToolDefinition],
         all_tools: list[ToolDefinition] | None = None,
         consent_modes: dict[str, str] | None = None,
+        approved_pending_consent_tools: set[str] | None = None,
     ):
         self.sandbox = sandbox
         self.tools = tools
         self.all_tools = all_tools or tools
         self.consent_modes = consent_modes or {}
+        self.approved_pending_consent_tools = {
+            str(name).strip()
+            for name in (approved_pending_consent_tools or set())
+            if str(name).strip()
+        }
 
     # ========================================
     # Core Methods / 核心方法
@@ -470,7 +476,28 @@ class ToolCallProcessor:
         Returns:
             "auto" | "ask" | "reject"
         """
-        return self.consent_modes.get(func_name, "auto")
+        consent_mode = self.consent_modes.get(func_name, "auto")
+        if consent_mode != "ask":
+            return consent_mode
+        normalized_name = str(func_name or "").strip()
+        if normalized_name and normalized_name in self.approved_pending_consent_tools:
+            return "auto"
+        return consent_mode
+
+    @staticmethod
+    def approved_pending_consent_tool_names(
+        interaction_updates: list[dict[str, Any]] | None,
+    ) -> set[str]:
+        approved: set[str] = set()
+        for update in interaction_updates or []:
+            if str(update.get("kind") or "").strip() != "pending_consent":
+                continue
+            if bool(update.get("rejected")):
+                continue
+            tool_name = str(update.get("tool_name") or "").strip()
+            if tool_name:
+                approved.add(tool_name)
+        return approved
 
     def build_consent_reject_message(
         self,

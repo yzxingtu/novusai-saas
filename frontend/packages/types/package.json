@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@vben-core/typings": "workspace:*",
+    "sortablejs": "catalog:",
     "vue": "catalog:",
     "vue-router": "catalog:"
   }

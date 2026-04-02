@@ -2,7 +2,7 @@
 /**
  * Agent Profile Popover - Shared component for displaying agent info + granted skills / 智能体资料气泡卡片
  *
- * Reused in ChatMessageItem (slide panel chat) and ConversationDetail (history drawer).
+ * Reused in chat-related surfaces such as ChatMessageItem and monitoring drawers.
  * Clicking the avatar opens a Popover with:
  *  - Agent name, model, description
  *  - Directly granted skills grouped by package
