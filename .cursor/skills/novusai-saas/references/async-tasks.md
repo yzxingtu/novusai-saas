@@ -1,6 +1,6 @@
 # 异步任务与定时任务开发规范
 
-本项目使用 Celery + Redis 实现异步任务和定时任务。完整文档见 DevGenius MCP 文档《P1-1 异步队列与定时任务 - 使用指南》。
+本项目使用 Celery + Redis 实现异步任务和定时任务；规范以本文件及仓库内 `async-notification-websocket` 规则为准。
 
 ---
 

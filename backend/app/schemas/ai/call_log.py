@@ -27,6 +27,7 @@ class AICallLogResponse(TenantResponseSchema):
     provider_id: int = Field(..., description=_("enum.ai_call_log.provider_id"))
     model_id: int = Field(..., description=_("enum.ai_call_log.model_id"))
     request_type: str = Field(..., description=_("enum.ai_call_log.request_type"))
+    call_type: str = Field(..., description="Call type")
     input_tokens: int | None = Field(None, description=_("enum.ai_call_log.input_tokens"))
     output_tokens: int | None = Field(None, description=_("enum.ai_call_log.output_tokens"))
     total_tokens: int | None = Field(None, description=_("enum.ai_call_log.total_tokens"))

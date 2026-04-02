@@ -175,10 +175,9 @@
 - [trace-and-monitoring.md](trace-and-monitoring.md)
 - [../skills/novusai-saas/references/monitoring-spec.md](../skills/novusai-saas/references/monitoring-spec.md)
 
-## DevGenius 治理
+## 任务与文档协作（trytrellis）
 
-- 所有开发优先基于已认领任务推进
-- 文档、任务、里程碑优先通过 `devgenius-quanzhan` MCP 管理
+- 任务、里程碑与协作流程统一通过 **trytrellis** 维护：见仓库根目录 [AGENTS.md](../../AGENTS.md)、[`.trellis/workflow.md`](../../.trellis/workflow.md) 与个人工作区 [`.trellis/workspace/`](../../.trellis/workspace/)
 - 写文档前先查重，禁止重复创建
 - 实施完成后再同步状态，禁止假完成
 - `.cursor/mcp.json` 可能为空，不要把它当成唯一事实来源

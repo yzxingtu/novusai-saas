@@ -5,8 +5,8 @@ Deterministic planner for deciding whether a turn should use tools.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
 import re
+from dataclasses import asdict, dataclass
 from typing import Any
 
 from app.ai.tools.semantic_defaults import tool_family_from_name, tool_semantic_family
@@ -27,7 +27,7 @@ _PAGE_CAPABILITY_RE = re.compile(
     re.IGNORECASE,
 )
 _WEB_RESEARCH_RE = re.compile(
-    r"(联网|搜一下|查一下|最新|最近|新闻|官网|链接|url|网页|web|search|fetch)",
+    r"(联网|搜索|搜一下|网上查|网络搜索|新闻|官网|链接|url|网页|web search|fetch)",
     re.IGNORECASE,
 )
 _WEB_RESULT_ANCHOR_RE = re.compile(
@@ -42,8 +42,16 @@ _DATA_STRONG_RE = re.compile(
     r"(数据|记录|数据库|字段|明细|列表|筛选|排序|统计|\btable\b|\brecord\b|\bsql\b|\bid\b|报表)",
     re.IGNORECASE,
 )
+_DATA_TIME_RANGE_RE = re.compile(
+    r"(最近\d+天|最近\d+周|最近\d+月|最近一周|最近一月|过去\d+天|last \d+ days|recent \d+ days)",
+    re.IGNORECASE,
+)
 _DATA_ANCHOR_RE = re.compile(
     r"(这条数据|这条记录|上一条记录|这个字段|这个id|这行数据|上一行)",
+    re.IGNORECASE,
+)
+_NO_WEB_INTENT_RE = re.compile(
+    r"(不要联网|不联网|不要搜索|不要网络|不用联网|不用搜索|禁止联网|no web|no search|offline)",
     re.IGNORECASE,
 )
 _SMALLTALK_RE = re.compile(
@@ -102,6 +110,10 @@ class ToolInvocationPlanner:
             return False
         if _DATA_STRONG_RE.search(text):
             return True
+        if _DATA_TIME_RANGE_RE.search(text):
+            return True
+        if _NO_WEB_INTENT_RE.search(text) and _DATA_QUERY_RE.search(text):
+            return True
         # "查询" alone is ambiguous; when web intent is explicit, avoid false data_ops mix.
         return not bool(_WEB_RESEARCH_RE.search(text))
 
@@ -121,6 +133,57 @@ class ToolInvocationPlanner:
             or _PAGE_ACTION_RE.search(text)
             or _PAGE_CAPABILITY_RE.search(text)
         )
+
+    @staticmethod
+    def _has_bound_knowledge_base(capability_bundle: Any | None) -> bool:
+        """Detect active knowledge-base context in the capability bundle / 检测能力包中是否存在激活的知识库上下文。"""
+        if capability_bundle is None:
+            return False
+        context_sources = getattr(capability_bundle, "context_sources", None) or []
+        for source in context_sources:
+            if isinstance(source, dict):
+                kind = str(source.get("kind") or "").strip()
+                active = bool(source.get("active", True))
+            else:
+                kind = str(getattr(source, "kind", "") or "").strip()
+                active = bool(getattr(source, "active", True))
+            if kind == "knowledge_base" and active:
+                return True
+        return False
+
+    @classmethod
+    def _detect_combined_intent(
+        cls,
+        user_text: str,
+        *,
+        explicit_web: bool,
+        explicit_data: bool,
+        has_bound_kb: bool,
+    ) -> tuple[str, str]:
+        """
+        Detect combined intents and choose the primary family / 检测组合意图并选择主工具族。
+        """
+        no_web = bool(_NO_WEB_INTENT_RE.search(user_text))
+
+        if no_web:
+            if explicit_data:
+                return ("data_ops", "no_web_explicit_data")
+            if has_bound_kb:
+                return ("knowledge_base", "no_web_with_kb")
+            return ("none", "no_web_no_clear_intent")
+
+        if explicit_data and has_bound_kb:
+            if _DATA_TIME_RANGE_RE.search(user_text):
+                return ("data_ops", "data_time_range_with_kb")
+            if not explicit_web:
+                return ("data_ops", "data_with_kb_no_web")
+
+        if explicit_data and explicit_web:
+            if _DATA_STRONG_RE.search(user_text) or _DATA_TIME_RANGE_RE.search(user_text):
+                return ("data_ops", "strong_data_over_web")
+            return ("web_research", "web_over_weak_data")
+
+        return ("none", "no_combined_intent")
 
     @staticmethod
     def _recent_successful_tool_names(messages: list[ChatMessage]) -> list[str]:
@@ -236,6 +299,7 @@ class ToolInvocationPlanner:
         tools: list[ToolDefinition],
         input_variables: dict[str, Any] | None,
         continuation_context: Any | None,
+        capability_bundle: Any | None = None,
     ) -> ToolInvocationPlan:
         user_text = cls._last_user_text(messages)
         if not user_text or not tools:
@@ -268,6 +332,13 @@ class ToolInvocationPlanner:
                 user_text,
                 re.IGNORECASE,
             )
+        )
+        has_bound_kb = cls._has_bound_knowledge_base(capability_bundle)
+        combined_family, combined_reason = cls._detect_combined_intent(
+            user_text,
+            explicit_web=explicit_web,
+            explicit_data=explicit_data,
+            has_bound_kb=has_bound_kb,
         )
         health_or_emotion = bool(_HEALTH_RE.search(user_text) or _EMOTION_RE.search(user_text))
         smalltalk = bool(_SMALLTALK_RE.search(user_text) or _THANKS_RE.match(user_text))
@@ -331,6 +402,26 @@ class ToolInvocationPlanner:
                 reason="explicit_page_request",
                 confidence_band="high",
             )
+
+        if combined_family != "none":
+            if combined_family == "data_ops":
+                return ToolInvocationPlan(
+                    intent="data_query",
+                    family="data_ops",
+                    allow_no_tool=False,
+                    allow_family_continuation=False,
+                    reason=combined_reason,
+                    confidence_band="high",
+                )
+            if combined_family == "knowledge_base":
+                return ToolInvocationPlan(
+                    intent="knowledge_query",
+                    family="none",
+                    allow_no_tool=True,
+                    allow_family_continuation=False,
+                    reason=combined_reason,
+                    confidence_band="high",
+                )
 
         if explicit_web:
             return ToolInvocationPlan(

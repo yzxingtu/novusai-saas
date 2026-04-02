@@ -1282,13 +1282,8 @@ Ant Design 的 `<Card>`、`<Spin>` 等组件内部会生成额外的 wrapper div
 
 ## 相关文档
 
-详细文档请查阅 DevGenius 文档管理系统：
+仓库内补充说明：
 
-- 前端开发规范-概述（目录结构详情）
-- 前端开发规范-表格开发（完整 Schema 示例）
-- 前端开发规范-远程下拉（ApiSelect 使用）
-- 前端开发规范-权限控制（v-access 详解）
-- 前端开发规范-列表筛选（JSON:API 详解）
-- 前端开发规范-国际化（i18n 详解）
-- 前端开发规范-图标使用（Iconify 详解）
-- 前端开发规范-代码风格（ESLint/Prettier/Stylelint 规则）
+- [frontend-crud.md](frontend-crud.md) — 列表与表单模式
+- [icon-spec.md](icon-spec.md) — 图标与资源约束
+- `.cursor/rules/menu-i18n.md` — 菜单与 i18n

@@ -72,6 +72,7 @@ async def test_chat_logs_platform_admin_calls_when_tenant_id_is_zero(mock_db):
     assert kwargs["tenant_id"] == PLATFORM_TENANT_ID
     assert kwargs["user_id"] == 7
     assert kwargs["user_type"] == LogUserTypeEnum.ADMIN.value
+    assert kwargs["call_type"] == "main_chat"
     request_data = kwargs["request_data"]
     assert request_data["selected_tool_names"] == []
     assert request_data["all_tool_names"] == []
@@ -170,6 +171,7 @@ async def test_on_stream_complete_logs_platform_admin_calls_without_metering(moc
     assert kwargs["tenant_id"] == PLATFORM_TENANT_ID
     assert kwargs["user_id"] == 8
     assert kwargs["user_type"] == LogUserTypeEnum.ADMIN.value
+    assert kwargs["call_type"] == "main_chat"
     mock_db.commit.assert_awaited()
     api_key.increment_usage.assert_called_once()
 
@@ -242,6 +244,7 @@ async def test_log_call_failure_logs_platform_admin_calls(mock_db):
     assert kwargs["tenant_id"] == PLATFORM_TENANT_ID
     assert kwargs["user_id"] == 9
     assert kwargs["user_type"] == LogUserTypeEnum.ADMIN.value
+    assert kwargs["call_type"] == "main_chat"
     assert kwargs["error_message"] == "boom"
 
 
@@ -448,6 +451,7 @@ async def test_call_log_service_log_call_async_injects_runtime_turn_fields(mock_
     diagnostics = request_payload["turn_diagnostics"]
 
     assert kwargs["tenant_id"] == PLATFORM_TENANT_ID
+    assert kwargs["call_type"] == "main_chat"
     assert "turn_record" not in kwargs
     assert "protocol_path" not in kwargs
     assert "context_sources" not in kwargs
@@ -494,6 +498,7 @@ def test_cli_conversation_summary_renders_runtime_turn_and_call_log_diagnostics(
                     "id": 1001,
                     "created_at": "2026-04-02T10:01:00+08:00",
                     "status": "success",
+                    "call_type": "main_chat",
                     "provider_name": "响应云",
                     "model_name": "gpt-5.4-xhigh",
                     "total_tokens": 20,
@@ -548,6 +553,7 @@ def test_cli_conversation_summary_renders_runtime_turn_and_call_log_diagnostics(
     assert "Turn sync rescue: True" in text
     assert "Turn should_record_call_log: True" in text
     assert "Turn diagnostics source: call_log" in text
+    assert "type=main_chat" in text
     assert "selected_skills: Plugin Research Skill" in text
     assert "fallback_history:" in text
 
@@ -668,6 +674,7 @@ async def test_conversation_engine_stream_logs_platform_admin_calls_without_mete
     assert kwargs["provider_id"] == 11
     assert kwargs["user_id"] == 7
     assert kwargs["user_type"] == LogUserTypeEnum.ADMIN.value
+    assert kwargs["call_type"] == "main_chat"
     assert kwargs["response_data"]["model"] == "gpt-5.4-xhigh"
     api_key.increment_usage.assert_called_once()
     mock_db.flush.assert_awaited_once()

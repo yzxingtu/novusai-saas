@@ -27,6 +27,7 @@ import type { FormState } from './use-form-state-tracker';
 import type {
   AiFieldComponent,
   AiFieldOption,
+  AiFieldScalarType,
   EnhancedFormFieldDescriptor,
 } from './ai-operation-types';
 
@@ -373,6 +374,35 @@ function extractStaticOptions(
   }));
 }
 
+function inferScalarTypeFromOptions(
+  options: AiFieldOption[] | undefined,
+): AiFieldScalarType {
+  const firstOption = options?.[0];
+  if (typeof firstOption?.value === 'number') return 'number';
+  if (typeof firstOption?.value === 'boolean') return 'boolean';
+  return 'string';
+}
+
+function inferFieldScalarType(
+  fieldName: string,
+  options: AiFieldOption[] | undefined,
+): AiFieldScalarType {
+  const optionType = inferScalarTypeFromOptions(options);
+  if (optionType !== 'string') return optionType;
+  if (fieldName.endsWith('_id')) return 'number';
+  return 'string';
+}
+
+function inferArrayItemType(
+  fieldName: string,
+  options: AiFieldOption[] | undefined,
+): AiFieldScalarType {
+  const optionType = inferFieldScalarType(fieldName, options);
+  if (optionType !== 'string') return optionType;
+  if (fieldName.endsWith('_ids')) return 'number';
+  return 'string';
+}
+
 /**
  * Extract form field params from formSchema (for create/edit operations)
  * 从表单 schema 中提取完整字段元数据（用于 AI 感知表单结构）
@@ -408,9 +438,13 @@ export function extractFormParams(
 
     // Infer value type from component / 根据组件推断值类型
     let type: 'array' | 'boolean' | 'number' | 'string' = 'string';
+    let items: EnhancedFormFieldDescriptor['items'];
     if (component === 'InputNumber') type = 'number';
     if (component === 'Switch') type = 'boolean';
     if (component === 'DatePicker') type = 'string';
+    if (component === 'CheckboxGroup') {
+      type = 'array';
+    }
     if (
       component === 'ApiSelect' ||
       component === 'Select' ||
@@ -433,9 +467,24 @@ export function extractFormParams(
       ) {
         type = 'boolean';
       }
-      if (props?.mode === 'multiple' || props?.mode === 'tags') {
-        type = 'array';
+      if (type === 'string') {
+        type = inferFieldScalarType(fieldName, staticOpts);
       }
+      if (
+        props?.mode === 'multiple' ||
+        props?.mode === 'tags' ||
+        props?.multiple === true
+      ) {
+        type = 'array';
+        items = {
+          type: inferArrayItemType(fieldName, staticOpts),
+        };
+      }
+    }
+    if (component === 'CheckboxGroup') {
+      items = {
+        type: inferArrayItemType(fieldName, extractStaticOptions(props)),
+      };
     }
 
     const required =
@@ -468,6 +517,7 @@ export function extractFormParams(
       type,
       description: label,
       component: aiComponent,
+      ...(items ? { items } : {}),
       ...(required ? { required: true } : {}),
       ...(hasConstraints ? { constraints } : {}),
       ...(staticOptions ? { options: staticOptions } : {}),
@@ -489,6 +539,7 @@ export function extractFormParams(
 /** Cache for resolved remote options / 远程选项缓存 */
 const _remoteOptionsCache = new Map<string, AiFieldOption[]>();
 const _remoteOptionsPending = new Map<string, Promise<AiFieldOption[]>>();
+const REMOTE_OPTIONS_TIMEOUT_MS = 8_000;
 
 /**
  * Build a stable cache key from resource + field + api function
@@ -586,6 +637,24 @@ export async function resolveRemoteOptions(
   }
 
   return result;
+}
+
+async function ensureRemoteOptionsWithTimeout(
+  loader: () => Promise<void>,
+): Promise<'ok' | 'timeout'> {
+  let timerId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      loader().then(() => 'ok' as const),
+      new Promise<'timeout'>((resolve) => {
+        timerId = setTimeout(() => resolve('timeout'), REMOTE_OPTIONS_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timerId !== undefined) {
+      clearTimeout(timerId);
+    }
+  }
 }
 
 /**
@@ -763,6 +832,7 @@ function buildFieldParamSchema(
     description: entry.description,
   };
   if (includeRequired && entry.required) schema.required = true;
+  if (entry.items) schema.items = entry.items;
   if (entry.component) schema.component = entry.component;
   if (entry.constraints) schema.constraints = entry.constraints;
   if (entry.options && entry.options.length > 0) {
@@ -847,15 +917,27 @@ export function createStandardOperations(
   // Lazy-load remote options once and merge into formParamsMap
   // 惰性加载远程选项并合并到 formParamsMap
   let _remoteResolved = false;
+  let _remoteResolvePromise: null | Promise<void> = null;
   async function ensureRemoteOptions(): Promise<void> {
     if (_remoteResolved || rawFormSchema.length === 0) return;
-    _remoteResolved = true;
-    const remoteOpts = await resolveRemoteOptions(rawFormSchema, resource);
-    for (const [field, options] of remoteOpts) {
-      const existing = formParamsMap[field];
-      if (existing && !existing.options) {
-        existing.options = options;
+    if (_remoteResolvePromise) {
+      await _remoteResolvePromise;
+      return;
+    }
+    _remoteResolvePromise = (async () => {
+      const remoteOpts = await resolveRemoteOptions(rawFormSchema, resource);
+      for (const [field, options] of remoteOpts) {
+        const existing = formParamsMap[field];
+        if (existing && !existing.options) {
+          existing.options = options;
+        }
       }
+      _remoteResolved = true;
+    })();
+    try {
+      await _remoteResolvePromise;
+    } finally {
+      _remoteResolvePromise = null;
     }
   }
   // Fire-and-forget preload / 触发后台预加载
@@ -1810,6 +1892,12 @@ export function createStandardOperations(
           },
         },
         handler: async (params) => {
+          if (!formStateTracker.isOpenWithFallback(optsPageKey)) {
+            return {
+              success: false,
+              message: $t('shared.pageOperation.msg.formNotOpen'),
+            };
+          }
           const fieldName = resolveFormOptionsFieldName(params);
           if (!fieldName || !formParamsMap[fieldName]) {
             return {
@@ -1821,7 +1909,15 @@ export function createStandardOperations(
             };
           }
 
-          await ensureRemoteOptions();
+          const status = await ensureRemoteOptionsWithTimeout(ensureRemoteOptions);
+          if (status === 'timeout') {
+            return {
+              success: false,
+              message: $t('shared.pageOperation.msg.optionsLoadTimeout', {
+                field: fieldName,
+              }),
+            };
+          }
           const desc = formParamsMap[fieldName];
           if (desc?.options && desc.options.length > 0) {
             return {
@@ -1899,15 +1995,27 @@ export function createFormOperations(
   }
 
   let _remoteResolved = false;
+  let _remoteResolvePromise: null | Promise<void> = null;
   async function ensureRemoteOptions(): Promise<void> {
     if (_remoteResolved || rawFormSchema.length === 0) return;
-    _remoteResolved = true;
-    const remoteOpts = await resolveRemoteOptions(rawFormSchema, resource);
-    for (const [field, options] of remoteOpts) {
-      const existing = formParamsMap[field];
-      if (existing && !existing.options) {
-        existing.options = options;
+    if (_remoteResolvePromise) {
+      await _remoteResolvePromise;
+      return;
+    }
+    _remoteResolvePromise = (async () => {
+      const remoteOpts = await resolveRemoteOptions(rawFormSchema, resource);
+      for (const [field, options] of remoteOpts) {
+        const existing = formParamsMap[field];
+        if (existing && !existing.options) {
+          existing.options = options;
+        }
       }
+      _remoteResolved = true;
+    })();
+    try {
+      await _remoteResolvePromise;
+    } finally {
+      _remoteResolvePromise = null;
     }
   }
   if (
@@ -2137,6 +2245,12 @@ export function createFormOperations(
         },
       },
       handler: async (params) => {
+        if (!formStateTracker.isOpenWithFallback(pageKey)) {
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.formNotOpen'),
+          };
+        }
         const fieldName = resolveFormOptionsFieldName(params);
         if (!fieldName || !formParamsMap[fieldName]) {
           return {
@@ -2148,7 +2262,15 @@ export function createFormOperations(
           };
         }
 
-        await ensureRemoteOptions();
+        const status = await ensureRemoteOptionsWithTimeout(ensureRemoteOptions);
+        if (status === 'timeout') {
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.optionsLoadTimeout', {
+              field: fieldName,
+            }),
+          };
+        }
         const desc = formParamsMap[fieldName];
         if (desc?.options && desc.options.length > 0) {
           return {

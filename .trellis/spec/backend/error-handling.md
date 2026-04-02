@@ -63,6 +63,10 @@ Examples:
   `200 + success=false` soft-failure shapes.
 - If a legacy soft-failure path must remain, preserve `trace_id` and do not
   create a second, inconsistent error contract.
+- For AI streaming paths, protocol fallback must never end in a silent empty
+  stream. If the preferred upstream protocol fails before any meaningful chunk,
+  the backend must either rescue with a secondary protocol or emit a user-safe
+  error event and persist the failure state.
 
 Primary files:
 
@@ -90,3 +94,6 @@ Examples:
 - Swallowing errors in a broad catch without logging.
 - Hardcoding visible strings instead of using `_()`.
 - Hiding or stripping `trace_id` from operational failure paths.
+- Letting an AI SSE route fall through with zero visible output after a
+  protocol fallback or upstream 5xx; empty-stream outcomes must be treated as
+  explicit failure or rescued synchronously.

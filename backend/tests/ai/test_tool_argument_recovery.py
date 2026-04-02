@@ -319,6 +319,42 @@ class TestPageToolExpander:
         assert len(result) == 1
         assert result[0].name == "invoke_page_operation"
 
+    def test_fill_form_array_parameter_emits_items_schema_for_tenant_ids(self) -> None:
+        """fill_form 数组字段 tenant_ids 应输出合法的 array.items schema。"""
+        from app.ai.tools.page_tool_expander import expand_page_tools
+        from app.ai.tools.types import ToolDefinition
+
+        base = [ToolDefinition(name="invoke_page_operation", description="x")]
+        input_vars = {
+            "page_context": {
+                "page_key": "admin.ai.agents",
+                "page_data": {
+                    "available_operations": [
+                        {
+                            "name": "fill_form",
+                            "label": "Fill Form",
+                            "params": {
+                                "tenant_ids": {
+                                    "type": "array",
+                                    "description": "Assigned tenant ids",
+                                    "component": "remote_select",
+                                    "optionsSource": "remote",
+                                }
+                            },
+                        },
+                    ]
+                },
+            },
+        }
+
+        result = expand_page_tools(base, input_vars)
+        tool = next(tool for tool in result if tool.name == "pageop_fill_form")
+        schema = tool.to_openai_schema()
+        tenant_ids_schema = schema["function"]["parameters"]["properties"]["tenant_ids"]
+
+        assert tenant_ids_schema["type"] == "array"
+        assert tenant_ids_schema["items"] == {"type": "integer"}
+
 
 class TestOptimizerRetainsPageopTools:
     """工具优化后 pageop_* 仍被保留"""

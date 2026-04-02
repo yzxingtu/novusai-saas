@@ -157,6 +157,7 @@
     "unknownField": "未知字段：{field}。可用字段：{available}",
     "foundOptions": "已找到 {field} 的 {count} 个选项",
     "noOptionsLoaded": "未加载到 {field} 的选项",
+    "optionsLoadTimeout": "{field} 的远程选项加载超时，请先打开表单或稍后重试",
     "paramRequired": "缺少必填参数：{param}",
     "paramInvalidType": "参数 {param} 类型无效，期望 {expected}",
     "paramInvalidEnum": "参数 {param} 必须为以下之一：{allowed}"

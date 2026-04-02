@@ -9,8 +9,8 @@ import pytest
 
 from app.ai.runtime.types import CapabilityDescriptor
 from app.ai.skills.resolver import (
-    SkillResolveResult,
     SkillResolver,
+    SkillResolveResult,
     enrich_skill_capability_descriptors_with_tools,
 )
 
@@ -34,7 +34,7 @@ async def test_plugin_skill_without_registered_resolver_logs_warning(monkeypatch
     resolver._load_source_plugins = AsyncMock(return_value={77: "weather-widget"})
 
     registry_stub = SimpleNamespace(
-        get_plugin_skill_resolver=lambda plugin_name: None
+        get_plugin_skill_resolver=lambda _plugin_name: None
     )
     monkeypatch.setattr(
         "app.plugins.registry.ExtensionRegistry.get_instance",
@@ -122,3 +122,23 @@ def test_enrich_skill_capability_descriptors_with_tools_attaches_tool_metadata()
     assert kb["resolved_tool_names"] == []
     assert kb["resolved_tool_count"] == 0
     assert kb["has_execution_tools"] is False
+
+
+def test_build_params_from_schema_keeps_array_items_schema() -> None:
+    params = SkillResolver._build_params_from_schema(
+        {
+            "type": "object",
+            "properties": {
+                "tenant_ids": {
+                    "type": "array",
+                    "description": "Tenant ids",
+                    "items": {"type": "integer"},
+                }
+            },
+            "required": ["tenant_ids"],
+        }
+    )
+
+    assert len(params) == 1
+    assert params[0].name == "tenant_ids"
+    assert params[0].items == {"type": "integer"}

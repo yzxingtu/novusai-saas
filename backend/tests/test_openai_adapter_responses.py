@@ -126,11 +126,62 @@ async def test_chat_does_not_fallback_when_payload_is_plain_html() -> None:
         chat_response="<!doctype html><html></html>",
         responses_response=SimpleNamespace(output_text="should not be used"),
     )
+    adapter._chat_completions_v1_retry_client = SimpleNamespace(
+        chat=SimpleNamespace(
+            completions=_FakeChatCompletions("<!doctype html><html></html>"),
+        ),
+    )
+    adapter._chat_completions_v1_retry_base_url = "https://api.example.com/v1"
     with pytest.raises(ProviderError, match="AI 请求失败"):
         await adapter.chat(
             messages=[ChatMessage(role="user", content="hello")],
             model="gpt-4",
         )
+
+
+@pytest.mark.asyncio
+async def test_chat_accepts_plain_text_response_from_chat_completions_gateway() -> None:
+    adapter = OpenAIAdapter(api_key="test-key", base_url="https://api.example.com")
+    adapter.client = _FakeClient(
+        chat_response="raw text reply from gateway",
+        responses_response=SimpleNamespace(output_text="should not be used"),
+    )
+
+    result = await adapter.chat(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-4",
+    )
+
+    assert result.message.content == "raw text reply from gateway"
+    assert result.metadata["protocol_path"] == "chat_completions"
+    assert result.metadata["response_shape"] == "raw_text"
+
+
+@pytest.mark.asyncio
+async def test_chat_retries_chat_completions_with_v1_when_root_endpoint_returns_html() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://codex.2api.com.cn",
+    )
+    adapter.client = _FakeClient(
+        chat_response="<!doctype html><html></html>",
+        responses_response=SimpleNamespace(output_text="should not be used"),
+    )
+    retry_completions = _FakeChatCompletions(
+        _make_chat_completion_response("v1 retry ok"),
+    )
+    adapter._chat_completions_v1_retry_client = SimpleNamespace(
+        chat=SimpleNamespace(completions=retry_completions),
+    )
+    adapter._chat_completions_v1_retry_base_url = "https://codex.2api.com.cn/v1"
+
+    result = await adapter.chat(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+    )
+
+    assert result.message.content == "v1 retry ok"
+    assert retry_completions.last_kwargs is not None
 
 
 @pytest.mark.asyncio
@@ -351,6 +402,153 @@ async def test_stream_chat_falls_back_to_chat_completions_when_responses_tool_ca
     assert "".join(chunk.delta for chunk in chunks) == "hi"
     assert chunks[-1].finish_reason == "stop"
     assert stream.aclose_called is True
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_responses_fallback_empty_chat_stream_rescues_with_sync_chat() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+    empty_stream = _FakeChatStream([])
+    chat_create = AsyncMock(
+        side_effect=[empty_stream, _make_chat_completion_response("sync rescue ok")],
+    )
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(
+            create=AsyncMock(side_effect=_FakeStatusError(502, "Upstream request failed")),
+        ),
+        chat=SimpleNamespace(completions=SimpleNamespace(create=chat_create)),
+    )
+
+    chunks = []
+    async for chunk in adapter.stream_chat(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        tools=[{"type": "function", "function": {"name": "get_page_context", "parameters": {}}}],
+        tool_choice="required",
+    ):
+        chunks.append(chunk)
+
+    assert "".join(chunk.delta for chunk in chunks) == "sync rescue ok"
+    assert chunks[-1].finish_reason == "stop"
+    assert chat_create.await_count == 2
+    assert empty_stream.aclose_called is True
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_responses_fallback_failed_chat_stream_rescues_with_sync_chat() -> None:
+    class _FailImmediatelyChatStream:
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            raise RuntimeError("broken chat stream")
+
+        async def aclose(self) -> None:
+            return None
+
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+    chat_create = AsyncMock(
+        side_effect=[_FailImmediatelyChatStream(), _make_chat_completion_response("sync rescue after error")],
+    )
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(
+            create=AsyncMock(side_effect=_FakeStatusError(502, "Upstream request failed")),
+        ),
+        chat=SimpleNamespace(completions=SimpleNamespace(create=chat_create)),
+    )
+
+    chunks = []
+    async for chunk in adapter.stream_chat(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        tools=[{"type": "function", "function": {"name": "get_page_context", "parameters": {}}}],
+        tool_choice="required",
+    ):
+        chunks.append(chunk)
+
+    assert "".join(chunk.delta for chunk in chunks) == "sync rescue after error"
+    assert chunks[-1].finish_reason == "stop"
+    assert chat_create.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_responses_fallback_empty_chat_stream_rescues_with_sync_raw_text() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+    empty_stream = _FakeChatStream([])
+    chat_create = AsyncMock(side_effect=[empty_stream, "sync raw text rescue"])
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(
+            create=AsyncMock(side_effect=_FakeStatusError(502, "Upstream request failed")),
+        ),
+        chat=SimpleNamespace(completions=SimpleNamespace(create=chat_create)),
+    )
+
+    chunks = []
+    async for chunk in adapter.stream_chat(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        tools=[{"type": "function", "function": {"name": "get_page_context", "parameters": {}}}],
+        tool_choice="required",
+    ):
+        chunks.append(chunk)
+
+    assert "".join(chunk.delta for chunk in chunks) == "sync raw text rescue"
+    assert chunks[-1].finish_reason == "stop"
+    assert chunks[-1].metadata["response_shape"] == "raw_text"
+    assert chat_create.await_count == 2
+    assert empty_stream.aclose_called is True
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_responses_fallback_sync_chat_retries_v1_when_root_returns_html() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://codex.2api.com.cn",
+        provider_config={"wire_api": "responses"},
+    )
+    empty_stream = _FakeChatStream([])
+    primary_chat_create = AsyncMock(
+        side_effect=[empty_stream, "<!doctype html><html></html>"],
+    )
+    retry_completions = _FakeChatCompletions(
+        _make_chat_completion_response("v1 stream rescue ok"),
+    )
+    adapter._chat_completions_v1_retry_client = SimpleNamespace(
+        chat=SimpleNamespace(completions=retry_completions),
+    )
+    adapter._chat_completions_v1_retry_base_url = "https://codex.2api.com.cn/v1"
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(
+            create=AsyncMock(side_effect=_FakeStatusError(502, "Upstream request failed")),
+        ),
+        chat=SimpleNamespace(completions=SimpleNamespace(create=primary_chat_create)),
+    )
+
+    chunks = []
+    async for chunk in adapter.stream_chat(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        tools=[{"type": "function", "function": {"name": "get_page_context", "parameters": {}}}],
+        tool_choice="required",
+    ):
+        chunks.append(chunk)
+
+    assert "".join(chunk.delta for chunk in chunks) == "v1 stream rescue ok"
+    assert chunks[-1].finish_reason == "stop"
+    assert primary_chat_create.await_count == 2
+    assert retry_completions.last_kwargs is not None
+    assert empty_stream.aclose_called is True
 
 
 @pytest.mark.asyncio
@@ -1010,6 +1208,18 @@ def test_init_keeps_endpoint_style_base_url_and_does_not_infer_wire_api() -> Non
 
     assert adapter.base_url == "https://code.respyun.com/v1/responses"
     assert adapter.wire_api == "chat_completions"
+
+
+def test_build_chat_completions_v1_retry_base_url_for_root_base_url() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://codex.2api.com.cn",
+    )
+
+    assert (
+        adapter._build_chat_completions_v1_retry_base_url()
+        == "https://codex.2api.com.cn/v1"
+    )
 
 
 @pytest.mark.asyncio

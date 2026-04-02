@@ -789,6 +789,12 @@
     "provider_not_found": "AI provider not found",
     "no_api_key": "No available API key",
     "api_key_unavailable": "API key is unavailable or expired",
+    "stream": {
+      "error": {
+        "service_unavailable": "Sorry, AI service is temporarily unavailable. Please try again later.",
+        "fallback_failed": "AI service response failed. Please try again later."
+      }
+    },
     "error": {
       "provider_timeout": "AI provider request timed out",
       "provider_connection": "Unable to connect to AI provider",

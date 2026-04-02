@@ -36,14 +36,16 @@ class ToolParameter:
         required: Whether required / 是否必填
         default: Default value / 默认值
         enum: Enum value list / 可选值列表
+        items: Array item schema when type=array / type=array 时的数组元素 schema
     """
 
     name: str
     type: str = "string"
     description: str = ""
     required: bool = False
-    default: JsonScalar = None
+    default: JsonValue = None
     enum: list[str] | None = None
+    items: dict[str, Any] | None = None
 
     def to_json_schema(self) -> dict[str, Any]:
         """Convert to JSON Schema property / 转换为 JSON Schema 属性"""
@@ -55,6 +57,8 @@ class ToolParameter:
             schema["enum"] = self.enum
         if self.default is not None:
             schema["default"] = self.default
+        if self.items is not None:
+            schema["items"] = self.items
         return schema
 
 

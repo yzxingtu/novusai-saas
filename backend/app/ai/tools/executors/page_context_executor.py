@@ -332,16 +332,41 @@ class PageContextExecutor(BaseToolExecutor):
                     n in op_names
                     for n in ("create_record", "edit_record", "fill_form")
                 )
+                remote_option_fields = [
+                    str(field_name)
+                    for field_name, desc in (form_fields or {}).items()
+                    if isinstance(desc, dict)
+                    and desc.get("optionsSource") == "remote"
+                ]
                 if has_form_ops:
                     parts.append("")
                     parts.append("## Agent Loop — Form Operation Workflow:")
                     parts.append("Execute ALL applicable steps in sequence WITHOUT stopping at the first tool call:")
                     parts.append("1. Call create_record/edit_record to open the form")
                     parts.append("2. Immediately call get_form_state to inspect current values and schema")
-                    parts.append("3. Immediately call fill_form to fill ALL relevant fields")
-                    parts.append("4. If validate_form exists, call validate_form and fix any errors")
-                    parts.append("5. If submit_form exists and the user asked you to create/update the record, call submit_form")
-                    parts.append("6. Only wait for user review when the page explicitly requires confirmation or submit_form is unavailable")
+                    parts.append(
+                        "RULE: When the form is not open yet, DO NOT call get_form_options, fill_form, validate_form, or submit_form before create_record/edit_record opens it."
+                    )
+                    parts.append(
+                        "规则：当表单尚未打开时，禁止先调用 get_form_options / fill_form / validate_form / submit_form，必须先通过 create_record 或 edit_record 打开表单。"
+                    )
+                    if "get_form_options" in op_names and remote_option_fields:
+                        preview_fields = ", ".join(remote_option_fields[:6])
+                        if len(remote_option_fields) > 6:
+                            preview_fields += f", +{len(remote_option_fields) - 6} more"
+                        parts.append(
+                            "3. After the form is open, for remote select fields such as "
+                            f"{preview_fields}, call get_form_options so you use real option values instead of guessing labels or raw ids"
+                        )
+                        parts.append("4. Immediately call fill_form to fill ALL relevant fields")
+                        parts.append("5. If validate_form exists, call validate_form and fix any errors")
+                        parts.append("6. If submit_form exists and the user asked you to create/update the record, call submit_form")
+                        parts.append("7. Only wait for user review when the page explicitly requires confirmation or submit_form is unavailable")
+                    else:
+                        parts.append("3. Immediately call fill_form to fill ALL relevant fields")
+                        parts.append("4. If validate_form exists, call validate_form and fix any errors")
+                        parts.append("5. If submit_form exists and the user asked you to create/update the record, call submit_form")
+                        parts.append("6. Only wait for user review when the page explicitly requires confirmation or submit_form is unavailable")
                     parts.append("IMPORTANT: Do NOT answer 'only read operations are available' when create_record/edit_record/fill_form/submit_form exist.")
 
                 parts.append("")

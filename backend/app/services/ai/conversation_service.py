@@ -2016,7 +2016,7 @@ class ConversationService(
         *,
         context_diagnostics: dict[str, Any] | None = None,
         last_run_summary: dict[str, Any] | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> tuple[list[dict[str, Any]], int]:
         """
         将执行过程中产生的新消息持久化为 ConversationMessage / Persist new messages from execution as ConversationMessage.
 
@@ -2033,7 +2033,8 @@ class ConversationService(
             route_source: 前端路由来源标记（如 mention）
 
         Returns:
-            收集到的 tool_calls（用于响应）
+            收集到的 tool_calls 与实际持久化的消息数量（用于响应和错误兜底判断）
+            / Collected tool_calls plus the number of messages actually persisted.
         """
         # 动态计算前缀 system 消息数（而非硬编码 1）
         system_count = 0
@@ -2046,7 +2047,7 @@ class ConversationService(
         new_messages_raw = result.messages[new_start:]
 
         if not new_messages_raw:
-            return []
+            return [], 0
 
         # Sanitize: only persist complete tool rounds and plain assistant; drop orphan tool_calls
         # 仅持久化完整 tool round 与普通 assistant，避免半截 tool skeleton
@@ -2077,6 +2078,8 @@ class ConversationService(
             for m in chat_msgs
             if not m.internal_only
         ]
+        if not new_messages:
+            return [], 0
 
         # 构建 tool_call_id → ToolResult 的查找表
         tool_result_map: dict[str, ToolResult] = {}
@@ -2375,7 +2378,7 @@ class ConversationService(
             {"message_count": new_message_count},
         )
 
-        return tool_calls_collected
+        return tool_calls_collected, persisted_count
 
     async def mark_memory_updated(self, conversation_id: int) -> None:
         """

@@ -70,6 +70,7 @@ def _sample_snapshot() -> dict:
                 "id": 815,
                 "created_at": "2026-03-28T17:11:46+00:00",
                 "status": "success",
+                "call_type": "main_chat",
                 "provider_name": "响应云",
                 "model_name": "gpt-5.4-xhigh",
                 "total_tokens": 6061,
@@ -126,6 +127,7 @@ def test_ai_conversation_show_text_renders_diagnostic(monkeypatch) -> None:
     assert result.exit_code == 0
     assert "Conversation #563" in result.output
     assert "Diagnostic: last assistant message looks like leaked textual tool call" in result.output
+    assert "type=main_chat" in result.output
     assert "get_page_context" in result.output
     assert "对象存储对帐计费" in result.output
 

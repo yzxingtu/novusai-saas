@@ -82,7 +82,7 @@ const inFlightInvocations = new Map<string, Promise<void>>();
 
 /**
  * Agent Loop: track recently confirmed mutation operations per page key / 按页面 key 跟踪最近确认的变更操作
- * When user confirms create_record/edit_record, subsequent fill_form
+ * When user confirms create_record/edit_record, subsequent fill_form / submit_form
  * operations on the same page within CHAIN_CONFIRM_TTL_MS are auto-approved.
  */
 const CHAIN_CONFIRM_TTL_MS = 60_000;
@@ -103,7 +103,7 @@ function isChainConfirmed(pageKey: string): boolean {
 }
 
 const CHAIN_TRIGGER_OPS = new Set(['create_record', 'edit_record']);
-const CHAIN_AUTO_OPS = new Set(['fill_form']);
+const CHAIN_AUTO_OPS = new Set(['fill_form', 'submit_form']);
 
 function clearChainConfirmed(): void {
   _chainConfirmed.clear();

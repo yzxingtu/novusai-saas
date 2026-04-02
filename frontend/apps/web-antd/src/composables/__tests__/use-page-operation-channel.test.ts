@@ -435,6 +435,67 @@ describe('usePageOperationChannel', () => {
     scope.stop();
   });
 
+  it('reuses confirmed mutation approval for follow-up submit_form within 60 seconds', async () => {
+    const scope = effectScope();
+    scope.run(() => {
+      usePageOperationChannel();
+    });
+
+    vi.mocked(findPageOperation).mockImplementation(
+      (_pageKey, operationName) => ({
+        description: String(operationName),
+        label: String(operationName),
+        name: String(operationName),
+        readonly: false,
+      }),
+    );
+    vi.mocked(listPageOperations).mockReturnValue([
+      {
+        description: 'create_record',
+        label: 'create_record',
+        name: 'create_record',
+        readonly: false,
+      },
+      {
+        description: 'submit_form',
+        label: 'submit_form',
+        name: 'submit_form',
+        readonly: false,
+      },
+    ]);
+    vi.mocked(executePageOperation).mockResolvedValue({
+      success: true,
+      message: 'ok',
+    });
+
+    const invokeHandler = registerHandler.mock.calls[0]?.[1] as
+      | ((data: unknown) => Promise<void>)
+      | undefined;
+
+    await invokeHandler?.({
+      invoke_id: 'chain-create-submit',
+      operation_name: 'create_record',
+      page_key: 'admin.ai.agents',
+      params: {},
+      requires_confirmation: false,
+    });
+
+    vi.advanceTimersByTime(59_000);
+
+    await invokeHandler?.({
+      invoke_id: 'chain-submit',
+      operation_name: 'submit_form',
+      page_key: 'admin.ai.agents',
+      params: {},
+      requires_confirmation: false,
+    });
+
+    expect(requestPageOpConfirmation).toHaveBeenCalledTimes(1);
+    expect(executePageOperation).toHaveBeenCalledTimes(2);
+
+    scope.stop();
+  });
+
   it('still requests confirmation for create_record even when a form is already open', async () => {
     formIsOpenWithFallback.mockReturnValue(true);
 

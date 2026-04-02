@@ -13,6 +13,7 @@ import json
 from app.core.base_model import utc_now
 from app.core.database import sync_session_factory
 from app.core.logging import LogManager
+from app.enums.ai import CallTypeEnum
 from app.tasks.base import BaseTask, register_task
 
 logger = LogManager.get_logger("tasks.ai")
@@ -101,6 +102,7 @@ def log_ai_call_task(
     route_reason: str = None,
     trace_id: str | None = None,
     tool_call_id: str | None = None,
+    call_type: str = CallTypeEnum.MAIN_CHAT.value,
 ):
     """
     Async AI call log recording (sync write) / 异步记录 AI 调用日志（同步写入）
@@ -176,6 +178,7 @@ def log_ai_call_task(
             provider_id=provider_id,
             model_id=model_id,
             request_type=request_type,
+            call_type=call_type or CallTypeEnum.MAIN_CHAT.value,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             total_tokens=total_tokens,

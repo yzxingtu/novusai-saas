@@ -27,7 +27,7 @@ from app.ai.types import (
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.logging import LogManager
 from app.core.runtime_identity import get_runtime_identity_tag
-from app.enums.ai import CallStatusEnum, RequestTypeEnum
+from app.enums.ai import CallStatusEnum, CallTypeEnum, RequestTypeEnum
 from app.enums.log import UserTypeEnum as LogUserTypeEnum
 from app.models.ai import AIModel, AIProvider, ProviderApiKey
 from app.services.ai.call_log_service import CallLogService
@@ -456,6 +456,7 @@ class UsageRecorder:
         """
         Adjust TPM/quota from estimated to actual. / 将 TPM/配额从预估调整为实际。
         """
+        del request_type, input_tokens, output_tokens, cost, latency_ms, user_id
         context = metering_context or UsageMeteringContext(
             request_minute_key=int(time.time()) // 60,
             request_stat_date=date.today(),
@@ -511,11 +512,13 @@ class UsageRecorder:
         protocol_path: str | None = None,
         context_sources: list[dict[str, Any]] | None = None,
         metering_context: UsageMeteringContext | None = None,
+        call_type: str = CallTypeEnum.MAIN_CHAT.value,
     ) -> None:
         """
         记录失败调用日志到 DB（用于审计追踪）/ Log failed call to DB (for audit trail).
         """
         _ = model
+        del metering_context
         if not self._should_record_call_log(tenant_id):
             return
         try:
@@ -585,6 +588,7 @@ class UsageRecorder:
                 billing_context=billing_context,
                 routed_model_id=routed_model_id,
                 route_reason=route_reason,
+                call_type=call_type,
                 turn_record=turn_record,
                 protocol_path=protocol_path,
                 context_sources=context_sources,
@@ -626,6 +630,7 @@ class UsageRecorder:
         context_sources: list[dict[str, Any]] | None = None,
         metering_context: UsageMeteringContext | None = None,
         request_data: dict[str, Any] | None = None,
+        call_type: str = CallTypeEnum.MAIN_CHAT.value,
     ) -> None:
         """
         流式响应完成回调 / Stream response completion callback.
@@ -707,6 +712,7 @@ class UsageRecorder:
                     billing_context=billing_context,
                     routed_model_id=routed_model_id,
                     route_reason=route_reason,
+                    call_type=call_type,
                     turn_record=turn_record,
                     protocol_path=protocol_path,
                     context_sources=context_sources,

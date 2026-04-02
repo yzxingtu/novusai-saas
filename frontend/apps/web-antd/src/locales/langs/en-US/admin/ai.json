@@ -1,7 +1,8 @@
 {
   "title": "AI Gateway Management",
   "monitor": {
-    "title": "Monitoring & Analytics"
+    "title": "Monitoring & Analytics",
+    "knowledge-bases": "Knowledge Bases"
   },
   "guide": {
     "title": "Quick Start",

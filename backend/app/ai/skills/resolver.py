@@ -1165,6 +1165,11 @@ class SkillResolver:
                 required=name in required_set,
                 default=prop.get("default"),
                 enum=prop.get("enum"),
+                items=(
+                    dict(prop.get("items"))
+                    if isinstance(prop.get("items"), dict)
+                    else None
+                ),
             ))
 
         return params

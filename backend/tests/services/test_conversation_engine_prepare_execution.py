@@ -8,13 +8,12 @@ import pytest
 from app.ai.context import get_context_engine
 from app.ai.engine.base import BaseEngine
 from app.ai.engine.conversation import ConversationEngine
-from app.ai.engine.tool_invocation_planner import ToolInvocationPlan
 from app.ai.engine.types import ExecutionRequest, ToolUsePolicy
-from app.ai.runtime.types import CapabilityDescriptor
 from app.ai.runtime.flags import (
     reset_shadow_rate_limiter_for_tests,
     should_run_shadow_probe,
 )
+from app.ai.runtime.types import CapabilityDescriptor
 from app.ai.skills.resolver import SkillResolveResult
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage, ChatResponse
@@ -621,7 +620,7 @@ async def test_prepare_execution_routes_weather_requests_to_weather_family(mock_
         )
 
     assert prep.tool_use_policy.family == "weather"
-    assert set(tool.name for tool in prep.tools) == {
+    assert {tool.name for tool in prep.tools} == {
         "get_current_weather",
         "get_weather_forecast",
     }
@@ -1697,6 +1696,79 @@ async def test_prepare_execution_keeps_runtime_capability_summary_when_dynamic_a
     assert "[TOOL AWARENESS]" in prep.messages[0].content
     assert "[CAPABILITY REPORTING]" in prep.messages[0].content
     assert "[TURN CAPABILITIES]" in prep.messages[0].content
+
+
+@pytest.mark.asyncio
+async def test_prepare_execution_prefers_data_ops_for_combined_data_and_kb_request() -> None:
+    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    agent = _build_agent()
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        user_id=7,
+        messages=[
+            ChatMessage(
+                role="user",
+                content="请统计最近7天创建的终端用户数量，再根据已绑定知识库概括产品主要功能",
+            ),
+        ],
+        input_variables={},
+    )
+
+    captured: dict[str, object] = {}
+
+    def _fake_optimize(tools, user_query, **kwargs):
+        captured["user_query"] = user_query
+        captured["kwargs"] = kwargs
+        return SimpleNamespace(
+            tools=tools,
+            skipped=False,
+            total=len(tools),
+            selected=len(tools),
+        )
+
+    skill_result = SkillResolveResult(
+        tools=[
+            ToolDefinition(name="web_search", description="Search the web"),
+            ToolDefinition(name="fetch_url", description="Fetch a webpage"),
+            ToolDefinition(name="data_query", description="Query platform data"),
+        ]
+    )
+
+    async def _fake_inject_rag_context(
+        _db,
+        _agent,
+        messages,
+        _tenant_id,
+        **_kwargs,
+    ):
+        return (
+            messages + [ChatMessage(role="system", content="[KB HIT] product-doc")],
+            [{"kb_id": 101, "chunk_id": "product-doc"}],
+        )
+
+    with (
+        patch(
+            "app.ai.rag_injector.load_agent_kb_bindings",
+            new=AsyncMock(return_value=([101], {101: 1.0})),
+        ),
+        patch(
+            "app.ai.rag_injector.inject_rag_context",
+            new=AsyncMock(side_effect=_fake_inject_rag_context),
+        ),
+        patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
+        patch("app.ai.tools.optimizer.optimize_tools", side_effect=_fake_optimize),
+    ):
+        prep = await engine._prepare_execution(
+            agent,
+            request,
+            skill_result=skill_result,
+        )
+
+    assert captured["kwargs"] == {"preferred_family": "data_ops"}
+    assert prep.tool_use_policy.family == "data_ops"
+    assert prep.tool_use_policy.reason == "data_time_range_with_kb"
+    assert "knowledge_base" in prep.diagnostics["context_source_kinds"]
 
 
 @pytest.mark.asyncio

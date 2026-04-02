@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m app.cli conversation get 601)",
+      "Bash(python -m app.cli --help)",
+      "Bash(python -m app.cli ai --help)",
+      "Bash(python:*)",
+      "Bash(ruff check:*)",
+      "Bash(pytest tests/ai/engine/test_tool_invocation_planner.py -v)",
+      "Bash(ls -t backend/alembic/versions/*.py)",
+      "Bash(ls -t backend/migrations/versions/*.py)",
+      "Read(//tmp/**)"
+    ]
+  }
+}

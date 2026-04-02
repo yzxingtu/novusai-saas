@@ -12,7 +12,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base_model import TenantModel
 from app.core.i18n import _
-from app.enums.ai import CallStatusEnum, RequestTypeEnum
+from app.enums.ai import CallStatusEnum, CallTypeEnum, RequestTypeEnum
 
 
 class AICallLog(TenantModel):
@@ -54,6 +54,7 @@ class AICallLog(TenantModel):
         "model_id": "model_id",
         "routed_model_id": "routed_model_id",
         "request_type": "request_type",
+        "call_type": "call_type",
         "status": "status",
         "created_at": "created_at",
     }
@@ -153,6 +154,14 @@ class AICallLog(TenantModel):
         default=RequestTypeEnum.CHAT.value,
         index=True,
         comment=_("enum.ai_call_log.request_type")
+    )
+    call_type: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default=CallTypeEnum.MAIN_CHAT.value,
+        server_default=CallTypeEnum.MAIN_CHAT.value,
+        index=True,
+        comment="调用类型: main_chat(主对话)/internal_memory(内部记忆)/internal_tool(内部工具)",
     )
 
     # Token 使用量 / Token usage

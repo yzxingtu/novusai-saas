@@ -370,9 +370,17 @@ export interface SelectableKBItem {
   description: null | string;
 }
 
-/** Get selectable knowledge base list (admin: admin + global) / 获取可选知识库列表 */
+export interface AdminSelectableKBParams {
+  agent_id?: number;
+}
+
+/** Get selectable knowledge base list / 获取可选知识库列表 */
 export async function getAdminSelectableKBApi(
+  params?: AdminSelectableKBParams,
   options?: ApiRequestOptions,
 ): Promise<SelectableKBItem[]> {
-  return requestClient.get<SelectableKBItem[]>(`${PREFIX}/selectable`, options);
+  return requestClient.get<SelectableKBItem[]>(`${PREFIX}/selectable`, {
+    params,
+    ...options,
+  });
 }

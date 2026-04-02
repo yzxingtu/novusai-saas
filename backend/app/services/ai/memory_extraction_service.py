@@ -16,6 +16,7 @@ from app.ai.types import ChatMessage
 from app.configs.service import PLATFORM_TENANT_ID, ConfigService
 from app.core.database import async_session_factory
 from app.core.logging import LogManager
+from app.enums.ai import CallTypeEnum
 from app.repositories.ai.agent_repository import AgentRepository
 
 logger = LogManager.get_logger("ai.memory_extraction_service")
@@ -81,6 +82,7 @@ class MemoryExtractionService:
                     model=model_code,
                     temperature=0.1,
                     max_tokens=500,
+                    call_type=CallTypeEnum.INTERNAL_MEMORY.value,
                     tenant_id=(
                         self.tenant_id
                         if self.tenant_id > PLATFORM_TENANT_ID

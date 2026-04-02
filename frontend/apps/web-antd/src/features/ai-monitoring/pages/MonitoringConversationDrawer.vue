@@ -13,10 +13,11 @@ import {
   Spin,
   Tag,
   Timeline,
+  Tooltip,
 } from 'ant-design-vue';
 
 import { $t } from '#/locales';
-import { formatDate } from '#/utils/common';
+import { formatDate, formatTimeOnly } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
 
 import { getMonitoringConversationDetail } from '../api';
@@ -371,9 +372,11 @@ function traceStatusColor(status?: null | string) {
                     <span class="text-xs text-muted-foreground">
                       #{{ message.sequence }}
                     </span>
-                    <span class="text-xs text-muted-foreground">
-                      {{ formatDate(message.created_at) }}
-                    </span>
+                    <Tooltip :title="formatDate(message.created_at)">
+                      <span class="text-xs text-muted-foreground">
+                        {{ formatTimeOnly(message.created_at) }}
+                      </span>
+                    </Tooltip>
                     <span
                       v-if="message.token_count"
                       class="text-xs text-muted-foreground"

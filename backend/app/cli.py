@@ -1300,6 +1300,7 @@ async def _load_ai_conversation_snapshot(
             select(AICallLog)
             .where(
                 AICallLog.conversation_id == conversation_id,
+                AICallLog.call_type == "main_chat",
                 AICallLog.is_deleted.is_(False),
             )
             .order_by(AICallLog.created_at.desc())
@@ -1503,6 +1504,7 @@ async def _load_ai_conversation_snapshot(
                     "id": row.id,
                     "created_at": ConversationService._format_dt(row.created_at),
                     "status": row.status,
+                    "call_type": row.call_type,
                     "provider_id": row.provider_id,
                     "provider_name": row.provider_name_snapshot,
                     "model_id": row.model_id,
@@ -1767,11 +1769,12 @@ def _render_ai_conversation_text(
         lines.append(f"Recent call logs ({len(recent_call_logs)}):")
         for item in recent_call_logs:
             lines.append(
-                "[log_id={id}] time={created_at} status={status} provider={provider_name} "
+                "[log_id={id}] time={created_at} status={status} type={call_type} provider={provider_name} "
                 "model={model_name} tokens={total_tokens} latency_ms={latency_ms}".format(
                     id=item.get("id"),
                     created_at=item.get("created_at"),
                     status=item.get("status"),
+                    call_type=item.get("call_type"),
                     provider_name=item.get("provider_name"),
                     model_name=item.get("model_name"),
                     total_tokens=item.get("total_tokens"),

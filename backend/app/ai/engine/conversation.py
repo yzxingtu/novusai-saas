@@ -22,6 +22,8 @@ from app.ai.runtime import ConversationQueryEngine, get_runtime_mode
 from app.ai.runtime.flags import (
     is_shadow_mode,
     should_run_shadow_probe,
+)
+from app.ai.runtime.flags import (
     should_use_runtime_query_engine as should_use_runtime_query_engine_for_mode,
 )
 from app.ai.tools.types import ToolDefinition, to_openai_tools
@@ -31,8 +33,8 @@ from app.ai.usage_recorder import UsageRecorder
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.core.runtime_identity import get_runtime_identity_tag
 from app.core.response import build_public_error_text
+from app.core.runtime_identity import get_runtime_identity_tag
 from app.enums.ai import CallStatusEnum, RequestTypeEnum
 from app.exceptions import BusinessException, NotFoundException
 from app.models.ai.agent import Agent
@@ -723,6 +725,7 @@ class ConversationEngine(BaseEngine):
                             provider=provider,
                             ai_model=ai_model,
                         ),
+                        call_type="main_chat",
                         turn_record=asdict(query_engine.turn_record),
                         protocol_path=getattr(
                             query_engine.turn_record,
@@ -827,6 +830,7 @@ class ConversationEngine(BaseEngine):
                         provider=provider,
                         ai_model=ai_model,
                     ),
+                    call_type="main_chat",
                     turn_record=asdict(query_engine.turn_record),
                     protocol_path=getattr(query_engine.turn_record, "protocol_path", None),
                     context_sources=runtime_context_sources,
@@ -1500,6 +1504,7 @@ class ConversationEngine(BaseEngine):
                             provider=provider,
                             ai_model=ai_model,
                         ),
+                        call_type="main_chat",
                         turn_record=(
                             vars(query_engine.turn_record)
                             if query_engine is not None
@@ -1602,6 +1607,7 @@ class ConversationEngine(BaseEngine):
                             provider=provider,
                             ai_model=ai_model,
                         ),
+                        call_type="main_chat",
                         turn_record=(
                             vars(query_engine.turn_record)
                             if query_engine is not None

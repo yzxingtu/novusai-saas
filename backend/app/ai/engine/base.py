@@ -31,6 +31,7 @@ from app.ai.events.types import (
     ExecutionFailed,
     ExecutionStarted,
 )
+from app.ai.runtime.types import CapabilityBundle
 from app.services.ai.execution_trust_policy_service import (
     ExecutionTrustPolicyService,
 )
@@ -1338,12 +1339,14 @@ class BaseEngine(ABC):
         tools: list[ToolDefinition],
         input_variables: dict[str, Any] | None,
         continuation_context: ResearchContinuationContext | None,
+        capability_bundle: CapabilityBundle | None = None,
     ) -> ToolUsePolicy:
         plan = cls._plan_tool_invocation(
             messages=messages,
             tools=tools,
             input_variables=input_variables,
             continuation_context=continuation_context,
+            capability_bundle=capability_bundle,
         )
         return cls._build_tool_use_policy_from_plan(
             plan,
@@ -1359,12 +1362,14 @@ class BaseEngine(ABC):
         tools: list[ToolDefinition],
         input_variables: dict[str, Any] | None,
         continuation_context: ResearchContinuationContext | None,
+        capability_bundle: CapabilityBundle | None = None,
     ) -> ToolInvocationPlan:
         return ToolInvocationPlanner.plan(
             messages=messages,
             tools=tools,
             input_variables=input_variables,
             continuation_context=continuation_context,
+            capability_bundle=capability_bundle,
         )
 
     @classmethod
@@ -1848,6 +1853,7 @@ class BaseEngine(ABC):
                 tools=all_tools,
                 input_variables=request.input_variables,
                 continuation_context=continuation_context,
+                capability_bundle=context_assembly.capability_bundle,
             )
             explicit_requested_families = ToolInvocationPlanner.explicit_requested_families(
                 messages=messages,

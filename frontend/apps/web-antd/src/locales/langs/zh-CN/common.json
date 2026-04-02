@@ -671,6 +671,7 @@
     "allTenants": "全企业（仅企业端全部可用）",
     "adminAndSelectedTenants": "管理端+部分企业",
     "selectedTenants": "部分企业",
+    "scope": "作用域",
     "label": "作用域",
     "placeholder": "请选择作用域",
     "allScopes": "全部作用域",

@@ -101,6 +101,9 @@ export function compactAvailableOperations(
             paramName,
             {
               type: schema.type,
+              ...(schema.items && typeof schema.items === 'object'
+                ? { items: schema.items }
+                : {}),
               required: schema.required,
               ...(Array.isArray(schema.enum) && schema.enum.length > 0
                 ? { enum: schema.enum.slice(0, 5) }
@@ -119,16 +122,17 @@ function getPrioritizedOperations(operations: unknown[]): unknown[] {
   const operationPriority: Record<string, number> = {
     create_record: 0,
     edit_record: 1,
-    fill_form: 2,
-    submit_form: 3,
-    get_form_state: 4,
+    get_form_state: 2,
+    get_form_options: 3,
+    fill_form: 4,
     validate_form: 5,
-    delete_record: 6,
-    search: 7,
-    read_visible_rows: 8,
-    capture_screenshot: 9,
-    read_current_view: 10,
-    read_current_sections: 11,
+    submit_form: 6,
+    delete_record: 7,
+    search: 8,
+    read_visible_rows: 9,
+    capture_screenshot: 10,
+    read_current_view: 11,
+    read_current_sections: 12,
   };
   const normalizedOperations = operations.filter(Boolean);
   const writableOperations = normalizedOperations.filter(
@@ -205,6 +209,9 @@ function compactFormFieldsForBudget(
         component: descriptor.component,
         description: descriptor.description,
       };
+      if (descriptor.items && typeof descriptor.items === 'object') {
+        nextDescriptor.items = descriptor.items;
+      }
       if (descriptor.required) {
         nextDescriptor.required = descriptor.required;
       }

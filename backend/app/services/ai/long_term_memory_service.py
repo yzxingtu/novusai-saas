@@ -9,11 +9,13 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 
+from app.ai.internal_ai_service import InternalAIService
+from app.ai.rag.text_cleaner import clean_for_embedding
 from app.core.base_model import utc_now
 from app.core.base_service import TenantService
+from app.enums.ai import CallTypeEnum
 from app.enums.memory import (
     MemoryScopeTypeEnum,
-    MemorySourceKindEnum,
     MemoryStatusEnum,
     MemoryTypeEnum,
 )
@@ -355,9 +357,6 @@ class LongTermMemoryService(TenantService[MemoryRecord, MemoryRecordRepository])
         texts: list[str],
         target: EmbeddingTarget,
     ) -> list[list[float]]:
-        from app.ai.internal_ai_service import InternalAIService
-        from app.ai.rag.text_cleaner import clean_for_embedding
-
         cleaned = [clean_for_embedding(text) for text in texts if (text or "").strip()]
         if not cleaned:
             return []
@@ -367,6 +366,7 @@ class LongTermMemoryService(TenantService[MemoryRecord, MemoryRecordRepository])
                 texts=cleaned,
                 model=target.model_code,
                 tenant_id=self.tenant_id,
+                call_type=CallTypeEnum.INTERNAL_MEMORY.value,
             )
         except Exception:
             return []

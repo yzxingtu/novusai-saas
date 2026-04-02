@@ -53,6 +53,7 @@ async def test_extract_turn_memory_uses_configured_model(mock_db):
     assert mock_chat.await_count == 1
     assert mock_chat.await_args.kwargs["provider_code"] == "openai_compatible"
     assert mock_chat.await_args.kwargs["model"] == "gpt-4o-mini"
+    assert mock_chat.await_args.kwargs["call_type"] == "internal_memory"
 
 
 @pytest.mark.asyncio
@@ -93,6 +94,7 @@ async def test_extract_turn_memory_falls_back_to_agent_model(mock_db):
     assert result["constraints"] == ["avoid slang"]
     assert mock_chat.await_args.kwargs["provider_code"] == "fallback-provider"
     assert mock_chat.await_args.kwargs["model"] == "fallback-model"
+    assert mock_chat.await_args.kwargs["call_type"] == "internal_memory"
 
 
 @pytest.mark.asyncio

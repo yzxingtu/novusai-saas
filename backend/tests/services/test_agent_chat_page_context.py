@@ -406,7 +406,7 @@ async def test_agent_chat_service_injects_page_context_into_execution_request(mo
     service._persist_session_memory = AsyncMock(return_value=None)
     service.conversation_svc.get_or_create_for_chat = AsyncMock(return_value=conversation)
     service.conversation_svc.load_chat_history = AsyncMock(return_value=[])
-    service.conversation_svc.persist_chat_messages = AsyncMock(return_value=[])
+    service.conversation_svc.persist_chat_messages = AsyncMock(return_value=([], 0))
     service.conversation_svc.update_stats = AsyncMock(return_value=None)
     service.conversation_svc.mark_memory_updated = AsyncMock(return_value=None)
 

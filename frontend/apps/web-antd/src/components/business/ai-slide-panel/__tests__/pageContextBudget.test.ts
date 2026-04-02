@@ -82,4 +82,87 @@ describe('guardPageDataSize', () => {
       ),
     ).toBe(true);
   });
+
+  it('keeps get_form_options in the compacted operation set for form pages', () => {
+    const result = guardPageDataSize(
+      {
+        available_operations: [
+          {
+            name: 'create_record',
+            readonly: false,
+            description: 'Open create form'.repeat(20),
+          },
+          {
+            name: 'edit_record',
+            readonly: false,
+            description: 'Open edit form'.repeat(20),
+          },
+          {
+            name: 'fill_form',
+            readonly: false,
+            description: 'Fill form with inferred values'.repeat(20),
+          },
+          {
+            name: 'submit_form',
+            readonly: false,
+            description: 'Submit form'.repeat(20),
+          },
+          {
+            name: 'get_form_state',
+            readonly: true,
+            description: 'Inspect current form state'.repeat(20),
+          },
+          {
+            name: 'get_form_options',
+            readonly: true,
+            description: 'Fetch remote select options'.repeat(20),
+          },
+          {
+            name: 'validate_form',
+            readonly: true,
+            description: 'Validate current form'.repeat(20),
+          },
+          {
+            name: 'search',
+            readonly: true,
+            description: 'Search list'.repeat(20),
+          },
+          {
+            name: 'read_visible_rows',
+            readonly: true,
+            description: 'Read visible rows'.repeat(20),
+          },
+          {
+            name: 'capture_screenshot',
+            readonly: true,
+            description: 'Capture screenshot'.repeat(20),
+          },
+          {
+            name: 'next_page',
+            readonly: true,
+            description: 'Next page'.repeat(20),
+          },
+          {
+            name: 'prev_page',
+            readonly: true,
+            description: 'Previous page'.repeat(20),
+          },
+          {
+            name: 'refresh_list',
+            readonly: true,
+            description: 'Refresh list'.repeat(20),
+          },
+        ],
+      },
+      1000,
+    );
+
+    const operations = result.available_operations as Array<
+      Record<string, unknown>
+    >;
+
+    expect(operations.map((operation) => operation.name)).toContain(
+      'get_form_options',
+    );
+  });
 });

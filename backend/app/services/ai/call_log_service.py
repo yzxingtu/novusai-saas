@@ -13,7 +13,7 @@ from typing import Any
 from app.core.base_model import utc_now
 from app.core.base_service import BaseService
 from app.core.logging import LogManager
-from app.enums.ai import CallStatusEnum
+from app.enums.ai import CallStatusEnum, CallTypeEnum
 from app.models.ai import AICallLog
 from app.repositories.ai import AICallLogRepository
 
@@ -44,6 +44,14 @@ def _normalize_tool_call_id_for_call_log(tool_call_id: str | None) -> str | None
         return None
     s = str(tool_call_id).strip()
     return s[:128] if len(s) > 128 else s
+
+
+def _normalize_call_type_for_call_log(call_type: str | None) -> str:
+    """Normalize call type before persistence / 落库前归一化调用类型。"""
+    text = str(call_type or "").strip()
+    if text in CallTypeEnum.values():
+        return text
+    return CallTypeEnum.MAIN_CHAT.value
 
 
 class CallLogService(BaseService[AICallLog, AICallLogRepository]):
@@ -572,6 +580,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         fallback_history: list[dict[str, Any]] | None = None,
         sync_rescue: bool | None = None,
         should_record_call_log: bool | None = None,
+        call_type: str = CallTypeEnum.MAIN_CHAT.value,
     ) -> AICallLog:
         """
         记录调用日志 / Record call log.
@@ -646,6 +655,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         normalized_latency_ms = self._normalize_latency_ms(latency_ms)
         eff_trace = _normalize_trace_for_call_log(trace_id, use_context_var=True)
         eff_tool = _normalize_tool_call_id_for_call_log(tool_call_id)
+        eff_call_type = _normalize_call_type_for_call_log(call_type)
         call_log = AICallLog(
             tenant_id=tenant_id,
             user_id=user_id,
@@ -661,6 +671,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
             provider_id=provider_id,
             model_id=model_id,
             request_type=request_type,
+            call_type=eff_call_type,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             total_tokens=total_tokens,
@@ -793,6 +804,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         fallback_history: list[dict[str, Any]] | None = None,
         sync_rescue: bool | None = None,
         should_record_call_log: bool | None = None,
+        call_type: str = CallTypeEnum.MAIN_CHAT.value,
     ):
         """
         异步记录调用日志 (通过 Celery) / Record call log asynchronously via Celery.
@@ -805,6 +817,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         normalized_latency_ms = self._normalize_latency_ms(latency_ms)
         eff_trace = _normalize_trace_for_call_log(trace_id, use_context_var=True)
         eff_tool = _normalize_tool_call_id_for_call_log(tool_call_id)
+        eff_call_type = _normalize_call_type_for_call_log(call_type)
         request_payload = self._inject_turn_hints(
             request_data,
             turn_record=turn_record,
@@ -853,6 +866,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
             route_reason=route_reason,
             trace_id=eff_trace,
             tool_call_id=eff_tool,
+            call_type=eff_call_type,
         )
 
         logger.debug(

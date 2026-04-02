@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.gateway import AIGateway
 from app.ai.types import ChatMessage, ChatResponse, EmbeddingResponse
 from app.core.logging import LogManager
+from app.enums.ai import CallTypeEnum
 
 logger = LogManager.get_logger("ai.internal_service")
 
@@ -45,6 +46,7 @@ class InternalAIService:
         tenant_id: int | None = None,
         user_id: int | None = None,
         user_type: str | None = None,
+        call_type: str = CallTypeEnum.MAIN_CHAT.value,
     ) -> ChatResponse:
         logger.info(
             "Internal chat dispatch: model={}/{} tenant={}",
@@ -62,6 +64,7 @@ class InternalAIService:
             tenant_id=tenant_id,
             user_id=user_id,
             user_type=user_type,
+            call_type=call_type,
         )
 
     async def stream_chat(
@@ -77,6 +80,7 @@ class InternalAIService:
         tenant_id: int | None = None,
         user_id: int | None = None,
         user_type: str | None = None,
+        call_type: str = CallTypeEnum.MAIN_CHAT.value,
     ):
         logger.info(
             "Internal stream chat dispatch: model={}/{} tenant={}",
@@ -93,6 +97,7 @@ class InternalAIService:
             tenant_id=tenant_id,
             user_id=user_id,
             user_type=user_type,
+            call_type=call_type,
         )
 
     async def embedding(
@@ -104,6 +109,7 @@ class InternalAIService:
         tenant_id: int | None = None,
         user_id: int | None = None,
         user_type: str | None = None,
+        call_type: str = CallTypeEnum.MAIN_CHAT.value,
     ) -> EmbeddingResponse:
         logger.info(
             "Internal embedding dispatch: model={}/{} tenant={}",
@@ -116,6 +122,7 @@ class InternalAIService:
             tenant_id=tenant_id,
             user_id=user_id,
             user_type=user_type,
+            call_type=call_type,
         )
 
 

@@ -854,14 +854,16 @@ class AgentChatService:
             interaction_mode_effective=interaction_mode_effective,
             downgrade_reason=interaction_mode_downgrade_reason,
         )
-        tool_calls_collected = await self.conversation_svc.persist_chat_messages(
-            conversation=conversation,
-            result=result,
-            history_count=history_count,
-            agent_id=agent_id,
-            route_source=route_source,
-            context_diagnostics=context_diagnostics_payload,
-            last_run_summary=last_run_summary_payload,
+        tool_calls_collected, _persisted_message_count = (
+            await self.conversation_svc.persist_chat_messages(
+                conversation=conversation,
+                result=result,
+                history_count=history_count,
+                agent_id=agent_id,
+                route_source=route_source,
+                context_diagnostics=context_diagnostics_payload,
+                last_run_summary=last_run_summary_payload,
+            )
         )
 
         # 7. 更新对话统计 + 智能体用量统计 / Update conversation stats and agent usage
@@ -1317,6 +1319,76 @@ class AgentChatService:
         # 7. 创建持久化回调（流式完成后调用，含配额记录+并发释放+钩子）/ Create persist callback for stream complete
         history_count = len(history_messages)
 
+        async def _save_error_message_to_conversation(
+            *,
+            conversation_id: int,
+            error_text: str,
+            user_message: str,
+            result: ExecutionResult,
+            context_diagnostics_payload: dict[str, Any],
+            last_run_summary_payload: dict[str, Any],
+        ) -> None:
+            """Persist a user-facing stream error message / 持久化面向用户的流式错误消息。"""
+            from app.enums.agent import MessageRoleEnum
+
+            async with async_session_factory() as err_db:
+                err_conv_svc = ConversationService(err_db, self.tenant_id)
+                err_conv = await err_conv_svc.repo.get_by_id(conversation_id)
+                if err_conv is None:
+                    logger.warning(
+                        "Skip stream error persistence because conversation is missing: conversation_id={}",
+                        conversation_id,
+                    )
+                    return
+
+                next_seq = await err_conv_svc.message_repo.get_next_sequence(
+                    conversation_id
+                )
+                error_metadata: dict[str, Any] = {
+                    "error": True,
+                    "error_type": "stream_execution_error",
+                    "raw_error_message": str(result.error or "")[:500],
+                    "partial_output": result.output or "",
+                    "total_tokens": result.total_tokens or 0,
+                    "duration_ms": result.duration_ms or 0,
+                    "user_message_preview": (user_message or "")[:200],
+                }
+                if context_diagnostics_payload:
+                    error_metadata["context_diagnostics"] = (
+                        context_diagnostics_payload
+                    )
+                if last_run_summary_payload:
+                    error_metadata["last_run_summary"] = last_run_summary_payload
+
+                await err_conv_svc.message_repo.create(
+                    {
+                        "tenant_id": self.tenant_id,
+                        "conversation_id": conversation_id,
+                        "role": MessageRoleEnum.ASSISTANT.value,
+                        "content": error_text,
+                        "sequence": next_seq,
+                        "token_count": estimate_tokens(error_text),
+                        "agent_id": agent_id,
+                        "model_id": result.runtime_model_id,
+                        "metadata_": error_metadata,
+                    }
+                )
+
+                conversation_metadata = dict(err_conv.metadata_ or {})
+                conversation_metadata["last_error"] = {
+                    "timestamp": time.time(),
+                    "error_type": "stream_execution_error",
+                    "error_message": str(result.error or "")[:500],
+                    "friendly_message": error_text,
+                    "partial": bool(result.partial),
+                }
+                err_conv.metadata_ = conversation_metadata
+                await err_db.commit()
+                logger.info(
+                    "Stream error message saved: conversation_id={} error_type=stream_execution_error",
+                    conversation_id,
+                )
+
         async def on_stream_complete(result: ExecutionResult) -> dict[str, Any] | None:
             """流式完成后持久化消息 + 配额记录 + 并发释放 / Persist message + quota + release concurrency on stream complete.
 
@@ -1330,6 +1402,17 @@ class AgentChatService:
             """
             extra: dict[str, Any] = {}
             try:
+                persisted_message_count = 0
+                context_diagnostics_payload = self._build_context_diagnostics(
+                    result,
+                    interaction_mode_effective=interaction_mode_effective,
+                )
+                last_run_summary_payload = self._build_last_run_summary(
+                    result,
+                    interaction_mode_effective=interaction_mode_effective,
+                    downgrade_reason=interaction_mode_downgrade_reason,
+                )
+
                 # Persist when success OR when we have new messages (partial/interrupted) / 成功时持久化；或中断时如有新消息也持久化
                 system_count = sum(
                     1 for m in (result.messages or [])
@@ -1348,23 +1431,16 @@ class AgentChatService:
                             cb_conv = await cb_conv_svc.repo.get_by_id(
                                 conversation.id,
                             )
-                            context_diagnostics_payload = self._build_context_diagnostics(
-                                result,
-                                interaction_mode_effective=interaction_mode_effective,
-                            )
-                            last_run_summary_payload = self._build_last_run_summary(
-                                result,
-                                interaction_mode_effective=interaction_mode_effective,
-                                downgrade_reason=interaction_mode_downgrade_reason,
-                            )
-                            await cb_conv_svc.persist_chat_messages(
-                                conversation=cb_conv,
-                                result=result,
-                                history_count=history_count,
-                                agent_id=agent_id,
-                                route_source=route_source,
-                                context_diagnostics=context_diagnostics_payload,
-                                last_run_summary=last_run_summary_payload,
+                            _persisted_tool_calls, persisted_message_count = (
+                                await cb_conv_svc.persist_chat_messages(
+                                    conversation=cb_conv,
+                                    result=result,
+                                    history_count=history_count,
+                                    agent_id=agent_id,
+                                    route_source=route_source,
+                                    context_diagnostics=context_diagnostics_payload,
+                                    last_run_summary=last_run_summary_payload,
+                                )
                             )
                             await cb_conv_svc.update_stats(
                                 cb_conv,
@@ -1420,6 +1496,40 @@ class AgentChatService:
                             conversation.id,
                             str(mem_exc),
                         )
+
+                # Save error message if execution failed and no assistant message was persisted
+                # 如果执行失败且没有持久化 assistant 消息，保存错误消息
+                # Calculate how many user messages are in the new messages
+                # 计算新消息中有多少用户消息
+                new_start = system_count + history_count
+                new_messages_raw = (result.messages or [])[new_start:]
+                user_message_count = sum(
+                    1 for m in new_messages_raw
+                    if m.get("role") == "user"
+                )
+                # If no messages were persisted, or only user messages were persisted (no assistant)
+                # 如果没有持久化任何消息，或者只持久化了用户消息（没有 assistant）
+                has_assistant_persisted = persisted_message_count > user_message_count
+                if not result.success and not has_assistant_persisted:
+                    lowered_error = str(result.error or "").lower()
+                    friendly_error_text = (
+                        _("ai.stream.error.fallback_failed")
+                        if "fallback" in lowered_error
+                        else _("ai.stream.error.service_unavailable")
+                    )
+                    await _save_error_message_to_conversation(
+                        conversation_id=conversation.id,
+                        error_text=friendly_error_text,
+                        user_message=first_message,
+                        result=result,
+                        context_diagnostics_payload=context_diagnostics_payload,
+                        last_run_summary_payload=last_run_summary_payload,
+                    )
+                    logger.warning(
+                        "Stream execution failed for conversation_id={}: {}",
+                        conversation.id,
+                        result.error or "Unknown error",
+                    )
 
                 # 配额调整：从预估调整为实际（与 dispatcher 对等）/ Adjust quota from estimate to actual
                 actual_tokens = result.total_tokens or 0

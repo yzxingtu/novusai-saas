@@ -41,6 +41,14 @@ class CallStatusEnum(LabeledStrEnum):
     TIMEOUT = ("timeout", "enum.ai_call.status.timeout")
 
 
+class CallTypeEnum(LabeledStrEnum):
+    """AI Call Type Enum / AI 调用类型枚举"""
+
+    MAIN_CHAT = ("main_chat", "enum.ai_call.type.main_chat")
+    INTERNAL_MEMORY = ("internal_memory", "enum.ai_call.type.internal_memory")
+    INTERNAL_TOOL = ("internal_tool", "enum.ai_call.type.internal_tool")
+
+
 class QuotaTypeEnum(LabeledStrEnum):
     """AI Quota Type Enum / AI 配额类型枚举"""
 
@@ -96,6 +104,7 @@ __all__ = [
     "ModelTierEnum",
     "RequestTypeEnum",
     "CallStatusEnum",
+    "CallTypeEnum",
     "QuotaTypeEnum",
     "QuotaPeriodEnum",
     "UserTypeEnum",

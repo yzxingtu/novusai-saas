@@ -13,9 +13,10 @@ import json
 import re
 from collections.abc import AsyncIterator
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
-from openai import APIConnectionError, APIStatusError, APITimeoutError, AsyncOpenAI
+from openai import APIConnectionError, APITimeoutError, AsyncOpenAI
 from openai.types import CreateEmbeddingResponse
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
@@ -106,6 +107,8 @@ class OpenAIAdapter(BaseAdapter):
 
         self.client = AsyncOpenAI(**client_kwargs)
         self.wire_api = self._resolve_wire_api(self.provider_config.get("wire_api"))
+        self._chat_completions_v1_retry_client: AsyncOpenAI | Any | None = None
+        self._chat_completions_v1_retry_base_url: str | None = None
 
     def _clean_base_url(self, base_url: str | None) -> str | None:
         cleaned_base_url = str(base_url or "").strip()
@@ -125,6 +128,70 @@ class OpenAIAdapter(BaseAdapter):
 
     def _chat_endpoint_path(self) -> str:
         return "responses" if self._use_responses_api() else "chat/completions"
+
+    def _looks_like_html_document(self, payload: str) -> bool:
+        preview = str(payload or "").lstrip().lower()
+        return (
+            preview.startswith("<!doctype")
+            or preview.startswith("<html")
+            or preview.startswith("<head")
+            or preview.startswith("<body")
+        )
+
+    def _build_chat_completions_v1_retry_base_url(self) -> str | None:
+        cleaned_base_url = str(self.base_url or "").strip()
+        if not cleaned_base_url:
+            return None
+
+        parsed = urlparse(cleaned_base_url)
+        if not parsed.scheme or not parsed.netloc:
+            return None
+
+        normalized_path = parsed.path.rstrip("/")
+        if normalized_path:
+            return None
+
+        return parsed._replace(path="/v1", params="", query="", fragment="").geturl()
+
+    def _get_chat_completions_v1_retry_client(self) -> AsyncOpenAI | Any | None:
+        retry_base_url = self._build_chat_completions_v1_retry_base_url()
+        if not retry_base_url:
+            return None
+
+        if (
+            self._chat_completions_v1_retry_client is None
+            or self._chat_completions_v1_retry_base_url != retry_base_url
+        ):
+            self._chat_completions_v1_retry_client = AsyncOpenAI(
+                api_key=self.api_key,
+                base_url=retry_base_url,
+            )
+            self._chat_completions_v1_retry_base_url = retry_base_url
+        return self._chat_completions_v1_retry_client
+
+    async def _retry_chat_completions_with_v1_if_needed(
+        self,
+        *,
+        payload: Any,
+        request_params: dict[str, Any],
+        model: str,
+        stream: bool,
+    ) -> Any:
+        if not (isinstance(payload, str) and self._looks_like_html_document(payload)):
+            return payload
+
+        retry_client = self._get_chat_completions_v1_retry_client()
+        retry_base_url = self._chat_completions_v1_retry_base_url
+        if retry_client is None or not retry_base_url:
+            return payload
+
+        logger.warning(
+            "chat.completions root endpoint returned HTML; retry with /v1 endpoint: model={} retry_base_url={} stream={}",
+            model,
+            retry_base_url,
+            stream,
+        )
+        return await retry_client.chat.completions.create(**request_params)
 
     def _responses_tool_call_fallback_enabled(self) -> bool:
         raw_value = self.provider_config.get("responses_tool_call_fallback_enabled")
@@ -366,6 +433,12 @@ class OpenAIAdapter(BaseAdapter):
         )
         logger.info("Chat request: model={} messages={}", model, len(messages))
         response = await self.client.chat.completions.create(**request_params)
+        response = await self._retry_chat_completions_with_v1_if_needed(
+            payload=response,
+            request_params=request_params,
+            model=model,
+            stream=False,
+        )
 
         if fallback_to_responses and self._should_fallback_to_responses(response):
             logger.warning(
@@ -375,13 +448,37 @@ class OpenAIAdapter(BaseAdapter):
             )
             return await self._chat_via_responses(**(responses_kwargs or {}))
 
+        if self._is_salvageable_raw_text_chat_response(response):
+            logger.warning(
+                "Chat response returned raw text; coerce to assistant message: model={} response_type={}",
+                model,
+                type(response).__name__,
+            )
+            return ChatResponse(
+                message=ChatMessage(role="assistant", content=response.strip()),
+                model=model,
+                finish_reason="stop",
+                metadata={
+                    "protocol_path": "chat_completions",
+                    "response_shape": "raw_text",
+                },
+            )
+
+        # Reject non-ChatCompletion responses (e.g., HTML/JSON error payloads)
+        if isinstance(response, str):
+            logger.error(
+                "Chat response returned unsalvageable string payload: model={} preview={}",
+                model,
+                response[:200],
+            )
+            raise ValueError(f"Upstream returned invalid string response: {response[:100]}")
+
         return self._convert_chat_response(response, model)
 
     async def _stream_chat_via_chat_completions(
         self,
         *,
         request_params: dict[str, Any],
-        messages: list[ChatMessage],
         model: str,
         fallback_to_responses: bool = True,
         responses_kwargs: dict[str, Any] | None = None,
@@ -394,6 +491,12 @@ class OpenAIAdapter(BaseAdapter):
         )
         logger.info("Stream chat request: model={}", model)
         stream = await self.client.chat.completions.create(**request_params)
+        stream = await self._retry_chat_completions_with_v1_if_needed(
+            payload=stream,
+            request_params=request_params,
+            model=model,
+            stream=True,
+        )
         stream_closed = False
 
         try:
@@ -438,6 +541,85 @@ class OpenAIAdapter(BaseAdapter):
         finally:
             if not stream_closed:
                 await _aclose_openai_stream(stream)
+
+    def _chat_response_to_stream_chunk(self, response: ChatResponse) -> ChatChunk:
+        """Convert a sync chat response into a terminal stream chunk / 将同步响应转换为终止流式块。"""
+        finish_reason = response.finish_reason
+        if not finish_reason:
+            finish_reason = (
+                "tool_calls"
+                if (response.tool_calls or response.message.tool_calls)
+                else "stop"
+            )
+        return ChatChunk(
+            delta=response.message.content or "",
+            reasoning_delta=response.message.reasoning_content or "",
+            role=response.message.role,
+            finish_reason=finish_reason,
+            input_tokens=response.input_tokens,
+            output_tokens=response.output_tokens,
+            total_tokens=response.total_tokens,
+            tool_calls=response.tool_calls or response.message.tool_calls,
+            metadata=dict(response.metadata or {}),
+        )
+
+    async def _stream_chat_completions_with_sync_rescue(
+        self,
+        *,
+        request_params: dict[str, Any],
+        sync_request_params: dict[str, Any],
+        messages: list[ChatMessage],
+        model: str,
+        rescue_reason: str,
+    ) -> AsyncIterator[ChatChunk]:
+        """
+        Stream via chat.completions and rescue empty / broken streams with sync chat.
+        使用 chat.completions 流式输出，并在空流或首块前异常时回退到同步 chat。
+        """
+        emitted_meaningful_chunk = False
+        stream_error: Exception | None = None
+
+        try:
+            async for chunk in self._stream_chat_via_chat_completions(
+                request_params=request_params,
+                model=model,
+                fallback_to_responses=False,
+            ):
+                if self._is_meaningful_stream_chunk(chunk):
+                    emitted_meaningful_chunk = True
+                yield chunk
+        except Exception as exc:  # noqa: BLE001
+            if emitted_meaningful_chunk:
+                raise
+            stream_error = exc
+
+        if emitted_meaningful_chunk:
+            return
+
+        logger.warning(
+            "chat.completions stream had no meaningful chunk, rescue with sync chat: model={} reason={} stream_error_type={} stream_error={}",
+            model,
+            rescue_reason,
+            type(stream_error).__name__ if stream_error is not None else "",
+            str(stream_error) if stream_error is not None else "",
+        )
+        try:
+            response = await self._chat_via_chat_completions(
+                request_params=sync_request_params,
+                messages=messages,
+                model=model,
+                fallback_to_responses=False,
+            )
+            yield self._chat_response_to_stream_chunk(response)
+        except Exception as rescue_error:
+            logger.error(
+                "Sync rescue failed after stream failure: model={} stream_error={} rescue_error={}",
+                model,
+                str(stream_error) if stream_error is not None else "None",
+                str(rescue_error),
+            )
+            # Re-raise original stream error if available, otherwise raise rescue error
+            raise stream_error if stream_error is not None else rescue_error
 
     async def chat(
         self,
@@ -612,6 +794,17 @@ class OpenAIAdapter(BaseAdapter):
                 stream=True,
                 **kwargs,
             )
+            sync_request_params = self._build_chat_completions_request(
+                openai_messages=openai_messages,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                top_p=top_p,
+                tools=tools,
+                tool_choice=tool_choice,
+                stream=False,
+                **kwargs,
+            )
             responses_kwargs = {
                 "messages": messages,
                 "model": model,
@@ -655,11 +848,12 @@ class OpenAIAdapter(BaseAdapter):
                         )
                         active_endpoint_path = "chat/completions"
                         active_wire_api = "chat_completions"
-                        async for chunk in self._stream_chat_via_chat_completions(
+                        async for chunk in self._stream_chat_completions_with_sync_rescue(
                             request_params=request_params,
+                            sync_request_params=sync_request_params,
                             messages=messages,
                             model=model,
-                            fallback_to_responses=False,
+                            rescue_reason="responses_fallback",
                         ):
                             yield chunk
                         return
@@ -672,16 +866,12 @@ class OpenAIAdapter(BaseAdapter):
                         )
                     raise
 
-            async for chunk in self._stream_chat_via_chat_completions(
+            async for chunk in self._stream_chat_completions_with_sync_rescue(
                 request_params=request_params,
+                sync_request_params=sync_request_params,
                 messages=messages,
                 model=model,
-                fallback_to_responses=not runtime_disable_cross_protocol_fallback,
-                responses_kwargs=(
-                    responses_kwargs
-                    if not runtime_disable_cross_protocol_fallback
-                    else None
-                ),
+                rescue_reason="chat_completions_primary",
             ):
                 yield chunk
 
@@ -816,6 +1006,25 @@ class OpenAIAdapter(BaseAdapter):
         if self._payload_looks_like_api_error(payload):
             return False
         return self._payload_resembles_responses_api_body(payload)
+
+    def _is_salvageable_raw_text_chat_response(self, payload: Any) -> bool:
+        """
+        Accept plain assistant text from compatible gateways, but reject HTML/JSON junk.
+        / 接受兼容网关直接返回的纯文本答复，但拒绝 HTML/JSON 垃圾载荷。
+        """
+        if not isinstance(payload, str):
+            return False
+
+        text = payload.strip()
+        if not text:
+            return False
+
+        lowered = text.lower()
+        if lowered.startswith("<!doctype") or lowered.startswith("<html") or lowered.startswith("<body"):
+            return False
+        if text.startswith("<"):
+            return False
+        return not (text.startswith("{") or text.startswith("["))
 
     async def _chat_via_responses(
         self,

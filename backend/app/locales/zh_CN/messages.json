@@ -789,6 +789,12 @@
     "provider_not_found": "AI 供应商不存在",
     "no_api_key": "没有可用的 API Key",
     "api_key_unavailable": "API Key 不可用或已过期",
+    "stream": {
+      "error": {
+        "service_unavailable": "抱歉，AI 服务暂时不可用，请稍后重试。",
+        "fallback_failed": "AI 服务响应失败，请稍后重试。"
+      }
+    },
     "error": {
       "provider_timeout": "AI 供应商请求超时",
       "provider_connection": "无法连接到 AI 供应商",

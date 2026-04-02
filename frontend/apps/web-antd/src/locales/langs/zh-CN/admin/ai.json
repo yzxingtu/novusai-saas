@@ -1,7 +1,8 @@
 {
   "title": "AI 网关管理",
   "monitor": {
-    "title": "监控与分析"
+    "title": "监控与分析",
+    "knowledge-bases": "知识库管理"
   },
   "guide": {
     "title": "快速开始",

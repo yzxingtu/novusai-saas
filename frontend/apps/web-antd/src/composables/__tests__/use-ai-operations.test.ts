@@ -179,4 +179,154 @@ describe('createStandardOperations', () => {
       task_path: 'tasks.original',
     });
   });
+
+  it('describes remote *_id selects as numeric and exposes get_form_options', () => {
+    const operations = createStandardOperations({
+      resource: '/admin/ai/agents-timeout',
+      loadList: async () => {},
+      onSearch: async () => {},
+      list: ref([]),
+      formPopupApi: {
+        setData: vi.fn(() => ({ open: vi.fn() })),
+      },
+      formSchema: () => [
+        {
+          component: 'ApiSelect',
+          fieldName: 'model_id',
+          label: '关联模型',
+          rules: 'selectRequired',
+          componentProps: {
+            api: vi.fn(async () => ({ items: [{ label: 'GPT-5.4', value: 1 }] })),
+          },
+        },
+      ],
+      pageKey: 'admin.ai.agents',
+    });
+
+    const fillForm = operations.find((operation) => operation.name === 'fill_form');
+    const getFormOptions = operations.find(
+      (operation) => operation.name === 'get_form_options',
+    );
+
+    expect(fillForm?.params?.model_id).toMatchObject({
+      type: 'number',
+    });
+    expect(getFormOptions).toBeTruthy();
+  });
+
+  it('describes remote *_ids multi-selects as numeric arrays', () => {
+    const operations = createStandardOperations({
+      resource: '/admin/ai/agents-timeout',
+      loadList: async () => {},
+      onSearch: async () => {},
+      list: ref([]),
+      formPopupApi: {
+        setData: vi.fn(() => ({ open: vi.fn() })),
+      },
+      formSchema: () => [
+        {
+          component: 'ApiSelect',
+          fieldName: 'tenant_ids',
+          label: '分配企业',
+          componentProps: {
+            api: vi.fn(async () => ({ items: [{ label: '租户 A', value: 1 }] })),
+            mode: 'multiple',
+          },
+        },
+      ],
+      pageKey: 'admin.ai.agents',
+    });
+
+    const fillForm = operations.find((operation) => operation.name === 'fill_form');
+
+    expect(fillForm?.params?.tenant_ids).toMatchObject({
+      type: 'array',
+      items: { type: 'number' },
+    });
+  });
+
+  it('fails fast when get_form_options is called before the form opens', async () => {
+    const operations = createStandardOperations({
+      resource: '/admin/ai/agents-timeout',
+      loadList: async () => {},
+      onSearch: async () => {},
+      list: ref([]),
+      formPopupApi: {
+        setData: vi.fn(() => ({ open: vi.fn() })),
+      },
+      formSchema: () => [
+        {
+          component: 'ApiSelect',
+          fieldName: 'model_id',
+          label: '关联模型',
+          rules: 'selectRequired',
+          componentProps: {
+            api: vi.fn(async () => ({ items: [{ label: 'GPT-5.4', value: 1 }] })),
+          },
+        },
+      ],
+      pageKey: 'admin.ai.agents',
+    });
+
+    const getFormOptions = operations.find(
+      (operation) => operation.name === 'get_form_options',
+    );
+    const result = await getFormOptions?.handler?.({ field_name: 'model_id' });
+
+    expect(result).toMatchObject({
+      success: false,
+      message: 'shared.pageOperation.msg.formNotOpen',
+    });
+  });
+
+  it('fails fast when remote get_form_options loading times out', async () => {
+    vi.useFakeTimers();
+
+    formStateTracker.open('admin.ai.agents', {
+      mode: 'add',
+      formApi: {
+        getValues: async () => ({}),
+        setValues: vi.fn(),
+        submitForm: vi.fn(async () => {}),
+        validate: async () => ({ valid: true }),
+      },
+    });
+
+    const operations = createStandardOperations({
+      resource: '/admin/ai/agents',
+      loadList: async () => {},
+      onSearch: async () => {},
+      list: ref([]),
+      formPopupApi: {
+        setData: vi.fn(() => ({ open: vi.fn() })),
+      },
+      formSchema: () => [
+        {
+          component: 'ApiSelect',
+          fieldName: 'model_id',
+          label: '关联模型',
+          rules: 'selectRequired',
+          componentProps: {
+            api: vi.fn(
+              () => new Promise(() => {}) as Promise<{ items: Array<{ label: string; value: number }> }>,
+            ),
+          },
+        },
+      ],
+      pageKey: 'admin.ai.agents',
+    });
+
+    const getFormOptions = operations.find(
+      (operation) => operation.name === 'get_form_options',
+    );
+    const resultPromise = getFormOptions?.handler?.({ field_name: 'model_id' });
+
+    await vi.advanceTimersByTimeAsync(8_100);
+    const result = await resultPromise;
+
+    expect(result).toMatchObject({
+      success: false,
+      message: 'shared.pageOperation.msg.optionsLoadTimeout',
+    });
+  });
 });

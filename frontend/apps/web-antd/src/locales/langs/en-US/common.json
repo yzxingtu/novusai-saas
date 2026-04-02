@@ -671,6 +671,7 @@
     "allTenants": "All tenants (tenant-side only)",
     "adminAndSelectedTenants": "Admin + selected tenants",
     "selectedTenants": "Selected tenants only",
+    "scope": "Scope",
     "label": "Scope",
     "placeholder": "Select scope",
     "allScopes": "All Scopes",

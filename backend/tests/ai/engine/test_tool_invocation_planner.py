@@ -1,5 +1,6 @@
 from app.ai.engine.tool_invocation_planner import ToolInvocationPlanner
 from app.ai.engine.types import ResearchContinuationContext
+from app.ai.runtime.types import ContextSource
 from app.ai.tools.semantic_defaults import tool_family_from_name
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
@@ -359,3 +360,71 @@ def test_explicit_requested_families_does_not_add_data_ops_for_web_query_verb_on
     )
 
     assert families == ["web_research"]
+
+
+def test_planner_prefers_data_ops_for_recent_data_request_with_bound_kb() -> None:
+    capability_bundle = type(
+        "Bundle",
+        (),
+        {
+            "context_sources": [
+                ContextSource(kind="knowledge_base", name="kb", active=True),
+            ]
+        },
+    )()
+
+    plan = ToolInvocationPlanner.plan(
+        messages=[
+            ChatMessage(
+                role="user",
+                content="请统计最近7天创建的终端用户数量，再根据已绑定知识库概括产品主要功能",
+            ),
+        ],
+        tools=_tools(),
+        input_variables={},
+        continuation_context=None,
+        capability_bundle=capability_bundle,
+    )
+
+    assert plan.family == "data_ops"
+    assert plan.reason == "data_time_range_with_kb"
+
+
+def test_planner_respects_no_web_for_data_plus_kb_requests() -> None:
+    capability_bundle = type(
+        "Bundle",
+        (),
+        {
+            "context_sources": [
+                ContextSource(kind="knowledge_base", name="kb", active=True),
+            ]
+        },
+    )()
+
+    plan = ToolInvocationPlanner.plan(
+        messages=[
+            ChatMessage(
+                role="user",
+                content="不要联网。请统计最近7天创建的终端用户数量，再只根据已绑定知识库概括产品主要功能",
+            ),
+        ],
+        tools=_tools(),
+        input_variables={},
+        continuation_context=None,
+        capability_bundle=capability_bundle,
+    )
+
+    assert plan.family == "data_ops"
+    assert plan.reason == "no_web_explicit_data"
+
+
+def test_planner_does_not_treat_recent_as_web_without_explicit_web_signal() -> None:
+    plan = ToolInvocationPlanner.plan(
+        messages=[ChatMessage(role="user", content="请统计最近7天创建的用户有多少")],
+        tools=_tools(),
+        input_variables={},
+        continuation_context=None,
+    )
+
+    assert plan.family == "data_ops"
+    assert plan.reason == "explicit_data_request"

@@ -8,7 +8,7 @@ Provides platform-level knowledge base global query, statistics monitoring, docu
 import hashlib
 import os
 
-from fastapi import File, Form, Request, UploadFile
+from fastapi import File, Form, Query, Request, UploadFile
 
 from app.core.base_controller import GlobalController
 from app.core.base_schema import PageResponse
@@ -244,12 +244,21 @@ class AdminKnowledgeBaseController(GlobalController):
             request: Request,
             db: DbSession,
             admin: ActiveAdmin,
+            agent_id: int | None = Query(
+                default=None,
+                ge=1,
+                description="可选：按目标智能体归属企业过滤候选知识库 / Optional: filter candidates by target agent owner tenant",
+            ),
         ):
             """
             获取管理端可 @ 选择的知识库列表 / Get knowledge base list selectable via @ in admin
 
-            返回 scope=admin + scope=global 的知识库（精简字段）
-            Returns knowledge bases with scope=admin + scope=global (simplified fields)
+            - 默认返回管理端可消费范围（精简字段）：
+              admin_only / global_shared / all_tenants / admin_and_selected_tenants
+            - 如传 agent_id，则按目标智能体 owner_tenant_id 计算可见性：
+              - owner_tenant_id=None：管理端可消费范围
+              - owner_tenant_id=企业ID：按该企业可见性规则筛选（含分配型 scope）
+            Returns compact selectable KB items with optional agent-owner visibility filtering.
 
             权限 / Permission: ai_knowledge_base:selectable
             """
@@ -258,15 +267,33 @@ class AdminKnowledgeBaseController(GlobalController):
             from app.enums.common import ResourceScopeEnum
             from app.models.ai.knowledge_base import KnowledgeBase
 
-            # 查询管理端可消费的知识库（admin_only / global_shared） / Admin-consumable KBs
+            admin_consumable_scopes = [
+                ResourceScopeEnum.ADMIN_ONLY.value,
+                ResourceScopeEnum.GLOBAL_SHARED.value,
+                ResourceScopeEnum.ALL_TENANTS.value,
+                ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+            ]
+            visible_condition = KnowledgeBase.scope.in_(admin_consumable_scopes)
+
+            if agent_id is not None:
+                from app.repositories.ai.knowledge_base_repository import (
+                    _kb_visible_condition,
+                )
+                from app.services.ai.agent_service import AdminAgentService
+
+                agent = await AdminAgentService(db).get_by_id(agent_id)
+                if not agent:
+                    raise NotFoundException(message=_("agent.error.not_found"))
+
+                if agent.owner_tenant_id is not None:
+                    visible_condition = _kb_visible_condition(agent.owner_tenant_id)
+
+            # 查询可消费的知识库候选 / Query selectable knowledge base candidates
             stmt = (
                 select(KnowledgeBase)
                 .where(
                     KnowledgeBase.is_deleted.is_(False),
-                    KnowledgeBase.scope.in_([
-                        ResourceScopeEnum.ADMIN_ONLY.value,
-                        ResourceScopeEnum.GLOBAL_SHARED.value,
-                    ]),
+                    visible_condition,
                 )
                 .order_by(KnowledgeBase.name.asc())
                 .limit(500)

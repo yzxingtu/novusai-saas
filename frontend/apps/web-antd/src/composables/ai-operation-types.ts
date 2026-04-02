@@ -9,6 +9,9 @@ export interface AiFieldOption {
   value: unknown;
 }
 
+/** Scalar JSON schema type for array items / 数组元素的标量 JSON Schema 类型 */
+export type AiFieldScalarType = 'boolean' | 'number' | 'string';
+
 /** Component type enum for AI field descriptors / AI 字段描述的组件类型枚举 */
 export type AiFieldComponent =
   | 'custom'
@@ -30,6 +33,10 @@ export interface EnhancedFormFieldDescriptor {
   type: 'array' | 'boolean' | 'number' | 'string';
   description: string;
   required?: boolean;
+  /** Array item schema / 数组元素 schema */
+  items?: {
+    type: AiFieldScalarType;
+  };
   /** UI component kind / UI 组件种类 */
   component: AiFieldComponent;
   /** Field constraints / 字段约束 */

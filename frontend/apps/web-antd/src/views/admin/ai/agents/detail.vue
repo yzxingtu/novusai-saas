@@ -894,7 +894,7 @@ function onTabChange(key: number | string) {
 
 usePageAIContext({
   resource: '/admin/ai/agents',
-  entityName: () => agent.value?.name ?? $t('admin.ai.agent.detail'),
+  entityName: () => agent.value?.name ?? $t('admin.ai.agent.detail.title'),
   entityDescription: () => $t('admin.ai.agent.pageDesc'),
   data: () => ({
     agent_id: agentId.value,
@@ -1974,7 +1974,10 @@ useDetailPageAi({
                 <AgentKnowledgeBaseBindingPicker
                   v-model:open="kbPickerOpen"
                   v-model="kbPickerDrafts"
-                  :fetch-candidates="getAdminSelectableKBApi"
+                  :fetch-candidates="
+                    () =>
+                      getAdminSelectableKBApi({ agent_id: agentId })
+                  "
                   @confirm="onKBBindingPickerConfirm"
                 />
                 <Spin :spinning="kbBindingsLoading">

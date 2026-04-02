@@ -82,6 +82,9 @@ Examples:
 - Verify `novusai trace show <trace_id>` remains a usable operator entrypoint.
 - If the change affects frontend-visible failures, confirm the UI still shows
   one coherent error path rather than duplicate toasts.
+- For AI streaming fallback fixes, validate both "upstream fails before first
+  chunk" and "stream returns no meaningful chunk" scenarios so the user never
+  receives a silent empty assistant turn.
 
 ### AI quota, rate limit, or AI logging work
 

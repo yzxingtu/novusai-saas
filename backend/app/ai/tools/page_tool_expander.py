@@ -63,6 +63,58 @@ EXPANDABLE_PAGE_OPS: frozenset[str] = EDITOR_OPS_TO_EXPAND | GENERIC_PAGE_OPS_TO
 PREFIX = "pageop_"
 
 
+def _infer_schema_scalar_type(values: list[Any]) -> str | None:
+    """Infer a JSON Schema scalar type from sample values / 根据样本值推断 JSON Schema 标量类型。"""
+    normalized = [value for value in values if value is not None]
+    if not normalized:
+        return None
+    if all(isinstance(value, bool) for value in normalized):
+        return "boolean"
+    if all(isinstance(value, int) and not isinstance(value, bool) for value in normalized):
+        return "integer"
+    if all(isinstance(value, (int, float)) and not isinstance(value, bool) for value in normalized):
+        return "number"
+    if all(isinstance(value, str) for value in normalized):
+        return "string"
+    return None
+
+
+def _infer_array_items_schema(name: str, spec: dict[str, Any]) -> dict[str, Any]:
+    """Infer missing array.items schema from frontend hints / 根据前端提示推断缺失的 array.items schema。"""
+    explicit_items = spec.get("items")
+    if isinstance(explicit_items, dict) and explicit_items.get("type"):
+        return dict(explicit_items)
+
+    options = spec.get("options")
+    if isinstance(options, list) and options:
+        option_values = [
+            option.get("value")
+            for option in options
+            if isinstance(option, dict) and "value" in option
+        ]
+        inferred_type = _infer_schema_scalar_type(option_values)
+        if inferred_type:
+            return {"type": inferred_type}
+
+    default_value = spec.get("default")
+    if default_value is None:
+        default_value = spec.get("defaultValue")
+    if isinstance(default_value, list) and default_value:
+        inferred_type = _infer_schema_scalar_type(default_value)
+        if inferred_type:
+            return {"type": inferred_type}
+
+    normalized_name = str(name or "").strip().lower()
+    if normalized_name.endswith("_ids"):
+        return {"type": "integer"}
+    if normalized_name.endswith("_numbers"):
+        return {"type": "number"}
+    if normalized_name.endswith("_flags"):
+        return {"type": "boolean"}
+
+    return {"type": "string"}
+
+
 def _params_to_parameters(op_params: dict[str, Any] | None) -> list[ToolParameter]:
     """
     Convert frontend op.params schema to ToolParameter list.
@@ -79,6 +131,13 @@ def _params_to_parameters(op_params: dict[str, Any] | None) -> list[ToolParamete
         required = bool(spec.get("required", True))
         enum_val = spec.get("enum")
         default_val = spec.get("default")
+        if default_val is None and "defaultValue" in spec:
+            default_val = spec.get("defaultValue")
+        items_schema = (
+            _infer_array_items_schema(name, spec)
+            if str(param_type) == "array"
+            else None
+        )
         params.append(
             ToolParameter(
                 name=name,
@@ -87,6 +146,7 @@ def _params_to_parameters(op_params: dict[str, Any] | None) -> list[ToolParamete
                 required=required,
                 enum=list(enum_val) if isinstance(enum_val, list) else None,
                 default=default_val,
+                items=items_schema,
             )
         )
     return params

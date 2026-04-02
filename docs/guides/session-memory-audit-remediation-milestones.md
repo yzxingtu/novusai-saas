@@ -139,5 +139,4 @@
 
 ## 4. 状态说明
 
-当前 DevGenius MCP 处于网络不可达状态（`genius.jiulingyun.cn:443` 不通），本文件作为“待写入 DevGenius 的里程碑草案”。  
-MCP 恢复后可按此内容创建里程碑并立即认领推进。
+本文件为会话记忆治理相关里程碑草案，可按 **trytrellis** 工作流拆解与跟踪（见 `/.trellis/workflow.md`）。

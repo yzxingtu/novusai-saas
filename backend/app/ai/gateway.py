@@ -43,9 +43,9 @@ from app.configs.service import PLATFORM_TENANT_ID
 from app.core.config import settings
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.core.runtime_identity import get_runtime_identity_tag
 from app.core.response import build_public_error_text
-from app.enums.ai import CallStatusEnum, RequestTypeEnum
+from app.core.runtime_identity import get_runtime_identity_tag
+from app.enums.ai import CallStatusEnum, CallTypeEnum, RequestTypeEnum
 from app.enums.log import UserTypeEnum as LogUserTypeEnum
 from app.exceptions import BusinessException, NotFoundException
 from app.models.ai import AIModel, AIProvider, ProviderApiKey
@@ -276,6 +276,7 @@ class AIGateway:
         billing_context: dict | None = None,
         routed_model_id: int | None = None,
         route_reason: str | None = None,
+        call_type: str = CallTypeEnum.MAIN_CHAT.value,
         **kwargs
     ) -> ChatResponse:
         """
@@ -426,6 +427,7 @@ class AIGateway:
                     ),
                     routed_model_id=routed_model_id,
                     route_reason=route_reason,
+                    call_type=call_type,
                 )
                 raise
 
@@ -504,6 +506,7 @@ class AIGateway:
                     ),
                     routed_model_id=routed_model_id,
                     route_reason=route_reason,
+                    call_type=call_type,
                 )
                 raise original_error from None
 
@@ -587,6 +590,7 @@ class AIGateway:
                     ),
                     routed_model_id=routed_model_id,
                     route_reason=route_reason,
+                    call_type=call_type,
                 )
             except Exception as e:
                 logger.error("AI call log enqueue failed: {}", str(e))
@@ -629,6 +633,7 @@ class AIGateway:
         billing_context: dict | None = None,
         routed_model_id: int | None = None,
         route_reason: str | None = None,
+        call_type: str = CallTypeEnum.MAIN_CHAT.value,
         **kwargs
     ) -> StreamingResponse:
         """
@@ -944,6 +949,7 @@ class AIGateway:
                     routed_model_id=routed_model_id,
                     route_reason=route_reason,
                     metering_context=metering_context,
+                    call_type=call_type,
                     request_data=self._build_request_log_data(
                         messages=messages,
                         temperature=temperature,
@@ -978,6 +984,7 @@ class AIGateway:
         user_id: int | None = None,
         user_type: str | None = None,
         billing_context: dict | None = None,
+        call_type: str = CallTypeEnum.MAIN_CHAT.value,
         **kwargs
     ) -> EmbeddingResponse:
         """
@@ -1104,6 +1111,7 @@ class AIGateway:
                         provider=provider,
                         ai_model=ai_model,
                     ),
+                    call_type=call_type,
                 )
             except Exception as e:
                 logger.error("AI call log enqueue failed: {}", str(e))
@@ -1127,6 +1135,7 @@ class AIGateway:
         agent_id: int | None = None,
         conversation_id: int | None = None,
         billing_context: dict | None = None,
+        call_type: str = CallTypeEnum.MAIN_CHAT.value,
         **kwargs,
     ) -> ImageGenerationResponse:
         """
@@ -1261,6 +1270,7 @@ class AIGateway:
                         provider=provider,
                         ai_model=ai_model,
                     ),
+                    call_type=call_type,
                 )
             except Exception as e:
                 logger.error("AI call log enqueue failed: {}", str(e))

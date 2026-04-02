@@ -157,6 +157,7 @@
     "unknownField": "Unknown field: {field}. Available: {available}",
     "foundOptions": "Found {count} options for {field}",
     "noOptionsLoaded": "No options loaded for {field}",
+    "optionsLoadTimeout": "Loading remote options for {field} timed out. Open the form first or retry later.",
     "paramRequired": "Missing required parameter: {param}",
     "paramInvalidType": "Parameter {param} has invalid type, expected {expected}",
     "paramInvalidEnum": "Parameter {param} must be one of: {allowed}"
