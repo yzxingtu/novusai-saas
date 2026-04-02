@@ -14,6 +14,11 @@ const apiMocks = vi.hoisted(() => ({
   sendChatStreamApi: vi.fn(),
 }));
 
+const aiPanelStoreMocks = vi.hoisted(() => ({
+  consumeInteractionUpdates: vi.fn(() => []),
+  restoreInteractionUpdates: vi.fn(),
+}));
+
 vi.mock('ant-design-vue', () => ({
   message: {
     error: vi.fn(),
@@ -62,6 +67,10 @@ vi.mock('#/store', () => ({
   }),
 }));
 
+vi.mock('#/store/shared/ai-panel', () => ({
+  useAIPanelStore: () => aiPanelStoreMocks,
+}));
+
 vi.mock('#/utils/ai-consent', () => ({
   addConsent: vi.fn(),
   clearConsents: vi.fn(),
@@ -96,6 +105,9 @@ describe('useAIChat interrupted stream recovery', () => {
     apiMocks.getChatConversationMessagesApi.mockReset();
     apiMocks.getGlobalConversationsApi.mockReset();
     apiMocks.sendChatStreamApi.mockReset();
+    aiPanelStoreMocks.consumeInteractionUpdates.mockReset();
+    aiPanelStoreMocks.consumeInteractionUpdates.mockReturnValue([]);
+    aiPanelStoreMocks.restoreInteractionUpdates.mockReset();
 
     apiMocks.getChatAgentsApi.mockResolvedValue({
       items: [
@@ -982,5 +994,60 @@ describe('useAIChat interrupted stream recovery', () => {
         value: '查看明细',
       },
     ]);
+  });
+
+  it('merges queued ai-panel interaction updates into the next request body', async () => {
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          `data: ${JSON.stringify({ event: 'conversation', conversation_id: 42 })}\n`,
+        );
+        await options.onMessage(
+          `data: ${JSON.stringify({ event: 'done', conversation_id: 42, total_tokens: 5 })}\n`,
+        );
+      },
+    );
+
+    aiPanelStoreMocks.consumeInteractionUpdates.mockReturnValue([
+      {
+        action: 'create_record',
+        kind: 'pending_confirmation',
+        rejected: false,
+        tool_name: 'pageop_create_record',
+      },
+    ]);
+
+    const chat = useAIChat({
+      apiPrefix: '/tenant',
+      uploadUrl: '/tenant/attachments',
+    });
+
+    await chat.loadAgents();
+    chat.inputMessage.value = '继续创建';
+    const sendPromise = chat.sendMessage();
+    await vi.advanceTimersByTimeAsync(1000);
+    await sendPromise;
+    await flushPromises();
+
+    const requestBody = apiMocks.sendChatStreamApi.mock.calls.at(-1)?.[2] as
+      | Record<string, unknown>
+      | undefined;
+
+    expect(requestBody?.interaction_updates).toEqual([
+      {
+        action: 'create_record',
+        kind: 'pending_confirmation',
+        rejected: false,
+        tool_name: 'pageop_create_record',
+      },
+    ]);
+    expect(aiPanelStoreMocks.restoreInteractionUpdates).not.toHaveBeenCalled();
   });
 });

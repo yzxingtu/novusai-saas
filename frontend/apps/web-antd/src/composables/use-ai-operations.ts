@@ -725,6 +725,80 @@ function getByDotPath(obj: Record<string, unknown>, path: string): unknown {
   return current;
 }
 
+function sanitizeRemoteSelectScalarValue(
+  fieldName: string,
+  expectedType: EnhancedFormFieldDescriptor['type'],
+  value: unknown,
+): boolean | number | string | undefined {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+
+  if (expectedType === 'number') {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      return undefined;
+    }
+    if (fieldName.endsWith('_id') && value <= 0) {
+      return undefined;
+    }
+    return value;
+  }
+
+  if (expectedType === 'boolean') {
+    return typeof value === 'boolean' ? value : undefined;
+  }
+
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const normalized = value.trim();
+  return normalized ? normalized : undefined;
+}
+
+function sanitizeRemoteSelectOverrides(
+  fieldMap: Record<string, EnhancedFormFieldDescriptor>,
+  values: Record<string, unknown>,
+): Record<string, unknown> {
+  const sanitized: Record<string, unknown> = {};
+
+  for (const [fieldName, value] of Object.entries(values)) {
+    const descriptor = fieldMap[fieldName];
+    if (!descriptor) {
+      continue;
+    }
+
+    if (descriptor.component !== 'remote_select') {
+      sanitized[fieldName] = value;
+      continue;
+    }
+
+    if (descriptor.type === 'array') {
+      if (!Array.isArray(value)) {
+        continue;
+      }
+      const itemType = descriptor.items?.type ?? 'string';
+      const normalizedItems = value
+        .map((item) => sanitizeRemoteSelectScalarValue(fieldName, itemType, item))
+        .filter((item): item is boolean | number | string => item !== undefined);
+      if (normalizedItems.length > 0) {
+        sanitized[fieldName] = normalizedItems;
+      }
+      continue;
+    }
+
+    const normalized = sanitizeRemoteSelectScalarValue(
+      fieldName,
+      descriptor.type,
+      value,
+    );
+    if (normalized !== undefined) {
+      sanitized[fieldName] = normalized;
+    }
+  }
+
+  return sanitized;
+}
+
 // ============ Fill-form read-back verification / fill_form 读回验证 ============
 
 interface FieldFeedback {
@@ -1409,10 +1483,11 @@ export function createStandardOperations(
         }
         // Only accept fields defined in formSchema, ignore unknown fields
         // 只接受 formSchema 中定义的字段，忽略未知字段
-        const overrides: Record<string, unknown> = {};
+        const rawOverrides: Record<string, unknown> = {};
         for (const key of Object.keys(formParamsMap)) {
-          if (params[key] !== undefined) overrides[key] = params[key];
+          if (params[key] !== undefined) rawOverrides[key] = params[key];
         }
+        const overrides = sanitizeRemoteSelectOverrides(formParamsMap, rawOverrides);
 
         const defaults = getFormDefaults();
         formPopupApi
@@ -1517,10 +1592,11 @@ export function createStandardOperations(
 
         // Apply overrides (only fields defined in formSchema)
         // 应用覆盖值（只接受 formSchema 中定义的字段）
-        const overrides: Record<string, unknown> = {};
+        const rawOverrides: Record<string, unknown> = {};
         for (const key of Object.keys(formParamsMap)) {
-          if (params[key] !== undefined) overrides[key] = params[key];
+          if (params[key] !== undefined) rawOverrides[key] = params[key];
         }
+        const overrides = sanitizeRemoteSelectOverrides(formParamsMap, rawOverrides);
 
         const expandedOverrides =
           Object.keys(overrides).length > 0

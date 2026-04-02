@@ -183,9 +183,6 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
                 updated_at=now,
             )
         )
-        await self.repo.update_statistics(instance.id)
-        from app.ai.rag.retriever import HybridRetriever
-        await HybridRetriever.invalidate_kb_cache(instance.id)
         # 级联恢复文档分块 / Cascade restore document chunks
         doc_ids_query = select(KnowledgeDocument.id).where(
             KnowledgeDocument.knowledge_base_id == instance.id,
@@ -205,6 +202,9 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
                 updated_at=now,
             )
         )
+        await self.repo.update_statistics(instance.id)
+        from app.ai.rag.retriever import HybridRetriever
+        await HybridRetriever.invalidate_kb_cache(instance.id)
 
     async def get_kb_detail(self, kb_id: int) -> dict[str, Any]:
         """
@@ -567,9 +567,6 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
                 updated_at=now,
             )
         )
-        await self.repo.update_statistics(instance.id)
-        from app.ai.rag.retriever import HybridRetriever
-        await HybridRetriever.invalidate_kb_cache(instance.id)
         doc_ids_query = select(KnowledgeDocument.id).where(
             KnowledgeDocument.knowledge_base_id == instance.id,
         )
@@ -588,6 +585,9 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
                 updated_at=now,
             )
         )
+        await self.repo.update_statistics(instance.id)
+        from app.ai.rag.retriever import HybridRetriever
+        await HybridRetriever.invalidate_kb_cache(instance.id)
 
     async def _check_name_unique(
         self,

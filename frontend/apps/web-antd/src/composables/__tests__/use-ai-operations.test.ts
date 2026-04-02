@@ -10,7 +10,10 @@ import {
 } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { formStateTracker } from '../use-form-state-tracker';
-import { createStandardOperations } from '../use-ai-operations';
+import {
+  clearRemoteOptionsCache,
+  createStandardOperations,
+} from '../use-ai-operations';
 
 vi.mock('#/locales', () => ({
   $t: (key: string) => key,
@@ -32,6 +35,7 @@ describe('createStandardOperations', () => {
   afterEach(() => {
     vi.useRealTimers();
     clearPageOperationRegistry();
+    clearRemoteOptionsCache();
     formStateTracker.clear();
   });
 
@@ -99,6 +103,132 @@ describe('createStandardOperations', () => {
           scope: 'admin_only',
           task_path: 'tasks.regression',
         }),
+      }),
+    );
+    expect(open).toHaveBeenCalledOnce();
+  });
+
+  it('strips invalid remote-select placeholders from create_record defaults', async () => {
+    vi.useFakeTimers();
+
+    const open = vi.fn();
+    const setData = vi.fn(() => ({ open }));
+
+    const operations = createStandardOperations({
+      resource: '/admin/ai/agents',
+      loadList: async () => {},
+      onSearch: async () => {},
+      list: ref([]),
+      formPopupApi: {
+        setData,
+      },
+      formDefaults: () => ({
+        scope: 'global_shared',
+      }),
+      formSchema: () => [
+        {
+          component: 'Input',
+          fieldName: 'name',
+          label: 'Name',
+          rules: 'required',
+        },
+        {
+          component: 'ApiSelect',
+          fieldName: 'model_id',
+          label: '关联模型',
+          rules: 'selectRequired',
+          componentProps: {
+            api: vi.fn(async () => ({ items: [{ label: 'GPT-5.4', value: 1 }] })),
+          },
+        },
+        {
+          component: 'ApiSelect',
+          fieldName: 'tenant_ids',
+          label: '分配企业',
+          componentProps: {
+            api: vi.fn(async () => ({ items: [{ label: '租户 A', value: 1 }] })),
+            mode: 'multiple',
+          },
+        },
+      ],
+    });
+
+    const createRecord = operations.find(
+      (operation) => operation.name === 'create_record',
+    );
+    const resultPromise = createRecord?.handler?.({
+      model_id: 0,
+      name: 'AI agent',
+      tenant_ids: [],
+    });
+
+    await vi.advanceTimersByTimeAsync(250);
+    const result = await resultPromise;
+
+    expect(result.success).toBe(true);
+    expect(setData).toHaveBeenCalledWith(
+      expect.objectContaining({
+        _defaults: {
+          name: 'AI agent',
+          scope: 'global_shared',
+        },
+      }),
+    );
+    expect(open).toHaveBeenCalledOnce();
+  });
+
+  it('strips invalid remote-select overrides from edit_record payload', async () => {
+    vi.useFakeTimers();
+
+    const open = vi.fn();
+    const setData = vi.fn(() => ({ open }));
+
+    const operations = createStandardOperations({
+      resource: '/admin/ai/agents',
+      loadList: async () => {},
+      onSearch: async () => {},
+      list: ref([{ id: 42, model_id: 9, name: 'existing' }]),
+      formPopupApi: {
+        setData,
+      },
+      formSchema: () => [
+        {
+          component: 'Input',
+          fieldName: 'name',
+          label: 'Name',
+          rules: 'required',
+        },
+        {
+          component: 'ApiSelect',
+          fieldName: 'model_id',
+          label: '关联模型',
+          rules: 'selectRequired',
+          componentProps: {
+            api: vi.fn(async () => ({ items: [{ label: 'GPT-5.4', value: 9 }] })),
+          },
+        },
+      ],
+    });
+
+    const editRecord = operations.find(
+      (operation) => operation.name === 'edit_record',
+    );
+    const resultPromise = editRecord?.handler?.({
+      id: 42,
+      model_id: 0,
+      name: 'updated',
+    });
+
+    await vi.advanceTimersByTimeAsync(250);
+    const result = await resultPromise;
+
+    expect(result.success).toBe(true);
+    expect(setData).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 42,
+        _overrides: {
+          name: 'updated',
+        },
       }),
     );
     expect(open).toHaveBeenCalledOnce();
@@ -281,6 +411,7 @@ describe('createStandardOperations', () => {
 
   it('fails fast when remote get_form_options loading times out', async () => {
     vi.useFakeTimers();
+    clearRemoteOptionsCache('/admin/ai/agents-timeout-hang');
 
     formStateTracker.open('admin.ai.agents', {
       mode: 'add',
@@ -293,7 +424,7 @@ describe('createStandardOperations', () => {
     });
 
     const operations = createStandardOperations({
-      resource: '/admin/ai/agents',
+      resource: '/admin/ai/agents-timeout-hang',
       loadList: async () => {},
       onSearch: async () => {},
       list: ref([]),

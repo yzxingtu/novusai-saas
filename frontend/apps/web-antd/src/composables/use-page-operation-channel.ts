@@ -288,6 +288,12 @@ export function usePageOperationChannel(): void {
         event.trace_id,
       );
     } else if (result) {
+      aiPanelStore.queueInteractionUpdate({
+        action: event.operation_name,
+        kind: 'pending_confirmation',
+        rejected: false,
+        tool_name: `pageop_${event.operation_name}`,
+      });
       if (CHAIN_TRIGGER_OPS.has(event.operation_name)) {
         markChainConfirmed(event.page_key);
       }
@@ -298,6 +304,12 @@ export function usePageOperationChannel(): void {
         status: 'approved',
       });
     } else {
+      aiPanelStore.queueInteractionUpdate({
+        action: event.operation_name,
+        kind: 'pending_confirmation',
+        rejected: true,
+        tool_name: `pageop_${event.operation_name}`,
+      });
       emitResult(
         socketIOStore,
         event.invoke_id,

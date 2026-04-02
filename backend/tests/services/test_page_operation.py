@@ -254,7 +254,7 @@ class TestPageOperationExecutor:
         assert "description, icon" in result.output
 
     @pytest.mark.asyncio
-    async def test_fill_form_success_without_remaining_fields_waits_for_submit_confirmation(
+    async def test_fill_form_success_without_remaining_fields_guides_submit_workflow(
         self, executor, definition
     ):
         context = ExecutionContext(
@@ -291,7 +291,45 @@ class TestPageOperationExecutor:
 
         assert result.success is True
         assert "The form appears filled" in result.output
-        assert "Do not call submit_form unless the user explicitly asked" in result.output
+        assert "continue the submission workflow" in result.output
+        assert "after validation passes, call submit_form" in result.output
+
+    @pytest.mark.asyncio
+    async def test_validate_form_success_with_valid_result_guides_submit(
+        self, executor, definition
+    ):
+        context = ExecutionContext(
+            tenant_id=1,
+            agent_id=2,
+            page_session_id="ps-123",
+        )
+        mock_result = {
+            "invoke_id": "inv-validate",
+            "success": True,
+            "message": "All fields valid",
+            "data": {
+                "valid": True,
+            },
+        }
+
+        with patch(
+            "app.sio.page_session.invoke_page_operation",
+            new=AsyncMock(return_value=mock_result),
+        ):
+            result = await executor.execute(
+                definition,
+                "call_validate",
+                {
+                    "page_key": "admin.ai.providers",
+                    "operation_name": "validate_form",
+                    "params": {},
+                },
+                context,
+            )
+
+        assert result.success is True
+        assert "Validation passed" in result.output
+        assert "call submit_form now" in result.output
 
     @pytest.mark.asyncio
     async def test_capture_screenshot_preserves_attachment_id(

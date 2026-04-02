@@ -23,6 +23,7 @@ const {
   formIsOpenWithFallback,
   openAIPanel,
   pageSessionId,
+  queueInteractionUpdate,
   requestPageOpConfirmation,
   registerHandler,
   resolvePageOp,
@@ -41,6 +42,7 @@ const {
   pageSessionId: (require('vue') as typeof import('vue')).ref(
     'page-session-1' as null | string,
   ),
+  queueInteractionUpdate: vi.fn(),
   requestPageOpConfirmation: vi.fn(),
   registerHandler: vi.fn(),
   resolvePageOp: vi.fn(),
@@ -61,6 +63,7 @@ vi.mock('#/store', () => ({
 vi.mock('#/store/shared/ai-panel', () => ({
   useAIPanelStore: () => ({
     open: openAIPanel,
+    queueInteractionUpdate,
     requestPageOpConfirmation,
     resolvePageOp,
   }),
@@ -110,6 +113,7 @@ describe('usePageOperationChannel', () => {
     pageSessionId.value = 'page-session-1';
     emit.mockClear();
     openAIPanel.mockReset();
+    queueInteractionUpdate.mockReset();
     registerHandler.mockClear();
     requestPageOpConfirmation.mockReset();
     requestPageOpConfirmation.mockResolvedValue(true);

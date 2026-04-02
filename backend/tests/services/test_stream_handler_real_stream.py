@@ -244,6 +244,51 @@ class _FakeEngine:
         )
 
     @staticmethod
+    def _analyze_post_tool_contract_breach(
+        *,
+        messages,
+        response,
+        current_policy,
+        tools,
+        input_variables,
+    ):
+        from app.ai.engine.conversation import ConversationEngine
+
+        return ConversationEngine._analyze_post_tool_contract_breach(
+            messages=messages,
+            response=response,
+            current_policy=current_policy,
+            tools=tools,
+            input_variables=input_variables,
+        )
+
+    @staticmethod
+    def _build_contract_recovery_system_message(*, breach_type, diagnostics):
+        from app.ai.engine.base import BaseEngine
+
+        return BaseEngine._build_contract_recovery_system_message(
+            breach_type=breach_type,
+            diagnostics=diagnostics,
+        )
+
+    @staticmethod
+    def _merge_contract_diagnostics_into_turn_record(
+        turn_record,
+        *,
+        breach_type,
+        diagnostics,
+        recovered_via_retry,
+    ):
+        from app.ai.engine.base import BaseEngine
+
+        return BaseEngine._merge_contract_diagnostics_into_turn_record(
+            turn_record,
+            breach_type=breach_type,
+            diagnostics=diagnostics,
+            recovered_via_retry=recovered_via_retry,
+        )
+
+    @staticmethod
     def _filter_tools_for_policy(tools, policy):
         from app.ai.engine.conversation import ConversationEngine
 
@@ -608,6 +653,369 @@ async def test_stream_handler_retries_summary_without_fetch_before_emitting_mess
     )
     assert "Here is a summary based only on the search snippets" not in message_text
     assert "Based on the fetched page body." in message_text
+    assert any(
+        event.get("event") == "tool_start" and event.get("name") == "fetch_url"
+        for event in events
+    )
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_retries_leaked_textual_tool_output_after_partial_results():
+    engine = _FakeEngine(
+        rounds=[
+            [
+                ChatChunk(
+                    delta="",
+                    tool_calls=[
+                        {
+                            "id": "call_search_weather",
+                            "type": "function",
+                            "function": {
+                                "name": "web_search",
+                                "arguments": '{"query":"2026-04-03 今天天气 中国","max_results":5}',
+                            },
+                        },
+                        {
+                            "id": "call_page_context",
+                            "type": "function",
+                            "function": {
+                                "name": "get_page_context",
+                                "arguments": "{}",
+                            },
+                        },
+                    ],
+                    finish_reason="tool_calls",
+                    total_tokens=14,
+                ),
+            ],
+            [
+                ChatChunk(
+                    delta="Search results for: 12306 北京 高铁票 查询 2026-04-03",
+                    finish_reason="stop",
+                    total_tokens=18,
+                ),
+            ],
+            [
+                ChatChunk(
+                    delta="",
+                    tool_calls=[
+                        {
+                            "id": "call_fetch_ticket_retry",
+                            "type": "function",
+                            "function": {
+                                "name": "fetch_url",
+                                "arguments": '{"url":"https://www.gaotie.cn/","max_length":4000}',
+                            },
+                        },
+                    ],
+                    finish_reason="tool_calls",
+                    total_tokens=16,
+                ),
+            ],
+            [
+                ChatChunk(
+                    delta=(
+                        "今天天气可参考中国气象局页面；"
+                        "去北京的高铁票可参考高铁网等替代来源；"
+                        "当前页面是 admin.dashboard，展示平台控制塔指标。"
+                    ),
+                    finish_reason="stop",
+                    total_tokens=24,
+                ),
+            ],
+        ],
+    )
+    tools = [
+        ToolDefinition(name="web_search", description="Search the web"),
+        ToolDefinition(name="fetch_url", description="Fetch url"),
+        ToolDefinition(name="get_page_context", description="Read page context"),
+    ]
+    handler = _build_handler(
+        engine,
+        tools=tools,
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["web_search", "fetch_url", "get_page_context"],
+            retry_on_contract_breach=True,
+            reason="explicit_web_request",
+        ),
+    )
+    handler.request.messages = [
+        ChatMessage(
+            role="user",
+            content="请帮我查一下今天的天气，然后联网查一下去北京的高铁票，再帮我阅读一下本页面都有什么内容",
+        )
+    ]
+    handler.prep.messages = list(handler.request.messages)
+    handler.request.input_variables = {
+        "page_context": {
+            "page_key": "admin.dashboard",
+            "page_title": "平台控制塔",
+            "page_data": {"ai_calls_today": 146},
+        }
+    }
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    message_text = "".join(
+        event.get("delta", "") for event in events if event.get("event") == "message"
+    )
+    assert "Search results for: 12306" not in message_text
+    assert "今天天气可参考中国气象局页面" in message_text
+    assert "admin.dashboard" in message_text
+    assert any(
+        event.get("event") == "tool_start" and event.get("name") == "fetch_url"
+        for event in events
+    )
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_forces_retry_for_unfinished_multi_intent_after_page_first_round():
+    engine = _FakeEngine(
+        rounds=[
+            [
+                ChatChunk(
+                    delta="",
+                    tool_calls=[
+                        {
+                            "id": "call_search_weather",
+                            "type": "function",
+                            "function": {
+                                "name": "web_search",
+                                "arguments": '{"query":"2026-04-03 今天天气 中国 当前天气","max_results":5}',
+                            },
+                        },
+                        {
+                            "id": "call_search_ticket",
+                            "type": "function",
+                            "function": {
+                                "name": "web_search",
+                                "arguments": '{"query":"2026-04-03 去北京 高铁票 余票 查询 官方","max_results":5}',
+                            },
+                        },
+                        {
+                            "id": "call_page_context",
+                            "type": "function",
+                            "function": {
+                                "name": "get_page_context",
+                                "arguments": "{}",
+                            },
+                        },
+                    ],
+                    finish_reason="tool_calls",
+                    total_tokens=18,
+                ),
+            ],
+            [
+                ChatChunk(
+                    delta=(
+                        "我先给你一个当前可用信息的汇总："
+                        "天气和高铁票还缺少关键信息，"
+                        "当前页面是 AI 智能体管理页。"
+                    ),
+                    finish_reason="stop",
+                    total_tokens=16,
+                ),
+            ],
+            [
+                ChatChunk(
+                    delta="",
+                    tool_calls=[
+                        {
+                            "id": "call_fetch_ticket_retry",
+                            "type": "function",
+                            "function": {
+                                "name": "fetch_url",
+                                "arguments": '{"url":"https://www.gaotie.cn/","max_length":4000}',
+                            },
+                        },
+                    ],
+                    finish_reason="tool_calls",
+                    total_tokens=14,
+                ),
+            ],
+            [
+                ChatChunk(
+                    delta=(
+                        "我继续补充了一轮真实工具结果："
+                        "天气来源已定位到中国气象局页面，"
+                        "票务信息可改走高铁网等可读候选来源，"
+                        "当前页面是 admin.ai.agents 智能体管理页。"
+                    ),
+                    finish_reason="stop",
+                    total_tokens=20,
+                ),
+            ],
+        ],
+    )
+    tools = [
+        ToolDefinition(name="web_search", description="Search the web"),
+        ToolDefinition(name="fetch_url", description="Fetch url"),
+        ToolDefinition(name="get_page_context", description="Read page context"),
+    ]
+    handler = _build_handler(
+        engine,
+        tools=tools,
+        tool_use_policy=ToolUsePolicy(
+            family="page_ops",
+            mode="required",
+            allowed_tool_names=["web_search", "fetch_url", "get_page_context"],
+            retry_on_contract_breach=False,
+            reason="explicit_page_request",
+        ),
+    )
+    handler.request.messages = [
+        ChatMessage(
+            role="user",
+            content="请帮我查一下今天的天气，然后联网查一下去北京的高铁票，再帮我阅读一下本页面都有什么内容",
+        )
+    ]
+    handler.prep.messages = list(handler.request.messages)
+    handler.request.input_variables = {
+        "page_context": {
+            "page_key": "admin.ai.agents",
+            "page_title": "智能体名称",
+            "page_data": {"total": 7},
+        }
+    }
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    message_text = "".join(
+        event.get("delta", "") for event in events if event.get("event") == "message"
+    )
+    assert "我先给你一个当前可用信息的汇总" not in message_text
+    assert "高铁网等可读候选来源" in message_text
+    assert "admin.ai.agents" in message_text
+    assert any(
+        event.get("event") == "tool_start" and event.get("name") == "fetch_url"
+        for event in events
+    )
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_retries_summary_without_fetch_for_page_first_web_request():
+    engine = _FakeEngine(
+        rounds=[
+            [
+                ChatChunk(
+                    delta="",
+                    tool_calls=[
+                        {
+                            "id": "call_search_weather",
+                            "type": "function",
+                            "function": {
+                                "name": "web_search",
+                                "arguments": '{"query":"今天天气 城市 今日 天气 2026-04-03","max_results":5}',
+                            },
+                        },
+                        {
+                            "id": "call_search_ticket",
+                            "type": "function",
+                            "function": {
+                                "name": "web_search",
+                                "arguments": '{"query":"2026-04-03 去北京 高铁票 余票 购票 官方","max_results":8}',
+                            },
+                        },
+                        {
+                            "id": "call_page_context",
+                            "type": "function",
+                            "function": {
+                                "name": "get_page_context",
+                                "arguments": "{}",
+                            },
+                        },
+                    ],
+                    finish_reason="tool_calls",
+                    total_tokens=18,
+                ),
+            ],
+            [
+                ChatChunk(
+                    delta=(
+                        "我先给你整理目前能确认的三部分信息："
+                        "天气缺城市，高铁票缺出发地，页面是智能体管理页。"
+                    ),
+                    finish_reason="stop",
+                    total_tokens=16,
+                ),
+            ],
+            [
+                ChatChunk(
+                    delta="",
+                    tool_calls=[
+                        {
+                            "id": "call_fetch_retry",
+                            "type": "function",
+                            "function": {
+                                "name": "fetch_url",
+                                "arguments": '{"url":"https://www.12306.cn/index/","max_length":4000}',
+                            },
+                        },
+                    ],
+                    finish_reason="tool_calls",
+                    total_tokens=14,
+                ),
+            ],
+            [
+                ChatChunk(
+                    delta=(
+                        "我继续读取了票务候选页。"
+                        "天气仍需城市信息，高铁票仍需出发地，但这次结果来自真实候选页面。"
+                    ),
+                    finish_reason="stop",
+                    total_tokens=18,
+                ),
+            ],
+        ],
+    )
+    tools = [
+        ToolDefinition(name="web_search", description="Search the web"),
+        ToolDefinition(name="fetch_url", description="Fetch url"),
+        ToolDefinition(name="get_page_context", description="Read page context"),
+    ]
+    handler = _build_handler(
+        engine,
+        tools=tools,
+        tool_use_policy=ToolUsePolicy(
+            family="page_ops",
+            mode="required",
+            allowed_tool_names=["web_search", "fetch_url", "get_page_context"],
+            retry_on_contract_breach=True,
+            reason="explicit_page_request",
+        ),
+    )
+    handler.request.messages = [
+        ChatMessage(
+            role="user",
+            content="请帮我查一下今天的天气，然后联网查一下去北京的高铁票，再帮我阅读一下本页面都有什么内容",
+        )
+    ]
+    handler.prep.messages = list(handler.request.messages)
+    handler.request.input_variables = {
+        "page_context": {
+            "page_key": "admin.ai.agents",
+            "page_title": "智能体名称",
+        }
+    }
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    message_text = "".join(
+        event.get("delta", "") for event in events if event.get("event") == "message"
+    )
+    assert "我先给你整理目前能确认的三部分信息" not in message_text
+    assert "真实候选页面" in message_text
     assert any(
         event.get("event") == "tool_start" and event.get("name") == "fetch_url"
         for event in events

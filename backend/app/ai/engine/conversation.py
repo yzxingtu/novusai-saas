@@ -258,6 +258,9 @@ class ConversationEngine(BaseEngine):
                     tools = retry_tools
 
             total_tokens = retry_overhead_tokens + (response.total_tokens or 0)
+            post_tool_contract_breach_type: str | None = None
+            post_tool_contract_diagnostics: dict[str, Any] = {}
+            recovered_post_tool_retry = False
 
             # 4. Tool call loop (pass route_result + tool_consent_modes for unified consent semantic) / 工具调用循环（传入 route_result + tool_consent_modes 统一授权语义）
             tool_results = []
@@ -286,6 +289,112 @@ class ConversationEngine(BaseEngine):
                         continuation=prep.continuation_context,
                         conversation_id=request.conversation_id,
                     )
+
+            for _post_retry_attempt in range(2):
+                del _post_retry_attempt
+                if response is None:
+                    break
+
+                breach_type, breach_policy, breach_diagnostics = (
+                    self._analyze_post_tool_contract_breach(
+                        messages=messages,
+                        response=response,
+                        current_policy=active_policy,
+                        tools=tools or [],
+                        input_variables=request.input_variables,
+                    )
+                )
+                if breach_type is None or breach_policy is None:
+                    break
+
+                post_tool_contract_breach_type = breach_type
+                post_tool_contract_diagnostics = breach_diagnostics
+                recovery_messages = messages + [
+                    self._build_contract_recovery_system_message(
+                        breach_type=breach_type,
+                        diagnostics=breach_diagnostics,
+                    )
+                ]
+                retry_tools = self._filter_tools_for_policy(
+                    prep.all_tools or tools or [],
+                    breach_policy,
+                )
+                self._log_tool_contract_diagnostics(
+                    agent=agent,
+                    messages=messages,
+                    response=response,
+                    tools=retry_tools or [],
+                    policy=breach_policy,
+                    conversation_id=request.conversation_id,
+                    breach_type=breach_type,
+                    retry_result="retrying",
+                    continuation=prep.continuation_context,
+                )
+                retry_response = await self._call_llm(
+                    agent=agent,
+                    messages=recovery_messages,
+                    tools=retry_tools or None,
+                    all_tool_names=[tool.name for tool in prep.all_tools],
+                    tool_use_policy=breach_policy,
+                    breach_retry_result="retry_follow_up",
+                    tenant_id=request.tenant_id,
+                    user_id=request.user_id,
+                    conversation_id=request.conversation_id,
+                    billing_context=request.billing_context,
+                    route_result=prep.route_result,
+                    log_user_type=log_user_type_for_call_log(request.user_role),
+                    selected_skill_names=runtime_selected_skill_names,
+                    context_sources=runtime_context_sources,
+                )
+                active_policy = breach_policy
+                messages = recovery_messages
+                if retry_response.tool_calls:
+                    response, extra_tool_results, extra_loop_tokens = await self._handle_tool_calls(
+                        agent=agent,
+                        messages=messages,
+                        response=retry_response,
+                        tools=retry_tools,
+                        all_tools=prep.all_tools,
+                        request=request,
+                        route_result=prep.route_result,
+                        tool_consent_modes=prep.tool_consent_modes,
+                        continuation_context=prep.continuation_context,
+                        selected_skill_names=runtime_selected_skill_names,
+                        context_sources=runtime_context_sources,
+                    )
+                    tool_results.extend(extra_tool_results)
+                    total_tokens += extra_loop_tokens
+                    tools = retry_tools
+                    continue
+
+                total_tokens += retry_response.total_tokens or 0
+                response = retry_response
+
+            if response is not None and post_tool_contract_breach_type:
+                final_breach_type, final_breach_policy_unused, final_breach_diagnostics = (
+                    self._analyze_post_tool_contract_breach(
+                        messages=messages,
+                        response=response,
+                        current_policy=active_policy,
+                        tools=tools or [],
+                        input_variables=request.input_variables,
+                    )
+                )
+                del final_breach_policy_unused
+                recovered_post_tool_retry = final_breach_type is None
+                if final_breach_diagnostics:
+                    post_tool_contract_diagnostics = final_breach_diagnostics
+                self._log_tool_contract_diagnostics(
+                    agent=agent,
+                    messages=messages,
+                    response=response,
+                    tools=tools or [],
+                    policy=active_policy,
+                    conversation_id=request.conversation_id,
+                    breach_type=post_tool_contract_breach_type,
+                    retry_result="succeeded" if recovered_post_tool_retry else "failed",
+                    continuation=prep.continuation_context,
+                )
             for web_retry_attempt in range(2):
                 del web_retry_attempt
                 if response is None:
@@ -440,6 +549,12 @@ class ConversationEngine(BaseEngine):
                 prune_stats=prep.prune_stats,
                 tool_planner=prep.tool_planner,
                 turn_record=turn_record,
+            )
+            result.turn_record = self._merge_contract_diagnostics_into_turn_record(
+                result.turn_record,
+                breach_type=post_tool_contract_breach_type,
+                diagnostics=post_tool_contract_diagnostics,
+                recovered_via_retry=recovered_post_tool_retry,
             )
 
             if prep.context_engine is not None:
@@ -901,7 +1016,7 @@ class ConversationEngine(BaseEngine):
                 )
                 return legacy_response
             try:
-                _, runtime_query_engine = await self._call_runtime_query_turn(
+                runtime_response_unused, runtime_query_engine = await self._call_runtime_query_turn(
                     agent=agent,
                     messages=messages,
                     tools=tools,
@@ -938,7 +1053,7 @@ class ConversationEngine(BaseEngine):
 
         if use_runtime_query_engine:
             try:
-                runtime_response, _ = await self._call_runtime_query_turn(
+                runtime_response, runtime_turn_debug = await self._call_runtime_query_turn(
                     agent=agent,
                     messages=messages,
                     tools=tools,
@@ -955,6 +1070,7 @@ class ConversationEngine(BaseEngine):
                     context_sources=context_sources,
                     shadow_mode=False,
                 )
+                del runtime_turn_debug
                 return runtime_response
             except Exception as runtime_exc:
                 logger.warning(

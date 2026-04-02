@@ -35,6 +35,16 @@ export interface PendingPageOp {
   toolCallId?: string;
 }
 
+export interface AIInteractionUpdate {
+  action?: string;
+  auto_approved?: boolean;
+  kind: 'action_buttons' | 'pending_confirmation' | 'pending_consent';
+  rejected?: boolean;
+  table?: string;
+  tool_name?: string;
+  value?: string;
+}
+
 function cloneRichTextTask(task: RichTextAITask): RichTextAITask {
   return {
     ...task,
@@ -456,6 +466,7 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
   // ==================== Page Operation Confirmation / 页面操作确认 ====================
 
   const pendingPageOps = ref<PendingPageOp[]>([]);
+  const pendingInteractionUpdates = ref<AIInteractionUpdate[]>([]);
   const RESOLVED_PAGE_OP_TTL_MS = 1500;
   const pageOpCleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -529,6 +540,24 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     pendingPageOps.value = pendingPageOps.value.filter((o) => !o.resolved);
   }
 
+  function queueInteractionUpdate(update: AIInteractionUpdate) {
+    pendingInteractionUpdates.value.push({ ...update });
+  }
+
+  function consumeInteractionUpdates(): AIInteractionUpdate[] {
+    const updates = [...pendingInteractionUpdates.value];
+    pendingInteractionUpdates.value = [];
+    return updates;
+  }
+
+  function restoreInteractionUpdates(updates: AIInteractionUpdate[]) {
+    if (!updates.length) return;
+    pendingInteractionUpdates.value = [
+      ...updates.map((item) => ({ ...item })),
+      ...pendingInteractionUpdates.value,
+    ];
+  }
+
   // ==================== Tool call dispatch / Tool Call 分发 ====================
 
   type ToolCallHandler = (toolName: string, output: string) => void;
@@ -576,6 +605,7 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
       clearPageOpCleanupTimer(invokeId);
     }
     pendingPageOps.value = [];
+    pendingInteractionUpdates.value = [];
     toolCallHandlers.clear();
   }
 
@@ -642,6 +672,9 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     pendingPageOps,
     requestPageOpConfirmation,
     resolvePageOp,
+    queueInteractionUpdate,
+    consumeInteractionUpdates,
+    restoreInteractionUpdates,
     clearResolvedPageOps,
 
     // Tool calls / 工具调用

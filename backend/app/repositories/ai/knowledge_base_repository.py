@@ -179,6 +179,49 @@ class AdminKnowledgeBaseRepository(BaseRepository[KnowledgeBase]):
 
     model = KnowledgeBase
 
+    async def update_statistics(
+        self,
+        kb_id: int,
+    ) -> None:
+        """重新计算并更新知识库统计 / Recompute KB statistics."""
+        doc_stmt = (
+            select(
+                func.count(KnowledgeDocument.id),
+                func.coalesce(func.sum(KnowledgeDocument.file_size), 0),
+            )
+            .where(
+                and_(
+                    KnowledgeDocument.knowledge_base_id == kb_id,
+                    KnowledgeDocument.is_deleted.is_(False),
+                )
+            )
+        )
+        doc_result = await self.db.execute(doc_stmt)
+        doc_count, total_size = doc_result.one()
+
+        chunk_stmt = (
+            select(func.count(DocumentChunk.id))
+            .where(
+                and_(
+                    DocumentChunk.knowledge_base_id == kb_id,
+                    DocumentChunk.is_deleted.is_(False),
+                )
+            )
+        )
+        chunk_result = await self.db.execute(chunk_stmt)
+        total_chunks = chunk_result.scalar() or 0
+
+        update_stmt = (
+            update(KnowledgeBase)
+            .where(KnowledgeBase.id == kb_id)
+            .values(
+                document_count=doc_count,
+                total_chunks=total_chunks,
+                total_size_bytes=total_size,
+            )
+        )
+        await self.db.execute(update_stmt)
+
 
 class KnowledgeDocumentRepository(TenantRepository[KnowledgeDocument]):
     """企业级知识文档 Repository / Tenant-scoped knowledge document repository."""

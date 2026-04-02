@@ -5,11 +5,11 @@
 from __future__ import annotations
 
 import contextlib
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from tests.services.conftest import make_mock_model
+from tests.services.conftest import make_mock_model, make_scalar_result
 
 
 def _make_kb(**overrides):
@@ -167,3 +167,28 @@ class TestKBRestore:
 
         service.repo.update_statistics.assert_awaited_once_with(1)
         invalidate.assert_awaited_once_with(1)
+
+
+class TestAdminKBRepository:
+
+    @pytest.mark.asyncio
+    async def test_update_statistics_exists_and_updates_admin_kb_stats(self, mock_db):
+        from app.repositories.ai.knowledge_base_repository import (
+            AdminKnowledgeBaseRepository,
+        )
+
+        doc_result = MagicMock()
+        doc_result.one.return_value = (2, 2048)
+        mock_db.execute = AsyncMock(
+            side_effect=[
+                doc_result,
+                make_scalar_result(9),
+                MagicMock(),
+            ]
+        )
+
+        repo = AdminKnowledgeBaseRepository(mock_db)
+
+        await repo.update_statistics(1)
+
+        assert mock_db.execute.await_count == 3

@@ -31,7 +31,7 @@ from app.ai.events.types import (
     ExecutionFailed,
     ExecutionStarted,
 )
-from app.ai.runtime.types import CapabilityBundle
+from app.ai.runtime.types import CapabilityBundle, TurnRecord
 from app.services.ai.execution_trust_policy_service import (
     ExecutionTrustPolicyService,
 )
@@ -81,8 +81,34 @@ _TEXTUAL_TOOL_CALL_MARKER_RE = re.compile(
 _TEXTUAL_CALL_SYNTAX_RE = re.compile(
     r"(?:^|\s)([A-Za-z_][A-Za-z0-9_]*)\s*\(",
 )
+_TEXTUAL_CALL_VERB_RE = re.compile(
+    r"\b(?:call|then|next)\s+([A-Za-z_][A-Za-z0-9_]*)\b",
+    re.IGNORECASE,
+)
 _CAPABILITY_DENIAL_PHRASE_RE = re.compile(
     r"(无法|不能|不可以|做不到|没法|没有权限|没有|不具备|缺少权限|只读|read[- ]only|lack(?:ing)?|can't|cannot|unable|no access|not able|don't have|do not have|doesn't have)",
+    re.IGNORECASE,
+)
+_WEB_SEARCH_OUTPUT_RE = re.compile(r"^\s*Search results for:\s*", re.IGNORECASE)
+_FETCH_URL_OUTPUT_RE = re.compile(r"^\s*Content from\s+https?://", re.IGNORECASE)
+_TOOL_PLANNING_LEAK_RE = re.compile(
+    r"(to fulfill the user'?s request|according to workflow|first call [A-Za-z_][A-Za-z0-9_]*|then [A-Za-z_][A-Za-z0-9_]*)",
+    re.IGNORECASE,
+)
+_WEATHER_INTENT_RE = re.compile(
+    r"(天气|气温|温度|气候|降雨|湿度|weather|temperature)",
+    re.IGNORECASE,
+)
+_RAIL_TICKET_INTENT_RE = re.compile(
+    r"(高铁票?|动车票|火车票|车票|12306|列车票|高铁)",
+    re.IGNORECASE,
+)
+_PAGE_SUMMARY_INTENT_RE = re.compile(
+    r"(本页面|当前页面|页面(里|上|都)?有什么|阅读.*页面|读一下页面|看看.*页面)",
+    re.IGNORECASE,
+)
+_PAGE_DETAIL_OPERATION_INTENT_RE = re.compile(
+    r"(创建|新增|添加|编辑|修改|删除|提交|填写|表单|搜索|筛选|刷新|截图|截屏|可见行|可见记录|列表明细|表格明细|read_current_view|read_visible_rows|create_record|fill_form|submit_form|get_form_|pageop_|invoke_page_operation)",
     re.IGNORECASE,
 )
 # Broader than a fixed synonym tuple: catches 对吗/是不是/咋/哪里-style questions without maintaining a growing list.
@@ -1057,10 +1083,18 @@ class BaseEngine(ABC):
             return []
 
         known_tool_names = {tool.name for tool in tools} if tools else None
+        tool_aliases: dict[str, str] = {}
+        for tool in tools or []:
+            tool_aliases[tool.name] = tool.name
+            underlying_operation = str(
+                (tool.config or {}).get("underlying_operation") or ""
+            ).strip()
+            if underlying_operation:
+                tool_aliases[underlying_operation] = tool.name
         matched: list[str] = []
 
         def _append(name: str) -> None:
-            normalized = (name or "").strip()
+            normalized = tool_aliases.get((name or "").strip(), (name or "").strip())
             if (
                 normalized
                 and (known_tool_names is None or normalized in known_tool_names)
@@ -1075,8 +1109,325 @@ class BaseEngine(ABC):
         if not matched:
             for match in _TEXTUAL_CALL_SYNTAX_RE.finditer(text):
                 _append(match.group(1))
+        if not matched:
+            for match in _TEXTUAL_CALL_VERB_RE.finditer(text):
+                _append(match.group(1))
+
+        lowered = text.lower()
+        if _WEB_SEARCH_OUTPUT_RE.match(text):
+            _append("web_search")
+        if _FETCH_URL_OUTPUT_RE.match(text):
+            _append("fetch_url")
+        if "candidate url" in lowered and "fetch_url" in lowered:
+            _append("fetch_url")
 
         return matched
+
+    @classmethod
+    def _looks_like_tool_planning_leak(
+        cls,
+        response_text: str,
+        tools: list[ToolDefinition],
+    ) -> bool:
+        text = " ".join((response_text or "").strip().split())
+        if not text:
+            return False
+        if not _TOOL_PLANNING_LEAK_RE.search(text):
+            return False
+        return bool(cls._extract_textual_tool_call_names(text, tools))
+
+    @staticmethod
+    def _detect_requested_turn_intents(
+        user_text: str,
+        *,
+        tools: list[ToolDefinition],
+        input_variables: dict[str, Any] | None,
+    ) -> list[str]:
+        intents: list[str] = []
+        normalized = (user_text or "").strip()
+        if not normalized:
+            return intents
+
+        tool_names = {tool.name for tool in tools}
+        has_web_tools = {"web_search", "fetch_url"} <= tool_names
+        has_weather_tools = any(
+            _tool_semantic_family_unified(tool, input_variables) == "weather"
+            for tool in tools
+        )
+        has_page_tools = bool(
+            BaseEngine._has_page_context(input_variables)
+            or {"get_page_context", "invoke_page_operation"} & tool_names
+        )
+
+        if _WEATHER_INTENT_RE.search(normalized) and (has_weather_tools or has_web_tools):
+            intents.append("weather")
+        if _RAIL_TICKET_INTENT_RE.search(normalized) and has_web_tools:
+            intents.append("rail_ticket_research")
+        if _PAGE_SUMMARY_INTENT_RE.search(normalized) and has_page_tools:
+            intents.append("page_summary")
+        return intents
+
+    @classmethod
+    def _collect_completed_turn_intents(
+        cls,
+        messages: list[ChatMessage],
+        *,
+        tools: list[ToolDefinition],
+        input_variables: dict[str, Any] | None,
+    ) -> set[str]:
+        completed: set[str] = set()
+        successful_tool_names = set(cls._extract_recent_successful_tool_names(messages, limit=50))
+        successful_queries, fetched_urls = cls._collect_web_research_evidence(messages)
+        weather_tool_names = {
+            tool.name
+            for tool in tools
+            if cls._tool_semantic_family(tool, input_variables) == "weather"
+        }
+
+        if successful_tool_names & (
+            weather_tool_names | {"get_current_weather", "get_weather_forecast"}
+        ):
+            completed.add("weather")
+        if any(
+            any(token in url.lower() for token in ("weather", "cma.cn", "qweather", "weather.com"))
+            for url in fetched_urls
+        ):
+            completed.add("weather")
+
+        if "get_page_context" in successful_tool_names or any(
+            name.startswith("pageop_") for name in successful_tool_names
+        ):
+            completed.add("page_summary")
+
+        rail_search_seen = any(_RAIL_TICKET_INTENT_RE.search(query) for query in successful_queries)
+        rail_fetch_seen = any(
+            any(token in url.lower() for token in ("12306", "gaotie", "huoche", "trains"))
+            for url in fetched_urls
+        )
+        if rail_fetch_seen or (rail_search_seen and rail_fetch_seen):
+            completed.add("rail_ticket_research")
+
+        return completed
+
+    @classmethod
+    def _build_post_tool_retry_policy(
+        cls,
+        *,
+        breach_type: str,
+        tools: list[ToolDefinition],
+        input_variables: dict[str, Any] | None,
+        current_policy: ToolUsePolicy,
+        leaked_tool_names: list[str] | None = None,
+        unfinished_intents: list[str] | None = None,
+    ) -> ToolUsePolicy | None:
+        families: list[str] = []
+
+        for tool_name in leaked_tool_names or []:
+            family = cls._tool_family_for_name(tool_name, input_variables)
+            if family != "none" and family not in families:
+                families.append(family)
+
+        for intent in unfinished_intents or []:
+            if intent == "page_summary":
+                family = "page_ops"
+            elif intent in {"weather", "rail_ticket_research"}:
+                if any(
+                    cls._tool_semantic_family(tool, input_variables) == "weather"
+                    for tool in tools
+                ) and intent == "weather":
+                    family = "weather"
+                else:
+                    family = "web_research"
+            else:
+                family = "none"
+            if family != "none" and family not in families:
+                families.append(family)
+
+        if not families and current_policy.family != "none":
+            families.append(current_policy.family)
+        if not families:
+            return None
+
+        allowed_names = cls._allowed_tool_names_for_families(
+            families,
+            tools,
+            input_variables,
+        )
+        if not allowed_names:
+            return None
+
+        reason_suffix_parts = [
+            *(unfinished_intents or []),
+            *(leaked_tool_names or []),
+        ]
+        return ToolUsePolicy(
+            family=families[0],
+            mode="required",
+            allowed_tool_names=allowed_names,
+            retry_on_contract_breach=False,
+            reason=f"{breach_type}:{','.join(reason_suffix_parts)}",
+        )
+
+    @classmethod
+    def _analyze_post_tool_contract_breach(
+        cls,
+        *,
+        messages: list[ChatMessage],
+        response: ChatResponse,
+        current_policy: ToolUsePolicy,
+        tools: list[ToolDefinition],
+        input_variables: dict[str, Any] | None,
+    ) -> tuple[str | None, ToolUsePolicy | None, dict[str, Any]]:
+        if response.tool_calls:
+            return None, None, {}
+
+        response_text = (response.message.content or "").strip()
+        if not response_text:
+            return None, None, {}
+
+        leaked_tool_names = cls._extract_textual_tool_call_names(response_text, tools)
+        planning_leak = cls._looks_like_tool_planning_leak(response_text, tools)
+        user_text = cls._extract_last_user_text(messages)
+        requested_intents = cls._detect_requested_turn_intents(
+            user_text,
+            tools=tools,
+            input_variables=input_variables,
+        )
+        completed_intents = cls._collect_completed_turn_intents(
+            messages,
+            tools=tools,
+            input_variables=input_variables,
+        )
+        unfinished_intents = [
+            intent for intent in requested_intents if intent not in completed_intents
+        ]
+
+        if leaked_tool_names or planning_leak:
+            return (
+                "leaked_textual_tool_call",
+                cls._build_post_tool_retry_policy(
+                    breach_type="leaked_textual_tool_call",
+                    tools=tools,
+                    input_variables=input_variables,
+                    current_policy=current_policy,
+                    leaked_tool_names=leaked_tool_names,
+                    unfinished_intents=unfinished_intents,
+                ),
+                {
+                    "tool_leak_detected": True,
+                    "leaked_tool_names": leaked_tool_names,
+                    "requested_intents": requested_intents,
+                    "completed_intents": sorted(completed_intents),
+                    "unfinished_intents": unfinished_intents,
+                },
+            )
+
+        if unfinished_intents:
+            return (
+                "unfinished_multi_intent_reply",
+                cls._build_post_tool_retry_policy(
+                    breach_type="unfinished_multi_intent_reply",
+                    tools=tools,
+                    input_variables=input_variables,
+                    current_policy=current_policy,
+                    unfinished_intents=unfinished_intents,
+                ),
+                {
+                    "tool_leak_detected": False,
+                    "leaked_tool_names": [],
+                    "requested_intents": requested_intents,
+                    "completed_intents": sorted(completed_intents),
+                    "unfinished_intents": unfinished_intents,
+                },
+            )
+
+        return None, None, {
+            "tool_leak_detected": False,
+            "leaked_tool_names": [],
+            "requested_intents": requested_intents,
+            "completed_intents": sorted(completed_intents),
+            "unfinished_intents": [],
+        }
+
+    @staticmethod
+    def _build_contract_recovery_system_message(
+        *,
+        breach_type: str,
+        diagnostics: dict[str, Any],
+    ) -> ChatMessage:
+        leaked_tool_names = diagnostics.get("leaked_tool_names") or []
+        unfinished_intents = diagnostics.get("unfinished_intents") or []
+        completed_intents = diagnostics.get("completed_intents") or []
+
+        lines = [
+            "[CONTRACT RECOVERY]",
+            "The previous assistant draft did not satisfy the tool-use contract for this turn.",
+        ]
+        if breach_type == "leaked_textual_tool_call":
+            lines.append(
+                "Do NOT output tool-shaped text such as 'Search results for:' or 'Content from ...'."
+            )
+            lines.append(
+                "Do NOT describe a plan like 'first call create_record' in the final assistant reply. Call the real tool instead."
+            )
+        if unfinished_intents:
+            lines.append(
+                f"Unfinished requested intents: {', '.join(str(item) for item in unfinished_intents)}."
+            )
+        if completed_intents:
+            lines.append(
+                f"Already completed intents with real tool evidence: {', '.join(str(item) for item in completed_intents)}."
+            )
+        if leaked_tool_names:
+            lines.append(
+                f"Leaked tool names or tool-output markers detected: {', '.join(str(item) for item in leaked_tool_names)}."
+            )
+        lines.append(
+            "Continue by calling real tools until the unfinished intents are resolved or you have real tool failures to report."
+        )
+        lines.append(
+            "When you finally answer, include every requested part of the user task in one natural-language response."
+        )
+        return ChatMessage(role="system", content="\n".join(lines))
+
+    @staticmethod
+    def _merge_contract_diagnostics_into_turn_record(
+        turn_record: TurnRecord | dict[str, Any] | None,
+        *,
+        breach_type: str | None,
+        diagnostics: dict[str, Any],
+        recovered_via_retry: bool,
+    ) -> TurnRecord | dict[str, Any] | None:
+        if not breach_type and not diagnostics:
+            return turn_record
+
+        if turn_record is None:
+            turn_record = TurnRecord()
+
+        if isinstance(turn_record, dict):
+            metadata = (
+                dict(turn_record.get("metadata") or {})
+                if isinstance(turn_record.get("metadata"), dict)
+                else {}
+            )
+            turn_record["metadata"] = metadata
+        else:
+            metadata = (
+                dict(getattr(turn_record, "metadata", {}) or {})
+                if isinstance(getattr(turn_record, "metadata", {}), dict)
+                else {}
+            )
+            turn_record.metadata = metadata
+
+        if breach_type:
+            metadata["contract_breach_type"] = breach_type
+        metadata["tool_leak_detected"] = bool(diagnostics.get("tool_leak_detected"))
+        metadata["unfinished_intents"] = list(diagnostics.get("unfinished_intents") or [])
+        metadata["recovered_via_retry"] = bool(recovered_via_retry)
+        leaked_tool_names = list(diagnostics.get("leaked_tool_names") or [])
+        if leaked_tool_names:
+            metadata["leaked_tool_names"] = leaked_tool_names
+        return turn_record
 
     @staticmethod
     def _looks_like_generic_follow_up(user_text: str) -> bool:
@@ -1229,6 +1580,52 @@ class BaseEngine(ABC):
 
         return restored, restored_families
 
+    @staticmethod
+    def _ensure_web_research_tool_pair(
+        *,
+        selected_tools: list[ToolDefinition],
+        all_tools: list[ToolDefinition],
+        explicit_requested_families: list[str],
+        policy: ToolUsePolicy,
+    ) -> tuple[list[ToolDefinition], bool]:
+        """
+        Keep ``web_search`` and ``fetch_url`` together when web research is in play.
+        当本轮涉及联网检索时，保证 ``web_search`` 与 ``fetch_url`` 成对保留。
+        """
+        if not selected_tools or not all_tools:
+            return selected_tools, False
+
+        explicit_families = {
+            str(family or "").strip() for family in explicit_requested_families
+        }
+        selected_names = {tool.name for tool in selected_tools}
+        all_by_name = {tool.name: tool for tool in all_tools}
+        has_web_pair_available = {"web_search", "fetch_url"} <= set(all_by_name)
+        if not has_web_pair_available:
+            return selected_tools, False
+
+        web_research_active = (
+            policy.family == "web_research"
+            or "web_research" in explicit_families
+            or bool({"web_search", "fetch_url"} & selected_names)
+        )
+        if not web_research_active:
+            return selected_tools, False
+
+        restored = list(selected_tools)
+        restored_any = False
+        for tool_name in ("web_search", "fetch_url"):
+            if tool_name in selected_names:
+                continue
+            candidate = all_by_name.get(tool_name)
+            if candidate is None:
+                continue
+            restored.append(candidate)
+            selected_names.add(tool_name)
+            restored_any = True
+
+        return restored, restored_any
+
     @classmethod
     def _looks_like_explicit_web_research_request(
         cls,
@@ -1271,6 +1668,80 @@ class BaseEngine(ABC):
             or tool.name.lower().replace("_", " ") in query_text
             for tool in web_tools
         )
+
+    @classmethod
+    def _looks_like_generic_page_summary_request(
+        cls,
+        user_text: str,
+        tools: list[ToolDefinition],
+        input_variables: dict[str, Any] | None = None,
+    ) -> bool:
+        """
+        Detect lightweight page-summary requests that do not need extra page operations.
+        识别“概括当前页面内容”的轻量请求，此类请求通常不需要额外 page operation。
+        """
+        normalized = (user_text or "").strip()
+        if not normalized:
+            return False
+        if not _PAGE_SUMMARY_INTENT_RE.search(normalized):
+            return False
+        if _PAGE_DETAIL_OPERATION_INTENT_RE.search(normalized):
+            return False
+        return bool(
+            cls._has_page_context(input_variables)
+            or any(tool.name == "get_page_context" for tool in tools)
+        )
+
+    @classmethod
+    def _restrict_page_tools_for_generic_summary(
+        cls,
+        *,
+        selected_tools: list[ToolDefinition],
+        all_tools: list[ToolDefinition],
+        user_text: str,
+        input_variables: dict[str, Any] | None = None,
+    ) -> tuple[list[ToolDefinition], bool]:
+        """
+        Keep generic page-summary turns on ``get_page_context`` instead of heavy page ops.
+        对泛化页面总结请求，优先使用 ``get_page_context``，避免触发较重的页面操作工具。
+        """
+        if not cls._looks_like_generic_page_summary_request(
+            user_text,
+            all_tools,
+            input_variables,
+        ):
+            return selected_tools, False
+
+        page_context_tool = next(
+            (tool for tool in all_tools if tool.name == "get_page_context"),
+            None,
+        )
+        if page_context_tool is None:
+            return selected_tools, False
+
+        restricted: list[ToolDefinition] = []
+        seen_names: set[str] = set()
+        for tool in selected_tools:
+            if tool.name == "get_page_context":
+                if tool.name not in seen_names:
+                    restricted.append(tool)
+                    seen_names.add(tool.name)
+                continue
+
+            semantic_family = cls._tool_semantic_family(tool, input_variables)
+            if semantic_family == "page_ops" or tool.name.startswith("pageop_"):
+                continue
+
+            if tool.name not in seen_names:
+                restricted.append(tool)
+                seen_names.add(tool.name)
+
+        if "get_page_context" not in seen_names:
+            restricted.append(page_context_tool)
+
+        restricted_names = [tool.name for tool in restricted]
+        selected_names = [tool.name for tool in selected_tools]
+        return restricted, restricted_names != selected_names
 
     @classmethod
     def _looks_like_explicit_time_request(
@@ -1536,12 +2007,6 @@ class BaseEngine(ABC):
         response_text = (response.message.content or "").strip()
         if not response_text:
             return False, None, ""
-        if current_policy.family not in {"none", "web_research"}:
-            return False, None, ""
-        if current_policy.family != "web_research" and not (
-            continuation and continuation.active
-        ):
-            return False, None, ""
 
         tool_names = {tool.name for tool in tools}
         if not {"web_search", "fetch_url"} <= tool_names:
@@ -1549,6 +2014,28 @@ class BaseEngine(ABC):
 
         search_queries, fetched_urls = cls._collect_web_research_evidence(messages)
         if not search_queries or fetched_urls:
+            return False, None, ""
+
+        current_user_text = cls._extract_last_user_text(messages)
+        requested_intents = cls._detect_requested_turn_intents(
+            current_user_text,
+            tools=tools,
+            input_variables=input_variables,
+        )
+        explicit_web_request = cls._looks_like_explicit_web_research_request(
+            current_user_text,
+            tools,
+        )
+        web_research_requested = (
+            current_policy.family == "web_research"
+            or bool(continuation and continuation.active)
+            or explicit_web_request
+            or any(
+                intent in {"weather", "rail_ticket_research"}
+                for intent in requested_intents
+            )
+        )
+        if not web_research_requested:
             return False, None, ""
 
         retry_policy = cls._build_required_policy_for_family(
@@ -1889,6 +2376,8 @@ class BaseEngine(ABC):
             tools = opt.tools
             restored_family_tools = False
             restored_coverage_families: list[str] = []
+            restored_web_research_pair = False
+            restricted_generic_page_summary = False
             if tool_planner.allow_no_tool and tool_planner.family == "none":
                 tools = []
                 tool_use_policy.allowed_tool_names = []
@@ -1904,6 +2393,20 @@ class BaseEngine(ABC):
                     all_tools=all_tools,
                     explicit_requested_families=explicit_requested_families,
                     input_variables=request.input_variables,
+                )
+                tools, restored_web_research_pair = self._ensure_web_research_tool_pair(
+                    selected_tools=tools,
+                    all_tools=all_tools,
+                    explicit_requested_families=explicit_requested_families,
+                    policy=tool_use_policy,
+                )
+                tools, restricted_generic_page_summary = (
+                    self._restrict_page_tools_for_generic_summary(
+                        selected_tools=tools,
+                        all_tools=all_tools,
+                        user_text=user_query,
+                        input_variables=request.input_variables,
+                    )
                 )
                 tool_use_policy.allowed_tool_names = [tool.name for tool in tools]
             if not opt.skipped:
@@ -1948,6 +2451,32 @@ class BaseEngine(ABC):
             if restored_coverage_families:
                 self._log_tool_selection_status(
                     status="multi_family_coverage_restored",
+                    agent=agent,
+                    conversation_id=request.conversation_id,
+                    current_user_text=user_query,
+                    family=tool_use_policy.family,
+                    all_tool_names=all_tool_names,
+                    selected_tool_names=selected_tool_names,
+                    page_context_present=page_context_present,
+                    optimizer_total=opt.total,
+                    optimizer_selected=len(tools),
+                )
+            if restored_web_research_pair:
+                self._log_tool_selection_status(
+                    status="web_research_pair_restored",
+                    agent=agent,
+                    conversation_id=request.conversation_id,
+                    current_user_text=user_query,
+                    family=tool_use_policy.family,
+                    all_tool_names=all_tool_names,
+                    selected_tool_names=selected_tool_names,
+                    page_context_present=page_context_present,
+                    optimizer_total=opt.total,
+                    optimizer_selected=len(tools),
+                )
+            if restricted_generic_page_summary:
+                self._log_tool_selection_status(
+                    status="generic_page_summary_restricted",
                     agent=agent,
                     conversation_id=request.conversation_id,
                     current_user_text=user_query,

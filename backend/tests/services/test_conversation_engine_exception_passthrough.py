@@ -425,6 +425,234 @@ async def test_conversation_engine_retries_summary_without_fetch_with_fetch_url(
 
 
 @pytest.mark.asyncio
+async def test_conversation_engine_retries_leaked_textual_tool_output_after_partial_web_research() -> None:
+    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    prep = PreparedExecution(
+        messages=[
+            ChatMessage(
+                role="user",
+                content="请帮我查一下今天的天气，然后联网查一下去北京的高铁票，再帮我阅读一下本页面都有什么内容",
+            )
+        ],
+        tools=[
+            ToolDefinition(name="web_search", description="Search the web"),
+            ToolDefinition(name="fetch_url", description="Fetch url"),
+            ToolDefinition(name="get_page_context", description="Read page context"),
+        ],
+        all_tools=[
+            ToolDefinition(name="web_search", description="Search the web"),
+            ToolDefinition(name="fetch_url", description="Fetch url"),
+            ToolDefinition(name="get_page_context", description="Read page context"),
+        ],
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["web_search", "fetch_url", "get_page_context"],
+            retry_on_contract_breach=True,
+            reason="explicit_web_request",
+        ),
+        diagnostics={"ordered_requested_families": ["web_research", "page_ops"]},
+        rag_sources=None,
+        tool_consent_modes={},
+        optimize_event=None,
+        route_result=None,
+    )
+    engine._prepare_execution = AsyncMock(return_value=prep)
+    engine._call_llm = AsyncMock(
+        side_effect=[
+            ChatResponse(
+                message=ChatMessage(role="assistant", content=""),
+                tool_calls=[
+                    {
+                        "id": "call_search_weather",
+                        "type": "function",
+                        "function": {
+                            "name": "web_search",
+                            "arguments": '{"query":"2026-04-03 今天天气 中国","max_results":5}',
+                        },
+                    },
+                    {
+                        "id": "call_page_context",
+                        "type": "function",
+                        "function": {
+                            "name": "get_page_context",
+                            "arguments": "{}",
+                        },
+                    },
+                ],
+                total_tokens=12,
+            ),
+            ChatResponse(
+                message=ChatMessage(role="assistant", content=""),
+                tool_calls=[
+                    {
+                        "id": "call_fetch_weather",
+                        "type": "function",
+                        "function": {
+                            "name": "fetch_url",
+                            "arguments": '{"url":"https://weather.cma.cn/","max_length":4000}',
+                        },
+                    },
+                    {
+                        "id": "call_fetch_ticket",
+                        "type": "function",
+                        "function": {
+                            "name": "fetch_url",
+                            "arguments": '{"url":"https://www.gaotie.cn/","max_length":4000}',
+                        },
+                    }
+                ],
+                total_tokens=10,
+            ),
+        ]
+    )
+
+    async def _fake_handle_tool_calls(
+        *,
+        messages,
+        response,
+        **kwargs,
+    ):
+        _ = kwargs
+        tool_names = [
+            (tool_call.get("function") or {}).get("name")
+            for tool_call in (response.tool_calls or [])
+        ]
+        if tool_names == ["web_search", "get_page_context"]:
+            messages.append(
+                ChatMessage(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        {**response.tool_calls[0], "success": True},
+                        {**response.tool_calls[1], "success": True},
+                    ],
+                )
+            )
+            messages.append(
+                ChatMessage(
+                    role="tool",
+                    content="Search results for: 2026-04-03 今天天气 中国",
+                    tool_call_id="call_search_weather",
+                )
+            )
+            messages.append(
+                ChatMessage(
+                    role="tool",
+                    content="Page: admin.dashboard\nTitle: 平台控制塔\nData: {\"ai_calls_today\":146}",
+                    tool_call_id="call_page_context",
+                )
+            )
+            return (
+                ChatResponse(
+                    message=ChatMessage(
+                        role="assistant",
+                        content="Search results for: 12306 北京 高铁票 查询 2026-04-03",
+                    ),
+                    total_tokens=18,
+                ),
+                [
+                    ToolResult(
+                        tool_call_id="call_search_weather",
+                        name="web_search",
+                        success=True,
+                        output="Search results for: 2026-04-03 今天天气 中国",
+                    ),
+                    ToolResult(
+                        tool_call_id="call_page_context",
+                        name="get_page_context",
+                        success=True,
+                        output="Page: admin.dashboard\nTitle: 平台控制塔\nData: {\"ai_calls_today\":146}",
+                    ),
+                ],
+                26,
+            )
+
+        messages.append(
+            ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=[{**tool_call, "success": True} for tool_call in response.tool_calls],
+            )
+        )
+        messages.append(
+            ChatMessage(
+                role="tool",
+                content="Content from https://weather.cma.cn/\nTitle: 中国气象局-天气预报",
+                tool_call_id="call_fetch_weather",
+            )
+        )
+        messages.append(
+            ChatMessage(
+                role="tool",
+                content="Content from https://www.gaotie.cn/\nTitle: 高铁网\n北京方向车票可查询",
+                tool_call_id="call_fetch_ticket",
+            )
+        )
+        return (
+            ChatResponse(
+                message=ChatMessage(
+                    role="assistant",
+                    content=(
+                        "今天天气方面，可参考中国气象局页面信息；"
+                        "去北京的高铁票可以继续通过高铁网等替代来源查询；"
+                        "当前页面是 admin.dashboard，显示平台控制塔指标。"
+                    ),
+                ),
+                total_tokens=16,
+            ),
+                [
+                    ToolResult(
+                        tool_call_id="call_fetch_weather",
+                        name="fetch_url",
+                        success=True,
+                        output="Content from https://weather.cma.cn/\nTitle: 中国气象局-天气预报",
+                    ),
+                    ToolResult(
+                        tool_call_id="call_fetch_ticket",
+                        name="fetch_url",
+                        success=True,
+                        output="Content from https://www.gaotie.cn/\nTitle: 高铁网\n北京方向车票可查询",
+                )
+            ],
+            20,
+        )
+
+    engine._handle_tool_calls = AsyncMock(side_effect=_fake_handle_tool_calls)
+
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        user_id=1,
+        messages=[
+            ChatMessage(
+                role="user",
+                content="请帮我查一下今天的天气，然后联网查一下去北京的高铁票，再帮我阅读一下本页面都有什么内容",
+            )
+        ],
+        input_variables={
+            "page_context": {
+                "page_key": "admin.dashboard",
+                "page_title": "平台控制塔",
+                "page_data": {"ai_calls_today": 146},
+            }
+        },
+    )
+    agent = SimpleNamespace(id=1)
+
+    result = await engine.execute(agent, request)
+
+    assert result.success is True
+    assert "今天天气" in result.output
+    assert "高铁票" in result.output
+    assert "admin.dashboard" in result.output
+    assert len(engine._call_llm.await_args_list) == 2
+    assert engine._call_llm.await_args_list[1].kwargs["tool_use_policy"].reason.startswith(
+        "leaked_textual_tool_call:"
+    )
+
+
+@pytest.mark.asyncio
 async def test_conversation_engine_execute_calls_context_engine_after_turn() -> None:
     engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
     context_engine = AsyncMock()
@@ -658,3 +886,191 @@ def test_web_research_contract_retry_does_not_override_explicit_weather_policy()
     assert should_retry is False
     assert retry_policy is None
     assert response_text == ""
+
+
+def test_collect_completed_turn_intents_requires_weather_fetch_or_weather_tool() -> None:
+    tools = [
+        ToolDefinition(name="web_search", description="Search the web"),
+        ToolDefinition(name="fetch_url", description="Fetch url"),
+        ToolDefinition(name="get_page_context", description="Read page context"),
+    ]
+    messages = [
+        ChatMessage(
+            role="assistant",
+            content="",
+            tool_calls=[
+                {
+                    "id": "call_search_weather",
+                    "type": "function",
+                    "function": {
+                        "name": "web_search",
+                        "arguments": '{"query":"2026-04-03 上海 今天天气","max_results":5}',
+                    },
+                    "success": True,
+                },
+                {
+                    "id": "call_page_context",
+                    "type": "function",
+                    "function": {
+                        "name": "get_page_context",
+                        "arguments": "{}",
+                    },
+                    "success": True,
+                },
+            ],
+        ),
+        ChatMessage(
+            role="tool",
+            content="Search results for: 2026-04-03 上海 今天天气",
+            tool_call_id="call_search_weather",
+        ),
+        ChatMessage(
+            role="tool",
+            content="Page: admin.ai.agents",
+            tool_call_id="call_page_context",
+        ),
+    ]
+
+    completed_without_fetch = ConversationEngine._collect_completed_turn_intents(
+        messages,
+        tools=tools,
+        input_variables={
+            "page_context": {
+                "page_key": "admin.ai.agents",
+                "page_title": "智能体名称",
+            }
+        },
+    )
+
+    assert "weather" not in completed_without_fetch
+    assert "page_summary" in completed_without_fetch
+
+    messages.extend(
+        [
+            ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=[
+                    {
+                        "id": "call_fetch_weather",
+                        "type": "function",
+                        "function": {
+                            "name": "fetch_url",
+                            "arguments": '{"url":"https://weather.cma.cn/","max_length":4000}',
+                        },
+                        "success": True,
+                    }
+                ],
+            ),
+            ChatMessage(
+                role="tool",
+                content="Content from https://weather.cma.cn/\nTitle: 中国气象局-天气预报",
+                tool_call_id="call_fetch_weather",
+            ),
+        ]
+    )
+
+    completed_with_fetch = ConversationEngine._collect_completed_turn_intents(
+        messages,
+        tools=tools,
+        input_variables={
+            "page_context": {
+                "page_key": "admin.ai.agents",
+                "page_title": "智能体名称",
+            }
+        },
+    )
+
+    assert "weather" in completed_with_fetch
+
+
+def test_ensure_web_research_tool_pair_restores_fetch_url_for_page_first_selection() -> None:
+    all_tools = [
+        ToolDefinition(name="get_page_context", description="Read page context"),
+        ToolDefinition(name="web_search", description="Search the web"),
+        ToolDefinition(name="fetch_url", description="Fetch url"),
+    ]
+    selected_tools = [
+        ToolDefinition(name="get_page_context", description="Read page context"),
+        ToolDefinition(name="web_search", description="Search the web"),
+    ]
+
+    restored_tools, restored = ConversationEngine._ensure_web_research_tool_pair(
+        selected_tools=selected_tools,
+        all_tools=all_tools,
+        explicit_requested_families=["page_ops", "web_research"],
+        policy=ToolUsePolicy(
+            family="page_ops",
+            mode="required",
+            allowed_tool_names=["get_page_context", "web_search"],
+            retry_on_contract_breach=False,
+            reason="explicit_page_request",
+        ),
+    )
+
+    assert restored is True
+    assert [tool.name for tool in restored_tools] == [
+        "get_page_context",
+        "web_search",
+        "fetch_url",
+    ]
+
+
+def test_restrict_page_tools_for_generic_summary_keeps_get_page_context_only() -> None:
+    all_tools = [
+        ToolDefinition(name="web_search", description="Search the web"),
+        ToolDefinition(name="fetch_url", description="Fetch url"),
+        ToolDefinition(name="get_page_context", description="Read page context"),
+        ToolDefinition(name="invoke_page_operation", description="Invoke page operation"),
+        ToolDefinition(name="pageop_read_current_view", description="Read current view"),
+        ToolDefinition(name="pageop_read_visible_rows", description="Read visible rows"),
+    ]
+    selected_tools = list(all_tools)
+
+    restricted_tools, restricted = ConversationEngine._restrict_page_tools_for_generic_summary(
+        selected_tools=selected_tools,
+        all_tools=all_tools,
+        user_text="请帮我查一下今天的天气，然后联网查一下去北京的高铁票，再帮我阅读一下本页面都有什么内容",
+        input_variables={
+            "page_context": {
+                "page_key": "admin.ai.agents",
+                "page_title": "智能体名称",
+            }
+        },
+    )
+
+    assert restricted is True
+    assert [tool.name for tool in restricted_tools] == [
+        "web_search",
+        "fetch_url",
+        "get_page_context",
+    ]
+
+
+def test_restrict_page_tools_for_generic_summary_keeps_detail_tools_when_rows_requested() -> None:
+    all_tools = [
+        ToolDefinition(name="web_search", description="Search the web"),
+        ToolDefinition(name="fetch_url", description="Fetch url"),
+        ToolDefinition(name="get_page_context", description="Read page context"),
+        ToolDefinition(name="pageop_read_visible_rows", description="Read visible rows"),
+    ]
+
+    restricted_tools, restricted = ConversationEngine._restrict_page_tools_for_generic_summary(
+        selected_tools=list(all_tools),
+        all_tools=all_tools,
+        user_text="先帮我看看本页面都有什么内容，再把当前可见行也读出来",
+        input_variables={
+            "page_context": {
+                "page_key": "admin.ai.agents",
+                "page_title": "智能体名称",
+            }
+        },
+    )
+
+    assert restricted is False
+    assert [tool.name for tool in restricted_tools] == [
+        "web_search",
+        "fetch_url",
+        "get_page_context",
+        "pageop_read_visible_rows",
+    ]

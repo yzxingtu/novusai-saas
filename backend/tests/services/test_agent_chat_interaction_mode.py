@@ -130,3 +130,38 @@ async def test_resolve_interaction_mode_downgrades_trusted_auto_without_policy(
     assert effective_mode == "confirm"
     assert trust_policy_ref is None
     assert downgrade_reason == "missing_runtime_trust_policy"
+
+
+@pytest.mark.asyncio
+async def test_resolve_interaction_mode_uses_interaction_updates_as_runtime_policy(
+    mock_db,
+):
+    from app.services.ai.agent_chat_service import AgentChatService
+
+    service = AgentChatService(mock_db, tenant_id=1)
+    service._resolve_runtime_trust_policy_ref = AsyncMock(return_value=None)
+
+    effective_mode, trust_policy_ref, downgrade_reason = await service._resolve_interaction_mode(
+        requested_mode="trusted_auto",
+        conversation_id=100,
+        agent_id=1,
+        operator_id=10,
+        operator_type="tenant_admin",
+        explicit_trust_policy_ref=None,
+        interaction_updates=[
+            {
+                "kind": "pending_confirmation",
+                "rejected": False,
+                "tool_name": "pageop_create_record",
+            }
+        ],
+    )
+
+    assert effective_mode == "trusted_auto"
+    assert trust_policy_ref == {
+        "policy_ids": [],
+        "allowed_tool_names": ["pageop_create_record"],
+        "tool_families": ["page_ops"],
+        "risk_level_cap": "safe_write",
+    }
+    assert downgrade_reason is None

@@ -34,6 +34,7 @@ logger = LogManager.get_logger("ai.tool.page_context")
 
 # Page context variable key name / 页面上下文变量键名
 PAGE_CONTEXT_KEY = SHARED_PAGE_CONTEXT_KEY
+PAGE_CONTEXT_TURN_SEEN_KEY = "_page_context_already_returned_this_turn"
 FALLBACK_PAGE_CONTEXT_SOURCES = {
     "dom_snapshot": "DOM snapshot fallback (best-effort, may be incomplete)",
     "minimal_fallback": "Minimal fallback (best-effort, limited structure)",
@@ -115,6 +116,28 @@ class PageContextExecutor(BaseToolExecutor):
                 output="No page context available.",
                 duration_ms=int((time.perf_counter() - start) * 1000),
             )
+
+        if bool(context.variables.get(PAGE_CONTEXT_TURN_SEEN_KEY)):
+            page_key = str(page_ctx.get("page_key", "")).strip()
+            repeated_output = (
+                "Page context was already returned earlier in this turn. "
+                "Reuse the previous get_page_context result unless the page actually changed."
+            )
+            if page_key:
+                repeated_output += f" Current page: {page_key}."
+            repeated_output += (
+                "\n页面上下文在本轮已经返回过一次。除非页面实际发生变化，否则请复用上一次 "
+                "get_page_context 结果，不要再次读取完整页面上下文。"
+            )
+            return ToolResult(
+                tool_call_id=tool_call_id,
+                name=definition.name,
+                success=True,
+                output=repeated_output,
+                duration_ms=int((time.perf_counter() - start) * 1000),
+            )
+
+        context.variables[PAGE_CONTEXT_TURN_SEEN_KEY] = True
 
         # Build structured output with enhanced semantic information
         # 构建含增强语义信息的结构化输出
@@ -345,6 +368,12 @@ class PageContextExecutor(BaseToolExecutor):
                     parts.append("1. Call create_record/edit_record to open the form")
                     parts.append("2. Immediately call get_form_state to inspect current values and schema")
                     parts.append(
+                        "RULE: Once get_page_context has already returned the current page for this turn, do NOT call get_page_context again unless the page actually changes."
+                    )
+                    parts.append(
+                        "规则：当本轮已经成功获取当前页面上下文后，除非页面实际发生变化，否则不要再次调用 get_page_context。"
+                    )
+                    parts.append(
                         "RULE: When the form is not open yet, DO NOT call get_form_options, fill_form, validate_form, or submit_form before create_record/edit_record opens it."
                     )
                     parts.append(
@@ -358,15 +387,26 @@ class PageContextExecutor(BaseToolExecutor):
                             "3. After the form is open, for remote select fields such as "
                             f"{preview_fields}, call get_form_options so you use real option values instead of guessing labels or raw ids"
                         )
-                        parts.append("4. Immediately call fill_form to fill ALL relevant fields")
-                        parts.append("5. If validate_form exists, call validate_form and fix any errors")
-                        parts.append("6. If submit_form exists and the user asked you to create/update the record, call submit_form")
-                        parts.append("7. Only wait for user review when the page explicitly requires confirmation or submit_form is unavailable")
+                        parts.append("4. Wait for the get_form_options result before deciding any field values")
+                        parts.append("5. Call fill_form to fill ALL relevant fields")
+                        parts.append("6. Wait for the fill_form result before deciding whether validation is needed")
+                        parts.append("7. If validate_form exists, call validate_form and fix any errors")
+                        parts.append("8. Wait for the validate_form result before deciding whether to submit")
+                        parts.append("9. If submit_form exists and the user asked you to create/update the record, call submit_form")
+                        parts.append("10. Only wait for user review when the page explicitly requires confirmation or submit_form is unavailable")
                     else:
-                        parts.append("3. Immediately call fill_form to fill ALL relevant fields")
-                        parts.append("4. If validate_form exists, call validate_form and fix any errors")
-                        parts.append("5. If submit_form exists and the user asked you to create/update the record, call submit_form")
-                        parts.append("6. Only wait for user review when the page explicitly requires confirmation or submit_form is unavailable")
+                        parts.append("3. Call fill_form to fill ALL relevant fields")
+                        parts.append("4. Wait for the fill_form result before deciding whether validation is needed")
+                        parts.append("5. If validate_form exists, call validate_form and fix any errors")
+                        parts.append("6. Wait for the validate_form result before deciding whether to submit")
+                        parts.append("7. If submit_form exists and the user asked you to create/update the record, call submit_form")
+                        parts.append("8. Only wait for user review when the page explicitly requires confirmation or submit_form is unavailable")
+                    parts.append(
+                        "RULE: Never batch create_record, get_form_state, get_form_options, fill_form, validate_form, or submit_form into the same assistant tool-call turn. Wait for each tool result before calling the next step."
+                    )
+                    parts.append(
+                        "规则：禁止把 create_record、get_form_state、get_form_options、fill_form、validate_form、submit_form 批量塞进同一轮 assistant tool calls，必须等上一步工具结果返回后再决定下一步。"
+                    )
                     parts.append("IMPORTANT: Do NOT answer 'only read operations are available' when create_record/edit_record/fill_form/submit_form exist.")
 
                 parts.append("")

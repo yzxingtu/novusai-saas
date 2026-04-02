@@ -915,6 +915,11 @@ class ConversationService(
             "selected_tool_names": turn_meta.get("selected_tool_names") or [],
             "selected_skill_names": turn_meta.get("selected_skill_names") or [],
             "context_sources": turn_meta.get("context_sources") or [],
+            "contract_breach_type": turn_meta.get("contract_breach_type"),
+            "tool_leak_detected": bool(turn_meta.get("tool_leak_detected")),
+            "unfinished_intents": turn_meta.get("unfinished_intents") or [],
+            "leaked_tool_names": turn_meta.get("leaked_tool_names") or [],
+            "recovered_via_retry": turn_meta.get("recovered_via_retry"),
         }
 
     @staticmethod
@@ -962,6 +967,11 @@ class ConversationService(
             "selected_tool_names": turn_meta.get("selected_tool_names") or [],
             "selected_skill_names": turn_meta.get("selected_skill_names") or [],
             "context_sources": turn_meta.get("context_sources") or [],
+            "contract_breach_type": turn_meta.get("contract_breach_type"),
+            "tool_leak_detected": bool(turn_meta.get("tool_leak_detected")),
+            "unfinished_intents": turn_meta.get("unfinished_intents") or [],
+            "leaked_tool_names": turn_meta.get("leaked_tool_names") or [],
+            "recovered_via_retry": turn_meta.get("recovered_via_retry"),
         }
 
     async def rebuild_context_compaction_snapshot(
@@ -1869,6 +1879,11 @@ class ConversationService(
         metadata: dict[str, Any],
     ) -> dict[str, Any]:
         turn_record = cls._normalize_turn_record_payload(metadata.get("turn_record"))
+        turn_record_metadata = (
+            dict((turn_record or {}).get("metadata") or {})
+            if isinstance((turn_record or {}).get("metadata"), dict)
+            else {}
+        )
         turn_outcome = cls._to_non_empty_str(
             (turn_record or {}).get("turn_outcome")
             or metadata.get("turn_outcome")
@@ -1908,6 +1923,32 @@ class ConversationService(
             (turn_record or {}).get("context_sources")
             or metadata.get("context_sources")
         )
+        contract_breach_type = cls._to_non_empty_str(
+            turn_record_metadata.get("contract_breach_type")
+            or metadata.get("contract_breach_type")
+        )
+        tool_leak_detected = bool(
+            turn_record_metadata.get("tool_leak_detected")
+            or metadata.get("tool_leak_detected")
+        )
+        unfinished_intents = cls._normalize_string_list(
+            turn_record_metadata.get("unfinished_intents")
+            or metadata.get("unfinished_intents")
+        )
+        leaked_tool_names = cls._normalize_string_list(
+            turn_record_metadata.get("leaked_tool_names")
+            or metadata.get("leaked_tool_names")
+        )
+        recovered_via_retry_raw = (
+            turn_record_metadata.get("recovered_via_retry")
+            if "recovered_via_retry" in turn_record_metadata
+            else metadata.get("recovered_via_retry")
+        )
+        recovered_via_retry = (
+            bool(recovered_via_retry_raw)
+            if recovered_via_retry_raw is not None
+            else None
+        )
         return {
             "turn_record": turn_record,
             "turn_outcome": turn_outcome,
@@ -1916,6 +1957,11 @@ class ConversationService(
             "selected_tool_names": selected_tool_names,
             "selected_skill_names": selected_skill_names,
             "context_sources": context_sources,
+            "contract_breach_type": contract_breach_type,
+            "tool_leak_detected": tool_leak_detected,
+            "unfinished_intents": unfinished_intents,
+            "leaked_tool_names": leaked_tool_names,
+            "recovered_via_retry": recovered_via_retry,
         }
 
     @classmethod

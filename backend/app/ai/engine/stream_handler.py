@@ -84,6 +84,11 @@ class StreamExecutionHandler:
         self.start_time = start_time
         self.on_complete = on_complete
         self._background_tasks: set[asyncio.Task[None]] = set()
+        self._contract_breach_type: str | None = None
+        self._contract_breach_diagnostics: dict[str, Any] = {}
+        self._contract_recovered_via_retry = False
+        self._contract_policy: ToolUsePolicy | None = None
+        self._contract_tools_snapshot: list[ToolDefinition] = []
 
     def _schedule_on_complete(self, result: ExecutionResult) -> None:
         """Run on_complete in background before client disconnect can cancel it.
@@ -311,6 +316,37 @@ class StreamExecutionHandler:
 
             # ---- Build result ---- / 构建结果
             duration_ms = int((time.perf_counter() - self.start_time) * 1000)
+            if self._contract_breach_type:
+                final_contract_response = ChatResponse(
+                    message=ChatMessage(role="assistant", content=output),
+                    total_tokens=total_tokens,
+                )
+                final_breach_type, final_breach_policy_unused, final_breach_diagnostics = (
+                    self.engine._analyze_post_tool_contract_breach(
+                        messages=messages,
+                        response=final_contract_response,
+                        current_policy=self._contract_policy or ToolUsePolicy(),
+                        tools=self._contract_tools_snapshot,
+                        input_variables=getattr(self.request, "input_variables", None),
+                    )
+                )
+                del final_breach_policy_unused
+                self._contract_recovered_via_retry = final_breach_type is None
+                if final_breach_diagnostics:
+                    self._contract_breach_diagnostics = final_breach_diagnostics
+                self.engine._log_tool_contract_diagnostics(
+                    agent=self.agent,
+                    messages=messages,
+                    response=final_contract_response,
+                    tools=self._contract_tools_snapshot,
+                    policy=self._contract_policy or ToolUsePolicy(),
+                    conversation_id=self.request.conversation_id,
+                    breach_type=self._contract_breach_type,
+                    retry_result=(
+                        "succeeded" if self._contract_recovered_via_retry else "failed"
+                    ),
+                    continuation=getattr(self.prep, "continuation_context", None),
+                )
 
             tool_planner = getattr(self.prep, "tool_planner", None)
 
@@ -336,6 +372,12 @@ class StreamExecutionHandler:
                 prune_stats=self.prep.prune_stats,
                 tool_planner=tool_planner,
                 turn_record=self._runtime_turn_record,
+            )
+            result.turn_record = self.engine._merge_contract_diagnostics_into_turn_record(
+                result.turn_record,
+                breach_type=self._contract_breach_type,
+                diagnostics=self._contract_breach_diagnostics,
+                recovered_via_retry=self._contract_recovered_via_retry,
             )
 
             # Start callback before yielding done so client-side disconnect
@@ -532,7 +574,8 @@ class StreamExecutionHandler:
         self._total_tokens = 0
         self._output = ""
         self._reasoning_output = ""
-        _ = strip_fc_tokens  # unused in real streaming path  # 补充说明 / note
+        _unused_strip_fc_tokens = strip_fc_tokens  # unused in real streaming path  # 补充说明 / note
+        del _unused_strip_fc_tokens
         append_final_assistant = True
         next_runtime_context = getattr(self.prep, "stream_runtime", None)
         continuation_context = getattr(self.prep, "continuation_context", None)
@@ -738,14 +781,15 @@ class StreamExecutionHandler:
                     total_tokens=round_total_tokens,
                 )
                 breach_type = "stream_capability_denial_or_no_tool_use"
-                should_retry, retry_policy, _ = self.engine._should_retry_tool_contract_breach(
+                should_retry, retry_policy, generic_breach_preview = self.engine._should_retry_tool_contract_breach(
                     response=denial_response,
                     current_policy=round_tool_policy,
                     tools=tools_full,
                     input_variables=getattr(self.request, "input_variables", None),
                 )
+                del generic_breach_preview
                 if not should_retry:
-                    should_retry, retry_policy, _ = (
+                    should_retry, retry_policy, web_breach_preview = (
                         self.engine._should_retry_web_research_contract_breach(
                             messages=messages,
                             response=denial_response,
@@ -755,14 +799,36 @@ class StreamExecutionHandler:
                             continuation=continuation_context,
                         )
                     )
+                    del web_breach_preview
                     if should_retry:
                         breach_type = "web_research_summary_without_fetch"
+                if not should_retry:
+                    breach_type, retry_policy, breach_diagnostics = (
+                        self.engine._analyze_post_tool_contract_breach(
+                            messages=messages,
+                            response=denial_response,
+                            current_policy=round_tool_policy,
+                            tools=tools_full,
+                            input_variables=getattr(self.request, "input_variables", None),
+                        )
+                    )
+                    should_retry = breach_type is not None and retry_policy is not None
+                    if should_retry:
+                        self._contract_breach_type = breach_type
+                        self._contract_breach_diagnostics = breach_diagnostics
+                        self._contract_policy = retry_policy
+                        self._contract_tools_snapshot = list(tools_full)
+                force_retry_on_breach = breach_type in {
+                    "web_research_summary_without_fetch",
+                    "leaked_textual_tool_call",
+                    "unfinished_multi_intent_reply",
+                }
                 retry_blocked = (
                     should_retry
                     and retry_policy is not None
                     and not round_tool_policy.retry_on_contract_breach
                     and round_tool_policy.mode != "required"
-                    and breach_type != "web_research_summary_without_fetch"
+                    and not force_retry_on_breach
                 )
                 if retry_blocked:
                     self.engine._log_tool_contract_diagnostics(
@@ -779,7 +845,10 @@ class StreamExecutionHandler:
                 elif (
                     should_retry
                     and retry_policy is not None
-                    and round_tool_policy.retry_on_contract_breach
+                    and (
+                        round_tool_policy.retry_on_contract_breach
+                        or force_retry_on_breach
+                    )
                 ):
                     self.engine._log_tool_contract_diagnostics(
                         agent=self.agent,
@@ -797,6 +866,16 @@ class StreamExecutionHandler:
                         retry_policy,
                     )
                     round_tool_policy = retry_policy
+                    if breach_type in {
+                        "leaked_textual_tool_call",
+                        "unfinished_multi_intent_reply",
+                    }:
+                        messages.append(
+                            self.engine._build_contract_recovery_system_message(
+                                breach_type=breach_type,
+                                diagnostics=self._contract_breach_diagnostics,
+                            )
+                        )
                     next_runtime_context = None
                     continue
 

@@ -1490,6 +1490,72 @@ async def _load_ai_conversation_snapshot(
             ),
             None,
         )
+        contract_breach_type = (
+            str(
+                (turn_record.get("metadata") or {}).get("contract_breach_type")
+                if isinstance(turn_record.get("metadata"), dict)
+                else ""
+            ).strip()
+            or str(detail_context_diagnostics.get("contract_breach_type") or "").strip()
+            or str(detail_last_run_summary.get("contract_breach_type") or "").strip()
+            or None
+        )
+        tool_leak_detected = bool(
+            (
+                (turn_record.get("metadata") or {}).get("tool_leak_detected")
+                if isinstance(turn_record.get("metadata"), dict)
+                else False
+            )
+            or detail_context_diagnostics.get("tool_leak_detected")
+            or detail_last_run_summary.get("tool_leak_detected")
+        )
+        unfinished_intents = (
+            _normalize_cli_string_list(
+                (turn_record.get("metadata") or {}).get("unfinished_intents")
+                if isinstance(turn_record.get("metadata"), dict)
+                else None
+            )
+            or _normalize_cli_string_list(
+                detail_context_diagnostics.get("unfinished_intents")
+            )
+            or _normalize_cli_string_list(
+                detail_last_run_summary.get("unfinished_intents")
+            )
+        )
+        leaked_tool_names = (
+            _normalize_cli_string_list(
+                (turn_record.get("metadata") or {}).get("leaked_tool_names")
+                if isinstance(turn_record.get("metadata"), dict)
+                else None
+            )
+            or _normalize_cli_string_list(
+                detail_context_diagnostics.get("leaked_tool_names")
+            )
+            or _normalize_cli_string_list(
+                detail_last_run_summary.get("leaked_tool_names")
+            )
+            or leaked_tool_names
+        )
+        recovered_via_retry = next(
+            (
+                parsed
+                for parsed in (
+                    _normalize_cli_bool(
+                        (turn_record.get("metadata") or {}).get("recovered_via_retry")
+                        if isinstance(turn_record.get("metadata"), dict)
+                        else None
+                    ),
+                    _normalize_cli_bool(
+                        detail_context_diagnostics.get("recovered_via_retry")
+                    ),
+                    _normalize_cli_bool(
+                        detail_last_run_summary.get("recovered_via_retry")
+                    ),
+                )
+                if parsed is not None
+            ),
+            None,
+        )
 
         recent_call_logs: list[dict] = []
         for row in call_logs:
@@ -1563,6 +1629,10 @@ async def _load_ai_conversation_snapshot(
                 "last_assistant_textual_tool_call_names": leaked_tool_names,
                 "last_assistant_message_id": (last_assistant or {}).get("id"),
                 "last_assistant_sequence": (last_assistant or {}).get("sequence"),
+                "contract_breach_type": contract_breach_type,
+                "tool_leak_detected": tool_leak_detected,
+                "unfinished_intents": unfinished_intents,
+                "recovered_via_retry": recovered_via_retry,
                 "turn_outcome": turn_outcome,
                 "termination_reason": termination_reason,
                 "protocol_path": protocol_path,
@@ -1637,6 +1707,24 @@ def _render_ai_conversation_text(
         lines.append(
             "Diagnostic: last assistant message looks like leaked textual tool call -> {}".format(
                 ", ".join(leaked_names),
+            )
+        )
+    if diagnostics.get("contract_breach_type"):
+        lines.append(
+            "Diagnostic: contract_breach_type={}".format(
+                diagnostics.get("contract_breach_type"),
+            )
+        )
+    if diagnostics.get("unfinished_intents"):
+        lines.append(
+            "Diagnostic: unfinished_intents={}".format(
+                ", ".join(str(item) for item in diagnostics.get("unfinished_intents") or []),
+            )
+        )
+    if diagnostics.get("recovered_via_retry") is not None:
+        lines.append(
+            "Diagnostic: recovered_via_retry={}".format(
+                diagnostics.get("recovered_via_retry"),
             )
         )
 

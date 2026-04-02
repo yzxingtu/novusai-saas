@@ -39,6 +39,7 @@ from app.core.database import async_session_factory
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.agent import (
+    ActionLevelEnum,
     AgentExecutionModeEnum,
     AgentStatusEnum,
     ConversationOwnerTypeEnum,
@@ -454,6 +455,7 @@ class AgentChatService:
         operator_id: int | None,
         operator_type: str | None,
         explicit_trust_policy_ref: dict[str, Any] | None = None,
+        interaction_updates: list[dict[str, Any]] | None = None,
     ) -> tuple[InteractionMode, dict[str, Any] | None, str | None]:
         normalized_mode = (
             requested_mode
@@ -472,7 +474,61 @@ class AgentChatService:
         )
         if resolved_ref:
             return "trusted_auto", resolved_ref, None
+        interaction_ref = self._build_trust_policy_ref_from_interaction_updates(
+            interaction_updates
+        )
+        if interaction_ref:
+            return "trusted_auto", interaction_ref, None
         return "confirm", None, "missing_runtime_trust_policy"
+
+    @staticmethod
+    def _build_trust_policy_ref_from_interaction_updates(
+        interaction_updates: list[dict[str, Any]] | None,
+    ) -> dict[str, Any] | None:
+        """Build a temporary trust policy ref from freshly confirmed interaction updates / 基于刚确认的交互更新构建临时信任策略引用。"""
+        if not interaction_updates:
+            return None
+
+        allowed_tool_names: set[str] = set()
+        tool_families: set[str] = set()
+        risk_cap = ActionLevelEnum.READ.value
+
+        for update in interaction_updates:
+            if not isinstance(update, dict):
+                continue
+            if bool(update.get("rejected")):
+                continue
+            if str(update.get("kind") or "") not in {
+                "pending_confirmation",
+                "pending_consent",
+            }:
+                continue
+            tool_name = str(update.get("tool_name") or "").strip()
+            if not tool_name:
+                continue
+            tool_family = ExecutionTrustPolicyService.tool_family_for_name(tool_name)
+            tool_risk = ExecutionTrustPolicyService.tool_risk_level(
+                tool_name=tool_name,
+                tool_family=tool_family,
+            )
+            allowed_tool_names.add(tool_name)
+            if tool_family and tool_family != "none":
+                tool_families.add(tool_family)
+            if (
+                ExecutionTrustPolicyService._risk_rank(tool_risk)
+                > ExecutionTrustPolicyService._risk_rank(risk_cap)
+            ):
+                risk_cap = tool_risk
+
+        if not allowed_tool_names:
+            return None
+
+        return {
+            "policy_ids": [],
+            "allowed_tool_names": sorted(allowed_tool_names),
+            "tool_families": sorted(tool_families),
+            "risk_level_cap": risk_cap,
+        }
 
     async def _grant_trusted_auto_policies(
         self,
@@ -489,7 +545,10 @@ class AgentChatService:
 
         service = ExecutionTrustPolicyService(self.db, self.tenant_id)
         for update in interaction_updates:
-            if str(update.get("kind") or "") != "pending_consent":
+            if str(update.get("kind") or "") not in {
+                "pending_consent",
+                "pending_confirmation",
+            }:
                 continue
             if bool(update.get("rejected")):
                 continue
@@ -548,6 +607,16 @@ class AgentChatService:
             payload["selected_skill_names"] = turn_meta["selected_skill_names"]
         if turn_meta.get("context_sources"):
             payload["context_sources"] = turn_meta["context_sources"]
+        if turn_meta.get("contract_breach_type"):
+            payload["contract_breach_type"] = turn_meta["contract_breach_type"]
+        if turn_meta.get("tool_leak_detected"):
+            payload["tool_leak_detected"] = True
+        if turn_meta.get("unfinished_intents"):
+            payload["unfinished_intents"] = turn_meta["unfinished_intents"]
+        if turn_meta.get("leaked_tool_names"):
+            payload["leaked_tool_names"] = turn_meta["leaked_tool_names"]
+        if turn_meta.get("recovered_via_retry") is not None:
+            payload["recovered_via_retry"] = turn_meta["recovered_via_retry"]
         return payload
 
     @staticmethod
@@ -586,6 +655,16 @@ class AgentChatService:
             payload["selected_skill_names"] = turn_meta["selected_skill_names"]
         if turn_meta.get("context_sources"):
             payload["context_sources"] = turn_meta["context_sources"]
+        if turn_meta.get("contract_breach_type"):
+            payload["contract_breach_type"] = turn_meta["contract_breach_type"]
+        if turn_meta.get("tool_leak_detected"):
+            payload["tool_leak_detected"] = True
+        if turn_meta.get("unfinished_intents"):
+            payload["unfinished_intents"] = turn_meta["unfinished_intents"]
+        if turn_meta.get("leaked_tool_names"):
+            payload["leaked_tool_names"] = turn_meta["leaked_tool_names"]
+        if turn_meta.get("recovered_via_retry") is not None:
+            payload["recovered_via_retry"] = turn_meta["recovered_via_retry"]
         return payload
 
     # ========================================
@@ -660,6 +739,7 @@ class AgentChatService:
             operator_id=user_id,
             operator_type=conversation_owner_type,
             explicit_trust_policy_ref=trust_policy_ref,
+            interaction_updates=interaction_updates,
         )
         conversation = await self.conversation_svc.get_or_create_for_chat(
             agent_id=agent_id,
@@ -1011,6 +1091,7 @@ class AgentChatService:
             operator_id=user_id,
             operator_type=conversation_owner_type,
             explicit_trust_policy_ref=trust_policy_ref,
+            interaction_updates=interaction_updates,
         )
         conversation = await self.conversation_svc.get_or_create_for_chat(
             agent_id=agent_id,

@@ -81,6 +81,9 @@ def _sample_snapshot() -> dict:
         "diagnostics": {
             "last_assistant_looks_like_textual_tool_call": True,
             "last_assistant_textual_tool_call_names": ["get_page_context"],
+            "contract_breach_type": "leaked_textual_tool_call",
+            "unfinished_intents": ["rail_ticket_research", "page_summary"],
+            "recovered_via_retry": True,
             "last_assistant_message_id": 3235,
             "last_assistant_sequence": 18,
         },
@@ -127,6 +130,9 @@ def test_ai_conversation_show_text_renders_diagnostic(monkeypatch) -> None:
     assert result.exit_code == 0
     assert "Conversation #563" in result.output
     assert "Diagnostic: last assistant message looks like leaked textual tool call" in result.output
+    assert "Diagnostic: contract_breach_type=leaked_textual_tool_call" in result.output
+    assert "Diagnostic: unfinished_intents=rail_ticket_research, page_summary" in result.output
+    assert "Diagnostic: recovered_via_retry=True" in result.output
     assert "type=main_chat" in result.output
     assert "get_page_context" in result.output
     assert "对象存储对帐计费" in result.output

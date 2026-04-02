@@ -57,6 +57,7 @@ import { useFileUpload } from '#/composables/use-file-upload';
 import { CHAT_ACCEPT_ATTRIBUTE } from '#/constants/upload';
 import { $t } from '#/locales';
 import { useSocketIOStore } from '#/store';
+import { useAIPanelStore } from '#/store/shared/ai-panel';
 import {
   addConsent,
   clearConsents,
@@ -99,6 +100,7 @@ export interface UseAIChatOptions {
 export function useAIChat(options: UseAIChatOptions) {
   const { validateChatFile, revokePreviewUrls } = useFileUpload();
   const socketIOStore = useSocketIOStore();
+  const aiPanelStore = useAIPanelStore();
 
   const interactionMode = ref<InteractionMode>('confirm');
 
@@ -2352,19 +2354,44 @@ export function useAIChat(options: UseAIChatOptions) {
       }
     }
 
+    let panelInteractionUpdates: Array<{
+      action?: string;
+      auto_approved?: boolean;
+      kind: 'action_buttons' | 'pending_confirmation' | 'pending_consent';
+      rejected?: boolean;
+      table?: string;
+      tool_name?: string;
+      value?: string;
+    }> = [];
+    let localInteractionUpdates: Array<{
+      action?: string;
+      auto_approved?: boolean;
+      kind: 'action_buttons' | 'pending_confirmation' | 'pending_consent';
+      rejected?: boolean;
+      table?: string;
+      tool_name?: string;
+      value?: string;
+    }> = [];
+
     try {
       const prefix = unref(options.apiPrefix) as string;
       // Refresh room binding before each request so page operations still work / 每次请求前刷新页面会话房间
       // after backend reloads or transient Socket.IO room loss. / 避免后端重启或 Socket 掉线后 pageop 失效
       refreshPageSessionRoom();
       const singleText = texts.length === 1 ? (texts[0] ?? '') : null;
-        const requestBody: AgentChatRequestBody = {
+      panelInteractionUpdates = aiPanelStore.consumeInteractionUpdates();
+      localInteractionUpdates = [...pendingInteractionUpdates.value];
+      const mergedInteractionUpdates = [
+        ...panelInteractionUpdates,
+        ...localInteractionUpdates,
+      ];
+      const requestBody: AgentChatRequestBody = {
         ...(singleText === null
           ? { messages: texts }
           : { message: singleText }),
         conversation_id: streamConversationId,
-        ...(pendingInteractionUpdates.value.length > 0
-          ? { interaction_updates: [...pendingInteractionUpdates.value] }
+        ...(mergedInteractionUpdates.length > 0
+          ? { interaction_updates: mergedInteractionUpdates }
           : {}),
         ...(selectedKBIds.value.length > 0
           ? { knowledge_base_ids: selectedKBIds.value }
@@ -2419,6 +2446,11 @@ export function useAIChat(options: UseAIChatOptions) {
         },
       });
     } catch (error: unknown) {
+      aiPanelStore.restoreInteractionUpdates(panelInteractionUpdates);
+      pendingInteractionUpdates.value = [
+        ...localInteractionUpdates,
+        ...pendingInteractionUpdates.value,
+      ];
       // sendChatStreamApi throws on non-2xx; sse.ts does not call onError for HTTP errors / 非 2xx 抛错，sse 层未必走 onError
       const normalizedError = normalizeSseTransportError(error, $t);
       shouldSyncInterruptedConversation =

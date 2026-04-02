@@ -348,6 +348,8 @@ async def test_page_context_executor_prioritizes_mutation_ops_and_submit_workflo
     assert "Writable Operations Available: create_record, fill_form, submit_form" in result.output
     assert "call submit_form" in result.output
     assert "Do not claim the page is read-only" in result.output
+    assert "do NOT call get_page_context again" in result.output
+    assert "Never batch create_record" in result.output
 
 
 @pytest.mark.asyncio
@@ -1128,6 +1130,34 @@ class TestPageContextExecutorTruncation:
         assert result.success
         assert "truncated" not in result.output
         assert "admin.user.list" in result.output
+
+    @pytest.mark.asyncio
+    async def test_repeated_get_page_context_same_turn_returns_compact_hint(self):
+        """同一轮重复读取页面上下文时，返回幂等提示而不是完整重复内容。"""
+        from app.ai.tools.executors.page_context_executor import PageContextExecutor
+
+        executor = PageContextExecutor()
+        context = MagicMock()
+        context.variables = {
+            "page_context": {
+                "page_key": "admin.ai.agents",
+                "page_title": "智能体管理",
+                "page_data": {
+                    "entity_name": "智能体名称",
+                },
+            }
+        }
+        definition = ToolDefinition(name="get_page_context", description="")
+
+        first_result = await executor.execute(definition, "tc-repeat-1", {}, context)
+        second_result = await executor.execute(definition, "tc-repeat-2", {}, context)
+
+        assert first_result.success
+        assert "Page: admin.ai.agents" in first_result.output
+        assert second_result.success
+        assert "already returned earlier in this turn" in second_result.output
+        assert "Current page: admin.ai.agents." in second_result.output
+        assert "Page: admin.ai.agents" not in second_result.output
 
     @pytest.mark.asyncio
     async def test_large_page_data_truncated(self):

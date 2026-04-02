@@ -395,8 +395,25 @@ class PageOperationExecutor(BaseToolExecutor):
                     else:
                         output += (
                             "\n\n[Agent Loop] The form appears filled. "
-                            "Do not call submit_form unless the user explicitly asked to save/create/update the record "
-                            "or you already have confirmation to submit."
+                            "If the user explicitly asked to save/create/update the record and submit_form is available, "
+                            "continue the submission workflow. "
+                            "Call validate_form if validation has not been checked yet; "
+                            "after validation passes, call submit_form. "
+                            "Only stop for confirmation when the page explicitly requires it or submit_form is unavailable."
+                        )
+                elif operation_name == "validate_form":
+                    valid = bool(result_data.get("valid"))
+                    if valid:
+                        output += (
+                            "\n\n[Agent Loop] Validation passed. "
+                            "If the user explicitly asked to save/create/update the record and submit_form is available, "
+                            "call submit_form now. "
+                            "Only stop for confirmation when the page explicitly requires it or submit_form is unavailable."
+                        )
+                    else:
+                        output += (
+                            "\n\n[Agent Loop] Validation did not pass. "
+                            "Call get_form_state to inspect errors, then fix the invalid fields before deciding whether to submit."
                         )
                 elif context_diff.get("form_opened"):
                     output += (
