@@ -95,7 +95,9 @@ class AdminTenantDomainController(GlobalController):
             await _verify_tenant_exists(db, tenant_id)
 
             # 强制添加企业 ID 筛选 / Force add tenant ID filter
-            spec.filters.append(FilterRule(field="tenant_id", op=FilterOp.eq, value=tenant_id))
+            spec.filters.append(
+                FilterRule(field="tenant_id", op=FilterOp.eq, value=tenant_id)
+            )
 
             service = TenantDomainService(db)
             items, total = await service.query_list(spec, scope="admin")
@@ -331,7 +333,9 @@ class AdminTenantDomainController(GlobalController):
             # 执行 DNS TXT 记录验证 / Execute DNS TXT record verification
             domain = await service.verify_domain(domain_id)
             await db.commit()
-            auto_provisioned = await service.maybe_auto_start_ssl_after_verify(domain_id)
+            auto_provisioned = await service.maybe_auto_start_ssl_after_verify(
+                domain_id
+            )
             if auto_provisioned:
                 await db.commit()
                 domain = auto_provisioned
@@ -422,7 +426,9 @@ class AdminTenantDomainController(GlobalController):
                 message=_("common.success"),
             )
 
-        @router.delete("/{domain_id}/dev-hosts", summary="移除单个域名的 Dev Hosts 托管条目")
+        @router.delete(
+            "/{domain_id}/dev-hosts", summary="移除单个域名的 Dev Hosts 托管条目"
+        )
         @permission_action("hosts_remove", "action.tenant_domain.hosts_remove")
         async def remove_dev_host(
             request: Request,
@@ -527,9 +533,15 @@ class AdminTenantDomainController(GlobalController):
             service = TenantDomainService(db)
             domain = await service.get_by_id(domain_id)
             if not domain or domain.tenant_id != tenant_id:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("tenant_domain.not_found"))
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=_("tenant_domain.not_found"),
+                )
             if not domain.is_verified:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_("ssl_certificate.domain_not_verified"))
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=_("ssl_certificate.domain_not_verified"),
+                )
 
             await service.start_ssl_provision(domain_id)
             await db.commit()
@@ -554,17 +566,29 @@ class AdminTenantDomainController(GlobalController):
             ssl_service = SslCertificateService(db)
             cert = await ssl_service.get_cert_detail(domain_id)
             if not cert:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("ssl_certificate.not_found"))
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=_("ssl_certificate.not_found"),
+                )
 
             from app.enums.domain import SslCertType
+
             if cert.cert_type != SslCertType.PLATFORM.value:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_("ssl_certificate.custom_cert_no_renew"))
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=_("ssl_certificate.custom_cert_no_renew"),
+                )
 
             from app.services.system.dns_provider import ensure_dns_provider_ready
 
             await ensure_dns_provider_ready(db)
             from app.celery_app import celery_app
-            celery_app.send_task("app.tasks.ssl_tasks.task_renew_ssl", kwargs={"cert_id": cert.id}, queue="default")
+
+            celery_app.send_task(
+                "app.tasks.ssl_tasks.task_renew_ssl",
+                kwargs={"cert_id": cert.id},
+                queue="default",
+            )
 
             return success(message=_("ssl_certificate.renew_started"))
 
@@ -625,7 +649,10 @@ class AdminTenantDomainController(GlobalController):
                 return success(message=_("ssl_certificate.provision_started"))
             else:
                 if not data.certificate or not data.private_key:
-                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_("ssl_certificate.invalid_cert_format"))
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=_("ssl_certificate.invalid_cert_format"),
+                    )
 
                 ssl_service = SslCertificateService(db)
                 cert = await ssl_service.upload_custom_cert(
@@ -636,7 +663,10 @@ class AdminTenantDomainController(GlobalController):
                     chain_pem=data.certificate_chain,
                 )
                 await db.commit()
-                return success(data=SslCertificateResponse.from_model(cert), message=_("ssl_certificate.replace_success"))
+                return success(
+                    data=SslCertificateResponse.from_model(cert),
+                    message=_("ssl_certificate.replace_success"),
+                )
 
         @router.delete("/{domain_id}/ssl", summary="删除企业 SSL 证书")
         @permission_action("ssl_delete", "action.tenant_domain.ssl_delete")
@@ -681,7 +711,9 @@ class AdminTenantDomainController(GlobalController):
             )
 
         @router.post("/ssl/batch-provision", summary="批量签发企业所有域名 SSL")
-        @permission_action("ssl_batch_provision", "action.tenant_domain.ssl_batch_provision")
+        @permission_action(
+            "ssl_batch_provision", "action.tenant_domain.ssl_batch_provision"
+        )
         async def batch_provision_ssl(
             request: Request,
             db: DbSession,

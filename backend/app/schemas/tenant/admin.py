@@ -15,9 +15,13 @@ from app.core.base_schema import BaseSchema
 class TenantAdminLoginRequest(BaseSchema):
     """企业管理员登录请求 / Tenant admin login request."""
 
-    username: str = Field(..., min_length=1, max_length=50, description="用户名或邮箱 / Username or email")
+    username: str = Field(
+        ..., min_length=1, max_length=50, description="用户名或邮箱 / Username or email"
+    )
     password: str = Field(..., min_length=1, description="密码")
-    tenant_code: str | None = Field(None, max_length=50, description="企业编码（用于限定登录范围）")
+    tenant_code: str | None = Field(
+        None, max_length=50, description="企业编码（用于限定登录范围）"
+    )
     captcha_challenge_id: str | None = Field(None, description="验证码挑战 ID")
     captcha_solution: str | None = Field(None, description="验证码答案")
     captcha_provider_code: str | None = Field(None, description="验证码提供方标识")
@@ -72,7 +76,9 @@ class TenantAdminResponse(BaseSchema):
 class TenantAdminCreateRequest(BaseSchema):
     """创建企业管理员请求 / Create tenant admin request."""
 
-    username: str = Field(..., min_length=2, max_length=50, description="用户名 / Username")
+    username: str = Field(
+        ..., min_length=2, max_length=50, description="用户名 / Username"
+    )
     email: str = Field(..., description="邮箱")
     password: str = Field(..., min_length=6, max_length=50, description="密码")
     phone: str | None = Field(None, description="手机号")
@@ -105,7 +111,9 @@ class TenantAdminUpdateProfileRequest(BaseSchema):
     """企业管理员自助修改个人信息请求 / Tenant admin self-update profile request."""
 
     nickname: str | None = Field(None, max_length=50, description="昵称 / Nickname")
-    avatar: str | None = Field(None, max_length=500, description="头像附件 ID（兼容旧 URL 值）")
+    avatar: str | None = Field(
+        None, max_length=500, description="头像附件 ID（兼容旧 URL 值）"
+    )
     email: str | None = Field(None, max_length=100, description="邮箱")
     phone: str | None = Field(None, max_length=20, description="手机号")
 

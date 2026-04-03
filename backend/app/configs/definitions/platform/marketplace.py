@@ -8,7 +8,6 @@ from app.configs.definitions.groups import PLATFORM_GENERAL_GROUP
 from app.configs.meta import ConfigMeta, max_value, min_value
 from app.enums.config import ConfigScope, ConfigValueType
 
-
 MARKETPLACE_GITHUB_URL = ConfigMeta(
     key="marketplace_github_url",
     name_key="config.platform.marketplace_github_url.name",

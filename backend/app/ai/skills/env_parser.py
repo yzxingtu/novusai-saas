@@ -169,7 +169,8 @@ def parse_env_example(
 
     logger.info(
         "Parsed .env.example: {} variables ({} required)",
-        len(properties), len(required_fields),
+        len(properties),
+        len(required_fields),
     )
     return schema
 

@@ -68,7 +68,9 @@ _HEALTH_RE = re.compile(
 )
 _THANKS_RE = re.compile(r"^(谢谢|多谢|thanks|thank you)[!！。~ ]*$", re.IGNORECASE)
 
-_WEATHER_INTENT_RE = re.compile(r"(天气|气温|温度|气候|降雨|湿度|weather|temperature)", re.IGNORECASE)
+_WEATHER_INTENT_RE = re.compile(
+    r"(天气|气温|温度|气候|降雨|湿度|weather|temperature)", re.IGNORECASE
+)
 
 
 @dataclass(frozen=True)
@@ -179,7 +181,9 @@ class ToolInvocationPlanner:
                 return ("data_ops", "data_with_kb_no_web")
 
         if explicit_data and explicit_web:
-            if _DATA_STRONG_RE.search(user_text) or _DATA_TIME_RANGE_RE.search(user_text):
+            if _DATA_STRONG_RE.search(user_text) or _DATA_TIME_RANGE_RE.search(
+                user_text
+            ):
                 return ("data_ops", "strong_data_over_web")
             return ("web_research", "web_over_weak_data")
 
@@ -307,7 +311,9 @@ class ToolInvocationPlanner:
 
         page_context_present = cls._has_page_context(input_variables)
         recent_successful_tool_names = cls._recent_successful_tool_names(messages[:-1])
-        latest_tool_name = recent_successful_tool_names[0] if recent_successful_tool_names else ""
+        latest_tool_name = (
+            recent_successful_tool_names[0] if recent_successful_tool_names else ""
+        )
         latest_family = tool_family_from_name(latest_tool_name, input_variables)
         unresolved_page_flow = cls._has_unresolved_page_flow(messages[:-1])
 
@@ -323,7 +329,9 @@ class ToolInvocationPlanner:
         has_weather_tools = any(
             tool_semantic_family(tool, input_variables) == "weather" for tool in tools
         )
-        explicit_weather = has_weather_tools and bool(_WEATHER_INTENT_RE.search(user_text))
+        explicit_weather = has_weather_tools and bool(
+            _WEATHER_INTENT_RE.search(user_text)
+        )
         explicit_time = any(
             tool_semantic_family(tool, input_variables) == "time_ops" for tool in tools
         ) and bool(
@@ -340,11 +348,17 @@ class ToolInvocationPlanner:
             explicit_data=explicit_data,
             has_bound_kb=has_bound_kb,
         )
-        health_or_emotion = bool(_HEALTH_RE.search(user_text) or _EMOTION_RE.search(user_text))
+        health_or_emotion = bool(
+            _HEALTH_RE.search(user_text) or _EMOTION_RE.search(user_text)
+        )
         smalltalk = bool(_SMALLTALK_RE.search(user_text) or _THANKS_RE.match(user_text))
 
         if (smalltalk or health_or_emotion) and not (
-            explicit_page or explicit_web or explicit_data or explicit_weather or explicit_time
+            explicit_page
+            or explicit_web
+            or explicit_data
+            or explicit_weather
+            or explicit_time
         ):
             return ToolInvocationPlan(
                 intent="direct_reply",

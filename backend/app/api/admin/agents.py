@@ -14,7 +14,7 @@ from app.core.recycle_bin import register_admin_recycle_bin_routes
 from app.core.response import created, deleted, paginated, success
 from app.enums.common import ResourceScopeEnum
 from app.enums.rbac import PermissionScope
-from app.exceptions import NotFoundException
+from app.exceptions import BusinessException, NotFoundException
 from app.rbac.decorators import (
     MenuConfig,
     action_create,
@@ -43,6 +43,10 @@ from app.schemas.ai.agent_version import AgentPublishRequest, AgentRollbackReque
 from app.services.ai.agent_kb_binding_service import AgentKBBindingService
 from app.services.ai.agent_service import AdminAgentService, AgentService
 from app.services.ai.agent_skill_grant_service import AgentSkillGrantService
+from app.services.system.plugin_managed_agent_sync_service import (
+    PluginManagedAgentSyncService,
+    SourcePluginInfo,
+)
 
 RESOURCE_SCOPES_NEEDING_ASSIGNMENT = (
     ResourceScopeEnum.SELECTED_TENANTS.value,
@@ -52,12 +56,43 @@ RESOURCE_SCOPES_NEEDING_ASSIGNMENT = (
 logger = LogManager.get_logger("ai")
 
 
-def _build_admin_agent_item(agent) -> dict:
+def _build_source_plugin_payload(
+    source_plugin: str | None,
+    plugin_info: SourcePluginInfo | None,
+) -> dict[str, object]:
+    if not source_plugin:
+        return {
+            "source_plugin": None,
+            "source_plugin_display_name": None,
+            "source_plugin_enabled": False,
+            "source_plugin_scope": None,
+        }
+
+    return {
+        "source_plugin": source_plugin,
+        "source_plugin_display_name": (
+            plugin_info.display_name if plugin_info else source_plugin
+        ),
+        "source_plugin_enabled": plugin_info.enabled if plugin_info else False,
+        "source_plugin_scope": plugin_info.scope if plugin_info else None,
+    }
+
+
+def _build_admin_agent_item(
+    agent,
+    plugin_meta_map: dict[str, SourcePluginInfo] | None = None,
+) -> dict:
     """从 ORM 对象构建管理端列表项字典，提取 model_name + skills / Build admin list item dict from ORM object, extracting model_name + skills"""
     from app.api.shared._agent_helpers import build_agent_base_item
 
     item = build_agent_base_item(agent)
     item["model_id"] = agent.model_id
+    item.update(
+        _build_source_plugin_payload(
+            getattr(agent, "source_plugin", None),
+            (plugin_meta_map or {}).get(getattr(agent, "source_plugin", None) or ""),
+        )
+    )
     return item
 
 
@@ -115,8 +150,16 @@ class AdminAgentController(GlobalController):
             """
             service = AdminAgentService(db)
             items, total = await service.query_list(query)
+            plugin_meta_map = await PluginManagedAgentSyncService(
+                db
+            ).get_source_plugin_map(
+                getattr(item, "source_plugin", None) for item in items
+            )
 
-            result = [_build_admin_agent_item(item) for item in items]
+            result = [
+                _build_admin_agent_item(item, plugin_meta_map=plugin_meta_map)
+                for item in items
+            ]
 
             return paginated(
                 items=result,
@@ -145,7 +188,10 @@ class AdminAgentController(GlobalController):
             agent = await service.create(data)
 
             # 同步企业分配 / Sync tenant assignments
-            if agent.scope in RESOURCE_SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
+            if (
+                agent.scope in RESOURCE_SCOPES_NEEDING_ASSIGNMENT
+                and tenant_ids is not None
+            ):
                 repo = ResourceTenantAssignmentRepository(db)
                 await repo.sync_assignments("agent", agent.id, tenant_ids)
 
@@ -178,11 +224,32 @@ class AdminAgentController(GlobalController):
 
             data = body.model_dump(exclude_unset=True)
             tenant_ids = data.pop("tenant_ids", None)
+            plugin_sync_service = PluginManagedAgentSyncService(db)
+            if getattr(agent, "source_plugin", None):
+                plugin_meta_map = await plugin_sync_service.get_source_plugin_map(
+                    [agent.source_plugin]
+                )
+                plugin_info = plugin_meta_map.get(agent.source_plugin)
+                if plugin_info is None:
+                    raise NotFoundException(message=_("plugin.error.not_found"))
+                requested_scope = data.get("scope")
+                if requested_scope not in (None, plugin_info.scope):
+                    raise BusinessException(
+                        message=_("plugin.error.source_agent_scope_locked").format(
+                            plugin=plugin_info.display_name or plugin_info.name,
+                        )
+                    )
+                data["scope"] = plugin_info.scope
             agent = await service.update(agent_id, data)
 
             # 同步企业分配 / Sync tenant assignments
             eff_scope = agent.scope
-            if eff_scope in RESOURCE_SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
+            if getattr(agent, "source_plugin", None):
+                await plugin_sync_service.sync_from_agent_update(agent, tenant_ids)
+            elif (
+                eff_scope in RESOURCE_SCOPES_NEEDING_ASSIGNMENT
+                and tenant_ids is not None
+            ):
                 repo = ResourceTenantAssignmentRepository(db)
                 await repo.sync_assignments("agent", agent_id, tenant_ids)
             elif eff_scope not in RESOURCE_SCOPES_NEEDING_ASSIGNMENT:
@@ -191,9 +258,12 @@ class AdminAgentController(GlobalController):
 
             await db.commit()
             await db.refresh(agent)
+            plugin_meta_map = await plugin_sync_service.get_source_plugin_map(
+                [getattr(agent, "source_plugin", None)]
+            )
 
             return success(
-                data=_build_admin_agent_item(agent),
+                data=_build_admin_agent_item(agent, plugin_meta_map=plugin_meta_map),
                 message=_("agent.updated"),
             )
 
@@ -246,11 +316,27 @@ class AdminAgentController(GlobalController):
             detail["model_code"] = getattr(model_obj, "code", None)
             memory_config = await admin_service.get_memory_config(agent_id)
             detail["memory_enabled"] = bool(getattr(agent, "memory_enabled", True))
-            detail["effective_memory_enabled"] = memory_config["effective_memory_enabled"]
+            detail["effective_memory_enabled"] = memory_config[
+                "effective_memory_enabled"
+            ]
             detail["memory_disabled_by_tenant"] = False
+            plugin_sync_service = PluginManagedAgentSyncService(db)
+            plugin_meta_map = await plugin_sync_service.get_source_plugin_map(
+                [getattr(agent, "source_plugin", None)]
+            )
+            detail.update(
+                _build_source_plugin_payload(
+                    getattr(agent, "source_plugin", None),
+                    plugin_meta_map.get(getattr(agent, "source_plugin", None) or ""),
+                )
+            )
 
             # 追加已分配的企业 ID 列表 / Append assigned tenant ID list
-            if agent.scope in RESOURCE_SCOPES_NEEDING_ASSIGNMENT:
+            if getattr(agent, "source_plugin", None):
+                detail["assigned_tenant_ids"] = (
+                    await plugin_sync_service.get_effective_agent_assignment_ids(agent)
+                )
+            elif agent.scope in RESOURCE_SCOPES_NEEDING_ASSIGNMENT:
                 repo = ResourceTenantAssignmentRepository(db)
                 detail["assigned_tenant_ids"] = await repo.get_assigned_tenant_ids(
                     "agent", agent_id
@@ -412,9 +498,7 @@ class AdminAgentController(GlobalController):
             """
             agent = await _get_agent_for_binding(db, agent_id)
             grant_service = AgentSkillGrantService(db, agent.owner_tenant_id)
-            await grant_service.unbind_skill(
-                agent_id=agent_id, skill_id=skill_id
-            )
+            await grant_service.unbind_skill(agent_id=agent_id, skill_id=skill_id)
             await db.commit()
             return deleted()
 
@@ -466,7 +550,9 @@ class AdminAgentController(GlobalController):
             await db.commit()
             return created(data=kb_service.serialize_binding_public(binding))
 
-        @router.put("/{agent_id}/knowledge-bases/batch", summary="批量绑定知识库（替换模式）")
+        @router.put(
+            "/{agent_id}/knowledge-bases/batch", summary="批量绑定知识库（替换模式）"
+        )
         @action_update("action.ai_agent.batch_bind_kbs")
         async def batch_bind_kbs(
             request: Request,
@@ -487,9 +573,13 @@ class AdminAgentController(GlobalController):
                 knowledge_base_ids=data.knowledge_base_ids,
             )
             await db.commit()
-            return success(data=[kb_service.serialize_binding_public(b) for b in bindings])
+            return success(
+                data=[kb_service.serialize_binding_public(b) for b in bindings]
+            )
 
-        @router.put("/{agent_id}/knowledge-bases/{binding_id}", summary="更新知识库绑定配置")
+        @router.put(
+            "/{agent_id}/knowledge-bases/{binding_id}", summary="更新知识库绑定配置"
+        )
         @action_update("action.ai_agent.update_kb_binding")
         async def update_kb_binding(
             request: Request,
@@ -517,7 +607,9 @@ class AdminAgentController(GlobalController):
             await db.commit()
             return success(data=kb_service.serialize_binding_public(updated))
 
-        @router.delete("/{agent_id}/knowledge-bases/{knowledge_base_id}", summary="解绑知识库")
+        @router.delete(
+            "/{agent_id}/knowledge-bases/{knowledge_base_id}", summary="解绑知识库"
+        )
         @action_update("action.ai_agent.unbind_kb")
         async def unbind_kb(
             request: Request,
@@ -564,7 +656,9 @@ class AdminAgentController(GlobalController):
 
             service = AgentService(db, agent.owner_tenant_id)
             result = await service.publish_agent(
-                agent_id, change_log=data.change_log, created_by=admin.id,
+                agent_id,
+                change_log=data.change_log,
+                created_by=admin.id,
             )
             await db.commit()
             return success(data=result.to_dict(), message=_("agent.published"))
@@ -591,7 +685,9 @@ class AdminAgentController(GlobalController):
             service = AgentService(db, agent.owner_tenant_id)
             result = await service.rollback_agent(agent_id, data.version)
             await db.commit()
-            return success(data=result.to_dict(), message=_("agent.version.rolled_back"))
+            return success(
+                data=result.to_dict(), message=_("agent.version.rolled_back")
+            )
 
         @router.get("/{agent_id}/versions", summary="获取版本历史")
         @action_read("action.ai_agent.versions")

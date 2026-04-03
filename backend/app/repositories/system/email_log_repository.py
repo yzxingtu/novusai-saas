@@ -16,13 +16,20 @@ class EmailLogRepository(BaseRepository[EmailLog]):
 
     _scope_fields = {
         "admin": {
-            "id", "to_address", "subject", "status",
-            "triggered_by", "tenant_id", "created_at", "sent_at",
+            "id",
+            "to_address",
+            "subject",
+            "status",
+            "triggered_by",
+            "tenant_id",
+            "created_at",
+            "sent_at",
         },
     }
 
     async def get_by_status(self, status: str, limit: int = 50) -> list[EmailLog]:
         from sqlalchemy import select
+
         stmt = (
             select(EmailLog)
             .where(EmailLog.status == status, EmailLog.is_deleted.is_(False))

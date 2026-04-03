@@ -73,7 +73,9 @@ class TenantAIQuotaController(TenantController):
             tenant_admin: ActiveTenantAdmin,
             model_id: int | None = Query(None, description=_("api.param.model_id")),
             period: str | None = Query(None, description=_("api.param.period")),
-            include_usage: bool = Query(False, description=_("api.param.include_usage")),
+            include_usage: bool = Query(
+                False, description=_("api.param.include_usage")
+            ),
             is_active: bool | None = Query(None, description=_("api.param.is_active")),
         ):
             """
@@ -93,22 +95,28 @@ class TenantAIQuotaController(TenantController):
                 # 将 ORM 对象序列化为包含 model_name 的字典 / Serialize ORM objects to dicts containing model_name
                 result = []
                 for item in raw_list:
-                    result.append({
-                        "quota": TenantQuotaResponse.from_orm_model(item["quota"]).model_dump(),
-                        "usage": item["usage"],
-                        "limit": item["limit"],
-                        "usage_percent": item["usage_percent"],
-                        "is_warning": item["is_warning"],
-                        "is_exceeded": item["is_exceeded"],
-                        "remaining": item["remaining"],
-                    })
+                    result.append(
+                        {
+                            "quota": TenantQuotaResponse.from_orm_model(
+                                item["quota"]
+                            ).model_dump(),
+                            "usage": item["usage"],
+                            "limit": item["limit"],
+                            "usage_percent": item["usage_percent"],
+                            "is_warning": item["is_warning"],
+                            "is_exceeded": item["is_exceeded"],
+                            "remaining": item["remaining"],
+                        }
+                    )
             else:
                 quotas = await service.list_quotas(
                     period=period,
                     model_id=model_id,
                     is_active=is_active,
                 )
-                result = [TenantQuotaResponse.from_orm_model(q).model_dump() for q in quotas]
+                result = [
+                    TenantQuotaResponse.from_orm_model(q).model_dump() for q in quotas
+                ]
 
             return success(data=result, message=_("common.success"))
 
@@ -137,7 +145,10 @@ class TenantAIQuotaController(TenantController):
                 model_id=model_id,
                 is_active=is_active,
             )
-            result = [TenantRateLimitResponse.from_orm_model(item).model_dump() for item in items]
+            result = [
+                TenantRateLimitResponse.from_orm_model(item).model_dump()
+                for item in items
+            ]
 
             return success(data=result, message=_("common.success"))
 
@@ -267,7 +278,9 @@ class TenantAIQuotaController(TenantController):
 
             if quota_with_usage:
                 response_data = {
-                    "quota": TenantQuotaResponse.from_orm_model(quota_with_usage["quota"]).model_dump(),
+                    "quota": TenantQuotaResponse.from_orm_model(
+                        quota_with_usage["quota"]
+                    ).model_dump(),
                     "usage": quota_with_usage["usage"],
                     "limit": quota_with_usage["limit"],
                     "usage_percent": quota_with_usage["usage_percent"],

@@ -76,8 +76,16 @@ class TenantPermissionRoleController(TenantController):
             db: DbSession,
             current_admin: ActiveTenantAdmin,
             search: str = Query("", description=_("api.param.search")),
-            page: int = Query(1, alias="page[number]", ge=1, description=_("api.param.page_number")),
-            page_size: int = Query(20, alias="page[size]", ge=1, le=100, description=_("api.param.page_size")),
+            page: int = Query(
+                1, alias="page[number]", ge=1, description=_("api.param.page_number")
+            ),
+            page_size: int = Query(
+                20,
+                alias="page[size]",
+                ge=1,
+                le=100,
+                description=_("api.param.page_size"),
+            ),
         ):
             service = TenantPermissionRoleService(db, current_admin.tenant_id)
             roles, total = await service.get_permission_roles(

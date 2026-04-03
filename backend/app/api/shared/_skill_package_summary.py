@@ -49,9 +49,7 @@ def _build_skill_package_summary(
     valves_config = _get_package_value(package, "valves_config") or {}
 
     properties = (
-        valves_schema.get("properties", {})
-        if isinstance(valves_schema, dict)
-        else {}
+        valves_schema.get("properties", {}) if isinstance(valves_schema, dict) else {}
     )
     if source_plugin:
         package_role_key = "plugin_managed"

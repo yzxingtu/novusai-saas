@@ -239,9 +239,12 @@ class AdminService(GlobalService[Admin, AdminRepository]):
             )
 
         # 更新密码 / Update password
-        await self.update(admin_id, {
-            "password_hash": get_password_hash(new_password),
-        })
+        await self.update(
+            admin_id,
+            {
+                "password_hash": get_password_hash(new_password),
+            },
+        )
 
         return True
 
@@ -270,9 +273,12 @@ class AdminService(GlobalService[Admin, AdminRepository]):
             )
 
         # 更新密码 / Update password
-        await self.update(admin_id, {
-            "password_hash": get_password_hash(new_password),
-        })
+        await self.update(
+            admin_id,
+            {
+                "password_hash": get_password_hash(new_password),
+            },
+        )
 
         return True
 

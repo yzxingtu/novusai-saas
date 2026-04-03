@@ -26,8 +26,8 @@ from app.rbac.decorators import (
     action_read,
     permission_resource,
 )
-from app.services.ai.monitoring_service import MonitoringService
 from app.services.ai.conversation_service import ConversationService
+from app.services.ai.monitoring_service import MonitoringService
 
 
 def _safe_int(value) -> int:
@@ -114,7 +114,8 @@ def _build_admin_conversation_item(
 
 
 async def _batch_load_tenants(
-    db: AsyncSession, tenant_ids: set[int],
+    db: AsyncSession,
+    tenant_ids: set[int],
 ) -> dict[int, dict]:
     """批量加载企业名称 / Batch load tenant names"""
     if not tenant_ids:
@@ -124,10 +125,7 @@ async def _batch_load_tenants(
         Tenant.is_deleted.is_(False),
     )
     result = await db.execute(stmt)
-    return {
-        row.id: {"name": row.name, "code": row.code}
-        for row in result.all()
-    }
+    return {row.id: {"name": row.name, "code": row.code} for row in result.all()}
 
 
 async def _batch_load_users(
@@ -153,7 +151,10 @@ async def _batch_load_users(
 
     if admin_ids:
         stmt = select(
-            Admin.id, Admin.username, Admin.nickname, Admin.avatar,
+            Admin.id,
+            Admin.username,
+            Admin.nickname,
+            Admin.avatar,
         ).where(Admin.id.in_(admin_ids), Admin.is_deleted.is_(False))
         result = await db.execute(stmt)
         for row in result.all():
@@ -165,8 +166,11 @@ async def _batch_load_users(
 
     if tenant_admin_ids:
         stmt = select(
-            TenantAdmin.id, TenantAdmin.tenant_id,
-            TenantAdmin.username, TenantAdmin.nickname, TenantAdmin.avatar,
+            TenantAdmin.id,
+            TenantAdmin.tenant_id,
+            TenantAdmin.username,
+            TenantAdmin.nickname,
+            TenantAdmin.avatar,
         ).where(
             TenantAdmin.id.in_(tenant_admin_ids),
             TenantAdmin.is_deleted.is_(False),
@@ -183,7 +187,8 @@ async def _batch_load_users(
 
 
 async def _batch_load_conversation_usage(
-    db: AsyncSession, conversation_ids: set[int],
+    db: AsyncSession,
+    conversation_ids: set[int],
 ) -> dict[int, dict]:
     """Batch load aggregated call-log usage by conversation / 批量加载按对话聚合的调用用量。"""
     if not conversation_ids:
@@ -213,19 +218,26 @@ async def _batch_load_conversation_usage(
 
 
 async def _load_single_user_info(
-    db: AsyncSession, tenant_id: int, user_id: int | None,
+    db: AsyncSession,
+    tenant_id: int,
+    user_id: int | None,
 ) -> dict | None:
     """加载单个用户信息（用于详情页） / Load single user info (for detail page)"""
     if user_id is None:
         return None
     if tenant_id == PLATFORM_TENANT_ID:
         stmt = select(
-            Admin.id, Admin.username, Admin.nickname, Admin.avatar,
+            Admin.id,
+            Admin.username,
+            Admin.nickname,
+            Admin.avatar,
         ).where(Admin.id == user_id, Admin.is_deleted.is_(False))
     else:
         stmt = select(
-            TenantAdmin.id, TenantAdmin.username,
-            TenantAdmin.nickname, TenantAdmin.avatar,
+            TenantAdmin.id,
+            TenantAdmin.username,
+            TenantAdmin.nickname,
+            TenantAdmin.avatar,
         ).where(TenantAdmin.id == user_id, TenantAdmin.is_deleted.is_(False))
     result = await db.execute(stmt)
     row = result.first()
@@ -273,7 +285,9 @@ class AdminAIConversationController(GlobalController):
             db: DbSession,
             admin: ActiveAdmin,
             query: QueryParams,
-            tenant_id: int | None = Query(None, description=_("api.param.tenant_id_filter")),
+            tenant_id: int | None = Query(
+                None, description=_("api.param.tenant_id_filter")
+            ),
         ):
             """
             获取全企业对话列表 / Get cross-tenant conversation list

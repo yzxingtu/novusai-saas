@@ -673,7 +673,6 @@ class BaseService(Generic[ModelType, RepoType]):
         """
         return await self.repo.batch_update_sort_order(ordered_ids, **scope_filters)
 
-
     # ========================================
     # 声明式依赖保护（内部方法） / Declarative Dependency Protection (internal)
     # ========================================
@@ -693,7 +692,13 @@ class BaseService(Generic[ModelType, RepoType]):
         """
         instance = await self.repo.get_by_id(id)
         if not instance:
-            return {"blocked": False, "blockers": [], "cascade_soft": [], "cascade_delete": [], "nullify": []}
+            return {
+                "blocked": False,
+                "blockers": [],
+                "cascade_soft": [],
+                "cascade_delete": [],
+                "nullify": [],
+            }
 
         tenant_id = getattr(self, "tenant_id", None)
         result = await check_deletion_deps(self.db, instance, tenant_id=tenant_id)
@@ -731,7 +736,9 @@ class BaseService(Generic[ModelType, RepoType]):
 
         tenant_id = getattr(self, "tenant_id", None)
         result = await check_deletion_deps(
-            self.db, instance, tenant_id=tenant_id,
+            self.db,
+            instance,
+            tenant_id=tenant_id,
         )
         if result.blocked:
             raise DependencyBlockedException(
@@ -769,7 +776,9 @@ class BaseService(Generic[ModelType, RepoType]):
         if stats:
             _logger.info(
                 "Deletion cascade for {}#{}: {}",
-                instance.__class__.__name__, instance.id, stats,
+                instance.__class__.__name__,
+                instance.id,
+                stats,
             )
 
 
@@ -808,6 +817,7 @@ class GlobalService(BaseService[ModelType, RepoType]):
     用于超管或系统级操作，无企业隔离
     Used for super-admin or system-level operations, no tenant isolation.
     """
+
     pass
 
 

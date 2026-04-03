@@ -127,7 +127,9 @@ MAINTENANCE_MESSAGE = ConfigMeta(
     ],
     sort_order=110,
     display_rules=[
-        DisplayRule(field="maintenance_mode", operator="equals", value=True, action="show"),
+        DisplayRule(
+            field="maintenance_mode", operator="equals", value=True, action="show"
+        ),
     ],
 )
 

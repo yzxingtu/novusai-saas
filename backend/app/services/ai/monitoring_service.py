@@ -164,7 +164,9 @@ class MonitoringService:
         if admin_ids:
             rows = (
                 await self.db.execute(
-                    select(Admin.id, Admin.username, Admin.nickname, Admin.avatar).where(
+                    select(
+                        Admin.id, Admin.username, Admin.nickname, Admin.avatar
+                    ).where(
                         Admin.id.in_(admin_ids),
                         Admin.is_deleted.is_(False),
                     )
@@ -249,7 +251,9 @@ class MonitoringService:
             select(
                 AICallLog.conversation_id,
                 func.count(AICallLog.id).label("call_count"),
-                func.coalesce(func.sum(AICallLog.total_tokens), 0).label("total_tokens"),
+                func.coalesce(func.sum(AICallLog.total_tokens), 0).label(
+                    "total_tokens"
+                ),
                 func.coalesce(func.sum(AICallLog.cost), 0).label("total_cost"),
                 func.max(AICallLog.created_at).label("last_call_at"),
             )
@@ -288,7 +292,9 @@ class MonitoringService:
         start_date: date | None = None,
         end_date: date | None = None,
     ) -> MonitoringUsageDashboard:
-        filters = self._scope_usage_filters(scope, start_date=start_date, end_date=end_date)
+        filters = self._scope_usage_filters(
+            scope, start_date=start_date, end_date=end_date
+        )
         stat_date = cast(AICallLog.created_at, Date)
         tenant_name_expr = self._effective_usage_tenant_name_expr()
 
@@ -298,8 +304,12 @@ class MonitoringService:
             func.coalesce(func.sum(AICallLog.input_tokens), 0).label("input_tokens"),
             func.coalesce(func.sum(AICallLog.output_tokens), 0).label("output_tokens"),
             func.coalesce(func.sum(AICallLog.cost), 0).label("total_cost"),
-            func.sum(case((AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0)).label("success_calls"),
-            func.sum(case((AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0)).label("failed_calls"),
+            func.sum(
+                case((AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0)
+            ).label("success_calls"),
+            func.sum(
+                case((AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0)
+            ).label("failed_calls"),
         ).where(*filters)
         summary_row = (await self.db.execute(summary_stmt)).one()
         total_calls = self._safe_int(summary_row.total_calls)
@@ -313,19 +323,31 @@ class MonitoringService:
             total_cost=self._safe_float(summary_row.total_cost),
             success_calls=success_calls,
             failed_calls=failed_calls,
-            success_rate=(round(success_calls / total_calls * 100, 1) if total_calls > 0 else 0.0),
+            success_rate=(
+                round(success_calls / total_calls * 100, 1) if total_calls > 0 else 0.0
+            ),
         )
 
         daily_stmt = (
             select(
                 stat_date.label("date"),
                 func.count(AICallLog.id).label("call_count"),
-                func.coalesce(func.sum(AICallLog.input_tokens), 0).label("input_tokens"),
-                func.coalesce(func.sum(AICallLog.output_tokens), 0).label("output_tokens"),
-                func.coalesce(func.sum(AICallLog.total_tokens), 0).label("total_tokens"),
+                func.coalesce(func.sum(AICallLog.input_tokens), 0).label(
+                    "input_tokens"
+                ),
+                func.coalesce(func.sum(AICallLog.output_tokens), 0).label(
+                    "output_tokens"
+                ),
+                func.coalesce(func.sum(AICallLog.total_tokens), 0).label(
+                    "total_tokens"
+                ),
                 func.coalesce(func.sum(AICallLog.cost), 0).label("total_cost"),
-                func.sum(case((AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0)).label("success_calls"),
-                func.sum(case((AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0)).label("failed_calls"),
+                func.sum(
+                    case((AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0)
+                ).label("success_calls"),
+                func.sum(
+                    case((AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0)
+                ).label("failed_calls"),
             )
             .where(*filters)
             .group_by(stat_date)
@@ -349,17 +371,28 @@ class MonitoringService:
         model_stmt = (
             select(
                 AICallLog.model_id.label("key"),
-                func.coalesce(AICallLog.model_name_snapshot, AIModel.name).label("label"),
+                func.coalesce(AICallLog.model_name_snapshot, AIModel.name).label(
+                    "label"
+                ),
                 func.count(AICallLog.id).label("call_count"),
-                func.coalesce(func.sum(AICallLog.total_tokens), 0).label("total_tokens"),
+                func.coalesce(func.sum(AICallLog.total_tokens), 0).label(
+                    "total_tokens"
+                ),
                 func.coalesce(func.sum(AICallLog.cost), 0).label("total_cost"),
-                func.sum(case((AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0)).label("success_calls"),
-                func.sum(case((AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0)).label("failed_calls"),
+                func.sum(
+                    case((AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0)
+                ).label("success_calls"),
+                func.sum(
+                    case((AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0)
+                ).label("failed_calls"),
             )
             .select_from(AICallLog)
             .join(AIModel, AIModel.id == AICallLog.model_id, isouter=True)
             .where(*filters)
-            .group_by(AICallLog.model_id, func.coalesce(AICallLog.model_name_snapshot, AIModel.name))
+            .group_by(
+                AICallLog.model_id,
+                func.coalesce(AICallLog.model_name_snapshot, AIModel.name),
+            )
             .order_by(func.coalesce(func.sum(AICallLog.total_tokens), 0).desc())
             .limit(10)
         )
@@ -382,10 +415,16 @@ class MonitoringService:
                 AICallLog.access_channel.label("key"),
                 AICallLog.access_channel.label("label"),
                 func.count(AICallLog.id).label("call_count"),
-                func.coalesce(func.sum(AICallLog.total_tokens), 0).label("total_tokens"),
+                func.coalesce(func.sum(AICallLog.total_tokens), 0).label(
+                    "total_tokens"
+                ),
                 func.coalesce(func.sum(AICallLog.cost), 0).label("total_cost"),
-                func.sum(case((AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0)).label("success_calls"),
-                func.sum(case((AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0)).label("failed_calls"),
+                func.sum(
+                    case((AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0)
+                ).label("success_calls"),
+                func.sum(
+                    case((AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0)
+                ).label("failed_calls"),
             )
             .where(*filters)
             .group_by(AICallLog.access_channel)
@@ -410,15 +449,24 @@ class MonitoringService:
                 AICallLog.agent_id.label("key"),
                 func.coalesce(AICallLog.agent_name_snapshot, Agent.name).label("label"),
                 func.count(AICallLog.id).label("call_count"),
-                func.coalesce(func.sum(AICallLog.total_tokens), 0).label("total_tokens"),
+                func.coalesce(func.sum(AICallLog.total_tokens), 0).label(
+                    "total_tokens"
+                ),
                 func.coalesce(func.sum(AICallLog.cost), 0).label("total_cost"),
-                func.sum(case((AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0)).label("success_calls"),
-                func.sum(case((AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0)).label("failed_calls"),
+                func.sum(
+                    case((AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0)
+                ).label("success_calls"),
+                func.sum(
+                    case((AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0)
+                ).label("failed_calls"),
             )
             .select_from(AICallLog)
             .join(Agent, Agent.id == AICallLog.agent_id, isouter=True)
             .where(*filters, AICallLog.agent_id.is_not(None))
-            .group_by(AICallLog.agent_id, func.coalesce(AICallLog.agent_name_snapshot, Agent.name))
+            .group_by(
+                AICallLog.agent_id,
+                func.coalesce(AICallLog.agent_name_snapshot, Agent.name),
+            )
             .order_by(func.coalesce(func.sum(AICallLog.total_tokens), 0).desc())
             .limit(10)
         )
@@ -441,10 +489,16 @@ class MonitoringService:
                 AICallLog.actor_user_type.label("actor_type"),
                 AICallLog.actor_user_id.label("actor_id"),
                 func.count(AICallLog.id).label("call_count"),
-                func.coalesce(func.sum(AICallLog.total_tokens), 0).label("total_tokens"),
+                func.coalesce(func.sum(AICallLog.total_tokens), 0).label(
+                    "total_tokens"
+                ),
                 func.coalesce(func.sum(AICallLog.cost), 0).label("total_cost"),
-                func.sum(case((AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0)).label("success_calls"),
-                func.sum(case((AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0)).label("failed_calls"),
+                func.sum(
+                    case((AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0)
+                ).label("success_calls"),
+                func.sum(
+                    case((AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0)
+                ).label("failed_calls"),
             )
             .where(*filters, AICallLog.actor_user_id.is_not(None))
             .group_by(AICallLog.actor_user_type, AICallLog.actor_user_id)
@@ -452,11 +506,13 @@ class MonitoringService:
             .limit(10)
         )
         actor_rows = (await self.db.execute(actor_stmt)).all()
-        actor_map = await self._load_actor_map({
-            (str(row.actor_type or ""), int(row.actor_id))
-            for row in actor_rows
-            if row.actor_type and row.actor_id
-        })
+        actor_map = await self._load_actor_map(
+            {
+                (str(row.actor_type or ""), int(row.actor_id))
+                for row in actor_rows
+                if row.actor_type and row.actor_id
+            }
+        )
         top_users = [
             MonitoringUsageBreakdownItem(
                 key=f"{row.actor_type}:{row.actor_id}",
@@ -493,10 +549,22 @@ class MonitoringService:
                     tenant_base.c.tenant_id.label("key"),
                     tenant_base.c.tenant_name.label("label"),
                     func.count().label("call_count"),
-                    func.coalesce(func.sum(tenant_base.c.total_tokens), 0).label("total_tokens"),
+                    func.coalesce(func.sum(tenant_base.c.total_tokens), 0).label(
+                        "total_tokens"
+                    ),
                     func.coalesce(func.sum(tenant_base.c.cost), 0).label("total_cost"),
-                    func.sum(case((tenant_base.c.status == CallStatusEnum.SUCCESS.value, 1), else_=0)).label("success_calls"),
-                    func.sum(case((tenant_base.c.status == CallStatusEnum.FAILED.value, 1), else_=0)).label("failed_calls"),
+                    func.sum(
+                        case(
+                            (tenant_base.c.status == CallStatusEnum.SUCCESS.value, 1),
+                            else_=0,
+                        )
+                    ).label("success_calls"),
+                    func.sum(
+                        case(
+                            (tenant_base.c.status == CallStatusEnum.FAILED.value, 1),
+                            else_=0,
+                        )
+                    ).label("failed_calls"),
                 )
                 .group_by(tenant_base.c.tenant_id, tenant_base.c.tenant_name)
                 .order_by(func.coalesce(func.sum(tenant_base.c.total_tokens), 0).desc())
@@ -506,7 +574,8 @@ class MonitoringService:
             top_tenants = [
                 MonitoringUsageBreakdownItem(
                     key=str(row.key),
-                    label=row.label or ("平台管理端" if row.key == PLATFORM_TENANT_ID else "-"),
+                    label=row.label
+                    or ("平台管理端" if row.key == PLATFORM_TENANT_ID else "-"),
                     call_count=self._safe_int(row.call_count),
                     total_tokens=self._safe_int(row.total_tokens),
                     total_cost=self._safe_float(row.total_cost),
@@ -518,7 +587,9 @@ class MonitoringService:
 
         tenant_name = None
         if scope.is_tenant and scope.tenant_id is not None:
-            tenant_name = (await self._load_tenant_names({scope.tenant_id})).get(scope.tenant_id)
+            tenant_name = (await self._load_tenant_names({scope.tenant_id})).get(
+                scope.tenant_id
+            )
 
         return MonitoringUsageDashboard(
             scope=scope.scope,
@@ -549,11 +620,14 @@ class MonitoringService:
         tenant_ids = {item.tenant_id for item in items if item.tenant_id is not None}
         usage_map = await self._load_conversation_usage_map(scope, conversation_ids)
         tenant_names = await self._load_tenant_names(tenant_ids)
-        actor_map = await self._load_actor_map({
-            (str(item.owner_type or ""), int(item.user_id))
-            for item in items
-            if item.user_id is not None and item.owner_type in {"platform_admin", "tenant_admin", "tenant_user"}
-        })
+        actor_map = await self._load_actor_map(
+            {
+                (str(item.owner_type or ""), int(item.user_id))
+                for item in items
+                if item.user_id is not None
+                and item.owner_type in {"platform_admin", "tenant_admin", "tenant_user"}
+            }
+        )
 
         result: list[MonitoringConversationListItem] = []
         for item in items:
@@ -579,8 +653,14 @@ class MonitoringService:
                     status=item.status,
                     message_count=self._safe_int(item.message_count),
                     call_count=self._safe_int(usage.get("call_count")),
-                    total_tokens=max(self._safe_int(item.token_count), self._safe_int(usage.get("total_tokens"))),
-                    total_cost=max(self._safe_float(item.cost), self._safe_float(usage.get("total_cost"))),
+                    total_tokens=max(
+                        self._safe_int(item.token_count),
+                        self._safe_int(usage.get("total_tokens")),
+                    ),
+                    total_cost=max(
+                        self._safe_float(item.cost),
+                        self._safe_float(usage.get("total_cost")),
+                    ),
                     last_call_at=usage.get("last_call_at"),
                     created_at=item.created_at,
                     updated_at=item.updated_at,
@@ -602,8 +682,12 @@ class MonitoringService:
             if not conversation:
                 raise NotFoundException(message="conversation not found")
         else:
-            service, conversation = await ConversationService.get_service_for_conversation(
-                self.db, conversation_id,
+            (
+                service,
+                conversation,
+            ) = await ConversationService.get_service_for_conversation(
+                self.db,
+                conversation_id,
             )
 
         detail = await service.get_conversation_detail(
@@ -611,13 +695,17 @@ class MonitoringService:
             message_skip=message_skip,
             message_limit=message_limit,
         )
-        usage = (await self._load_conversation_usage_map(scope, {conversation_id})).get(conversation_id, {})
+        usage = (await self._load_conversation_usage_map(scope, {conversation_id})).get(
+            conversation_id, {}
+        )
         actor = None
         if conversation.user_id is not None and conversation.owner_type:
             actor = (
-                await self._load_actor_map({
-                    (str(conversation.owner_type), int(conversation.user_id)),
-                })
+                await self._load_actor_map(
+                    {
+                        (str(conversation.owner_type), int(conversation.user_id)),
+                    }
+                )
             ).get((str(conversation.owner_type), int(conversation.user_id)))
 
         trace_filters = [
@@ -632,8 +720,12 @@ class MonitoringService:
                 AICallLog.created_at,
                 AICallLog.status,
                 AICallLog.request_type,
-                func.coalesce(AICallLog.model_name_snapshot, AIModel.name).label("model_name"),
-                func.coalesce(AICallLog.provider_name_snapshot, AIProvider.name).label("provider_name"),
+                func.coalesce(AICallLog.model_name_snapshot, AIModel.name).label(
+                    "model_name"
+                ),
+                func.coalesce(AICallLog.provider_name_snapshot, AIProvider.name).label(
+                    "provider_name"
+                ),
                 AICallLog.total_tokens,
                 AICallLog.cost,
                 AICallLog.latency_ms,
@@ -659,7 +751,9 @@ class MonitoringService:
                 total_tokens=self._safe_int(row.total_tokens),
                 cost=self._safe_float(row.cost),
                 latency_ms=row.latency_ms,
-                usage_mode=((row.request_metadata or {}).get("response") or {}).get("usage_mode")
+                usage_mode=((row.request_metadata or {}).get("response") or {}).get(
+                    "usage_mode"
+                )
                 if isinstance(row.request_metadata, dict)
                 else None,
                 error_message=row.error_message,
@@ -673,7 +767,9 @@ class MonitoringService:
             tenant_name=(
                 self.PLATFORM_USAGE_TENANT_NAME
                 if conversation.tenant_id == PLATFORM_TENANT_ID
-                else (await self._load_tenant_names({conversation.tenant_id})).get(conversation.tenant_id)
+                else (await self._load_tenant_names({conversation.tenant_id})).get(
+                    conversation.tenant_id
+                )
             ),
             agent_id=conversation.agent_id,
             agent_name=detail.get("agent_name"),
@@ -683,8 +779,14 @@ class MonitoringService:
             title=conversation.title,
             status=conversation.status,
             message_count=self._safe_int(detail.get("message_count")),
-            total_tokens=max(self._safe_int(detail.get("token_count")), self._safe_int(usage.get("total_tokens"))),
-            total_cost=max(self._safe_float(detail.get("cost")), self._safe_float(usage.get("total_cost"))),
+            total_tokens=max(
+                self._safe_int(detail.get("token_count")),
+                self._safe_int(usage.get("total_tokens")),
+            ),
+            total_cost=max(
+                self._safe_float(detail.get("cost")),
+                self._safe_float(usage.get("total_cost")),
+            ),
             call_count=self._safe_int(usage.get("call_count")),
             last_call_at=usage.get("last_call_at"),
             created_at=conversation.created_at,

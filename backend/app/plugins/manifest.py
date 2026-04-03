@@ -99,7 +99,9 @@ def _normalize_extension_path(
             continue
 
         if "{" in segment or "}" in segment:
-            raise ValueError(f"{field_name} contains malformed parameter segment '{segment}'")
+            raise ValueError(
+                f"{field_name} contains malformed parameter segment '{segment}'"
+            )
 
     return f"/{normalized}" if keep_leading_slash else normalized
 
@@ -344,8 +346,7 @@ class PermissionExtensionSchema(BaseModel):
         raw = "tenant" if v is None else str(v).strip()
         if raw not in _VALID_PLUGIN_PERMISSION_EXT_SCOPES:
             raise ValueError(
-                f"Invalid permission scope '{v}'. "
-                f"Expected one of: admin|tenant|both."
+                f"Invalid permission scope '{v}'. Expected one of: admin|tenant|both."
             )
         return raw
 
@@ -402,7 +403,9 @@ class HeaderWidgetSchema(BaseModel):
         if not raw:
             return ""
         if raw not in _VALID_PLUGIN_ENDPOINT_SCOPES:
-            raise ValueError(f"Invalid header widget scope '{v}'. Expected one of: admin|tenant|both.")
+            raise ValueError(
+                f"Invalid header widget scope '{v}'. Expected one of: admin|tenant|both."
+            )
         return raw
 
 
@@ -472,7 +475,9 @@ class FrontendPageSchema(BaseModel):
 
     @field_validator("scope")
     @classmethod
-    def validate_scope(cls, v: Literal["admin", "tenant"]) -> Literal["admin", "tenant"]:
+    def validate_scope(
+        cls, v: Literal["admin", "tenant"]
+    ) -> Literal["admin", "tenant"]:
         if v not in {"admin", "tenant"}:
             raise ValueError("frontend.pages[*].scope must be 'admin' or 'tenant'")
         return v
@@ -514,8 +519,7 @@ class FrontendPageSchema(BaseModel):
         expected_prefix = f"/{self.scope}/plugins/"
         if not self.path.startswith(expected_prefix):
             raise ValueError(
-                "frontend.pages[*].path must match scope prefix "
-                f"'{expected_prefix}'"
+                f"frontend.pages[*].path must match scope prefix '{expected_prefix}'"
             )
         return self
 
@@ -541,7 +545,9 @@ class DashboardWidgetSchema(BaseModel):
     def _normalize_dashboard_scope(cls, v: object) -> str:
         raw = "tenant" if v is None else str(v).strip()
         if raw not in _VALID_PLUGIN_ENDPOINT_SCOPES:
-            raise ValueError(f"Invalid dashboard widget scope '{v}'. Expected one of: admin|tenant|both.")
+            raise ValueError(
+                f"Invalid dashboard widget scope '{v}'. Expected one of: admin|tenant|both."
+            )
         return raw
 
 
@@ -558,7 +564,9 @@ class SettingsTabSchema(BaseModel):
     def _normalize_settings_tab_scope(cls, v: object) -> str:
         raw = "tenant" if v is None else str(v).strip()
         if raw not in _VALID_PLUGIN_ENDPOINT_SCOPES:
-            raise ValueError(f"Invalid settings tab scope '{v}'. Expected one of: admin|tenant|both.")
+            raise ValueError(
+                f"Invalid settings tab scope '{v}'. Expected one of: admin|tenant|both."
+            )
         return raw
 
 
@@ -969,18 +977,20 @@ _VALID_SCOPES = {e.value for e in ResourceScopeEnum}
 # New capabilities must be added to this set
 # / 已定义的插件能力白名单（与 PluginContext._require() 中使用的字符串对齐）
 # 新增能力时需要同步更新此集合
-_VALID_CAPABILITIES: frozenset[str] = frozenset({
-    "db:read",           # Read database (own tables) / 读取数据库（自有表）
-    "db:write",          # Write database (own tables) / 写入数据库（自有表）
-    "db:own_tables",     # Operate own px_ tables (includes read+write) / 操作自有 px_ 数据表
-    "platform:read",     # Read host snapshots via sandbox facade / 通过沙箱门面读取宿主快照
-    "http:outbound",     # Send outbound HTTP requests (with SSRF protection) / 发送外部 HTTP 请求
-    "storage:read",      # Read storage files / 读取存储文件
-    "storage:write",     # Write storage files / 写入存储文件
-    "ai:call",           # Call AI features (via SystemAgentAssignment) / 调用 AI 功能
-    "config:write",      # Modify plugin's own config / 修改插件自身配置
-    "notifications:send",# Send notifications / WebSocket push / 发送通知
-})
+_VALID_CAPABILITIES: frozenset[str] = frozenset(
+    {
+        "db:read",  # Read database (own tables) / 读取数据库（自有表）
+        "db:write",  # Write database (own tables) / 写入数据库（自有表）
+        "db:own_tables",  # Operate own px_ tables (includes read+write) / 操作自有 px_ 数据表
+        "platform:read",  # Read host snapshots via sandbox facade / 通过沙箱门面读取宿主快照
+        "http:outbound",  # Send outbound HTTP requests (with SSRF protection) / 发送外部 HTTP 请求
+        "storage:read",  # Read storage files / 读取存储文件
+        "storage:write",  # Write storage files / 写入存储文件
+        "ai:call",  # Call AI features (via SystemAgentAssignment) / 调用 AI 功能
+        "config:write",  # Modify plugin's own config / 修改插件自身配置
+        "notifications:send",  # Send notifications / WebSocket push / 发送通知
+    }
+)
 
 
 class PluginManifest(BaseModel):

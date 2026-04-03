@@ -21,9 +21,7 @@ from app.repositories.system.tenant_task_binding_repository import (
 from app.tasks.task_scheduling import handler_supports_tenant_dispatch
 
 
-class TaskBindingService(
-    GlobalService[TenantTaskBinding, TenantTaskBindingRepository]
-):
+class TaskBindingService(GlobalService[TenantTaskBinding, TenantTaskBindingRepository]):
     """
     任务绑定服务 / Task binding service.
     """
@@ -192,11 +190,15 @@ class TaskBindingService(
             elif definition is not None:
                 effective_scope = definition.scope
         self.validate_tenant_dispatch_scope(
-            handler_path=getattr(definition, "handler_path", None) if definition else None,
+            handler_path=getattr(definition, "handler_path", None)
+            if definition
+            else None,
             scope=effective_scope,
         )
 
-        target = set(tenant_ids if effective_scope in self.EXPLICIT_BINDING_SCOPES else [])
+        target = set(
+            tenant_ids if effective_scope in self.EXPLICIT_BINDING_SCOPES else []
+        )
         current = set(existing_map.keys())
 
         added = 0
@@ -219,7 +221,9 @@ class TaskBindingService(
                 await self.repo.update(binding.id, {"is_enabled": True})
                 reenabled += 1
 
-        stale_ids = [existing_map[tenant_id].id for tenant_id in sorted(current - target)]
+        stale_ids = [
+            existing_map[tenant_id].id for tenant_id in sorted(current - target)
+        ]
         if stale_ids:
             stmt = delete(TenantTaskBinding).where(
                 and_(

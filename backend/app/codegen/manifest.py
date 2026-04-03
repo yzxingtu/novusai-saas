@@ -88,7 +88,9 @@ class ManifestManager:
         for f in files:
             item: dict[str, Any] = {"path": f.path, "action": f.action}
             if f.action == "create" and f.content:
-                item["content_hash"] = hashlib.sha256(f.content.encode("utf-8")).hexdigest()
+                item["content_hash"] = hashlib.sha256(
+                    f.content.encode("utf-8")
+                ).hexdigest()
             elif f.action == "append" and f.appended_content:
                 item["appended_content"] = f.appended_content
             elif f.action == "merge_json" and f.merged_keys:
@@ -145,7 +147,9 @@ class ManifestManager:
                     break
             self._save_unlocked(data)
 
-    def mark_file_rollback_completed(self, resource: str, completed: bool = True) -> None:
+    def mark_file_rollback_completed(
+        self, resource: str, completed: bool = True
+    ) -> None:
         """标记文件回滚阶段是否已完成 / Mark whether file rollback stage completed."""
         lock_path = Path(str(self.path) + ".lock")
         with FileLock(lock_path):
@@ -169,7 +173,9 @@ class ManifestManager:
                     config_hash=e.get("config_hash"),
                     files=list(e.get("files", [])),
                     migration_file=e.get("migration_file"),
-                    file_rollback_completed=bool(e.get("file_rollback_completed", False)),
+                    file_rollback_completed=bool(
+                        e.get("file_rollback_completed", False)
+                    ),
                 )
         return None
 
@@ -204,7 +210,9 @@ class ManifestManager:
         lock_path = Path(str(self.path) + ".lock")
         with FileLock(lock_path):
             data = self._load()
-            data["entries"] = [e for e in data.get("entries", []) if e.get("resource") != resource]
+            data["entries"] = [
+                e for e in data.get("entries", []) if e.get("resource") != resource
+            ]
             self._save_unlocked(data)
 
     def list_entries(self) -> list[ManifestEntry]:
@@ -221,7 +229,9 @@ class ManifestManager:
                     config_hash=e.get("config_hash"),
                     files=list(e.get("files", [])),
                     migration_file=e.get("migration_file"),
-                    file_rollback_completed=bool(e.get("file_rollback_completed", False)),
+                    file_rollback_completed=bool(
+                        e.get("file_rollback_completed", False)
+                    ),
                 )
             )
         return result

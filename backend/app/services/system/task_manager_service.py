@@ -31,17 +31,13 @@ class TaskManagerService:
             kwargs=kwargs or {},
             queue=queue or "default",
         )
-        logger.info(
-            f"Task retried: {task_name} -> new task_id={result.id}"
-        )
+        logger.info(f"Task retried: {task_name} -> new task_id={result.id}")
         return result.id
 
     @staticmethod
     def cancel_task(task_id: str, terminate: bool = False) -> None:
         celery_app.control.revoke(task_id, terminate=terminate)
-        logger.info(
-            f"Task cancelled: {task_id} terminate={terminate}"
-        )
+        logger.info(f"Task cancelled: {task_id} terminate={terminate}")
 
     @staticmethod
     def get_active_tasks() -> list[dict]:
@@ -53,12 +49,14 @@ class TaskManagerService:
         tasks = []
         for worker_name, worker_tasks in active.items():
             for task in worker_tasks:
-                tasks.append({
-                    "task_id": task.get("id", ""),
-                    "task_name": task.get("name", ""),
-                    "worker": worker_name,
-                    "started_at": task.get("time_start"),
-                })
+                tasks.append(
+                    {
+                        "task_id": task.get("id", ""),
+                        "task_name": task.get("name", ""),
+                        "worker": worker_name,
+                        "started_at": task.get("time_start"),
+                    }
+                )
         return tasks
 
     @staticmethod
@@ -72,10 +70,12 @@ class TaskManagerService:
         for worker_name, worker_tasks in scheduled.items():
             for task in worker_tasks:
                 req = task.get("request", {})
-                tasks.append({
-                    "task_id": req.get("id", ""),
-                    "task_name": req.get("name", ""),
-                    "worker": worker_name,
-                    "eta": task.get("eta"),
-                })
+                tasks.append(
+                    {
+                        "task_id": req.get("id", ""),
+                        "task_name": req.get("name", ""),
+                        "worker": worker_name,
+                        "eta": task.get("eta"),
+                    }
+                )
         return tasks

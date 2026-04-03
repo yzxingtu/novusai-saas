@@ -2,7 +2,6 @@
 企业 AI 配额 Repository / Tenant AI Quota Repository
 """
 
-
 from sqlalchemy import and_, or_, select
 
 from app.core.base_repository import BaseRepository, TenantRepository
@@ -16,6 +15,7 @@ class AdminTenantQuotaRepository(BaseRepository[TenantQuota]):
 
     用于平台管理员查看所有企业的配额配置
     """
+
     model = TenantQuota
 
 
@@ -56,9 +56,11 @@ class TenantQuotaRepository(TenantRepository[TenantQuota]):
         if is_active is not None:
             conditions.append(TenantQuota.is_active.is_(is_active))
 
-        stmt = select(TenantQuota).where(
-            and_(*conditions)
-        ).order_by(TenantQuota.created_at.desc())
+        stmt = (
+            select(TenantQuota)
+            .where(and_(*conditions))
+            .order_by(TenantQuota.created_at.desc())
+        )
 
         result = await self.db.execute(stmt)
         return result.scalars().first()
@@ -94,9 +96,11 @@ class TenantQuotaRepository(TenantRepository[TenantQuota]):
         if is_active is not None:
             conditions.append(TenantQuota.is_active.is_(is_active))
 
-        stmt = select(TenantQuota).where(
-            and_(*conditions)
-        ).order_by(TenantQuota.created_at.desc())
+        stmt = (
+            select(TenantQuota)
+            .where(and_(*conditions))
+            .order_by(TenantQuota.created_at.desc())
+        )
 
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
@@ -132,14 +136,18 @@ class TenantQuotaRepository(TenantRepository[TenantQuota]):
         Returns:
             TenantQuota 实例或 None
         """
-        stmt = select(TenantQuota).where(
-            and_(
-                TenantQuota.tenant_id == tenant_id,
-                TenantQuota.model_id == model_id,
-                TenantQuota.is_active.is_(True),
-                TenantQuota.is_deleted.is_(False),
+        stmt = (
+            select(TenantQuota)
+            .where(
+                and_(
+                    TenantQuota.tenant_id == tenant_id,
+                    TenantQuota.model_id == model_id,
+                    TenantQuota.is_active.is_(True),
+                    TenantQuota.is_deleted.is_(False),
+                )
             )
-        ).order_by(TenantQuota.created_at.desc())
+            .order_by(TenantQuota.created_at.desc())
+        )
 
         result = await self.db.execute(stmt)
         return result.scalars().first()
@@ -153,17 +161,21 @@ class TenantQuotaRepository(TenantRepository[TenantQuota]):
         获取运行时生效配额（按周期分别选择：模型专属优先，否则回退到全局）/
         Get runtime effective quotas by period (model-specific first, otherwise global fallback).
         """
-        stmt = select(TenantQuota).where(
-            and_(
-                TenantQuota.tenant_id == tenant_id,
-                TenantQuota.is_active.is_(True),
-                TenantQuota.is_deleted.is_(False),
-                or_(
-                    TenantQuota.model_id == model_id,
-                    TenantQuota.model_id.is_(None),
-                ),
+        stmt = (
+            select(TenantQuota)
+            .where(
+                and_(
+                    TenantQuota.tenant_id == tenant_id,
+                    TenantQuota.is_active.is_(True),
+                    TenantQuota.is_deleted.is_(False),
+                    or_(
+                        TenantQuota.model_id == model_id,
+                        TenantQuota.model_id.is_(None),
+                    ),
+                )
             )
-        ).order_by(TenantQuota.created_at.desc())
+            .order_by(TenantQuota.created_at.desc())
+        )
 
         result = await self.db.execute(stmt)
         quotas = list(result.scalars().all())
@@ -206,8 +218,10 @@ class TenantQuotaRepository(TenantRepository[TenantQuota]):
         else:
             conditions.append(TenantQuota.model_id == model_id)
 
-        stmt = select(TenantQuota).where(and_(*conditions)).order_by(
-            TenantQuota.created_at.desc()
+        stmt = (
+            select(TenantQuota)
+            .where(and_(*conditions))
+            .order_by(TenantQuota.created_at.desc())
         )
         result = await self.db.execute(stmt)
         return result.scalars().first()

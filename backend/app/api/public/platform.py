@@ -68,7 +68,9 @@ async def get_platform_public_config(db: DbSession):
                 captcha_plugin.to_public_payload() if captcha_plugin else None
             ),
             captcha_difficulty=configs.get("captcha_difficulty"),
-            captcha_enable_threshold_admin=configs.get("captcha_enable_threshold_admin"),
+            captcha_enable_threshold_admin=configs.get(
+                "captcha_enable_threshold_admin"
+            ),
             login_max_attempts=configs.get("login_max_attempts"),
             login_lockout_minutes=configs.get("login_lockout_minutes"),
             password_min_length=configs.get("password_min_length"),

@@ -61,15 +61,11 @@ def get_db_registered_plugin_names(*, db_url: str | None = None) -> list[str]:
         with engine.connect() as conn:
             rows = conn.execute(
                 text(
-                    "SELECT name "
-                    "FROM plugins "
-                    "WHERE COALESCE(is_deleted, FALSE) = FALSE"
+                    "SELECT name FROM plugins WHERE COALESCE(is_deleted, FALSE) = FALSE"
                 )
             ).fetchall()
         names = {
-            str(row[0]).strip()
-            for row in rows
-            if row and str(row[0] or "").strip()
+            str(row[0]).strip() for row in rows if row and str(row[0] or "").strip()
         }
         return sorted(names)
     except Exception as exc:
@@ -91,11 +87,11 @@ def get_alembic_version_nums(*, db_url: str | None = None) -> set[str]:
     engine = create_engine(target_db_url, echo=False)
     try:
         with engine.connect() as conn:
-            rows = conn.execute(text("SELECT version_num FROM alembic_version")).fetchall()
+            rows = conn.execute(
+                text("SELECT version_num FROM alembic_version")
+            ).fetchall()
         return {
-            str(row[0]).strip()
-            for row in rows
-            if row and str(row[0] or "").strip()
+            str(row[0]).strip() for row in rows if row and str(row[0] or "").strip()
         }
     except Exception as exc:
         logger.debug("Cannot resolve stamped alembic revisions for migrations: %s", exc)
@@ -137,7 +133,9 @@ def resolve_plugin_revision_ids(
     revision_ids: set[str] = set()
     for script_path in versions_dir.glob("*.py"):
         try:
-            lines = script_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+            lines = script_path.read_text(
+                encoding="utf-8", errors="ignore"
+            ).splitlines()
         except Exception as exc:
             logger.debug("Cannot read migration script %s: %s", script_path, exc)
             continue

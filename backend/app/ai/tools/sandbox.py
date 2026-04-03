@@ -70,12 +70,14 @@ _PARAM_KEY_TO_OP: list[tuple[frozenset[str], str]] = [
 
 # Top-level keys allowed for invoke_page_operation. Others must go in params.
 # invoke_page_operation 允许的顶层字段，其他参数必须放入 params。
-_INVOKE_PAGE_OP_TOP_LEVEL_WHITELIST = frozenset({
-    "page_key",
-    "operation_name",
-    "params",
-    "requires_confirmation",
-})
+_INVOKE_PAGE_OP_TOP_LEVEL_WHITELIST = frozenset(
+    {
+        "page_key",
+        "operation_name",
+        "params",
+        "requires_confirmation",
+    }
+)
 
 _RESERVED_ARG_KEYS = frozenset({"page_key", "operation_name", "params"})
 
@@ -241,18 +243,23 @@ class ToolSandbox:
         self._executors[ToolTypeEnum.DATA_DELETE.value] = DeleteRecordExecutor()
         # HTTP/Webhook executor / HTTP/Webhook 执行器
         from app.ai.tools.executors.http_executor import HttpToolExecutor
+
         self._executors[ToolTypeEnum.HTTP.value] = HttpToolExecutor()
         # Email executor / 邮件执行器
         from app.ai.tools.executors.email_executor import EmailToolExecutor
+
         self._executors[ToolTypeEnum.EMAIL.value] = EmailToolExecutor()
         # Code executor / 代码执行器
         from app.ai.tools.executors.code_execution_executor import CodeExecutionExecutor
+
         self._executors[ToolTypeEnum.CODE_EXECUTION.value] = CodeExecutionExecutor()
         # Page context executor (matched by tool name, prioritized over type-based lookup) / 页面上下文执行器
         from app.ai.tools.executors.page_context_executor import PageContextExecutor
+
         self._named_executors["get_page_context"] = PageContextExecutor()
         # Page operation executor (dispatches operations to frontend via WebSocket) / 页面操作执行器
         from app.ai.tools.executors.page_operation_executor import PageOperationExecutor
+
         self._named_executors["invoke_page_operation"] = PageOperationExecutor()
 
     def get_executor(self, tool_type: str) -> BaseToolExecutor | None:
@@ -297,7 +304,9 @@ class ToolSandbox:
         # invoke_page_operation transparently.
         if not definition and definitions:
             redirect_target = self._try_redirect_to_page_op(
-                name, arguments, definitions,
+                name,
+                arguments,
+                definitions,
             )
             if redirect_target is not None:
                 name, arguments, definition = redirect_target
@@ -315,7 +324,9 @@ class ToolSandbox:
         if definition.config.get("underlying_operation"):
             underlying = definition.config["underlying_operation"]
             variables = self.input_variables or {}
-            page_ctx = variables.get(PAGE_CONTEXT_KEY) if isinstance(variables, dict) else None
+            page_ctx = (
+                variables.get(PAGE_CONTEXT_KEY) if isinstance(variables, dict) else None
+            )
             page_key = ""
             if isinstance(page_ctx, dict):
                 page_key = (page_ctx.get("page_key") or "").strip()
@@ -349,8 +360,7 @@ class ToolSandbox:
             # being silently dropped when placed at top level.
             # 顶层字段白名单：拒绝未知 key，避免 content/old_html/new_html 放错位置被静默丢失
             unknown_top = [
-                k for k in arguments
-                if k not in _INVOKE_PAGE_OP_TOP_LEVEL_WHITELIST
+                k for k in arguments if k not in _INVOKE_PAGE_OP_TOP_LEVEL_WHITELIST
             ]
             if unknown_top:
                 return ToolResult(
@@ -365,9 +375,13 @@ class ToolSandbox:
                 )
 
             variables = self.input_variables or {}
-            page_ctx = variables.get(PAGE_CONTEXT_KEY) if isinstance(variables, dict) else None
+            page_ctx = (
+                variables.get(PAGE_CONTEXT_KEY) if isinstance(variables, dict) else None
+            )
 
-            if not (arguments.get("page_key") or "").strip() and isinstance(page_ctx, dict):
+            if not (arguments.get("page_key") or "").strip() and isinstance(
+                page_ctx, dict
+            ):
                 pk = (page_ctx.get("page_key") or "").strip()
                 if pk:
                     arguments["page_key"] = pk
@@ -384,8 +398,7 @@ class ToolSandbox:
                         error_type="invalid_input",
                     )
                 extra_keys = {
-                    k: v for k, v in arguments.items()
-                    if k not in _RESERVED_ARG_KEYS
+                    k: v for k, v in arguments.items() if k not in _RESERVED_ARG_KEYS
                 }
                 effective_params = nested_params if nested_params else extra_keys
 
@@ -410,7 +423,8 @@ class ToolSandbox:
                             ops = pd.get("available_operations")
                             if isinstance(ops, list):
                                 available_ops = [
-                                    o.get("name", "") for o in ops
+                                    o.get("name", "")
+                                    for o in ops
                                     if isinstance(o, dict) and o.get("name")
                                 ]
                     pk = (arguments.get("page_key") or "").strip()
@@ -423,14 +437,19 @@ class ToolSandbox:
                     )
                     ops_hint = (
                         f" Available operations: {', '.join(available_ops)}."
-                        if available_ops else ""
+                        if available_ops
+                        else ""
                     )
                     example = (
-                        f' Example: invoke_page_operation('
-                        f'page_key="{pk}", '
-                        f'operation_name="replace_content", '
-                        f'params={{"content": "<h1>Title</h1><p>Body</p>"}})'
-                    ) if pk else ""
+                        (
+                            f" Example: invoke_page_operation("
+                            f'page_key="{pk}", '
+                            f'operation_name="replace_content", '
+                            f'params={{"content": "<h1>Title</h1><p>Body</p>"}})'
+                        )
+                        if pk
+                        else ""
+                    )
                     return ToolResult(
                         tool_call_id=tool_call_id,
                         name=name,
@@ -462,13 +481,15 @@ class ToolSandbox:
             )
 
         # 2. Publish request event / 发布请求事件
-        await event_bus.publish(ToolCallRequested(
-            tenant_id=self.tenant_id,
-            conversation_id=conversation_id,
-            tool_name=name,
-            tool_call_id=tool_call_id,
-            arguments=arguments,
-        ))
+        await event_bus.publish(
+            ToolCallRequested(
+                tenant_id=self.tenant_id,
+                conversation_id=conversation_id,
+                tool_name=name,
+                tool_call_id=tool_call_id,
+                arguments=arguments,
+            )
+        )
 
         # 3. BEFORE_TOOL_CALL hook / BEFORE_TOOL_CALL 钩子
         hook_context = await hook_registry.trigger(
@@ -498,11 +519,20 @@ class ToolSandbox:
         if definition.source_plugin:
             try:
                 from app.plugins.registry import ExtensionRegistry
-                executor = ExtensionRegistry.get_instance().get_plugin_executor(definition.source_plugin)
+
+                executor = ExtensionRegistry.get_instance().get_plugin_executor(
+                    definition.source_plugin
+                )
             except Exception as pe:
-                logger.warning("Plugin executor lookup failed for {}: {}", definition.source_plugin, pe)
+                logger.warning(
+                    "Plugin executor lookup failed for {}: {}",
+                    definition.source_plugin,
+                    pe,
+                )
         if not executor:
-            executor = self._named_executors.get(name) or self._executors.get(definition.tool_type)
+            executor = self._named_executors.get(name) or self._executors.get(
+                definition.tool_type
+            )
         if not executor:
             return ToolResult(
                 tool_call_id=tool_call_id,
@@ -541,7 +571,8 @@ class ToolSandbox:
         except Exception as val_exc:
             logger.warning(
                 "Executor validate() error for {}: {}",
-                name, str(val_exc),
+                name,
+                str(val_exc),
             )
             return ToolResult(
                 tool_call_id=tool_call_id,
@@ -615,22 +646,26 @@ class ToolSandbox:
 
         # 10. Publish result event / 发布结果事件
         if result.success:
-            await event_bus.publish(ToolCallCompleted(
-                tenant_id=self.tenant_id,
-                conversation_id=conversation_id,
-                tool_name=name,
-                tool_call_id=tool_call_id,
-                result=result.output,
-                duration_ms=result.duration_ms,
-            ))
+            await event_bus.publish(
+                ToolCallCompleted(
+                    tenant_id=self.tenant_id,
+                    conversation_id=conversation_id,
+                    tool_name=name,
+                    tool_call_id=tool_call_id,
+                    result=result.output,
+                    duration_ms=result.duration_ms,
+                )
+            )
         else:
-            await event_bus.publish(ToolCallFailed(
-                tenant_id=self.tenant_id,
-                conversation_id=conversation_id,
-                tool_name=name,
-                tool_call_id=tool_call_id,
-                error=result.error,
-            ))
+            await event_bus.publish(
+                ToolCallFailed(
+                    tenant_id=self.tenant_id,
+                    conversation_id=conversation_id,
+                    tool_name=name,
+                    tool_call_id=tool_call_id,
+                    error=result.error,
+                )
+            )
 
         # 11. Log skill call (fire-and-forget, non-blocking) / 记录技能调用日志
         try:
@@ -679,6 +714,7 @@ class ToolSandbox:
             return
 
         from app.models.ai.skill_call_log import SkillCallLog
+
         log = SkillCallLog(
             tenant_id=self.tenant_id,
             skill_id=definition.source_skill_id,
@@ -742,7 +778,9 @@ class ToolSandbox:
 
         if not op_names:
             variables = self.input_variables or {}
-            page_ctx = variables.get(PAGE_CONTEXT_KEY) if isinstance(variables, dict) else None
+            page_ctx = (
+                variables.get(PAGE_CONTEXT_KEY) if isinstance(variables, dict) else None
+            )
             if isinstance(page_ctx, dict):
                 pd = page_ctx.get("page_data")
                 if isinstance(pd, dict):

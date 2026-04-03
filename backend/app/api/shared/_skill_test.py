@@ -56,7 +56,9 @@ async def test_skill(db: AsyncSession, skill: Skill) -> dict[str, Any]:
     except Exception as exc:
         logger.warning(
             "Skill test failed: skill={} type={} error={}",
-            skill.id, skill_type, str(exc),
+            skill.id,
+            skill_type,
+            str(exc),
         )
         return {
             "success": False,
@@ -84,6 +86,7 @@ async def _test_data_intelligence(
             table_count = 0
             try:
                 from app.ai.data_intelligence.schema_provider import SchemaProvider
+
                 descs = await SchemaProvider.get_table_descriptions(db)
                 table_count = len(descs) if descs else 0
             except Exception:
@@ -103,10 +106,13 @@ async def _test_data_intelligence(
     except Exception as exc:
         return {
             "success": False,
-            "message": _("skill.test.di_error", error=build_public_error_text(
-                exc=exc,
-                message=_("common.server_error"),
-            )),
+            "message": _(
+                "skill.test.di_error",
+                error=build_public_error_text(
+                    exc=exc,
+                    message=_("common.server_error"),
+                ),
+            ),
             "details": None,
         }
 
@@ -153,8 +159,7 @@ async def _test_toolkit(
         if errors:
             return {
                 "success": False,
-                "message": _("skill.test.toolkit_invalid",
-                             errors="; ".join(errors)),
+                "message": _("skill.test.toolkit_invalid", errors="; ".join(errors)),
                 "details": {"validation_errors": errors},
             }
 
@@ -163,9 +168,11 @@ async def _test_toolkit(
         if not skill.is_system:
             from app.ai.tools.executors.toolkit_executor import _scan_toolkit_security
             from app.configs.service import ConfigService
+
             cfg = ConfigService(db)
             security_level = await cfg.get_platform_config(
-                "toolkit_security_level", default="normal",
+                "toolkit_security_level",
+                default="normal",
             )
             violations = _scan_toolkit_security(toolkit_content, str(security_level))
             if violations:
@@ -188,19 +195,24 @@ async def _test_toolkit(
             "message": (
                 _("skill.test.toolkit_security_warn", count=len(security_warnings))
                 if security_warnings
-                else _("skill.test.toolkit_ok",
-                        tools=len(meta.tools),
-                        valves=bool(meta.valves_schema))
+                else _(
+                    "skill.test.toolkit_ok",
+                    tools=len(meta.tools),
+                    valves=bool(meta.valves_schema),
+                )
             ),
             "details": details,
         }
     except Exception as exc:
         return {
             "success": False,
-            "message": _("skill.test.toolkit_error", error=build_public_error_text(
-                exc=exc,
-                message=_("common.server_error"),
-            )),
+            "message": _(
+                "skill.test.toolkit_error",
+                error=build_public_error_text(
+                    exc=exc,
+                    message=_("common.server_error"),
+                ),
+            ),
             "details": None,
         }
 
@@ -222,11 +234,16 @@ async def _test_http(
 
     try:
         import httpx
+
         async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
-            resp = await client.request(method="HEAD" if method == "GET" else method, url=url)
+            resp = await client.request(
+                method="HEAD" if method == "GET" else method, url=url
+            )
             return {
                 "success": resp.status_code < 500,
-                "message": _("skill.test.http_ok", status=resp.status_code, method=method),
+                "message": _(
+                    "skill.test.http_ok", status=resp.status_code, method=method
+                ),
                 "details": {
                     "url": url,
                     "method": method,
@@ -238,10 +255,13 @@ async def _test_http(
     except Exception as exc:
         return {
             "success": False,
-            "message": _("skill.test.http_error", error=build_public_error_text(
-                exc=exc,
-                message=_("common.server_error"),
-            )),
+            "message": _(
+                "skill.test.http_error",
+                error=build_public_error_text(
+                    exc=exc,
+                    message=_("common.server_error"),
+                ),
+            ),
             "details": {"url": url, "method": method},
         }
 
@@ -253,6 +273,7 @@ async def _test_email(
     """测试 Email Skill：检查 SMTP 配置可用性 / Test Email Skill: check SMTP config availability."""
     try:
         from app.services.common.email_service import EmailService
+
         service = EmailService(db)
         smtp_config = await service._load_smtp_config()
 
@@ -267,7 +288,9 @@ async def _test_email(
         if issues:
             return {
                 "success": False,
-                "message": _("skill.test.email_config_issues", issues=", ".join(issues)),
+                "message": _(
+                    "skill.test.email_config_issues", issues=", ".join(issues)
+                ),
                 "details": {
                     "enabled": smtp_config.enabled,
                     "host": smtp_config.host or "(not set)",
@@ -293,10 +316,13 @@ async def _test_email(
     except Exception as exc:
         return {
             "success": False,
-            "message": _("skill.test.email_error", error=build_public_error_text(
-                exc=exc,
-                message=_("common.server_error"),
-            )),
+            "message": _(
+                "skill.test.email_error",
+                error=build_public_error_text(
+                    exc=exc,
+                    message=_("common.server_error"),
+                ),
+            ),
             "details": None,
         }
 
@@ -319,7 +345,9 @@ def _test_code_execution(
 
     return {
         "success": True,
-        "message": _("skill.test.code_ok", modules=len(allowed_modules), timeout=timeout),
+        "message": _(
+            "skill.test.code_ok", modules=len(allowed_modules), timeout=timeout
+        ),
         "details": {
             "language": language,
             "timeout": timeout,

@@ -176,10 +176,12 @@ class TenantKnowledgeBaseController(TenantController):
                         KnowledgeBase.scope == ResourceScopeEnum.GLOBAL_SHARED.value,
                         # 已分配给当前企业的 KB / KBs assigned to current tenant
                         and_(
-                            KnowledgeBase.scope.in_([
-                                ResourceScopeEnum.SELECTED_TENANTS.value,
-                                ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
-                            ]),
+                            KnowledgeBase.scope.in_(
+                                [
+                                    ResourceScopeEnum.SELECTED_TENANTS.value,
+                                    ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+                                ]
+                            ),
                             KnowledgeBase.id.in_(assigned_subq),
                         ),
                     ),
@@ -300,7 +302,8 @@ class TenantKnowledgeBaseController(TenantController):
                 raise NotFoundException(message=_("knowledge_base.error.not_found"))
 
             updated = await service.update(
-                kb_id, data.model_dump(exclude_unset=True),
+                kb_id,
+                data.model_dump(exclude_unset=True),
             )
             await db.commit()
 
@@ -364,9 +367,9 @@ class TenantKnowledgeBaseController(TenantController):
             doc_service = KnowledgeDocumentService(db, tenant_admin.tenant_id)
 
             # 添加知识库 ID 过滤 / Add knowledge base ID filter
-            query.filters.append(FilterRule(
-                field="knowledge_base_id", op=FilterOp.eq, value=str(kb_id)
-            ))
+            query.filters.append(
+                FilterRule(field="knowledge_base_id", op=FilterOp.eq, value=str(kb_id))
+            )
 
             items, total = await doc_service.query_list(spec=query)
             result = [doc.to_dict() for doc in items]
@@ -431,6 +434,7 @@ class TenantKnowledgeBaseController(TenantController):
 
             # 复用附件系统上传 / Reuse attachment system for upload
             import io
+
             attachment_service = AttachmentService(db, tenant_admin.tenant_id)
             upload_result = await attachment_service.upload_file(
                 content=io.BytesIO(file_bytes),
@@ -447,19 +451,22 @@ class TenantKnowledgeBaseController(TenantController):
             attachment = upload_result["attachment"]
 
             # 创建文档记录 / Create document record
-            doc = await doc_service.create({
-                "knowledge_base_id": kb_id,
-                "attachment_id": attachment.id,
-                "file_name": filename,
-                "file_type": file_type,
-                "file_size": file_size,
-                "file_hash": file_hash,
-                "status": DocumentStatusEnum.PENDING.value,
-            })
+            doc = await doc_service.create(
+                {
+                    "knowledge_base_id": kb_id,
+                    "attachment_id": attachment.id,
+                    "file_name": filename,
+                    "file_type": file_type,
+                    "file_size": file_size,
+                    "file_hash": file_hash,
+                    "status": DocumentStatusEnum.PENDING.value,
+                }
+            )
             await db.commit()
 
             # 触发 Celery 异步处理 / Trigger Celery async processing
             from app.ai.rag.processor import process_document
+
             process_document.delay(
                 tenant_id=tenant_admin.tenant_id,
                 document_id=doc.id,
@@ -528,18 +535,21 @@ class TenantKnowledgeBaseController(TenantController):
                 )
 
             safe_title = data.title.replace("/", "_").replace("\\", "_")
-            doc = await doc_service.create({
-                "knowledge_base_id": kb_id,
-                "file_name": f"{safe_title}.txt",
-                "file_type": DocumentTypeEnum.TXT.value,
-                "file_size": len(content_bytes),
-                "file_hash": content_hash,
-                "status": DocumentStatusEnum.PENDING.value,
-                "metadata_extra": data.content,
-            })
+            doc = await doc_service.create(
+                {
+                    "knowledge_base_id": kb_id,
+                    "file_name": f"{safe_title}.txt",
+                    "file_type": DocumentTypeEnum.TXT.value,
+                    "file_size": len(content_bytes),
+                    "file_hash": content_hash,
+                    "status": DocumentStatusEnum.PENDING.value,
+                    "metadata_extra": data.content,
+                }
+            )
             await db.commit()
 
             from app.ai.rag.processor import process_document
+
             process_document.delay(
                 tenant_id=tenant_admin.tenant_id,
                 document_id=doc.id,
@@ -580,20 +590,22 @@ class TenantKnowledgeBaseController(TenantController):
                 page_size=page_size,
             )
 
-            return success(data={
-                "chunks": [
-                    {
-                        "id": c.id,
-                        "chunk_index": c.chunk_index,
-                        "content": c.content,
-                        "char_count": c.char_count,
-                        "token_count": c.token_count,
-                        "metadata": c.metadata_,
-                    }
-                    for c in chunks
-                ],
-                "total": doc.chunk_count or 0,
-            })
+            return success(
+                data={
+                    "chunks": [
+                        {
+                            "id": c.id,
+                            "chunk_index": c.chunk_index,
+                            "content": c.content,
+                            "char_count": c.char_count,
+                            "token_count": c.token_count,
+                            "metadata": c.metadata_,
+                        }
+                        for c in chunks
+                    ],
+                    "total": doc.chunk_count or 0,
+                }
+            )
 
         @router.delete("/{kb_id}/documents/{doc_id}", summary="删除文档")
         @action_delete("action.knowledge_base.document_delete")
@@ -632,6 +644,7 @@ class TenantKnowledgeBaseController(TenantController):
             await db.commit()
 
             from app.ai.rag.retriever import HybridRetriever
+
             await HybridRetriever.invalidate_kb_cache(kb_id)
 
             return deleted(message=_("knowledge_base.document.deleted"))
@@ -674,6 +687,7 @@ class TenantKnowledgeBaseController(TenantController):
 
             # 触发 Celery 重新处理 / Trigger Celery reprocessing
             from app.ai.rag.processor import process_document
+
             process_document.delay(
                 tenant_id=tenant_admin.tenant_id,
                 document_id=doc.id,
@@ -719,7 +733,9 @@ class TenantKnowledgeBaseController(TenantController):
                     "stage": doc.status,
                     "progress": 100 if doc.status == "completed" else 0,
                     "total_chunks": doc.chunk_count,
-                    "processed_chunks": doc.chunk_count if doc.status == "completed" else 0,
+                    "processed_chunks": doc.chunk_count
+                    if doc.status == "completed"
+                    else 0,
                 }
 
             return success(data=progress)
@@ -748,6 +764,7 @@ class TenantKnowledgeBaseController(TenantController):
             count = await kb_service.reindex_knowledge_base(kb_id)
 
             from app.ai.rag.retriever import HybridRetriever
+
             await HybridRetriever.invalidate_kb_cache(kb_id)
 
             return success(
@@ -798,17 +815,22 @@ class TenantKnowledgeBaseController(TenantController):
             # 创建文档记录（metadata_extra 存储原始 Q&A JSON，供 reindex 使用）
             # Create document record (metadata_extra stores original Q&A JSON for reindex)
             import json as _json
-            doc = await doc_service.create({
-                "knowledge_base_id": kb_id,
-                "file_name": f"qa_{content_hash[:8]}.txt",
-                "file_type": DocumentTypeEnum.QA.value,
-                "file_size": len(qa_content.encode("utf-8")),
-                "file_hash": content_hash,
-                "status": DocumentStatusEnum.COMPLETED.value,
-                "chunk_count": 1,
-                "char_count": len(qa_content),
-                "metadata_extra": _json.dumps({"question": data.question, "answer": data.answer}),
-            })
+
+            doc = await doc_service.create(
+                {
+                    "knowledge_base_id": kb_id,
+                    "file_name": f"qa_{content_hash[:8]}.txt",
+                    "file_type": DocumentTypeEnum.QA.value,
+                    "file_size": len(qa_content.encode("utf-8")),
+                    "file_hash": content_hash,
+                    "status": DocumentStatusEnum.COMPLETED.value,
+                    "chunk_count": 1,
+                    "char_count": len(qa_content),
+                    "metadata_extra": _json.dumps(
+                        {"question": data.question, "answer": data.answer}
+                    ),
+                }
+            )
 
             # 直接创建 chunk（无需 Celery 异步） / Directly create chunk (no Celery async needed)
             from app.ai.rag.embedding import EmbeddingService
@@ -822,21 +844,23 @@ class TenantKnowledgeBaseController(TenantController):
 
             token_count = estimate_tokens(qa_content)
 
-            await chunk_service.create({
-                "document_id": doc.id,
-                "knowledge_base_id": kb_id,
-                "chunk_index": 0,
-                "content": qa_content,
-                "content_hash": content_hash,
-                "embedding": embeddings,
-                "char_count": len(qa_content),
-                "token_count": token_count,
-                "metadata_": {
-                    "type": "qa",
-                    "question": data.question,
-                    "answer": data.answer,
-                },
-            })
+            await chunk_service.create(
+                {
+                    "document_id": doc.id,
+                    "knowledge_base_id": kb_id,
+                    "chunk_index": 0,
+                    "content": qa_content,
+                    "content_hash": content_hash,
+                    "embedding": embeddings,
+                    "char_count": len(qa_content),
+                    "token_count": token_count,
+                    "metadata_": {
+                        "type": "qa",
+                        "question": data.question,
+                        "answer": data.answer,
+                    },
+                }
+            )
 
             # 更新文档 token_count / Update document token_count
             doc.token_count = token_count
@@ -846,6 +870,7 @@ class TenantKnowledgeBaseController(TenantController):
             await db.commit()
 
             from app.ai.rag.retriever import HybridRetriever
+
             await HybridRetriever.invalidate_kb_cache(kb_id)
 
             return created(
@@ -930,32 +955,39 @@ class TenantKnowledgeBaseController(TenantController):
 
                 try:
                     import json as _json
-                    doc = await doc_service.create({
-                        "knowledge_base_id": kb_id,
-                        "file_name": f"qa_{content_hash[:8]}.txt",
-                        "file_type": DocumentTypeEnum.QA.value,
-                        "file_size": len(qa_content.encode("utf-8")),
-                        "file_hash": content_hash,
-                        "status": DocumentStatusEnum.COMPLETED.value,
-                        "chunk_count": 1,
-                        "char_count": len(qa_content),
-                        "metadata_extra": _json.dumps({"question": q, "answer": a}),
-                    })
 
-                    embeddings = await embedding_service.generate_embedding(qa_content, kb)
+                    doc = await doc_service.create(
+                        {
+                            "knowledge_base_id": kb_id,
+                            "file_name": f"qa_{content_hash[:8]}.txt",
+                            "file_type": DocumentTypeEnum.QA.value,
+                            "file_size": len(qa_content.encode("utf-8")),
+                            "file_hash": content_hash,
+                            "status": DocumentStatusEnum.COMPLETED.value,
+                            "chunk_count": 1,
+                            "char_count": len(qa_content),
+                            "metadata_extra": _json.dumps({"question": q, "answer": a}),
+                        }
+                    )
+
+                    embeddings = await embedding_service.generate_embedding(
+                        qa_content, kb
+                    )
                     token_count = estimate_tokens(qa_content)
 
-                    await chunk_service.create({
-                        "document_id": doc.id,
-                        "knowledge_base_id": kb_id,
-                        "chunk_index": 0,
-                        "content": qa_content,
-                        "content_hash": content_hash,
-                        "embedding": embeddings,
-                        "char_count": len(qa_content),
-                        "token_count": token_count,
-                        "metadata_": {"type": "qa", "question": q, "answer": a},
-                    })
+                    await chunk_service.create(
+                        {
+                            "document_id": doc.id,
+                            "knowledge_base_id": kb_id,
+                            "chunk_index": 0,
+                            "content": qa_content,
+                            "content_hash": content_hash,
+                            "embedding": embeddings,
+                            "char_count": len(qa_content),
+                            "token_count": token_count,
+                            "metadata_": {"type": "qa", "question": q, "answer": a},
+                        }
+                    )
                     doc.token_count = token_count
                     imported += 1
                 except Exception as exc:
@@ -968,13 +1000,16 @@ class TenantKnowledgeBaseController(TenantController):
             await db.commit()
 
             from app.ai.rag.retriever import HybridRetriever
+
             await HybridRetriever.invalidate_kb_cache(kb_id)
 
-            return success(data={
-                "imported": imported,
-                "skipped": skipped,
-                "errors": errors[:20],
-            })
+            return success(
+                data={
+                    "imported": imported,
+                    "skipped": skipped,
+                    "errors": errors[:20],
+                }
+            )
 
         # ========================================
         # URL 网页导入 / URL Web Page Import
@@ -1015,31 +1050,36 @@ class TenantKnowledgeBaseController(TenantController):
                 if existing:
                     continue
 
-                doc = await doc_service.create({
-                    "knowledge_base_id": kb_id,
-                    "file_name": url[:200],
-                    "file_type": DocumentTypeEnum.URL.value,
-                    "file_size": len(url.encode("utf-8")),
-                    "file_hash": url_hash,
-                    "source_url": url,
-                    "status": DocumentStatusEnum.PENDING.value,
-                    "metadata_extra": url,
-                })
+                doc = await doc_service.create(
+                    {
+                        "knowledge_base_id": kb_id,
+                        "file_name": url[:200],
+                        "file_type": DocumentTypeEnum.URL.value,
+                        "file_size": len(url.encode("utf-8")),
+                        "file_hash": url_hash,
+                        "source_url": url,
+                        "status": DocumentStatusEnum.PENDING.value,
+                        "metadata_extra": url,
+                    }
+                )
                 created_docs.append(doc.to_dict())
 
             await db.commit()
 
             from app.ai.rag.processor import process_document
+
             for doc_dict in created_docs:
                 process_document.delay(
                     tenant_id=tenant_admin.tenant_id,
                     document_id=doc_dict["id"],
                 )
 
-            return success(data={
-                "created": len(created_docs),
-                "documents": created_docs,
-            })
+            return success(
+                data={
+                    "created": len(created_docs),
+                    "documents": created_docs,
+                }
+            )
 
         # ========================================
         # 检索测试 / Search Testing
@@ -1078,18 +1118,20 @@ class TenantKnowledgeBaseController(TenantController):
                 search_mode=data.search_mode,
             )
 
-            return success(data=[
-                {
-                    "chunk_id": r.chunk_id,
-                    "content": r.content,
-                    "score": r.score,
-                    "metadata": r.metadata,
-                    "document_name": r.document_name,
-                    "document_id": r.document_id,
-                    "highlight": r.highlight,
-                }
-                for r in results
-            ])
+            return success(
+                data=[
+                    {
+                        "chunk_id": r.chunk_id,
+                        "content": r.content,
+                        "score": r.score,
+                        "metadata": r.metadata,
+                        "document_name": r.document_name,
+                        "document_id": r.document_id,
+                        "highlight": r.highlight,
+                    }
+                    for r in results
+                ]
+            )
 
 
 # 导出路由器 / Export router

@@ -35,12 +35,12 @@ async def get_skill_stats_by_id(
     """
     stmt = select(
         func.count().label("total_calls"),
-        func.sum(
-            case((AIActionLog.status == "success", 1), else_=0)
-        ).label("success_count"),
-        func.sum(
-            case((AIActionLog.status != "success", 1), else_=0)
-        ).label("failure_count"),
+        func.sum(case((AIActionLog.status == "success", 1), else_=0)).label(
+            "success_count"
+        ),
+        func.sum(case((AIActionLog.status != "success", 1), else_=0)).label(
+            "failure_count"
+        ),
         func.avg(AIActionLog.duration_ms).label("avg_duration_ms"),
         func.max(AIActionLog.created_at).label("last_called_at"),
     ).where(
@@ -62,7 +62,9 @@ async def get_skill_stats_by_id(
         "failure_count": failure_count,
         "success_rate": round(success_count / total, 4) if total > 0 else 0,
         "avg_duration_ms": round(float(row.avg_duration_ms or 0), 1),
-        "last_called_at": row.last_called_at.isoformat() if row.last_called_at else None,
+        "last_called_at": row.last_called_at.isoformat()
+        if row.last_called_at
+        else None,
     }
 
 
@@ -88,9 +90,9 @@ async def get_all_skills_stats(
             Skill.name.label("skill_name"),
             Skill.type.label("skill_type"),
             func.count().label("total_calls"),
-            func.sum(
-                case((AIActionLog.status == "success", 1), else_=0)
-            ).label("success_count"),
+            func.sum(case((AIActionLog.status == "success", 1), else_=0)).label(
+                "success_count"
+            ),
             func.avg(AIActionLog.duration_ms).label("avg_duration_ms"),
             func.max(AIActionLog.created_at).label("last_called_at"),
         )
@@ -113,17 +115,21 @@ async def get_all_skills_stats(
     for row in rows:
         total = row.total_calls or 0
         sc = row.success_count or 0
-        stats.append({
-            "skill_id": row.skill_id,
-            "skill_name": row.skill_name,
-            "skill_type": row.skill_type,
-            "total_calls": total,
-            "success_count": sc,
-            "failure_count": total - sc,
-            "success_rate": round(sc / total, 4) if total > 0 else 0,
-            "avg_duration_ms": round(float(row.avg_duration_ms or 0), 1),
-            "last_called_at": row.last_called_at.isoformat() if row.last_called_at else None,
-        })
+        stats.append(
+            {
+                "skill_id": row.skill_id,
+                "skill_name": row.skill_name,
+                "skill_type": row.skill_type,
+                "total_calls": total,
+                "success_count": sc,
+                "failure_count": total - sc,
+                "success_rate": round(sc / total, 4) if total > 0 else 0,
+                "avg_duration_ms": round(float(row.avg_duration_ms or 0), 1),
+                "last_called_at": row.last_called_at.isoformat()
+                if row.last_called_at
+                else None,
+            }
+        )
 
     return stats
 

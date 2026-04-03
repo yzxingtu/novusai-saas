@@ -31,10 +31,15 @@ class AdapterRegistry:
             provider_type: Provider type (e.g. openai_compatible) / 供应商类型
             adapter_class: Adapter class / 适配器类
         """
-        if provider_type in cls._adapters and cls._adapters[provider_type] is adapter_class:
+        if (
+            provider_type in cls._adapters
+            and cls._adapters[provider_type] is adapter_class
+        ):
             return  # idempotent: already registered same class, skip / 幂等：已注册相同类则跳过
         cls._adapters[provider_type] = adapter_class
-        logger.info(_("ai.log.adapter_registered"), extra={"provider_type": provider_type})
+        logger.info(
+            _("ai.log.adapter_registered"), extra={"provider_type": provider_type}
+        )
 
     @classmethod
     def get_adapter(cls, provider_type: str) -> type[BaseAdapter] | None:
@@ -51,11 +56,7 @@ class AdapterRegistry:
 
     @classmethod
     def create_adapter(
-        cls,
-        provider_type: str,
-        api_key: str,
-        base_url: str | None = None,
-        **kwargs
+        cls, provider_type: str, api_key: str, base_url: str | None = None, **kwargs
     ) -> BaseAdapter:
         """
         Create adapter instance / 创建适配器实例
@@ -93,7 +94,10 @@ class AdapterRegistry:
         """
         removed = cls._adapters.pop(provider_type, None)
         if removed:
-            logger.info(_("ai.log.adapter_registered"), extra={"provider_type": f"{provider_type} (unregistered)"})
+            logger.info(
+                _("ai.log.adapter_registered"),
+                extra={"provider_type": f"{provider_type} (unregistered)"},
+            )
         return removed is not None
 
     @classmethod

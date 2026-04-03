@@ -120,7 +120,9 @@ def sanitize_body(body: dict | list | Any) -> dict | list | Any:
     return body
 
 
-def extract_permission_from_route(scope: Scope) -> tuple[str | None, str | None, str | None]:
+def extract_permission_from_route(
+    scope: Scope,
+) -> tuple[str | None, str | None, str | None]:
     """
     Extract permission info from FastAPI route / 从 FastAPI 路由提取权限信息
 
@@ -153,8 +155,14 @@ def extract_permission_from_route(scope: Scope) -> tuple[str | None, str | None,
                 permission_action = getattr(endpoint, "_permission_action", None)
 
                 if permission_resource and permission_action:
-                    action = permission_action.get("action") if isinstance(permission_action, dict) else None
-                    resource_code = f"{permission_resource}:{action}" if action else None
+                    action = (
+                        permission_action.get("action")
+                        if isinstance(permission_action, dict)
+                        else None
+                    )
+                    resource_code = (
+                        f"{permission_resource}:{action}" if action else None
+                    )
                     return permission_resource, action, resource_code
 
     return None, None, None
@@ -227,6 +235,7 @@ class AuditLogMiddleware:
         # Ensure scope has state (for subsequent middleware) / 确保 scope 中有 state
         if "state" not in scope:
             from starlette.datastructures import State
+
             scope["state"] = State()
 
         # Get request info / 获取请求信息
@@ -352,7 +361,9 @@ class AuditLogMiddleware:
         info: dict[str, Any] = {
             "method": scope.get("method", ""),
             "path": scope.get("path", ""),
-            "query_string": scope.get("query_string", b"").decode("utf-8", errors="ignore"),
+            "query_string": scope.get("query_string", b"").decode(
+                "utf-8", errors="ignore"
+            ),
             "ip": get_client_ip(scope),
             "user_agent": headers.get("user-agent"),
         }
@@ -360,6 +371,7 @@ class AuditLogMiddleware:
         # 解析查询参数 / Parse query params
         if info["query_string"]:
             from urllib.parse import parse_qs
+
             info["query_params"] = parse_qs(info["query_string"])
         else:
             info["query_params"] = None
@@ -386,9 +398,15 @@ class AuditLogMiddleware:
                         info["request_body"] = sanitize_body(body_data)
                     else:
                         # 非 JSON 请求体，仅记录大小 / Non-JSON body, record size only
-                        info["request_body"] = {"_size": len(body), "_type": content_type}
+                        info["request_body"] = {
+                            "_size": len(body),
+                            "_type": content_type,
+                        }
                 except (json.JSONDecodeError, UnicodeDecodeError):
-                    info["request_body"] = {"_size": len(body), "_error": "parse_failed"}
+                    info["request_body"] = {
+                        "_size": len(body),
+                        "_error": "parse_failed",
+                    }
 
         info["_body_parts"] = body_parts
         return info
@@ -426,7 +444,9 @@ class AuditLogMiddleware:
         token_scope = payload.get("scope")
         user_id = payload.get("sub")
         tenant_id = payload.get("tenant_id")
-        impersonated_by = payload.get("impersonated_by")  # Impersonation flag / 一键登录标记
+        impersonated_by = payload.get(
+            "impersonated_by"
+        )  # Impersonation flag / 一键登录标记
 
         if not user_id:
             return user_info
@@ -436,8 +456,12 @@ class AuditLogMiddleware:
         # Should be recorded as platform admin's operation / 记录为平台管理员的操作
         if impersonated_by is not None:
             user_info["user_type"] = UserTypeEnum.ADMIN.value
-            user_info["user_id"] = int(impersonated_by)  # Use real platform admin ID / 使用真实的平台管理员 ID
-            user_info["tenant_id"] = None  # Platform logs not associated with tenant / 平台端日志不关联企业
+            user_info["user_id"] = int(
+                impersonated_by
+            )  # Use real platform admin ID / 使用真实的平台管理员 ID
+            user_info["tenant_id"] = (
+                None  # Platform logs not associated with tenant / 平台端日志不关联企业
+            )
             return user_info
 
         # Determine user type by scope / 根据 scope 判断用户类型

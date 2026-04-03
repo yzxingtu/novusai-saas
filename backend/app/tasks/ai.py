@@ -140,7 +140,9 @@ def log_ai_call_task(
     try:
         logger.info(
             "AI call log start: task={} tenant={} model={}",
-            self.request.id, tenant_id, model_id,
+            self.request.id,
+            tenant_id,
+            model_id,
         )
 
         normalized_latency_ms = CallLogService._normalize_latency_ms(latency_ms)
@@ -202,13 +204,23 @@ def log_ai_call_task(
             agent_owner_tenant_id=(billing_context or {}).get("agent_owner_tenant_id"),
             agent_resource_scope=(billing_context or {}).get("agent_resource_scope"),
             tenant_publication_id=(billing_context or {}).get("tenant_publication_id"),
-            publication_enabled_snapshot=(billing_context or {}).get("publication_enabled_snapshot"),
-            publication_access_type_snapshot=(billing_context or {}).get("publication_access_type_snapshot"),
-            agent_id_snapshot=(billing_context or {}).get("agent_id_snapshot", agent_id),
+            publication_enabled_snapshot=(billing_context or {}).get(
+                "publication_enabled_snapshot"
+            ),
+            publication_access_type_snapshot=(billing_context or {}).get(
+                "publication_access_type_snapshot"
+            ),
+            agent_id_snapshot=(billing_context or {}).get(
+                "agent_id_snapshot", agent_id
+            ),
             agent_name_snapshot=(billing_context or {}).get("agent_name_snapshot"),
-            billing_tenant_name_snapshot=(billing_context or {}).get("billing_tenant_name_snapshot"),
+            billing_tenant_name_snapshot=(billing_context or {}).get(
+                "billing_tenant_name_snapshot"
+            ),
             model_name_snapshot=(billing_context or {}).get("model_name_snapshot"),
-            provider_name_snapshot=(billing_context or {}).get("provider_name_snapshot"),
+            provider_name_snapshot=(billing_context or {}).get(
+                "provider_name_snapshot"
+            ),
         )
 
         db.add(call_log)
@@ -216,14 +228,18 @@ def log_ai_call_task(
 
         logger.info(
             "AI call log saved: task={} tenant={} model={} log_id={}",
-            self.request.id, tenant_id, model_id, call_log.id,
+            self.request.id,
+            tenant_id,
+            model_id,
+            call_log.id,
         )
 
     except Exception as e:
         db.rollback()
         logger.error(
             "AI call log failed: task={} error={}",
-            self.request.id, str(e),
+            self.request.id,
+            str(e),
             exc_info=True,
         )
         raise

@@ -31,16 +31,16 @@ class BaseSchema(BaseModel):
     """
 
     model_config = ConfigDict(
-        from_attributes=True,       # 支持从 ORM 模型转换 / Support conversion from ORM models
-        populate_by_name=True,      # 支持字段别名 / Support field aliases
-        use_enum_values=True,       # 枚举返回值而非对象 / Enums return values, not objects
-        json_encoders={             # 自定义 JSON 编码 / Custom JSON encoders
+        from_attributes=True,  # 支持从 ORM 模型转换 / Support conversion from ORM models
+        populate_by_name=True,  # 支持字段别名 / Support field aliases
+        use_enum_values=True,  # 枚举返回值而非对象 / Enums return values, not objects
+        json_encoders={  # 自定义 JSON 编码 / Custom JSON encoders
             datetime: lambda v: v.isoformat() if v else None,
         },
         str_strip_whitespace=True,  # 自动去除字符串首尾空白 / Auto-strip whitespace from strings
     )
 
-    @model_serializer(mode='wrap')
+    @model_serializer(mode="wrap")
     def _serialize_model(self, handler: Any) -> dict:
         """
         全局序列化器：将所有 datetime 字段转为 ISO 8601 UTC 字符串。 / Global serializer: convert all datetime fields to ISO 8601 UTC strings.
@@ -63,7 +63,7 @@ class BaseSchema(BaseModel):
                     data[key] = value.isoformat()
         return data
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     @classmethod
     def parse_datetime_fields(cls, data: Any) -> Any:
         """
@@ -82,7 +82,7 @@ class BaseSchema(BaseModel):
             return data
 
         # 获取模型字段定义 / Get model field definitions
-        if not hasattr(cls, 'model_fields'):
+        if not hasattr(cls, "model_fields"):
             return data
 
         processed_data = {}
@@ -107,7 +107,10 @@ class BaseSchema(BaseModel):
 
             if field_type is datetime:
                 is_datetime_field = True
-            elif get_origin(field_type) is type(None) or str(get_origin(field_type)) == 'UnionType':
+            elif (
+                get_origin(field_type) is type(None)
+                or str(get_origin(field_type)) == "UnionType"
+            ):
                 # 处理 Optional[datetime] 或 datetime | None / Handle Optional[datetime] or datetime | None
                 args = get_args(field_type)
                 if datetime in args:
@@ -123,7 +126,10 @@ class BaseSchema(BaseModel):
                 if field_value.tzinfo is None:
                     # naive datetime from DB → 标记为 UTC / Mark as UTC (DB stores UTC)
                     from datetime import timezone
-                    processed_data[field_name] = field_value.replace(tzinfo=timezone.utc)
+
+                    processed_data[field_name] = field_value.replace(
+                        tzinfo=timezone.utc
+                    )
                 else:
                     processed_data[field_name] = field_value
                 continue
@@ -134,9 +140,9 @@ class BaseSchema(BaseModel):
 
                 # 支持的格式列表 / Supported format list
                 formats = [
-                    "%Y-%m-%d %H:%M:%S",   # 前端发送的格式 / Frontend format
-                    "%Y-%m-%dT%H:%M:%S",   # ISO 8601 / ISO 8601 日期时间
-                    "%Y-%m-%d",            # 纯日期 / Date only
+                    "%Y-%m-%d %H:%M:%S",  # 前端发送的格式 / Frontend format
+                    "%Y-%m-%dT%H:%M:%S",  # ISO 8601 / ISO 8601 日期时间
+                    "%Y-%m-%d",  # 纯日期 / Date only
                 ]
 
                 for fmt in formats:
@@ -163,6 +169,7 @@ class BaseCreateSchema(BaseSchema):
     用于创建资源时的数据验证
     Used for data validation when creating resources.
     """
+
     pass
 
 
@@ -173,6 +180,7 @@ class BaseUpdateSchema(BaseSchema):
     用于更新资源时的数据验证，所有字段默认可选
     Used for data validation when updating resources. All fields are optional by default.
     """
+
     pass
 
 

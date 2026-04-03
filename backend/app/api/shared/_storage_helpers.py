@@ -43,10 +43,12 @@ async def get_known_plugin_storage_drivers(db: AsyncSession) -> list[dict]:
                 display_str = display.get("zh-CN") or display.get("en") or code
             else:
                 display_str = str(display) if display else code
-            drivers.append({
-                "name": code,
-                "display_name": display_str,
-                "plugin_name": p.name,
-                "plugin_status": p.status,
-            })
+            drivers.append(
+                {
+                    "name": code,
+                    "display_name": display_str,
+                    "plugin_name": p.name,
+                    "plugin_status": p.status,
+                }
+            )
     return drivers

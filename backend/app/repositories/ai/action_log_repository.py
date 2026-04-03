@@ -32,27 +32,40 @@ class AIActionLogRepository(TenantRepository[AIActionLog]):
         """
         stmt = select(
             func.count(AIActionLog.id).label("total"),
-            func.sum(case(
-                (AIActionLog.status == ActionStatusEnum.SUCCESS.value, 1), else_=0
-            )).label("success_count"),
-            func.sum(case(
-                (AIActionLog.status == ActionStatusEnum.FAILED.value, 1), else_=0
-            )).label("failed_count"),
-            func.sum(case(
-                (AIActionLog.status == ActionStatusEnum.REJECTED.value, 1), else_=0
-            )).label("rejected_count"),
-            func.sum(case(
-                (AIActionLog.status == ActionStatusEnum.PENDING_CONFIRM.value, 1), else_=0
-            )).label("pending_count"),
-            func.sum(case(
-                (AIActionLog.action_level == ActionLevelEnum.READ.value, 1), else_=0
-            )).label("level_read"),
-            func.sum(case(
-                (AIActionLog.action_level == ActionLevelEnum.SAFE_WRITE.value, 1), else_=0
-            )).label("level_safe_write"),
-            func.sum(case(
-                (AIActionLog.action_level == ActionLevelEnum.DANGEROUS.value, 1), else_=0
-            )).label("level_dangerous"),
+            func.sum(
+                case((AIActionLog.status == ActionStatusEnum.SUCCESS.value, 1), else_=0)
+            ).label("success_count"),
+            func.sum(
+                case((AIActionLog.status == ActionStatusEnum.FAILED.value, 1), else_=0)
+            ).label("failed_count"),
+            func.sum(
+                case(
+                    (AIActionLog.status == ActionStatusEnum.REJECTED.value, 1), else_=0
+                )
+            ).label("rejected_count"),
+            func.sum(
+                case(
+                    (AIActionLog.status == ActionStatusEnum.PENDING_CONFIRM.value, 1),
+                    else_=0,
+                )
+            ).label("pending_count"),
+            func.sum(
+                case(
+                    (AIActionLog.action_level == ActionLevelEnum.READ.value, 1), else_=0
+                )
+            ).label("level_read"),
+            func.sum(
+                case(
+                    (AIActionLog.action_level == ActionLevelEnum.SAFE_WRITE.value, 1),
+                    else_=0,
+                )
+            ).label("level_safe_write"),
+            func.sum(
+                case(
+                    (AIActionLog.action_level == ActionLevelEnum.DANGEROUS.value, 1),
+                    else_=0,
+                )
+            ).label("level_dangerous"),
             func.avg(AIActionLog.duration_ms).label("avg_duration_ms"),
         ).where(
             AIActionLog.tenant_id == self.tenant_id,
@@ -96,8 +109,7 @@ class AIActionLogRepository(TenantRepository[AIActionLog]):
 
         result = await self.db.execute(stmt)
         return [
-            {"action_type": row.action_type, "count": row.count}
-            for row in result.all()
+            {"action_type": row.action_type, "count": row.count} for row in result.all()
         ]
 
 
@@ -113,27 +125,40 @@ class AdminAIActionLogRepository(BaseRepository[AIActionLog]):
     async def get_stats(self) -> dict:
         stmt = select(
             func.count(AIActionLog.id).label("total"),
-            func.sum(case(
-                (AIActionLog.status == ActionStatusEnum.SUCCESS.value, 1), else_=0
-            )).label("success_count"),
-            func.sum(case(
-                (AIActionLog.status == ActionStatusEnum.FAILED.value, 1), else_=0
-            )).label("failed_count"),
-            func.sum(case(
-                (AIActionLog.status == ActionStatusEnum.REJECTED.value, 1), else_=0
-            )).label("rejected_count"),
-            func.sum(case(
-                (AIActionLog.status == ActionStatusEnum.PENDING_CONFIRM.value, 1), else_=0
-            )).label("pending_count"),
-            func.sum(case(
-                (AIActionLog.action_level == ActionLevelEnum.READ.value, 1), else_=0
-            )).label("level_read"),
-            func.sum(case(
-                (AIActionLog.action_level == ActionLevelEnum.SAFE_WRITE.value, 1), else_=0
-            )).label("level_safe_write"),
-            func.sum(case(
-                (AIActionLog.action_level == ActionLevelEnum.DANGEROUS.value, 1), else_=0
-            )).label("level_dangerous"),
+            func.sum(
+                case((AIActionLog.status == ActionStatusEnum.SUCCESS.value, 1), else_=0)
+            ).label("success_count"),
+            func.sum(
+                case((AIActionLog.status == ActionStatusEnum.FAILED.value, 1), else_=0)
+            ).label("failed_count"),
+            func.sum(
+                case(
+                    (AIActionLog.status == ActionStatusEnum.REJECTED.value, 1), else_=0
+                )
+            ).label("rejected_count"),
+            func.sum(
+                case(
+                    (AIActionLog.status == ActionStatusEnum.PENDING_CONFIRM.value, 1),
+                    else_=0,
+                )
+            ).label("pending_count"),
+            func.sum(
+                case(
+                    (AIActionLog.action_level == ActionLevelEnum.READ.value, 1), else_=0
+                )
+            ).label("level_read"),
+            func.sum(
+                case(
+                    (AIActionLog.action_level == ActionLevelEnum.SAFE_WRITE.value, 1),
+                    else_=0,
+                )
+            ).label("level_safe_write"),
+            func.sum(
+                case(
+                    (AIActionLog.action_level == ActionLevelEnum.DANGEROUS.value, 1),
+                    else_=0,
+                )
+            ).label("level_dangerous"),
             func.avg(AIActionLog.duration_ms).label("avg_duration_ms"),
         ).where(
             AIActionLog.is_deleted.is_(False),
@@ -169,8 +194,7 @@ class AdminAIActionLogRepository(BaseRepository[AIActionLog]):
 
         result = await self.db.execute(stmt)
         return [
-            {"action_type": row.action_type, "count": row.count}
-            for row in result.all()
+            {"action_type": row.action_type, "count": row.count} for row in result.all()
         ]
 
 

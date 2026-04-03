@@ -67,7 +67,9 @@ async def login_oauth2(
 
     # 从域名中间件获取 tenant_ctx 作为回退 / Get tenant_ctx from domain middleware as fallback
     tenant_ctx = get_tenant_context(request)
-    tenant_id_from_ctx = tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
+    tenant_id_from_ctx = (
+        tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
+    )
 
     tokens = await auth_service.authenticate_tenant_user(
         username=form_data.username,
@@ -107,7 +109,9 @@ async def login_json(
 
     # 从域名中间件获取 tenant_ctx 作为回退 / Get tenant_ctx from domain middleware as fallback
     tenant_ctx = get_tenant_context(request)
-    tenant_id_from_ctx = tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
+    tenant_id_from_ctx = (
+        tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
+    )
 
     tokens = await auth_service.authenticate_tenant_user(
         username=login_data.username,
@@ -127,7 +131,9 @@ async def login_json(
     )
 
 
-@router.post("/login-code/send", summary="发送登录验证码 / Send login verification code")
+@router.post(
+    "/login-code/send", summary="发送登录验证码 / Send login verification code"
+)
 @public
 async def send_login_code(
     db: DbSession,
@@ -143,7 +149,9 @@ async def send_login_code(
 
     auth_service = AuthService(db)
     tenant_ctx = get_tenant_context(request)
-    tenant_id_from_ctx = tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
+    tenant_id_from_ctx = (
+        tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
+    )
 
     result = await auth_service.send_tenant_user_login_code(
         channel=payload.channel,
@@ -178,7 +186,9 @@ async def login_by_code(
 
     auth_service = AuthService(db)
     tenant_ctx = get_tenant_context(request)
-    tenant_id_from_ctx = tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
+    tenant_id_from_ctx = (
+        tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
+    )
 
     tokens = await auth_service.authenticate_tenant_user_by_code(
         channel=payload.channel,
@@ -292,7 +302,9 @@ async def register(
     auth_service = AuthService(db)
 
     tenant_ctx = get_tenant_context(request)
-    tenant_id_from_ctx = tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
+    tenant_id_from_ctx = (
+        tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
+    )
 
     result = await auth_service.register_tenant_user(
         username=register_data.username,
@@ -367,7 +379,9 @@ async def forgot_password(
     auth_service = AuthService(db)
 
     tenant_ctx = get_tenant_context(request)
-    tenant_id_from_ctx = tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
+    tenant_id_from_ctx = (
+        tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
+    )
 
     result = await auth_service.request_password_reset(
         email=forgot_data.email,
@@ -394,7 +408,9 @@ async def reset_password(
     auth_service = AuthService(db)
 
     tenant_ctx = get_tenant_context(request)
-    tenant_id_from_ctx = tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
+    tenant_id_from_ctx = (
+        tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
+    )
 
     await auth_service.reset_tenant_user_password(
         email=reset_data.email,

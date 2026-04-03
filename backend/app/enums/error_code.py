@@ -105,7 +105,6 @@ ERROR_CODE_MESSAGES: dict[int, str] = {
     ErrorCode.DUPLICATE_ENTRY: "error.common.duplicate_entry",
     ErrorCode.INVALID_PARAMETER: "error.common.invalid_parameter",
     ErrorCode.OLD_PASSWORD_INCORRECT: "error.common.old_password_incorrect",
-
     # Auth / 认证授权
     ErrorCode.UNAUTHORIZED: "error.auth.unauthorized",
     ErrorCode.TOKEN_EXPIRED: "error.auth.token_expired",
@@ -114,7 +113,6 @@ ERROR_CODE_MESSAGES: dict[int, str] = {
     ErrorCode.PERMISSION_DENIED: "error.auth.permission_denied",
     ErrorCode.NOT_FOUND: "error.common.not_found",
     ErrorCode.CONFLICT: "error.common.conflict",
-
     # Role related / 角色相关
     ErrorCode.ROLE_CANNOT_SET_SELF_AS_PARENT: "error.role.cannot_set_self_as_parent",
     ErrorCode.ROLE_CIRCULAR_REFERENCE: "error.role.circular_reference",
@@ -128,24 +126,20 @@ ERROR_CODE_MESSAGES: dict[int, str] = {
     ErrorCode.ROLE_CANNOT_ADD_MEMBER: "error.role.cannot_add_member",
     ErrorCode.ROLE_MEMBER_EXISTS: "error.role.member_exists",
     ErrorCode.ROLE_MEMBER_NOT_IN_NODE: "error.role.member_not_in_node",
-
     # Tenant/Domain related / 企业/域名相关
     ErrorCode.DOMAIN_CUSTOM_DISABLED: "error.domain.custom_disabled",
     ErrorCode.DOMAIN_QUOTA_EXCEEDED: "error.domain.quota_exceeded",
     ErrorCode.DOMAIN_ALREADY_EXISTS: "error.domain.already_exists",
-
     # Admin related / 管理员相关
     ErrorCode.ADMIN_USERNAME_EXISTS: "error.admin.username_exists",
     ErrorCode.ADMIN_EMAIL_EXISTS: "error.admin.email_exists",
     ErrorCode.ADMIN_PHONE_EXISTS: "error.admin.phone_exists",
     ErrorCode.ADMIN_CANNOT_REMOVE_SUPER: "error.admin.cannot_remove_super",
     ErrorCode.TENANT_ADMIN_CANNOT_REMOVE_OWNER: "error.tenant_admin.cannot_remove_owner",
-
     # Config related / 配置相关
     ErrorCode.CONFIG_GROUP_NOT_FOUND: "error.config.group_not_found",
     ErrorCode.CONFIG_INVALID_KEYS: "error.config.invalid_keys",
     ErrorCode.CONFIG_VALIDATION_FAILED: "error.config.validation_failed",
-
     # Server errors / 服务端错误
     ErrorCode.SERVER_ERROR: "error.server.internal_error",
     ErrorCode.EXTERNAL_SERVICE_ERROR: "error.server.external_service_error",

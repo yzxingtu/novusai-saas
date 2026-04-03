@@ -15,7 +15,10 @@ class CacheCategoryEnum(LabeledStrEnum):
     KB_SEARCH = ("kb_search", "enum.cache.category.kb_search")
     WS_CONFIG = ("ws_config", "enum.cache.category.ws_config")
     MARKETPLACE = ("marketplace", "enum.cache.category.marketplace")
-    AI_PROVIDER_HEALTH = ("ai_provider_health", "enum.cache.category.ai_provider_health")
+    AI_PROVIDER_HEALTH = (
+        "ai_provider_health",
+        "enum.cache.category.ai_provider_health",
+    )
     IMAGE_CACHE = ("image_cache", "enum.cache.category.image_cache")
     CONFIG_MEMORY = ("config_memory", "enum.cache.category.config_memory")
     AI_RATE_LIMIT = ("ai_rate_limit", "enum.cache.category.ai_rate_limit")

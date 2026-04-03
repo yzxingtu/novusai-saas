@@ -169,19 +169,29 @@ def main() -> None:
 
 def _write_result(output: str) -> None:
     """Write success result / 写入成功结果"""
-    sys.stdout.write(json.dumps({
-        "success": True,
-        "output": output,
-    }, ensure_ascii=False))
+    sys.stdout.write(
+        json.dumps(
+            {
+                "success": True,
+                "output": output,
+            },
+            ensure_ascii=False,
+        )
+    )
     sys.stdout.flush()
 
 
 def _write_error(error: str) -> None:
     """Write error result / 写入错误结果"""
-    sys.stdout.write(json.dumps({
-        "success": False,
-        "error": error,
-    }, ensure_ascii=False))
+    sys.stdout.write(
+        json.dumps(
+            {
+                "success": False,
+                "error": error,
+            },
+            ensure_ascii=False,
+        )
+    )
     sys.stdout.flush()
 
 

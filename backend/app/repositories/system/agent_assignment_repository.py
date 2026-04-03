@@ -20,14 +20,22 @@ class AgentAssignmentRepository(BaseRepository[SystemAgentAssignment]):
 
     _scope_fields = {
         "admin": {
-            "id", "feature_code", "feature_name", "tenant_id", "agent_id",
-            "is_active", "created_at", "updated_at",
+            "id",
+            "feature_code",
+            "feature_name",
+            "tenant_id",
+            "agent_id",
+            "is_active",
+            "created_at",
+            "updated_at",
         },
     }
 
     # ==================== 全局默认查询 (tenant_id IS NULL) ====================
 
-    async def get_by_feature_code(self, feature_code: str) -> SystemAgentAssignment | None:
+    async def get_by_feature_code(
+        self, feature_code: str
+    ) -> SystemAgentAssignment | None:
         """按功能代码获取全局默认绑定 / Get global default binding by feature code"""
         stmt = (
             select(self.model)
@@ -38,7 +46,9 @@ class AgentAssignmentRepository(BaseRepository[SystemAgentAssignment]):
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_active_by_feature_code(self, feature_code: str) -> SystemAgentAssignment | None:
+    async def get_active_by_feature_code(
+        self, feature_code: str
+    ) -> SystemAgentAssignment | None:
         """获取启用的全局默认绑定 / Get active global default binding"""
         stmt = (
             select(self.model)

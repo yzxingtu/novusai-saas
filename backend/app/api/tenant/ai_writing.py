@@ -22,6 +22,7 @@ router = APIRouter(prefix="/ai/writing", tags=[_("menu.tags.ai_writing")])
 
 class AIWritingRequest(BaseModel):
     """AI writing request body / AI 写作请求体"""
+
     selected_text: str = Field(default="", max_length=10000)
     before_text: str = Field(default="", max_length=5000)
     after_text: str = Field(default="", max_length=2000)
@@ -57,7 +58,10 @@ async def tenant_ai_writing(
     async def _generate():
         try:
             async for delta in stream_writing_feature(
-                db, tenant_id, feature, body.model_dump(),
+                db,
+                tenant_id,
+                feature,
+                body.model_dump(),
             ):
                 yield SSEFormatter.format_message({"event": "message", "delta": delta})
             yield SSEFormatter.format_message({"event": "done"})

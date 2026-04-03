@@ -179,7 +179,9 @@ class PageContextExecutor(BaseToolExecutor):
                 if purpose_parts:
                     parts.append(f"Form Purpose: {'; '.join(purpose_parts)}")
             if form_is_open:
-                parts.append("Form Status: OPEN (use get_form_state to inspect current values)")
+                parts.append(
+                    "Form Status: OPEN (use get_form_state to inspect current values)"
+                )
 
             # Present visual_state concisely / 上文为英文说明 / English above
             visual = page_data.get("visual_state")
@@ -190,7 +192,8 @@ class PageContextExecutor(BaseToolExecutor):
                     if overlays and isinstance(overlays, list):
                         overlay_desc = ", ".join(
                             f"{o.get('type', '?')}({o.get('title', '?')})"
-                            for o in overlays[:5] if isinstance(o, dict)
+                            for o in overlays[:5]
+                            if isinstance(o, dict)
                         )
                         vs_parts.append(f"Overlays: {overlay_desc}")
                     else:
@@ -205,11 +208,15 @@ class PageContextExecutor(BaseToolExecutor):
             if list_summary and isinstance(list_summary, dict):
                 total_rows = list_summary.get("total_rows", 0)
                 sample_rows = list_summary.get("sample_rows", [])
-                parts.append(f"List: {total_rows} total rows, {len(sample_rows)} sample rows shown")
+                parts.append(
+                    f"List: {total_rows} total rows, {len(sample_rows)} sample rows shown"
+                )
                 if sample_rows and isinstance(sample_rows, list):
                     for i, row in enumerate(sample_rows[:3]):
                         if isinstance(row, dict):
-                            row_str = ", ".join(f"{k}={v}" for k, v in list(row.items())[:4])
+                            row_str = ", ".join(
+                                f"{k}={v}" for k, v in list(row.items())[:4]
+                            )
                             parts.append(f"  [{i + 1}] {row_str}")
 
             stat_cards = page_data.get("stat_cards")
@@ -280,10 +287,14 @@ class PageContextExecutor(BaseToolExecutor):
                     opts_info = ""
                     options = desc.get("options")
                     if options and isinstance(options, list):
-                        opt_labels = [str(o.get("label", o.get("value", ""))) for o in options[:8]]
+                        opt_labels = [
+                            str(o.get("label", o.get("value", ""))) for o in options[:8]
+                        ]
                         opts_info = f" options=[{', '.join(opt_labels)}]"
                         if len(options) > 8:
-                            opts_info = opts_info[:-1] + f", ... +{len(options) - 8} more]"
+                            opts_info = (
+                                opts_info[:-1] + f", ... +{len(options) - 8} more]"
+                            )
                     elif desc.get("optionsSource") == "remote":
                         opts_info = " (remote options, use get_form_options to fetch)"
                     constraints_info = ""
@@ -302,18 +313,22 @@ class PageContextExecutor(BaseToolExecutor):
             has_editor = page_data.get("has_editor")
             if has_editor and ops and isinstance(ops, list):
                 parts.append("")
-                parts.append("## Available Editor Operations (use dedicated pageop_* tools):")
+                parts.append(
+                    "## Available Editor Operations (use dedicated pageop_* tools):"
+                )
             elif ops and isinstance(ops, list):
                 parts.append("")
                 parts.append("## Available Page Operations:")
 
             if ops and isinstance(ops, list):
                 mutation_ops = [
-                    o for o in ops
+                    o
+                    for o in ops
                     if isinstance(o, dict) and not bool(o.get("readonly", False))
                 ]
                 readonly_ops = [
-                    o for o in ops
+                    o
+                    for o in ops
                     if isinstance(o, dict) and bool(o.get("readonly", False))
                 ]
                 ordered_ops = mutation_ops + readonly_ops
@@ -324,8 +339,7 @@ class PageContextExecutor(BaseToolExecutor):
                         if isinstance(o, dict) and o.get("name")
                     ]
                     parts.append(
-                        "Writable Operations Available: "
-                        + ", ".join(mutation_names)
+                        "Writable Operations Available: " + ", ".join(mutation_names)
                     )
                     parts.append(
                         "You ARE allowed to use writable page operations on this page. "
@@ -341,7 +355,9 @@ class PageContextExecutor(BaseToolExecutor):
                     readonly = bool(o.get("readonly", False))
                     readonly_tag = "readonly" if readonly else "mutation"
                     param_summary = _summarize_operation_params(o.get("params"))
-                    summary_suffix = f" params: {param_summary}" if param_summary else ""
+                    summary_suffix = (
+                        f" params: {param_summary}" if param_summary else ""
+                    )
                     parts.append(
                         f"  - {op_name} [{readonly_tag}] {op_label}: "
                         f"{op_desc}{summary_suffix}"
@@ -352,21 +368,23 @@ class PageContextExecutor(BaseToolExecutor):
             if ops and isinstance(ops, list):
                 op_names = [o.get("name", "") for o in ops if isinstance(o, dict)]
                 has_form_ops = any(
-                    n in op_names
-                    for n in ("create_record", "edit_record", "fill_form")
+                    n in op_names for n in ("create_record", "edit_record", "fill_form")
                 )
                 remote_option_fields = [
                     str(field_name)
                     for field_name, desc in (form_fields or {}).items()
-                    if isinstance(desc, dict)
-                    and desc.get("optionsSource") == "remote"
+                    if isinstance(desc, dict) and desc.get("optionsSource") == "remote"
                 ]
                 if has_form_ops:
                     parts.append("")
                     parts.append("## Agent Loop — Form Operation Workflow:")
-                    parts.append("Execute ALL applicable steps in sequence WITHOUT stopping at the first tool call:")
+                    parts.append(
+                        "Execute ALL applicable steps in sequence WITHOUT stopping at the first tool call:"
+                    )
                     parts.append("1. Call create_record/edit_record to open the form")
-                    parts.append("2. Immediately call get_form_state to inspect current values and schema")
+                    parts.append(
+                        "2. Immediately call get_form_state to inspect current values and schema"
+                    )
                     parts.append(
                         "RULE: Once get_page_context has already returned the current page for this turn, do NOT call get_page_context again unless the page actually changes."
                     )
@@ -387,41 +405,80 @@ class PageContextExecutor(BaseToolExecutor):
                             "3. After the form is open, for remote select fields such as "
                             f"{preview_fields}, call get_form_options so you use real option values instead of guessing labels or raw ids"
                         )
-                        parts.append("4. Wait for the get_form_options result before deciding any field values")
+                        parts.append(
+                            "4. Wait for the get_form_options result before deciding any field values"
+                        )
                         parts.append("5. Call fill_form to fill ALL relevant fields")
-                        parts.append("6. Wait for the fill_form result before deciding whether validation is needed")
-                        parts.append("7. If validate_form exists, call validate_form and fix any errors")
-                        parts.append("8. Wait for the validate_form result before deciding whether to submit")
-                        parts.append("9. If submit_form exists and the user asked you to create/update the record, call submit_form")
-                        parts.append("10. Only wait for user review when the page explicitly requires confirmation or submit_form is unavailable")
+                        parts.append(
+                            "6. Wait for the fill_form result before deciding whether validation is needed"
+                        )
+                        parts.append(
+                            "7. If validate_form exists, call validate_form and fix any errors"
+                        )
+                        parts.append(
+                            "8. Wait for the validate_form result before deciding whether to submit"
+                        )
+                        parts.append(
+                            "9. If submit_form exists and the user asked you to create/update the record, call submit_form"
+                        )
+                        parts.append(
+                            "10. Only wait for user review when the page explicitly requires confirmation or submit_form is unavailable"
+                        )
                     else:
                         parts.append("3. Call fill_form to fill ALL relevant fields")
-                        parts.append("4. Wait for the fill_form result before deciding whether validation is needed")
-                        parts.append("5. If validate_form exists, call validate_form and fix any errors")
-                        parts.append("6. Wait for the validate_form result before deciding whether to submit")
-                        parts.append("7. If submit_form exists and the user asked you to create/update the record, call submit_form")
-                        parts.append("8. Only wait for user review when the page explicitly requires confirmation or submit_form is unavailable")
+                        parts.append(
+                            "4. Wait for the fill_form result before deciding whether validation is needed"
+                        )
+                        parts.append(
+                            "5. If validate_form exists, call validate_form and fix any errors"
+                        )
+                        parts.append(
+                            "6. Wait for the validate_form result before deciding whether to submit"
+                        )
+                        parts.append(
+                            "7. If submit_form exists and the user asked you to create/update the record, call submit_form"
+                        )
+                        parts.append(
+                            "8. Only wait for user review when the page explicitly requires confirmation or submit_form is unavailable"
+                        )
                     parts.append(
                         "RULE: Never batch create_record, get_form_state, get_form_options, fill_form, validate_form, or submit_form into the same assistant tool-call turn. Wait for each tool result before calling the next step."
                     )
                     parts.append(
                         "规则：禁止把 create_record、get_form_state、get_form_options、fill_form、validate_form、submit_form 批量塞进同一轮 assistant tool calls，必须等上一步工具结果返回后再决定下一步。"
                     )
-                    parts.append("IMPORTANT: Do NOT answer 'only read operations are available' when create_record/edit_record/fill_form/submit_form exist.")
+                    parts.append(
+                        "IMPORTANT: Do NOT answer 'only read operations are available' when create_record/edit_record/fill_form/submit_form exist."
+                    )
 
                 parts.append("")
                 parts.append("## Execution Discipline:")
-                parts.append("If the latest user turn asks for multiple page operations, execute those operations in the requested order.")
-                parts.append("Do NOT stop early and do NOT substitute screenshot analysis or free-form commentary for requested operations that are available as tools.")
-                parts.append("If a newer user turn conflicts with an older temporary constraint such as 'read-only', 'do not write', or 'do not submit', follow the latest user turn unless the user explicitly keeps the older constraint in effect.")
+                parts.append(
+                    "If the latest user turn asks for multiple page operations, execute those operations in the requested order."
+                )
+                parts.append(
+                    "Do NOT stop early and do NOT substitute screenshot analysis or free-form commentary for requested operations that are available as tools."
+                )
+                parts.append(
+                    "If a newer user turn conflicts with an older temporary constraint such as 'read-only', 'do not write', or 'do not submit', follow the latest user turn unless the user explicitly keeps the older constraint in effect."
+                )
 
             # Serialize remaining page_data (exclude already-presented fields)
             # 序列化剩余 page_data（排除已展示的字段）
             presented_keys = {
-                "entity_name", "entity_description", "form_purpose",
-                "form_is_open", "form_fields", "available_operations",
-                "visual_state", "list_summary", "source", "stat_cards",
-                "detail_fields", "text_blocks", "overlays",
+                "entity_name",
+                "entity_description",
+                "form_purpose",
+                "form_is_open",
+                "form_fields",
+                "available_operations",
+                "visual_state",
+                "list_summary",
+                "source",
+                "stat_cards",
+                "detail_fields",
+                "text_blocks",
+                "overlays",
             }
             remaining = {k: v for k, v in page_data.items() if k not in presented_keys}
             if remaining:
@@ -440,7 +497,9 @@ class PageContextExecutor(BaseToolExecutor):
 
         logger.info(
             "Page context resolved: page_key={}",
-            page_ctx.get("page_key", "unknown") if isinstance(page_ctx, dict) else "raw",
+            page_ctx.get("page_key", "unknown")
+            if isinstance(page_ctx, dict)
+            else "raw",
         )
 
         return ToolResult(

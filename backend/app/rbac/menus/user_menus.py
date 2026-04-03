@@ -42,7 +42,6 @@ USER_DIRECTORY_MENUS: list[PermissionMeta] = [
         component="user/home/Index",
         sort_order=0,
     ),
-
     # ========================================
     # Agents / 智能体广场
     # ========================================
@@ -58,7 +57,6 @@ USER_DIRECTORY_MENUS: list[PermissionMeta] = [
         component="user/agents/Index",
         sort_order=50,
     ),
-
     # ========================================
     # AI Chat / AI 对话
     # ========================================
@@ -74,7 +72,6 @@ USER_DIRECTORY_MENUS: list[PermissionMeta] = [
         component="user/ai-chat/Index",
         sort_order=100,
     ),
-
     # ========================================
     # Help / 帮助中心
     # ========================================
@@ -90,7 +87,6 @@ USER_DIRECTORY_MENUS: list[PermissionMeta] = [
         component="user/help/Index",
         sort_order=150,
     ),
-
     # ========================================
     # Settings (directory) / 设置（目录）
     # ========================================
@@ -105,7 +101,6 @@ USER_DIRECTORY_MENUS: list[PermissionMeta] = [
         path="/settings",
         sort_order=900,
     ),
-
     # ---- Profile / 个人资料 ----
     PermissionMeta(
         code="menu:user.profile",
@@ -120,7 +115,6 @@ USER_DIRECTORY_MENUS: list[PermissionMeta] = [
         parent_code="menu:user.settings",
         sort_order=10,
     ),
-
     # ---- Change Password / 修改密码 ----
     PermissionMeta(
         code="menu:user.change_password",

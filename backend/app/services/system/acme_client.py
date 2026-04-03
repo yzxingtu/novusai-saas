@@ -26,6 +26,7 @@ logger = LogManager.get_logger("ssl")
 
 class AcmeDnsSetterMissingError(RuntimeError):
     """dns_setter 未配置，不应重试 / dns_setter not configured, should not retry."""
+
     pass
 
 
@@ -59,7 +60,9 @@ class AcmeClient:
         self._jose = jose
 
         # 支持外部传入配置（由 Celery 任务从 ConfigService 读取后传入）
-        _use_staging = use_staging if use_staging is not None else settings.ACME_USE_STAGING
+        _use_staging = (
+            use_staging if use_staging is not None else settings.ACME_USE_STAGING
+        )
         self._directory_url = directory_url or (
             settings.ACME_STAGING_URL if _use_staging else settings.ACME_DIRECTORY_URL
         )
@@ -111,7 +114,8 @@ class AcmeClient:
 
         logger.info(
             "DNS-01 challenge: set TXT record {} = {}",
-            record_name, validation,
+            record_name,
+            validation,
         )
 
         # 5. 设置 DNS TXT 记录
@@ -150,7 +154,8 @@ class AcmeClient:
             except Exception as e:
                 logger.warning(
                     "Failed to clean up DNS TXT record {}: {}",
-                    record_name, str(e),
+                    record_name,
+                    str(e),
                 )
 
         return cert_pem, domain_key_pem, chain_pem
@@ -235,7 +240,8 @@ class AcmeClient:
         start = time.monotonic()
         while time.monotonic() - start < timeout:
             response = await asyncio.to_thread(
-                self._client.poll, authz,
+                self._client.poll,
+                authz,
             )
             # client.poll returns (authzr, response) tuple / poll 返回元组 / poll returns tuple
             updated_authz = response if not isinstance(response, tuple) else response[0]
@@ -259,9 +265,7 @@ class AcmeClient:
         """生成 CSR (Certificate Signing Request) / Generate CSR."""
         csr = (
             x509.CertificateSigningRequestBuilder()
-            .subject_name(
-                x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, domain)])
-            )
+            .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, domain)]))
             .add_extension(
                 x509.SubjectAlternativeName([x509.DNSName(domain)]),
                 critical=False,
@@ -279,7 +283,9 @@ class AcmeClient:
 
         # 分离 leaf cert 和 chain
         certs = fullchain.split("-----END CERTIFICATE-----")
-        certs = [c.strip() + "\n-----END CERTIFICATE-----\n" for c in certs if c.strip()]
+        certs = [
+            c.strip() + "\n-----END CERTIFICATE-----\n" for c in certs if c.strip()
+        ]
 
         cert_pem = certs[0] if certs else fullchain
         chain_pem = "\n".join(certs[1:]) if len(certs) > 1 else None
@@ -290,6 +296,7 @@ class AcmeClient:
     def _generate_private_key() -> rsa.RSAPrivateKey:
         """生成 RSA 2048 私钥 / Generate RSA 2048 private key."""
         from cryptography.hazmat.backends import default_backend
+
         return rsa.generate_private_key(
             public_exponent=65537,
             key_size=2048,
@@ -310,22 +317,29 @@ class AcmeClient:
         while time.monotonic() - start < timeout:
             try:
                 answers = await asyncio.to_thread(
-                    dns.resolver.resolve, record_name, "TXT",
+                    dns.resolver.resolve,
+                    record_name,
+                    "TXT",
                 )
                 for rdata in answers:
                     txt_value = str(rdata).strip('"').strip()
                     if txt_value == expected_value:
                         logger.info("DNS propagation confirmed for {}", record_name)
                         return
-            except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer,
-                    dns.resolver.NoNameservers, Exception):
+            except (
+                dns.resolver.NXDOMAIN,
+                dns.resolver.NoAnswer,
+                dns.resolver.NoNameservers,
+                Exception,
+            ):
                 pass
 
             await asyncio.sleep(interval)
 
         logger.warning(
             "DNS propagation timeout for {} after {}s, proceeding anyway",
-            record_name, timeout,
+            record_name,
+            timeout,
         )
 
 

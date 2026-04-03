@@ -81,9 +81,7 @@ class QuotaService:
         锁在事务提交/回滚后自动释放。
         """
         await self.db.execute(
-            select(Tenant.id)
-            .where(Tenant.id == self.tenant.id)
-            .with_for_update()
+            select(Tenant.id).where(Tenant.id == self.tenant.id).with_for_update()
         )
 
     def get_quota_value(self, key: str, default: int | bool | None = None) -> Any:
@@ -172,7 +170,13 @@ class QuotaService:
             current=int(current_bytes / (1024 * 1024 * 1024)),  # 转为 GB
             limit=limit_gb,
             remaining=max(0, int(remaining / (1024 * 1024 * 1024))),
-            message=None if allowed else _("quota.storage_exceeded", current=f"{current_bytes / (1024 * 1024 * 1024):.2f}", limit=limit_gb),
+            message=None
+            if allowed
+            else _(
+                "quota.storage_exceeded",
+                current=f"{current_bytes / (1024 * 1024 * 1024):.2f}",
+                limit=limit_gb,
+            ),
         )
 
     async def check_user_quota(self, additional: int = 1) -> QuotaCheckResult:
@@ -346,9 +350,11 @@ class QuotaService:
 
         # 从 AI 调用日志统计当月调用次数
         from app.core.base_model import utc_now
+
         now = utc_now()
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         from app.models.ai.call_log import AICallLog
+
         query = select(func.count(AICallLog.id)).where(
             AICallLog.tenant_id == self.tenant.id,
             AICallLog.created_at >= month_start,
@@ -442,7 +448,6 @@ class QuotaService:
             result[key] = self.get_feature(key, False)
 
         return result
-
 
     @classmethod
     async def check_api_quota_for_tenant_id(

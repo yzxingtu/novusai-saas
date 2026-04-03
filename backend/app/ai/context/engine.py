@@ -123,7 +123,9 @@ class ConversationContextEngine(ContextEngine):
     ) -> ContextAssembly:
         self._compaction_snapshot_written_in_assemble = False
         messages: list[ChatMessage] = []
-        system_msg = self.base_engine._build_system_message(agent, request.input_variables)
+        system_msg = self.base_engine._build_system_message(
+            agent, request.input_variables
+        )
         messages.append(system_msg)
         if request.messages:
             messages.extend(request.messages)
@@ -171,7 +173,9 @@ class ConversationContextEngine(ContextEngine):
 
         context_config = getattr(agent, "context_config", None) or {}
         long_term_memory_enabled = bool(request.long_term_memory_enabled)
-        compact_threshold_tokens = int(context_config.get("compact_threshold_tokens", 0) or 0)
+        compact_threshold_tokens = int(
+            context_config.get("compact_threshold_tokens", 0) or 0
+        )
         compact_keep_last_assistants = int(
             context_config.get("compact_keep_last_assistants", 3) or 3
         )
@@ -252,8 +256,8 @@ class ConversationContextEngine(ContextEngine):
                     from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
 
                     page_context = request.input_variables.get(PAGE_CONTEXT_KEY)
-                page_description = (
-                    capability_builder.build_page_context_description(page_context)
+                page_description = capability_builder.build_page_context_description(
+                    page_context
                 )
                 if page_description:
                     capability_descriptions.append(page_description)
@@ -319,7 +323,8 @@ class ConversationContextEngine(ContextEngine):
                             "count": len(recalled_records),
                             **(
                                 {"profile_snapshot": True}
-                                if memory_recall_slice and memory_recall_slice.get("profile_snapshot")
+                                if memory_recall_slice
+                                and memory_recall_slice.get("profile_snapshot")
                                 else {}
                             ),
                             "scope_type": "user_agent",
@@ -335,7 +340,10 @@ class ConversationContextEngine(ContextEngine):
             if existing_snapshot and isinstance(existing_snapshot.get("summary"), str):
                 compact_summary = existing_snapshot["summary"].strip() or None
 
-            if compact_threshold_tokens > 0 and compaction_source_tokens > compact_threshold_tokens:
+            if (
+                compact_threshold_tokens > 0
+                and compaction_source_tokens > compact_threshold_tokens
+            ):
                 rebuilt_summary = self._build_compact_summary(
                     prefix,
                     max_chars=compact_max_summary_chars,
@@ -475,7 +483,9 @@ class ConversationContextEngine(ContextEngine):
             return
 
         context_config = getattr(agent, "context_config", None) or {}
-        result_messages = self._coerce_result_messages(getattr(result, "messages", None))
+        result_messages = self._coerce_result_messages(
+            getattr(result, "messages", None)
+        )
         if not result_messages:
             return
 
@@ -492,7 +502,9 @@ class ConversationContextEngine(ContextEngine):
         context_config: dict[str, Any],
         messages: list[ChatMessage],
     ) -> None:
-        compact_threshold_tokens = int(context_config.get("compact_threshold_tokens", 0) or 0)
+        compact_threshold_tokens = int(
+            context_config.get("compact_threshold_tokens", 0) or 0
+        )
         if compact_threshold_tokens <= 0:
             return
 
@@ -586,7 +598,9 @@ class ConversationContextEngine(ContextEngine):
         # Dedupe when assemble() and compact() both persist in the same turn: message lists
         # differ (system included vs request.messages only), so counts/tokens may not match even
         # when the generated summary text is identical — compare summary only.
-        existing = await service.get_context_compaction_snapshot(request.conversation_id)
+        existing = await service.get_context_compaction_snapshot(
+            request.conversation_id
+        )
         if existing and isinstance(existing, dict):
             prev_summary = (existing.get("summary") or "").strip()
             new_summary = (summary or "").strip()
@@ -609,7 +623,9 @@ class ConversationContextEngine(ContextEngine):
         merged = [part.strip() for part in additions if part.strip()]
         if not merged:
             return messages
-        messages[0].content = (messages[0].content or "").rstrip() + "\n\n" + "\n\n".join(merged)
+        messages[0].content = (
+            (messages[0].content or "").rstrip() + "\n\n" + "\n\n".join(merged)
+        )
         return messages
 
     def _compaction_split_index(
@@ -630,7 +646,9 @@ class ConversationContextEngine(ContextEngine):
         for idx, message in enumerate(messages):
             if idx == 0:
                 continue
-            if message.role == "tool" and self.pruner._has_unresolved_tool_state(message):
+            if message.role == "tool" and self.pruner._has_unresolved_tool_state(
+                message
+            ):
                 unresolved_index = idx
                 break
             if (
@@ -727,13 +745,13 @@ class ConversationContextEngine(ContextEngine):
             if not isinstance(values, list) or not values:
                 continue
             compact_values = [
-                str(value).strip()
-                for value in values[:2]
-                if str(value).strip()
+                str(value).strip() for value in values[:2] if str(value).strip()
             ]
             if not compact_values:
                 continue
-            lines.append(f"- {label_map.get(key, key.title())}: {'; '.join(compact_values)}")
+            lines.append(
+                f"- {label_map.get(key, key.title())}: {'; '.join(compact_values)}"
+            )
         return "\n".join(lines) if len(lines) > 1 else ""
 
     def _build_web_research_date_anchor(
@@ -750,8 +768,10 @@ class ConversationContextEngine(ContextEngine):
         has_web_research_tools = any(
             getattr(t, "name", "") in {"web_search", "fetch_url"} for t in tools
         )
-        recent_successful_tool_names = self.base_engine._extract_recent_successful_tool_names(
-            messages[:-1],
+        recent_successful_tool_names = (
+            self.base_engine._extract_recent_successful_tool_names(
+                messages[:-1],
+            )
         )
         continuing_web_research = (
             bool(recent_successful_tool_names)
@@ -768,7 +788,7 @@ class ConversationContextEngine(ContextEngine):
             "[RUNTIME CLOCK]\n"
             f"Current server-local date/time is {local_now.strftime('%Y-%m-%d %H:%M:%S')} ({settings.TIMEZONE}). "
             f"Current UTC date is {utc_today}. "
-            f"The calendar year for \"today\" and \"latest news\" queries is {current_year}. "
+            f'The calendar year for "today" and "latest news" queries is {current_year}. '
             "When constructing web_search queries for current events, use this year in date filters—do not substitute a past training-data year. "
             "When the user says today/latest/current/recent or asks about the current time/date, interpret it against this runtime clock. "
             "Do not assume a different year or timezone unless a source or the user explicitly specifies one."

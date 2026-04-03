@@ -57,10 +57,14 @@ class ProviderApiKeyService(BaseService[ProviderApiKey, ProviderApiKeyRepository
                 message=_("ai.error.api_key_owner_required"),
             )
 
-        if scope in (
-            ResourceScopeEnum.ADMIN_ONLY.value,
-            ResourceScopeEnum.GLOBAL_SHARED.value,
-        ) and owner_tid is not None:
+        if (
+            scope
+            in (
+                ResourceScopeEnum.ADMIN_ONLY.value,
+                ResourceScopeEnum.GLOBAL_SHARED.value,
+            )
+            and owner_tid is not None
+        ):
             raise ValidationException(
                 message=_("ai.error.api_key_owner_forbidden"),
             )

@@ -39,6 +39,7 @@ def require_admin_permissions(*permissions: str) -> Callable:
         ):
             ...
     """
+
     async def checker(
         db: Annotated[AsyncSession, Depends(get_db)],
         current_admin: Annotated[Admin, Depends(get_current_active_admin)],
@@ -68,6 +69,7 @@ def require_any_admin_permission(*permissions: str) -> Callable:
     Returns:
         FastAPI dependency function / FastAPI 依赖函数
     """
+
     async def checker(
         db: Annotated[AsyncSession, Depends(get_db)],
         current_admin: Annotated[Admin, Depends(get_current_active_admin)],
@@ -104,6 +106,7 @@ def require_tenant_admin_permissions(*permissions: str) -> Callable:
         ):
             ...
     """
+
     async def checker(
         db: Annotated[AsyncSession, Depends(get_db)],
         current_admin: Annotated[TenantAdmin, Depends(get_current_active_tenant_admin)],
@@ -133,6 +136,7 @@ def require_any_tenant_admin_permission(*permissions: str) -> Callable:
     Returns:
         FastAPI dependency function / FastAPI 依赖函数
     """
+
     async def checker(
         db: Annotated[AsyncSession, Depends(get_db)],
         current_admin: Annotated[TenantAdmin, Depends(get_current_active_tenant_admin)],
@@ -149,6 +153,7 @@ def require_any_tenant_admin_permission(*permissions: str) -> Callable:
         return current_admin
 
     return checker
+
 
 __all__ = [
     # Platform admin / 平台管理员

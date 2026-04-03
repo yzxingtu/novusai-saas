@@ -50,7 +50,9 @@ from app.services.system import TenantService
 # 审计日志辅助类 / Audit log helper class
 class _ImpersonateAuditLogger(ImpersonateLoggerMixin):
     """Impersonate 审计日志器 / Impersonate audit logger"""
+
     pass
+
 
 _audit_helper = _ImpersonateAuditLogger()
 
@@ -100,7 +102,9 @@ class AdminTenantController(GlobalController):
             search: str = Query("", description=_("api.param.search")),
             is_active: str = Query("", description=_("api.param.is_active")),
             page: int = Query(0, ge=0, description=_("api.param.page")),
-            page_size: int = Query(20, ge=1, le=100, description=_("api.param.page_size")),
+            page_size: int = Query(
+                20, ge=1, le=100, description=_("api.param.page_size")
+            ),
         ):
             """
             获取企业下拉选项 / Get tenant dropdown options
@@ -157,7 +161,9 @@ class AdminTenantController(GlobalController):
             # 批量获取存储统计 / Batch fetch storage stats
             tenant_ids = [item.id for item in items]
             quota_service = StorageQuotaService(db)
-            storage_stats_map = await quota_service.get_tenant_storage_stats_batch(tenant_ids)
+            storage_stats_map = await quota_service.get_tenant_storage_stats_batch(
+                tenant_ids
+            )
 
             # 构建响应数据 / Build response data
             response_items = []
@@ -196,6 +202,7 @@ class AdminTenantController(GlobalController):
 
             if tenant is None:
                 from fastapi import HTTPException, status
+
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=_("tenant.not_found"),
@@ -298,6 +305,7 @@ class AdminTenantController(GlobalController):
             tenant = await service.get_by_id(tenant_id)
             if tenant is None:
                 from fastapi import HTTPException, status
+
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=_("tenant.not_found"),
@@ -433,6 +441,7 @@ class AdminTenantController(GlobalController):
             resolver = StorageConfigResolver(db)
             mode = await resolver.get_storage_mode(tenant_id)
             from app.configs.service import ConfigService
+
             config_service = ConfigService(db)
 
             tenant_driver = await config_service.get_tenant_config(
@@ -454,16 +463,20 @@ class AdminTenantController(GlobalController):
                 tenant_id, "tenant_storage_self_config_enabled", default=False
             )
 
-            return success(data={
-                "tenant_id": tenant_id,
-                "effective_mode": mode,
-                "tenant_storage_mode": str(tenant_mode),
-                "tenant_storage_driver": str(tenant_driver) if tenant_driver else None,
-                "tenant_storage_root_path": str(tenant_root_path),
-                "tenant_storage_base_url": str(tenant_base_url),
-                "tenant_storage_options": tenant_options or {},
-                "tenant_storage_self_config_enabled": bool(tenant_self_enabled),
-            })
+            return success(
+                data={
+                    "tenant_id": tenant_id,
+                    "effective_mode": mode,
+                    "tenant_storage_mode": str(tenant_mode),
+                    "tenant_storage_driver": str(tenant_driver)
+                    if tenant_driver
+                    else None,
+                    "tenant_storage_root_path": str(tenant_root_path),
+                    "tenant_storage_base_url": str(tenant_base_url),
+                    "tenant_storage_options": tenant_options or {},
+                    "tenant_storage_self_config_enabled": bool(tenant_self_enabled),
+                }
+            )
 
         @router.put("/{tenant_id}/storage-config", summary="设置企业存储配置")
         @action_update("action.tenant.update")
@@ -583,7 +596,9 @@ class AdminTenantController(GlobalController):
                     )
                 )
 
-        @router.put("/{tenant_id}/reset-owner-password", summary="重置企业超级管理员密码")
+        @router.put(
+            "/{tenant_id}/reset-owner-password", summary="重置企业超级管理员密码"
+        )
         @permission_action("reset_owner_password", "action.tenant.reset_owner_password")
         async def reset_owner_password(
             request: Request,

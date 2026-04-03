@@ -117,7 +117,9 @@ class MonitoringUsageDashboard(BaseSchema):
     summary: MonitoringUsageSummary
     daily_stats: list[MonitoringUsageSeriesPoint] = Field(default_factory=list)
     model_stats: list[MonitoringUsageBreakdownItem] = Field(default_factory=list)
-    access_channel_stats: list[MonitoringUsageBreakdownItem] = Field(default_factory=list)
+    access_channel_stats: list[MonitoringUsageBreakdownItem] = Field(
+        default_factory=list
+    )
     top_agents: list[MonitoringUsageBreakdownItem] = Field(default_factory=list)
     top_users: list[MonitoringUsageBreakdownItem] = Field(default_factory=list)
     top_tenants: list[MonitoringUsageBreakdownItem] = Field(default_factory=list)

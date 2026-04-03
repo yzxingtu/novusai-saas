@@ -32,6 +32,7 @@ class LocalStorageDriver(StorageDriver):
     """
     Local File System Storage Driver / 本地文件系统存储驱动
     """
+
     name = "local"
     display_name = "storage.driver.local"
     config_schema = {
@@ -310,7 +311,9 @@ class LocalStorageDriver(StorageDriver):
         if not output_format:
             # Infer format from original path / 从原始路径推断格式
             ext = Path(path).suffix.lower().lstrip(".")
-            output_format = ext if ext in {"jpg", "jpeg", "png", "webp", "gif"} else "jpg"
+            output_format = (
+                ext if ext in {"jpg", "jpeg", "png", "webp", "gif"} else "jpg"
+            )
 
         cache_filename = f"{path_hash}_{params_hash}.{output_format}"
         return self._get_cache_root() / cache_filename
@@ -370,6 +373,7 @@ class LocalStorageDriver(StorageDriver):
                 data = cache_path.read_bytes()
                 mime, _ = mimetypes.guess_type(str(cache_path))
                 return data, mime or "image/jpeg"
+
             return await anyio.to_thread.run_sync(_read_cache)
 
         # Process and cache / 处理并缓存
@@ -384,7 +388,9 @@ class LocalStorageDriver(StorageDriver):
         cache_root = self._get_cache_root()
         if not cache_root.exists():
             return 0
-        return sum(1 for f in cache_root.iterdir() if f.name.startswith(f"{path_hash}_"))
+        return sum(
+            1 for f in cache_root.iterdir() if f.name.startswith(f"{path_hash}_")
+        )
 
     async def _process_and_cache(
         self,
@@ -398,11 +404,15 @@ class LocalStorageDriver(StorageDriver):
         from app.utils.image import ImageProcessor
 
         max_variants = int(self.config.options.get("image_cache_max_variants", 50))
-        variant_count = await anyio.to_thread.run_sync(lambda: self._count_variants(path))
+        variant_count = await anyio.to_thread.run_sync(
+            lambda: self._count_variants(path)
+        )
         if variant_count >= max_variants:
             self.logger.warning(
                 "Image cache variant limit reached for {} ({}/{}), returning original",
-                path, variant_count, max_variants,
+                path,
+                variant_count,
+                max_variants,
             )
             source = await self.get(path)
             data = source.read()

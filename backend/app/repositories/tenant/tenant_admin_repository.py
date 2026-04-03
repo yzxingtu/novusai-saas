@@ -24,15 +24,30 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
     _scope_fields = {
         # 平台管理员查看企业管理员列表 / Admin lists tenant admins
         "admin": {
-            "id", "tenant_id", "username", "email", "phone",
-            "is_active", "is_owner", "nickname", "role_id",
-            "created_at", "updated_at",
+            "id",
+            "tenant_id",
+            "username",
+            "email",
+            "phone",
+            "is_active",
+            "is_owner",
+            "nickname",
+            "role_id",
+            "created_at",
+            "updated_at",
         },
         # 企业管理员查看本企业管理员列表 / Tenant admin lists peers
         "tenant": {
-            "id", "username", "email", "phone",
-            "is_active", "is_owner", "nickname", "role_id",
-            "created_at", "updated_at",
+            "id",
+            "username",
+            "email",
+            "phone",
+            "is_active",
+            "is_owner",
+            "nickname",
+            "role_id",
+            "created_at",
+            "updated_at",
         },
     }
 
@@ -79,7 +94,7 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
             or_(
                 self.model.username == username_or_email,
                 self.model.email == username_or_email,
-            )
+            ),
         )
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
@@ -181,8 +196,10 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
         if not user_ids:
             return {}
         stmt = select(
-            TenantAdmin.id, TenantAdmin.username,
-            TenantAdmin.nickname, TenantAdmin.avatar,
+            TenantAdmin.id,
+            TenantAdmin.username,
+            TenantAdmin.nickname,
+            TenantAdmin.avatar,
         ).where(
             TenantAdmin.id.in_(user_ids),
             TenantAdmin.is_deleted.is_(False),

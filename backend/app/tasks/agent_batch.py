@@ -58,6 +58,7 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
             try:
                 # 1. Load BatchRun / 加载 BatchRun
                 from sqlalchemy import select
+
                 stmt = select(BatchRun).where(BatchRun.id == batch_run_id)
                 result = await db.execute(stmt)
                 batch_run = result.scalar_one_or_none()
@@ -93,7 +94,8 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
 
                 _batch_user_role = UserRoleEnum.TENANT_ADMIN.value
                 _batch_billing_ctx = await AgentService(
-                    db, tenant_id,
+                    db,
+                    tenant_id,
                 ).build_usage_attribution_context(
                     agent=agent,
                     user_id=batch_run.created_by,
@@ -104,24 +106,33 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                 # Resolve skills bound to Agent / 解析 Agent 绑定的技能
                 try:
                     from app.ai.skills.resolver import resolve_for_agent
+
                     await resolve_for_agent(
-                        db, agent, tenant_id=tenant_id,
+                        db,
+                        agent,
+                        tenant_id=tenant_id,
                         user_role=_batch_user_role,
                     )
                 except Exception as skill_exc:
                     logger.warning(
                         "Batch {}: skill resolution failed: {}",
-                        batch_run_id, str(skill_exc),
+                        batch_run_id,
+                        str(skill_exc),
                     )
 
                 # Read platform Toolkit security config / 读取平台 Toolkit 安全配置
                 from app.configs.service import ConfigService
+
                 _cfg = ConfigService(db)
                 _toolkit_security_level = str(
-                    await _cfg.get_platform_config("toolkit_security_level", default="normal")
+                    await _cfg.get_platform_config(
+                        "toolkit_security_level", default="normal"
+                    )
                 )
                 _toolkit_memory_limit_mb = int(
-                    await _cfg.get_platform_config("toolkit_memory_limit_mb", default=256)
+                    await _cfg.get_platform_config(
+                        "toolkit_memory_limit_mb", default=256
+                    )
                 )
 
                 sandbox = ToolSandbox(
@@ -153,7 +164,9 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                     if batch_run.status == BatchRunStatusEnum.CANCELLED.value:
                         logger.info(
                             "Batch {} cancelled at item {}/{}",
-                            batch_run_id, idx, len(items),
+                            batch_run_id,
+                            idx,
+                            len(items),
                         )
                         break
 
@@ -174,32 +187,40 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                         )
 
                         exec_result = await task_engine.execute(
-                            agent, item_request,
+                            agent,
+                            item_request,
                         )
 
                         if exec_result.success:
                             succeeded += 1
-                            all_results.append({
-                                "item_id": item_id,
-                                "output": exec_result.output,
-                                "total_tokens": exec_result.total_tokens,
-                            })
+                            all_results.append(
+                                {
+                                    "item_id": item_id,
+                                    "output": exec_result.output,
+                                    "total_tokens": exec_result.total_tokens,
+                                }
+                            )
                         else:
                             failed += 1
-                            all_errors.append({
-                                "item_id": item_id,
-                                "error": exec_result.error,
-                            })
+                            all_errors.append(
+                                {
+                                    "item_id": item_id,
+                                    "error": exec_result.error,
+                                }
+                            )
 
                     except Exception as exc:
                         failed += 1
-                        all_errors.append({
-                            "item_id": item_id,
-                            "error": str(exc),
-                        })
+                        all_errors.append(
+                            {
+                                "item_id": item_id,
+                                "error": str(exc),
+                            }
+                        )
                         logger.error(
                             "Batch item {} failed: {}",
-                            item_id, str(exc),
+                            item_id,
+                            str(exc),
                             exc_info=True,
                         )
 
@@ -211,22 +232,27 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                     # Socket.IO real-time progress push / Socket.IO 实时进度推送
                     try:
                         from app.core.sio_bridge import notify_user_sync
+
                         if batch_run.created_by:
                             percent = int((idx + 1) / len(items) * 100)
-                            notify_user_sync("tenant_admin", batch_run.created_by, {
-                                "type": "ai.batch_progress",
-                                "category": "ai",
-                                "title": f"Batch {batch_run_id}: {idx + 1}/{len(items)}",
-                                "data": {
-                                    "batch_id": batch_run_id,
-                                    "current": idx + 1,
-                                    "total": len(items),
-                                    "percent": percent,
-                                    "succeeded": succeeded,
-                                    "failed": failed,
+                            notify_user_sync(
+                                "tenant_admin",
+                                batch_run.created_by,
+                                {
+                                    "type": "ai.batch_progress",
+                                    "category": "ai",
+                                    "title": f"Batch {batch_run_id}: {idx + 1}/{len(items)}",
+                                    "data": {
+                                        "batch_id": batch_run_id,
+                                        "current": idx + 1,
+                                        "total": len(items),
+                                        "percent": percent,
+                                        "succeeded": succeeded,
+                                        "failed": failed,
+                                    },
+                                    "priority": "normal",
                                 },
-                                "priority": "normal",
-                            })
+                            )
                     except Exception:
                         pass
 
@@ -237,9 +263,7 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                     elif succeeded == 0:
                         batch_run.status = BatchRunStatusEnum.FAILED.value
                     else:
-                        batch_run.status = (
-                            BatchRunStatusEnum.PARTIAL_FAILED.value
-                        )
+                        batch_run.status = BatchRunStatusEnum.PARTIAL_FAILED.value
 
                 batch_run.completed_items = succeeded
                 batch_run.failed_items = failed
@@ -251,28 +275,38 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                 # Socket.IO completion/failure notification / Socket.IO 完成/失败通知
                 try:
                     from app.core.sio_bridge import notify_user_sync
+
                     if batch_run.created_by:
-                        event_type = "ai.batch_complete" if failed == 0 else "ai.batch_failed"
+                        event_type = (
+                            "ai.batch_complete" if failed == 0 else "ai.batch_failed"
+                        )
                         priority = "normal" if failed == 0 else "high"
-                        notify_user_sync("tenant_admin", batch_run.created_by, {
-                            "type": event_type,
-                            "category": "ai",
-                            "title": f"Batch {batch_run_id}: {succeeded}/{len(items)} succeeded",
-                            "data": {
-                                "batch_id": batch_run_id,
-                                "total": len(items),
-                                "succeeded": succeeded,
-                                "failed": failed,
-                                "status": batch_run.status,
+                        notify_user_sync(
+                            "tenant_admin",
+                            batch_run.created_by,
+                            {
+                                "type": event_type,
+                                "category": "ai",
+                                "title": f"Batch {batch_run_id}: {succeeded}/{len(items)} succeeded",
+                                "data": {
+                                    "batch_id": batch_run_id,
+                                    "total": len(items),
+                                    "succeeded": succeeded,
+                                    "failed": failed,
+                                    "status": batch_run.status,
+                                },
+                                "priority": priority,
                             },
-                            "priority": priority,
-                        })
+                        )
                 except Exception:
                     pass
 
                 logger.info(
                     "Batch {} done: {}/{} succeeded, {} failed",
-                    batch_run_id, succeeded, len(items), failed,
+                    batch_run_id,
+                    succeeded,
+                    len(items),
+                    failed,
                 )
 
                 return {
@@ -286,7 +320,8 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
             except Exception as exc:
                 logger.error(
                     "Batch {} execution error: {}",
-                    batch_run_id, str(exc),
+                    batch_run_id,
+                    str(exc),
                     exc_info=True,
                 )
                 # Update to failed / 更新为失败

@@ -28,6 +28,7 @@ logger = get_logger(__name__)
 def _get_plugins_dir() -> Path:
     """Lazily get PLUGINS_DIR to avoid circular imports / 延迟获取 PLUGINS_DIR，避免循环导入"""
     from app.plugins.loader import PLUGINS_DIR
+
     return PLUGINS_DIR
 
 
@@ -47,12 +48,16 @@ def load_plugin_module(plugin_name: str, dotted_path: str) -> Any | None:
     plugins_dir = _get_plugins_dir()
 
     parts = dotted_path.split(".")
-    module_file = plugins_dir / plugin_name / "backend" / Path(*parts).with_suffix(".py")
+    module_file = (
+        plugins_dir / plugin_name / "backend" / Path(*parts).with_suffix(".py")
+    )
 
     # Try direct file path / 尝试直接文件路径
     if not module_file.is_file():
         # Try directory __init__.py / 尝试目录 __init__.py
-        module_dir = plugins_dir / plugin_name / "backend" / Path(*parts) / "__init__.py"
+        module_dir = (
+            plugins_dir / plugin_name / "backend" / Path(*parts) / "__init__.py"
+        )
         if module_dir.is_file():
             module_file = module_dir
         else:
@@ -78,7 +83,9 @@ def load_plugin_module(plugin_name: str, dotted_path: str) -> Any | None:
         sys.modules.pop(module_name, None)
         logger.warning(
             "Failed to load plugin module {}: {}",
-            module_name, exc, exc_info=True,
+            module_name,
+            exc,
+            exc_info=True,
         )
         return None
 
@@ -105,7 +112,8 @@ def load_plugin_handler(plugin_name: str, handler_dotpath: str) -> Any | None:
     if len(parts) < 2:
         logger.warning(
             "Invalid handler path '{}' for plugin '{}': need at least module.attr",
-            handler_dotpath, plugin_name,
+            handler_dotpath,
+            plugin_name,
         )
         return None
 
@@ -119,7 +127,9 @@ def load_plugin_handler(plugin_name: str, handler_dotpath: str) -> Any | None:
         if attr is None:
             logger.warning(
                 "Attribute '{}' not found in module '{}' for plugin '{}'",
-                attr_name, module_dotpath, plugin_name,
+                attr_name,
+                module_dotpath,
+                plugin_name,
             )
         return attr
 
@@ -131,7 +141,9 @@ def load_plugin_handler(plugin_name: str, handler_dotpath: str) -> Any | None:
         logger.warning(
             "Failed to load handler '{}' for plugin '{}': "
             "neither submodule '%s' nor main.py found",
-            handler_dotpath, plugin_name, module_dotpath,
+            handler_dotpath,
+            plugin_name,
+            module_dotpath,
         )
         return None
 
@@ -142,7 +154,9 @@ def load_plugin_handler(plugin_name: str, handler_dotpath: str) -> Any | None:
             logger.warning(
                 "Failed to load handler '{}' for plugin '{}': "
                 "attribute '%s' not found in getattr chain on main module",
-                handler_dotpath, plugin_name, part,
+                handler_dotpath,
+                plugin_name,
+                part,
             )
             return None
     return obj
@@ -186,7 +200,9 @@ def load_plugin_executor(plugin_name: str, skill_type: str) -> type | None:
         except Exception as exc:
             logger.warning(
                 "Failed to find executor class for skill_type '{}' in plugin '{}': {}",
-                skill_type, plugin_name, exc,
+                skill_type,
+                plugin_name,
+                exc,
             )
 
     # 2. Fallback: scan all *_executor.py in executors directory
@@ -208,7 +224,8 @@ def load_plugin_executor(plugin_name: str, skill_type: str) -> type | None:
             if cls:
                 logger.info(
                     "Found plugin executor {} in fallback scan for plugin '{}'",
-                    cls.__name__, plugin_name,
+                    cls.__name__,
+                    plugin_name,
                 )
                 return cls
         except Exception:
@@ -230,16 +247,14 @@ def unload_plugin_modules(plugin_name: str) -> int:
     """
     prefix = f"plugins.{plugin_name}."
     exact = f"plugins.{plugin_name}"
-    to_remove = [
-        key for key in sys.modules
-        if key == exact or key.startswith(prefix)
-    ]
+    to_remove = [key for key in sys.modules if key == exact or key.startswith(prefix)]
     for key in to_remove:
         del sys.modules[key]
 
     if to_remove:
         logger.debug(
             "Unloaded {} modules for plugin '{}'",
-            len(to_remove), plugin_name,
+            len(to_remove),
+            plugin_name,
         )
     return len(to_remove)

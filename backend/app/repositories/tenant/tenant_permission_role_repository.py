@@ -19,8 +19,14 @@ class TenantPermissionRoleRepository(TenantRepository[TenantAdminRole]):
 
     _scope_fields = {
         "tenant": {
-            "id", "name", "code", "is_system", "is_active",
-            "sort_order", "created_at", "updated_at",
+            "id",
+            "name",
+            "code",
+            "is_system",
+            "is_active",
+            "sort_order",
+            "created_at",
+            "updated_at",
         },
     }
 
@@ -113,13 +119,17 @@ class TenantPermissionRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> tuple[list[TenantAdminRole], int]:
         query = self._base_query()
-        count_query = select(func.count()).select_from(self.model).where(
-            self.model.tenant_id == self.tenant_id,
-            self.model.type == RoleType.ROLE.value,
-            self.model.parent_id.is_(None),
-            self.model.path.is_(None),
-            self.model.leader_id.is_(None),
-            self.model.level == 1,
+        count_query = (
+            select(func.count())
+            .select_from(self.model)
+            .where(
+                self.model.tenant_id == self.tenant_id,
+                self.model.type == RoleType.ROLE.value,
+                self.model.parent_id.is_(None),
+                self.model.path.is_(None),
+                self.model.leader_id.is_(None),
+                self.model.level == 1,
+            )
         )
 
         if not include_deleted:

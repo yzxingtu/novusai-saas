@@ -102,7 +102,9 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
         if pkg.is_system:
             protected = {"is_system", "is_active"}
             if protected & set(data.keys()):
-                raise BusinessException(message=_("skill_package.error.system_protected"))
+                raise BusinessException(
+                    message=_("skill_package.error.system_protected")
+                )
 
         name = data.get("name")
         if name:
@@ -148,6 +150,7 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
         """永久删除前：清理磁盘存储文件 + 残留绑定 / Before permanent delete: cleanup storage and bindings."""
         await super()._before_permanent_delete(id)
         from app.ai.skills.packaging import cleanup_skill_storage
+
         cleanup_skill_storage(id)
 
     async def get_with_skill_count(self, package_id: int) -> dict | None:
@@ -190,7 +193,9 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
         return await _build_resolved_tools_payload(self.db, pkg, skills)
 
 
-class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepository]):
+class AdminSkillPackageService(
+    GlobalService[SkillPackage, AdminSkillPackageRepository]
+):
     """
     管理端技能包 Service / Admin skill package service.
     无企业隔离，供平台管理端全局查询和 CRUD 使用 / No tenant isolation, for admin CRUD.
@@ -222,7 +227,9 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
         if pkg.is_system:
             protected = {"is_system", "is_active"}
             if protected & set(data.keys()):
-                raise BusinessException(message=_("skill_package.error.system_protected"))
+                raise BusinessException(
+                    message=_("skill_package.error.system_protected")
+                )
 
         name = data.get("name")
         if name:
@@ -238,7 +245,8 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
             await self.repo.cascade_update_skill_tenant_id(id, new_tenant_id)
             logger.info(
                 "Cascade synced Skill.tenant_id to {} for package {}",
-                new_tenant_id, id,
+                new_tenant_id,
+                id,
             )
 
     async def _before_delete(self, id: int) -> None:
@@ -274,6 +282,7 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
         """永久删除前：清理磁盘存储文件 + 残留绑定 / Before permanent delete: cleanup storage and bindings."""
         await super()._before_permanent_delete(id)
         from app.ai.skills.packaging import cleanup_skill_storage
+
         cleanup_skill_storage(id)
 
     async def get_with_skill_count(self, package_id: int) -> dict | None:
@@ -302,7 +311,6 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
         skills = await skill_service.get_by_package_id(package_id)
         return await _build_resolved_tools_payload(self.db, pkg, skills)
 
-
     async def get_select_options(
         self,
         search: str = "",
@@ -316,11 +324,14 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
         """管理端下拉选项，自动排除系统内部技能包 / Admin select options, exclude internal system packages."""
         filters.setdefault("is_system", False)
         return await super().get_select_options(
-            search=search, limit=limit, tree=tree,
-            parent_id=parent_id, page=page, page_size=page_size,
+            search=search,
+            limit=limit,
+            tree=tree,
+            parent_id=parent_id,
+            page=page,
+            page_size=page_size,
             **filters,
         )
-
 
 
 __all__ = ["SkillPackageService", "AdminSkillPackageService"]

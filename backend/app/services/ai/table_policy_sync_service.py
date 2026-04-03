@@ -145,7 +145,7 @@ _COLUMN_DESC_MAP: dict[str, str] = {
     "routed_model_id": "实际路由到的模型 ID",
     "provider_name": "供应商名称",
     "model_name": "模型名称",
-    "base_url": "API 基础地址",
+    "base_url": "基础 URL",
     "usage_limit": "使用次数上限",
     "usage_count": "已使用次数",
     "last_used_at": "最后使用时间",
@@ -222,7 +222,6 @@ _COLUMN_DESC_MAP: dict[str, str] = {
     "toolkit_content": "工具包内容",
     "toolkit_meta": "工具包元数据",
     "input_schema": "输入 Schema",
-    "output_schema": "输出 Schema",
     "timeout": "超时时间（秒）",
     "disabled": "是否禁用",
     "weight": "权重",
@@ -323,7 +322,6 @@ _COLUMN_DESC_MAP: dict[str, str] = {
     "kwargs": "任务关键字参数（JSON）",
     "result": "执行结果（JSON）",
     "traceback": "异常堆栈",
-    "started_at": "开始时间",
     "finished_at": "结束时间",
     "retry_count": "重试次数",
     # 通知 / Notifications
@@ -345,7 +343,6 @@ _COLUMN_DESC_MAP: dict[str, str] = {
     "mime_type": "MIME 类型",
     "extension": "文件扩展名",
     "driver": "存储驱动",
-    "base_url": "基础 URL",
     "source": "来源",
     "uploader_id": "上传者 ID",
     "business_type": "业务类型",
@@ -388,10 +385,7 @@ def _is_i18n_key(text: str) -> bool:
         if not clean.isalnum():
             return False
     # 简单排除：若包含常见中文，则不是 i18n 键 / Any CJK → not i18n key
-    for c in text:
-        if "\u4e00" <= c <= "\u9fff":
-            return False
-    return True
+    return all(not "\u4e00" <= c <= "\u9fff" for c in text)
 
 
 def _humanize_table_name(table_name: str) -> str:
@@ -491,9 +485,7 @@ def _extract_column_descriptions(model_cls: type[BaseModel]) -> dict[str, str]:
                 arg = default.arg
                 if isinstance(arg, str):
                     # 尝试查找 import 的枚举类 / Resolve enum class from module
-                    _try_extract_enum_from_default(
-                        model_cls, col_name, arg, desc_parts
-                    )
+                    _try_extract_enum_from_default(model_cls, col_name, arg, desc_parts)
 
         if desc_parts:
             descriptions[col_name] = "; ".join(desc_parts)
@@ -662,10 +654,7 @@ _ADMIN_CUSTOM_FIELDS: tuple[str, ...] = (
 
 def _extract_admin_custom(policy: AITablePolicy) -> dict[str, Any]:
     """提取管理员自定义字段用于回填 / Extract admin custom fields for restore."""
-    return {
-        k: getattr(policy, k)
-        for k in _ADMIN_CUSTOM_FIELDS
-    }
+    return {k: getattr(policy, k) for k in _ADMIN_CUSTOM_FIELDS}
 
 
 async def sync_table_policies(db: AsyncSession) -> dict[str, Any]:

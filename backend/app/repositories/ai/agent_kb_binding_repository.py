@@ -124,13 +124,10 @@ class AgentKBBindingRepository(TenantRepository[AgentKnowledgeBaseBinding]):
         """
         删除指定智能体的所有知识库绑定（物理删除） / Delete all KB bindings for an agent (hard delete).
         """
-        stmt = (
-            delete(AgentKnowledgeBaseBinding)
-            .where(
-                and_(
-                    AgentKnowledgeBaseBinding.agent_id == agent_id,
-                    self._tenant_filter(),
-                )
+        stmt = delete(AgentKnowledgeBaseBinding).where(
+            and_(
+                AgentKnowledgeBaseBinding.agent_id == agent_id,
+                self._tenant_filter(),
             )
         )
         result = await self.db.execute(stmt)

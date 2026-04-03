@@ -383,7 +383,9 @@ class BaseRepository(Generic[ModelType]):
 
     # ==================== 通用筛选方法 / Generic Filter Methods ====================
 
-    def get_allowed_fields(self, scope: str | None = None) -> dict[str, InstrumentedAttribute]:
+    def get_allowed_fields(
+        self, scope: str | None = None
+    ) -> dict[str, InstrumentedAttribute]:
         """
         获取允许过滤的字段 / Get allowed filter fields
 
@@ -763,7 +765,6 @@ class BaseRepository(Generic[ModelType]):
 
         return items, total
 
-
     async def get_select_options(
         self,
         search: str = "",
@@ -855,7 +856,9 @@ class BaseRepository(Generic[ModelType]):
             for field_name in search_fields:
                 if hasattr(self.model, field_name):
                     col = getattr(self.model, field_name)
-                    search_predicates.append(col.ilike(f"%{escaped_search}%", escape="\\"))
+                    search_predicates.append(
+                        col.ilike(f"%{escaped_search}%", escape="\\")
+                    )
             if search_predicates:
                 query = query.where(or_(*search_predicates))
 
@@ -953,7 +956,9 @@ class BaseRepository(Generic[ModelType]):
             for field_name in search_fields:
                 if hasattr(self.model, field_name):
                     col = getattr(self.model, field_name)
-                    search_predicates.append(col.ilike(f"%{escaped_search}%", escape="\\"))
+                    search_predicates.append(
+                        col.ilike(f"%{escaped_search}%", escape="\\")
+                    )
             if search_predicates:
                 query = query.where(or_(*search_predicates))
 
@@ -1021,8 +1026,7 @@ class BaseRepository(Generic[ModelType]):
                 if children is not None:
                     # 过滤已删除的子节点 / Drop soft-deleted children
                     active_children = [
-                        c for c in children
-                        if not getattr(c, "is_deleted", False)
+                        c for c in children if not getattr(c, "is_deleted", False)
                     ]
                     option.is_leaf = len(active_children) == 0
                 else:
@@ -1165,9 +1169,7 @@ class BaseRepository(Generic[ModelType]):
         # 应用作用域过滤 / Apply scope filters
         for field in scope_fields:
             if field in scope_filters and hasattr(self.model, field):
-                query = query.where(
-                    getattr(self.model, field) == scope_filters[field]
-                )
+                query = query.where(getattr(self.model, field) == scope_filters[field])
 
         result = await self.db.execute(query)
         max_value = result.scalar() or 0
@@ -1230,7 +1232,6 @@ class BaseRepository(Generic[ModelType]):
         )
         result = await self.db.execute(stmt)
         return result.rowcount
-
 
     # ==================== 回收站方法 / Recycle Bin Methods ====================
 
@@ -1322,9 +1323,7 @@ class BaseRepository(Generic[ModelType]):
         Returns:
             已删除记录数量 / Count of deleted records
         """
-        query = select(func.count(self.model.id)).where(
-            self.model.is_deleted.is_(True)
-        )
+        query = select(func.count(self.model.id)).where(self.model.is_deleted.is_(True))
         query = self._apply_data_permission_if_needed(query)
         if delete_level:
             query = query.where(self.model.delete_level == delete_level)
@@ -1570,7 +1569,7 @@ class TenantRepository(BaseRepository[ModelType]):
         self,
         id: int,
         include_deleted: bool = False,
-        ) -> ModelType | None:
+    ) -> ModelType | None:
         """根据 ID 获取企业级记录 / Get tenant-scoped record by ID"""
         instance = await super().get_by_id(id, include_deleted)
         # 验证企业归属 / Verify tenant ownership
@@ -1593,7 +1592,8 @@ class TenantRepository(BaseRepository[ModelType]):
         instances = await super().get_by_ids(ids, include_deleted)
         tenant_field = self._tenant_scope_field_name()
         return [
-            inst for inst in instances
+            inst
+            for inst in instances
             if getattr(inst, tenant_field, None) == self.tenant_id
         ]
 
@@ -1813,6 +1813,7 @@ class TenantRepository(BaseRepository[ModelType]):
             stmt = stmt.where(permission_condition)
         result = await self.db.execute(stmt)
         return result.rowcount
+
 
 # 导出 / Exports
 __all__ = ["BaseRepository", "TenantRepository"]

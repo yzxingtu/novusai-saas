@@ -36,10 +36,7 @@ class Skill(TenantModel):
 
     # 覆盖 TenantModel 的 tenant_id，逐步从 SkillPackage 归属迁移为 Skill 自有归属
     tenant_id = Column(
-        Integer,
-        nullable=True,
-        index=True,
-        comment="企业ID（过渡期可继承自技能包）"
+        Integer, nullable=True, index=True, comment="企业ID（过渡期可继承自技能包）"
     )
 
     # 允许前端筛选的字段 / Fields exposed for list filtering

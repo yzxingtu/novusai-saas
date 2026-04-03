@@ -31,11 +31,13 @@ def has_pageaware_tools(tools: list[Any] | None) -> bool:
         tool_name = str(getattr(tool, "name", "") or "").strip()
         if not tool_name and isinstance(tool, dict):
             function_block = tool.get("function") or {}
-            tool_name = str(function_block.get("name") or tool.get("name") or "").strip()
-        if (
-            tool_name in {"get_page_context", "invoke_page_operation"}
-            or tool_name.startswith("pageop_")
-        ):
+            tool_name = str(
+                function_block.get("name") or tool.get("name") or ""
+            ).strip()
+        if tool_name in {
+            "get_page_context",
+            "invoke_page_operation",
+        } or tool_name.startswith("pageop_"):
             return True
     return False
 
@@ -99,11 +101,7 @@ def _parse_shadow_whitelist() -> set[str]:
     ).strip()
     if not raw:
         return set()
-    return {
-        token.strip().lower()
-        for token in raw.split(",")
-        if token.strip()
-    }
+    return {token.strip().lower() for token in raw.split(",") if token.strip()}
 
 
 def _is_shadow_whitelisted(
@@ -179,7 +177,10 @@ def _consume_shadow_rate_limit(max_per_minute: int) -> bool:
     now = time.monotonic()
     expire_before = now - _SHADOW_RATE_LIMIT_WINDOW_SEC
     with _shadow_rate_limit_lock:
-        while _shadow_rate_limit_timestamps and _shadow_rate_limit_timestamps[0] < expire_before:
+        while (
+            _shadow_rate_limit_timestamps
+            and _shadow_rate_limit_timestamps[0] < expire_before
+        ):
             _shadow_rate_limit_timestamps.popleft()
         if len(_shadow_rate_limit_timestamps) >= max_per_minute:
             return False

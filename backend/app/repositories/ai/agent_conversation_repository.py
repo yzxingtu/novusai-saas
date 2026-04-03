@@ -2,7 +2,6 @@
 智能体对话 Repository / Agent Conversation Repository
 """
 
-
 from sqlalchemy import and_, func, select
 
 from app.core.base_repository import BaseRepository, TenantRepository
@@ -93,6 +92,7 @@ class AgentConversationRepository(TenantRepository[AgentConversation]):
         items = list(result.scalars().all())
 
         return items, total
+
 
 class AdminAgentConversationRepository(BaseRepository[AgentConversation]):
     """

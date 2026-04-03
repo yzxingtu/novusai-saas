@@ -23,7 +23,9 @@ _PLUGIN_MENU_ACTION_MAX_LEN = 50
 # Shared event loop (for running async plugin tasks in Celery worker) / 共享事件循环（Celery worker 中运行异步插件任务用）
 _bg_loop = None
 _bg_thread = None
-_bg_lock = None  # Lazy init to avoid creating thread objects at module import / 延迟初始化
+_bg_lock = (
+    None  # Lazy init to avoid creating thread objects at module import / 延迟初始化
+)
 
 
 def _get_bg_lock():
@@ -44,7 +46,9 @@ def _run_async(coro):
         if _bg_loop is None or _bg_loop.is_closed():
             _bg_loop = asyncio.new_event_loop()
             _bg_thread = threading.Thread(
-                target=_bg_loop.run_forever, daemon=True, name="plugin-task-loop",
+                target=_bg_loop.run_forever,
+                daemon=True,
+                name="plugin-task-loop",
             )
             _bg_thread.start()
         loop = _bg_loop
@@ -184,9 +188,7 @@ class ExtensionRegistry:
 
         AdapterRegistry.register(provider_type, adapter_class)
         self._track(plugin_name, "adapter", provider_type)
-        logger.info(
-            "Plugin {} registered adapter: {}", plugin_name, provider_type
-        )
+        logger.info("Plugin {} registered adapter: {}", plugin_name, provider_type)
 
     def _unregister_adapter(self, ext: RegisteredExtension) -> None:
         from app.ai.adapters import AdapterRegistry
@@ -209,7 +211,9 @@ class ExtensionRegistry:
         self._track(plugin_name, "hook", hook_point, handler)
         logger.info(
             "Plugin {} registered hook: {} (priority={})",
-            plugin_name, hook_point, priority,
+            plugin_name,
+            hook_point,
+            priority,
         )
 
     def _unregister_hook(self, ext: RegisteredExtension) -> None:
@@ -219,18 +223,14 @@ class ExtensionRegistry:
 
     # ── 3. Storage Driver / 存储驱动 ──
 
-    def register_storage_driver(
-        self, plugin_name: str, driver_class: type
-    ) -> None:
+    def register_storage_driver(self, plugin_name: str, driver_class: type) -> None:
         """Register storage driver → StorageManager / 注册存储驱动"""
         from app.storage.manager import storage_manager
 
         storage_manager.register_driver(driver_class)
         driver_name = getattr(driver_class, "name", "")
         self._track(plugin_name, "storage", driver_name, driver_class)
-        logger.info(
-            "Plugin {} registered storage driver: {}", plugin_name, driver_name
-        )
+        logger.info("Plugin {} registered storage driver: {}", plugin_name, driver_name)
 
     def _unregister_storage(self, ext: RegisteredExtension) -> None:
         from app.storage.manager import storage_manager
@@ -271,7 +271,8 @@ class ExtensionRegistry:
                 except Exception as exc:
                     logger.warning(
                         "Failed to instantiate executor for plugin '{}': {}",
-                        plugin_name, exc,
+                        plugin_name,
+                        exc,
                     )
                     executor = None
             if executor:
@@ -305,16 +306,16 @@ class ExtensionRegistry:
 
             bus = PluginEventBus.get_instance()
             bus.subscribe(event_type_name, handler, plugin_name=plugin_name)
-            self._track(plugin_name, "event", event_type_name, (event_type_name, handler))
+            self._track(
+                plugin_name, "event", event_type_name, (event_type_name, handler)
+            )
         else:
             from app.ai.events import get_event_bus
 
             event_cls = self._resolve_event_class(event_type_name)
             get_event_bus().subscribe(event_cls, handler)
             self._track(plugin_name, "event", event_type_name, (event_cls, handler))
-        logger.info(
-            "Plugin {} subscribed to event: {}", plugin_name, event_type_name
-        )
+        logger.info("Plugin {} subscribed to event: {}", plugin_name, event_type_name)
 
     def _unregister_event(self, ext: RegisteredExtension) -> None:
         event_ref, handler = ext.ref
@@ -369,15 +370,15 @@ class ExtensionRegistry:
         self._track(plugin_name, "webhook", full_path, handler)
         logger.info(
             "Plugin {} registered webhook: {} {}",
-            plugin_name, method, full_path,
+            plugin_name,
+            method,
+            full_path,
         )
 
     def _unregister_webhook(self, ext: RegisteredExtension) -> None:
         self._plugin_webhooks.get(ext.plugin_name, {}).pop(ext.key, None)
 
-    def get_plugin_webhooks(
-        self, plugin_name: str | None = None
-    ) -> dict[str, dict]:
+    def get_plugin_webhooks(self, plugin_name: str | None = None) -> dict[str, dict]:
         """Get plugin Webhook registrations (for routing layer) / 获取插件 Webhook 注册"""
         if plugin_name:
             return self._plugin_webhooks.get(plugin_name, {})
@@ -418,9 +419,11 @@ class ExtensionRegistry:
             import functools
 
             if asyncio.iscoroutinefunction(handler):
+
                 @functools.wraps(handler)
                 def _sync_wrapper(*args: Any, **kwargs: Any) -> Any:
                     return _run_async(handler(*args, **kwargs))
+
                 celery_app.task(name=celery_task_name, queue=queue)(_sync_wrapper)
             else:
                 celery_app.task(name=celery_task_name, queue=queue)(handler)
@@ -436,24 +439,30 @@ class ExtensionRegistry:
 
             if schedule_type == "cron" and cron_expression:
                 from celery.schedules import crontab
+
                 parts = cron_expression.strip().split()
                 if len(parts) == 5:
                     schedule_entry["schedule"] = crontab(
-                        minute=parts[0], hour=parts[1],
-                        day_of_month=parts[2], month_of_year=parts[3],
+                        minute=parts[0],
+                        hour=parts[1],
+                        day_of_month=parts[2],
+                        month_of_year=parts[3],
                         day_of_week=parts[4],
                     )
                 else:
                     logger.warning(
                         "Plugin {} task {}: invalid cron '{}', skipping schedule",
-                        plugin_name, task_name, cron_expression,
+                        plugin_name,
+                        task_name,
+                        cron_expression,
                     )
             elif interval_seconds and interval_seconds > 0:
                 schedule_entry["schedule"] = float(interval_seconds)
             else:
                 logger.warning(
                     "Plugin {} task {}: no valid schedule, task registered but not scheduled",
-                    plugin_name, task_name,
+                    plugin_name,
+                    task_name,
                 )
 
             if "schedule" in schedule_entry:
@@ -461,21 +470,32 @@ class ExtensionRegistry:
                     celery_app.conf.beat_schedule = {}
                 celery_app.conf.beat_schedule[beat_key] = schedule_entry
 
-        self._track(plugin_name, "task", beat_key, {
-            "celery_task_name": celery_task_name,
-            "handler": handler,
-        })
+        self._track(
+            plugin_name,
+            "task",
+            beat_key,
+            {
+                "celery_task_name": celery_task_name,
+                "handler": handler,
+            },
+        )
         logger.info(
             "Plugin {} registered task: {} ({})",
-            plugin_name, task_name, schedule_type,
+            plugin_name,
+            task_name,
+            schedule_type,
         )
 
     def _unregister_task(self, ext: RegisteredExtension) -> None:
         """Remove plugin scheduled task from Celery Beat / 从 Celery Beat 移除插件定时任务"""
         try:
             from app.celery_app import celery_app
+
             beat_key = ext.key  # plugin_{name}_{task_name} / Celery Beat 调度键
-            if celery_app.conf.beat_schedule and beat_key in celery_app.conf.beat_schedule:
+            if (
+                celery_app.conf.beat_schedule
+                and beat_key in celery_app.conf.beat_schedule
+            ):
                 del celery_app.conf.beat_schedule[beat_key]
                 logger.info("Removed beat schedule: {}", beat_key)
         except Exception as exc:
@@ -499,7 +519,11 @@ class ExtensionRegistry:
         DB persistence is handled by separate logic in lifecycle.enable() if needed.
         / 将插件声明的通知模板写入内存注册表。
         """
-        full_code = f"plugin.{plugin_name}.{template_code}" if not template_code.startswith("plugin.") else template_code
+        full_code = (
+            f"plugin.{plugin_name}.{template_code}"
+            if not template_code.startswith("plugin.")
+            else template_code
+        )
         self._plugin_notifications[full_code] = {
             "plugin_name": plugin_name,
             "code": full_code,
@@ -507,14 +531,20 @@ class ExtensionRegistry:
             "channels": channels or ["ws", "inbox"],
             "category": category,
         }
-        self._track(plugin_name, "notification", full_code, {
-            "title": title or {},
-            "channels": channels or ["ws", "inbox"],
-            "category": category,
-        })
+        self._track(
+            plugin_name,
+            "notification",
+            full_code,
+            {
+                "title": title or {},
+                "channels": channels or ["ws", "inbox"],
+                "category": category,
+            },
+        )
         logger.info(
             "Plugin {} registered notification: {}",
-            plugin_name, full_code,
+            plugin_name,
+            full_code,
         )
 
     def _unregister_notification(self, ext: RegisteredExtension) -> None:
@@ -542,7 +572,9 @@ class ExtensionRegistry:
         Writes plugin-declared permissions to the in-memory registry for runtime query by RBAC middleware.
         / 将插件声明的权限写入内存注册表。
         """
-        full_code = f"plugin.{plugin_name}.{code}" if not code.startswith("plugin.") else code
+        full_code = (
+            f"plugin.{plugin_name}.{code}" if not code.startswith("plugin.") else code
+        )
         self._plugin_permissions[full_code] = {
             "plugin_name": plugin_name,
             "code": full_code,
@@ -550,17 +582,20 @@ class ExtensionRegistry:
             "scope": scope,
             "actions": actions or [],
         }
-        self._track(plugin_name, "permission", full_code, {
-            "name": name or {},
-            "scope": scope,
-            "actions": actions or [],
-        })
+        self._track(
+            plugin_name,
+            "permission",
+            full_code,
+            {
+                "name": name or {},
+                "scope": scope,
+                "actions": actions or [],
+            },
+        )
         normalized_name: dict[str, str] = {}
         if isinstance(name, dict):
             normalized_name = {
-                str(k): str(v).strip()
-                for k, v in name.items()
-                if str(v or "").strip()
+                str(k): str(v).strip() for k, v in name.items() if str(v or "").strip()
             }
         elif isinstance(name, str) and name.strip():
             normalized_name = {"zh-CN": name.strip(), "en": name.strip()}
@@ -568,11 +603,13 @@ class ExtensionRegistry:
             titles = self._plugin_permission_titles.setdefault(plugin_name, {})
             safe_name = plugin_name.replace("-", "_")
             base_code_prefix = f"plugin.{plugin_name}."
-            base_code = full_code[len(base_code_prefix):] if full_code.startswith(base_code_prefix) else code
+            base_code = (
+                full_code[len(base_code_prefix) :]
+                if full_code.startswith(base_code_prefix)
+                else code
+            )
             titles[f"{safe_name}.permission.{base_code}"] = normalized_name
-        logger.info(
-            "Plugin {} registered permission: {}", plugin_name, full_code
-        )
+        logger.info("Plugin {} registered permission: {}", plugin_name, full_code)
 
     def _unregister_permission(self, ext: RegisteredExtension) -> None:
         """Remove plugin permission registration / 移除插件权限注册"""
@@ -581,7 +618,11 @@ class ExtensionRegistry:
         if plugin_name in self._plugin_permission_titles:
             safe_name = plugin_name.replace("-", "_")
             base_code_prefix = f"plugin.{plugin_name}."
-            base_code = ext.key[len(base_code_prefix):] if ext.key.startswith(base_code_prefix) else ext.key
+            base_code = (
+                ext.key[len(base_code_prefix) :]
+                if ext.key.startswith(base_code_prefix)
+                else ext.key
+            )
             self._plugin_permission_titles[plugin_name].pop(
                 f"{safe_name}.permission.{base_code}",
                 None,
@@ -591,7 +632,8 @@ class ExtensionRegistry:
         """Get plugin-registered permission list (for RBAC query) / 获取插件注册的权限列表"""
         if plugin_name:
             return [
-                v for v in self._plugin_permissions.values()
+                v
+                for v in self._plugin_permissions.values()
                 if v["plugin_name"] == plugin_name
             ]
         return list(self._plugin_permissions.values())
@@ -638,9 +680,7 @@ class ExtensionRegistry:
             "hidden": hidden,
         }
         menus = self._plugin_menus.setdefault(plugin_name, [])
-        self._plugin_menus[plugin_name] = [
-            m for m in menus if m.get("name") != name
-        ]
+        self._plugin_menus[plugin_name] = [m for m in menus if m.get("name") != name]
         self._plugin_menus[plugin_name].append(menu_entry)
 
         if title:
@@ -652,11 +692,16 @@ class ExtensionRegistry:
         self._track(plugin_name, "menu", name, menu_entry)
 
         # Bridge to permission_registry so sync_plugin_permissions() can write to DB / 桥接到 permission_registry 以便写入 DB
-        self._register_menu_permission(plugin_name, name, path, icon, parent, sort_order, scope, component, hidden)
+        self._register_menu_permission(
+            plugin_name, name, path, icon, parent, sort_order, scope, component, hidden
+        )
 
         logger.info(
             "Plugin {} registered menu: {} (parent={}, scope={})",
-            plugin_name, name, parent, scope,
+            plugin_name,
+            name,
+            parent,
+            scope,
         )
 
     def _register_menu_permission(
@@ -723,8 +768,7 @@ class ExtensionRegistry:
         name = ext.key
         if plugin_name in self._plugin_menus:
             self._plugin_menus[plugin_name] = [
-                m for m in self._plugin_menus[plugin_name]
-                if m.get("name") != name
+                m for m in self._plugin_menus[plugin_name] if m.get("name") != name
             ]
         if plugin_name in self._plugin_menu_titles:
             safe_name = plugin_name.replace("-", "_")
@@ -739,7 +783,9 @@ class ExtensionRegistry:
         permission_registry.unregister(f"menu:tenant.plugin_{safe_name}_{name}")
 
     def get_plugin_menus(
-        self, plugin_name: str | None = None, scope: str | None = None,
+        self,
+        plugin_name: str | None = None,
+        scope: str | None = None,
     ) -> list[dict[str, Any]]:
         """Get plugin menu list (for frontend navigation building) / 获取插件菜单列表"""
         result: list[dict[str, Any]] = []
@@ -797,7 +843,9 @@ class ExtensionRegistry:
             action_key = f"rbac.action.{action}"
             action_title = _(action_key)
             if action_title == action_key:
-                action_title = action.replace("_", " ").replace("-", " ").strip().title()
+                action_title = (
+                    action.replace("_", " ").replace("-", " ").strip().title()
+                )
             return f"{base_title} - {action_title}"
         return None
 
@@ -847,7 +895,10 @@ class ExtensionRegistry:
         self._track(plugin_name, "socketio", full_ns, handler_class)
         logger.info(
             "Plugin {} registered Socket.IO namespace: {} (auth={} scopes={})",
-            plugin_name, full_ns, auth_required, auth_scopes,
+            plugin_name,
+            full_ns,
+            auth_required,
+            auth_scopes,
         )
 
     def _unregister_socketio(self, ext: RegisteredExtension) -> None:
@@ -863,9 +914,7 @@ class ExtensionRegistry:
                 del sio.namespace_handlers[full_ns]
                 logger.info("Removed Socket.IO namespace: {}", full_ns)
             else:
-                logger.warning(
-                    "Socket.IO namespace {} not found in handlers", full_ns
-                )
+                logger.warning("Socket.IO namespace {} not found in handlers", full_ns)
         except Exception as exc:
             logger.warning(
                 "Failed to unregister socketio namespace {}: {}", ext.key, exc
@@ -897,15 +946,16 @@ class ExtensionRegistry:
         # Remove old entry with same key, then append new entry (upsert semantics) / 移除同 key 旧条目再追加（upsert）
         # / 移除同 key 的旧条目，再追加新条目
         self._plugin_frontend_slots[plugin_name] = [
-            s for s in slots
-            if f"{s['slot_type']}:{s.get('name', '')}" != dedup_key
+            s for s in slots if f"{s['slot_type']}:{s.get('name', '')}" != dedup_key
         ]
         self._plugin_frontend_slots[plugin_name].append(slot_entry)
 
         self._track(plugin_name, "frontend_slot", dedup_key, slot_entry)
         logger.info(
             "Plugin {} registered frontend slot: {}/{}",
-            plugin_name, slot_type, data.get("name", ""),
+            plugin_name,
+            slot_type,
+            data.get("name", ""),
         )
 
     def _unregister_frontend_slot(self, ext: RegisteredExtension) -> None:
@@ -914,7 +964,8 @@ class ExtensionRegistry:
         key = ext.key  # "slot_type:name" / 插槽去重键
         if plugin_name in self._plugin_frontend_slots:
             self._plugin_frontend_slots[plugin_name] = [
-                s for s in self._plugin_frontend_slots[plugin_name]
+                s
+                for s in self._plugin_frontend_slots[plugin_name]
                 if f"{s['slot_type']}:{s.get('name', '')}" != key
             ]
 
@@ -935,8 +986,7 @@ class ExtensionRegistry:
         """
         all_slots: list[dict[str, Any]] = []
         plugins_iter = (
-            [plugin_name] if plugin_name
-            else list(self._plugin_frontend_slots.keys())
+            [plugin_name] if plugin_name else list(self._plugin_frontend_slots.keys())
         )
         for pname in plugins_iter:
             for slot in self._plugin_frontend_slots.get(pname, []):
@@ -945,9 +995,12 @@ class ExtensionRegistry:
                 if scope:
                     slot_scope = slot.get("scope", "")
                     # Filter by endpoint side (admin / tenant / user / both / empty) / 按管理端/企业端等过滤插槽
-                    if scope == "admin" and slot_scope == "tenant":
-                        continue
-                    elif scope == "tenant" and slot_scope == "admin":
+                    if (
+                        scope == "admin"
+                        and slot_scope == "tenant"
+                        or scope == "tenant"
+                        and slot_scope == "admin"
+                    ):
                         continue
                 all_slots.append(slot)
         return all_slots
@@ -973,7 +1026,10 @@ class ExtensionRegistry:
                 except Exception as exc:
                     logger.warning(
                         "Failed to unregister {}/{} for plugin {}: {}",
-                        ext.ext_type, ext.key, plugin_name, exc,
+                        ext.ext_type,
+                        ext.key,
+                        plugin_name,
+                        exc,
                     )
         # Clean up webhook dict / 清理 webhook 字典
         self._plugin_webhooks.pop(plugin_name, None)
@@ -994,15 +1050,16 @@ class ExtensionRegistry:
         # Clean up PluginEventBus subscriptions / 清理 PluginEventBus 订阅
         try:
             from app.plugins.event_bus import get_plugin_event_bus
+
             get_plugin_event_bus().unsubscribe_all(plugin_name)
         except Exception as exc:
             logger.warning(
-                "Failed to cleanup PluginEventBus for {}: {}", plugin_name, exc,
+                "Failed to cleanup PluginEventBus for {}: {}",
+                plugin_name,
+                exc,
             )
 
-        logger.info(
-            "Unregistered {} extensions for plugin {}", count, plugin_name
-        )
+        logger.info("Unregistered {} extensions for plugin {}", count, plugin_name)
         return count
 
     def unregister_by_type(self, plugin_name: str, ext_type: str) -> int:
@@ -1028,9 +1085,7 @@ class ExtensionRegistry:
             self._registry.pop(plugin_name, None)
         return removed
 
-    def get_conflicts(
-        self, manifest: Any
-    ) -> list[dict[str, str]]:
+    def get_conflicts(self, manifest: Any) -> list[dict[str, str]]:
         """
         Detect conflicts between plugin extensions and already-registered extensions.
         / 检测插件扩展与已注册扩展的冲突。
@@ -1051,11 +1106,13 @@ class ExtensionRegistry:
             if AdapterRegistry.get_adapter(adapter.provider_code):
                 # Find which plugin registered it / 找到是哪个插件注册的
                 owner = self._find_owner("adapter", adapter.provider_code)
-                conflicts.append({
-                    "type": "adapter",
-                    "key": adapter.provider_code,
-                    "owner": owner or "system",
-                })
+                conflicts.append(
+                    {
+                        "type": "adapter",
+                        "key": adapter.provider_code,
+                        "owner": owner or "system",
+                    }
+                )
 
         # Check skill conflicts (match by plugin_name, consistent with register_skill key) / 检查技能冲突
         # / 检查技能冲突
@@ -1063,11 +1120,13 @@ class ExtensionRegistry:
         if plugin_name and plugin_name in self._plugin_skill_resolvers:
             owner = self._find_owner("skill", plugin_name)
             if owner and owner != plugin_name:
-                conflicts.append({
-                    "type": "skill",
-                    "key": plugin_name,
-                    "owner": owner,
-                })
+                conflicts.append(
+                    {
+                        "type": "skill",
+                        "key": plugin_name,
+                        "owner": owner,
+                    }
+                )
 
         # Check storage driver conflicts / 检查存储驱动冲突
         for driver in getattr(extensions, "storage_drivers", []):
@@ -1075,11 +1134,13 @@ class ExtensionRegistry:
 
             if storage_manager.has_driver(driver.code):
                 owner = self._find_owner("storage", driver.code)
-                conflicts.append({
-                    "type": "storage",
-                    "key": driver.code,
-                    "owner": owner or "system",
-                })
+                conflicts.append(
+                    {
+                        "type": "storage",
+                        "key": driver.code,
+                        "owner": owner or "system",
+                    }
+                )
 
         return conflicts
 
@@ -1119,14 +1180,24 @@ class ExtensionRegistry:
             import functools
 
             if asyncio.iscoroutinefunction(handler):
+
                 @functools.wraps(handler)
                 def _sync_wrapper(*args: Any, **kwargs: Any) -> Any:
                     return _run_async(handler(*args, **kwargs))
-                celery_app.task(name=celery_task_name, queue=queue,
-                                max_retries=max_retries, default_retry_delay=retry_delay)(_sync_wrapper)
+
+                celery_app.task(
+                    name=celery_task_name,
+                    queue=queue,
+                    max_retries=max_retries,
+                    default_retry_delay=retry_delay,
+                )(_sync_wrapper)
             else:
-                celery_app.task(name=celery_task_name, queue=queue,
-                                max_retries=max_retries, default_retry_delay=retry_delay)(handler)
+                celery_app.task(
+                    name=celery_task_name,
+                    queue=queue,
+                    max_retries=max_retries,
+                    default_retry_delay=retry_delay,
+                )(handler)
 
         consumer_info: dict[str, Any] = {
             "name": consumer_name,
@@ -1137,7 +1208,9 @@ class ExtensionRegistry:
         self._track(plugin_name, "consumer", celery_task_name, consumer_info)
         logger.info(
             "Plugin {} registered consumer: {} (queue={})",
-            plugin_name, consumer_name, queue,
+            plugin_name,
+            consumer_name,
+            queue,
         )
 
     def _unregister_consumer(self, ext: RegisteredExtension) -> None:
@@ -1147,7 +1220,8 @@ class ExtensionRegistry:
         celery_task_name = ext.key
         if plugin_name in self._plugin_consumers:
             self._plugin_consumers[plugin_name] = [
-                c for c in self._plugin_consumers[plugin_name]
+                c
+                for c in self._plugin_consumers[plugin_name]
                 if c.get("celery_task_name") != celery_task_name
             ]
         logger.info(
@@ -1183,15 +1257,20 @@ class ExtensionRegistry:
         # Try to inject into runtime FastAPI app / 尝试注入到运行时 FastAPI 应用
         try:
             from app.main import app as fastapi_app
+
             fastapi_app.add_middleware(middleware_cls)
             logger.info(
                 "Plugin {} registered middleware: {} (priority={})",
-                plugin_name, name, priority,
+                plugin_name,
+                name,
+                priority,
             )
         except Exception as exc:
             logger.warning(
                 "Plugin {}: failed to add middleware {} at runtime: {}",
-                plugin_name, name, exc,
+                plugin_name,
+                name,
+                exc,
             )
 
     def _unregister_middleware(self, ext: RegisteredExtension) -> None:
@@ -1201,7 +1280,8 @@ class ExtensionRegistry:
         name = ext.key.split(":", 1)[-1]
         if plugin_name in self._plugin_middlewares:
             self._plugin_middlewares[plugin_name] = [
-                m for m in self._plugin_middlewares[plugin_name]
+                m
+                for m in self._plugin_middlewares[plugin_name]
                 if m.get("name") != name
             ]
         logger.info(
@@ -1209,10 +1289,14 @@ class ExtensionRegistry:
             ext.key,
         )
 
-    def get_plugin_middlewares(self, plugin_name: str | None = None) -> list[dict[str, Any]]:
+    def get_plugin_middlewares(
+        self, plugin_name: str | None = None
+    ) -> list[dict[str, Any]]:
         """Get plugin middleware list (sorted by priority ascending) / 获取插件中间件列表"""
         result: list[dict[str, Any]] = []
-        plugins_iter = [plugin_name] if plugin_name else list(self._plugin_middlewares.keys())
+        plugins_iter = (
+            [plugin_name] if plugin_name else list(self._plugin_middlewares.keys())
+        )
         for pname in plugins_iter:
             result.extend(self._plugin_middlewares.get(pname, []))
         result.sort(key=lambda x: x.get("priority", 50))
@@ -1253,7 +1337,9 @@ class ExtensionRegistry:
         self._track(plugin_name, "custom", key, entry)
         logger.info(
             "Plugin {} registered custom extension: {}/{}",
-            plugin_name, ext_type, name,
+            plugin_name,
+            ext_type,
+            name,
         )
 
     def _unregister_custom(self, ext: RegisteredExtension) -> None:
@@ -1273,7 +1359,8 @@ class ExtensionRegistry:
 
         if plugin_name in self._plugin_custom_extensions:
             self._plugin_custom_extensions[plugin_name] = [
-                c for c in self._plugin_custom_extensions[plugin_name]
+                c
+                for c in self._plugin_custom_extensions[plugin_name]
                 if f"{c['type']}:{c['name']}" != key
             ]
 
@@ -1290,7 +1377,11 @@ class ExtensionRegistry:
             plugin_name: Filter plugin (None = all) / 过滤插件
         """
         result: list[dict[str, Any]] = []
-        plugins_iter = [plugin_name] if plugin_name else list(self._plugin_custom_extensions.keys())
+        plugins_iter = (
+            [plugin_name]
+            if plugin_name
+            else list(self._plugin_custom_extensions.keys())
+        )
         for pname in plugins_iter:
             for ext in self._plugin_custom_extensions.get(pname, []):
                 if ext_type and ext.get("type") != ext_type:

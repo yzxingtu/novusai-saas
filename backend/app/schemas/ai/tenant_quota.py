@@ -16,7 +16,9 @@ class TenantQuotaBase(BaseModel):
     period: str = Field(default="monthly", description="周期（daily/monthly）")
     limit: int = Field(..., gt=0, description="配额限制（Token 数量）")
     quota_type: str = Field(default="soft", description="配额类型（soft/hard）")
-    warning_threshold: int | None = Field(default=80, ge=0, le=100, description="预警阈值（百分比）")
+    warning_threshold: int | None = Field(
+        default=80, ge=0, le=100, description="预警阈值（百分比）"
+    )
     description: str | None = Field(None, max_length=500, description="描述")
 
 

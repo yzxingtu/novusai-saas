@@ -53,7 +53,7 @@ class PluginLifecycleGuardRegistry:
     / 阻断式生命周期处理器单例注册表。
     """
 
-    _instance: "PluginLifecycleGuardRegistry | None" = None
+    _instance: PluginLifecycleGuardRegistry | None = None
     _instance_lock: Lock = Lock()
 
     def __init__(self) -> None:
@@ -61,7 +61,7 @@ class PluginLifecycleGuardRegistry:
         self._lock = Lock()
 
     @classmethod
-    def get_instance(cls) -> "PluginLifecycleGuardRegistry":
+    def get_instance(cls) -> PluginLifecycleGuardRegistry:
         if cls._instance is not None:
             return cls._instance
         with cls._instance_lock:
@@ -132,7 +132,9 @@ class PluginLifecycleGuardRegistry:
             if not result.get("allowed", True):
                 return {
                     "allowed": False,
-                    "reason_code": str(result.get("reason_code") or "lifecycle_blocked"),
+                    "reason_code": str(
+                        result.get("reason_code") or "lifecycle_blocked"
+                    ),
                     "message": str(result.get("message") or ""),
                     "details": dict(result.get("details") or {}),
                 }

@@ -188,16 +188,13 @@ def collect_frontend_locale_prefix_contract_issues(
         if prefix == canonical_root or prefix.startswith(f"{canonical_root}.")
     ]
     compatibility_aliases = [
-        prefix
-        for prefix in prefixes
-        if prefix not in canonical_prefixes
+        prefix for prefix in prefixes if prefix not in canonical_prefixes
     ]
 
     if not canonical_prefixes:
         errors.append(
             "frontend registerLocale() should use canonical prefix "
-            f"'{canonical_root}' or its child namespaces; found: "
-            + ", ".join(prefixes)
+            f"'{canonical_root}' or its child namespaces; found: " + ", ".join(prefixes)
         )
 
     for prefix in compatibility_aliases:
@@ -253,8 +250,7 @@ def collect_frontend_component_export_contract_errors(
         if entry_source_exports_symbol(entry_source, component_name):
             continue
         errors.append(
-            "frontend dev entry does not export declared component "
-            f"'{component_name}'"
+            f"frontend dev entry does not export declared component '{component_name}'"
         )
     return errors
 

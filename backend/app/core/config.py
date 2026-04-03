@@ -21,6 +21,7 @@ _ENV_FILE = _CONFIG_DIR / ".env"
 # Explicitly load .env into os.environ when pydantic-settings may not load it
 if _ENV_FILE.exists():
     from dotenv import load_dotenv
+
     load_dotenv(_ENV_FILE, override=False)
 
 
@@ -246,7 +247,16 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             normalized = value.strip().lower()
             truthy = {"1", "true", "yes", "on", "debug", "dev", "development"}
-            falsy = {"0", "false", "no", "off", "release", "prod", "production", "staging"}
+            falsy = {
+                "0",
+                "false",
+                "no",
+                "off",
+                "release",
+                "prod",
+                "production",
+                "staging",
+            }
             if normalized in truthy:
                 return True
             if normalized in falsy:

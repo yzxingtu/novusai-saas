@@ -7,7 +7,6 @@ from __future__ import annotations
 import re
 import shutil
 import tempfile
-import time
 from pathlib import Path
 
 import httpx
@@ -42,10 +41,14 @@ class SkillRegistryService:
 
             svc = ConfigService(self.db)
             self._github_url = (
-                await svc.get_platform_config("skill_registry_github_url", default=_DEFAULT_GITHUB_URL)
+                await svc.get_platform_config(
+                    "skill_registry_github_url", default=_DEFAULT_GITHUB_URL
+                )
                 or _DEFAULT_GITHUB_URL
             )
-            ttl = await svc.get_platform_config("skill_registry_cache_ttl", default=_DEFAULT_CACHE_TTL)
+            ttl = await svc.get_platform_config(
+                "skill_registry_cache_ttl", default=_DEFAULT_CACHE_TTL
+            )
             if ttl:
                 self._cache_ttl = int(ttl)
         except Exception as exc:
@@ -98,7 +101,7 @@ class SkillRegistryService:
     def _version_key(version: str | None) -> tuple:
         normalized = str(version or "").strip()
         if not normalized:
-            return tuple()
+            return ()
         if normalized.startswith("v"):
             normalized = normalized[1:]
         parts = re.split(r"[.+-]", normalized)
@@ -117,14 +120,18 @@ class SkillRegistryService:
         return tuple(key)
 
     @classmethod
-    def _is_newer_version(cls, latest_version: str | None, installed_version: str | None) -> bool:
+    def _is_newer_version(
+        cls, latest_version: str | None, installed_version: str | None
+    ) -> bool:
         if not latest_version:
             return False
         if not installed_version:
             return True
         return cls._version_key(latest_version) > cls._version_key(installed_version)
 
-    async def _build_installed_map(self) -> dict[str, dict[str, str | int | bool | None]]:
+    async def _build_installed_map(
+        self,
+    ) -> dict[str, dict[str, str | int | bool | None]]:
         result = await self.db.execute(
             select(
                 Skill.id,
@@ -142,7 +149,11 @@ class SkillRegistryService:
         for row in result.all():
             config = row[5] if isinstance(row[5], dict) else {}
             slug = str(config.get("registry_slug") or "").strip()
-            if not slug and isinstance(row[4], str) and row[4].startswith("skill_registry:"):
+            if (
+                not slug
+                and isinstance(row[4], str)
+                and row[4].startswith("skill_registry:")
+            ):
                 slug = row[4].split(":", 1)[1].strip()
             if not slug:
                 continue
@@ -152,7 +163,8 @@ class SkillRegistryService:
                 "name": str(row[2] or ""),
                 "version": str(config.get("registry_version") or row[3] or ""),
                 "source_ref": str(row[4] or "") or None,
-                "source_url": str(config.get("registry_source_url") or "").strip() or None,
+                "source_url": str(config.get("registry_source_url") or "").strip()
+                or None,
                 "source_locked": bool(config.get("registry_source_locked", True)),
             }
         return installed
@@ -198,17 +210,17 @@ class SkillRegistryService:
             items = [
                 item
                 for item in items
-                if keyword in str(item.get("display_name") or item.get("name") or "").lower()
+                if keyword
+                in str(item.get("display_name") or item.get("name") or "").lower()
                 or keyword in str(item.get("description") or "").lower()
-                or any(keyword in str(tag_item).lower() for tag_item in item.get("tags") or [])
+                or any(
+                    keyword in str(tag_item).lower()
+                    for tag_item in item.get("tags") or []
+                )
             ]
 
         if tag:
-            items = [
-                item
-                for item in items
-                if tag in (item.get("tags") or [])
-            ]
+            items = [item for item in items if tag in (item.get("tags") or [])]
 
         reverse = sort.startswith("-")
         sort_field = sort.lstrip("-")
@@ -216,15 +228,13 @@ class SkillRegistryService:
 
         total = len(items)
         start = max(page_number - 1, 0) * page_size
-        sliced = items[start:start + page_size]
+        sliced = items[start : start + page_size]
         hydrated: list[dict] = []
         for item in sliced:
             slug = str(item.get("slug") or item.get("name") or "").strip()
             install_info = installed.get(slug) or {}
             latest_version = str(item.get("version") or "").strip() or None
-            installed_version = (
-                str(install_info.get("version") or "").strip() or None
-            )
+            installed_version = str(install_info.get("version") or "").strip() or None
             hydrated.append(
                 {
                     **item,
@@ -263,7 +273,9 @@ class SkillRegistryService:
                     await self._set_cached(cache_key, data)
                     return data
             except Exception as exc:
-                logger.warning("Failed to fetch skill registry detail {}: {}", slug, exc)
+                logger.warning(
+                    "Failed to fetch skill registry detail {}: {}", slug, exc
+                )
 
         registry = await self.fetch_registry(source_url=source)
         for item in registry:
@@ -319,10 +331,13 @@ class SkillRegistryService:
         valves_schema = None
         env_example_content = read_env_example(extract_dir)
         if env_example_content:
-            valves_schema = parse_env_example(
-                env_example_content,
-                required_vars=env_requires,
-            ) or None
+            valves_schema = (
+                parse_env_example(
+                    env_example_content,
+                    required_vars=env_requires,
+                )
+                or None
+            )
 
         toolkit_content = ""
         server_dir = extract_dir / "server"
@@ -355,7 +370,9 @@ class SkillRegistryService:
             "installed_version": installed_version,
             "latest_version": latest_version,
             "can_upgrade": self._is_newer_version(latest_version, installed_version),
-            "source_locked": bool(current.get("source_locked", True)) if slug in installed else None,
+            "source_locked": bool(current.get("source_locked", True))
+            if slug in installed
+            else None,
             "source_url": current.get("source_url"),
         }
 
@@ -363,7 +380,9 @@ class SkillRegistryService:
         installed = await self._build_installed_map()
         current = installed.get(slug)
         if not current:
-            raise NotFoundException(message=f"Installed skill registry package not found: {slug}")
+            raise NotFoundException(
+                message=f"Installed skill registry package not found: {slug}"
+            )
 
         source_locked = bool(current.get("source_locked", True))
         locked_source_url = str(current.get("source_url") or "").strip() or None
@@ -390,12 +409,16 @@ class SkillRegistryService:
         detail = await self.fetch_package_detail(slug)
         installed = await self._build_installed_map()
         if slug in installed:
-            raise BusinessException(message=f"Skill registry package already installed: {slug}")
+            raise BusinessException(
+                message=f"Skill registry package already installed: {slug}"
+            )
 
         version = str(detail.get("version") or "1.0.0")
         download_url = str(detail.get("download_url") or "").strip()
         if not download_url:
-            raise BusinessException(message=f"Skill registry package has no download_url: {slug}")
+            raise BusinessException(
+                message=f"Skill registry package has no download_url: {slug}"
+            )
         try:
             download_url = validate_github_source_url(download_url)
         except ValueError as exc:
@@ -412,7 +435,9 @@ class SkillRegistryService:
                 archive_path=archive_path,
             )
 
-            from app.api.shared._skill_package_upload import process_skill_package_archive
+            from app.api.shared._skill_package_upload import (
+                process_skill_package_archive,
+            )
             from app.services.ai.skill_package_service import AdminSkillPackageService
             from app.services.ai.skill_service import AdminSkillService
 
@@ -459,7 +484,9 @@ class SkillRegistryService:
             try:
                 detail = await self.fetch_package_detail(slug, source_url=source_url)
             except Exception as exc:
-                logger.warning("Failed to fetch skill registry update detail {}: {}", slug, exc)
+                logger.warning(
+                    "Failed to fetch skill registry update detail {}: {}", slug, exc
+                )
                 continue
             latest_version = str(detail.get("version") or "").strip() or None
             installed_version = str(info.get("version") or "").strip() or None
@@ -468,7 +495,9 @@ class SkillRegistryService:
             updates.append(
                 {
                     "slug": slug,
-                    "display_name": detail.get("display_name") or detail.get("name") or slug,
+                    "display_name": detail.get("display_name")
+                    or detail.get("name")
+                    or slug,
                     "package_id": info.get("package_id"),
                     "skill_id": info.get("skill_id"),
                     "installed_version": installed_version,
@@ -489,7 +518,9 @@ class SkillRegistryService:
         installed = await self._build_installed_map()
         current = installed.get(slug)
         if not current:
-            raise NotFoundException(message=f"Installed skill registry package not found: {slug}")
+            raise NotFoundException(
+                message=f"Installed skill registry package not found: {slug}"
+            )
 
         source_locked = bool(current.get("source_locked", True))
         locked_source_url = str(current.get("source_url") or "").strip() or None
@@ -501,11 +532,15 @@ class SkillRegistryService:
         latest_version = str(detail.get("version") or "").strip() or None
         installed_version = str(current.get("version") or "").strip() or None
         if not self._is_newer_version(latest_version, installed_version):
-            raise BusinessException(message=f"Skill registry package is already up to date: {slug}")
+            raise BusinessException(
+                message=f"Skill registry package is already up to date: {slug}"
+            )
 
         download_url = str(detail.get("download_url") or "").strip()
         if not download_url:
-            raise BusinessException(message=f"Skill registry package has no download_url: {slug}")
+            raise BusinessException(
+                message=f"Skill registry package has no download_url: {slug}"
+            )
         try:
             download_url = validate_github_source_url(download_url)
         except ValueError as exc:
@@ -516,7 +551,9 @@ class SkillRegistryService:
         package_id = int(current.get("package_id") or 0)
         skill_id = int(current.get("skill_id") or 0)
         if package_id <= 0 or skill_id <= 0:
-            raise BusinessException(message=f"Skill registry install metadata incomplete: {slug}")
+            raise BusinessException(
+                message=f"Skill registry install metadata incomplete: {slug}"
+            )
 
         temp_dir = Path(tempfile.mkdtemp(prefix="novusai_skill_registry_upgrade_"))
         archive_path = temp_dir / f"{slug}-{latest_version or 'latest'}.zip"
@@ -541,7 +578,9 @@ class SkillRegistryService:
             existing_package = await package_service.get_by_id(package_id)
             existing_skill = await skill_service.get_by_id(skill_id)
             if not existing_package or not existing_skill:
-                raise NotFoundException(message=f"Installed skill registry package target missing: {slug}")
+                raise NotFoundException(
+                    message=f"Installed skill registry package target missing: {slug}"
+                )
 
             await package_service.update(
                 package_id,
@@ -559,7 +598,9 @@ class SkillRegistryService:
                 "registry_download_url": download_url,
                 "registry_slug": slug,
                 "registry_source_locked": source_locked,
-                "registry_source_url": locked_source_url if source_locked else await self._select_source(),
+                "registry_source_url": locked_source_url
+                if source_locked
+                else await self._select_source(),
                 "registry_version": latest_version,
             }
             await skill_service.update(
@@ -587,7 +628,9 @@ class SkillRegistryService:
                 "previous_version": installed_version,
                 "latest_version": latest_version,
                 "source_locked": source_locked,
-                "source_url": locked_source_url if source_locked else merged_skill_config.get("registry_source_url"),
+                "source_url": locked_source_url
+                if source_locked
+                else merged_skill_config.get("registry_source_url"),
                 "status": "upgraded",
             }
         finally:

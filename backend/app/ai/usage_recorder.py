@@ -278,18 +278,26 @@ class UsageRecorder:
             else (str(protocol_path or "").strip() or None)
         )
         effective_context_sources = (
-            cls._normalize_context_sources((normalized_turn_record or {}).get("context_sources"))
-            if isinstance(normalized_turn_record, dict)
-            else []
-        ) or cls._normalize_context_sources(payload.get("context_sources")) or cls._normalize_context_sources(
-            context_sources or []
+            (
+                cls._normalize_context_sources(
+                    (normalized_turn_record or {}).get("context_sources")
+                )
+                if isinstance(normalized_turn_record, dict)
+                else []
+            )
+            or cls._normalize_context_sources(payload.get("context_sources"))
+            or cls._normalize_context_sources(context_sources or [])
         )
         effective_fallback_history = (
-            cls._normalize_fallback_history((normalized_turn_record or {}).get("fallback_history"))
-            if isinstance(normalized_turn_record, dict)
-            else []
-        ) or cls._normalize_fallback_history(payload.get("fallback_history")) or cls._normalize_fallback_history(
-            fallback_history or []
+            (
+                cls._normalize_fallback_history(
+                    (normalized_turn_record or {}).get("fallback_history")
+                )
+                if isinstance(normalized_turn_record, dict)
+                else []
+            )
+            or cls._normalize_fallback_history(payload.get("fallback_history"))
+            or cls._normalize_fallback_history(fallback_history or [])
         )
         effective_sync_rescue = cls._pick_first_bool(
             [
@@ -307,9 +315,8 @@ class UsageRecorder:
                 payload.get("should_record_call_log"),
             ]
         )
-        turn_outcome = (
-            outcome_from_record
-            or ("success" if status == CallStatusEnum.SUCCESS.value else "failed")
+        turn_outcome = outcome_from_record or (
+            "success" if status == CallStatusEnum.SUCCESS.value else "failed"
         )
         termination_reason = termination_from_record or default_termination_reason
 
@@ -402,6 +409,7 @@ class UsageRecorder:
 
         if tenant_id:
             from app.services.ai.tenant_rate_limit_service import TenantRateLimitService
+
             rate_svc = TenantRateLimitService(self.db, tenant_id)
             effective = await rate_svc.get_effective_rate_limits(model_id)
             rpm_limit = effective["rpm_limit"]
@@ -419,7 +427,8 @@ class UsageRecorder:
         except RateLimitExceeded as e:
             logger.warning(
                 "Rate limit blocked: tenant={} error={}",
-                tenant_id, str(e),
+                tenant_id,
+                str(e),
             )
             raise
 
@@ -433,7 +442,8 @@ class UsageRecorder:
         except QuotaExceeded as e:
             logger.warning(
                 "Quota blocked: tenant={} error={}",
-                tenant_id, str(e),
+                tenant_id,
+                str(e),
             )
             raise
 
@@ -733,7 +743,11 @@ class UsageRecorder:
 
         logger.info(
             "Stream completed: model={} in={} out={} total={} cost={}",
-            model, input_tokens, output_tokens, total_tokens, cost,
+            model,
+            input_tokens,
+            output_tokens,
+            total_tokens,
+            cost,
         )
 
     @staticmethod
@@ -744,6 +758,7 @@ class UsageRecorder:
         Recursively converts Decimal → str, dataclass → dict, excludes raw_response.
         递归处理 Decimal → str、dataclass → dict，排除 raw_response。
         """
+
         def _safe_value(val: Any) -> Any:
             if isinstance(val, Decimal):
                 return str(val)

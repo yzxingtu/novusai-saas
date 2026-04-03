@@ -35,7 +35,9 @@ class CodegenConfigVersionRepository(BaseRepository[CodegenConfigVersion]):
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
-    async def get_version(self, config_id: int, version_id: int) -> CodegenConfigVersion | None:
+    async def get_version(
+        self, config_id: int, version_id: int
+    ) -> CodegenConfigVersion | None:
         """
         获取指定版本 / Get version by id, ensuring it belongs to config.
         """

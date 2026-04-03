@@ -68,9 +68,7 @@ class CapabilityDescriptionBuilder:
             return []
 
         tools = list(getattr(skill_result, "tools", []) or [])
-        descriptors = list(
-            getattr(skill_result, "capability_descriptors", []) or []
-        )
+        descriptors = list(getattr(skill_result, "capability_descriptors", []) or [])
 
         if not tools and not descriptors:
             return []
@@ -154,7 +152,9 @@ class CapabilityDescriptionBuilder:
             # Build description
             if self.style == "detailed":
                 if kb_description and kb_document_count > 0:
-                    item = f"{kb_name}: {kb_description} ({kb_document_count} documents)"
+                    item = (
+                        f"{kb_name}: {kb_description} ({kb_document_count} documents)"
+                    )
                 elif kb_description:
                     item = f"{kb_name}: {kb_description}"
                 elif kb_document_count > 0:
@@ -383,7 +383,11 @@ class CapabilityDescriptionBuilder:
         metadata = getattr(descriptor, "metadata", {}) or {}
 
         if self.style == "concise":
-            return f"{skill_name}: {skill_description}" if skill_description else skill_name
+            return (
+                f"{skill_name}: {skill_description}"
+                if skill_description
+                else skill_name
+            )
 
         # Detailed style: include metadata hints
         parts = [skill_name]

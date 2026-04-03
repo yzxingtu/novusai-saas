@@ -67,7 +67,10 @@ class AdminEmailLogController(GlobalController):
             repo = EmailLogRepository(db)
             items, total = await repo.query_list(query)
             return paginated(
-                items=[EmailLogResponse.model_validate(item, from_attributes=True) for item in items],
+                items=[
+                    EmailLogResponse.model_validate(item, from_attributes=True)
+                    for item in items
+                ],
                 total=total,
                 page=query.page,
                 page_size=query.size,
@@ -85,21 +88,25 @@ class AdminEmailLogController(GlobalController):
             log = await repo.get_by_id(log_id)
             if not log:
                 raise NotFoundException(message=_("email_log.not_found"))
-            return success(data={
-                "id": log.id,
-                "to_address": log.to_address,
-                "cc": log.cc,
-                "bcc": log.bcc,
-                "subject": log.subject,
-                "status": log.status,
-                "triggered_by": log.triggered_by,
-                "html_body": log.html_body,
-                "text_body": log.text_body,
-                "error_message": log.error_message,
-                "sent_at": log.sent_at.isoformat() if log.sent_at else None,
-                "tenant_id": log.tenant_id,
-                "created_at": log.created_at.isoformat() if log.created_at else None,
-            })
+            return success(
+                data={
+                    "id": log.id,
+                    "to_address": log.to_address,
+                    "cc": log.cc,
+                    "bcc": log.bcc,
+                    "subject": log.subject,
+                    "status": log.status,
+                    "triggered_by": log.triggered_by,
+                    "html_body": log.html_body,
+                    "text_body": log.text_body,
+                    "error_message": log.error_message,
+                    "sent_at": log.sent_at.isoformat() if log.sent_at else None,
+                    "tenant_id": log.tenant_id,
+                    "created_at": log.created_at.isoformat()
+                    if log.created_at
+                    else None,
+                }
+            )
 
         @router.post("/send", summary="手动发送邮件")
         @action_create("action.email_log.send")
@@ -130,6 +137,7 @@ class AdminEmailLogController(GlobalController):
             # 记录日志 / Record log
             from app.core.base_model import utc_now
             from app.models.system.email_log import EmailLog
+
             log = EmailLog(
                 to_address=", ".join(body.to),
                 cc=", ".join(body.cc) if body.cc else None,
@@ -145,11 +153,13 @@ class AdminEmailLogController(GlobalController):
             db.add(log)
             await db.commit()
 
-            return success(data={
-                "success": result.success,
-                "message": result.message,
-                "error": result.error,
-            })
+            return success(
+                data={
+                    "success": result.success,
+                    "message": result.message,
+                    "error": result.error,
+                }
+            )
 
         @router.post("/test", summary="发送测试邮件")
         @action_create("action.email_log.test")
@@ -176,6 +186,7 @@ class AdminEmailLogController(GlobalController):
             # 记录日志 / Record log
             from app.core.base_model import utc_now
             from app.models.system.email_log import EmailLog
+
             log = EmailLog(
                 to_address=body.to,
                 subject=subject,
@@ -189,11 +200,13 @@ class AdminEmailLogController(GlobalController):
             db.add(log)
             await db.commit()
 
-            return success(data={
-                "success": result.success,
-                "message": result.message,
-                "error": result.error,
-            })
+            return success(
+                data={
+                    "success": result.success,
+                    "message": result.message,
+                    "error": result.error,
+                }
+            )
 
 
 router = AdminEmailLogController.get_router()

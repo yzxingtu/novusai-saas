@@ -24,9 +24,18 @@ class TenantUserRepository(TenantRepository[TenantUser]):
 
     _scope_fields = {
         "tenant": {
-            "id", "username", "email", "phone",
-            "is_active", "nickname", "role_id", "org_node_id", "gender",
-            "approval_status", "created_at", "updated_at",
+            "id",
+            "username",
+            "email",
+            "phone",
+            "is_active",
+            "nickname",
+            "role_id",
+            "org_node_id",
+            "gender",
+            "approval_status",
+            "created_at",
+            "updated_at",
             "last_login_at",
         },
     }
@@ -50,7 +59,7 @@ class TenantUserRepository(TenantRepository[TenantUser]):
             or_(
                 self.model.username == username_or_email,
                 self.model.email == username_or_email,
-            )
+            ),
         )
         result = await self.db.execute(query)
         return result.scalar_one_or_none()

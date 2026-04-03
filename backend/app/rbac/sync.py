@@ -35,7 +35,9 @@ class PermissionSyncService(LoggerMixin):
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    def _topological_sort(self, permissions: list[PermissionMeta]) -> list[PermissionMeta]:
+    def _topological_sort(
+        self, permissions: list[PermissionMeta]
+    ) -> list[PermissionMeta]:
         """
         Topological sort, ensures parent permissions processed before children.
         拓扑排序，确保父级权限先于子级处理。
@@ -97,7 +99,9 @@ class PermissionSyncService(LoggerMixin):
         return PermissionScope.TENANT.value
 
     @staticmethod
-    def _resolve_plugin_permission_name(raw_name: object, code: str, action: str) -> str:
+    def _resolve_plugin_permission_name(
+        raw_name: object, code: str, action: str
+    ) -> str:
         """
         Resolve plugin permission display name from i18n dict/string.
         / 从 i18n 字典或字符串解析插件权限名称。
@@ -112,7 +116,9 @@ class PermissionSyncService(LoggerMixin):
                 safe_name = plugin_name.replace("-", "_")
                 if isinstance(raw_name, str) and raw_name.strip():
                     return f"{safe_name}.permission.{resource_code}.{action}"
-                if isinstance(raw_name, dict) and any(str(v or "").strip() for v in raw_name.values()):
+                if isinstance(raw_name, dict) and any(
+                    str(v or "").strip() for v in raw_name.values()
+                ):
                     return f"{safe_name}.permission.{resource_code}.{action}"
         if isinstance(raw_name, str) and raw_name.strip():
             return f"{raw_name.strip()}:{action}"
@@ -165,9 +171,7 @@ class PermissionSyncService(LoggerMixin):
             self._make_key(p.code, p.scope): p.id for p in existing_permissions
         }
         # code-only fallback mapping: when parent scope differs from child (e.g. plugin tenant menu mounted to system menu) / 回退映射：当父级 scope 与子级不同时避免误报
-        code_to_id: dict[str, int] = {
-            p.code: p.id for p in existing_permissions
-        }
+        code_to_id: dict[str, int] = {p.code: p.id for p in existing_permissions}
 
         # Topological sort, ensure parents processed before children / 拓扑排序，确保父级先于子级处理
         sorted_permissions = self._topological_sort(registered_permissions)
@@ -180,8 +184,12 @@ class PermissionSyncService(LoggerMixin):
             # 2) Fallback to code-only match (plugin menu mounted to system menu, scope may differ) / 回退到 code-only 匹配
             parent_id = None
             if perm_meta.parent_code:
-                parent_key = self._make_key(perm_meta.parent_code, perm_meta.scope.value)
-                parent_id = code_scope_to_id.get(parent_key) or code_to_id.get(perm_meta.parent_code)
+                parent_key = self._make_key(
+                    perm_meta.parent_code, perm_meta.scope.value
+                )
+                parent_id = code_scope_to_id.get(parent_key) or code_to_id.get(
+                    perm_meta.parent_code
+                )
                 if parent_id is None:
                     self.logger.warning(
                         f"权限 {perm_meta.code} ({perm_meta.scope.value}) 的父级 {perm_meta.parent_code} 不存在"
@@ -253,7 +261,6 @@ class PermissionSyncService(LoggerMixin):
             "disabled": disabled_count,
         }
 
-
     def _validate_menu_components(self, permissions: list[PermissionMeta]) -> None:
         """
         校验菜单组件路径是否存在常见错误 / Validate menu component paths for common issues.
@@ -261,7 +268,9 @@ class PermissionSyncService(LoggerMixin):
         Runs after sync_permissions, logs warnings only (never blocks startup).
         在 sync_permissions 后运行，只记录警告，不会阻断启动。
         """
-        menus = [p for p in permissions if p.type == PermissionType.MENU and p.component]
+        menus = [
+            p for p in permissions if p.type == PermissionType.MENU and p.component
+        ]
         issues: list[str] = []
 
         for menu in menus:
@@ -305,7 +314,8 @@ class PermissionSyncService(LoggerMixin):
         # 1) Menu permissions from permission_registry bridge
         # / 菜单权限（来自 permission_registry 桥接）
         plugin_menu_perms = [
-            p for p in permission_registry.get_all()
+            p
+            for p in permission_registry.get_all()
             if p.code.startswith(prefix_admin) or p.code.startswith(prefix_tenant)
         ]
 
@@ -313,8 +323,8 @@ class PermissionSyncService(LoggerMixin):
         # / 动作权限（来自插件 extension registry）
         from app.plugins.registry import ExtensionRegistry
 
-        plugin_permission_exts = ExtensionRegistry.get_instance().get_plugin_permissions(
-            plugin_name
+        plugin_permission_exts = (
+            ExtensionRegistry.get_instance().get_plugin_permissions(plugin_name)
         )
 
         plugin_action_perms: list[PermissionMeta] = []
@@ -346,7 +356,9 @@ class PermissionSyncService(LoggerMixin):
                 plugin_action_perms.append(
                     PermissionMeta(
                         code=code,
-                        name=self._resolve_plugin_permission_name(raw_name, base_code, action),
+                        name=self._resolve_plugin_permission_name(
+                            raw_name, base_code, action
+                        ),
                         type=PermissionType.OPERATION,
                         scope=scope_enum,
                         resource=base_code,
@@ -361,10 +373,7 @@ class PermissionSyncService(LoggerMixin):
         if not plugin_perms:
             return 0
 
-        registered_keys = {
-            self._make_key(p.code, p.scope.value)
-            for p in plugin_perms
-        }
+        registered_keys = {self._make_key(p.code, p.scope.value) for p in plugin_perms}
 
         # Query existing plugin permissions (including is_deleted) / 查询已有的插件权限（含 is_deleted）
         result = await self.db.execute(
@@ -377,8 +386,7 @@ class PermissionSyncService(LoggerMixin):
             )
         )
         existing_db: dict[str, Permission] = {
-            self._make_key(p.code, p.scope): p
-            for p in result.scalars().all()
+            self._make_key(p.code, p.scope): p for p in result.scalars().all()
         }
 
         # Build parent ID mapping (query all existing IDs for parent association) / 构建父级 ID 映射（先查出所有已有 ID 以便关联父级）

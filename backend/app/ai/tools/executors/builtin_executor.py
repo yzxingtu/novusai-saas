@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
+
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.core.config import settings
@@ -33,18 +34,42 @@ BuiltinFunc = Callable[..., Coroutine[Any, Any, str]]
 
 # SSRF protection: block access to intranet/cloud metadata hostnames
 # SSRF 防护：阻止访问内网/云元数据的主机名
-_SSRF_BLOCKED_HOSTS = frozenset({
-    "localhost", "127.0.0.1", "0.0.0.0", "::1",
-    "169.254.169.254", "metadata.google.internal",
-    "metadata.google", "100.100.100.200",
-})
+_SSRF_BLOCKED_HOSTS = frozenset(
+    {
+        "localhost",
+        "127.0.0.1",
+        "0.0.0.0",
+        "::1",
+        "169.254.169.254",
+        "metadata.google.internal",
+        "metadata.google",
+        "100.100.100.200",
+    }
+)
 # Private IP range prefixes (quick check, not exact CIDR)
 # 内网 IP 段前缀（快速检查，非精确 CIDR）
-_SSRF_PRIVATE_PREFIXES = ("10.", "172.16.", "172.17.", "172.18.", "172.19.",
-                          "172.20.", "172.21.", "172.22.", "172.23.",
-                          "172.24.", "172.25.", "172.26.", "172.27.",
-                          "172.28.", "172.29.", "172.30.", "172.31.",
-                          "192.168.", "fd", "fc")
+_SSRF_PRIVATE_PREFIXES = (
+    "10.",
+    "172.16.",
+    "172.17.",
+    "172.18.",
+    "172.19.",
+    "172.20.",
+    "172.21.",
+    "172.22.",
+    "172.23.",
+    "172.24.",
+    "172.25.",
+    "172.26.",
+    "172.27.",
+    "172.28.",
+    "172.29.",
+    "172.30.",
+    "172.31.",
+    "192.168.",
+    "fd",
+    "fc",
+)
 
 _DEFAULT_WEB_HEADERS = {
     "User-Agent": (
@@ -73,7 +98,20 @@ _MAIN_CONTENT_SELECTORS = (
     ".docMainContainer",
     ".docs-body",
 )
-_TEXT_BLOCK_TAGS = ("h1", "h2", "h3", "h4", "h5", "h6", "p", "li", "blockquote", "pre", "td", "th")
+_TEXT_BLOCK_TAGS = (
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "p",
+    "li",
+    "blockquote",
+    "pre",
+    "td",
+    "th",
+)
 _NOISE_TAGS = (
     "script",
     "style",
@@ -121,7 +159,9 @@ _SEARCH_STATUS_PARSER_MISS = "parser_miss"
 _SEARCH_STATUS_LOW_CONFIDENCE = "low_confidence"
 
 _SEARCH_ENGINE_HOSTS = frozenset({"www.baidu.com", "baidu.com", "www.so.com", "so.com"})
-_GENERIC_SITE_LABELS = frozenset({"www", "com", "org", "net", "gov", "cn", "en", "html", "htm"})
+_GENERIC_SITE_LABELS = frozenset(
+    {"www", "com", "org", "net", "gov", "cn", "en", "html", "htm"}
+)
 
 # Minimum fraction of query tokens that must appear in title+snippet for a hit to count as relevant.
 # 查询词在标题+摘要中的覆盖比例下限（不依赖固定主题词表）。
@@ -182,7 +222,7 @@ def _clean_search_snippet(text: str, title: str) -> str:
     normalized = _normalize_text(text)
     normalized_title = _normalize_text(title)
     if normalized_title and normalized.startswith(normalized_title):
-        normalized = _normalize_text(normalized[len(normalized_title):])
+        normalized = _normalize_text(normalized[len(normalized_title) :])
     return normalized
 
 
@@ -265,7 +305,9 @@ def _build_search_output_text(
 ) -> str:
     """Format search results for tool output. / 格式化搜索结果输出。"""
     lines = [f"Search results for: {query}\n"]
-    any_redirect = any(_search_engine_redirect_note(item.get("url") or "") for item in results)
+    any_redirect = any(
+        _search_engine_redirect_note(item.get("url") or "") for item in results
+    )
     if any_redirect:
         lines.append(
             "Note: Some URLs below are search-engine redirect links; use fetch_url to load "
@@ -353,7 +395,9 @@ def _result_passes_relevance(query: str, result: dict[str, str]) -> bool:
     ts_tokens = _result_text_tokens(result, include_url=False)
     ts_hits = len(q_tokens & ts_tokens)
     ts_ratio = ts_hits / len(q_tokens)
-    if ts_ratio >= _QUERY_RELEVANCE_MIN_RATIO or ts_hits >= max(1, (len(q_tokens) + 1) // 2):
+    if ts_ratio >= _QUERY_RELEVANCE_MIN_RATIO or ts_hits >= max(
+        1, (len(q_tokens) + 1) // 2
+    ):
         return True
 
     if _result_is_search_wrapper(url):
@@ -410,7 +454,11 @@ def _search_engine_redirect_note(url: str) -> bool:
         host = (urlparse(url).hostname or "").lower()
     except Exception:
         return False
-    return host in _SEARCH_ENGINE_HOSTS or host.endswith(".baidu.com") or host.endswith(".so.com")
+    return (
+        host in _SEARCH_ENGINE_HOSTS
+        or host.endswith(".baidu.com")
+        or host.endswith(".so.com")
+    )
 
 
 def _result_is_search_wrapper(url: str) -> bool:
@@ -734,7 +782,9 @@ async def _run_web_search(
             failure_reason="all search providers temporarily skipped",
         )
 
-    non_no_results = [attempt for attempt in attempts if attempt.status != _SEARCH_STATUS_NO_RESULTS]
+    non_no_results = [
+        attempt for attempt in attempts if attempt.status != _SEARCH_STATUS_NO_RESULTS
+    ]
     if attempts and non_no_results == []:
         return WebSearchExecution(
             output=f"No results found for: {rewritten_query}",
@@ -744,7 +794,10 @@ async def _run_web_search(
             failure_reason=_build_public_search_failure_reason(attempts),
         )
 
-    failure_reason = _build_public_search_failure_reason(attempts) or "all public search sources were unavailable"
+    failure_reason = (
+        _build_public_search_failure_reason(attempts)
+        or "all public search sources were unavailable"
+    )
     if any(attempt.status == _SEARCH_STATUS_LOW_CONFIDENCE for attempt in attempts):
         return WebSearchExecution(
             output=f"Search results low confidence: {failure_reason}",
@@ -791,10 +844,12 @@ def _remove_noise_nodes(soup: Any) -> None:
         if node.name not in {"div", "section", "ul", "ol"}:
             continue
 
-        hints = " ".join([
-            node.get("id", ""),
-            " ".join(node.get("class", [])),
-        ]).lower()
+        hints = " ".join(
+            [
+                node.get("id", ""),
+                " ".join(node.get("class", [])),
+            ]
+        ).lower()
         if hints and any(noise in hints for noise in _NOISE_HINTS):
             node.decompose()
 
@@ -812,7 +867,12 @@ def _score_content_node(node: Any) -> int:
         for link in node.find_all("a", limit=120)
     )
     total_text = len(_normalize_text(node.get_text(" ", strip=True)))
-    return paragraph_chars + (heading_count * 40) + min(total_text, 1600) - (link_chars // 3)
+    return (
+        paragraph_chars
+        + (heading_count * 40)
+        + min(total_text, 1600)
+        - (link_chars // 3)
+    )
 
 
 def _pick_main_content_node(soup: Any) -> Any:
@@ -944,6 +1004,7 @@ def _is_ssrf_blocked(url: str) -> str | None:
     """Check if URL points to intranet/cloud metadata, return error message or None. / 检查 URL 是否指向内网/云元数据，返回错误消息或 None。"""
     try:
         from urllib.parse import urlparse
+
         parsed = urlparse(url)
         host = (parsed.hostname or "").lower()
         if not host:
@@ -1039,7 +1100,9 @@ class BuiltinToolExecutor(BaseToolExecutor):
             if func_name == "fetch_url":
                 url = str(arguments.get("url") or "")
                 max_length = int(arguments.get("max_length") or 5000)
-                ok, payload = await BuiltinToolExecutor._fetch_url_result(url, max_length)
+                ok, payload = await BuiltinToolExecutor._fetch_url_result(
+                    url, max_length
+                )
                 duration_ms = int((time.perf_counter() - start) * 1000)
                 if not ok:
                     return ToolResult(
@@ -1177,7 +1240,9 @@ class BuiltinToolExecutor(BaseToolExecutor):
         return (await _run_web_search(query, max_results)).output
 
     @staticmethod
-    async def _fetch_url_result(url: str = "", max_length: int = 5000) -> tuple[bool, str]:
+    async def _fetch_url_result(
+        url: str = "", max_length: int = 5000
+    ) -> tuple[bool, str]:
         """
         Fetch URL; returns (success, text).
         On failure, text is the error detail for ToolResult.error (no \"Error:\" prefix).
@@ -1196,7 +1261,9 @@ class BuiltinToolExecutor(BaseToolExecutor):
             " This page may block automated access; try another candidate URL from "
             "search results with fetch_url."
         )
-        hint_zh = " 该页面可能被站点拦截，请从搜索结果中换其他候选 URL 后用 fetch_url 重试。"
+        hint_zh = (
+            " 该页面可能被站点拦截，请从搜索结果中换其他候选 URL 后用 fetch_url 重试。"
+        )
 
         try:
             timeout = httpx.Timeout(20.0, connect=10.0)
@@ -1285,7 +1352,11 @@ def _safe_eval_node(node: ast.AST) -> int | float:
     if isinstance(node, ast.Expression):
         return _safe_eval_node(node.body)
 
-    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)) and not isinstance(node.value, bool):
+    if (
+        isinstance(node, ast.Constant)
+        and isinstance(node.value, (int, float))
+        and not isinstance(node.value, bool)
+    ):
         return node.value
 
     if isinstance(node, ast.BinOp):
@@ -1295,7 +1366,11 @@ def _safe_eval_node(node: ast.AST) -> int | float:
         left = _safe_eval_node(node.left)
         right = _safe_eval_node(node.right)
         # Prevent astronomical exponents (e.g. 10**10000) / 防止天文数字指数 (如 10**10000)
-        if isinstance(node.op, ast.Pow) and isinstance(right, (int, float)) and abs(right) > 1000:
+        if (
+            isinstance(node.op, ast.Pow)
+            and isinstance(right, (int, float))
+            and abs(right) > 1000
+        ):
             raise ValueError("Exponent too large (max 1000)")
         return op_func(left, right)
 

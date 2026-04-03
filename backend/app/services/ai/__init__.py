@@ -16,7 +16,9 @@ if TYPE_CHECKING:
         AdminExecutionDecisionService,
         ExecutionDecisionService,
     )
-    from app.services.ai.execution_trust_policy_service import ExecutionTrustPolicyService
+    from app.services.ai.execution_trust_policy_service import (
+        ExecutionTrustPolicyService,
+    )
     from app.services.ai.long_term_memory_debug_service import (
         AdminMemoryRecordDebugService,
         AdminProfileSnapshotDebugService,

@@ -162,8 +162,11 @@ class EmailService:
                 success=False,
                 message="too_many_recipients",
                 recipients=message.to,
-                error=_("email.error.too_many_recipients",
-                        max=MAX_RECIPIENTS, got=len(all_recipients)),
+                error=_(
+                    "email.error.too_many_recipients",
+                    max=MAX_RECIPIENTS,
+                    got=len(all_recipients),
+                ),
             )
 
         # 安全校验：邮箱格式 / Safety check: email format
@@ -196,7 +199,8 @@ class EmailService:
             self._smtp_send(config, mime_msg, all_recipients)
             logger.info(
                 "Email sent: to={} subject={}",
-                ", ".join(message.to), message.subject,
+                ", ".join(message.to),
+                message.subject,
             )
             return EmailResult(
                 success=True,
@@ -276,7 +280,9 @@ class EmailService:
 
         if config.encryption == "ssl":
             context = ssl_module.create_default_context()
-            server = smtplib.SMTP_SSL(config.host, config.port, timeout=timeout, context=context)
+            server = smtplib.SMTP_SSL(
+                config.host, config.port, timeout=timeout, context=context
+            )
         else:
             server = smtplib.SMTP(config.host, config.port, timeout=timeout)
 
@@ -301,6 +307,7 @@ class EmailService:
 # 同步版本（Celery 任务专用）
 # ============================================
 
+
 def send_email_sync(
     to: list[str],
     subject: str,
@@ -324,20 +331,33 @@ def send_email_sync(
             return EmailResult(success=False, message="email_disabled", recipients=to)
 
         if not config.host or not config.from_address:
-            return EmailResult(success=False, message="config_incomplete", recipients=to, error=_("email.error.config_missing", fields="smtp_host, from_address"))
+            return EmailResult(
+                success=False,
+                message="config_incomplete",
+                recipients=to,
+                error=_("email.error.config_missing", fields="smtp_host, from_address"),
+            )
 
         all_recipients = to + (cc or []) + (bcc or [])
 
         # 安全校验：收件人数量 / Safety check: recipient count
         if len(all_recipients) > MAX_RECIPIENTS:
-            return EmailResult(success=False, message="too_many_recipients", recipients=to,
-                               error=f"Too many recipients: {len(all_recipients)} > {MAX_RECIPIENTS}")
+            return EmailResult(
+                success=False,
+                message="too_many_recipients",
+                recipients=to,
+                error=f"Too many recipients: {len(all_recipients)} > {MAX_RECIPIENTS}",
+            )
 
         # 安全校验：邮箱格式 / Safety check: email format
         invalid = [addr for addr in all_recipients if not _is_valid_email(addr)]
         if invalid:
-            return EmailResult(success=False, message="invalid_email", recipients=to,
-                               error=f"Invalid email: {', '.join(invalid)}")
+            return EmailResult(
+                success=False,
+                message="invalid_email",
+                recipients=to,
+                error=f"Invalid email: {', '.join(invalid)}",
+            )
 
         message = EmailMessage(
             to=to,
@@ -357,7 +377,9 @@ def send_email_sync(
 
     except Exception as e:
         logger.error("Email send failed (sync): {}", str(e))
-        return EmailResult(success=False, message="send_failed", recipients=to, error=str(e))
+        return EmailResult(
+            success=False, message="send_failed", recipients=to, error=str(e)
+        )
     finally:
         session.close()
 
@@ -384,6 +406,7 @@ def _load_smtp_config_sync(session: Any) -> SmtpConfig:
             # 配置值以 JSON 格式存储，字符串会带引号如 '"smtp.example.com"'
             # 先尝试 JSON 反序列化
             import json
+
             with contextlib.suppress(json.JSONDecodeError, TypeError):
                 val = json.loads(val)
             # 布尔值处理 / Boolean coercion

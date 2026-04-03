@@ -109,7 +109,8 @@ class MultiQueryRewriter(BaseRewriter):
 
             logger.info(
                 "MultiQuery rewrite: '{}' → {} queries",
-                query[:50], len(queries),
+                query[:50],
+                len(queries),
             )
 
         except Exception as exc:
@@ -120,6 +121,7 @@ class MultiQueryRewriter(BaseRewriter):
     async def _get_model_info(self) -> tuple[str, str]:
         """Get LLM model info / 获取 LLM 模型信息"""
         from app.repositories.ai import AIModelRepository
+
         if self.model:
             model_repo = AIModelRepository(self.db)
             ai_model = await model_repo.get_by_code(self.model)
@@ -128,6 +130,7 @@ class MultiQueryRewriter(BaseRewriter):
 
         # Fallback to default model / 回退到默认模型
         from app.core.config import settings
+
         return settings.DEFAULT_AI_PROVIDER, settings.DEFAULT_AI_MODEL
 
 
@@ -187,7 +190,8 @@ class HyDERewriter(BaseRewriter):
 
             logger.info(
                 "HyDE rewrite: '{}' → hypothetical len={}",
-                query[:50], len(hypothetical),
+                query[:50],
+                len(hypothetical),
             )
 
         except Exception as exc:
@@ -198,6 +202,7 @@ class HyDERewriter(BaseRewriter):
     async def _get_model_info(self) -> tuple[str, str]:
         """Get LLM model info / 获取 LLM 模型信息"""
         from app.repositories.ai import AIModelRepository
+
         if self.model:
             model_repo = AIModelRepository(self.db)
             ai_model = await model_repo.get_by_code(self.model)
@@ -205,6 +210,7 @@ class HyDERewriter(BaseRewriter):
                 return ai_model.provider.code, ai_model.code
 
         from app.core.config import settings
+
         return settings.DEFAULT_AI_PROVIDER, settings.DEFAULT_AI_MODEL
 
 
@@ -228,6 +234,7 @@ def get_rewriter(
         Rewriter instance / 改写器实例
     """
     from app.enums.knowledge_base import RewriteStrategyEnum
+
     if strategy == RewriteStrategyEnum.MULTI.value:
         return MultiQueryRewriter(db, tenant_id, model)
     elif strategy == RewriteStrategyEnum.HYDE.value:

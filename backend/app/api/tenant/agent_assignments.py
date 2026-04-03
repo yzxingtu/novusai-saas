@@ -32,13 +32,15 @@ async def resolve_assignment(
     service = AgentAssignmentService(db)
     assignment = await service.resolve_for_tenant(feature_code, tenant_admin.tenant_id)
     if not assignment:
-        return success(data={
-            "feature_code": feature_code,
-            "agent_id": None,
-            "agent_name": None,
-            "config": None,
-            "is_active": False,
-        })
+        return success(
+            data={
+                "feature_code": feature_code,
+                "agent_id": None,
+                "agent_name": None,
+                "config": None,
+                "is_active": False,
+            }
+        )
 
     agent_name = None
     try:
@@ -48,13 +50,15 @@ async def resolve_assignment(
     except AttributeError:
         pass
 
-    return success(data={
-        "feature_code": assignment.feature_code,
-        "agent_id": assignment.agent_id,
-        "agent_name": agent_name,
-        "config": assignment.config,
-        "is_active": assignment.is_active,
-    })
+    return success(
+        data={
+            "feature_code": assignment.feature_code,
+            "agent_id": assignment.agent_id,
+            "agent_name": agent_name,
+            "config": assignment.config,
+            "is_active": assignment.is_active,
+        }
+    )
 
 
 __all__ = ["router"]

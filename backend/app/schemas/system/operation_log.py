@@ -26,6 +26,7 @@ def _translate_log_field(key: str, prefix: str) -> str | None:
     if not key:
         return None
     from app.core.i18n import _
+
     i18n_key = f"{prefix}.{key}"
     translated = _(i18n_key)
     # 如果翻译结果与 key 相同，说明无翻译，返回原值
@@ -151,7 +152,9 @@ class OperatorSelectItem(BaseSchema):
 class OperationLogDeleteRequest(BaseSchema):
     """批量删除日志请求 / Batch delete logs request."""
 
-    ids: list[int] = Field(..., min_length=1, max_length=100, description="日志 ID 列表")
+    ids: list[int] = Field(
+        ..., min_length=1, max_length=100, description="日志 ID 列表"
+    )
 
 
 class LogStatsItem(BaseSchema):
@@ -164,8 +167,12 @@ class LogStatsItem(BaseSchema):
 class LogStatsResponse(BaseSchema):
     """日志统计响应 / Log stats response."""
 
-    by_module: list[LogStatsItem] = Field(default_factory=list, description="按模块统计")
-    by_action: list[LogStatsItem] = Field(default_factory=list, description="按操作类型统计")
+    by_module: list[LogStatsItem] = Field(
+        default_factory=list, description="按模块统计"
+    )
+    by_action: list[LogStatsItem] = Field(
+        default_factory=list, description="按操作类型统计"
+    )
     total: int = Field(..., description="总数")
 
 

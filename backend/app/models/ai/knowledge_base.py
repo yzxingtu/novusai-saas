@@ -38,10 +38,20 @@ class KnowledgeBase(BaseModel):
     }
 
     __delete_deps__ = [
-        DeletionDep("AgentKnowledgeBaseBinding", "knowledge_base_id", DeletionStrategy.CASCADE_DELETE,
-                    label_field="id", i18n_key="agent_kb_binding"),
-        DeletionDep("KnowledgeDocument", "knowledge_base_id", DeletionStrategy.CASCADE_SOFT,
-                    label_field="name", i18n_key="knowledge_document"),
+        DeletionDep(
+            "AgentKnowledgeBaseBinding",
+            "knowledge_base_id",
+            DeletionStrategy.CASCADE_DELETE,
+            label_field="id",
+            i18n_key="agent_kb_binding",
+        ),
+        DeletionDep(
+            "KnowledgeDocument",
+            "knowledge_base_id",
+            DeletionStrategy.CASCADE_SOFT,
+            label_field="name",
+            i18n_key="knowledge_document",
+        ),
     ]
 
     owner_tenant_id: Mapped[int | None] = mapped_column(
@@ -209,9 +219,7 @@ class KnowledgeBase(BaseModel):
         comment=_("knowledge_base.model.status"),
     )
 
-    __table_args__ = (
-        Index("ix_kb_owner_status", "owner_tenant_id", "status"),
-    )
+    __table_args__ = (Index("ix_kb_owner_status", "owner_tenant_id", "status"),)
 
     embedding_model = relationship(
         "AIModel",

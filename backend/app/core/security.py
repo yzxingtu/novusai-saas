@@ -22,12 +22,14 @@ logger = LogManager.get_logger("app.core.security")
 # Token 类型常量 / Token type constants
 TOKEN_TYPE_ACCESS = "access"
 TOKEN_TYPE_REFRESH = "refresh"
-TOKEN_TYPE_IMPERSONATE = "impersonate"  # 一键登录临时 Token / One-click login temporary token
+TOKEN_TYPE_IMPERSONATE = (
+    "impersonate"  # 一键登录临时 Token / One-click login temporary token
+)
 
 # Token 作用域常量（用户类型） / Token scope constants (user types)
-TOKEN_SCOPE_ADMIN = "admin"             # 平台管理员 / Platform admin
+TOKEN_SCOPE_ADMIN = "admin"  # 平台管理员 / Platform admin
 TOKEN_SCOPE_TENANT_ADMIN = "tenant_admin"  # 企业管理员 / Tenant admin
-TOKEN_SCOPE_TENANT_USER = "tenant_user"    # 企业业务用户 / Tenant business user
+TOKEN_SCOPE_TENANT_USER = "tenant_user"  # 企业业务用户 / Tenant business user
 
 # Impersonate Token 过期时间（秒） / Impersonate token expiry (seconds)
 IMPERSONATE_TOKEN_EXPIRE_SECONDS = 60
@@ -54,9 +56,7 @@ def create_access_token(
     if expires_delta:
         expire = utc_now() + expires_delta
     else:
-        expire = utc_now() + timedelta(
-            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-        )
+        expire = utc_now() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     jti = str(uuid.uuid4())
 
     to_encode = {
@@ -94,9 +94,7 @@ def create_refresh_token(
     if expires_delta:
         expire = utc_now() + expires_delta
     else:
-        expire = utc_now() + timedelta(
-            days=settings.REFRESH_TOKEN_EXPIRE_DAYS
-        )
+        expire = utc_now() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     jti = str(uuid.uuid4())
 
     to_encode = {
@@ -131,11 +129,14 @@ async def revoke_token(jti: str, ttl_seconds: int) -> None:
     """
     try:
         from app.core.redis import get_redis_client
+
         client = get_redis_client()
         key = f"{TOKEN_BLACKLIST_PREFIX}{jti}"
         await client.setex(key, ttl_seconds, "1")
     except Exception as exc:
-        logger.debug("Token blacklist add failed: {}", exc)  # Redis 不可用时静默失败，Token 将在自然过期后失效
+        logger.debug(
+            "Token blacklist add failed: {}", exc
+        )  # Redis 不可用时静默失败，Token 将在自然过期后失效
 
 
 def _decode_token_no_blacklist(token: str) -> dict[str, Any] | None:
@@ -143,9 +144,7 @@ def _decode_token_no_blacklist(token: str) -> dict[str, Any] | None:
     解码 Token（不检查黑名单，用于登出时获取 jti/exp） / Decode token without blacklist check (for logout flow).
     """
     try:
-        return jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
-        )
+        return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
     except (ExpiredSignatureError, JWTError):
         return None
 
@@ -164,6 +163,7 @@ async def is_token_revoked(jti: str | None) -> bool:
         return False
     try:
         from app.core.redis import get_redis_client
+
         client = get_redis_client()
         key = f"{TOKEN_BLACKLIST_PREFIX}{jti}"
         return bool(await client.exists(key))
@@ -171,7 +171,9 @@ async def is_token_revoked(jti: str | None) -> bool:
         return False  # Redis 不可用时视为未吊销，避免误杀
 
 
-async def decode_token(token: str, raise_on_expired: bool = False) -> dict[str, Any] | None:
+async def decode_token(
+    token: str, raise_on_expired: bool = False
+) -> dict[str, Any] | None:
     """
     解码并验证 Token / Decode and verify token
 
@@ -301,8 +303,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         密码是否正确 / Whether the password is correct
     """
     return bcrypt.checkpw(
-        plain_password.encode('utf-8'),
-        hashed_password.encode('utf-8')
+        plain_password.encode("utf-8"), hashed_password.encode("utf-8")
     )
 
 
@@ -316,10 +317,7 @@ def get_password_hash(password: str) -> str:
     Returns:
         哈希后的密码 / Hashed password
     """
-    return bcrypt.hashpw(
-        password.encode('utf-8'),
-        bcrypt.gensalt()
-    ).decode('utf-8')
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def create_token_pair(
@@ -339,7 +337,9 @@ def create_token_pair(
         包含 access_token、refresh_token、access_jti、refresh_jti 的字典
         Dict with access_token, refresh_token, access_jti, refresh_jti
     """
-    access_token, access_jti = create_access_token(subject, scope=scope, extra_claims=extra_claims)
+    access_token, access_jti = create_access_token(
+        subject, scope=scope, extra_claims=extra_claims
+    )
     refresh_token, refresh_jti = create_refresh_token(subject, scope=scope)
     return {
         "access_token": access_token,
@@ -432,6 +432,7 @@ def _get_encryption_key() -> bytes:
     # 使用 SHA256 生成固定长度的密钥 / Use SHA256 to generate fixed-length key
     import base64
     import hashlib
+
     hash_key = hashlib.sha256(key).digest()
     return base64.urlsafe_b64encode(hash_key)
 
@@ -447,8 +448,8 @@ def encrypt_data(plaintext: str) -> str:
         加密后的密文（Base64 编码） / Encrypted ciphertext (Base64 encoded)
     """
     f = Fernet(_get_encryption_key())
-    encrypted = f.encrypt(plaintext.encode('utf-8'))
-    return encrypted.decode('utf-8')
+    encrypted = f.encrypt(plaintext.encode("utf-8"))
+    return encrypted.decode("utf-8")
 
 
 def decrypt_data(ciphertext: str) -> str:
@@ -462,8 +463,8 @@ def decrypt_data(ciphertext: str) -> str:
         解密后的明文 / Decrypted plain text
     """
     f = Fernet(_get_encryption_key())
-    decrypted = f.decrypt(ciphertext.encode('utf-8'))
-    return decrypted.decode('utf-8')
+    decrypted = f.decrypt(ciphertext.encode("utf-8"))
+    return decrypted.decode("utf-8")
 
 
 __all__ = [

@@ -27,7 +27,9 @@ DEFAULT_RETENTION_HOURS = 24
     description="Clean up chunk upload temp files (sessions exceeding retention time) / 清理分片上传临时文件（清理超过保留时间的分片上传会话）",
     max_retries=1,
 )
-def cleanup_chunk_uploads(self: BaseTask, retention_hours: int = DEFAULT_RETENTION_HOURS) -> dict:
+def cleanup_chunk_uploads(
+    self: BaseTask, retention_hours: int = DEFAULT_RETENTION_HOURS
+) -> dict:
     """
     Clean up expired chunk upload sessions / 清理过期的分片上传会话
 
@@ -67,7 +69,8 @@ def cleanup_chunk_uploads(self: BaseTask, retention_hours: int = DEFAULT_RETENTI
                 except Exception as e:
                     logger.error(
                         "Upload cleanup: failed to remove orphan dir {}: {}",
-                        session_dir, e,
+                        session_dir,
+                        e,
                     )
                     errors += 1
                 continue
@@ -91,12 +94,14 @@ def cleanup_chunk_uploads(self: BaseTask, retention_hours: int = DEFAULT_RETENTI
                     cleaned += 1
                     logger.info(
                         "Upload cleanup: removed expired session {} (age: {}h)",
-                        session_dir.name, age_hours,
+                        session_dir.name,
+                        age_hours,
                     )
             except Exception as e:
                 logger.error(
                     "Upload cleanup: failed to process {}: {}",
-                    session_dir, e,
+                    session_dir,
+                    e,
                 )
                 errors += 1
 
@@ -110,6 +115,8 @@ def cleanup_chunk_uploads(self: BaseTask, retention_hours: int = DEFAULT_RETENTI
     duration_ms = int((time.time() - start) * 1000)
     logger.info(
         "Upload cleanup completed: cleaned={}, errors={}, duration={}ms",
-        cleaned, errors, duration_ms,
+        cleaned,
+        errors,
+        duration_ms,
     )
     return {"cleaned": cleaned, "errors": errors, "duration_ms": duration_ms}

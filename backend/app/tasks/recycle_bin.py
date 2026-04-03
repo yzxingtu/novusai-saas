@@ -88,7 +88,9 @@ async def _fetch_expired_rows(
         result.append(
             {
                 "id": int(row[0]),
-                "tenant_id": int(row[1]) if len(row) > 1 and row[1] is not None else None,
+                "tenant_id": int(row[1])
+                if len(row) > 1 and row[1] is not None
+                else None,
             }
         )
     return result

@@ -101,7 +101,8 @@ class AIResponseCache:
                     # Cache data corrupt, delete and log warning (not counted as hit)
                     # 缓存数据损坏，删除并记录警告，不计入 hit 统计
                     logger.warning(
-                        "Cache corrupt: key={}", cache_key[:40],
+                        "Cache corrupt: key={}",
+                        cache_key[:40],
                     )
                     await redis.delete(cache_key)
                     await AIResponseCache._record_hit(redis, hit=False)
@@ -179,7 +180,9 @@ class AIResponseCache:
         try:
             redis = await get_redis()
             keys = []
-            async for key in redis.scan_iter(match=f"{AIResponseCache.CACHE_PREFIX}{pattern}"):
+            async for key in redis.scan_iter(
+                match=f"{AIResponseCache.CACHE_PREFIX}{pattern}"
+            ):
                 keys.append(key)
 
             if keys:

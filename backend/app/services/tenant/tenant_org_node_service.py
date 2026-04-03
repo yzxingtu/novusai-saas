@@ -26,7 +26,9 @@ from app.services.common.role_tree_mixin import MAX_ROLE_DEPTH, RoleTreeMixin
 from app.services.tenant.tenant_admin_service import TenantAdminService
 
 
-class TenantOrgNodeService(TenantService[TenantOrgNode, TenantOrgNodeRepository], RoleTreeMixin[TenantOrgNode]):
+class TenantOrgNodeService(
+    TenantService[TenantOrgNode, TenantOrgNodeRepository], RoleTreeMixin[TenantOrgNode]
+):
     """Service for tenant organization nodes / 企业组织节点服务"""
 
     model = TenantOrgNode
@@ -71,7 +73,10 @@ class TenantOrgNodeService(TenantService[TenantOrgNode, TenantOrgNodeRepository]
     @staticmethod
     def _validate_child_type(parent_type: str, child_type: str) -> bool:
         allowed = {
-            RoleType.DEPARTMENT.value: {RoleType.DEPARTMENT.value, RoleType.POSITION.value},
+            RoleType.DEPARTMENT.value: {
+                RoleType.DEPARTMENT.value,
+                RoleType.POSITION.value,
+            },
             RoleType.POSITION.value: set(),
         }
         return child_type in allowed.get(parent_type, set())
@@ -103,14 +108,20 @@ class TenantOrgNodeService(TenantService[TenantOrgNode, TenantOrgNodeRepository]
     ) -> None:
         scope_mode = data_scope or org_node.scope_mode
         target_ids = (
-            custom_dept_ids if custom_dept_ids is not None else org_node.custom_org_node_ids
+            custom_dept_ids
+            if custom_dept_ids is not None
+            else org_node.custom_org_node_ids
         )
         if scope_mode != DataScope.CUSTOM.value:
             target_ids = []
         target_ids = await self._validate_custom_scope_targets(target_ids)
 
         policy = org_node.scope_policy
-        if policy is None and scope_mode == DataScope.DEPT_AND_CHILDREN.value and not target_ids:
+        if (
+            policy is None
+            and scope_mode == DataScope.DEPT_AND_CHILDREN.value
+            and not target_ids
+        ):
             return
 
         if policy is None:
@@ -200,7 +211,9 @@ class TenantOrgNodeService(TenantService[TenantOrgNode, TenantOrgNodeRepository]
         )
         return await self.repo.get_with_members(org_node.id)
 
-    async def update_org_node(self, org_node_id: int, data: dict[str, Any]) -> TenantOrgNode:
+    async def update_org_node(
+        self, org_node_id: int, data: dict[str, Any]
+    ) -> TenantOrgNode:
         org_node = await self.repo.get_by_id(org_node_id)
         if not org_node:
             raise NotFoundException(message=_("role.not_found"))
@@ -219,7 +232,9 @@ class TenantOrgNodeService(TenantService[TenantOrgNode, TenantOrgNodeRepository]
 
         if "parent_id" in data and data["parent_id"] != org_node.parent_id:
             new_parent_id = data["parent_id"]
-            parent_path, parent_level = await self.validate_parent(new_parent_id, exclude_id=org_node_id)
+            parent_path, parent_level = await self.validate_parent(
+                new_parent_id, exclude_id=org_node_id
+            )
             new_level = self._calculate_level(parent_level)
             max_descendant_depth = await self._get_max_descendant_depth(org_node_id)
             if new_level + max_descendant_depth > MAX_ROLE_DEPTH:
@@ -242,7 +257,9 @@ class TenantOrgNodeService(TenantService[TenantOrgNode, TenantOrgNodeRepository]
             data["path"] = new_path
             data["level"] = new_level
             updated = await self.repo.update(org_node_id, data)
-            await self._update_descendants_path(org_node_id, old_path, new_path, new_level)
+            await self._update_descendants_path(
+                org_node_id, old_path, new_path, new_level
+            )
         else:
             updated = await self.repo.update(org_node_id, data)
 
@@ -337,11 +354,15 @@ class TenantOrgNodeService(TenantService[TenantOrgNode, TenantOrgNodeRepository]
             )
         return await self.delete(org_node_id)
 
-    async def move_org_node(self, org_node_id: int, new_parent_id: int | None) -> TenantOrgNode:
+    async def move_org_node(
+        self, org_node_id: int, new_parent_id: int | None
+    ) -> TenantOrgNode:
         await self.move_node(org_node_id, new_parent_id)
         return await self.repo.get_with_members(org_node_id)
 
-    async def set_leader(self, org_node_id: int, leader_id: int | None) -> TenantOrgNode:
+    async def set_leader(
+        self, org_node_id: int, leader_id: int | None
+    ) -> TenantOrgNode:
         org_node = await self.repo.get_by_id(org_node_id)
         if not org_node:
             raise NotFoundException(message=_("role.not_found"))
@@ -477,16 +498,26 @@ class TenantOrgNodeService(TenantService[TenantOrgNode, TenantOrgNodeRepository]
         if update_permission_role:
             update_data["role_id"] = role_id
 
-        updated = await TenantAdminService(self.db, self.tenant_id).update_admin(admin_id, update_data)
+        updated = await TenantAdminService(self.db, self.tenant_id).update_admin(
+            admin_id, update_data
+        )
         return await self._load_member_detail(updated.id)
 
-    async def reset_member_password(self, org_node_id: int, admin_id: int, new_password: str) -> bool:
+    async def reset_member_password(
+        self, org_node_id: int, admin_id: int, new_password: str
+    ) -> bool:
         await self._require_member_in_org_node(org_node_id, admin_id)
-        return await TenantAdminService(self.db, self.tenant_id).reset_password(admin_id, new_password)
+        return await TenantAdminService(self.db, self.tenant_id).reset_password(
+            admin_id, new_password
+        )
 
-    async def toggle_member_status(self, org_node_id: int, admin_id: int, is_active: bool) -> TenantAdmin:
+    async def toggle_member_status(
+        self, org_node_id: int, admin_id: int, is_active: bool
+    ) -> TenantAdmin:
         await self._require_member_in_org_node(org_node_id, admin_id)
-        updated = await TenantAdminService(self.db, self.tenant_id).toggle_status(admin_id, is_active)
+        updated = await TenantAdminService(self.db, self.tenant_id).toggle_status(
+            admin_id, is_active
+        )
         return await self._load_member_detail(updated.id)
 
     async def add_member(self, org_node_id: int, admin_id: int) -> TenantAdmin:
@@ -508,7 +539,9 @@ class TenantOrgNodeService(TenantService[TenantOrgNode, TenantOrgNodeRepository]
                 message=_("role.member_exists"),
                 code=ErrorCode.ROLE_MEMBER_EXISTS,
             )
-        updated = await admin_service.update_admin(admin_id, {"org_node_id": org_node_id})
+        updated = await admin_service.update_admin(
+            admin_id, {"org_node_id": org_node_id}
+        )
         return await self._load_member_detail(updated.id)
 
     async def remove_member(self, org_node_id: int, admin_id: int) -> TenantAdmin:
@@ -520,7 +553,9 @@ class TenantOrgNodeService(TenantService[TenantOrgNode, TenantOrgNodeRepository]
             )
         if org_node.leader_id == admin_id:
             await self.repo.update(org_node_id, {"leader_id": None})
-        updated = await TenantAdminService(self.db, self.tenant_id).update_admin(admin_id, {"org_node_id": None})
+        updated = await TenantAdminService(self.db, self.tenant_id).update_admin(
+            admin_id, {"org_node_id": None}
+        )
         return await self._load_member_detail(updated.id)
 
     async def get_members(
@@ -542,7 +577,9 @@ class TenantOrgNodeService(TenantService[TenantOrgNode, TenantOrgNodeRepository]
             include_descendants=include_descendants,
         )
 
-    async def _require_member_in_org_node(self, org_node_id: int, admin_id: int) -> tuple[TenantOrgNode, TenantAdmin]:
+    async def _require_member_in_org_node(
+        self, org_node_id: int, admin_id: int
+    ) -> tuple[TenantOrgNode, TenantAdmin]:
         org_node = await self.repo.get_by_id(org_node_id)
         if not org_node:
             raise NotFoundException(message=_("role.not_found"))

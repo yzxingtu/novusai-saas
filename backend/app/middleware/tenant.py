@@ -72,7 +72,7 @@ def parse_tenant_from_host(host: str) -> tuple[str | None, str]:
     suffix = settings.TENANT_DOMAIN_SUFFIX.lower()
     if host.endswith(suffix):
         # Extract subdomain part / 提取子域名部分
-        subdomain = host[:-len(suffix)]
+        subdomain = host[: -len(suffix)]
         if subdomain and "." not in subdomain:
             # Valid tenant subdomain (no dots) / 合法的企业子域名
             return subdomain, "subdomain"

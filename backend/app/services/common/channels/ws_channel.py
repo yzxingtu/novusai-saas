@@ -32,6 +32,7 @@ class WSChannel(NotificationChannel):
         """WS 跟随通知系统总开关 / WS follows notification system master switch."""
         try:
             from app.sio.ws_config import get_ws_config
+
             return bool(await get_ws_config("notification_enabled"))
         except Exception:
             return True

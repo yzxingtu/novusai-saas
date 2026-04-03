@@ -205,7 +205,9 @@ class KeywordSearcher:
                 if len(segment) >= 2:
                     tokens.append(segment)
                 if len(segment) > 2:
-                    tokens.extend(segment[idx:idx + 2] for idx in range(len(segment) - 1))
+                    tokens.extend(
+                        segment[idx : idx + 2] for idx in range(len(segment) - 1)
+                    )
             elif len(segment) >= 2:
                 tokens.append(segment.lower())
 
@@ -584,7 +586,9 @@ class HybridRetriever:
 
             self._merge_best_results(best_results, batch)
 
-        all_results = sorted(best_results.values(), key=lambda item: item.score, reverse=True)
+        all_results = sorted(
+            best_results.values(), key=lambda item: item.score, reverse=True
+        )
         results = all_results[: top_k * 2] if reranker_enabled else all_results[:top_k]
 
         if mode != SearchModeEnum.VECTOR.value and results:
@@ -660,7 +664,9 @@ class HybridRetriever:
         knowledge_bases: list[KnowledgeBase] | None,
         kb_weights: dict[int, float] | None,
     ) -> list[SearchKBContext]:
-        kb_list = knowledge_bases or ([knowledge_base] if knowledge_base is not None else [])
+        kb_list = knowledge_bases or (
+            [knowledge_base] if knowledge_base is not None else []
+        )
         contexts: list[SearchKBContext] = []
         seen: set[int] = set()
         for kb in kb_list:
@@ -693,7 +699,9 @@ class HybridRetriever:
             if result.raw_score is not None:
                 current.raw_score = max(current.raw_score or 0.0, result.raw_score)
             if result.fusion_score is not None:
-                current.fusion_score = max(current.fusion_score or 0.0, result.fusion_score)
+                current.fusion_score = max(
+                    current.fusion_score or 0.0, result.fusion_score
+                )
             current.score = max(current.score, result.score)
 
     async def _vector_search(
@@ -711,7 +719,9 @@ class HybridRetriever:
         ) -> tuple[SearchKBContext, str, list[ChunkSearchResult]]:
             signature = context.embedding_signature
             if signature not in embedding_cache:
-                embedding_cache[signature] = await self.embedding_service.generate_embedding(
+                embedding_cache[
+                    signature
+                ] = await self.embedding_service.generate_embedding(
                     text=query,
                     knowledge_base=context.knowledge_base,
                 )
@@ -803,7 +813,9 @@ class HybridRetriever:
         ) -> tuple[SearchKBContext, str, list[ChunkSearchResult]]:
             signature = context.embedding_signature
             if signature not in embedding_cache:
-                embedding_cache[signature] = await self.embedding_service.generate_embedding(
+                embedding_cache[
+                    signature
+                ] = await self.embedding_service.generate_embedding(
                     text=query,
                     knowledge_base=context.knowledge_base,
                 )
@@ -865,7 +877,10 @@ class HybridRetriever:
                             result.raw_score,
                         )
                     merged_result.kb_weight = context.weight
-                    score_map[result.chunk_id] = (merged_score + contribution, merged_result)
+                    score_map[result.chunk_id] = (
+                        merged_score + contribution,
+                        merged_result,
+                    )
                     continue
 
                 cloned = ChunkSearchResult(**result.to_dict())
@@ -878,7 +893,9 @@ class HybridRetriever:
         if not score_map:
             return []
 
-        sorted_items = sorted(score_map.values(), key=lambda item: item[0], reverse=True)
+        sorted_items = sorted(
+            score_map.values(), key=lambda item: item[0], reverse=True
+        )
         results: list[ChunkSearchResult] = []
         for weighted_rrf, chunk_result in sorted_items[:top_k]:
             normalized = min(weighted_rrf / max(rrf_max, 1e-9), 1.0)
@@ -912,7 +929,10 @@ class HybridRetriever:
             f"{rewrite_strategy}:{reranker_enabled}"
         )
         digest = hashlib.md5(raw.encode()).hexdigest()
-        kb_prefix = "_".join(str(context.kb_id) for context in sorted(kb_contexts, key=lambda item: item.kb_id))
+        kb_prefix = "_".join(
+            str(context.kb_id)
+            for context in sorted(kb_contexts, key=lambda item: item.kb_id)
+        )
         return f"{SEARCH_CACHE_PREFIX}{kb_prefix}:{digest}"
 
     @staticmethod
@@ -935,7 +955,9 @@ class HybridRetriever:
         try:
             from app.core.redis import cache_set
 
-            await cache_set(key, [item.to_dict() for item in results], ttl=SEARCH_CACHE_TTL)
+            await cache_set(
+                key, [item.to_dict() for item in results], ttl=SEARCH_CACHE_TTL
+            )
         except Exception as exc:
             logger.debug("Search cache write failed: key={} err={}", key, str(exc))
 
@@ -958,7 +980,9 @@ class HybridRetriever:
                 async for key in client.scan_iter(match=pattern, count=100):
                     await client.delete(key)
         except Exception as exc:
-            logger.debug("Search cache invalidation failed: kb_id={} err={}", kb_id, str(exc))
+            logger.debug(
+                "Search cache invalidation failed: kb_id={} err={}", kb_id, str(exc)
+            )
 
 
 # Backward compatibility: keep VectorRetriever alias / 向后兼容：保留 VectorRetriever 别名

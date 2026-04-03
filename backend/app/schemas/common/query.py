@@ -79,7 +79,9 @@ class QuerySpec(BaseSchema):
     """
 
     filters: list[FilterRule] = Field(default_factory=list, description="筛选条件列表")
-    sort: list[str] = Field(default_factory=list, description="排序字段列表，前缀 - 表示降序")
+    sort: list[str] = Field(
+        default_factory=list, description="排序字段列表，前缀 - 表示降序"
+    )
     page: int = Field(default=1, ge=1, description="页码")
     size: int = Field(default=20, ge=1, le=100, description="每页数量")
 

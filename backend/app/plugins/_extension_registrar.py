@@ -125,7 +125,11 @@ def _register_custom_captcha_provider(
             ),
             frontend_runtime=_build_frontend_runtime_payload(manifest),
             display_name=dict(
-                ((custom_ext.data or {}).get("display_name") or manifest.display_name or {}),
+                (
+                    (custom_ext.data or {}).get("display_name")
+                    or manifest.display_name
+                    or {}
+                ),
             ),
         ),
     )
@@ -176,7 +180,10 @@ def register_all_extensions(
         executor_cls = _load_executor(plugin_name, skill_ext.type)
         if resolver_func:
             registry.register_skill(
-                plugin_name, skill_ext.type, resolver_func, executor_cls,
+                plugin_name,
+                skill_ext.type,
+                resolver_func,
+                executor_cls,
             )
         elif skill_ext.entry_point:
             _record_failure(plugin_name, "skill", skill_ext.entry_point)
@@ -186,7 +193,9 @@ def register_all_extensions(
         adapter_cls = _load_handler(plugin_name, adapter_ext.entry_point)
         if adapter_cls:
             registry.register_adapter(
-                plugin_name, adapter_ext.provider_code, adapter_cls,
+                plugin_name,
+                adapter_ext.provider_code,
+                adapter_cls,
             )
         else:
             _record_failure(plugin_name, "adapter", adapter_ext.entry_point)
@@ -204,7 +213,10 @@ def register_all_extensions(
         handler = _load_handler(plugin_name, hook.handler)
         if handler:
             registry.register_hook(
-                plugin_name, hook.point, handler, hook.priority,
+                plugin_name,
+                hook.point,
+                handler,
+                hook.priority,
             )
         else:
             _record_failure(plugin_name, "hook", hook.handler)
@@ -222,8 +234,11 @@ def register_all_extensions(
         handler = _load_handler(plugin_name, webhook.handler)
         if handler:
             registry.register_webhook(
-                plugin_name, webhook.path, handler,
-                webhook.method, webhook.auth.model_dump(),
+                plugin_name,
+                webhook.path,
+                handler,
+                webhook.method,
+                webhook.auth.model_dump(),
             )
         else:
             _record_failure(plugin_name, "webhook", webhook.handler)
@@ -239,15 +254,21 @@ def register_all_extensions(
     # Notifications / 通知
     for notif_ext in ext.notifications:
         registry.register_notification(
-            plugin_name, notif_ext.code,
-            notif_ext.title, notif_ext.channels, notif_ext.category,
+            plugin_name,
+            notif_ext.code,
+            notif_ext.title,
+            notif_ext.channels,
+            notif_ext.category,
         )
 
     # Permissions / 权限
     for perm_ext in ext.permissions:
         registry.register_permission(
-            plugin_name, perm_ext.code,
-            perm_ext.name, perm_ext.scope, perm_ext.actions,
+            plugin_name,
+            perm_ext.code,
+            perm_ext.name,
+            perm_ext.scope,
+            perm_ext.actions,
         )
 
     # Socket.IO Namespaces / Socket.IO 命名空间
@@ -255,8 +276,11 @@ def register_all_extensions(
         handler_class = _load_handler(plugin_name, sio_ext.handler)
         if handler_class:
             registry.register_socketio(
-                plugin_name, sio_ext.path, handler_class,
-                sio_ext.auth_required, sio_ext.auth_scopes,
+                plugin_name,
+                sio_ext.path,
+                handler_class,
+                sio_ext.auth_required,
+                sio_ext.auth_scopes,
             )
         else:
             _record_failure(plugin_name, "socketio", sio_ext.handler)
@@ -275,7 +299,8 @@ def register_all_extensions(
     # header_widgets — Top-right navigation bar components / 右上角导航栏组件
     for widget in ext.frontend.header_widgets:
         registry.register_frontend_slot(
-            plugin_name, FrontendSlotTypeEnum.HEADER_WIDGET.value,
+            plugin_name,
+            FrontendSlotTypeEnum.HEADER_WIDGET.value,
             name=widget.name,
             component=widget.component,
             sort_order=widget.sort_order,
@@ -286,7 +311,8 @@ def register_all_extensions(
     # floating_panels — Page floating panels (bottom-right, etc.) / 页面浮动面板（右下角等）
     for panel in ext.frontend.floating_panels:
         registry.register_frontend_slot(
-            plugin_name, FrontendSlotTypeEnum.FLOATING_PANEL.value,
+            plugin_name,
+            FrontendSlotTypeEnum.FLOATING_PANEL.value,
             name=panel.name,
             component=panel.component,
             icon=panel.icon,
@@ -304,7 +330,8 @@ def register_all_extensions(
     # notification_ui — Notification center custom UI components / 通知中心自定义 UI 组件
     for notif_ui in ext.frontend.notification_ui:
         registry.register_frontend_slot(
-            plugin_name, FrontendSlotTypeEnum.NOTIFICATION_UI.value,
+            plugin_name,
+            FrontendSlotTypeEnum.NOTIFICATION_UI.value,
             name=notif_ui.event,
             event=notif_ui.event,
             component=notif_ui.component,
@@ -314,7 +341,8 @@ def register_all_extensions(
     # dashboard_widgets — Dashboard widget cards / 仪表板卡片
     for widget in ext.frontend.dashboard_widgets:
         registry.register_frontend_slot(
-            plugin_name, FrontendSlotTypeEnum.DASHBOARD_WIDGET.value,
+            plugin_name,
+            FrontendSlotTypeEnum.DASHBOARD_WIDGET.value,
             name=widget.name,
             component=widget.component,
             title=widget.title,
@@ -326,7 +354,8 @@ def register_all_extensions(
     # settings_tabs — System settings tabs / 系统设置页签
     for tab in ext.frontend.settings_tabs:
         registry.register_frontend_slot(
-            plugin_name, FrontendSlotTypeEnum.SETTINGS_TAB.value,
+            plugin_name,
+            FrontendSlotTypeEnum.SETTINGS_TAB.value,
             name=tab.name,
             component=tab.component,
             title=tab.title,
@@ -339,7 +368,9 @@ def register_all_extensions(
         mw_cls = _load_handler(plugin_name, mw_ext.handler)
         if mw_cls:
             registry.register_middleware(
-                plugin_name, mw_ext.name, mw_cls,
+                plugin_name,
+                mw_ext.name,
+                mw_cls,
                 priority=mw_ext.priority,
             )
         else:
@@ -351,10 +382,14 @@ def register_all_extensions(
             custom_ext.type == "captcha_provider"
             and not _register_custom_captcha_provider(manifest, plugin_name, custom_ext)
         ):
-            entry_point = str((custom_ext.data or {}).get("entry_point") or custom_ext.name)
+            entry_point = str(
+                (custom_ext.data or {}).get("entry_point") or custom_ext.name
+            )
             _record_failure(plugin_name, "custom", entry_point)
         registry.register_custom(
-            plugin_name, custom_ext.type, custom_ext.name,
+            plugin_name,
+            custom_ext.type,
+            custom_ext.name,
             data=custom_ext.data,
             description=custom_ext.description,
         )
@@ -486,7 +521,9 @@ def _record_failure(plugin_name: str, ext_type: str, entry_point: str) -> None:
     )
     logger.warning(
         "Plugin {}: failed to load {} extension '{}'",
-        plugin_name, ext_type, entry_point,
+        plugin_name,
+        ext_type,
+        entry_point,
     )
 
 

@@ -23,9 +23,7 @@ class AIModelRepository(BaseRepository[AIModel]):
     model = AIModel
 
     async def get_by_code(
-        self,
-        code: str,
-        include_deleted: bool = False
+        self, code: str, include_deleted: bool = False
     ) -> AIModel | None:
         """
         根据代码获取模型 / Get model by code.
@@ -37,9 +35,7 @@ class AIModelRepository(BaseRepository[AIModel]):
         Returns:
             AIModel 对象或 None
         """
-        stmt = select(AIModel).where(
-            AIModel.code == code
-        )
+        stmt = select(AIModel).where(AIModel.code == code)
 
         if not include_deleted:
             stmt = stmt.where(AIModel.is_deleted.is_(False))
@@ -48,9 +44,7 @@ class AIModelRepository(BaseRepository[AIModel]):
         return result.scalar_one_or_none()
 
     async def get_by_provider(
-        self,
-        provider_id: int,
-        include_deleted: bool = False
+        self, provider_id: int, include_deleted: bool = False
     ) -> list[AIModel]:
         """
         获取供应商的所有模型 / Get all models for provider.
@@ -62,9 +56,7 @@ class AIModelRepository(BaseRepository[AIModel]):
         Returns:
             AIModel 列表
         """
-        stmt = select(AIModel).where(
-            AIModel.provider_id == provider_id
-        )
+        stmt = select(AIModel).where(AIModel.provider_id == provider_id)
 
         if not include_deleted:
             stmt = stmt.where(AIModel.is_deleted.is_(False))
@@ -74,10 +66,7 @@ class AIModelRepository(BaseRepository[AIModel]):
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
-    async def get_active_models_by_provider(
-        self,
-        provider_id: int
-    ) -> list[AIModel]:
+    async def get_active_models_by_provider(self, provider_id: int) -> list[AIModel]:
         """
         获取供应商的启用模型 / Get active models for provider.
 
@@ -87,23 +76,20 @@ class AIModelRepository(BaseRepository[AIModel]):
         Returns:
             AIModel 列表
         """
-        stmt = select(AIModel).where(
-            AIModel.provider_id == provider_id,
-            AIModel.is_active.is_(True),
-            AIModel.is_deleted.is_(False)
-        ).order_by(
-            AIModel.created_at.desc()
+        stmt = (
+            select(AIModel)
+            .where(
+                AIModel.provider_id == provider_id,
+                AIModel.is_active.is_(True),
+                AIModel.is_deleted.is_(False),
+            )
+            .order_by(AIModel.created_at.desc())
         )
 
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
-
-    async def code_exists(
-        self,
-        code: str,
-        exclude_id: int | None = None
-    ) -> bool:
+    async def code_exists(self, code: str, exclude_id: int | None = None) -> bool:
         """
         检查模型代码是否存在 / Check if model code exists.
 
@@ -117,8 +103,7 @@ class AIModelRepository(BaseRepository[AIModel]):
         from sqlalchemy import func
 
         stmt = select(func.count(AIModel.id)).where(
-            AIModel.code == code,
-            AIModel.is_deleted.is_(False)
+            AIModel.code == code, AIModel.is_deleted.is_(False)
         )
 
         if exclude_id is not None:
@@ -127,9 +112,8 @@ class AIModelRepository(BaseRepository[AIModel]):
         result = await self.db.execute(stmt)
         count = result.scalar() or 0
         return count > 0
-    async def get_active_with_provider(
-        self, model_id: int
-    ) -> AIModel | None:
+
+    async def get_active_with_provider(self, model_id: int) -> AIModel | None:
         """
         获取启用的模型（预加载 provider 关系）/ Get active model with provider preloaded.
 
@@ -141,11 +125,15 @@ class AIModelRepository(BaseRepository[AIModel]):
         """
         from sqlalchemy.orm import selectinload
 
-        stmt = select(AIModel).where(
-            AIModel.id == model_id,
-            AIModel.is_active.is_(True),
-            AIModel.is_deleted.is_(False),
-        ).options(selectinload(AIModel.provider))
+        stmt = (
+            select(AIModel)
+            .where(
+                AIModel.id == model_id,
+                AIModel.is_active.is_(True),
+                AIModel.is_deleted.is_(False),
+            )
+            .options(selectinload(AIModel.provider))
+        )
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 

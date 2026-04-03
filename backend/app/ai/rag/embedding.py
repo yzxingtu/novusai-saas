@@ -114,7 +114,7 @@ class EmbeddingService:
         total_tokens = 0
 
         for i in range(0, len(texts), batch_size):
-            batch = [clean_for_embedding(t) for t in texts[i:i + batch_size]]
+            batch = [clean_for_embedding(t) for t in texts[i : i + batch_size]]
 
             response = await self.gateway.embedding(
                 provider_code=provider_code,
@@ -155,9 +155,7 @@ class EmbeddingService:
 
         provider = embedding_model.provider
         if not provider:
-            raise BusinessException(
-                message=_("ai.error.embedding_provider_not_found")
-            )
+            raise BusinessException(message=_("ai.error.embedding_provider_not_found"))
 
         return provider.code, embedding_model.code
 

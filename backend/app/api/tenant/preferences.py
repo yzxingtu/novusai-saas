@@ -28,6 +28,7 @@ router = APIRouter(prefix="/preferences", tags=["偏好设置 / Preferences"])
 
 class PreferenceUpdateSchema(PydanticBase):
     """偏好更新请求体 / Preference update request body"""
+
     preferences: dict
 
 
@@ -42,7 +43,9 @@ async def get_global_preferences(
 ):
     """获取企业全局偏好设置（含系统默认补全） / Get tenant global preferences with system defaults"""
     service = UserPreferenceService(db)
-    data = await service.get_global_with_defaults(SCOPE_TENANT_GLOBAL, tenant_admin.tenant_id)
+    data = await service.get_global_with_defaults(
+        SCOPE_TENANT_GLOBAL, tenant_admin.tenant_id
+    )
     return success(data=data)
 
 
@@ -57,7 +60,9 @@ async def update_global_preferences(
     更新企业全局偏好，变更的 key 会从该企业所有管理员的个人覆盖中清除 / Update tenant global preferences; changed keys cleared from tenant admin overrides.
     """
     service = UserPreferenceService(db)
-    data, changed = await service.update_global(SCOPE_TENANT_GLOBAL, tenant_admin.tenant_id, body.preferences)
+    data, changed = await service.update_global(
+        SCOPE_TENANT_GLOBAL, tenant_admin.tenant_id, body.preferences
+    )
     await db.commit()
 
     if changed:
@@ -80,7 +85,10 @@ async def update_global_preferences(
 # ── 个人偏好 / Individual preferences ──
 
 
-@router.get("/me", summary="获取当前企业管理员生效偏好 / Get current tenant admin effective preferences")
+@router.get(
+    "/me",
+    summary="获取当前企业管理员生效偏好 / Get current tenant admin effective preferences",
+)
 @auth_only
 async def get_my_preferences(
     db: DbSession,
@@ -88,11 +96,16 @@ async def get_my_preferences(
 ):
     """获取当前企业管理员合并后的生效偏好 / Get current tenant admin's merged effective preferences"""
     service = UserPreferenceService(db)
-    data = await service.get_effective(SCOPE_TENANT_ADMIN, tenant_admin.tenant_id, tenant_admin.id)
+    data = await service.get_effective(
+        SCOPE_TENANT_ADMIN, tenant_admin.tenant_id, tenant_admin.id
+    )
     return success(data=data)
 
 
-@router.put("/me", summary="更新当前企业管理员个人偏好 / Update current tenant admin individual preferences")
+@router.put(
+    "/me",
+    summary="更新当前企业管理员个人偏好 / Update current tenant admin individual preferences",
+)
 @auth_only
 async def update_my_preferences(
     db: DbSession,
@@ -102,13 +115,18 @@ async def update_my_preferences(
     """更新当前企业管理员的个人偏好覆盖 / Update current tenant admin's individual preference overrides"""
     service = UserPreferenceService(db)
     data = await service.update_individual(
-        SCOPE_TENANT_ADMIN, tenant_admin.tenant_id, tenant_admin.id, body.preferences,
+        SCOPE_TENANT_ADMIN,
+        tenant_admin.tenant_id,
+        tenant_admin.id,
+        body.preferences,
     )
     await db.commit()
     return success(data=data, message=_("common.success"))
 
 
-@router.delete("/me", summary="重置当前企业管理员偏好 / Reset current tenant admin preferences")
+@router.delete(
+    "/me", summary="重置当前企业管理员偏好 / Reset current tenant admin preferences"
+)
 @auth_only
 async def reset_my_preferences(
     db: DbSession,
@@ -116,7 +134,9 @@ async def reset_my_preferences(
 ):
     """重置当前企业管理员的个人偏好（恢复为全局默认） / Reset current tenant admin preferences to global defaults"""
     service = UserPreferenceService(db)
-    data = await service.reset_individual(SCOPE_TENANT_ADMIN, tenant_admin.tenant_id, tenant_admin.id)
+    data = await service.reset_individual(
+        SCOPE_TENANT_ADMIN, tenant_admin.tenant_id, tenant_admin.id
+    )
     await db.commit()
     return success(data=data, message=_("common.success"))
 

@@ -120,7 +120,10 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         # 转换为字符串检查大小（default=str 处理 Decimal 等特殊类型）
         response_str = json.dumps(response_data, ensure_ascii=False, default=str)
 
-        if len(response_str.encode("utf-8")) > CallLogService.RESPONSE_TRUNCATE_THRESHOLD:
+        if (
+            len(response_str.encode("utf-8"))
+            > CallLogService.RESPONSE_TRUNCATE_THRESHOLD
+        ):
             # 截断并添加标记 / Truncate and add marker
             return {
                 "truncated": True,
@@ -339,9 +342,9 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         should_record_call_log: bool | None = None,
     ) -> dict[str, Any]:
         payload = dict(request_data or {})
-        normalized_turn_record = cls._normalize_turn_record_payload(
-            payload.get("turn_record")
-        ) or {}
+        normalized_turn_record = (
+            cls._normalize_turn_record_payload(payload.get("turn_record")) or {}
+        )
 
         incoming_turn_record = cls._normalize_turn_record_payload(turn_record)
         if incoming_turn_record:
@@ -516,15 +519,11 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
 
         if not turn_outcome:
             turn_outcome = (
-                "success"
-                if status == CallStatusEnum.SUCCESS.value
-                else "failed"
+                "success" if status == CallStatusEnum.SUCCESS.value else "failed"
             )
         if not termination_reason:
             termination_reason = (
-                "completed"
-                if status == CallStatusEnum.SUCCESS.value
-                else "error"
+                "completed" if status == CallStatusEnum.SUCCESS.value else "error"
             )
 
         diagnostics: dict[str, Any] = {
@@ -628,9 +627,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         )
         if turn_diagnostics:
             request_payload["turn_diagnostics"] = turn_diagnostics
-        if (
-            isinstance(turn_diagnostics.get("turn_record"), dict)
-        ):
+        if isinstance(turn_diagnostics.get("turn_record"), dict):
             request_payload["turn_record"] = turn_diagnostics["turn_record"]
 
         # 脱敏和截断处理 / Redact and truncate
@@ -696,11 +693,17 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
             agent_owner_tenant_id=billing_context.get("agent_owner_tenant_id"),
             agent_resource_scope=billing_context.get("agent_resource_scope"),
             tenant_publication_id=billing_context.get("tenant_publication_id"),
-            publication_enabled_snapshot=billing_context.get("publication_enabled_snapshot"),
-            publication_access_type_snapshot=billing_context.get("publication_access_type_snapshot"),
+            publication_enabled_snapshot=billing_context.get(
+                "publication_enabled_snapshot"
+            ),
+            publication_access_type_snapshot=billing_context.get(
+                "publication_access_type_snapshot"
+            ),
             agent_id_snapshot=billing_context.get("agent_id_snapshot", agent_id),
             agent_name_snapshot=billing_context.get("agent_name_snapshot"),
-            billing_tenant_name_snapshot=billing_context.get("billing_tenant_name_snapshot"),
+            billing_tenant_name_snapshot=billing_context.get(
+                "billing_tenant_name_snapshot"
+            ),
             model_name_snapshot=billing_context.get("model_name_snapshot"),
             provider_name_snapshot=billing_context.get("provider_name_snapshot"),
         )
@@ -837,9 +840,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         )
         if turn_diagnostics:
             request_payload["turn_diagnostics"] = turn_diagnostics
-        if (
-            isinstance(turn_diagnostics.get("turn_record"), dict)
-        ):
+        if isinstance(turn_diagnostics.get("turn_record"), dict):
             request_payload["turn_record"] = turn_diagnostics["turn_record"]
 
         # 发送 Celery 任务

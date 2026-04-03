@@ -83,6 +83,7 @@ async def webhook_dispatcher(
         if wh_method != method:
             continue
         from app.plugins.api_dispatcher import _match_route_path
+
         matched, params = _match_route_path(wh_path, path)
         if matched:
             matched_webhook = wh
@@ -103,12 +104,18 @@ async def webhook_dispatcher(
     if auth_type != "none":
         body = await request.body()
         is_valid = await _verify_webhook_auth(
-            auth_type, auth_config, plugin_config, request, body,
+            auth_type,
+            auth_config,
+            plugin_config,
+            request,
+            body,
         )
         if not is_valid:
             logger.warning(
                 "Webhook auth failed: {}/{} (type={})",
-                plugin_name, path, auth_type,
+                plugin_name,
+                path,
+                auth_type,
             )
             return error(
                 message="Webhook authentication failed",
@@ -143,12 +150,14 @@ async def webhook_dispatcher(
     try:
         # Pass parsed request data to handler / 传递解析后的数据给 handler
         import json
+
         try:
             payload = json.loads(body) if body else {}
         except (json.JSONDecodeError, ValueError):
             payload = {"raw_body": body.decode("utf-8", errors="replace")}
 
         import asyncio
+
         if asyncio.iscoroutinefunction(handler):
             result = await handler(
                 plugin_name=plugin_name,
@@ -169,7 +178,9 @@ async def webhook_dispatcher(
         duration_ms = int((time.perf_counter() - start) * 1000)
         logger.info(
             "Webhook {}/{} handled in {}ms",
-            plugin_name, path, duration_ms,
+            plugin_name,
+            path,
+            duration_ms,
         )
 
         if isinstance(result, dict):
@@ -180,7 +191,11 @@ async def webhook_dispatcher(
         duration_ms = int((time.perf_counter() - start) * 1000)
         logger.error(
             "Webhook handler error: {}/{}: {} ({}ms)",
-            plugin_name, path, exc, duration_ms, exc_info=True,
+            plugin_name,
+            path,
+            exc,
+            duration_ms,
+            exc_info=True,
         )
         return error(
             message=_("common.server_error"),
@@ -198,6 +213,7 @@ async def _verify_webhook_auth(
     body: bytes,
 ) -> bool:
     """Verify Webhook origin / 验证 Webhook 来源"""
+
     def _decrypt_if_needed(secret_value: str) -> str | None:
         from app.plugins.crypto import _FERNET_PREFIX
 
@@ -228,7 +244,9 @@ async def _verify_webhook_auth(
         secret = decrypted
 
         expected = hmac.new(
-            secret.encode(), body, hashlib.sha256,
+            secret.encode(),
+            body,
+            hashlib.sha256,
         ).hexdigest()
 
         # Support sha256=xxx format / 支持 sha256=xxx 格式
@@ -257,7 +275,9 @@ async def _verify_webhook_auth(
 
     elif auth_type == "signature":
         # Same handling as hmac / 与 hmac 相同处理
-        return await _verify_webhook_auth("hmac", auth_config, plugin_config, request, body)
+        return await _verify_webhook_auth(
+            "hmac", auth_config, plugin_config, request, body
+        )
 
     # unknown auth type → fail-close / 未知认证类型则拒绝（fail-close）
     logger.warning(

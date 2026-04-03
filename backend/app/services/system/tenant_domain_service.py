@@ -418,11 +418,14 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
                 code=ErrorCode.VALIDATION_ERROR,
             )
 
-        result = await self.update(domain_id, {
-            "is_verified": True,
-            "verified_at": utc_now(),
-            "ssl_status": DomainSslStatus.NONE.value,
-        })
+        result = await self.update(
+            domain_id,
+            {
+                "is_verified": True,
+                "verified_at": utc_now(),
+                "ssl_status": DomainSslStatus.NONE.value,
+            },
+        )
         if not result:
             raise NotFoundException(message=_("tenant_domain.not_found"))
 
@@ -464,8 +467,12 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
             return False
 
-        except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer,
-                dns.resolver.NoNameservers, Exception):
+        except (
+            dns.resolver.NXDOMAIN,
+            dns.resolver.NoAnswer,
+            dns.resolver.NoNameservers,
+            Exception,
+        ):
             return False
 
     async def get_tenant_domains(self, tenant_id: int) -> list[TenantDomain]:
@@ -589,7 +596,9 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
             raise NotFoundException(message=_("tenant_domain.not_found"))
         return domain
 
-    def _build_dev_host_domain_status(self, domain_obj: TenantDomain, runtime: dict, entry_status: dict) -> dict:
+    def _build_dev_host_domain_status(
+        self, domain_obj: TenantDomain, runtime: dict, entry_status: dict
+    ) -> dict:
         """构建单个域名的 Dev Hosts 状态响应 / Build the Dev Hosts status response for a single domain"""
         eligible = bool(domain_obj.is_verified)
         if not eligible:
@@ -627,7 +636,9 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         domain_statuses = []
         for domain_obj in domains:
             entry_status = await async_get_domain_entry_status(domain_obj.domain)
-            domain_statuses.append(self._build_dev_host_domain_status(domain_obj, runtime, entry_status))
+            domain_statuses.append(
+                self._build_dev_host_domain_status(domain_obj, runtime, entry_status)
+            )
 
         return {
             "runtime": runtime,
@@ -713,7 +724,6 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
             "value": domain.cname_target,
         }
 
-
     async def batch_provision_ssl(self, tenant_id: int) -> int:
         """
         批量为企业所有已验证但无 SSL 的域名触发签发 / Batch trigger SSL issuance for verified domains without SSL.
@@ -733,11 +743,13 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
             select(TenantDomain).where(
                 TenantDomain.tenant_id == tenant_id,
                 TenantDomain.is_verified.is_(True),
-                TenantDomain.ssl_status.in_([
-                    DomainSslStatus.NONE.value,
-                    DomainSslStatus.FAILED.value,
-                    DomainSslStatus.EXPIRED.value,
-                ]),
+                TenantDomain.ssl_status.in_(
+                    [
+                        DomainSslStatus.NONE.value,
+                        DomainSslStatus.FAILED.value,
+                        DomainSslStatus.EXPIRED.value,
+                    ]
+                ),
                 TenantDomain.is_deleted.is_(False),
             )
         )
@@ -755,7 +767,9 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         return triggered
 
 
-class TenantDomainTenantService(TenantDomainService, TenantService[TenantDomain, TenantDomainTenantRepository]):
+class TenantDomainTenantService(
+    TenantDomainService, TenantService[TenantDomain, TenantDomainTenantRepository]
+):
     model = TenantDomain
     repository_class = TenantDomainTenantRepository
 
@@ -797,11 +811,14 @@ class TenantDomainTenantService(TenantDomainService, TenantService[TenantDomain,
                 code=ErrorCode.VALIDATION_ERROR,
             )
 
-        result = await self.update(domain_id, {
-            "is_verified": True,
-            "verified_at": utc_now(),
-            "ssl_status": DomainSslStatus.NONE.value,
-        })
+        result = await self.update(
+            domain_id,
+            {
+                "is_verified": True,
+                "verified_at": utc_now(),
+                "ssl_status": DomainSslStatus.NONE.value,
+            },
+        )
         if not result:
             raise NotFoundException(message=_("tenant_domain.not_found"))
 

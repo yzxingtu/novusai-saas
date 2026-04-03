@@ -30,7 +30,9 @@ PLATFORM_TENANT_ID = 0
 # In-memory TTL cache (process-level, shared across requests) / 内存 TTL 缓存（进程级，跨请求共享）
 _config_id_cache: dict[str, tuple[int | None, float]] = {}
 _config_value_cache: dict[str, tuple[Any, float]] = {}
-_CONFIG_ID_TTL = 300  # config key → id mapping rarely changes, cache 5 min / 缓存 5 分钟
+_CONFIG_ID_TTL = (
+    300  # config key → id mapping rarely changes, cache 5 min / 缓存 5 分钟
+)
 _CONFIG_VALUE_TTL = 60  # Config value cache 60 seconds / 配置值缓存 60 秒
 
 
@@ -289,7 +291,9 @@ class ConfigService:
             - value, default_value, options
             - is_required, is_encrypted, group_code
         """
-        actual_tenant_id = PLATFORM_TENANT_ID if scope == ConfigScope.ADMIN_ONLY else tenant_id
+        actual_tenant_id = (
+            PLATFORM_TENANT_ID if scope == ConfigScope.ADMIN_ONLY else tenant_id
+        )
 
         # Get groups / 获取分组
         if group_code:
@@ -328,7 +332,9 @@ class ConfigService:
         Returns:
             Group list with group info and config items / 分组列表
         """
-        actual_tenant_id = PLATFORM_TENANT_ID if scope == ConfigScope.ADMIN_ONLY else tenant_id
+        actual_tenant_id = (
+            PLATFORM_TENANT_ID if scope == ConfigScope.ADMIN_ONLY else tenant_id
+        )
         groups = self.registry.get_groups_by_scope(scope)
 
         result = []
@@ -348,14 +354,16 @@ class ConfigService:
                 )
                 configs.append(payload)
 
-            result.append({
-                "code": group.code,
-                "name_key": group.name_key,
-                "description_key": group.description_key,
-                "icon": group.icon,
-                "sort_order": group.sort_order,
-                "configs": sorted(configs, key=lambda x: x["sort_order"]),
-            })
+            result.append(
+                {
+                    "code": group.code,
+                    "name_key": group.name_key,
+                    "description_key": group.description_key,
+                    "icon": group.icon,
+                    "sort_order": group.sort_order,
+                    "configs": sorted(configs, key=lambda x: x["sort_order"]),
+                }
+            )
 
         return sorted(result, key=lambda x: x["sort_order"])
 
@@ -436,7 +444,9 @@ class ConfigService:
             "value": value,
             "default_value": config_meta.default_value,
             "options": [opt.to_dict() for opt in config_meta.options],
-            "validation_rules": [rule.to_dict() for rule in config_meta.validation_rules],
+            "validation_rules": [
+                rule.to_dict() for rule in config_meta.validation_rules
+            ],
             "is_required": config_meta.is_required,
             "is_encrypted": config_meta.is_encrypted,
             "group_code": config_meta.group_code,
@@ -562,12 +572,15 @@ class ConfigService:
             return cached[0]
 
         result = await self.db.execute(
-            select(SystemConfig.id).where(
+            select(SystemConfig.id)
+            .where(
                 and_(
                     SystemConfig.key == key,
                     SystemConfig.is_deleted.is_(False),
                 )
-            ).order_by(SystemConfig.id.asc()).limit(2)
+            )
+            .order_by(SystemConfig.id.asc())
+            .limit(2)
         )
         ids = list(result.scalars().all())
         config_id = ids[0] if ids else None

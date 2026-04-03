@@ -17,7 +17,12 @@ class PluginVersion(BaseModel):
 
     __tablename__ = "plugin_versions"
 
-    __filterable__ = {"id": "id", "plugin_id": "plugin_id", "version": "version", "status": "status"}
+    __filterable__ = {
+        "id": "id",
+        "plugin_id": "plugin_id",
+        "version": "version",
+        "status": "status",
+    }
     __sortable__ = {"id", "version", "installed_at", "created_at"}
 
     plugin_id: Mapped[int] = mapped_column(
@@ -28,22 +33,36 @@ class PluginVersion(BaseModel):
         comment="插件ID",
     )
     version: Mapped[str] = mapped_column(
-        String(50), nullable=False, comment="版本号",
+        String(50),
+        nullable=False,
+        comment="版本号",
     )
     manifest: Mapped[dict] = mapped_column(
-        JSON, nullable=False, default=dict, comment="该版本清单",
+        JSON,
+        nullable=False,
+        default=dict,
+        comment="该版本清单",
     )
     changelog: Mapped[str | None] = mapped_column(
-        Text, nullable=True, comment="变更日志",
+        Text,
+        nullable=True,
+        comment="变更日志",
     )
     status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="active", comment="版本状态",
+        String(20),
+        nullable=False,
+        default="active",
+        comment="版本状态",
     )
     installed_at: Mapped[datetime | None] = mapped_column(
-        DateTime, nullable=True, comment="安装时间",
+        DateTime,
+        nullable=True,
+        comment="安装时间",
     )
     rolled_back_at: Mapped[datetime | None] = mapped_column(
-        DateTime, nullable=True, comment="回退时间",
+        DateTime,
+        nullable=True,
+        comment="回退时间",
     )
 
     plugin = relationship("Plugin", back_populates="versions", lazy="noload")

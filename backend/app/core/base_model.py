@@ -31,6 +31,7 @@ def utc_now() -> datetime:
 
 class Base(DeclarativeBase):
     """SQLAlchemy 声明基类 / SQLAlchemy declarative base class"""
+
     pass
 
 
@@ -53,46 +54,43 @@ class BaseModel(Base):
         DateTime,
         default=lambda: utc_now(),
         nullable=False,
-        comment="创建时间 / Created at"
+        comment="创建时间 / Created at",
     )
     updated_at = Column(
         DateTime,
         default=lambda: utc_now(),
         onupdate=lambda: utc_now(),
         nullable=False,
-        comment="更新时间 / Updated at"
+        comment="更新时间 / Updated at",
     )
     is_deleted = Column(
         Boolean,
         default=False,
         nullable=False,
         index=True,
-        comment="软删除标记 / Soft-delete flag"
+        comment="软删除标记 / Soft-delete flag",
     )
     deleted_at = Column(
-        DateTime,
-        nullable=True,
-        default=None,
-        comment="删除时间 / Deleted at"
+        DateTime, nullable=True, default=None, comment="删除时间 / Deleted at"
     )
     delete_level = Column(
         String(20),
         nullable=True,
         default=None,
-        comment="删除侧别 / Delete scope: tenant=tenant side, admin=admin side"
+        comment="删除侧别 / Delete scope: tenant=tenant side, admin=admin side",
     )
     recycle_stage = Column(
         String(20),
         nullable=True,
         default=None,
         index=True,
-        comment="回收站阶段 / Recycle stage: module/global"
+        comment="回收站阶段 / Recycle stage: module/global",
     )
     promoted_to_global_at = Column(
         DateTime,
         nullable=True,
         default=None,
-        comment="进入总回收站时间 / Promoted to global recycle bin at"
+        comment="进入总回收站时间 / Promoted to global recycle bin at",
     )
 
     @declared_attr
@@ -188,10 +186,7 @@ class TenantModel(BaseModel):
     __abstract__ = True
 
     tenant_id = Column(
-        Integer,
-        nullable=False,
-        index=True,
-        comment="企业ID / Tenant ID"
+        Integer, nullable=False, index=True, comment="企业ID / Tenant ID"
     )
 
     def __repr__(self) -> str:

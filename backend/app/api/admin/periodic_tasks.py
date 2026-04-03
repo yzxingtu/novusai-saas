@@ -80,11 +80,17 @@ class AdminPeriodicTaskController(GlobalController):
         db: DbSession,
         definitions: list,
     ) -> dict[str, bool]:
-        plugin_names = sorted({
-            plugin_name
-            for item in definitions
-            if (plugin_name := AdminPeriodicTaskController._extract_plugin_name(item))
-        })
+        plugin_names = sorted(
+            {
+                plugin_name
+                for item in definitions
+                if (
+                    plugin_name := AdminPeriodicTaskController._extract_plugin_name(
+                        item
+                    )
+                )
+            }
+        )
         if not plugin_names:
             return {}
 
@@ -104,7 +110,9 @@ class AdminPeriodicTaskController(GlobalController):
         definition,
         manifest_cache: dict[str, object] | None = None,
     ) -> tuple[str | None, str]:
-        task_code = str(getattr(definition, "code", "") or getattr(definition, "name", ""))
+        task_code = str(
+            getattr(definition, "code", "") or getattr(definition, "name", "")
+        )
         handler_path = str(getattr(definition, "handler_path", "") or "")
         is_plugin_like = (
             getattr(definition, "definition_type", None) == "plugin"
@@ -149,11 +157,15 @@ class AdminPeriodicTaskController(GlobalController):
             return definition.description, definition.name
 
         display_name = resolve_i18n(task_ext.display_name, locale) or definition.name
-        description = resolve_i18n(task_ext.description, locale) or definition.description
+        description = (
+            resolve_i18n(task_ext.description, locale) or definition.description
+        )
         return description, display_name
 
     @staticmethod
-    def _binding_semantics(scope: str | None, binding_count: int) -> dict[str, bool | str]:
+    def _binding_semantics(
+        scope: str | None, binding_count: int
+    ) -> dict[str, bool | str]:
         selected_scopes = {
             ResourceScopeEnum.SELECTED_TENANTS.value,
             ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
@@ -214,9 +226,11 @@ class AdminPeriodicTaskController(GlobalController):
             binding_count,
         )
         plugin_name = AdminPeriodicTaskController._extract_plugin_name(definition)
-        description, display_name = AdminPeriodicTaskController._resolve_plugin_task_i18n(
-            definition,
-            manifest_cache=manifest_cache,
+        description, display_name = (
+            AdminPeriodicTaskController._resolve_plugin_task_i18n(
+                definition,
+                manifest_cache=manifest_cache,
+            )
         )
         return PeriodicTaskResponse(
             id=definition.id,
@@ -303,7 +317,9 @@ class AdminPeriodicTaskController(GlobalController):
                             "assigned_tenant_names", []
                         ),
                         binding_count=int(
-                            binding_summary.get(item.id, {}).get("active_binding_count", 0)
+                            binding_summary.get(item.id, {}).get(
+                                "active_binding_count", 0
+                            )
                         ),
                         binding_summary=binding_summary.get(item.id, {}).get(
                             "binding_summary"
@@ -359,7 +375,9 @@ class AdminPeriodicTaskController(GlobalController):
                 target_scope=body.scope,
             )
             task = await service.get_by_id(task.id)
-            binding_summary = await binding_service.get_definition_binding_summary([task.id])
+            binding_summary = await binding_service.get_definition_binding_summary(
+                [task.id]
+            )
             binding_info = binding_summary.get(task.id, {})
             return created(
                 data=self._serialize_definition(
@@ -383,11 +401,14 @@ class AdminPeriodicTaskController(GlobalController):
             task = await service.get_by_id(task_id)
             if task is None:
                 from app.exceptions import NotFoundException
+
                 raise NotFoundException(message=_("periodic_task.error.not_found"))
 
             binding_service = TaskBindingService(db)
             plugin_enabled_map = await self._resolve_plugin_enabled_map(db, [task])
-            binding_summary = await binding_service.get_definition_binding_summary([task.id])
+            binding_summary = await binding_service.get_definition_binding_summary(
+                [task.id]
+            )
             binding_info = binding_summary.get(task.id, {})
             return success(
                 data=self._serialize_definition(
@@ -420,8 +441,7 @@ class AdminPeriodicTaskController(GlobalController):
             items = await binding_service.list_by_definition(task_id)
             return success(
                 data=[
-                    PeriodicTaskBindingResponse(**item).model_dump()
-                    for item in items
+                    PeriodicTaskBindingResponse(**item).model_dump() for item in items
                 ]
             )
 
@@ -470,7 +490,7 @@ class AdminPeriodicTaskController(GlobalController):
             task_id: int = Path(..., description=_("api.param.task_id")),
         ):
             service = self.get_service(db)
-            current_task = await service.get_by_id(task_id)
+            await service.get_by_id(task_id)
             raw = body.model_dump(exclude_unset=True)
             payload = {}
             field_map = {
@@ -527,7 +547,9 @@ class AdminPeriodicTaskController(GlobalController):
                 task = await service.get_by_id(task_id)
             binding_service = TaskBindingService(db)
             plugin_enabled_map = await self._resolve_plugin_enabled_map(db, [task])
-            binding_summary = await binding_service.get_definition_binding_summary([task.id])
+            binding_summary = await binding_service.get_definition_binding_summary(
+                [task.id]
+            )
             binding_info = binding_summary.get(task.id, {})
             return success(
                 data=self._serialize_definition(
@@ -565,7 +587,9 @@ class AdminPeriodicTaskController(GlobalController):
             task = await service.toggle_active(task_id, body.is_active)
             binding_service = TaskBindingService(db)
             plugin_enabled_map = await self._resolve_plugin_enabled_map(db, [task])
-            binding_summary = await binding_service.get_definition_binding_summary([task.id])
+            binding_summary = await binding_service.get_definition_binding_summary(
+                [task.id]
+            )
             binding_info = binding_summary.get(task.id, {})
             return success(
                 data=self._serialize_definition(

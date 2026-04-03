@@ -124,9 +124,7 @@ class FileValidator:
             tenant_denied = await self._get_platform_denied_extensions()
 
         # 验证扩展名 / Validate extension
-        ext_result = self._validate_extension(
-            extension, tenant_allowed, tenant_denied
-        )
+        ext_result = self._validate_extension(extension, tenant_allowed, tenant_denied)
         if not ext_result.allowed:
             return ext_result
 

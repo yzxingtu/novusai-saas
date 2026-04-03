@@ -20,9 +20,7 @@ class SkillRepository(TenantRepository[Skill]):
 
     model = Skill
 
-    async def get_by_id(
-        self, id: int, include_deleted: bool = False
-    ) -> Skill | None:
+    async def get_by_id(self, id: int, include_deleted: bool = False) -> Skill | None:
         """根据 ID 获取技能，允许访问全局 + 已分配技能包下的技能 / Get skill by ID (global + assigned package)."""
         instance = await BaseRepository.get_by_id(self, id, include_deleted)
         if instance and hasattr(instance, "tenant_id"):
@@ -82,6 +80,7 @@ class SkillRepository(TenantRepository[Skill]):
             query = self._apply_filters(query, spec.filters, allowed_fields)
 
         from sqlalchemy import func
+
         count_query = select(func.count()).select_from(query.subquery())
         count_result = await self.db.execute(count_query)
         total = count_result.scalar() or 0
@@ -319,8 +318,8 @@ class AdminSkillRepository(BaseRepository[Skill]):
                 )
             )
 
-        base_joined = select(sk, pkg).select_from(sk).join(pkg, join_on).where(
-            and_(*conditions)
+        base_joined = (
+            select(sk, pkg).select_from(sk).join(pkg, join_on).where(and_(*conditions))
         )
 
         count_stmt = (
@@ -331,13 +330,17 @@ class AdminSkillRepository(BaseRepository[Skill]):
         )
         total = (await self.db.execute(count_stmt)).scalar() or 0
 
-        ordered = base_joined.order_by(
-            pkg.sort_order.asc(),
-            pkg.created_at.desc(),
-            sk.sort_order.asc(),
-            sk.created_at.desc(),
-            sk.id.asc(),
-        ).offset((page - 1) * page_size).limit(page_size)
+        ordered = (
+            base_joined.order_by(
+                pkg.sort_order.asc(),
+                pkg.created_at.desc(),
+                sk.sort_order.asc(),
+                sk.created_at.desc(),
+                sk.id.asc(),
+            )
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
 
         result = await self.db.execute(ordered)
         rows = list(result.all())

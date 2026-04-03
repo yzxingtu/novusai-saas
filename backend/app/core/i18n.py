@@ -87,8 +87,9 @@ def _load_translations(locale: str) -> dict[str, Any]:
     # 2. 扫描插件翻译文件
     # 两个位置：app/plugins/*/locales/ 和 plugins/*/locales/（已安装插件）
     _plugin_dirs = [
-        LOCALES_DIR.parent / "plugins",           # app/plugins/ / 源码插件目录
-        LOCALES_DIR.parent.parent / "plugins",     # plugins/（已安装插件） / installed plugins dir
+        LOCALES_DIR.parent / "plugins",  # app/plugins/ / 源码插件目录
+        LOCALES_DIR.parent.parent
+        / "plugins",  # plugins/（已安装插件） / installed plugins dir
     ]
     for plugins_dir in _plugin_dirs:
         if not plugins_dir.is_dir():
@@ -108,7 +109,8 @@ def _load_translations(locale: str) -> dict[str, Any]:
                 except (OSError, json.JSONDecodeError) as e:
                     logger.warning(
                         "Failed to load plugin translation {}: {}",
-                        locale_file, e,
+                        locale_file,
+                        e,
                     )
 
     return translations

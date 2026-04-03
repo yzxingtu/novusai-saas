@@ -60,7 +60,7 @@ def _build_api_key_response(key, model_count_map: dict[int, int] | None = None) 
 
     if key.tenant_id is not None:
         try:
-            tenant = getattr(key, 'tenant', None)
+            tenant = getattr(key, "tenant", None)
             if tenant is not None:
                 tenant_name = tenant.name
         except AttributeError:
@@ -69,7 +69,7 @@ def _build_api_key_response(key, model_count_map: dict[int, int] | None = None) 
     provider_icon = None
     provider_model_count = 0
     try:
-        provider = getattr(key, 'provider', None)
+        provider = getattr(key, "provider", None)
         if provider is not None:
             provider_name = provider.name
             provider_icon = provider.icon
@@ -157,7 +157,11 @@ class AdminAIApiKeyController(GlobalController):
             if provider_ids:
                 stmt = (
                     select(AIModel.provider_id, func.count(AIModel.id))
-                    .where(AIModel.provider_id.in_(provider_ids), AIModel.is_deleted.is_(False), AIModel.is_active.is_(True))
+                    .where(
+                        AIModel.provider_id.in_(provider_ids),
+                        AIModel.is_deleted.is_(False),
+                        AIModel.is_active.is_(True),
+                    )
                     .group_by(AIModel.provider_id)
                 )
                 result = await db.execute(stmt)
@@ -165,7 +169,12 @@ class AdminAIApiKeyController(GlobalController):
 
             return success(
                 data=PageResponse.create(
-                    items=[ProviderApiKeyResponse(**_build_api_key_response(item, model_count_map)) for item in items],
+                    items=[
+                        ProviderApiKeyResponse(
+                            **_build_api_key_response(item, model_count_map)
+                        )
+                        for item in items
+                    ],
                     total=total,
                     page=spec.page,
                     page_size=spec.size,
@@ -180,7 +189,9 @@ class AdminAIApiKeyController(GlobalController):
             db: DbSession,
             provider_id: int,
             admin: ActiveAdmin,
-            tenant_id: int | None = Query(None, description=_("api.param.tenant_id_filter")),
+            tenant_id: int | None = Query(
+                None, description=_("api.param.tenant_id_filter")
+            ),
         ):
             """
             根据供应商 ID 获取其所有 API Key / Get all API Keys by provider ID
@@ -194,7 +205,9 @@ class AdminAIApiKeyController(GlobalController):
             )
 
             return success(
-                data=[ProviderApiKeyResponse(**_build_api_key_response(k)) for k in keys],
+                data=[
+                    ProviderApiKeyResponse(**_build_api_key_response(k)) for k in keys
+                ],
                 message=_("common.success"),
             )
 
@@ -222,6 +235,7 @@ class AdminAIApiKeyController(GlobalController):
 
             if not key:
                 from app.exceptions import NotFoundException
+
                 raise NotFoundException(message=_("ai.error.api_key_not_found"))
 
             return success(
@@ -245,7 +259,7 @@ class AdminAIApiKeyController(GlobalController):
             service = ProviderApiKeyService(db)
             key = await service.create_key(data)
             await db.commit()
-            await db.refresh(key, ['provider'])
+            await db.refresh(key, ["provider"])
 
             return success(
                 data=ProviderApiKeyResponse(**_build_api_key_response(key)),
@@ -269,7 +283,7 @@ class AdminAIApiKeyController(GlobalController):
             service = ProviderApiKeyService(db)
             key = await service.update_key(key_id, data)
             await db.commit()
-            await db.refresh(key, ['provider'])
+            await db.refresh(key, ["provider"])
 
             return success(
                 data=ProviderApiKeyResponse(**_build_api_key_response(key)),
@@ -293,6 +307,7 @@ class AdminAIApiKeyController(GlobalController):
             key = await service.get_by_id(key_id)
             if not key:
                 from app.exceptions import NotFoundException
+
                 raise NotFoundException(message=_("ai.error.api_key_not_found"))
 
             await service.delete(key_id)

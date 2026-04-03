@@ -103,7 +103,9 @@ class AdminPlanController(GlobalController):
             search: str = Query("", description=_("api.param.search")),
             is_active: str = Query("true", description=_("api.param.is_active")),
             page: int = Query(0, ge=0, description=_("api.param.page")),
-            page_size: int = Query(20, ge=1, le=100, description=_("api.param.page_size")),
+            page_size: int = Query(
+                20, ge=1, le=100, description=_("api.param.page_size")
+            ),
         ):
             """
             获取套餐下拉选项 / Get plan dropdown options
@@ -202,24 +204,25 @@ class AdminPlanController(GlobalController):
 
             # 构建权限树 / Build permission tree
             def build_tree(
-                perms: list,
-                parent_id: int | None = None
+                perms: list, parent_id: int | None = None
             ) -> list[PermissionTreeSimpleResponse]:
                 """递归构建权限树 / Recursively build permission tree"""
                 tree = []
                 for p in perms:
                     if p.parent_id == parent_id:
                         children = build_tree(perms, p.id)
-                        tree.append(PermissionTreeSimpleResponse(
-                            id=p.id,
-                            code=p.code,
-                            name=_translate_permission_name(p.name),
-                            type=p.type,
-                            resource=p.resource,
-                            parent_id=p.parent_id,
-                            sort_order=p.sort_order,
-                            children=children,
-                        ))
+                        tree.append(
+                            PermissionTreeSimpleResponse(
+                                id=p.id,
+                                code=p.code,
+                                name=_translate_permission_name(p.name),
+                                type=p.type,
+                                resource=p.resource,
+                                parent_id=p.parent_id,
+                                sort_order=p.sort_order,
+                                children=children,
+                            )
+                        )
                 return sorted(tree, key=lambda x: x.sort_order)
 
             return success(
@@ -249,7 +252,9 @@ class AdminPlanController(GlobalController):
                 )
 
             return success(
-                data=TenantPlanDetailResponse.from_model(plan, translate_fn=_translate_permission_name),
+                data=TenantPlanDetailResponse.from_model(
+                    plan, translate_fn=_translate_permission_name
+                ),
                 message=_("common.success"),
             )
 
@@ -427,10 +432,11 @@ class AdminPlanController(GlobalController):
             await db.commit()
 
             return success(
-                data=TenantPlanDetailResponse.from_model(plan, translate_fn=_translate_permission_name),
+                data=TenantPlanDetailResponse.from_model(
+                    plan, translate_fn=_translate_permission_name
+                ),
                 message=_("tenant_plan.permissions_updated"),
             )
-
 
 
 # 导出路由器 / Export router

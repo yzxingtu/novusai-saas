@@ -76,7 +76,10 @@ async def check_updates(db: AsyncSession) -> list[dict]:
         logger.info(
             "Found {} plugin update(s): {}",
             len(updates),
-            ", ".join(f"{u['name']} {u['current_version']}→{u['latest_version']}" for u in updates),
+            ", ".join(
+                f"{u['name']} {u['current_version']}→{u['latest_version']}"
+                for u in updates
+            ),
         )
 
     return updates

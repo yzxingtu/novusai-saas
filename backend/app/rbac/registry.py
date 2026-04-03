@@ -45,7 +45,9 @@ class PermissionRegistry:
         if key not in self._permissions:
             self._permissions[key] = permission
 
-    def get(self, code: str, scope: "PermissionScope | None" = None) -> "PermissionMeta | None":
+    def get(
+        self, code: str, scope: "PermissionScope | None" = None
+    ) -> "PermissionMeta | None":
         """
         Get a permission.
         获取权限。
@@ -99,11 +101,13 @@ class PermissionRegistry:
     def get_menus(self) -> list["PermissionMeta"]:
         """Get all menu permissions / 获取所有菜单权限"""
         from app.enums.rbac import PermissionType
+
         return self.get_by_type(PermissionType.MENU)
 
     def get_operations(self) -> list["PermissionMeta"]:
         """Get all operation permissions / 获取所有操作权限"""
         from app.enums.rbac import PermissionType
+
         return self.get_by_type(PermissionType.OPERATION)
 
     def unregister(self, code: str) -> bool:
@@ -117,9 +121,7 @@ class PermissionRegistry:
         Returns:
             Whether removal was successful / 是否成功移除
         """
-        keys_to_remove = [
-            k for k, p in self._permissions.items() if p.code == code
-        ]
+        keys_to_remove = [k for k, p in self._permissions.items() if p.code == code]
         for k in keys_to_remove:
             del self._permissions[k]
         return len(keys_to_remove) > 0

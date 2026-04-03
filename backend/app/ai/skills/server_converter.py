@@ -69,7 +69,8 @@ def convert_server_to_toolkit(
     except Exception as exc:
         logger.warning(
             "Auto-conversion failed for '{}', using fallback: {}",
-            metadata.get("name", "unknown"), exc,
+            metadata.get("name", "unknown"),
+            exc,
         )
         return _fallback_combine(sources, metadata)
 
@@ -77,6 +78,7 @@ def convert_server_to_toolkit(
 # ─────────────────────────────────────────────────────────────
 # File reading / 文件读取
 # ─────────────────────────────────────────────────────────────
+
 
 def _read_sources(server_dir: Path) -> dict[str, str]:
     """Read all .py files recursively, skip __init__.py. / 递归读取所有 .py 文件，跳过 __init__.py。"""
@@ -94,6 +96,7 @@ def _read_sources(server_dir: Path) -> dict[str, str]:
 # ─────────────────────────────────────────────────────────────
 # Main conversion / 主转换逻辑
 # ─────────────────────────────────────────────────────────────
+
 
 def _convert(
     sources: dict[str, str],
@@ -123,6 +126,7 @@ def _convert(
 # ─────────────────────────────────────────────────────────────
 # Metadata extraction / 元数据提取
 # ─────────────────────────────────────────────────────────────
+
 
 def _extract_env_requires(metadata: dict[str, Any]) -> list[str]:
     meta = metadata.get("metadata", {})
@@ -160,6 +164,7 @@ def _find_auth_module(sources: dict[str, str]) -> str | None:
 # AST-based handler extraction / 基于 AST 的处理函数提取
 # ─────────────────────────────────────────────────────────────
 
+
 def _parse_handlers(source: str, module_name: str) -> list[dict[str, Any]]:
     """Extract FastAPI route handlers from a module source. / 从模块源码提取 FastAPI 路由处理函数。"""
     try:
@@ -191,15 +196,17 @@ def _parse_handlers(source: str, module_name: str) -> list[dict[str, Any]]:
         params = _extract_params(node, models, path_params)
         docstring = ast.get_docstring(node) or ""
 
-        handlers.append({
-            "name": node.name,
-            "method": http_method,
-            "path": url_path,
-            "module": module_name,
-            "docstring": docstring,
-            "params": params,
-            "path_params": path_params,
-        })
+        handlers.append(
+            {
+                "name": node.name,
+                "method": http_method,
+                "path": url_path,
+                "module": module_name,
+                "docstring": docstring,
+                "params": params,
+                "path_params": path_params,
+            }
+        )
 
     return handlers
 
@@ -221,16 +228,14 @@ def _find_pydantic_models(tree: ast.Module) -> dict[str, list[dict[str, Any]]]:
     for node in ast.iter_child_nodes(tree):
         if not isinstance(node, ast.ClassDef):
             continue
-        if not any(
-            isinstance(b, ast.Name) and b.id == "BaseModel"
-            for b in node.bases
-        ):
+        if not any(isinstance(b, ast.Name) and b.id == "BaseModel" for b in node.bases):
             continue
 
         fields: list[dict[str, Any]] = []
         for item in node.body:
-            if not (isinstance(item, ast.AnnAssign)
-                    and isinstance(item.target, ast.Name)):
+            if not (
+                isinstance(item, ast.AnnAssign) and isinstance(item.target, ast.Name)
+            ):
                 continue
 
             fname = item.target.id
@@ -245,26 +250,31 @@ def _find_pydantic_models(tree: ast.Module) -> dict[str, list[dict[str, Any]]]:
                 func = item.value.func
                 if isinstance(func, ast.Name) and func.id == "Field":
                     for kw in item.value.keywords:
-                        if (kw.arg == "description"
-                                and isinstance(kw.value, ast.Constant)):
+                        if kw.arg == "description" and isinstance(
+                            kw.value, ast.Constant
+                        ):
                             description = kw.value.value
-                        elif (kw.arg == "default"
-                              and isinstance(kw.value, ast.Constant)):
+                        elif kw.arg == "default" and isinstance(kw.value, ast.Constant):
                             default = kw.value.value
                             required = False
                     if item.value.args:
                         first_arg = item.value.args[0]
-                        if isinstance(first_arg, ast.Constant) and first_arg.value is not ...:
+                        if (
+                            isinstance(first_arg, ast.Constant)
+                            and first_arg.value is not ...
+                        ):
                             default = first_arg.value
                             required = False
 
-            fields.append({
-                "name": fname,
-                "type": ftype,
-                "description": description,
-                "default": default,
-                "required": required,
-            })
+            fields.append(
+                {
+                    "name": fname,
+                    "type": ftype,
+                    "description": description,
+                    "default": default,
+                    "required": required,
+                }
+            )
         models[node.name] = fields
     return models
 
@@ -280,10 +290,15 @@ def _extract_params(
 
     # Path params first (always required str) / 先处理路径参数（始终必填 str）
     for pp in path_params:
-        params.append({
-            "name": pp, "type": "str",
-            "description": pp, "default": None, "required": True,
-        })
+        params.append(
+            {
+                "name": pp,
+                "type": "str",
+                "description": pp,
+                "default": None,
+                "required": True,
+            }
+        )
         seen.add(pp)
 
     num_args = len(node.args.args)
@@ -321,8 +336,9 @@ def _extract_params(
                 func = dnode.func
                 if isinstance(func, ast.Name) and func.id in ("Query", "Path"):
                     for kw in dnode.keywords:
-                        if (kw.arg == "description"
-                                and isinstance(kw.value, ast.Constant)):
+                        if kw.arg == "description" and isinstance(
+                            kw.value, ast.Constant
+                        ):
                             description = kw.value.value
                     if dnode.args:
                         first = dnode.args[0]
@@ -338,11 +354,15 @@ def _extract_params(
                 required = False
 
         simple_type = _simplify_type(type_str) or "str"
-        params.append({
-            "name": name, "type": simple_type,
-            "description": description,
-            "default": default, "required": required,
-        })
+        params.append(
+            {
+                "name": name,
+                "type": simple_type,
+                "description": description,
+                "default": default,
+                "required": required,
+            }
+        )
         seen.add(name)
 
     return params
@@ -363,6 +383,7 @@ def _simplify_type(type_str: str) -> str:
 # Code generation / 代码生成
 # ─────────────────────────────────────────────────────────────
 
+
 def _generate(
     name: str,
     desc: str,
@@ -374,8 +395,7 @@ def _generate(
     L: list[str] = []
 
     # Module docstring / 模块文档字符串
-    L.append(f'"""\ntitle: {name}\ndescription: {desc}\n'
-             f'version: 1.0.0\n"""')
+    L.append(f'"""\ntitle: {name}\ndescription: {desc}\nversion: 1.0.0\n"""')
     L.append("")
     L.append("import json")
     L.append("import time")
@@ -401,9 +421,9 @@ def _generate(
     if env_requires or env_props:
         # Merge: env_requires list + env_schema properties (unified lowercase)
         # 合并：env_requires 列表 + env_schema properties（统一 lowercase）
-        all_vars = list(dict.fromkeys(
-            list(env_props.keys()) + [v.lower() for v in env_requires]
-        ))
+        all_vars = list(
+            dict.fromkeys(list(env_props.keys()) + [v.lower() for v in env_requires])
+        )
         for var in all_vars:
             prop = env_props.get(var, {})
             field_desc = prop.get("description", var)
@@ -412,7 +432,7 @@ def _generate(
             field_desc = str(field_desc).replace('"', '\\"')
             field_default_str = str(field_default).replace('"', '\\"')
             L.append(
-                f'    {var.lower()}: str = Field('
+                f"    {var.lower()}: str = Field("
                 f'default="{field_default_str}", '
                 f'description="{field_desc}")'
             )
@@ -458,7 +478,9 @@ def _generate(
 
 
 def _gen_token_method(
-    L: list[str], base_url: str, env_requires: list[str],
+    L: list[str],
+    base_url: str,
+    env_requires: list[str],
 ) -> None:
     L.append("    async def _get_token(self) -> str:")
     L.append("        now = time.time()")
@@ -466,52 +488,44 @@ def _gen_token_method(
     L.append("            return self._token")
 
     id_var = next(
-        (v for v in env_requires if "ID" in v.upper()), None,
+        (v for v in env_requires if "ID" in v.upper()),
+        None,
     )
     secret_var = next(
-        (v for v in env_requires if "SECRET" in v.upper()), None,
+        (v for v in env_requires if "SECRET" in v.upper()),
+        None,
     )
 
     if id_var and secret_var:
         if "feishu" in base_url.lower() or "lark" in base_url.lower():
-            token_url = (
-                f"{base_url}"
-                "/open-apis/auth/v3/tenant_access_token/internal"
-            )
+            token_url = f"{base_url}/open-apis/auth/v3/tenant_access_token/internal"
             token_key = "tenant_access_token"
         else:
             token_url = f"{base_url}/auth/token"
             token_key = "access_token"
 
-        L.append('        async with httpx.AsyncClient(timeout=10.0) as _client:')
-        L.append('            resp = await _client.post(')
+        L.append("        async with httpx.AsyncClient(timeout=10.0) as _client:")
+        L.append("            resp = await _client.post(")
         L.append(f'                "{token_url}",')
         L.append("                json={")
         L.append(f'                    "app_id": self.valves.{id_var.lower()},')
-        L.append(
-            f'                    "app_secret": self.valves.{secret_var.lower()},'
-        )
+        L.append(f'                    "app_secret": self.valves.{secret_var.lower()},')
         L.append("                },")
         L.append("            )")
         L.append("        data = resp.json()")
         L.append('        if data.get("code") != 0:')
         L.append(
-            "            raise Exception("
-            "f\"Auth error: {data.get('msg', 'unknown')}\")"
+            "            raise Exception(f\"Auth error: {data.get('msg', 'unknown')}\")"
         )
         L.append(
             f'        self._token = data.get("{token_key}",'
             f' data.get("access_token", ""))'
         )
-        L.append(
-            "        self._token_expires = "
-            "now + data.get(\"expire\", 7200) - 300"
-        )
+        L.append('        self._token_expires = now + data.get("expire", 7200) - 300')
         L.append("        return self._token")
     else:
         L.append(
-            "        raise NotImplementedError("
-            '"Configure _get_token for your API")'
+            '        raise NotImplementedError("Configure _get_token for your API")'
         )
 
 
@@ -532,14 +546,11 @@ def _gen_request_method(L: list[str], base_url: str) -> None:
     L.append("        async with httpx.AsyncClient(timeout=30.0) as _client:")
     L.append("            resp = await _client.request(")
     L.append("                method, url, headers=headers,")
-    L.append(
-        "                params=params, json=json_body,"
-    )
+    L.append("                params=params, json=json_body,")
     L.append("            )")
     L.append("        if resp.status_code != 200:")
     L.append(
-        "            raise Exception("
-        'f"HTTP {resp.status_code}: {resp.text[:200]}")'
+        '            raise Exception(f"HTTP {resp.status_code}: {resp.text[:200]}")'
     )
     L.append("        data = resp.json()")
     L.append('        code = data.get("code", -1)')
@@ -564,7 +575,7 @@ def _gen_tool_method(L: list[str], handler: dict[str, Any]) -> None:
     for p in params:
         ptype = p.get("type", "str")
         if p.get("required", True):
-            sig_parts.append(f'{p["name"]}: {ptype}')
+            sig_parts.append(f"{p['name']}: {ptype}")
         else:
             dval = p.get("default")
             if dval is None or dval == "":
@@ -573,7 +584,7 @@ def _gen_tool_method(L: list[str], handler: dict[str, Any]) -> None:
                 ds = f'"{dval}"'
             else:
                 ds = repr(dval)
-            sig_parts.append(f'{p["name"]}: {ptype} = {ds}')
+            sig_parts.append(f"{p['name']}: {ptype} = {ds}")
 
     if len(sig_parts) <= 3:
         sig = ", ".join(sig_parts)
@@ -594,7 +605,7 @@ def _gen_tool_method(L: list[str], handler: dict[str, Any]) -> None:
             L.append("        Args:")
             for p in params:
                 pdesc = p.get("description") or p["name"]
-                L.append(f'            {p["name"]}: {pdesc}')
+                L.append(f"            {p['name']}: {pdesc}")
         L.append('        """')
     else:
         L.append(f'        """{name}"""')
@@ -618,10 +629,7 @@ def _gen_tool_method(L: list[str], handler: dict[str, Any]) -> None:
                 f'"{method}", {path_expr}, json_body=body)'
             )
         else:
-            L.append(
-                f"        data = await self._request("
-                f'"{method}", {path_expr})'
-            )
+            L.append(f'        data = await self._request("{method}", {path_expr})')
     else:
         if non_path_params:
             L.append("        params: dict[str, Any] = {}")
@@ -634,10 +642,7 @@ def _gen_tool_method(L: list[str], handler: dict[str, Any]) -> None:
                 f'"{method}", {path_expr}, params=params)'
             )
         else:
-            L.append(
-                f"        data = await self._request("
-                f'"{method}", {path_expr})'
-            )
+            L.append(f'        data = await self._request("{method}", {path_expr})')
 
     L.append("        return json.dumps(data, ensure_ascii=False)")
     L.append("")
@@ -678,8 +683,10 @@ def _sanitize_source(source: str) -> str:
 # Fallback: combine all source files with template / 回退：合并所有源文件与模板
 # ─────────────────────────────────────────────────────────────
 
+
 def _fallback_combine(
-    sources: dict[str, str], metadata: dict[str, Any],
+    sources: dict[str, str],
+    metadata: dict[str, Any],
 ) -> str:
     env_requires = _extract_env_requires(metadata)
     name = metadata.get("name", "Toolkit")
@@ -689,11 +696,11 @@ def _fallback_combine(
     L.append(f'"""\ntitle: {name}\ndescription: {desc}\nversion: 1.0.0')
     L.append("")
     L.append(
-        "Auto-conversion failed. Original server source appended below "
-        "as reference."
+        "Auto-conversion failed. Original server source appended below as reference."
     )
-    L.append('Wrap relevant functions in class Tools to make them '
-             'available as LLM tools.')
+    L.append(
+        "Wrap relevant functions in class Tools to make them available as LLM tools."
+    )
     L.append('"""')
     L.append("")
     L.append("import json")
@@ -706,10 +713,7 @@ def _fallback_combine(
     L.append("class Valves(BaseModel):")
     if env_requires:
         for var in env_requires:
-            L.append(
-                f'    {var.lower()}: str = Field('
-                f'default="", description="{var}")'
-            )
+            L.append(f'    {var.lower()}: str = Field(default="", description="{var}")')
     else:
         L.append("    pass")
     L.append("")

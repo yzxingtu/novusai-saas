@@ -91,6 +91,7 @@ class TenantAgentChatController(TenantController):
             )
             if not has_access:
                 from app.exceptions import AuthorizationException
+
                 raise AuthorizationException(
                     message=_("agent.access.error.no_permission"),
                 )
@@ -113,7 +114,11 @@ class TenantAgentChatController(TenantController):
             权限 / Permission: agent_chat:chat
             """
             await _check_agent_access(
-                db, tenant_admin.tenant_id, agent_id, tenant_admin.id, tenant_admin.role_id
+                db,
+                tenant_admin.tenant_id,
+                agent_id,
+                tenant_admin.id,
+                tenant_admin.role_id,
             )
 
             perm_service = PermissionService(db)
@@ -132,14 +137,22 @@ class TenantAgentChatController(TenantController):
                 user_role_id=tenant_admin.role_id,
                 permissions=user_perms,
                 consented_actions=data.consented_actions,
-                attachments=[a.model_dump() for a in data.attachments] if data.attachments else None,
+                attachments=[a.model_dump() for a in data.attachments]
+                if data.attachments
+                else None,
                 memory_scene=MemorySceneEnum.AI_CHAT_PAGE.value,
                 memory_channel=MemoryChannelEnum.TENANT_CHAT.value,
                 memory_source=MemorySceneEnum.AI_CHAT_PAGE.value,
                 page_session_id=data.page_session_id,
                 route_source=data.route_source,
-                interaction_updates=[item.model_dump() for item in data.interaction_updates] if data.interaction_updates else None,
-                trust_policy_ref=data.trust_policy_ref.model_dump() if data.trust_policy_ref else None,
+                interaction_updates=[
+                    item.model_dump() for item in data.interaction_updates
+                ]
+                if data.interaction_updates
+                else None,
+                trust_policy_ref=data.trust_policy_ref.model_dump()
+                if data.trust_policy_ref
+                else None,
                 interaction_mode=data.interaction_mode,
             )
 
@@ -166,7 +179,11 @@ class TenantAgentChatController(TenantController):
             权限 / Permission: agent_chat:stream
             """
             await _check_agent_access(
-                db, tenant_admin.tenant_id, agent_id, tenant_admin.id, tenant_admin.role_id
+                db,
+                tenant_admin.tenant_id,
+                agent_id,
+                tenant_admin.id,
+                tenant_admin.role_id,
             )
 
             perm_service = PermissionService(db)
@@ -187,15 +204,25 @@ class TenantAgentChatController(TenantController):
                 user_role_id=tenant_admin.role_id,
                 permissions=user_perms,
                 consented_actions=data.consented_actions,
-                attachments=[a.model_dump() for a in data.attachments] if data.attachments else None,
-                image_params=data.image_params.model_dump() if data.image_params else None,
+                attachments=[a.model_dump() for a in data.attachments]
+                if data.attachments
+                else None,
+                image_params=data.image_params.model_dump()
+                if data.image_params
+                else None,
                 memory_scene=MemorySceneEnum.AI_CHAT_PAGE.value,
                 memory_channel=MemoryChannelEnum.TENANT_CHAT.value,
                 memory_source=MemorySceneEnum.AI_CHAT_PAGE.value,
                 page_session_id=data.page_session_id,
                 route_source=data.route_source,
-                interaction_updates=[item.model_dump() for item in data.interaction_updates] if data.interaction_updates else None,
-                trust_policy_ref=data.trust_policy_ref.model_dump() if data.trust_policy_ref else None,
+                interaction_updates=[
+                    item.model_dump() for item in data.interaction_updates
+                ]
+                if data.interaction_updates
+                else None,
+                trust_policy_ref=data.trust_policy_ref.model_dump()
+                if data.trust_policy_ref
+                else None,
                 interaction_mode=data.interaction_mode,
             )
 
@@ -228,7 +255,9 @@ class TenantAgentChatController(TenantController):
                 conversation_id=data.conversation_id,
                 user_role=UserRoleEnum.TENANT_ADMIN.value,
                 user_role_id=tenant_admin.role_id,
-                page_context=data.page_context.model_dump() if data.page_context else None,
+                page_context=data.page_context.model_dump()
+                if data.page_context
+                else None,
                 pinned_agent_id=data.pinned_agent_id,
                 user_id=tenant_admin.id,
                 force_reroute=data.force_reroute,
@@ -260,6 +289,7 @@ class TenantAgentChatController(TenantController):
             """
             service = ConversationService(db, tenant_admin.tenant_id)
             from app.schemas.common.query import FilterRule
+
             forced = [
                 FilterRule(field="user_id", operator="eq", value=tenant_admin.id),
                 FilterRule(
@@ -432,7 +462,10 @@ class TenantAgentChatController(TenantController):
                 user_id=tenant_admin.id,
                 owner_type=ConversationOwnerTypeEnum.TENANT_ADMIN.value,
             )
-            return success(data={"deleted_count": deleted_count}, message=_("agent_chat.memory_cleared"))
+            return success(
+                data={"deleted_count": deleted_count},
+                message=_("agent_chat.memory_cleared"),
+            )
 
         @router.post(
             "/conversations/{conversation_id}/compact",
@@ -459,7 +492,7 @@ class TenantAgentChatController(TenantController):
             summary="获取会话运行时间线",
         )
         @action_read("action.agent_chat.conversation_detail")
-        async def get_conversation_timeline(
+        async def get_conversation_run_timeline(
             request: Request,
             db: DbSession,
             conversation_id: int,

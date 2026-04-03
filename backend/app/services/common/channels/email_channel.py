@@ -40,7 +40,10 @@ class EmailChannel(NotificationChannel):
                 row = (
                     session.query(SystemConfigValue.value)
                     .join(SystemConfig, SystemConfigValue.config_id == SystemConfig.id)
-                    .filter(SystemConfig.key == "email_enabled", SystemConfigValue.tenant_id == PLATFORM_TENANT_ID)
+                    .filter(
+                        SystemConfig.key == "email_enabled",
+                        SystemConfigValue.tenant_id == PLATFORM_TENANT_ID,
+                    )
                     .first()
                 )
                 if not row:
@@ -83,6 +86,7 @@ class EmailChannel(NotificationChannel):
             if tenant_id:
                 try:
                     from app.configs.service import ConfigService
+
                     config_service = ConfigService(db)
                     email_enabled = await config_service.get_tenant_config(
                         tenant_id=tenant_id,
@@ -95,11 +99,15 @@ class EmailChannel(NotificationChannel):
                         )
                         return False
                 except Exception as cfg_err:
-                    logger.warning("EmailChannel: tenant config check failed: {}", cfg_err)
+                    logger.warning(
+                        "EmailChannel: tenant config check failed: {}", cfg_err
+                    )
 
             email = await self._get_user_email(db, user_type, user_id)
             if not email:
-                logger.debug("EmailChannel: no email for {}:{}, skip", user_type, user_id)
+                logger.debug(
+                    "EmailChannel: no email for {}:{}, skip", user_type, user_id
+                )
                 return False
 
             from app.tasks.notification import send_notification_email
@@ -114,15 +122,23 @@ class EmailChannel(NotificationChannel):
                     from app.services.common.email_templates import (
                         render_notification_html,
                     )
+
                     email_html, email_text = render_notification_html(
                         title=title,
                         body=body,
                         priority=priority,
                         link=link,
                     )
-                    logger.debug("EmailChannel: rendered HTML template OK, len={}", len(email_html))
+                    logger.debug(
+                        "EmailChannel: rendered HTML template OK, len={}",
+                        len(email_html),
+                    )
                 except Exception as tpl_err:
-                    logger.error("EmailChannel: render_notification_html failed: {}", tpl_err, exc_info=True)
+                    logger.error(
+                        "EmailChannel: render_notification_html failed: {}",
+                        tpl_err,
+                        exc_info=True,
+                    )
                     # 降级为纯文本 / Degrade to plain text
                     email_html = body or title
 
@@ -140,19 +156,28 @@ class EmailChannel(NotificationChannel):
             return False
 
     @staticmethod
-    async def _get_user_email(db: AsyncSession, user_type: str, user_id: int) -> str | None:
+    async def _get_user_email(
+        db: AsyncSession, user_type: str, user_id: int
+    ) -> str | None:
         """获取用户邮箱 / Get user email address."""
         from sqlalchemy import select
 
         if user_type == "admin":
             from app.models import Admin
+
             result = await db.execute(select(Admin.email).where(Admin.id == user_id))
         elif user_type == "tenant_admin":
             from app.models import TenantAdmin
-            result = await db.execute(select(TenantAdmin.email).where(TenantAdmin.id == user_id))
+
+            result = await db.execute(
+                select(TenantAdmin.email).where(TenantAdmin.id == user_id)
+            )
         elif user_type == "tenant_user":
             from app.models import TenantUser
-            result = await db.execute(select(TenantUser.email).where(TenantUser.id == user_id))
+
+            result = await db.execute(
+                select(TenantUser.email).where(TenantUser.id == user_id)
+            )
         else:
             return None
         return result.scalar_one_or_none()

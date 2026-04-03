@@ -100,7 +100,9 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
         6. Save session, join rooms / 保存 session，加入 rooms
         7. Delegate to plugin handler's on_connect (if any) / 委托给插件 handler
         """
-        trace_id = normalize_trace_id(_extract_trace_id(auth), default=str(uuid.uuid4()))
+        trace_id = normalize_trace_id(
+            _extract_trace_id(auth), default=str(uuid.uuid4())
+        )
         trace_id_var.set(trace_id)
         try:
             # 1. WS master switch / WS 总开关
@@ -143,7 +145,9 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
                         continue
 
                     uid, _ = await verify_token_with_scope(
-                        token, scope_value, raise_on_expired=True,
+                        token,
+                        scope_value,
+                        raise_on_expired=True,
                     )
                     if uid:
                         user_id_str = uid
@@ -171,7 +175,8 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
 
             max_conn = int(ws_cfg.get("ws_max_connections_per_user", 5))
             current_conn = await PresenceManager.get_user_connection_count(
-                rate_key, user_id,
+                rate_key,
+                user_id,
             )
             if current_conn >= max_conn:
                 raise socket_connect_refusal("max_connections_exceeded")
@@ -254,7 +259,11 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
 
             logger.info(
                 "Plugin SIO {} connected: sid={} user_id={} scope={} tenant_id={}",
-                self.namespace, sid, user_id, matched_scope, tenant_id,
+                self.namespace,
+                sid,
+                user_id,
+                matched_scope,
+                tenant_id,
             )
 
             # 7. Delegate to plugin handler's on_connect (if any)
@@ -283,7 +292,9 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
             with contextlib.suppress(Exception):
                 session = await self.get_session(sid)
         trace_id_var.set(
-            normalize_trace_id((session or {}).get("trace_id"), default=str(uuid.uuid4()))
+            normalize_trace_id(
+                (session or {}).get("trace_id"), default=str(uuid.uuid4())
+            )
         )
         try:
             if session:
@@ -297,17 +308,22 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
                         from app.sio.presence import PresenceManager
 
                         await PresenceManager.set_offline(
-                            rate_key, user_id, tenant_id,
+                            rate_key,
+                            user_id,
+                            tenant_id,
                         )
                     except Exception as exc:
                         logger.warning(
                             "Plugin SIO {} presence cleanup failed: {}",
-                            self.namespace, exc,
+                            self.namespace,
+                            exc,
                         )
 
             logger.info(
                 "Plugin SIO {} disconnected: sid={} reason={}",
-                self.namespace, sid, reason,
+                self.namespace,
+                sid,
+                reason,
             )
 
             # Delegate to plugin handler's on_disconnect (if any)
@@ -355,6 +371,7 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
             handler = getattr(self._delegate, f"on_{event}", None)
             if handler:
                 import asyncio
+
                 if asyncio.iscoroutinefunction(handler):
                     return await handler(*args)
                 return handler(*args)

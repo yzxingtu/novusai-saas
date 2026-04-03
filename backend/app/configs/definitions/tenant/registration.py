@@ -86,7 +86,9 @@ USER_DEFAULT_ROLE_ID = ConfigMeta(
     default_value=0,
     sort_order=50,
     options=[
-        ConfigOption(value=0, label_key="config.tenant.user_default_role_id.option_none"),
+        ConfigOption(
+            value=0, label_key="config.tenant.user_default_role_id.option_none"
+        ),
     ],
     display_rules=[
         DisplayRule(

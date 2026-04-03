@@ -60,7 +60,9 @@ class TransientPruner:
         self.keep_last_assistants = max(1, keep_last_assistants)
         self.min_prunable_tool_chars = max(256, min_prunable_tool_chars)
 
-    def prune(self, messages: list[ChatMessage]) -> tuple[list[ChatMessage], PruneStats]:
+    def prune(
+        self, messages: list[ChatMessage]
+    ) -> tuple[list[ChatMessage], PruneStats]:
         cloned = [copy.deepcopy(message) for message in messages]
         stats = PruneStats(
             mode="transient_tool_result_pruning",
@@ -95,14 +97,14 @@ class TransientPruner:
                     stats.pruned_message_count += 1
                     stats.pruned_tool_call_count += pruned_call_count
 
-        stats.bytes_after = sum(self._message_prompt_bytes(message) for message in cloned)
+        stats.bytes_after = sum(
+            self._message_prompt_bytes(message) for message in cloned
+        )
         return cloned, stats
 
     def _assistant_protection_cutoff(self, messages: list[ChatMessage]) -> int | None:
         assistant_indexes = [
-            idx
-            for idx, message in enumerate(messages)
-            if message.role == "assistant"
+            idx for idx, message in enumerate(messages) if message.role == "assistant"
         ]
         if len(assistant_indexes) <= self.keep_last_assistants:
             return None
@@ -128,7 +130,9 @@ class TransientPruner:
     @staticmethod
     def _assistant_has_unresolved_tool_state(message: ChatMessage) -> bool:
         for tool_call in message.tool_calls or []:
-            if tool_call.get("pending_confirmation") or tool_call.get("pending_consent"):
+            if tool_call.get("pending_confirmation") or tool_call.get(
+                "pending_consent"
+            ):
                 return True
         return False
 

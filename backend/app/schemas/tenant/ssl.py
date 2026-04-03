@@ -20,7 +20,9 @@ class SslCertificateResponse(BaseSchema):
     domain_id: int = Field(..., description="域名 ID")
     tenant_id: int = Field(..., description="企业 ID")
     cert_type: str = Field(..., description="证书类型: platform/custom")
-    status: str = Field(..., description="证书状态: pending/active/expired/revoked/failed")
+    status: str = Field(
+        ..., description="证书状态: pending/active/expired/revoked/failed"
+    )
     issuer: str | None = Field(None, description="签发机构")
     serial_number: str | None = Field(None, description="证书序列号")
     issued_at: datetime | None = Field(None, description="签发时间")

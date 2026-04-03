@@ -61,12 +61,12 @@ class AnalyticsService:
             func.coalesce(func.sum(AICallLog.input_tokens), 0).label("input_tokens"),
             func.coalesce(func.sum(AICallLog.output_tokens), 0).label("output_tokens"),
             func.coalesce(func.sum(AICallLog.cost), 0).label("cost"),
-            func.sum(case(
-                (AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0
-            )).label("success"),
-            func.sum(case(
-                (AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0
-            )).label("failed"),
+            func.sum(
+                case((AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0)
+            ).label("success"),
+            func.sum(
+                case((AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0)
+            ).label("failed"),
         ).where(
             AICallLog.created_at >= start_date,
             AICallLog.created_at <= end_date + timedelta(days=1),
@@ -75,7 +75,9 @@ class AnalyticsService:
         if tenant_id is not None:
             stmt = stmt.where(AICallLog.billing_tenant_id == tenant_id)
 
-        stmt = stmt.group_by(func.date(AICallLog.created_at)).order_by(func.date(AICallLog.created_at))
+        stmt = stmt.group_by(func.date(AICallLog.created_at)).order_by(
+            func.date(AICallLog.created_at)
+        )
 
         result = await self.db.execute(stmt)
         return [
@@ -119,7 +121,12 @@ class AnalyticsService:
         if tenant_id is not None:
             filters.append(AICallLog.billing_tenant_id == tenant_id)
 
-        stmt = stmt.where(*filters).group_by(AICallLog.model_id).order_by(func.count(AICallLog.id).desc()).limit(20)
+        stmt = (
+            stmt.where(*filters)
+            .group_by(AICallLog.model_id)
+            .order_by(func.count(AICallLog.id).desc())
+            .limit(20)
+        )
 
         result = await self.db.execute(stmt)
         rows = result.all()
@@ -165,9 +172,9 @@ class AnalyticsService:
             func.avg(AICallLog.latency_ms).label("avg_latency"),
             func.avg(AICallLog.total_tokens).label("avg_tokens"),
             func.coalesce(func.sum(AICallLog.cost), 0).label("total_cost"),
-            func.sum(case(
-                (AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0
-            )).label("success_count"),
+            func.sum(
+                case((AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0)
+            ).label("success_count"),
         )
 
         filters = self._date_filters(start_date, end_date)
@@ -181,17 +188,23 @@ class AnalyticsService:
         provider_names: dict[int, str] = {}
         if provider_ids:
             name_result = await self.db.execute(
-                select(AIProvider.id, AIProvider.name).where(AIProvider.id.in_(provider_ids))
+                select(AIProvider.id, AIProvider.name).where(
+                    AIProvider.id.in_(provider_ids)
+                )
             )
             provider_names = {r.id: r.name for r in name_result.all()}
 
         return [
             {
                 "provider_id": r.provider_id,
-                "provider_name": provider_names.get(r.provider_id, f"Provider #{r.provider_id}"),
+                "provider_name": provider_names.get(
+                    r.provider_id, f"Provider #{r.provider_id}"
+                ),
                 "calls": r.calls,
                 "avg_latency": round(float(r.avg_latency or 0), 1),
-                "success_rate": round((r.success_count or 0) / max(r.calls, 1) * 100, 1),
+                "success_rate": round(
+                    (r.success_count or 0) / max(r.calls, 1) * 100, 1
+                ),
                 "avg_tokens": round(float(r.avg_tokens or 0), 0),
                 "total_cost": float(r.total_cost),
             }
@@ -223,7 +236,12 @@ class AnalyticsService:
 
         filters = self._date_filters(start_date, end_date)
         filters.append(AICallLog.billing_tenant_id.is_not(None))
-        stmt = stmt.where(*filters).group_by(AICallLog.billing_tenant_id).order_by(func.count(AICallLog.id).desc()).limit(top_n)
+        stmt = (
+            stmt.where(*filters)
+            .group_by(AICallLog.billing_tenant_id)
+            .order_by(func.count(AICallLog.id).desc())
+            .limit(top_n)
+        )
 
         result = await self.db.execute(stmt)
         rows = result.all()
@@ -240,7 +258,9 @@ class AnalyticsService:
         return [
             {
                 "tenant_id": r.tenant_id,
-                "tenant_name": tenant_names.get(r.tenant_id, f"Tenant #{r.tenant_id}") if r.tenant_id else "Platform",
+                "tenant_name": tenant_names.get(r.tenant_id, f"Tenant #{r.tenant_id}")
+                if r.tenant_id
+                else "Platform",
                 "calls": r.calls,
                 "tokens": int(r.tokens),
                 "cost": float(r.cost),

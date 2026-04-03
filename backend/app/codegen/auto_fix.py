@@ -136,7 +136,9 @@ def build_fix_instructions(issues: list[dict[str, Any]]) -> str:
         lines.append(f"{idx}. [{code}] {message}")
         related_nodes = issue.get("related_nodes")
         if isinstance(related_nodes, list) and related_nodes:
-            lines.append(f"   related_nodes: {', '.join(str(n) for n in related_nodes)}")
+            lines.append(
+                f"   related_nodes: {', '.join(str(n) for n in related_nodes)}"
+            )
     return "\n".join(lines)
 
 
@@ -157,7 +159,9 @@ def suggest_human_steps(issues: list[dict[str, Any]]) -> list[str]:
                 "Add the missing entity definition or correct relation target names."
             )
         elif "extra_field" in code:
-            steps.append("Remove unsupported top-level fields from the project payload.")
+            steps.append(
+                "Remove unsupported top-level fields from the project payload."
+            )
         else:
             steps.append(
                 "Review invalid nodes and align them with the project schema requirements."
@@ -188,7 +192,9 @@ def build_fix_context(
     )
 
 
-def apply_fix_patch(project_dict: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
+def apply_fix_patch(
+    project_dict: dict[str, Any], patch: dict[str, Any]
+) -> dict[str, Any]:
     """Apply a partial patch to project data with entity upsert semantics. / 按实体 upsert 语义将补丁应用到项目数据"""
     if not patch:
         return {
@@ -207,7 +213,9 @@ def apply_fix_patch(project_dict: dict[str, Any], patch: dict[str, Any]) -> dict
         if key == "entities" and isinstance(value, list):
             merged["entities"] = _merge_entities(merged["entities"], value)
         elif key == "cross_relations" and isinstance(value, list):
-            merged["cross_relations"] = _merge_relations(merged["cross_relations"], value)
+            merged["cross_relations"] = _merge_relations(
+                merged["cross_relations"], value
+            )
         else:
             merged[key] = value
 
@@ -380,7 +388,10 @@ def _validate_relation_cycles(
                 cycle_start = stack.index(neighbor)
                 cycle_nodes = tuple(stack[cycle_start:] + [neighbor])
                 cycle_normalized = tuple(
-                    min(cycle_nodes[i:] + cycle_nodes[:i] for i in range(len(cycle_nodes)))
+                    min(
+                        cycle_nodes[i:] + cycle_nodes[:i]
+                        for i in range(len(cycle_nodes))
+                    )
                 )
                 if cycle_normalized not in seen_cycles:
                     seen_cycles.add(cycle_normalized)

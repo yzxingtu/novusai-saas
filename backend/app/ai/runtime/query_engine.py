@@ -22,7 +22,9 @@ class _CollectedStream:
 
     @property
     def is_meaningful(self) -> bool:
-        return self.has_visible_output or self.has_reasoning_output or self.has_tool_calls
+        return (
+            self.has_visible_output or self.has_reasoning_output or self.has_tool_calls
+        )
 
 
 class _StreamCollectionError(RuntimeError):
@@ -81,7 +83,9 @@ class ConversationQueryEngine:
             tool_calls=response.tool_calls or response.message.tool_calls,
         )
 
-    def _attach_turn_record(self, chunk: ChatChunk, protocol_path: ProtocolPath) -> ChatChunk:
+    def _attach_turn_record(
+        self, chunk: ChatChunk, protocol_path: ProtocolPath
+    ) -> ChatChunk:
         metadata = dict(chunk.metadata or {})
         metadata.setdefault("runtime_protocol_path", protocol_path)
         metadata["runtime_turn_record"] = self.turn_record
@@ -127,11 +131,17 @@ class ConversationQueryEngine:
                 delta = getattr(chunk, "delta", None)
                 reasoning_delta = getattr(chunk, "reasoning_delta", None)
                 tool_calls = getattr(chunk, "tool_calls", None)
-                has_visible_output = has_visible_output or ToolExecutor.has_visible_output(
-                    delta,
+                has_visible_output = (
+                    has_visible_output
+                    or ToolExecutor.has_visible_output(
+                        delta,
+                    )
                 )
-                has_reasoning_output = has_reasoning_output or ToolExecutor.has_reasoning_output(
-                    reasoning_delta,
+                has_reasoning_output = (
+                    has_reasoning_output
+                    or ToolExecutor.has_reasoning_output(
+                        reasoning_delta,
+                    )
                 )
                 has_tool_calls = has_tool_calls or ToolExecutor.has_tool_calls(
                     tool_calls,
@@ -199,7 +209,11 @@ class ConversationQueryEngine:
     def _response_to_chunk(response: ChatResponse) -> ChatChunk:
         finish_reason = response.finish_reason
         if not finish_reason:
-            finish_reason = "tool_calls" if (response.tool_calls or response.message.tool_calls) else "stop"
+            finish_reason = (
+                "tool_calls"
+                if (response.tool_calls or response.message.tool_calls)
+                else "stop"
+            )
         return ChatChunk(
             delta=response.message.content or "",
             reasoning_delta=response.message.reasoning_content or "",
@@ -282,7 +296,9 @@ class ConversationQueryEngine:
             if self._response_is_meaningful(response):
                 self.turn_record.turn_outcome = "success"
                 self.turn_record.termination_reason = (
-                    "protocol_fallback" if self.turn_record.fallback_history else "completed"
+                    "protocol_fallback"
+                    if self.turn_record.fallback_history
+                    else "completed"
                 )
                 metadata = dict(response.metadata or {})
                 metadata["runtime_turn_record"] = self.turn_record
@@ -358,9 +374,9 @@ class ConversationQueryEngine:
                 self.turn_record.metadata["stream_failure_chunk_count"] = len(
                     stream_exc.collected.chunks,
                 )
-                self.turn_record.metadata[
-                    "stream_failure_has_meaningful_chunk"
-                ] = has_meaningful_chunk
+                self.turn_record.metadata["stream_failure_has_meaningful_chunk"] = (
+                    has_meaningful_chunk
+                )
                 self.turn_record.metadata["stream_failure_error_type"] = type(
                     stream_exc.cause,
                 ).__name__
@@ -413,7 +429,9 @@ class ConversationQueryEngine:
             if collected.is_meaningful:
                 self.turn_record.turn_outcome = "success"
                 self.turn_record.termination_reason = (
-                    "protocol_fallback" if self.turn_record.fallback_history else "completed"
+                    "protocol_fallback"
+                    if self.turn_record.fallback_history
+                    else "completed"
                 )
                 self.turn_record.metadata["stream_chunk_count"] = len(collected.chunks)
                 return collected.chunks
@@ -445,9 +463,9 @@ class ConversationQueryEngine:
             if self._response_is_meaningful(rescue_response):
                 if self.turn_record.fallback_history:
                     self.turn_record.fallback_history[-1].recovered = True
-                    self.turn_record.fallback_history[-1].metadata[
-                        "recovery_path"
-                    ] = "sync_chat_completions"
+                    self.turn_record.fallback_history[-1].metadata["recovery_path"] = (
+                        "sync_chat_completions"
+                    )
                 self.turn_record.turn_outcome = "success"
                 self.turn_record.termination_reason = "protocol_fallback"
                 self.turn_record.metadata["sync_rescue"] = True

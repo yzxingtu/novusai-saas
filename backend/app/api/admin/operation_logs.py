@@ -39,7 +39,7 @@ from app.services.system.operation_log_service import OperationLogService
         component="admin/system/operation-logs/index",
         parent="logs",
         sort_order=10,
-    )
+    ),
 )
 class AdminOperationLogController(GlobalController):
     """
@@ -139,6 +139,7 @@ class AdminOperationLogController(GlobalController):
 
             if log is None:
                 from fastapi import HTTPException, status
+
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=_("operation_log.not_found"),
@@ -149,7 +150,9 @@ class AdminOperationLogController(GlobalController):
                 message=_("common.success"),
             )
 
-        @router.get("/export", summary="导出操作日志 CSV / Export operation logs as CSV")
+        @router.get(
+            "/export", summary="导出操作日志 CSV / Export operation logs as CSV"
+        )
         @action_read("action.operation_log.list")
         async def export_logs(
             request: Request,
@@ -182,7 +185,9 @@ class AdminOperationLogController(GlobalController):
                     "action": getattr(item, "action", ""),
                     "ip": getattr(item, "ip", ""),
                     "response_code": getattr(item, "response_code", ""),
-                    "created_at": getattr(item, "created_at", "").isoformat() if hasattr(getattr(item, "created_at", ""), "isoformat") else str(getattr(item, "created_at", "")),
+                    "created_at": getattr(item, "created_at", "").isoformat()
+                    if hasattr(getattr(item, "created_at", ""), "isoformat")
+                    else str(getattr(item, "created_at", "")),
                 }
                 for item in items
             ]

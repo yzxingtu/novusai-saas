@@ -66,18 +66,14 @@ def _normalize_audit_value(value: Any) -> Any:
 
     if isinstance(value, BaseModel):
         return {
-            key: _normalize_audit_value(item)
-            for key, item in value.to_dict().items()
+            key: _normalize_audit_value(item) for key, item in value.to_dict().items()
         }
 
     if is_dataclass(value) and not isinstance(value, type):
         return _normalize_audit_value(asdict(value))
 
     if isinstance(value, dict):
-        return {
-            str(key): _normalize_audit_value(item)
-            for key, item in value.items()
-        }
+        return {str(key): _normalize_audit_value(item) for key, item in value.items()}
 
     if isinstance(value, (list, set, tuple)):
         return [_normalize_audit_value(item) for item in value]
@@ -144,8 +140,7 @@ def _resolve_agent_meta(
     return {
         "agent_avatar": item.get("agent_avatar_snapshot")
         or live_meta.get("agent_avatar"),
-        "agent_name": item.get("agent_name_snapshot")
-        or live_meta.get("agent_name"),
+        "agent_name": item.get("agent_name_snapshot") or live_meta.get("agent_name"),
     }
 
 
@@ -215,7 +210,9 @@ async def _load_operator_snapshot(
 
     if normalized_type == "tenant_user":
         stmt = select(
-            TenantUser.username, TenantUser.nickname, TenantUser.avatar,
+            TenantUser.username,
+            TenantUser.nickname,
+            TenantUser.avatar,
         ).where(
             TenantUser.tenant_id == tenant_id,
             TenantUser.id == operator_id,
@@ -231,7 +228,9 @@ async def _load_operator_snapshot(
             }
 
     stmt = select(
-        TenantAdmin.username, TenantAdmin.nickname, TenantAdmin.avatar,
+        TenantAdmin.username,
+        TenantAdmin.nickname,
+        TenantAdmin.avatar,
     ).where(
         TenantAdmin.tenant_id == tenant_id,
         TenantAdmin.id == operator_id,
@@ -247,7 +246,9 @@ async def _load_operator_snapshot(
         }
 
     user_stmt = select(
-        TenantUser.username, TenantUser.nickname, TenantUser.avatar,
+        TenantUser.username,
+        TenantUser.nickname,
+        TenantUser.avatar,
     ).where(
         TenantUser.tenant_id == tenant_id,
         TenantUser.id == operator_id,
@@ -509,14 +510,12 @@ class AdminAIActionLogService(GlobalService[AIActionLog, AdminAIActionLogReposit
         tenant_ids: set[int],
     ) -> dict[int, dict[str, str | None]]:
         positive_tenant_ids = {
-            tenant_id
-            for tenant_id in tenant_ids
-            if tenant_id > PLATFORM_TENANT_ID
+            tenant_id for tenant_id in tenant_ids if tenant_id > PLATFORM_TENANT_ID
         }
         tenant_meta_map: dict[int, dict[str, str | None]] = {
             PLATFORM_TENANT_ID: {
-                'tenant_name': None,
-                'tenant_code': 'platform_admin',
+                "tenant_name": None,
+                "tenant_code": "platform_admin",
             },
         }
 
@@ -530,8 +529,8 @@ class AdminAIActionLogService(GlobalService[AIActionLog, AdminAIActionLogReposit
         result = await self.db.execute(stmt)
         for row in result.all():
             tenant_meta_map[row.id] = {
-                'tenant_name': row.name,
-                'tenant_code': row.code,
+                "tenant_name": row.name,
+                "tenant_code": row.code,
             }
         return tenant_meta_map
 
@@ -600,12 +599,8 @@ class AdminAIActionLogService(GlobalService[AIActionLog, AdminAIActionLogReposit
 
             missing_pairs = tenant_operator_pairs - set(operator_meta_map)
             if missing_pairs:
-                missing_tenant_ids = {
-                    tenant_id for tenant_id, _ in missing_pairs
-                }
-                missing_operator_ids = {
-                    operator_id for _, operator_id in missing_pairs
-                }
+                missing_tenant_ids = {tenant_id for tenant_id, _ in missing_pairs}
+                missing_operator_ids = {operator_id for _, operator_id in missing_pairs}
                 user_stmt = select(
                     TenantUser.tenant_id,
                     TenantUser.id,
@@ -630,7 +625,7 @@ class AdminAIActionLogService(GlobalService[AIActionLog, AdminAIActionLogReposit
 
     async def serialize_log(self, log: AIActionLog) -> dict[str, Any]:
         item = log.to_dict()
-        tenant_id = item.get('tenant_id', PLATFORM_TENANT_ID) or PLATFORM_TENANT_ID
+        tenant_id = item.get("tenant_id", PLATFORM_TENANT_ID) or PLATFORM_TENANT_ID
         tenant_meta_map = await self._load_tenant_meta_map({tenant_id})
         agent_meta_map = await self._load_agent_meta_map(
             {item["agent_id"]} if item.get("agent_id") else set(),

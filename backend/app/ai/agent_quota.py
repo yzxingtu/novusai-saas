@@ -28,6 +28,7 @@ logger = LogManager.get_logger("ai.agent_quota")
 # Exceptions / 异常
 # ============================================
 
+
 class AgentQuotaExceeded(BusinessException):
     """Agent quota exceeded exception / 智能体配额超出异常"""
 
@@ -35,7 +36,9 @@ class AgentQuotaExceeded(BusinessException):
     status_code = 429
     default_message = "ai.error.quota_exceeded_default"
 
-    def __init__(self, message: str, quota_type: str = "", current: int = 0, limit: int = 0):
+    def __init__(
+        self, message: str, quota_type: str = "", current: int = 0, limit: int = 0
+    ):
         super().__init__(message=message)
         self.quota_type = quota_type
         self.current = current
@@ -57,6 +60,7 @@ class AgentConcurrencyExceeded(BusinessException):
 # ============================================
 # Quota Configuration / 配额配置
 # ============================================
+
 
 @dataclass
 class AgentQuotaConfig:
@@ -93,13 +97,16 @@ class AgentQuotaConfig:
         if not data:
             return cls()
         known_fields = {f.name for f in cls.__dataclass_fields__.values()}
-        filtered = {k: v for k, v in data.items() if k in known_fields and v is not None}
+        filtered = {
+            k: v for k, v in data.items() if k in known_fields and v is not None
+        }
         return cls(**filtered)
 
 
 # ============================================
 # Quota Manager / 配额管理器
 # ============================================
+
 
 class AgentQuotaManager:
     """
@@ -185,7 +192,9 @@ class AgentQuotaManager:
         return f"{AgentQuotaManager.PREFIX_DAILY_CONV}{tenant_id}:{agent_id}:{stat_date.isoformat()}"
 
     @staticmethod
-    def _user_daily_key(tenant_id: int, agent_id: int, user_id: int, stat_date: date) -> str:
+    def _user_daily_key(
+        tenant_id: int, agent_id: int, user_id: int, stat_date: date
+    ) -> str:
         return f"{AgentQuotaManager.PREFIX_USER}{tenant_id}:{agent_id}:{user_id}:daily:{stat_date.isoformat()}"
 
     @staticmethod
@@ -235,11 +244,13 @@ class AgentQuotaManager:
                     result + estimated_tokens,
                     config.daily_token_limit,
                 )
-                await event_bus.publish(QuotaExceededEvent(
-                    tenant_id=tenant_id,
-                    agent_id=agent_id,
-                    quota_type="daily",
-                ))
+                await event_bus.publish(
+                    QuotaExceededEvent(
+                        tenant_id=tenant_id,
+                        agent_id=agent_id,
+                        quota_type="daily",
+                    )
+                )
                 raise AgentQuotaExceeded(
                     _("agent.error.daily_quota_exceeded"),
                     quota_type="daily_tokens",
@@ -251,21 +262,27 @@ class AgentQuotaManager:
             # 预警检查（在预扣成功后）
             if config.warning_threshold > 0:
                 daily_usage = await AgentQuotaManager.get_daily_usage(
-                    tenant_id, agent_id, today,
+                    tenant_id,
+                    agent_id,
+                    today,
                 )
                 usage_pct = (daily_usage / config.daily_token_limit) * 100
                 if usage_pct >= config.warning_threshold:
-                    await event_bus.publish(QuotaWarning(
-                        tenant_id=tenant_id,
-                        agent_id=agent_id,
-                        usage_percent=usage_pct,
-                        threshold=config.warning_threshold,
-                    ))
+                    await event_bus.publish(
+                        QuotaWarning(
+                            tenant_id=tenant_id,
+                            agent_id=agent_id,
+                            usage_percent=usage_pct,
+                            threshold=config.warning_threshold,
+                        )
+                    )
 
         # Daily conversation count check / 日对话数检查
         if config.conversations_per_day > 0:
             conv_count = await AgentQuotaManager.get_daily_conversations(
-                tenant_id, agent_id, today,
+                tenant_id,
+                agent_id,
+                today,
             )
             if conv_count >= config.conversations_per_day:
                 raise AgentQuotaExceeded(
@@ -278,7 +295,10 @@ class AgentQuotaManager:
         # Monthly quota check (atomic pre-deduct) / 月配额检查（原子预扣减）
         if config.monthly_token_limit > 0 and estimated_tokens > 0:
             monthly_key = AgentQuotaManager._monthly_key(
-                tenant_id, agent_id, today.year, today.month,
+                tenant_id,
+                agent_id,
+                today.year,
+                today.month,
             )
             result = await AgentQuotaManager._atomic_check_and_record(
                 key=monthly_key,
@@ -295,11 +315,13 @@ class AgentQuotaManager:
                     result + estimated_tokens,
                     config.monthly_token_limit,
                 )
-                await event_bus.publish(QuotaExceededEvent(
-                    tenant_id=tenant_id,
-                    agent_id=agent_id,
-                    quota_type="monthly",
-                ))
+                await event_bus.publish(
+                    QuotaExceededEvent(
+                        tenant_id=tenant_id,
+                        agent_id=agent_id,
+                        quota_type="monthly",
+                    )
+                )
                 # Rollback daily pre-deduction (atomic, prevents negative)
                 # 回滚日配额预扣减（原子操作，防止值为负）
                 if config.daily_token_limit > 0:
@@ -318,16 +340,21 @@ class AgentQuotaManager:
             # Warning check / 预警检查
             if config.warning_threshold > 0:
                 monthly_usage = await AgentQuotaManager.get_monthly_usage(
-                    tenant_id, agent_id, today.year, today.month,
+                    tenant_id,
+                    agent_id,
+                    today.year,
+                    today.month,
                 )
                 usage_pct = (monthly_usage / config.monthly_token_limit) * 100
                 if usage_pct >= config.warning_threshold:
-                    await event_bus.publish(QuotaWarning(
-                        tenant_id=tenant_id,
-                        agent_id=agent_id,
-                        usage_percent=usage_pct,
-                        threshold=config.warning_threshold,
-                    ))
+                    await event_bus.publish(
+                        QuotaWarning(
+                            tenant_id=tenant_id,
+                            agent_id=agent_id,
+                            usage_percent=usage_pct,
+                            threshold=config.warning_threshold,
+                        )
+                    )
 
         return True
 
@@ -386,7 +413,10 @@ class AgentQuotaManager:
         # Adjust monthly quota / 调整月配额
         if not config or config.monthly_token_limit > 0:
             monthly_key = AgentQuotaManager._monthly_key(
-                tenant_id, agent_id, today.year, today.month,
+                tenant_id,
+                agent_id,
+                today.year,
+                today.month,
             )
             await AgentQuotaManager._atomic_adjust(monthly_key, diff)
 
@@ -417,7 +447,10 @@ class AgentQuotaManager:
 
         # Monthly / 每月
         monthly_key = AgentQuotaManager._monthly_key(
-            tenant_id, agent_id, stat_date.year, stat_date.month,
+            tenant_id,
+            agent_id,
+            stat_date.year,
+            stat_date.month,
         )
         await redis.incrby(monthly_key, tokens)
         await redis.expire(monthly_key, 86400 * 35)
@@ -480,7 +513,10 @@ class AgentQuotaManager:
         Raises:
             AgentQuotaExceeded: Conversation-level limit exceeded / 对话级限制超出
         """
-        if config.max_turns_per_conversation > 0 and current_turns >= config.max_turns_per_conversation:
+        if (
+            config.max_turns_per_conversation > 0
+            and current_turns >= config.max_turns_per_conversation
+        ):
             raise AgentQuotaExceeded(
                 _("agent.error.conversation_turns_exceeded"),
                 quota_type="conversation_turns",
@@ -488,7 +524,10 @@ class AgentQuotaManager:
                 limit=config.max_turns_per_conversation,
             )
 
-        if config.max_tokens_per_conversation > 0 and current_tokens >= config.max_tokens_per_conversation:
+        if (
+            config.max_tokens_per_conversation > 0
+            and current_tokens >= config.max_tokens_per_conversation
+        ):
             raise AgentQuotaExceeded(
                 _("agent.error.conversation_tokens_exceeded"),
                 quota_type="conversation_tokens",
@@ -515,7 +554,9 @@ class AgentQuotaManager:
 
         # User-level daily conversation count / 用户级日对话数
         if user_id:
-            user_key = AgentQuotaManager._user_daily_key(tenant_id, agent_id, user_id, today)
+            user_key = AgentQuotaManager._user_daily_key(
+                tenant_id, agent_id, user_id, today
+            )
             await redis.hincrby(user_key, "conversations", 1)
             await redis.expire(user_key, 86400 * 2)
 
@@ -585,15 +626,23 @@ class AgentQuotaManager:
     ) -> dict[str, Any]:
         """Get usage summary (with quota limits) / 获取使用量摘要（含配额上限）"""
         today = date.today()
-        daily_tokens = await AgentQuotaManager.get_daily_usage(tenant_id, agent_id, today)
+        daily_tokens = await AgentQuotaManager.get_daily_usage(
+            tenant_id, agent_id, today
+        )
         monthly_tokens = await AgentQuotaManager.get_monthly_usage(
-            tenant_id, agent_id, today.year, today.month,
+            tenant_id,
+            agent_id,
+            today.year,
+            today.month,
         )
         daily_conversations = await AgentQuotaManager.get_daily_conversations(
-            tenant_id, agent_id, today,
+            tenant_id,
+            agent_id,
+            today,
         )
         current_concurrent = await AgentConcurrencyLimiter.get_current(
-            tenant_id, agent_id,
+            tenant_id,
+            agent_id,
         )
 
         result: dict[str, Any] = {
@@ -619,6 +668,7 @@ class AgentQuotaManager:
 # ============================================
 # Concurrency Limiter / 并发控制器
 # ============================================
+
 
 class AgentConcurrencyLimiter:
     """
@@ -712,10 +762,14 @@ class AgentConcurrencyLimiter:
             if result >= 0:
                 logger.warning(
                     "Agent concurrency exceeded: tenant={} agent={} current={} max={}",
-                    tenant_id, agent_id, int(result), max_concurrent,
+                    tenant_id,
+                    agent_id,
+                    int(result),
+                    max_concurrent,
                 )
                 raise AgentConcurrencyExceeded(
-                    _("agent.error.concurrency_exceeded"), retry_after=5,
+                    _("agent.error.concurrency_exceeded"),
+                    retry_after=5,
                 )
 
         # Tenant-level concurrency check (atomic) / 企业级并发检查（原子操作）
@@ -736,7 +790,8 @@ class AgentConcurrencyLimiter:
                     agent_key = AgentConcurrencyLimiter._key(tenant_id, agent_id)
                     await redis.zrem(agent_key, lock_token)
                 raise AgentConcurrencyExceeded(
-                    _("agent.error.tenant_concurrency_exceeded"), retry_after=5,
+                    _("agent.error.tenant_concurrency_exceeded"),
+                    retry_after=5,
                 )
 
         return lock_token

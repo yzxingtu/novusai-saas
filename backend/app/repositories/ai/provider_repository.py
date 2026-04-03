@@ -5,7 +5,6 @@ AI 供应商 Repository / AI Provider Repository
 Handles AI provider data access.
 """
 
-
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
@@ -60,9 +59,7 @@ class AIProviderRepository(BaseRepository[AIProvider]):
         return items, total
 
     async def get_by_code(
-        self,
-        code: str,
-        include_deleted: bool = False
+        self, code: str, include_deleted: bool = False
     ) -> AIProvider | None:
         """
         根据代码获取供应商 / Get provider by code.
@@ -74,9 +71,7 @@ class AIProviderRepository(BaseRepository[AIProvider]):
         Returns:
             AIProvider 对象或 None
         """
-        stmt = select(AIProvider).where(
-            AIProvider.code == code
-        )
+        stmt = select(AIProvider).where(AIProvider.code == code)
 
         if not include_deleted:
             stmt = stmt.where(AIProvider.is_deleted.is_(False))
@@ -84,10 +79,7 @@ class AIProviderRepository(BaseRepository[AIProvider]):
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_active_providers(
-        self,
-        limit: int | None = None
-    ) -> list[AIProvider]:
+    async def get_active_providers(self, limit: int | None = None) -> list[AIProvider]:
         """
         获取启用的供应商列表 / Get active providers list.
 
@@ -97,12 +89,10 @@ class AIProviderRepository(BaseRepository[AIProvider]):
         Returns:
             AIProvider 列表
         """
-        stmt = select(AIProvider).where(
-            AIProvider.is_active.is_(True),
-            AIProvider.is_deleted.is_(False)
-        ).order_by(
-            AIProvider.sort_order.asc(),
-            AIProvider.created_at.desc()
+        stmt = (
+            select(AIProvider)
+            .where(AIProvider.is_active.is_(True), AIProvider.is_deleted.is_(False))
+            .order_by(AIProvider.sort_order.asc(), AIProvider.created_at.desc())
         )
 
         if limit:
@@ -111,11 +101,7 @@ class AIProviderRepository(BaseRepository[AIProvider]):
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
-    async def code_exists(
-        self,
-        code: str,
-        exclude_id: int | None = None
-    ) -> bool:
+    async def code_exists(self, code: str, exclude_id: int | None = None) -> bool:
         """
         检查代码是否已存在 / Check if code already exists.
 
@@ -127,8 +113,7 @@ class AIProviderRepository(BaseRepository[AIProvider]):
             是否存在
         """
         stmt = select(AIProvider.id).where(
-            AIProvider.code == code,
-            AIProvider.is_deleted.is_(False)
+            AIProvider.code == code, AIProvider.is_deleted.is_(False)
         )
 
         if exclude_id:

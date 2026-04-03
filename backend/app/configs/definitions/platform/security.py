@@ -160,7 +160,9 @@ CAPTCHA_PROVIDER = ConfigMeta(
     ],
     sort_order=62,
     display_rules=[
-        DisplayRule(field="login_captcha_enabled", operator="equals", value=True, action="show"),
+        DisplayRule(
+            field="login_captcha_enabled", operator="equals", value=True, action="show"
+        ),
     ],
 )
 
@@ -181,7 +183,9 @@ CAPTCHA_DIFFICULTY = ConfigMeta(
     ],
     sort_order=65,
     display_rules=[
-        DisplayRule(field="login_captcha_enabled", operator="equals", value=True, action="show"),
+        DisplayRule(
+            field="login_captcha_enabled", operator="equals", value=True, action="show"
+        ),
     ],
 )
 
@@ -201,7 +205,9 @@ CAPTCHA_ENABLE_THRESHOLD_ADMIN = ConfigMeta(
     ],
     sort_order=66,
     display_rules=[
-        DisplayRule(field="login_captcha_enabled", operator="equals", value=True, action="show"),
+        DisplayRule(
+            field="login_captcha_enabled", operator="equals", value=True, action="show"
+        ),
     ],
 )
 

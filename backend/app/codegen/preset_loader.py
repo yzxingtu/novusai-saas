@@ -108,13 +108,17 @@ def _extract_metadata(name: str, raw: dict[str, Any]) -> dict[str, Any]:
     fallback = _DEFAULT_PRESET_META.get(name, {})
     label_zh = str(meta.get("label_zh") or fallback.get("label_zh") or _titleize(name))
     label_en = str(meta.get("label_en") or fallback.get("label_en") or _titleize(name))
-    description_zh = str(meta.get("description_zh") or fallback.get("description_zh") or "")
-    description_en = str(meta.get("description_en") or fallback.get("description_en") or "")
+    description_zh = str(
+        meta.get("description_zh") or fallback.get("description_zh") or ""
+    )
+    description_en = str(
+        meta.get("description_en") or fallback.get("description_en") or ""
+    )
     category = str(meta.get("category") or fallback.get("category") or "general")
     tags = meta.get("tags") or fallback.get("tags") or []
-    recommended_for = meta.get("recommended_for") or fallback.get(
-        "recommended_for"
-    ) or []
+    recommended_for = (
+        meta.get("recommended_for") or fallback.get("recommended_for") or []
+    )
     sort_order = int(meta.get("sort_order") or fallback.get("sort_order") or 999)
     return {
         "name": name,
@@ -124,9 +128,7 @@ def _extract_metadata(name: str, raw: dict[str, Any]) -> dict[str, Any]:
         "description_en": description_en,
         "category": category,
         "tags": [str(tag) for tag in tags if str(tag).strip()],
-        "recommended_for": [
-            str(item) for item in recommended_for if str(item).strip()
-        ],
+        "recommended_for": [str(item) for item in recommended_for if str(item).strip()],
         "sort_order": sort_order,
     }
 

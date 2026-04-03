@@ -4,6 +4,7 @@
 提供用户端头像等文件上传接口（精简版，仅上传+预检）
 Provides user file upload endpoints for avatars etc. (simplified, upload + preflight only)
 """
+
 from __future__ import annotations
 
 from fastapi import APIRouter, File, Form, Query, Request, UploadFile
@@ -66,7 +67,10 @@ async def _get_accessible_attachment(
     return service, attachment
 
 
-@router.post("/preflight", summary="预检文件是否已存在（秒传） / Preflight check if file exists (instant upload)")
+@router.post(
+    "/preflight",
+    summary="预检文件是否已存在（秒传） / Preflight check if file exists (instant upload)",
+)
 @auth_only
 async def preflight_check(
     request: Request,
@@ -86,7 +90,9 @@ async def preflight_check(
         file_hash=raw_hash,
         filename=body.filename,
         size=body.size,
-        visibility=AttachmentVisibility(body.visibility) if body.visibility else AttachmentVisibility.PRIVATE,
+        visibility=AttachmentVisibility(body.visibility)
+        if body.visibility
+        else AttachmentVisibility.PRIVATE,
     )
     resp = AttachmentSafePreflightResponse(
         exists=result["exists"],
@@ -190,7 +196,9 @@ async def get_preview_url(
         db, current_user, attachment_id
     )
     data = await service.build_access_url(attachment, expires=expires, preview=True)
-    return success(data=AttachmentAccessUrlResponse(**data), message=_("common.success"))
+    return success(
+        data=AttachmentAccessUrlResponse(**data), message=_("common.success")
+    )
 
 
 @router.get("/{attachment_id}/download", summary="下载附件 / Download attachment")
@@ -246,8 +254,10 @@ async def get_upload_rules(
         "platform_storage_max_file_size_mb", default=100
     )
 
-    return success(data={
-        "allowed_extensions": str(tenant_allowed) if tenant_allowed else "",
-        "denied_extensions": str(tenant_denied) if tenant_denied else "",
-        "max_file_size_mb": int(max_size) if max_size else 100,
-    })
+    return success(
+        data={
+            "allowed_extensions": str(tenant_allowed) if tenant_allowed else "",
+            "denied_extensions": str(tenant_denied) if tenant_denied else "",
+            "max_file_size_mb": int(max_size) if max_size else 100,
+        }
+    )

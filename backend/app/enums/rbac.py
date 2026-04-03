@@ -29,6 +29,7 @@ class PermissionScope(LabeledStrEnum):
     USER = ("user", "enum.permission_scope.user")
     BOTH = ("both", "enum.permission_scope.both")
 
+
 __all__ = [
     "PermissionType",
     "PermissionScope",

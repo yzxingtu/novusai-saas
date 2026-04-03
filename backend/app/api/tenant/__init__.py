@@ -10,14 +10,13 @@ Controllers use @permission_resource to define resource permissions; importing r
 
 from fastapi import APIRouter
 
+from app.api.tenant.agent_assignments import router as agent_assignments_router
 from app.api.tenant.agent_chat import TenantAgentChatController
 from app.api.tenant.agent_chat import router as agent_chat_router
-from app.api.tenant.agent_assignments import router as agent_assignments_router
 from app.api.tenant.agents import TenantAgentController
 from app.api.tenant.agents import router as agents_router
 from app.api.tenant.ai_action_logs import TenantAIActionLogController
 from app.api.tenant.ai_action_logs import router as ai_action_logs_router
-from app.api.tenant.ai_writing import router as ai_writing_router
 from app.api.tenant.ai_call_logs import TenantAICallLogController
 from app.api.tenant.ai_call_logs import router as ai_call_logs_router
 from app.api.tenant.ai_config import TenantAIConfigController
@@ -28,8 +27,8 @@ from app.api.tenant.ai_quotas import TenantAIQuotaController
 from app.api.tenant.ai_quotas import router as ai_quotas_router
 from app.api.tenant.ai_usage import TenantAIUsageController
 from app.api.tenant.ai_usage import router as ai_usage_router
+from app.api.tenant.ai_writing import router as ai_writing_router
 from app.api.tenant.analytics import router as analytics_router
-from app.api.tenant.execution_decisions import router as execution_decisions_router
 from app.api.tenant.attachments import TenantAttachmentController
 from app.api.tenant.attachments import router as attachments_router
 from app.api.tenant.auth import router as auth_router
@@ -40,22 +39,23 @@ from app.api.tenant.conversations import router as conversations_router
 from app.api.tenant.dashboard import router as dashboard_router
 from app.api.tenant.domains import TenantDomainController
 from app.api.tenant.domains import router as domains_router
+from app.api.tenant.execution_decisions import router as execution_decisions_router
 from app.api.tenant.knowledge_bases import TenantKnowledgeBaseController
 from app.api.tenant.knowledge_bases import router as knowledge_bases_router
 from app.api.tenant.notification_preferences import (
     router as notification_preferences_router,
 )
-from app.api.tenant.preferences import router as preferences_router
 from app.api.tenant.notifications import router as notifications_router
 from app.api.tenant.operation_logs import TenantOperationLogController
 from app.api.tenant.operation_logs import router as operation_logs_router
-from app.api.tenant.permissions import TenantPermissionController
-from app.api.tenant.permissions import router as permissions_router
-from app.api.tenant.permission_roles import TenantPermissionRoleController
-from app.api.tenant.permission_roles import router as permission_roles_router
-from app.api.tenant.plugins import router as plugins_router
 from app.api.tenant.organization import TenantOrganizationController
 from app.api.tenant.organization import router as organization_router
+from app.api.tenant.permission_roles import TenantPermissionRoleController
+from app.api.tenant.permission_roles import router as permission_roles_router
+from app.api.tenant.permissions import TenantPermissionController
+from app.api.tenant.permissions import router as permissions_router
+from app.api.tenant.plugins import router as plugins_router
+from app.api.tenant.preferences import router as preferences_router
 from app.api.tenant.user_roles import TenantUserRoleController
 from app.api.tenant.user_roles import router as user_roles_router
 from app.api.tenant.users import TenantUserController

@@ -53,7 +53,9 @@ def _attachment_id_from_url(raw: str) -> tuple[int | None, str | None]:
     s = (raw or "").strip()
     if not s:
         return None, None
-    parsed = urlparse(s if "://" in s else f"http://_ignored{s if s.startswith('/') else '/' + s}")
+    parsed = urlparse(
+        s if "://" in s else f"http://_ignored{s if s.startswith('/') else '/' + s}"
+    )
     path = parsed.path or ""
     m = _ATTACHMENT_URL_RE.search(path)
     if not m:
@@ -136,7 +138,9 @@ async def _fetch_url_bytes(url: str, *, max_bytes: int) -> tuple[bytes, str] | N
         logger.warning("LLM image: URL blocked (SSRF): {}", e)
         return None
     try:
-        async with httpx.AsyncClient(timeout=_FETCH_TIMEOUT_SEC, follow_redirects=True) as client:
+        async with httpx.AsyncClient(
+            timeout=_FETCH_TIMEOUT_SEC, follow_redirects=True
+        ) as client:
             resp = await client.get(url)
             resp.raise_for_status()
             cl = resp.headers.get("content-length")
@@ -190,7 +194,11 @@ async def resolve_image_url_for_llm(
 
     if db is not None and aid is not None:
         got = await _read_attachment_bytes_via_db(
-            db, tenant_id, aid, token, max_bytes=max_bytes,
+            db,
+            tenant_id,
+            aid,
+            token,
+            max_bytes=max_bytes,
         )
         if got:
             data, mime = got

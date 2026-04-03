@@ -5,7 +5,6 @@ CRUD 代码生成配置版本历史模型 / Codegen Config Version History Model
 Each config save creates a version record for history and restore.
 """
 
-
 from sqlalchemy import ForeignKey, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship

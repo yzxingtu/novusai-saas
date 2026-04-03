@@ -24,9 +24,11 @@ def _default_platform_name() -> str:
     """从配置定义获取站点名称默认值，避免硬编码 / Get default site name from config definition."""
     try:
         from app.configs.definitions.platform.general import SITE_NAME
+
         return SITE_NAME.default_value or "NovusAI SaaS"
     except Exception:
         return "NovusAI SaaS"
+
 
 # 模板目录 / Template directory
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent.parent / "templates" / "email"
@@ -51,7 +53,9 @@ def _get_env() -> Environment:
 def _strip_html(html: str) -> str:
     """将 HTML 转为纯文本（简易实现） / Strip HTML to plain text (simple impl)."""
     # 移除 style/script 标签及内容
-    text = re.sub(r"<(style|script)[^>]*>.*?</\1>", "", html, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(
+        r"<(style|script)[^>]*>.*?</\1>", "", html, flags=re.DOTALL | re.IGNORECASE
+    )
     # <br> / <p> / <div> / <tr> → 换行
     text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
     text = re.sub(r"</?(p|div|tr|li|h[1-6])[^>]*>", "\n", text, flags=re.IGNORECASE)
@@ -109,6 +113,7 @@ def render_email(
 # 场景快捷函数 / Scenario shortcut functions
 # ============================================
 
+
 def render_test_email(
     admin_name: str = "Admin",
     platform_name: str | None = None,
@@ -123,10 +128,14 @@ def render_test_email(
     platform_name = platform_name or _default_platform_name()
     t = _get_translations(lang)
     subject = t["test_email"]["subject"].format(platform_name=platform_name)
-    html, text = render_email("test_email", {
-        "admin_name": admin_name,
-        "platform_name": platform_name,
-    }, lang=lang)
+    html, text = render_email(
+        "test_email",
+        {
+            "admin_name": admin_name,
+            "platform_name": platform_name,
+        },
+        lang=lang,
+    )
     return subject, html, text
 
 
@@ -146,12 +155,16 @@ def render_task_failure_email(
     platform_name = platform_name or _default_platform_name()
     t = _get_translations(lang)
     subject = t["task_failure"]["subject"].format(task_name=task_name)
-    html, text = render_email("task_failure", {
-        "task_name": task_name,
-        "task_id": task_id,
-        "error": error,
-        "platform_name": platform_name,
-    }, lang=lang)
+    html, text = render_email(
+        "task_failure",
+        {
+            "task_name": task_name,
+            "task_id": task_id,
+            "error": error,
+            "platform_name": platform_name,
+        },
+        lang=lang,
+    )
     return subject, html, text
 
 
@@ -171,12 +184,16 @@ def render_password_reset_email(
     platform_name = platform_name or _default_platform_name()
     t = _get_translations(lang)
     subject = t["password_reset"]["subject"].format(platform_name=platform_name)
-    html, text = render_email("password_reset", {
-        "user_name": user_name,
-        "reset_url": reset_url,
-        "expire_minutes": expire_minutes,
-        "platform_name": platform_name,
-    }, lang=lang)
+    html, text = render_email(
+        "password_reset",
+        {
+            "user_name": user_name,
+            "reset_url": reset_url,
+            "expire_minutes": expire_minutes,
+            "platform_name": platform_name,
+        },
+        lang=lang,
+    )
     return subject, html, text
 
 
@@ -196,12 +213,16 @@ def render_verification_code_email(
     platform_name = platform_name or _default_platform_name()
     t = _get_translations(lang)
     subject = t["verification_code"]["subject"].format(platform_name=platform_name)
-    html, text = render_email("verification_code", {
-        "user_name": user_name,
-        "code": code,
-        "expire_minutes": expire_minutes,
-        "platform_name": platform_name,
-    }, lang=lang)
+    html, text = render_email(
+        "verification_code",
+        {
+            "user_name": user_name,
+            "code": code,
+            "expire_minutes": expire_minutes,
+            "platform_name": platform_name,
+        },
+        lang=lang,
+    )
     return subject, html, text
 
 
@@ -221,12 +242,16 @@ def render_login_code_email(
     platform_name = platform_name or _default_platform_name()
     t = _get_translations(lang)
     subject = t["login_code"]["subject"].format(platform_name=platform_name)
-    html, text = render_email("login_code", {
-        "user_name": user_name,
-        "code": code,
-        "expire_minutes": expire_minutes,
-        "platform_name": platform_name,
-    }, lang=lang)
+    html, text = render_email(
+        "login_code",
+        {
+            "user_name": user_name,
+            "code": code,
+            "expire_minutes": expire_minutes,
+            "platform_name": platform_name,
+        },
+        lang=lang,
+    )
     return subject, html, text
 
 
@@ -246,12 +271,16 @@ def render_welcome_email(
     platform_name = platform_name or _default_platform_name()
     t = _get_translations(lang)
     subject = t["welcome"]["subject"].format(platform_name=platform_name)
-    html, text = render_email("welcome", {
-        "tenant_name": tenant_name,
-        "admin_name": admin_name,
-        "login_url": login_url,
-        "platform_name": platform_name,
-    }, lang=lang)
+    html, text = render_email(
+        "welcome",
+        {
+            "tenant_name": tenant_name,
+            "admin_name": admin_name,
+            "login_url": login_url,
+            "platform_name": platform_name,
+        },
+        lang=lang,
+    )
     return subject, html, text
 
 
@@ -271,12 +300,16 @@ def render_ssl_expiry_email(
     platform_name = platform_name or _default_platform_name()
     t = _get_translations(lang)
     subject = t["ssl_expiry"]["subject"].format(domain=domain)
-    html, text = render_email("ssl_expiry", {
-        "domain": domain,
-        "expires_at": expires_at,
-        "days_remaining": days_remaining,
-        "platform_name": platform_name,
-    }, lang=lang)
+    html, text = render_email(
+        "ssl_expiry",
+        {
+            "domain": domain,
+            "expires_at": expires_at,
+            "days_remaining": days_remaining,
+            "platform_name": platform_name,
+        },
+        lang=lang,
+    )
     return subject, html, text
 
 
@@ -299,11 +332,15 @@ def render_manual_email(
     Returns:
         (html_body, text_body)
     """
-    return render_email("manual_send", {
-        "subject": subject,
-        "content": content,
-        "platform_name": _default_platform_name(),
-    }, lang=lang)
+    return render_email(
+        "manual_send",
+        {
+            "subject": subject,
+            "content": content,
+            "platform_name": _default_platform_name(),
+        },
+        lang=lang,
+    )
 
 
 def render_notification_html(
@@ -328,13 +365,17 @@ def render_notification_html(
     Returns:
         (html_body, text_body)
     """
-    return render_email("notification", {
-        "title": title,
-        "body": body,
-        "priority": priority,
-        "link": link,
-        "platform_name": _default_platform_name(),
-    }, lang=lang)
+    return render_email(
+        "notification",
+        {
+            "title": title,
+            "body": body,
+            "priority": priority,
+            "link": link,
+            "platform_name": _default_platform_name(),
+        },
+        lang=lang,
+    )
 
 
 # ============================================

@@ -48,7 +48,9 @@ class SslCertificateRepository(BaseRepository[DomainSslCertificate]):
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
-    async def get_expiring_platform_certs(self, days: int = 30) -> list[DomainSslCertificate]:
+    async def get_expiring_platform_certs(
+        self, days: int = 30
+    ) -> list[DomainSslCertificate]:
         """查询即将过期的平台证书（auto_renew=True） / Get expiring platform certs (auto_renew)."""
         cutoff = utc_now() + timedelta(days=days)
         query = select(self.model).where(
@@ -62,7 +64,9 @@ class SslCertificateRepository(BaseRepository[DomainSslCertificate]):
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
-    async def get_expiring_custom_certs(self, days: int = 30) -> list[DomainSslCertificate]:
+    async def get_expiring_custom_certs(
+        self, days: int = 30
+    ) -> list[DomainSslCertificate]:
         """查询即将过期的自定义证书（需通知，不自动续期） / Get expiring custom certs (notify only)."""
         cutoff = utc_now() + timedelta(days=days)
         query = select(self.model).where(
@@ -90,6 +94,7 @@ class SslCertificateRepository(BaseRepository[DomainSslCertificate]):
     async def deactivate_domain_certs(self, domain_id: int) -> None:
         """将域名所有有效证书标记为已吊销（上传新证书前调用） / Deactivate all active certs for domain (before upload)."""
         from sqlalchemy import update
+
         stmt = (
             update(self.model)
             .where(

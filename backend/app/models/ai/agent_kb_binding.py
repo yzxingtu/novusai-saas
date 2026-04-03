@@ -40,7 +40,7 @@ class AgentKnowledgeBaseBinding(TenantModel):
         Integer,
         nullable=True,
         index=True,
-        comment="企业ID（跟随 Agent 的 tenant_id） / Tenant id (mirrors Agent)"
+        comment="企业ID（跟随 Agent 的 tenant_id） / Tenant id (mirrors Agent)",
     )
 
     # ==================== 关联 ==================== / Associations
@@ -85,12 +85,14 @@ class AgentKnowledgeBaseBinding(TenantModel):
 
     __table_args__ = (
         UniqueConstraint(
-            "agent_id", "knowledge_base_id",
+            "agent_id",
+            "knowledge_base_id",
             name="uq_agent_knowledge_base_binding",
         ),
         Index(
             "ix_agent_kb_bindings_agent_enabled",
-            "agent_id", "enabled",
+            "agent_id",
+            "enabled",
         ),
     )
 

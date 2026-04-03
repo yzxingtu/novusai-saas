@@ -18,8 +18,12 @@ from app.core.logging import LogManager
 logger = LogManager.get_logger("ai.rag.context_builder")
 
 # Default token budget parameters / 默认 Token 预算参数
-DEFAULT_CONTEXT_TOKEN_RATIO = 0.6  # RAG context ratio of remaining space / RAG 上下文占剩余空间的比例
-DEFAULT_OUTPUT_RESERVE = 500  # Minimum tokens reserved for LLM generation / 至少预留给 LLM 生成的 token 数
+DEFAULT_CONTEXT_TOKEN_RATIO = (
+    0.6  # RAG context ratio of remaining space / RAG 上下文占剩余空间的比例
+)
+DEFAULT_OUTPUT_RESERVE = (
+    500  # Minimum tokens reserved for LLM generation / 至少预留给 LLM 生成的 token 数
+)
 
 # RAG context footer (header obtained at runtime via _()) / RAG 上下文拼接后缀（前缀在运行时通过 _() 获取）
 RAG_CONTEXT_FOOTER = "\n---\n"
@@ -192,7 +196,9 @@ class RAGContextBuilder:
 
         logger.info(
             "RAG context built: {} chunks, {} tokens (budget={})",
-            len(sources), total_tokens, token_budget,
+            len(sources),
+            total_tokens,
+            token_budget,
         )
 
         return RAGContext(
@@ -297,7 +303,9 @@ class RAGContextBuilder:
         candidates = []
         for sep in ("。", "\n", "；", ". ", "; ", "，", ", "):
             pos = content.rfind(sep, 0, rough_end)
-            if pos > rough_end * 0.3:  # 至少保留 30% 内容 / Keep at least ~30% of content
+            if (
+                pos > rough_end * 0.3
+            ):  # 至少保留 30% 内容 / Keep at least ~30% of content
                 candidates.append((pos + len(sep), sep))
 
         if candidates:

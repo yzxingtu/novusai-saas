@@ -35,14 +35,18 @@ class TenantUserRoleDetailResponse(TenantUserRoleResponse):
     """企业用户权限角色详情响应（含权限） / Tenant user permission role detail response (with permissions)."""
 
     permission_ids: list[int] = Field(default_factory=list, description="权限 ID 列表")
-    permission_codes: list[str] = Field(default_factory=list, description="权限代码列表")
+    permission_codes: list[str] = Field(
+        default_factory=list, description="权限代码列表"
+    )
 
 
 class TenantUserRoleCreateRequest(BaseSchema):
     """创建企业用户权限角色请求 / Create tenant user permission role request."""
 
     name: str = Field(..., min_length=1, max_length=50, description="权限角色名称")
-    code: str | None = Field(None, min_length=1, max_length=50, description="权限角色代码（为空时自动生成）")
+    code: str | None = Field(
+        None, min_length=1, max_length=50, description="权限角色代码（为空时自动生成）"
+    )
     description: str | None = Field(None, max_length=500, description="权限角色描述")
     is_active: bool = Field(True, description="是否启用")
     sort_order: int = Field(0, description="排序")
@@ -52,8 +56,12 @@ class TenantUserRoleCreateRequest(BaseSchema):
 class TenantUserRoleUpdateRequest(BaseSchema):
     """更新企业用户权限角色请求 / Update tenant user permission role request."""
 
-    name: str | None = Field(None, min_length=1, max_length=50, description="权限角色名称")
-    code: str | None = Field(None, min_length=1, max_length=50, description="权限角色代码")
+    name: str | None = Field(
+        None, min_length=1, max_length=50, description="权限角色名称"
+    )
+    code: str | None = Field(
+        None, min_length=1, max_length=50, description="权限角色代码"
+    )
     description: str | None = Field(None, max_length=500, description="权限角色描述")
     is_active: bool | None = Field(None, description="是否启用")
     sort_order: int | None = Field(None, description="排序")

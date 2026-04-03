@@ -50,7 +50,9 @@ class InternalAIService:
     ) -> ChatResponse:
         logger.info(
             "Internal chat dispatch: model={}/{} tenant={}",
-            provider_code, model, tenant_id,
+            provider_code,
+            model,
+            tenant_id,
         )
         return await self.gateway.chat(
             provider_code=provider_code,
@@ -84,7 +86,9 @@ class InternalAIService:
     ):
         logger.info(
             "Internal stream chat dispatch: model={}/{} tenant={}",
-            provider_code, model, tenant_id,
+            provider_code,
+            model,
+            tenant_id,
         )
         return await self.gateway.stream_chat(
             provider_code=provider_code,
@@ -113,7 +117,9 @@ class InternalAIService:
     ) -> EmbeddingResponse:
         logger.info(
             "Internal embedding dispatch: model={}/{} tenant={}",
-            provider_code, model, tenant_id,
+            provider_code,
+            model,
+            tenant_id,
         )
         return await self.gateway.embedding(
             provider_code=provider_code,

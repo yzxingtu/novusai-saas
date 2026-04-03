@@ -40,7 +40,7 @@ class RoleTreeMixin(Generic[RoleType]):
 
     # 子类需实现的属性（通过 Service 基类提供）
     repo: Any  # RoleRepository 实例
-    db: Any    # AsyncSession 实例
+    db: Any  # AsyncSession 实例
 
     # ========== 树形结构查询 / Tree queries ==========
 
@@ -244,11 +244,14 @@ class RoleTreeMixin(Generic[RoleType]):
         # 更新当前角色 / Persist moved node
         old_path = role.path or f"/{role_id}/"
 
-        await self.repo.update(role_id, {
-            "parent_id": new_parent_id,
-            "path": new_path,
-            "level": new_level,
-        })
+        await self.repo.update(
+            role_id,
+            {
+                "parent_id": new_parent_id,
+                "path": new_path,
+                "level": new_level,
+            },
+        )
 
         # 更新所有后代的 path 和 level / Fix descendants after move
         await self._update_descendants_path(role_id, old_path, new_path, new_level)
@@ -301,16 +304,21 @@ class RoleTreeMixin(Generic[RoleType]):
 
         for desc in descendants:
             # 计算新 path: 替换前缀 / Rewrite path prefix
-            desc_new_path = desc.path.replace(old_path, new_path, 1) if desc.path else None
+            desc_new_path = (
+                desc.path.replace(old_path, new_path, 1) if desc.path else None
+            )
 
             # 计算新 level: 基于深度差 / Shift level by delta
             level_diff = new_level - (await self.repo.get_by_id(role_id)).level
             desc_new_level = (desc.level or 1) + level_diff
 
-            await self.repo.update(desc.id, {
-                "path": desc_new_path,
-                "level": desc_new_level,
-            })
+            await self.repo.update(
+                desc.id,
+                {
+                    "path": desc_new_path,
+                    "level": desc_new_level,
+                },
+            )
 
     # ========== 权限继承 / Permission inheritance ==========
 
@@ -417,7 +425,9 @@ class RoleTreeMixin(Generic[RoleType]):
             return 1
         return parent_level + 1
 
-    async def validate_parent(self, parent_id: int | None, exclude_id: int | None = None) -> tuple[str | None, int]:
+    async def validate_parent(
+        self, parent_id: int | None, exclude_id: int | None = None
+    ) -> tuple[str | None, int]:
         """
         验证父角色并返回其 path 和 level / Validate parent role and return its path and level.
 

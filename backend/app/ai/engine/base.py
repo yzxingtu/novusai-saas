@@ -134,6 +134,7 @@ _jinja_env = Environment(
     loader=BaseLoader(), keep_trailing_newline=True, undefined=ChainableUndefined
 )
 
+
 class BaseEngine(ABC):
     """
     Execution Engine Abstract Base Class / 执行引擎抽象基类
@@ -435,7 +436,9 @@ class BaseEngine(ABC):
             mutation_ops = [
                 str(o.get("name", ""))
                 for o in raw_ops
-                if isinstance(o, dict) and o.get("name") and not bool(o.get("readonly", False))
+                if isinstance(o, dict)
+                and o.get("name")
+                and not bool(o.get("readonly", False))
             ]
             mutation_hint = ""
             if mutation_ops:
@@ -510,7 +513,9 @@ class BaseEngine(ABC):
         mutation_ops = [
             str(o.get("name", ""))
             for o in raw_ops
-            if isinstance(o, dict) and o.get("name") and not bool(o.get("readonly", False))
+            if isinstance(o, dict)
+            and o.get("name")
+            and not bool(o.get("readonly", False))
         ]
         mutation_guidance = ""
         if mutation_ops:
@@ -700,7 +705,9 @@ class BaseEngine(ABC):
         )
         hint = "\n\n[TURN CAPABILITIES]\n"
         if normalized_skill_names:
-            hint += f"Selected skills for this turn: {', '.join(normalized_skill_names)}.\n"
+            hint += (
+                f"Selected skills for this turn: {', '.join(normalized_skill_names)}.\n"
+            )
         if context_line:
             hint += f"Active context sources: {context_line}.\n"
         if "knowledge_base" in context_source_kinds:
@@ -757,9 +764,7 @@ class BaseEngine(ABC):
             )
             shown_tools = ", ".join(family_tools[:4]) if family_tools else "none"
             suffix = "..." if len(family_tools) > 4 else ""
-            sequence_lines.append(
-                f"{idx}. {label} (tools: {shown_tools}{suffix})"
-            )
+            sequence_lines.append(f"{idx}. {label} (tools: {shown_tools}{suffix})")
 
         return (
             "\n\n[ORDERED CAPABILITY INTENT]\n"
@@ -1000,6 +1005,7 @@ class BaseEngine(ABC):
     @staticmethod
     def _has_page_context(input_variables: dict[str, Any] | None) -> bool:
         from app.ai.tools.semantic_defaults import _has_page_context
+
         return _has_page_context(input_variables)
 
     @classmethod
@@ -1041,7 +1047,11 @@ class BaseEngine(ABC):
         for tool in tools:
             if cls._tool_semantic_family(tool, input_variables) != family:
                 continue
-            for value in [tool.name, tool.description or "", *cls._tool_semantic_tags(tool)]:
+            for value in [
+                tool.name,
+                tool.description or "",
+                *cls._tool_semantic_tags(tool),
+            ]:
                 text = str(value or "").strip().lower()
                 if len(text) >= 2:
                     terms.add(text)
@@ -1159,7 +1169,9 @@ class BaseEngine(ABC):
             or {"get_page_context", "invoke_page_operation"} & tool_names
         )
 
-        if _WEATHER_INTENT_RE.search(normalized) and (has_weather_tools or has_web_tools):
+        if _WEATHER_INTENT_RE.search(normalized) and (
+            has_weather_tools or has_web_tools
+        ):
             intents.append("weather")
         if _RAIL_TICKET_INTENT_RE.search(normalized) and has_web_tools:
             intents.append("rail_ticket_research")
@@ -1176,7 +1188,9 @@ class BaseEngine(ABC):
         input_variables: dict[str, Any] | None,
     ) -> set[str]:
         completed: set[str] = set()
-        successful_tool_names = set(cls._extract_recent_successful_tool_names(messages, limit=50))
+        successful_tool_names = set(
+            cls._extract_recent_successful_tool_names(messages, limit=50)
+        )
         successful_queries, fetched_urls = cls._collect_web_research_evidence(messages)
         weather_tool_names = {
             tool.name
@@ -1189,7 +1203,10 @@ class BaseEngine(ABC):
         ):
             completed.add("weather")
         if any(
-            any(token in url.lower() for token in ("weather", "cma.cn", "qweather", "weather.com"))
+            any(
+                token in url.lower()
+                for token in ("weather", "cma.cn", "qweather", "weather.com")
+            )
             for url in fetched_urls
         ):
             completed.add("weather")
@@ -1199,9 +1216,14 @@ class BaseEngine(ABC):
         ):
             completed.add("page_summary")
 
-        rail_search_seen = any(_RAIL_TICKET_INTENT_RE.search(query) for query in successful_queries)
+        rail_search_seen = any(
+            _RAIL_TICKET_INTENT_RE.search(query) for query in successful_queries
+        )
         rail_fetch_seen = any(
-            any(token in url.lower() for token in ("12306", "gaotie", "huoche", "trains"))
+            any(
+                token in url.lower()
+                for token in ("12306", "gaotie", "huoche", "trains")
+            )
             for url in fetched_urls
         )
         if rail_fetch_seen or (rail_search_seen and rail_fetch_seen):
@@ -1231,10 +1253,13 @@ class BaseEngine(ABC):
             if intent == "page_summary":
                 family = "page_ops"
             elif intent in {"weather", "rail_ticket_research"}:
-                if any(
-                    cls._tool_semantic_family(tool, input_variables) == "weather"
-                    for tool in tools
-                ) and intent == "weather":
+                if (
+                    any(
+                        cls._tool_semantic_family(tool, input_variables) == "weather"
+                        for tool in tools
+                    )
+                    and intent == "weather"
+                ):
                     family = "weather"
                 else:
                     family = "web_research"
@@ -1341,13 +1366,17 @@ class BaseEngine(ABC):
                 },
             )
 
-        return None, None, {
-            "tool_leak_detected": False,
-            "leaked_tool_names": [],
-            "requested_intents": requested_intents,
-            "completed_intents": sorted(completed_intents),
-            "unfinished_intents": [],
-        }
+        return (
+            None,
+            None,
+            {
+                "tool_leak_detected": False,
+                "leaked_tool_names": [],
+                "requested_intents": requested_intents,
+                "completed_intents": sorted(completed_intents),
+                "unfinished_intents": [],
+            },
+        )
 
     @staticmethod
     def _build_contract_recovery_system_message(
@@ -1422,7 +1451,9 @@ class BaseEngine(ABC):
         if breach_type:
             metadata["contract_breach_type"] = breach_type
         metadata["tool_leak_detected"] = bool(diagnostics.get("tool_leak_detected"))
-        metadata["unfinished_intents"] = list(diagnostics.get("unfinished_intents") or [])
+        metadata["unfinished_intents"] = list(
+            diagnostics.get("unfinished_intents") or []
+        )
         metadata["recovered_via_retry"] = bool(recovered_via_retry)
         leaked_tool_names = list(diagnostics.get("leaked_tool_names") or [])
         if leaked_tool_names:
@@ -1509,11 +1540,7 @@ class BaseEngine(ABC):
         all_tools: list[ToolDefinition],
         policy: ToolUsePolicy,
     ) -> tuple[list[ToolDefinition], bool]:
-        if (
-            policy.family == "none"
-            or not policy.allowed_tool_names
-            or not all_tools
-        ):
+        if policy.family == "none" or not policy.allowed_tool_names or not all_tools:
             return selected_tools, False
 
         allowed = set(policy.allowed_tool_names)
@@ -1568,7 +1595,9 @@ class BaseEngine(ABC):
             for name in candidates:
                 if name in selected_names:
                     continue
-                candidate = next((tool for tool in all_tools if tool.name == name), None)
+                candidate = next(
+                    (tool for tool in all_tools if tool.name == name), None
+                )
                 if candidate is None:
                     continue
                 restored.append(candidate)
@@ -2180,11 +2209,7 @@ class BaseEngine(ABC):
             _emit("web_research_capability_denial_or_no_tool_use")
             return
 
-        if (
-            "fetch_url" in tool_names
-            and search_count > 0
-            and fetch_count == 0
-        ):
+        if "fetch_url" in tool_names and search_count > 0 and fetch_count == 0:
             _emit("web_research_summary_without_fetch")
 
     @classmethod
@@ -2220,15 +2245,16 @@ class BaseEngine(ABC):
             prior_messages,
             current_user_text,
         )
-        latest_successful_tool = recent_successful_tool_names[0] if recent_successful_tool_names else ""
+        latest_successful_tool = (
+            recent_successful_tool_names[0] if recent_successful_tool_names else ""
+        )
         active = latest_successful_tool in {"web_search", "fetch_url"}
         origin = "continuation" if active else "none"
 
         research_target_text = (
             recent_web_queries[0]
             if recent_web_queries
-            else cls._extract_last_user_text(prior_messages)
-            or current_user_text
+            else cls._extract_last_user_text(prior_messages) or current_user_text
         )
 
         return ResearchContinuationContext(
@@ -2342,10 +2368,12 @@ class BaseEngine(ABC):
                 continuation_context=continuation_context,
                 capability_bundle=context_assembly.capability_bundle,
             )
-            explicit_requested_families = ToolInvocationPlanner.explicit_requested_families(
-                messages=messages,
-                tools=all_tools,
-                input_variables=request.input_variables,
+            explicit_requested_families = (
+                ToolInvocationPlanner.explicit_requested_families(
+                    messages=messages,
+                    tools=all_tools,
+                    input_variables=request.input_variables,
+                )
             )
             tool_use_policy = self._build_tool_use_policy_from_plan(
                 tool_planner,
@@ -2355,7 +2383,10 @@ class BaseEngine(ABC):
             if tool_planner.family != "none":
                 effective_families = [tool_planner.family]
                 for family in explicit_requested_families:
-                    if family != tool_planner.family and family not in effective_families:
+                    if (
+                        family != tool_planner.family
+                        and family not in effective_families
+                    ):
                         effective_families.append(family)
                 mixed_allowed_names = self._allowed_tool_names_for_families(
                     effective_families,
@@ -2368,9 +2399,7 @@ class BaseEngine(ABC):
                 all_tools,
                 user_query,
                 preferred_family=(
-                    tool_planner.family
-                    if tool_planner.family != "none"
-                    else None
+                    tool_planner.family if tool_planner.family != "none" else None
                 ),
             )
             tools = opt.tools
@@ -2388,11 +2417,13 @@ class BaseEngine(ABC):
                     all_tools=all_tools,
                     policy=tool_use_policy,
                 )
-                tools, restored_coverage_families = self._ensure_explicit_family_coverage(
-                    selected_tools=tools,
-                    all_tools=all_tools,
-                    explicit_requested_families=explicit_requested_families,
-                    input_variables=request.input_variables,
+                tools, restored_coverage_families = (
+                    self._ensure_explicit_family_coverage(
+                        selected_tools=tools,
+                        all_tools=all_tools,
+                        explicit_requested_families=explicit_requested_families,
+                        input_variables=request.input_variables,
+                    )
                 )
                 tools, restored_web_research_pair = self._ensure_web_research_tool_pair(
                     selected_tools=tools,
@@ -2419,7 +2450,11 @@ class BaseEngine(ABC):
                 all_tools,
             )
             page_context_present = self._has_page_context(request.input_variables)
-            if not tool_planner.allow_no_tool and tool_planner.family != "none" and restored_family_tools:
+            if (
+                not tool_planner.allow_no_tool
+                and tool_planner.family != "none"
+                and restored_family_tools
+            ):
                 self._log_tool_selection_status(
                     status="family_tools_restored",
                     agent=agent,
@@ -2501,11 +2536,9 @@ class BaseEngine(ABC):
                     optimizer_selected=len(tools),
                 )
             if (
-                explicit_web_request or tool_use_policy.family == "web_research"
-            ) and (
-                {"web_search", "fetch_url"} & set(all_tool_names)
-            ) and not (
-                {"web_search", "fetch_url"} & set(selected_tool_names)
+                (explicit_web_request or tool_use_policy.family == "web_research")
+                and ({"web_search", "fetch_url"} & set(all_tool_names))
+                and not ({"web_search", "fetch_url"} & set(selected_tool_names))
             ):
                 self._log_tool_selection_status(
                     status="tool_dropped_by_optimizer",
@@ -2568,9 +2601,7 @@ class BaseEngine(ABC):
             else None,
             ordered_requested_families=explicit_requested_families,
             skip_capability_summary=bool(
-                context_assembly.diagnostics.get(
-                    "dynamic_capability_awareness_enabled"
-                )
+                context_assembly.diagnostics.get("dynamic_capability_awareness_enabled")
             ),
         )
 
@@ -3091,20 +3122,22 @@ class BaseEngine(ABC):
                         agent=agent,
                         messages=messages,
                         tools=round_tools,
-                        all_tool_names=[tool.name for tool in (all_tools or tools or [])],
+                        all_tool_names=[
+                            tool.name for tool in (all_tools or tools or [])
+                        ],
                         tenant_id=request.tenant_id,
                         user_id=request.user_id,
                         conversation_id=request.conversation_id,
-                    billing_context=request.billing_context,
-                    route_result=route_result,
-                    log_user_type=log_user_type_for_call_log(request.user_role),
-                    selected_skill_names=selected_skill_names,
-                    context_sources=context_sources,
-                )
+                        billing_context=request.billing_context,
+                        route_result=route_result,
+                        log_user_type=log_user_type_for_call_log(request.user_role),
+                        selected_skill_names=selected_skill_names,
+                        context_sources=context_sources,
+                    )
                 total_tokens += peek_response.total_tokens or 0
                 if peek_response.tool_calls:
-                        current_response = peek_response
-                        continue
+                    current_response = peek_response
+                    continue
                 return None, all_tool_results, total_tokens
 
             # Call LLM again (maintain same routed model as first call) / 再次调用 LLM（保持与第一次调用相同的路由模型）

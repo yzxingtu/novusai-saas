@@ -27,7 +27,9 @@ def _check_image_rate_limit(client_ip: str, limit: int = 60) -> bool:
 
     # Periodic eviction of stale IPs (every 5 minutes) / 定期清理过期 IP（每 5 分钟）
     if now - _last_eviction > 300:
-        stale = [ip for ip, ts in _image_rate_buckets.items() if not ts or ts[-1] < cutoff]
+        stale = [
+            ip for ip, ts in _image_rate_buckets.items() if not ts or ts[-1] < cutoff
+        ]
         for ip in stale:
             del _image_rate_buckets[ip]
         _last_eviction = now
@@ -90,8 +92,12 @@ async def get_processed_image(
     w: int | None = Query(None, ge=1, le=4096, description=_("api.param.img_width")),
     h: int | None = Query(None, ge=1, le=4096, description=_("api.param.img_height")),
     q: int | None = Query(None, ge=1, le=100, description=_("api.param.img_quality")),
-    f: Literal["jpg", "png", "webp", "gif"] | None = Query(None, description=_("api.param.img_format")),
-    m: Literal["fit", "fill", "crop", "pad"] | None = Query(None, description=_("api.param.img_mode")),
+    f: Literal["jpg", "png", "webp", "gif"] | None = Query(
+        None, description=_("api.param.img_format")
+    ),
+    m: Literal["fit", "fill", "crop", "pad"] | None = Query(
+        None, description=_("api.param.img_mode")
+    ),
     p: str | None = Query(None, description=_("api.param.img_preset")),
 ):
     """
@@ -126,10 +132,13 @@ async def get_processed_image(
 
     # IP rate limiting (read configurable limit) / IP 限流（读取配置上限）
     from app.configs.service import ConfigService
+
     config_svc = ConfigService(db)
-    rate_limit = int(await config_svc.get_platform_config(
-        "platform_image_process_rate_limit", default=60
-    ))
+    rate_limit = int(
+        await config_svc.get_platform_config(
+            "platform_image_process_rate_limit", default=60
+        )
+    )
     client_ip = request.client.host if request.client else "unknown"
     if not _check_image_rate_limit(client_ip, limit=rate_limit):
         return error(
@@ -149,7 +158,9 @@ async def get_processed_image(
     # 检查图片处理功能是否启用 / Check if image processing is enabled
     if not await image_service.is_enabled():
         # 未启用，直接重定向到原始文件 / Not enabled, redirect to original file
-        url = await download_service.get_redirect_url(attachment, expires=3600, preview=True)
+        url = await download_service.get_redirect_url(
+            attachment, expires=3600, preview=True
+        )
         return RedirectResponse(url=url)
 
     params = await image_service.parse_params(
@@ -163,7 +174,9 @@ async def get_processed_image(
 
     # 如果无需处理，重定向到原始访问 URL / If no processing needed, redirect to original access URL
     if params.is_empty():
-        url = await download_service.get_redirect_url(attachment, expires=3600, preview=True)
+        url = await download_service.get_redirect_url(
+            attachment, expires=3600, preview=True
+        )
         return RedirectResponse(url=url)
 
     # 通过服务层获取处理后的图片 / Get processed image via service layer

@@ -34,22 +34,55 @@ _DEFAULT_MEMORY_LIMIT_MB = 256
 
 # Absolutely blocked imports (regardless of whitelist settings)
 # 绝对禁止的 import（无论白名单如何设置）
-_BLOCKED_MODULES = frozenset({
-    "os", "subprocess", "shutil", "sys", "importlib",
-    "ctypes", "socket", "http", "urllib", "requests",
-    "httpx", "aiohttp", "pathlib", "glob", "tempfile",
-    "signal", "multiprocessing", "threading", "pickle",
-    "shelve", "marshal", "code", "compile", "exec",
-    "eval", "builtins", "__builtins__",
-})
+_BLOCKED_MODULES = frozenset(
+    {
+        "os",
+        "subprocess",
+        "shutil",
+        "sys",
+        "importlib",
+        "ctypes",
+        "socket",
+        "http",
+        "urllib",
+        "requests",
+        "httpx",
+        "aiohttp",
+        "pathlib",
+        "glob",
+        "tempfile",
+        "signal",
+        "multiprocessing",
+        "threading",
+        "pickle",
+        "shelve",
+        "marshal",
+        "code",
+        "compile",
+        "exec",
+        "eval",
+        "builtins",
+        "__builtins__",
+    }
+)
 
 
 # Dangerous builtins to exclude from user code namespace (escape surface)
 # 用户代码命名空间中必须排除的危险 builtins（exec/eval/compile/open 逃逸面收口）
-_DANGEROUS_BUILTINS = frozenset({
-    "exec", "eval", "compile", "open", "__import__",
-    "globals", "locals", "vars", "breakpoint", "input",
-})
+_DANGEROUS_BUILTINS = frozenset(
+    {
+        "exec",
+        "eval",
+        "compile",
+        "open",
+        "__import__",
+        "globals",
+        "locals",
+        "vars",
+        "breakpoint",
+        "input",
+    }
+)
 
 
 def _build_sandbox_script(
@@ -67,7 +100,9 @@ def _build_sandbox_script(
     4. Catch exceptions and return as JSON / 捕获异常并以 JSON 返回
     """
     allowed_set = json.dumps(allowed_modules)
-    escaped_code = user_code.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+    escaped_code = (
+        user_code.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+    )
     dangerous_set = ", ".join(repr(b) for b in _DANGEROUS_BUILTINS)
     blocked_set = ", ".join(repr(m) for m in _BLOCKED_MODULES)
 
@@ -174,7 +209,9 @@ class CodeExecutionExecutor(BaseToolExecutor):
 
         try:
             proc = await asyncio.create_subprocess_exec(
-                sys.executable, "-c", sandbox_script,
+                sys.executable,
+                "-c",
+                sandbox_script,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -334,16 +371,18 @@ class CodeExecutionExecutor(BaseToolExecutor):
 
         # Detect direct import of dangerous modules / 检测直接 import 危险模块
         for mod in _BLOCKED_MODULES:
-            pattern = rf'\b(?:import\s+{re.escape(mod)}|from\s+{re.escape(mod)}\s+import)\b'
+            pattern = (
+                rf"\b(?:import\s+{re.escape(mod)}|from\s+{re.escape(mod)}\s+import)\b"
+            )
             if re.search(pattern, code):
                 violations.append(f"Blocked import: {mod}")
 
         # Detect eval/exec calls / 检测 eval/exec 调用
-        if re.search(r'\b(?:eval|exec|compile)\s*\(', code):
+        if re.search(r"\b(?:eval|exec|compile)\s*\(", code):
             violations.append("Direct eval/exec/compile calls are not allowed")
 
         # Detect file operations / 检测文件操作
-        if re.search(r'\bopen\s*\(', code):
+        if re.search(r"\bopen\s*\(", code):
             violations.append("File operations (open) are not allowed")
 
         return violations
@@ -377,7 +416,9 @@ class CodeExecutionExecutor(BaseToolExecutor):
                 request_data={
                     "tool_name": definition.name,
                     "trace_id": trace_id_var.get() or None,
-                    "language": (definition.config or {}).get("_code_language", "python"),
+                    "language": (definition.config or {}).get(
+                        "_code_language", "python"
+                    ),
                     "code_preview": str(arguments.get("code") or "")[:500],
                 },
                 response_data=None,

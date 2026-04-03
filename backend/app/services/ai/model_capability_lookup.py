@@ -8,6 +8,7 @@ and provides capability lookup for remote models.
 
 from __future__ import annotations
 
+import contextlib
 import json
 from typing import Any
 
@@ -157,9 +158,7 @@ def _extract_capabilities(entry: dict[str, Any]) -> dict[str, Any]:
     if supports_video is not None:
         caps["supports_video"] = supports_video
 
-    supports_function_calling = _parse_bool_safe(
-        entry.get("supports_function_calling")
-    )
+    supports_function_calling = _parse_bool_safe(entry.get("supports_function_calling"))
     if supports_function_calling is not None:
         caps["supports_function_calling"] = supports_function_calling
 
@@ -199,17 +198,13 @@ def _extract_capabilities(entry: dict[str, Any]) -> dict[str, Any]:
 
     input_cost = entry.get("input_cost_per_token")
     if input_cost is not None:
-        try:
+        with contextlib.suppress(TypeError, ValueError):
             caps["input_price_per_1k"] = round(float(input_cost) * 1000, 6)
-        except (TypeError, ValueError):
-            pass
 
     output_cost = entry.get("output_cost_per_token")
     if output_cost is not None:
-        try:
+        with contextlib.suppress(TypeError, ValueError):
             caps["output_price_per_1k"] = round(float(output_cost) * 1000, 6)
-        except (TypeError, ValueError):
-            pass
 
     return caps
 
@@ -357,13 +352,11 @@ async def resolve_runtime_model_capabilities(
     - Local DB model fields override registry values.
     - 本地 DB 模型字段优先覆盖注册表值。
     """
-    effective_model_code = str(
-        model_code or getattr(model, "code", "") or ""
-    ).strip()
+    effective_model_code = str(model_code or getattr(model, "code", "") or "").strip()
     provider = getattr(model, "provider", None)
-    effective_provider_code = str(
-        provider_code or getattr(provider, "code", "") or ""
-    ).strip() or None
+    effective_provider_code = (
+        str(provider_code or getattr(provider, "code", "") or "").strip() or None
+    )
 
     merged: dict[str, Any] = {}
     remote_caps: dict[str, Any] | None = None

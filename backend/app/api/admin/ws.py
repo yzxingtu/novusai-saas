@@ -31,11 +31,13 @@ async def get_admin_presence(
     details = await PresenceManager.get_online_details("admin")
     online_ids = list(details.keys())
 
-    return success(data={
-        "online_ids": online_ids,
-        "total_online": len(online_ids),
-        "details": {str(k): v for k, v in details.items()},
-    })
+    return success(
+        data={
+            "online_ids": online_ids,
+            "total_online": len(online_ids),
+            "details": {str(k): v for k, v in details.items()},
+        }
+    )
 
 
 @router.get("/presence/tenant/{tenant_id}", summary="指定企业管理员在线状态")
@@ -57,9 +59,11 @@ async def get_tenant_admin_presence(
     details = await PresenceManager.get_online_details("tenant_admin", tenant_id)
     online_ids = list(details.keys())
 
-    return success(data={
-        "online_ids": online_ids,
-        "total_online": len(online_ids),
-        "tenant_id": tenant_id,
-        "details": {str(k): v for k, v in details.items()},
-    })
+    return success(
+        data={
+            "online_ids": online_ids,
+            "total_online": len(online_ids),
+            "tenant_id": tenant_id,
+            "details": {str(k): v for k, v in details.items()},
+        }
+    )

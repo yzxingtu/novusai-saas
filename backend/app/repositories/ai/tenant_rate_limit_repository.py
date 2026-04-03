@@ -2,7 +2,6 @@
 企业 AI 模型速率限制 Repository / Tenant AI Rate Limit Repository
 """
 
-
 from sqlalchemy import and_, select
 
 from app.core.base_repository import BaseRepository, TenantRepository
@@ -26,20 +25,22 @@ class TenantModelRateLimitRepository(TenantRepository[TenantModelRateLimit]):
     model = TenantModelRateLimit
 
     async def get_by_tenant_and_model(
-        self,
-        tenant_id: int,
-        model_id: int
+        self, tenant_id: int, model_id: int
     ) -> TenantModelRateLimit | None:
         """
         获取企业对指定模型的速率限制配置 / Get rate limit config for tenant and model.
         """
-        stmt = select(TenantModelRateLimit).where(
-            and_(
-                TenantModelRateLimit.tenant_id == tenant_id,
-                TenantModelRateLimit.model_id == model_id,
-                TenantModelRateLimit.is_deleted.is_(False),
+        stmt = (
+            select(TenantModelRateLimit)
+            .where(
+                and_(
+                    TenantModelRateLimit.tenant_id == tenant_id,
+                    TenantModelRateLimit.model_id == model_id,
+                    TenantModelRateLimit.is_deleted.is_(False),
+                )
             )
-        ).order_by(TenantModelRateLimit.created_at.desc())
+            .order_by(TenantModelRateLimit.created_at.desc())
+        )
 
         result = await self.db.execute(stmt)
         return result.scalars().first()
@@ -63,9 +64,11 @@ class TenantModelRateLimitRepository(TenantRepository[TenantModelRateLimit]):
         if is_active is not None:
             conditions.append(TenantModelRateLimit.is_active.is_(is_active))
 
-        stmt = select(TenantModelRateLimit).where(
-            and_(*conditions)
-        ).order_by(TenantModelRateLimit.created_at.desc())
+        stmt = (
+            select(TenantModelRateLimit)
+            .where(and_(*conditions))
+            .order_by(TenantModelRateLimit.created_at.desc())
+        )
 
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
@@ -93,14 +96,18 @@ class TenantModelRateLimitRepository(TenantRepository[TenantModelRateLimit]):
         获取同 tenant + model 下最新激活限速规则 /
         Get latest active rate-limit rule for the same tenant + model.
         """
-        stmt = select(TenantModelRateLimit).where(
-            and_(
-                TenantModelRateLimit.tenant_id == tenant_id,
-                TenantModelRateLimit.model_id == model_id,
-                TenantModelRateLimit.is_active.is_(True),
-                TenantModelRateLimit.is_deleted.is_(False),
+        stmt = (
+            select(TenantModelRateLimit)
+            .where(
+                and_(
+                    TenantModelRateLimit.tenant_id == tenant_id,
+                    TenantModelRateLimit.model_id == model_id,
+                    TenantModelRateLimit.is_active.is_(True),
+                    TenantModelRateLimit.is_deleted.is_(False),
+                )
             )
-        ).order_by(TenantModelRateLimit.created_at.desc())
+            .order_by(TenantModelRateLimit.created_at.desc())
+        )
 
         result = await self.db.execute(stmt)
         return result.scalars().first()

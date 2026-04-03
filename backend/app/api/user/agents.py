@@ -50,7 +50,10 @@ class UserAgentController(BaseController):
         """注册路由 / Register routes"""
         router = self.router
 
-        @router.get("/{agent_id}/knowledge-bases", summary="获取智能体知识库绑定 / Get agent knowledge base bindings")
+        @router.get(
+            "/{agent_id}/knowledge-bases",
+            summary="获取智能体知识库绑定 / Get agent knowledge base bindings",
+        )
         @auth_only
         async def get_agent_kbs(
             request: Request,

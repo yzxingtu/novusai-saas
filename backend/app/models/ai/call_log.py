@@ -70,15 +70,10 @@ class AICallLog(TenantModel):
 
     # 用户信息 / End-user identity
     user_id: Mapped[int | None] = mapped_column(
-        Integer,
-        nullable=True,
-        index=True,
-        comment=_("enum.ai_call_log.user_id")
+        Integer, nullable=True, index=True, comment=_("enum.ai_call_log.user_id")
     )
     user_type: Mapped[str | None] = mapped_column(
-        String(50),
-        nullable=True,
-        comment=_("enum.ai_call_log.user_type")
+        String(50), nullable=True, comment=_("enum.ai_call_log.user_type")
     )
     billing_tenant_id: Mapped[int | None] = mapped_column(
         Integer,
@@ -137,14 +132,14 @@ class AICallLog(TenantModel):
         ForeignKey("ai_providers.id", ondelete="SET NULL"),
         nullable=False,
         index=True,
-        comment=_("enum.ai_call_log.provider_id")
+        comment=_("enum.ai_call_log.provider_id"),
     )
     model_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("ai_models.id", ondelete="SET NULL"),
         nullable=False,
         index=True,
-        comment=_("enum.ai_call_log.model_id")
+        comment=_("enum.ai_call_log.model_id"),
     )
 
     # 请求类型 / Request kind
@@ -153,7 +148,7 @@ class AICallLog(TenantModel):
         nullable=False,
         default=RequestTypeEnum.CHAT.value,
         index=True,
-        comment=_("enum.ai_call_log.request_type")
+        comment=_("enum.ai_call_log.request_type"),
     )
     call_type: Mapped[str] = mapped_column(
         String(50),
@@ -166,34 +161,23 @@ class AICallLog(TenantModel):
 
     # Token 使用量 / Token usage
     input_tokens: Mapped[int | None] = mapped_column(
-        Integer,
-        nullable=True,
-        comment=_("enum.ai_call_log.input_tokens")
+        Integer, nullable=True, comment=_("enum.ai_call_log.input_tokens")
     )
     output_tokens: Mapped[int | None] = mapped_column(
-        Integer,
-        nullable=True,
-        comment=_("enum.ai_call_log.output_tokens")
+        Integer, nullable=True, comment=_("enum.ai_call_log.output_tokens")
     )
     total_tokens: Mapped[int | None] = mapped_column(
-        Integer,
-        nullable=True,
-        index=True,
-        comment=_("enum.ai_call_log.total_tokens")
+        Integer, nullable=True, index=True, comment=_("enum.ai_call_log.total_tokens")
     )
 
     # 费用（美元） / Cost in USD
     cost: Mapped[float | None] = mapped_column(
-        Numeric(10, 6),
-        nullable=True,
-        comment=_("enum.ai_call_log.cost")
+        Numeric(10, 6), nullable=True, comment=_("enum.ai_call_log.cost")
     )
 
     # 延迟（毫秒） / Latency in ms
     latency_ms: Mapped[int | None] = mapped_column(
-        Integer,
-        nullable=True,
-        comment=_("enum.ai_call_log.latency_ms")
+        Integer, nullable=True, comment=_("enum.ai_call_log.latency_ms")
     )
 
     # 调用状态 / Call status
@@ -202,14 +186,12 @@ class AICallLog(TenantModel):
         nullable=False,
         default=CallStatusEnum.SUCCESS.value,
         index=True,
-        comment=_("enum.ai_call_log.status")
+        comment=_("enum.ai_call_log.status"),
     )
 
     # 错误信息 / Error message
     error_message: Mapped[str | None] = mapped_column(
-        Text,
-        nullable=True,
-        comment=_("enum.ai_call_log.error_message")
+        Text, nullable=True, comment=_("enum.ai_call_log.error_message")
     )
 
     # 请求哈希（用于缓存命中检测） / Request hash for cache lookup
@@ -217,15 +199,13 @@ class AICallLog(TenantModel):
         String(64),
         nullable=True,
         index=True,
-        comment=_("enum.ai_call_log.request_hash")
+        comment=_("enum.ai_call_log.request_hash"),
     )
 
     # 请求元数据（JSON 格式） / Request metadata JSON
     # 例如：请求参数、响应摘要等 / e.g. params, response summary
     request_metadata: Mapped[dict | None] = mapped_column(
-        JSON,
-        nullable=True,
-        comment=_("enum.ai_call_log.request_metadata")
+        JSON, nullable=True, comment=_("enum.ai_call_log.request_metadata")
     )
 
     # 路由信息（多模型路由结果） / Routing outcome (multi-model)
@@ -309,7 +289,9 @@ class AICallLog(TenantModel):
     __table_args__ = (
         # 企业 + 创建时间复合索引（用于按企业查询最近记录） / tenant + created_at
         Index("idx_ai_call_logs_tenant_created", "tenant_id", "created_at"),
-        Index("idx_ai_call_logs_billing_tenant_created", "billing_tenant_id", "created_at"),
+        Index(
+            "idx_ai_call_logs_billing_tenant_created", "billing_tenant_id", "created_at"
+        ),
         Index("idx_ai_call_logs_agent_created", "agent_id", "created_at"),
         Index("idx_ai_call_logs_conv_created", "conversation_id", "created_at"),
         # 用户 + 状态复合索引（用于用户调用统计） / user + status

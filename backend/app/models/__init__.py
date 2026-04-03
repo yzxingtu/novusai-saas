@@ -24,8 +24,6 @@ from app.models.ai import (
     AIActionLog,
     AICallLog,
     AIModel,
-    MemoryRecord,
-    ProfileSnapshot,
     AIProvider,
     AIQueryLog,
     AITablePolicy,
@@ -38,16 +36,18 @@ from app.models.ai import (
     ExecutionTrustPolicy,
     KnowledgeBase,
     KnowledgeDocument,
+    MemoryRecord,
+    ProfileSnapshot,
     ProviderApiKey,
     Skill,
     SkillCallLog,
     SkillCapabilityBinding,
     SkillPackage,
     SkillResource,
+    TenantAgentPlatformKbSuppression,
     TenantAgentPublication,
     TenantModelRateLimit,
     TenantQuota,
-    TenantAgentPlatformKbSuppression,
 )
 
 # RBAC 模型 / RBAC models

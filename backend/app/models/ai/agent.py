@@ -48,22 +48,62 @@ class Agent(BaseModel):
     }
 
     __delete_deps__ = [
-        DeletionDep("AgentAccess", "agent_id", DeletionStrategy.CASCADE_DELETE,
-                    label_field="id", i18n_key="agent_access"),
-        DeletionDep("TenantAgentPublication", "agent_id", DeletionStrategy.CASCADE_DELETE,
-                    label_field="id", i18n_key="agent_access"),
-        DeletionDep("AgentVersion", "agent_id", DeletionStrategy.CASCADE_DELETE,
-                    label_field="id", i18n_key="agent_version"),
-        DeletionDep("AgentSkillGrant", "agent_id", DeletionStrategy.CASCADE_DELETE,
-                    label_field="id", i18n_key="agent_skill_grant"),
-        DeletionDep("AgentKnowledgeBaseBinding", "agent_id", DeletionStrategy.CASCADE_DELETE,
-                    label_field="id", i18n_key="agent_kb_binding"),
-        DeletionDep("AgentConversation", "agent_id", DeletionStrategy.CASCADE_SOFT,
-                    label_field="id", i18n_key="agent_conversation"),
-        DeletionDep("BatchRun", "agent_id", DeletionStrategy.CASCADE_SOFT,
-                    label_field="id", i18n_key="batch_run"),
-        DeletionDep("SystemAgentAssignment", "agent_id", DeletionStrategy.NULLIFY,
-                    label_field="id", i18n_key="system_agent_assignment"),
+        DeletionDep(
+            "AgentAccess",
+            "agent_id",
+            DeletionStrategy.CASCADE_DELETE,
+            label_field="id",
+            i18n_key="agent_access",
+        ),
+        DeletionDep(
+            "TenantAgentPublication",
+            "agent_id",
+            DeletionStrategy.CASCADE_DELETE,
+            label_field="id",
+            i18n_key="agent_access",
+        ),
+        DeletionDep(
+            "AgentVersion",
+            "agent_id",
+            DeletionStrategy.CASCADE_DELETE,
+            label_field="id",
+            i18n_key="agent_version",
+        ),
+        DeletionDep(
+            "AgentSkillGrant",
+            "agent_id",
+            DeletionStrategy.CASCADE_DELETE,
+            label_field="id",
+            i18n_key="agent_skill_grant",
+        ),
+        DeletionDep(
+            "AgentKnowledgeBaseBinding",
+            "agent_id",
+            DeletionStrategy.CASCADE_DELETE,
+            label_field="id",
+            i18n_key="agent_kb_binding",
+        ),
+        DeletionDep(
+            "AgentConversation",
+            "agent_id",
+            DeletionStrategy.CASCADE_SOFT,
+            label_field="id",
+            i18n_key="agent_conversation",
+        ),
+        DeletionDep(
+            "BatchRun",
+            "agent_id",
+            DeletionStrategy.CASCADE_SOFT,
+            label_field="id",
+            i18n_key="batch_run",
+        ),
+        DeletionDep(
+            "SystemAgentAssignment",
+            "agent_id",
+            DeletionStrategy.NULLIFY,
+            label_field="id",
+            i18n_key="system_agent_assignment",
+        ),
     ]
 
     # 覆盖 TenantModel.tenant_id：使用 owner_tenant_id 表示资源归属企业（平台级为 NULL）
@@ -80,6 +120,7 @@ class Agent(BaseModel):
         "name": "name",
         "status": "status",
         "scope": "scope",
+        "source_plugin": "source_plugin",
         "visibility": "visibility",
         "execution_mode": "execution_mode",
         "model_id": "model_id",
@@ -103,6 +144,12 @@ class Agent(BaseModel):
         default=ResourceScopeEnum.ALL_TENANTS.value,
         index=True,
         comment="资源作用域 ResourceScopeEnum（五类）/ Resource scope",
+    )
+    source_plugin: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        index=True,
+        comment="来源插件 slug（插件托管智能体）/ Source plugin slug",
     )
 
     # ==================== 基本信息 ==================== / Basic info

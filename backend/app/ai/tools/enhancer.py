@@ -44,9 +44,7 @@ def enhance_tools_with_page_context(
         return
 
     op_names: list[str] = [
-        o["name"]
-        for o in raw_ops
-        if isinstance(o, dict) and o.get("name")
+        o["name"] for o in raw_ops if isinstance(o, dict) and o.get("name")
     ]
     if not op_names:
         return
@@ -62,9 +60,7 @@ def enhance_tools_with_page_context(
     for param in tool_def.parameters:
         if param.name == "operation_name":
             param.enum = op_names
-            param.description = (
-                "The operation to execute. Pick one from the enum list."
-            )
+            param.description = "The operation to execute. Pick one from the enum list."
         elif param.name == "page_key" and page_key:
             param.default = page_key
 

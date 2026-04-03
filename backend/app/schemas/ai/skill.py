@@ -27,25 +27,37 @@ class SkillCreate(BaseCreateSchema):
     name: str = Field(..., max_length=100, description=_("skill.field.name"))
     key: str | None = Field(None, max_length=100, description="Stable skill key")
     description: str | None = Field(None, description=_("skill.field.description"))
-    avatar: str | None = Field(None, max_length=255, description=_("skill.field.avatar"))
+    avatar: str | None = Field(
+        None, max_length=255, description=_("skill.field.avatar")
+    )
     type: str = Field("toolkit", description=_("skill.field.type"))
     source_type: str = Field(
         SkillSourceTypeEnum.CUSTOM.value,
         description="Skill source type",
     )
-    source_ref: str | None = Field(None, max_length=255, description="Skill source reference")
+    source_ref: str | None = Field(
+        None, max_length=255, description="Skill source reference"
+    )
     skill_md: str | None = Field(None, description="AgentScope-style SKILL.md content")
     version: str = Field("1.0.0", max_length=50, description="Skill version")
     status: str = Field(SkillStatusEnum.ACTIVE.value, description="Skill status")
     is_readonly: bool = Field(False, description="Readonly managed skill")
     config: dict[str, Any] | None = Field(None, description=_("skill.field.config"))
-    input_schema: dict[str, Any] | None = Field(None, description=_("skill.field.input_schema"))
-    output_schema: dict[str, Any] | None = Field(None, description=_("skill.field.output_schema"))
+    input_schema: dict[str, Any] | None = Field(
+        None, description=_("skill.field.input_schema")
+    )
+    output_schema: dict[str, Any] | None = Field(
+        None, description=_("skill.field.output_schema")
+    )
     is_active: bool = Field(True, description=_("skill.field.is_active"))
     sort_order: int = Field(0, ge=0, description=_("skill.field.sort_order"))
     timeout: int = Field(30, ge=1, le=300, description=_("skill.field.timeout"))
-    toolkit_content: str | None = Field(None, description=_("skill.field.toolkit_content"))
-    toolkit_meta: dict[str, Any] | None = Field(None, description=_("skill.field.toolkit_meta"))
+    toolkit_content: str | None = Field(
+        None, description=_("skill.field.toolkit_content")
+    )
+    toolkit_meta: dict[str, Any] | None = Field(
+        None, description=_("skill.field.toolkit_meta")
+    )
 
     @model_validator(mode="after")
     def validate_agentscope_skill_spec(self) -> "SkillCreate":
@@ -65,22 +77,36 @@ class SkillUpdate(BaseUpdateSchema):
     name: str | None = Field(None, max_length=100, description=_("skill.field.name"))
     key: str | None = Field(None, max_length=100, description="Stable skill key")
     description: str | None = Field(None, description=_("skill.field.description"))
-    avatar: str | None = Field(None, max_length=255, description=_("skill.field.avatar"))
+    avatar: str | None = Field(
+        None, max_length=255, description=_("skill.field.avatar")
+    )
     type: str | None = Field(None, description=_("skill.field.type"))
     source_type: str | None = Field(None, description="Skill source type")
-    source_ref: str | None = Field(None, max_length=255, description="Skill source reference")
+    source_ref: str | None = Field(
+        None, max_length=255, description="Skill source reference"
+    )
     skill_md: str | None = Field(None, description="AgentScope-style SKILL.md content")
     version: str | None = Field(None, max_length=50, description="Skill version")
     status: str | None = Field(None, description="Skill status")
     is_readonly: bool | None = Field(None, description="Readonly managed skill")
     config: dict[str, Any] | None = Field(None, description=_("skill.field.config"))
-    input_schema: dict[str, Any] | None = Field(None, description=_("skill.field.input_schema"))
-    output_schema: dict[str, Any] | None = Field(None, description=_("skill.field.output_schema"))
+    input_schema: dict[str, Any] | None = Field(
+        None, description=_("skill.field.input_schema")
+    )
+    output_schema: dict[str, Any] | None = Field(
+        None, description=_("skill.field.output_schema")
+    )
     is_active: bool | None = Field(None, description=_("skill.field.is_active"))
     sort_order: int | None = Field(None, ge=0, description=_("skill.field.sort_order"))
-    timeout: int | None = Field(None, ge=1, le=300, description=_("skill.field.timeout"))
-    toolkit_content: str | None = Field(None, description=_("skill.field.toolkit_content"))
-    toolkit_meta: dict[str, Any] | None = Field(None, description=_("skill.field.toolkit_meta"))
+    timeout: int | None = Field(
+        None, ge=1, le=300, description=_("skill.field.timeout")
+    )
+    toolkit_content: str | None = Field(
+        None, description=_("skill.field.toolkit_content")
+    )
+    toolkit_meta: dict[str, Any] | None = Field(
+        None, description=_("skill.field.toolkit_meta")
+    )
 
     @model_validator(mode="after")
     def validate_agentscope_skill_spec(self) -> "SkillUpdate":
@@ -99,7 +125,9 @@ class PluginToolInfo(BaseSchema):
 
     name: str = Field(..., description="Tool name")
     description: str | None = Field(None, description="Tool description")
-    parameters: list[dict[str, Any]] = Field(default_factory=list, description="Tool parameters")
+    parameters: list[dict[str, Any]] = Field(
+        default_factory=list, description="Tool parameters"
+    )
 
 
 class SkillResponse(BaseResponseSchema):
@@ -112,25 +140,39 @@ class SkillResponse(BaseResponseSchema):
     description: str | None = Field(None, description=_("skill.field.description"))
     avatar: str | None = Field(None, description=_("skill.field.avatar"))
     type: str = Field(..., description=_("skill.field.type"))
-    source_type: str = Field(SkillSourceTypeEnum.CUSTOM.value, description="Skill source type")
+    source_type: str = Field(
+        SkillSourceTypeEnum.CUSTOM.value, description="Skill source type"
+    )
     source_ref: str | None = Field(None, description="Skill source reference")
     skill_md: str | None = Field(None, description="AgentScope-style SKILL.md content")
     version: str = Field("1.0.0", description="Skill version")
     status: str = Field(SkillStatusEnum.ACTIVE.value, description="Skill status")
     is_readonly: bool = Field(False, description="Readonly managed skill")
     config: dict[str, Any] | None = Field(None, description=_("skill.field.config"))
-    input_schema: dict[str, Any] | None = Field(None, description=_("skill.field.input_schema"))
-    output_schema: dict[str, Any] | None = Field(None, description=_("skill.field.output_schema"))
+    input_schema: dict[str, Any] | None = Field(
+        None, description=_("skill.field.input_schema")
+    )
+    output_schema: dict[str, Any] | None = Field(
+        None, description=_("skill.field.output_schema")
+    )
     is_system: bool = Field(False, description=_("skill.field.is_system"))
     is_active: bool = Field(..., description=_("skill.field.is_active"))
     sort_order: int = Field(..., description=_("skill.field.sort_order"))
     timeout: int = Field(..., description=_("skill.field.timeout"))
-    toolkit_content: str | None = Field(None, description=_("skill.field.toolkit_content"))
-    toolkit_meta: dict[str, Any] | None = Field(None, description=_("skill.field.toolkit_meta"))
+    toolkit_content: str | None = Field(
+        None, description=_("skill.field.toolkit_content")
+    )
+    toolkit_meta: dict[str, Any] | None = Field(
+        None, description=_("skill.field.toolkit_meta")
+    )
 
     # ---- 插件来源信息（仅插件注册的技能有值） ---- / Plugin source (only for plugin-registered skills) ----
-    source_plugin: str | None = Field(None, description="Source plugin name (null for manual skills)")
-    plugin_tools: list[PluginToolInfo] | None = Field(None, description="Plugin-resolved tool list (null for manual skills)")
+    source_plugin: str | None = Field(
+        None, description="Source plugin name (null for manual skills)"
+    )
+    plugin_tools: list[PluginToolInfo] | None = Field(
+        None, description="Plugin-resolved tool list (null for manual skills)"
+    )
 
 
 __all__ = [

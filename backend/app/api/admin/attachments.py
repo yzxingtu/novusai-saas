@@ -96,6 +96,7 @@ class AdminAttachmentController(GlobalController):
             权限 / Permission: attachment:upload_rules
             """
             from app.configs.service import ConfigService
+
             config_service = ConfigService(db)
 
             allowed = await config_service.get_platform_config(
@@ -108,11 +109,13 @@ class AdminAttachmentController(GlobalController):
                 "platform_storage_max_file_size_mb", default=100
             )
 
-            return success(data={
-                "allowed_extensions": str(allowed) if allowed else "",
-                "denied_extensions": str(denied) if denied else "",
-                "max_file_size_mb": int(max_size) if max_size else 100,
-            })
+            return success(
+                data={
+                    "allowed_extensions": str(allowed) if allowed else "",
+                    "denied_extensions": str(denied) if denied else "",
+                    "max_file_size_mb": int(max_size) if max_size else 100,
+                }
+            )
 
         # ========== 预检接口（秒传） / Preflight (Instant Upload) ==========
 
@@ -123,7 +126,9 @@ class AdminAttachmentController(GlobalController):
             db: DbSession,
             current_admin: ActiveAdmin,
             body: AttachmentPreflightRequest,
-            tenant_id: int = Query(PLATFORM_TENANT_ID, ge=0, description=_("api.param.tenant_id")),
+            tenant_id: int = Query(
+                PLATFORM_TENANT_ID, ge=0, description=_("api.param.tenant_id")
+            ),
         ):
             """
             预检文件是否已存在 / Check if file already exists (preflight)
@@ -152,7 +157,9 @@ class AdminAttachmentController(GlobalController):
             resp = AttachmentPreflightResponse(
                 exists=result["exists"],
                 attachment=(
-                    AttachmentResponse.model_validate(result["attachment"], from_attributes=True)
+                    AttachmentResponse.model_validate(
+                        result["attachment"], from_attributes=True
+                    )
                     if result["attachment"]
                     else None
                 ),
@@ -170,10 +177,16 @@ class AdminAttachmentController(GlobalController):
             db: DbSession,
             current_admin: ActiveAdmin,
             file: UploadFile = File(..., description=_("api.param.file")),
-            tenant_id: int = Form(PLATFORM_TENANT_ID, ge=0, description=_("api.param.tenant_id")),
+            tenant_id: int = Form(
+                PLATFORM_TENANT_ID, ge=0, description=_("api.param.tenant_id")
+            ),
             visibility: str = Form("", description=_("api.param.visibility")),
-            business_type: str | None = Form(None, description=_("api.param.business_type")),
-            business_id: int | None = Form(None, description=_("api.param.business_id")),
+            business_type: str | None = Form(
+                None, description=_("api.param.business_type")
+            ),
+            business_id: int | None = Form(
+                None, description=_("api.param.business_id")
+            ),
         ):
             """
             平台端上传附件 / Platform upload attachment
@@ -222,10 +235,16 @@ class AdminAttachmentController(GlobalController):
             db: DbSession,
             current_admin: ActiveAdmin,
             files: list[UploadFile] = File(..., description=_("api.param.files")),
-            tenant_id: int = Form(PLATFORM_TENANT_ID, ge=0, description=_("api.param.tenant_id")),
+            tenant_id: int = Form(
+                PLATFORM_TENANT_ID, ge=0, description=_("api.param.tenant_id")
+            ),
             visibility: str = Form("", description=_("api.param.visibility")),
-            business_type: str | None = Form(None, description=_("api.param.business_type")),
-            business_id: int | None = Form(None, description=_("api.param.business_id")),
+            business_type: str | None = Form(
+                None, description=_("api.param.business_type")
+            ),
+            business_id: int | None = Form(
+                None, description=_("api.param.business_id")
+            ),
         ):
             """
             平台端批量上传附件 / Platform batch upload attachments
@@ -259,23 +278,27 @@ class AdminAttachmentController(GlobalController):
                         business_type=business_type,
                         business_id=business_id,
                     )
-                    items.append(BatchUploadItem(
-                        filename=f.filename or "unnamed",
-                        success=True,
-                        attachment=AttachmentResponse.model_validate(
-                            result["attachment"], from_attributes=True
-                        ),
-                        url=result["url"],
-                    ))
+                    items.append(
+                        BatchUploadItem(
+                            filename=f.filename or "unnamed",
+                            success=True,
+                            attachment=AttachmentResponse.model_validate(
+                                result["attachment"], from_attributes=True
+                            ),
+                            url=result["url"],
+                        )
+                    )
                 except Exception as exc:
-                    items.append(BatchUploadItem(
-                        filename=f.filename or "unnamed",
-                        success=False,
-                        error=build_public_error_text(
-                            exc,
-                            fallback_message=_("common.server_error"),
-                        ),
-                    ))
+                    items.append(
+                        BatchUploadItem(
+                            filename=f.filename or "unnamed",
+                            success=False,
+                            error=build_public_error_text(
+                                exc,
+                                fallback_message=_("common.server_error"),
+                            ),
+                        )
+                    )
             success_count = sum(1 for i in items if i.success)
             return success(
                 data=BatchUploadResponse(
@@ -423,9 +446,13 @@ class AdminAttachmentController(GlobalController):
             db: DbSession,
             current_admin: ActiveAdmin,
             search: str = Query("", description=_("api.param.search")),
-            tenant_id: int | None = Query(None, description=_("api.param.tenant_id_filter")),
+            tenant_id: int | None = Query(
+                None, description=_("api.param.tenant_id_filter")
+            ),
             page: int = Query(0, ge=0, description=_("api.param.page")),
-            page_size: int = Query(20, ge=1, le=100, description=_("api.param.page_size")),
+            page_size: int = Query(
+                20, ge=1, le=100, description=_("api.param.page_size")
+            ),
         ):
             """
             获取附件下拉选项 / Get attachment dropdown options
@@ -453,7 +480,9 @@ class AdminAttachmentController(GlobalController):
             request: Request,
             db: DbSession,
             current_admin: ActiveAdmin,
-            tenant_id: int | None = Query(None, description=_("api.param.tenant_id_filter")),
+            tenant_id: int | None = Query(
+                None, description=_("api.param.tenant_id_filter")
+            ),
         ):
             """
             获取附件存储统计 / Get attachment storage statistics
@@ -507,7 +536,9 @@ class AdminAttachmentController(GlobalController):
             items, total = await service.query_list(spec, scope="admin")
             serialized = [
                 _with_preview_url(
-                    AttachmentListItem.model_validate(item, from_attributes=True).model_dump()
+                    AttachmentListItem.model_validate(
+                        item, from_attributes=True
+                    ).model_dump()
                 )
                 for item in items
             ]
@@ -539,7 +570,9 @@ class AdminAttachmentController(GlobalController):
             if not attachment:
                 raise NotFoundException(message=_("error.common.not_found"))
             data = _with_preview_url(
-                AttachmentResponse.model_validate(attachment, from_attributes=True).model_dump()
+                AttachmentResponse.model_validate(
+                    attachment, from_attributes=True
+                ).model_dump()
             )
             return success(
                 data=data,
@@ -584,7 +617,9 @@ class AdminAttachmentController(GlobalController):
             data = await service.build_access_url(
                 attachment, expires=expires, preview=False
             )
-            return success(data=AttachmentAccessUrlResponse(**data), message=_("common.success"))
+            return success(
+                data=AttachmentAccessUrlResponse(**data), message=_("common.success")
+            )
 
         @router.get("/{attachment_id}/preview-url", summary="获取预览链接")
         @action_read("action.attachment.preview_url")
@@ -604,7 +639,9 @@ class AdminAttachmentController(GlobalController):
             data = await service.build_access_url(
                 attachment, expires=expires, preview=True
             )
-            return success(data=AttachmentAccessUrlResponse(**data), message=_("common.success"))
+            return success(
+                data=AttachmentAccessUrlResponse(**data), message=_("common.success")
+            )
 
         @router.get("/{attachment_id}/download", summary="下载附件")
         @action_read("action.attachment.download")

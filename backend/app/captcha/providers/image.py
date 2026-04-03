@@ -96,7 +96,9 @@ class ImageCaptchaProvider(ICaptchaProvider, CaptchaLoggerMixin):
             token=None,
         )
 
-    async def verify(self, challenge_id: str, solution: str, ctx: dict[str, Any]) -> CaptchaVerificationResult:
+    async def verify(
+        self, challenge_id: str, solution: str, ctx: dict[str, Any]
+    ) -> CaptchaVerificationResult:
         """Verify captcha solution against stored hash / 验证验证码答案与存储的哈希比对"""
         _ = ctx
         self.logger.debug(
@@ -105,7 +107,9 @@ class ImageCaptchaProvider(ICaptchaProvider, CaptchaLoggerMixin):
         )
         item = self._store.get(challenge_id)
         if not item:
-            self.logger.warning(f"[VERIFY] NOT_FOUND challenge_id={challenge_id} (not in store)")
+            self.logger.warning(
+                f"[VERIFY] NOT_FOUND challenge_id={challenge_id} (not in store)"
+            )
             return CaptchaVerificationResult(ok=False, reason="not_found", score=None)
         if item.get("used"):
             self.logger.warning(f"[VERIFY] USED challenge_id={challenge_id}")
@@ -130,5 +134,7 @@ class ImageCaptchaProvider(ICaptchaProvider, CaptchaLoggerMixin):
             del self._store[challenge_id]
             self.logger.info(f"[VERIFY] SUCCESS challenge_id={challenge_id}")
             return CaptchaVerificationResult(ok=True, reason=None, score=None)
-        self.logger.warning(f"[VERIFY] MISMATCH challenge_id={challenge_id} solution={solution}")
+        self.logger.warning(
+            f"[VERIFY] MISMATCH challenge_id={challenge_id} solution={solution}"
+        )
         return CaptchaVerificationResult(ok=False, reason="mismatch", score=None)

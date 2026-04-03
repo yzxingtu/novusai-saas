@@ -179,7 +179,9 @@ class TenantDomainController(TenantController):
 
             # 如果请求设为主域名，且域名已验证 / If requested as primary and domain is verified
             if data.is_primary and domain.is_verified:
-                domain = await service.set_primary_domain(current_admin.tenant_id, domain.id)
+                domain = await service.set_primary_domain(
+                    current_admin.tenant_id, domain.id
+                )
 
             await db.commit()
 
@@ -235,7 +237,9 @@ class TenantDomainController(TenantController):
 
             # 如果请求设为主域名 / If requested as primary
             if data.is_primary is True:
-                domain = await service.set_primary_domain(current_admin.tenant_id, domain_id)
+                domain = await service.set_primary_domain(
+                    current_admin.tenant_id, domain_id
+                )
 
             await db.commit()
 
@@ -307,7 +311,9 @@ class TenantDomainController(TenantController):
             # 执行 DNS TXT 记录验证 / Execute DNS TXT record verification
             domain = await service.verify_domain(domain_id)
             await db.commit()
-            auto_provisioned = await service.maybe_auto_start_ssl_after_verify(domain_id)
+            auto_provisioned = await service.maybe_auto_start_ssl_after_verify(
+                domain_id
+            )
             if auto_provisioned:
                 await db.commit()
                 domain = auto_provisioned
@@ -335,7 +341,9 @@ class TenantDomainController(TenantController):
             权限 / Permission: tenant_domain:set_primary
             """
             service = self.get_service(db, current_admin.tenant_id)
-            domain = await service.set_primary_domain(current_admin.tenant_id, domain_id)
+            domain = await service.set_primary_domain(
+                current_admin.tenant_id, domain_id
+            )
             await db.commit()
 
             return success(
@@ -357,7 +365,10 @@ class TenantDomainController(TenantController):
             service = self.get_service(db, current_admin.tenant_id)
             domain = await service.get_by_id(domain_id)
             if not domain or domain.tenant_id != current_admin.tenant_id:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("tenant_domain.not_found"))
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=_("tenant_domain.not_found"),
+                )
 
             ssl_service = SslCertificateService(db)
             cert = await ssl_service.get_cert_detail(domain_id)
@@ -377,9 +388,15 @@ class TenantDomainController(TenantController):
             service = self.get_service(db, current_admin.tenant_id)
             domain = await service.get_by_id(domain_id)
             if not domain or domain.tenant_id != current_admin.tenant_id:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("tenant_domain.not_found"))
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=_("tenant_domain.not_found"),
+                )
             if not domain.is_verified:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_("ssl_certificate.domain_not_verified"))
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=_("ssl_certificate.domain_not_verified"),
+                )
 
             await service.start_ssl_provision(domain_id)
             await db.commit()
@@ -398,22 +415,37 @@ class TenantDomainController(TenantController):
             service = self.get_service(db, current_admin.tenant_id)
             domain = await service.get_by_id(domain_id)
             if not domain or domain.tenant_id != current_admin.tenant_id:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("tenant_domain.not_found"))
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=_("tenant_domain.not_found"),
+                )
 
             ssl_service = SslCertificateService(db)
             cert = await ssl_service.get_cert_detail(domain_id)
             if not cert:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("ssl_certificate.not_found"))
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=_("ssl_certificate.not_found"),
+                )
 
             from app.enums.domain import SslCertType
+
             if cert.cert_type != SslCertType.PLATFORM.value:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_("ssl_certificate.custom_cert_no_renew"))
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=_("ssl_certificate.custom_cert_no_renew"),
+                )
 
             from app.services.system.dns_provider import ensure_dns_provider_ready
 
             await ensure_dns_provider_ready(db)
             from app.celery_app import celery_app
-            celery_app.send_task("app.tasks.ssl_tasks.task_renew_ssl", kwargs={"cert_id": cert.id}, queue="default")
+
+            celery_app.send_task(
+                "app.tasks.ssl_tasks.task_renew_ssl",
+                kwargs={"cert_id": cert.id},
+                queue="default",
+            )
 
             return success(message=_("ssl_certificate.renew_started"))
 
@@ -433,7 +465,10 @@ class TenantDomainController(TenantController):
             service = self.get_service(db, current_admin.tenant_id)
             domain = await service.get_by_id(domain_id)
             if not domain or domain.tenant_id != current_admin.tenant_id:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("tenant_domain.not_found"))
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=_("tenant_domain.not_found"),
+                )
 
             ssl_service = SslCertificateService(db)
             cert = await ssl_service.upload_custom_cert(
@@ -463,7 +498,10 @@ class TenantDomainController(TenantController):
             service = self.get_service(db, current_admin.tenant_id)
             domain = await service.get_by_id(domain_id)
             if not domain or domain.tenant_id != current_admin.tenant_id:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("tenant_domain.not_found"))
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=_("tenant_domain.not_found"),
+                )
 
             ssl_service = SslCertificateService(db)
             await ssl_service.delete_cert(domain_id)
@@ -484,7 +522,10 @@ class TenantDomainController(TenantController):
             service = self.get_service(db, current_admin.tenant_id)
             domain = await service.get_by_id(domain_id)
             if not domain or domain.tenant_id != current_admin.tenant_id:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("tenant_domain.not_found"))
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=_("tenant_domain.not_found"),
+                )
 
             ssl_service = SslCertificateService(db)
             cert = await ssl_service.toggle_auto_renew(domain_id, data.auto_renew)

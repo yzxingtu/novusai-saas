@@ -22,23 +22,29 @@ if TYPE_CHECKING:
 
 
 # 管理端可见的资源 scope / Admin-visible resource scopes
-_ADMIN_VISIBLE_SCOPES = frozenset({
-    ResourceScopeEnum.ADMIN_ONLY.value,
-    ResourceScopeEnum.GLOBAL_SHARED.value,
-    ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
-})
+_ADMIN_VISIBLE_SCOPES = frozenset(
+    {
+        ResourceScopeEnum.ADMIN_ONLY.value,
+        ResourceScopeEnum.GLOBAL_SHARED.value,
+        ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+    }
+)
 
 # 对所有企业可见（无需分配表）/ Visible to every tenant without assignment table
-_ALL_TENANTS_VISIBLE_SCOPES = frozenset({
-    ResourceScopeEnum.ALL_TENANTS.value,
-    ResourceScopeEnum.GLOBAL_SHARED.value,
-})
+_ALL_TENANTS_VISIBLE_SCOPES = frozenset(
+    {
+        ResourceScopeEnum.ALL_TENANTS.value,
+        ResourceScopeEnum.GLOBAL_SHARED.value,
+    }
+)
 
 # 需要 ResourceTenantAssignment 的 scope / Scopes requiring assignment rows
-_ASSIGNMENT_REQUIRED_SCOPES = frozenset({
-    ResourceScopeEnum.SELECTED_TENANTS.value,
-    ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
-})
+_ASSIGNMENT_REQUIRED_SCOPES = frozenset(
+    {
+        ResourceScopeEnum.SELECTED_TENANTS.value,
+        ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+    }
+)
 
 _TENANT_POSSIBLE_SCOPES = _ALL_TENANTS_VISIBLE_SCOPES | _ASSIGNMENT_REQUIRED_SCOPES
 

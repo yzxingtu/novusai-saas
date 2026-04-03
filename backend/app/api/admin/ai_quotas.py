@@ -50,14 +50,14 @@ def _build_quota_response(quota) -> dict:
     model_name = None
 
     try:
-        tenant = getattr(quota, 'tenant', None)
+        tenant = getattr(quota, "tenant", None)
         if tenant is not None:
             tenant_name = tenant.name
     except AttributeError:
         pass
 
     try:
-        model = getattr(quota, 'model', None)
+        model = getattr(quota, "model", None)
         if model is not None:
             model_name = model.name
     except AttributeError:
@@ -178,7 +178,10 @@ class AdminAIQuotaController(GlobalController):
                 message=_("ai.rate_limit.created"),
             )
 
-        @router.put("/rate-limits/{rate_limit_id}", summary=_("action.ai_quota.update_rate_limit"))
+        @router.put(
+            "/rate-limits/{rate_limit_id}",
+            summary=_("action.ai_quota.update_rate_limit"),
+        )
         @action_update("action.ai_quota.update_rate_limit")
         async def update_rate_limit(
             request: Request,
@@ -207,14 +210,19 @@ class AdminAIQuotaController(GlobalController):
                 raise NotFoundException(message=_("ai.error.rate_limit_not_found"))
 
             service = TenantRateLimitService(db, rate_limit.tenant_id)
-            updated = await service.update(rate_limit_id, data.model_dump(exclude_unset=True))
+            updated = await service.update(
+                rate_limit_id, data.model_dump(exclude_unset=True)
+            )
             await db.commit()
             return success(
                 data=TenantRateLimitResponse.from_orm_model(updated),
                 message=_("ai.rate_limit.updated"),
             )
 
-        @router.delete("/rate-limits/{rate_limit_id}", summary=_("action.ai_quota.delete_rate_limit"))
+        @router.delete(
+            "/rate-limits/{rate_limit_id}",
+            summary=_("action.ai_quota.delete_rate_limit"),
+        )
         @action_delete("action.ai_quota.delete_rate_limit")
         async def delete_rate_limit(
             request: Request,
@@ -285,14 +293,10 @@ class AdminAIQuotaController(GlobalController):
             quota = await repo.get_by_id(quota_id)
 
             if not quota:
-                raise NotFoundException(
-                    message=_("ai.error.quota_not_found")
-                )
+                raise NotFoundException(message=_("ai.error.quota_not_found"))
 
             return success(
-                data=TenantQuotaResponse.model_validate(
-                    quota, from_attributes=True
-                ),
+                data=TenantQuotaResponse.model_validate(quota, from_attributes=True),
                 message=_("common.success"),
             )
 
@@ -310,16 +314,12 @@ class AdminAIQuotaController(GlobalController):
             权限 / Permission: ai_quota:create
             """
             service = TenantQuotaService(db, data.tenant_id)
-            quota = await service.create(
-                data.model_dump(exclude={"tenant_id"})
-            )
+            quota = await service.create(data.model_dump(exclude={"tenant_id"}))
             await db.commit()
-            await db.refresh(quota, ['model', 'tenant'])
+            await db.refresh(quota, ["model", "tenant"])
 
             return success(
-                data=TenantQuotaResponse.model_validate(
-                    quota, from_attributes=True
-                ),
+                data=TenantQuotaResponse.model_validate(quota, from_attributes=True),
                 message=_("ai.quota.created"),
             )
 
@@ -341,21 +341,17 @@ class AdminAIQuotaController(GlobalController):
             quota = await repo.get_by_id(quota_id)
 
             if not quota:
-                raise NotFoundException(
-                    message=_("ai.error.quota_not_found")
-                )
+                raise NotFoundException(message=_("ai.error.quota_not_found"))
 
             service = TenantQuotaService(db, quota.tenant_id)
             updated = await service.update(
                 quota_id, data.model_dump(exclude_unset=True)
             )
             await db.commit()
-            await db.refresh(updated, ['model', 'tenant'])
+            await db.refresh(updated, ["model", "tenant"])
 
             return success(
-                data=TenantQuotaResponse.model_validate(
-                    updated, from_attributes=True
-                ),
+                data=TenantQuotaResponse.model_validate(updated, from_attributes=True),
                 message=_("ai.quota.updated"),
             )
 
@@ -376,9 +372,7 @@ class AdminAIQuotaController(GlobalController):
             quota = await repo.get_by_id(quota_id)
 
             if not quota:
-                raise NotFoundException(
-                    message=_("ai.error.quota_not_found")
-                )
+                raise NotFoundException(message=_("ai.error.quota_not_found"))
 
             service = TenantQuotaService(db, quota.tenant_id)
             await service.delete(quota_id)

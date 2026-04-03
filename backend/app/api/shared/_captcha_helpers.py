@@ -75,8 +75,7 @@ def inject_captcha_provider_options(
 
         existing_options = list(cfg.get("options") or [])
         existing_values = {
-            str(opt.get("value") or "").strip()
-            for opt in existing_options
+            str(opt.get("value") or "").strip() for opt in existing_options
         }
 
         dynamic_options: list[dict[str, str]] = []
@@ -89,27 +88,28 @@ def inject_captcha_provider_options(
             if not _supports_required_endpoints(code, metadata, required):
                 continue
 
-            dynamic_options.append({
-                "value": code,
-                "label": _resolve_provider_label(code, metadata),
-            })
+            dynamic_options.append(
+                {
+                    "value": code,
+                    "label": _resolve_provider_label(code, metadata),
+                }
+            )
 
         dynamic_options.sort(key=lambda item: str(item["label"]).lower())
         cfg["options"] = [*existing_options, *dynamic_options]
 
         current_value = str(cfg.get("value") or "").strip()
-        final_values = {
-            str(opt.get("value") or "").strip()
-            for opt in cfg["options"]
-        }
+        final_values = {str(opt.get("value") or "").strip() for opt in cfg["options"]}
         if current_value and current_value not in final_values:
-            cfg["options"].append({
-                "value": current_value,
-                "label": _(
-                    unavailable_label_key,
-                    provider=current_value,
-                ),
-            })
+            cfg["options"].append(
+                {
+                    "value": current_value,
+                    "label": _(
+                        unavailable_label_key,
+                        provider=current_value,
+                    ),
+                }
+            )
         break
 
 

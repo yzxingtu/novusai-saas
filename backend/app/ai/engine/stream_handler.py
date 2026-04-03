@@ -140,9 +140,7 @@ class StreamExecutionHandler:
         all_tool_results: list[ToolResult] = []
         output = ""
         self._output = ""  # Used for partial persist on interrupt  # 补充说明 / note
-        self._reasoning_output = (
-            ""  # For chain-of-thought models, used in partial persist  # 补充说明 / note
-        )
+        self._reasoning_output = ""  # For chain-of-thought models, used in partial persist  # 补充说明 / note
         self._total_tokens = 0
         self._runtime_model_info: dict[str, Any] | None = None
         self._runtime_turn_record: dict[str, Any] | None = None
@@ -154,15 +152,16 @@ class StreamExecutionHandler:
                 # Publish conversation id early so frontend keeps the session / 上文为英文说明 / English above
                 # even when the stream is interrupted before the final done event.
                 yield SSEChunkEncoder.encode(
-                    _trace_payload({
-                        "event": "conversation",
-                        "conversation_id": self.request.conversation_id,
-                    })
+                    _trace_payload(
+                        {
+                            "event": "conversation",
+                            "conversation_id": self.request.conversation_id,
+                        }
+                    )
                 )
             kb_feedback = getattr(self.request, "knowledge_base_feedback", None)
-            if (
-                isinstance(kb_feedback, dict)
-                and kb_feedback.get("dropped_knowledge_base_ids")
+            if isinstance(kb_feedback, dict) and kb_feedback.get(
+                "dropped_knowledge_base_ids"
             ):
                 yield SSEChunkEncoder.encode(
                     _trace_payload(
@@ -183,7 +182,10 @@ class StreamExecutionHandler:
                 ),
             )
             bundle_selected_skill_names = (
-                list(getattr(self.prep.capability_bundle, "selected_skill_names", []) or [])
+                list(
+                    getattr(self.prep.capability_bundle, "selected_skill_names", [])
+                    or []
+                )
                 if getattr(self.prep, "capability_bundle", None) is not None
                 else []
             )
@@ -321,14 +323,16 @@ class StreamExecutionHandler:
                     message=ChatMessage(role="assistant", content=output),
                     total_tokens=total_tokens,
                 )
-                final_breach_type, final_breach_policy_unused, final_breach_diagnostics = (
-                    self.engine._analyze_post_tool_contract_breach(
-                        messages=messages,
-                        response=final_contract_response,
-                        current_policy=self._contract_policy or ToolUsePolicy(),
-                        tools=self._contract_tools_snapshot,
-                        input_variables=getattr(self.request, "input_variables", None),
-                    )
+                (
+                    final_breach_type,
+                    final_breach_policy_unused,
+                    final_breach_diagnostics,
+                ) = self.engine._analyze_post_tool_contract_breach(
+                    messages=messages,
+                    response=final_contract_response,
+                    current_policy=self._contract_policy or ToolUsePolicy(),
+                    tools=self._contract_tools_snapshot,
+                    input_variables=getattr(self.request, "input_variables", None),
                 )
                 del final_breach_policy_unused
                 self._contract_recovered_via_retry = final_breach_type is None
@@ -373,11 +377,13 @@ class StreamExecutionHandler:
                 tool_planner=tool_planner,
                 turn_record=self._runtime_turn_record,
             )
-            result.turn_record = self.engine._merge_contract_diagnostics_into_turn_record(
-                result.turn_record,
-                breach_type=self._contract_breach_type,
-                diagnostics=self._contract_breach_diagnostics,
-                recovered_via_retry=self._contract_recovered_via_retry,
+            result.turn_record = (
+                self.engine._merge_contract_diagnostics_into_turn_record(
+                    result.turn_record,
+                    breach_type=self._contract_breach_type,
+                    diagnostics=self._contract_breach_diagnostics,
+                    recovered_via_retry=self._contract_recovered_via_retry,
+                )
             )
 
             # Start callback before yielding done so client-side disconnect
@@ -389,17 +395,19 @@ class StreamExecutionHandler:
             # on_complete may trigger slow operations (e.g. memory extraction LLM call);
             # emitting done before the callback prevents the UI from hanging.
             yield SSEChunkEncoder.encode(
-                _trace_payload({
-                    "event": "done",
-                    "conversation_id": self.request.conversation_id,
-                    "total_tokens": total_tokens,
-                    "duration_ms": duration_ms,
-                    "context_compacted": result.context_compacted,
-                    "memory_flush_triggered": result.memory_flush_triggered,
-                    "memory_recalled": result.memory_recalled,
-                    "prune_stats": result.prune_stats,
-                    "rag_source_kinds": result.rag_source_kinds,
-                })
+                _trace_payload(
+                    {
+                        "event": "done",
+                        "conversation_id": self.request.conversation_id,
+                        "total_tokens": total_tokens,
+                        "duration_ms": duration_ms,
+                        "context_compacted": result.context_compacted,
+                        "memory_flush_triggered": result.memory_flush_triggered,
+                        "memory_recalled": result.memory_recalled,
+                        "prune_stats": result.prune_stats,
+                        "rag_source_kinds": result.rag_source_kinds,
+                    }
+                )
             )
 
             yield SSEChunkEncoder.done()
@@ -574,7 +582,9 @@ class StreamExecutionHandler:
         self._total_tokens = 0
         self._output = ""
         self._reasoning_output = ""
-        _unused_strip_fc_tokens = strip_fc_tokens  # unused in real streaming path  # 补充说明 / note
+        _unused_strip_fc_tokens = (
+            strip_fc_tokens  # unused in real streaming path  # 补充说明 / note
+        )
         del _unused_strip_fc_tokens
         append_final_assistant = True
         next_runtime_context = getattr(self.prep, "stream_runtime", None)
@@ -601,8 +611,7 @@ class StreamExecutionHandler:
                 _last_user_text = (_last.content or "").strip()
 
         _has_structured_confirm = any(
-            str(u.get("kind") or "") == "pending_confirmation"
-            and not u.get("rejected")
+            str(u.get("kind") or "") == "pending_confirmation" and not u.get("rejected")
             for u in (self.request.interaction_updates or [])
         )
 
@@ -781,11 +790,13 @@ class StreamExecutionHandler:
                     total_tokens=round_total_tokens,
                 )
                 breach_type = "stream_capability_denial_or_no_tool_use"
-                should_retry, retry_policy, generic_breach_preview = self.engine._should_retry_tool_contract_breach(
-                    response=denial_response,
-                    current_policy=round_tool_policy,
-                    tools=tools_full,
-                    input_variables=getattr(self.request, "input_variables", None),
+                should_retry, retry_policy, generic_breach_preview = (
+                    self.engine._should_retry_tool_contract_breach(
+                        response=denial_response,
+                        current_policy=round_tool_policy,
+                        tools=tools_full,
+                        input_variables=getattr(self.request, "input_variables", None),
+                    )
                 )
                 del generic_breach_preview
                 if not should_retry:
@@ -795,7 +806,9 @@ class StreamExecutionHandler:
                             response=denial_response,
                             current_policy=round_tool_policy,
                             tools=tools_full,
-                            input_variables=getattr(self.request, "input_variables", None),
+                            input_variables=getattr(
+                                self.request, "input_variables", None
+                            ),
                             continuation=continuation_context,
                         )
                     )
@@ -809,7 +822,9 @@ class StreamExecutionHandler:
                             response=denial_response,
                             current_policy=round_tool_policy,
                             tools=tools_full,
-                            input_variables=getattr(self.request, "input_variables", None),
+                            input_variables=getattr(
+                                self.request, "input_variables", None
+                            ),
                         )
                     )
                     should_retry = breach_type is not None and retry_policy is not None
@@ -920,12 +935,9 @@ class StreamExecutionHandler:
                     reasoning_content=round_visible_thinking or None,
                 )
             )
-            if (
-                round_tool_policy.mode == "required"
-                and (
-                    round_tool_policy.reason.startswith("capability_denial:")
-                    or round_tool_policy.reason.startswith("required_retry:")
-                )
+            if round_tool_policy.mode == "required" and (
+                round_tool_policy.reason.startswith("capability_denial:")
+                or round_tool_policy.reason.startswith("required_retry:")
             ):
                 self.engine._log_tool_contract_diagnostics(
                     agent=self.agent,
@@ -1152,7 +1164,8 @@ class StreamExecutionHandler:
             executed_web_research_round = (
                 round_tool_policy.family == "web_research"
                 and any(
-                    ((tc.get("function") or {}).get("name") or "") in {"web_search", "fetch_url"}
+                    ((tc.get("function") or {}).get("name") or "")
+                    in {"web_search", "fetch_url"}
                     for tc in tc_list
                     if isinstance(tc, dict)
                 )
@@ -1237,7 +1250,9 @@ class StreamExecutionHandler:
             self._reasoning_output = final_round_reasoning
 
         if append_final_assistant:
-            final_output, final_action_buttons = self._extract_action_buttons(self._output)
+            final_output, final_action_buttons = self._extract_action_buttons(
+                self._output
+            )
             self._output = final_output
             messages.append(
                 ChatMessage(

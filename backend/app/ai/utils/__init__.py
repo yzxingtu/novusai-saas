@@ -47,7 +47,9 @@ def parse_messages(messages: list) -> list[AIChatMessage]:
         AIChatMessage(
             role=msg.role,
             content=msg.content or "",
-            tool_calls=[tc.model_dump() for tc in msg.tool_calls] if msg.tool_calls else None,
+            tool_calls=[tc.model_dump() for tc in msg.tool_calls]
+            if msg.tool_calls
+            else None,
             tool_call_id=msg.tool_call_id,
         )
         for msg in messages

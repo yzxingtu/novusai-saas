@@ -43,7 +43,6 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         component="dashboard/Index",
         sort_order=0,
     ),
-
     # ========================================
     # Workspace (directory, for content/doc plugin mounting) / 工作台（目录，供内容/文档类插件挂载）
     # ========================================
@@ -60,7 +59,6 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     ),
     # Child menus declared by plugins / 子菜单由插件声明:
     # - menu:tenant.plugin_novusdoc_* (Document Management / 文档管理)
-
     # ========================================
     # Permission Management (directory) / 权限管理（目录）
     # ========================================
@@ -80,7 +78,6 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     # - menu:tenant.organization (Organization / 组织架构) - declared by roles.py / 由 roles.py 声明
     # permission 控制器无菜单，仅 API / permission controller has no menu
     # tenant_user 无独立菜单（权限挂在用户架构等页面）/ tenant_user has no menu entry
-
     # ========================================
     # System Management (directory) / 系统管理（目录）
     # ========================================
@@ -100,7 +97,6 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     # - menu:tenant.tenant_domain — domains.py
     # - menu:tenant.attachment — attachments.py
     # - menu:tenant.global_preferences — 下方静态声明
-
     # ---- Global Preferences (leaf menu) / 偏好设置（叶子菜单） ----
     PermissionMeta(
         code="menu:tenant.global_preferences",
@@ -115,7 +111,6 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         sort_order=20,
         parent_code="menu:tenant.system_mgmt",
     ),
-
     # ========================================
     # AI Management (directory) / AI 管理（目录）
     # ========================================
@@ -130,7 +125,6 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         path="/ai",
         sort_order=25,
     ),
-
     # ---- AI Apps (sub-directory, unified name with admin) / 智能应用（子目录，与管理端统一名称） ----
     PermissionMeta(
         code="menu:tenant.ai_workspace",
@@ -149,7 +143,6 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     # - menu:tenant.agent_chat (hidden menu entry for /ai/chat / 隐藏项，路由用)
     # - menu:tenant.knowledge_base (Knowledge Base / 知识库)
     # 无独立「工具管理」菜单（工具在智能体等页面内配置）/ No standalone tool menu in core tenant UI
-
     # ---- Settings (sub-directory) / 设置（子目录） ----
     PermissionMeta(
         code="menu:tenant.ai_settings",
@@ -166,7 +159,6 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     # Child menus declared by controllers / 子菜单由控制器声明:
     # - menu:tenant.ai_config (AI Config / AI 配置)
     # - menu:tenant.ai_quota (Quota Management / 配额管理)
-
     # ---- Data Analytics (sub-directory, unified name with admin) / 数据分析（子目录，与管理端统一名称） ----
     PermissionMeta(
         code="menu:tenant.ai_analytics",
@@ -185,7 +177,6 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     # - menu:tenant.ai_call_log (Call Log / 调用日志)
     # - menu:tenant.agent_conversation (Conversation Management / 对话管理)
     # - menu:tenant.ai_action_log (Action Audit / 操作审计)
-
     # ========================================
     # System Maintenance (directory) / 系统维护（目录）
     # ========================================
@@ -200,7 +191,6 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         path="/system-maintenance",
         sort_order=30,
     ),
-
     # ---- Log Center (sub-directory) / 日志中心（子目录） ----
     PermissionMeta(
         code="menu:tenant.logs",
@@ -217,10 +207,8 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     # Child menus declared by controllers / 子菜单由控制器声明:
     # - menu:tenant.operation_log (Operation Log / 操作日志)
     # - menu:tenant.task_log (Task Log / 任务日志)
-
     # Other child menus declared by controllers / 其他子菜单由控制器声明:
     # - menu:tenant.periodic_task (Periodic Task / 定时任务)
-
     # ========================================
     # Business Management (directory, reserved) / 业务管理（目录，预留）
     # ========================================

@@ -160,6 +160,7 @@ async def update_profile(
         await db.rollback()
         if "unique" in str(e).lower() and "email" in str(e).lower():
             from app.exceptions import BusinessException
+
             raise BusinessException(message=_("auth.email_already_exists")) from e
         raise
 

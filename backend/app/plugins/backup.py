@@ -97,7 +97,9 @@ async def backup_plugin_data(
         # / 读操作放在 savepoint 内，避免 SQL 异常污染外层事务状态
         async with db.begin_nested():
             result = await db.execute(
-                select(Plugin.config, Plugin.manifest, Plugin.granted_capabilities).where(
+                select(
+                    Plugin.config, Plugin.manifest, Plugin.granted_capabilities
+                ).where(
                     Plugin.name == plugin_name,
                     Plugin.is_deleted.is_(False),
                 )
@@ -111,7 +113,9 @@ async def backup_plugin_data(
                     "backed_up_at": utc_now().isoformat(),
                 }
                 config_path = backup_dir / "config_snapshot.json"
-                config_path.write_text(json.dumps(config_snapshot, ensure_ascii=False, indent=2))
+                config_path.write_text(
+                    json.dumps(config_snapshot, ensure_ascii=False, indent=2)
+                )
                 logger.info("Backed up config snapshot: {}", config_path)
     except Exception as exc:
         logger.warning("Failed to backup config for {}: {}", plugin_name, exc)
@@ -148,7 +152,9 @@ async def backup_plugin_data(
                     if not _is_safe_plugin_table(table_name, table_prefixes):
                         logger.warning("Skipping unsafe table name: {}", table_name)
                         continue
-                    rows_result = await db.execute(text(f'SELECT * FROM "{table_name}"'))
+                    rows_result = await db.execute(
+                        text(f'SELECT * FROM "{table_name}"')
+                    )
                     columns = list(rows_result.keys())
                     rows = [
                         dict(zip(columns, row, strict=False))
@@ -160,9 +166,7 @@ async def backup_plugin_data(
                     table_path.write_text(
                         json.dumps(rows, ensure_ascii=False, indent=2, default=str)
                     )
-                    logger.info(
-                        "Backed up table {}: {} rows", table_name, len(rows)
-                    )
+                    logger.info("Backed up table {}: {} rows", table_name, len(rows))
     except Exception as exc:
         logger.warning("Failed to backup data tables for {}: {}", plugin_name, exc)
 
@@ -195,10 +199,12 @@ async def restore_plugin_data(
 
             snapshot = json.loads(config_path.read_text())
             await db.execute(
-                update(Plugin).where(
+                update(Plugin)
+                .where(
                     Plugin.name == plugin_name,
                     Plugin.is_deleted.is_(False),
-                ).values(
+                )
+                .values(
                     config=snapshot.get("config", {}),
                     granted_capabilities=snapshot.get("granted_capabilities", []),
                 )
@@ -247,8 +253,7 @@ async def export_plugin_data(
             rows_result = await db.execute(text(f'SELECT * FROM "{table_name}"'))
             columns = list(rows_result.keys())
             rows = [
-                dict(zip(columns, row, strict=False))
-                for row in rows_result.fetchall()
+                dict(zip(columns, row, strict=False)) for row in rows_result.fetchall()
             ]
 
             if fmt == "csv":
@@ -263,7 +268,9 @@ async def export_plugin_data(
                         writer.writerow({k: str(v) for k, v in row.items()})
                 exports[table_name] = output.getvalue()
             else:
-                exports[table_name] = json.dumps(rows, ensure_ascii=False, indent=2, default=str)
+                exports[table_name] = json.dumps(
+                    rows, ensure_ascii=False, indent=2, default=str
+                )
 
     except Exception as exc:
         logger.warning("Failed to export data for {}: {}", plugin_name, exc)
@@ -281,12 +288,14 @@ def list_backups(plugin_name: str) -> list[dict]:
     for child in sorted(plugin_backup_dir.iterdir(), reverse=True):
         if child.is_dir():
             parts = child.name.split("_", 1)
-            backups.append({
-                "path": str(child),
-                "name": child.name,
-                "version": parts[0] if parts else "",
-                "has_data": (child / "data").is_dir(),
-                "has_files": (child / "files").is_dir(),
-                "has_config": (child / "config_snapshot.json").is_file(),
-            })
+            backups.append(
+                {
+                    "path": str(child),
+                    "name": child.name,
+                    "version": parts[0] if parts else "",
+                    "has_data": (child / "data").is_dir(),
+                    "has_files": (child / "files").is_dir(),
+                    "has_config": (child / "config_snapshot.json").is_file(),
+                }
+            )
     return backups

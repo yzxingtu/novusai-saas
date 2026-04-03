@@ -66,15 +66,17 @@ export function getOwnerTypeColor(ownerType: string | undefined): string {
 
 export interface AgentScopeFieldsOptions {
   scopeDisabled?: ((values: Record<string, unknown>) => boolean) | boolean;
+  tenantIdsRequired?: boolean;
 }
 
 /** 管理端智能体：统一资源作用域 + 分配企业 */
 function useAgentScopeFields(
   options: AgentScopeFieldsOptions = {},
 ): VbenFormSchema[] {
-  const { scopeDisabled = false } = options;
+  const { scopeDisabled = false, tenantIdsRequired = true } = options;
   return useScopeFields({
     scopeDisabled,
+    tenantIdsRequired,
     allowedScopes: [
       'global_shared',
       'admin_only',
@@ -162,6 +164,7 @@ export function useFormSchema(
   resolveModelMaxOutputTokens?: (
     modelId: null | number | undefined,
   ) => number | undefined,
+  pluginManaged = false,
 ): VbenFormSchema[] {
   const locked = isSystem
     ? { disabled: true, help: $t('admin.ai.agent.systemFieldLocked') }
@@ -186,6 +189,7 @@ export function useFormSchema(
     }),
     ...useAgentScopeFields({
       scopeDisabled: isSystem ? () => true : false,
+      tenantIdsRequired: pluginManaged ? false : true,
     }),
     {
       ...select('model_id', $t('admin.ai.agent.modelName'), {

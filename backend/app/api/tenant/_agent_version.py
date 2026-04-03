@@ -34,6 +34,7 @@ async def publish_agent(
     权限 / Permission: agent:publish
     """
     from app.api.tenant.agents import _ensure_tenant_owned_agent
+
     await _ensure_tenant_owned_agent(db, tenant_admin.tenant_id, agent_id)
 
     service = AgentService(db, tenant_admin.tenant_id)
@@ -64,6 +65,7 @@ async def rollback_agent(
     权限 / Permission: agent:rollback
     """
     from app.api.tenant.agents import _ensure_tenant_owned_agent
+
     await _ensure_tenant_owned_agent(db, tenant_admin.tenant_id, agent_id)
 
     service = AgentService(db, tenant_admin.tenant_id)

@@ -67,6 +67,7 @@ async def validate_and_update_valves(
     pkg = await service.get_by_id(package_id)
     if not pkg:
         from app.exceptions import NotFoundException
+
         raise NotFoundException(message=_("skill_package.error.not_found"))
 
     if not pkg.valves_schema:
@@ -93,7 +94,8 @@ async def validate_and_update_valves(
     required_fields = schema.get("required", [])
     if required_fields:
         missing = [
-            f for f in required_fields
+            f
+            for f in required_fields
             if f not in valves_config or valves_config[f] in (None, "")
         ]
         if missing:

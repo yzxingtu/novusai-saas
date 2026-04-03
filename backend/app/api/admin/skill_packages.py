@@ -36,7 +36,9 @@ from app.services.ai.skill_package_service import AdminSkillPackageService
 logger = LogManager.get_logger("ai")
 
 
-def _build_admin_package_item(pkg: SkillPackage, skill_count: int = 0) -> dict[str, Any]:
+def _build_admin_package_item(
+    pkg: SkillPackage, skill_count: int = 0
+) -> dict[str, Any]:
     """Build normalized admin payload without exposing raw valves_config. / 构建不暴露原始 valves_config 的管理端载荷。"""
     return build_skill_package_payload(pkg, skill_count=skill_count)
 
@@ -84,9 +86,15 @@ class AdminSkillPackageController(GlobalController):
             db: DbSession,
             admin: ActiveAdmin,
             search: str = Query("", description=_("api.param.search")),
-            include_system: bool = Query(False, description=_("api.param.include_system")),
-            page: int = Query(0, ge=0, description="0=legacy single page (limit), >=1=paginated"),
-            page_size: int = Query(20, ge=1, le=100, description="Page size when page>=1"),
+            include_system: bool = Query(
+                False, description=_("api.param.include_system")
+            ),
+            page: int = Query(
+                0, ge=0, description="0=legacy single page (limit), >=1=paginated"
+            ),
+            page_size: int = Query(
+                20, ge=1, le=100, description="Page size when page>=1"
+            ),
         ):
             """
             获取技能包下拉选项（Skill 创建 / 技能绑定筛选器等）/ Skill package select options.
@@ -118,29 +126,36 @@ class AdminSkillPackageController(GlobalController):
             """
             from sqlalchemy import and_, select
 
-
-            stmt = select(SkillPackage).where(
-                and_(
-                    SkillPackage.is_recommended.is_(True),
-                    SkillPackage.is_active.is_(True),
-                    SkillPackage.is_deleted.is_(False),
+            stmt = (
+                select(SkillPackage)
+                .where(
+                    and_(
+                        SkillPackage.is_recommended.is_(True),
+                        SkillPackage.is_active.is_(True),
+                        SkillPackage.is_deleted.is_(False),
+                    )
                 )
-            ).order_by(SkillPackage.sort_order)
+                .order_by(SkillPackage.sort_order)
+            )
 
             result = await db.execute(stmt)
             pkgs = list(result.scalars().all())
 
             service = AdminSkillPackageService(db)
             pkg_ids = [p.id for p in pkgs]
-            skill_counts = await service.get_skill_counts_batch(pkg_ids) if pkg_ids else {}
+            skill_counts = (
+                await service.get_skill_counts_batch(pkg_ids) if pkg_ids else {}
+            )
 
-            return success(data=[
-                {
-                    **_build_admin_package_item(p, skill_counts.get(p.id, 0)),
-                    "is_recommended": True,
-                }
-                for p in pkgs
-            ])
+            return success(
+                data=[
+                    {
+                        **_build_admin_package_item(p, skill_counts.get(p.id, 0)),
+                        "is_recommended": True,
+                    }
+                    for p in pkgs
+                ]
+            )
 
         @router.get("", summary="全企业技能包列表")
         @action_read("action.ai_skill_package.list")
@@ -285,7 +300,9 @@ class AdminSkillPackageController(GlobalController):
                 raise NotFoundException(message=_("skill_package.error.not_found"))
 
             if pkg.is_system:
-                raise BusinessException(message=_("skill_package.error.system_protected"))
+                raise BusinessException(
+                    message=_("skill_package.error.system_protected")
+                )
 
             updated = await service.update(package_id, {"is_active": not pkg.is_active})
             await db.commit()
@@ -332,7 +349,9 @@ class AdminSkillPackageController(GlobalController):
 
             logger.info(
                 "Skill package uploaded (admin): name={} version={} package_id={}",
-                skill_name, skill_version, pkg.id,
+                skill_name,
+                skill_version,
+                pkg.id,
             )
 
             return created(
@@ -358,10 +377,12 @@ class AdminSkillPackageController(GlobalController):
             if not pkg:
                 raise NotFoundException(message=_("skill_package.error.not_found"))
 
-            return success(data={
-                "valves_schema": pkg.valves_schema,
-                "valves_config": mask_secret_values(pkg.valves_config),
-            })
+            return success(
+                data={
+                    "valves_schema": pkg.valves_schema,
+                    "valves_config": mask_secret_values(pkg.valves_config),
+                }
+            )
 
         @router.put("/{package_id}/valves", summary="更新技能包配置项")
         @action_update("action.ai_skill_package.update")
@@ -379,7 +400,10 @@ class AdminSkillPackageController(GlobalController):
 
             service = AdminSkillPackageService(db)
             result = await validate_and_update_valves(
-                db=db, service=service, package_id=package_id, data=data,
+                db=db,
+                service=service,
+                package_id=package_id,
+                data=data,
             )
             return success(data=result)
 
@@ -402,6 +426,7 @@ class AdminSkillPackageController(GlobalController):
 
             from app.schemas.common.query import FilterRule
             from app.services.ai.skill_service import AdminSkillService
+
             skill_svc = AdminSkillService(db)
             items, total = await skill_svc.query_list(
                 query,
@@ -417,7 +442,9 @@ class AdminSkillPackageController(GlobalController):
                 page_size=query.size,
             )
 
-        @router.get("/{package_id}/resolved-tools", summary="获取技能包解析出的工具列表")
+        @router.get(
+            "/{package_id}/resolved-tools", summary="获取技能包解析出的工具列表"
+        )
         @action_read("action.ai_skill_package.detail")
         async def get_resolved_tools(
             request: Request,
@@ -519,11 +546,14 @@ class AdminSkillPackageController(GlobalController):
             new_name = data.get("new_name") or f"{pkg.name} (Copy)"
             export_data["package_info"]["name"] = new_name
 
-            result = await import_skill_package(db, {
-                "export_data": export_data,
-                "conflict_mode": "rename",
-                "target_tenant_id": data.get("target_tenant_id", pkg.tenant_id),
-            })
+            result = await import_skill_package(
+                db,
+                {
+                    "export_data": export_data,
+                    "conflict_mode": "rename",
+                    "target_tenant_id": data.get("target_tenant_id", pkg.tenant_id),
+                },
+            )
             await db.commit()
 
             return created(data=result, message=_("skill_package.created"))

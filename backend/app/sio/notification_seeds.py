@@ -253,7 +253,9 @@ async def seed_notification_templates(db: AsyncSession) -> dict[str, int]:
 
     logger.info(
         "Notification templates seeded: created={} updated={} existing={}",
-        created, updated, existing,
+        created,
+        updated,
+        existing,
     )
     return {"created": created, "updated": updated, "existing": existing}
 

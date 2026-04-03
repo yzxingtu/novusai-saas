@@ -63,6 +63,7 @@ import {
   useFormSchema,
 } from './data';
 import AgentForm from './modules/form.vue';
+import PluginSourceBadge from './modules/PluginSourceBadge.vue';
 import VersionHistoryDrawer from './modules/VersionHistory.vue';
 
 defineOptions({ name: 'AIAgentList' });
@@ -602,12 +603,16 @@ const heroChips = computed(() => {
                   {{ agent.name }}
                 </h3>
                 <Tag
-                  v-if="agent.is_system"
+                  v-if="agent.source_plugin || agent.is_system"
                   color="purple"
                   class="!mr-0 shrink-0 !text-[10px] !leading-4"
                   style="padding: 0 5px"
                 >
-                  {{ $t('admin.ai.agent.system') }}
+                  {{
+                    agent.source_plugin
+                      ? $t('admin.ai.skillPackage.sourcePlugin')
+                      : $t('admin.ai.agent.system')
+                  }}
                 </Tag>
               </div>
               <!-- Status indicator -->
@@ -769,6 +774,13 @@ const heroChips = computed(() => {
                 <span>{{ getExecutionModeText(agent.execution_mode) }}</span>
               </div>
             </Tooltip>
+
+            <PluginSourceBadge
+              v-if="agent.source_plugin"
+              :source-plugin="agent.source_plugin"
+              :source-plugin-display-name="agent.source_plugin_display_name"
+              :source-plugin-enabled="agent.source_plugin_enabled"
+            />
 
             <!-- Resource scope -->
             <Tag

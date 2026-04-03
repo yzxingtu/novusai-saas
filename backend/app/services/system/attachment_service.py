@@ -148,7 +148,10 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
             storage_config=storage_config,
             storage_scope="platform",
         )
-        return {"attachment": attachment, "url": self._build_client_access_url(attachment)}
+        return {
+            "attachment": attachment,
+            "url": self._build_client_access_url(attachment),
+        }
 
     async def preflight_check(
         self,
@@ -265,7 +268,9 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         uploaded_chunks = set(session.get("uploaded_chunks", []))
         uploaded_chunks.add(chunk_index)
         session["uploaded_chunks"] = sorted(uploaded_chunks)
-        uploaded_bytes = await self._calc_uploaded_bytes(upload_id, session["uploaded_chunks"])
+        uploaded_bytes = await self._calc_uploaded_bytes(
+            upload_id, session["uploaded_chunks"]
+        )
         await self._save_session(session)
         return self._build_session_response(session, uploaded_bytes=uploaded_bytes)
 
@@ -324,7 +329,10 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
             storage_scope="platform",
         )
         await self._remove_session(upload_id)
-        return {"attachment": attachment, "url": self._build_client_access_url(attachment)}
+        return {
+            "attachment": attachment,
+            "url": self._build_client_access_url(attachment),
+        }
 
     async def get_upload_status(self, upload_id: str) -> dict[str, Any]:
         """
@@ -354,6 +362,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         if str(driver) == "local":
             # 本地存储使用硬编码路径 / Local storage uses hardcoded paths
             from app.storage import LOCAL_STORAGE_ROOT
+
             root_path = str(LOCAL_STORAGE_ROOT)
         else:
             root_path = await self._config_service.get_platform_config(
@@ -376,6 +385,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         """
         将内容写入临时文件并计算哈希 / Write content to temp file and compute hash.
         """
+
         def _write() -> tuple[str, int, str]:
             size = 0
             hasher = hashlib.sha256()
@@ -388,14 +398,17 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
                     hasher.update(chunk)
                     size += len(chunk)
                 return temp.name, size, hasher.hexdigest()
+
         return await anyio.to_thread.run_sync(_write)
 
     async def _remove_temp_file(self, temp_path: str) -> None:
         """
         删除临时文件 / Remove temp file.
         """
+
         def _remove() -> None:
             Path(temp_path).unlink(missing_ok=True)
+
         await anyio.to_thread.run_sync(_remove)
 
     async def _upload_to_storage(
@@ -488,7 +501,9 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         """
         suffix = Path(filename).suffix if filename else ""
         date_path = utc_now().strftime("%Y/%m/%d")
-        prefix = "platform" if tenant_id == PLATFORM_TENANT_ID else f"tenants/{tenant_id}"
+        prefix = (
+            "platform" if tenant_id == PLATFORM_TENANT_ID else f"tenants/{tenant_id}"
+        )
         return f"{prefix}/{date_path}/{uuid.uuid4().hex}{suffix}"
 
     def _get_upload_root(self) -> Path:
@@ -510,8 +525,12 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         session_path = self._get_session_path(session["upload_id"])
         session_path.mkdir(parents=True, exist_ok=True)
         session_file = session_path / "session.json"
+
         def _write() -> None:
-            session_file.write_text(json.dumps(session, ensure_ascii=False), encoding="utf-8")
+            session_file.write_text(
+                json.dumps(session, ensure_ascii=False), encoding="utf-8"
+            )
+
         await anyio.to_thread.run_sync(_write)
 
     async def _load_session(self, upload_id: str) -> dict[str, Any]:
@@ -521,21 +540,26 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
                 message=_("error.common.not_found"),
                 code=ErrorCode.NOT_FOUND,
             )
+
         def _read() -> dict[str, Any]:
             return json.loads(session_file.read_text(encoding="utf-8"))
+
         return await anyio.to_thread.run_sync(_read)
 
     async def _remove_session(self, upload_id: str) -> None:
         session_path = self._get_session_path(upload_id)
+
         def _remove() -> None:
             if session_path.exists():
                 for item in session_path.iterdir():
                     item.unlink(missing_ok=True)
                 session_path.rmdir()
+
         await anyio.to_thread.run_sync(_remove)
 
     async def _write_chunk(self, chunk_path: Path, content: BinaryIO) -> None:
         chunk_path.parent.mkdir(parents=True, exist_ok=True)
+
         def _write() -> None:
             with open(chunk_path, "wb") as f:
                 while True:
@@ -543,6 +567,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
                     if not chunk:
                         break
                     f.write(chunk)
+
         await anyio.to_thread.run_sync(_write)
 
     async def _calc_uploaded_bytes(self, upload_id: str, chunks: list[int]) -> int:
@@ -553,9 +578,12 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
                 if chunk_path.exists():
                     total += chunk_path.stat().st_size
             return total
+
         return await anyio.to_thread.run_sync(_sum)
 
-    async def _merge_chunks(self, upload_id: str, chunk_count: int) -> tuple[str, int, str]:
+    async def _merge_chunks(
+        self, upload_id: str, chunk_count: int
+    ) -> tuple[str, int, str]:
         def _merge() -> tuple[str, int, str]:
             size = 0
             hasher = hashlib.sha256()
@@ -571,6 +599,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
                             hasher.update(chunk)
                             size += len(chunk)
                 return temp.name, size, hasher.hexdigest()
+
         return await anyio.to_thread.run_sync(_merge)
 
     def _calc_chunk_count(self, total_size: int, chunk_size: int) -> int:
@@ -578,7 +607,9 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
             return 0
         return (total_size + chunk_size - 1) // chunk_size
 
-    def _build_session_response(self, session: dict[str, Any], uploaded_bytes: int) -> dict[str, Any]:
+    def _build_session_response(
+        self, session: dict[str, Any], uploaded_bytes: int
+    ) -> dict[str, Any]:
         total_size = int(session["total_size"])
         percent = int(uploaded_bytes * 100 / total_size) if total_size else 0
         return {
@@ -639,6 +670,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
             tenant_id: 企业 ID（用于解析存储配置）
         """
         from app.core.logging import LogManager
+
         logger = LogManager.get_logger("storage")
         try:
             resolver = StorageConfigResolver(self.db)
@@ -648,17 +680,21 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
             if deleted:
                 logger.info(
                     "Storage file deleted: driver={} path={}",
-                    driver_name, path,
+                    driver_name,
+                    path,
                 )
             else:
                 logger.warning(
                     "Storage file not found (already removed?): driver={} path={}",
-                    driver_name, path,
+                    driver_name,
+                    path,
                 )
         except Exception as e:
             logger.error(
                 "Failed to delete storage file: driver={} path={} error={}",
-                driver_name, path, str(e),
+                driver_name,
+                path,
+                str(e),
             )
 
     async def get_storage_stats(self, tenant_id: int | None = None) -> dict[str, Any]:

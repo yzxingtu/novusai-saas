@@ -24,15 +24,22 @@ def __getattr__(name: str):
     """Lazy import to avoid circular dependencies. / 延迟导入，避免循环依赖。"""
     if name == "PluginBase":
         from app.plugins.base import PluginBase
+
         return PluginBase
 
     _exception_names = {
-        "PluginError", "PluginNotFoundError", "PluginManifestError",
-        "PluginDependencyError", "PluginSecurityError", "PluginLicenseError",
-        "PluginConflictError", "PluginInstallError",
+        "PluginError",
+        "PluginNotFoundError",
+        "PluginManifestError",
+        "PluginDependencyError",
+        "PluginSecurityError",
+        "PluginLicenseError",
+        "PluginConflictError",
+        "PluginInstallError",
     }
     if name in _exception_names:
         from app.plugins import exceptions
+
         return getattr(exceptions, name)
 
     raise AttributeError(f"module 'app.plugins' has no attribute {name!r}")

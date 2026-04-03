@@ -37,7 +37,9 @@ def _extract_keywords(text: str, *, limit: int = 12) -> list[str]:
 
     seen: set[str] = set()
     keywords: list[str] = []
-    for token in re.findall(r"[\u4e00-\u9fff]{2,}|[a-z0-9][a-z0-9_\-]{1,31}", normalized):
+    for token in re.findall(
+        r"[\u4e00-\u9fff]{2,}|[a-z0-9][a-z0-9_\-]{1,31}", normalized
+    ):
         if token in seen:
             continue
         seen.add(token)
@@ -109,7 +111,9 @@ class LongTermMemoryService(TenantService[MemoryRecord, MemoryRecordRepository])
 
         embeddings_by_key: dict[tuple[str, str], list[float]] = {}
         if embedding_target and texts_to_embed:
-            embeddings = await self._generate_embeddings(texts_to_embed, embedding_target)
+            embeddings = await self._generate_embeddings(
+                texts_to_embed, embedding_target
+            )
             for item, embedding in zip(ordered_items, embeddings, strict=False):
                 if embedding:
                     embeddings_by_key[item] = embedding
@@ -127,7 +131,9 @@ class LongTermMemoryService(TenantService[MemoryRecord, MemoryRecordRepository])
 
             if existing:
                 existing.summary = text[:300]
-                existing.importance = max(int(getattr(existing, "importance", 50) or 50), 60)
+                existing.importance = max(
+                    int(getattr(existing, "importance", 50) or 50), 60
+                )
                 existing.source_kind = source_kind
                 existing.source_ref = source_ref
                 existing.status = status
@@ -154,8 +160,12 @@ class LongTermMemoryService(TenantService[MemoryRecord, MemoryRecordRepository])
                     "summary": text[:300],
                     "keywords": keywords,
                     "content_hash": content_hash,
-                    "embedding_model_id": embedding_target.model_id if embedding_target and embedding is not None else None,
-                    "embedding_dimensions": len(embedding) if embedding is not None else None,
+                    "embedding_model_id": embedding_target.model_id
+                    if embedding_target and embedding is not None
+                    else None,
+                    "embedding_dimensions": len(embedding)
+                    if embedding is not None
+                    else None,
                     "embedding": embedding,
                     "confidence": 70,
                     "importance": 60,
@@ -203,7 +213,9 @@ class LongTermMemoryService(TenantService[MemoryRecord, MemoryRecordRepository])
             query_text=query_text,
             limit=limit,
             query_embedding=query_embedding,
-            embedding_model_id=embedding_target.model_id if query_embedding and embedding_target else None,
+            embedding_model_id=embedding_target.model_id
+            if query_embedding and embedding_target
+            else None,
         )
         now = utc_now()
         for record in records:
@@ -272,7 +284,9 @@ class LongTermMemoryService(TenantService[MemoryRecord, MemoryRecordRepository])
             query_text=query_text,
             limit=limit,
             query_embedding=query_embedding,
-            embedding_model_id=embedding_target.model_id if query_embedding and embedding_target else None,
+            embedding_model_id=embedding_target.model_id
+            if query_embedding and embedding_target
+            else None,
         )
 
     async def refresh_profile_snapshot(
@@ -311,7 +325,8 @@ class LongTermMemoryService(TenantService[MemoryRecord, MemoryRecordRepository])
         profile_json, summary = self._build_profile_payload(records)
         latest_source_updated_at = max(
             (
-                getattr(record, "updated_at", None) or getattr(record, "created_at", None)
+                getattr(record, "updated_at", None)
+                or getattr(record, "created_at", None)
                 for record in records
             ),
             default=None,
@@ -342,7 +357,9 @@ class LongTermMemoryService(TenantService[MemoryRecord, MemoryRecordRepository])
         return snapshot
 
     async def _resolve_embedding_target(self) -> EmbeddingTarget | None:
-        model = await AIModelRepository(self.db).get_first_active_embedding_with_provider()
+        model = await AIModelRepository(
+            self.db
+        ).get_first_active_embedding_with_provider()
         provider = getattr(model, "provider", None) if model else None
         if not model or not provider:
             return None

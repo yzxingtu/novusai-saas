@@ -5,7 +5,6 @@ Provides permission retrieval and check functionality.
 提供权限获取和检查功能。
 """
 
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -72,7 +71,8 @@ class PermissionService:
         org_node = await self._get_admin_org_node(admin)
         if org_node is not None:
             return {
-                p.code for p in org_node.permissions
+                p.code
+                for p in org_node.permissions
                 if p.is_enabled and not p.is_deleted
             }
 
@@ -91,10 +91,7 @@ class PermissionService:
         if role is None or not role.is_active:
             return set()
 
-        return {
-            p.code for p in role.permissions
-            if p.is_enabled and not p.is_deleted
-        }
+        return {p.code for p in role.permissions if p.is_enabled and not p.is_deleted}
 
     async def get_admin_effective_permission_ids(self, admin: Admin) -> set[int]:
         """
@@ -123,8 +120,7 @@ class PermissionService:
         org_node = await self._get_admin_org_node(admin)
         if org_node is not None:
             return {
-                p.id for p in org_node.permissions
-                if p.is_enabled and not p.is_deleted
+                p.id for p in org_node.permissions if p.is_enabled and not p.is_deleted
             }
 
         # No org node and no role means no permissions / 无组织节点且无角色则无权限
@@ -159,7 +155,9 @@ class PermissionService:
         Returns:
             Role ID set / 角色 ID 集合
         """
-        return set(await AdminOrgAuthorityService(self.db, admin).get_manageable_org_node_ids())
+        return set(
+            await AdminOrgAuthorityService(self.db, admin).get_manageable_org_node_ids()
+        )
 
     async def get_admin_visible_role_ids(self, admin: Admin) -> set[int]:
         """
@@ -172,7 +170,9 @@ class PermissionService:
         Returns:
             Role ID set / 角色 ID 集合
         """
-        return set(await AdminOrgAuthorityService(self.db, admin).get_visible_org_node_ids())
+        return set(
+            await AdminOrgAuthorityService(self.db, admin).get_visible_org_node_ids()
+        )
 
     async def _get_tenant_plan_permissions(
         self,
@@ -198,8 +198,7 @@ class PermissionService:
             select(Tenant)
             .where(Tenant.id == tenant_id)
             .options(
-                selectinload(Tenant.tenant_plan)
-                .selectinload(TenantPlan.permissions)
+                selectinload(Tenant.tenant_plan).selectinload(TenantPlan.permissions)
             )
         )
         tenant = result.scalar_one_or_none()
@@ -227,8 +226,7 @@ class PermissionService:
         # So tenants can assign operation permission granularity / 这样企业可以自行分配操作权限粒度
         if menu_ids:
             child_result = await self.db.execute(
-                select(Permission)
-                .where(
+                select(Permission).where(
                     Permission.parent_id.in_(menu_ids),
                     Permission.type == "operation",
                     Permission.is_enabled.is_(True),
@@ -288,8 +286,7 @@ class PermissionService:
 
         # Role permissions ∩ plan permissions / 角色权限 ∩ 套餐权限
         role_perms = {
-            p.code for p in role.permissions
-            if p.is_enabled and not p.is_deleted
+            p.code for p in role.permissions if p.is_enabled and not p.is_deleted
         }
         return role_perms & plan_perms[0]
 
@@ -360,7 +357,9 @@ class PermissionService:
             Role ID set / 角色 ID 集合
         """
         return set(
-            await TenantOrgAuthorityService(self.db, tenant_admin).get_manageable_org_node_ids()
+            await TenantOrgAuthorityService(
+                self.db, tenant_admin
+            ).get_manageable_org_node_ids()
         )
 
     async def get_tenant_admin_visible_role_ids(
@@ -377,7 +376,11 @@ class PermissionService:
         Returns:
             Role ID set / 角色 ID 集合
         """
-        return set(await TenantOrgAuthorityService(self.db, tenant_admin).get_visible_org_node_ids())
+        return set(
+            await TenantOrgAuthorityService(
+                self.db, tenant_admin
+            ).get_visible_org_node_ids()
+        )
 
     def check_permission(
         self,
@@ -509,7 +512,9 @@ class PermissionService:
                 runtime_title = PermissionService._resolve_plugin_menu_title(name)
                 if runtime_title:
                     return runtime_title
-                runtime_permission_title = PermissionService._resolve_plugin_permission_title(name)
+                runtime_permission_title = (
+                    PermissionService._resolve_plugin_permission_title(name)
+                )
                 if runtime_permission_title:
                     return runtime_permission_title
                 return PermissionService._fallback_permission_name(name)
@@ -608,26 +613,30 @@ class PermissionService:
         for perm in permissions:
             if perm.parent_id == parent_id:
                 children = cls._build_permission_tree(permissions, perm.id)
-                tree.append(PermissionTreeResponse(
-                    id=perm.id,
-                    code=perm.code,
-                    name=cls._translate_name(perm.name),
-                    description=perm.description,
-                    type=perm.type,
-                    scope=perm.scope,
-                    resource=perm.resource,
-                    action=perm.action,
-                    parent_id=perm.parent_id,
-                    sort_order=perm.sort_order,
-                    icon=perm.icon,
-                    path=perm.path,
-                    component=perm.component,
-                    hidden=perm.hidden,
-                    children=children,
-                ))
+                tree.append(
+                    PermissionTreeResponse(
+                        id=perm.id,
+                        code=perm.code,
+                        name=cls._translate_name(perm.name),
+                        description=perm.description,
+                        type=perm.type,
+                        scope=perm.scope,
+                        resource=perm.resource,
+                        action=perm.action,
+                        parent_id=perm.parent_id,
+                        sort_order=perm.sort_order,
+                        icon=perm.icon,
+                        path=perm.path,
+                        component=perm.component,
+                        hidden=perm.hidden,
+                        children=children,
+                    )
+                )
         return sorted(tree, key=lambda x: x.sort_order)
 
-    async def get_admin_permission_tree(self, admin: Admin) -> list[PermissionTreeResponse]:
+    async def get_admin_permission_tree(
+        self, admin: Admin
+    ) -> list[PermissionTreeResponse]:
         """
         Get platform admin's permission tree.
         获取平台管理员的权限树。
@@ -668,7 +677,9 @@ class PermissionService:
 
         return self._build_permission_tree(permissions)
 
-    async def get_tenant_permission_tree(self, tenant_admin: TenantAdmin) -> list[PermissionTreeResponse]:
+    async def get_tenant_permission_tree(
+        self, tenant_admin: TenantAdmin
+    ) -> list[PermissionTreeResponse]:
         """
         Get tenant admin's permission tree.
         获取企业管理员的权限树。
@@ -680,7 +691,9 @@ class PermissionService:
             Permission tree list / 权限树列表
         """
         # Get user's effective permission ID set (includes plan filtering) / 获取用户的有效权限 ID 集合
-        effective_ids = await self.get_tenant_admin_effective_permission_ids(tenant_admin)
+        effective_ids = await self.get_tenant_admin_effective_permission_ids(
+            tenant_admin
+        )
 
         if not effective_ids:
             return []
@@ -787,7 +800,9 @@ class PermissionService:
             Permission list / 权限列表
         """
         # Get user's effective permission IDs (includes plan filtering) / 获取用户有效权限 ID
-        effective_ids = await self.get_tenant_admin_effective_permission_ids(tenant_admin)
+        effective_ids = await self.get_tenant_admin_effective_permission_ids(
+            tenant_admin
+        )
 
         if not effective_ids:
             return []
@@ -823,7 +838,9 @@ class PermissionService:
             for p in permissions
         ]
 
-    async def _fill_parent_permissions(self, permissions: list[Permission]) -> list[Permission]:
+    async def _fill_parent_permissions(
+        self, permissions: list[Permission]
+    ) -> list[Permission]:
         """
         Fill parent permissions (ensure tree structure integrity).
         补充父级权限（确保树形结构完整）。
@@ -843,8 +860,7 @@ class PermissionService:
 
         while parent_ids_to_fetch:
             result = await self.db.execute(
-                select(Permission)
-                .where(
+                select(Permission).where(
                     Permission.id.in_(parent_ids_to_fetch),
                     Permission.is_enabled.is_(True),
                     Permission.is_deleted.is_(False),
@@ -891,7 +907,9 @@ class PermissionService:
         for perm in permissions:
             if perm.parent_id == parent_id and perm.type == "menu":
                 # Recursively build child menus / 递归构建子菜单
-                children = cls._build_menu_tree(permissions, user_permission_codes, perm.id)
+                children = cls._build_menu_tree(
+                    permissions, user_permission_codes, perm.id
+                )
 
                 # Collect operation permission codes under this menu / 收集该菜单下的操作权限码
                 menu_permissions = []
@@ -899,7 +917,10 @@ class PermissionService:
                     if (
                         p.type == "operation"
                         and p.parent_id == perm.id
-                        and (user_permission_codes is None or p.code in user_permission_codes)
+                        and (
+                            user_permission_codes is None
+                            or p.code in user_permission_codes
+                        )
                     ):
                         # If user permission codes provided, only return user's / 如果提供了用户权限码集合，只返回用户拥有的
                         menu_permissions.append(p.code)
@@ -911,21 +932,28 @@ class PermissionService:
                 if is_plugin_menu and perm.path and perm.path in seen_plugin_paths:
                     continue
                 menu_component = None if is_plugin_menu else perm.component
-                if not perm.component and not children and not menu_permissions and not is_plugin_menu:
+                if (
+                    not perm.component
+                    and not children
+                    and not menu_permissions
+                    and not is_plugin_menu
+                ):
                     continue
 
-                tree.append(MenuResponse(
-                    id=perm.id,
-                    code=perm.code,
-                    name=cls._translate_name(perm.name),
-                    icon=perm.icon,
-                    path=perm.path,
-                    component=menu_component,
-                    hidden=perm.hidden,
-                    sort_order=perm.sort_order,
-                    permissions=sorted(menu_permissions),
-                    children=children,
-                ))
+                tree.append(
+                    MenuResponse(
+                        id=perm.id,
+                        code=perm.code,
+                        name=cls._translate_name(perm.name),
+                        icon=perm.icon,
+                        path=perm.path,
+                        component=menu_component,
+                        hidden=perm.hidden,
+                        sort_order=perm.sort_order,
+                        permissions=sorted(menu_permissions),
+                        children=children,
+                    )
+                )
                 if is_plugin_menu and perm.path:
                     seen_plugin_paths.add(perm.path)
         return sorted(tree, key=lambda x: x.sort_order)
@@ -959,8 +987,7 @@ class PermissionService:
 
         # Query user's all permissions / 查询用户拥有的所有权限
         result = await self.db.execute(
-            select(Permission)
-            .where(
+            select(Permission).where(
                 Permission.id.in_(effective_ids),
                 Permission.is_enabled.is_(True),
                 Permission.is_deleted.is_(False),
@@ -999,7 +1026,9 @@ class PermissionService:
 
         return self._build_menu_tree(permissions_for_tree, user_permission_codes)
 
-    async def get_tenant_admin_menus(self, tenant_admin: TenantAdmin) -> list[MenuResponse]:
+    async def get_tenant_admin_menus(
+        self, tenant_admin: TenantAdmin
+    ) -> list[MenuResponse]:
         """
         Get tenant admin's menu tree.
         获取企业管理员的菜单树。
@@ -1040,15 +1069,16 @@ class PermissionService:
         ]
 
         # Get user's effective permission ID set (includes plan filtering) / 获取用户的有效权限 ID 集合
-        effective_ids = await self.get_tenant_admin_effective_permission_ids(tenant_admin)
+        effective_ids = await self.get_tenant_admin_effective_permission_ids(
+            tenant_admin
+        )
 
         if not effective_ids:
             return []
 
         # Query user's all permissions / 查询用户拥有的所有权限
         result = await self.db.execute(
-            select(Permission)
-            .where(
+            select(Permission).where(
                 Permission.id.in_(effective_ids),
                 Permission.is_enabled.is_(True),
                 Permission.is_deleted.is_(False),
@@ -1121,10 +1151,7 @@ class PermissionService:
         if role is None or not role.is_active:
             return set()
 
-        return {
-            p.code for p in role.permissions
-            if p.is_enabled and not p.is_deleted
-        }
+        return {p.code for p in role.permissions if p.is_enabled and not p.is_deleted}
 
     async def get_tenant_user_effective_permission_ids(
         self,
@@ -1153,12 +1180,11 @@ class PermissionService:
         if role is None or not role.is_active:
             return set()
 
-        return {
-            p.id for p in role.permissions
-            if p.is_enabled and not p.is_deleted
-        }
+        return {p.id for p in role.permissions if p.is_enabled and not p.is_deleted}
 
-    async def get_tenant_user_menus(self, tenant_user: TenantUser) -> list[MenuResponse]:
+    async def get_tenant_user_menus(
+        self, tenant_user: TenantUser
+    ) -> list[MenuResponse]:
         """
         Get tenant business user's menu tree.
         获取企业业务用户的菜单树。
@@ -1183,8 +1209,7 @@ class PermissionService:
 
         # Query user's all permissions / 查询用户拥有的所有权限
         result = await self.db.execute(
-            select(Permission)
-            .where(
+            select(Permission).where(
                 Permission.id.in_(effective_ids),
                 Permission.is_enabled.is_(True),
                 Permission.is_deleted.is_(False),

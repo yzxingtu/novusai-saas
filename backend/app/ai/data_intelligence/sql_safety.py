@@ -30,6 +30,7 @@ logger = LogManager.get_logger("ai.data_intelligence")
 # Validation Result / 校验结果
 # ============================================
 
+
 @dataclass
 class SQLValidationResult:
     """SQL validation result / SQL 校验结果"""  # 校验结果 / validation outcome
@@ -137,8 +138,15 @@ def extract_table_names(sql: str) -> set[str]:
         table_name = match.group(1).lower()
         # Exclude CTE names and SQL keywords / 排除 CTE 名称和 SQL 关键字
         if table_name not in cte_names and table_name not in {
-            "select", "where", "and", "or", "not", "in",
-            "lateral", "unnest", "generate_series",
+            "select",
+            "where",
+            "and",
+            "or",
+            "not",
+            "in",
+            "lateral",
+            "unnest",
+            "generate_series",
         }:
             tables.add(table_name)
 
@@ -148,6 +156,7 @@ def extract_table_names(sql: str) -> set[str]:
 # ============================================ / 上文为英文说明 / English above
 # SQLSafetyValidator
 # ============================================
+
 
 class SQLSafetyValidator:
     """
@@ -199,8 +208,7 @@ class SQLSafetyValidator:
         match = dangerous_pattern.search(stripped)
         if match:
             violations.append(
-                _("data_intelligence.sql.dangerous_keyword",
-                  keyword=match.group())
+                _("data_intelligence.sql.dangerous_keyword", keyword=match.group())
             )
 
         # ---- Check 3: Subquery modification detection / 检查 3: 子查询修改检测 ----
@@ -219,16 +227,14 @@ class SQLSafetyValidator:
             for table in tables_in_sql:
                 if table not in allowed_tables:
                     violations.append(
-                        _("data_intelligence.sql.table_not_allowed",
-                          table=table)
+                        _("data_intelligence.sql.table_not_allowed", table=table)
                     )
 
         # ---- Check 5: Function blacklist / 检查 5: 函数黑名单 ----
         func_match = _BLOCKED_FUNC_PATTERN.search(stripped)
         if func_match:
             violations.append(
-                _("data_intelligence.sql.blocked_function",
-                  func=func_match.group(1))
+                _("data_intelligence.sql.blocked_function", func=func_match.group(1))
             )
 
         # ---- Check 6: Comment prohibition (prevent bypassing via comments) / 检查 6: 注释禁止 ----
@@ -250,7 +256,8 @@ class SQLSafetyValidator:
         if not passed:
             logger.warning(
                 "SQL safety validation failed: violations={} sql={}",
-                violations, stripped[:200],
+                violations,
+                stripped[:200],
             )
 
         return SQLValidationResult(passed=passed, violations=violations)

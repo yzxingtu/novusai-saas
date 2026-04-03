@@ -35,15 +35,27 @@ class TenantAdmin(TenantModel):
     }
 
     __table_args__ = (
-        UniqueConstraint("tenant_id", "username", name="uq_tenant_admin_tenant_username"),
+        UniqueConstraint(
+            "tenant_id", "username", name="uq_tenant_admin_tenant_username"
+        ),
         UniqueConstraint("tenant_id", "email", name="uq_tenant_admin_tenant_email"),
     )
 
     __delete_deps__ = [
-        DeletionDep("TenantAdminRole", "leader_id", DeletionStrategy.NULLIFY,
-                    label_field="name", i18n_key="tenant_admin_role_leader"),
-        DeletionDep("TenantOrgNode", "leader_id", DeletionStrategy.NULLIFY,
-                    label_field="name", i18n_key="tenant_org_node_leader"),
+        DeletionDep(
+            "TenantAdminRole",
+            "leader_id",
+            DeletionStrategy.NULLIFY,
+            label_field="name",
+            i18n_key="tenant_admin_role_leader",
+        ),
+        DeletionDep(
+            "TenantOrgNode",
+            "leader_id",
+            DeletionStrategy.NULLIFY,
+            label_field="name",
+            i18n_key="tenant_org_node_leader",
+        ),
     ]
 
     # 可过滤字段声明（注意：不包含 password_hash 等敏感字段） /
@@ -63,7 +75,18 @@ class TenantAdmin(TenantModel):
         "updated_at": "updated_at",
     }
 
-    __sortable__ = ["id", "username", "email", "nickname", "is_active", "is_owner", "role_id", "created_at", "updated_at", "last_login_at"]
+    __sortable__ = [
+        "id",
+        "username",
+        "email",
+        "nickname",
+        "is_active",
+        "is_owner",
+        "role_id",
+        "created_at",
+        "updated_at",
+        "last_login_at",
+    ]
 
     # 下拉选项配置 / Select dropdown config
     __selectable__ = {
@@ -75,58 +98,87 @@ class TenantAdmin(TenantModel):
 
     # 基本信息 / Basic info
     username: Mapped[str] = mapped_column(
-        String(50), index=True, comment="用户名 / Username",
+        String(50),
+        index=True,
+        comment="用户名 / Username",
     )
     email: Mapped[str] = mapped_column(
-        String(255), index=True, comment="邮箱 / Email",
+        String(255),
+        index=True,
+        comment="邮箱 / Email",
     )
     phone: Mapped[str | None] = mapped_column(
-        String(20), index=True, nullable=True, comment="手机号 / Phone",
+        String(20),
+        index=True,
+        nullable=True,
+        comment="手机号 / Phone",
     )
 
     # 认证信息 / Credentials
     password_hash: Mapped[str] = mapped_column(
-        String(255), comment="密码哈希 / Password hash",
+        String(255),
+        comment="密码哈希 / Password hash",
     )
 
     # 管理员状态 / Status
     is_active: Mapped[bool] = mapped_column(
-        Boolean, default=True, comment="是否激活 / Active",
+        Boolean,
+        default=True,
+        comment="是否激活 / Active",
     )
     is_owner: Mapped[bool] = mapped_column(
-        Boolean, default=False, comment="是否企业所有者（最高权限） / Tenant owner",
+        Boolean,
+        default=False,
+        comment="是否企业所有者（最高权限） / Tenant owner",
     )
 
     # 个人资料 / Profile
     nickname: Mapped[str | None] = mapped_column(
-        String(100), nullable=True, comment="昵称 / Nickname",
+        String(100),
+        nullable=True,
+        comment="昵称 / Nickname",
     )
     avatar: Mapped[str | None] = mapped_column(
-        String(500), nullable=True, comment="头像附件 ID（兼容旧 URL 值） / Avatar attachment id",
+        String(500),
+        nullable=True,
+        comment="头像附件 ID（兼容旧 URL 值） / Avatar attachment id",
     )
 
     # 登录信息 / Login audit
     last_login_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True, comment="最后登录时间 / Last login at",
+        DateTime(timezone=True),
+        nullable=True,
+        comment="最后登录时间 / Last login at",
     )
     last_login_ip: Mapped[str | None] = mapped_column(
-        String(50), nullable=True, comment="最后登录 IP / Last login IP",
+        String(50),
+        nullable=True,
+        comment="最后登录 IP / Last login IP",
     )
 
     # 登录安全信息 / Login security
     login_fail_count: Mapped[int] = mapped_column(
-        Integer, default=0, comment="登录失败次数 / Failed login count",
+        Integer,
+        default=0,
+        comment="登录失败次数 / Failed login count",
     )
     last_fail_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True, comment="最后登录失败时间 / Last failed login",
+        DateTime(timezone=True),
+        nullable=True,
+        comment="最后登录失败时间 / Last failed login",
     )
     locked_until: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True, comment="账户锁定到期时间 / Locked until",
+        DateTime(timezone=True),
+        nullable=True,
+        comment="账户锁定到期时间 / Locked until",
     )
 
     # 角色关联（企业内角色） / Role within tenant
     role_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("tenant_admin_roles.id"), nullable=True, comment="角色 ID / Role id",
+        Integer,
+        ForeignKey("tenant_admin_roles.id"),
+        nullable=True,
+        comment="角色 ID / Role id",
     )
     org_node_id: Mapped[int | None] = mapped_column(
         Integer,
@@ -170,6 +222,7 @@ class TenantAdmin(TenantModel):
         if self.role:
             return self.role.has_permission(permission_code)
         return False
+
 
 if TYPE_CHECKING:
     from app.models.auth.tenant_admin_role import TenantAdminRole

@@ -106,9 +106,7 @@ class ImageGenerationEngine:
                 # Get model info / 获取模型信息
                 model_obj = agent.model
                 provider_code = (
-                    model_obj.provider.code
-                    if model_obj and model_obj.provider
-                    else ""
+                    model_obj.provider.code if model_obj and model_obj.provider else ""
                 )
                 model_code = model_obj.code if model_obj else ""
 
@@ -130,12 +128,14 @@ class ImageGenerationEngine:
 
                 # Push each image result / 推送每张图片的结果
                 for img in response.images:
-                    yield SSEChunkEncoder.encode({
-                        "event": "image_result",
-                        "url": img.url,
-                        "is_base64": img.is_base64,
-                        "revised_prompt": img.revised_prompt,
-                    })
+                    yield SSEChunkEncoder.encode(
+                        {
+                            "event": "image_result",
+                            "url": img.url,
+                            "is_base64": img.is_base64,
+                            "revised_prompt": img.revised_prompt,
+                        }
+                    )
 
                 # Generate text description as output / 生成文本描述作为 output
                 output = prompt
@@ -143,12 +143,18 @@ class ImageGenerationEngine:
                     output = response.revised_prompt
 
                 # Push message content (display text in frontend) / 推送消息内容（让前端显示文字）
-                display_text = f"![generated image]({response.images[0].url})" if response.images else ""
+                display_text = (
+                    f"![generated image]({response.images[0].url})"
+                    if response.images
+                    else ""
+                )
                 if display_text:
-                    yield SSEChunkEncoder.encode({
-                        "event": "message",
-                        "delta": display_text,
-                    })
+                    yield SSEChunkEncoder.encode(
+                        {
+                            "event": "message",
+                            "delta": display_text,
+                        }
+                    )
 
                 # Callback (before done event) / 回调（在 done 事件之前）
                 duration_ms = int((time.perf_counter() - start) * 1000)
@@ -180,21 +186,27 @@ class ImageGenerationEngine:
                         logger.error("on_complete callback error: {}", str(cb_exc))
 
                 # Completion event / 完成事件
-                yield SSEChunkEncoder.encode({
-                    **_trace_payload({
-                        "event": "done",
-                        "conversation_id": request.conversation_id,
-                        "total_tokens": 0,
-                        "duration_ms": duration_ms,
-                    }),
-                    **extra_done_data,
-                })
+                yield SSEChunkEncoder.encode(
+                    {
+                        **_trace_payload(
+                            {
+                                "event": "done",
+                                "conversation_id": request.conversation_id,
+                                "total_tokens": 0,
+                                "duration_ms": duration_ms,
+                            }
+                        ),
+                        **extra_done_data,
+                    }
+                )
                 yield SSEChunkEncoder.done()
 
             except Exception as exc:
                 logger.error(
                     "Image generation failed: agent={} error={}",
-                    agent.id, str(exc), exc_info=True,
+                    agent.id,
+                    str(exc),
+                    exc_info=True,
                 )
                 try:
                     yield SSEChunkEncoder.encode(
@@ -211,15 +223,17 @@ class ImageGenerationEngine:
 
                 if on_complete:
                     duration_ms = int((time.perf_counter() - start) * 1000)
-                    await on_complete(ExecutionResult(
-                        success=False,
-                        error=build_public_error_text(
-                            message="Image generation failed",
-                            exc=exc,
-                        ),
-                        duration_ms=duration_ms,
-                        conversation_id=request.conversation_id,
-                    ))
+                    await on_complete(
+                        ExecutionResult(
+                            success=False,
+                            error=build_public_error_text(
+                                message="Image generation failed",
+                                exc=exc,
+                            ),
+                            duration_ms=duration_ms,
+                            conversation_id=request.conversation_id,
+                        )
+                    )
 
         return StreamingResponse(
             generate(),

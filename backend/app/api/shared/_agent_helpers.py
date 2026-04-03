@@ -78,6 +78,7 @@ def build_agent_base_item(agent: Any) -> dict[str, Any]:
         "owner_tenant_id": _otid,
         "owner_type": _derived_owner_type,
         "scope": getattr(agent, "scope", None),
+        "source_plugin": getattr(agent, "source_plugin", None),
         "name": agent.name,
         "avatar": agent.avatar,
         "description": agent.description,

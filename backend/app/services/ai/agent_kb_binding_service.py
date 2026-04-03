@@ -32,6 +32,7 @@ class AgentKBBindingService:
             self.agent_repo = AgentRepository(db, tenant_id)
         else:
             from app.repositories.ai.agent_repository import AdminAgentRepository
+
             self.binding_repo = AgentKBBindingRepository(db, None)
             self.agent_repo = AdminAgentRepository(db)  # type: ignore[assignment]  # 类型存根 / typing stub
 
@@ -41,6 +42,7 @@ class AgentKBBindingService:
             AdminKnowledgeBaseRepository,
             KnowledgeBaseRepository,
         )
+
         if self.tenant_id is not None:
             return KnowledgeBaseRepository(self.db, tenant_id=self.tenant_id)
         return AdminKnowledgeBaseRepository(self.db)
@@ -55,9 +57,7 @@ class AgentKBBindingService:
             "enabled": binding.enabled,
             "sort_order": binding.sort_order,
             "platform_suppressed": False,
-            "binding_scope": (
-                "platform" if binding.tenant_id is None else "tenant"
-            ),
+            "binding_scope": ("platform" if binding.tenant_id is None else "tenant"),
             "kb_name": None,
             "kb_description": None,
             "kb_scope": None,
@@ -152,9 +152,7 @@ class AgentKBBindingService:
             normalized_item = dict(binding)
             normalized_item["kb_id"] = int(kb_id)
             normalized_item["knowledge_base_id"] = int(kb_id)
-            normalized_item["kb_name"] = str(
-                binding.get("kb_name") or ""
-            ).strip()
+            normalized_item["kb_name"] = str(binding.get("kb_name") or "").strip()
             normalized_item["kb_description"] = str(
                 binding.get("kb_description") or ""
             ).strip()
@@ -180,9 +178,7 @@ class AgentKBBindingService:
         kb_repo = await self._get_kb_repo()
         kb = await kb_repo.get_by_id(knowledge_base_id)
         if not kb:
-            raise NotFoundException(
-                message=_("agent_kb_binding.error.kb_not_found")
-            )
+            raise NotFoundException(message=_("agent_kb_binding.error.kb_not_found"))
 
     async def bind_kb(
         self,
@@ -207,9 +203,7 @@ class AgentKBBindingService:
         """
         agent = await self.agent_repo.get_by_id(agent_id)
         if not agent:
-            raise NotFoundException(
-                message=_("agent_kb_binding.error.agent_not_found")
-            )
+            raise NotFoundException(message=_("agent_kb_binding.error.agent_not_found"))
 
         await self._validate_kb_accessible(knowledge_base_id)
 
@@ -217,22 +211,24 @@ class AgentKBBindingService:
             agent_id, knowledge_base_id
         )
         if existing_any:
-            raise BusinessException(
-                message=_("agent_kb_binding.error.already_bound")
-            )
+            raise BusinessException(message=_("agent_kb_binding.error.already_bound"))
 
-        binding = await self.binding_repo.create({
-            "agent_id": agent_id,
-            "knowledge_base_id": knowledge_base_id,
-            "tenant_id": self.tenant_id,
-            "weight": weight,
-            "sort_order": sort_order,
-            "enabled": enabled,
-        })
+        binding = await self.binding_repo.create(
+            {
+                "agent_id": agent_id,
+                "knowledge_base_id": knowledge_base_id,
+                "tenant_id": self.tenant_id,
+                "weight": weight,
+                "sort_order": sort_order,
+                "enabled": enabled,
+            }
+        )
 
         logger.info(
             "KnowledgeBase {} bound to agent {} (tenant={})",
-            knowledge_base_id, agent_id, self.tenant_id,
+            knowledge_base_id,
+            agent_id,
+            self.tenant_id,
         )
 
         return binding
@@ -259,7 +255,9 @@ class AgentKBBindingService:
 
         logger.info(
             "KnowledgeBase {} unbound from agent {} (tenant={})",
-            knowledge_base_id, agent_id, self.tenant_id,
+            knowledge_base_id,
+            agent_id,
+            self.tenant_id,
         )
 
     async def batch_bind(
@@ -279,15 +277,10 @@ class AgentKBBindingService:
         """
         agent = await self.agent_repo.get_by_id(agent_id)
         if not agent:
-            raise NotFoundException(
-                message=_("agent_kb_binding.error.agent_not_found")
-            )
+            raise NotFoundException(message=_("agent_kb_binding.error.agent_not_found"))
 
         kb_ids = list(knowledge_base_ids)
-        if (
-            agent.owner_tenant_id is None
-            and self.tenant_id is not None
-        ):
+        if agent.owner_tenant_id is None and self.tenant_id is not None:
             filtered: list[int] = []
             for kb_id in kb_ids:
                 row = await self.binding_repo.get_binding_any(agent_id, kb_id)
@@ -305,19 +298,23 @@ class AgentKBBindingService:
 
             bindings = []
             for idx, kb_id in enumerate(kb_ids):
-                binding = await self.binding_repo.create({
-                    "agent_id": agent_id,
-                    "knowledge_base_id": kb_id,
-                    "tenant_id": self.tenant_id,
-                    "weight": 1.0,
-                    "sort_order": idx,
-                    "enabled": True,
-                })
+                binding = await self.binding_repo.create(
+                    {
+                        "agent_id": agent_id,
+                        "knowledge_base_id": kb_id,
+                        "tenant_id": self.tenant_id,
+                        "weight": 1.0,
+                        "sort_order": idx,
+                        "enabled": True,
+                    }
+                )
                 bindings.append(binding)
 
         logger.info(
             "Batch bound {} knowledge bases to agent {} (tenant={})",
-            len(kb_ids), agent_id, self.tenant_id,
+            len(kb_ids),
+            agent_id,
+            self.tenant_id,
         )
 
         return bindings

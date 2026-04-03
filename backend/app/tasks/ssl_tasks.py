@@ -75,20 +75,31 @@ def task_provision_ssl(self: BaseTask, domain_id: int) -> dict:
 
                 logger.info(
                     "Starting SSL provisioning for domain {} (id={})",
-                    domain.domain, domain_id,
+                    domain.domain,
+                    domain_id,
                 )
 
                 # 2. Read ACME params from platform config / 从平台配置读取 ACME 参数
                 from app.configs.service import ConfigService
+
                 config_svc = ConfigService(db)
-                acme_email = await config_svc.get_platform_config("acme_account_email", default="")
-                acme_use_staging = await config_svc.get_platform_config("acme_use_staging", default=True)
-                acme_dir_url = await config_svc.get_platform_config("acme_directory_url", default=None)
-                acme_stg_url = await config_svc.get_platform_config("acme_staging_url", default=None)
+                acme_email = await config_svc.get_platform_config(
+                    "acme_account_email", default=""
+                )
+                acme_use_staging = await config_svc.get_platform_config(
+                    "acme_use_staging", default=True
+                )
+                acme_dir_url = await config_svc.get_platform_config(
+                    "acme_directory_url", default=None
+                )
+                acme_stg_url = await config_svc.get_platform_config(
+                    "acme_staging_url", default=None
+                )
                 dir_url = acme_stg_url if acme_use_staging else acme_dir_url
 
                 # 3. Build DNS provider + ACME client issuance / 构建 DNS 提供商 + ACME 客户端签发
                 from app.services.system.dns_provider import get_dns_provider
+
                 dns_provider = await get_dns_provider(db)
 
                 acme = AcmeClient(
@@ -116,13 +127,16 @@ def task_provision_ssl(self: BaseTask, domain_id: int) -> dict:
 
                 logger.info(
                     "SSL certificate issued for {}, expires {}",
-                    domain.domain, cert.expires_at,
+                    domain.domain,
+                    cert.expires_at,
                 )
                 return {
                     "domain_id": domain_id,
                     "domain": domain.domain,
                     "cert_id": cert.id,
-                    "expires_at": cert.expires_at.isoformat() if cert.expires_at else None,
+                    "expires_at": cert.expires_at.isoformat()
+                    if cert.expires_at
+                    else None,
                     "status": "active",
                 }
 
@@ -131,10 +145,12 @@ def task_provision_ssl(self: BaseTask, domain_id: int) -> dict:
 
                 # dns_setter missing: config issue, no retry, WARNING only / dns_setter 缺失：配置问题，不重试，仅 WARNING
                 from app.services.system.acme_client import AcmeDnsSetterMissingError
+
                 if isinstance(exc, AcmeDnsSetterMissingError):
                     logger.warning(
                         "SSL provisioning skipped for domain {}: {}",
-                        domain_id, str(exc),
+                        domain_id,
+                        str(exc),
                     )
                     return {
                         "error": "dns_setter_missing",
@@ -142,16 +158,21 @@ def task_provision_ssl(self: BaseTask, domain_id: int) -> dict:
                         "message": str(exc),
                     }
 
-                if isinstance(exc, BusinessException) and exc.code == ErrorCode.CONFIG_VALIDATION_FAILED:
+                if (
+                    isinstance(exc, BusinessException)
+                    and exc.code == ErrorCode.CONFIG_VALIDATION_FAILED
+                ):
                     logger.warning(
                         "SSL provisioning blocked by DNS config for domain {}: {}",
-                        domain_id, str(exc),
+                        domain_id,
+                        str(exc),
                     )
                     try:
                         async with _task_async_session() as db2:
                             ssl_service = SslCertificateService(db2)
                             await ssl_service.mark_provision_failed(
-                                domain_id, str(exc),
+                                domain_id,
+                                str(exc),
                             )
                             await db2.commit()
                     except Exception:
@@ -165,13 +186,16 @@ def task_provision_ssl(self: BaseTask, domain_id: int) -> dict:
                 # Other errors: log ERROR + mark failed + retry / 其他错误：记录 ERROR + 标记失败 + 重试
                 logger.error(
                     "SSL provisioning failed for domain {}: {}",
-                    domain_id, str(exc), exc_info=True,
+                    domain_id,
+                    str(exc),
+                    exc_info=True,
                 )
                 try:
                     async with _task_async_session() as db2:
                         ssl_service = SslCertificateService(db2)
                         await ssl_service.mark_provision_failed(
-                            domain_id, str(exc),
+                            domain_id,
+                            str(exc),
                         )
                         await db2.commit()
                 except Exception:
@@ -233,7 +257,8 @@ def task_check_ssl_renewals(self: BaseTask) -> dict:
                 config_svc = ConfigService(db)
                 readiness = await audit_dns_provider_config(db)
                 renew_days_raw = await config_svc.get_platform_config(
-                    "ssl_auto_renew_days", default=30,
+                    "ssl_auto_renew_days",
+                    default=30,
                 )
                 try:
                     renew_days = int(renew_days_raw)
@@ -250,13 +275,16 @@ def task_check_ssl_renewals(self: BaseTask) -> dict:
                             stats["platform_renewals_triggered"] += 1
                             logger.info(
                                 "Renewal triggered for cert {} (domain_id={}, expires={})",
-                                cert.id, cert.domain_id, cert.expires_at,
+                                cert.id,
+                                cert.domain_id,
+                                cert.expires_at,
                             )
                         except Exception as e:
                             stats["errors"] += 1
                             logger.error(
                                 "Failed to trigger renewal for cert {}: {}",
-                                cert.id, str(e),
+                                cert.id,
+                                str(e),
                             )
                 else:
                     stats["errors"] += 1
@@ -275,7 +303,9 @@ def task_check_ssl_renewals(self: BaseTask) -> dict:
                     stats["custom_expiring_notified"] += 1
                     logger.info(
                         "Custom cert {} expiring soon (domain_id={}, expires={})",
-                        cert.id, cert.domain_id, cert.expires_at,
+                        cert.id,
+                        cert.domain_id,
+                        cert.expires_at,
                     )
                     # Send SSL expiry reminder email (extract associated data in async context) / 发送 SSL 到期提醒邮件（在 async 上下文中提取关联数据）
                     notify_email = await _get_cert_notify_email(db, cert.domain_id)
@@ -295,13 +325,15 @@ def task_check_ssl_renewals(self: BaseTask) -> dict:
                         stats["expired_marked"] += 1
                         logger.info(
                             "Cert {} marked expired (domain_id={})",
-                            cert.id, cert.domain_id,
+                            cert.id,
+                            cert.domain_id,
                         )
                     except Exception as e:
                         stats["errors"] += 1
                         logger.error(
                             "Failed to mark cert {} expired: {}",
-                            cert.id, str(e),
+                            cert.id,
+                            str(e),
                         )
 
                 await db.commit()
@@ -361,7 +393,8 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
 
                 if cert.cert_type != SslCertType.PLATFORM.value:
                     logger.warning(
-                        "Cert {} is custom type, cannot auto-renew", cert_id,
+                        "Cert {} is custom type, cannot auto-renew",
+                        cert_id,
                     )
                     return {"error": "custom_cert_no_renew", "cert_id": cert_id}
 
@@ -370,20 +403,31 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
 
                 logger.info(
                     "Starting SSL renewal for cert {} (domain={})",
-                    cert_id, domain.domain,
+                    cert_id,
+                    domain.domain,
                 )
 
                 # 3. Read ACME params from platform config / 从平台配置读取 ACME 参数
                 from app.configs.service import ConfigService
+
                 config_svc = ConfigService(db)
-                acme_email = await config_svc.get_platform_config("acme_account_email", default="")
-                acme_use_staging = await config_svc.get_platform_config("acme_use_staging", default=True)
-                acme_dir_url = await config_svc.get_platform_config("acme_directory_url", default=None)
-                acme_stg_url = await config_svc.get_platform_config("acme_staging_url", default=None)
+                acme_email = await config_svc.get_platform_config(
+                    "acme_account_email", default=""
+                )
+                acme_use_staging = await config_svc.get_platform_config(
+                    "acme_use_staging", default=True
+                )
+                acme_dir_url = await config_svc.get_platform_config(
+                    "acme_directory_url", default=None
+                )
+                acme_stg_url = await config_svc.get_platform_config(
+                    "acme_staging_url", default=None
+                )
                 dir_url = acme_stg_url if acme_use_staging else acme_dir_url
 
                 # 4. Build DNS provider + ACME re-issuance / 构建 DNS 提供商 + ACME 重新签发
                 from app.services.system.dns_provider import get_dns_provider
+
                 dns_provider = await get_dns_provider(db)
 
                 acme = AcmeClient(
@@ -410,13 +454,17 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
 
                 logger.info(
                     "SSL certificate renewed for {}, new cert {} expires {}",
-                    domain.domain, new_cert.id, new_cert.expires_at,
+                    domain.domain,
+                    new_cert.id,
+                    new_cert.expires_at,
                 )
                 return {
                     "cert_id": cert_id,
                     "new_cert_id": new_cert.id,
                     "domain": domain.domain,
-                    "expires_at": new_cert.expires_at.isoformat() if new_cert.expires_at else None,
+                    "expires_at": new_cert.expires_at.isoformat()
+                    if new_cert.expires_at
+                    else None,
                     "status": "renewed",
                 }
 
@@ -424,7 +472,9 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
                 await db.rollback()
                 logger.error(
                     "SSL renewal failed for cert {}: {}",
-                    cert_id, str(exc), exc_info=True,
+                    cert_id,
+                    str(exc),
+                    exc_info=True,
                 )
 
                 # Record renewal failure (does not change cert status, still valid until expiry) / 记录续期失败（不改变证书状态，仍有效直到过期）
@@ -436,10 +486,14 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
                 except Exception:
                     pass
 
-                if isinstance(exc, BusinessException) and exc.code == ErrorCode.CONFIG_VALIDATION_FAILED:
+                if (
+                    isinstance(exc, BusinessException)
+                    and exc.code == ErrorCode.CONFIG_VALIDATION_FAILED
+                ):
                     logger.warning(
                         "SSL renewal blocked by DNS config for cert {}: {}",
-                        cert_id, str(exc),
+                        cert_id,
+                        str(exc),
                     )
                     return {
                         "error": "dns_provider_not_ready",

@@ -42,12 +42,14 @@ def _serialize(data: Any) -> Any:
         return {k: _serialize(v) for k, v in data.items()}
     return data
 
+
 T = TypeVar("T")
 
 
 # ============================================
 # 响应模型 / Response Models
 # ============================================
+
 
 class ApiResponse(BaseModel, Generic[T]):
     """
@@ -61,7 +63,9 @@ class ApiResponse(BaseModel, Generic[T]):
     }
     """
 
-    code: int = Field(default=0, description="响应状态码，0 表示成功 / Response code, 0 means success")
+    code: int = Field(
+        default=0, description="响应状态码，0 表示成功 / Response code, 0 means success"
+    )
     message: str = Field(default="success", description="响应消息")
     data: T | None = Field(default=None, description="响应数据")
 
@@ -135,7 +139,9 @@ def build_public_error_text(
 
     detail_text = (detail if detail is not None else (str(exc) if exc else "")).strip()
     if expose_detail and detail_text:
-        text = detail_text if not text or text == detail_text else f"{text}: {detail_text}"
+        text = (
+            detail_text if not text or text == detail_text else f"{text}: {detail_text}"
+        )
 
     resolved_trace_id = trace_id or get_current_trace_id()
     if include_trace_id and resolved_trace_id:
@@ -281,6 +287,7 @@ def build_socket_connect_error(
 # ============================================
 # 响应封装函数 / Response Wrapper Functions
 # ============================================
+
 
 def success(
     data: Any = None,
@@ -459,6 +466,7 @@ def no_content() -> JSONResponse:
 # ============================================
 # 错误响应快捷方法 / Error Response Shortcuts
 # ============================================
+
 
 def bad_request(
     message: str | None = None,

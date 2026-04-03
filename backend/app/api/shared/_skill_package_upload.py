@@ -120,10 +120,13 @@ async def process_skill_package_archive(
         valves_schema = None
         env_example_content = read_env_example(extract_dir)
         if env_example_content:
-            valves_schema = parse_env_example(
-                env_example_content,
-                required_vars=env_requires,
-            ) or None
+            valves_schema = (
+                parse_env_example(
+                    env_example_content,
+                    required_vars=env_requires,
+                )
+                or None
+            )
 
         pkg_data: dict[str, Any] = {
             "name": skill_name,

@@ -32,6 +32,7 @@ logger = LogManager.get_logger("ai.rag.parser")
 @dataclass
 class ParsedPage:
     """Parsed result unit (one page/paragraph/row) / 解析结果单元（一页/一段/一行）"""
+
     content: str
     metadata: dict = field(default_factory=dict)
 
@@ -40,7 +41,9 @@ class DocumentParser(ABC):
     """Document parser base class / 文档解析器基类"""
 
     @abstractmethod
-    async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
+    async def parse(
+        self, file_content: BinaryIO, file_name: str = ""
+    ) -> list[ParsedPage]:
         """
         Parse document content / 解析文档内容
 
@@ -79,7 +82,9 @@ class PdfParser(DocumentParser):
         self._vision_describer = vision_describer
         self._knowledge_base = knowledge_base
 
-    async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
+    async def parse(
+        self, file_content: BinaryIO, file_name: str = ""
+    ) -> list[ParsedPage]:
         import fitz  # PyMuPDF / PDF 解析库
 
         pages: list[ParsedPage] = []
@@ -97,13 +102,15 @@ class PdfParser(DocumentParser):
                 page = doc[page_num]
                 text = page.get_text("text").strip()
                 if text:
-                    pages.append(ParsedPage(
-                        content=text,
-                        metadata={
-                            "page": page_num + 1,
-                            "source": file_name,
-                        },
-                    ))
+                    pages.append(
+                        ParsedPage(
+                            content=text,
+                            metadata={
+                                "page": page_num + 1,
+                                "source": file_name,
+                            },
+                        )
+                    )
 
                 if not extract_images:
                     continue
@@ -122,7 +129,9 @@ class PdfParser(DocumentParser):
                         continue
 
                     ext: str = base_image.get("ext", "png")
-                    mime_type = "image/jpeg" if ext in ("jpg", "jpeg") else f"image/{ext}"
+                    mime_type = (
+                        "image/jpeg" if ext in ("jpg", "jpeg") else f"image/{ext}"
+                    )
 
                     description = await self._vision_describer.describe_image(  # type: ignore[union-attr]  # 可选依赖 / optional
                         image_bytes=image_bytes,
@@ -130,21 +139,25 @@ class PdfParser(DocumentParser):
                         knowledge_base=self._knowledge_base,  # type: ignore[arg-type]  # 可选依赖 / optional
                     )
                     if description:
-                        pages.append(ParsedPage(
-                            content=description,
-                            metadata={
-                                "page": page_num + 1,
-                                "image_index": img_idx,
-                                "source": file_name,
-                                "type": "image",
-                            },
-                        ))
+                        pages.append(
+                            ParsedPage(
+                                content=description,
+                                metadata={
+                                    "page": page_num + 1,
+                                    "image_index": img_idx,
+                                    "source": file_name,
+                                    "type": "image",
+                                },
+                            )
+                        )
         finally:
             doc.close()
 
         logger.info(
             "PDF parsed: {}, pages={} (extract_images={})",
-            file_name, len(pages), extract_images,
+            file_name,
+            len(pages),
+            extract_images,
         )
         return pages
 
@@ -157,7 +170,9 @@ class DocxParser(DocumentParser):
     使用 python-docx 提取段落和表格，保留标题层级元数据。
     """
 
-    async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
+    async def parse(
+        self, file_content: BinaryIO, file_name: str = ""
+    ) -> list[ParsedPage]:
         from docx import Document
 
         doc = Document(file_content)
@@ -174,14 +189,16 @@ class DocxParser(DocumentParser):
             if para.style and para.style.name and para.style.name.startswith("Heading"):
                 current_heading = text
 
-            pages.append(ParsedPage(
-                content=text,
-                metadata={
-                    "heading": current_heading,
-                    "paragraph": paragraph_index,
-                    "source": file_name,
-                },
-            ))
+            pages.append(
+                ParsedPage(
+                    content=text,
+                    metadata={
+                        "heading": current_heading,
+                        "paragraph": paragraph_index,
+                        "source": file_name,
+                    },
+                )
+            )
             paragraph_index += 1
 
         # Process tables: convert to Markdown format / 处理表格：转为 Markdown 格式
@@ -192,19 +209,26 @@ class DocxParser(DocumentParser):
                 rows_text.append("| " + " | ".join(cells) + " |")
             if rows_text:
                 # Insert separator row / 插入分隔符行
-                header_sep = "| " + " | ".join(["---"] * len(table.rows[0].cells)) + " |"
-                table_md = rows_text[0] + "\n" + header_sep + "\n" + "\n".join(rows_text[1:])
-                pages.append(ParsedPage(
-                    content=table_md,
-                    metadata={
-                        "table_index": table_idx,
-                        "source": file_name,
-                    },
-                ))
+                header_sep = (
+                    "| " + " | ".join(["---"] * len(table.rows[0].cells)) + " |"
+                )
+                table_md = (
+                    rows_text[0] + "\n" + header_sep + "\n" + "\n".join(rows_text[1:])
+                )
+                pages.append(
+                    ParsedPage(
+                        content=table_md,
+                        metadata={
+                            "table_index": table_idx,
+                            "source": file_name,
+                        },
+                    )
+                )
 
         logger.info(
             "DOCX parsed: {}, segments={}",
-            file_name, len(pages),
+            file_name,
+            len(pages),
         )
         return pages
 
@@ -217,7 +241,9 @@ class TxtParser(DocumentParser):
     按空行分段。
     """
 
-    async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
+    async def parse(
+        self, file_content: BinaryIO, file_name: str = ""
+    ) -> list[ParsedPage]:
         text = file_content.read().decode("utf-8", errors="replace")
         paragraphs = re.split(r"\n\s*\n", text)
 
@@ -225,17 +251,20 @@ class TxtParser(DocumentParser):
         for idx, para in enumerate(paragraphs):
             content = para.strip()
             if content:
-                pages.append(ParsedPage(
-                    content=content,
-                    metadata={
-                        "paragraph": idx,
-                        "source": file_name,
-                    },
-                ))
+                pages.append(
+                    ParsedPage(
+                        content=content,
+                        metadata={
+                            "paragraph": idx,
+                            "source": file_name,
+                        },
+                    )
+                )
 
         logger.info(
             "TXT parsed: {}, paragraphs={}",
-            file_name, len(pages),
+            file_name,
+            len(pages),
         )
         return pages
 
@@ -250,7 +279,9 @@ class MarkdownParser(DocumentParser):
     代码块和表格完整保留。
     """
 
-    async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
+    async def parse(
+        self, file_content: BinaryIO, file_name: str = ""
+    ) -> list[ParsedPage]:
         text = file_content.read().decode("utf-8", errors="replace")
         pages: list[ParsedPage] = []
         current_heading: str | None = None
@@ -261,13 +292,15 @@ class MarkdownParser(DocumentParser):
             nonlocal current_content
             content = "\n".join(current_content).strip()
             if content:
-                pages.append(ParsedPage(
-                    content=content,
-                    metadata={
-                        "heading": current_heading,
-                        "source": file_name,
-                    },
-                ))
+                pages.append(
+                    ParsedPage(
+                        content=content,
+                        metadata={
+                            "heading": current_heading,
+                            "source": file_name,
+                        },
+                    )
+                )
             current_content = []
 
         for line in text.split("\n"):
@@ -284,7 +317,8 @@ class MarkdownParser(DocumentParser):
 
         logger.info(
             "Markdown parsed: {}, sections={}",
-            file_name, len(pages),
+            file_name,
+            len(pages),
         )
         return pages
 
@@ -297,7 +331,9 @@ class CsvParser(DocumentParser):
     使用 pandas 读取，每行转为 "列名: 值" 格式文本。
     """
 
-    async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
+    async def parse(
+        self, file_content: BinaryIO, file_name: str = ""
+    ) -> list[ParsedPage]:
         import pandas as pd
 
         df = pd.read_csv(file_content, dtype=str)
@@ -311,18 +347,21 @@ class CsvParser(DocumentParser):
                 if pd.notna(val) and str(val).strip():
                     parts.append(f"{col}: {val}")
             if parts:
-                pages.append(ParsedPage(
-                    content="\n".join(parts),
-                    metadata={
-                        "row_index": int(row_idx),
-                        "columns": columns,
-                        "source": file_name,
-                    },
-                ))
+                pages.append(
+                    ParsedPage(
+                        content="\n".join(parts),
+                        metadata={
+                            "row_index": int(row_idx),
+                            "columns": columns,
+                            "source": file_name,
+                        },
+                    )
+                )
 
         logger.info(
             "CSV parsed: {}, rows={}",
-            file_name, len(pages),
+            file_name,
+            len(pages),
         )
         return pages
 
@@ -335,7 +374,9 @@ class XlsxParser(DocumentParser):
     使用 openpyxl 读取，支持多 Sheet，每行转为 "列名: 值" 格式文本。
     """
 
-    async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
+    async def parse(
+        self, file_content: BinaryIO, file_name: str = ""
+    ) -> list[ParsedPage]:
         from openpyxl import load_workbook
 
         wb = load_workbook(file_content, read_only=True, data_only=True)
@@ -358,24 +399,32 @@ class XlsxParser(DocumentParser):
                     parts = []
                     for col_idx, val in enumerate(row):
                         if val is not None and str(val).strip():
-                            col_name = headers[col_idx] if col_idx < len(headers) else f"col_{col_idx}"
+                            col_name = (
+                                headers[col_idx]
+                                if col_idx < len(headers)
+                                else f"col_{col_idx}"
+                            )
                             parts.append(f"{col_name}: {val}")
                     if parts:
-                        pages.append(ParsedPage(
-                            content="\n".join(parts),
-                            metadata={
-                                "sheet": sheet_name,
-                                "row_index": row_idx,
-                                "columns": headers,
-                                "source": file_name,
-                            },
-                        ))
+                        pages.append(
+                            ParsedPage(
+                                content="\n".join(parts),
+                                metadata={
+                                    "sheet": sheet_name,
+                                    "row_index": row_idx,
+                                    "columns": headers,
+                                    "source": file_name,
+                                },
+                            )
+                        )
         finally:
             wb.close()
 
         logger.info(
             "XLSX parsed: {}, sheets={}, rows={}",
-            file_name, len(wb.sheetnames), len(pages),
+            file_name,
+            len(wb.sheetnames),
+            len(pages),
         )
         return pages
 
@@ -406,15 +455,17 @@ class QaPairParser:
             List containing a single ParsedPage / 包含单个 ParsedPage 的列表
         """
         content = f"Q: {question}\nA: {answer}"
-        return [ParsedPage(
-            content=content,
-            metadata={
-                "type": "qa",
-                "question": question,
-                "answer": answer,
-                "source": file_name,
-            },
-        )]
+        return [
+            ParsedPage(
+                content=content,
+                metadata={
+                    "type": "qa",
+                    "question": question,
+                    "answer": answer,
+                    "source": file_name,
+                },
+            )
+        ]
 
 
 class HtmlParser(DocumentParser):
@@ -425,7 +476,9 @@ class HtmlParser(DocumentParser):
     使用 BeautifulSoup 提取正文，过滤 script/style 等非内容标签。
     """
 
-    async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
+    async def parse(
+        self, file_content: BinaryIO, file_name: str = ""
+    ) -> list[ParsedPage]:
         from bs4 import BeautifulSoup
 
         html_text = file_content.read().decode("utf-8", errors="replace")
@@ -439,37 +492,44 @@ class HtmlParser(DocumentParser):
         current_heading: str | None = soup.title.string if soup.title else None
         current_content: list[str] = []
 
-        for element in body.find_all(["h1", "h2", "h3", "h4", "h5", "h6", "p", "li", "td"]):
+        for element in body.find_all(
+            ["h1", "h2", "h3", "h4", "h5", "h6", "p", "li", "td"]
+        ):
             text = element.get_text(strip=True)
             if not text:
                 continue
 
             if element.name and element.name.startswith("h"):
                 if current_content:
-                    pages.append(ParsedPage(
-                        content="\n".join(current_content),
-                        metadata={
-                            "heading": current_heading,
-                            "source": file_name,
-                        },
-                    ))
+                    pages.append(
+                        ParsedPage(
+                            content="\n".join(current_content),
+                            metadata={
+                                "heading": current_heading,
+                                "source": file_name,
+                            },
+                        )
+                    )
                     current_content = []
                 current_heading = text
             else:
                 current_content.append(text)
 
         if current_content:
-            pages.append(ParsedPage(
-                content="\n".join(current_content),
-                metadata={
-                    "heading": current_heading,
-                    "source": file_name,
-                },
-            ))
+            pages.append(
+                ParsedPage(
+                    content="\n".join(current_content),
+                    metadata={
+                        "heading": current_heading,
+                        "source": file_name,
+                    },
+                )
+            )
 
         logger.info(
             "HTML parsed: {}, sections={}",
-            file_name, len(pages),
+            file_name,
+            len(pages),
         )
         return pages
 
@@ -482,7 +542,9 @@ class UrlParser(DocumentParser):
     使用 httpx + beautifulsoup4 爬取网页，提取正文。
     """
 
-    async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
+    async def parse(
+        self, file_content: BinaryIO, file_name: str = ""
+    ) -> list[ParsedPage]:
         """
         Parse web page content / 解析网页内容
 
@@ -494,7 +556,9 @@ class UrlParser(DocumentParser):
 
         url = file_content.read().decode("utf-8").strip()
         if not url:
-            raise BusinessException(message=_("knowledge_base.document.error.parse_failed"))
+            raise BusinessException(
+                message=_("knowledge_base.document.error.parse_failed")
+            )
 
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
             response = await client.get(url)
@@ -514,7 +578,9 @@ class UrlParser(DocumentParser):
             current_heading: str | None = soup.title.string if soup.title else None
             current_content: list[str] = []
 
-            for element in body.find_all(["h1", "h2", "h3", "h4", "h5", "h6", "p", "li", "td"]):
+            for element in body.find_all(
+                ["h1", "h2", "h3", "h4", "h5", "h6", "p", "li", "td"]
+            ):
                 text = element.get_text(strip=True)
                 if not text:
                     continue
@@ -522,14 +588,16 @@ class UrlParser(DocumentParser):
                 if element.name and element.name.startswith("h"):
                     # Heading element: output previous content and start new section / 标题元素：输出之前的内容并开始新段
                     if current_content:
-                        pages.append(ParsedPage(
-                            content="\n".join(current_content),
-                            metadata={
-                                "heading": current_heading,
-                                "source_url": url,
-                                "source": file_name or url,
-                            },
-                        ))
+                        pages.append(
+                            ParsedPage(
+                                content="\n".join(current_content),
+                                metadata={
+                                    "heading": current_heading,
+                                    "source_url": url,
+                                    "source": file_name or url,
+                                },
+                            )
+                        )
                         current_content = []
                     current_heading = text
                 else:
@@ -537,18 +605,21 @@ class UrlParser(DocumentParser):
 
             # Output last section / 输出最后一段
             if current_content:
-                pages.append(ParsedPage(
-                    content="\n".join(current_content),
-                    metadata={
-                        "heading": current_heading,
-                        "source_url": url,
-                        "source": file_name or url,
-                    },
-                ))
+                pages.append(
+                    ParsedPage(
+                        content="\n".join(current_content),
+                        metadata={
+                            "heading": current_heading,
+                            "source_url": url,
+                            "source": file_name or url,
+                        },
+                    )
+                )
 
         logger.info(
             "URL parsed: {}, sections={}",
-            url, len(pages),
+            url,
+            len(pages),
         )
         return pages
 
@@ -573,7 +644,9 @@ class ImageParser(DocumentParser):
         self._vision_describer = vision_describer
         self._knowledge_base = knowledge_base
 
-    async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
+    async def parse(
+        self, file_content: BinaryIO, file_name: str = ""
+    ) -> list[ParsedPage]:
         image_bytes = file_content.read()
 
         if not self._vision_describer or not self._knowledge_base or not image_bytes:
@@ -595,13 +668,15 @@ class ImageParser(DocumentParser):
             file_name,
             len(description),
         )
-        return [ParsedPage(
-            content=description,
-            metadata={
-                "source": file_name,
-                "mime_type": mime_type,
-            },
-        )]
+        return [
+            ParsedPage(
+                content=description,
+                metadata={
+                    "source": file_name,
+                    "mime_type": mime_type,
+                },
+            )
+        ]
 
 
 class AudioParser(DocumentParser):
@@ -621,7 +696,9 @@ class AudioParser(DocumentParser):
         self._audio_describer = audio_describer
         self._knowledge_base = knowledge_base
 
-    async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
+    async def parse(
+        self, file_content: BinaryIO, file_name: str = ""
+    ) -> list[ParsedPage]:
         audio_bytes = file_content.read()
         if not self._audio_describer or not audio_bytes:
             return [ParsedPage(content="", metadata={"source": file_name})]
@@ -634,10 +711,12 @@ class AudioParser(DocumentParser):
             knowledge_base=self._knowledge_base,
         )
         logger.info("Audio parsed: {}, description_len={}", file_name, len(description))
-        return [ParsedPage(
-            content=description,
-            metadata={"source": file_name, "mime_type": mime_type},
-        )]
+        return [
+            ParsedPage(
+                content=description,
+                metadata={"source": file_name, "mime_type": mime_type},
+            )
+        ]
 
 
 class VideoParser(DocumentParser):
@@ -657,7 +736,9 @@ class VideoParser(DocumentParser):
         self._video_describer = video_describer
         self._knowledge_base = knowledge_base
 
-    async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
+    async def parse(
+        self, file_content: BinaryIO, file_name: str = ""
+    ) -> list[ParsedPage]:
         video_bytes = file_content.read()
         if not self._video_describer or not video_bytes:
             return [ParsedPage(content="", metadata={"source": file_name})]
@@ -670,10 +751,12 @@ class VideoParser(DocumentParser):
             knowledge_base=self._knowledge_base,
         )
         logger.info("Video parsed: {}, description_len={}", file_name, len(description))
-        return [ParsedPage(
-            content=description,
-            metadata={"source": file_name, "mime_type": mime_type},
-        )]
+        return [
+            ParsedPage(
+                content=description,
+                metadata={"source": file_name, "mime_type": mime_type},
+            )
+        ]
 
 
 class PptxParser(DocumentParser):
@@ -695,7 +778,9 @@ class PptxParser(DocumentParser):
     每张幻灯片 → 1个 ParsedPage（空白幻灯片跳过）。
     """
 
-    async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
+    async def parse(
+        self, file_content: BinaryIO, file_name: str = ""
+    ) -> list[ParsedPage]:
         from pptx import Presentation  # python-pptx / PPT 解析库
 
         data = file_content.read()
@@ -728,8 +813,16 @@ class PptxParser(DocumentParser):
                         cells = [cell.text.strip() for cell in row.cells]
                         rows_text.append("| " + " | ".join(cells) + " |")
                     if rows_text:
-                        header_sep = "| " + " | ".join(["---"] * len(shape.table.columns)) + " |"
-                        table_md = rows_text[0] + "\n" + header_sep + "\n" + "\n".join(rows_text[1:])
+                        header_sep = (
+                            "| " + " | ".join(["---"] * len(shape.table.columns)) + " |"
+                        )
+                        table_md = (
+                            rows_text[0]
+                            + "\n"
+                            + header_sep
+                            + "\n"
+                            + "\n".join(rows_text[1:])
+                        )
                         parts.append(table_md)
 
             # Extract slide notes / 提取幻灯片备注
@@ -742,18 +835,21 @@ class PptxParser(DocumentParser):
             if not content:
                 continue
 
-            pages.append(ParsedPage(
-                content=content,
-                metadata={
-                    "slide": slide_num,
-                    "heading": title_text,
-                    "source": file_name,
-                },
-            ))
+            pages.append(
+                ParsedPage(
+                    content=content,
+                    metadata={
+                        "slide": slide_num,
+                        "heading": title_text,
+                        "source": file_name,
+                    },
+                )
+            )
 
         logger.info(
             "PPTX parsed: {}, slides={}",
-            file_name, len(pages),
+            file_name,
+            len(pages),
         )
         return pages
 

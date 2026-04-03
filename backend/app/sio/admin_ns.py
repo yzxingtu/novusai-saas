@@ -38,7 +38,9 @@ class AdminNamespace(PageSessionMixin, socketio.AsyncNamespace):
     # sid → session backup, prevents inability to clean up presence when get_session fails / sid → session 备份，防止 get_session 失败时无法清理 presence
     _sid_sessions: dict[str, dict] = {}
 
-    async def on_connect(self, sid: str, environ: dict, auth: dict | None = None) -> None:
+    async def on_connect(
+        self, sid: str, environ: dict, auth: dict | None = None
+    ) -> None:
         """
         连接认证 / Connection authentication.
 
@@ -52,6 +54,7 @@ class AdminNamespace(PageSessionMixin, socketio.AsyncNamespace):
             _ = environ
             # Check real-time communication master switch / 检查实时通信总开关
             from app.sio.ws_config import get_ws_configs
+
             ws_cfg = await get_ws_configs("ws_enabled", "ws_max_connections_per_user")
             if not ws_cfg.get("ws_enabled", True):
                 raise socket_connect_refusal("websocket_disabled")
@@ -65,7 +68,9 @@ class AdminNamespace(PageSessionMixin, socketio.AsyncNamespace):
 
             try:
                 user_id_str, scope = await verify_token_with_scope(
-                    token, TOKEN_SCOPE_ADMIN, raise_on_expired=True,
+                    token,
+                    TOKEN_SCOPE_ADMIN,
+                    raise_on_expired=True,
                 )
             except TokenExpiredError as exc:
                 raise socket_connect_refusal("token_expired") from exc
@@ -77,13 +82,17 @@ class AdminNamespace(PageSessionMixin, socketio.AsyncNamespace):
 
             # Connection rate limiting / 连接频率限制
             from app.sio.presence import check_connect_rate
+
             if not await check_connect_rate("admin", user_id):
                 raise socket_connect_refusal("rate_limited")
 
             # Per-user max connection limit / 单用户最大连接数限制
             from app.sio.presence import PresenceManager
+
             max_conn = int(ws_cfg.get("ws_max_connections_per_user", 5))
-            current_conn = await PresenceManager.get_user_connection_count("admin", user_id)
+            current_conn = await PresenceManager.get_user_connection_count(
+                "admin", user_id
+            )
             if current_conn >= max_conn:
                 raise socket_connect_refusal("max_connections_exceeded")
 
@@ -140,12 +149,17 @@ class AdminNamespace(PageSessionMixin, socketio.AsyncNamespace):
 
             logger.info(
                 "SIO /admin connected: sid={} user_id={} username={} connections={}",
-                sid, user_id, username, connections,
+                sid,
+                user_id,
+                username,
+                connections,
             )
         except SocketConnectionRefusedError:
             raise
         except Exception as exc:
-            logger.error("SIO /admin connect failed: sid={} error={}", sid, exc, exc_info=True)
+            logger.error(
+                "SIO /admin connect failed: sid={} error={}", sid, exc, exc_info=True
+            )
             raise socket_connect_refusal("connection_failed", exc=exc) from exc
         finally:
             trace_id_var.set("")
@@ -162,6 +176,7 @@ class AdminNamespace(PageSessionMixin, socketio.AsyncNamespace):
             if user_id:
                 try:
                     from app.sio.presence import PresenceManager
+
                     connections = await PresenceManager.set_offline("admin", user_id)
                     if connections == 0:
                         await self.emit(
@@ -173,7 +188,9 @@ class AdminNamespace(PageSessionMixin, socketio.AsyncNamespace):
                 except Exception as e:
                     logger.error(
                         "SIO /admin presence cleanup failed: sid={} user_id={} error={}",
-                        sid, user_id, e,
+                        sid,
+                        user_id,
+                        e,
                     )
 
             # Clean up fallback mapping / 清理 fallback 映射
@@ -181,7 +198,9 @@ class AdminNamespace(PageSessionMixin, socketio.AsyncNamespace):
 
             logger.info(
                 "SIO /admin disconnected: sid={} user_id={} reason={}",
-                sid, user_id, reason,
+                sid,
+                user_id,
+                reason,
             )
         finally:
             trace_id_var.set("")

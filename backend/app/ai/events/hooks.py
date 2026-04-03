@@ -217,9 +217,7 @@ class HookRegistry:
         """
         entries = self._hooks.get(hook_point, [])
         before = len(entries)
-        self._hooks[hook_point] = [
-            e for e in entries if e.handler is not handler
-        ]
+        self._hooks[hook_point] = [e for e in entries if e.handler is not handler]
         return before - len(self._hooks[hook_point]) > 0
 
     async def trigger(

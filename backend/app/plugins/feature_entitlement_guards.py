@@ -47,10 +47,7 @@ async def _get_plugin_status_map(plugin_names: Iterable[str]) -> dict[str, str]:
                 Plugin.is_deleted.is_(False),
             )
         )
-        return {
-            str(name): str(status or "")
-            for name, status in result.all()
-        }
+        return {str(name): str(status or "") for name, status in result.all()}
 
 
 async def _get_active_feature_plan_summaries(feature_flag: str) -> list[dict[str, Any]]:
@@ -212,7 +209,8 @@ async def _feature_managed_lifecycle_guard(payload) -> dict[str, Any] | None:
     other_enabled_drivers = [
         name
         for name in STORAGE_BILLING_DRIVER_PLUGINS
-        if name != plugin_name and status_map.get(name) == PluginStatusEnum.ENABLED.value
+        if name != plugin_name
+        and status_map.get(name) == PluginStatusEnum.ENABLED.value
     ]
     if other_enabled_drivers:
         return None

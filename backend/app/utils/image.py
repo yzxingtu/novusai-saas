@@ -54,6 +54,7 @@ class ImageProcessParams:
         format: Output format (jpg/png/webp/gif), None keeps original / 输出格式（jpg/png/webp/gif），None 表示保持原格式
         mode: Processing mode (fit/fill/crop/pad) / 处理模式（fit/fill/crop/pad）
     """
+
     width: int | None = None
     height: int | None = None
     quality: int = 85
@@ -213,6 +214,7 @@ class ImageProcessor:
         Returns:
             (Processed byte data, MIME type) / (处理后的字节数据, MIME 类型)
         """
+
         def _process() -> tuple[bytes, str]:
             # Read source image / 读取源图片
             if isinstance(source, bytes):
@@ -339,9 +341,13 @@ class ImageProcessor:
 
             # Create white background at target dimensions / 创建目标尺寸的白色背景
             if img.mode in ("RGBA", "LA"):
-                background = Image.new("RGBA", (target_width, target_height), (255, 255, 255, 255))
+                background = Image.new(
+                    "RGBA", (target_width, target_height), (255, 255, 255, 255)
+                )
             else:
-                background = Image.new("RGB", (target_width, target_height), (255, 255, 255))
+                background = Image.new(
+                    "RGB", (target_width, target_height), (255, 255, 255)
+                )
 
             # Center paste / 居中粘贴
             paste_x = (target_width - new_width) // 2

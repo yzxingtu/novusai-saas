@@ -32,10 +32,12 @@ class PluginRepository(BaseRepository[Plugin]):
     async def list_enabled(self) -> list[Plugin]:
         """查询所有已启用的插件 / List all enabled plugins."""
         result = await self.db.execute(
-            select(Plugin).where(
+            select(Plugin)
+            .where(
                 Plugin.status == PluginStatusEnum.ENABLED.value,
                 Plugin.is_deleted.is_(False),
-            ).order_by(Plugin.name)
+            )
+            .order_by(Plugin.name)
         )
         return list(result.scalars().all())
 

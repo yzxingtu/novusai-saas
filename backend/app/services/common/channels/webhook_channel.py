@@ -60,6 +60,7 @@ class WebhookChannel(NotificationChannel):
         **kwargs: Any,
     ) -> bool:
         """通过 HTTP POST 投递通知到 Webhook URL / Deliver notification via HTTP POST to webhook URL."""
+        _ = db
         _ = kwargs
         try:
             from app.sio.ws_config import get_ws_configs
@@ -88,12 +89,18 @@ class WebhookChannel(NotificationChannel):
                 resp = await client.post(url, json=payload)
 
             if resp.is_success:
-                logger.debug("WebhookChannel delivered: template={} status={}", template_code, resp.status_code)
+                logger.debug(
+                    "WebhookChannel delivered: template={} status={}",
+                    template_code,
+                    resp.status_code,
+                )
                 return True
 
             logger.warning(
                 "WebhookChannel POST failed: url={} status={} body={}",
-                url[:80], resp.status_code, resp.text[:200],
+                url[:80],
+                resp.status_code,
+                resp.text[:200],
             )
             return False
         except Exception as e:

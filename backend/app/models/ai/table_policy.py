@@ -29,8 +29,13 @@ class AITablePolicy(BaseModel):
     __tablename__ = "ai_table_policies"
 
     __delete_deps__ = [
-        DeletionDep("AITablePolicyOverride", "policy_id", DeletionStrategy.CASCADE_SOFT,
-                    label_field="id", i18n_key="table_policy_override"),
+        DeletionDep(
+            "AITablePolicyOverride",
+            "policy_id",
+            DeletionStrategy.CASCADE_SOFT,
+            label_field="id",
+            i18n_key="table_policy_override",
+        ),
     ]
 
     # 允许前端筛选的字段 / Fields exposed for list filtering
@@ -177,9 +182,7 @@ class AITablePolicy(BaseModel):
 
     # ==================== 索引 ==================== / Indexes
 
-    __table_args__ = (
-        Index("idx_ai_table_policies_active", "is_active"),
-    )
+    __table_args__ = (Index("idx_ai_table_policies_active", "is_active"),)
 
     def __repr__(self) -> str:
         return (
@@ -268,7 +271,8 @@ class AITablePolicyOverride(TenantModel):
     __table_args__ = (
         Index(
             "uq_policy_override_tenant_policy",
-            "tenant_id", "policy_id",
+            "tenant_id",
+            "policy_id",
             unique=True,
         ),
     )

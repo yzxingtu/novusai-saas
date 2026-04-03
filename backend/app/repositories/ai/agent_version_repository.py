@@ -2,7 +2,6 @@
 智能体版本 Repository / Agent Version Repository
 """
 
-
 from sqlalchemy import and_, select
 
 from app.core.base_repository import TenantRepository
@@ -29,9 +28,9 @@ class AgentVersionRepository(TenantRepository[AgentVersion]):
         return await super().create(self._sanitize_create_data(data))
 
     async def create_many(self, data_list: list[dict]) -> list[AgentVersion]:
-        return await super().create_many([
-            self._sanitize_create_data(data) for data in data_list
-        ])
+        return await super().create_many(
+            [self._sanitize_create_data(data) for data in data_list]
+        )
 
     async def get_by_agent_and_version(
         self,

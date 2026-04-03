@@ -149,10 +149,7 @@ class ComplexityClassifier:
 
     @staticmethod
     def _get_all_user_content(messages: list[ChatMessage]) -> str:
-        return " ".join(
-            msg.content or ""
-            for msg in messages
-            if msg.role == "user"
-        )
+        return " ".join(msg.content or "" for msg in messages if msg.role == "user")
+
 
 __all__ = ["ComplexityClassifier", "ComplexityLevel"]

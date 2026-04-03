@@ -99,7 +99,9 @@ async def evaluate_plugin_runtime_gate(
     granted_capabilities = list(row[6] or [])
     pricing_type = row[7]
 
-    license_status = await get_plugin_runtime_license_status(plugin_id, pricing_type, db)
+    license_status = await get_plugin_runtime_license_status(
+        plugin_id, pricing_type, db
+    )
 
     if require_enabled and status != PluginStatusEnum.ENABLED.value:
         return PluginRuntimeGateResult(

@@ -2,7 +2,6 @@
 对话消息 Repository / Conversation Message Repository
 """
 
-
 from sqlalchemy import and_, func, select
 
 from app.core.base_repository import TenantRepository

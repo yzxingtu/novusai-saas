@@ -10,8 +10,8 @@ writing status to Redis for failover service consumption.
 import json
 import time
 
-import redis
 import httpx
+import redis
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -67,12 +67,16 @@ def ai_provider_health_check(self: BaseTask) -> dict:
         result = db.execute(stmt)
         providers = result.scalars().all()
 
-        logger.info("{} provider_count={}", _("ai.log.health_check_start"), len(providers))
+        logger.info(
+            "{} provider_count={}", _("ai.log.health_check_start"), len(providers)
+        )
 
         for provider in providers:
             _check_provider_health(provider, db, redis_client)
 
-        logger.info("{} provider_count={}", _("ai.log.health_check_completed"), len(providers))
+        logger.info(
+            "{} provider_count={}", _("ai.log.health_check_completed"), len(providers)
+        )
         return {"provider_count": len(providers), "status": "completed"}
 
     except Exception as e:
@@ -84,7 +88,9 @@ def ai_provider_health_check(self: BaseTask) -> dict:
     return {"provider_count": 0, "status": "no_providers"}
 
 
-def _check_provider_health(provider: object, db: Session, redis_client: redis.Redis) -> None:
+def _check_provider_health(
+    provider: object, db: Session, redis_client: redis.Redis
+) -> None:
     """
     Check health status of a single provider / 检查单个供应商的健康状态
 
@@ -115,12 +121,16 @@ def _check_provider_health(provider: object, db: Session, redis_client: redis.Re
 
     try:
         # Get provider's API Key / 获取供应商的 API Key
-        stmt = select(ProviderApiKey).where(
-            ProviderApiKey.provider_id == provider_id,
-            ProviderApiKey.tenant_id.is_(None),
-            ProviderApiKey.is_active.is_(True),
-            ProviderApiKey.is_deleted.is_(False),
-        ).limit(1)
+        stmt = (
+            select(ProviderApiKey)
+            .where(
+                ProviderApiKey.provider_id == provider_id,
+                ProviderApiKey.tenant_id.is_(None),
+                ProviderApiKey.is_active.is_(True),
+                ProviderApiKey.is_deleted.is_(False),
+            )
+            .limit(1)
+        )
         result = db.execute(stmt)
         api_key = result.scalar_one_or_none()
 
@@ -209,14 +219,17 @@ def _check_provider_health(provider: object, db: Session, redis_client: redis.Re
     )
 
     # Append to history (sorted set, score = timestamp) / 追加到历史记录（使用 sorted set，score 为时间戳）
-    history_entry = json.dumps({
-        "is_healthy": is_healthy,
-        "base_connectivity_healthy": base_connectivity_healthy,
-        "tool_calling_healthy": tool_calling_healthy,
-        "response_time_ms": response_time_ms,
-        "error_message": error_message,
-        "checked_at": utc_now().isoformat(),
-    }, ensure_ascii=False)
+    history_entry = json.dumps(
+        {
+            "is_healthy": is_healthy,
+            "base_connectivity_healthy": base_connectivity_healthy,
+            "tool_calling_healthy": tool_calling_healthy,
+            "response_time_ms": response_time_ms,
+            "error_message": error_message,
+            "checked_at": utc_now().isoformat(),
+        },
+        ensure_ascii=False,
+    )
 
     redis_client.zadd(history_key, {history_entry: time.time()})
     # Keep only records within 24h / 只保留 24h 内的记录
@@ -270,7 +283,9 @@ def _resolve_tool_probe_model(provider: object, db: Session):
     return db.execute(stmt).scalar_one_or_none()
 
 
-def _provider_needs_responses_tool_probe(provider: object, tool_model: object | None) -> bool:
+def _provider_needs_responses_tool_probe(
+    provider: object, tool_model: object | None
+) -> bool:
     if tool_model is None:
         return False
     wire_api = _normalize_wire_api(
@@ -282,7 +297,9 @@ def _provider_needs_responses_tool_probe(provider: object, tool_model: object | 
         return False
     if not bool(getattr(tool_model, "supports_function_calling", False)):
         return False
-    config = provider.config if isinstance(getattr(provider, "config", None), dict) else {}
+    config = (
+        provider.config if isinstance(getattr(provider, "config", None), dict) else {}
+    )
     return _config_enabled(
         config.get("responses_tool_probe_enabled"),
         default=True,

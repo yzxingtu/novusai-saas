@@ -97,7 +97,9 @@ class OpenAIAdapter(BaseAdapter):
         super().__init__(api_key, base_url, **kwargs)
 
         provider_config = self.config.get("provider_config")
-        self.provider_config = provider_config.copy() if isinstance(provider_config, dict) else {}
+        self.provider_config = (
+            provider_config.copy() if isinstance(provider_config, dict) else {}
+        )
         self.base_url = self._clean_base_url(base_url)
 
         # Initialize OpenAI client / 初始化 OpenAI 客户端
@@ -293,17 +295,25 @@ class OpenAIAdapter(BaseAdapter):
             try:
                 return int(value)
             except (TypeError, ValueError):
-                logger.debug("Ignore non-integer usage field {}={!r}", field_name, value)
+                logger.debug(
+                    "Ignore non-integer usage field {}={!r}", field_name, value
+                )
                 return None
 
         return None
 
-    def _extract_usage_tokens(self, usage: Any) -> tuple[int | None, int | None, int | None]:
+    def _extract_usage_tokens(
+        self, usage: Any
+    ) -> tuple[int | None, int | None, int | None]:
         """Support both Responses-style and Chat Completions-style usage field names."""
         input_tokens = self._extract_usage_int(usage, "input_tokens", "prompt_tokens")
-        output_tokens = self._extract_usage_int(usage, "output_tokens", "completion_tokens")
+        output_tokens = self._extract_usage_int(
+            usage, "output_tokens", "completion_tokens"
+        )
         total_tokens = self._extract_usage_int(usage, "total_tokens")
-        if total_tokens is None and (input_tokens is not None or output_tokens is not None):
+        if total_tokens is None and (
+            input_tokens is not None or output_tokens is not None
+        ):
             total_tokens = (input_tokens or 0) + (output_tokens or 0)
         return input_tokens, output_tokens, total_tokens
 
@@ -367,7 +377,9 @@ class OpenAIAdapter(BaseAdapter):
     ) -> None:
         response = getattr(error, "response", None)
         request = getattr(response, "request", None)
-        request_url = str(getattr(request, "url", "") or self._build_endpoint_url(endpoint_path))
+        request_url = str(
+            getattr(request, "url", "") or self._build_endpoint_url(endpoint_path)
+        )
         status_code = getattr(error, "status_code", None)
         if status_code is None and response is not None:
             status_code = getattr(response, "status_code", None)
@@ -376,7 +388,9 @@ class OpenAIAdapter(BaseAdapter):
             headers = getattr(response, "headers", None)
             if headers is not None:
                 content_type = headers.get("content-type")
-        body_preview = self._format_preview(getattr(error, "body", None) or getattr(response, "text", None))
+        body_preview = self._format_preview(
+            getattr(error, "body", None) or getattr(response, "text", None)
+        )
         logger.warning(
             "AI upstream error: wire_api={} url={} model={} status_code={} content_type={} response_preview={}",
             wire_api or self.wire_api,
@@ -471,7 +485,9 @@ class OpenAIAdapter(BaseAdapter):
                 model,
                 response[:200],
             )
-            raise ValueError(f"Upstream returned invalid string response: {response[:100]}")
+            raise ValueError(
+                f"Upstream returned invalid string response: {response[:100]}"
+            )
 
         return self._convert_chat_response(response, model)
 
@@ -504,7 +520,9 @@ class OpenAIAdapter(BaseAdapter):
             if first_chunk is None:
                 return
 
-            if fallback_to_responses and self._should_fallback_to_responses(first_chunk):
+            if fallback_to_responses and self._should_fallback_to_responses(
+                first_chunk
+            ):
                 logger.warning(
                     "Stream chunk missing choices; fallback to responses API: model={} chunk_type={}",
                     model,
@@ -631,14 +649,18 @@ class OpenAIAdapter(BaseAdapter):
         stream: bool = False,
         tools: list[dict] | None = None,
         tool_choice: str | None = None,
-        **kwargs
+        **kwargs,
     ) -> ChatResponse:
         """
         Chat conversation (synchronous mode) / 聊天对话（同步模式）
         """
         _ = stream
-        active_endpoint_path = "responses" if self._use_responses_api() else "chat/completions"
-        active_wire_api = "responses" if self._use_responses_api() else "chat_completions"
+        active_endpoint_path = (
+            "responses" if self._use_responses_api() else "chat/completions"
+        )
+        active_wire_api = (
+            "responses" if self._use_responses_api() else "chat_completions"
+        )
         try:
             runtime_force_wire_api = kwargs.pop("_runtime_force_wire_api", None)
             runtime_disable_cross_protocol_fallback = bool(
@@ -646,7 +668,9 @@ class OpenAIAdapter(BaseAdapter):
             )
             runtime_wire_api = self._resolve_runtime_wire_api(runtime_force_wire_api)
             use_responses_api = runtime_wire_api == "responses"
-            active_endpoint_path = "responses" if use_responses_api else "chat/completions"
+            active_endpoint_path = (
+                "responses" if use_responses_api else "chat/completions"
+            )
             active_wire_api = "responses" if use_responses_api else "chat_completions"
 
             # Pop adapter-only flags before building request params / 提取适配器专用标志，避免传入 API
@@ -742,7 +766,9 @@ class OpenAIAdapter(BaseAdapter):
                 wire_api=active_wire_api,
             )
             logger.error("Chat error: model={} error={}", model, str(e))
-            raise convert_openai_error(e, provider_code="openai", model_code=model) from e
+            raise convert_openai_error(
+                e, provider_code="openai", model_code=model
+            ) from e
 
     async def stream_chat(
         self,
@@ -753,13 +779,17 @@ class OpenAIAdapter(BaseAdapter):
         top_p: float = 1.0,
         tools: list[dict] | None = None,
         tool_choice: str | None = None,
-        **kwargs
+        **kwargs,
     ) -> AsyncIterator[ChatChunk]:
         """
         Chat conversation (streaming mode) / 聊天对话（流式模式）
         """
-        active_endpoint_path = "responses" if self._use_responses_api() else "chat/completions"
-        active_wire_api = "responses" if self._use_responses_api() else "chat_completions"
+        active_endpoint_path = (
+            "responses" if self._use_responses_api() else "chat/completions"
+        )
+        active_wire_api = (
+            "responses" if self._use_responses_api() else "chat_completions"
+        )
         try:
             runtime_force_wire_api = kwargs.pop("_runtime_force_wire_api", None)
             runtime_disable_cross_protocol_fallback = bool(
@@ -767,7 +797,9 @@ class OpenAIAdapter(BaseAdapter):
             )
             runtime_wire_api = self._resolve_runtime_wire_api(runtime_force_wire_api)
             use_responses_api = runtime_wire_api == "responses"
-            active_endpoint_path = "responses" if use_responses_api else "chat/completions"
+            active_endpoint_path = (
+                "responses" if use_responses_api else "chat/completions"
+            )
             active_wire_api = "responses" if use_responses_api else "chat_completions"
 
             # Pop adapter-only flags before building request params / 提取适配器专用标志，避免传入 API
@@ -832,8 +864,7 @@ class OpenAIAdapter(BaseAdapter):
                 except Exception as responses_error:
                     if (
                         not responses_stream_emitted_meaningful_chunk
-                        and
-                        not runtime_disable_cross_protocol_fallback
+                        and not runtime_disable_cross_protocol_fallback
                         and self._should_fallback_from_responses_error(
                             responses_error,
                             tools=tools,
@@ -848,7 +879,9 @@ class OpenAIAdapter(BaseAdapter):
                         )
                         active_endpoint_path = "chat/completions"
                         active_wire_api = "chat_completions"
-                        async for chunk in self._stream_chat_completions_with_sync_rescue(
+                        async for (
+                            chunk
+                        ) in self._stream_chat_completions_with_sync_rescue(
                             request_params=request_params,
                             sync_request_params=sync_request_params,
                             messages=messages,
@@ -885,25 +918,24 @@ class OpenAIAdapter(BaseAdapter):
                 wire_api=active_wire_api,
             )
             logger.error("Stream chat error: model={} error={}", model, str(e))
-            raise convert_openai_error(e, provider_code="openai", model_code=model) from e
+            raise convert_openai_error(
+                e, provider_code="openai", model_code=model
+            ) from e
 
     async def embedding(
-        self,
-        texts: list[str],
-        model: str,
-        **kwargs
+        self, texts: list[str], model: str, **kwargs
     ) -> EmbeddingResponse:
         """
         Text embedding / 文本嵌入
         """
         try:
             # Call API / 调用 API
-            self._log_upstream_request(endpoint_path="embeddings", model=model, stream=False)
+            self._log_upstream_request(
+                endpoint_path="embeddings", model=model, stream=False
+            )
             logger.info("Embedding request: model={} texts={}", model, len(texts))
             response: CreateEmbeddingResponse = await self.client.embeddings.create(
-                input=texts,
-                model=model,
-                **kwargs
+                input=texts, model=model, **kwargs
             )
 
             # Convert response / 转换响应
@@ -920,7 +952,9 @@ class OpenAIAdapter(BaseAdapter):
         except Exception as e:
             self._log_upstream_error(e, endpoint_path="embeddings", model=model)
             logger.error("Embedding error: model={} error={}", model, str(e))
-            raise convert_openai_error(e, provider_code="openai", model_code=model) from e
+            raise convert_openai_error(
+                e, provider_code="openai", model_code=model
+            ) from e
 
     async def list_models(self) -> list[dict]:
         """
@@ -1020,7 +1054,11 @@ class OpenAIAdapter(BaseAdapter):
             return False
 
         lowered = text.lower()
-        if lowered.startswith("<!doctype") or lowered.startswith("<html") or lowered.startswith("<body"):
+        if (
+            lowered.startswith("<!doctype")
+            or lowered.startswith("<html")
+            or lowered.startswith("<body")
+        ):
             return False
         if text.startswith("<"):
             return False
@@ -1048,7 +1086,9 @@ class OpenAIAdapter(BaseAdapter):
             **kwargs,
         )
         self._log_upstream_request(endpoint_path="responses", model=model, stream=False)
-        logger.info("Responses chat request: model={} messages={}", model, len(messages))
+        logger.info(
+            "Responses chat request: model={} messages={}", model, len(messages)
+        )
         response = await self.client.responses.create(**request_params)
         return self._convert_responses_chat_response(response, model)
 
@@ -1109,16 +1149,32 @@ class OpenAIAdapter(BaseAdapter):
                         emitted_text = True
                     usage = getattr(event, "usage", None)
                     usage_mode = "actual"
-                    input_tokens, output_tokens, total_tokens = self._extract_usage_tokens(usage)
-                    if input_tokens is None and output_tokens is None and total_tokens is None:
-                        input_tokens, output_tokens, total_tokens = await self._retrieve_responses_usage(
+                    input_tokens, output_tokens, total_tokens = (
+                        self._extract_usage_tokens(usage)
+                    )
+                    if (
+                        input_tokens is None
+                        and output_tokens is None
+                        and total_tokens is None
+                    ):
+                        (
+                            input_tokens,
+                            output_tokens,
+                            total_tokens,
+                        ) = await self._retrieve_responses_usage(
                             response_id,
                         )
-                    if input_tokens is None and output_tokens is None and total_tokens is None:
+                    if (
+                        input_tokens is None
+                        and output_tokens is None
+                        and total_tokens is None
+                    ):
                         usage_mode = "estimated"
-                        input_tokens, output_tokens, total_tokens = self._estimate_responses_stream_usage(
-                            messages,
-                            collected_text or text,
+                        input_tokens, output_tokens, total_tokens = (
+                            self._estimate_responses_stream_usage(
+                                messages,
+                                collected_text or text,
+                            )
                         )
                     yield ChatChunk(
                         delta="",
@@ -1134,7 +1190,10 @@ class OpenAIAdapter(BaseAdapter):
                     )
                     return
 
-                if event_type in {"response.reasoning_text.delta", "response.reasoning_summary_text.delta"}:
+                if event_type in {
+                    "response.reasoning_text.delta",
+                    "response.reasoning_summary_text.delta",
+                }:
                     delta = getattr(event, "delta", "") or ""
                     if delta:
                         emitted_reasoning = True
@@ -1146,39 +1205,51 @@ class OpenAIAdapter(BaseAdapter):
                     if getattr(item, "type", None) == "function_call":
                         yield ChatChunk(
                             delta="",
-                            tool_calls=[{
-                                "index": getattr(event, "output_index", None),
-                                "id": getattr(item, "call_id", None) or getattr(item, "id", None) or "",
-                                "function": {
-                                    "name": getattr(item, "name", None) or "",
-                                    "arguments": getattr(item, "arguments", None) or "",
-                                },
-                            }],
+                            tool_calls=[
+                                {
+                                    "index": getattr(event, "output_index", None),
+                                    "id": getattr(item, "call_id", None)
+                                    or getattr(item, "id", None)
+                                    or "",
+                                    "function": {
+                                        "name": getattr(item, "name", None) or "",
+                                        "arguments": getattr(item, "arguments", None)
+                                        or "",
+                                    },
+                                }
+                            ],
                         )
                     continue
 
                 if event_type == "response.function_call_arguments.delta":
                     yield ChatChunk(
                         delta="",
-                        tool_calls=[{
-                            "index": getattr(event, "output_index", None),
-                            "id": getattr(event, "item_id", None) or "",
-                            "function": {"arguments": getattr(event, "delta", "") or ""},
-                        }],
+                        tool_calls=[
+                            {
+                                "index": getattr(event, "output_index", None),
+                                "id": getattr(event, "item_id", None) or "",
+                                "function": {
+                                    "arguments": getattr(event, "delta", "") or ""
+                                },
+                            }
+                        ],
                     )
                     continue
 
                 if event_type == "response.function_call_arguments.done":
                     yield ChatChunk(
                         delta="",
-                        tool_calls=[{
-                            "index": getattr(event, "output_index", None),
-                            "id": getattr(event, "item_id", None) or "",
-                            "function": {
-                                "name": getattr(event, "name", None) or "",
-                                "arguments": getattr(event, "arguments", None) or "{}",
-                            },
-                        }],
+                        tool_calls=[
+                            {
+                                "index": getattr(event, "output_index", None),
+                                "id": getattr(event, "item_id", None) or "",
+                                "function": {
+                                    "name": getattr(event, "name", None) or "",
+                                    "arguments": getattr(event, "arguments", None)
+                                    or "{}",
+                                },
+                            }
+                        ],
                     )
                     continue
 
@@ -1199,19 +1270,43 @@ class OpenAIAdapter(BaseAdapter):
                         if final_text:
                             collected_text += final_text
                             yield ChatChunk(delta=final_text)
-                    usage = getattr(response, "usage", None) if response is not None else None
+                    usage = (
+                        getattr(response, "usage", None)
+                        if response is not None
+                        else None
+                    )
                     usage_mode = "actual"
-                    input_tokens, output_tokens, total_tokens = self._extract_usage_tokens(usage)
-                    if input_tokens is None and output_tokens is None and total_tokens is None:
-                        input_tokens, output_tokens, total_tokens = await self._retrieve_responses_usage(
+                    input_tokens, output_tokens, total_tokens = (
+                        self._extract_usage_tokens(usage)
+                    )
+                    if (
+                        input_tokens is None
+                        and output_tokens is None
+                        and total_tokens is None
+                    ):
+                        (
+                            input_tokens,
+                            output_tokens,
+                            total_tokens,
+                        ) = await self._retrieve_responses_usage(
                             response_id,
                         )
-                    if input_tokens is None and output_tokens is None and total_tokens is None:
+                    if (
+                        input_tokens is None
+                        and output_tokens is None
+                        and total_tokens is None
+                    ):
                         usage_mode = "estimated"
-                        final_text = self._extract_responses_text(response) if response is not None else collected_text
-                        input_tokens, output_tokens, total_tokens = self._estimate_responses_stream_usage(
-                            messages,
-                            final_text or collected_text,
+                        final_text = (
+                            self._extract_responses_text(response)
+                            if response is not None
+                            else collected_text
+                        )
+                        input_tokens, output_tokens, total_tokens = (
+                            self._estimate_responses_stream_usage(
+                                messages,
+                                final_text or collected_text,
+                            )
                         )
                     yield ChatChunk(
                         delta="",
@@ -1320,15 +1415,19 @@ class OpenAIAdapter(BaseAdapter):
     def _convert_tools_for_responses(self, tools: list[dict]) -> list[dict]:
         converted: list[dict] = []
         for tool in tools:
-            if tool.get("type") == "function" and isinstance(tool.get("function"), dict):
+            if tool.get("type") == "function" and isinstance(
+                tool.get("function"), dict
+            ):
                 function = tool["function"]
                 # Omit strict: many OpenAI-compatible gateways reject or mishandle it / 省略 strict：多数兼容网关不支持或行为不一致
-                converted.append({
-                    "type": "function",
-                    "name": function.get("name", ""),
-                    "description": function.get("description"),
-                    "parameters": function.get("parameters"),
-                })
+                converted.append(
+                    {
+                        "type": "function",
+                        "name": function.get("name", ""),
+                        "description": function.get("description"),
+                        "parameters": function.get("parameters"),
+                    }
+                )
                 continue
             converted.append(tool)
         return converted
@@ -1344,9 +1443,11 @@ class OpenAIAdapter(BaseAdapter):
         某些 OpenAI 兼容网关在后续轮次中无法稳定处理结构化
         function_call/function_call_output 历史，尽管纯文本与首轮工具调用正常。
         """
-        value = str(
-            (self.provider_config or {}).get("responses_tool_history_mode") or ""
-        ).strip().lower()
+        value = (
+            str((self.provider_config or {}).get("responses_tool_history_mode") or "")
+            .strip()
+            .lower()
+        )
         if value in {"text", "structured"}:
             return value
         return "structured"
@@ -1373,19 +1474,23 @@ class OpenAIAdapter(BaseAdapter):
                         else "Context returned by a previously executed tool:"
                     )
                     tool_output = (msg.content or "").strip()
-                    converted.append({
-                        "type": "message",
-                        "role": "assistant",
-                        "content": (
-                            f"{prefix}\n{tool_output}" if tool_output else prefix
-                        ),
-                    })
+                    converted.append(
+                        {
+                            "type": "message",
+                            "role": "assistant",
+                            "content": (
+                                f"{prefix}\n{tool_output}" if tool_output else prefix
+                            ),
+                        }
+                    )
                     continue
-                converted.append({
-                    "type": "function_call_output",
-                    "call_id": msg.tool_call_id or "",
-                    "output": msg.content or "",
-                })
+                converted.append(
+                    {
+                        "type": "function_call_output",
+                        "call_id": msg.tool_call_id or "",
+                        "output": msg.content or "",
+                    }
+                )
                 continue
 
             if msg.role == "assistant" and msg.tool_calls:
@@ -1397,24 +1502,28 @@ class OpenAIAdapter(BaseAdapter):
                         tool_name = function.get("name", "")
                         tool_names_by_call_id[tc_id] = tool_name
                     if assistant_text:
-                        converted.append({
-                            "type": "message",
-                            "role": "assistant",
-                            "content": assistant_text,
-                        })
+                        converted.append(
+                            {
+                                "type": "message",
+                                "role": "assistant",
+                                "content": assistant_text,
+                            }
+                        )
                     continue
                 for tool_call in msg.tool_calls:
                     function = tool_call.get("function") or {}
                     tc_id = tool_call.get("call_id") or tool_call.get("id") or ""
                     tool_names_by_call_id[tc_id] = function.get("name", "")
-                    converted.append({
-                        "type": "function_call",
-                        "call_id": tc_id,
-                        "id": tool_call.get("id") or tc_id,
-                        "name": function.get("name", ""),
-                        "arguments": function.get("arguments", "{}") or "{}",
-                        "status": "completed",
-                    })
+                    converted.append(
+                        {
+                            "type": "function_call",
+                            "call_id": tc_id,
+                            "id": tool_call.get("id") or tc_id,
+                            "name": function.get("name", ""),
+                            "arguments": function.get("arguments", "{}") or "{}",
+                            "status": "completed",
+                        }
+                    )
                 if not (msg.content or "").strip():
                     continue
 
@@ -1424,11 +1533,13 @@ class OpenAIAdapter(BaseAdapter):
                 supports_audio=supports_audio,
                 supports_video=supports_video,
             )
-            converted.append({
-                "type": "message",
-                "role": msg.role,
-                "content": content,
-            })
+            converted.append(
+                {
+                    "type": "message",
+                    "role": msg.role,
+                    "content": content,
+                }
+            )
 
         return converted
 
@@ -1462,11 +1573,13 @@ class OpenAIAdapter(BaseAdapter):
                         attachment_id=attachment_id,
                     )
                     if resolved:
-                        parts.append({
-                            "type": "input_image",
-                            "image_url": resolved,
-                            "detail": "auto",
-                        })
+                        parts.append(
+                            {
+                                "type": "input_image",
+                                "image_url": resolved,
+                                "detail": "auto",
+                            }
+                        )
                     else:
                         hint = (
                             f"[Image: {name or 'uploaded image'} "
@@ -1479,33 +1592,39 @@ class OpenAIAdapter(BaseAdapter):
 
             if att_type == "file":
                 if url:
-                    parts.append({
-                        "type": "input_file",
-                        "file_url": url,
-                        "filename": str(name),
-                    })
+                    parts.append(
+                        {
+                            "type": "input_file",
+                            "file_url": url,
+                            "filename": str(name),
+                        }
+                    )
                 else:
                     parts.append({"type": "input_text", "text": f"[File: {name}]"})
                 continue
 
             if att_type == "audio":
                 if supports_audio and url:
-                    parts.append({
-                        "type": "input_file",
-                        "file_url": url,
-                        "filename": str(name),
-                    })
+                    parts.append(
+                        {
+                            "type": "input_file",
+                            "file_url": url,
+                            "filename": str(name),
+                        }
+                    )
                 else:
                     parts.append({"type": "input_text", "text": f"[Audio: {name}]"})
                 continue
 
             if att_type == "video":
                 if supports_video and url:
-                    parts.append({
-                        "type": "input_file",
-                        "file_url": url,
-                        "filename": str(name),
-                    })
+                    parts.append(
+                        {
+                            "type": "input_file",
+                            "file_url": url,
+                            "filename": str(name),
+                        }
+                    )
                 else:
                     parts.append({"type": "input_text", "text": f"[Video: {name}]"})
                 continue
@@ -1536,14 +1655,16 @@ class OpenAIAdapter(BaseAdapter):
             if getattr(item, "type", None) != "function_call":
                 continue
             call_id = getattr(item, "call_id", None) or getattr(item, "id", None) or ""
-            tool_calls.append({
-                "id": call_id,
-                "type": "function",
-                "function": {
-                    "name": getattr(item, "name", None) or "",
-                    "arguments": getattr(item, "arguments", None) or "{}",
-                },
-            })
+            tool_calls.append(
+                {
+                    "id": call_id,
+                    "type": "function",
+                    "function": {
+                        "name": getattr(item, "name", None) or "",
+                        "arguments": getattr(item, "arguments", None) or "{}",
+                    },
+                }
+            )
         return tool_calls or None
 
     def _extract_responses_reasoning_text(self, response: Any) -> str | None:
@@ -1567,7 +1688,9 @@ class OpenAIAdapter(BaseAdapter):
             return None
         return "\n\n".join(parts)
 
-    def _convert_responses_chat_response(self, response: Any, model: str) -> ChatResponse:
+    def _convert_responses_chat_response(
+        self, response: Any, model: str
+    ) -> ChatResponse:
         tool_calls = self._extract_responses_tool_calls(response)
         reasoning_content = self._extract_responses_reasoning_text(response)
         usage = getattr(response, "usage", None)
@@ -1583,10 +1706,14 @@ class OpenAIAdapter(BaseAdapter):
             output_tokens=output_tokens,
             total_tokens=total_tokens,
             model=model,
-            finish_reason="stop" if getattr(response, "status", None) == "completed" else getattr(response, "status", None),
+            finish_reason="stop"
+            if getattr(response, "status", None) == "completed"
+            else getattr(response, "status", None),
             tool_calls=tool_calls,
             metadata={"protocol_path": "responses"},
-            raw_response=response.model_dump() if hasattr(response, "model_dump") else None,
+            raw_response=response.model_dump()
+            if hasattr(response, "model_dump")
+            else None,
         )
 
     async def _fetch_audio_bytes(self, url: str) -> bytes | None:
@@ -1621,7 +1748,11 @@ class OpenAIAdapter(BaseAdapter):
                 resp.raise_for_status()
                 content_length = resp.headers.get("content-length")
                 try:
-                    cl = int(content_length) if (content_length and content_length.strip().isdigit()) else None
+                    cl = (
+                        int(content_length)
+                        if (content_length and content_length.strip().isdigit())
+                        else None
+                    )
                 except (ValueError, AttributeError):
                     cl = None
                 if cl is not None and cl > _AUDIO_MAX_BYTES:
@@ -1715,10 +1846,12 @@ class OpenAIAdapter(BaseAdapter):
                                 attachment_id=attachment_id,
                             )
                             if resolved:
-                                content_parts.append({
-                                    "type": "image_url",
-                                    "image_url": {"url": resolved},
-                                })
+                                content_parts.append(
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {"url": resolved},
+                                    }
+                                )
                             else:
                                 hint = (
                                     f"[Image: {att_name or 'uploaded image'} "
@@ -1740,12 +1873,16 @@ class OpenAIAdapter(BaseAdapter):
                             if bytes_result is None:
                                 content_parts.append({"type": "text", "text": hint})
                             else:
-                                fmt = _AUDIO_MIME_TO_OPENAI_FORMAT.get(att_mime) or "mpeg"
+                                fmt = (
+                                    _AUDIO_MIME_TO_OPENAI_FORMAT.get(att_mime) or "mpeg"
+                                )
                                 b64_str = base64.b64encode(bytes_result).decode("ascii")
-                                content_parts.append({
-                                    "type": "input_audio",
-                                    "input_audio": {"data": b64_str, "format": fmt},
-                                })
+                                content_parts.append(
+                                    {
+                                        "type": "input_audio",
+                                        "input_audio": {"data": b64_str, "format": fmt},
+                                    }
+                                )
                         else:
                             content_parts.append({"type": "text", "text": hint})
                     elif att_type == "video" and att_url:
@@ -1780,7 +1917,9 @@ class OpenAIAdapter(BaseAdapter):
 
         return openai_messages
 
-    def _convert_chat_response(self, response: ChatCompletion, model: str) -> ChatResponse:
+    def _convert_chat_response(
+        self, response: ChatCompletion, model: str
+    ) -> ChatResponse:
         """
         Convert OpenAI chat response to unified format / 转换 OpenAI 聊天响应为统一格式
         """
@@ -1829,7 +1968,9 @@ class OpenAIAdapter(BaseAdapter):
             finish_reason=choice.finish_reason,
             tool_calls=tool_calls_dicts,
             metadata={"protocol_path": "chat_completions"},
-            raw_response=response.model_dump() if hasattr(response, "model_dump") else None,
+            raw_response=response.model_dump()
+            if hasattr(response, "model_dump")
+            else None,
         )
 
     def _convert_chat_chunk(self, chunk: ChatCompletionChunk, model: str) -> ChatChunk:
@@ -1896,7 +2037,10 @@ class OpenAIAdapter(BaseAdapter):
         try:
             logger.info(
                 "Image generation request: model={} size={} quality={} n={}",
-                model, size, quality, n,
+                model,
+                size,
+                quality,
+                n,
             )
 
             request_params: dict = {
@@ -1924,11 +2068,13 @@ class OpenAIAdapter(BaseAdapter):
                 rp = getattr(item, "revised_prompt", None)
                 if rp and not revised_prompt:
                     revised_prompt = rp
-                images.append(ImageResponse(
-                    url=b64 if is_base64 else url,
-                    is_base64=is_base64,
-                    revised_prompt=rp,
-                ))
+                images.append(
+                    ImageResponse(
+                        url=b64 if is_base64 else url,
+                        is_base64=is_base64,
+                        revised_prompt=rp,
+                    )
+                )
 
             return ImageGenerationResponse(
                 images=images,
@@ -1940,7 +2086,9 @@ class OpenAIAdapter(BaseAdapter):
             raise
         except Exception as e:
             logger.error("Image generation error: model={} error={}", model, str(e))
-            raise convert_openai_error(e, provider_code="openai", model_code=model) from e
+            raise convert_openai_error(
+                e, provider_code="openai", model_code=model
+            ) from e
 
     def get_supported_features(self) -> dict[str, bool]:
         """

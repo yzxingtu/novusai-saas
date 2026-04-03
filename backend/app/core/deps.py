@@ -58,7 +58,6 @@ oauth2_tenant_user_scheme = OAuth2PasswordBearer(
 )
 
 
-
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
     获取数据库会话 / Get database session
@@ -83,6 +82,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 # ========================================
 # 平台管理员认证 / Platform Admin Authentication
 # ========================================
+
 
 async def get_current_admin(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -156,6 +156,7 @@ async def get_current_super_admin(
 # 企业管理员认证 / Tenant Admin Authentication
 # ========================================
 
+
 async def get_current_tenant_admin(
     db: Annotated[AsyncSession, Depends(get_db)],
     token: Annotated[str | None, Depends(oauth2_tenant_admin_scheme)],
@@ -211,7 +212,9 @@ async def get_current_active_tenant_admin(
 
 
 async def get_current_tenant_owner(
-    current_tenant_admin: Annotated[TenantAdmin, Depends(get_current_active_tenant_admin)],
+    current_tenant_admin: Annotated[
+        TenantAdmin, Depends(get_current_active_tenant_admin)
+    ],
 ) -> TenantAdmin:
     """
     获取当前企业所有者 / Get current tenant owner
@@ -227,6 +230,7 @@ async def get_current_tenant_owner(
 # ========================================
 # 企业业务用户认证 / Tenant Business User Authentication
 # ========================================
+
 
 async def get_current_tenant_user(
     db: Annotated[AsyncSession, Depends(get_db)],

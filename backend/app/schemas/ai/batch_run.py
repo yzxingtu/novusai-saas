@@ -25,7 +25,9 @@ class BatchRunCreate(BaseCreateSchema):
         max_length=1000,
         description=_("enum.batch_run.input_items"),
     )
-    max_workers: int = Field(5, ge=1, le=20, description=_("enum.batch_run.max_workers"))
+    max_workers: int = Field(
+        5, ge=1, le=20, description=_("enum.batch_run.max_workers")
+    )
 
 
 class BatchRunResponse(TenantResponseSchema):
@@ -39,8 +41,12 @@ class BatchRunResponse(TenantResponseSchema):
     max_workers: int = Field(..., description=_("enum.batch_run.max_workers"))
     results: list | None = Field(None, description=_("enum.batch_run.results"))
     errors: list | None = Field(None, description=_("enum.batch_run.errors"))
-    started_at: datetime | None = Field(None, description=_("enum.batch_run.started_at"))
-    completed_at: datetime | None = Field(None, description=_("enum.batch_run.completed_at"))
+    started_at: datetime | None = Field(
+        None, description=_("enum.batch_run.started_at")
+    )
+    completed_at: datetime | None = Field(
+        None, description=_("enum.batch_run.completed_at")
+    )
     created_by: int | None = Field(None, description=_("enum.batch_run.created_by"))
 
 

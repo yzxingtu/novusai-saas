@@ -32,8 +32,10 @@ logger = LogManager.get_logger("ai.data_intelligence")
 # Exception Definition / 异常定义
 # ============================================
 
+
 class TenantIsolationError(Exception):
     """Tenant isolation injection exception / 企业隔离注入异常"""
+
     pass
 
 
@@ -41,12 +43,14 @@ class TenantIsolationError(Exception):
 # Table Reference Extraction / 表引用提取
 # ============================================
 
+
 @dataclass
 class TableReference:
     """Table reference in SQL / SQL 中的表引用"""
-    table_name: str        # Original table name / 原始表名
-    alias: str | None      # Alias (AS) / 别名（AS）
-    tenant_column: str     # Tenant isolation column name / 企业隔离列名
+
+    table_name: str  # Original table name / 原始表名
+    alias: str | None  # Alias (AS) / 别名（AS）
+    tenant_column: str  # Tenant isolation column name / 企业隔离列名
 
     @property
     def qualified_tenant_column(self) -> str:
@@ -74,12 +78,46 @@ _TABLE_REF_RE = re.compile(
 
 # SQL keywords to exclude (not aliases) / 需要排除的 SQL 关键字（不是别名）
 _SQL_KEYWORDS = {
-    "on", "where", "and", "or", "inner", "outer", "left", "right",
-    "cross", "full", "join", "set", "group", "order", "having",
-    "limit", "offset", "union", "except", "intersect", "natural",
-    "using", "lateral", "select", "from", "as", "not", "in",
-    "between", "like", "ilike", "is", "null", "true", "false",
-    "case", "when", "then", "else", "end",
+    "on",
+    "where",
+    "and",
+    "or",
+    "inner",
+    "outer",
+    "left",
+    "right",
+    "cross",
+    "full",
+    "join",
+    "set",
+    "group",
+    "order",
+    "having",
+    "limit",
+    "offset",
+    "union",
+    "except",
+    "intersect",
+    "natural",
+    "using",
+    "lateral",
+    "select",
+    "from",
+    "as",
+    "not",
+    "in",
+    "between",
+    "like",
+    "ilike",
+    "is",
+    "null",
+    "true",
+    "false",
+    "case",
+    "when",
+    "then",
+    "else",
+    "end",
 }
 
 
@@ -94,16 +132,12 @@ def _extract_table_refs(sql: str) -> list[tuple[str, str | None]]:
 
     for match in _TABLE_REF_RE.finditer(sql):
         table_name = match.group(1)
-        as_alias = match.group(2)   # AS 别名
+        as_alias = match.group(2)  # AS 别名
         implicit_alias = match.group(3)  # 隐式别名 / implicit alias
 
         # Determine final alias / 确定最终别名
         alias = as_alias
-        if (
-            not alias
-            and implicit_alias
-            and implicit_alias.lower() not in _SQL_KEYWORDS
-        ):
+        if not alias and implicit_alias and implicit_alias.lower() not in _SQL_KEYWORDS:
             # Check if it's a keyword / 检查是否是关键字
             alias = implicit_alias
 
@@ -115,6 +149,7 @@ def _extract_table_refs(sql: str) -> list[tuple[str, str | None]]:
 # ============================================ / 上文为英文说明 / English above
 # TenantIsolationInjector
 # ============================================
+
 
 class TenantIsolationInjector:
     """
@@ -169,9 +204,7 @@ class TenantIsolationInjector:
             return sql
 
         # Build schema dictionary / 构建 schema 字典
-        schema_map: dict[str, TableSchema] = {
-            t.table_name.lower(): t for t in schema
-        }
+        schema_map: dict[str, TableSchema] = {t.table_name.lower(): t for t in schema}
 
         # Extract table references / 提取表引用
         table_refs = _extract_table_refs(sql)
@@ -180,9 +213,7 @@ class TenantIsolationInjector:
                 "No table references found in SQL, cannot inject tenant_id: {}",
                 sql[:200],
             )
-            raise TenantIsolationError(
-                _("data_intelligence.isolation.no_table_ref")
-            )
+            raise TenantIsolationError(_("data_intelligence.isolation.no_table_ref"))
 
         # Build TableReference for each table / 为每个表构建 TableReference
         refs: list[TableReference] = []
@@ -192,8 +223,7 @@ class TenantIsolationInjector:
 
             if table_schema is None:
                 raise TenantIsolationError(
-                    _("data_intelligence.isolation.unknown_table",
-                      table=table_name)
+                    _("data_intelligence.isolation.unknown_table", table=table_name)
                 )
 
             if not table_schema.tenant_column:
@@ -202,8 +232,10 @@ class TenantIsolationInjector:
                 # 平台级表（如 tenants、tenant_plans）无 tenant_id，非平台管理员禁止查询无隔离列的表（防止数据泄露）
                 if user_role != UserRoleEnum.PLATFORM_ADMIN.value:
                     raise TenantIsolationError(
-                        _("data_intelligence.isolation.no_tenant_column",
-                          table=table_name)
+                        _(
+                            "data_intelligence.isolation.no_tenant_column",
+                            table=table_name,
+                        )
                     )
                 # Platform admin skips isolation / 平台管理员跳过隔离
                 logger.debug(
@@ -212,11 +244,13 @@ class TenantIsolationInjector:
                 )
                 continue
 
-            refs.append(TableReference(
-                table_name=table_name,
-                alias=alias,
-                tenant_column=table_schema.tenant_column,
-            ))
+            refs.append(
+                TableReference(
+                    table_name=table_name,
+                    alias=alias,
+                    tenant_column=table_schema.tenant_column,
+                )
+            )
 
         # Inject tenant_id conditions / 注入 tenant_id 条件
         result = _inject_conditions(sql, refs, tenant_id)
@@ -224,18 +258,20 @@ class TenantIsolationInjector:
         # tenant_user role: additionally inject user_id condition (own data only) / 额外注入 user_id 条件（仅限自身数据）
         if user_role == "tenant_user" and user_id:
             user_refs = [
-                ref for ref in refs
-                if ref.table_name.lower() in TenantIsolationInjector._USER_ISOLATION_TABLES
+                ref
+                for ref in refs
+                if ref.table_name.lower()
+                in TenantIsolationInjector._USER_ISOLATION_TABLES
             ]
             if user_refs:
                 user_conditions = [
-                    _build_user_condition(ref, user_id)
-                    for ref in user_refs
+                    _build_user_condition(ref, user_id) for ref in user_refs
                 ]
                 result = _inject_extra_conditions(result, user_conditions)
                 logger.info(
                     "Injected user_id={} isolation for tenant_user on {} table(s)",
-                    user_id, len(user_refs),
+                    user_id,
+                    len(user_refs),
                 )
 
         return result
@@ -306,9 +342,7 @@ def _inject_conditions(
     """
     conditions: list[str] = []
     for ref in refs:
-        conditions.append(
-            f"{ref.qualified_tenant_column} = {tenant_id}"
-        )
+        conditions.append(f"{ref.qualified_tenant_column} = {tenant_id}")
 
     if not conditions:
         return sql
@@ -320,11 +354,7 @@ def _inject_conditions(
 
     if where_match:
         where_pos = where_match.end()
-        result = (
-            sql[:where_pos]
-            + f" {tenant_clause} AND"
-            + sql[where_pos:]
-        )
+        result = sql[:where_pos] + f" {tenant_clause} AND" + sql[where_pos:]
     else:
         # No outermost WHERE — insert before trailing clauses at depth 0 / 上文为英文说明 / English above
         insert_match = _find_at_depth_zero(sql, _INSERT_BEFORE_RE)
@@ -342,7 +372,8 @@ def _inject_conditions(
 
     logger.info(
         "Injected tenant_id={} for {} table(s)",
-        tenant_id, len(refs),
+        tenant_id,
+        len(refs),
     )
 
     return result
@@ -375,9 +406,7 @@ def _inject_extra_conditions(sql: str, conditions: list[str]) -> str:
         if insert_match:
             insert_pos = insert_match.start()
             return (
-                sql[:insert_pos].rstrip()
-                + f" AND {extra_clause} "
-                + sql[insert_pos:]
+                sql[:insert_pos].rstrip() + f" AND {extra_clause} " + sql[insert_pos:]
             )
         # No trailing clauses, append directly / 无尾部子句，直接追加
         stripped = sql.rstrip().rstrip(";")

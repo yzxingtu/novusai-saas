@@ -46,6 +46,7 @@ DISPLAY_TYPE_TEXT = "text"
 # Data Structures / 数据结构
 # ============================================
 
+
 @dataclass
 class FormattedResult:
     """Formatted query result / 格式化后的查询结果"""
@@ -109,6 +110,7 @@ def _is_numeric(value: Any) -> bool:
 # ============================================
 # ResultFormatter / 查询结果格式化器
 # ============================================
+
 
 class ResultFormatter:
     """
@@ -187,12 +189,15 @@ class ResultFormatter:
             DISPLAY_TYPE_PIE_CHART,
         ):
             chart_config = ResultFormatter._build_chart_config(
-                display_type, columns, rows,
+                display_type,
+                columns,
+                rows,
             )
 
         # Generate summary / 生成摘要
         summary = ResultFormatter._generate_summary(
-            query_result, generated_sql,
+            query_result,
+            generated_sql,
         )
 
         return FormattedResult(
@@ -244,11 +249,16 @@ class ResultFormatter:
                 row_count != 1 or col_count != 1
             ):
                 pass  # Not reasonable, skip / 不合理，跳过
-            elif suggested_type in (
-                DISPLAY_TYPE_LINE_CHART,
-                DISPLAY_TYPE_BAR_CHART,
-                DISPLAY_TYPE_PIE_CHART,
-            ) and col_count >= 2 and row_count >= 2:
+            elif (
+                suggested_type
+                in (
+                    DISPLAY_TYPE_LINE_CHART,
+                    DISPLAY_TYPE_BAR_CHART,
+                    DISPLAY_TYPE_PIE_CHART,
+                )
+                and col_count >= 2
+                and row_count >= 2
+            ):
                 return suggested_type
 
         # Auto-detect: time column + numeric column → line / 自动检测
@@ -257,10 +267,7 @@ class ResultFormatter:
             first_value = rows[0].get(first_col)
             if _is_time_column(first_col) or _is_time_value(first_value):
                 # Check if there's a numeric column / 检查是否有数值列
-                has_numeric = any(
-                    _is_numeric(rows[0].get(c))
-                    for c in columns[1:]
-                )
+                has_numeric = any(_is_numeric(rows[0].get(c)) for c in columns[1:])
                 if has_numeric:
                     return DISPLAY_TYPE_LINE_CHART
 
@@ -321,18 +328,18 @@ class ResultFormatter:
             }
 
         # Line chart / Bar chart / 折线图 / 柱状图
-        chart_type = (
-            "line" if display_type == DISPLAY_TYPE_LINE_CHART else "bar"
-        )
+        chart_type = "line" if display_type == DISPLAY_TYPE_LINE_CHART else "bar"
 
         series = []
         for y_col in y_cols:
-            series.append({
-                "name": y_col,
-                "type": chart_type,
-                "data": [row.get(y_col, 0) for row in rows],
-                "smooth": display_type == DISPLAY_TYPE_LINE_CHART,
-            })
+            series.append(
+                {
+                    "name": y_col,
+                    "type": chart_type,
+                    "data": [row.get(y_col, 0) for row in rows],
+                    "smooth": display_type == DISPLAY_TYPE_LINE_CHART,
+                }
+            )
 
         config: dict[str, Any] = {
             "tooltip": {"trigger": "axis"},
@@ -356,9 +363,7 @@ class ResultFormatter:
         generated_sql: GeneratedSQL | None = None,
     ) -> str:
         """Generate summary for single-value result / 生成单值结果的摘要"""
-        explanation = (
-            generated_sql.explanation if generated_sql else ""
-        )
+        explanation = generated_sql.explanation if generated_sql else ""
         if explanation:
             return explanation
 
@@ -368,8 +373,11 @@ class ResultFormatter:
         elif isinstance(value, int):
             formatted_value = f"{value:,}"
 
-        return _("data_intelligence.formatter.number_summary",
-                 label=label, value=str(formatted_value))
+        return _(
+            "data_intelligence.formatter.number_summary",
+            label=label,
+            value=str(formatted_value),
+        )
 
     @staticmethod
     def _generate_summary(
@@ -384,19 +392,20 @@ class ResultFormatter:
             parts.append(generated_sql.explanation)
 
         # Row count stats / 行数统计
-        row_info = _("data_intelligence.formatter.row_count",
-                      count=str(query_result.row_count))
+        row_info = _(
+            "data_intelligence.formatter.row_count", count=str(query_result.row_count)
+        )
         parts.append(row_info)
 
         if query_result.truncated:
-            parts.append(
-                _("data_intelligence.formatter.truncated")
-            )
+            parts.append(_("data_intelligence.formatter.truncated"))
 
         if query_result.masked_columns:
             parts.append(
-                _("data_intelligence.formatter.masked",
-                  columns=", ".join(query_result.masked_columns))
+                _(
+                    "data_intelligence.formatter.masked",
+                    columns=", ".join(query_result.masked_columns),
+                )
             )
 
         return " ".join(parts)

@@ -93,6 +93,7 @@ import {
   getStatusText,
 } from './data';
 import AccessConfigDrawer from './modules/AccessConfig.vue';
+import PluginSourceBadge from './modules/PluginSourceBadge.vue';
 import VersionHistoryDrawer from './modules/VersionHistory.vue';
 
 defineOptions({ name: 'AdminAgentDetail' });
@@ -1086,6 +1087,14 @@ useDetailPageAi({
                       {{ getOwnerTypeText(agent.owner_type) }}
                     </div>
                   </Tag>
+                  <PluginSourceBadge
+                    v-if="agent.source_plugin"
+                    :source-plugin="agent.source_plugin"
+                    :source-plugin-display-name="
+                      agent.source_plugin_display_name
+                    "
+                    :source-plugin-enabled="agent.source_plugin_enabled"
+                  />
                   <!-- Routing status chip (clickable) -->
                   <button
                     class="flex items-center gap-1.5 rounded-lg border px-3 py-1 text-xs font-medium transition-all duration-200 hover:opacity-80"
@@ -1105,6 +1114,35 @@ useDetailPageAi({
                     }}</span>
                   </button>
                 </div>
+                <Alert
+                  v-if="agent.source_plugin"
+                  type="info"
+                  show-icon
+                  class="mt-3 text-sm"
+                >
+                  <template #message>
+                    {{
+                      `${$t('admin.ai.skillPackage.sourcePlugin')}：${
+                        agent.source_plugin_display_name || agent.source_plugin
+                      }`
+                    }}
+                  </template>
+                  <template #description>
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span>{{ $t('admin.ai.agent.sourcePluginScopeLocked') }}</span>
+                      <Tag class="!mr-0 !text-xs" :color="getScopeColor(agent.scope)">
+                        {{ getScopeText(agent.source_plugin_scope || agent.scope) }}
+                      </Tag>
+                      <span v-if="agent.assigned_tenant_ids?.length">
+                        {{
+                          `${agent.assigned_tenant_ids.length} ${
+                            $t('common.scope.assignedTenantsLabel')
+                          }`
+                        }}
+                      </span>
+                    </div>
+                  </template>
+                </Alert>
               </div>
             </div>
           </div>

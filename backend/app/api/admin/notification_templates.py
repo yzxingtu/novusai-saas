@@ -28,6 +28,7 @@ from app.repositories.common.notification_template_repository import (
 
 class UpdateTemplateRequest(BaseModel):
     """更新通知模板请求 / Update notification template request"""
+
     channels: list[str] | None = Field(None, description=_("api.param.channels"))
     priority: str | None = Field(None, description=_("api.param.priority"))
     title_template: str | None = Field(None, description=_("api.param.title_template"))
@@ -114,6 +115,7 @@ class AdminNotificationTemplateController(GlobalController):
             template = await repo.get_by_id(template_id)
             if not template:
                 from app.exceptions import NotFoundException
+
                 raise NotFoundException(message=_("common.not_found"))
 
             update_fields = data.model_dump(exclude_unset=True)
@@ -140,7 +142,6 @@ class AdminNotificationTemplateController(GlobalController):
                 message=_("common.update_success"),
             )
 
-
         @router.post("/{template_id}/test", summary="测试通知模板")
         @action_read("action.notification_template.test")
         async def test_template(
@@ -161,6 +162,7 @@ class AdminNotificationTemplateController(GlobalController):
             template = await repo.get_by_id(template_id)
             if not template:
                 from app.exceptions import NotFoundException
+
                 raise NotFoundException(message=_("common.not_found"))
 
             from app.services.common.notification_service import NotificationService

@@ -46,8 +46,14 @@ _CAPABILITY_DESCRIPTIONS: dict[str, dict[str, str]] = {
     "db:read": {"zh-CN": "读取数据库", "en": "Read database"},
     "db:write": {"zh-CN": "写入数据库", "en": "Write to database"},
     "db:own_tables": {"zh-CN": "操作自有数据表", "en": "Operate own tables"},
-    "platform:read": {"zh-CN": "读取宿主平台快照", "en": "Read host platform snapshots"},
-    "http:outbound": {"zh-CN": "发送外部 HTTP 请求", "en": "Send outbound HTTP requests"},
+    "platform:read": {
+        "zh-CN": "读取宿主平台快照",
+        "en": "Read host platform snapshots",
+    },
+    "http:outbound": {
+        "zh-CN": "发送外部 HTTP 请求",
+        "en": "Send outbound HTTP requests",
+    },
     "storage:read": {"zh-CN": "读取存储文件", "en": "Read storage files"},
     "storage:write": {"zh-CN": "写入存储文件", "en": "Write storage files"},
     "ai:call": {"zh-CN": "调用 AI 功能", "en": "Call AI features"},
@@ -95,6 +101,7 @@ def _iter_locale_candidates(locale: str | None) -> list[str]:
 
     return candidates
 
+
 def resolve_i18n(text: dict[str, str] | str, locale: str | None = None) -> str:
     """Resolve multilingual text to a single-language string / 将多语言文本解析为单语言字符串"""
     if isinstance(text, str):
@@ -140,6 +147,7 @@ async def generate_preview(
         if icon_file.is_file() and plugin_path.resolve() in icon_file.parents:
             import base64
             import mimetypes
+
             mime = mimetypes.guess_type(str(icon_file))[0] or "image/png"
             icon_b64 = base64.b64encode(icon_file.read_bytes()).decode()
             icon_value = f"data:{mime};base64,{icon_b64}"
@@ -148,7 +156,9 @@ async def generate_preview(
         "name": manifest.name,
         "version": manifest.version,
         "display_name": resolve_i18n(manifest.display_name, locale),
-        "description": resolve_i18n(manifest.description, locale) if manifest.description else "",
+        "description": resolve_i18n(manifest.description, locale)
+        if manifest.description
+        else "",
         "icon": icon_value,
         "scope": manifest.scope,
         "author": manifest.author,
@@ -160,11 +170,18 @@ async def generate_preview(
     ext = manifest.extensions
     install_manifest = {
         "skills": len(ext.skills),
-        "skills_details": [resolve_i18n(s.display_name, locale) or s.name for s in ext.skills],
+        "skills_details": [
+            resolve_i18n(s.display_name, locale) or s.name for s in ext.skills
+        ],
         "adapters": len(ext.adapters),
-        "adapters_details": [resolve_i18n(a.display_name, locale) or a.provider_code for a in ext.adapters],
+        "adapters_details": [
+            resolve_i18n(a.display_name, locale) or a.provider_code
+            for a in ext.adapters
+        ],
         "storage_drivers": len(ext.storage_drivers),
-        "storage_drivers_details": [resolve_i18n(s.display_name, locale) or s.code for s in ext.storage_drivers],
+        "storage_drivers_details": [
+            resolve_i18n(s.display_name, locale) or s.code for s in ext.storage_drivers
+        ],
         "hooks": len(ext.hooks),
         "hooks_details": [h.point for h in ext.hooks],
         "events": len(ext.events),
@@ -172,21 +189,30 @@ async def generate_preview(
         "webhooks": len(ext.webhooks),
         "webhooks_details": [f"{w.method} {w.path}" for w in ext.webhooks],
         "tasks": len(ext.tasks),
-        "tasks_details": [resolve_i18n(t.display_name, locale) or t.name for t in ext.tasks],
+        "tasks_details": [
+            resolve_i18n(t.display_name, locale) or t.name for t in ext.tasks
+        ],
         "notifications": len(ext.notifications),
         "notifications_details": [n.code for n in ext.notifications],
         "permissions": len(ext.permissions),
         "permissions_details": [p.code for p in ext.permissions],
-        "api_routes": len(ext.api.admin_routes) + len(ext.api.tenant_routes) + len(ext.api.public_routes),
+        "api_routes": len(ext.api.admin_routes)
+        + len(ext.api.tenant_routes)
+        + len(ext.api.public_routes),
         "api_routes_details": [
-            f"{r.method} /{r.path}" for r in
-            [*ext.api.admin_routes, *ext.api.tenant_routes, *ext.api.public_routes]
+            f"{r.method} /{r.path}"
+            for r in [
+                *ext.api.admin_routes,
+                *ext.api.tenant_routes,
+                *ext.api.public_routes,
+            ]
         ],
         "frontend_pages": len(ext.frontend.pages),
         "frontend_pages_details": [
-            resolve_i18n(p.title, locale)
-            for p in ext.frontend.pages
-        ] if ext.frontend.pages else [],
+            resolve_i18n(p.title, locale) for p in ext.frontend.pages
+        ]
+        if ext.frontend.pages
+        else [],
         "frontend_menus": len([p for p in ext.frontend.pages if p.menu is not None]),
         "frontend_menus_details": [
             resolve_i18n(p.menu.title or p.title, locale)
@@ -203,7 +229,9 @@ async def generate_preview(
 
         from app.models.system.plugin import Plugin as PluginModel
 
-        dependency_names = sorted({item.plugin for item in plugin_dependency_requirements})
+        dependency_names = sorted(
+            {item.plugin for item in plugin_dependency_requirements}
+        )
         result = await db.execute(
             select(PluginModel.name, PluginModel.version, PluginModel.status).where(
                 PluginModel.name.in_(dependency_names),
@@ -241,7 +269,9 @@ async def generate_preview(
             for item in plugin_dependency_requirements
         ]
 
-    python_dependency_states = build_python_dependency_states(manifest.dependencies.python)
+    python_dependency_states = build_python_dependency_states(
+        manifest.dependencies.python
+    )
     dependencies = {
         "python": python_dependency_states,
         "plugins": plugin_dependency_states,
@@ -256,10 +286,12 @@ async def generate_preview(
     capabilities = []
     for cap in manifest.capabilities:
         desc = _CAPABILITY_DESCRIPTIONS.get(cap, {})
-        capabilities.append({
-            "code": cap,
-            "description": resolve_i18n(desc, locale) if desc else cap,
-        })
+        capabilities.append(
+            {
+                "code": cap,
+                "description": resolve_i18n(desc, locale) if desc else cap,
+            }
+        )
 
     # Compatibility / 兼容性
     compatibility: dict[str, Any] = {}
@@ -278,7 +310,9 @@ async def generate_preview(
     warnings: list[str] = []
     warnings.extend(collect_frontend_i18n_warnings(manifest))
     if conflicts:
-        warnings.append(f"Detected {len(conflicts)} conflict(s) with existing extensions")
+        warnings.append(
+            f"Detected {len(conflicts)} conflict(s) with existing extensions"
+        )
     if python_dependency_states:
         missing_python = [
             state["requirement"]
@@ -325,7 +359,9 @@ async def generate_preview(
                     cfg = tomli.loads(raw.decode(encoding="utf-8"))
                 project_cfg = cfg.get("project") or {}
                 host_requirements.extend(
-                    item for item in project_cfg.get("dependencies") or [] if isinstance(item, str)
+                    item
+                    for item in project_cfg.get("dependencies") or []
+                    if isinstance(item, str)
                 )
                 optional = project_cfg.get("optional-dependencies") or {}
                 for deps in optional.values():
@@ -363,7 +399,9 @@ async def generate_preview(
                     (f"plugin:{owner}", str(requirement))
                 )
 
-        for requirement in iter_effective_python_requirements(manifest.dependencies.python):
+        for requirement in iter_effective_python_requirements(
+            manifest.dependencies.python
+        ):
             package = normalize_python_package_name(requirement.name)
             requirement_groups.setdefault(package, []).append(
                 (f"plugin:{manifest.name}", str(requirement))

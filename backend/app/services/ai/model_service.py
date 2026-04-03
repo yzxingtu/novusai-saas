@@ -142,7 +142,6 @@ class AIModelService(BaseService[AIModel, AIModelRepository]):
         if not result:
             raise NotFoundException(message=_("ai.error.model_not_found"))
 
-
     async def fetch_remote_models(self, provider_id: int) -> list:
         """
         从供应商远程拉取可用模型列表 / Fetch remote model list from provider.
@@ -202,13 +201,18 @@ class AIModelService(BaseService[AIModel, AIModelRepository]):
             if extra and isinstance(extra, list):
                 existing_ids = {m["id"] for m in remote_models}
                 for em in extra:
-                    if isinstance(em, dict) and em.get("id") and em["id"] not in existing_ids:
+                    if (
+                        isinstance(em, dict)
+                        and em.get("id")
+                        and em["id"] not in existing_ids
+                    ):
                         remote_models.append(em)
 
         # Enrich with LiteLLM capabilities (graceful degradation)
         # 通过 LiteLLM 注册表附加模型能力（优雅降级）
         try:
             from app.services.ai.model_capability_lookup import enrich_remote_models
+
             remote_models = await enrich_remote_models(
                 remote_models,
                 provider_code=provider.code,

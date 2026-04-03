@@ -157,7 +157,9 @@ class VersionManager:
             # pip must be installed before migration since migration scripts may import new deps
             # / 安装新版 Python 依赖
             if new_manifest.dependencies.python:
-                await lifecycle._install_python_deps(plugin_name, new_manifest.dependencies.python)
+                await lifecycle._install_python_deps(
+                    plugin_name, new_manifest.dependencies.python
+                )
 
             # 5. Run migration (via lifecycle public interface) / 执行迁移
             await lifecycle.run_alembic_upgrade(plugin_name)
@@ -166,12 +168,17 @@ class VersionManager:
             plugin.version = new_version
             plugin.manifest = new_manifest.model_dump()
             from app.plugins.preview import resolve_i18n
+
             plugin.display_name = resolve_i18n(new_manifest.display_name)
-            new_py_deps = getattr(getattr(new_manifest, "dependencies", None), "python", None) or []
+            new_py_deps = (
+                getattr(getattr(new_manifest, "dependencies", None), "python", None)
+                or []
+            )
             plugin.installed_packages = new_py_deps
 
             # Archive old version / 旧版本归档
             from sqlalchemy import update
+
             await self._db.execute(
                 update(PluginVersion)
                 .where(
@@ -288,7 +295,8 @@ class VersionManager:
         except Exception as exc:
             logger.warning(
                 "Rollback {}: alembic downgrade failed (continuing with file restore): {}",
-                plugin_name, exc,
+                plugin_name,
+                exc,
             )
 
         # Restore target version / 恢复目标版本
@@ -305,7 +313,10 @@ class VersionManager:
 
         plugin.version = target_version
         plugin.manifest = restored_manifest.model_dump()
-        restored_py_deps = getattr(getattr(restored_manifest, "dependencies", None), "python", None) or []
+        restored_py_deps = (
+            getattr(getattr(restored_manifest, "dependencies", None), "python", None)
+            or []
+        )
         plugin.installed_packages = restored_py_deps
         await self._db.flush()
 
@@ -322,10 +333,12 @@ class VersionManager:
         from app.models.system.plugin_version import PluginVersion
 
         result = await self._db.execute(
-            select(PluginVersion).where(
+            select(PluginVersion)
+            .where(
                 PluginVersion.plugin_id == plugin_id,
                 PluginVersion.is_deleted.is_(False),
-            ).order_by(PluginVersion.created_at.desc())
+            )
+            .order_by(PluginVersion.created_at.desc())
         )
         versions = result.scalars().all()
         return [
@@ -335,7 +348,9 @@ class VersionManager:
                 "status": v.status,
                 "changelog": v.changelog,
                 "installed_at": v.installed_at.isoformat() if v.installed_at else None,
-                "rolled_back_at": v.rolled_back_at.isoformat() if v.rolled_back_at else None,
+                "rolled_back_at": v.rolled_back_at.isoformat()
+                if v.rolled_back_at
+                else None,
             }
             for v in versions
         ]

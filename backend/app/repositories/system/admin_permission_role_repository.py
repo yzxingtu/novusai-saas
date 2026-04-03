@@ -19,8 +19,13 @@ class AdminPermissionRoleRepository(BaseRepository[AdminRole]):
 
     _scope_fields = {
         "admin": {
-            "id", "name", "code", "is_system", "is_active",
-            "created_at", "updated_at",
+            "id",
+            "name",
+            "code",
+            "is_system",
+            "is_active",
+            "created_at",
+            "updated_at",
         },
     }
 
@@ -81,6 +86,7 @@ class AdminPermissionRoleRepository(BaseRepository[AdminRole]):
         include_deleted: bool = False,
         **filters,
     ) -> list[AdminRole]:
+        _ = order_by
         query = self._base_query()
         if not include_deleted:
             query = query.where(self.model.is_deleted.is_(False))
@@ -107,7 +113,9 @@ class AdminPermissionRoleRepository(BaseRepository[AdminRole]):
         for key, value in filters.items():
             if hasattr(self.model, key) and value is not None:
                 query = query.where(getattr(self.model, key) == value)
-        result = await self.db.execute(select(func.count()).select_from(query.subquery()))
+        result = await self.db.execute(
+            select(func.count()).select_from(query.subquery())
+        )
         return result.scalar() or 0
 
     async def create(self, data: dict) -> AdminRole:

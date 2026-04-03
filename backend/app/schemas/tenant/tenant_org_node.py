@@ -42,7 +42,9 @@ class TenantOrgNodeResponse(BaseSchema):
     children_count: int = Field(0, description="Direct child count")
     has_children: bool = Field(False, description="Whether the node has children")
     type: str = Field(RoleType.DEPARTMENT.value, description="Organization node type")
-    allow_members: bool = Field(True, description="Whether members can be assigned to the node")
+    allow_members: bool = Field(
+        True, description="Whether members can be assigned to the node"
+    )
     leader_id: int | None = Field(None, description="Leader tenant admin ID")
     leader: TenantOrgNodeLeaderResponse | None = Field(None, description="Leader info")
     leader_name: str | None = Field(None, description="Leader display name")
@@ -66,12 +68,18 @@ class TenantOrgNodeDetailResponse(TenantOrgNodeResponse):
 class TenantOrgNodeCreateRequest(BaseSchema):
     """Create tenant org node request / 创建企业组织节点请求"""
 
-    name: str = Field(..., min_length=1, max_length=50, description="Organization node name")
-    description: str | None = Field(None, max_length=500, description="Organization node description")
+    name: str = Field(
+        ..., min_length=1, max_length=50, description="Organization node name"
+    )
+    description: str | None = Field(
+        None, max_length=500, description="Organization node description"
+    )
     is_active: bool = Field(True, description="Whether the node is active")
     sort_order: int = Field(0, description="Sort order")
     parent_id: int | None = Field(None, description="Parent organization node ID")
-    type: TenantOrgNodeType = Field(RoleType.DEPARTMENT.value, description="Organization node type")
+    type: TenantOrgNodeType = Field(
+        RoleType.DEPARTMENT.value, description="Organization node type"
+    )
     allow_members: bool = Field(True, description="Whether members can be assigned")
     data_scope: str = Field(
         DataScope.DEPT_AND_CHILDREN.value,
@@ -86,14 +94,22 @@ class TenantOrgNodeCreateRequest(BaseSchema):
 class TenantOrgNodeUpdateRequest(BaseSchema):
     """Update tenant org node request / 更新企业组织节点请求"""
 
-    name: str | None = Field(None, min_length=1, max_length=50, description="Organization node name")
-    description: str | None = Field(None, max_length=500, description="Organization node description")
+    name: str | None = Field(
+        None, min_length=1, max_length=50, description="Organization node name"
+    )
+    description: str | None = Field(
+        None, max_length=500, description="Organization node description"
+    )
     is_active: bool | None = Field(None, description="Whether the node is active")
     sort_order: int | None = Field(None, description="Sort order")
     parent_id: int | None = Field(None, description="Parent organization node ID")
     type: TenantOrgNodeType | None = Field(None, description="Organization node type")
-    allow_members: bool | None = Field(None, description="Whether members can be assigned")
-    data_scope: str | None = Field(None, description="Organization authority scope policy")
+    allow_members: bool | None = Field(
+        None, description="Whether members can be assigned"
+    )
+    data_scope: str | None = Field(
+        None, description="Organization authority scope policy"
+    )
     custom_dept_ids: list[int] | None = Field(
         None,
         description="Custom organization node IDs used when data_scope=custom",
@@ -113,7 +129,9 @@ class TenantOrgNodeAuthorityPolicyRequest(BaseSchema):
 class TenantOrgNodeMoveRequest(BaseSchema):
     """Move tenant org node request / 移动企业组织节点请求"""
 
-    new_parent_id: int | None = Field(None, description="New parent organization node ID")
+    new_parent_id: int | None = Field(
+        None, description="New parent organization node ID"
+    )
 
 
 class TenantOrgNodeSetLeaderRequest(BaseSchema):
@@ -147,7 +165,9 @@ class TenantOrgNodeUpdateMemberRequest(BaseSchema):
     phone: str | None = Field(None, description="Phone")
     nickname: str | None = Field(None, description="Nickname")
     avatar: str | None = Field(None, description="Avatar")
-    is_active: bool | None = Field(None, description="Whether the tenant admin is active")
+    is_active: bool | None = Field(
+        None, description="Whether the tenant admin is active"
+    )
     org_node_id: int | None = Field(None, description="New organization node ID")
     role_id: int | None = Field(None, description="Permission role ID")
 
@@ -155,7 +175,9 @@ class TenantOrgNodeUpdateMemberRequest(BaseSchema):
 class TenantOrgNodeResetPasswordRequest(BaseSchema):
     """Reset org node member password / 重置组织节点成员密码请求"""
 
-    new_password: str = Field(..., min_length=6, max_length=50, description="New password")
+    new_password: str = Field(
+        ..., min_length=6, max_length=50, description="New password"
+    )
 
 
 class TenantOrgNodeToggleStatusRequest(BaseSchema):
@@ -173,7 +195,9 @@ class TenantOrgNodeMemberResponse(BaseSchema):
     avatar: str | None = Field(None, description="Avatar")
     email: str = Field(..., description="Email")
     is_active: bool = Field(True, description="Whether the tenant admin is active")
-    is_leader: bool = Field(False, description="Whether the tenant admin is the node leader")
+    is_leader: bool = Field(
+        False, description="Whether the tenant admin is the node leader"
+    )
     joined_at: datetime | None = Field(None, description="Joined at")
     org_node_id: int | None = Field(None, description="Organization node ID")
     org_node_name: str | None = Field(None, description="Organization node name")

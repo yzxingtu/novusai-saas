@@ -160,6 +160,7 @@ sync_session_factory = sessionmaker(
 # 依赖注入 / Dependency Injection
 # ============================================
 
+
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
     获取数据库会话（FastAPI 依赖注入） / Get database session (FastAPI dependency injection)
@@ -224,20 +225,20 @@ def _warn_if_pg_not_running(exc: Exception) -> None:
 
     if system == "Windows":
         start_cmd = (
-            f"  PowerShell（管理员）/ PowerShell (Administrator):\n"
-            f"    net start postgresql-x64-16\n"
-            f"  或 / Or: 打开 services.msc → 找到 PostgreSQL 服务 → 启动"
-            f"  (Open services.msc → Find PostgreSQL service → Start)"
+            "  PowerShell（管理员）/ PowerShell (Administrator):\n"
+            "    net start postgresql-x64-16\n"
+            "  或 / Or: 打开 services.msc → 找到 PostgreSQL 服务 → 启动"
+            "  (Open services.msc → Find PostgreSQL service → Start)"
         )
     elif system == "Darwin":
         start_cmd = (
-            f"  brew services start postgresql\n"
-            f"  或 / Or: pg_ctl -D /usr/local/var/postgresql@16 start"
+            "  brew services start postgresql\n"
+            "  或 / Or: pg_ctl -D /usr/local/var/postgresql@16 start"
         )
     else:
         start_cmd = (
-            f"  sudo systemctl start postgresql\n"
-            f"  或 / Or: sudo service postgresql start"
+            "  sudo systemctl start postgresql\n"
+            "  或 / Or: sudo service postgresql start"
         )
 
     logger.warning(
@@ -297,19 +298,19 @@ def create_database_if_not_exists() -> bool:
             # 检查数据库是否存在 / Check if database exists
 
             result = conn.execute(
-                text(
-                    "SELECT 1 FROM pg_database WHERE datname = :dbname"
-                ),
-                {"dbname": settings.DATABASE_NAME}
+                text("SELECT 1 FROM pg_database WHERE datname = :dbname"),
+                {"dbname": settings.DATABASE_NAME},
             )
             exists = result.scalar() is not None
 
             if not exists:
-                logger.info("Database '{}' does not exist, creating...", settings.DATABASE_NAME)
-                conn.execute(
-                    text(f'CREATE DATABASE "{settings.DATABASE_NAME}"')
+                logger.info(
+                    "Database '{}' does not exist, creating...", settings.DATABASE_NAME
                 )
-                logger.info("Database '{}' created successfully", settings.DATABASE_NAME)
+                conn.execute(text(f'CREATE DATABASE "{settings.DATABASE_NAME}"'))
+                logger.info(
+                    "Database '{}' created successfully", settings.DATABASE_NAME
+                )
             else:
                 logger.debug("Database '{}' already exists", settings.DATABASE_NAME)
 
@@ -354,7 +355,9 @@ def _read_alembic_version_rows(db_url: str) -> list[str]:
     engine = create_engine(db_url, echo=False)
     try:
         with engine.connect() as conn:
-            rows = conn.execute(text("SELECT version_num FROM alembic_version")).fetchall()
+            rows = conn.execute(
+                text("SELECT version_num FROM alembic_version")
+            ).fetchall()
         return [str(row[0]) for row in rows]
     except Exception:
         return []
@@ -378,7 +381,9 @@ def _inspect_main_schema_coverage(db_url: str) -> MainSchemaCoverage:
         missing_columns_by_table: dict[str, tuple[str, ...]] = {}
 
         for table_name in sorted(model_tables):
-            model_cols = tuple(col.name for col in Base.metadata.tables[table_name].columns)
+            model_cols = tuple(
+                col.name for col in Base.metadata.tables[table_name].columns
+            )
             total_model_column_count += len(model_cols)
 
             if table_name in missing_tables:
@@ -471,8 +476,12 @@ def should_skip_migration_subprocess(
     expected_heads: list[str],
 ) -> tuple[bool, str]:
     """Decide whether startup can skip Alembic subprocess. / 判断启动阶段是否可跳过 Alembic 子进程。"""
-    normalized_current = sorted({str(stamp) for stamp in current_stamps if str(stamp or "").strip()})
-    normalized_heads = sorted({str(head) for head in expected_heads if str(head or "").strip()})
+    normalized_current = sorted(
+        {str(stamp) for stamp in current_stamps if str(stamp or "").strip()}
+    )
+    normalized_heads = sorted(
+        {str(head) for head in expected_heads if str(head or "").strip()}
+    )
 
     if not normalized_heads:
         return False, "expected heads unresolved"
@@ -538,7 +547,9 @@ def purge_orphaned_alembic_stamps(backend_dir: Path | None = None) -> bool:
 
     known_revs: set[str] = set()
     _failed_reads: list[str] = []
-    rev_pat = re.compile(r'^revision\s*(?::[^=]*)?=\s*["\']([^"\']+)["\']', re.MULTILINE)
+    rev_pat = re.compile(
+        r'^revision\s*(?::[^=]*)?=\s*["\']([^"\']+)["\']', re.MULTILINE
+    )
 
     def _collect(d: Path) -> None:
         if not d.is_dir():
@@ -564,7 +575,8 @@ def purge_orphaned_alembic_stamps(backend_dir: Path | None = None) -> bool:
     if _failed_reads:
         logger.warning(
             "Skipping stamp purge: {} migration file(s) unreadable ({})",
-            len(_failed_reads), ", ".join(_failed_reads[:5]),
+            len(_failed_reads),
+            ", ".join(_failed_reads[:5]),
         )
         return True
 
@@ -573,6 +585,7 @@ def purge_orphaned_alembic_stamps(backend_dir: Path | None = None) -> bool:
 
     # 临时抑制 SQLAlchemy SQL 日志，避免 codegen rollback/generate 时控制台刷屏
     import logging as _log
+
     _sa_log = _log.getLogger("sqlalchemy.engine")
     _old_level = _sa_log.level
     _sa_log.setLevel(_log.WARNING)
@@ -580,11 +593,16 @@ def purge_orphaned_alembic_stamps(backend_dir: Path | None = None) -> bool:
     try:
         engine = create_engine(db_url, echo=False)
         with engine.connect() as conn:
-            rows = conn.execute(text("SELECT version_num FROM alembic_version")).fetchall()
+            rows = conn.execute(
+                text("SELECT version_num FROM alembic_version")
+            ).fetchall()
             for (stamp,) in rows:
                 if stamp not in known_revs:
                     logger.info("Purging orphaned alembic stamp: {}", stamp)
-                    conn.execute(text("DELETE FROM alembic_version WHERE version_num = :v"), {"v": stamp})
+                    conn.execute(
+                        text("DELETE FROM alembic_version WHERE version_num = :v"),
+                        {"v": stamp},
+                    )
             conn.commit()
     finally:
         _sa_log.setLevel(_old_level)
@@ -669,6 +687,7 @@ def run_migrations() -> bool:
 
         # 将迁移脚本写入临时文件 / Write migration script to temp file to avoid complex one-liner escaping
         import tempfile
+
         migration_script = f"""
 import sys
 import os
@@ -733,7 +752,7 @@ else:
 
 # Step 2: 运行迁移（主应用 + 插件 revision 可解析）
 cfg = Config({str(alembic_ini)!r})
-cfg.set_main_option('script_location', {str(backend_dir / 'migrations')!r})
+cfg.set_main_option('script_location', {str(backend_dir / "migrations")!r})
 cfg.set_main_option('sqlalchemy.url', db_url)
 
 # 关键：command.upgrade 在创建 ScriptDirectory 时就会读取 version_locations，
@@ -814,7 +833,9 @@ except Exception as e:
 
         if result.returncode != 0:
             err = (result.stderr or result.stdout or "unknown error").strip()
-            _set_db_init_failure(f"alembic subprocess (exit {result.returncode}): {err[:4000]}")
+            _set_db_init_failure(
+                f"alembic subprocess (exit {result.returncode}): {err[:4000]}"
+            )
             raise RuntimeError(err)
 
         out = (result.stdout or "").strip()

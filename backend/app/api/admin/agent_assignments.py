@@ -36,9 +36,16 @@ logger = LogManager.get_logger("app")
 
 class AgentAssignmentUpdate(PydanticBaseModel):
     """更新绑定请求 / Update assignment request"""
-    agent_id: int | None = Field(None, description=_("system_agent_assignment.field.agent_id"))
-    config: dict | None = Field(None, description=_("system_agent_assignment.field.config"))
-    is_active: bool | None = Field(None, description=_("system_agent_assignment.field.is_active"))
+
+    agent_id: int | None = Field(
+        None, description=_("system_agent_assignment.field.agent_id")
+    )
+    config: dict | None = Field(
+        None, description=_("system_agent_assignment.field.config")
+    )
+    is_active: bool | None = Field(
+        None, description=_("system_agent_assignment.field.is_active")
+    )
 
 
 @permission_resource(
@@ -79,7 +86,9 @@ class AdminAgentAssignmentController(GlobalController):
             # 构建插件 feature 多语言映射 / Build plugin feature i18n mapping
             i18n_map = await _build_plugin_feature_i18n_map(db)
 
-            result = [_build_assignment_item(item, i18n_map=i18n_map) for item in all_items]
+            result = [
+                _build_assignment_item(item, i18n_map=i18n_map) for item in all_items
+            ]
             return success(data={"items": result, "total": len(result)})
 
         @router.get("/resolve/{feature_code}", summary="解析功能绑定的智能体")
@@ -99,27 +108,33 @@ class AdminAgentAssignmentController(GlobalController):
             service = AgentAssignmentService(db)
             assignment = await service.resolve(feature_code)
             if not assignment:
-                return success(data={
-                    "feature_code": feature_code,
-                    "agent_id": None,
-                    "agent_name": None,
-                    "config": None,
-                    "is_active": False,
-                })
+                return success(
+                    data={
+                        "feature_code": feature_code,
+                        "agent_id": None,
+                        "agent_name": None,
+                        "config": None,
+                        "is_active": False,
+                    }
+                )
             agent_name = None
             try:
                 agent_obj = getattr(assignment, "agent", None)
-                if agent_obj is not None and not getattr(agent_obj, "is_deleted", False):
+                if agent_obj is not None and not getattr(
+                    agent_obj, "is_deleted", False
+                ):
                     agent_name = agent_obj.name
             except AttributeError:
                 pass
-            return success(data={
-                "feature_code": assignment.feature_code,
-                "agent_id": assignment.agent_id,
-                "agent_name": agent_name,
-                "config": assignment.config,
-                "is_active": assignment.is_active,
-            })
+            return success(
+                data={
+                    "feature_code": assignment.feature_code,
+                    "agent_id": assignment.agent_id,
+                    "agent_name": agent_name,
+                    "config": assignment.config,
+                    "is_active": assignment.is_active,
+                }
+            )
 
         @router.get("/{feature_code}", summary="按功能代码获取绑定")
         @action_read("action.agent_assignment.detail")

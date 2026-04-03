@@ -326,9 +326,7 @@ class UserPreferenceService:
         else:
             conditions.append(UserPreference.user_id == user_id)
 
-        result = await self.db.execute(
-            select(UserPreference).where(and_(*conditions))
-        )
+        result = await self.db.execute(select(UserPreference).where(and_(*conditions)))
         return result.scalar_one_or_none()
 
     async def _clear_individual_keys(

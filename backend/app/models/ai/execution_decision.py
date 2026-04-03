@@ -2,7 +2,7 @@
 Execution decision model / 执行决策模型
 """
 
-from sqlalchemy import Boolean, Index, Integer, JSON, String, Text
+from sqlalchemy import JSON, Boolean, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base_model import TenantModel
@@ -33,21 +33,33 @@ class ExecutionDecision(TenantModel):
         "updated_at": "updated_at",
     }
 
-    conversation_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    conversation_id: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, index=True
+    )
     agent_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     operator_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
-    operator_type: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+    operator_type: Mapped[str | None] = mapped_column(
+        String(50), nullable=True, index=True
+    )
     decision_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     subject_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
-    decision_scope: Mapped[str] = mapped_column(String(30), nullable=False, default="once")
+    decision_scope: Mapped[str] = mapped_column(
+        String(30), nullable=False, default="once"
+    )
     risk_level: Mapped[str | None] = mapped_column(String(50), nullable=True)
     auto_approved: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    tool_call_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
-    tool_name: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    tool_call_id: Mapped[str | None] = mapped_column(
+        String(100), nullable=True, index=True
+    )
+    tool_name: Mapped[str | None] = mapped_column(
+        String(100), nullable=True, index=True
+    )
     action_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     table_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    correlation_key: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    correlation_key: Mapped[str] = mapped_column(
+        String(255), nullable=False, index=True
+    )
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     evidence: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 

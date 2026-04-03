@@ -129,9 +129,7 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
         return result
 
     async def check_quota_warning(
-        self,
-        model_id: int | None = None,
-        period: str = QuotaPeriodEnum.MONTHLY.value
+        self, model_id: int | None = None, period: str = QuotaPeriodEnum.MONTHLY.value
     ) -> dict[str, Any]:
         """
         检查配额预警状态 / Check quota warning status.
@@ -199,7 +197,7 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
         limit: int,
         quota_type: str = QuotaTypeEnum.SOFT.value,
         warning_threshold: int | None = None,
-        description: str | None = None
+        description: str | None = None,
     ) -> TenantQuota:
         """
         创建配额配置 / Create quota config.
@@ -228,7 +226,10 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
 
         logger.info(
             "Quota created: tenant_id={} model_id={} period={} limit={}",
-            self.tenant_id, model_id, period, limit,
+            self.tenant_id,
+            model_id,
+            period,
+            limit,
         )
 
         return quota

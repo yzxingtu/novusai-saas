@@ -128,13 +128,11 @@ class EmailToolExecutor(BaseToolExecutor):
             subject = f"{prefix} {subject}"
 
         try:
-            tenant_id = (
-                (context.tenant_id if context else None)
-                or PLATFORM_TENANT_ID
-            )
+            tenant_id = (context.tenant_id if context else None) or PLATFORM_TENANT_ID
 
             # Rate limiting (per tenant per hour) / 频控（按企业/小时）
             from app.ai.tools.security import EmailRateLimiter, EmailRateLimitError
+
             try:
                 await EmailRateLimiter.check_rate(tenant_id=tenant_id)
             except EmailRateLimitError as e:
@@ -146,27 +144,25 @@ class EmailToolExecutor(BaseToolExecutor):
                 )
 
             from app.tasks.email import send_email_task
+
             send_email_task.delay(
                 to=to_list,
                 subject=subject,
                 html_body=body or None,
                 cc=cc_list if cc_list else None,
                 triggered_by="ai_tool",
-                tenant_id=(
-                    tenant_id
-                    if tenant_id != PLATFORM_TENANT_ID
-                    else None
-                ),
+                tenant_id=(tenant_id if tenant_id != PLATFORM_TENANT_ID else None),
             )
 
             duration_ms = int((time.perf_counter() - start) * 1000)
-            output = (
-                f"Email queued for sending to {', '.join(to_list)}"
-                + (f" (cc: {', '.join(cc_list)})" if cc_list else "")
+            output = f"Email queued for sending to {', '.join(to_list)}" + (
+                f" (cc: {', '.join(cc_list)})" if cc_list else ""
             )
             logger.info(
                 "Email tool queued: to={} subject={} skill={}",
-                ", ".join(to_list), subject, definition.source_skill_name,
+                ", ".join(to_list),
+                subject,
+                definition.source_skill_name,
             )
             result = ToolResult(
                 tool_call_id=tool_call_id,

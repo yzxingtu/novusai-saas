@@ -160,10 +160,14 @@ async def discover_and_register(db: AsyncSession) -> dict:
     for plugin_name in sorted(disk_plugins):
         try:
             manifest = loader.load_manifest(plugin_name)
-            validate_runtime_frontend_contract(loader.plugins_dir / plugin_name, manifest)
+            validate_runtime_frontend_contract(
+                loader.plugins_dir / plugin_name, manifest
+            )
         except Exception as exc:
             logger.warning(
-                "Discover: skipping {} (invalid manifest): {}", plugin_name, exc,
+                "Discover: skipping {} (invalid manifest): {}",
+                plugin_name,
+                exc,
             )
             failed += 1
             continue
@@ -176,22 +180,28 @@ async def discover_and_register(db: AsyncSession) -> dict:
                 security_warnings: list[str] = []
                 try:
                     from app.plugins.security_scan import scan_plugin_directory
+
                     scan_result = scan_plugin_directory(PLUGINS_DIR / plugin_name)
                     if scan_result.has_warnings:
                         security_warnings = scan_result.warnings[:10]
                         logger.warning(
                             "Discover: plugin {} has {} security warning(s): {}",
-                            plugin_name, len(scan_result.warnings),
+                            plugin_name,
+                            len(scan_result.warnings),
                             "; ".join(scan_result.warnings[:3]),
                         )
                 except Exception as exc:
-                    logger.warning("Discover: security scan failed for {}: {}", plugin_name, exc)
+                    logger.warning(
+                        "Discover: security scan failed for {}: {}", plugin_name, exc
+                    )
 
                 plugin = PluginModel(
                     name=plugin_name,
                     display_name=resolve_i18n(manifest.display_name),
                     version=manifest.version,
-                    description=resolve_i18n(manifest.description) if manifest.description else None,
+                    description=resolve_i18n(manifest.description)
+                    if manifest.description
+                    else None,
                     author=manifest.author or None,
                     icon=manifest.icon or None,
                     icon_color=manifest.icon_color or None,
@@ -205,11 +215,17 @@ async def discover_and_register(db: AsyncSession) -> dict:
                     install_source=PluginInstallSourceEnum.LOCAL.value,
                     manifest=manifest.model_dump(),
                     config={},
-                    ai_requirements=manifest.ai_requirements.model_dump() if manifest.ai_requirements else None,
+                    ai_requirements=manifest.ai_requirements.model_dump()
+                    if manifest.ai_requirements
+                    else None,
                     pricing_type=manifest.pricing.type,
-                    pricing_info=manifest.pricing.model_dump() if manifest.pricing.type != "free" else None,
+                    pricing_info=manifest.pricing.model_dump()
+                    if manifest.pricing.type != "free"
+                    else None,
                     error_count=len(security_warnings),
-                    error_message=f"Security warnings: {'; '.join(security_warnings)}" if security_warnings else None,
+                    error_message=f"Security warnings: {'; '.join(security_warnings)}"
+                    if security_warnings
+                    else None,
                     installed_packages=manifest.dependencies.python or [],
                     granted_capabilities=manifest.capabilities,
                     installed_at=utc_now(),
@@ -218,33 +234,41 @@ async def discover_and_register(db: AsyncSession) -> dict:
                 await db.flush()
 
                 # Version record / 版本记录
-                db.add(PluginVersion(
-                    plugin_id=plugin.id,
-                    version=manifest.version,
-                    manifest=manifest.model_dump(),
-                    status=PluginVersionStatusEnum.ACTIVE.value,
-                    installed_at=utc_now(),
-                ))
+                db.add(
+                    PluginVersion(
+                        plugin_id=plugin.id,
+                        version=manifest.version,
+                        manifest=manifest.model_dump(),
+                        status=PluginVersionStatusEnum.ACTIVE.value,
+                        installed_at=utc_now(),
+                    )
+                )
 
                 # Alembic migration (if any)
                 # NOTE: Must commit first because run_alembic_upgrade runs in subprocess,
                 # subprocess queries plugins table via psycopg2 new connection to determine version_locations.
                 # If only flushed without commit, subprocess cannot see plugin record, migration directory won't be loaded.
                 # / Alembic 迁移（必须先 commit）
-                migrations_dir = PLUGINS_DIR / plugin_name / "backend" / "migrations" / "versions"
+                migrations_dir = (
+                    PLUGINS_DIR / plugin_name / "backend" / "migrations" / "versions"
+                )
                 if migrations_dir.is_dir():
                     try:
                         await db.commit()
                         from app.plugins.lifecycle import PluginLifecycle
+
                         lifecycle = PluginLifecycle(db)
                         await lifecycle.run_alembic_upgrade(plugin_name)
                         logger.info("Discover: ran alembic for {}", plugin_name)
                     except Exception as exc:
-                        logger.warning("Discover: alembic failed for {}: {}", plugin_name, exc)
+                        logger.warning(
+                            "Discover: alembic failed for {}: {}", plugin_name, exc
+                        )
 
                 # AI features registration (if any) / AI features 注册
                 if manifest.ai_requirements and manifest.ai_requirements.features:
                     from app.models.system.agent_assignment import SystemAgentAssignment
+
                     for feature in manifest.ai_requirements.features:
                         feature_code = f"plugin.{plugin_name}.{feature.feature_code}"
                         existing = await db.execute(
@@ -255,22 +279,29 @@ async def discover_and_register(db: AsyncSession) -> dict:
                             )
                         )
                         if not existing.scalar_one_or_none():
-                            db.add(SystemAgentAssignment(
-                                feature_code=feature_code,
-                                feature_name=feature.display_name.get(
-                                    "zh-CN", feature.display_name.get("en", feature.feature_code),
-                                ),
-                                description=feature.description.get(
-                                    "zh-CN", feature.description.get("en", ""),
-                                ),
-                                agent_id=None,
-                                tenant_id=None,
-                                is_active=True,
-                            ))
+                            db.add(
+                                SystemAgentAssignment(
+                                    feature_code=feature_code,
+                                    feature_name=feature.display_name.get(
+                                        "zh-CN",
+                                        feature.display_name.get(
+                                            "en", feature.feature_code
+                                        ),
+                                    ),
+                                    description=feature.description.get(
+                                        "zh-CN",
+                                        feature.description.get("en", ""),
+                                    ),
+                                    agent_id=None,
+                                    tenant_id=None,
+                                    is_active=True,
+                                )
+                            )
 
                 # on_install hook (non-fatal) / on_install 钩子
                 try:
                     from app.plugins.context_factory import create_plugin_context
+
                     plugin_cls = loader.load_plugin_class(plugin_name)
                     ctx = create_plugin_context(
                         plugin_name=plugin_name,
@@ -280,19 +311,25 @@ async def discover_and_register(db: AsyncSession) -> dict:
                     )
                     await plugin_cls().on_install(ctx)
                 except Exception as exc:
-                    logger.warning("Discover: on_install failed for {}: {}", plugin_name, exc)
+                    logger.warning(
+                        "Discover: on_install failed for {}: {}", plugin_name, exc
+                    )
 
                 await db.flush()
                 discovered += 1
                 logger.info(
                     "Discover: auto-registered plugin {} v{} (disabled)",
-                    plugin_name, manifest.version,
+                    plugin_name,
+                    manifest.version,
                 )
 
             except Exception as exc:
                 failed += 1
                 logger.error(
-                    "Discover: failed to register {}: {}", plugin_name, exc, exc_info=True,
+                    "Discover: failed to register {}: {}",
+                    plugin_name,
+                    exc,
+                    exc_info=True,
                 )
         else:
             # ── Already exists: detect drift only, do not hot-sync / 已存在：仅检测漂移，不热同步 ──
@@ -332,7 +369,9 @@ async def discover_and_register(db: AsyncSession) -> dict:
 
     # ── In DB but not on disk → mark error / DB 有但磁盘无 → 标记 error ──
     for plugin_name, plugin in db_plugins.items():
-        if plugin_name not in disk_plugins and plugin.status not in (PluginStatusEnum.ERROR.value,):
+        if plugin_name not in disk_plugins and plugin.status not in (
+            PluginStatusEnum.ERROR.value,
+        ):
             plugin.status = PluginStatusEnum.ERROR.value
             plugin.error_message = "Plugin files missing from disk"
             plugin.error_count += 1
@@ -340,21 +379,36 @@ async def discover_and_register(db: AsyncSession) -> dict:
             try:
                 from app.plugins.lifecycle import PluginLifecycle
 
-                await PluginLifecycle(db)._set_plugin_permissions_enabled(plugin_name, False)
+                await PluginLifecycle(db)._set_plugin_permissions_enabled(
+                    plugin_name, False
+                )
             except Exception as perm_exc:
                 logger.warning(
                     "Discover: failed to disable permissions for missing plugin {}: {}",
                     plugin_name,
                     perm_exc,
                 )
-            logger.warning("Discover: plugin {} missing from disk, marked error", plugin_name)
+            logger.warning(
+                "Discover: plugin {} missing from disk, marked error", plugin_name
+            )
 
-    if discovered > 0 or sync_required > 0 or upgrade_required > 0 or missing > 0 or reconciled > 0:
+    if (
+        discovered > 0
+        or sync_required > 0
+        or upgrade_required > 0
+        or missing > 0
+        or reconciled > 0
+    ):
         await db.flush()
 
     logger.info(
         "Plugin discover complete: discovered={}, sync_required={}, upgrade_required={}, missing={}, reconciled={}, failed={}",
-        discovered, sync_required, upgrade_required, missing, reconciled, failed,
+        discovered,
+        sync_required,
+        upgrade_required,
+        missing,
+        reconciled,
+        failed,
     )
     return {
         "discovered": discovered,
@@ -453,9 +507,8 @@ async def restore_enabled_plugins(
             if not license_status.get("runtime_allowed", False):
                 if mutate_db_status:
                     plugin.status = PluginStatusEnum.DISABLED.value
-                    plugin.error_message = (
-                        "Startup restore skipped: "
-                        + (license_status.get("message") or "license inactive")
+                    plugin.error_message = "Startup restore skipped: " + (
+                        license_status.get("message") or "license inactive"
                     )
                     plugin.error_count = 0
                     status_changed = True
@@ -469,7 +522,9 @@ async def restore_enabled_plugins(
                 continue
 
             manifest = loader.load_manifest(plugin.name)
-            validate_runtime_frontend_contract(loader.plugins_dir / plugin.name, manifest)
+            validate_runtime_frontend_contract(
+                loader.plugins_dir / plugin.name, manifest
+            )
             if manifest.version != plugin.version:
                 raise RuntimeError(
                     "Disk plugin version drift detected: "
@@ -510,7 +565,9 @@ async def restore_enabled_plugins(
             # Register all extension points (shared function, used by lifecycle.enable)
             # / 注册所有扩展点
             menu_overrides = (plugin.config or {}).get("menu_overrides")
-            register_all_extensions(registry, manifest, plugin.name, menu_overrides=menu_overrides)
+            register_all_extensions(
+                registry, manifest, plugin.name, menu_overrides=menu_overrides
+            )
 
             # fail-close: if critical extension load fails during restore, rollback registration and mark ERROR
             # / fail-close：恢复阶段关键扩展加载失败时回滚
@@ -591,7 +648,8 @@ async def restore_enabled_plugins(
             logger.warning(
                 "Plugin system: {} plugin(s) in ERROR state and need manual repair: {}. "
                 "Go to Admin > Plugins and click the Repair button.",
-                len(error_plugins), ", ".join(names),
+                len(error_plugins),
+                ", ".join(names),
             )
             for row in error_plugins:
                 logger.warning("  ↳ [{}] {}", row[0], (row[1] or "unknown error")[:200])
@@ -607,6 +665,7 @@ def _load_plugin_executor(plugin_name: str, skill_type: str):
     """Load plugin executor class — delegate to unified loader (preserved for external reference)
     / 加载插件的 executor 类"""
     from app.plugins.module_loader import load_plugin_executor
+
     return load_plugin_executor(plugin_name, skill_type)
 
 
@@ -614,4 +673,5 @@ def _load_handler_safe(loader, plugin_name: str, handler_path: str):
     """Safely load plugin handler function — delegate to unified loader (preserved for external reference)
     / 安全加载插件处理函数"""
     from app.plugins.module_loader import load_plugin_handler
+
     return load_plugin_handler(plugin_name, handler_path)

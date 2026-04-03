@@ -118,7 +118,9 @@ def _resolve_plugin_error_message(
     return raw_message or _("common.invalid_request")
 
 
-def _extract_json_response_payload(response: StarletteResponse) -> dict[str, Any] | None:
+def _extract_json_response_payload(
+    response: StarletteResponse,
+) -> dict[str, Any] | None:
     content_type = response.headers.get("content-type", "")
     body = getattr(response, "body", None)
     if not body or "json" not in content_type.lower():
@@ -186,7 +188,11 @@ async def _dispatch_plugin_api(
     if settings.DEBUG:
         try:
             live_manifest = _get_plugin_loader().load_manifest(plugin_name)
-            api_config = live_manifest.extensions.api.model_dump() if live_manifest.extensions.api else {}
+            api_config = (
+                live_manifest.extensions.api.model_dump()
+                if live_manifest.extensions.api
+                else {}
+            )
         except Exception:
             api_config = manifest_data.get("extensions", {}).get("api", {})
     else:
@@ -244,12 +250,21 @@ async def _dispatch_plugin_api(
     route_permission = matched_route.get("permission", "")
     if route_permission and not allow_public_only:
         has_perm = await _check_plugin_permission(
-            db, plugin_name, route_permission, user_id, user_role, tenant_id,
+            db,
+            plugin_name,
+            route_permission,
+            user_id,
+            user_role,
+            tenant_id,
         )
         if not has_perm:
             logger.warning(
                 "Plugin permission denied: {}/{} requires '{}' (user={} role={})",
-                plugin_name, path, route_permission, user_id, user_role,
+                plugin_name,
+                path,
+                route_permission,
+                user_id,
+                user_role,
             )
             return error(
                 message=f"Permission denied: action '{route_permission}' required",
@@ -261,7 +276,9 @@ async def _dispatch_plugin_api(
     handler_path = matched_route.get("handler", "")
     handler = load_plugin_handler(plugin_name, handler_path)
     if not handler:
-        logger.error("Handler '{}' failed to load for plugin '{}'", handler_path, plugin_name)
+        logger.error(
+            "Handler '{}' failed to load for plugin '{}'", handler_path, plugin_name
+        )
         return error(
             message="Plugin handler failed to load",
             code=5000,
@@ -349,7 +366,10 @@ async def _dispatch_plugin_api(
     except Exception as exc:
         logger.error(
             "Plugin API handler error: {}/{}: {}",
-            plugin_name, path, exc, exc_info=True,
+            plugin_name,
+            path,
+            exc,
+            exc_info=True,
         )
         raise AppException(
             message=_("common.server_error"),
@@ -373,7 +393,10 @@ async def admin_plugin_api(
 ):
     """Plugin API dispatcher (admin side) / 插件 API 分发器（管理端）"""
     return await _dispatch_plugin_api(
-        plugin_name, path, request, db,
+        plugin_name,
+        path,
+        request,
+        db,
         tenant_id=None,
         user_id=admin.id,
         user_role=TOKEN_SCOPE_ADMIN,
@@ -394,7 +417,10 @@ async def tenant_plugin_api(
 ):
     """Plugin API dispatcher (tenant side) / 插件 API 分发器（企业端）"""
     return await _dispatch_plugin_api(
-        plugin_name, path, request, db,
+        plugin_name,
+        path,
+        request,
+        db,
         tenant_id=tenant_admin.tenant_id,
         user_id=tenant_admin.id,
         user_role=TOKEN_SCOPE_TENANT_ADMIN,
@@ -438,7 +464,9 @@ def _compile_route_regex(route_pattern: str) -> re.Pattern[str]:
     return re.compile("^" + "/".join(regex_parts) + "$")
 
 
-def _match_route_path(route_pattern: str, actual_path: str) -> tuple[bool, dict[str, str]]:
+def _match_route_path(
+    route_pattern: str, actual_path: str
+) -> tuple[bool, dict[str, str]]:
     """
     将路由模式与实际请求路径匹配并提取路径参数 / Match a route pattern against an actual request path, extracting path parameters.
 
@@ -530,6 +558,7 @@ async def _check_plugin_permission(
     # Query plugin registered permission metadata, verify action is in declared list
     # / 查询插件注册的权限元数据，校验 action 是否在声明列表中
     from app.plugins.registry import ExtensionRegistry
+
     registry = ExtensionRegistry.get_instance()
     plugin_perms = registry.get_plugin_permissions(plugin_name)
 
@@ -543,7 +572,9 @@ async def _check_plugin_permission(
         # C2: Fail-close — undeclared actions denied by default / 未声明的 action 默认拒绝
         logger.warning(
             "Plugin permission action '{}' not declared in '{}' actions {} — denying",
-            action, full_perm_code, declared_actions,
+            action,
+            full_perm_code,
+            declared_actions,
         )
         return False
 
@@ -564,7 +595,9 @@ async def _check_plugin_permission(
                 return False
 
             user_perms = await perm_service.get_admin_permissions(admin)
-            return perm_service.check_permission(user_perms, f"{full_perm_code}:{action}")
+            return perm_service.check_permission(
+                user_perms, f"{full_perm_code}:{action}"
+            )
         except Exception as exc:
             logger.error("Plugin permission check failed: {}", exc)
             return False
@@ -573,9 +606,11 @@ async def _check_plugin_permission(
     if user_role == TOKEN_SCOPE_TENANT_ADMIN and tenant_id:
         try:
             from app.rbac.services.permission_service import PermissionService
+
             perm_service = PermissionService(db)
 
             from app.models import TenantAdmin
+
             result = await db.execute(
                 select(TenantAdmin).where(
                     TenantAdmin.id == user_id,
@@ -593,7 +628,9 @@ async def _check_plugin_permission(
 
             user_perms = await perm_service.get_tenant_admin_permissions(ta)
             # Check permission in full_perm_code:action format / 检查 full_perm_code:action 格式的权限
-            return perm_service.check_permission(user_perms, f"{full_perm_code}:{action}")
+            return perm_service.check_permission(
+                user_perms, f"{full_perm_code}:{action}"
+            )
         except Exception as exc:
             logger.error("Plugin permission check failed: {}", exc)
             return False

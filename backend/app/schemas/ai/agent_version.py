@@ -5,7 +5,6 @@
 Defines version publish, rollback, list, diff request and response data structures.
 """
 
-
 from pydantic import Field
 
 from app.core.base_schema import (
@@ -43,19 +42,43 @@ class AgentVersionResponse(TenantResponseSchema):
     system_prompt: str = Field(..., description=_("agent.version.field.system_prompt"))
     model_id: int = Field(..., description=_("agent.version.field.model_id"))
     temperature: float = Field(..., description=_("agent.version.field.temperature"))
-    max_tokens: int | None = Field(None, description=_("agent.version.field.max_tokens"))
+    max_tokens: int | None = Field(
+        None, description=_("agent.version.field.max_tokens")
+    )
     top_p: float | None = Field(None, description=_("agent.version.field.top_p"))
-    execution_mode: str = Field(..., description=_("agent.version.field.execution_mode"))
-    skill_grant_snapshot: list | None = Field(None, description=_("agent.version.field.skill_grant_snapshot"))
-    input_variables: list | None = Field(None, description=_("agent.version.field.input_variables"))
-    welcome_message: str | None = Field(None, description=_("agent.version.field.welcome_message"))
-    suggested_questions: list | None = Field(None, description=_("agent.version.field.suggested_questions"))
-    context_config: dict | None = Field(None, description=_("agent.version.field.context_config"))
-    output_schema: list | None = Field(None, description=_("agent.version.field.output_schema"))
-    quota_config: dict | None = Field(None, description=_("agent.version.field.quota_config"))
-    rag_config: dict | None = Field(None, description=_("agent.version.field.rag_config"))
-    change_log: str | None = Field(None, description=_("agent.version.field.change_log"))
-    created_by: int | None = Field(None, description=_("agent.version.field.created_by"))
+    execution_mode: str = Field(
+        ..., description=_("agent.version.field.execution_mode")
+    )
+    skill_grant_snapshot: list | None = Field(
+        None, description=_("agent.version.field.skill_grant_snapshot")
+    )
+    input_variables: list | None = Field(
+        None, description=_("agent.version.field.input_variables")
+    )
+    welcome_message: str | None = Field(
+        None, description=_("agent.version.field.welcome_message")
+    )
+    suggested_questions: list | None = Field(
+        None, description=_("agent.version.field.suggested_questions")
+    )
+    context_config: dict | None = Field(
+        None, description=_("agent.version.field.context_config")
+    )
+    output_schema: list | None = Field(
+        None, description=_("agent.version.field.output_schema")
+    )
+    quota_config: dict | None = Field(
+        None, description=_("agent.version.field.quota_config")
+    )
+    rag_config: dict | None = Field(
+        None, description=_("agent.version.field.rag_config")
+    )
+    change_log: str | None = Field(
+        None, description=_("agent.version.field.change_log")
+    )
+    created_by: int | None = Field(
+        None, description=_("agent.version.field.created_by")
+    )
 
 
 class AgentVersionListItem(TenantResponseSchema):
@@ -63,9 +86,15 @@ class AgentVersionListItem(TenantResponseSchema):
 
     agent_id: int = Field(..., description=_("agent.version.field.agent_id"))
     version: int = Field(..., description=_("agent.version.field.version"))
-    change_log: str | None = Field(None, description=_("agent.version.field.change_log"))
-    created_by: int | None = Field(None, description=_("agent.version.field.created_by"))
-    execution_mode: str = Field(..., description=_("agent.version.field.execution_mode"))
+    change_log: str | None = Field(
+        None, description=_("agent.version.field.change_log")
+    )
+    created_by: int | None = Field(
+        None, description=_("agent.version.field.created_by")
+    )
+    execution_mode: str = Field(
+        ..., description=_("agent.version.field.execution_mode")
+    )
 
 
 __all__ = [

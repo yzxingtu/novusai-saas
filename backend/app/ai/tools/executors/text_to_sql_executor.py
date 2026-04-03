@@ -104,15 +104,9 @@ def _parse_sql_group_by(sql: str) -> list[str]:
 def _parse_sql_filters(sql: str) -> list[str]:
     normalized = sql.lower()
     filters: list[str] = []
-    if (
-        "interval '7 day'" in normalized
-        or "interval '7 days'" in normalized
-    ):
+    if "interval '7 day'" in normalized or "interval '7 days'" in normalized:
         filters.append("last_7_days")
-    elif (
-        "interval '30 day'" in normalized
-        or "interval '30 days'" in normalized
-    ):
+    elif "interval '30 day'" in normalized or "interval '30 days'" in normalized:
         filters.append("last_30_days")
     elif "current_date" in normalized or "date_trunc('day'" in normalized:
         filters.append("today")
@@ -220,7 +214,9 @@ class TextToSQLExecutor(BaseToolExecutor):
 
         # platform_admin can use tenant_id=PLATFORM_TENANT_ID to query platform-level tables
         # platform_admin 可使用 tenant_id=PLATFORM_TENANT_ID 查询平台级表
-        if tenant_id is None or (not tenant_id and user_role != UserRoleEnum.PLATFORM_ADMIN.value):
+        if tenant_id is None or (
+            not tenant_id and user_role != UserRoleEnum.PLATFORM_ADMIN.value
+        ):
             return ToolResult(
                 tool_call_id=tool_call_id,
                 name=definition.name,
@@ -276,7 +272,8 @@ class TextToSQLExecutor(BaseToolExecutor):
             # 2. Get schema (filter queryable tables by user RBAC permissions)
             # 2. 获取 schema（按用户 RBAC 权限过滤可查表）
             schema = await self._schema_provider.get_schema(
-                self.db, tenant_id,
+                self.db,
+                tenant_id,
                 permissions=user_permissions,
                 user_role=user_role,
             )
@@ -295,7 +292,9 @@ class TextToSQLExecutor(BaseToolExecutor):
             # 3. 企业隔离注入（按 user_role 决定隔离策略）
             user_id = context.user_id if context else None
             isolated_sql = TenantIsolationInjector.inject(
-                generated.sql, tenant_id, schema,
+                generated.sql,
+                tenant_id,
+                schema,
                 user_role=user_role,
                 user_id=user_id,
             )
@@ -307,6 +306,7 @@ class TextToSQLExecutor(BaseToolExecutor):
             # 4.5 BEFORE_SQL_EXECUTE hook (plugins can audit/modify SQL, can block execution)
             # 4.5 BEFORE_SQL_EXECUTE 钩子（插件可审计/修改 SQL、可阻止执行）
             from app.ai.events.hooks import HookPoint, get_hook_registry
+
             hook_registry = get_hook_registry()
             if hook_registry.has_hooks(HookPoint.BEFORE_SQL_EXECUTE):
                 hook_ctx = await hook_registry.trigger(
@@ -316,7 +316,9 @@ class TextToSQLExecutor(BaseToolExecutor):
                     datasource_id=None,
                 )
                 if hook_ctx.get("blocked"):
-                    reason = hook_ctx.get("block_reason", _("data_intelligence.executor.blocked_by_hook"))
+                    reason = hook_ctx.get(
+                        "block_reason", _("data_intelligence.executor.blocked_by_hook")
+                    )
                     return ToolResult(
                         tool_call_id=tool_call_id,
                         name=definition.name,
@@ -406,7 +408,8 @@ class TextToSQLExecutor(BaseToolExecutor):
         except TenantIsolationError as exc:
             duration_ms = int((time.perf_counter() - start) * 1000)
             logger.error(
-                "Tenant isolation failed: {}", str(exc),
+                "Tenant isolation failed: {}",
+                str(exc),
             )
             await self._log_query(
                 context=context,
@@ -479,8 +482,8 @@ class TextToSQLExecutor(BaseToolExecutor):
             return
         try:
             from app.core.database import async_session_factory
-            from app.services.ai.action_log_service import write_ai_action_log
             from app.repositories.ai.query_log_repository import AIQueryLogRepository
+            from app.services.ai.action_log_service import write_ai_action_log
 
             async with async_session_factory() as log_db:
                 try:
@@ -511,33 +514,42 @@ class TextToSQLExecutor(BaseToolExecutor):
                         },
                         response_data={
                             "row_count": row_count,
-                            "confidence": str(confidence) if confidence is not None else None,
+                            "confidence": str(confidence)
+                            if confidence is not None
+                            else None,
                         },
                         error_message=error_message[:2000] if error_message else None,
                         duration_ms=duration_ms,
                     )
                     repo = AIQueryLogRepository(log_db, context.tenant_id)
-                    await repo.create({
-                        "tenant_id": context.tenant_id,
-                        "agent_id": context.agent_id,
-                        "user_id": context.user_id,
-                        "user_role": context.user_role,
-                        "question": question[:2000],
-                        "generated_sql": generated_sql,
-                        "final_sql": final_sql,
-                        "row_count": row_count,
-                        "status": status,
-                        "error_message": error_message[:2000] if error_message else None,
-                        "duration_ms": duration_ms,
-                        "confidence": str(confidence) if confidence is not None else None,
-                    })
+                    await repo.create(
+                        {
+                            "tenant_id": context.tenant_id,
+                            "agent_id": context.agent_id,
+                            "user_id": context.user_id,
+                            "user_role": context.user_role,
+                            "question": question[:2000],
+                            "generated_sql": generated_sql,
+                            "final_sql": final_sql,
+                            "row_count": row_count,
+                            "status": status,
+                            "error_message": error_message[:2000]
+                            if error_message
+                            else None,
+                            "duration_ms": duration_ms,
+                            "confidence": str(confidence)
+                            if confidence is not None
+                            else None,
+                        }
+                    )
                     await log_db.commit()
                 except Exception:
                     await log_db.rollback()
                     raise
         except Exception as log_exc:
             logger.warning(
-                "Failed to write query audit log: {}", str(log_exc),
+                "Failed to write query audit log: {}",
+                str(log_exc),
             )
 
     async def validate(

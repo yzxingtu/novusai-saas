@@ -76,9 +76,7 @@ class AdminCacheController(GlobalController):
 
             权限 / Permission: cache_management:delete
             """
-            categories = [
-                CacheCategoryEnum.from_value(c) for c in body.categories
-            ]
+            categories = [CacheCategoryEnum.from_value(c) for c in body.categories]
             valid_categories = [c for c in categories if c is not None]
 
             result = await CacheManagementService.clear_cache(valid_categories)

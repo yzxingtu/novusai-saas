@@ -241,8 +241,7 @@ class PageOperationExecutor(BaseToolExecutor):
                             f"{decision_meta.get('status') or 'approved'}"
                         ),
                         "reason": str(
-                            decision_meta.get("reason")
-                            or "page_operation_confirmation"
+                            decision_meta.get("reason") or "page_operation_confirmation"
                         ),
                         "evidence": {
                             "page_key": page_key,

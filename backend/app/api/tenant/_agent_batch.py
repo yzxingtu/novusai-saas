@@ -37,6 +37,7 @@ async def submit_batch(
     权限 / Permission: agent:batch_submit
     """
     from app.api.tenant.agents import _ensure_tenant_owned_agent
+
     await _ensure_tenant_owned_agent(db, tenant_admin.tenant_id, agent_id)
 
     from app.ai.engine.dispatcher import ExecutionDispatcher
@@ -67,11 +68,13 @@ async def submit_batch(
         created_by=tenant_admin.id,
     )
 
-    return success(data={
-        "batch_run_id": result.batch_run_id,
-        "total": result.total,
-        "status": "pending",
-    })
+    return success(
+        data={
+            "batch_run_id": result.batch_run_id,
+            "total": result.total,
+            "status": "pending",
+        }
+    )
 
 
 @router.get("/{agent_id}/batch/{run_id}", summary="查询批处理进度")
@@ -97,9 +100,12 @@ async def get_batch_progress(
             message=_("agent.error.batch_run_not_found"),
         )
 
-    return success(data=BatchRunResponse.model_validate(
-        batch_run, from_attributes=True,
-    ).model_dump())
+    return success(
+        data=BatchRunResponse.model_validate(
+            batch_run,
+            from_attributes=True,
+        ).model_dump()
+    )
 
 
 @router.post(
@@ -122,6 +128,7 @@ async def cancel_batch(
     权限 / Permission: agent:batch_cancel
     """
     from app.api.tenant.agents import _ensure_tenant_owned_agent
+
     await _ensure_tenant_owned_agent(db, tenant_admin.tenant_id, agent_id)
 
     from app.services.ai.batch_run_service import BatchRunService

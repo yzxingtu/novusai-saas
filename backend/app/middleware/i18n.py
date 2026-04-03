@@ -46,6 +46,7 @@ class I18nMiddleware:
         query_string = scope.get("query_string", b"").decode("utf-8")
         if query_string:
             from urllib.parse import parse_qs
+
             params = parse_qs(query_string)
             if "lang" in params:
                 return params["lang"][0]

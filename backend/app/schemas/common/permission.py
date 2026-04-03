@@ -32,7 +32,9 @@ class PermissionResponse(BaseSchema):
 class PermissionTreeResponse(PermissionResponse):
     """权限树响应（含子权限） / Permission tree response (with children)."""
 
-    children: list["PermissionTreeResponse"] = Field(default_factory=list, description="子权限")
+    children: list["PermissionTreeResponse"] = Field(
+        default_factory=list, description="子权限"
+    )
 
 
 class MenuResponse(BaseSchema):
@@ -46,7 +48,9 @@ class MenuResponse(BaseSchema):
     component: str | None = Field(None, description="前端组件")
     hidden: bool = Field(False, description="是否隐藏")
     sort_order: int = Field(0, description="排序")
-    permissions: list[str] = Field(default_factory=list, description="该菜单下的操作权限码列表")
+    permissions: list[str] = Field(
+        default_factory=list, description="该菜单下的操作权限码列表"
+    )
     children: list["MenuResponse"] = Field(default_factory=list, description="子菜单")
 
 

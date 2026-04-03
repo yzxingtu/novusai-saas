@@ -61,7 +61,9 @@ class AdminTaskController(GlobalController):
     service_class = TaskLogService
 
     @staticmethod
-    async def _build_relation_maps(db, task_runs) -> tuple[dict[int, dict[str, str]], dict[int, str]]:
+    async def _build_relation_maps(
+        db, task_runs
+    ) -> tuple[dict[int, dict[str, str]], dict[int, str]]:
         definition_ids = sorted(
             {
                 task_run.task_definition_id
@@ -73,7 +75,10 @@ class AdminTaskController(GlobalController):
             {
                 tenant_id
                 for task_run in task_runs
-                for tenant_id in (task_run.owner_tenant_id, task_run.effective_tenant_id)
+                for tenant_id in (
+                    task_run.owner_tenant_id,
+                    task_run.effective_tenant_id,
+                )
                 if tenant_id is not None
             }
         )
@@ -81,16 +86,17 @@ class AdminTaskController(GlobalController):
         tenant_map: dict[int, str] = {}
         if definition_ids:
             result = await db.execute(
-                select(TaskDefinition.id, TaskDefinition.name, TaskDefinition.scope).where(
-                    TaskDefinition.id.in_(definition_ids)
-                )
+                select(
+                    TaskDefinition.id, TaskDefinition.name, TaskDefinition.scope
+                ).where(TaskDefinition.id.in_(definition_ids))
             )
             definition_map = {
-                row.id: {"name": row.name, "scope": row.scope}
-                for row in result.all()
+                row.id: {"name": row.name, "scope": row.scope} for row in result.all()
             }
         if tenant_ids:
-            result = await db.execute(select(Tenant.id, Tenant.name).where(Tenant.id.in_(tenant_ids)))
+            result = await db.execute(
+                select(Tenant.id, Tenant.name).where(Tenant.id.in_(tenant_ids))
+            )
             tenant_map = {row.id: row.name for row in result.all()}
         return definition_map, tenant_map
 

@@ -15,6 +15,7 @@ from app.core.base_model import utc_now
 # Event Base Class / 事件基类
 # ============================================
 
+
 @dataclass
 class BaseEvent:
     """
@@ -38,9 +39,11 @@ class BaseEvent:
 # Agent Lifecycle Events / 智能体生命周期事件
 # ============================================
 
+
 @dataclass
 class AgentCreated(BaseEvent):
     """Agent created event / 智能体创建事件"""
+
     agent_id: int = 0
     agent_name: str = ""
 
@@ -48,6 +51,7 @@ class AgentCreated(BaseEvent):
 @dataclass
 class AgentPublished(BaseEvent):
     """Agent published event / 智能体发布事件"""
+
     agent_id: int = 0
     version: int = 0
 
@@ -55,6 +59,7 @@ class AgentPublished(BaseEvent):
 @dataclass
 class AgentDisabled(BaseEvent):
     """Agent disabled event / 智能体禁用事件"""
+
     agent_id: int = 0
 
 
@@ -62,9 +67,11 @@ class AgentDisabled(BaseEvent):
 # Conversation Events / 对话事件
 # ============================================
 
+
 @dataclass
 class ConversationStarted(BaseEvent):
     """Conversation started event / 对话开始事件"""
+
     conversation_id: int = 0
     agent_id: int = 0
     user_id: int | None = None
@@ -73,6 +80,7 @@ class ConversationStarted(BaseEvent):
 @dataclass
 class MessageAdded(BaseEvent):
     """Message added event / 消息添加事件"""
+
     conversation_id: int = 0
     message_id: int = 0
     role: str = ""
@@ -82,6 +90,7 @@ class MessageAdded(BaseEvent):
 @dataclass
 class ConversationCompleted(BaseEvent):
     """Conversation completed event (one round of interaction finished) / 对话完成事件（一轮交互结束）"""
+
     conversation_id: int = 0
     total_tokens: int = 0
     total_cost: float = 0.0
@@ -91,9 +100,11 @@ class ConversationCompleted(BaseEvent):
 # Tool Call Events / 工具调用事件
 # ============================================
 
+
 @dataclass
 class ToolCallRequested(BaseEvent):
     """Tool call requested event / 工具调用请求事件"""
+
     conversation_id: int = 0
     tool_name: str = ""
     tool_call_id: str = ""
@@ -103,6 +114,7 @@ class ToolCallRequested(BaseEvent):
 @dataclass
 class ToolCallCompleted(BaseEvent):
     """Tool call completed event / 工具调用完成事件"""
+
     conversation_id: int = 0
     tool_name: str = ""
     tool_call_id: str = ""
@@ -113,6 +125,7 @@ class ToolCallCompleted(BaseEvent):
 @dataclass
 class ToolCallFailed(BaseEvent):
     """Tool call failed event / 工具调用失败事件"""
+
     conversation_id: int = 0
     tool_name: str = ""
     tool_call_id: str = ""
@@ -123,9 +136,11 @@ class ToolCallFailed(BaseEvent):
 # Quota & Rate Limiting Events / 配额与限流事件
 # ============================================
 
+
 @dataclass
 class QuotaWarning(BaseEvent):
     """Quota warning event / 配额预警事件"""
+
     agent_id: int = 0
     usage_percent: float = 0.0
     threshold: int = 80
@@ -134,6 +149,7 @@ class QuotaWarning(BaseEvent):
 @dataclass
 class QuotaExceeded(BaseEvent):
     """Quota exceeded event / 配额超限事件"""
+
     agent_id: int = 0
     quota_type: str = ""  # soft / hard / 软或硬配额
 
@@ -142,9 +158,11 @@ class QuotaExceeded(BaseEvent):
 # Execution Engine Events / 执行引擎事件
 # ============================================
 
+
 @dataclass
 class ExecutionStarted(BaseEvent):
     """Execution started event / 执行开始事件"""
+
     conversation_id: int = 0
     agent_id: int = 0
     execution_mode: str = ""
@@ -153,6 +171,7 @@ class ExecutionStarted(BaseEvent):
 @dataclass
 class ExecutionCompleted(BaseEvent):
     """Execution completed event / 执行完成事件"""
+
     conversation_id: int = 0
     agent_id: int = 0
     total_tokens: int = 0
@@ -162,6 +181,7 @@ class ExecutionCompleted(BaseEvent):
 @dataclass
 class ExecutionFailed(BaseEvent):
     """Execution failed event / 执行失败事件"""
+
     conversation_id: int = 0
     agent_id: int = 0
     error: str = ""
@@ -172,9 +192,11 @@ class ExecutionFailed(BaseEvent):
 # Agent Extended Events / 智能体扩展事件
 # ============================================
 
+
 @dataclass
 class AgentUpdated(BaseEvent):
     """Agent updated event / 智能体更新事件"""
+
     agent_id: int = 0
     updated_fields: list[str] = field(default_factory=list)
 
@@ -182,6 +204,7 @@ class AgentUpdated(BaseEvent):
 @dataclass
 class AgentDeleted(BaseEvent):
     """Agent deleted event / 智能体删除事件"""
+
     agent_id: int = 0
 
 
@@ -189,9 +212,11 @@ class AgentDeleted(BaseEvent):
 # Skill Events / 技能事件
 # ============================================
 
+
 @dataclass
 class SkillCreated(BaseEvent):
     """Skill created event / 技能创建事件"""
+
     skill_id: int = 0
     skill_name: str = ""
     skill_type: str = ""
@@ -200,6 +225,7 @@ class SkillCreated(BaseEvent):
 @dataclass
 class SkillUpdated(BaseEvent):
     """Skill updated event / 技能更新事件"""
+
     skill_id: int = 0
     updated_fields: list[str] = field(default_factory=list)
 
@@ -207,6 +233,7 @@ class SkillUpdated(BaseEvent):
 @dataclass
 class SkillDeleted(BaseEvent):
     """Skill deleted event / 技能删除事件"""
+
     skill_id: int = 0
 
 
@@ -214,9 +241,11 @@ class SkillDeleted(BaseEvent):
 # Conversation Extended Events / 对话扩展事件
 # ============================================
 
+
 @dataclass
 class ConversationCreated(BaseEvent):
     """Conversation created event / 对话创建事件"""
+
     conversation_id: int = 0
     agent_id: int = 0
     user_id: int | None = None
@@ -225,6 +254,7 @@ class ConversationCreated(BaseEvent):
 @dataclass
 class MessageCreated(BaseEvent):
     """Message created event / 消息创建事件"""
+
     conversation_id: int = 0
     message_id: int = 0
     role: str = ""
@@ -235,9 +265,11 @@ class MessageCreated(BaseEvent):
 # Plugin Lifecycle Events / 插件生命周期事件
 # ============================================
 
+
 @dataclass
 class PluginInstalled(BaseEvent):
     """Plugin installed event / 插件安装事件"""
+
     plugin_name: str = ""
     plugin_version: str = ""
 
@@ -245,18 +277,21 @@ class PluginInstalled(BaseEvent):
 @dataclass
 class PluginEnabled(BaseEvent):
     """Plugin enabled event / 插件启用事件"""
+
     plugin_name: str = ""
 
 
 @dataclass
 class PluginDisabled(BaseEvent):
     """Plugin disabled event / 插件禁用事件"""
+
     plugin_name: str = ""
 
 
 @dataclass
 class PluginUninstalled(BaseEvent):
     """Plugin uninstalled event / 插件卸载事件"""
+
     plugin_name: str = ""
 
 
@@ -264,9 +299,11 @@ class PluginUninstalled(BaseEvent):
 # Knowledge Base Events / 知识库事件
 # ============================================
 
+
 @dataclass
 class KnowledgeBaseUpdated(BaseEvent):
     """Knowledge base updated event / 知识库更新事件"""
+
     knowledge_base_id: int = 0
     action: str = ""  # created / updated / deleted / 创建或更新或删除
 
@@ -274,6 +311,7 @@ class KnowledgeBaseUpdated(BaseEvent):
 @dataclass
 class DocumentUploaded(BaseEvent):
     """Document uploaded event / 文档上传事件"""
+
     knowledge_base_id: int = 0
     document_id: int = 0
     file_name: str = ""
@@ -283,9 +321,11 @@ class DocumentUploaded(BaseEvent):
 # Model Call Events / 模型调用事件
 # ============================================
 
+
 @dataclass
 class ModelCallCompleted(BaseEvent):
     """Model call completed event / 模型调用完成事件"""
+
     provider: str = ""
     model: str = ""
     input_tokens: int = 0

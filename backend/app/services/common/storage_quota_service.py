@@ -91,10 +91,12 @@ class StorageQuotaService:
                 Attachment.tenant_id,
                 func.coalesce(func.sum(Attachment.size), 0).label("used_bytes"),
                 func.count(Attachment.id).label("file_count"),
-            ).where(
+            )
+            .where(
                 Attachment.tenant_id.in_(tenant_ids),
                 Attachment.is_deleted.is_(False),
-            ).group_by(Attachment.tenant_id)
+            )
+            .group_by(Attachment.tenant_id)
         )
         rows = result.all()
 
@@ -231,7 +233,9 @@ class StorageQuotaService:
         """
         limit_bytes = limit_gb * 1024 * 1024 * 1024 if limit_gb > 0 else 0
         unlimited = limit_gb == 0
-        usage_percent = round(used_bytes / limit_bytes * 100, 2) if limit_bytes > 0 else 0.0
+        usage_percent = (
+            round(used_bytes / limit_bytes * 100, 2) if limit_bytes > 0 else 0.0
+        )
         remaining_bytes = max(0, limit_bytes - used_bytes) if limit_bytes > 0 else 0
 
         return {

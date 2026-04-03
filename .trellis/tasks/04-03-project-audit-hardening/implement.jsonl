@@ -1,0 +1,8 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".\\.trellis\\spec\\backend\\logging-guidelines.md", "reason": "Plugin lifecycle refresh failures must use trace-aware, fail-closed logging semantics"}
+{"file": ".\\.trellis\\spec\\backend\\quality-guidelines.md", "reason": "Backend lifecycle and dedup changes need targeted tests and no silent exception swallowing"}
+{"file": ".\\.trellis\\spec\\frontend\\quality-guidelines.md", "reason": "Frontend changes must add unit tests and keep one coherent error path"}
+{"file": ".\\.trellis\\spec\\guides\\cross-layer-thinking-guide.md", "reason": "This batch spans CI, backend runtime, API duplication, and frontend surface boundaries"}
+{"file": ".\\.trellis\\spec\\frontend\\component-guidelines.md", "reason": "Large detail pages should prefer shared components/composables without cross-surface imports"}

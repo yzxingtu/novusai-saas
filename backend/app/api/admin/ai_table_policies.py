@@ -105,6 +105,7 @@ class AdminAITablePolicyController(GlobalController):
             from app.services.ai.table_policy_sync_service import (
                 get_declared_table_names,
             )
+
             names = list(get_declared_table_names())
             return success(
                 data=names,
@@ -158,6 +159,7 @@ class AdminAITablePolicyController(GlobalController):
 
             # 清除所有企业 schema 缓存（平台策略变更影响全租户）/ Clear all tenant schema caches
             from app.ai.data_intelligence.schema_provider import SchemaProvider
+
             await SchemaProvider.invalidate_all_schema_caches()
 
             return success(
@@ -201,10 +203,12 @@ class AdminAITablePolicyController(GlobalController):
             权限 / Permission: ai_table_policy:sync
             """
             from app.services.ai.table_policy_sync_service import sync_table_policies
+
             result = await sync_table_policies(db)
 
             # 清除所有企业 schema 缓存（同步后影响全租户）/ Clear all tenant schema caches
             from app.ai.data_intelligence.schema_provider import SchemaProvider
+
             await SchemaProvider.invalidate_all_schema_caches()
 
             return success(

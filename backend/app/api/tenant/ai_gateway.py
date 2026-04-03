@@ -88,7 +88,13 @@ class TenantAIGatewayController(TenantController):
                     user_type="tenant_admin",
                 )
                 return success(data=response.__dict__, message=_("common.success"))
-            except (AIGatewayError, RateLimitExceeded, QuotaExceeded, NotFoundException, BusinessException):
+            except (
+                AIGatewayError,
+                RateLimitExceeded,
+                QuotaExceeded,
+                NotFoundException,
+                BusinessException,
+            ):
                 raise
             except Exception as e:
                 raise ExternalServiceException(
@@ -131,7 +137,13 @@ class TenantAIGatewayController(TenantController):
                     user_type="tenant_admin",
                 )
                 return response
-            except (AIGatewayError, RateLimitExceeded, QuotaExceeded, NotFoundException, BusinessException):
+            except (
+                AIGatewayError,
+                RateLimitExceeded,
+                QuotaExceeded,
+                NotFoundException,
+                BusinessException,
+            ):
                 raise
             except Exception as e:
                 raise ExternalServiceException(
@@ -165,7 +177,13 @@ class TenantAIGatewayController(TenantController):
                     user_type="tenant_admin",
                 )
                 return success(data=response.__dict__, message=_("common.success"))
-            except (AIGatewayError, RateLimitExceeded, QuotaExceeded, NotFoundException, BusinessException):
+            except (
+                AIGatewayError,
+                RateLimitExceeded,
+                QuotaExceeded,
+                NotFoundException,
+                BusinessException,
+            ):
                 raise
             except Exception as e:
                 raise ExternalServiceException(

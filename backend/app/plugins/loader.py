@@ -170,6 +170,7 @@ class PluginLoader:
         try:
             # Prefer using cached module / 优先使用已缓存的模块
             import sys
+
             if module_name in sys.modules:
                 module = sys.modules[module_name]
             else:
@@ -208,9 +209,7 @@ class PluginLoader:
 
     # ── 4. README / README 加载 ──
 
-    def load_readme(
-        self, plugin_name: str, locale: str = "zh-CN"
-    ) -> str | None:
+    def load_readme(self, plugin_name: str, locale: str = "zh-CN") -> str | None:
         """
         Find README by priority:
         README.{locale}.md → README.md → None
@@ -242,7 +241,9 @@ class PluginLoader:
 
         result: dict[str, dict] = {}
         for json_file in sorted(locales_dir.glob("*.json")):
-            lang_code = json_file.stem  # "zh-CN" from "zh-CN.json" / 语言码取文件名 stem
+            lang_code = (
+                json_file.stem
+            )  # "zh-CN" from "zh-CN.json" / 语言码取文件名 stem
             try:
                 with open(json_file, encoding="utf-8") as f:
                     data = json.load(f)
@@ -251,6 +252,8 @@ class PluginLoader:
             except (json.JSONDecodeError, OSError) as exc:
                 logger.warning(
                     "Failed to load locale file {} for plugin {}: {}",
-                    json_file.name, plugin_name, exc,
+                    json_file.name,
+                    plugin_name,
+                    exc,
                 )
         return result

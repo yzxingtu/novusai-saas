@@ -75,7 +75,9 @@ def send_email_task(
         if result.success:
             logger.info(
                 "Email sent: to={} subject={} triggered_by={}",
-                ", ".join(to), subject, triggered_by,
+                ", ".join(to),
+                subject,
+                triggered_by,
             )
             return {
                 "status": "sent",
@@ -85,12 +87,17 @@ def send_email_task(
 
         # Send failed but not exception (config missing/validation failed) — no retry / 发送失败但非异常（配置缺失/校验失败）—— 不重试
         if result.message in (
-            "email_disabled", "config_incomplete", "no_recipients",
-            "too_many_recipients", "invalid_email", "attachment_too_large",
+            "email_disabled",
+            "config_incomplete",
+            "no_recipients",
+            "too_many_recipients",
+            "invalid_email",
+            "attachment_too_large",
         ):
             logger.warning(
                 "Email skipped: reason={} to={}",
-                result.message, ", ".join(to),
+                result.message,
+                ", ".join(to),
             )
             return {
                 "status": result.message,
@@ -106,10 +113,16 @@ def send_email_task(
     except Exception as e:
         logger.error("Email task failed: {}", str(e))
         _record_email_log(
-            to=to, cc=cc, bcc=bcc, subject=subject,
-            triggered_by=triggered_by, tenant_id=tenant_id,
-            success=False, error=str(e),
-            html_body=html_body, text_body=text_body,
+            to=to,
+            cc=cc,
+            bcc=bcc,
+            subject=subject,
+            triggered_by=triggered_by,
+            tenant_id=tenant_id,
+            success=False,
+            error=str(e),
+            html_body=html_body,
+            text_body=text_body,
         )
         raise self.retry(
             exc=e,

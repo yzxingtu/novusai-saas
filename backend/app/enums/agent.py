@@ -38,9 +38,15 @@ class AgentPublicationAccessTypeEnum(LabeledStrEnum):
     """Tenant Agent Publication Access Type Enum / 企业用户发布访问类型枚举"""
 
     ALL_USERS = ("all_users", "enum.agent.publication_access_type.all_users")
-    TENANT_USER_ROLES = ("tenant_user_roles", "enum.agent.publication_access_type.tenant_user_roles")
+    TENANT_USER_ROLES = (
+        "tenant_user_roles",
+        "enum.agent.publication_access_type.tenant_user_roles",
+    )
     ORG_NODE = ("org_node", "enum.agent.publication_access_type.org_node")
-    SPECIFIC_USERS = ("specific_users", "enum.agent.publication_access_type.specific_users")
+    SPECIFIC_USERS = (
+        "specific_users",
+        "enum.agent.publication_access_type.specific_users",
+    )
 
 
 class MemorySceneEnum(LabeledStrEnum):
@@ -181,7 +187,6 @@ class SkillTypeEnum(LabeledStrEnum):
     CODE_EXECUTION = ("code_execution", "enum.skill.type.code_execution")
 
 
-
 class ToolConsentModeEnum(LabeledStrEnum):
     """Tool Consent Mode Enum / 工具执行授权模式枚举"""
 
@@ -219,10 +224,8 @@ def get_skill_type_options() -> list[dict[str, str]]:
         [{"value": "http", "label": "...", "source": "builtin"}]
     """
     return [
-        {"value": e.value, "label": e.label, "source": "builtin"}
-        for e in SkillTypeEnum
+        {"value": e.value, "label": e.label, "source": "builtin"} for e in SkillTypeEnum
     ]
-
 
 
 __all__ = [

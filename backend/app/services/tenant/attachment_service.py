@@ -98,7 +98,11 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         )
         validate_result_or_raise(validation_result)
 
-        storage_mode, storage_config, _apply_quota = await self._resolve_storage_context()
+        (
+            storage_mode,
+            storage_config,
+            _apply_quota,
+        ) = await self._resolve_storage_context()
         temp_path, size, file_hash = await self._save_to_temp(content)
         actual_size = file_size or size
 
@@ -173,7 +177,11 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         )
         validate_result_or_raise(validation_result)
 
-        _storage_mode, storage_config, _apply_quota = await self._resolve_storage_context()
+        (
+            _storage_mode,
+            storage_config,
+            _apply_quota,
+        ) = await self._resolve_storage_context()
         existing = await self.repo.get_by_hash(
             file_hash,
             driver=storage_config.driver,
@@ -274,7 +282,9 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         uploaded_chunks.add(chunk_index)
         session["uploaded_chunks"] = sorted(uploaded_chunks)
 
-        uploaded_bytes = await self._calc_uploaded_bytes(upload_id, session["uploaded_chunks"])
+        uploaded_bytes = await self._calc_uploaded_bytes(
+            upload_id, session["uploaded_chunks"]
+        )
         response = self._build_session_response(session, uploaded_bytes=uploaded_bytes)
 
         if progress_callback:
@@ -387,11 +397,14 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         plan_limit_mb = quota_service.get_quota_value("max_file_size_mb", 0)
 
         from app.configs.service import ConfigService
+
         config_service = ConfigService(self.db)
         platform_limit_mb = int(
             await config_service.get_platform_config(
-                "platform_storage_max_file_size_mb", default=100,
-            ) or 100
+                "platform_storage_max_file_size_mb",
+                default=100,
+            )
+            or 100
         )
 
         # 确定有效限制（0 表示无限制，取非零中更小的） / Resolve effective limit (0 = unlimited; pick min non-zero)
@@ -437,6 +450,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         """
         将内容写入临时文件并计算哈希 / Write content to temp file and compute hash.
         """
+
         def _write() -> tuple[str, int, str]:
             size = 0
             hasher = hashlib.sha256()
@@ -456,6 +470,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         """
         删除临时文件 / Remove temp file.
         """
+
         def _remove() -> None:
             Path(temp_path).unlink(missing_ok=True)
 
@@ -609,7 +624,9 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         session_file = session_path / "session.json"
 
         def _write() -> None:
-            session_file.write_text(json.dumps(session, ensure_ascii=False), encoding="utf-8")
+            session_file.write_text(
+                json.dumps(session, ensure_ascii=False), encoding="utf-8"
+            )
 
         await anyio.to_thread.run_sync(_write)
 
@@ -673,6 +690,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         """
         计算已上传字节数 / Calculate uploaded bytes.
         """
+
         def _sum() -> int:
             total = 0
             for chunk_index in chunks:
@@ -683,10 +701,13 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
         return await anyio.to_thread.run_sync(_sum)
 
-    async def _merge_chunks(self, upload_id: str, chunk_count: int) -> tuple[str, int, str]:
+    async def _merge_chunks(
+        self, upload_id: str, chunk_count: int
+    ) -> tuple[str, int, str]:
         """
         合并分片并计算哈希 / Merge chunks and compute hash.
         """
+
         def _merge() -> tuple[str, int, str]:
             size = 0
             hasher = hashlib.sha256()
@@ -713,7 +734,9 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
             return 0
         return (total_size + chunk_size - 1) // chunk_size
 
-    def _build_session_response(self, session: dict[str, Any], uploaded_bytes: int) -> dict[str, Any]:
+    def _build_session_response(
+        self, session: dict[str, Any], uploaded_bytes: int
+    ) -> dict[str, Any]:
         """
         构建会话响应 / Build session response.
         """
@@ -730,7 +753,9 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
             "progress": percent,
         }
 
-    async def _trigger_progress(self, callback: ProgressCallback, payload: dict[str, Any]) -> None:
+    async def _trigger_progress(
+        self, callback: ProgressCallback, payload: dict[str, Any]
+    ) -> None:
         """
         触发进度回调 / Invoke progress callback.
         """
@@ -787,6 +812,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
             tenant_id: 企业 ID（用于解析存储配置）
         """
         from app.core.logging import LogManager
+
         logger = LogManager.get_logger("storage")
         try:
             resolver = StorageConfigResolver(self.db)
@@ -796,17 +822,21 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
             if deleted:
                 logger.info(
                     "Storage file deleted: driver={} path={}",
-                    driver_name, path,
+                    driver_name,
+                    path,
                 )
             else:
                 logger.warning(
                     "Storage file not found (already removed?): driver={} path={}",
-                    driver_name, path,
+                    driver_name,
+                    path,
                 )
         except Exception as e:
             logger.error(
                 "Failed to delete storage file: driver={} path={} error={}",
-                driver_name, path, str(e),
+                driver_name,
+                path,
+                str(e),
             )
 
     async def get_storage_stats(self) -> dict[str, Any]:

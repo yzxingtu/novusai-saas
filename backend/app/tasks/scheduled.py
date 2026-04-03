@@ -48,9 +48,7 @@ def clean_expired_captchas(self: BaseTask) -> dict:
             )
             if keys:
                 ttls = [client.ttl(key) for key in keys]
-                expired_keys = [
-                    k for k, t in zip(keys, ttls, strict=False) if t == -1
-                ]
+                expired_keys = [k for k, t in zip(keys, ttls, strict=False) if t == -1]
                 if expired_keys:
                     cleaned += client.delete(*expired_keys)
             if cursor == 0:
@@ -78,6 +76,7 @@ def system_health_check(self: BaseTask) -> dict:
     try:
         session = sync_session_factory()
         from sqlalchemy import text
+
         session.execute(text("SELECT 1"))
         results["db"] = "connected"
     except Exception as e:
@@ -114,13 +113,13 @@ def reset_agent_daily_quotas(self: BaseTask) -> dict:
             cursor: int | str = 0
             while True:
                 cursor, keys = client.scan(
-                    cursor=cursor, match=pattern, count=200,
+                    cursor=cursor,
+                    match=pattern,
+                    count=200,
                 )
                 if keys:
                     ttls = [client.ttl(key) for key in keys]
-                    no_ttl = [
-                        k for k, t in zip(keys, ttls, strict=False) if t == -1
-                    ]
+                    no_ttl = [k for k, t in zip(keys, ttls, strict=False) if t == -1]
                     if no_ttl:
                         cleaned += client.delete(*no_ttl)
                 if cursor == 0:
@@ -144,7 +143,9 @@ def reset_agent_daily_stats(self: BaseTask) -> dict:
         reset_count = 0
         while True:
             cursor, keys = client.scan(
-                cursor=cursor, match="ai:agent_stats:daily:*", count=200,
+                cursor=cursor,
+                match="ai:agent_stats:daily:*",
+                count=200,
             )
             if keys:
                 reset_count += client.delete(*keys)
@@ -217,9 +218,14 @@ def check_plugin_trial_expirations(self: BaseTask) -> dict:
         if disabled or warnings:
             logger.info(
                 "Plugin license check: disabled={}, warnings={}",
-                len(disabled), len(warnings),
+                len(disabled),
+                len(warnings),
             )
-        return {"disabled": len(disabled), "warnings": len(warnings), "total": len(actions)}
+        return {
+            "disabled": len(disabled),
+            "warnings": len(warnings),
+            "total": len(actions),
+        }
     except Exception as exc:
         logger.warning("Plugin license check failed: {}", exc)
         return {"disabled": 0, "warnings": 0, "error": str(exc)}
@@ -283,9 +289,7 @@ def clean_expired_session_memories(self: BaseTask) -> dict:
             if keys:
                 ttls = [client.ttl(key) for key in keys]
                 # ttl == -1 means no expiration, needs cleanup / ttl == -1 表示无过期时间，需要清理
-                no_ttl = [
-                    k for k, t in zip(keys, ttls, strict=False) if t == -1
-                ]
+                no_ttl = [k for k, t in zip(keys, ttls, strict=False) if t == -1]
                 if no_ttl:
                     cleaned += client.delete(*no_ttl)
             if cursor == 0:
@@ -303,7 +307,9 @@ LLMRING_REGISTRY_BASE = "https://llmring.github.io/registry"
 LLMRING_PROVIDERS = ["openai", "anthropic", "google"]
 REQUEST_TIMEOUT = 30
 DASHSCOPE_MODEL_DOC_URL = "https://www.alibabacloud.com/help/en/model-studio/models"
-DASHSCOPE_RATE_LIMIT_DOC_URL = "https://www.alibabacloud.com/help/en/model-studio/rate-limit"
+DASHSCOPE_RATE_LIMIT_DOC_URL = (
+    "https://www.alibabacloud.com/help/en/model-studio/rate-limit"
+)
 DASHSCOPE_SUPPLEMENT_DEFAULTS: dict[str, dict] = {
     "qwen-max": {"mode": "chat"},
     "qwen-max-latest": {"mode": "chat"},
@@ -353,15 +359,11 @@ def _normalize_llmring_entry(raw: dict) -> dict:
     """
     out: dict = {}
     if raw.get("max_input_tokens") is not None:
-        try:
+        with contextlib.suppress(TypeError, ValueError):
             out["max_input_tokens"] = int(raw["max_input_tokens"])
-        except (TypeError, ValueError):
-            pass
     if raw.get("max_output_tokens") is not None:
-        try:
+        with contextlib.suppress(TypeError, ValueError):
             out["max_output_tokens"] = int(raw["max_output_tokens"])
-        except (TypeError, ValueError):
-            pass
     if raw.get("dollars_per_million_tokens_input") is not None:
         try:
             val = float(raw["dollars_per_million_tokens_input"])
@@ -392,8 +394,10 @@ def _merge_entry_fill_empty(target: dict, source: dict) -> None:
     for k, v in source.items():
         if v is None or (isinstance(v, str) and v.strip() == ""):
             continue
-        if k not in target or target[k] is None or (
-            isinstance(target[k], str) and target[k].strip() == ""
+        if (
+            k not in target
+            or target[k] is None
+            or (isinstance(target[k], str) and target[k].strip() == "")
         ):
             target[k] = v
 
@@ -442,10 +446,14 @@ def _merge_llmring_into_registry(registry: dict, payload: dict) -> int:
     for raw_key, raw_entry in models.items():
         if not isinstance(raw_entry, dict):
             continue
-        reg_key = str(raw_key).replace(":", "/", 1)  # openai:gpt-4.1 -> openai/gpt-4.1 / 注册键规范化
+        reg_key = str(raw_key).replace(
+            ":", "/", 1
+        )  # openai:gpt-4.1 -> openai/gpt-4.1 / 注册键规范化
         model_id = raw_key.split(":", 1)[-1] if ":" in raw_key else raw_key
         normalized = _normalize_llmring_entry(raw_entry)
-        if not normalized or (len(normalized) == 1 and normalized.get("mode") == "chat"):
+        if not normalized or (
+            len(normalized) == 1 and normalized.get("mode") == "chat"
+        ):
             logger.debug("Skip empty LLMRing entry: reg_key={}", reg_key)
             continue
         existing_key = _find_registry_key_for_model_id(registry, model_id, reg_key)
@@ -508,7 +516,9 @@ def _find_table_row_by_model(soup: Any, model_id: str):
     return None, None
 
 
-def _resolve_rate_limits_from_row(row, cells: list[str]) -> tuple[int | None, int | None]:
+def _resolve_rate_limits_from_row(
+    row, cells: list[str]
+) -> tuple[int | None, int | None]:
     """Resolve RPM/TPM from rate-limit table row / 从限流表解析 RPM 与 TPM。"""
     rpm = _parse_int_from_text(cells[1]) if len(cells) >= 3 else None
     tpm = _parse_int_from_text(cells[2]) if len(cells) >= 3 else None
@@ -516,7 +526,7 @@ def _resolve_rate_limits_from_row(row, cells: list[str]) -> tuple[int | None, in
         return rpm, tpm
 
     cursor = row
-    for _ in range(6):
+    for _step in range(6):
         cursor = cursor.find_next_sibling("tr") if cursor else None
         if cursor is None:
             break

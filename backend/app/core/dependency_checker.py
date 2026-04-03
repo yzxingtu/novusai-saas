@@ -145,7 +145,8 @@ async def check_deletion_deps(
         if target_cls is None:
             logger.warning(
                 "DeletionDep references unknown model {!r} on {}",
-                dep.model, model_cls.__name__,
+                dep.model,
+                model_cls.__name__,
             )
             continue
 
@@ -153,7 +154,8 @@ async def check_deletion_deps(
         if fk_col is None:
             logger.warning(
                 "DeletionDep references unknown field {!r} on {}",
-                dep.fk_field, dep.model,
+                dep.fk_field,
+                dep.model,
             )
             continue
 
@@ -362,12 +364,16 @@ async def execute_cascade_deps(
                 stats["cascade_soft"] = stats.get("cascade_soft", 0) + affected
                 logger.info(
                     "CASCADE_SOFT {}.{}={} → {}: {} rows",
-                    model_cls.__name__, "id", instance_id,
-                    dep.model, affected,
+                    model_cls.__name__,
+                    "id",
+                    instance_id,
+                    dep.model,
+                    affected,
                 )
 
         elif dep.strategy == DeletionStrategy.CASCADE_DELETE:
             from sqlalchemy import delete as sa_delete
+
             stmt = sa_delete(target_cls).where(*conditions)
             result = await db.execute(stmt)
             affected = result.rowcount
@@ -375,8 +381,11 @@ async def execute_cascade_deps(
                 stats["cascade_delete"] = stats.get("cascade_delete", 0) + affected
                 logger.info(
                     "CASCADE_DELETE {}.{}={} → {}: {} rows",
-                    model_cls.__name__, "id", instance_id,
-                    dep.model, affected,
+                    model_cls.__name__,
+                    "id",
+                    instance_id,
+                    dep.model,
+                    affected,
                 )
 
         elif dep.strategy == DeletionStrategy.NULLIFY:
@@ -391,8 +400,12 @@ async def execute_cascade_deps(
                 stats["nullify"] = stats.get("nullify", 0) + affected
                 logger.info(
                     "NULLIFY {}.{}={} → {}.{}: {} rows",
-                    model_cls.__name__, "id", instance_id,
-                    dep.model, dep.fk_field, affected,
+                    model_cls.__name__,
+                    "id",
+                    instance_id,
+                    dep.model,
+                    dep.fk_field,
+                    affected,
                 )
 
     return stats

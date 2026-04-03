@@ -75,7 +75,9 @@ _EXPLICIT_HINT_EXCLUDE: dict[str, frozenset[str]] = {
 # Derived from FAMILY_HINT_TAGS — single maintenance point.
 FAMILY_EXPLICIT_REQUEST_HINTS: dict[str, tuple[str, ...]] = {
     family: tuple(
-        tag for tag in tags if tag not in _EXPLICIT_HINT_EXCLUDE.get(family, frozenset())
+        tag
+        for tag in tags
+        if tag not in _EXPLICIT_HINT_EXCLUDE.get(family, frozenset())
     )
     for family, tags in FAMILY_HINT_TAGS.items()
 }
@@ -84,6 +86,7 @@ FAMILY_EXPLICIT_REQUEST_HINTS: dict[str, tuple[str, ...]] = {
 # ---------------------------------------------------------------------------
 # Unified family resolver
 # ---------------------------------------------------------------------------
+
 
 def _has_page_context(input_variables: dict[str, Any] | None) -> bool:
     if not input_variables:

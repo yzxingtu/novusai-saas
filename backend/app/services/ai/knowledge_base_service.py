@@ -204,6 +204,7 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
         )
         await self.repo.update_statistics(instance.id)
         from app.ai.rag.retriever import HybridRetriever
+
         await HybridRetriever.invalidate_kb_cache(instance.id)
 
     async def get_kb_detail(self, kb_id: int) -> dict[str, Any]:
@@ -336,13 +337,16 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
 
         logger.info(
             "Reindex triggered: kb={}, docs={}",
-            kb_id, count,
+            kb_id,
+            count,
         )
 
         return count
 
 
-class KnowledgeDocumentService(TenantService[KnowledgeDocument, KnowledgeDocumentRepository]):
+class KnowledgeDocumentService(
+    TenantService[KnowledgeDocument, KnowledgeDocumentRepository]
+):
     """
     企业级知识文档 Service / Tenant knowledge document service.
     """
@@ -405,7 +409,9 @@ class DocumentChunkService(TenantService[DocumentChunk, DocumentChunkRepository]
         )
 
 
-class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseRepository]):
+class AdminKnowledgeBaseService(
+    GlobalService[KnowledgeBase, AdminKnowledgeBaseRepository]
+):
     """
     管理端知识库 Service / Admin knowledge base service.
     无企业隔离，供平台管理端全局查询和 CRUD 使用 / No tenant isolation, for admin CRUD.
@@ -431,7 +437,9 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
         name = data.get("name")
         if name:
             existing = await self._check_name_unique(
-                name, owner_tenant_id=owner_tid, scope=scope,
+                name,
+                owner_tenant_id=owner_tid,
+                scope=scope,
             )
             if existing:
                 raise BusinessException(message=_("knowledge_base.error.name_exists"))
@@ -457,7 +465,10 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
         name = data.get("name")
         if name:
             existing = await self._check_name_unique(
-                name, owner_tenant_id=owner_tid, scope=scope, exclude_id=id,
+                name,
+                owner_tenant_id=owner_tid,
+                scope=scope,
+                exclude_id=id,
             )
             if existing:
                 raise BusinessException(message=_("knowledge_base.error.name_exists"))
@@ -506,6 +517,7 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
         from app.repositories.system.resource_tenant_assignment_repository import (
             ResourceTenantAssignmentRepository,
         )
+
         rta_repo = ResourceTenantAssignmentRepository(self.db)
         await rta_repo.delete_all_for_resource("knowledge_base", id)
 
@@ -587,6 +599,7 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
         )
         await self.repo.update_statistics(instance.id)
         from app.ai.rag.retriever import HybridRetriever
+
         await HybridRetriever.invalidate_kb_cache(instance.id)
 
     async def _check_name_unique(

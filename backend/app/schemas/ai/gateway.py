@@ -30,11 +30,12 @@ class ChatMessage(BaseModel):
     """Chat message / 对话消息"""
 
     role: Literal["system", "user", "assistant", "tool"] = Field(
-        ...,
-        description="Message role"
+        ..., description="Message role"
     )
     content: str | None = Field(None, description="Message content")
-    tool_calls: list[ToolCall] | None = Field(default=None, description="Tool call list")
+    tool_calls: list[ToolCall] | None = Field(
+        default=None, description="Tool call list"
+    )
     tool_call_id: str | None = Field(default=None, description="Tool call ID")
 
     model_config = {"extra": "allow"}
@@ -68,12 +69,18 @@ class DeltaContent(BaseModel):
 class ChatRequest(BaseModel):
     """Chat request / 对话请求"""
 
-    model_code: str = Field(..., description="Model code", examples=["gpt-4", "claude-3-opus"])
+    model_code: str = Field(
+        ..., description="Model code", examples=["gpt-4", "claude-3-opus"]
+    )
     messages: list[ChatMessage] = Field(..., description="Message list", min_length=1)
     stream: bool = Field(default=False, description="Enable streaming response")
     temperature: float = Field(default=0.7, ge=0, le=2, description="Temperature")
-    max_tokens: int | None = Field(default=None, ge=1, description="Max generation tokens")
-    top_p: float = Field(default=1.0, ge=0, le=1, description="Top-p (nucleus sampling)")
+    max_tokens: int | None = Field(
+        default=None, ge=1, description="Max generation tokens"
+    )
+    top_p: float = Field(
+        default=1.0, ge=0, le=1, description="Top-p (nucleus sampling)"
+    )
     tools: list[ToolDefinition] | None = Field(default=None, description="Tool list")
     user: str | None = Field(default=None, description="User identifier")
 
@@ -114,8 +121,12 @@ class ChatChunk(BaseModel):
 class EmbeddingRequest(BaseModel):
     """Embedding request / 向量化请求"""
 
-    model_code: str = Field(..., description="Model code", examples=["text-embedding-ada-002"])
-    texts: list[str] = Field(..., description="Text list", min_length=1, max_length=2048)
+    model_code: str = Field(
+        ..., description="Model code", examples=["text-embedding-ada-002"]
+    )
+    texts: list[str] = Field(
+        ..., description="Text list", min_length=1, max_length=2048
+    )
     user: str | None = Field(default=None, description="User identifier")
 
     @field_validator("texts")
@@ -152,11 +163,15 @@ class ModelTestRequest(BaseModel):
     """Model test request / 模型测试请求"""
 
     provider_id: int = Field(..., description="Provider ID")
-    model_code: str = Field(..., description="Model code", examples=["gpt-4", "claude-3-opus"])
+    model_code: str = Field(
+        ..., description="Model code", examples=["gpt-4", "claude-3-opus"]
+    )
     test_prompt: str = Field(default="Hello", description="Test prompt")
     stream: bool = Field(default=False, description="Enable streaming response")
     temperature: float = Field(default=0.7, ge=0, le=2, description="Temperature")
-    max_tokens: int | None = Field(default=500, ge=1, description="Max generation tokens")
+    max_tokens: int | None = Field(
+        default=500, ge=1, description="Max generation tokens"
+    )
 
     model_config = {"extra": "allow"}
 

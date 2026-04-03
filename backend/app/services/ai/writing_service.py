@@ -203,10 +203,12 @@ def build_ai_messages(
 
     if feature == "chat" and chat_history:
         for msg in chat_history[-10:]:
-            messages.append({
-                "role": msg.get("role", "user"),
-                "content": msg.get("content", ""),
-            })
+            messages.append(
+                {
+                    "role": msg.get("role", "user"),
+                    "content": msg.get("content", ""),
+                }
+            )
 
     messages.append({"role": "user", "content": user_content})
     return messages
@@ -310,7 +312,9 @@ async def stream_writing_feature(
         )
 
         async for raw_chunk in sse_response.body_iterator:
-            text = raw_chunk if isinstance(raw_chunk, str) else raw_chunk.decode("utf-8")
+            text = (
+                raw_chunk if isinstance(raw_chunk, str) else raw_chunk.decode("utf-8")
+            )
             for line in text.split("\n"):
                 line = line.strip()
                 if not line.startswith("data: "):
@@ -325,7 +329,10 @@ async def stream_writing_feature(
 
                 if event.get("error"):
                     from app.exceptions import BusinessException
-                    raise BusinessException(message=event.get("message", "AI execution error"))
+
+                    raise BusinessException(
+                        message=event.get("message", "AI execution error")
+                    )
 
                 if event.get("event") == "message":
                     delta = event.get("delta", "")
@@ -337,7 +344,11 @@ async def stream_writing_feature(
         latency_ms = int((time.perf_counter() - start_time) * 1000)
         logger.info(
             "ai_writing_stream: feature={} agent_id={} tenant_id={} chunks={} latency_ms={}",
-            feature, agent_id, tenant_id, chunk_count, latency_ms,
+            feature,
+            agent_id,
+            tenant_id,
+            chunk_count,
+            latency_ms,
         )
 
 

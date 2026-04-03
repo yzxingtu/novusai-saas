@@ -25,12 +25,7 @@ class BaseAdapter(ABC):
     所有供应商适配器必须继承此类并实现抽象方法。
     """
 
-    def __init__(
-        self,
-        api_key: str,
-        base_url: str | None = None,
-        **kwargs
-    ):
+    def __init__(self, api_key: str, base_url: str | None = None, **kwargs):
         """
         Initialize adapter / 初始化适配器
 
@@ -54,7 +49,7 @@ class BaseAdapter(ABC):
         stream: bool = False,
         tools: list[dict] | None = None,
         tool_choice: str | None = None,
-        **kwargs
+        **kwargs,
     ) -> ChatResponse:
         """
         Chat conversation (synchronous mode) / 聊天对话（同步模式）
@@ -85,7 +80,7 @@ class BaseAdapter(ABC):
         top_p: float = 1.0,
         tools: list[dict] | None = None,
         tool_choice: str | None = None,
-        **kwargs
+        **kwargs,
     ) -> AsyncIterator[ChatChunk]:
         """
         Chat conversation (streaming mode) / 聊天对话（流式模式）
@@ -107,10 +102,7 @@ class BaseAdapter(ABC):
 
     @abstractmethod
     async def embedding(
-        self,
-        texts: list[str],
-        model: str,
-        **kwargs
+        self, texts: list[str], model: str, **kwargs
     ) -> EmbeddingResponse:
         """
         Text embedding / 文本嵌入

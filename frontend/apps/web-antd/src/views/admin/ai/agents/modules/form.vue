@@ -45,6 +45,7 @@ const emits = defineEmits<{ success: [] }>();
 const router = useRouter();
 
 const isSystemAgent = ref(false);
+const isPluginManagedAgent = ref(false);
 const skillDrafts = ref<AgentSkillBindingDraftItem[]>([]);
 const skillPickerOpen = ref(false);
 const modelMaxOutputTokensMap = ref<Record<number, number | undefined>>({});
@@ -57,7 +58,13 @@ function resolveModelMaxOutputTokens(
 }
 
 function buildSchema(edit = false, isSystem = false, isCreate = false) {
-  return useFormSchema(edit, isSystem, isCreate, resolveModelMaxOutputTokens);
+  return useFormSchema(
+    edit,
+    isSystem,
+    isCreate,
+    resolveModelMaxOutputTokens,
+    isPluginManagedAgent.value,
+  );
 }
 
 const [Form, formApi] = useVbenForm({
@@ -95,6 +102,8 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } =
         result.tenant_ids = scopeNeedsAssignment(scope)
           ? ((values.tenant_ids as number[]) ?? [])
           : [];
+      } else if (isPluginManagedAgent.value) {
+        result.tenant_ids = (values.tenant_ids as number[]) ?? [];
       }
       return result;
     },
@@ -121,14 +130,16 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } =
       };
     },
     afterOpen: () => {
-      const sys = !!(rowData.value as Record<string, unknown> | undefined)
-        ?.is_system;
+      const currentRow = (rowData.value as Record<string, unknown> | undefined) || {};
+      const sys = !!currentRow.is_system;
+      isPluginManagedAgent.value = Boolean(currentRow.source_plugin);
       isSystemAgent.value = sys;
       formApi.setState({
         schema: buildSchema(isEdit.value, sys, !isEdit.value),
       });
       if (!isEdit.value) {
         skillDrafts.value = [];
+        isPluginManagedAgent.value = false;
       }
     },
     onSuccess: async () => {
@@ -149,6 +160,8 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } =
     },
     detailApi: async (id) => {
       const agent = await getAIAgentDetailApi(id as number);
+      isPluginManagedAgent.value = Boolean(agent.source_plugin);
+      isSystemAgent.value = Boolean(agent.is_system);
       try {
         const grants = await getAIAgentSkillsApi(id as number);
         skillDrafts.value = grantsToDrafts(grants);
@@ -174,6 +187,20 @@ const title = computed(() => {
     return $t('admin.ai.agent.systemAgent');
   }
   return isEdit.value ? $t('admin.common.edit') : $t('admin.ai.agent.create');
+});
+
+const pluginSourceLabel = computed(() => {
+  const currentRow = (rowData.value as Record<string, unknown> | undefined) || {};
+  return (
+    (currentRow.source_plugin_display_name as string | undefined) ||
+    (currentRow.source_plugin as string | undefined) ||
+    ''
+  );
+});
+
+const pluginSourceDisabled = computed(() => {
+  const currentRow = (rowData.value as Record<string, unknown> | undefined) || {};
+  return currentRow.source_plugin_enabled === false;
 });
 
 function setDraftConsent(skillId: number, mode: string) {
@@ -221,6 +248,18 @@ onMounted(() => {
       show-icon
       :message="$t('admin.ai.agent.systemAgentDesc')"
       class="mb-4"
+    />
+    <Alert
+      v-if="isPluginManagedAgent && isEdit"
+      type="info"
+      show-icon
+      class="mb-4"
+      :message="`${$t('admin.ai.skillPackage.sourcePlugin')}：${pluginSourceLabel}`"
+      :description="
+        pluginSourceDisabled
+          ? `${$t('admin.ai.agent.sourcePluginManagedDesc')} ${$t('admin.ai.agent.sourcePluginDisabled')}`
+          : $t('admin.ai.agent.sourcePluginManagedDesc')
+      "
     />
     <Form />
 

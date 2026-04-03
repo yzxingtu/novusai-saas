@@ -30,6 +30,7 @@ logger = LogManager.get_logger("ai.data_intelligence")
 # Data Structures / 数据结构
 # ============================================
 
+
 @dataclass
 class QueryResult:
     """Query result / 查询结果"""
@@ -37,9 +38,11 @@ class QueryResult:
     columns: list[str] = field(default_factory=list)
     rows: list[dict[str, Any]] = field(default_factory=list)
     row_count: int = 0
-    truncated: bool = False    # Whether truncated by LIMIT / 是否被 LIMIT 截断
-    duration_ms: int = 0       # Execution duration (ms) / 执行耗时（毫秒）
-    masked_columns: list[str] = field(default_factory=list)  # Masked columns / 被脱敏的列
+    truncated: bool = False  # Whether truncated by LIMIT / 是否被 LIMIT 截断
+    duration_ms: int = 0  # Execution duration (ms) / 执行耗时（毫秒）
+    masked_columns: list[str] = field(
+        default_factory=list
+    )  # Masked columns / 被脱敏的列
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -55,6 +58,7 @@ class QueryResult:
 # ============================================
 # Result Masking / 结果脱敏
 # ============================================
+
 
 def _mask_email(value: Any) -> str:
     """Email masking: abc***@example.com / 邮箱脱敏"""
@@ -116,6 +120,7 @@ def _mask_row(row: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
 # ReadOnlyExecutor / 只读执行器
 # ============================================
 
+
 class ReadOnlyExecutor:
     """
     Read-Only Database Executor / 只读数据库执行器
@@ -159,6 +164,7 @@ class ReadOnlyExecutor:
         session_factory = get_readonly_session_factory()
         if session_factory is None:
             from app.core.database import async_session_factory
+
             session_factory = async_session_factory
             logger.warning(
                 "AI_READONLY_DB_URL not configured, falling back to main DB "
@@ -177,7 +183,9 @@ class ReadOnlyExecutor:
                     text("SET LOCAL default_transaction_read_only = ON")
                 )
                 await session.execute(
-                    text(f"SET LOCAL statement_timeout = '{self.timeout_seconds * 1000}'")
+                    text(
+                        f"SET LOCAL statement_timeout = '{self.timeout_seconds * 1000}'"
+                    )
                 )
 
                 # Execute query / 执行查询
@@ -202,7 +210,9 @@ class ReadOnlyExecutor:
 
                 logger.info(
                     "ReadOnlyExecutor: {} rows in {}ms (truncated={})",
-                    len(rows), duration_ms, truncated,
+                    len(rows),
+                    duration_ms,
+                    truncated,
                 )
 
                 return QueryResult(
@@ -218,7 +228,8 @@ class ReadOnlyExecutor:
                 duration_ms = int((time.monotonic() - start_time) * 1000)
                 logger.error(
                     "ReadOnlyExecutor failed in {}ms: {}",
-                    duration_ms, str(exc),
+                    duration_ms,
+                    str(exc),
                 )
                 raise
             finally:

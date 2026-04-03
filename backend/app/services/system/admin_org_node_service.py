@@ -28,7 +28,9 @@ from app.services.common.role_tree_mixin import MAX_ROLE_DEPTH, RoleTreeMixin
 from app.services.system.admin_service import AdminService
 
 
-class AdminOrgNodeService(GlobalService[AdminOrgNode, AdminOrgNodeRepository], RoleTreeMixin[AdminOrgNode]):
+class AdminOrgNodeService(
+    GlobalService[AdminOrgNode, AdminOrgNodeRepository], RoleTreeMixin[AdminOrgNode]
+):
     """Service for admin organization nodes / 管理后台组织节点服务"""
 
     model = AdminOrgNode
@@ -45,7 +47,10 @@ class AdminOrgNodeService(GlobalService[AdminOrgNode, AdminOrgNodeRepository], R
     @staticmethod
     def _validate_child_type(parent_type: str, child_type: str) -> bool:
         allowed = {
-            RoleType.DEPARTMENT.value: {RoleType.DEPARTMENT.value, RoleType.POSITION.value},
+            RoleType.DEPARTMENT.value: {
+                RoleType.DEPARTMENT.value,
+                RoleType.POSITION.value,
+            },
             RoleType.POSITION.value: set(),
         }
         return child_type in allowed.get(parent_type, set())
@@ -53,7 +58,9 @@ class AdminOrgNodeService(GlobalService[AdminOrgNode, AdminOrgNodeRepository], R
     def _generate_org_node_code(self) -> str:
         return f"org_{uuid.uuid4().hex[:12]}"
 
-    async def _normalize_permission_ids(self, permission_ids: list[int] | None) -> list[int]:
+    async def _normalize_permission_ids(
+        self, permission_ids: list[int] | None
+    ) -> list[int]:
         if not permission_ids:
             return []
 
@@ -73,7 +80,9 @@ class AdminOrgNodeService(GlobalService[AdminOrgNode, AdminOrgNodeRepository], R
             raise NotFoundException(message=_("permission.not_found"))
         return deduped
 
-    async def _normalize_custom_target_ids(self, org_node_ids: list[int] | None) -> list[int]:
+    async def _normalize_custom_target_ids(
+        self, org_node_ids: list[int] | None
+    ) -> list[int]:
         if not org_node_ids:
             return []
 
@@ -96,7 +105,9 @@ class AdminOrgNodeService(GlobalService[AdminOrgNode, AdminOrgNodeRepository], R
         scope_mode: str,
         custom_org_node_ids: list[int] | None,
     ) -> None:
-        normalized_custom_ids = await self._normalize_custom_target_ids(custom_org_node_ids)
+        normalized_custom_ids = await self._normalize_custom_target_ids(
+            custom_org_node_ids
+        )
         if org_node.scope_policy is None:
             policy = AdminOrgScopePolicy(
                 org_node_id=org_node.id,
@@ -210,7 +221,9 @@ class AdminOrgNodeService(GlobalService[AdminOrgNode, AdminOrgNodeRepository], R
         await self.db.refresh(org_node)
         return await self.repo.get_with_members(org_node.id)
 
-    async def update_org_node(self, org_node_id: int, data: dict[str, Any]) -> AdminOrgNode:
+    async def update_org_node(
+        self, org_node_id: int, data: dict[str, Any]
+    ) -> AdminOrgNode:
         org_node = await self.repo.get_by_id(org_node_id)
         if not org_node:
             raise NotFoundException(message=_("role.not_found"))
@@ -230,7 +243,9 @@ class AdminOrgNodeService(GlobalService[AdminOrgNode, AdminOrgNodeRepository], R
 
         if "parent_id" in data and data["parent_id"] != org_node.parent_id:
             new_parent_id = data["parent_id"]
-            parent_path, parent_level = await self.validate_parent(new_parent_id, exclude_id=org_node_id)
+            parent_path, parent_level = await self.validate_parent(
+                new_parent_id, exclude_id=org_node_id
+            )
             new_level = self._calculate_level(parent_level)
             max_descendant_depth = await self._get_max_descendant_depth(org_node_id)
             if new_level + max_descendant_depth > MAX_ROLE_DEPTH:
@@ -252,7 +267,9 @@ class AdminOrgNodeService(GlobalService[AdminOrgNode, AdminOrgNodeRepository], R
             data["path"] = new_path
             data["level"] = new_level
             updated = await self.repo.update(org_node_id, data)
-            await self._update_descendants_path(org_node_id, old_path, new_path, new_level)
+            await self._update_descendants_path(
+                org_node_id, old_path, new_path, new_level
+            )
             org_node = updated or await self.repo.get_by_id(org_node_id)
         elif data:
             updated = await self.repo.update(org_node_id, data)
@@ -262,7 +279,9 @@ class AdminOrgNodeService(GlobalService[AdminOrgNode, AdminOrgNodeRepository], R
             await self._upsert_scope_policy(
                 org_node,
                 scope_mode or org_node.scope_mode,
-                custom_org_node_ids if custom_org_node_ids is not None else org_node.custom_org_node_ids,
+                custom_org_node_ids
+                if custom_org_node_ids is not None
+                else org_node.custom_org_node_ids,
             )
         if permission_ids is not None:
             await self._assign_permissions(org_node, permission_ids)
@@ -346,7 +365,9 @@ class AdminOrgNodeService(GlobalService[AdminOrgNode, AdminOrgNodeRepository], R
             )
         return await self.delete(org_node_id)
 
-    async def move_org_node(self, org_node_id: int, new_parent_id: int | None) -> AdminOrgNode:
+    async def move_org_node(
+        self, org_node_id: int, new_parent_id: int | None
+    ) -> AdminOrgNode:
         await self.move_node(org_node_id, new_parent_id)
         return await self.repo.get_with_members(org_node_id)
 
@@ -461,17 +482,21 @@ class AdminOrgNodeService(GlobalService[AdminOrgNode, AdminOrgNodeRepository], R
                 raise BusinessException(
                     message=_("role.cannot_add_member"),
                     code=ErrorCode.ROLE_CANNOT_ADD_MEMBER,
-            )
+                )
             update_data["org_node_id"] = new_org_node_id
 
         updated = await AdminService(self.db).update_admin(admin.id, update_data)
         return await self._load_member_detail(updated.id)
 
-    async def reset_member_password(self, org_node_id: int, admin_id: int, new_password: str) -> bool:
+    async def reset_member_password(
+        self, org_node_id: int, admin_id: int, new_password: str
+    ) -> bool:
         _, admin = await self._require_member_in_scope(org_node_id, admin_id)
         return await AdminService(self.db).reset_password(admin.id, new_password)
 
-    async def toggle_member_status(self, org_node_id: int, admin_id: int, is_active: bool) -> Admin:
+    async def toggle_member_status(
+        self, org_node_id: int, admin_id: int, is_active: bool
+    ) -> Admin:
         _, admin = await self._require_member_in_scope(org_node_id, admin_id)
         updated = await AdminService(self.db).toggle_status(admin.id, is_active)
         return await self._load_member_detail(updated.id)
@@ -495,7 +520,9 @@ class AdminOrgNodeService(GlobalService[AdminOrgNode, AdminOrgNodeRepository], R
                 message=_("role.member_exists"),
                 code=ErrorCode.ROLE_MEMBER_EXISTS,
             )
-        updated = await admin_service.update_admin(admin_id, {"org_node_id": org_node_id})
+        updated = await admin_service.update_admin(
+            admin_id, {"org_node_id": org_node_id}
+        )
         return await self._load_member_detail(updated.id)
 
     async def remove_member(self, org_node_id: int, admin_id: int) -> Admin:
@@ -507,7 +534,9 @@ class AdminOrgNodeService(GlobalService[AdminOrgNode, AdminOrgNodeRepository], R
             )
         if org_node.leader_id == admin_id:
             await self.repo.update(org_node.id, {"leader_id": None})
-        updated = await AdminService(self.db).update_admin(admin_id, {"org_node_id": None})
+        updated = await AdminService(self.db).update_admin(
+            admin_id, {"org_node_id": None}
+        )
         return await self._load_member_detail(updated.id)
 
     async def get_members(
@@ -529,7 +558,9 @@ class AdminOrgNodeService(GlobalService[AdminOrgNode, AdminOrgNodeRepository], R
             include_descendants=include_descendants,
         )
 
-    async def _require_member_in_scope(self, org_node_id: int, admin_id: int) -> tuple[AdminOrgNode, Admin]:
+    async def _require_member_in_scope(
+        self, org_node_id: int, admin_id: int
+    ) -> tuple[AdminOrgNode, Admin]:
         org_node = await self.repo.get_by_id(org_node_id)
         if not org_node:
             raise NotFoundException(message=_("role.not_found"))

@@ -24,12 +24,24 @@ class TenantDomainRepository(BaseRepository[TenantDomain]):
     # 按 scope 限制可过滤字段
     _scope_fields: dict[str, set[str]] = {
         "admin": {
-            "id", "tenant_id", "domain", "is_verified",
-            "is_primary", "ssl_status", "created_at", "updated_at",
+            "id",
+            "tenant_id",
+            "domain",
+            "is_verified",
+            "is_primary",
+            "ssl_status",
+            "created_at",
+            "updated_at",
         },
         "tenant": {
-            "id", "domain", "is_verified", "is_primary",
-            "ssl_status", "created_at", "updated_at", "remark",
+            "id",
+            "domain",
+            "is_verified",
+            "is_primary",
+            "ssl_status",
+            "created_at",
+            "updated_at",
+            "remark",
         },
     }
 

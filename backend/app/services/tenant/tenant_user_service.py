@@ -67,11 +67,13 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
         from app.models.tenant.tenant import Tenant
         from app.services.tenant.quota_service import QuotaService
 
-        tenant_obj = (await self.db.execute(
-            select(Tenant)
-            .options(selectinload(Tenant.tenant_plan))
-            .where(Tenant.id == self.tenant_id)
-        )).scalar_one_or_none()
+        tenant_obj = (
+            await self.db.execute(
+                select(Tenant)
+                .options(selectinload(Tenant.tenant_plan))
+                .where(Tenant.id == self.tenant_id)
+            )
+        ).scalar_one_or_none()
         if tenant_obj:
             quota_svc = QuotaService(self.db, tenant_obj)
             quota_check = await quota_svc.check_user_quota()
@@ -202,9 +204,12 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
                 message=_("tenant_user.not_found"),
             )
 
-        await self.update(user_id, {
-            "password_hash": get_password_hash(new_password),
-        })
+        await self.update(
+            user_id,
+            {
+                "password_hash": get_password_hash(new_password),
+            },
+        )
 
         return True
 
@@ -259,10 +264,13 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
                 code=ErrorCode.VALIDATION_ERROR,
             )
 
-        result = await self.update(user_id, {
-            "approval_status": ApprovalStatusEnum.APPROVED.value,
-            "is_active": True,
-        })
+        result = await self.update(
+            user_id,
+            {
+                "approval_status": ApprovalStatusEnum.APPROVED.value,
+                "is_active": True,
+            },
+        )
         if not result:
             raise NotFoundException(message=_("tenant_user.not_found"))
 
@@ -295,10 +303,13 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
                 code=ErrorCode.VALIDATION_ERROR,
             )
 
-        result = await self.update(user_id, {
-            "approval_status": ApprovalStatusEnum.REJECTED.value,
-            "is_active": False,
-        })
+        result = await self.update(
+            user_id,
+            {
+                "approval_status": ApprovalStatusEnum.REJECTED.value,
+                "is_active": False,
+            },
+        )
         if not result:
             raise NotFoundException(message=_("tenant_user.not_found"))
 
@@ -319,10 +330,13 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
         for user_id in user_ids:
             user = await self.get_by_id(user_id)
             if user and user.approval_status == ApprovalStatusEnum.PENDING.value:
-                result = await self.update(user_id, {
-                    "approval_status": ApprovalStatusEnum.APPROVED.value,
-                    "is_active": True,
-                })
+                result = await self.update(
+                    user_id,
+                    {
+                        "approval_status": ApprovalStatusEnum.APPROVED.value,
+                        "is_active": True,
+                    },
+                )
                 if result:
                     results.append(result)
         for user in results:
@@ -343,10 +357,13 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
         for user_id in user_ids:
             user = await self.get_by_id(user_id)
             if user and user.approval_status == ApprovalStatusEnum.PENDING.value:
-                result = await self.update(user_id, {
-                    "approval_status": ApprovalStatusEnum.REJECTED.value,
-                    "is_active": False,
-                })
+                result = await self.update(
+                    user_id,
+                    {
+                        "approval_status": ApprovalStatusEnum.REJECTED.value,
+                        "is_active": False,
+                    },
+                )
                 if result:
                     results.append(result)
         for user in results:

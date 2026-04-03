@@ -273,9 +273,7 @@ def _parse_module_docstring(tree: ast.Module) -> ToolkitMeta:
         elif key == "author":
             meta.author = value
         elif key == "requirements":
-            meta.requirements = [
-                r.strip() for r in value.split(",") if r.strip()
-            ]
+            meta.requirements = [r.strip() for r in value.split(",") if r.strip()]
 
     return meta
 
@@ -293,9 +291,7 @@ def _find_class(tree: ast.Module, name: str) -> ast.ClassDef | None:
     return None
 
 
-def _extract_tools_methods(
-    cls: ast.ClassDef, source: str
-) -> list[ToolkitToolMeta]:
+def _extract_tools_methods(cls: ast.ClassDef, source: str) -> list[ToolkitToolMeta]:
     """Extract metadata of all public methods in Tools class. / 提取 Tools 类中所有公开方法的元数据。"""
     methods: list[ToolkitToolMeta] = []
 
@@ -490,7 +486,10 @@ def _extract_literal_values(annotation: ast.expr) -> list[str] | None:
             if isinstance(elt, ast.Constant) and elt.value is not None:
                 values.append(str(elt.value))
     # Literal['a'] → slice is a single Constant / slice 是单个 Constant
-    elif isinstance(annotation.slice, ast.Constant) and annotation.slice.value is not None:
+    elif (
+        isinstance(annotation.slice, ast.Constant)
+        and annotation.slice.value is not None
+    ):
         values.append(str(annotation.slice.value))
 
     return values if values else None
@@ -501,9 +500,7 @@ def _extract_literal_values(annotation: ast.expr) -> list[str] | None:
 # --------------------------------------------------------------------------- #
 
 
-def _extract_valves_schema(
-    cls: ast.ClassDef, source: str
-) -> dict[str, Any]:
+def _extract_valves_schema(cls: ast.ClassDef, source: str) -> dict[str, Any]:
     """
     Extract JSON Schema from Valves(BaseModel) class definition.
     从 Valves(BaseModel) 类定义提取 JSON Schema。
@@ -646,7 +643,9 @@ def validate_toolkit_source(source: str) -> list[str]:
     try:
         tree = ast.parse(source)
     except SyntaxError as exc:
-        errors.append(_("toolkit.error.syntax_error").format(line=exc.lineno, msg=exc.msg))
+        errors.append(
+            _("toolkit.error.syntax_error").format(line=exc.lineno, msg=exc.msg)
+        )
         return errors
 
     # Must have Tools class / 必须有 Tools 类
@@ -658,7 +657,9 @@ def validate_toolkit_source(source: str) -> list[str]:
     # Tools class must have at least one public method / Tools 类至少有一个公开方法
     has_public_method = False
     for node in ast.iter_child_nodes(tools_class):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and not node.name.startswith("_"):
+        if isinstance(
+            node, (ast.FunctionDef, ast.AsyncFunctionDef)
+        ) and not node.name.startswith("_"):
             has_public_method = True
             break
 
@@ -680,10 +681,16 @@ _DANGEROUS_CALLS = {"exec", "eval", "compile", "__import__", "execfile", "global
 
 # Dangerous attribute call patterns (module.func) / 危险属性调用模式（module.func）
 _DANGEROUS_ATTR_CALLS = {
-    ("os", "system"), ("os", "popen"), ("os", "exec"),
-    ("os", "execvp"), ("os", "remove"), ("os", "rmdir"),
-    ("subprocess", "call"), ("subprocess", "run"),
-    ("subprocess", "Popen"), ("subprocess", "check_output"),
+    ("os", "system"),
+    ("os", "popen"),
+    ("os", "exec"),
+    ("os", "execvp"),
+    ("os", "remove"),
+    ("os", "rmdir"),
+    ("subprocess", "call"),
+    ("subprocess", "run"),
+    ("subprocess", "Popen"),
+    ("subprocess", "check_output"),
     ("shutil", "rmtree"),
 }
 
@@ -733,7 +740,9 @@ def scan_dangerous_patterns(tree: ast.Module) -> list[str]:
                         f"— potential code execution risk"
                     )
             # Attribute call: os.system(...), subprocess.run(...) / 属性调用
-            elif isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
+            elif isinstance(node.func, ast.Attribute) and isinstance(
+                node.func.value, ast.Name
+            ):
                 pair = (node.func.value.id, node.func.attr)
                 if pair in _DANGEROUS_ATTR_CALLS:
                     warnings.append(

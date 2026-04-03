@@ -87,7 +87,8 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         query = query.where(_kb_visible_condition(self.tenant_id))
 
         extra_forced = [
-            f for f in (forced_filters or [])
+            f
+            for f in (forced_filters or [])
             if f.field not in ("tenant_id", "owner_tenant_id")
         ]
         if extra_forced:
@@ -131,28 +132,22 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         kb_id: int,
     ) -> None:
         """重新计算并更新知识库统计 / Recompute KB statistics."""
-        doc_stmt = (
-            select(
-                func.count(KnowledgeDocument.id),
-                func.coalesce(func.sum(KnowledgeDocument.file_size), 0),
-            )
-            .where(
-                and_(
-                    KnowledgeDocument.knowledge_base_id == kb_id,
-                    KnowledgeDocument.is_deleted.is_(False),
-                )
+        doc_stmt = select(
+            func.count(KnowledgeDocument.id),
+            func.coalesce(func.sum(KnowledgeDocument.file_size), 0),
+        ).where(
+            and_(
+                KnowledgeDocument.knowledge_base_id == kb_id,
+                KnowledgeDocument.is_deleted.is_(False),
             )
         )
         doc_result = await self.db.execute(doc_stmt)
         doc_count, total_size = doc_result.one()
 
-        chunk_stmt = (
-            select(func.count(DocumentChunk.id))
-            .where(
-                and_(
-                    DocumentChunk.knowledge_base_id == kb_id,
-                    DocumentChunk.is_deleted.is_(False),
-                )
+        chunk_stmt = select(func.count(DocumentChunk.id)).where(
+            and_(
+                DocumentChunk.knowledge_base_id == kb_id,
+                DocumentChunk.is_deleted.is_(False),
             )
         )
         chunk_result = await self.db.execute(chunk_stmt)
@@ -184,28 +179,22 @@ class AdminKnowledgeBaseRepository(BaseRepository[KnowledgeBase]):
         kb_id: int,
     ) -> None:
         """重新计算并更新知识库统计 / Recompute KB statistics."""
-        doc_stmt = (
-            select(
-                func.count(KnowledgeDocument.id),
-                func.coalesce(func.sum(KnowledgeDocument.file_size), 0),
-            )
-            .where(
-                and_(
-                    KnowledgeDocument.knowledge_base_id == kb_id,
-                    KnowledgeDocument.is_deleted.is_(False),
-                )
+        doc_stmt = select(
+            func.count(KnowledgeDocument.id),
+            func.coalesce(func.sum(KnowledgeDocument.file_size), 0),
+        ).where(
+            and_(
+                KnowledgeDocument.knowledge_base_id == kb_id,
+                KnowledgeDocument.is_deleted.is_(False),
             )
         )
         doc_result = await self.db.execute(doc_stmt)
         doc_count, total_size = doc_result.one()
 
-        chunk_stmt = (
-            select(func.count(DocumentChunk.id))
-            .where(
-                and_(
-                    DocumentChunk.knowledge_base_id == kb_id,
-                    DocumentChunk.is_deleted.is_(False),
-                )
+        chunk_stmt = select(func.count(DocumentChunk.id)).where(
+            and_(
+                DocumentChunk.knowledge_base_id == kb_id,
+                DocumentChunk.is_deleted.is_(False),
             )
         )
         chunk_result = await self.db.execute(chunk_stmt)
@@ -289,6 +278,7 @@ class DocumentChunkRepository(TenantRepository[DocumentChunk]):
             )
         else:
             from sqlalchemy import delete as sa_delete
+
             stmt = sa_delete(DocumentChunk).where(
                 and_(
                     DocumentChunk.document_id == document_id,

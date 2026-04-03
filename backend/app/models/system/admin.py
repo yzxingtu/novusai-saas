@@ -27,10 +27,20 @@ class Admin(BaseModel):
     __tablename__ = "admins"
 
     __delete_deps__ = [
-        DeletionDep("AdminRole", "leader_id", DeletionStrategy.NULLIFY,
-                    label_field="name", i18n_key="admin_role_leader"),
-        DeletionDep("AdminOrgNode", "leader_id", DeletionStrategy.NULLIFY,
-                    label_field="name", i18n_key="admin_org_node_leader"),
+        DeletionDep(
+            "AdminRole",
+            "leader_id",
+            DeletionStrategy.NULLIFY,
+            label_field="name",
+            i18n_key="admin_role_leader",
+        ),
+        DeletionDep(
+            "AdminOrgNode",
+            "leader_id",
+            DeletionStrategy.NULLIFY,
+            label_field="name",
+            i18n_key="admin_org_node_leader",
+        ),
     ]
 
     # 可过滤字段声明（注意：不包含 password_hash 等敏感字段）
@@ -48,7 +58,16 @@ class Admin(BaseModel):
         "updated_at": "updated_at",
     }
 
-    __sortable__ = ["id", "username", "email", "nickname", "is_active", "created_at", "updated_at", "last_login_at"]
+    __sortable__ = [
+        "id",
+        "username",
+        "email",
+        "nickname",
+        "is_active",
+        "created_at",
+        "updated_at",
+        "last_login_at",
+    ]
 
     # 下拉选项配置 / Select dropdown config
     __selectable__ = {
@@ -70,14 +89,10 @@ class Admin(BaseModel):
     )
 
     # 认证信息 / Credentials
-    password_hash: Mapped[str] = mapped_column(
-        String(255), comment="密码哈希"
-    )
+    password_hash: Mapped[str] = mapped_column(String(255), comment="密码哈希")
 
     # 管理员状态 / Admin status flags
-    is_active: Mapped[bool] = mapped_column(
-        Boolean, default=True, comment="是否激活"
-    )
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, comment="是否激活")
     is_super: Mapped[bool] = mapped_column(
         Boolean, default=False, comment="是否超级管理员（最高权限）"
     )
@@ -161,6 +176,7 @@ class Admin(BaseModel):
         if self.role:
             return self.role.has_permission(permission_code)
         return False
+
 
 if TYPE_CHECKING:
     from app.models.auth.admin_role import AdminRole

@@ -668,7 +668,7 @@ def license_generate(
             (key_dir / "public.key").write_text(pub)
             (key_dir / "private.key").chmod(0o600)
             priv = p
-            click.echo("Keys saved to: {}".format(key_dir))
+            click.echo(f"Keys saved to: {key_dir}")
 
     key = generate_license_key(
         plugin_name=plugin,
@@ -682,10 +682,10 @@ def license_generate(
     click.echo("=" * 60)
     click.echo(key)
     click.echo("=" * 60)
-    click.echo("Plugin:  {}".format(plugin))
+    click.echo(f"Plugin:  {plugin}")
     click.echo("Email:   {}".format(email or "N/A"))
-    click.echo("Scope:   {}".format(scope))
-    click.echo("Expires: {} days".format(days) if days else "Never (perpetual)")
+    click.echo(f"Scope:   {scope}")
+    click.echo(f"Expires: {days} days" if days else "Never (perpetual)")
 
 
 @license_cmd.command("verify")
@@ -697,7 +697,7 @@ def license_verify(plugin: str, license_key: str) -> None:
 
     result = verify_license_key(license_key, plugin)
     if result:
-        click.echo("[{}] License key is valid!".format(_STATUS_OK))
+        click.echo(f"[{_STATUS_OK}] License key is valid!")
         click.echo("  Plugin:    {}".format(result.get("plugin")))
         click.echo("  Buyer:     {}".format(result.get("buyer", "N/A")))
         click.echo("  Issued at: {}".format(result.get("issued_at")))
@@ -706,11 +706,11 @@ def license_verify(plugin: str, license_key: str) -> None:
             import datetime
 
             dt = datetime.datetime.fromtimestamp(expires, tz=datetime.timezone.utc)
-            click.echo("  Expires:   {}".format(dt.isoformat()))
+            click.echo(f"  Expires:   {dt.isoformat()}")
         else:
             click.echo("  Expires:   Never (perpetual)")
     else:
-        click.echo("[{}] License key verification failed!".format(_STATUS_FAIL))
+        click.echo(f"[{_STATUS_FAIL}] License key verification failed!")
         sys.exit(1)
 
 
@@ -722,13 +722,13 @@ def license_keygen() -> None:
     (key_dir / "private.key").write_text(priv)
     (key_dir / "public.key").write_text(pub)
     (key_dir / "private.key").chmod(0o600)
-    click.echo("Private key: {}".format(priv))
-    click.echo("Public key:  {}".format(pub))
+    click.echo(f"Private key: {priv}")
+    click.echo(f"Public key:  {pub}")
     click.echo()
-    click.echo("Keys saved to: {}".format(key_dir))
+    click.echo(f"Keys saved to: {key_dir}")
     click.echo()
     click.echo("Set environment variable for backend:")
-    click.echo("  NOVUSAI_LICENSE_PUBLIC_KEY={}".format(pub))
+    click.echo(f"  NOVUSAI_LICENSE_PUBLIC_KEY={pub}")
 
 
 # ============================================================
@@ -829,7 +829,7 @@ def _codegen_delete_hint(reason_code: str | None, config_id: int) -> str | None:
         "generated_state",
         "generation_history_present",
     }:
-        return "Hint: run `novusai codegen rollback --id {}` first.".format(config_id)
+        return f"Hint: run `novusai codegen rollback --id {config_id}` first."
     return None
 
 
@@ -1176,9 +1176,7 @@ def _extract_turn_diagnostics_from_call_log_metadata(metadata: object) -> dict:
     )
     return {
         "turn_outcome": str(
-            turn_record.get("turn_outcome")
-            or diagnostics.get("turn_outcome")
-            or ""
+            turn_record.get("turn_outcome") or diagnostics.get("turn_outcome") or ""
         ).strip()
         or None,
         "termination_reason": str(
@@ -1188,9 +1186,7 @@ def _extract_turn_diagnostics_from_call_log_metadata(metadata: object) -> dict:
         ).strip()
         or None,
         "protocol_path": str(
-            turn_record.get("protocol_path")
-            or diagnostics.get("protocol_path")
-            or ""
+            turn_record.get("protocol_path") or diagnostics.get("protocol_path") or ""
         ).strip()
         or None,
         "selected_tool_names": _normalize_cli_string_list(
@@ -1202,12 +1198,10 @@ def _extract_turn_diagnostics_from_call_log_metadata(metadata: object) -> dict:
             or diagnostics.get("selected_skill_names")
         ),
         "context_sources": _normalize_cli_context_sources(
-            turn_record.get("context_sources")
-            or diagnostics.get("context_sources")
+            turn_record.get("context_sources") or diagnostics.get("context_sources")
         ),
         "fallback_history": _normalize_cli_fallback_history(
-            turn_record.get("fallback_history")
-            or diagnostics.get("fallback_history")
+            turn_record.get("fallback_history") or diagnostics.get("fallback_history")
         ),
         "sync_rescue": next(
             (
@@ -1404,7 +1398,9 @@ async def _load_ai_conversation_snapshot(
         )
         selected_skill_names = (
             _normalize_cli_string_list(turn_record.get("selected_skill_names"))
-            or _normalize_cli_string_list(assistant_metadata.get("selected_skill_names"))
+            or _normalize_cli_string_list(
+                assistant_metadata.get("selected_skill_names")
+            )
             or _normalize_cli_string_list(
                 detail_context_diagnostics.get("selected_skill_names")
             )
@@ -1456,9 +1452,7 @@ async def _load_ai_conversation_snapshot(
                     _normalize_cli_bool(assistant_metadata.get("sync_rescue")),
                     _normalize_cli_bool(detail_context_diagnostics.get("sync_rescue")),
                     _normalize_cli_bool(detail_last_run_summary.get("sync_rescue")),
-                    _normalize_cli_bool(
-                        latest_call_log_diagnostics.get("sync_rescue")
-                    ),
+                    _normalize_cli_bool(latest_call_log_diagnostics.get("sync_rescue")),
                 )
                 if parsed is not None
             ),
@@ -1652,11 +1646,7 @@ async def _load_ai_conversation_snapshot(
                         else (
                             "conversation_detail"
                             if detail_context_diagnostics or detail_last_run_summary
-                            else (
-                                "call_log"
-                                if latest_call_log_diagnostics
-                                else "none"
-                            )
+                            else ("call_log" if latest_call_log_diagnostics else "none")
                         )
                     )
                 ),
@@ -1718,7 +1708,9 @@ def _render_ai_conversation_text(
     if diagnostics.get("unfinished_intents"):
         lines.append(
             "Diagnostic: unfinished_intents={}".format(
-                ", ".join(str(item) for item in diagnostics.get("unfinished_intents") or []),
+                ", ".join(
+                    str(item) for item in diagnostics.get("unfinished_intents") or []
+                ),
             )
         )
     if diagnostics.get("recovered_via_retry") is not None:
@@ -1756,7 +1748,9 @@ def _render_ai_conversation_text(
         )
     if selected_tool_names:
         lines.append(
-            "Turn selected tools: {}".format(", ".join(str(item) for item in selected_tool_names))
+            "Turn selected tools: {}".format(
+                ", ".join(str(item) for item in selected_tool_names)
+            )
         )
     if selected_skill_names:
         lines.append(
@@ -1765,11 +1759,7 @@ def _render_ai_conversation_text(
             )
         )
     if fallback_history:
-        lines.append(
-            "Turn fallback history: {}".format(
-                _compact_json_text(fallback_history)
-            )
-        )
+        lines.append(f"Turn fallback history: {_compact_json_text(fallback_history)}")
     if sync_rescue is not None:
         lines.append(f"Turn sync rescue: {sync_rescue}")
     if should_record_call_log is not None:
@@ -1889,7 +1879,9 @@ def _render_ai_conversation_text(
                         call_log_protocol or "-",
                     )
                 )
-            call_log_skills = _normalize_cli_string_list(item.get("selected_skill_names"))
+            call_log_skills = _normalize_cli_string_list(
+                item.get("selected_skill_names")
+            )
             if call_log_skills:
                 lines.append("  selected_skills: {}".format(", ".join(call_log_skills)))
             call_log_fallback = _normalize_cli_fallback_history(
@@ -1897,7 +1889,7 @@ def _render_ai_conversation_text(
             )
             if call_log_fallback:
                 lines.append(
-                    "  fallback_history: {}".format(_compact_json_text(call_log_fallback))
+                    f"  fallback_history: {_compact_json_text(call_log_fallback)}"
                 )
             call_log_sync_rescue = _normalize_cli_bool(item.get("sync_rescue"))
             if call_log_sync_rescue is not None:
@@ -2143,9 +2135,7 @@ def codegen_generate(
                 else:
                     cfg = await svc.get_by_resource(resource)
                     if not cfg:
-                        raise SystemExit(
-                            "Config not found for resource: {}".format(resource)
-                        )
+                        raise SystemExit(f"Config not found for resource: {resource}")
                     inp = cfg.id
             else:
                 inp = config_json
@@ -2181,11 +2171,11 @@ def codegen_generate(
                     )
                     sys.exit(1)
             elif result.success:
-                click.echo("[{}] Generated successfully".format(_STATUS_OK))
+                click.echo(f"[{_STATUS_OK}] Generated successfully")
                 for p in result.files_created:
-                    click.echo("  + {}".format(p))
+                    click.echo(f"  + {p}")
                 for p in result.files_modified:
-                    click.echo("  ~ {}".format(p))
+                    click.echo(f"  ~ {p}")
             else:
                 if output_json:
                     _echo_json(
@@ -2203,7 +2193,7 @@ def codegen_generate(
                     )
                 else:
                     for e in result.errors:
-                        click.echo("Error: {}".format(e), err=True)
+                        click.echo(f"Error: {e}", err=True)
                 sys.exit(1)
         except SystemExit:
             raise
@@ -2211,7 +2201,7 @@ def codegen_generate(
             if output_json:
                 _echo_json(_json_error(str(e), code="generate_exception"))
             else:
-                click.echo("Error: {}".format(e), err=True)
+                click.echo(f"Error: {e}", err=True)
             sys.exit(1)
 
         if auto_migrate and result.success and output.resource:
@@ -2352,7 +2342,7 @@ def codegen_preview(
             if verbose and f.get("content"):
                 click.echo("    ---")
                 for ln in f["content"].split("\n")[:20]:
-                    click.echo("    {}".format(ln))
+                    click.echo(f"    {ln}")
                 if f["content"].count("\n") >= 20:
                     click.echo("    ...")
         conflicts = result.get("conflicts") or []
@@ -2395,7 +2385,7 @@ def codegen_validate(
         _echo_json(_json_success(result))
     else:
         if result.get("valid"):
-            click.echo("[{}] Config is valid".format(_STATUS_OK))
+            click.echo(f"[{_STATUS_OK}] Config is valid")
         else:
             for e in result.get("errors", []):
                 click.echo("Error: {}".format(e.get("message", e)), err=True)
@@ -2553,18 +2543,16 @@ def codegen_rollback(
             if not overall_success:
                 sys.exit(1)
         elif overall_success:
-            click.echo("[{}] Rollback completed".format(_STATUS_OK))
+            click.echo(f"[{_STATUS_OK}] Rollback completed")
             for p in result.files_deleted:
-                click.echo("  - {}".format(p))
+                click.echo(f"  - {p}")
         elif _migration_cleaned:
             click.echo(
-                "[{}] Migration cleanup completed (no manifest entry for file rollback)".format(
-                    _STATUS_OK
-                )
+                f"[{_STATUS_OK}] Migration cleanup completed (no manifest entry for file rollback)"
             )
         else:
             for e in errors:
-                click.echo("Error: {}".format(e), err=True)
+                click.echo(f"Error: {e}", err=True)
             sys.exit(1)
     finally:
         _rb_lock.release()
@@ -2630,15 +2618,13 @@ def codegen_restore(config_id: int, version_id: int, output_json: bool) -> None:
             _echo_json(_json_success({"message": "Restored"}))
         else:
             click.echo(
-                "[{}] Restored config id={} to version {}".format(
-                    _STATUS_OK, config_id, version_id
-                )
+                f"[{_STATUS_OK}] Restored config id={config_id} to version {version_id}"
             )
     except Exception as e:
         if output_json:
             _echo_json(_json_error(str(e), code="restore_failed"))
         else:
-            click.echo("Error: {}".format(e), err=True)
+            click.echo(f"Error: {e}", err=True)
         sys.exit(1)
 
 
@@ -2794,7 +2780,7 @@ def codegen_import_cmd(config_path: str, output_json: bool) -> None:
     if output_json:
         _echo_json(_json_success({"id": cid}))
     else:
-        click.echo("Imported as config id={}".format(cid))
+        click.echo(f"Imported as config id={cid}")
 
 
 @codegen_cmd.command("export")
@@ -2838,7 +2824,7 @@ def codegen_export(
     if output:
         with open(output, "w", encoding="utf-8") as f:
             f.write(out)
-        click.echo("Exported to {}".format(output))
+        click.echo(f"Exported to {output}")
     else:
         click.echo(out)
 
@@ -2851,9 +2837,7 @@ def codegen_export(
 @click.option("--json", "output_json", is_flag=True, help="Output JSON only")
 def codegen_delete(config_id: int, skip_confirm: bool, output_json: bool) -> None:
     """Delete config / 删除配置"""
-    if not skip_confirm and not click.confirm(
-        "Delete codegen config id={}?".format(config_id)
-    ):
+    if not skip_confirm and not click.confirm(f"Delete codegen config id={config_id}?"):
         return
     os.chdir(_BACKEND_DIR)
 
@@ -2880,7 +2864,7 @@ def codegen_delete(config_id: int, skip_confirm: bool, output_json: bool) -> Non
                 )
             )
         else:
-            click.echo("Error: {}".format(e.message), err=True)
+            click.echo(f"Error: {e.message}", err=True)
             hint = _codegen_delete_hint(reason_code, config_id)
             if hint:
                 click.echo(hint, err=True)
@@ -2888,7 +2872,7 @@ def codegen_delete(config_id: int, skip_confirm: bool, output_json: bool) -> Non
     if output_json:
         _echo_json(_json_success({"deleted_id": config_id}))
     else:
-        click.echo("Deleted config id={}".format(config_id))
+        click.echo(f"Deleted config id={config_id}")
 
 
 @codegen_cmd.command("duplicate")
@@ -2914,7 +2898,7 @@ def codegen_duplicate(config_id: int, output_json: bool) -> None:
         if output_json:
             _echo_json(_json_error(e.message, code="duplicate_failed"))
         else:
-            click.echo("Error: {}".format(e.message), err=True)
+            click.echo(f"Error: {e.message}", err=True)
         sys.exit(1)
     if output_json:
         _echo_json(_json_success(payload))
@@ -2989,7 +2973,7 @@ def codegen_db_import(table: str, output: str | None) -> None:
     if output:
         with open(output, "w", encoding="utf-8") as f:
             f.write(out)
-        click.echo("Exported to {}".format(output))
+        click.echo(f"Exported to {output}")
     else:
         click.echo(out)
 
@@ -3055,14 +3039,14 @@ def codegen_init(template: str, output: str | None) -> None:
 
     preset = get_preset(template)
     if not preset:
-        click.echo("Template not found: {}".format(template), err=True)
+        click.echo(f"Template not found: {template}", err=True)
         sys.exit(1)
 
     content = str(preset["content"])
     if output:
         with open(output, "w", encoding="utf-8") as f:
             f.write(content)
-        click.echo("Initialized: {}".format(output))
+        click.echo(f"Initialized: {output}")
     else:
         click.echo(content)
 
@@ -3095,9 +3079,7 @@ def codegen_history(resource: str | None, output_json: bool) -> None:
     else:
         for e in entries:
             click.echo(
-                "  {}  {}  config_id={}  {}".format(
-                    e.resource, e.module, e.config_id, e.generated_at
-                )
+                f"  {e.resource}  {e.module}  config_id={e.config_id}  {e.generated_at}"
             )
 
 
@@ -3182,7 +3164,7 @@ def codegen_download(
                     )
                 )
             else:
-                click.echo("Error: {}".format(e.message), err=True)
+                click.echo(f"Error: {e.message}", err=True)
             sys.exit(1)
     elif config_path:
         config_json = _load_config_from_file(config_path)
@@ -3215,7 +3197,7 @@ def codegen_download(
     if output_json:
         _echo_json(_json_success({"output": output}))
     else:
-        click.echo("Saved to {}".format(output))
+        click.echo(f"Saved to {output}")
 
 
 # ============================================================
@@ -3286,7 +3268,7 @@ def check_all() -> None:
             if ok
             else click.style(_STATUS_FAIL, fg="red")
         )
-        click.echo("{}: {}".format(name, status))
+        click.echo(f"{name}: {status}")
     failed = sum(1 for _, fn in checks if not fn())
     if failed:
         sys.exit(1)
@@ -3301,7 +3283,7 @@ def db() -> None:
         if ok
         else click.style(_STATUS_FAIL, fg="red")
     )
-    click.echo("{}: {}".format(_CHECK_DB, status))
+    click.echo(f"{_CHECK_DB}: {status}")
     sys.exit(0 if ok else 1)
 
 
@@ -3314,7 +3296,7 @@ def redis() -> None:
         if ok
         else click.style(_STATUS_FAIL, fg="red")
     )
-    click.echo("{}: {}".format(_CHECK_REDIS, status))
+    click.echo(f"{_CHECK_REDIS}: {status}")
     sys.exit(0 if ok else 1)
 
 
@@ -3327,7 +3309,7 @@ def celery() -> None:
         if ok
         else click.style(_STATUS_FAIL, fg="red")
     )
-    click.echo("{}: {}".format(_CHECK_CELERY, status))
+    click.echo(f"{_CHECK_CELERY}: {status}")
     sys.exit(0 if ok else 1)
 
 
@@ -3346,17 +3328,13 @@ def info() -> None:
         return s[:2] + "*" * min(8, len(s) - 4) + s[-2:]
 
     click.echo("NovusAI SaaS")
-    click.echo("  Version:  {}".format(settings.APP_VERSION))
-    click.echo("  Env:      {}".format(settings.APP_ENV))
-    click.echo("  Python:   {}".format(sys.version.split()[0]))
+    click.echo(f"  Version:  {settings.APP_VERSION}")
+    click.echo(f"  Env:      {settings.APP_ENV}")
+    click.echo(f"  Python:   {sys.version.split()[0]}")
     click.echo(
-        "  Database: {}:{}/{}".format(
-            settings.DATABASE_HOST,
-            settings.DATABASE_PORT,
-            settings.DATABASE_NAME,
-        )
+        f"  Database: {settings.DATABASE_HOST}:{settings.DATABASE_PORT}/{settings.DATABASE_NAME}"
     )
-    click.echo("  Redis:    {}:{}".format(settings.REDIS_HOST, settings.REDIS_PORT))
+    click.echo(f"  Redis:    {settings.REDIS_HOST}:{settings.REDIS_PORT}")
 
 
 if __name__ == "__main__":

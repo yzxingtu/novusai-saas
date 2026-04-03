@@ -69,7 +69,9 @@ return count
 """
 
 
-async def check_connect_rate(user_type: str, user_id: int, window: int = 60, max_connects: int = 20) -> bool:
+async def check_connect_rate(
+    user_type: str, user_id: int, window: int = 60, max_connects: int = 20
+) -> bool:
     """
     Check connection rate limit (atomic operation).
     检查连接频率限制（原子操作）。
@@ -89,7 +91,9 @@ async def check_connect_rate(user_type: str, user_id: int, window: int = 60, max
     if count > max_connects:
         logger.warning(
             "SIO rate limit exceeded: {} user_id={} count={}",
-            user_type, user_id, count,
+            user_type,
+            user_id,
+            count,
         )
         return False
     return True
@@ -124,11 +128,16 @@ class PresenceManager:
         """
         redis = get_redis_client()
         key = _presence_key(user_type, tenant_id)
-        connections = await redis.eval(_LUA_INCR, 1, key, str(user_id), str(PRESENCE_TTL))
+        connections = await redis.eval(
+            _LUA_INCR, 1, key, str(user_id), str(PRESENCE_TTL)
+        )
 
         logger.debug(
             "Presence set_online: {} user_id={} tenant_id={} connections={}",
-            user_type, user_id, tenant_id, connections,
+            user_type,
+            user_id,
+            tenant_id,
+            connections,
         )
         return int(connections)
 
@@ -151,7 +160,10 @@ class PresenceManager:
 
         logger.debug(
             "Presence set_offline: {} user_id={} tenant_id={} connections={}",
-            user_type, user_id, tenant_id, connections,
+            user_type,
+            user_id,
+            tenant_id,
+            connections,
         )
         return int(connections)
 

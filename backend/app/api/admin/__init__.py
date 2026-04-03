@@ -16,7 +16,6 @@ from app.api.admin.agents import AdminAgentController
 from app.api.admin.agents import router as ai_agents_router
 from app.api.admin.ai_action_logs import AdminAIActionLogController
 from app.api.admin.ai_action_logs import router as ai_action_logs_router
-from app.api.admin.ai_writing import router as ai_writing_router
 from app.api.admin.ai_agent_chat import AdminAgentChatController
 from app.api.admin.ai_agent_chat import router as ai_agent_chat_router
 from app.api.admin.ai_api_keys import AdminAIApiKeyController
@@ -25,7 +24,6 @@ from app.api.admin.ai_call_logs import AdminAICallLogController
 from app.api.admin.ai_call_logs import router as ai_call_logs_router
 from app.api.admin.ai_conversations import AdminAIConversationController
 from app.api.admin.ai_conversations import router as ai_conversations_router
-from app.api.admin.execution_decisions import router as execution_decisions_router
 from app.api.admin.ai_gateway import AdminAIGatewayController
 from app.api.admin.ai_gateway import router as ai_gateway_router
 from app.api.admin.ai_health import AdminAIHealthController
@@ -40,6 +38,7 @@ from app.api.admin.ai_table_policies import AdminAITablePolicyController
 from app.api.admin.ai_table_policies import router as ai_table_policies_router
 from app.api.admin.ai_usage import AdminAIUsageController
 from app.api.admin.ai_usage import router as ai_usage_router
+from app.api.admin.ai_writing import router as ai_writing_router
 from app.api.admin.analytics import router as analytics_router
 from app.api.admin.attachments import AdminAttachmentController
 from app.api.admin.attachments import router as attachments_router
@@ -53,21 +52,25 @@ from app.api.admin.configs import router as configs_router
 from app.api.admin.dashboard import router as dashboard_router
 from app.api.admin.email_logs import AdminEmailLogController
 from app.api.admin.email_logs import router as email_logs_router
+from app.api.admin.execution_decisions import router as execution_decisions_router
 from app.api.admin.knowledge_bases import AdminKnowledgeBaseController
 from app.api.admin.knowledge_bases import router as ai_knowledge_bases_router
 from app.api.admin.long_term_memory_debug import (
     AdminLongTermMemoryDebugController,
 )
-from app.api.admin.long_term_memory_debug import router as ai_long_term_memory_debug_router
+from app.api.admin.long_term_memory_debug import (
+    router as ai_long_term_memory_debug_router,
+)
 from app.api.admin.notification_preferences import (
     router as notification_preferences_router,
 )
-from app.api.admin.preferences import router as preferences_router
 from app.api.admin.notification_templates import AdminNotificationTemplateController
 from app.api.admin.notification_templates import router as notification_templates_router
 from app.api.admin.notifications import router as notifications_router
 from app.api.admin.operation_logs import AdminOperationLogController
 from app.api.admin.operation_logs import router as operation_logs_router
+from app.api.admin.organization import AdminOrganizationController
+from app.api.admin.organization import router as organization_router
 from app.api.admin.periodic_tasks import AdminPeriodicTaskController
 from app.api.admin.periodic_tasks import router as periodic_tasks_router
 from app.api.admin.permissions import AdminPermissionController
@@ -76,10 +79,9 @@ from app.api.admin.plans import AdminPlanController
 from app.api.admin.plans import router as plans_router
 from app.api.admin.plugins import AdminPluginController
 from app.api.admin.plugins import router as plugins_router
+from app.api.admin.preferences import router as preferences_router
 from app.api.admin.recycle_bin import AdminRecycleBinController
 from app.api.admin.recycle_bin import router as recycle_bin_router
-from app.api.admin.organization import AdminOrganizationController
-from app.api.admin.organization import router as organization_router
 from app.api.admin.skill_packages import AdminSkillPackageController
 from app.api.admin.skill_packages import router as ai_skill_packages_router
 from app.api.admin.skill_registry import AdminSkillRegistryController
@@ -90,15 +92,15 @@ from app.api.admin.system_logs import AdminSystemLogController
 from app.api.admin.system_logs import router as system_logs_router
 from app.api.admin.tasks import AdminTaskController
 from app.api.admin.tasks import router as tasks_router
+from app.api.admin.tenant_admins import AdminTenantAdminController
+from app.api.admin.tenant_admins import router as tenant_admins_router
+from app.api.admin.tenant_domains import AdminTenantDomainController
+from app.api.admin.tenant_domains import router as tenant_domains_router
 
 # Must import tenants before tenant_admins/tenant_domains so menu:admin.tenant is registered first
 # 必须先导入 tenants，注册 menu:admin.tenant，否则 tenant_admins/tenant_domains 的操作权限找不到父菜单
 from app.api.admin.tenants import AdminTenantController
 from app.api.admin.tenants import router as tenants_router
-from app.api.admin.tenant_admins import AdminTenantAdminController
-from app.api.admin.tenant_admins import router as tenant_admins_router
-from app.api.admin.tenant_domains import AdminTenantDomainController
-from app.api.admin.tenant_domains import router as tenant_domains_router
 from app.api.admin.users import AdminUserController
 from app.api.admin.users import router as users_router
 from app.api.admin.ws import router as ws_router

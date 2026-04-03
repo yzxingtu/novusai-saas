@@ -12,7 +12,6 @@ from pydantic import Field, field_validator, model_validator
 from app.core.base_schema import BaseSchema
 from app.enums.common import ResourceScopeEnum
 
-
 ALLOWED_PERIODIC_TASK_SCOPES = {
     ResourceScopeEnum.GLOBAL_SHARED.value,
     ResourceScopeEnum.ADMIN_ONLY.value,
@@ -51,7 +50,9 @@ class PeriodicTaskResponse(BaseSchema):
     binding_count: int = Field(0, description="已绑定企业数量")
     binding_required: bool = Field(False, description="当前 scope 是否要求选择企业")
     binding_configured: bool = Field(True, description="当前分发模式是否已完成绑定")
-    tenant_access_mode: str = Field("none", description="企业覆盖模式 none/all/selected")
+    tenant_access_mode: str = Field(
+        "none", description="企业覆盖模式 none/all/selected"
+    )
     binding_summary: str | None = Field(None, description="绑定摘要")
     is_locked: bool = Field(False, description="是否禁止删除")
     is_editable: bool = Field(True, description="是否允许编辑")
@@ -70,13 +71,17 @@ class PeriodicTaskCreateRequest(BaseSchema):
     task_path: str = Field(..., min_length=1, description="任务路径")
     schedule_type: str = Field("interval", description="调度类型（cron/interval）")
     cron_expression: str | None = Field(None, description="Cron 表达式")
-    interval_seconds: int | None = Field(None, ge=10, description="间隔秒数（最小10秒）")
+    interval_seconds: int | None = Field(
+        None, ge=10, description="间隔秒数（最小10秒）"
+    )
     args: dict | None = Field(None, description="位置参数")
     kwargs: dict | None = Field(None, description="关键字参数")
     is_active: bool = Field(True, description="是否启用")
     description: str | None = Field(None, description="任务描述")
     scope: str = Field("admin_only", description="资源作用域 ResourceScopeEnum（五类）")
-    owner_tenant_id: int | None = Field(None, description="归属企业ID（单企业任务时填写）")
+    owner_tenant_id: int | None = Field(
+        None, description="归属企业ID（单企业任务时填写）"
+    )
     tenant_ids: list[int] = Field(default_factory=list, description="分发企业 ID 列表")
     max_retries: int = Field(0, ge=0, le=10, description="最大重试次数")
     retry_delay: int = Field(60, ge=1, le=3600, description="重试间隔（秒）")

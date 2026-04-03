@@ -5,7 +5,6 @@
 Records audit logs for all API calls in the system.
 """
 
-
 from sqlalchemy import JSON, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -59,7 +58,15 @@ class OperationLog(BaseModel):
         "created_at": "created_at",
     }
 
-    __sortable__ = ["id", "username", "module", "action", "method", "response_code", "created_at"]
+    __sortable__ = [
+        "id",
+        "username",
+        "module",
+        "action",
+        "method",
+        "response_code",
+        "created_at",
+    ]
 
     # ==================== 用户信息 ==================== / User identity
 
@@ -69,63 +76,44 @@ class OperationLog(BaseModel):
         ForeignKey("tenants.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
-        comment="企业ID（平台操作为空）"
+        comment="企业ID（平台操作为空）",
     )
 
     # 用户类型: admin / tenant_admin / tenant_user
     user_type: Mapped[str] = mapped_column(
-        String(20),
-        nullable=False,
-        index=True,
-        comment="用户类型"
+        String(20), nullable=False, index=True, comment="用户类型"
     )
 
     # 用户ID
     user_id: Mapped[int | None] = mapped_column(
-        Integer,
-        nullable=True,
-        comment="用户ID"
+        Integer, nullable=True, comment="用户ID"
     )
 
     # 用户名（冗余存储，便于查询和展示） / Username denormalized
     username: Mapped[str | None] = mapped_column(
-        String(100),
-        nullable=True,
-        index=True,
-        comment="用户名"
+        String(100), nullable=True, index=True, comment="用户名"
     )
 
     # 用户昵称（冗余存储，便于展示） / Nickname denormalized
     nickname: Mapped[str | None] = mapped_column(
-        String(100),
-        nullable=True,
-        comment="用户昵称"
+        String(100), nullable=True, comment="用户昵称"
     )
 
     # ==================== 操作信息 ==================== / Operation details
 
     # 业务模块: auth / permission / role / admin_user / tenant / config / plan / ...
     module: Mapped[str | None] = mapped_column(
-        String(50),
-        nullable=True,
-        index=True,
-        comment="业务模块"
+        String(50), nullable=True, index=True, comment="业务模块"
     )
 
     # 操作类型: create / update / delete / query / login / logout / export / import
     action: Mapped[str | None] = mapped_column(
-        String(50),
-        nullable=True,
-        index=True,
-        comment="操作类型"
+        String(50), nullable=True, index=True, comment="操作类型"
     )
 
     # 资源标识（权限代码）: admin_user:create / role:update 等
     resource: Mapped[str | None] = mapped_column(
-        String(100),
-        nullable=True,
-        index=True,
-        comment="资源标识（权限代码）"
+        String(100), nullable=True, index=True, comment="资源标识（权限代码）"
     )
 
     # ==================== 追踪信息 ==================== / Tracing
@@ -141,82 +129,57 @@ class OperationLog(BaseModel):
     # ==================== 请求信息 ==================== / Request
 
     # HTTP 方法: GET / POST / PUT / DELETE / PATCH
-    method: Mapped[str] = mapped_column(
-        String(10),
-        nullable=False,
-        comment="HTTP 方法"
-    )
+    method: Mapped[str] = mapped_column(String(10), nullable=False, comment="HTTP 方法")
 
     # 请求路径 / Request path
     path: Mapped[str] = mapped_column(
-        String(500),
-        nullable=False,
-        index=True,
-        comment="请求路径"
+        String(500), nullable=False, index=True, comment="请求路径"
     )
 
     # 查询参数（JSON 格式）
     query_params: Mapped[dict | None] = mapped_column(
-        JSON,
-        nullable=True,
-        comment="查询参数"
+        JSON, nullable=True, comment="查询参数"
     )
 
     # 请求体摘要（JSON 格式，已脱敏）
     request_body: Mapped[dict | None] = mapped_column(
-        JSON,
-        nullable=True,
-        comment="请求体摘要（已脱敏）"
+        JSON, nullable=True, comment="请求体摘要（已脱敏）"
     )
 
     # ==================== 响应信息 ==================== / Response
 
     # HTTP 响应状态码
     status_code: Mapped[int | None] = mapped_column(
-        Integer,
-        nullable=True,
-        comment="HTTP 响应状态码"
+        Integer, nullable=True, comment="HTTP 响应状态码"
     )
 
     # 业务响应码 / App response code
     response_code: Mapped[int | None] = mapped_column(
-        Integer,
-        nullable=True,
-        index=True,
-        comment="业务响应码"
+        Integer, nullable=True, index=True, comment="业务响应码"
     )
 
     # 响应消息 / Response message
     response_message: Mapped[str | None] = mapped_column(
-        String(500),
-        nullable=True,
-        comment="响应消息"
+        String(500), nullable=True, comment="响应消息"
     )
 
     # ==================== 客户端信息 ==================== / Client
 
     # 客户端 IP
     ip: Mapped[str | None] = mapped_column(
-        String(50),
-        nullable=True,
-        index=True,
-        comment="客户端 IP"
+        String(50), nullable=True, index=True, comment="客户端 IP"
     )
 
     # User-Agent / 浏览器 UA 字符串
     user_agent: Mapped[str | None] = mapped_column(
-        String(500),
-        nullable=True,
-        comment="User-Agent"
+        String(500), nullable=True, comment="User-Agent"
     )
 
     # ==================== 性能指标 ==================== / Performance
 
     # 请求耗时（毫秒） / Request duration (ms)
     duration_ms: Mapped[int | None] = mapped_column(
-        Integer,
-        nullable=True,
-        comment="请求耗时（毫秒）"
+        Integer, nullable=True, comment="请求耗时（毫秒）"
     )
 
     def __repr__(self) -> str:

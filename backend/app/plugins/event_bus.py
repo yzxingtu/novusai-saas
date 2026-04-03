@@ -112,7 +112,9 @@ class PluginEventBus:
         subs.sort(key=lambda s: s.priority)
         logger.info(
             "PluginEventBus: {} subscribed to '{}' (priority={})",
-            plugin_name or "unknown", event_name, priority,
+            plugin_name or "unknown",
+            event_name,
+            priority,
         )
 
     def unsubscribe(
@@ -144,7 +146,8 @@ class PluginEventBus:
         if removed > 0:
             logger.info(
                 "PluginEventBus: removed {} subscription(s) from '{}'",
-                removed, event_name,
+                removed,
+                event_name,
             )
         return removed
 
@@ -159,7 +162,8 @@ class PluginEventBus:
         if total_removed > 0:
             logger.info(
                 "PluginEventBus: removed all {} subscription(s) for plugin '{}'",
-                total_removed, plugin_name,
+                total_removed,
+                plugin_name,
             )
         return total_removed
 
@@ -183,7 +187,8 @@ class PluginEventBus:
         subs = self._subscribers.get(event_name, [])
         if not subs:
             logger.debug(
-                "PluginEventBus: no subscribers for '{}'", event_name,
+                "PluginEventBus: no subscribers for '{}'",
+                event_name,
             )
             return {"delivered": 0, "failed": 0, "errors": []}
 
@@ -200,7 +205,9 @@ class PluginEventBus:
         if payload_size > _MAX_PAYLOAD_SIZE:
             logger.warning(
                 "PluginEventBus: payload too large for '{}' ({} bytes, max {})",
-                event_name, payload_size, _MAX_PAYLOAD_SIZE,
+                event_name,
+                payload_size,
+                _MAX_PAYLOAD_SIZE,
             )
             return {
                 "delivered": 0,
@@ -214,10 +221,7 @@ class PluginEventBus:
         errors: list[str] = []
 
         # Execute all handlers in parallel (error isolation) / 并行执行所有 handler（异常隔离）
-        tasks = [
-            self._invoke_handler(sub, event_name, safe_payload)
-            for sub in subs
-        ]
+        tasks = [self._invoke_handler(sub, event_name, safe_payload) for sub in subs]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         for i, result in enumerate(results):
@@ -231,11 +235,16 @@ class PluginEventBus:
                 errors.append(err_msg)
                 logger.warning(
                     "PluginEventBus: handler failed for '{}' (plugin={}): {}",
-                    event_name, subs[i].plugin_name, result,
+                    event_name,
+                    subs[i].plugin_name,
+                    result,
                 )
                 # Record to dead letter queue / 记入死信队列
                 self._record_dead_letter(
-                    event_name, source_plugin, subs[i].plugin_name, str(result),
+                    event_name,
+                    source_plugin,
+                    subs[i].plugin_name,
+                    str(result),
                 )
             else:
                 delivered += 1
@@ -244,8 +253,12 @@ class PluginEventBus:
         logger.info(
             "plugin_event: event={} source={} subscribers={} delivered={} "
             "failed=%d latency_ms=%d",
-            event_name, source_plugin, len(subs),
-            delivered, failed, latency_ms,
+            event_name,
+            source_plugin,
+            len(subs),
+            delivered,
+            failed,
+            latency_ms,
         )
 
         return {"delivered": delivered, "failed": failed, "errors": errors}

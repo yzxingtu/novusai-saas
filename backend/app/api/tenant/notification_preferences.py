@@ -33,7 +33,9 @@ async def get_global_preferences(
 ):
     """获取企业全局通知偏好设置 / Get tenant global notification preferences"""
     service = NotificationPreferenceService(db)
-    prefs = await service.get_global_preferences("tenant_global", tenant_id=tenant_admin.tenant_id)
+    prefs = await service.get_global_preferences(
+        "tenant_global", tenant_id=tenant_admin.tenant_id
+    )
     return success(data=prefs)
 
 
@@ -49,7 +51,9 @@ async def update_global_preferences(
     """
     service = NotificationPreferenceService(db)
     await service.update_global_preferences(
-        "tenant_global", tenant_id=tenant_admin.tenant_id, data=data,
+        "tenant_global",
+        tenant_id=tenant_admin.tenant_id,
+        data=data,
     )
     await db.commit()
 
@@ -76,7 +80,9 @@ async def get_preferences(
 ):
     """获取当前企业管理员的所有通知偏好设置（含全局回退） / Get all notification preferences for current tenant admin"""
     service = NotificationPreferenceService(db)
-    prefs = await service.get_all_preferences("tenant_admin", tenant_admin.id, tenant_id=tenant_admin.tenant_id)
+    prefs = await service.get_all_preferences(
+        "tenant_admin", tenant_admin.id, tenant_id=tenant_admin.tenant_id
+    )
     return success(data=prefs)
 
 
@@ -89,7 +95,9 @@ async def save_preferences(
 ):
     """批量保存企业管理员的通知偏好设置 / Batch save notification preferences for tenant admin"""
     service = NotificationPreferenceService(db)
-    await service.save_preferences("tenant_admin", tenant_admin.id, data, tenant_id=tenant_admin.tenant_id)
+    await service.save_preferences(
+        "tenant_admin", tenant_admin.id, data, tenant_id=tenant_admin.tenant_id
+    )
     await db.commit()
     return success(message=_("common.success"))
 
@@ -102,7 +110,9 @@ async def reset_preferences(
 ):
     """重置企业管理员通知偏好（恢复为全局默认） / Reset tenant admin notification preferences to global defaults"""
     service = NotificationPreferenceService(db)
-    await service.reset_individual_preferences("tenant_admin", tenant_admin.id, tenant_id=tenant_admin.tenant_id)
+    await service.reset_individual_preferences(
+        "tenant_admin", tenant_admin.id, tenant_id=tenant_admin.tenant_id
+    )
     await db.commit()
     return success(message=_("common.success"))
 

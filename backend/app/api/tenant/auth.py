@@ -31,7 +31,9 @@ from app.services.common import AuthService
 # 审计日志辅助类 / Audit log helper class
 class _ImpersonateAuditLogger(ImpersonateLoggerMixin):
     """Impersonate 审计日志器 / Impersonate audit logger"""
+
     pass
+
 
 _audit_helper = _ImpersonateAuditLogger()
 
@@ -59,7 +61,9 @@ async def tenant_admin_login(
 
     # 从域名中间件获取 tenant_ctx 作为回退 / Get tenant_ctx from domain middleware as fallback
     tenant_ctx = get_tenant_context(request)
-    tenant_id_from_ctx = tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
+    tenant_id_from_ctx = (
+        tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
+    )
 
     tokens = await auth_service.authenticate_tenant_admin(
         username=login_data.username,
@@ -112,7 +116,9 @@ async def tenant_admin_logout(
     if auth_header.startswith("Bearer "):
         token = auth_header[7:]
         auth_service = AuthService(db)
-        await auth_service.revoke_on_logout(token, "tenant_admin", str(current_admin.id))
+        await auth_service.revoke_on_logout(
+            token, "tenant_admin", str(current_admin.id)
+        )
     return success(
         message=_("auth.logout_success"),
     )
@@ -201,6 +207,7 @@ async def update_profile(
         await db.rollback()
         if "unique" in str(e).lower() and "email" in str(e).lower():
             from app.exceptions import BusinessException
+
             raise BusinessException(message=_("auth.email_already_exists")) from e
         raise
 

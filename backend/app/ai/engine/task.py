@@ -64,8 +64,10 @@ class TaskEngine(BaseEngine):
             # 2. Resolve tools (use pre-resolved result or fallback to resolve_for_agent) / 解析工具
             if skill_result is None:
                 from app.ai.skills.resolver import resolve_for_agent
+
                 skill_result = await resolve_for_agent(
-                    self.db, agent,
+                    self.db,
+                    agent,
                     tenant_id=request.tenant_id,
                     user_role=getattr(request, "user_role", None),
                 )

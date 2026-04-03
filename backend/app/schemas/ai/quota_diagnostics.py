@@ -19,9 +19,13 @@ class AIQuotaDiagnosticsSummary(BaseModel):
     quota_warning_rules: int = Field(default=0, description="达到预警阈值的配额规则数")
     quota_exceeded_rules: int = Field(default=0, description="已超限配额规则数")
     total_rate_limit_rules: int = Field(default=0, description="速率限制规则总数")
-    active_rate_limit_rules: int = Field(default=0, description="启用中的速率限制规则数")
+    active_rate_limit_rules: int = Field(
+        default=0, description="启用中的速率限制规则数"
+    )
     rate_limit_warning_rules: int = Field(default=0, description="接近限速阈值的规则数")
-    rate_limit_exceeded_rules: int = Field(default=0, description="当前已超限的速率限制规则数")
+    rate_limit_exceeded_rules: int = Field(
+        default=0, description="当前已超限的速率限制规则数"
+    )
 
 
 class AdminQuotaDiagnosticItem(BaseModel):

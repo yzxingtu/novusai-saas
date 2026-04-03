@@ -98,10 +98,12 @@ class TenantAIActionLogController(TenantController):
             stats = await service.get_stats()
             distribution = await service.get_type_distribution()
 
-            return success(data={
-                "stats": stats,
-                "type_distribution": distribution,
-            })
+            return success(
+                data={
+                    "stats": stats,
+                    "type_distribution": distribution,
+                }
+            )
 
         @router.get("/{log_id}", summary="获取审计日志详情")
         @action_read("action.ai_action_log.detail")

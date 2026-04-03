@@ -313,7 +313,9 @@ _REVERSE_MAP[ARRAY] = "JSON"  # ARRAY 退化为 JSON 存储 / ARRAY fallback to 
 if _HAS_TIME:
     _REVERSE_MAP[Time] = "String"  # Time 退化为 String / Time fallback to String
 if _HAS_INTERVAL:
-    _REVERSE_MAP[INTERVAL] = "String"  # Interval 退化为 String / Interval fallback to String
+    _REVERSE_MAP[INTERVAL] = (
+        "String"  # Interval 退化为 String / Interval fallback to String
+    )
 
 
 def _parse_type(yaml_type: str) -> tuple[str, dict[str, Any]]:
@@ -345,7 +347,9 @@ def _parse_type(yaml_type: str) -> tuple[str, dict[str, Any]]:
     em = re.match(r"^Enum\s*\(\s*(.+)\s*\)\s*$", yaml_type, re.I)
     if em:
         vals_str = em.group(1).strip()
-        params["values"] = [v.strip().strip("'\"").strip() for v in vals_str.split(",") if v.strip()]
+        params["values"] = [
+            v.strip().strip("'\"").strip() for v in vals_str.split(",") if v.strip()
+        ]
         return "Enum", params
 
     return base, params
@@ -389,11 +393,8 @@ class TypeRegistry:
         """
         base, params = _parse_type(yaml_type)
         info = _TYPE_MAP.get(base)
-        if not info:
-            # 未知类型回退到 String / Unknown falls back to String
-            info = _TYPE_MAP["String"].copy()
-        else:
-            info = info.copy()
+        # 未知类型回退到 String / Unknown falls back to String
+        info = _TYPE_MAP["String"].copy() if not info else info.copy()
 
         if base == "String" and "length" in params:
             info["sqlalchemy_type"] = f"String({params['length']})"
@@ -499,7 +500,11 @@ class TypeRegistry:
         type_class = type(col_type)
         if type_class in _REVERSE_MAP:
             base = _REVERSE_MAP[type_class]
-            if isinstance(col_type, String) and hasattr(col_type, "length") and col_type.length:
+            if (
+                isinstance(col_type, String)
+                and hasattr(col_type, "length")
+                and col_type.length
+            ):
                 return f"String({col_type.length})"
             return base
         return None

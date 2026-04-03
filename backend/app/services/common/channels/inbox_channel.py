@@ -32,6 +32,7 @@ class InboxChannel(NotificationChannel):
         """收件箱跟随通知系统总开关 / Inbox follows notification system master switch."""
         try:
             from app.sio.ws_config import get_ws_config
+
             return bool(await get_ws_config("notification_enabled"))
         except Exception:
             return True
@@ -59,7 +60,9 @@ class InboxChannel(NotificationChannel):
                 recipient_type=user_type,
                 recipient_id=user_id,
                 template_code=template_code,
-                category=template_code.split(".")[0] if "." in template_code else "system",
+                category=template_code.split(".")[0]
+                if "." in template_code
+                else "system",
                 title=title,
                 body=body,
                 data=data,

@@ -47,27 +47,29 @@ async def list_notifications(
         page_size=page_size,
     )
 
-    return success(data={
-        "items": [
-            {
-                "id": n.id,
-                "template_code": n.template_code,
-                "category": n.category,
-                "title": n.title,
-                "body": n.body,
-                "data": n.data,
-                "link": n.link,
-                "priority": n.priority,
-                "is_read": n.is_read,
-                "read_at": n.read_at.isoformat() if n.read_at else None,
-                "created_at": n.created_at.isoformat() if n.created_at else None,
-            }
-            for n in items
-        ],
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-    })
+    return success(
+        data={
+            "items": [
+                {
+                    "id": n.id,
+                    "template_code": n.template_code,
+                    "category": n.category,
+                    "title": n.title,
+                    "body": n.body,
+                    "data": n.data,
+                    "link": n.link,
+                    "priority": n.priority,
+                    "is_read": n.is_read,
+                    "read_at": n.read_at.isoformat() if n.read_at else None,
+                    "created_at": n.created_at.isoformat() if n.created_at else None,
+                }
+                for n in items
+            ],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
+    )
 
 
 @router.get("/unread-count", summary="未读通知数量")
@@ -106,7 +108,9 @@ async def mark_all_read(
 ):
     """标记全部通知已读 / Mark all notifications as read"""
     service = NotificationService(db)
-    count = await service.mark_all_read("tenant_admin", tenant_admin.id, category or None)
+    count = await service.mark_all_read(
+        "tenant_admin", tenant_admin.id, category or None
+    )
     return success(data={"count": count})
 
 
@@ -119,7 +123,9 @@ async def delete_notification(
 ):
     """删除单条通知（软删除） / Delete single notification (soft delete)"""
     service = NotificationService(db)
-    found = await service.delete_notification(notification_id, "tenant_admin", tenant_admin.id)
+    found = await service.delete_notification(
+        notification_id, "tenant_admin", tenant_admin.id
+    )
     if not found:
         raise NotFoundException(message=_("common.not_found"))
     return success()

@@ -59,7 +59,9 @@ class CloudflareDnsProvider(DnsProvider):
     def __init__(self, api_token: str, zone_id: str):
         self._api_token = api_token
         self._zone_id = zone_id
-        self._base_url = f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records"
+        self._base_url = (
+            f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records"
+        )
 
     async def set_txt_record(self, record_name: str, record_value: str) -> None:
         import httpx
@@ -90,7 +92,9 @@ class CloudflareDnsProvider(DnsProvider):
                 raise RuntimeError(f"Cloudflare API error: {errors}")
 
             logger.info(
-                "Cloudflare TXT record set: {} = {}", record_name, record_value,
+                "Cloudflare TXT record set: {} = {}",
+                record_name,
+                record_value,
             )
 
     async def delete_txt_record(self, record_name: str, record_value: str) -> None:
@@ -120,8 +124,10 @@ class CloudflareDnsProvider(DnsProvider):
                     del_resp.raise_for_status()
                     logger.info(
                         "Cloudflare TXT record deleted: {} (id={})",
-                        record_name, record["id"],
+                        record_name,
+                        record["id"],
                     )
+
 
 class ManualDnsProvider(DnsProvider):
     """
@@ -133,13 +139,15 @@ class ManualDnsProvider(DnsProvider):
     async def set_txt_record(self, record_name: str, record_value: str) -> None:
         logger.warning(
             "Manual DNS mode: Please set TXT record {} = {}",
-            record_name, record_value,
+            record_name,
+            record_value,
         )
 
     async def delete_txt_record(self, record_name: str, record_value: str) -> None:
         logger.warning(
             "Manual DNS mode: Please delete TXT record {} = {}",
-            record_name, record_value,
+            record_name,
+            record_value,
         )
 
 
@@ -170,24 +178,36 @@ async def audit_dns_provider_config(db) -> dict[str, Any]:
     """
     config_svc = ConfigService(db)
     default_provider = "manual" if settings.DEBUG else "cloudflare"
-    provider_type = str(
-        await config_svc.get_platform_config("dns_provider", default=default_provider) or default_provider
-    ).strip().lower()
+    provider_type = (
+        str(
+            await config_svc.get_platform_config(
+                "dns_provider", default=default_provider
+            )
+            or default_provider
+        )
+        .strip()
+        .lower()
+    )
     issues: list[dict[str, str]] = []
 
     if provider_type in _LEGACY_UNSUPPORTED_DNS_PROVIDERS:
         issues.append(
             _build_issue(
                 "legacy_unsupported_provider",
-                _("ssl_certificate.dns_provider_legacy_unsupported", provider=provider_type),
+                _(
+                    "ssl_certificate.dns_provider_legacy_unsupported",
+                    provider=provider_type,
+                ),
             )
         )
     elif provider_type == "cloudflare":
         api_token = str(
-            await config_svc.get_platform_config("dns_cloudflare_api_token", default="") or ""
+            await config_svc.get_platform_config("dns_cloudflare_api_token", default="")
+            or ""
         ).strip()
         zone_id = str(
-            await config_svc.get_platform_config("dns_cloudflare_zone_id", default="") or ""
+            await config_svc.get_platform_config("dns_cloudflare_zone_id", default="")
+            or ""
         ).strip()
         if not api_token or not zone_id:
             issues.append(
@@ -208,7 +228,10 @@ async def audit_dns_provider_config(db) -> dict[str, Any]:
         issues.append(
             _build_issue(
                 "unknown_provider",
-                _("ssl_certificate.dns_provider_invalid", provider=provider_type or "-"),
+                _(
+                    "ssl_certificate.dns_provider_invalid",
+                    provider=provider_type or "-",
+                ),
             )
         )
 
@@ -260,7 +283,10 @@ async def validate_platform_ssl_config_patch(
 
     if provider_type in _LEGACY_UNSUPPORTED_DNS_PROVIDERS:
         raise BusinessException(
-            message=_("ssl_certificate.dns_provider_legacy_unsupported", provider=provider_type),
+            message=_(
+                "ssl_certificate.dns_provider_legacy_unsupported",
+                provider=provider_type,
+            ),
             code=ErrorCode.CONFIG_VALIDATION_FAILED,
         )
 
@@ -274,7 +300,9 @@ async def validate_platform_ssl_config_patch(
 
     if provider_type != "cloudflare":
         raise BusinessException(
-            message=_("ssl_certificate.dns_provider_invalid", provider=provider_type or "-"),
+            message=_(
+                "ssl_certificate.dns_provider_invalid", provider=provider_type or "-"
+            ),
             code=ErrorCode.CONFIG_VALIDATION_FAILED,
         )
 
@@ -301,8 +329,12 @@ async def get_dns_provider(db) -> DnsProvider:
     provider_type = await ensure_dns_provider_ready(db)
 
     if provider_type == "cloudflare":
-        api_token = await config_svc.get_platform_config("dns_cloudflare_api_token", default="")
-        zone_id = await config_svc.get_platform_config("dns_cloudflare_zone_id", default="")
+        api_token = await config_svc.get_platform_config(
+            "dns_cloudflare_api_token", default=""
+        )
+        zone_id = await config_svc.get_platform_config(
+            "dns_cloudflare_zone_id", default=""
+        )
         return CloudflareDnsProvider(api_token=api_token, zone_id=zone_id)
 
     if provider_type == "manual":

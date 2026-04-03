@@ -25,8 +25,10 @@ from app.services.system import SystemLogService
 
 # ============ Schemas / 数据模型 ============
 
+
 class LogCategoryResponse(BaseModel):
     """日志分类响应 / Log category response"""
+
     code: str = Field(..., description=_("api.param.code"))
     name: str = Field(..., description=_("api.param.name"))
     description: str = Field(..., description=_("api.param.desc"))
@@ -36,6 +38,7 @@ class LogCategoryResponse(BaseModel):
 
 class LogFileResponse(BaseModel):
     """日志文件响应 / Log file response"""
+
     name: str = Field(..., description=_("api.param.filename"))
     category: str = Field(..., description=_("api.param.code"))
     size: int = Field(..., description=_("api.param.size"))
@@ -45,6 +48,7 @@ class LogFileResponse(BaseModel):
 
 class LogContentResponse(BaseModel):
     """日志内容响应 / Log content response"""
+
     lines: list[str] = Field(..., description=_("api.param.lines"))
     total_lines: int = Field(..., description=_("api.param.total_lines"))
     page: int = Field(..., description=_("api.param.page"))
@@ -54,12 +58,16 @@ class LogContentResponse(BaseModel):
 
 class LogStatsResponse(BaseModel):
     """日志统计响应 / Log statistics response"""
+
     total_files: int = Field(..., description=_("api.param.total_files"))
     total_size: int = Field(..., description=_("api.param.total_size"))
-    categories: list[LogCategoryResponse] = Field(..., description=_("api.param.categories"))
+    categories: list[LogCategoryResponse] = Field(
+        ..., description=_("api.param.categories")
+    )
 
 
 # ============ Controller / 控制器 ============
+
 
 @permission_resource(
     resource="system_log",
@@ -72,7 +80,7 @@ class LogStatsResponse(BaseModel):
         component="admin/system/system-logs/index",
         parent="logs",
         sort_order=20,
-    )
+    ),
 )
 class AdminSystemLogController(GlobalController):
     """
@@ -191,7 +199,9 @@ class AdminSystemLogController(GlobalController):
             current_admin: ActiveAdmin,
             filename: str,
             page: int = Query(1, ge=1, description=_("api.param.page")),
-            page_size: int = Query(100, ge=1, le=500, description=_("api.param.lines_per_page")),
+            page_size: int = Query(
+                100, ge=1, le=500, description=_("api.param.lines_per_page")
+            ),
             reverse: bool = Query(True, description=_("api.param.reverse")),
         ):
             """

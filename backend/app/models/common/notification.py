@@ -41,49 +41,80 @@ class Notification(BaseModel):
     }
 
     __table_args__ = (
-        Index("idx_notifications_recipient", "recipient_type", "recipient_id", "is_read"),
+        Index(
+            "idx_notifications_recipient", "recipient_type", "recipient_id", "is_read"
+        ),
         Index("idx_notifications_tenant", "tenant_id", "created_at"),
     )
 
     tenant_id: Mapped[int | None] = mapped_column(
-        Integer, nullable=True, index=True, comment="企业 ID（NULL=平台级）",
+        Integer,
+        nullable=True,
+        index=True,
+        comment="企业 ID（NULL=平台级）",
     )
     recipient_type: Mapped[str] = mapped_column(
-        String(20), nullable=False, comment="接收人类型: admin/tenant_admin/tenant_user",
+        String(20),
+        nullable=False,
+        comment="接收人类型: admin/tenant_admin/tenant_user",
     )
     recipient_id: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="接收人 ID",
+        Integer,
+        nullable=False,
+        comment="接收人 ID",
     )
     template_code: Mapped[str] = mapped_column(
-        String(100), nullable=False, comment="通知模板编码",
+        String(100),
+        nullable=False,
+        comment="通知模板编码",
     )
     category: Mapped[str] = mapped_column(
-        String(50), nullable=False, index=True, comment="分类: system/ai/task/biz/audit",
+        String(50),
+        nullable=False,
+        index=True,
+        comment="分类: system/ai/task/biz/audit",
     )
     title: Mapped[str] = mapped_column(
-        Text, nullable=False, comment="通知标题（已渲染）",
+        Text,
+        nullable=False,
+        comment="通知标题（已渲染）",
     )
     body: Mapped[str | None] = mapped_column(
-        Text, nullable=True, comment="通知正文（已渲染）",
+        Text,
+        nullable=True,
+        comment="通知正文（已渲染）",
     )
     data: Mapped[dict | None] = mapped_column(
-        JSONB, nullable=True, comment="业务关联数据",
+        JSONB,
+        nullable=True,
+        comment="业务关联数据",
     )
     link: Mapped[str | None] = mapped_column(
-        String(500), nullable=True, comment="点击跳转链接",
+        String(500),
+        nullable=True,
+        comment="点击跳转链接",
     )
     priority: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="normal",
+        String(20),
+        nullable=False,
+        default="normal",
         comment="优先级: low/normal/high/urgent",
     )
     is_read: Mapped[bool] = mapped_column(
-        Boolean, default=False, nullable=False, comment="是否已读",
+        Boolean,
+        default=False,
+        nullable=False,
+        comment="是否已读",
     )
     read_at: Mapped[datetime | None] = mapped_column(
-        DateTime, nullable=True, comment="已读时间",
+        DateTime,
+        nullable=True,
+        comment="已读时间",
     )
     expired_at: Mapped[datetime | None] = mapped_column(
-        DateTime, nullable=True, comment="过期时间",
+        DateTime,
+        nullable=True,
+        comment="过期时间",
     )
 
     def __repr__(self) -> str:

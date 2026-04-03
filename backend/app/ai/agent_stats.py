@@ -164,11 +164,14 @@ class AgentStatsManager:
                 count=200,
             )
             for key in keys:
-                await redis.hset(key, mapping={
-                    "today_conversations": 0,
-                    "today_tokens": 0,
-                    "today_date": today,
-                })
+                await redis.hset(
+                    key,
+                    mapping={
+                        "today_conversations": 0,
+                        "today_tokens": 0,
+                        "today_date": today,
+                    },
+                )
                 count += 1
 
             if cursor == 0:

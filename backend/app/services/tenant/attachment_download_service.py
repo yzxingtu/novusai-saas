@@ -14,10 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.configs.service import ConfigService
 from app.core.base_model import utc_now
 from app.core.config import settings
-from app.core.logging import LogManager
 from app.core.i18n import _
-_logger = LogManager.get_logger("storage")
-
+from app.core.logging import LogManager
 from app.enums import ErrorCode
 from app.enums.attachment import AttachmentVisibility
 from app.exceptions import BusinessException, NotFoundException
@@ -30,6 +28,8 @@ from app.storage import (
     storage_manager,
 )
 
+_logger = LogManager.get_logger("storage")
+
 
 class AttachmentDownloadService:
     """
@@ -37,6 +37,7 @@ class AttachmentDownloadService:
 
     负责生成访问链接、签名控制、权限校验与下载统计。
     """
+
     def __init__(self, db: AsyncSession, tenant_id: int | None = None):
         """初始化服务，tenant_id 为空表示公共访问上下文 / Init service; tenant_id=None means public access context."""
         self.db = db
@@ -89,7 +90,9 @@ class AttachmentDownloadService:
         storage_config = await self._resolve_storage_config_for_attachment(attachment)
         driver = storage_manager.get_driver(storage_config)
         filename = attachment.original_name or attachment.name
-        response = await driver.get_download_response(attachment.path, filename=filename)
+        response = await driver.get_download_response(
+            attachment.path, filename=filename
+        )
         if preview:
             response.headers["Content-Disposition"] = build_content_disposition(
                 filename,
@@ -97,7 +100,9 @@ class AttachmentDownloadService:
             )
         return response
 
-    async def record_download(self, attachment: Attachment, size: int | None = None) -> None:
+    async def record_download(
+        self, attachment: Attachment, size: int | None = None
+    ) -> None:
         """显式记录下载统计 / Record download stats explicitly."""
         await self._record_download(attachment, size or attachment.size)
 
@@ -197,18 +202,28 @@ class AttachmentDownloadService:
             if attachment.visibility == AttachmentVisibility.PRIVATE.value:
                 token = self.create_access_token(attachment, expires, preview)
             return self._build_public_access_url(
-                attachment.id, token, preview, expires=expires,
+                attachment.id,
+                token,
+                preview,
+                expires=expires,
             )
 
         # Cloud: try to resolve a matching config for proper signed URL / 云端签名 URL / cloud signed URL
         try:
-            storage_config = await self._resolve_storage_config_for_attachment(attachment)
+            storage_config = await self._resolve_storage_config_for_attachment(
+                attachment
+            )
             if storage_config.driver == attachment.driver:
                 driver = storage_manager.get_driver(storage_config)
                 visibility = StorageVisibility(attachment.visibility)
-                return await driver.get_url(attachment.path, expires=expires, visibility=visibility)
+                return await driver.get_url(
+                    attachment.path, expires=expires, visibility=visibility
+                )
         except Exception:
-            _logger.debug("Storage driver URL generation failed for attachment {}, falling back", attachment.id)
+            _logger.debug(
+                "Storage driver URL generation failed for attachment {}, falling back",
+                attachment.id,
+            )
 
         # Config mismatch: use stored base_url for public cloud files / 配置不一致回退 / config mismatch fallback
         direct_url = self._build_direct_cdn_url(attachment)
@@ -217,7 +232,10 @@ class AttachmentDownloadService:
 
         # Last resort: API proxy (private file with no matching config) / 最后回退 API 代理 / last-resort API proxy
         return self._build_public_access_url(
-            attachment.id, None, preview, expires=expires,
+            attachment.id,
+            None,
+            preview,
+            expires=expires,
         )
 
     async def _resolve_storage_config_for_attachment(
@@ -261,7 +279,10 @@ class AttachmentDownloadService:
         await repo.update(attachment.id, {"meta": meta})
 
     def _build_public_access_url(
-        self, attachment_id: int, token: str | None, preview: bool,
+        self,
+        attachment_id: int,
+        token: str | None,
+        preview: bool,
         expires: int = 3600,
     ) -> str:
         """拼装公开访问 URL（附带 HMAC 签名防枚举 + 可选私有 token） / Build public access URL (HMAC sign + optional token)."""
@@ -298,7 +319,9 @@ class AttachmentDownloadService:
                 "exp": expire_at,
             }
             params["token"] = jwt.encode(
-                token_payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM,
+                token_payload,
+                settings.SECRET_KEY,
+                algorithm=settings.ALGORITHM,
             )
         return f"/api/public/attachments/{attachment_id}/image?{urlencode(params)}"
 
@@ -343,12 +366,16 @@ class AttachmentDownloadService:
         """HMAC-SHA256 签名：防止公开端点 ID 枚举 / HMAC-SHA256 sign to prevent ID enumeration."""
         msg = f"{attachment_id}:{exp}".encode()
         return hmac.new(
-            settings.SECRET_KEY.encode(), msg, hashlib.sha256,
+            settings.SECRET_KEY.encode(),
+            msg,
+            hashlib.sha256,
         ).hexdigest()[:32]
 
     @staticmethod
     def verify_access_sign(
-        attachment_id: int, exp: int | str | None, sign: str | None,
+        attachment_id: int,
+        exp: int | str | None,
+        sign: str | None,
     ) -> None:
         """校验 HMAC 签名和过期时间，无效则抛出 BusinessException / Verify HMAC and expiry; raise on invalid."""
         if not exp or not sign:

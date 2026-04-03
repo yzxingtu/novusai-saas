@@ -35,7 +35,12 @@ class SystemAgentAssignment(BaseModel):
 
     __table_args__ = (
         UniqueConstraint("feature_code", "tenant_id", name="uq_feature_code_tenant_id"),
-        Index("ix_feature_code_global", "feature_code", unique=True, postgresql_where=text("tenant_id IS NULL")),
+        Index(
+            "ix_feature_code_global",
+            "feature_code",
+            unique=True,
+            postgresql_where=text("tenant_id IS NULL"),
+        ),
     )
 
     __filterable__ = {

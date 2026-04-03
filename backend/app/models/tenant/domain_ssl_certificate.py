@@ -38,7 +38,11 @@ class DomainSslCertificate(BaseModel):
     }
 
     __sortable__ = [
-        "id", "expires_at", "issued_at", "created_at", "updated_at",
+        "id",
+        "expires_at",
+        "issued_at",
+        "created_at",
+        "updated_at",
     ]
 
     # ==================== 关联字段 ==================== / Foreign keys
@@ -188,6 +192,7 @@ class DomainSslCertificate(BaseModel):
         from datetime import timedelta
 
         from app.core.base_model import utc_now
+
         return self.expires_at < utc_now() + timedelta(days=30)
 
     def __repr__(self) -> str:

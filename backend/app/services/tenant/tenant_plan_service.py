@@ -5,6 +5,7 @@
 Provides plan business logic (platform-level, no tenant isolation).
 
 """
+
 import secrets
 import string
 from typing import Any
@@ -139,7 +140,7 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
 
         for _attempt in range(max_attempts):
             # 生成 plan_ + 6位随机字符
-            random_part = ''.join(secrets.choice(charset) for _ in range(6))
+            random_part = "".join(secrets.choice(charset) for _ in range(6))
             code = f"plan_{random_part}"
 
             # 检查是否已存在 / Check exists
@@ -147,7 +148,7 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
                 return code
 
         # 极端情况：多次尝试后仍重复，加长随机部分 / Rare: still duplicate after retries; lengthen random part
-        random_part = ''.join(secrets.choice(charset) for _ in range(10))
+        random_part = "".join(secrets.choice(charset) for _ in range(10))
         return f"plan_{random_part}"
 
     async def create_plan(
@@ -370,18 +371,17 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
             return []
 
         # 查询有效权限 / Query effective permissions
-        query = (
-            select(Permission)
-            .where(
-                Permission.id.in_(permission_ids),
-                Permission.is_deleted.is_(False),
-                Permission.is_enabled.is_(True),
-                Permission.type == PermissionType.MENU.value,
-                Permission.scope.in_([
+        query = select(Permission).where(
+            Permission.id.in_(permission_ids),
+            Permission.is_deleted.is_(False),
+            Permission.is_enabled.is_(True),
+            Permission.type == PermissionType.MENU.value,
+            Permission.scope.in_(
+                [
                     PermissionScope.TENANT.value,
                     PermissionScope.BOTH.value,
-                ]),
-            )
+                ]
+            ),
         )
         result = await self.db.execute(query)
         return list(result.scalars().all())
@@ -401,10 +401,12 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
                 Permission.is_deleted.is_(False),
                 Permission.is_enabled.is_(True),
                 Permission.type == PermissionType.MENU.value,
-                Permission.scope.in_([
-                    PermissionScope.TENANT.value,
-                    PermissionScope.BOTH.value,
-                ]),
+                Permission.scope.in_(
+                    [
+                        PermissionScope.TENANT.value,
+                        PermissionScope.BOTH.value,
+                    ]
+                ),
             )
             .order_by(Permission.sort_order, Permission.id)
         )

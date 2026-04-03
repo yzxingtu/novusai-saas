@@ -97,7 +97,9 @@ class AdminAICallLogController(GlobalController):
             tenant_id: int | None = Query(None, description="企业 ID"),
             start_date: date | None = Query(None, description="开始日期"),
             end_date: date | None = Query(None, description="结束日期"),
-            group_by: str | None = Query(None, description="分组维度: daily/model/user，缺省返回汇总"),
+            group_by: str | None = Query(
+                None, description="分组维度: daily/model/user，缺省返回汇总"
+            ),
         ):
             """
             获取调用统计信息 / Get call statistics
@@ -173,20 +175,24 @@ class AdminAICallLogController(GlobalController):
 
             rows = []
             for item in items:
-                row = item.to_dict() if hasattr(item, 'to_dict') else item
+                row = item.to_dict() if hasattr(item, "to_dict") else item
                 if isinstance(row, dict):
                     rows.append(row)
                 else:
-                    rows.append({
-                        "id": getattr(item, "id", ""),
-                        "tenant_id": getattr(item, "tenant_id", ""),
-                        "model_id": getattr(item, "model_id", ""),
-                        "status": getattr(item, "status", ""),
-                        "total_tokens": getattr(item, "total_tokens", ""),
-                        "cost": getattr(item, "cost", ""),
-                        "latency_ms": getattr(item, "latency_ms", ""),
-                        "created_at": getattr(item, "created_at", "").isoformat() if hasattr(getattr(item, "created_at", ""), "isoformat") else str(getattr(item, "created_at", "")),
-                    })
+                    rows.append(
+                        {
+                            "id": getattr(item, "id", ""),
+                            "tenant_id": getattr(item, "tenant_id", ""),
+                            "model_id": getattr(item, "model_id", ""),
+                            "status": getattr(item, "status", ""),
+                            "total_tokens": getattr(item, "total_tokens", ""),
+                            "cost": getattr(item, "cost", ""),
+                            "latency_ms": getattr(item, "latency_ms", ""),
+                            "created_at": getattr(item, "created_at", "").isoformat()
+                            if hasattr(getattr(item, "created_at", ""), "isoformat")
+                            else str(getattr(item, "created_at", "")),
+                        }
+                    )
 
             columns = [
                 {"field": "id", "header": "ID"},

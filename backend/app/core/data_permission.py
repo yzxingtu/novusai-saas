@@ -22,9 +22,9 @@ from app.enums.role import DataScope
 from app.models import Admin, TenantAdmin, TenantUser
 
 # 数据权限上下文（由 PermissionMiddleware 填充） / Data permission context (filled by PermissionMiddleware)
-data_permission_ctx: ContextVar[dict[str, Any]] = ContextVar(
+data_permission_ctx: ContextVar[dict[str, Any] | None] = ContextVar(
     "data_permission_ctx",
-    default={},
+    default=None,
 )
 
 
@@ -97,7 +97,9 @@ def enrich_create_data_with_data_permission(
         and hasattr(model, creator_field_name)
     ):
         enriched[creator_field_name] = ctx["current_user_id"]
-    creator_scope_field_name = getattr(model, "__data_permission_creator_scope_field__", None)
+    creator_scope_field_name = getattr(
+        model, "__data_permission_creator_scope_field__", None
+    )
     if (
         creator_scope_field_name
         and creator_scope_field_name not in enriched
@@ -196,7 +198,9 @@ class DataPermissionFilter:
         )
 
         if data_scope == DataScope.SELF_ONLY.value:
-            return cls._build_self_only_condition(model, resolved_user_id, active_ctx, seen)
+            return cls._build_self_only_condition(
+                model, resolved_user_id, active_ctx, seen
+            )
 
         effective_scope_org_ids = (
             active_ctx.get("effective_scope_org_ids")
@@ -215,7 +219,9 @@ class DataPermissionFilter:
         else:
             return false()
 
-        return cls._build_org_scope_condition(model, target_org_ids, active_ctx, resolved_user_id, seen)
+        return cls._build_org_scope_condition(
+            model, target_org_ids, active_ctx, resolved_user_id, seen
+        )
 
     @classmethod
     def _build_self_only_condition(
@@ -353,9 +359,9 @@ class DataPermissionFilter:
                 )
             return or_(*predicates) if predicates else None
 
-        creator_scope = getattr(model, "__data_permission_creator_scope__", None) or ctx.get(
-            "current_user_scope"
-        )
+        creator_scope = getattr(
+            model, "__data_permission_creator_scope__", None
+        ) or ctx.get("current_user_scope")
         creator_stmt = cls._build_creator_id_subquery(
             creator_scope=creator_scope,
             target_org_ids=target_org_ids,

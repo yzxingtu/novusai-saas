@@ -61,7 +61,9 @@ class ExecutionTrustPolicyService(
             )
             if row.tool_family:
                 tool_families.add(str(row.tool_family).strip())
-            if row.risk_level_cap and self._risk_rank(row.risk_level_cap) > self._risk_rank(risk_cap):
+            if row.risk_level_cap and self._risk_rank(
+                row.risk_level_cap
+            ) > self._risk_rank(risk_cap):
                 risk_cap = row.risk_level_cap
 
         return {
@@ -116,7 +118,9 @@ class ExecutionTrustPolicyService(
             }
             next_names.add(tool_name)
             existing.allowed_tool_names = sorted(next_names)
-            if self._risk_rank(risk_level_cap) > self._risk_rank(existing.risk_level_cap):
+            if self._risk_rank(risk_level_cap) > self._risk_rank(
+                existing.risk_level_cap
+            ):
                 existing.risk_level_cap = risk_level_cap
             existing.granted_by = granted_by
             existing.grant_reason = grant_reason or existing.grant_reason
@@ -157,8 +161,7 @@ class ExecutionTrustPolicyService(
             now=utc_now(),
         )
         return any(
-            getattr(row, "conversation_id", None) == conversation_id
-            for row in rows
+            getattr(row, "conversation_id", None) == conversation_id for row in rows
         )
 
     @staticmethod
@@ -190,7 +193,9 @@ class ExecutionTrustPolicyService(
         ):
             return ActionLevelEnum.READ.value
 
-        if normalized_name.startswith(("data_query", "data_read", "data_list", "data_search")):
+        if normalized_name.startswith(
+            ("data_query", "data_read", "data_list", "data_search")
+        ):
             return ActionLevelEnum.READ.value
 
         if normalized_name.startswith(("data_create", "data_update", "data_delete")):

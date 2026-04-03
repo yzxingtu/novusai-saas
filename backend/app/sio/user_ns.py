@@ -38,7 +38,9 @@ class UserNamespace(PageSessionMixin, socketio.AsyncNamespace):
     # sid → session backup, prevents inability to clean up presence when get_session fails / sid → session 备份，防止 get_session 失败时无法清理 presence
     _sid_sessions: dict[str, dict] = {}
 
-    async def on_connect(self, sid: str, environ: dict, auth: dict | None = None) -> None:
+    async def on_connect(
+        self, sid: str, environ: dict, auth: dict | None = None
+    ) -> None:
         """
         连接认证 / Connection authentication.
 
@@ -52,6 +54,7 @@ class UserNamespace(PageSessionMixin, socketio.AsyncNamespace):
             _ = environ
             # Check real-time communication master switch / 检查实时通信总开关
             from app.sio.ws_config import get_ws_configs
+
             ws_cfg = await get_ws_configs("ws_enabled", "ws_max_connections_per_user")
             if not ws_cfg.get("ws_enabled", True):
                 raise socket_connect_refusal("websocket_disabled")
@@ -65,7 +68,9 @@ class UserNamespace(PageSessionMixin, socketio.AsyncNamespace):
 
             try:
                 user_id_str, scope = await verify_token_with_scope(
-                    token, TOKEN_SCOPE_TENANT_USER, raise_on_expired=True,
+                    token,
+                    TOKEN_SCOPE_TENANT_USER,
+                    raise_on_expired=True,
                 )
             except TokenExpiredError as exc:
                 raise socket_connect_refusal("token_expired") from exc
@@ -77,13 +82,17 @@ class UserNamespace(PageSessionMixin, socketio.AsyncNamespace):
 
             # Connection rate limiting / 连接频率限制
             from app.sio.presence import check_connect_rate
+
             if not await check_connect_rate("tenant_user", user_id):
                 raise socket_connect_refusal("rate_limited")
 
             # Per-user max connection limit / 单用户最大连接数限制
             from app.sio.presence import PresenceManager
+
             max_conn = int(ws_cfg.get("ws_max_connections_per_user", 5))
-            current_conn = await PresenceManager.get_user_connection_count("tenant_user", user_id)
+            current_conn = await PresenceManager.get_user_connection_count(
+                "tenant_user", user_id
+            )
             if current_conn >= max_conn:
                 raise socket_connect_refusal("max_connections_exceeded")
 
@@ -124,20 +133,31 @@ class UserNamespace(PageSessionMixin, socketio.AsyncNamespace):
             await self.enter_room(sid, f"tenant:{tenant_id}")
 
             # Update online status / 更新在线状态
-            connections = await PresenceManager.set_online("tenant_user", user_id, tenant_id)
+            connections = await PresenceManager.set_online(
+                "tenant_user", user_id, tenant_id
+            )
 
             if connections == 1:
                 await self.emit(
                     "presence:online",
-                    {"user_id": user_id, "user_type": "tenant_user", "tenant_id": tenant_id},
+                    {
+                        "user_id": user_id,
+                        "user_type": "tenant_user",
+                        "tenant_id": tenant_id,
+                    },
                     room=f"tenant:{tenant_id}",
                     skip_sid=sid,
                 )
                 # Notify /tenant namespace so tenant admins see business user online / 通知 /tenant namespace，让企业管理员看到业务用户上线
                 from app.core.socketio_server import get_sio
+
                 await get_sio().emit(
                     "user_presence:online",
-                    {"user_id": user_id, "user_type": "tenant_user", "tenant_id": tenant_id},
+                    {
+                        "user_id": user_id,
+                        "user_type": "tenant_user",
+                        "tenant_id": tenant_id,
+                    },
                     room=f"tenant:{tenant_id}",
                     namespace="/tenant",
                 )
@@ -147,12 +167,18 @@ class UserNamespace(PageSessionMixin, socketio.AsyncNamespace):
 
             logger.info(
                 "SIO /user connected: sid={} user_id={} tenant_id={} username={} connections={}",
-                sid, user_id, tenant_id, username, connections,
+                sid,
+                user_id,
+                tenant_id,
+                username,
+                connections,
             )
         except SocketConnectionRefusedError:
             raise
         except Exception as exc:
-            logger.error("SIO /user connect failed: sid={} error={}", sid, exc, exc_info=True)
+            logger.error(
+                "SIO /user connect failed: sid={} error={}", sid, exc, exc_info=True
+            )
             raise socket_connect_refusal("connection_failed", exc=exc) from exc
         finally:
             trace_id_var.set("")
@@ -171,26 +197,40 @@ class UserNamespace(PageSessionMixin, socketio.AsyncNamespace):
             if user_id and tenant_id:
                 try:
                     from app.sio.presence import PresenceManager
-                    connections = await PresenceManager.set_offline("tenant_user", user_id, tenant_id)
+
+                    connections = await PresenceManager.set_offline(
+                        "tenant_user", user_id, tenant_id
+                    )
                     if connections == 0:
                         await self.emit(
                             "presence:offline",
-                            {"user_id": user_id, "user_type": "tenant_user", "tenant_id": tenant_id},
+                            {
+                                "user_id": user_id,
+                                "user_type": "tenant_user",
+                                "tenant_id": tenant_id,
+                            },
                             room=f"tenant:{tenant_id}",
                             skip_sid=sid,
                         )
                         # Notify /tenant namespace so tenant admins see business user offline / 通知 /tenant namespace，让企业管理员看到业务用户下线
                         from app.core.socketio_server import get_sio
+
                         await get_sio().emit(
                             "user_presence:offline",
-                            {"user_id": user_id, "user_type": "tenant_user", "tenant_id": tenant_id},
+                            {
+                                "user_id": user_id,
+                                "user_type": "tenant_user",
+                                "tenant_id": tenant_id,
+                            },
                             room=f"tenant:{tenant_id}",
                             namespace="/tenant",
                         )
                 except Exception as e:
                     logger.error(
                         "SIO /user presence cleanup failed: sid={} user_id={} error={}",
-                        sid, user_id, e,
+                        sid,
+                        user_id,
+                        e,
                     )
 
             # Clean up fallback mapping / 清理 fallback 映射
@@ -198,7 +238,10 @@ class UserNamespace(PageSessionMixin, socketio.AsyncNamespace):
 
             logger.info(
                 "SIO /user disconnected: sid={} user_id={} tenant_id={} reason={}",
-                sid, user_id, tenant_id, reason,
+                sid,
+                user_id,
+                tenant_id,
+                reason,
             )
         finally:
             trace_id_var.set("")

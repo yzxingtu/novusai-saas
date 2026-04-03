@@ -29,15 +29,15 @@ class AIQueryLogRepository(TenantRepository[AIQueryLog]):
         """
         stmt = select(
             func.count(AIQueryLog.id).label("total"),
-            func.sum(case(
-                (AIQueryLog.status == "success", 1), else_=0
-            )).label("success_count"),
-            func.sum(case(
-                (AIQueryLog.status == "failed", 1), else_=0
-            )).label("failed_count"),
-            func.sum(case(
-                (AIQueryLog.status == "rejected", 1), else_=0
-            )).label("rejected_count"),
+            func.sum(case((AIQueryLog.status == "success", 1), else_=0)).label(
+                "success_count"
+            ),
+            func.sum(case((AIQueryLog.status == "failed", 1), else_=0)).label(
+                "failed_count"
+            ),
+            func.sum(case((AIQueryLog.status == "rejected", 1), else_=0)).label(
+                "rejected_count"
+            ),
             func.avg(AIQueryLog.duration_ms).label("avg_duration_ms"),
             func.avg(AIQueryLog.row_count).label("avg_row_count"),
         ).where(

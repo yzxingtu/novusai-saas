@@ -22,7 +22,9 @@ class PluginReleaseManifest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    format: Literal["novus.plugin.release.v1"] = Field(default="novus.plugin.release.v1")
+    format: Literal["novus.plugin.release.v1"] = Field(
+        default="novus.plugin.release.v1"
+    )
     entry: str = Field(default="index.js")
     global_var: str
     css: list[str] = Field(default_factory=list)
@@ -76,8 +78,7 @@ def load_release_manifest(
         if strict:
             raise PluginManifestError(
                 message=(
-                    "Frontend release manifest missing: "
-                    f"frontend/dist/{manifest_rel}"
+                    f"Frontend release manifest missing: frontend/dist/{manifest_rel}"
                 ),
             )
         return None
@@ -104,7 +105,9 @@ def load_release_manifest(
     return release_manifest
 
 
-def validate_runtime_frontend_contract(plugin_root: Path, manifest: Any) -> dict[str, Any]:
+def validate_runtime_frontend_contract(
+    plugin_root: Path, manifest: Any
+) -> dict[str, Any]:
     """Validate plugin frontend contract according to current runtime mode.
     / 按当前运行模式校验插件前端契约。
     """
@@ -187,7 +190,9 @@ def get_release_styles(plugin_root: Path, manifest: Any) -> list[str]:
 
 
 def _get_frontend_decl(manifest: Any) -> dict[str, Any]:
-    if hasattr(manifest, "extensions") and getattr(manifest.extensions, "frontend", None):
+    if hasattr(manifest, "extensions") and getattr(
+        manifest.extensions, "frontend", None
+    ):
         frontend = manifest.extensions.frontend
         if hasattr(frontend, "model_dump"):
             return frontend.model_dump(exclude_none=True)
@@ -229,7 +234,7 @@ def _get_custom_ext_decl(manifest: Any) -> list[dict[str, Any]]:
 
 def _get_manifest_name(manifest: Any) -> str:
     if hasattr(manifest, "name"):
-        return str(getattr(manifest, "name") or "").strip()
+        return str(manifest.name or "").strip()
     if isinstance(manifest, dict):
         return str(manifest.get("name") or "").strip()
     return ""

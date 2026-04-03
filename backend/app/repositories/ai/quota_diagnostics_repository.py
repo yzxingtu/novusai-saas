@@ -28,9 +28,13 @@ class AIQuotaDiagnosticsRepository:
         self,
         spec: QuerySpec,
     ) -> tuple[list[TenantQuota], int]:
-        stmt = select(TenantQuota).where(TenantQuota.is_deleted.is_(False)).options(
-            selectinload(TenantQuota.model),
-            selectinload(TenantQuota.tenant),
+        stmt = (
+            select(TenantQuota)
+            .where(TenantQuota.is_deleted.is_(False))
+            .options(
+                selectinload(TenantQuota.model),
+                selectinload(TenantQuota.tenant),
+            )
         )
         count_stmt = select(func.count(TenantQuota.id)).where(
             TenantQuota.is_deleted.is_(False)
@@ -49,10 +53,12 @@ class AIQuotaDiagnosticsRepository:
         self,
         spec: QuerySpec,
     ) -> tuple[list[TenantModelRateLimit], int]:
-        stmt = select(TenantModelRateLimit).where(
-            TenantModelRateLimit.is_deleted.is_(False)
-        ).options(
-            selectinload(TenantModelRateLimit.model),
+        stmt = (
+            select(TenantModelRateLimit)
+            .where(TenantModelRateLimit.is_deleted.is_(False))
+            .options(
+                selectinload(TenantModelRateLimit.model),
+            )
         )
         count_stmt = select(func.count(TenantModelRateLimit.id)).where(
             TenantModelRateLimit.is_deleted.is_(False)
@@ -68,19 +74,27 @@ class AIQuotaDiagnosticsRepository:
         return list(items_result.scalars().all()), int(total_result.scalar() or 0)
 
     async def list_all_quota_rules(self) -> list[TenantQuota]:
-        stmt = select(TenantQuota).where(TenantQuota.is_deleted.is_(False)).options(
-            selectinload(TenantQuota.model),
-            selectinload(TenantQuota.tenant),
-        ).order_by(TenantQuota.created_at.desc())
+        stmt = (
+            select(TenantQuota)
+            .where(TenantQuota.is_deleted.is_(False))
+            .options(
+                selectinload(TenantQuota.model),
+                selectinload(TenantQuota.tenant),
+            )
+            .order_by(TenantQuota.created_at.desc())
+        )
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
     async def list_all_rate_limit_rules(self) -> list[TenantModelRateLimit]:
-        stmt = select(TenantModelRateLimit).where(
-            TenantModelRateLimit.is_deleted.is_(False)
-        ).options(
-            selectinload(TenantModelRateLimit.model),
-        ).order_by(TenantModelRateLimit.created_at.desc())
+        stmt = (
+            select(TenantModelRateLimit)
+            .where(TenantModelRateLimit.is_deleted.is_(False))
+            .options(
+                selectinload(TenantModelRateLimit.model),
+            )
+            .order_by(TenantModelRateLimit.created_at.desc())
+        )
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
@@ -93,7 +107,7 @@ class AIQuotaDiagnosticsRepository:
 
         stmt = select(Tenant.id, Tenant.name).where(Tenant.id.in_(tenant_ids))
         result = await self.db.execute(stmt)
-        return {tenant_id: name for tenant_id, name in result.all()}
+        return dict(result.all())
 
     def _apply_quota_filters(
         self,

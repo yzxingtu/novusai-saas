@@ -106,7 +106,9 @@ class AdminAttachmentRepository(BaseRepository[Attachment]):
             存储统计信息
         """
         total_size = await self.sum_size(tenant_id)
-        total_count = await self.count(tenant_id=tenant_id) if tenant_id else await self.count()
+        total_count = (
+            await self.count(tenant_id=tenant_id) if tenant_id else await self.count()
+        )
         return {
             "total_size": total_size,
             "total_count": total_count,

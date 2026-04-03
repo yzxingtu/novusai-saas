@@ -32,7 +32,9 @@ class AdminRoleResponse(BaseSchema):
     children_count: int = Field(0, description="子角色数量")
     has_children: bool = Field(False, description="是否有子角色")
     permissions_count: int = Field(0, description="权限数量")
-    type: str = Field(RoleType.ROLE.value, description="节点类型: department/position/role")
+    type: str = Field(
+        RoleType.ROLE.value, description="节点类型: department/position/role"
+    )
     allow_members: bool = Field(True, description="是否允许添加成员")
     leader_id: int | None = Field(None, description="负责人 ID")
     leader_name: str | None = Field(None, description="负责人名称")
@@ -52,13 +54,17 @@ class AdminRoleDetailResponse(AdminRoleResponse):
     """Platform admin role detail response / 平台管理员角色详情响应。"""
 
     permission_ids: list[int] = Field(default_factory=list, description="权限 ID 列表")
-    permission_codes: list[str] = Field(default_factory=list, description="权限代码列表")
+    permission_codes: list[str] = Field(
+        default_factory=list, description="权限代码列表"
+    )
 
 
 class AdminRoleTreeNode(AdminRoleResponse):
     """Platform admin role tree node / 平台管理员角色树节点。"""
 
-    children: list["AdminRoleTreeNode"] = Field(default_factory=list, description="子角色列表")
+    children: list[AdminRoleTreeNode] = Field(
+        default_factory=list, description="子角色列表"
+    )
 
 
 class AdminRoleCreateRequest(BaseSchema):
@@ -70,7 +76,9 @@ class AdminRoleCreateRequest(BaseSchema):
     sort_order: int = Field(0, description="排序")
     parent_id: int | None = Field(None, description="父角色 ID，None 表示顶级角色")
     permission_ids: list[int] = Field(default_factory=list, description="权限 ID 列表")
-    type: str = Field(RoleType.ROLE.value, description="节点类型: department/position/role")
+    type: str = Field(
+        RoleType.ROLE.value, description="节点类型: department/position/role"
+    )
     allow_members: bool = Field(True, description="是否允许添加成员")
     data_scope: str = Field(
         DataScope.SELF_ONLY.value,
@@ -113,7 +121,9 @@ class AdminRolePermissionsRequest(BaseSchema):
 class AdminRoleMoveRequest(BaseSchema):
     """Move platform admin role node request / 移动平台管理员角色节点请求。"""
 
-    new_parent_id: int | None = Field(None, description="新父角色 ID，None 表示移动到根级")
+    new_parent_id: int | None = Field(
+        None, description="新父角色 ID，None 表示移动到根级"
+    )
 
 
 class AdminRoleSetLeaderRequest(BaseSchema):

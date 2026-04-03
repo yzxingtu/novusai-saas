@@ -21,6 +21,7 @@ class StorageVisibility(StrEnum):
     """
     File Visibility Enum / 文件可见性枚举
     """
+
     PUBLIC = ("public", "enum.attachment_visibility.public")
     PRIVATE = ("private", "enum.attachment_visibility.private")
 
@@ -30,6 +31,7 @@ class StorageConfig:
     """
     Storage Config Object / 存储配置对象
     """
+
     driver: str
     root_path: str
     base_url: str | None = None
@@ -41,6 +43,7 @@ class UploadResult:
     """
     Upload Result Object / 上传结果对象
     """
+
     path: str
     url: str
     size: int
@@ -54,6 +57,7 @@ class FileInfo:
     """
     File Info Object / 文件信息对象
     """
+
     path: str
     size: int
     mime_type: str
@@ -78,10 +82,7 @@ def build_content_disposition(
         suffix = Path(safe_filename).suffix
         fallback = f"file{suffix}" if suffix else "file"
         encoded = quote(safe_filename, safe="")
-        return (
-            f'{disposition}; filename="{fallback}"; '
-            f"filename*=UTF-8''{encoded}"
-        )
+        return f"{disposition}; filename=\"{fallback}\"; filename*=UTF-8''{encoded}"
 
 
 class StorageDriver(StorageLoggerMixin):
@@ -91,6 +92,7 @@ class StorageDriver(StorageLoggerMixin):
     Provides self.logger via StorageLoggerMixin, logs to logs/storage.log.
     通过 StorageLoggerMixin 提供 self.logger 属性，日志记录到 logs/storage.log。
     """
+
     name: str = "base"
     display_name: str = "Base Storage"
     config_schema: dict | None = None

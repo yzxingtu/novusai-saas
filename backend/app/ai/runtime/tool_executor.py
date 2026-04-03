@@ -26,7 +26,9 @@ class ToolExecutor:
             if not isinstance(tool_call, dict):
                 continue
             function_block = tool_call.get("function") or {}
-            name = str(function_block.get("name") or tool_call.get("name") or "").strip()
+            name = str(
+                function_block.get("name") or tool_call.get("name") or ""
+            ).strip()
             if name:
                 return True
         return False

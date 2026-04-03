@@ -13,6 +13,7 @@ from fastapi import Body, HTTPException, Query, Request, status
 from fastapi.responses import Response, StreamingResponse
 from filelock import FileLock, Timeout
 
+from app.codegen.constants import CODEGEN_PROJECT_ROOT as _PROJECT_ROOT
 from app.codegen.manifest import ManifestManager
 from app.codegen.migration_helper import run_rollback_migration_cleanup
 from app.codegen.rollback import CodegenRollback
@@ -60,8 +61,6 @@ def _require_debug() -> None:
     if not settings.DEBUG:
         raise HTTPException(status_code=403, detail=_("codegen.debug_only"))
 
-
-from app.codegen.constants import CODEGEN_PROJECT_ROOT as _PROJECT_ROOT
 
 _LOCK_DIR = _PROJECT_ROOT / ".codegen_locks"
 
@@ -621,15 +620,12 @@ class AdminCodegenController(GlobalController):
             else:
                 raise HTTPException(400, _("codegen.need_config_id_or_json"))
 
-            resource = None
             if body.config_id is not None:
-                cfg = await service.get_by_id(body.config_id)
-                resource = cfg.resource if cfg else None
+                await service.get_by_id(body.config_id)
             elif body.config_json:
                 from app.codegen.config_parser import ConfigParser
 
-                parsed = ConfigParser().parse(body.config_json)
-                resource = parsed.resource
+                ConfigParser().parse(body.config_json)
 
             try:
                 lock = _codegen_global_lock()

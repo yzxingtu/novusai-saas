@@ -26,9 +26,7 @@ class TenantCapabilityAwarenessSettings:
         DEFAULT_DYNAMIC_CAPABILITY_AWARENESS_ENABLED
     )
     capability_description_style: str = DEFAULT_CAPABILITY_DESCRIPTION_STYLE
-    max_capability_items_per_category: int = (
-        DEFAULT_MAX_CAPABILITY_ITEMS_PER_CATEGORY
-    )
+    max_capability_items_per_category: int = DEFAULT_MAX_CAPABILITY_ITEMS_PER_CATEGORY
 
 
 def _coerce_bool(value: Any, *, default: bool) -> bool:

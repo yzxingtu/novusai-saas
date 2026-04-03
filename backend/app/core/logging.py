@@ -17,6 +17,7 @@ Each log automatically includes trace_id from TraceIdMiddleware's ContextVar.
 """
 
 import atexit
+import contextlib
 import logging
 import os
 import signal
@@ -25,13 +26,13 @@ from pathlib import Path
 
 from loguru import logger
 
+from app.core.config import settings
+from app.enums.log import LogCategoryEnum
+
 # Windows: 多进程共享同一日志文件时，Loguru 轮转会触发 os.rename，导致 PermissionError。
 # 在 Windows 上禁用轮转；Linux 生产环境保持按大小轮转。
 # Windows: Disable rotation to avoid PermissionError when multi-process shares same log file.
 _ROTATION = None if os.name == "nt" else "10 MB"
-
-from app.core.config import settings
-from app.enums.log import LogCategoryEnum
 
 # Log levels / 日志级别
 LOG_LEVELS = {
@@ -81,16 +82,15 @@ def _ignore_sigint_on_shutdown() -> None:
     First atexit callback: ignore SIGINT during shutdown to prevent Loguru
     file sink cleanup from being interrupted by KeyboardInterrupt.
     """
-    try:
+    with contextlib.suppress(ValueError, OSError):
         signal.signal(signal.SIGINT, signal.SIG_IGN)
-    except (ValueError, OSError):
-        pass  # 主线程外或不可用 / not in main thread or unavailable
 
 
 def _patch_trace_id(record: dict) -> None:
     """Inject trace_id into log record for request correlation / 注入 trace_id 用于请求关联"""
     try:
         from app.middleware.trace import trace_id_var
+
         record["extra"]["trace_id"] = trace_id_var.get() or ""
     except ImportError:
         record["extra"]["trace_id"] = ""
@@ -165,7 +165,11 @@ class LogManager:
                 if settings.LOG_QUIET_WEBSOCKET_HANDSHAKE:
                     msg = record["message"]
                     lg = record["extra"].get("log_logger") or ""
-                    if lg == "uvicorn.error" and "WebSocket" in msg and "[accepted]" in msg:
+                    if (
+                        lg == "uvicorn.error"
+                        and "WebSocket" in msg
+                        and "[accepted]" in msg
+                    ):
                         return False
                     # uvicorn 把 WebSocketServerProtocol 的 logger 设成 uvicorn.error，websockets 的
                     # "connection open" 因此走 uvicorn.error 而非 websockets.server
@@ -225,7 +229,13 @@ class LogManager:
 
         # SQLAlchemy 等标准 logging 重定向 / Redirect stdlib logging to Loguru
         logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
-        for _name in ("uvicorn", "uvicorn.error", "uvicorn.access", "httpx", "httpcore"):
+        for _name in (
+            "uvicorn",
+            "uvicorn.error",
+            "uvicorn.access",
+            "httpx",
+            "httpcore",
+        ):
             _lg = logging.getLogger(_name)
             _lg.handlers = [InterceptHandler()]
             _lg.propagate = False
@@ -407,6 +417,7 @@ def init_logging() -> None:
 # LoggerMixin - 日志器混入类
 # ============================================
 
+
 class LoggerMixin:
     """
     日志器混入类 / Logger mixin.
@@ -427,44 +438,49 @@ class LoggerMixin:
                     self._log_category
                 )
             else:
-                LoggerMixin.__class_loggers[cls] = logger.bind(
-                    module=cls.__name__
-                )
+                LoggerMixin.__class_loggers[cls] = logger.bind(module=cls.__name__)
         return LoggerMixin.__class_loggers[cls]
 
 
 class CaptchaLoggerMixin(LoggerMixin):
     """验证码模块日志器混入类 / Captcha logger mixin."""
+
     _log_category = LogCategoryEnum.CAPTCHA
 
 
 class StorageLoggerMixin(LoggerMixin):
     """存储模块日志器混入类 / Storage logger mixin."""
+
     _log_category = LogCategoryEnum.STORAGE
 
 
 class AuthLoggerMixin(LoggerMixin):
     """认证模块日志器混入类 / Auth logger mixin."""
+
     _log_category = LogCategoryEnum.AUTH
 
 
 class TaskLoggerMixin(LoggerMixin):
     """任务模块日志器混入类 / Task logger mixin."""
+
     _log_category = LogCategoryEnum.TASK
 
 
 class QueueLoggerMixin(LoggerMixin):
     """队列模块日志器混入类 / Queue logger mixin."""
+
     _log_category = LogCategoryEnum.QUEUE
 
 
 class DbLoggerMixin(LoggerMixin):
     """数据库模块日志器混入类 / DB logger mixin."""
+
     _log_category = LogCategoryEnum.DB
 
 
 class ImpersonateLoggerMixin(LoggerMixin):
     """一键登录审计日志器混入类 / Impersonate audit logger mixin."""
+
     _log_category = LogCategoryEnum.IMPERSONATE
 
 

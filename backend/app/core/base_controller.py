@@ -81,6 +81,7 @@ class BaseController:
 
             # 自动扫描并注册操作权限 / Auto-scan and register action permissions
             from app.rbac.decorators import register_action_permissions
+
             register_action_permissions(cls, cls._router)
         return cls._router
 

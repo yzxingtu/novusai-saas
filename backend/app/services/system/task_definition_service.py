@@ -116,7 +116,9 @@ class TaskDefinitionService(GlobalService[TaskDefinition, TaskDefinitionReposito
             )
         )
 
-    async def toggle_active(self, definition_id: int, is_enabled: bool) -> TaskDefinition:
+    async def toggle_active(
+        self, definition_id: int, is_enabled: bool
+    ) -> TaskDefinition:
         definition = await self.get_by_id(definition_id)
         if is_enabled:
             await self._ensure_plugin_task_available(definition)
@@ -173,7 +175,9 @@ class TaskDefinitionService(GlobalService[TaskDefinition, TaskDefinitionReposito
                 definition.id
             )
             if not active_bindings:
-                raise BusinessException(message=_("periodic_task.error.binding_required"))
+                raise BusinessException(
+                    message=_("periodic_task.error.binding_required")
+                )
             for binding in active_bindings:
                 result = celery_app.send_task(
                     TENANT_BINDING_WRAPPER,
@@ -226,8 +230,7 @@ class TaskDefinitionService(GlobalService[TaskDefinition, TaskDefinitionReposito
         if active_bindings:
             for binding in active_bindings:
                 binding_next_run = self._compute_next_run(
-                    binding.schedule_type_override
-                    or definition.default_schedule_type,
+                    binding.schedule_type_override or definition.default_schedule_type,
                     binding.cron_expression_override
                     or definition.default_cron_expression,
                     binding.interval_seconds_override
@@ -255,7 +258,9 @@ class TaskDefinitionService(GlobalService[TaskDefinition, TaskDefinitionReposito
         existing = await self.repo.get_by_code(code)
         if existing:
             raise BusinessException(
-                message=_("periodic_task.error.name_exists", name=data.get("name", code))
+                message=_(
+                    "periodic_task.error.name_exists", name=data.get("name", code)
+                )
             )
         self._validate_tenant_dispatch_scope(
             handler_path=handler_path,
@@ -280,9 +285,7 @@ class TaskDefinitionService(GlobalService[TaskDefinition, TaskDefinitionReposito
             allowed_fields = {"is_enabled", "last_run_at", "next_run_at"}
             non_allowed = set(data.keys()) - allowed_fields
             if non_allowed:
-                raise BusinessException(
-                    message=_("periodic_task.error.edit_locked")
-                )
+                raise BusinessException(message=_("periodic_task.error.edit_locked"))
 
     async def _before_delete(self, id: int) -> None:
         instance = await self.get_by_id(id)

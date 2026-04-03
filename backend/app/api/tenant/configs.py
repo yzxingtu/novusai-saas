@@ -76,7 +76,7 @@ def _mask_sensitive_options(options: dict) -> dict:
 
 
 async def _inject_role_options(
-    db: "AsyncSession",
+    db: AsyncSession,
     tenant_id: int,
     configs: list[dict],
 ) -> None:
@@ -106,7 +106,9 @@ async def _inject_role_options(
         for row in roles:
             rid, rname, rcode = row[0], row[1], row[2]
             label, _ = localized_tenant_user_role_name_and_description(
-                rcode, rname, None,
+                rcode,
+                rname,
+                None,
             )
             cfg["options"].append({"value": rid, "label": label})
         break
@@ -123,19 +125,23 @@ def _translate_config_item(config: dict) -> ConfigItemResponse:
             label = _(opt["label_key"])
         else:
             label = str(opt.get("value", ""))
-        translated_options.append({
-            "value": opt["value"],
-            "label": label,
-        })
+        translated_options.append(
+            {
+                "value": opt["value"],
+                "label": label,
+            }
+        )
 
     # 翻译验证规则消息 / Translate validation rule messages
     translated_rules = []
     for rule in config.get("validation_rules", []):
-        translated_rules.append({
-            "type": rule["type"],
-            "value": rule["value"],
-            "message": _(rule["message_key"]) if rule.get("message_key") else "",
-        })
+        translated_rules.append(
+            {
+                "type": rule["type"],
+                "value": rule["value"],
+                "message": _(rule["message_key"]) if rule.get("message_key") else "",
+            }
+        )
 
     # 转换显示规则 / Convert display rules
     display_rules = [
@@ -149,15 +155,14 @@ def _translate_config_item(config: dict) -> ConfigItemResponse:
     ]
 
     # 递归转换子字段 / Recursively convert child fields
-    children = [
-        _translate_config_item(child)
-        for child in config.get("children", [])
-    ]
+    children = [_translate_config_item(child) for child in config.get("children", [])]
 
     return ConfigItemResponse(
         key=config["key"],
         name=_(config["name_key"]),
-        description=_(config["description_key"]) if config.get("description_key") else None,
+        description=_(config["description_key"])
+        if config.get("description_key")
+        else None,
         value_type=config["value_type"],
         value=config["value"],
         default_value=config["default_value"],
@@ -225,18 +230,20 @@ class TenantConfigController(TenantController):
                     continue
 
                 # 计算可见配置项数量 / Calculate visible config item count
-                visible_count = sum(
-                    1 for c in group.configs if c.is_visible
-                )
+                visible_count = sum(1 for c in group.configs if c.is_visible)
 
-                result.append(ConfigGroupListResponse(
-                    code=group.code,
-                    name=_(group.name_key),
-                    description=_(group.description_key) if group.description_key else None,
-                    icon=group.icon,
-                    sort_order=group.sort_order,
-                    config_count=visible_count,
-                ))
+                result.append(
+                    ConfigGroupListResponse(
+                        code=group.code,
+                        name=_(group.name_key),
+                        description=_(group.description_key)
+                        if group.description_key
+                        else None,
+                        icon=group.icon,
+                        sort_order=group.sort_order,
+                        config_count=visible_count,
+                    )
+                )
 
             return success(
                 data=sorted(result, key=lambda x: x.sort_order),
@@ -285,7 +292,9 @@ class TenantConfigController(TenantController):
                 )
 
             # 动态注入角色选项 / Dynamically inject role options
-            await _inject_role_options(db, current_admin.tenant_id, target_group["configs"])
+            await _inject_role_options(
+                db, current_admin.tenant_id, target_group["configs"]
+            )
             inject_captcha_provider_options(
                 target_group["configs"],
                 required_endpoints={"tenant", "user"},
@@ -293,16 +302,15 @@ class TenantConfigController(TenantController):
             )
 
             # 转换响应 / Convert response
-            configs = [
-                _translate_config_item(c)
-                for c in target_group["configs"]
-            ]
+            configs = [_translate_config_item(c) for c in target_group["configs"]]
 
             return success(
                 data=ConfigGroupResponse(
                     code=target_group["code"],
                     name=_(target_group["name_key"]),
-                    description=_(target_group["description_key"]) if target_group.get("description_key") else None,
+                    description=_(target_group["description_key"])
+                    if target_group.get("description_key")
+                    else None,
                     icon=target_group.get("icon"),
                     sort_order=target_group["sort_order"],
                     configs=configs,
@@ -368,30 +376,34 @@ class TenantConfigController(TenantController):
 
             # 动态注入角色选项 / Dynamically inject role options
             if target_group:
-                await _inject_role_options(db, current_admin.tenant_id, target_group["configs"])
+                await _inject_role_options(
+                    db, current_admin.tenant_id, target_group["configs"]
+                )
                 inject_captcha_provider_options(
                     target_group["configs"],
                     required_endpoints={"tenant", "user"},
                     unavailable_label_key="config.tenant.captcha_provider.unavailable_option",
                 )
 
-            configs = [
-                _translate_config_item(c)
-                for c in target_group["configs"]
-            ] if target_group else []
+            configs = (
+                [_translate_config_item(c) for c in target_group["configs"]]
+                if target_group
+                else []
+            )
 
             return success(
                 data=ConfigGroupResponse(
                     code=group_code,
                     name=_(group.name_key),
-                    description=_(group.description_key) if group.description_key else None,
+                    description=_(group.description_key)
+                    if group.description_key
+                    else None,
                     icon=group.icon,
                     sort_order=group.sort_order,
                     configs=configs,
                 ),
                 message=_("config.updated"),
             )
-
 
         @router.get("/storage/status", summary="获取企业存储状态")
         @action_read("action.tenant_config.groups")
@@ -449,14 +461,18 @@ class TenantConfigController(TenantController):
             # 构建返回数据 / Build response data
             response_data: dict = {
                 "effective_mode": str(effective_mode),
-                "effective_driver": str(effective_driver) if effective_driver else "local",
+                "effective_driver": str(effective_driver)
+                if effective_driver
+                else "local",
                 "tenant_storage_mode": str(tenant_mode),
                 "can_self_config": bool(tenant_self_config_enabled),
             }
 
             if effective_mode == "admin_override":
                 # 管理员帮配模式：展示脱敏后的配置信息（企业只读） / Admin override mode: show masked config info (tenant read-only)
-                response_data["tenant_storage_driver"] = str(tenant_driver) if tenant_driver else None
+                response_data["tenant_storage_driver"] = (
+                    str(tenant_driver) if tenant_driver else None
+                )
                 response_data["tenant_storage_root_path"] = str(tenant_root_path)
                 response_data["tenant_storage_base_url"] = str(tenant_base_url)
                 response_data["tenant_storage_options"] = _mask_sensitive_options(
@@ -464,7 +480,9 @@ class TenantConfigController(TenantController):
                 )
             elif effective_mode == "custom":
                 # 自定义模式：返回企业自己填写的配置（密钥同样脱敏） / Custom mode: return tenant's own config (credentials also masked)
-                response_data["tenant_storage_driver"] = str(tenant_driver) if tenant_driver else None
+                response_data["tenant_storage_driver"] = (
+                    str(tenant_driver) if tenant_driver else None
+                )
                 response_data["tenant_storage_root_path"] = str(tenant_root_path)
                 response_data["tenant_storage_base_url"] = str(tenant_base_url)
                 response_data["tenant_storage_options"] = _mask_sensitive_options(
@@ -669,8 +687,7 @@ class TenantConfigController(TenantController):
             all_drivers = storage_manager.get_all_driver_info_list(known_plugin_drivers)
             # Filter to allowed + exclude local / 过滤白名单并排除 local
             filtered = [
-                d for d in all_drivers
-                if d["name"] in allowed and d["name"] != "local"
+                d for d in all_drivers if d["name"] in allowed and d["name"] != "local"
             ]
             return success(data=filtered)
 

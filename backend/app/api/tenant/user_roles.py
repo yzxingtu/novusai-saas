@@ -37,7 +37,9 @@ from app.services.tenant.tenant_user_role_service import TenantUserRoleService
 def _serialize_role(role) -> dict:
     """序列化角色信息 / Serialize role info"""
     disp_name, disp_desc = localized_tenant_user_role_name_and_description(
-        role.code, role.name, role.description,
+        role.code,
+        role.name,
+        role.description,
     )
     return {
         "id": role.id,
@@ -88,21 +90,27 @@ class TenantUserRoleController(TenantController):
         @router.get("", summary="获取用户角色列表")
         @action_read("action.tenant_user_role.list")
         async def list_roles(
-            request: Request, db: DbSession,
-            current_admin: ActiveTenantAdmin, query: QueryParams,
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveTenantAdmin,
+            query: QueryParams,
         ):
             service = TenantUserRoleService(db, current_admin.tenant_id)
             items, total = await service.query_list(spec=query)
             return paginated(
                 items=[_serialize_role(item) for item in items],
-                total=total, page=query.page, page_size=query.size,
+                total=total,
+                page=query.page,
+                page_size=query.size,
             )
 
         @router.get("/{role_id}", summary="获取用户角色详情")
         @action_read("action.tenant_user_role.detail")
         async def get_role(
-            request: Request, db: DbSession,
-            current_admin: ActiveTenantAdmin, role_id: int,
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveTenantAdmin,
+            role_id: int,
         ):
             service = TenantUserRoleService(db, current_admin.tenant_id)
             role = await service.get_by_id(role_id)
@@ -113,23 +121,29 @@ class TenantUserRoleController(TenantController):
         @router.post("", summary="创建用户角色")
         @action_create("action.tenant_user_role.create")
         async def create_role(
-            request: Request, db: DbSession,
+            request: Request,
+            db: DbSession,
             current_admin: ActiveTenantAdmin,
             data: TenantUserRoleCreateRequest,
         ):
             service = TenantUserRoleService(db, current_admin.tenant_id)
             role = await service.create_role(
-                name=data.name, code=data.code,
-                description=data.description, is_active=data.is_active,
-                sort_order=data.sort_order, permission_ids=data.permission_ids,
+                name=data.name,
+                code=data.code,
+                description=data.description,
+                is_active=data.is_active,
+                sort_order=data.sort_order,
+                permission_ids=data.permission_ids,
             )
             return created(data=_serialize_role(role))
 
         @router.put("/{role_id}", summary="更新用户角色")
         @action_update("action.tenant_user_role.update")
         async def update_role(
-            request: Request, db: DbSession,
-            current_admin: ActiveTenantAdmin, role_id: int,
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveTenantAdmin,
+            role_id: int,
             data: TenantUserRoleUpdateRequest,
         ):
             service = TenantUserRoleService(db, current_admin.tenant_id)
@@ -140,8 +154,10 @@ class TenantUserRoleController(TenantController):
         @router.delete("/{role_id}", summary="删除用户角色")
         @action_delete("action.tenant_user_role.delete")
         async def delete_role(
-            request: Request, db: DbSession,
-            current_admin: ActiveTenantAdmin, role_id: int,
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveTenantAdmin,
+            role_id: int,
         ):
             service = TenantUserRoleService(db, current_admin.tenant_id)
             await service.delete_role(role_id)
@@ -150,8 +166,10 @@ class TenantUserRoleController(TenantController):
         @router.put("/{role_id}/status", summary="切换角色状态")
         @action_update("action.tenant_user_role.toggle")
         async def toggle_role_status(
-            request: Request, db: DbSession,
-            current_admin: ActiveTenantAdmin, role_id: int,
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveTenantAdmin,
+            role_id: int,
             is_active: bool = Query(...),
         ):
             service = TenantUserRoleService(db, current_admin.tenant_id)
@@ -161,8 +179,10 @@ class TenantUserRoleController(TenantController):
         @router.put("/{role_id}/permissions", summary="分配角色权限")
         @action_update("action.tenant_user_role.assign_permissions")
         async def assign_permissions(
-            request: Request, db: DbSession,
-            current_admin: ActiveTenantAdmin, role_id: int,
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveTenantAdmin,
+            role_id: int,
             data: TenantUserRolePermissionsRequest,
         ):
             service = TenantUserRoleService(db, current_admin.tenant_id)

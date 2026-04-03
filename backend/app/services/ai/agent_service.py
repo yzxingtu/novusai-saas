@@ -85,13 +85,19 @@ def _normalize_agent_rag_config(raw: Any) -> dict[str, Any] | None:
 
     if "top_k" in raw and raw.get("top_k") is not None:
         top_k = raw.get("top_k")
-        if isinstance(top_k, bool) or not isinstance(top_k, int) or not (1 <= top_k <= 20):
+        if (
+            isinstance(top_k, bool)
+            or not isinstance(top_k, int)
+            or not (1 <= top_k <= 20)
+        ):
             _raise_invalid("top_k")
         normalized["top_k"] = top_k
 
     if "score_threshold" in raw and raw.get("score_threshold") is not None:
         score_threshold = raw.get("score_threshold")
-        if isinstance(score_threshold, bool) or not isinstance(score_threshold, (float, int)):
+        if isinstance(score_threshold, bool) or not isinstance(
+            score_threshold, (float, int)
+        ):
             _raise_invalid("score_threshold")
         score_threshold = float(score_threshold)
         if not (0.0 <= score_threshold <= 1.0):
@@ -106,7 +112,9 @@ def _normalize_agent_rag_config(raw: Any) -> dict[str, Any] | None:
 
     if "context_token_ratio" in raw and raw.get("context_token_ratio") is not None:
         context_token_ratio = raw.get("context_token_ratio")
-        if isinstance(context_token_ratio, bool) or not isinstance(context_token_ratio, (float, int)):
+        if isinstance(context_token_ratio, bool) or not isinstance(
+            context_token_ratio, (float, int)
+        ):
             _raise_invalid("context_token_ratio")
         context_token_ratio = float(context_token_ratio)
         if not (0.1 <= context_token_ratio <= 0.9):
@@ -171,7 +179,9 @@ async def _clear_cascaded_conversation_memories(
     total_deleted = 0
     for tenant_id, conversation_ids in grouped.items():
         try:
-            total_deleted += await SessionMemoryService(tenant_id).clear_conversation_memories(
+            total_deleted += await SessionMemoryService(
+                tenant_id
+            ).clear_conversation_memories(
                 conversation_ids,
             )
         except Exception as exc:
@@ -262,13 +272,15 @@ class AgentService(TenantService[Agent, AgentRepository]):
             if not skill or skill.is_deleted:
                 logger.warning(
                     "Skipping deleted skill {} during rollback for agent {}",
-                    skill_id, agent_id,
+                    skill_id,
+                    agent_id,
                 )
                 continue
 
             valid_items.append(item)
             default_consent_modes[str(skill_id)] = item.get(
-                "default_consent_mode", "auto",
+                "default_consent_mode",
+                "auto",
             )
 
         if not valid_items:
@@ -288,13 +300,18 @@ class AgentService(TenantService[Agent, AgentRepository]):
             if not grant:
                 continue
 
-            await grant_svc.update_grant(grant.id, {
-                "enabled": item.get("enabled", True),
-                "default_consent_mode": item.get("default_consent_mode", "auto"),
-                "capability_consent_overrides": item.get("capability_consent_overrides"),
-                "sort_order": item.get("sort_order", 0),
-                "config_override": item.get("config_override"),
-            })
+            await grant_svc.update_grant(
+                grant.id,
+                {
+                    "enabled": item.get("enabled", True),
+                    "default_consent_mode": item.get("default_consent_mode", "auto"),
+                    "capability_consent_overrides": item.get(
+                        "capability_consent_overrides"
+                    ),
+                    "sort_order": item.get("sort_order", 0),
+                    "config_override": item.get("config_override"),
+                },
+            )
 
     def _get_access_repo(self) -> AgentAccessRepository:
         """获取访问权限 Repository / Get access repository."""
@@ -376,11 +393,13 @@ class AgentService(TenantService[Agent, AgentRepository]):
             if existing:
                 await override_repo.update(existing.id, {"disabled": True})
             else:
-                await override_repo.create({
-                    "tenant_id": self.tenant_id,
-                    "agent_id": agent_id,
-                    "disabled": True,
-                })
+                await override_repo.create(
+                    {
+                        "tenant_id": self.tenant_id,
+                        "agent_id": agent_id,
+                        "disabled": True,
+                    }
+                )
         else:
             if existing:
                 await override_repo.delete(existing.id, soft=False)
@@ -392,6 +411,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         await super()._before_create(data)
 
         from app.ai.events.hooks import HookPoint, get_hook_registry
+
         hook_registry = get_hook_registry()
         if hook_registry.has_hooks(HookPoint.BEFORE_AGENT_CREATE):
             ctx = await hook_registry.trigger(
@@ -400,13 +420,19 @@ class AgentService(TenantService[Agent, AgentRepository]):
                 agent_data=data,
             )
             if ctx.get("blocked"):
-                raise BusinessException(message=ctx.get("block_reason", _("agent.error.blocked_by_hook")))
+                raise BusinessException(
+                    message=ctx.get("block_reason", _("agent.error.blocked_by_hook"))
+                )
             data.update(ctx.get("agent_data", data))
 
         data["owner_tenant_id"] = self.tenant_id
         for rejected in ("owner_type", "distribution_mode"):
             if rejected in data:
-                raise BusinessException(message=_("agent.error.rejected_legacy_field").format(field=rejected))
+                raise BusinessException(
+                    message=_("agent.error.rejected_legacy_field").format(
+                        field=rejected
+                    )
+                )
         data.pop("tenant_id", None)
         scope_val = data.get("scope") or ResourceScopeEnum.ALL_TENANTS.value
         if scope_val not in {e.value for e in ResourceScopeEnum}:
@@ -431,6 +457,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         """创建后：触发插件钩子 / After create: trigger plugin hooks."""
         await super()._after_create(instance)
         from app.ai.events.hooks import HookPoint, get_hook_registry
+
         hook_registry = get_hook_registry()
         if hook_registry.has_hooks(HookPoint.AFTER_AGENT_CREATE):
             await hook_registry.trigger(
@@ -445,6 +472,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         await super()._before_update(id, data)
 
         from app.ai.events.hooks import HookPoint, get_hook_registry
+
         hook_registry = get_hook_registry()
         if hook_registry.has_hooks(HookPoint.BEFORE_AGENT_UPDATE):
             ctx = await hook_registry.trigger(
@@ -454,7 +482,9 @@ class AgentService(TenantService[Agent, AgentRepository]):
                 updates=data,
             )
             if ctx.get("blocked"):
-                raise BusinessException(message=ctx.get("block_reason", _("agent.error.blocked_by_hook")))
+                raise BusinessException(
+                    message=ctx.get("block_reason", _("agent.error.blocked_by_hook"))
+                )
             data.update(ctx.get("updates", data))
 
         agent = await self.repo.get_by_id(id)
@@ -467,12 +497,18 @@ class AgentService(TenantService[Agent, AgentRepository]):
 
         for rejected in ("owner_type", "distribution_mode"):
             if rejected in data:
-                raise BusinessException(message=_("agent.error.rejected_legacy_field").format(field=rejected))
+                raise BusinessException(
+                    message=_("agent.error.rejected_legacy_field").format(
+                        field=rejected
+                    )
+                )
         data.pop("tenant_id", None)
         data.pop("owner_tenant_id", None)
-        if "scope" in data and data["scope"] is not None and data["scope"] not in {
-            e.value for e in ResourceScopeEnum
-        }:
+        if (
+            "scope" in data
+            and data["scope"] is not None
+            and data["scope"] not in {e.value for e in ResourceScopeEnum}
+        ):
             raise BusinessException(message=_("agent.error.invalid_scope"))
         if "rag_config" in data:
             data["rag_config"] = _normalize_agent_rag_config(data.get("rag_config"))
@@ -498,6 +534,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         """更新后：触发插件钩子 / After update: trigger plugin hooks."""
         await super()._after_update(instance)
         from app.ai.events.hooks import HookPoint, get_hook_registry
+
         hook_registry = get_hook_registry()
         if hook_registry.has_hooks(HookPoint.AFTER_AGENT_UPDATE):
             await hook_registry.trigger(
@@ -512,6 +549,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         await super()._before_delete(id)
 
         from app.ai.events.hooks import HookPoint, get_hook_registry
+
         hook_registry = get_hook_registry()
         if hook_registry.has_hooks(HookPoint.BEFORE_AGENT_DELETE):
             ctx = await hook_registry.trigger(
@@ -520,7 +558,9 @@ class AgentService(TenantService[Agent, AgentRepository]):
                 agent_id=id,
             )
             if ctx.get("blocked"):
-                raise BusinessException(message=ctx.get("block_reason", _("agent.error.blocked_by_hook")))
+                raise BusinessException(
+                    message=ctx.get("block_reason", _("agent.error.blocked_by_hook"))
+                )
 
         agent = await self.repo.get_by_id(id)
         if not agent:
@@ -537,7 +577,9 @@ class AgentService(TenantService[Agent, AgentRepository]):
             id,
         )
         # 级联软删除智能体的对话记录 / Cascade soft-delete agent conversations
-        await self.repo.cascade_soft_delete_conversations(id, self._default_delete_level)
+        await self.repo.cascade_soft_delete_conversations(
+            id, self._default_delete_level
+        )
         deleted_keys = await _clear_cascaded_conversation_memories(conversation_targets)
         if conversation_targets:
             logger.info(
@@ -551,6 +593,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         """删除后：触发插件钩子 / After delete: trigger plugin hooks."""
         await super()._after_delete(instance)
         from app.ai.events.hooks import HookPoint, get_hook_registry
+
         hook_registry = get_hook_registry()
         if hook_registry.has_hooks(HookPoint.AFTER_AGENT_DELETE):
             await hook_registry.trigger(
@@ -660,19 +703,26 @@ class AgentService(TenantService[Agent, AgentRepository]):
             version_data[field_name] = getattr(agent, field_name)
 
         # 快照包含技能绑定信息 / Snapshot includes skill bindings
-        version_data["skill_grant_snapshot"] = await self._snapshot_skill_grants(agent_id)
+        version_data["skill_grant_snapshot"] = await self._snapshot_skill_grants(
+            agent_id
+        )
 
         await version_repo.create(version_data)
 
         # 更新 Agent 状态
-        updated = await self.repo.update(agent_id, {
-            "status": AgentStatusEnum.PUBLISHED.value,
-            "published_version": new_version,
-        })
+        updated = await self.repo.update(
+            agent_id,
+            {
+                "status": AgentStatusEnum.PUBLISHED.value,
+                "published_version": new_version,
+            },
+        )
 
         logger.info(
             "Agent published: agent_id={} tenant_id={} version={}",
-            agent_id, self.tenant_id, new_version,
+            agent_id,
+            self.tenant_id,
+            new_version,
         )
 
         return updated
@@ -715,12 +765,15 @@ class AgentService(TenantService[Agent, AgentRepository]):
 
         # 恢复技能绑定 / Restore skill bindings
         await self._restore_skill_grants(
-            agent_id, version_record.skill_grant_snapshot,
+            agent_id,
+            version_record.skill_grant_snapshot,
         )
 
         logger.info(
             "Agent rolled back: agent_id={} tenant_id={} version={}",
-            agent_id, self.tenant_id, version,
+            agent_id,
+            self.tenant_id,
+            version,
         )
 
         return updated
@@ -814,7 +867,6 @@ class AgentService(TenantService[Agent, AgentRepository]):
             "changes": diff,
         }
 
-
     # ========================================
     # 访问权限管理 / Access control management
     # ========================================
@@ -838,8 +890,12 @@ class AgentService(TenantService[Agent, AgentRepository]):
 
         return {
             "agent_id": agent_id,
-            "admin_role_ids": getattr(access, "admin_role_ids", None) if access else None,
-            "tenant_role_ids": getattr(access, "tenant_role_ids", None) if access else None,
+            "admin_role_ids": getattr(access, "admin_role_ids", None)
+            if access
+            else None,
+            "tenant_role_ids": getattr(access, "tenant_role_ids", None)
+            if access
+            else None,
         }
 
     async def update_access_config(
@@ -874,7 +930,8 @@ class AgentService(TenantService[Agent, AgentRepository]):
 
         logger.info(
             "Agent access updated: agent_id={} tenant_id={}",
-            agent_id, self.tenant_id,
+            agent_id,
+            self.tenant_id,
         )
 
         return {
@@ -1036,7 +1093,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         self,
         user_id: int,
         user_role_id: int | None,
-        spec: "QuerySpec",
+        spec: QuerySpec,
     ) -> tuple[list[Agent], int]:
         """
         获取终端用户可访问的智能体列表 / List agents accessible to end user.
@@ -1106,7 +1163,9 @@ class AgentService(TenantService[Agent, AgentRepository]):
             "agent_owner_type": ("platform" if _own_tid is None else "tenant"),
             "agent_owner_tenant_id": _own_tid,
             "agent_resource_scope": getattr(agent, "scope", None),
-            "tenant_publication_id": getattr(publication, "id", None) if publication else None,
+            "tenant_publication_id": getattr(publication, "id", None)
+            if publication
+            else None,
             "publication_enabled_snapshot": (
                 bool(getattr(publication, "enabled_for_users", False))
                 if publication is not None
@@ -1192,7 +1251,11 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
         data["owner_tenant_id"] = None
         for rejected in ("owner_type", "distribution_mode"):
             if rejected in data:
-                raise BusinessException(message=_("agent.error.rejected_legacy_field").format(field=rejected))
+                raise BusinessException(
+                    message=_("agent.error.rejected_legacy_field").format(
+                        field=rejected
+                    )
+                )
         data.pop("tenant_id", None)
         data["scope"] = self._validate_resource_scope(data.get("scope"))
         data.pop("tenant_ids", None)
@@ -1240,7 +1303,11 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
 
         for rejected in ("owner_type", "distribution_mode"):
             if rejected in data:
-                raise BusinessException(message=_("agent.error.rejected_legacy_field").format(field=rejected))
+                raise BusinessException(
+                    message=_("agent.error.rejected_legacy_field").format(
+                        field=rejected
+                    )
+                )
         data.pop("tenant_id", None)
         data.pop("owner_tenant_id", None)
         if "scope" in data and data["scope"] is not None:
@@ -1290,7 +1357,9 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
             id,
         )
         # 级联软删除智能体的对话记录 / Cascade soft-delete agent conversations
-        await self.repo.cascade_soft_delete_conversations(id, self._default_delete_level)
+        await self.repo.cascade_soft_delete_conversations(
+            id, self._default_delete_level
+        )
         deleted_keys = await _clear_cascaded_conversation_memories(conversation_targets)
         if conversation_targets:
             logger.info(
@@ -1304,6 +1373,7 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
         from app.repositories.system.resource_tenant_assignment_repository import (
             ResourceTenantAssignmentRepository,
         )
+
         rta_repo = ResourceTenantAssignmentRepository(self.db)
         await rta_repo.delete_all_for_resource("agent", id)
 
@@ -1336,7 +1406,9 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
         access = await self._get_platform_access_repo().get_by_agent_id(agent_id)
         return {
             "agent_id": agent_id,
-            "admin_role_ids": getattr(access, "admin_role_ids", None) if access else None,
+            "admin_role_ids": getattr(access, "admin_role_ids", None)
+            if access
+            else None,
             "tenant_role_ids": None,
         }
 
@@ -1354,7 +1426,10 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
             raise BusinessException(message=_("agent.error.system_protected"))
 
         allowed = frozenset({"admin_role_ids", "tenant_role_ids"})
-        body = {"tenant_role_ids": None, **{k: v for k, v in patch.items() if k in allowed}}
+        body = {
+            "tenant_role_ids": None,
+            **{k: v for k, v in patch.items() if k in allowed},
+        }
         access = await self._get_platform_access_repo().upsert(agent_id, body)
         return {
             "agent_id": agent_id,
@@ -1416,12 +1491,9 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
             raise BusinessException(message=_("agent.error.system_protected"))
 
         # 状态机校验：disabled 只能从 published 转入
-        if (
-            status == AgentStatusEnum.DISABLED.value
-            and agent.status not in (
-                AgentStatusEnum.PUBLISHED.value,
-                AgentStatusEnum.DISABLED.value,
-            )
+        if status == AgentStatusEnum.DISABLED.value and agent.status not in (
+            AgentStatusEnum.PUBLISHED.value,
+            AgentStatusEnum.DISABLED.value,
         ):
             raise BusinessException(message=_("agent.error.invalid_status_transition"))
 
@@ -1429,7 +1501,8 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
 
         logger.info(
             "Agent admin status updated: agent_id={} status={}",
-            agent_id, status,
+            agent_id,
+            status,
         )
 
         return updated

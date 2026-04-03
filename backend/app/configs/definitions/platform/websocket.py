@@ -91,7 +91,9 @@ NOTIFICATION_RETENTION_DAYS = ConfigMeta(
     default_value=90,
     sort_order=110,
     display_rules=[
-        DisplayRule(field="notification_enabled", operator="equals", value=True, action="show"),
+        DisplayRule(
+            field="notification_enabled", operator="equals", value=True, action="show"
+        ),
     ],
 )
 
@@ -105,7 +107,9 @@ NOTIFICATION_MAX_PER_USER = ConfigMeta(
     default_value=500,
     sort_order=120,
     display_rules=[
-        DisplayRule(field="notification_enabled", operator="equals", value=True, action="show"),
+        DisplayRule(
+            field="notification_enabled", operator="equals", value=True, action="show"
+        ),
     ],
 )
 
@@ -131,7 +135,9 @@ WEBHOOK_URL = ConfigMeta(
     validation_rules=[max_length(500, "validation.max_length")],
     sort_order=140,
     display_rules=[
-        DisplayRule(field="webhook_enabled", operator="equals", value=True, action="show"),
+        DisplayRule(
+            field="webhook_enabled", operator="equals", value=True, action="show"
+        ),
     ],
 )
 

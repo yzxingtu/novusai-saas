@@ -32,12 +32,14 @@ async def get_tenant_presence(
     details = await PresenceManager.get_online_details("tenant_admin", tenant_id)
     online_ids = list(details.keys())
 
-    return success(data={
-        "online_ids": online_ids,
-        "total_online": len(online_ids),
-        "tenant_id": tenant_id,
-        "details": {str(k): v for k, v in details.items()},
-    })
+    return success(
+        data={
+            "online_ids": online_ids,
+            "total_online": len(online_ids),
+            "tenant_id": tenant_id,
+            "details": {str(k): v for k, v in details.items()},
+        }
+    )
 
 
 @router.get("/presence/users", summary="当前企业业务用户在线状态")
@@ -57,9 +59,11 @@ async def get_tenant_user_presence(
     details = await PresenceManager.get_online_details("tenant_user", tenant_id)
     online_ids = list(details.keys())
 
-    return success(data={
-        "online_ids": online_ids,
-        "total_online": len(online_ids),
-        "tenant_id": tenant_id,
-        "details": {str(k): v for k, v in details.items()},
-    })
+    return success(
+        data={
+            "online_ids": online_ids,
+            "total_online": len(online_ids),
+            "tenant_id": tenant_id,
+            "details": {str(k): v for k, v in details.items()},
+        }
+    )

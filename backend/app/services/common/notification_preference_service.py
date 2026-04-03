@@ -69,12 +69,14 @@ class NotificationPreferenceService:
         for cat in CATEGORIES:
             if cat in existing:
                 p = existing[cat]
-                prefs.append({
-                    "category": cat,
-                    "channel_ws": p.channel_ws,
-                    "channel_inbox": p.channel_inbox,
-                    "channel_email": p.channel_email,
-                })
+                prefs.append(
+                    {
+                        "category": cat,
+                        "channel_ws": p.channel_ws,
+                        "channel_inbox": p.channel_inbox,
+                        "channel_email": p.channel_email,
+                    }
+                )
             else:
                 prefs.append({"category": cat, **DEFAULT_PREF})
         return prefs
@@ -197,22 +199,26 @@ class NotificationPreferenceService:
         for cat in CATEGORIES:
             if cat in individual:
                 p = individual[cat]
-                prefs.append({
-                    "category": cat,
-                    "channel_ws": p.channel_ws,
-                    "channel_inbox": p.channel_inbox,
-                    "channel_email": p.channel_email,
-                    "is_custom": True,
-                })
+                prefs.append(
+                    {
+                        "category": cat,
+                        "channel_ws": p.channel_ws,
+                        "channel_inbox": p.channel_inbox,
+                        "channel_email": p.channel_email,
+                        "is_custom": True,
+                    }
+                )
             elif cat in global_map:
                 p = global_map[cat]
-                prefs.append({
-                    "category": cat,
-                    "channel_ws": p.channel_ws,
-                    "channel_inbox": p.channel_inbox,
-                    "channel_email": p.channel_email,
-                    "is_custom": False,
-                })
+                prefs.append(
+                    {
+                        "category": cat,
+                        "channel_ws": p.channel_ws,
+                        "channel_inbox": p.channel_inbox,
+                        "channel_email": p.channel_email,
+                        "is_custom": False,
+                    }
+                )
             else:
                 prefs.append({"category": cat, **DEFAULT_PREF, "is_custom": False})
 

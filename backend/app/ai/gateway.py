@@ -164,9 +164,7 @@ class AIGateway:
         if not tools:
             return
         tool_names = {
-            (
-                tool.get("function", {}) or {}
-            ).get("name", "")
+            (tool.get("function", {}) or {}).get("name", "")
             for tool in tools
             if isinstance(tool, dict)
         }
@@ -277,7 +275,7 @@ class AIGateway:
         routed_model_id: int | None = None,
         route_reason: str | None = None,
         call_type: str = CallTypeEnum.MAIN_CHAT.value,
-        **kwargs
+        **kwargs,
     ) -> ChatResponse:
         """
         Chat conversation (unified interface, full call chain).
@@ -373,14 +371,24 @@ class AIGateway:
             agent_id=agent_id,
         )
         try:
-            response, retry_count, used_api_key = await self.retry_service.execute_with_retry(
+            (
+                response,
+                retry_count,
+                used_api_key,
+            ) = await self.retry_service.execute_with_retry(
                 provider=provider,
                 api_key=api_key,
                 model=model,
                 call_fn=lambda adapter: adapter.chat(
-                    messages=messages, model=model, temperature=temperature,
-                    max_tokens=max_tokens, top_p=top_p, stream=stream,
-                    tools=tools, tool_choice=tool_choice, **kwargs,
+                    messages=messages,
+                    model=model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    top_p=top_p,
+                    stream=stream,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    **kwargs,
                 ),
                 tenant_id=tenant_id,
                 adapter_extra={
@@ -433,22 +441,32 @@ class AIGateway:
 
             logger.info(
                 "Fallback attempt: original_model={} fallback_model={}",
-                model, fallback_model.code,
+                model,
+                fallback_model.code,
             )
 
             try:
                 fb_provider, fb_api_key = await self.get_provider_and_key(
                     fallback_model.provider.code, tenant_id
                 )
-                response, retry_count, used_api_key = await self.retry_service.execute_with_retry(
+                (
+                    response,
+                    retry_count,
+                    used_api_key,
+                ) = await self.retry_service.execute_with_retry(
                     provider=fb_provider,
                     api_key=fb_api_key,
                     model=fallback_model.code,
                     call_fn=lambda adapter: adapter.chat(
-                        messages=messages, model=fallback_model.code,
-                        temperature=temperature, max_tokens=max_tokens,
-                        top_p=top_p, stream=stream, tools=tools,
-                        tool_choice=tool_choice, **kwargs,
+                        messages=messages,
+                        model=fallback_model.code,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        top_p=top_p,
+                        stream=stream,
+                        tools=tools,
+                        tool_choice=tool_choice,
+                        **kwargs,
                     ),
                     tenant_id=tenant_id,
                     adapter_extra={
@@ -525,7 +543,11 @@ class AIGateway:
         output_tokens = usage.output_tokens
         total_tokens = usage.total_tokens
 
-        cost = CostCalculator.calculate_cost(ai_model, input_tokens, output_tokens) if ai_model else 0
+        cost = (
+            CostCalculator.calculate_cost(ai_model, input_tokens, output_tokens)
+            if ai_model
+            else 0
+        )
         self._attach_runtime_metadata(response, provider=provider, ai_model=ai_model)
         response.metadata["usage_mode"] = usage.usage_mode
 
@@ -634,7 +656,7 @@ class AIGateway:
         routed_model_id: int | None = None,
         route_reason: str | None = None,
         call_type: str = CallTypeEnum.MAIN_CHAT.value,
-        **kwargs
+        **kwargs,
     ) -> StreamingResponse:
         """
         Chat conversation (streaming interface, returns SSE).
@@ -722,7 +744,8 @@ class AIGateway:
                         # Call adapter streaming interface / 调用适配器流式接口
                         logger.info(
                             "Gateway stream call: provider={} model={}",
-                            provider_code, model,
+                            provider_code,
+                            model,
                         )
 
                         async for chunk in adapter.stream_chat(
@@ -741,7 +764,9 @@ class AIGateway:
                         if attempt > 0:
                             logger.info(
                                 "Stream retry succeeded: provider={} model={} attempt={}",
-                                provider_code, model, attempt,
+                                provider_code,
+                                model,
+                                attempt,
                             )
 
                         # Update outer api_key reference / 更新外层 api_key 引用
@@ -753,7 +778,10 @@ class AIGateway:
                         if not is_retryable(e):
                             logger.error(
                                 "Non-retryable error: provider={} model={} error_code={} error={}",
-                                provider_code, model, e.error_code, str(e),
+                                provider_code,
+                                model,
+                                e.error_code,
+                                str(e),
                             )
                             raise
 
@@ -761,18 +789,26 @@ class AIGateway:
                         if attempt >= MAX_RETRIES:
                             logger.error(
                                 "Max retries exhausted: provider={} model={} attempts={} error={}",
-                                provider_code, model, attempt + 1, str(e),
+                                provider_code,
+                                model,
+                                attempt + 1,
+                                str(e),
                             )
                             raise
 
                         # Calculate backoff delay / 计算退避延迟
-                        delay = RETRY_BASE_DELAY * (RETRY_MULTIPLIER ** attempt)
+                        delay = RETRY_BASE_DELAY * (RETRY_MULTIPLIER**attempt)
                         if e.retry_after and e.retry_after > delay:
                             delay = float(e.retry_after)
 
                         logger.warning(
                             "Retrying after error: provider={} model={} attempt={} delay={}s error_code={} error={}",
-                            provider_code, model, attempt, delay, e.error_code, str(e),
+                            provider_code,
+                            model,
+                            attempt,
+                            delay,
+                            e.error_code,
+                            str(e),
                         )
 
                         # Try switching API Key / 尝试切换 API Key
@@ -784,7 +820,9 @@ class AIGateway:
                         if next_key:
                             logger.info(
                                 "Switching API key: provider={} old_key={} new_key={}",
-                                provider_code, current_key.id, next_key.id,
+                                provider_code,
+                                current_key.id,
+                                next_key.id,
                             )
                             current_key = next_key
 
@@ -834,7 +872,8 @@ class AIGateway:
 
                 logger.info(
                     "Fallback attempt: original_model={} fallback_model={}",
-                    model, fallback_model.code,
+                    model,
+                    fallback_model.code,
                 )
 
                 try:
@@ -985,7 +1024,7 @@ class AIGateway:
         user_type: str | None = None,
         billing_context: dict | None = None,
         call_type: str = CallTypeEnum.MAIN_CHAT.value,
-        **kwargs
+        **kwargs,
     ) -> EmbeddingResponse:
         """
         Text embedding (unified interface, full call chain).
@@ -1041,12 +1080,18 @@ class AIGateway:
             )
 
         # 3. Call adapter (with exponential backoff retry + API Key rotation) / 调用适配器（含指数退避重试 + API Key 轮换）
-        response, _retry_count, used_api_key = await self.retry_service.execute_with_retry(
+        (
+            response,
+            _retry_count,
+            used_api_key,
+        ) = await self.retry_service.execute_with_retry(
             provider=provider,
             api_key=api_key,
             model=model,
             call_fn=lambda adapter: adapter.embedding(
-                texts=texts, model=model, **kwargs,
+                texts=texts,
+                model=model,
+                **kwargs,
             ),
             tenant_id=tenant_id,
             log_key="ai.log.gateway_embedding_call",
@@ -1059,7 +1104,9 @@ class AIGateway:
         input_tokens = response.input_tokens or 0
         total_tokens = response.total_tokens or input_tokens
 
-        cost = CostCalculator.calculate_cost(ai_model, input_tokens, 0) if ai_model else 0
+        cost = (
+            CostCalculator.calculate_cost(ai_model, input_tokens, 0) if ai_model else 0
+        )
 
         if should_meter_usage:
             assert tenant_id is not None
@@ -1188,17 +1235,29 @@ class AIGateway:
         if should_meter_usage:
             estimated_input = 1000 * n
             metering_context = await self.usage_recorder.check_rate_and_quota(
-                tenant_id, model_id, ai_model, estimated_input,
+                tenant_id,
+                model_id,
+                ai_model,
+                estimated_input,
             )
 
         # Call adapter (with retry) / 调用适配器（含重试）
-        response, _retry_count, used_api_key = await self.retry_service.execute_with_retry(
+        (
+            response,
+            _retry_count,
+            used_api_key,
+        ) = await self.retry_service.execute_with_retry(
             provider=provider,
             api_key=api_key,
             model=model,
             call_fn=lambda adapter: adapter.generate_image(
-                prompt=prompt, model=model, size=size,
-                quality=quality, style=style, n=n, **kwargs,
+                prompt=prompt,
+                model=model,
+                size=size,
+                quality=quality,
+                style=style,
+                n=n,
+                **kwargs,
             ),
             tenant_id=tenant_id,
             log_key="ai.log.gateway_image_call",
@@ -1213,9 +1272,15 @@ class AIGateway:
         output_tokens = 0
         total_tokens = input_tokens
 
-        cost = CostCalculator.calculate_cost(
-            ai_model, input_tokens, output_tokens,
-        ) if ai_model else 0
+        cost = (
+            CostCalculator.calculate_cost(
+                ai_model,
+                input_tokens,
+                output_tokens,
+            )
+            if ai_model
+            else 0
+        )
 
         if should_meter_usage:
             assert tenant_id is not None
@@ -1344,7 +1409,9 @@ class AIGateway:
                 provider.id,
                 model_code,
                 provider.base_url or "",
-                (provider.config or {}).get("wire_api", "chat_completions") if isinstance(provider.config, dict) else "chat_completions",
+                (provider.config or {}).get("wire_api", "chat_completions")
+                if isinstance(provider.config, dict)
+                else "chat_completions",
                 api_key.id,
                 stream,
             )
@@ -1435,7 +1502,12 @@ class AIGateway:
 
         except Exception as e:
             latency_ms = int((time.time() - start_time) * 1000)
-            logger.error("Model test failed: provider={} model={} error={}", provider.code, model_code, str(e))
+            logger.error(
+                "Model test failed: provider={} model={} error={}",
+                provider.code,
+                model_code,
+                str(e),
+            )
 
             return TestModelResult(
                 connected=False,
@@ -1500,7 +1572,10 @@ class AIGateway:
         Returns:
             AIModel instance, or None if not found / AIModel 实例，如果不存在则返回 None
         """
-        return await self.model_repo.get_active_by_name_and_provider(model_name, provider_id)
+        return await self.model_repo.get_active_by_name_and_provider(
+            model_name, provider_id
+        )
+
 
 __all__ = [
     "AIGateway",

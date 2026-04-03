@@ -85,12 +85,14 @@ def parse_query_spec(request: Request) -> QuerySpec:
                 value = parts[0].strip()
                 value2 = parts[1].strip() if len(parts) > 1 else None
 
-            filters.append(FilterRule(
-                field=field,
-                op=op,
-                value=value,
-                value2=value2,
-            ))
+            filters.append(
+                FilterRule(
+                    field=field,
+                    op=op,
+                    value=value,
+                    value2=value2,
+                )
+            )
             continue
 
         # 解析 sort 参数

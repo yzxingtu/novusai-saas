@@ -79,11 +79,14 @@ class NotificationService:
         # 检查通知系统总开关 / Check notification master switch
         try:
             from app.sio.ws_config import get_ws_config
+
             notification_enabled = await get_ws_config("notification_enabled")
             if not notification_enabled:
                 return 0
         except Exception:
-            logger.debug("Failed to check notification master switch, proceeding anyway")
+            logger.debug(
+                "Failed to check notification master switch, proceeding anyway"
+            )
 
         # 查询模板 / Query template
         template = await self._get_template(template_code)
@@ -93,7 +96,11 @@ class NotificationService:
 
         # 渲染标题和正文 / Render title and body
         title = self._render_template(template.title_template, data)
-        body = self._render_template(template.body_template, data) if template.body_template else None
+        body = (
+            self._render_template(template.body_template, data)
+            if template.body_template
+            else None
+        )
         template_channels = template.channels or ["ws", "inbox"]
 
         # force_all_channels 模式：绕过偏好和渠道开关（用于测试发送）
@@ -112,7 +119,9 @@ class NotificationService:
             # 查询用户偏好（force 模式跳过）
             if not force:
                 pref = await self._get_preference(
-                    user_type, user_id, template.category,
+                    user_type,
+                    user_id,
+                    template.category,
                     tenant_id=tenant_id or PLATFORM_TENANT_ID,
                 )
             else:
@@ -160,7 +169,9 @@ class NotificationService:
 
         logger.info(
             "Notification sent: template={} recipients={} sent={}",
-            template_code, len(recipients), sent,
+            template_code,
+            len(recipients),
+            sent,
         )
         return sent
 
@@ -359,6 +370,7 @@ class NotificationService:
         """
         try:
             from app.sio.ws_config import get_ws_config
+
             max_per_user = await get_ws_config("notification_max_per_user")
             if not max_per_user:
                 return
@@ -399,7 +411,9 @@ class NotificationService:
                 )
                 logger.info(
                     "Notification overflow cleanup: type={} user_id={} deleted={}",
-                    recipient_type, recipient_id, len(oldest_ids),
+                    recipient_type,
+                    recipient_id,
+                    len(oldest_ids),
                 )
         except Exception as e:
             logger.warning("_enforce_max_per_user failed: {}", str(e))
@@ -420,6 +434,7 @@ class NotificationService:
 # ============================================
 # 便捷函数 / Convenience functions
 # ============================================
+
 
 async def notify(
     db,
@@ -491,6 +506,7 @@ def notify_sync(
         loop = asyncio.get_event_loop()
         if loop.is_running():
             import concurrent.futures
+
             ctx = contextvars.copy_context()
 
             def _run_in_thread() -> int:

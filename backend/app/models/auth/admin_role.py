@@ -18,8 +18,18 @@ from app.enums.role import DataScope, RoleType
 admin_role_permissions = Table(
     "admin_role_permissions",
     Base.metadata,
-    Column("role_id", Integer, ForeignKey("admin_roles.id", ondelete="CASCADE"), primary_key=True),
-    Column("permission_id", Integer, ForeignKey("permissions.id", ondelete="CASCADE"), primary_key=True),
+    Column(
+        "role_id",
+        Integer,
+        ForeignKey("admin_roles.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "permission_id",
+        Integer,
+        ForeignKey("permissions.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
 )
 
 
@@ -43,10 +53,20 @@ class AdminRole(BaseModel):
     }
 
     __delete_deps__ = [
-        DeletionDep("Admin", "role_id", DeletionStrategy.BLOCK,
-                    label_field="username", i18n_key="admin"),
-        DeletionDep("AdminRole", "parent_id", DeletionStrategy.BLOCK,
-                    label_field="name", i18n_key="admin_role"),
+        DeletionDep(
+            "Admin",
+            "role_id",
+            DeletionStrategy.BLOCK,
+            label_field="username",
+            i18n_key="admin",
+        ),
+        DeletionDep(
+            "AdminRole",
+            "parent_id",
+            DeletionStrategy.BLOCK,
+            label_field="name",
+            i18n_key="admin_role",
+        ),
     ]
 
     # 可过滤字段声明 / Declares filterable fields
@@ -82,39 +102,51 @@ class AdminRole(BaseModel):
 
     # 排序配置 / Sort order config
     __sortable__ = {
-        "field": "sort_order",      # 排序字段名 / Sort field name
-        "step": 1000,               # 排序步长 / Sort step
+        "field": "sort_order",  # 排序字段名 / Sort field name
+        "step": 1000,  # 排序步长 / Sort step
         "scope_fields": ["parent_id"],  # 同级兄弟节点内排序 / Sibling sort scope
     }
 
     # 角色名称 / Display name
     name: Mapped[str] = mapped_column(
-        String(50), comment="角色名称 / Role display name",
+        String(50),
+        comment="角色名称 / Role display name",
     )
 
     # 角色代码（唯一标识） / Role code (unique)
     code: Mapped[str] = mapped_column(
-        String(50), unique=True, index=True, comment="角色代码 / Role code",
+        String(50),
+        unique=True,
+        index=True,
+        comment="角色代码 / Role code",
     )
 
     # 角色描述 / Description
     description: Mapped[str | None] = mapped_column(
-        Text, nullable=True, comment="角色描述 / Description",
+        Text,
+        nullable=True,
+        comment="角色描述 / Description",
     )
 
     # 是否系统内置（内置角色不可删除） / System role (non-deletable)
     is_system: Mapped[bool] = mapped_column(
-        Boolean, default=False, comment="是否系统内置 / System-defined role",
+        Boolean,
+        default=False,
+        comment="是否系统内置 / System-defined role",
     )
 
     # 是否启用 / Active flag
     is_active: Mapped[bool] = mapped_column(
-        Boolean, default=True, comment="是否启用 / Active",
+        Boolean,
+        default=True,
+        comment="是否启用 / Active",
     )
 
     # 排序 / Sort order
     sort_order: Mapped[int] = mapped_column(
-        Integer, default=0, comment="排序 / Sort order",
+        Integer,
+        default=0,
+        comment="排序 / Sort order",
     )
 
     # ========== 层级结构字段 ========== / Hierarchy fields
@@ -283,9 +315,10 @@ class AdminRole(BaseModel):
         if not self.path:
             return []
         # path 格式为 /1/3/7/，解析出 [1, 3, 7] / Parse path segments
-        parts = [p for p in self.path.strip('/').split('/') if p]
+        parts = [p for p in self.path.strip("/").split("/") if p]
         # 排除自身 ID / Exclude self id
         return [int(p) for p in parts if int(p) != self.id]
+
 
 if TYPE_CHECKING:
     from app.models.auth.permission import Permission

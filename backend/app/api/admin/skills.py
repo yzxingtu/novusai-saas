@@ -94,6 +94,7 @@ class AdminSkillController(GlobalController):
             获取所有可用的技能类型（内置 + 插件注册）/ Get all available skill types (built-in + plugin).
             """
             from app.enums.agent import get_skill_type_options
+
             return success(data=get_skill_type_options())
 
         @router.get("/select", summary="技能绑定选择器（分页检索）")
@@ -103,7 +104,9 @@ class AdminSkillController(GlobalController):
             db: DbSession,
             admin: ActiveAdmin,
             search: str = Query("", description=_("api.param.search")),
-            package_id: int | None = Query(None, description="Filter by skill package id"),
+            package_id: int | None = Query(
+                None, description="Filter by skill package id"
+            ),
             page: int = Query(1, ge=1, description="Page number"),
             page_size: int = Query(20, ge=1, le=100, description="Page size"),
             include_system: bool = Query(True, description="Include system skills"),
@@ -271,6 +274,7 @@ class AdminSkillController(GlobalController):
                 raise NotFoundException(message=_("skill.error.not_found"))
 
             from app.api.admin._skill_stats import get_skill_stats_by_id
+
             stats = await get_skill_stats_by_id(db, skill_id)
             return success(data=stats)
 
@@ -285,6 +289,7 @@ class AdminSkillController(GlobalController):
             获取所有技能的汇总统计（调用次数、成功率、平均耗时）/ Get aggregated stats for all skills (call count, success rate, avg duration).
             """
             from app.api.admin._skill_stats import get_all_skills_stats
+
             stats = await get_all_skills_stats(db)
             return success(data=stats)
 
@@ -312,27 +317,32 @@ class AdminSkillController(GlobalController):
             # 尝试通过 SkillResolver 解析出工具定义 / Try resolving tool definitions via SkillResolver
             try:
                 from app.ai.skills.resolver import SkillResolver
+
                 resolver = SkillResolver(db=db)
                 resolve_result = await resolver.resolve([skill])
                 for td in resolve_result.tools:
-                    tools_data.append({
-                        "name": td.name,
-                        "description": td.description,
-                        "tool_type": td.tool_type,
-                        "parameters": [
-                            {
-                                "name": p.name,
-                                "type": p.type,
-                                "description": p.description,
-                                "required": p.required,
-                            }
-                            for p in (td.parameters or [])
-                        ],
-                        "source_skill_id": td.source_skill_id,
-                        "source_plugin": td.source_plugin,
-                    })
+                    tools_data.append(
+                        {
+                            "name": td.name,
+                            "description": td.description,
+                            "tool_type": td.tool_type,
+                            "parameters": [
+                                {
+                                    "name": p.name,
+                                    "type": p.type,
+                                    "description": p.description,
+                                    "required": p.required,
+                                }
+                                for p in (td.parameters or [])
+                            ],
+                            "source_skill_id": td.source_skill_id,
+                            "source_plugin": td.source_plugin,
+                        }
+                    )
             except Exception as exc:
-                logger.warning("Failed to resolve tools for skill {}: {}", skill_id, exc)
+                logger.warning(
+                    "Failed to resolve tools for skill {}: {}", skill_id, exc
+                )
 
             return success(data=tools_data)
 
@@ -353,6 +363,7 @@ class AdminSkillController(GlobalController):
                 raise NotFoundException(message=_("skill.error.not_found"))
 
             from app.api.admin._skill_test import test_skill
+
             result = await test_skill(db, skill)
             return success(data=result)
 
@@ -404,6 +415,7 @@ class AdminSkillController(GlobalController):
                 raise NotFoundException(message=_("skill.error.not_found"))
 
             from app.api.admin._skill_io import export_skills
+
             data = export_skills(skills)
             return success(data=data)
 
@@ -426,8 +438,13 @@ class AdminSkillController(GlobalController):
             package_id: 导入到指定技能包 / Import to specified skill package
             """
             from app.api.admin._skill_io import import_skills
+
             result = await import_skills(
-                db, items, tenant_id, conflict_mode, package_id=package_id,
+                db,
+                items,
+                tenant_id,
+                conflict_mode,
+                package_id=package_id,
             )
             await db.commit()
             return success(data=result)
@@ -459,39 +476,45 @@ class AdminSkillController(GlobalController):
 
             errors = validate_toolkit_source(source)
             if errors:
-                return success(data={"tools": [], "valves_schema": {}, "errors": errors})
+                return success(
+                    data={"tools": [], "valves_schema": {}, "errors": errors}
+                )
 
             try:
                 meta = parse_toolkit(source)
-                return success(data={
-                    "title": meta.title,
-                    "description": meta.description,
-                    "version": meta.version,
-                    "author": meta.author,
-                    "requirements": meta.requirements,
-                    "tools": [
-                        {
-                            "name": t.name,
-                            "description": t.description,
-                            "parameters": t.parameters,
-                            "is_async": t.is_async,
-                        }
-                        for t in meta.tools
-                    ],
-                    "valves_schema": meta.valves_schema,
-                    "errors": [],
-                })
+                return success(
+                    data={
+                        "title": meta.title,
+                        "description": meta.description,
+                        "version": meta.version,
+                        "author": meta.author,
+                        "requirements": meta.requirements,
+                        "tools": [
+                            {
+                                "name": t.name,
+                                "description": t.description,
+                                "parameters": t.parameters,
+                                "is_async": t.is_async,
+                            }
+                            for t in meta.tools
+                        ],
+                        "valves_schema": meta.valves_schema,
+                        "errors": [],
+                    }
+                )
             except ToolkitParseError as exc:
-                return success(data={
-                    "tools": [],
-                    "valves_schema": {},
-                    "errors": [
-                        build_public_error_text(
-                            exc=exc,
-                            message=_("common.validation_error"),
-                        )
-                    ],
-                })
+                return success(
+                    data={
+                        "tools": [],
+                        "valves_schema": {},
+                        "errors": [
+                            build_public_error_text(
+                                exc=exc,
+                                message=_("common.validation_error"),
+                            )
+                        ],
+                    }
+                )
 
 
 # 导出路由器 / Export router

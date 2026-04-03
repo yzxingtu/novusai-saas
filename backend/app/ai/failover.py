@@ -100,7 +100,8 @@ class FailoverService:
             if fallback_id in visited:
                 logger.warning(
                     "Failover: circular chain detected: model_id={} fallback_id={}",
-                    current_id, fallback_id,
+                    current_id,
+                    fallback_id,
                 )
                 return None
 
@@ -116,7 +117,9 @@ class FailoverService:
             if await self.is_provider_healthy(fallback.provider_id):
                 logger.info(
                     "Failover found: original_model={} fallback_model={} fallback_name={}",
-                    model_id, fallback.id, fallback.name,
+                    model_id,
+                    fallback.id,
+                    fallback.name,
                 )
                 return fallback
 
@@ -125,7 +128,8 @@ class FailoverService:
 
         logger.warning(
             "Failover: no healthy provider found: model_id={} max_depth={}",
-            model_id, max_depth,
+            model_id,
+            max_depth,
         )
         return None
 
@@ -194,7 +198,8 @@ class FailoverService:
         except (RedisError, json.JSONDecodeError) as e:
             logger.error(
                 "Failover: get history failed: provider_id={} error={}",
-                provider_id, str(e),
+                provider_id,
+                str(e),
             )
             return []
 

@@ -137,7 +137,10 @@ class RateLimiter:
                 rpm_count = int(result)
                 logger.warning(
                     "RPM limit exceeded: tenant={} model={} count={} limit={}",
-                    tenant_id, model_id, rpm_count, rpm_limit,
+                    tenant_id,
+                    model_id,
+                    rpm_count,
+                    rpm_limit,
                 )
                 raise RateLimitExceeded(
                     _("ai.error.rpm_limit_exceeded").format(
@@ -165,7 +168,10 @@ class RateLimiter:
                 tpm_count = int(result)
                 logger.warning(
                     "TPM limit exceeded: tenant={} model={} count={} limit={}",
-                    tenant_id, model_id, tpm_count, tpm_limit,
+                    tenant_id,
+                    model_id,
+                    tpm_count,
+                    tpm_limit,
                 )
                 raise RateLimitExceeded(
                     _("ai.error.tpm_limit_exceeded").format(
@@ -201,7 +207,11 @@ class RateLimiter:
         if diff == 0:
             return
         redis = await get_redis()
-        minute_key = request_minute_key if request_minute_key is not None else int(time.time()) // 60
+        minute_key = (
+            request_minute_key
+            if request_minute_key is not None
+            else int(time.time()) // 60
+        )
         tpm_key = f"{RateLimiter.PREFIX_TPM}{tenant_id}:{model_id}:{minute_key}"
         # Atomic adjust: INCRBY + floor-at-zero guard (eliminates TOCTOU race) / 原子调整：INCRBY + 不低于 0 保护（消除 TOCTOU 竞态）
         await redis.eval(
@@ -212,11 +222,7 @@ class RateLimiter:
         )
 
     @staticmethod
-    async def _sliding_window_count(
-        redis,
-        key: str,
-        current_time: int
-    ) -> int:
+    async def _sliding_window_count(redis, key: str, current_time: int) -> int:
         """
         Calculate request count within RPM sliding window.
         计算 RPM 滑动窗口内的请求数。
@@ -280,10 +286,7 @@ class RateLimiter:
         return total
 
     @staticmethod
-    async def get_current_usage(
-        tenant_id: int,
-        model_id: int
-    ) -> dict:
+    async def get_current_usage(tenant_id: int, model_id: int) -> dict:
         """
         Get current usage.
         获取当前使用量。

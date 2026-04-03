@@ -69,7 +69,9 @@ class AgentSkillGrantRepository(TenantRepository[AgentSkillGrant]):
         return list(result.scalars().all())
 
     async def get_grant(
-        self, agent_id: int, skill_id: int,
+        self,
+        agent_id: int,
+        skill_id: int,
     ) -> AgentSkillGrant | None:
         """Get a specific grant by agent_id and skill_id."""
         stmt = (

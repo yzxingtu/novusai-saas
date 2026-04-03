@@ -66,23 +66,22 @@ class _StreamRuntimeContext:
     runtime_info: dict[str, Any]
 
 
-
 # DeepSeek model internal function call markers (｜DSML｜parameter, ｜DSML｜invoke etc.) / DeepSeek 模型内部 function call 标记
-_MODEL_FC_TOKEN_RE = re.compile(r'</?｜[A-Za-z]+｜[^>]*>')
+_MODEL_FC_TOKEN_RE = re.compile(r"</?｜[A-Za-z]+｜[^>]*>")
 # Complete DSML function_calls block (with nested content) / 完整 DSML function_calls 块（含嵌套内容）
 _MODEL_FC_BLOCK_RE = re.compile(
-    r'<｜DSML｜function_calls>.*?</｜DSML｜function_calls>',
+    r"<｜DSML｜function_calls>.*?</｜DSML｜function_calls>",
     re.DOTALL,
 )
 
 
 def _strip_model_fc_tokens(text: str) -> str:
     """Filter leaked internal function call markers from model output (DeepSeek ｜DSML｜ etc.) / 过滤模型泄漏的内部 function call 标记"""
-    if '｜' not in text:
+    if "｜" not in text:
         return text
     # Remove complete blocks first, then clean up residual tags / 先移除完整块，再清理残留标签
-    text = _MODEL_FC_BLOCK_RE.sub('', text)
-    return _MODEL_FC_TOKEN_RE.sub('', text)
+    text = _MODEL_FC_BLOCK_RE.sub("", text)
+    return _MODEL_FC_TOKEN_RE.sub("", text)
 
 
 def _should_use_runtime_query_engine(
@@ -184,11 +183,13 @@ class ConversationEngine(BaseEngine):
                 selected_skill_names=runtime_selected_skill_names,
                 context_sources=runtime_context_sources,
             )
-            should_retry, retry_policy, breach_preview = self._should_retry_tool_contract_breach(
-                response=response,
-                current_policy=prep.tool_use_policy,
-                tools=tools or [],
-                input_variables=request.input_variables,
+            should_retry, retry_policy, breach_preview = (
+                self._should_retry_tool_contract_breach(
+                    response=response,
+                    current_policy=prep.tool_use_policy,
+                    tools=tools or [],
+                    input_variables=request.input_variables,
+                )
             )
             del breach_preview
             if (
@@ -349,7 +350,11 @@ class ConversationEngine(BaseEngine):
                 active_policy = breach_policy
                 messages = recovery_messages
                 if retry_response.tool_calls:
-                    response, extra_tool_results, extra_loop_tokens = await self._handle_tool_calls(
+                    (
+                        response,
+                        extra_tool_results,
+                        extra_loop_tokens,
+                    ) = await self._handle_tool_calls(
                         agent=agent,
                         messages=messages,
                         response=retry_response,
@@ -371,14 +376,16 @@ class ConversationEngine(BaseEngine):
                 response = retry_response
 
             if response is not None and post_tool_contract_breach_type:
-                final_breach_type, final_breach_policy_unused, final_breach_diagnostics = (
-                    self._analyze_post_tool_contract_breach(
-                        messages=messages,
-                        response=response,
-                        current_policy=active_policy,
-                        tools=tools or [],
-                        input_variables=request.input_variables,
-                    )
+                (
+                    final_breach_type,
+                    final_breach_policy_unused,
+                    final_breach_diagnostics,
+                ) = self._analyze_post_tool_contract_breach(
+                    messages=messages,
+                    response=response,
+                    current_policy=active_policy,
+                    tools=tools or [],
+                    input_variables=request.input_variables,
                 )
                 del final_breach_policy_unused
                 recovered_post_tool_retry = final_breach_type is None
@@ -474,7 +481,11 @@ class ConversationEngine(BaseEngine):
                     retry_result="succeeded",
                     continuation=prep.continuation_context,
                 )
-                response, extra_tool_results, extra_loop_tokens = await self._handle_tool_calls(
+                (
+                    response,
+                    extra_tool_results,
+                    extra_loop_tokens,
+                ) = await self._handle_tool_calls(
                     agent=agent,
                     messages=messages,
                     response=retry_response,
@@ -506,8 +517,10 @@ class ConversationEngine(BaseEngine):
                 and response.metadata.get("skip_final_assistant")
             )
             output = response.message.content or ""
-            cleaned_output, action_buttons = StreamExecutionHandler._extract_action_buttons(
-                output,
+            cleaned_output, action_buttons = (
+                StreamExecutionHandler._extract_action_buttons(
+                    output,
+                )
             )
             if action_buttons:
                 output = cleaned_output
@@ -598,9 +611,7 @@ class ConversationEngine(BaseEngine):
         tool_calls = getattr(response, "tool_calls", None) or (
             getattr(getattr(response, "message", None), "tool_calls", None)
         )
-        content = str(
-            getattr(getattr(response, "message", None), "content", "") or ""
-        )
+        content = str(getattr(getattr(response, "message", None), "content", "") or "")
         if tool_calls:
             termination_reason = "completed_with_tool_calls"
         elif content.strip():
@@ -773,12 +784,14 @@ class ConversationEngine(BaseEngine):
         }
         routed_model_id = (
             int(getattr(route_result, "model_id", 0) or 0)
-            if route_result is not None and getattr(route_result, "is_overridden", False)
+            if route_result is not None
+            and getattr(route_result, "is_overridden", False)
             else None
         )
         route_reason = (
             route_result.reason
-            if route_result is not None and getattr(route_result, "is_overridden", False)
+            if route_result is not None
+            and getattr(route_result, "is_overridden", False)
             else None
         )
         call_start = time.perf_counter()
@@ -947,7 +960,9 @@ class ConversationEngine(BaseEngine):
                     ),
                     call_type="main_chat",
                     turn_record=asdict(query_engine.turn_record),
-                    protocol_path=getattr(query_engine.turn_record, "protocol_path", None),
+                    protocol_path=getattr(
+                        query_engine.turn_record, "protocol_path", None
+                    ),
                     context_sources=runtime_context_sources,
                     routed_model_id=routed_model_id,
                     route_reason=route_reason,
@@ -1016,7 +1031,10 @@ class ConversationEngine(BaseEngine):
                 )
                 return legacy_response
             try:
-                runtime_response_unused, runtime_query_engine = await self._call_runtime_query_turn(
+                (
+                    runtime_response_unused,
+                    runtime_query_engine,
+                ) = await self._call_runtime_query_turn(
                     agent=agent,
                     messages=messages,
                     tools=tools,
@@ -1053,7 +1071,10 @@ class ConversationEngine(BaseEngine):
 
         if use_runtime_query_engine:
             try:
-                runtime_response, runtime_turn_debug = await self._call_runtime_query_turn(
+                (
+                    runtime_response,
+                    runtime_turn_debug,
+                ) = await self._call_runtime_query_turn(
                     agent=agent,
                     messages=messages,
                     tools=tools,
@@ -1257,13 +1278,20 @@ class ConversationEngine(BaseEngine):
                 "allowed_tool_names": effective_policy.allowed_tool_names,
             },
         }
-        if effective_policy.reason.startswith(("capability_denial:", "required_retry:")):
+        if effective_policy.reason.startswith(
+            ("capability_denial:", "required_retry:")
+        ):
             request_log_data["breach_retry_result"] = "retry_follow_up"
-        if openai_tools and any(
-            isinstance(tool, dict)
-            and (tool.get("function", {}) or {}).get("name") in {"web_search", "fetch_url"}
-            for tool in openai_tools
-        ) and not effective_tool_choice:
+        if (
+            openai_tools
+            and any(
+                isinstance(tool, dict)
+                and (tool.get("function", {}) or {}).get("name")
+                in {"web_search", "fetch_url"}
+                for tool in openai_tools
+            )
+            and not effective_tool_choice
+        ):
             logger.warning(
                 "Tool policy not loaded: status=policy_not_loaded runtime={} conversation_id={} agent_id={} tool_names={}",
                 get_runtime_identity_tag(),
@@ -1276,15 +1304,19 @@ class ConversationEngine(BaseEngine):
                 ],
             )
 
-        supports_streaming = getattr(ai_model, "supports_streaming", True) if ai_model else True
+        supports_streaming = (
+            getattr(ai_model, "supports_streaming", True) if ai_model else True
+        )
         routed_model_id = (
             int(getattr(route_result, "model_id", 0) or 0)
-            if route_result is not None and getattr(route_result, "is_overridden", False)
+            if route_result is not None
+            and getattr(route_result, "is_overridden", False)
             else None
         )
         route_reason = (
             route_result.reason
-            if route_result is not None and getattr(route_result, "is_overridden", False)
+            if route_result is not None
+            and getattr(route_result, "is_overridden", False)
             else None
         )
 
@@ -1370,13 +1402,22 @@ class ConversationEngine(BaseEngine):
                         )
                     except Exception as runtime_stream_exc:
                         turn_record_metadata = dict(
-                            getattr(getattr(query_engine, "turn_record", None), "metadata", {}) or {},
+                            getattr(
+                                getattr(query_engine, "turn_record", None),
+                                "metadata",
+                                {},
+                            )
+                            or {},
                         )
                         had_meaningful_chunk_before_error = bool(
-                            turn_record_metadata.get("stream_failure_has_meaningful_chunk"),
+                            turn_record_metadata.get(
+                                "stream_failure_has_meaningful_chunk"
+                            ),
                         )
                         if had_meaningful_chunk_before_error:
-                            request_log_data["runtime_v2_stream_failure_after_chunk"] = True
+                            request_log_data[
+                                "runtime_v2_stream_failure_after_chunk"
+                            ] = True
                             if query_engine is not None:
                                 query_engine.turn_record.metadata[
                                     "runtime_v2_stream_failure_after_chunk"
@@ -1425,12 +1466,16 @@ class ConversationEngine(BaseEngine):
                                 chunk.metadata = dict(chunk.metadata or {})
                                 if chunk.metadata.get("usage_mode"):
                                     usage_mode = str(chunk.metadata["usage_mode"])
-                                chunk.metadata.setdefault("runtime_model_info", runtime_info)
+                                chunk.metadata.setdefault(
+                                    "runtime_model_info", runtime_info
+                                )
                                 yield chunk
                             if legacy_stream_had_meaningful_chunk:
                                 query_engine = None
                             else:
-                                request_log_data["runtime_v2_stream_fallback"] = "sync_chat"
+                                request_log_data["runtime_v2_stream_fallback"] = (
+                                    "sync_chat"
+                                )
                                 logger.warning(
                                     "Legacy stream fallback produced no meaningful chunk, fallback to sync chat: runtime={} agent_id={} conversation_id={}",
                                     get_runtime_identity_tag(),
@@ -1460,7 +1505,8 @@ class ConversationEngine(BaseEngine):
                                     input_tokens=input_tokens,
                                     output_tokens=output_tokens,
                                     total_tokens=total_tokens,
-                                    tool_calls=response.tool_calls or response.message.tool_calls,
+                                    tool_calls=response.tool_calls
+                                    or response.message.tool_calls,
                                     metadata={"runtime_model_info": runtime_info},
                                 )
                                 query_engine = None
@@ -1496,7 +1542,8 @@ class ConversationEngine(BaseEngine):
                                 input_tokens=input_tokens,
                                 output_tokens=output_tokens,
                                 total_tokens=total_tokens,
-                                tool_calls=response.tool_calls or response.message.tool_calls,
+                                tool_calls=response.tool_calls
+                                or response.message.tool_calls,
                                 metadata={"runtime_model_info": runtime_info},
                             )
                             query_engine = None
@@ -1513,7 +1560,9 @@ class ConversationEngine(BaseEngine):
                             chunk.metadata = dict(chunk.metadata or {})
                             if chunk.metadata.get("usage_mode"):
                                 usage_mode = str(chunk.metadata["usage_mode"])
-                            chunk.metadata.setdefault("runtime_model_info", runtime_info)
+                            chunk.metadata.setdefault(
+                                "runtime_model_info", runtime_info
+                            )
                             chunk.metadata.setdefault(
                                 "runtime_turn_record",
                                 query_engine.turn_record,
@@ -1604,7 +1653,8 @@ class ConversationEngine(BaseEngine):
                             for tool in (openai_tools or [])
                             if isinstance(tool, dict)
                         ],
-                        all_tool_names=all_tool_names or [tool.name for tool in (tools or [])],
+                        all_tool_names=all_tool_names
+                        or [tool.name for tool in (tools or [])],
                         tool_use_policy_family=effective_policy.family,
                         tool_use_policy_mode=effective_policy.mode,
                         allowed_tool_names=effective_policy.allowed_tool_names,
@@ -1632,7 +1682,9 @@ class ConversationEngine(BaseEngine):
                             else None
                         ),
                         context_sources=(
-                            runtime_context_sources if query_engine is not None else None
+                            runtime_context_sources
+                            if query_engine is not None
+                            else None
                         ),
                         routed_model_id=routed_model_id,
                         route_reason=route_reason,
@@ -1651,7 +1703,9 @@ class ConversationEngine(BaseEngine):
         # 整个尾部用 try/except 保护，避免计量/flush 异常阻塞生成器导致前端永远收不到 done
         latency_ms = int((time.perf_counter() - stream_start) * 1000)
         try:
-            resolved_log_type = UsageRecorder._resolve_call_user_type(tenant_id, log_user_type)
+            resolved_log_type = UsageRecorder._resolve_call_user_type(
+                tenant_id, log_user_type
+            )
             resolved_usage = resolve_chat_usage(
                 messages=messages,
                 output_text=streamed_output,
@@ -1735,7 +1789,9 @@ class ConversationEngine(BaseEngine):
                             else None
                         ),
                         context_sources=(
-                            runtime_context_sources if query_engine is not None else None
+                            runtime_context_sources
+                            if query_engine is not None
+                            else None
                         ),
                         routed_model_id=routed_model_id,
                         route_reason=route_reason,
@@ -1770,7 +1826,9 @@ class ConversationEngine(BaseEngine):
             if routed_mid:
                 from app.repositories.ai.model_repository import AIModelRepository
 
-                route_model_obj = await AIModelRepository(self.db).get_active_with_provider(
+                route_model_obj = await AIModelRepository(
+                    self.db
+                ).get_active_with_provider(
                     routed_mid,
                 )
             if route_model_obj is not None:
@@ -1807,7 +1865,8 @@ class ConversationEngine(BaseEngine):
                 msg.attachments = kept if kept else None
 
         provider, api_key = await self.gateway.get_provider_and_key(
-            provider_code, tenant_id,
+            provider_code,
+            tenant_id,
         )
 
         estimated_input = 0
@@ -1820,7 +1879,10 @@ class ConversationEngine(BaseEngine):
             )
         if should_meter_usage and ai_model and not skip_metering_preflight:
             metering_context = await self.gateway.usage_recorder.check_rate_and_quota(
-                tenant_id, ai_model.id, ai_model, estimated_input,
+                tenant_id,
+                ai_model.id,
+                ai_model,
+                estimated_input,
             )
 
         return _StreamRuntimeContext(

@@ -70,9 +70,14 @@ def _infer_schema_scalar_type(values: list[Any]) -> str | None:
         return None
     if all(isinstance(value, bool) for value in normalized):
         return "boolean"
-    if all(isinstance(value, int) and not isinstance(value, bool) for value in normalized):
+    if all(
+        isinstance(value, int) and not isinstance(value, bool) for value in normalized
+    ):
         return "integer"
-    if all(isinstance(value, (int, float)) and not isinstance(value, bool) for value in normalized):
+    if all(
+        isinstance(value, (int, float)) and not isinstance(value, bool)
+        for value in normalized
+    ):
         return "number"
     if all(isinstance(value, str) for value in normalized):
         return "string"

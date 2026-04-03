@@ -213,14 +213,21 @@ class SkillResolver:
             )
             return
 
-        if name.startswith("data_") or skill_type == SkillTypeEnum.DATA_INTELLIGENCE.value:
+        if (
+            name.startswith("data_")
+            or skill_type == SkillTypeEnum.DATA_INTELLIGENCE.value
+        ):
             tool.semantic_family = "data_ops"
             tool.semantic_tags = tool.semantic_tags or cls._semantic_tags(
                 *FAMILY_HINT_TAGS["data_ops"],
             )
             return
 
-        if name in {"get_page_context", "invoke_page_operation", "list_page_operations"} or name.startswith("pageop_"):
+        if name in {
+            "get_page_context",
+            "invoke_page_operation",
+            "list_page_operations",
+        } or name.startswith("pageop_"):
             tool.semantic_family = "page_ops"
             tool.semantic_tags = tool.semantic_tags or cls._semantic_tags(
                 *FAMILY_HINT_TAGS["page_ops"],
@@ -268,11 +275,15 @@ class SkillResolver:
                 for tool in result.tools[before_count:]:
                     self._apply_tool_semantics(tool, skill_type=skill.type)
             except Exception as exc:
-                warning_msg = f"Skill '{skill.name}' (id={skill.id}) failed to load: {str(exc)}"
+                warning_msg = (
+                    f"Skill '{skill.name}' (id={skill.id}) failed to load: {str(exc)}"
+                )
                 result.warnings.append(warning_msg)
                 logger.warning(
                     "Failed to resolve skill {} ({}): {}",
-                    skill.id, skill.name, str(exc),
+                    skill.id,
+                    skill.name,
+                    str(exc),
                 )
 
         # Prevent tool name duplicates causing execution and consent attribution mismatch
@@ -281,12 +292,14 @@ class SkillResolver:
 
         logger.info(
             "Resolved {} skills → {} tools",
-            len(skills), len(result.tools),
+            len(skills),
+            len(result.tools),
         )
         return result
 
     async def _load_source_plugins(
-        self, skills: list[Skill],
+        self,
+        skills: list[Skill],
     ) -> dict[int, str]:
         """
         Batch query source_plugin field for skill packages.
@@ -308,7 +321,8 @@ class SkillResolver:
         from app.models.ai.skill_package import SkillPackage
 
         stmt = select(
-            SkillPackage.id, SkillPackage.source_plugin,
+            SkillPackage.id,
+            SkillPackage.source_plugin,
         ).where(
             SkillPackage.id.in_(package_ids),
             SkillPackage.source_plugin.isnot(None),
@@ -364,7 +378,8 @@ class SkillResolver:
         else:
             logger.warning(
                 "Unknown skill type: {} (skill={}), no resolver available",
-                skill_type, skill.id,
+                skill_type,
+                skill.id,
             )
 
     # ========================================
@@ -439,14 +454,18 @@ class SkillResolver:
         if self.db:
             try:
                 from app.ai.data_intelligence.schema_provider import SchemaProvider
+
                 table_descriptions = await SchemaProvider.get_table_descriptions(
-                    self.db, table_policy_ids=table_policy_ids,
+                    self.db,
+                    table_policy_ids=table_policy_ids,
                 )
                 crud_allowed_tables = await SchemaProvider.get_crud_allowed_tables(
-                    self.db, table_policy_ids=table_policy_ids,
+                    self.db,
+                    table_policy_ids=table_policy_ids,
                 )
                 crud_column_hints = await SchemaProvider.get_crud_column_hints(
-                    self.db, table_policy_ids=table_policy_ids,
+                    self.db,
+                    table_policy_ids=table_policy_ids,
                 )
             except Exception as exc:
                 logger.warning("Failed to load table descriptions: {}", str(exc))
@@ -459,42 +478,44 @@ class SkillResolver:
         else:
             table_list = "(no tables configured)"
 
-        result.tools.append(ToolDefinition(
-            name="data_query",
-            description=(
-                "Query the database using natural language. "
-                "The system will automatically generate safe SQL and return results. "
-                f"Available tables: {table_list}. "
-                "IMPORTANT: You MUST use this tool for ANY question about data counts, "
-                "totals, statistics, listings, or aggregations — including tenant counts, "
-                "user counts, agent counts, conversation counts, usage stats, etc. "
-                "Do NOT use other action tools for counting or statistical questions."
-            ),
-            tool_type=ToolTypeEnum.TEXT_TO_SQL.value,
-            parameters=[
-                ToolParameter(
-                    name="question",
-                    type="string",
-                    description="The data question in natural language",
-                    required=True,
+        result.tools.append(
+            ToolDefinition(
+                name="data_query",
+                description=(
+                    "Query the database using natural language. "
+                    "The system will automatically generate safe SQL and return results. "
+                    f"Available tables: {table_list}. "
+                    "IMPORTANT: You MUST use this tool for ANY question about data counts, "
+                    "totals, statistics, listings, or aggregations — including tenant counts, "
+                    "user counts, agent counts, conversation counts, usage stats, etc. "
+                    "Do NOT use other action tools for counting or statistical questions."
                 ),
-            ],
-            config={},
-            enabled=True,
-            timeout=config.get("timeout", 60),
-            source_skill_id=skill.id,
-            source_skill_name=skill.name,
-            source_skill_type=skill.type,
-            semantic_family="data_ops",
-            semantic_tags=self._semantic_tags(
-                "data",
-                "query",
-                "统计",
-                "查询",
-                "count",
-                "report",
-            ),
-        ))
+                tool_type=ToolTypeEnum.TEXT_TO_SQL.value,
+                parameters=[
+                    ToolParameter(
+                        name="question",
+                        type="string",
+                        description="The data question in natural language",
+                        required=True,
+                    ),
+                ],
+                config={},
+                enabled=True,
+                timeout=config.get("timeout", 60),
+                source_skill_id=skill.id,
+                source_skill_name=skill.name,
+                source_skill_type=skill.type,
+                semantic_family="data_ops",
+                semantic_tags=self._semantic_tags(
+                    "data",
+                    "query",
+                    "统计",
+                    "查询",
+                    "count",
+                    "report",
+                ),
+            )
+        )
 
         # CRUD tools — directly controlled by Table Policy's per-table allow_create/update/delete
         # CRUD 工具 — 直接由 Table Policy 的每表 allow_create/update/delete 控制
@@ -504,36 +525,50 @@ class SkillResolver:
                 f"{table_name}({labels})" for table_name, labels in create_tables
             )
             schema_block = self._format_crud_schema_block(
-                create_tables, crud_column_hints,
+                create_tables,
+                crud_column_hints,
             )
-            result.tools.append(ToolDefinition(
-                name="data_create",
-                description=(
-                    "Create a new record in a database table. "
-                    "First call without 'confirmed' to get a preview; "
-                    "then call again with confirmed=true after user approval. "
-                    f"ONLY these tables allow creation: {create_list}. "
-                    "Do NOT attempt to create records in any other table."
-                    f"{schema_block}"
-                ),
-                tool_type=ToolTypeEnum.DATA_CREATE.value,
-                parameters=[
-                    ToolParameter(name="table_name", type="string",
-                                  description="Target table name", required=True),
-                    ToolParameter(name="data", type="object",
-                                  description="Record data as {field: value}", required=True),
-                    ToolParameter(name="confirmed", type="boolean",
-                                  description="Set to true after user confirms"),
-                ],
-                config={},
-                enabled=True,
-                timeout=skill.timeout,
-                source_skill_id=skill.id,
-                source_skill_name=skill.name,
-                source_skill_type=skill.type,
-                semantic_family="data_ops",
-                semantic_tags=self._semantic_tags("data", "create", "新增", "创建"),
-            ))
+            result.tools.append(
+                ToolDefinition(
+                    name="data_create",
+                    description=(
+                        "Create a new record in a database table. "
+                        "First call without 'confirmed' to get a preview; "
+                        "then call again with confirmed=true after user approval. "
+                        f"ONLY these tables allow creation: {create_list}. "
+                        "Do NOT attempt to create records in any other table."
+                        f"{schema_block}"
+                    ),
+                    tool_type=ToolTypeEnum.DATA_CREATE.value,
+                    parameters=[
+                        ToolParameter(
+                            name="table_name",
+                            type="string",
+                            description="Target table name",
+                            required=True,
+                        ),
+                        ToolParameter(
+                            name="data",
+                            type="object",
+                            description="Record data as {field: value}",
+                            required=True,
+                        ),
+                        ToolParameter(
+                            name="confirmed",
+                            type="boolean",
+                            description="Set to true after user confirms",
+                        ),
+                    ],
+                    config={},
+                    enabled=True,
+                    timeout=skill.timeout,
+                    source_skill_id=skill.id,
+                    source_skill_name=skill.name,
+                    source_skill_type=skill.type,
+                    semantic_family="data_ops",
+                    semantic_tags=self._semantic_tags("data", "create", "新增", "创建"),
+                )
+            )
 
         update_tables = crud_allowed_tables.get("update", [])
         if update_tables:
@@ -541,71 +576,102 @@ class SkillResolver:
                 f"{table_name}({labels})" for table_name, labels in update_tables
             )
             schema_block = self._format_crud_schema_block(
-                update_tables, crud_column_hints,
+                update_tables,
+                crud_column_hints,
             )
-            result.tools.append(ToolDefinition(
-                name="data_update",
-                description=(
-                    "Update an existing record in a database table. "
-                    "First call without 'confirmed' to see a diff preview; "
-                    "then call again with confirmed=true after user approval. "
-                    f"ONLY these tables allow updates: {update_list}. "
-                    "Do NOT attempt to update records in any other table."
-                    f"{schema_block}"
-                ),
-                tool_type=ToolTypeEnum.DATA_UPDATE.value,
-                parameters=[
-                    ToolParameter(name="table_name", type="string",
-                                  description="Target table name", required=True),
-                    ToolParameter(name="id", type="integer",
-                                  description="Record ID to update", required=True),
-                    ToolParameter(name="data", type="object",
-                                  description="Fields to update as {field: value}", required=True),
-                    ToolParameter(name="confirmed", type="boolean",
-                                  description="Set to true after user confirms"),
-                ],
-                config={},
-                enabled=True,
-                timeout=skill.timeout,
-                source_skill_id=skill.id,
-                source_skill_name=skill.name,
-                source_skill_type=skill.type,
-                semantic_family="data_ops",
-                semantic_tags=self._semantic_tags("data", "update", "编辑", "修改"),
-            ))
+            result.tools.append(
+                ToolDefinition(
+                    name="data_update",
+                    description=(
+                        "Update an existing record in a database table. "
+                        "First call without 'confirmed' to see a diff preview; "
+                        "then call again with confirmed=true after user approval. "
+                        f"ONLY these tables allow updates: {update_list}. "
+                        "Do NOT attempt to update records in any other table."
+                        f"{schema_block}"
+                    ),
+                    tool_type=ToolTypeEnum.DATA_UPDATE.value,
+                    parameters=[
+                        ToolParameter(
+                            name="table_name",
+                            type="string",
+                            description="Target table name",
+                            required=True,
+                        ),
+                        ToolParameter(
+                            name="id",
+                            type="integer",
+                            description="Record ID to update",
+                            required=True,
+                        ),
+                        ToolParameter(
+                            name="data",
+                            type="object",
+                            description="Fields to update as {field: value}",
+                            required=True,
+                        ),
+                        ToolParameter(
+                            name="confirmed",
+                            type="boolean",
+                            description="Set to true after user confirms",
+                        ),
+                    ],
+                    config={},
+                    enabled=True,
+                    timeout=skill.timeout,
+                    source_skill_id=skill.id,
+                    source_skill_name=skill.name,
+                    source_skill_type=skill.type,
+                    semantic_family="data_ops",
+                    semantic_tags=self._semantic_tags("data", "update", "编辑", "修改"),
+                )
+            )
 
         delete_tables = crud_allowed_tables.get("delete", [])
         if delete_tables:
             delete_list = ", ".join(
                 f"{table_name}({labels})" for table_name, labels in delete_tables
             )
-            result.tools.append(ToolDefinition(
-                name="data_delete",
-                description=(
-                    "Soft-delete a record from a database table. "
-                    "First call without 'confirmed' to see record details; "
-                    "then call again with confirmed=true after user explicitly confirms. "
-                    f"ONLY these tables allow deletion: {delete_list}. "
-                    "Do NOT attempt to delete records in any other table."
-                ),
-                tool_type=ToolTypeEnum.DATA_DELETE.value,
-                parameters=[
-                    ToolParameter(name="table_name", type="string",
-                                  description="Target table name", required=True),
-                    ToolParameter(name="id", type="integer",
-                                  description="Record ID to delete", required=True),
-                    ToolParameter(name="confirmed", type="boolean",
-                                  description="Set to true after user confirms"),
-                ],
-                config={},
-                enabled=True,
-                timeout=skill.timeout,
-                source_skill_id=skill.id,
-                source_skill_name=skill.name,
-                source_skill_type=skill.type,
-                semantic_family="data_ops",
-                semantic_tags=self._semantic_tags("data", "delete", "删除"),
-            ))
+            result.tools.append(
+                ToolDefinition(
+                    name="data_delete",
+                    description=(
+                        "Soft-delete a record from a database table. "
+                        "First call without 'confirmed' to see record details; "
+                        "then call again with confirmed=true after user explicitly confirms. "
+                        f"ONLY these tables allow deletion: {delete_list}. "
+                        "Do NOT attempt to delete records in any other table."
+                    ),
+                    tool_type=ToolTypeEnum.DATA_DELETE.value,
+                    parameters=[
+                        ToolParameter(
+                            name="table_name",
+                            type="string",
+                            description="Target table name",
+                            required=True,
+                        ),
+                        ToolParameter(
+                            name="id",
+                            type="integer",
+                            description="Record ID to delete",
+                            required=True,
+                        ),
+                        ToolParameter(
+                            name="confirmed",
+                            type="boolean",
+                            description="Set to true after user confirms",
+                        ),
+                    ],
+                    config={},
+                    enabled=True,
+                    timeout=skill.timeout,
+                    source_skill_id=skill.id,
+                    source_skill_name=skill.name,
+                    source_skill_type=skill.type,
+                    semantic_family="data_ops",
+                    semantic_tags=self._semantic_tags("data", "delete", "删除"),
+                )
+            )
 
     # ======================================== / 上文为英文说明 / English above
     # Toolkit Skill / Toolkit 技能
@@ -629,7 +695,8 @@ class SkillResolver:
         if not toolkit_content:
             logger.warning(
                 "Toolkit skill {} ({}) has no toolkit_content",
-                skill.id, skill.name,
+                skill.id,
+                skill.name,
             )
             return
 
@@ -663,7 +730,8 @@ class SkillResolver:
 
         logger.debug(
             "Toolkit skill '{}' resolved {} tools",
-            skill.name, len(tool_defs),
+            skill.name,
+            len(tool_defs),
         )
 
     # ======================================== / 上文为英文说明 / English above
@@ -684,9 +752,7 @@ class SkillResolver:
                 "Results are candidate sources; verify content with fetch_url when needed."
             )
         elif normalized == "fetch_url":
-            extra = (
-                "Read the full content of a specific web page by URL."
-            )
+            extra = "Read the full content of a specific web page by URL."
         elif normalized == "get_current_time":
             extra = (
                 "Return the current runtime date and time in the requested timezone."
@@ -723,43 +789,45 @@ class SkillResolver:
                 tool_name = tool_cfg.get("name", "")
                 if not tool_name:
                     continue
-                tool_params = self._build_params_from_schema(
-                    tool_cfg.get("parameters")
-                )
+                tool_params = self._build_params_from_schema(tool_cfg.get("parameters"))
                 description = self._augment_builtin_tool_description(
                     tool_name,
                     tool_cfg.get("description", ""),
                 )
-                result.tools.append(ToolDefinition(
-                    name=tool_name,
-                    description=description,
-                    tool_type=tool_type_override,
-                    parameters=tool_params,
-                    config=config,
-                    enabled=True,
-                    timeout=tool_cfg.get("timeout", skill.timeout),
-                    source_skill_id=skill.id,
-                    source_skill_name=skill.name,
-                    source_skill_type=skill.type,
-                ))
+                result.tools.append(
+                    ToolDefinition(
+                        name=tool_name,
+                        description=description,
+                        tool_type=tool_type_override,
+                        parameters=tool_params,
+                        config=config,
+                        enabled=True,
+                        timeout=tool_cfg.get("timeout", skill.timeout),
+                        source_skill_id=skill.id,
+                        source_skill_name=skill.name,
+                        source_skill_type=skill.type,
+                    )
+                )
         else:
             params = self._build_params_from_schema(skill.input_schema)
             description = self._augment_builtin_tool_description(
                 skill.name,
                 skill.description or "",
             )
-            result.tools.append(ToolDefinition(
-                name=skill.name,
-                description=description,
-                tool_type=tool_type_override,
-                parameters=params,
-                config=config,
-                enabled=True,
-                timeout=skill.timeout,
-                source_skill_id=skill.id,
-                source_skill_name=skill.name,
-                source_skill_type=skill.type,
-            ))
+            result.tools.append(
+                ToolDefinition(
+                    name=skill.name,
+                    description=description,
+                    tool_type=tool_type_override,
+                    parameters=params,
+                    config=config,
+                    enabled=True,
+                    timeout=skill.timeout,
+                    source_skill_id=skill.id,
+                    source_skill_name=skill.name,
+                    source_skill_type=skill.type,
+                )
+            )
 
     # ======================================== / 上文为英文说明 / English above
     # HTTP/Webhook Skill
@@ -796,7 +864,8 @@ class SkillResolver:
         if not url:
             logger.warning(
                 "HTTP skill {} ({}) has no URL configured",
-                skill.id, skill.name,
+                skill.id,
+                skill.name,
             )
             return
 
@@ -807,6 +876,7 @@ class SkillResolver:
         # Extract {{variable}} placeholders from body_template as LLM parameters
         # 从 body_template 提取 {{variable}} 占位符作为 LLM 参数
         import re
+
         template_vars = re.findall(r"\{\{(\w+)\}\}", body_template or "")
         # Also extract variables from URL and query_params
         # 也从 URL 和 query_params 提取变量
@@ -821,50 +891,59 @@ class SkillResolver:
 
         params: list[ToolParameter] = []
         for var_name in all_vars:
-            params.append(ToolParameter(
-                name=var_name,
-                type="string",
-                description=f"Value for {{{{{var_name}}}}}",
-                required=True,
-            ))
+            params.append(
+                ToolParameter(
+                    name=var_name,
+                    type="string",
+                    description=f"Value for {{{{{var_name}}}}}",
+                    required=True,
+                )
+            )
 
         # If no template variables but has body, add generic input parameter
         # 如果没有模板变量但有 body，添加通用 input 参数
         if not params and method in ("POST", "PUT", "PATCH"):
-            params.append(ToolParameter(
-                name="input",
-                type="string",
-                description="Request body or input data",
-                required=True,
-            ))
+            params.append(
+                ToolParameter(
+                    name="input",
+                    type="string",
+                    description="Request body or input data",
+                    required=True,
+                )
+            )
 
         description = skill.description or f"Call {method} {url}"
 
-        result.tools.append(ToolDefinition(
-            name=skill.name.lower().replace(" ", "_"),
-            description=description,
-            tool_type=ToolTypeEnum.HTTP.value,
-            parameters=params,
-            config={
-                "_http_url": url,
-                "_http_method": method,
-                "_http_headers": config.get("headers", {}),
-                "_http_body_template": body_template,
-                "_http_query_params": query_params,
-                "_http_auth_type": config.get("auth_type", "none"),
-                "_http_auth_config": config.get("auth_config", {}),
-                "_http_response_path": response_path,
-            },
-            enabled=True,
-            timeout=config.get("timeout", skill.timeout),
-            source_skill_id=skill.id,
-            source_skill_name=skill.name,
-            source_skill_type=skill.type,
-        ))
+        result.tools.append(
+            ToolDefinition(
+                name=skill.name.lower().replace(" ", "_"),
+                description=description,
+                tool_type=ToolTypeEnum.HTTP.value,
+                parameters=params,
+                config={
+                    "_http_url": url,
+                    "_http_method": method,
+                    "_http_headers": config.get("headers", {}),
+                    "_http_body_template": body_template,
+                    "_http_query_params": query_params,
+                    "_http_auth_type": config.get("auth_type", "none"),
+                    "_http_auth_config": config.get("auth_config", {}),
+                    "_http_response_path": response_path,
+                },
+                enabled=True,
+                timeout=config.get("timeout", skill.timeout),
+                source_skill_id=skill.id,
+                source_skill_name=skill.name,
+                source_skill_type=skill.type,
+            )
+        )
 
         logger.debug(
             "HTTP skill '{}' resolved: {} {} ({} params)",
-            skill.name, method, url, len(params),
+            skill.name,
+            method,
+            url,
+            len(params),
         )
 
     # ======================================== / 上文为英文说明 / English above
@@ -926,32 +1005,38 @@ class SkillResolver:
         ]
 
         if allow_cc:
-            params.append(ToolParameter(
-                name="cc",
-                type="string",
-                description="CC email address(es), comma-separated (optional)",
-                required=False,
-            ))
+            params.append(
+                ToolParameter(
+                    name="cc",
+                    type="string",
+                    description="CC email address(es), comma-separated (optional)",
+                    required=False,
+                )
+            )
 
-        result.tools.append(ToolDefinition(
-            name="send_email",
-            description=description,
-            tool_type=ToolTypeEnum.EMAIL.value,
-            parameters=params,
-            config={
-                "_email_subject_prefix": config.get("subject_prefix", ""),
-                "_email_allowed_domains": config.get("allowed_domains", []),
-                "_email_max_recipients": max_recipients,
-                "_email_require_confirmation": config.get("require_confirmation", True),
-                "_email_allow_cc": allow_cc,
-                "_email_allow_attachments": config.get("allow_attachments", False),
-            },
-            enabled=True,
-            timeout=config.get("timeout", skill.timeout),
-            source_skill_id=skill.id,
-            source_skill_name=skill.name,
-            source_skill_type=skill.type,
-        ))
+        result.tools.append(
+            ToolDefinition(
+                name="send_email",
+                description=description,
+                tool_type=ToolTypeEnum.EMAIL.value,
+                parameters=params,
+                config={
+                    "_email_subject_prefix": config.get("subject_prefix", ""),
+                    "_email_allowed_domains": config.get("allowed_domains", []),
+                    "_email_max_recipients": max_recipients,
+                    "_email_require_confirmation": config.get(
+                        "require_confirmation", True
+                    ),
+                    "_email_allow_cc": allow_cc,
+                    "_email_allow_attachments": config.get("allow_attachments", False),
+                },
+                enabled=True,
+                timeout=config.get("timeout", skill.timeout),
+                source_skill_id=skill.id,
+                source_skill_name=skill.name,
+                source_skill_type=skill.type,
+            )
+        )
 
         logger.debug("Email skill '{}' resolved", skill.name)
 
@@ -980,11 +1065,24 @@ class SkillResolver:
         }
         """
         language = config.get("language", "python")
-        allowed_modules = config.get("allowed_modules", [
-            "math", "json", "datetime", "re", "collections",
-            "itertools", "functools", "statistics", "decimal",
-            "fractions", "random", "string", "textwrap",
-        ])
+        allowed_modules = config.get(
+            "allowed_modules",
+            [
+                "math",
+                "json",
+                "datetime",
+                "re",
+                "collections",
+                "itertools",
+                "functools",
+                "statistics",
+                "decimal",
+                "fractions",
+                "random",
+                "string",
+                "textwrap",
+            ],
+        )
 
         description = (
             f"Execute {language} code in a secure sandbox. "
@@ -995,34 +1093,37 @@ class SkillResolver:
         if skill.description:
             description = skill.description
 
-        result.tools.append(ToolDefinition(
-            name="execute_code",
-            description=description,
-            tool_type=ToolTypeEnum.CODE_EXECUTION.value,
-            parameters=[
-                ToolParameter(
-                    name="code",
-                    type="string",
-                    description=f"The {language} code to execute. Must use print() to output results.",
-                    required=True,
-                ),
-            ],
-            config={
-                "_code_language": language,
-                "_code_timeout": config.get("timeout", skill.timeout),
-                "_code_memory_limit_mb": config.get("memory_limit_mb", 256),
-                "_code_allowed_modules": allowed_modules,
-            },
-            enabled=True,
-            timeout=config.get("timeout", skill.timeout),
-            source_skill_id=skill.id,
-            source_skill_name=skill.name,
-            source_skill_type=skill.type,
-        ))
+        result.tools.append(
+            ToolDefinition(
+                name="execute_code",
+                description=description,
+                tool_type=ToolTypeEnum.CODE_EXECUTION.value,
+                parameters=[
+                    ToolParameter(
+                        name="code",
+                        type="string",
+                        description=f"The {language} code to execute. Must use print() to output results.",
+                        required=True,
+                    ),
+                ],
+                config={
+                    "_code_language": language,
+                    "_code_timeout": config.get("timeout", skill.timeout),
+                    "_code_memory_limit_mb": config.get("memory_limit_mb", 256),
+                    "_code_allowed_modules": allowed_modules,
+                },
+                enabled=True,
+                timeout=config.get("timeout", skill.timeout),
+                source_skill_id=skill.id,
+                source_skill_name=skill.name,
+                source_skill_type=skill.type,
+            )
+        )
 
         logger.debug(
             "Code execution skill '{}' resolved: lang={}",
-            skill.name, language,
+            skill.name,
+            language,
         )
 
     # ========================================
@@ -1052,12 +1153,18 @@ class SkillResolver:
         if resolver_func is None:
             logger.warning(
                 "No plugin resolver for plugin '{}' (skill={}, type={})",
-                source_plugin, skill.id, skill.type,
+                source_plugin,
+                skill.id,
+                skill.type,
             )
             return
 
         try:
-            tool_defs = await resolver_func(skill, config) if asyncio.iscoroutinefunction(resolver_func) else resolver_func(skill, config)
+            tool_defs = (
+                await resolver_func(skill, config)
+                if asyncio.iscoroutinefunction(resolver_func)
+                else resolver_func(skill, config)
+            )
             if isinstance(tool_defs, list):
                 for td in tool_defs:
                     td.source_skill_id = skill.id
@@ -1067,12 +1174,16 @@ class SkillResolver:
                     result.tools.append(td)
                 logger.info(
                     "Plugin '{}' skill '{}' resolved {} tools",
-                    source_plugin, skill.name, len(tool_defs),
+                    source_plugin,
+                    skill.name,
+                    len(tool_defs),
                 )
         except Exception as exc:
             logger.error(
                 "Plugin skill resolver failed for '{}' (plugin={}): {}",
-                skill.name, source_plugin, exc,
+                skill.name,
+                source_plugin,
+                exc,
             )
 
     # ========================================
@@ -1158,19 +1269,21 @@ class SkillResolver:
         params: list[ToolParameter] = []
 
         for name, prop in properties.items():
-            params.append(ToolParameter(
-                name=name,
-                type=prop.get("type", "string"),
-                description=prop.get("description", ""),
-                required=name in required_set,
-                default=prop.get("default"),
-                enum=prop.get("enum"),
-                items=(
-                    dict(prop.get("items"))
-                    if isinstance(prop.get("items"), dict)
-                    else None
-                ),
-            ))
+            params.append(
+                ToolParameter(
+                    name=name,
+                    type=prop.get("type", "string"),
+                    description=prop.get("description", ""),
+                    required=name in required_set,
+                    default=prop.get("default"),
+                    enum=prop.get("enum"),
+                    items=(
+                        dict(prop.get("items"))
+                        if isinstance(prop.get("items"), dict)
+                        else None
+                    ),
+                )
+            )
 
         return params
 
@@ -1251,7 +1364,8 @@ async def resolve_for_agent(
     except SQLAlchemyError as exc:
         logger.error(
             "DB error loading skill grants for agent {}: {}",
-            agent.id, str(exc),
+            agent.id,
+            str(exc),
         )
         raise
 
@@ -1283,7 +1397,9 @@ async def resolve_for_agent(
             skill_config_overrides[skill.id] = merged_override
 
         default_consent_by_skill[skill.id] = getattr(
-            grant, "default_consent_mode", "auto",
+            grant,
+            "default_consent_mode",
+            "auto",
         )
         overrides = getattr(grant, "capability_consent_overrides", None)
         if overrides and isinstance(overrides, dict):
@@ -1315,7 +1431,8 @@ async def resolve_for_agent(
         default_mode = default_consent_by_skill.get(skill_id, "auto")
         overrides = capability_overrides_by_skill.get(skill_id, {})
         resolve_result.tool_consent_modes[tool.name] = overrides.get(
-            tool.name, default_mode,
+            tool.name,
+            default_mode,
         )
         if skill_id in package_name_by_skill:
             tool.source_package_name = package_name_by_skill[skill_id]

@@ -60,12 +60,12 @@ async def get_package_call_stats(
     total_result = await db.execute(
         select(
             func.count(SkillCallLog.id).label("total"),
-            func.sum(
-                case((SkillCallLog.status == "success", 1), else_=0)
-            ).label("success_count"),
-            func.sum(
-                case((SkillCallLog.status != "success", 1), else_=0)
-            ).label("failed_count"),
+            func.sum(case((SkillCallLog.status == "success", 1), else_=0)).label(
+                "success_count"
+            ),
+            func.sum(case((SkillCallLog.status != "success", 1), else_=0)).label(
+                "failed_count"
+            ),
             func.avg(SkillCallLog.duration_ms).label("avg_duration"),
         ).where(
             and_(
@@ -87,20 +87,23 @@ async def get_package_call_stats(
             SkillCallLog.skill_id,
             SkillCallLog.tool_name,
             func.count(SkillCallLog.id).label("calls"),
-            func.sum(
-                case((SkillCallLog.status == "success", 1), else_=0)
-            ).label("successes"),
+            func.sum(case((SkillCallLog.status == "success", 1), else_=0)).label(
+                "successes"
+            ),
             func.avg(SkillCallLog.duration_ms).label("avg_ms"),
-        ).where(
+        )
+        .where(
             and_(
                 SkillCallLog.skill_id.in_(skill_ids),
                 SkillCallLog.created_at >= since,
                 SkillCallLog.is_deleted.is_(False),
             ),
-        ).group_by(
+        )
+        .group_by(
             SkillCallLog.skill_id,
             SkillCallLog.tool_name,
-        ).order_by(
+        )
+        .order_by(
             func.count(SkillCallLog.id).desc(),
         ),
     )
@@ -109,13 +112,15 @@ async def get_package_call_stats(
     for r in by_skill_result.all():
         calls = r.calls or 0
         successes = r.successes or 0
-        by_skill.append({
-            "skill_id": r.skill_id,
-            "tool_name": r.tool_name,
-            "calls": calls,
-            "success_rate": round(successes / calls * 100, 1) if calls > 0 else 0,
-            "avg_duration_ms": round(float(r.avg_ms or 0), 1),
-        })
+        by_skill.append(
+            {
+                "skill_id": r.skill_id,
+                "tool_name": r.tool_name,
+                "calls": calls,
+                "success_rate": round(successes / calls * 100, 1) if calls > 0 else 0,
+                "avg_duration_ms": round(float(r.avg_ms or 0), 1),
+            }
+        )
 
     return {
         "days": days,

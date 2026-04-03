@@ -57,7 +57,9 @@ def register_directory_menus() -> int:
 
 
 # Export all menu definitions (for external access) / 导出所有菜单定义（用于外部访问）
-ALL_DIRECTORY_MENUS = ADMIN_DIRECTORY_MENUS + TENANT_DIRECTORY_MENUS + USER_DIRECTORY_MENUS
+ALL_DIRECTORY_MENUS = (
+    ADMIN_DIRECTORY_MENUS + TENANT_DIRECTORY_MENUS + USER_DIRECTORY_MENUS
+)
 
 
 __all__ = [

@@ -126,14 +126,14 @@ class AIQuotaDiagnosticsService:
         warning_threshold = quota.warning_threshold or 80
         is_exceeded = quota.is_active and usage_percent >= 100
         is_warning = (
-            quota.is_active
-            and not is_exceeded
-            and usage_percent >= warning_threshold
+            quota.is_active and not is_exceeded and usage_percent >= warning_threshold
         )
         runtime_status = (
             "inactive"
             if not quota.is_active
-            else ("exceeded" if is_exceeded else ("warning" if is_warning else "healthy"))
+            else (
+                "exceeded" if is_exceeded else ("warning" if is_warning else "healthy")
+            )
         )
 
         scope_repo = TenantQuotaRepository(self.db, quota.tenant_id)
@@ -220,13 +220,17 @@ class AIQuotaDiagnosticsService:
             (effective_rpm is not None and current_rpm >= effective_rpm)
             or (effective_tpm is not None and current_tpm >= effective_tpm)
         )
-        is_warning = rate_limit.is_active and not is_exceeded and (
-            rpm_usage_percent >= 80 or tpm_usage_percent >= 80
+        is_warning = (
+            rate_limit.is_active
+            and not is_exceeded
+            and (rpm_usage_percent >= 80 or tpm_usage_percent >= 80)
         )
         runtime_status = (
             "inactive"
             if not rate_limit.is_active
-            else ("exceeded" if is_exceeded else ("warning" if is_warning else "healthy"))
+            else (
+                "exceeded" if is_exceeded else ("warning" if is_warning else "healthy")
+            )
         )
 
         repo = TenantModelRateLimitRepository(self.db, rate_limit.tenant_id)

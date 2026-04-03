@@ -21,14 +21,22 @@ from app.models.ai.skill import Skill
 
 # 导出字段白名单 / Export field whitelist
 _EXPORT_FIELDS = [
-    "name", "description", "avatar", "type", "config",
-    "input_schema", "output_schema", "timeout", "is_active",
+    "name",
+    "description",
+    "avatar",
+    "type",
+    "config",
+    "input_schema",
+    "output_schema",
+    "timeout",
+    "is_active",
     "toolkit_content",
 ]
 
 # 敏感 key 模式：含 secret/password/token/key/_env 后缀 / Sensitive key pattern: containing secret/password/token/key/_env suffix
 _SENSITIVE_RE = re.compile(
-    r"(secret|password|token|api_key|_env)$", re.IGNORECASE,
+    r"(secret|password|token|api_key|_env)$",
+    re.IGNORECASE,
 )
 
 
@@ -44,8 +52,7 @@ def _sanitize_config(config: dict[str, Any] | None) -> dict[str, Any] | None:
             sanitized[k] = _sanitize_config(v)
         elif isinstance(v, list):
             sanitized[k] = [
-                _sanitize_config(item) if isinstance(item, dict) else item
-                for item in v
+                _sanitize_config(item) if isinstance(item, dict) else item for item in v
             ]
         else:
             sanitized[k] = v

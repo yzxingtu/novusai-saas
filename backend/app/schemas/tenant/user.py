@@ -18,7 +18,9 @@ class TenantUserLoginRequest(BaseSchema):
 
     username: str = Field(..., min_length=1, max_length=50, description="用户名或邮箱")
     password: str = Field(..., min_length=1, description="密码")
-    tenant_code: str | None = Field(None, max_length=50, description="企业编码（用于限定登录范围）")
+    tenant_code: str | None = Field(
+        None, max_length=50, description="企业编码（用于限定登录范围）"
+    )
     captcha_challenge_id: str | None = Field(None, description="验证码挑战 ID")
     captcha_solution: str | None = Field(None, description="验证码答案")
     captcha_provider_code: str | None = Field(None, description="验证码提供方标识")
@@ -27,7 +29,9 @@ class TenantUserLoginRequest(BaseSchema):
 class SendLoginCodeRequest(BaseSchema):
     """发送登录验证码请求 / Send login code request."""
 
-    channel: Literal["email", "sms"] = Field("email", description="验证码渠道: email/sms")
+    channel: Literal["email", "sms"] = Field(
+        "email", description="验证码渠道: email/sms"
+    )
     email: str | None = Field(None, max_length=255, description="邮箱")
     phone: str | None = Field(None, max_length=20, description="手机号")
     tenant_code: str | None = Field(None, max_length=50, description="企业编码")
@@ -39,7 +43,9 @@ class SendLoginCodeRequest(BaseSchema):
 class LoginByCodeRequest(BaseSchema):
     """验证码登录请求 / Login by code request."""
 
-    channel: Literal["email", "sms"] = Field("email", description="验证码渠道: email/sms")
+    channel: Literal["email", "sms"] = Field(
+        "email", description="验证码渠道: email/sms"
+    )
     code: str = Field(..., min_length=4, max_length=10, description="验证码")
     email: str | None = Field(None, max_length=255, description="邮箱")
     phone: str | None = Field(None, max_length=20, description="手机号")
@@ -107,7 +113,9 @@ class TenantUserRegisterRequest(BaseSchema):
     username: str = Field(..., min_length=2, max_length=50, description="用户名")
     email: str = Field(..., max_length=255, description="邮箱")
     password: str = Field(..., min_length=6, max_length=50, description="密码")
-    confirm_password: str = Field(..., min_length=6, max_length=50, description="确认密码")
+    confirm_password: str = Field(
+        ..., min_length=6, max_length=50, description="确认密码"
+    )
     phone: str | None = Field(None, max_length=20, description="手机号")
     nickname: str | None = Field(None, max_length=100, description="昵称")
     tenant_code: str | None = Field(None, max_length=50, description="企业编码")
@@ -126,7 +134,9 @@ class TenantUserProfileUpdateRequest(BaseSchema):
     """企业用户资料更新请求 / Tenant user profile update request."""
 
     nickname: str | None = Field(None, max_length=100, description="昵称")
-    avatar: str | None = Field(None, max_length=500, description="头像附件 ID（兼容旧 URL 值）")
+    avatar: str | None = Field(
+        None, max_length=500, description="头像附件 ID（兼容旧 URL 值）"
+    )
     gender: int | None = Field(None, ge=0, le=2, description="性别: 0未知 1男 2女")
     phone: str | None = Field(None, max_length=20, description="手机号")
     email: str | None = Field(None, max_length=255, description="邮箱")
@@ -146,7 +156,9 @@ class ResetPasswordRequest(BaseSchema):
     email: str = Field(..., max_length=255, description="邮箱")
     code: str = Field(..., min_length=4, max_length=10, description="验证码")
     new_password: str = Field(..., min_length=6, max_length=50, description="新密码")
-    confirm_password: str = Field(..., min_length=6, max_length=50, description="确认密码")
+    confirm_password: str = Field(
+        ..., min_length=6, max_length=50, description="确认密码"
+    )
     tenant_code: str | None = Field(None, max_length=50, description="企业编码")
 
     @model_validator(mode="after")

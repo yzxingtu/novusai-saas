@@ -74,10 +74,12 @@ async def export_skill_package(
     """
     # 查询包内所有技能 / Query all skills in package
     result = await db.execute(
-        select(Skill).where(
+        select(Skill)
+        .where(
             Skill.package_id == pkg.id,
             Skill.is_deleted.is_(False),
-        ).order_by(Skill.sort_order),
+        )
+        .order_by(Skill.sort_order),
     )
     skills = result.scalars().all()
 
@@ -187,6 +189,7 @@ async def import_skill_package(
 
     # 创建技能 / Create skills
     from app.enums.agent import SkillTypeEnum
+
     valid_skill_types = SkillTypeEnum.values()
 
     skills_created = 0
@@ -195,7 +198,8 @@ async def import_skill_package(
         if skill_type not in valid_skill_types:
             logger.warning(
                 "Skipping skill with invalid type '{}' during import of '{}'",
-                skill_type, pkg_name,
+                skill_type,
+                pkg_name,
             )
             continue
 
@@ -221,7 +225,9 @@ async def import_skill_package(
 
     logger.info(
         "Skill package imported: {} (id={}) with {} skills",
-        pkg_name, new_pkg.id, skills_created,
+        pkg_name,
+        new_pkg.id,
+        skills_created,
     )
 
     return {

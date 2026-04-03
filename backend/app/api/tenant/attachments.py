@@ -84,6 +84,7 @@ class TenantAttachmentController(TenantController):
             权限 / Permission: attachment:upload_rules
             """
             from app.configs.service import ConfigService
+
             config_service = ConfigService(db)
             tid = current_admin.tenant_id
 
@@ -107,11 +108,13 @@ class TenantAttachmentController(TenantController):
                 "platform_storage_max_file_size_mb", default=100
             )
 
-            return success(data={
-                "allowed_extensions": str(tenant_allowed) if tenant_allowed else "",
-                "denied_extensions": str(tenant_denied) if tenant_denied else "",
-                "max_file_size_mb": int(max_size) if max_size else 100,
-            })
+            return success(
+                data={
+                    "allowed_extensions": str(tenant_allowed) if tenant_allowed else "",
+                    "denied_extensions": str(tenant_denied) if tenant_denied else "",
+                    "max_file_size_mb": int(max_size) if max_size else 100,
+                }
+            )
 
         # ========== 预检接口（秒传） / Preflight (Fast Upload) ==========
 
@@ -144,12 +147,16 @@ class TenantAttachmentController(TenantController):
                 file_hash=raw_hash,
                 filename=body.filename,
                 size=body.size,
-                visibility=AttachmentVisibility(body.visibility) if body.visibility else AttachmentVisibility.PRIVATE,
+                visibility=AttachmentVisibility(body.visibility)
+                if body.visibility
+                else AttachmentVisibility.PRIVATE,
             )
             resp = AttachmentSafePreflightResponse(
                 exists=result["exists"],
                 attachment=(
-                    AttachmentSafeResponse.model_validate(result["attachment"], from_attributes=True)
+                    AttachmentSafeResponse.model_validate(
+                        result["attachment"], from_attributes=True
+                    )
                     if result["attachment"]
                     else None
                 ),
@@ -168,8 +175,12 @@ class TenantAttachmentController(TenantController):
             current_admin: ActiveTenantAdmin,
             file: UploadFile = File(..., description=_("api.param.file")),
             visibility: str = Form("", description=_("api.param.visibility")),
-            business_type: str | None = Form(None, description=_("api.param.business_type")),
-            business_id: int | None = Form(None, description=_("api.param.business_id")),
+            business_type: str | None = Form(
+                None, description=_("api.param.business_type")
+            ),
+            business_id: int | None = Form(
+                None, description=_("api.param.business_id")
+            ),
         ):
             """
             上传附件（普通上传） / Upload attachment (standard upload)
@@ -216,8 +227,12 @@ class TenantAttachmentController(TenantController):
             current_admin: ActiveTenantAdmin,
             files: list[UploadFile] = File(..., description=_("api.param.files")),
             visibility: str = Form("", description=_("api.param.visibility")),
-            business_type: str | None = Form(None, description=_("api.param.business_type")),
-            business_id: int | None = Form(None, description=_("api.param.business_id")),
+            business_type: str | None = Form(
+                None, description=_("api.param.business_type")
+            ),
+            business_id: int | None = Form(
+                None, description=_("api.param.business_id")
+            ),
         ):
             """
             批量上传附件（普通上传，每文件独立处理） / Batch upload attachments (standard upload, each file processed independently)
@@ -250,23 +265,27 @@ class TenantAttachmentController(TenantController):
                         business_type=business_type,
                         business_id=business_id,
                     )
-                    items.append(BatchSafeUploadItem(
-                        filename=f.filename or "unnamed",
-                        success=True,
-                        attachment=AttachmentSafeResponse.model_validate(
-                            result["attachment"], from_attributes=True
-                        ),
-                        url=result["url"],
-                    ))
+                    items.append(
+                        BatchSafeUploadItem(
+                            filename=f.filename or "unnamed",
+                            success=True,
+                            attachment=AttachmentSafeResponse.model_validate(
+                                result["attachment"], from_attributes=True
+                            ),
+                            url=result["url"],
+                        )
+                    )
                 except Exception as exc:
-                    items.append(BatchSafeUploadItem(
-                        filename=f.filename or "unnamed",
-                        success=False,
-                        error=build_public_error_text(
-                            exc=exc,
-                            message=_("common.server_error"),
-                        ),
-                    ))
+                    items.append(
+                        BatchSafeUploadItem(
+                            filename=f.filename or "unnamed",
+                            success=False,
+                            error=build_public_error_text(
+                                exc=exc,
+                                message=_("common.server_error"),
+                            ),
+                        )
+                    )
             success_count = sum(1 for i in items if i.success)
             used_bytes = await service.get_used_storage_bytes()
             return success(
@@ -426,7 +445,9 @@ class TenantAttachmentController(TenantController):
             权限 / Permission: attachment:storage_quota
             """
             quota_service = StorageQuotaService(db)
-            stats = await quota_service.get_tenant_storage_stats(current_admin.tenant_id)
+            stats = await quota_service.get_tenant_storage_stats(
+                current_admin.tenant_id
+            )
 
             return success(
                 data=TenantStorageQuotaResponse(
@@ -450,7 +471,9 @@ class TenantAttachmentController(TenantController):
             current_admin: ActiveTenantAdmin,
             search: str = Query("", description=_("api.param.search")),
             page: int = Query(0, ge=0, description=_("api.param.page")),
-            page_size: int = Query(20, ge=1, le=100, description=_("api.param.page_size")),
+            page_size: int = Query(
+                20, ge=1, le=100, description=_("api.param.page_size")
+            ),
         ):
             """
             获取附件下拉选项 / Get attachment dropdown options
@@ -490,7 +513,9 @@ class TenantAttachmentController(TenantController):
             items, total = await service.query_list(spec, scope="tenant")
             serialized = [
                 _with_preview_url(
-                    AttachmentSafeListItem.model_validate(item, from_attributes=True).model_dump(),
+                    AttachmentSafeListItem.model_validate(
+                        item, from_attributes=True
+                    ).model_dump(),
                     tenant_id=current_admin.tenant_id,
                 )
                 for item in items
@@ -523,7 +548,9 @@ class TenantAttachmentController(TenantController):
             if not attachment:
                 raise NotFoundException(message=_("error.common.not_found"))
             data = _with_preview_url(
-                AttachmentSafeResponse.model_validate(attachment, from_attributes=True).model_dump(),
+                AttachmentSafeResponse.model_validate(
+                    attachment, from_attributes=True
+                ).model_dump(),
                 tenant_id=current_admin.tenant_id,
             )
             return success(
@@ -568,7 +595,9 @@ class TenantAttachmentController(TenantController):
             data = await service.build_access_url(
                 attachment, expires=expires, preview=False
             )
-            return success(data=AttachmentAccessUrlResponse(**data), message=_("common.success"))
+            return success(
+                data=AttachmentAccessUrlResponse(**data), message=_("common.success")
+            )
 
         @router.get("/{attachment_id}/preview-url", summary="获取预览链接")
         @action_read("action.attachment.preview_url")
@@ -588,7 +617,9 @@ class TenantAttachmentController(TenantController):
             data = await service.build_access_url(
                 attachment, expires=expires, preview=True
             )
-            return success(data=AttachmentAccessUrlResponse(**data), message=_("common.success"))
+            return success(
+                data=AttachmentAccessUrlResponse(**data), message=_("common.success")
+            )
 
         @router.get("/{attachment_id}/download", summary="下载附件")
         @action_read("action.attachment.download")

@@ -32,10 +32,16 @@ class GeneratedFile:
     content: str
     action: str  # create | create_if_missing | append | merge_json | register_route / 写盘动作
     appended_content: str | None = None  # for append / 追加模式下的片段
-    insert_before_last_marker: str | None = None  # for append: insert before last occurrence instead of EOF / 追加时在末标记前插入而非 EOF
+    insert_before_last_marker: str | None = (
+        None  # for append: insert before last occurrence instead of EOF / 追加时在末标记前插入而非 EOF
+    )
     merged_keys: list[str] | None = None  # for merge_json / merge_json 要合并的键
-    route_meta: dict | None = None  # for register_route: {scope, resource} / 注册路由元数据
-    model_meta: dict | None = None  # for register_model: {module, resource} / 注册模型元数据
+    route_meta: dict | None = (
+        None  # for register_route: {scope, resource} / 注册路由元数据
+    )
+    model_meta: dict | None = (
+        None  # for register_model: {module, resource} / 注册模型元数据
+    )
 
 
 @dataclass
@@ -170,7 +176,11 @@ class CodeGenerator:
         ForeignKey(table) 转为 mapped_column 的 ForeignKey("table.id") / ForeignKey(table) -> 'ForeignKey("table.id")'.
         其他类型返回 None / Other types -> None.
         """
-        m = re.match(r"^ForeignKey\s*\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)$", str(yaml_type or ""), re.I)
+        m = re.match(
+            r"^ForeignKey\s*\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)$",
+            str(yaml_type or ""),
+            re.I,
+        )
         if m:
             table = m.group(1)
             return f'ForeignKey("{table}.id")'
@@ -219,7 +229,12 @@ class CodeGenerator:
             return t[:-3] + "y"  # categories -> category / -ies 变 -y
         if t.endswith("es") and len(t) > 2:
             # addresses -> address, boxes -> box / 去 -es 类尾缀
-            if t.endswith("ses") or t.endswith("xes") or t.endswith("ches") or t.endswith("shes"):
+            if (
+                t.endswith("ses")
+                or t.endswith("xes")
+                or t.endswith("ches")
+                or t.endswith("shes")
+            ):
                 return t[:-2]  # boxes -> box, addresses -> address / 去掉末尾 es
             if t.endswith("ies"):  # already handled / 已由 -ies 分支处理
                 pass
@@ -243,7 +258,10 @@ class CodeGenerator:
             return []
         states = workflow.get("states") or []
         if states:
-            return [s if isinstance(s, dict) else {"name": str(s), "label": str(s)} for s in states]
+            return [
+                s if isinstance(s, dict) else {"name": str(s), "label": str(s)}
+                for s in states
+            ]
         trans = workflow.get("transitions") or []
         seen: set[str] = set()
         result: list[dict] = []
@@ -252,7 +270,9 @@ class CodeGenerator:
                 val = t.get(key)
                 if val and val not in seen:
                     seen.add(val)
-                    result.append({"name": val, "label": str(val).replace("_", " ").title()})
+                    result.append(
+                        {"name": val, "label": str(val).replace("_", " ").title()}
+                    )
         return result
 
     def build_context(self, parsed: ParsedConfig) -> dict:
@@ -268,13 +288,26 @@ class CodeGenerator:
         scenario = _detect_scenario(parsed)
         if scenario == "invalid":
             from app.exceptions import ValidationException
+
             raise ValidationException(
                 message="Invalid scenario: BaseModel cannot have tenant scope. Use TenantModel."
             )
-        admin_eps = [e for e in (parsed.endpoints or []) if (e or {}).get("scope") in ("admin", "admin_only")]
-        tenant_eps = [e for e in (parsed.endpoints or []) if (e or {}).get("scope") in ("tenant", "tenant_only")]
-        admin_only_eps = [e for e in admin_eps if (e or {}).get("scope") == "admin_only"]
-        tenant_only_eps = [e for e in tenant_eps if (e or {}).get("scope") == "tenant_only"]
+        admin_eps = [
+            e
+            for e in (parsed.endpoints or [])
+            if (e or {}).get("scope") in ("admin", "admin_only")
+        ]
+        tenant_eps = [
+            e
+            for e in (parsed.endpoints or [])
+            if (e or {}).get("scope") in ("tenant", "tenant_only")
+        ]
+        admin_only_eps = [
+            e for e in admin_eps if (e or {}).get("scope") == "admin_only"
+        ]
+        tenant_only_eps = [
+            e for e in tenant_eps if (e or {}).get("scope") == "tenant_only"
+        ]
         admin_ep = admin_eps[0] if admin_eps else {}
         tenant_ep = tenant_eps[0] if tenant_eps else {}
         toggle_field = ""
@@ -293,9 +326,14 @@ class CodeGenerator:
                     deps_out.append(item)
                 elif isinstance(item, str) and item.strip():
                     # "tenant" -> Tenant, tenant_id / 模型名 PascalCase + 外键列
-                    pascal = "".join(w.capitalize() for w in item.strip().replace("-", "_").split("_"))
+                    pascal = "".join(
+                        w.capitalize()
+                        for w in item.strip().replace("-", "_").split("_")
+                    )
                     fk_col = CodeGenerator._model_to_fk(pascal)
-                    deps_out.append({"model": pascal, "fk_field": fk_col, "strategy": "BLOCK"})
+                    deps_out.append(
+                        {"model": pascal, "fk_field": fk_col, "strategy": "BLOCK"}
+                    )
             model_dict = {**model_dict, "delete_deps": deps_out}
 
         # 合并 sub_tables 到 relations (one_to_many) 供 model 模板使用 / Merge sub_tables for model template
@@ -305,14 +343,19 @@ class CodeGenerator:
             if not sub_res:
                 continue
             fk = st.get("foreign_key") or f"{parsed.resource}_id"
-            merged_relations.append({
-                "type": "one_to_many",
-                "target": "".join(w.capitalize() for w in str(sub_res).replace("-", "_").split("_")),
-                "foreign_key": fk,
-                "name": CodeGenerator._pluralize(sub_res),
-                "back_populates": parsed.resource,
-                "_from_sub_table": True,
-            })
+            merged_relations.append(
+                {
+                    "type": "one_to_many",
+                    "target": "".join(
+                        w.capitalize()
+                        for w in str(sub_res).replace("-", "_").split("_")
+                    ),
+                    "foreign_key": fk,
+                    "name": CodeGenerator._pluralize(sub_res),
+                    "back_populates": parsed.resource,
+                    "_from_sub_table": True,
+                }
+            )
         return {
             "true": True,
             "false": False,
@@ -333,7 +376,9 @@ class CodeGenerator:
             "detail": parsed.detail,
             "clone": parsed.clone,
             "scenario": scenario,
-            "workflow_states_derived": CodeGenerator._derive_workflow_states(parsed.workflow),
+            "workflow_states_derived": CodeGenerator._derive_workflow_states(
+                parsed.workflow
+            ),
             "admin_ep": admin_ep,
             "tenant_ep": tenant_ep,
             "admin_only_eps": admin_only_eps,
@@ -344,7 +389,9 @@ class CodeGenerator:
             "has_toggle": has_toggle,
         }
 
-    def generate(self, parsed_config: ParsedConfig, step: str | None = None) -> GenerateResult:
+    def generate(
+        self, parsed_config: ParsedConfig, step: str | None = None
+    ) -> GenerateResult:
         """
         生成代码文件列表 / Generate code file list.
 
@@ -381,7 +428,9 @@ class CodeGenerator:
                     )
                 )
                 # 自动注册模型，便于 alembic autogenerate 发现 / auto-register model for alembic
-                pascal = "".join(w.capitalize() for w in resource.replace("-", "_").split("_"))
+                pascal = "".join(
+                    w.capitalize() for w in resource.replace("-", "_").split("_")
+                )
                 files.append(
                     GeneratedFile(
                         path=f"backend/app/models/{module}/__init__.py",
@@ -439,8 +488,10 @@ class CodeGenerator:
                     "main_resource_plural": parsed_config.resource_plural,
                     "main_fk": main_fk,
                     "sub_fields": st.get("fields") or [],
-                    "sub_display_name": st.get("display_name") or sub_res.replace("_", " ").title(),
-                    "sub_display_name_en": st.get("display_name_en") or sub_res.replace("_", " ").title(),
+                    "sub_display_name": st.get("display_name")
+                    or sub_res.replace("_", " ").title(),
+                    "sub_display_name_en": st.get("display_name_en")
+                    or sub_res.replace("_", " ").title(),
                 }
                 try:
                     tpl = self.env.get_template("backend/model_sub.py.j2")
@@ -542,9 +593,15 @@ class CodeGenerator:
                 logger.warning("codegen template render failed: %s", e)
                 errors.append(err_msg)
             # 后端 i18n 自动合并 / Backend i18n auto-merge
-            display_name = parsed_config.display_name or resource.replace("_", " ").title()
-            display_name_en = parsed_config.display_name_en or resource.replace("_", " ").title()
-            res_name = resource.replace("_", "-")  # 与 Controller @permission_resource(resource=...) 一致
+            display_name = (
+                parsed_config.display_name or resource.replace("_", " ").title()
+            )
+            display_name_en = (
+                parsed_config.display_name_en or resource.replace("_", " ").title()
+            )
+            res_name = resource.replace(
+                "_", "-"
+            )  # 与 Controller @permission_resource(resource=...) 一致
             i18n_zh = {
                 module: {
                     resource: {
@@ -598,7 +655,11 @@ class CodeGenerator:
             )
 
         if step in (None, "controller"):
-            admin_eps = [e for e in (parsed_config.endpoints or []) if (e or {}).get("scope") in ("admin", "admin_only")]
+            admin_eps = [
+                e
+                for e in (parsed_config.endpoints or [])
+                if (e or {}).get("scope") in ("admin", "admin_only")
+            ]
             if admin_eps:
                 try:
                     tpl = self.env.get_template("backend/controller_admin.py.j2")
@@ -623,7 +684,11 @@ class CodeGenerator:
                     err_msg = f"controller_admin: {e!s}"
                     logger.warning("codegen template render failed: %s", e)
                     errors.append(err_msg)
-            tenant_eps = [e for e in (parsed_config.endpoints or []) if (e or {}).get("scope") in ("tenant", "tenant_only")]
+            tenant_eps = [
+                e
+                for e in (parsed_config.endpoints or [])
+                if (e or {}).get("scope") in ("tenant", "tenant_only")
+            ]
             if tenant_eps:
                 try:
                     tpl = self.env.get_template("backend/controller_tenant.py.j2")
@@ -669,11 +734,18 @@ class CodeGenerator:
             frontend_root = "frontend/apps/web-antd/src"
             admin_ep = ctx.get("admin_ep") or {}
             tenant_ep = ctx.get("tenant_ep") or {}
-            mode = (admin_ep.get("frontend") or {}).get("mode") or (tenant_ep.get("frontend") or {}).get("mode") or "table"
+            mode = (
+                (admin_ep.get("frontend") or {}).get("mode")
+                or (tenant_ep.get("frontend") or {}).get("mode")
+                or "table"
+            )
 
             if admin_ep:
                 _menu_path = (admin_ep.get("permission") or {}).get("menu") or {}
-                _raw_path = _menu_path.get("path") or f"/{module.replace('_', '-')}/{resource.replace('_', '-')}s"
+                _raw_path = (
+                    _menu_path.get("path")
+                    or f"/{module.replace('_', '-')}/{resource.replace('_', '-')}s"
+                )
                 _list_path = _raw_path.lstrip("/")
                 render_ctx = {
                     **ctx,
@@ -697,7 +769,9 @@ class CodeGenerator:
                     errors.append(err_msg)
                 try:
                     tpl = self.env.get_template(
-                        "frontend/data_table.ts.j2" if mode == "table" else "frontend/data_card.ts.j2"
+                        "frontend/data_table.ts.j2"
+                        if mode == "table"
+                        else "frontend/data_card.ts.j2"
                     )
                     content = tpl.render(**render_ctx)
                     files.append(
@@ -713,7 +787,9 @@ class CodeGenerator:
                     errors.append(err_msg)
                 try:
                     tpl = self.env.get_template(
-                        "frontend/index_table.vue.j2" if mode == "table" else "frontend/index_card.vue.j2"
+                        "frontend/index_table.vue.j2"
+                        if mode == "table"
+                        else "frontend/index_card.vue.j2"
                     )
                     content = tpl.render(**render_ctx)
                     files.append(
@@ -770,7 +846,10 @@ class CodeGenerator:
                                 "    }},\n"
                             ).format(
                                 resource=resource,
-                                resource_pascal="".join(w.capitalize() for w in resource.replace("-", "_").split("_")),
+                                resource_pascal="".join(
+                                    w.capitalize()
+                                    for w in resource.replace("-", "_").split("_")
+                                ),
                                 list_path=_list_path,
                                 module=module,
                             )
@@ -827,8 +906,13 @@ class CodeGenerator:
                     errors.append(err_msg)
 
             if tenant_ep:
-                _menu_path_tenant = (tenant_ep.get("permission") or {}).get("menu") or {}
-                _raw_path_tenant = _menu_path_tenant.get("path") or f"/{module.replace('_', '-')}/{resource.replace('_', '-')}s"
+                _menu_path_tenant = (tenant_ep.get("permission") or {}).get(
+                    "menu"
+                ) or {}
+                _raw_path_tenant = (
+                    _menu_path_tenant.get("path")
+                    or f"/{module.replace('_', '-')}/{resource.replace('_', '-')}s"
+                )
                 _list_path_tenant = _raw_path_tenant.lstrip("/")
                 render_ctx = {
                     **ctx,
@@ -852,7 +936,9 @@ class CodeGenerator:
                     errors.append(err_msg)
                 try:
                     tpl = self.env.get_template(
-                        "frontend/data_table.ts.j2" if mode == "table" else "frontend/data_card.ts.j2"
+                        "frontend/data_table.ts.j2"
+                        if mode == "table"
+                        else "frontend/data_card.ts.j2"
                     )
                     content = tpl.render(**render_ctx)
                     files.append(
@@ -868,7 +954,9 @@ class CodeGenerator:
                     errors.append(err_msg)
                 try:
                     tpl = self.env.get_template(
-                        "frontend/index_table.vue.j2" if mode == "table" else "frontend/index_card.vue.j2"
+                        "frontend/index_table.vue.j2"
+                        if mode == "table"
+                        else "frontend/index_card.vue.j2"
                     )
                     content = tpl.render(**render_ctx)
                     files.append(
@@ -924,7 +1012,10 @@ class CodeGenerator:
                                 "    }},\n"
                             ).format(
                                 resource=resource,
-                                resource_pascal="".join(w.capitalize() for w in resource.replace("-", "_").split("_")),
+                                resource_pascal="".join(
+                                    w.capitalize()
+                                    for w in resource.replace("-", "_").split("_")
+                                ),
                                 list_path=_list_path_tenant,
                                 module=module,
                             )
@@ -981,8 +1072,12 @@ class CodeGenerator:
                     errors.append(err_msg)
 
         if step in (None, "controller"):
-            display_name = parsed_config.display_name or resource.replace("_", " ").title()
-            display_name_en = parsed_config.display_name_en or resource.replace("_", " ").title()
+            display_name = (
+                parsed_config.display_name or resource.replace("_", " ").title()
+            )
+            display_name_en = (
+                parsed_config.display_name_en or resource.replace("_", " ").title()
+            )
             admin_ep = ctx.get("admin_ep") or {}
             tenant_ep = ctx.get("tenant_ep") or {}
             menu_zh: dict[str, dict[str, str]] = {}

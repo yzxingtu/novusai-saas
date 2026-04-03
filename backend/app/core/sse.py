@@ -32,8 +32,8 @@ class SSEEvent:
     """
 
     MESSAGE = "message"  # 普通数据消息 / Normal data message
-    ERROR = "error"      # 错误消息 / Error message
-    DONE = "done"        # 完成标记 / Completion marker
+    ERROR = "error"  # 错误消息 / Error message
+    DONE = "done"  # 完成标记 / Completion marker
     KEEPALIVE = "keepalive"  # 保活消息（注释行） / Keep-alive (comment line)
 
 
@@ -312,6 +312,7 @@ def create_sse_response(
     Returns:
         FastAPI StreamingResponse 对象 / FastAPI StreamingResponse object
     """
+
     async def sse_generator() -> AsyncIterator[str]:
         """内部生成器，处理不同类型的数据 / Internal generator, handles different data types"""
         async for item in generator:

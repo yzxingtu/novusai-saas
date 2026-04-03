@@ -12,8 +12,8 @@ from urllib.parse import urlparse
 from sqlalchemy.exc import IntegrityError
 
 from app.core.base_service import BaseService
-from app.core.logging import LogManager
 from app.core.i18n import _
+from app.core.logging import LogManager
 from app.exceptions import ConflictException, NotFoundException, ValidationException
 from app.models.ai import AIProvider
 from app.repositories.ai import AIProviderRepository
@@ -41,10 +41,7 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
     model = AIProvider
     repository_class = AIProviderRepository
 
-    async def get_by_code(
-        self,
-        code: str
-    ) -> AIProvider | None:
+    async def get_by_code(self, code: str) -> AIProvider | None:
         """
         根据代码获取供应商 / Get provider by code.
 
@@ -56,10 +53,7 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
         """
         return await self.repo.get_by_code(code)
 
-    async def get_active_providers(
-        self,
-        limit: int | None = None
-    ) -> list[AIProvider]:
+    async def get_active_providers(self, limit: int | None = None) -> list[AIProvider]:
         """
         获取启用的供应商列表 / Get active providers list.
 
@@ -152,9 +146,8 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
     ) -> dict[str, Any]:
         validated_payload = dict(payload)
         if "base_url" in validated_payload:
-            provider_type = (
-                validated_payload.get("type")
-                or getattr(existing_provider, "type", None)
+            provider_type = validated_payload.get("type") or getattr(
+                existing_provider, "type", None
             )
             validated_payload["base_url"] = cls._validate_base_url(
                 validated_payload.get("base_url"),
@@ -162,10 +155,7 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
             )
         return validated_payload
 
-    async def create_provider(
-        self,
-        data: AIProviderCreate
-    ) -> AIProvider:
+    async def create_provider(self, data: AIProviderCreate) -> AIProvider:
         """
         创建供应商 / Create provider.
 
@@ -198,11 +188,7 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
             raise ConflictException(message=_("ai.error.provider_code_exists")) from exc
         return provider
 
-    async def update_provider(
-        self,
-        id: int,
-        data: AIProviderUpdate
-    ) -> AIProvider:
+    async def update_provider(self, id: int, data: AIProviderUpdate) -> AIProvider:
         """
         更新供应商 / Update provider.
 
@@ -236,10 +222,7 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
         await self.db.flush()
         return provider
 
-    async def delete_provider(
-        self,
-        id: int
-    ) -> None:
+    async def delete_provider(self, id: int) -> None:
         """
         删除供应商（软删除） / Delete provider (soft delete)
 
@@ -269,6 +252,7 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
         try:
             from app.ai.failover import HEALTH_HISTORY_PREFIX, HEALTH_KEY_PREFIX
             from app.core.redis import get_redis
+
             redis = await get_redis()
             health_key = HEALTH_KEY_PREFIX.format(provider_id=id)
             history_key = HEALTH_HISTORY_PREFIX.format(provider_id=id)
@@ -276,10 +260,7 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
         except Exception:
             _logger.debug("Failed to clear health cache for provider {}", id)
 
-    async def toggle_status(
-        self,
-        id: int
-    ) -> AIProvider:
+    async def toggle_status(self, id: int) -> AIProvider:
         """
         切换供应商启用状态 / Toggle provider active status.
 

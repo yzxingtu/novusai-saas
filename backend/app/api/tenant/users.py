@@ -189,6 +189,7 @@ class TenantUserController(TenantController):
             new_password = data.get("new_password", "")
             if not new_password or len(new_password) < 6:
                 from app.exceptions import ValidationException
+
                 raise ValidationException(
                     message=_("auth.password_too_short"),
                 )

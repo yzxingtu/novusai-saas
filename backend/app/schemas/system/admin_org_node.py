@@ -61,25 +61,37 @@ class AdminOrgNodeResponse(BaseSchema):
 class AdminOrgNodeDetailResponse(AdminOrgNodeResponse):
     """Admin organization node detail response / 管理后台组织节点详情响应"""
 
-    permission_ids: list[int] = Field(default_factory=list, description="Assigned permission IDs")
-    permission_codes: list[str] = Field(default_factory=list, description="Assigned permission codes")
+    permission_ids: list[int] = Field(
+        default_factory=list, description="Assigned permission IDs"
+    )
+    permission_codes: list[str] = Field(
+        default_factory=list, description="Assigned permission codes"
+    )
 
 
 class AdminOrgNodeTreeNode(AdminOrgNodeResponse):
     """Admin organization tree node / 管理后台组织树节点"""
 
-    children: list["AdminOrgNodeTreeNode"] = Field(default_factory=list, description="Child nodes")
+    children: list[AdminOrgNodeTreeNode] = Field(
+        default_factory=list, description="Child nodes"
+    )
 
 
 class AdminOrgNodeCreateRequest(BaseSchema):
     """Create admin organization node request / 创建管理后台组织节点请求"""
 
-    name: str = Field(..., min_length=1, max_length=50, description="Organization node name")
-    description: str | None = Field(None, max_length=500, description="Organization node description")
+    name: str = Field(
+        ..., min_length=1, max_length=50, description="Organization node name"
+    )
+    description: str | None = Field(
+        None, max_length=500, description="Organization node description"
+    )
     is_active: bool = Field(True, description="Whether the node is active")
     sort_order: int = Field(0, description="Sort order")
     parent_id: int | None = Field(None, description="Parent organization node ID")
-    type: AdminOrgNodeType = Field(RoleType.DEPARTMENT.value, description="Organization node type")
+    type: AdminOrgNodeType = Field(
+        RoleType.DEPARTMENT.value, description="Organization node type"
+    )
     allow_members: bool = Field(True, description="Whether members can be assigned")
     data_scope: str = Field(
         DataScope.DEPT_AND_CHILDREN.value,
@@ -98,13 +110,19 @@ class AdminOrgNodeCreateRequest(BaseSchema):
 class AdminOrgNodeUpdateRequest(BaseSchema):
     """Update admin organization node request / 更新管理后台组织节点请求"""
 
-    name: str | None = Field(None, min_length=1, max_length=50, description="Organization node name")
-    description: str | None = Field(None, max_length=500, description="Organization node description")
+    name: str | None = Field(
+        None, min_length=1, max_length=50, description="Organization node name"
+    )
+    description: str | None = Field(
+        None, max_length=500, description="Organization node description"
+    )
     is_active: bool | None = Field(None, description="Whether the node is active")
     sort_order: int | None = Field(None, description="Sort order")
     parent_id: int | None = Field(None, description="Parent organization node ID")
     type: AdminOrgNodeType | None = Field(None, description="Organization node type")
-    allow_members: bool | None = Field(None, description="Whether members can be assigned")
+    allow_members: bool | None = Field(
+        None, description="Whether members can be assigned"
+    )
     data_scope: str | None = Field(None, description="Organization data scope")
     custom_dept_ids: list[int] | None = Field(
         None,
@@ -129,7 +147,9 @@ class AdminOrgNodeAuthorityPolicyRequest(BaseSchema):
 class AdminOrgNodeMoveRequest(BaseSchema):
     """Move admin organization node request / 移动管理后台组织节点请求"""
 
-    new_parent_id: int | None = Field(None, description="New parent organization node ID")
+    new_parent_id: int | None = Field(
+        None, description="New parent organization node ID"
+    )
 
 
 class AdminOrgNodeSetLeaderRequest(BaseSchema):
@@ -169,7 +189,9 @@ class AdminOrgNodeUpdateMemberRequest(BaseSchema):
 class AdminOrgNodeResetPasswordRequest(BaseSchema):
     """Reset organization node member password / 重置组织节点成员密码请求"""
 
-    new_password: str = Field(..., min_length=6, max_length=50, description="New password")
+    new_password: str = Field(
+        ..., min_length=6, max_length=50, description="New password"
+    )
 
 
 class AdminOrgNodeToggleStatusRequest(BaseSchema):

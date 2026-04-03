@@ -34,7 +34,7 @@ class LLMReranker:
         "You are a relevance scoring assistant. "
         "Rate the relevance of the document excerpt to the query on a scale of 1-10.\n"
         "Output ONLY a JSON array of objects with 'index' (0-based) and 'score' (1-10).\n"
-        "Example: [{\"index\": 0, \"score\": 8}, {\"index\": 1, \"score\": 3}]"
+        'Example: [{"index": 0, "score": 8}, {"index": 1, "score": 3}]'
     )
 
     def __init__(self, db: AsyncSession, tenant_id: int, model: str | None = None):
@@ -108,7 +108,9 @@ class LLMReranker:
 
             logger.info(
                 "LLM rerank: query='{}', input={}, output={}",
-                query[:50], len(results), len(reranked),
+                query[:50],
+                len(results),
+                len(reranked),
             )
 
             return reranked
@@ -164,6 +166,7 @@ class LLMReranker:
     async def _get_model_info(self) -> tuple[str, str]:
         """Get LLM model info / 获取 LLM 模型信息"""
         from app.repositories.ai import AIModelRepository
+
         if self.model:
             model_repo = AIModelRepository(self.db)
             ai_model = await model_repo.get_by_code(self.model)
@@ -171,6 +174,7 @@ class LLMReranker:
                 return ai_model.provider.code, ai_model.code
 
         from app.core.config import settings
+
         return settings.DEFAULT_AI_PROVIDER, settings.DEFAULT_AI_MODEL
 
 

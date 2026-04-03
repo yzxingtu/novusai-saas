@@ -40,9 +40,15 @@ from app.middleware.trace import TraceIdMiddleware
 
 # Suppress noisy version compatibility warnings from requests lib (urllib3/charset_normalizer versions exceed preset test ranges but are actually compatible)
 # 抑制 requests 库的版本兼容性噪音警告（urllib3/charset_normalizer 版本超出其预设测试范围，但实际兼容）
-warnings.filterwarnings("ignore", message=".*urllib3.*doesn't match a supported version.*")
-warnings.filterwarnings("ignore", message=".*chardet.*doesn't match a supported version.*")
-warnings.filterwarnings("ignore", message=".*charset_normalizer.*doesn't match a supported version.*")
+warnings.filterwarnings(
+    "ignore", message=".*urllib3.*doesn't match a supported version.*"
+)
+warnings.filterwarnings(
+    "ignore", message=".*chardet.*doesn't match a supported version.*"
+)
+warnings.filterwarnings(
+    "ignore", message=".*charset_normalizer.*doesn't match a supported version.*"
+)
 
 
 @asynccontextmanager
@@ -67,8 +73,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info(f"Environment: {settings.APP_ENV}")
         logger.info(f"Debug mode: {settings.DEBUG}")
         logger.info("Runtime identity: {}", get_runtime_identity_tag())
-        if not settings.DEBUG and settings.SECRET_KEY == "your-secret-key-change-in-production":
-            logger.warning("SECURITY WARNING: SECRET_KEY is using the default value! Change it in production.")
+        if (
+            not settings.DEBUG
+            and settings.SECRET_KEY == "your-secret-key-change-in-production"
+        ):
+            logger.warning(
+                "SECURITY WARNING: SECRET_KEY is using the default value! Change it in production."
+            )
 
         # Initialize database (check/create database + run migrations) / 初始化数据库（检查/创建数据库 + 运行迁移）
         if not await init_database():
@@ -82,6 +93,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         # Early Redis initialization (subsequent startup steps depend on Redis for distributed locks) / 提前初始化 Redis（后续启动步骤的分布式锁依赖 Redis）
         from app.core.redis import RedisManager as _RedisManager
+
         try:
             await _RedisManager.init()
             logger.info("Redis initialized (early, for startup locks)")
@@ -101,9 +113,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         _perm_locked = False
         try:
             from app.core.redis import get_redis_client
+
             _perm_redis = get_redis_client()
             _perm_locked = await _perm_redis.set(
-                _perm_lock_key, _perm_owner, nx=True, ex=60,
+                _perm_lock_key,
+                _perm_owner,
+                nx=True,
+                ex=60,
             )
         except Exception:
             _perm_locked = True  # Degrade to lockless when Redis unavailable / Redis 不可用时降级为无锁
@@ -122,7 +138,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 if _perm_redis and _perm_locked is True:
                     try:
                         from app.plugins.lifecycle import _UNLOCK_IF_OWNER_LUA
-                        await _perm_redis.eval(_UNLOCK_IF_OWNER_LUA, 1, _perm_lock_key, _perm_owner)
+
+                        await _perm_redis.eval(
+                            _UNLOCK_IF_OWNER_LUA, 1, _perm_lock_key, _perm_owner
+                        )
                     except Exception as exc:
                         logger.debug("Redis perm_sync lock release failed: {}", exc)
         else:
@@ -144,8 +163,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         _cfg_locked = False
         try:
             from app.core.redis import get_redis_client as _get_rc2
+
             _cfg_redis = _get_rc2()
-            _cfg_locked = await _cfg_redis.set("plugin:startup:config_sync_lock", _cfg_owner, nx=True, ex=60)
+            _cfg_locked = await _cfg_redis.set(
+                "plugin:startup:config_sync_lock", _cfg_owner, nx=True, ex=60
+            )
         except Exception:
             _cfg_locked = True
 
@@ -162,7 +184,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 if _cfg_redis and _cfg_locked is True:
                     try:
                         from app.plugins.lifecycle import _UNLOCK_IF_OWNER_LUA
-                        await _cfg_redis.eval(_UNLOCK_IF_OWNER_LUA, 1, "plugin:startup:config_sync_lock", _cfg_owner)
+
+                        await _cfg_redis.eval(
+                            _UNLOCK_IF_OWNER_LUA,
+                            1,
+                            "plugin:startup:config_sync_lock",
+                            _cfg_owner,
+                        )
                     except Exception as exc:
                         logger.debug("Redis lock release failed: {}", exc)
 
@@ -177,8 +205,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         _tp_locked = False
         try:
             from app.core.redis import get_redis_client as _get_rc3
+
             _tp_redis = _get_rc3()
-            _tp_locked = await _tp_redis.set("plugin:startup:table_policy_lock", _tp_owner, nx=True, ex=60)
+            _tp_locked = await _tp_redis.set(
+                "plugin:startup:table_policy_lock", _tp_owner, nx=True, ex=60
+            )
         except Exception:
             _tp_locked = True
 
@@ -194,12 +225,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 if _tp_redis and _tp_locked is True:
                     try:
                         from app.plugins.lifecycle import _UNLOCK_IF_OWNER_LUA
-                        await _tp_redis.eval(_UNLOCK_IF_OWNER_LUA, 1, "plugin:startup:table_policy_lock", _tp_owner)
+
+                        await _tp_redis.eval(
+                            _UNLOCK_IF_OWNER_LUA,
+                            1,
+                            "plugin:startup:table_policy_lock",
+                            _tp_owner,
+                        )
                     except Exception as exc:
                         logger.debug("Redis lock release failed: {}", exc)
 
         # Initialize Redis connection / 初始化 Redis 连接
         from app.core.redis import RedisManager
+
         try:
             await RedisManager.init()
             logger.info("Redis initialized")
@@ -212,11 +250,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # Register core AI adapters (hardcoded, not dependent on plugin system) / 注册核心 AI 适配器（硬编码，不依赖插件系统）
         from app.ai.adapters import AdapterRegistry
         from app.ai.adapters.openai_adapter import OpenAIAdapter
+
         AdapterRegistry.register("openai_compatible", OpenAIAdapter)
 
         # Clean up residual online presence data (old connections already disconnected after server restart) / 清理残留的在线状态数据（服务器重启后旧连接已断开）
         try:
             from app.sio.presence import PresenceManager
+
             await PresenceManager.clear_all()
         except Exception as presence_err:
             logger.warning(f"Presence cleanup failed: {presence_err}")
@@ -224,6 +264,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # Apply WebSocket platform config (ping_interval / ping_timeout) / 应用 WebSocket 平台配置（ping_interval / ping_timeout）
         try:
             from app.core.socketio_server import apply_ws_config
+
             await apply_ws_config()
         except Exception as ws_cfg_err:
             logger.warning(f"WS config apply failed: {ws_cfg_err}")
@@ -231,6 +272,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # Seed data: notification templates / 种子数据：通知模板
         try:
             from app.sio.notification_seeds import seed_notification_templates
+
             async with async_session_factory() as db:
                 seed_result = await seed_notification_templates(db)
                 if seed_result["created"] > 0:
@@ -245,6 +287,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # Verify Celery broker connectivity / 验证 Celery broker 连通性
         try:
             from app.celery_app import celery_app
+
             conn = celery_app.connection()
             conn.ensure_connection(max_retries=1, timeout=3)
             conn.close()
@@ -285,7 +328,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     _discover_lock_key, _discover_owner, nx=True, ex=_discover_lock_ttl
                 )
             except Exception as _redis_err:
-                logger.warning(f"Plugin discover lock unavailable (Redis error): {_redis_err}")
+                logger.warning(
+                    f"Plugin discover lock unavailable (Redis error): {_redis_err}"
+                )
                 _discover_locked = True  # Degrade to lockless when Redis unavailable (preserve original behavior) / Redis 不可用时降级为无锁（保持原有行为）
 
             if _discover_locked:
@@ -312,11 +357,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                         try:
                             from app.plugins.lifecycle import _UNLOCK_IF_OWNER_LUA
 
-                            await _redis_client.eval(_UNLOCK_IF_OWNER_LUA, 1, _discover_lock_key, _discover_owner)
+                            await _redis_client.eval(
+                                _UNLOCK_IF_OWNER_LUA,
+                                1,
+                                _discover_lock_key,
+                                _discover_owner,
+                            )
                         except Exception as exc:
-                            logger.debug("Redis plugin discover lock release failed: {}", exc)
+                            logger.debug(
+                                "Redis plugin discover lock release failed: {}", exc
+                            )
             else:
-                logger.info("Plugin discover: skipped (another worker is running discovery)")
+                logger.info(
+                    "Plugin discover: skipped (another worker is running discovery)"
+                )
 
             # Phase 2: Restore (owner heavy restore + other workers in-process registration only)
             # Phase 2: 恢复（owner 重恢复 + 其他 worker 仅本进程注册）
@@ -333,7 +387,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     _restore_lock_key, _restore_owner, nx=True, ex=_restore_lock_ttl
                 )
             except Exception as _redis_err:
-                logger.warning(f"Plugin restore lock unavailable (Redis error): {_redis_err}")
+                logger.warning(
+                    f"Plugin restore lock unavailable (Redis error): {_redis_err}"
+                )
                 _restore_locked = True  # Degrade to old behavior when Redis unavailable (each worker does heavy restore) / Redis 不可用时降级为旧行为（每 worker 重恢复）
 
             if _restore_locked:
@@ -357,9 +413,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                         try:
                             from app.plugins.lifecycle import _UNLOCK_IF_OWNER_LUA
 
-                            await _restore_redis.eval(_UNLOCK_IF_OWNER_LUA, 1, _restore_lock_key, _restore_owner)
+                            await _restore_redis.eval(
+                                _UNLOCK_IF_OWNER_LUA,
+                                1,
+                                _restore_lock_key,
+                                _restore_owner,
+                            )
                         except Exception as exc:
-                            logger.debug("Redis plugin restore lock release failed: {}", exc)
+                            logger.debug(
+                                "Redis plugin restore lock release failed: {}", exc
+                            )
             else:
                 # Non-owner worker waits for owner heavy restore to complete, then does in-process registration
                 # 非 owner worker 等待 owner 重恢复完成，再进行本 worker 进程内注册
@@ -408,13 +471,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         try:
             from app.configs.service import ConfigService
             from app.storage.manager import storage_manager
+
             async with async_session_factory() as db:
                 config_svc = ConfigService(db)
                 configured_driver = await config_svc.get_platform_config(
                     "platform_storage_driver", default="local"
                 )
                 configured_driver = str(configured_driver)
-                if configured_driver != "local" and not storage_manager.has_driver(configured_driver):
+                if configured_driver != "local" and not storage_manager.has_driver(
+                    configured_driver
+                ):
                     logger.warning(
                         "Platform storage driver '{}' is configured but not available. "
                         "The corresponding plugin may not be installed or enabled. "
@@ -427,6 +493,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         # Ensure startup phase errors are logged and displayed / 确保启动阶段的错误能够被记录和显示
         import traceback
+
         error_msg = f"Startup failed: {e}"
         logger.error(error_msg)
         logger.error(traceback.format_exc())
@@ -447,6 +514,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Close Redis connections / 关闭 Redis 连接
     from app.core.redis import RedisManager
+
     await RedisManager.close()
     logger.info("Redis connections closed")
 
@@ -487,6 +555,7 @@ def create_application() -> FastAPI:
     # Maintenance mode middleware (intercepts non-admin requests with 503 when enabled)
     # 维护模式中间件（开启时拦截非管理端请求返回 503）
     from app.middleware.maintenance import MaintenanceMiddleware
+
     app.add_middleware(MaintenanceMiddleware)
 
     # RBAC permission preload middleware (loads user permissions into request.state)
@@ -528,7 +597,9 @@ def create_application() -> FastAPI:
         return await _get_cors_headers(request)
 
     @app.exception_handler(AppException)
-    async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
+    async def app_exception_handler(
+        request: Request, exc: AppException
+    ) -> JSONResponse:
         """Application exception handler / 应用异常处理器"""
         return JSONResponse(
             status_code=exc.status_code,
@@ -575,7 +646,9 @@ def create_application() -> FastAPI:
         }
         code = status_code_map.get(exc.status_code, exc.status_code * 10)
         detail_text = str(exc.detail) if exc.detail else None
-        public_message = detail_text if exc.status_code < 500 else _("common.server_error")
+        public_message = (
+            detail_text if exc.status_code < 500 else _("common.server_error")
+        )
         debug_payload = (
             build_exception_debug(exc, detail=detail_text, include_traceback=False)
             if exc.status_code >= 500 and detail_text
@@ -591,7 +664,9 @@ def create_application() -> FastAPI:
         return response
 
     @app.exception_handler(Exception)
-    async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    async def global_exception_handler(
+        request: Request, exc: Exception
+    ) -> JSONResponse:
         """Global exception handler - catches unhandled exceptions / 全局异常处理器 - 捕获未处理的异常"""
         # Log exception / 记录异常日志
         logger = get_logger(__name__)
@@ -627,6 +702,7 @@ def create_application() -> FastAPI:
     async def health_check() -> dict:
         """Health check endpoint / 健康检查端点"""
         from app.core.redis import RedisManager
+
         redis_ok = await RedisManager.health_check()
         return {
             "code": 0,
@@ -671,10 +747,12 @@ def create_application() -> FastAPI:
     # Register directory menus (must be before controller imports to ensure parent menus are registered first)
     # 注册目录型菜单（必须在控制器导入之前，确保父菜单先注册）
     from app.rbac.menus import register_directory_menus
+
     register_directory_menus()
 
     # Register platform admin routes (/admin/*) / 注册平台管理后台路由 (/admin/*)
     from app.api.admin import admin_router
+
     app.include_router(admin_router, prefix="/admin")
 
     # Register plugin API dispatcher / 注册插件 API 分发器
@@ -683,26 +761,37 @@ def create_application() -> FastAPI:
         plugin_public_api_router,
         plugin_tenant_api_router,
     )
-    app.include_router(plugin_api_router, prefix="/admin")          # /admin/plugins/{name}/api/* / 平台端插件 API 路径模板
-    app.include_router(plugin_tenant_api_router, prefix="/tenant")  # /tenant/plugins/{name}/api/* / 企业端插件 API 路径模板
-    app.include_router(plugin_public_api_router, prefix="/api/public")  # /api/public/plugins/{name}/api/* / 公开插件 API 路径模板
+
+    app.include_router(
+        plugin_api_router, prefix="/admin"
+    )  # /admin/plugins/{name}/api/* / 平台端插件 API 路径模板
+    app.include_router(
+        plugin_tenant_api_router, prefix="/tenant"
+    )  # /tenant/plugins/{name}/api/* / 企业端插件 API 路径模板
+    app.include_router(
+        plugin_public_api_router, prefix="/api/public"
+    )  # /api/public/plugins/{name}/api/* / 公开插件 API 路径模板
 
     # Register plugin Webhook dispatcher (/webhooks/plugins/{name}/{path}) — bypasses auth middleware
     # 注册插件 Webhook 分发器 (/webhooks/plugins/{name}/{path}) — 不走认证中间件
     from app.plugins.webhook_dispatcher import webhook_router
+
     app.include_router(webhook_router)
 
     # Register tenant admin routes (/tenant/*) / 注册企业管理后台路由 (/tenant/*)
     from app.api.tenant import tenant_router
+
     app.include_router(tenant_router, prefix="/tenant")
 
     # Register user API routes (/api/user/*) / 注册用户端 API 路由 (/api/user/*)
     from app.api.user import user_router
+
     app.include_router(user_router, prefix="/api/user")
 
     # Register public API routes (/api/public/*) - no auth required, for tenant login page config
     # 注册公共 API 路由 (/api/public/*) - 无需认证，用于企业登录页获取配置
     from app.api.public import public_router
+
     app.include_router(public_router, prefix="/api/public")
 
     # ========================================
@@ -776,7 +865,9 @@ def create_application() -> FastAPI:
         if asset_file is None:
             return _build_public_not_found_response()
 
-        content_type = _mimetypes.guess_type(str(asset_file))[0] or "application/octet-stream"
+        content_type = (
+            _mimetypes.guess_type(str(asset_file))[0] or "application/octet-stream"
+        )
         headers = {
             "Cache-Control": "public, max-age=300, must-revalidate",
             "Vary": "Host, Authorization, Cookie",
@@ -826,7 +917,9 @@ def create_application() -> FastAPI:
         from app.plugins.asset_resolver import resolve_plugin_asset_file
         from app.plugins.asset_runtime import authorize_plugin_asset_request
 
-        def _build_cache_headers(*, content_length: int | None = None) -> dict[str, str]:
+        def _build_cache_headers(
+            *, content_length: int | None = None
+        ) -> dict[str, str]:
             headers = {
                 "Cache-Control": "private, max-age=300, must-revalidate",
                 "Vary": "Authorization, Cookie",
@@ -866,7 +959,9 @@ def create_application() -> FastAPI:
                 status_code=404,
             )
 
-        content_type = _mimetypes.guess_type(str(asset_file))[0] or "application/octet-stream"
+        content_type = (
+            _mimetypes.guess_type(str(asset_file))[0] or "application/octet-stream"
+        )
 
         if request.method == "HEAD":
             # HEAD returns metadata only, avoiding unnecessary reading of large file contents
@@ -932,7 +1027,9 @@ def create_application() -> FastAPI:
                 status_code=404,
             )
 
-        content_type = _mimetypes.guess_type(str(asset_file))[0] or "application/octet-stream"
+        content_type = (
+            _mimetypes.guess_type(str(asset_file))[0] or "application/octet-stream"
+        )
         headers = {
             "Cache-Control": "private, max-age=300, must-revalidate",
             "Vary": "Authorization, Cookie",

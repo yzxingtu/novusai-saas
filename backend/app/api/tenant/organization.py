@@ -112,7 +112,10 @@ def _serialize_org_tree(org_nodes: list) -> list[dict]:
 def _serialize_member(member) -> TenantOrgNodeMemberResponse:
     org_relation = getattr(member, "org_node", None)
     permission_role = getattr(member, "role", None)
-    is_leader = org_relation is not None and getattr(org_relation, "leader_id", None) == member.id
+    is_leader = (
+        org_relation is not None
+        and getattr(org_relation, "leader_id", None) == member.id
+    )
     return TenantOrgNodeMemberResponse(
         id=member.id,
         username=member.username,
@@ -133,9 +136,13 @@ def _serialize_member(member) -> TenantOrgNodeMemberResponse:
 
 def _raise_http(exc: Exception):
     if isinstance(exc, NotFoundException):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc.message))
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc.message)
+        )
     if isinstance(exc, BusinessException):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc.message))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc.message)
+        )
     raise exc
 
 
@@ -158,20 +165,36 @@ class TenantOrganizationController(TenantController):
     prefix = "/organization"
     tags = ["Organization Management (Tenant)"]
 
-    async def _require_view(self, db: DbSession, tenant_admin: ActiveTenantAdmin, org_node_id: int) -> None:
-        if not await TenantOrgAuthorityService(db, tenant_admin).can_view_org_node(org_node_id):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_("role.no_permission_to_view"))
+    async def _require_view(
+        self, db: DbSession, tenant_admin: ActiveTenantAdmin, org_node_id: int
+    ) -> None:
+        if not await TenantOrgAuthorityService(db, tenant_admin).can_view_org_node(
+            org_node_id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=_("role.no_permission_to_view"),
+            )
 
-    async def _require_manage(self, db: DbSession, tenant_admin: ActiveTenantAdmin, org_node_id: int) -> None:
-        if not await TenantOrgAuthorityService(db, tenant_admin).can_manage_org_node(org_node_id):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_("role.no_permission_to_manage"))
+    async def _require_manage(
+        self, db: DbSession, tenant_admin: ActiveTenantAdmin, org_node_id: int
+    ) -> None:
+        if not await TenantOrgAuthorityService(db, tenant_admin).can_manage_org_node(
+            org_node_id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=_("role.no_permission_to_manage"),
+            )
 
     def _register_routes(self) -> None:
         router = self.router
 
         @router.get("/tree", summary="获取组织树")
         @action_read("action.organization.tree")
-        async def get_org_tree(request: Request, db: DbSession, current_admin: ActiveTenantAdmin):
+        async def get_org_tree(
+            request: Request, db: DbSession, current_admin: ActiveTenantAdmin
+        ):
             service = TenantOrgNodeService(db, current_admin.tenant_id)
             authority = TenantOrgAuthorityService(db, current_admin)
             if current_admin.is_owner:
@@ -188,12 +211,17 @@ class TenantOrganizationController(TenantController):
 
         @router.get("", summary="获取组织根节点")
         @action_read("action.organization.organization")
-        async def get_org_roots(request: Request, db: DbSession, current_admin: ActiveTenantAdmin):
+        async def get_org_roots(
+            request: Request, db: DbSession, current_admin: ActiveTenantAdmin
+        ):
             service = TenantOrgNodeService(db, current_admin.tenant_id)
             authority = TenantOrgAuthorityService(db, current_admin)
             if current_admin.is_owner:
                 nodes = await service.get_visible_root_nodes()
-                return success(data=[_serialize_org_node(node) for node in nodes], message=_("common.success"))
+                return success(
+                    data=[_serialize_org_node(node) for node in nodes],
+                    message=_("common.success"),
+                )
 
             scope_ids = await authority.get_visible_org_node_ids()
             items = await service.get_visible_root_nodes(scope_ids)
@@ -211,13 +239,21 @@ class TenantOrganizationController(TenantController):
             if not current_admin.is_owner:
                 for org_node_id in data.ids:
                     if not await authority.can_manage_org_node(org_node_id):
-                        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_("role.no_permission_to_manage"))
-            updated_count = await TenantOrgNodeService(db, current_admin.tenant_id).reorder(
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail=_("role.no_permission_to_manage"),
+                        )
+            updated_count = await TenantOrgNodeService(
+                db, current_admin.tenant_id
+            ).reorder(
                 ordered_ids=data.ids,
                 parent_id=data.parent_id,
             )
             await db.commit()
-            return success(data={"updated_count": updated_count}, message=_("common.reorder_success"))
+            return success(
+                data={"updated_count": updated_count},
+                message=_("common.reorder_success"),
+            )
 
         @router.get("/{org_node_id}", summary="获取组织节点详情")
         @action_read("action.organization.detail")
@@ -232,7 +268,9 @@ class TenantOrganizationController(TenantController):
                 db,
                 current_admin.tenant_id,
             ).get_org_node_detail(org_node_id)
-            return success(data=_serialize_org_node_detail(org_node), message=_("common.success"))
+            return success(
+                data=_serialize_org_node_detail(org_node), message=_("common.success")
+            )
 
         @router.get("/{org_node_id}/children", summary="获取组织子节点")
         @action_read("action.organization.children")
@@ -243,8 +281,13 @@ class TenantOrganizationController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             await self._require_view(db, current_admin, org_node_id)
-            nodes = await TenantOrgNodeService(db, current_admin.tenant_id).get_organization_children(org_node_id)
-            return success(data=[_serialize_org_node(node) for node in nodes], message=_("common.success"))
+            nodes = await TenantOrgNodeService(
+                db, current_admin.tenant_id
+            ).get_organization_children(org_node_id)
+            return success(
+                data=[_serialize_org_node(node) for node in nodes],
+                message=_("common.success"),
+            )
 
         @router.post("", summary="创建组织节点")
         @action_create("action.organization.create")
@@ -254,12 +297,21 @@ class TenantOrganizationController(TenantController):
             data: TenantOrgNodeCreateRequest,
             current_admin: ActiveTenantAdmin,
         ):
-            if not await TenantOrgAuthorityService(db, current_admin).can_create_under_parent(data.parent_id):
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_("role.parent_must_be_visible"))
+            if not await TenantOrgAuthorityService(
+                db, current_admin
+            ).can_create_under_parent(data.parent_id):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=_("role.parent_must_be_visible"),
+                )
             try:
-                org_node = await TenantOrgNodeService(db, current_admin.tenant_id).create_org_node(**data.model_dump())
+                org_node = await TenantOrgNodeService(
+                    db, current_admin.tenant_id
+                ).create_org_node(**data.model_dump())
                 await db.commit()
-                return success(data=_serialize_org_node(org_node), message=_("role.created"))
+                return success(
+                    data=_serialize_org_node(org_node), message=_("role.created")
+                )
             except Exception as exc:
                 _raise_http(exc)
 
@@ -275,16 +327,25 @@ class TenantOrganizationController(TenantController):
             await self._require_manage(db, current_admin, org_node_id)
             if (
                 "parent_id" in data.model_fields_set
-                and not await TenantOrgAuthorityService(db, current_admin).can_create_under_parent(data.parent_id)
+                and not await TenantOrgAuthorityService(
+                    db, current_admin
+                ).can_create_under_parent(data.parent_id)
             ):
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_("role.parent_must_be_visible"))
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=_("role.parent_must_be_visible"),
+                )
             try:
-                org_node = await TenantOrgNodeService(db, current_admin.tenant_id).update_org_node(
+                org_node = await TenantOrgNodeService(
+                    db, current_admin.tenant_id
+                ).update_org_node(
                     org_node_id,
                     data.model_dump(exclude_unset=True),
                 )
                 await db.commit()
-                return success(data=_serialize_org_node(org_node), message=_("role.updated"))
+                return success(
+                    data=_serialize_org_node(org_node), message=_("role.updated")
+                )
             except Exception as exc:
                 _raise_http(exc)
 
@@ -298,15 +359,24 @@ class TenantOrganizationController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             await self._require_manage(db, current_admin, org_node_id)
-            if not await TenantOrgAuthorityService(db, current_admin).can_create_under_parent(data.new_parent_id):
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_("role.parent_must_be_visible"))
+            if not await TenantOrgAuthorityService(
+                db, current_admin
+            ).can_create_under_parent(data.new_parent_id):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=_("role.parent_must_be_visible"),
+                )
             try:
-                org_node = await TenantOrgNodeService(db, current_admin.tenant_id).move_org_node(
+                org_node = await TenantOrgNodeService(
+                    db, current_admin.tenant_id
+                ).move_org_node(
                     org_node_id,
                     data.new_parent_id,
                 )
                 await db.commit()
-                return success(data=_serialize_org_node(org_node), message=_("role.moved"))
+                return success(
+                    data=_serialize_org_node(org_node), message=_("role.moved")
+                )
             except Exception as exc:
                 _raise_http(exc)
 
@@ -321,13 +391,17 @@ class TenantOrganizationController(TenantController):
         ):
             await self._require_manage(db, current_admin, org_node_id)
             try:
-                org_node = await TenantOrgNodeService(db, current_admin.tenant_id).update_authority_policy(
+                org_node = await TenantOrgNodeService(
+                    db, current_admin.tenant_id
+                ).update_authority_policy(
                     org_node_id,
                     data_scope=data.data_scope,
                     custom_dept_ids=data.custom_dept_ids,
                 )
                 await db.commit()
-                return success(data=_serialize_org_node(org_node), message=_("role.updated"))
+                return success(
+                    data=_serialize_org_node(org_node), message=_("role.updated")
+                )
             except Exception as exc:
                 _raise_http(exc)
 
@@ -341,7 +415,9 @@ class TenantOrganizationController(TenantController):
         ):
             await self._require_manage(db, current_admin, org_node_id)
             try:
-                await TenantOrgNodeService(db, current_admin.tenant_id).delete_org_node(org_node_id)
+                await TenantOrgNodeService(db, current_admin.tenant_id).delete_org_node(
+                    org_node_id
+                )
                 await db.commit()
                 return success(data={"id": org_node_id}, message=_("role.deleted"))
             except Exception as exc:
@@ -355,13 +431,25 @@ class TenantOrganizationController(TenantController):
             org_node_id: int,
             current_admin: ActiveTenantAdmin,
             search: str = Query("", description=_("api.param.search")),
-            page: int = Query(1, alias="page[number]", ge=1, description=_("api.param.page_number")),
-            page_size: int = Query(20, alias="page[size]", ge=1, le=100, description=_("api.param.page_size")),
-            include_descendants: bool = Query(True, description=_("api.param.include_descendants")),
+            page: int = Query(
+                1, alias="page[number]", ge=1, description=_("api.param.page_number")
+            ),
+            page_size: int = Query(
+                20,
+                alias="page[size]",
+                ge=1,
+                le=100,
+                description=_("api.param.page_size"),
+            ),
+            include_descendants: bool = Query(
+                True, description=_("api.param.include_descendants")
+            ),
         ):
             await self._require_view(db, current_admin, org_node_id)
             try:
-                members, total = await TenantOrgNodeService(db, current_admin.tenant_id).get_members(
+                members, total = await TenantOrgNodeService(
+                    db, current_admin.tenant_id
+                ).get_members(
                     org_node_id,
                     search=search or None,
                     page=page,
@@ -391,7 +479,9 @@ class TenantOrganizationController(TenantController):
         ):
             await self._require_manage(db, current_admin, org_node_id)
             try:
-                admin = await TenantOrgNodeService(db, current_admin.tenant_id).create_member(
+                admin = await TenantOrgNodeService(
+                    db, current_admin.tenant_id
+                ).create_member(
                     org_node_id=org_node_id,
                     username=data.username,
                     email=data.email,
@@ -402,7 +492,9 @@ class TenantOrganizationController(TenantController):
                     role_id=data.role_id,
                 )
                 await db.commit()
-                return success(data=_serialize_member(admin), message=_("role.member_created"))
+                return success(
+                    data=_serialize_member(admin), message=_("role.member_created")
+                )
             except Exception as exc:
                 _raise_http(exc)
 
@@ -421,7 +513,9 @@ class TenantOrganizationController(TenantController):
                 await self._require_manage(db, current_admin, data.org_node_id)
             try:
                 update_permission_role = "role_id" in data.model_fields_set
-                admin = await TenantOrgNodeService(db, current_admin.tenant_id).update_member(
+                admin = await TenantOrgNodeService(
+                    db, current_admin.tenant_id
+                ).update_member(
                     org_node_id=org_node_id,
                     admin_id=admin_id,
                     email=data.email,
@@ -434,11 +528,16 @@ class TenantOrganizationController(TenantController):
                     update_permission_role=update_permission_role,
                 )
                 await db.commit()
-                return success(data=_serialize_member(admin), message=_("role.member_updated"))
+                return success(
+                    data=_serialize_member(admin), message=_("role.member_updated")
+                )
             except Exception as exc:
                 _raise_http(exc)
 
-        @router.put("/{org_node_id}/members/{admin_id}/reset-password", summary="重置组织节点成员密码")
+        @router.put(
+            "/{org_node_id}/members/{admin_id}/reset-password",
+            summary="重置组织节点成员密码",
+        )
         @action_update("action.organization.reset_password")
         async def reset_member_password(
             request: Request,
@@ -450,17 +549,23 @@ class TenantOrganizationController(TenantController):
         ):
             await self._require_manage(db, current_admin, org_node_id)
             try:
-                await TenantOrgNodeService(db, current_admin.tenant_id).reset_member_password(
+                await TenantOrgNodeService(
+                    db, current_admin.tenant_id
+                ).reset_member_password(
                     org_node_id,
                     admin_id,
                     data.new_password,
                 )
                 await db.commit()
-                return success(data={"success": True}, message=_("tenant_admin.password_reset"))
+                return success(
+                    data={"success": True}, message=_("tenant_admin.password_reset")
+                )
             except Exception as exc:
                 _raise_http(exc)
 
-        @router.put("/{org_node_id}/members/{admin_id}/status", summary="切换组织节点成员状态")
+        @router.put(
+            "/{org_node_id}/members/{admin_id}/status", summary="切换组织节点成员状态"
+        )
         @action_update("action.organization.toggle_status")
         async def toggle_member_status(
             request: Request,
@@ -472,13 +577,18 @@ class TenantOrganizationController(TenantController):
         ):
             await self._require_manage(db, current_admin, org_node_id)
             try:
-                admin = await TenantOrgNodeService(db, current_admin.tenant_id).toggle_member_status(
+                admin = await TenantOrgNodeService(
+                    db, current_admin.tenant_id
+                ).toggle_member_status(
                     org_node_id,
                     admin_id,
                     data.is_active,
                 )
                 await db.commit()
-                return success(data=_serialize_member(admin), message=_("tenant_admin.status_updated"))
+                return success(
+                    data=_serialize_member(admin),
+                    message=_("tenant_admin.status_updated"),
+                )
             except Exception as exc:
                 _raise_http(exc)
 
@@ -493,13 +603,19 @@ class TenantOrganizationController(TenantController):
         ):
             await self._require_manage(db, current_admin, org_node_id)
             try:
-                admin = await TenantOrgNodeService(db, current_admin.tenant_id).add_member(org_node_id, data.admin_id)
+                admin = await TenantOrgNodeService(
+                    db, current_admin.tenant_id
+                ).add_member(org_node_id, data.admin_id)
                 await db.commit()
-                return success(data=_serialize_member(admin), message=_("role.member_added"))
+                return success(
+                    data=_serialize_member(admin), message=_("role.member_added")
+                )
             except Exception as exc:
                 _raise_http(exc)
 
-        @router.delete("/{org_node_id}/members/{admin_id}", summary="从组织节点移除成员")
+        @router.delete(
+            "/{org_node_id}/members/{admin_id}", summary="从组织节点移除成员"
+        )
         @action_update("action.organization.remove_member")
         async def remove_member(
             request: Request,
@@ -510,9 +626,13 @@ class TenantOrganizationController(TenantController):
         ):
             await self._require_manage(db, current_admin, org_node_id)
             try:
-                admin = await TenantOrgNodeService(db, current_admin.tenant_id).remove_member(org_node_id, admin_id)
+                admin = await TenantOrgNodeService(
+                    db, current_admin.tenant_id
+                ).remove_member(org_node_id, admin_id)
                 await db.commit()
-                return success(data=_serialize_member(admin), message=_("role.member_removed"))
+                return success(
+                    data=_serialize_member(admin), message=_("role.member_removed")
+                )
             except Exception as exc:
                 _raise_http(exc)
 
@@ -527,9 +647,13 @@ class TenantOrganizationController(TenantController):
         ):
             await self._require_manage(db, current_admin, org_node_id)
             try:
-                org_node = await TenantOrgNodeService(db, current_admin.tenant_id).set_leader(org_node_id, data.leader_id)
+                org_node = await TenantOrgNodeService(
+                    db, current_admin.tenant_id
+                ).set_leader(org_node_id, data.leader_id)
                 await db.commit()
-                return success(data=_serialize_org_node(org_node), message=_("role.leader_set"))
+                return success(
+                    data=_serialize_org_node(org_node), message=_("role.leader_set")
+                )
             except Exception as exc:
                 _raise_http(exc)
 

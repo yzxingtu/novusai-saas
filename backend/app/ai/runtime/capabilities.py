@@ -8,8 +8,9 @@ Provides reusable registry + merge logic for runtime capability assembly.
 from __future__ import annotations
 
 import inspect
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 from app.ai.runtime.types import CapabilityBundle, CapabilityDescriptor, ContextSource
 from app.ai.tools.types import ToolDefinition
@@ -83,7 +84,9 @@ class CapabilityRegistry:
         )
         if existing_idx is not None:
             if not replace:
-                raise ValueError(f"Capability provider already registered: {normalized}")
+                raise ValueError(
+                    f"Capability provider already registered: {normalized}"
+                )
             self._providers[existing_idx] = _RegisteredProvider(
                 name=normalized,
                 provider=provider,
@@ -159,7 +162,7 @@ class CapabilityRegistry:
 
     @staticmethod
     def _merge_prompt_blocks(bundle: CapabilityBundle, blocks: list[str]) -> None:
-        seen = {block for block in bundle.prompt_skill_blocks}
+        seen = set(bundle.prompt_skill_blocks)
         for block in blocks:
             normalized = (block or "").strip()
             if not normalized or normalized in seen:

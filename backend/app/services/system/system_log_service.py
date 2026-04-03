@@ -18,6 +18,7 @@ from app.enums.log import LogCategoryEnum
 
 class LogFileInfo(NamedTuple):
     """日志文件信息 / Log file info."""
+
     name: str
     category: str
     size: int
@@ -27,6 +28,7 @@ class LogFileInfo(NamedTuple):
 
 class LogCategoryInfo(NamedTuple):
     """日志分类信息 / Log category info."""
+
     code: str
     name: str
     description: str
@@ -36,6 +38,7 @@ class LogCategoryInfo(NamedTuple):
 
 class LogContentPage(NamedTuple):
     """日志内容分页结果 / Log content paged result."""
+
     lines: list[str]
     total_lines: int
     page: int
@@ -128,17 +131,17 @@ class SystemLogService:
         Parse log filename to extract category and suffix (current vs backup).
         """
         # 当前活动文件：仅 {category}.log
-        match = re.match(r'^([a-z_]+)\.log$', filename)
+        match = re.match(r"^([a-z_]+)\.log$", filename)
         if match:
             return match.group(1), None
 
         # 按大小轮转的备份：{category}.log.1, .2, ...
-        match = re.match(r'^([a-z_]+)\.log\.(\d+)$', filename)
+        match = re.match(r"^([a-z_]+)\.log\.(\d+)$", filename)
         if match:
             return match.group(1), match.group(2)
 
         # 按日期命名的备份：{category}.log.2026-01-20（兼容）
-        match = re.match(r'^([a-z_]+)\.log\.(\d{4}-\d{2}-\d{2})$', filename)
+        match = re.match(r"^([a-z_]+)\.log\.(\d{4}-\d{2}-\d{2})$", filename)
         if match:
             return match.group(1), match.group(2)
 
@@ -166,13 +169,15 @@ class SystemLogService:
                         file_count += 1
                         total_size += file_path.stat().st_size
 
-            categories.append(LogCategoryInfo(
-                code=category_value,
-                name=self._CATEGORY_NAMES.get(category_value, category_value),
-                description=self._CATEGORY_DESCRIPTIONS.get(category_value, ""),
-                file_count=file_count,
-                total_size=total_size,
-            ))
+            categories.append(
+                LogCategoryInfo(
+                    code=category_value,
+                    name=self._CATEGORY_NAMES.get(category_value, category_value),
+                    description=self._CATEGORY_DESCRIPTIONS.get(category_value, ""),
+                    file_count=file_count,
+                    total_size=total_size,
+                )
+            )
 
         return categories
 
@@ -215,13 +220,15 @@ class SystemLogService:
                     continue
 
                 stat = file_path.stat()
-                files.append(LogFileInfo(
-                    name=file_path.name,
-                    category=parsed_category,
-                    size=stat.st_size,
-                    modified_at=datetime.fromtimestamp(stat.st_mtime),
-                    is_current=(date_str is None),
-                ))
+                files.append(
+                    LogFileInfo(
+                        name=file_path.name,
+                        category=parsed_category,
+                        size=stat.st_size,
+                        modified_at=datetime.fromtimestamp(stat.st_mtime),
+                        is_current=(date_str is None),
+                    )
+                )
 
         # 按修改时间倒序排序 / Sort by mtime descending
         files.sort(key=lambda f: f.modified_at, reverse=True)

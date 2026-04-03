@@ -26,8 +26,23 @@ from app.core.i18n import _
 # 字段名保留字（Python/SQL/JS 冲突 + 系统/DB 字段）/ Reserved names (Python/SQL/JS + system/DB)
 RESERVED_NAMES = frozenset(
     {
-        "id", "type", "class", "for", "def", "if", "else", "from", "import", "return", "async", "await",
-        "created_at", "updated_at", "deleted_at", "tenant_id", "is_deleted",
+        "id",
+        "type",
+        "class",
+        "for",
+        "def",
+        "if",
+        "else",
+        "from",
+        "import",
+        "return",
+        "async",
+        "await",
+        "created_at",
+        "updated_at",
+        "deleted_at",
+        "tenant_id",
+        "is_deleted",
     }
 )
 
@@ -153,7 +168,11 @@ def _expand_shorthand(config: dict[str, Any]) -> dict[str, Any]:
         out["fields"] = [_expand_shorthand_field(f) for f in out["fields"]]
     if "sub_tables" in out and isinstance(out["sub_tables"], list):
         for i, st in enumerate(out["sub_tables"]):
-            if isinstance(st, dict) and "fields" in st and isinstance(st["fields"], list):
+            if (
+                isinstance(st, dict)
+                and "fields" in st
+                and isinstance(st["fields"], list)
+            ):
                 st = dict(st)
                 st["fields"] = [_expand_shorthand_field(f) for f in st["fields"]]
                 out["sub_tables"][i] = st
@@ -174,7 +193,10 @@ def _expand_defaults(config: dict[str, Any]) -> dict[str, Any]:
         model = {}
     model = dict(model)
     model.setdefault("base_class", "TenantModel")
-    model.setdefault("table_name", out.get("resource_plural") or _infer_plural(out.get("resource", "")))
+    model.setdefault(
+        "table_name",
+        out.get("resource_plural") or _infer_plural(out.get("resource", "")),
+    )
     model.setdefault("soft_delete", True)
     model.setdefault("data_permission", False)
     out["model"] = model
@@ -190,8 +212,15 @@ def _expand_defaults(config: dict[str, Any]) -> dict[str, Any]:
                 continue
             ep = dict(ep)
             ep.setdefault("scope", "admin")
-            ep.setdefault("data_mode", "cross_tenant" if ep.get("scope") == "admin" else "independent")
-            if "route_prefix" in ep and ep["route_prefix"] and not str(ep["route_prefix"]).startswith("/"):
+            ep.setdefault(
+                "data_mode",
+                "cross_tenant" if ep.get("scope") == "admin" else "independent",
+            )
+            if (
+                "route_prefix" in ep
+                and ep["route_prefix"]
+                and not str(ep["route_prefix"]).startswith("/")
+            ):
                 ep["route_prefix"] = "/" + str(ep["route_prefix"])
             frontend = ep.get("frontend") or {}
             if isinstance(frontend, dict):
@@ -297,11 +326,9 @@ class ConfigParser:
 
         if isinstance(config, ParsedConfig):
             parsed = config
-            data = parsed.raw
         else:
             try:
                 parsed = self.parse(config)
-                data = parsed.raw
             except Exception as e:
                 errors.append(
                     ValidationError(
@@ -315,7 +342,13 @@ class ConfigParser:
         # 必填字段（草稿保存不校验 fields，仅生成前校验）
         # Required fields (draft save skips fields check; only validate before generate)
         if not parsed.module:
-            errors.append(ValidationError("missing_module", _("codegen.validation.module_required"), path="module"))
+            errors.append(
+                ValidationError(
+                    "missing_module",
+                    _("codegen.validation.module_required"),
+                    path="module",
+                )
+            )
         elif not MODULE_RESOURCE_PATTERN.match(parsed.module):
             errors.append(
                 ValidationError(
@@ -325,7 +358,13 @@ class ConfigParser:
                 )
             )
         if not parsed.resource:
-            errors.append(ValidationError("missing_resource", _("codegen.validation.resource_required"), path="resource"))
+            errors.append(
+                ValidationError(
+                    "missing_resource",
+                    _("codegen.validation.resource_required"),
+                    path="resource",
+                )
+            )
         elif not MODULE_RESOURCE_PATTERN.match(parsed.resource):
             errors.append(
                 ValidationError(
@@ -336,10 +375,20 @@ class ConfigParser:
             )
         if not parsed.display_name:
             errors.append(
-                ValidationError("missing_display_name", _("codegen.validation.display_name_required"), path="display_name")
+                ValidationError(
+                    "missing_display_name",
+                    _("codegen.validation.display_name_required"),
+                    path="display_name",
+                )
             )
         if require_fields and not parsed.fields:
-            errors.append(ValidationError("missing_fields", _("codegen.validation.fields_required"), path="fields"))
+            errors.append(
+                ValidationError(
+                    "missing_fields",
+                    _("codegen.validation.fields_required"),
+                    path="fields",
+                )
+            )
 
         # scope / data_mode / base_class 合法值校验 / Validate scope, data_mode, base_class
         base_class = (parsed.model or {}).get("base_class", "TenantModel")
@@ -408,7 +457,9 @@ class ConfigParser:
 
             frontend_cfg = frontend or {}
             search_default_open = frontend_cfg.get("search_default_open")
-            if search_default_open is not None and not isinstance(search_default_open, bool):
+            if search_default_open is not None and not isinstance(
+                search_default_open, bool
+            ):
                 errors.append(
                     ValidationError(
                         "invalid_search_default_open",
@@ -421,16 +472,17 @@ class ConfigParser:
             quick_search_candidates = {
                 str(field.get("name"))
                 for field in parsed.fields
-                if isinstance(field.get("name"), str) and _is_quick_search_candidate(field)
+                if isinstance(field.get("name"), str)
+                and _is_quick_search_candidate(field)
             }
             if quick_search is not None:
                 if isinstance(quick_search, bool):
                     pass
                 elif isinstance(quick_search, dict):
                     qs_fields = quick_search.get("fields")
-                    default_field = quick_search.get("default_field") or quick_search.get(
-                        "defaultField"
-                    )
+                    default_field = quick_search.get(
+                        "default_field"
+                    ) or quick_search.get("defaultField")
 
                     if qs_fields is not None and not isinstance(qs_fields, list):
                         errors.append(
@@ -447,7 +499,9 @@ class ConfigParser:
                                 source_field = field_name
                             elif isinstance(field_name, dict):
                                 source_field = field_name.get("fieldName")
-                                if source_field is not None and not isinstance(source_field, str):
+                                if source_field is not None and not isinstance(
+                                    source_field, str
+                                ):
                                     errors.append(
                                         ValidationError(
                                             "invalid_quick_search_field",
@@ -499,9 +553,9 @@ class ConfigParser:
                                 ValidationError(
                                     "unknown_quick_search_default_field",
                                     f"frontend.quick_search default field '{default_field}' is not a valid quick-search candidate",
-                                        path=f"endpoints[{i}].frontend.quick_search.default_field",
-                                    )
+                                    path=f"endpoints[{i}].frontend.quick_search.default_field",
                                 )
+                            )
                         qs_source_fields: list[str] = []
                         if isinstance(qs_fields, list):
                             for field_item in qs_fields:
@@ -530,7 +584,11 @@ class ConfigParser:
 
         # sub_tables mode 合法值校验 / Validate sub_table mode
         for i, st in enumerate(parsed.sub_tables or []):
-            if isinstance(st, dict) and (mode := st.get("mode")) is not None and mode not in SUB_TABLE_MODE_VALUES:
+            if (
+                isinstance(st, dict)
+                and (mode := st.get("mode")) is not None
+                and mode not in SUB_TABLE_MODE_VALUES
+            ):
                 errors.append(
                     ValidationError(
                         "invalid_sub_table_mode",
@@ -565,7 +623,11 @@ class ConfigParser:
             name = f.get("name")
             if not name:
                 errors.append(
-                    ValidationError("field_no_name", _("codegen.validation.field_name_required"), path=f"fields[{i}]")
+                    ValidationError(
+                        "field_no_name",
+                        _("codegen.validation.field_name_required"),
+                        path=f"fields[{i}]",
+                    )
                 )
             else:
                 key = str(name).strip()
@@ -573,7 +635,9 @@ class ConfigParser:
                     errors.append(
                         ValidationError(
                             "reserved_field_name",
-                            _("codegen.validation.reserved_field_name").format(name=key),
+                            _("codegen.validation.reserved_field_name").format(
+                                name=key
+                            ),
                             path=f"fields[{i}]",
                             field="name",
                         )
@@ -592,7 +656,9 @@ class ConfigParser:
                     seen_names[key_lower] = []
                 seen_names[key_lower].append(i)
             ftype = f.get("type", "String")
-            if ftype and not re.match(r"^[a-zA-Z][a-zA-Z0-9_]*(\s*\([^)]*\))?$", str(ftype)):
+            if ftype and not re.match(
+                r"^[a-zA-Z][a-zA-Z0-9_]*(\s*\([^)]*\))?$", str(ftype)
+            ):
                 errors.append(
                     ValidationError(
                         "invalid_field_type",
@@ -617,7 +683,9 @@ class ConfigParser:
             errors.append(
                 ValidationError(
                     "duplicate_field_name",
-                    _("codegen.validation.duplicate_field_name").format(names=names_str),
+                    _("codegen.validation.duplicate_field_name").format(
+                        names=names_str
+                    ),
                     path="fields",
                 )
             )

@@ -77,7 +77,8 @@ def cleanup_image_cache(self: BaseTask, ttl_days: int = DEFAULT_CACHE_TTL_DAYS) 
             except Exception as exc:
                 logger.error(
                     "Image cache cleanup: failed to remove {}: {}",
-                    cache_file, exc,
+                    cache_file,
+                    exc,
                 )
                 errors += 1
 
@@ -97,7 +98,10 @@ def cleanup_image_cache(self: BaseTask, ttl_days: int = DEFAULT_CACHE_TTL_DAYS) 
     duration_ms = int((time.time() - start) * 1000)
     logger.info(
         "Image cache cleanup completed: cleaned={} files ({} MB), errors={}, duration={}ms",
-        cleaned, cleaned_bytes / (1024 * 1024), errors, duration_ms,
+        cleaned,
+        cleaned_bytes / (1024 * 1024),
+        errors,
+        duration_ms,
     )
     return {
         "cleaned": cleaned,

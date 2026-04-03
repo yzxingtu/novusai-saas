@@ -52,8 +52,12 @@ class TenantResponse(BaseSchema):
     expires_at: datetime | None = Field(None, description="到期时间")
     remark: str | None = Field(None, description="备注")
     # 域名信息 / Domains
-    primary_domain: TenantDomainSimpleResponse | None = Field(None, description="主域名")
-    domains: list[TenantDomainSimpleResponse] = Field(default_factory=list, description="域名列表")
+    primary_domain: TenantDomainSimpleResponse | None = Field(
+        None, description="主域名"
+    )
+    domains: list[TenantDomainSimpleResponse] = Field(
+        default_factory=list, description="域名列表"
+    )
     domain_count: int = Field(0, description="域名数量")
     # 存储配额信息 / Storage quota
     storage_stats: TenantStorageStats | None = Field(None, description="存储统计信息")
@@ -104,7 +108,8 @@ class TenantResponse(BaseSchema):
                         "is_verified": d.is_verified,
                         "ssl_status": d.ssl_status,
                     }
-                    for d in data.domains if not d.is_deleted
+                    for d in data.domains
+                    if not d.is_deleted
                 ]
                 result["domains"] = domains_list
                 result["domain_count"] = len(domains_list)
@@ -126,13 +131,19 @@ class TenantCreateRequest(BaseSchema):
     contact_email: str | None = Field(None, description="联系人邮箱")
     # 套餐 ID（新版）
     plan_id: int | None = Field(None, description="套餐 ID")
-    quota: dict[str, Any] | None = Field(None, description="配额配置（可覆盖套餐默认值）")
+    quota: dict[str, Any] | None = Field(
+        None, description="配额配置（可覆盖套餐默认值）"
+    )
     expires_at: datetime | None = Field(None, description="到期时间")
     remark: str | None = Field(None, max_length=500, description="备注")
     # 企业超级管理员账号（必填） / Tenant super admin (required)
-    admin_username: str = Field(..., min_length=2, max_length=50, description="管理员用户名")
+    admin_username: str = Field(
+        ..., min_length=2, max_length=50, description="管理员用户名"
+    )
     admin_email: str = Field(..., description="管理员邮箱")
-    admin_password: str = Field(..., min_length=6, max_length=100, description="管理员密码")
+    admin_password: str = Field(
+        ..., min_length=6, max_length=100, description="管理员密码"
+    )
 
 
 class TenantUpdateRequest(BaseSchema):
@@ -146,7 +157,9 @@ class TenantUpdateRequest(BaseSchema):
     plan_id: int | None = Field(None, description="套餐 ID")
     # 套餐类型（已废弃，保留向后兼容） / Plan type (deprecated)
     plan: str | None = Field(None, description="套餐类型（已废弃）")
-    quota: dict[str, Any] | None = Field(None, description="配额配置（可覆盖套餐默认值）")
+    quota: dict[str, Any] | None = Field(
+        None, description="配额配置（可覆盖套餐默认值）"
+    )
     expires_at: datetime | None = Field(None, description="到期时间")
     remark: str | None = Field(None, max_length=500, description="备注")
 
@@ -166,7 +179,9 @@ class TenantImpersonateRequest(BaseSchema):
 class TenantImpersonateResponse(BaseSchema):
     """一键登录企业后台响应 / Impersonate tenant admin response."""
 
-    impersonate_token: str = Field(..., description="一键登录 Token（60秒有效，一次性）")
+    impersonate_token: str = Field(
+        ..., description="一键登录 Token（60秒有效，一次性）"
+    )
     tenant_code: str = Field(..., description="企业编码")
     tenant_name: str = Field(..., description="企业名称")
     expires_in: int = Field(60, description="Token 有效期（秒）")

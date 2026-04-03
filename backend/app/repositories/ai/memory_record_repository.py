@@ -113,7 +113,8 @@ class MemoryRecordRepository(TenantRepository[MemoryRecord]):
         limit: int = 50,
     ) -> list[MemoryRecord]:
         result = await self.db.execute(
-            select(self.model).where(
+            select(self.model)
+            .where(
                 self.model.tenant_id == self.tenant_id,
                 self.model.scope_type == scope_type,
                 self.model.scope_key == scope_key,
@@ -124,10 +125,12 @@ class MemoryRecordRepository(TenantRepository[MemoryRecord]):
                         MemoryStatusEnum.VERIFIED.value,
                     ]
                 ),
-            ).order_by(
+            )
+            .order_by(
                 self.model.importance.desc(),
                 self.model.updated_at.desc(),
-            ).limit(limit)
+            )
+            .limit(limit)
         )
         return list(result.scalars().all())
 

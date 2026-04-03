@@ -84,7 +84,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
             if expected_type == "integer":
                 return isinstance(value, int) and not isinstance(value, bool)
             if expected_type == "number":
-                return (isinstance(value, int) or isinstance(value, float)) and not isinstance(value, bool)
+                return isinstance(value, (int, float)) and not isinstance(value, bool)
             if expected_type == "boolean":
                 return isinstance(value, bool)
             if expected_type == "object":
@@ -126,14 +126,14 @@ class PluginService(BaseService[Plugin, PluginRepository]):
                         message=f"Config '{key}' format is invalid",
                     )
 
-            if isinstance(value, int) or isinstance(value, float):
+            if isinstance(value, (int, float)):
                 minimum = spec.get("minimum")
-                if (isinstance(minimum, int) or isinstance(minimum, float)) and value < minimum:
+                if isinstance(minimum, (int, float)) and value < minimum:
                     raise ValidationException(
                         message=f"Config '{key}' must be >= {minimum}",
                     )
                 maximum = spec.get("maximum")
-                if (isinstance(maximum, int) or isinstance(maximum, float)) and value > maximum:
+                if isinstance(maximum, (int, float)) and value > maximum:
                     raise ValidationException(
                         message=f"Config '{key}' must be <= {maximum}",
                     )
@@ -156,17 +156,23 @@ class PluginService(BaseService[Plugin, PluginRepository]):
             capabilities: 授权能力列表
             operator_id: 操作者管理员 ID（用于进度推送）
         """
-        plugin = await self._lifecycle.install(source_path, config, operator_id=operator_id)
+        plugin = await self._lifecycle.install(
+            source_path, config, operator_id=operator_id
+        )
         if capabilities:
             plugin.granted_capabilities = capabilities
             await self.db.flush()
         return plugin
 
-    async def enable_plugin(self, plugin_id: int, operator_id: int | None = None) -> None:
+    async def enable_plugin(
+        self, plugin_id: int, operator_id: int | None = None
+    ) -> None:
         """启用插件 / Enable plugin."""
         await self._lifecycle.enable(plugin_id, operator_id=operator_id)
 
-    async def disable_plugin(self, plugin_id: int, force: bool = False, operator_id: int | None = None) -> None:
+    async def disable_plugin(
+        self, plugin_id: int, force: bool = False, operator_id: int | None = None
+    ) -> None:
         """禁用插件 / Disable plugin."""
         await self._lifecycle.disable(plugin_id, force=force, operator_id=operator_id)
 
@@ -239,7 +245,9 @@ class PluginService(BaseService[Plugin, PluginRepository]):
                 ),
             )
 
-        validate_runtime_frontend_contract(self._loader.plugins_dir / plugin.name, manifest)
+        validate_runtime_frontend_contract(
+            self._loader.plugins_dir / plugin.name, manifest
+        )
 
         previous_manifest = None
         if plugin.manifest:
@@ -252,12 +260,8 @@ class PluginService(BaseService[Plugin, PluginRepository]):
             plugin.status == PluginStatusEnum.ERROR.value
             and "Manifest drift detected on disk." in str(plugin.error_message or "")
         )
-        should_restore_runtime = (
-            plugin.status == PluginStatusEnum.ENABLED.value
-            or (
-                stale_manifest_error
-                and plugin.enabled_at is not None
-            )
+        should_restore_runtime = plugin.status == PluginStatusEnum.ENABLED.value or (
+            stale_manifest_error and plugin.enabled_at is not None
         )
 
         manifest_dump = manifest.model_dump()
@@ -277,15 +281,11 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         plugin.scope = manifest.scope
         plugin.manifest = manifest_dump
         plugin.ai_requirements = (
-            manifest.ai_requirements.model_dump()
-            if manifest.ai_requirements
-            else None
+            manifest.ai_requirements.model_dump() if manifest.ai_requirements else None
         )
         plugin.pricing_type = manifest.pricing.type
         plugin.pricing_info = (
-            manifest.pricing.model_dump()
-            if manifest.pricing.type != "free"
-            else None
+            manifest.pricing.model_dump() if manifest.pricing.type != "free" else None
         )
         plugin.installed_packages = manifest.dependencies.python or []
         await self.db.flush()
@@ -311,8 +311,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
                         menu_overrides=menu_overrides,
                     )
                 failed_summary = "; ".join(
-                    f"{item['type']}:{item['entry_point']}"
-                    for item in failed[:5]
+                    f"{item['type']}:{item['entry_point']}" for item in failed[:5]
                 )
                 raise BusinessException(
                     message=(
@@ -348,9 +347,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
 
     # ── 配置 ── / ── Configuration ──
 
-    async def update_plugin_config(
-        self, plugin_id: int, config: dict
-    ) -> Plugin:
+    async def update_plugin_config(self, plugin_id: int, config: dict) -> Plugin:
         """更新插件全局配置（自动加密敏感字段） / Update plugin global config (auto-encrypt sensitive)."""
         from app.plugins.crypto import encrypt_plugin_config
 
@@ -396,9 +393,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
 
     # ── 企业分配 ── / ── Tenant assignment ──
 
-    async def assign_tenants(
-        self, plugin_id: int, tenant_ids: list[int]
-    ) -> int:
+    async def assign_tenants(self, plugin_id: int, tenant_ids: list[int]) -> int:
         """
         批量分配企业 / Assign tenants to plugin in batch.
 
@@ -428,17 +423,24 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         count = 0
         for tid in tenant_ids:
             if tid not in existing:
-                self.db.add(ResourceTenantAssignment(
-                    resource_type="plugin",
-                    resource_id=plugin_id,
-                    tenant_id=tid,
-                    is_active=True,
-                    config={},
-                ))
+                self.db.add(
+                    ResourceTenantAssignment(
+                        resource_type="plugin",
+                        resource_id=plugin_id,
+                        tenant_id=tid,
+                        is_active=True,
+                        config={},
+                    )
+                )
                 count += 1
 
         if count:
             await self.db.flush()
+        from app.services.system.plugin_managed_agent_sync_service import (
+            PluginManagedAgentSyncService,
+        )
+
+        await PluginManagedAgentSyncService(self.db).sync_agents_for_plugin(plugin_id)
         return count
 
     async def unassign_tenant(self, plugin_id: int, tenant_id: int) -> None:
@@ -447,6 +449,9 @@ class PluginService(BaseService[Plugin, PluginRepository]):
 
         from app.models.system.resource_tenant_assignment import (
             ResourceTenantAssignment,
+        )
+        from app.services.system.plugin_managed_agent_sync_service import (
+            PluginManagedAgentSyncService,
         )
 
         await self.db.execute(
@@ -457,6 +462,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
             )
         )
         await self.db.flush()
+        await PluginManagedAgentSyncService(self.db).sync_agents_for_plugin(plugin_id)
 
     async def toggle_tenant_assignment(
         self, plugin_id: int, tenant_id: int, is_active: bool
@@ -467,21 +473,25 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         from app.models.system.resource_tenant_assignment import (
             ResourceTenantAssignment,
         )
+        from app.services.system.plugin_managed_agent_sync_service import (
+            PluginManagedAgentSyncService,
+        )
 
         await self.db.execute(
-            update(ResourceTenantAssignment).where(
+            update(ResourceTenantAssignment)
+            .where(
                 ResourceTenantAssignment.resource_type == "plugin",
                 ResourceTenantAssignment.resource_id == plugin_id,
                 ResourceTenantAssignment.tenant_id == tenant_id,
-            ).values(is_active=is_active)
+            )
+            .values(is_active=is_active)
         )
         await self.db.flush()
+        await PluginManagedAgentSyncService(self.db).sync_agents_for_plugin(plugin_id)
 
     # ── License ──
 
-    async def activate_license(
-        self, plugin_id: int, license_key: str
-    ) -> None:
+    async def activate_license(self, plugin_id: int, license_key: str) -> None:
         """激活插件 License / Activate plugin license."""
         from app.plugins.license import activate_license as activate_plugin_license
 
@@ -493,9 +503,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
 
     # ── 查询辅助 ── / ── Query helpers ──
 
-    async def get_readme(
-        self, plugin_id: int, locale: str = "zh-CN"
-    ) -> str | None:
+    async def get_readme(self, plugin_id: int, locale: str = "zh-CN") -> str | None:
         """获取插件 README / Get plugin README content."""
         plugin = await self.repo.get_by_id(plugin_id)
         if not plugin:
@@ -560,16 +568,19 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         from sqlalchemy import select
 
         from app.models.system.plugin import Plugin as PluginModel
+
         manifest = plugin.manifest or {}
-        dependencies = manifest.get("dependencies", {}) if isinstance(manifest, dict) else {}
-        raw_python_deps = dependencies.get("python", []) if isinstance(dependencies, dict) else []
+        dependencies = (
+            manifest.get("dependencies", {}) if isinstance(manifest, dict) else {}
+        )
+        raw_python_deps = (
+            dependencies.get("python", []) if isinstance(dependencies, dict) else []
+        )
         python_states = build_python_dependency_states(
             raw_python_deps if isinstance(raw_python_deps, list) else []
         )
         missing_python = [
-            str(item["requirement"])
-            for item in python_states
-            if not item["satisfied"]
+            str(item["requirement"]) for item in python_states if not item["satisfied"]
         ]
 
         plugin_requirements = normalize_plugin_dependencies(manifest)
@@ -600,9 +611,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
             )
         ]
         missing_plugins = [
-            str(item["message"])
-            for item in plugin_states
-            if item["state"] != "ready"
+            str(item["message"]) for item in plugin_states if item["state"] != "ready"
         ]
 
         overall_ready = len(missing_python) == 0 and len(missing_plugins) == 0

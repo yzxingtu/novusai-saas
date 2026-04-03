@@ -23,9 +23,18 @@ class TenantRepository(BaseRepository[Tenant]):
     # 不同 scope 下允许筛选的字段
     _scope_fields: dict[str, set[str]] = {
         "admin": {
-            "id", "name", "code", "contact_name", "contact_phone",
-            "contact_email", "is_active", "plan", "plan_id", "expires_at",
-            "created_at", "updated_at",
+            "id",
+            "name",
+            "code",
+            "contact_name",
+            "contact_phone",
+            "contact_email",
+            "is_active",
+            "plan",
+            "plan_id",
+            "expires_at",
+            "created_at",
+            "updated_at",
         },
     }
 

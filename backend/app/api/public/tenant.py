@@ -30,7 +30,9 @@ from app.utils.config_html_sanitize import (
 router = APIRouter(prefix="/tenant", tags=["企业公开接口 / Tenant Public API"])
 
 
-@router.get("/config", summary="获取当前企业公开配置 / Get current tenant public config")
+@router.get(
+    "/config", summary="获取当前企业公开配置 / Get current tenant public config"
+)
 @public
 async def get_tenant_public_config(request: Request, db: DbSession):
     """
@@ -106,11 +108,15 @@ async def get_tenant_public_config(request: Request, db: DbSession):
     if configs.get("tenant_storage_mode") == "custom":
         storage_base_url = configs.get("tenant_storage_base_url")
         # 企业自定义 allowed_extensions，如果未设置则使用平台配置 / Tenant custom allowed_extensions, falls back to platform config
-        allowed_extensions = configs.get("tenant_storage_allowed_extensions") or platform_storage_config.get("platform_storage_allowed_extensions")
+        allowed_extensions = configs.get(
+            "tenant_storage_allowed_extensions"
+        ) or platform_storage_config.get("platform_storage_allowed_extensions")
     else:
         # 平台托管模式，全部使用平台配置 / Platform managed mode, use all platform configs
         storage_base_url = platform_storage_config.get("platform_storage_base_url")
-        allowed_extensions = platform_storage_config.get("platform_storage_allowed_extensions")
+        allowed_extensions = platform_storage_config.get(
+            "platform_storage_allowed_extensions"
+        )
 
     # chunk_size 和 max_file_size 始终使用平台配置 / chunk_size and max_file_size always use platform config
     # driver: 自定义模式使用企业配置，平台托管模式使用平台配置 / driver: custom mode uses tenant config, platform managed mode uses platform config
@@ -123,7 +129,9 @@ async def get_tenant_public_config(request: Request, db: DbSession):
         driver=storage_driver,
         base_url=storage_base_url,
         chunk_size_mb=platform_storage_config.get("platform_storage_chunk_size_mb"),
-        max_file_size_mb=platform_storage_config.get("platform_storage_max_file_size_mb"),
+        max_file_size_mb=platform_storage_config.get(
+            "platform_storage_max_file_size_mb"
+        ),
         allowed_extensions=allowed_extensions,
     )
 
@@ -131,12 +139,34 @@ async def get_tenant_public_config(request: Request, db: DbSession):
     subdomain_url = f"{scheme}://{tenant.code}{settings.TENANT_DOMAIN_SUFFIX}"
 
     # 品牌 fallback：企业未设置 → 平台默认 / Brand fallback: tenant not set → platform default
-    logo_url = configs.get("tenant_logo") or platform_general_config.get("site_logo") or ""
-    favicon_url = configs.get("tenant_favicon") or platform_general_config.get("site_favicon") or ""
-    logo_dark_url = configs.get("tenant_logo_dark") or platform_general_config.get("logo_dark") or ""
-    login_title = configs.get("tenant_login_title") or platform_general_config.get("site_name") or ""
-    login_subtitle = configs.get("tenant_login_subtitle") or platform_general_config.get("site_description") or ""
-    footer_copyright = configs.get("tenant_footer_copyright") or platform_general_config.get("site_copyright") or ""
+    logo_url = (
+        configs.get("tenant_logo") or platform_general_config.get("site_logo") or ""
+    )
+    favicon_url = (
+        configs.get("tenant_favicon")
+        or platform_general_config.get("site_favicon")
+        or ""
+    )
+    logo_dark_url = (
+        configs.get("tenant_logo_dark")
+        or platform_general_config.get("logo_dark")
+        or ""
+    )
+    login_title = (
+        configs.get("tenant_login_title")
+        or platform_general_config.get("site_name")
+        or ""
+    )
+    login_subtitle = (
+        configs.get("tenant_login_subtitle")
+        or platform_general_config.get("site_description")
+        or ""
+    )
+    footer_copyright = (
+        configs.get("tenant_footer_copyright")
+        or platform_general_config.get("site_copyright")
+        or ""
+    )
     icp = configs.get("tenant_icp") or platform_general_config.get("site_icp") or ""
     login_bg = configs.get("tenant_login_bg") or ""
 
@@ -269,7 +299,9 @@ async def get_tenant_legal_terms(request: Request, db: DbSession):
     )
 
 
-@router.get("/domain-verification", summary="获取域名验证信息 / Get domain verification info")
+@router.get(
+    "/domain-verification", summary="获取域名验证信息 / Get domain verification info"
+)
 @public
 async def get_domain_verification_info(
     request: Request,

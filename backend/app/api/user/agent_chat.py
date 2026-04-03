@@ -88,6 +88,7 @@ class UserAgentChatController(BaseController):
             )
             if not has_access:
                 from app.exceptions import AuthorizationException
+
                 raise AuthorizationException(
                     message=_("agent.access.error.no_permission"),
                 )
@@ -96,7 +97,10 @@ class UserAgentChatController(BaseController):
         # 对话执行 / Chat execution
         # ========================================
 
-        @router.post("/{agent_id}/chat", summary="发送对话消息（非流式） / Send chat message (non-streaming)")
+        @router.post(
+            "/{agent_id}/chat",
+            summary="发送对话消息（非流式） / Send chat message (non-streaming)",
+        )
         @auth_only
         async def chat(
             request: Request,
@@ -113,7 +117,11 @@ class UserAgentChatController(BaseController):
             - 续接对话：传 conversation_id / Continue conversation: pass conversation_id
             """
             await _check_agent_access(
-                db, current_user.tenant_id, agent_id, current_user.id, current_user.role_id
+                db,
+                current_user.tenant_id,
+                agent_id,
+                current_user.id,
+                current_user.role_id,
             )
 
             perm_service = PermissionService(db)
@@ -132,20 +140,31 @@ class UserAgentChatController(BaseController):
                 user_role_id=current_user.role_id,
                 permissions=user_perms,
                 consented_actions=data.consented_actions,
-                attachments=[a.model_dump() for a in data.attachments] if data.attachments else None,
+                attachments=[a.model_dump() for a in data.attachments]
+                if data.attachments
+                else None,
                 memory_scene=MemorySceneEnum.AI_CHAT_PAGE.value,
                 memory_channel=MemoryChannelEnum.USER_CHAT.value,
                 memory_source=MemorySceneEnum.AI_CHAT_PAGE.value,
                 page_session_id=data.page_session_id,
                 route_source=data.route_source,
-                interaction_updates=[item.model_dump() for item in data.interaction_updates] if data.interaction_updates else None,
-                trust_policy_ref=data.trust_policy_ref.model_dump() if data.trust_policy_ref else None,
+                interaction_updates=[
+                    item.model_dump() for item in data.interaction_updates
+                ]
+                if data.interaction_updates
+                else None,
+                trust_policy_ref=data.trust_policy_ref.model_dump()
+                if data.trust_policy_ref
+                else None,
                 interaction_mode=data.interaction_mode,
             )
 
             return success(data=result.model_dump())
 
-        @router.post("/{agent_id}/chat/stream", summary="发送对话消息（SSE 流式） / Send chat message (SSE streaming)")
+        @router.post(
+            "/{agent_id}/chat/stream",
+            summary="发送对话消息（SSE 流式） / Send chat message (SSE streaming)",
+        )
         @auth_only
         async def stream_chat(
             request: Request,
@@ -165,7 +184,11 @@ class UserAgentChatController(BaseController):
             - [DONE]: SSE 结束标记 / SSE end marker
             """
             await _check_agent_access(
-                db, current_user.tenant_id, agent_id, current_user.id, current_user.role_id
+                db,
+                current_user.tenant_id,
+                agent_id,
+                current_user.id,
+                current_user.role_id,
             )
 
             perm_service = PermissionService(db)
@@ -186,15 +209,25 @@ class UserAgentChatController(BaseController):
                 user_role_id=current_user.role_id,
                 permissions=user_perms,
                 consented_actions=data.consented_actions,
-                attachments=[a.model_dump() for a in data.attachments] if data.attachments else None,
-                image_params=data.image_params.model_dump() if data.image_params else None,
+                attachments=[a.model_dump() for a in data.attachments]
+                if data.attachments
+                else None,
+                image_params=data.image_params.model_dump()
+                if data.image_params
+                else None,
                 memory_scene=MemorySceneEnum.AI_CHAT_PAGE.value,
                 memory_channel=MemoryChannelEnum.USER_CHAT.value,
                 memory_source=MemorySceneEnum.AI_CHAT_PAGE.value,
                 page_session_id=data.page_session_id,
                 route_source=data.route_source,
-                interaction_updates=[item.model_dump() for item in data.interaction_updates] if data.interaction_updates else None,
-                trust_policy_ref=data.trust_policy_ref.model_dump() if data.trust_policy_ref else None,
+                interaction_updates=[
+                    item.model_dump() for item in data.interaction_updates
+                ]
+                if data.interaction_updates
+                else None,
+                trust_policy_ref=data.trust_policy_ref.model_dump()
+                if data.trust_policy_ref
+                else None,
                 interaction_mode=data.interaction_mode,
             )
 
@@ -202,7 +235,9 @@ class UserAgentChatController(BaseController):
         # 智能路由 / Smart routing
         # ========================================
 
-        @router.post("/route", summary="智能体路由 / Agent routing", response_model=None)
+        @router.post(
+            "/route", summary="智能体路由 / Agent routing", response_model=None
+        )
         @auth_only
         async def route_agent(
             request: Request,
@@ -226,7 +261,9 @@ class UserAgentChatController(BaseController):
                 conversation_id=data.conversation_id,
                 user_role=UserRoleEnum.TENANT_USER.value,
                 user_role_id=current_user.role_id,
-                page_context=data.page_context.model_dump() if data.page_context else None,
+                page_context=data.page_context.model_dump()
+                if data.page_context
+                else None,
                 pinned_agent_id=data.pinned_agent_id,
                 user_id=current_user.id,
                 force_reroute=data.force_reroute,
@@ -240,7 +277,9 @@ class UserAgentChatController(BaseController):
         # 对话管理 / Conversation management
         # ========================================
 
-        @router.get("/conversations", summary="获取 AI 对话列表 / Get AI conversation list")
+        @router.get(
+            "/conversations", summary="获取 AI 对话列表 / Get AI conversation list"
+        )
         @auth_only
         async def list_conversations(
             request: Request,
@@ -419,7 +458,10 @@ class UserAgentChatController(BaseController):
                 user_id=current_user.id,
                 owner_type=ConversationOwnerTypeEnum.TENANT_USER.value,
             )
-            return success(data={"deleted_count": deleted_count}, message=_("agent_chat.memory_cleared"))
+            return success(
+                data={"deleted_count": deleted_count},
+                message=_("agent_chat.memory_cleared"),
+            )
 
         @router.post(
             "/conversations/{conversation_id}/compact",
@@ -446,7 +488,7 @@ class UserAgentChatController(BaseController):
             summary="获取会话运行时间线 / Get conversation run timeline",
         )
         @auth_only
-        async def get_conversation_timeline(
+        async def get_conversation_run_timeline(
             request: Request,
             db: DbSession,
             conversation_id: int,

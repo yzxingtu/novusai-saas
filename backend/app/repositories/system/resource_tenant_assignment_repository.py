@@ -202,7 +202,9 @@ class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment
             新增分配数
         """
         existing_ids = set(
-            await self.get_assigned_tenant_ids(resource_type, resource_id, active_only=False)
+            await self.get_assigned_tenant_ids(
+                resource_type, resource_id, active_only=False
+            )
         )
         count = 0
         for tid in tenant_ids:
@@ -251,7 +253,9 @@ class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment
             {"added": N, "removed": N}
         """
         current = set(
-            await self.get_assigned_tenant_ids(resource_type, resource_id, active_only=False)
+            await self.get_assigned_tenant_ids(
+                resource_type, resource_id, active_only=False
+            )
         )
         target = set(tenant_ids)
 
@@ -265,7 +269,9 @@ class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment
 
         removed = 0
         if to_remove:
-            removed = await self.batch_unassign(resource_type, resource_id, list(to_remove))
+            removed = await self.batch_unassign(
+                resource_type, resource_id, list(to_remove)
+            )
 
         return {"added": added, "removed": removed}
 
@@ -319,8 +325,7 @@ def assigned_resource_ids_subquery(resource_type: str, tenant_id: int):
         )
     """
     return (
-        select(ResourceTenantAssignment.resource_id)
-        .where(
+        select(ResourceTenantAssignment.resource_id).where(
             and_(
                 ResourceTenantAssignment.resource_type == resource_type,
                 ResourceTenantAssignment.tenant_id == tenant_id,

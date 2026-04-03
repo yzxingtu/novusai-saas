@@ -58,10 +58,12 @@ _RESOURCE_SCOPE_NORMALIZE: dict[str, str] = {
     e.value: e.value for e in ResourceScopeEnum
 }
 _VALID_RESOURCE_SCOPES: frozenset[str] = frozenset(e.value for e in ResourceScopeEnum)
-_RESOURCE_SCOPES_NEEDING_ASSIGNMENT: frozenset[str] = frozenset({
-    ResourceScopeEnum.SELECTED_TENANTS.value,
-    ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
-})
+_RESOURCE_SCOPES_NEEDING_ASSIGNMENT: frozenset[str] = frozenset(
+    {
+        ResourceScopeEnum.SELECTED_TENANTS.value,
+        ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+    }
+)
 
 # Table name whitelist regex: only lowercase letters, digits, underscores (prevent SQL injection)
 # 表名白名单正则：仅允许小写字母、数字、下划线（防 SQL 注入）
@@ -96,10 +98,21 @@ def _validate_column_names(data: dict[str, Any]) -> str | None:
 
 # Global safety: columns that are never writable / 全局安全：永远不允许写入的列
 _NEVER_WRITABLE_COLUMNS: set[str] = {
-    "id", "created_at", "updated_at", "is_deleted", "deleted_at",
-    "password", "password_hash", "hashed_password",
-    "secret", "secret_key", "api_key", "access_token",
-    "refresh_token", "encrypted_key", "salt",
+    "id",
+    "created_at",
+    "updated_at",
+    "is_deleted",
+    "deleted_at",
+    "password",
+    "password_hash",
+    "hashed_password",
+    "secret",
+    "secret_key",
+    "api_key",
+    "access_token",
+    "refresh_token",
+    "encrypted_key",
+    "salt",
 }
 
 
@@ -117,6 +130,7 @@ async def _load_policy(
     if not context.db:
         return None
     from app.repositories.ai.table_policy_repository import AITablePolicyRepository
+
     policy_repo = AITablePolicyRepository(context.db)
     policy = await policy_repo.get_active_by_table_name(table_name)
     if not policy:
@@ -127,6 +141,7 @@ async def _load_policy(
         from app.repositories.ai.table_policy_override_repository import (
             AITablePolicyOverrideRepository,
         )
+
         override_repo = AITablePolicyOverrideRepository(context.db)
         ov = await override_repo.get_by_policy_and_tenant(policy.id, context.tenant_id)
         if ov:
@@ -221,7 +236,8 @@ def _check_rbac(
     if perm_code == "platform_only":
         if not context.is_platform_admin:
             return _("data_intelligence.crud.permission_denied").format(
-                action=action, table=policy.table_name,
+                action=action,
+                table=policy.table_name,
             )
         return None
 
@@ -242,17 +258,18 @@ def _check_rbac(
     # Derive required permission code and check / 推导所需权限码并检查
     # permissions 为空/None 时拒绝（防止越权）
     required = _derive_permission(perm_code, action)
-    if required and (
-        not context.permissions or required not in context.permissions
-    ):
+    if required and (not context.permissions or required not in context.permissions):
         return _("data_intelligence.crud.permission_denied").format(
-            action=action, table=policy.table_name,
+            action=action,
+            table=policy.table_name,
         )
 
     return None
 
 
-def _normalize_agent_data(data: dict[str, Any]) -> tuple[dict[str, Any], list[int] | None, bool]:
+def _normalize_agent_data(
+    data: dict[str, Any],
+) -> tuple[dict[str, Any], list[int] | None, bool]:
     """Normalize agent create data: resource scope, strip system fields, extract tenant_ids and publish flag."""
     data = copy.deepcopy(data)
 
@@ -279,7 +296,9 @@ def _normalize_agent_data(data: dict[str, Any]) -> tuple[dict[str, Any], list[in
     for rejected_field in ("distribution_mode", "owner_type", "legacy_scope"):
         if rejected_field in data:
             raise ValueError(
-                _("data_intelligence.crud.rejected_legacy_field").format(field=rejected_field)
+                _("data_intelligence.crud.rejected_legacy_field").format(
+                    field=rejected_field
+                )
             )
     raw_scope = data.pop("scope", None)
     if raw_scope is not None:
@@ -347,12 +366,16 @@ async def _execute_agent_create_via_service(
         tool_call_id=tool_call_id,
         name=tool_name,
         success=True,
-        output=json.dumps({
-            "action": "create",
-            "table": "agents",
-            "id": agent.id,
-            "success": True,
-        }, ensure_ascii=False, default=str),
+        output=json.dumps(
+            {
+                "action": "create",
+                "table": "agents",
+                "id": agent.id,
+                "success": True,
+            },
+            ensure_ascii=False,
+            default=str,
+        ),
     )
 
 
@@ -403,13 +426,24 @@ def _enforce_tenant_isolation(
 # System-managed columns: silently stripped when passed by LLM, auto-injected by system
 # 系统管理列：LLM 传入时静默剥离，由系统自动注入
 _SYSTEM_MANAGED_COLUMNS: set[str] = {
-    "tenant_id", "is_deleted", "deleted_at", "delete_level",
-    "created_at", "updated_at",
+    "tenant_id",
+    "is_deleted",
+    "deleted_at",
+    "delete_level",
+    "created_at",
+    "updated_at",
 }
 # Columns never required from user (auto-generated or always injected) / 上文为英文说明 / English above
-_CREATE_SKIP_REQUIRED: frozenset[str] = frozenset({
-    "id", "created_at", "updated_at", "tenant_id", "is_deleted", "deleted_at",
-})
+_CREATE_SKIP_REQUIRED: frozenset[str] = frozenset(
+    {
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id",
+        "is_deleted",
+        "deleted_at",
+    }
+)
 
 
 def _strip_system_columns(data: dict[str, Any]) -> None:
@@ -511,6 +545,7 @@ async def _audit_log(
 # CreateRecordExecutor
 # ============================================
 
+
 class CreateRecordExecutor(BaseToolExecutor):
     """
     Generic record creation executor.
@@ -537,7 +572,9 @@ class CreateRecordExecutor(BaseToolExecutor):
         _name = definition.name
         if not context or not context.db:
             return ToolResult.error_result(
-                tool_call_id, _("data_intelligence.crud.no_context"), name=_name,
+                tool_call_id,
+                _("data_intelligence.crud.no_context"),
+                name=_name,
             )
 
         table_name = arguments["table_name"]
@@ -562,8 +599,10 @@ class CreateRecordExecutor(BaseToolExecutor):
             return ToolResult.error_result(
                 tool_call_id,
                 _("data_intelligence.crud.operation_denied").format(
-                    operation="create", table=table_name,
-                ) + _("data_intelligence.crud.no_retry_hint").format(operation="create"),
+                    operation="create",
+                    table=table_name,
+                )
+                + _("data_intelligence.crud.no_retry_hint").format(operation="create"),
                 name=_name,
             )
 
@@ -633,12 +672,20 @@ class CreateRecordExecutor(BaseToolExecutor):
             try:
                 async with context.db.begin_nested():
                     return await _execute_agent_create_via_service(
-                        context, data, tool_call_id, definition.name,
+                        context,
+                        data,
+                        tool_call_id,
+                        definition.name,
                     )
             except Exception as exc:
                 await _audit_log(
-                    context, "create", table_name, None, data,
-                    success=False, error=str(exc),
+                    context,
+                    "create",
+                    table_name,
+                    None,
+                    data,
+                    success=False,
+                    error=str(exc),
                 )
                 return ToolResult.error_result(
                     tool_call_id,
@@ -667,27 +714,44 @@ class CreateRecordExecutor(BaseToolExecutor):
                 new_id = result.scalar()
 
             await _audit_log(
-                context, "create", table_name, new_id, data, success=True,
+                context,
+                "create",
+                table_name,
+                new_id,
+                data,
+                success=True,
             )
 
             return ToolResult(
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=True,
-                output=json.dumps({
-                    "action": "create",
-                    "table": table_name,
-                    "id": new_id,
-                    "success": True,
-                }, ensure_ascii=False, default=str),
+                output=json.dumps(
+                    {
+                        "action": "create",
+                        "table": table_name,
+                        "id": new_id,
+                        "success": True,
+                    },
+                    ensure_ascii=False,
+                    default=str,
+                ),
             )
         except Exception as exc:
             await _audit_log(
-                context, "create", table_name, None, data,
-                success=False, error=str(exc),
+                context,
+                "create",
+                table_name,
+                None,
+                data,
+                success=False,
+                error=str(exc),
             )
             error_msg = str(exc)
-            if "NotNullViolationError" in type(exc).__name__ or "not-null constraint" in error_msg:
+            if (
+                "NotNullViolationError" in type(exc).__name__
+                or "not-null constraint" in error_msg
+            ):
                 col_match = re.search(r'column "(\w+)"', error_msg)
                 col_name = col_match.group(1) if col_match else "unknown"
                 error_msg = (
@@ -700,13 +764,16 @@ class CreateRecordExecutor(BaseToolExecutor):
                     exc=exc,
                 )
             return ToolResult.error_result(
-                tool_call_id, error_msg, name=_name,
+                tool_call_id,
+                error_msg,
+                name=_name,
             )
 
 
 # ============================================ / 上文为英文说明 / English above
 # UpdateRecordExecutor
 # ============================================
+
 
 class UpdateRecordExecutor(BaseToolExecutor):
     """
@@ -738,7 +805,9 @@ class UpdateRecordExecutor(BaseToolExecutor):
         _name = definition.name
         if not context or not context.db:
             return ToolResult.error_result(
-                tool_call_id, _("data_intelligence.crud.no_context"), name=_name,
+                tool_call_id,
+                _("data_intelligence.crud.no_context"),
+                name=_name,
             )
 
         table_name = arguments["table_name"]
@@ -764,8 +833,10 @@ class UpdateRecordExecutor(BaseToolExecutor):
             return ToolResult.error_result(
                 tool_call_id,
                 _("data_intelligence.crud.operation_denied").format(
-                    operation="update", table=table_name,
-                ) + _("data_intelligence.crud.no_retry_hint").format(operation="update"),
+                    operation="update",
+                    table=table_name,
+                )
+                + _("data_intelligence.crud.no_retry_hint").format(operation="update"),
                 name=_name,
             )
 
@@ -820,7 +891,8 @@ class UpdateRecordExecutor(BaseToolExecutor):
             return ToolResult.error_result(
                 tool_call_id,
                 _("data_intelligence.crud.record_not_found").format(
-                    table=table_name, id=record_id,
+                    table=table_name,
+                    id=record_id,
                 ),
                 name=_name,
             )
@@ -863,30 +935,42 @@ class UpdateRecordExecutor(BaseToolExecutor):
                     where += " AND tenant_id = :tenant_id"
                     params["tenant_id"] = context.tenant_id
 
-                raw_sql = text(
-                    f"UPDATE {table_name} SET {set_clauses} WHERE {where}"
-                )
+                raw_sql = text(f"UPDATE {table_name} SET {set_clauses} WHERE {where}")
                 await context.db.execute(raw_sql, params)
 
             await _audit_log(
-                context, "update", table_name, record_id, data, success=True,
+                context,
+                "update",
+                table_name,
+                record_id,
+                data,
+                success=True,
             )
 
             return ToolResult(
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=True,
-                output=json.dumps({
-                    "action": "update",
-                    "table": table_name,
-                    "id": record_id,
-                    "success": True,
-                }, ensure_ascii=False, default=str),
+                output=json.dumps(
+                    {
+                        "action": "update",
+                        "table": table_name,
+                        "id": record_id,
+                        "success": True,
+                    },
+                    ensure_ascii=False,
+                    default=str,
+                ),
             )
         except Exception as exc:
             await _audit_log(
-                context, "update", table_name, record_id, data,
-                success=False, error=str(exc),
+                context,
+                "update",
+                table_name,
+                record_id,
+                data,
+                success=False,
+                error=str(exc),
             )
             return ToolResult.error_result(
                 tool_call_id,
@@ -901,6 +985,7 @@ class UpdateRecordExecutor(BaseToolExecutor):
 # ============================================ / 上文为英文说明 / English above
 # DeleteRecordExecutor
 # ============================================
+
 
 class DeleteRecordExecutor(BaseToolExecutor):
     """
@@ -928,7 +1013,9 @@ class DeleteRecordExecutor(BaseToolExecutor):
         _name = definition.name
         if not context or not context.db:
             return ToolResult.error_result(
-                tool_call_id, _("data_intelligence.crud.no_context"), name=_name,
+                tool_call_id,
+                _("data_intelligence.crud.no_context"),
+                name=_name,
             )
 
         table_name = arguments["table_name"]
@@ -953,8 +1040,10 @@ class DeleteRecordExecutor(BaseToolExecutor):
             return ToolResult.error_result(
                 tool_call_id,
                 _("data_intelligence.crud.operation_denied").format(
-                    operation="delete", table=table_name,
-                ) + _("data_intelligence.crud.no_retry_hint").format(operation="delete"),
+                    operation="delete",
+                    table=table_name,
+                )
+                + _("data_intelligence.crud.no_retry_hint").format(operation="delete"),
                 name=_name,
             )
 
@@ -992,7 +1081,8 @@ class DeleteRecordExecutor(BaseToolExecutor):
             return ToolResult.error_result(
                 tool_call_id,
                 _("data_intelligence.crud.record_not_found").format(
-                    table=table_name, id=record_id,
+                    table=table_name,
+                    id=record_id,
                 ),
                 name=_name,
             )
@@ -1001,10 +1091,7 @@ class DeleteRecordExecutor(BaseToolExecutor):
         # 确认流程（删除始终需要确认）
         if not confirmed:
             # Filter out sensitive columns before display / 过滤敏感列后展示
-            safe_data = {
-                k: v for k, v in dict(current_row).items()
-                if k not in blocked
-            }
+            safe_data = {k: v for k, v in dict(current_row).items() if k not in blocked}
             preview = {
                 "action": "delete",
                 "table": table_name,
@@ -1037,25 +1124,39 @@ class DeleteRecordExecutor(BaseToolExecutor):
                 await context.db.execute(raw_sql, params)
 
             await _audit_log(
-                context, "delete", table_name, record_id, None, success=True,
+                context,
+                "delete",
+                table_name,
+                record_id,
+                None,
+                success=True,
             )
 
             return ToolResult(
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=True,
-                output=json.dumps({
-                    "action": "delete",
-                    "table": table_name,
-                    "id": record_id,
-                    "success": True,
-                    "soft_deleted": True,
-                }, ensure_ascii=False, default=str),
+                output=json.dumps(
+                    {
+                        "action": "delete",
+                        "table": table_name,
+                        "id": record_id,
+                        "success": True,
+                        "soft_deleted": True,
+                    },
+                    ensure_ascii=False,
+                    default=str,
+                ),
             )
         except Exception as exc:
             await _audit_log(
-                context, "delete", table_name, record_id, None,
-                success=False, error=str(exc),
+                context,
+                "delete",
+                table_name,
+                record_id,
+                None,
+                success=False,
+                error=str(exc),
             )
             return ToolResult.error_result(
                 tool_call_id,

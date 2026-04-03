@@ -102,7 +102,8 @@ class AgentRepository(TenantRepository[Agent]):
 
         # 应用额外的强制过滤（排除 tenant_id 强制规则）
         extra_forced = [
-            f for f in (forced_filters or [])
+            f
+            for f in (forced_filters or [])
             if f.field not in ("tenant_id", "owner_tenant_id")
         ]
         if extra_forced:
@@ -152,23 +153,32 @@ class AgentRepository(TenantRepository[Agent]):
         )
         query = query.join(TenantAgentPublication, publication_join_on)
         query = query.where(self.model.status == AgentStatusEnum.PUBLISHED.value)
-        query = query.where(self.model.execution_mode != AgentExecutionModeEnum.ROUTER.value)
+        query = query.where(
+            self.model.execution_mode != AgentExecutionModeEnum.ROUTER.value
+        )
         query = query.where(
             or_(
                 and_(
                     TenantAgentPublication.enabled_for_users.is_(True),
-                    TenantAgentPublication.access_type == AgentPublicationAccessTypeEnum.ALL_USERS.value,
+                    TenantAgentPublication.access_type
+                    == AgentPublicationAccessTypeEnum.ALL_USERS.value,
                 ),
                 and_(
                     TenantAgentPublication.enabled_for_users.is_(True),
-                    TenantAgentPublication.access_type == AgentPublicationAccessTypeEnum.SPECIFIC_USERS.value,
-                    TenantAgentPublication.tenant_user_ids.cast(JSONB).contains([user_id]),
+                    TenantAgentPublication.access_type
+                    == AgentPublicationAccessTypeEnum.SPECIFIC_USERS.value,
+                    TenantAgentPublication.tenant_user_ids.cast(JSONB).contains(
+                        [user_id]
+                    ),
                 ),
                 and_(
                     TenantAgentPublication.enabled_for_users.is_(True),
-                    TenantAgentPublication.access_type == AgentPublicationAccessTypeEnum.TENANT_USER_ROLES.value,
+                    TenantAgentPublication.access_type
+                    == AgentPublicationAccessTypeEnum.TENANT_USER_ROLES.value,
                     (
-                        TenantAgentPublication.tenant_user_role_ids.cast(JSONB).contains([user_role_id])
+                        TenantAgentPublication.tenant_user_role_ids.cast(
+                            JSONB
+                        ).contains([user_role_id])
                         if user_role_id is not None
                         else false()
                     ),
@@ -177,7 +187,8 @@ class AgentRepository(TenantRepository[Agent]):
         )
 
         extra_forced = [
-            f for f in (forced_filters or [])
+            f
+            for f in (forced_filters or [])
             if f.field not in ("tenant_id", "owner_tenant_id")
         ]
         if extra_forced:
@@ -218,7 +229,9 @@ class AgentRepository(TenantRepository[Agent]):
         ]
 
     async def cascade_soft_delete_conversations(
-        self, agent_id: int, delete_level: str,
+        self,
+        agent_id: int,
+        delete_level: str,
     ) -> None:
         """级联软删除智能体的对话记录 / Cascade soft-delete agent conversations."""
         now = utc_now()
@@ -323,9 +336,7 @@ class AgentRepository(TenantRepository[Agent]):
         """
         from app.enums.agent import AgentStatusEnum
 
-        return await self.get_by_status(
-            AgentStatusEnum.PUBLISHED.value, skip, limit
-        )
+        return await self.get_by_status(AgentStatusEnum.PUBLISHED.value, skip, limit)
 
     async def get_by_name(
         self,
@@ -381,7 +392,9 @@ class AdminAgentRepository(BaseRepository[Agent]):
         ]
 
     async def cascade_soft_delete_conversations(
-        self, agent_id: int, delete_level: str,
+        self,
+        agent_id: int,
+        delete_level: str,
     ) -> None:
         """级联软删除智能体的对话记录 / Cascade soft-delete agent conversations."""
         now = utc_now()

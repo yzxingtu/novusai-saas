@@ -1016,9 +1016,7 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
                         "migration_path": migration_path,
                     }
 
-                lint_warnings = CodegenService._lint_migration_file(
-                    backend_dir, _mp
-                )
+                lint_warnings = CodegenService._lint_migration_file(backend_dir, _mp)
                 if lint_warnings:
                     warning_text = "\n".join(str(w) for w in lint_warnings)
                     return {

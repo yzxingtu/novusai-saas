@@ -2,7 +2,6 @@
 存储驱动管理器 / Storage driver manager.
 """
 
-
 from app.core.logging import LogManager
 from app.exceptions import StorageConfigError
 from app.storage.base import StorageConfig, StorageDriver
@@ -15,6 +14,7 @@ class StorageManager:
     """
     Storage Driver Registry and Entry Point / 存储驱动注册与获取入口
     """
+
     _instance: "StorageManager | None" = None
 
     def __new__(cls) -> "StorageManager":
@@ -55,7 +55,9 @@ class StorageManager:
         if removed:
             logger.info("Storage driver unregistered: {}", driver_name)
         else:
-            logger.warning("Storage driver unregister skipped (not found): {}", driver_name)
+            logger.warning(
+                "Storage driver unregister skipped (not found): {}", driver_name
+            )
 
     def get_driver(self, config: StorageConfig) -> StorageDriver:
         """
@@ -90,13 +92,15 @@ class StorageManager:
         """
         result = []
         for name, cls in self._drivers.items():
-            result.append({
-                "name": name,
-                "display_name": getattr(cls, "display_name", name),
-                "config_schema": getattr(cls, "config_schema", None),
-                "is_builtin": name == "local",
-                "is_available": True,
-            })
+            result.append(
+                {
+                    "name": name,
+                    "display_name": getattr(cls, "display_name", name),
+                    "config_schema": getattr(cls, "config_schema", None),
+                    "is_builtin": name == "local",
+                    "is_available": True,
+                }
+            )
         return result
 
     def get_all_driver_info_list(
@@ -130,15 +134,17 @@ class StorageManager:
             # Add unregistered (plugin disabled) drivers / 补充未注册（插件未启用）的驱动
             for pd in known_plugin_drivers:
                 if pd["name"] not in registered_names:
-                    registered.append({
-                        "name": pd["name"],
-                        "display_name": pd.get("display_name", pd["name"]),
-                        "config_schema": None,
-                        "is_builtin": False,
-                        "is_available": False,
-                        "plugin_name": pd.get("plugin_name"),
-                        "plugin_status": pd.get("plugin_status"),
-                    })
+                    registered.append(
+                        {
+                            "name": pd["name"],
+                            "display_name": pd.get("display_name", pd["name"]),
+                            "config_schema": None,
+                            "is_builtin": False,
+                            "is_available": False,
+                            "plugin_name": pd.get("plugin_name"),
+                            "plugin_status": pd.get("plugin_status"),
+                        }
+                    )
 
         return registered
 

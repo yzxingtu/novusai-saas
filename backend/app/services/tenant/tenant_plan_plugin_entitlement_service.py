@@ -50,13 +50,12 @@ class TenantPlanPluginEntitlementService:
         return dict(_FEATURE_PLUGIN_MAP)
 
     def _get_plugin_policy(self, plugin_name: str) -> dict[str, Any]:
-        return ExtensionRegistry.get_instance().get_plugin_tenant_menu_policy(plugin_name)
+        return ExtensionRegistry.get_instance().get_plugin_tenant_menu_policy(
+            plugin_name
+        )
 
     def _is_manual_policy(self, policy: dict[str, Any]) -> bool:
-        return (
-            str(policy.get("grant_mode") or "").strip().lower()
-            == self._MANUAL_MODE
-        )
+        return str(policy.get("grant_mode") or "").strip().lower() == self._MANUAL_MODE
 
     @staticmethod
     def _collect_desired_plugins(features: dict[str, Any] | None) -> set[str]:
@@ -79,16 +78,10 @@ class TenantPlanPluginEntitlementService:
         tenant_prefix = f"menu:tenant.plugin_{safe_name}_%"
         plugin_prefix = f"plugin.{plugin_name}.%"
 
-        stmt = (
-            select(Permission.id, Permission.is_enabled)
-            .where(
-                (
-                    Permission.code.like(tenant_prefix)
-                    | Permission.code.like(plugin_prefix)
-                ),
-                Permission.scope.in_(["tenant", "both"]),
-                Permission.is_deleted.is_(False),
-            )
+        stmt = select(Permission.id, Permission.is_enabled).where(
+            (Permission.code.like(tenant_prefix) | Permission.code.like(plugin_prefix)),
+            Permission.scope.in_(["tenant", "both"]),
+            Permission.is_deleted.is_(False),
         )
         result = await self._db.execute(stmt)
         rows = result.all()
@@ -97,21 +90,20 @@ class TenantPlanPluginEntitlementService:
         return all_ids, enabled_ids
 
     async def _get_plan_permission_ids(self, plan_id: int) -> set[int]:
-        stmt = (
-            select(tenant_plan_permissions.c.permission_id)
-            .where(tenant_plan_permissions.c.plan_id == plan_id)
+        stmt = select(tenant_plan_permissions.c.permission_id).where(
+            tenant_plan_permissions.c.plan_id == plan_id
         )
         result = await self._db.execute(stmt)
         rows = result.scalars().all()
         return set(rows)
 
-    async def _grant_permissions(self, plan_id: int, permission_ids: Iterable[int]) -> None:
+    async def _grant_permissions(
+        self, plan_id: int, permission_ids: Iterable[int]
+    ) -> None:
         perms = list(dict.fromkeys(permission_ids))
         if not perms:
             return
-        payload = [
-            {"plan_id": plan_id, "permission_id": perm_id} for perm_id in perms
-        ]
+        payload = [{"plan_id": plan_id, "permission_id": perm_id} for perm_id in perms]
         await self._db.execute(
             text(
                 "INSERT INTO tenant_plan_permissions (plan_id, permission_id) "
@@ -123,22 +115,23 @@ class TenantPlanPluginEntitlementService:
         await self._db.flush()
         logger.info("Plan {}: granted {} plugin permission(s)", plan_id, len(perms))
 
-    async def _revoke_permissions(self, plan_id: int, permission_ids: Iterable[int]) -> None:
+    async def _revoke_permissions(
+        self, plan_id: int, permission_ids: Iterable[int]
+    ) -> None:
         perms = list(dict.fromkeys(permission_ids))
         if not perms:
             return
-        stmt = (
-            delete(tenant_plan_permissions)
-            .where(
-                tenant_plan_permissions.c.plan_id == plan_id,
-                tenant_plan_permissions.c.permission_id.in_(perms),
-            )
+        stmt = delete(tenant_plan_permissions).where(
+            tenant_plan_permissions.c.plan_id == plan_id,
+            tenant_plan_permissions.c.permission_id.in_(perms),
         )
         await self._db.execute(stmt)
         await self._db.flush()
         logger.info("Plan {}: revoked {} plugin permission(s)", plan_id, len(perms))
 
-    async def sync_plan_permissions(self, plan_id: int, features: dict[str, Any] | None) -> None:
+    async def sync_plan_permissions(
+        self, plan_id: int, features: dict[str, Any] | None
+    ) -> None:
         """Ensure plugin permissions align with the provided feature flags."""
 
         desired_plugins = self._collect_desired_plugins(features)
@@ -148,7 +141,9 @@ class TenantPlanPluginEntitlementService:
             policy = self._get_plugin_policy(plugin)
             if self._is_manual_policy(policy):
                 logger.debug(
-                    "Plan %s: plugin %s uses manual entitlement, skipping", plan_id, plugin
+                    "Plan %s: plugin %s uses manual entitlement, skipping",
+                    plan_id,
+                    plugin,
                 )
                 continue
 

@@ -1,0 +1,6 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".\\.trellis\\spec\\backend\\quality-guidelines.md", "reason": "Verify backend tests and no silent exception swallowing remain in changed paths"}
+{"file": ".\\.trellis\\spec\\frontend\\quality-guidelines.md", "reason": "Verify frontend unit coverage and cross-surface boundaries after refactor"}
+{"file": ".\\.trellis\\spec\\guides\\cross-layer-thinking-guide.md", "reason": "Confirm backend/frontend contracts and runtime behavior stayed aligned"}

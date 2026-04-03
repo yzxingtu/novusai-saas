@@ -85,8 +85,14 @@ class HostReadFacade:
         driver_owner_map: dict[str, dict[str, str]] = {}
         for plugin_name, plugin_status, manifest_data in result.all():
             manifest = manifest_data or {}
-            extensions = manifest.get("extensions", {}) if isinstance(manifest, dict) else {}
-            storage_drivers = extensions.get("storage_drivers", []) if isinstance(extensions, dict) else []
+            extensions = (
+                manifest.get("extensions", {}) if isinstance(manifest, dict) else {}
+            )
+            storage_drivers = (
+                extensions.get("storage_drivers", [])
+                if isinstance(extensions, dict)
+                else []
+            )
             if not isinstance(storage_drivers, list):
                 continue
             for item in storage_drivers:
@@ -183,10 +189,12 @@ class HostReadFacade:
         / 返回企业及其已分配套餐快照。
         """
         result = await self._db.execute(
-            select(Tenant).where(
+            select(Tenant)
+            .where(
                 Tenant.id == tenant_id,
                 Tenant.is_deleted.is_(False),
-            ).options(
+            )
+            .options(
                 selectinload(Tenant.tenant_plan),
             )
         )
@@ -194,7 +202,9 @@ class HostReadFacade:
         if tenant is None:
             return None
 
-        plan_snapshot = _serialize_plan(tenant.tenant_plan) if tenant.tenant_plan else None
+        plan_snapshot = (
+            _serialize_plan(tenant.tenant_plan) if tenant.tenant_plan else None
+        )
         return {
             "tenant_id": tenant.id,
             "tenant_code": tenant.code,
@@ -209,7 +219,9 @@ class HostReadFacade:
         / 解析企业有效存储上下文快照。
         """
         resolver = StorageConfigResolver(self._db)
-        storage_mode, storage_config, apply_quota = await resolver.resolve_context(tenant_id)
+        storage_mode, storage_config, apply_quota = await resolver.resolve_context(
+            tenant_id
+        )
         return {
             "tenant_id": tenant_id,
             "storage_mode": storage_mode,

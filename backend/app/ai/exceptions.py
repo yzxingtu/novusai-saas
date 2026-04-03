@@ -163,6 +163,7 @@ class ContextLengthExceededError(AIGatewayError):
 
 # ========== Provider exception conversion utilities / 供应商原始异常转换工具函数 ==========
 
+
 def convert_openai_error(
     error: Exception,
     provider_code: str = "openai",
@@ -274,7 +275,9 @@ def convert_openai_error(
                 **kwargs,
             )
         # Check if vision/image_url not supported by model / 检查模型是否不支持图片
-        if "image_url" in error_lower or ("image" in error_lower and "unsupported" in error_lower):
+        if "image_url" in error_lower or (
+            "image" in error_lower and "unsupported" in error_lower
+        ):
             return ProviderError(
                 message=_("ai.error.vision_not_supported"),
                 error_code="vision_not_supported",
@@ -330,7 +333,11 @@ def is_retryable(error: AIGatewayError) -> bool:
         return True
     if isinstance(error, ProviderRateLimitError) and error.retry_after is not None:
         return True
-    if isinstance(error, ProviderError) and error.error_code and error.error_code.isdigit():
+    if (
+        isinstance(error, ProviderError)
+        and error.error_code
+        and error.error_code.isdigit()
+    ):
         status = int(error.error_code)
         return 500 <= status < 600
     return False

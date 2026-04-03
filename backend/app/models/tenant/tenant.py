@@ -32,12 +32,27 @@ class Tenant(BaseModel):
     }
 
     __delete_deps__ = [
-        DeletionDep("TenantAdmin", "tenant_id", DeletionStrategy.BLOCK,
-                    label_field="username", i18n_key="tenant_admin"),
-        DeletionDep("TenantDomain", "tenant_id", DeletionStrategy.CASCADE_SOFT,
-                    label_field="domain", i18n_key="tenant_domain"),
-        DeletionDep("SystemAgentAssignment", "tenant_id", DeletionStrategy.CASCADE_DELETE,
-                    label_field="id", i18n_key="system_agent_assignment"),
+        DeletionDep(
+            "TenantAdmin",
+            "tenant_id",
+            DeletionStrategy.BLOCK,
+            label_field="username",
+            i18n_key="tenant_admin",
+        ),
+        DeletionDep(
+            "TenantDomain",
+            "tenant_id",
+            DeletionStrategy.CASCADE_SOFT,
+            label_field="domain",
+            i18n_key="tenant_domain",
+        ),
+        DeletionDep(
+            "SystemAgentAssignment",
+            "tenant_id",
+            DeletionStrategy.CASCADE_DELETE,
+            label_field="id",
+            i18n_key="system_agent_assignment",
+        ),
     ]
 
     # 允许前端筛选的字段 / Fields exposed for list filtering
@@ -55,7 +70,16 @@ class Tenant(BaseModel):
         "updated_at": "updated_at",
     }
 
-    __sortable__ = ["id", "name", "code", "is_active", "plan_id", "expires_at", "created_at", "updated_at"]
+    __sortable__ = [
+        "id",
+        "name",
+        "code",
+        "is_active",
+        "plan_id",
+        "expires_at",
+        "created_at",
+        "updated_at",
+    ]
 
     # 下拉选项配置 / Select dropdown config
     __selectable__ = {
@@ -67,26 +91,39 @@ class Tenant(BaseModel):
 
     # 基本信息 / Basic info
     name: Mapped[str] = mapped_column(
-        String(100), index=True, comment="企业名称 / Tenant name",
+        String(100),
+        index=True,
+        comment="企业名称 / Tenant name",
     )
     code: Mapped[str] = mapped_column(
-        String(50), unique=True, index=True, comment="企业编码（唯一标识） / Tenant code",
+        String(50),
+        unique=True,
+        index=True,
+        comment="企业编码（唯一标识） / Tenant code",
     )
 
     # 联系信息 / Contact
     contact_name: Mapped[str | None] = mapped_column(
-        String(50), nullable=True, comment="联系人姓名 / Contact name",
+        String(50),
+        nullable=True,
+        comment="联系人姓名 / Contact name",
     )
     contact_phone: Mapped[str | None] = mapped_column(
-        String(20), nullable=True, comment="联系人电话 / Contact phone",
+        String(20),
+        nullable=True,
+        comment="联系人电话 / Contact phone",
     )
     contact_email: Mapped[str | None] = mapped_column(
-        String(255), nullable=True, comment="联系人邮箱 / Contact email",
+        String(255),
+        nullable=True,
+        comment="联系人邮箱 / Contact email",
     )
 
     # 企业状态 / Status
     is_active: Mapped[bool] = mapped_column(
-        Boolean, default=True, comment="是否启用 / Active",
+        Boolean,
+        default=True,
+        comment="是否启用 / Active",
     )
 
     # 套餐/配额 / Plan and quota
@@ -94,7 +131,10 @@ class Tenant(BaseModel):
     # Deprecated: use plan_id -> TenantPlan
     # 保留字段以兼容旧数据，迁移后删除 / Kept for legacy data migration
     plan: Mapped[str | None] = mapped_column(
-        String(50), nullable=True, default=None, comment="套餐类型(已废弃) / Legacy plan (deprecated)",
+        String(50),
+        nullable=True,
+        default=None,
+        comment="套餐类型(已废弃) / Legacy plan (deprecated)",
     )
 
     # 套餐外键关联 / FK to TenantPlan
@@ -108,17 +148,23 @@ class Tenant(BaseModel):
 
     # 企业级配额覆盖（可覆盖套餐默认配额） / Tenant quota overrides
     quota: Mapped[dict | None] = mapped_column(
-        JSON, nullable=True, comment="配额配置(可覆盖套餐默认值) / Quota JSON overrides",
+        JSON,
+        nullable=True,
+        comment="配额配置(可覆盖套餐默认值) / Quota JSON overrides",
     )
 
     # 有效期 / Expiry
     expires_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True, comment="到期时间 / Expires at",
+        DateTime(timezone=True),
+        nullable=True,
+        comment="到期时间 / Expires at",
     )
 
     # 备注 / Remark
     remark: Mapped[str | None] = mapped_column(
-        Text, nullable=True, comment="备注 / Remark",
+        Text,
+        nullable=True,
+        comment="备注 / Remark",
     )
 
     # 企业设置（JSON 格式） / Tenant settings JSON
@@ -127,7 +173,9 @@ class Tenant(BaseModel):
     # 数据已迁移到 system_config_values 表 / Data moved to system_config_values
     # 保留字段以兼容旧数据，但不再使用 / Legacy column retained
     settings: Mapped[dict | None] = mapped_column(
-        JSON, nullable=True, comment="企业设置(已废弃) / Legacy settings (deprecated)",
+        JSON,
+        nullable=True,
+        comment="企业设置(已废弃) / Legacy settings (deprecated)",
     )
 
     # ==================== 关系 ==================== / Relationships

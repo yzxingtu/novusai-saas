@@ -27,29 +27,43 @@ class UserPreference(BaseModel):
 
     __table_args__ = (
         UniqueConstraint(
-            "scope", "tenant_id", "user_id",
+            "scope",
+            "tenant_id",
+            "user_id",
             name="uq_user_pref_scope_tenant_user",
         ),
     )
 
     scope: Mapped[str] = mapped_column(
-        String(30), nullable=False, index=True,
+        String(30),
+        nullable=False,
+        index=True,
         comment="作用域 / Scope: platform_global, tenant_global, admin, tenant_admin",
     )
     tenant_id: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, index=True,
+        Integer,
+        nullable=False,
+        default=0,
+        index=True,
         comment="企业 ID（0 = 平台级） / Tenant ID (0 = platform level)",
     )
     user_id: Mapped[int | None] = mapped_column(
-        Integer, nullable=True, default=None, index=True,
+        Integer,
+        nullable=True,
+        default=None,
+        index=True,
         comment="用户 ID（NULL = 全局记录） / User ID (NULL = global record)",
     )
     preferences: Mapped[str] = mapped_column(
-        Text, nullable=False, default="{}",
+        Text,
+        nullable=False,
+        default="{}",
         comment="偏好 JSON / Preferences JSON: {key: value, ...}",
     )
     version: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=1,
+        Integer,
+        nullable=False,
+        default=1,
         comment="全局记录变更版本号 / Global record change version",
     )
 

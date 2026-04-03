@@ -12,10 +12,12 @@ from app.enums.common import ResourceScopeEnum
 from app.models.ai import ProviderApiKey
 
 # 企业端可回退使用的平台密钥（非 admin_only）/ Platform keys visible to tenant-side AI
-_TENANT_PLATFORM_KEY_SCOPES: frozenset[str] = frozenset({
-    ResourceScopeEnum.GLOBAL_SHARED.value,
-    ResourceScopeEnum.ALL_TENANTS.value,  # legacy DB rows / 历史数据
-})
+_TENANT_PLATFORM_KEY_SCOPES: frozenset[str] = frozenset(
+    {
+        ResourceScopeEnum.GLOBAL_SHARED.value,
+        ResourceScopeEnum.ALL_TENANTS.value,  # legacy DB rows / 历史数据
+    }
+)
 
 
 class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
@@ -28,9 +30,7 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
     model = ProviderApiKey
 
     async def get_available_key(
-        self,
-        provider_id: int,
-        tenant_id: int | None = None
+        self, provider_id: int, tenant_id: int | None = None
     ) -> ProviderApiKey | None:
         """
         获取可用的 API Key / Get available API Key (tenant first, then platform fallback).
@@ -46,13 +46,15 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
         """
         # 先查找企业级 Key
         if tenant_id:
-            stmt = select(ProviderApiKey).where(
-                ProviderApiKey.provider_id == provider_id,
-                ProviderApiKey.owner_tenant_id == tenant_id,
-                ProviderApiKey.is_active.is_(True),
-                ProviderApiKey.is_deleted.is_(False)
-            ).order_by(
-                ProviderApiKey.created_at.desc()
+            stmt = (
+                select(ProviderApiKey)
+                .where(
+                    ProviderApiKey.provider_id == provider_id,
+                    ProviderApiKey.owner_tenant_id == tenant_id,
+                    ProviderApiKey.is_active.is_(True),
+                    ProviderApiKey.is_deleted.is_(False),
+                )
+                .order_by(ProviderApiKey.created_at.desc())
             )
             result = await self.db.execute(stmt)
             key = result.scalar_one_or_none()
@@ -72,10 +74,10 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
                 ProviderApiKey.scope.in_(_TENANT_PLATFORM_KEY_SCOPES),
             )
 
-        stmt = select(ProviderApiKey).where(
-            *fallback_conditions
-        ).order_by(
-            ProviderApiKey.created_at.desc()
+        stmt = (
+            select(ProviderApiKey)
+            .where(*fallback_conditions)
+            .order_by(ProviderApiKey.created_at.desc())
         )
 
         result = await self.db.execute(stmt)
@@ -87,9 +89,7 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
         return None
 
     async def get_available_keys_with_load_balancing(
-        self,
-        provider_id: int,
-        tenant_id: int | None = None
+        self, provider_id: int, tenant_id: int | None = None
     ) -> list[ProviderApiKey]:
         """
         获取所有可用的 API Key（用于负载均衡）/ Get all available API Keys (for load balancing).
@@ -112,11 +112,12 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
             tenant_conditions = base_conditions + [
                 ProviderApiKey.owner_tenant_id == tenant_id,
             ]
-            stmt = select(ProviderApiKey).where(
-                and_(*tenant_conditions)
-            ).order_by(
-                ProviderApiKey.usage_count.asc(),
-                ProviderApiKey.created_at.desc()
+            stmt = (
+                select(ProviderApiKey)
+                .where(and_(*tenant_conditions))
+                .order_by(
+                    ProviderApiKey.usage_count.asc(), ProviderApiKey.created_at.desc()
+                )
             )
             result = await self.db.execute(stmt)
             keys = [key for key in result.scalars().all() if key.is_available()]
@@ -128,11 +129,12 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
                 ProviderApiKey.owner_tenant_id.is_(None),
                 ProviderApiKey.scope.in_(_TENANT_PLATFORM_KEY_SCOPES),
             ]
-            stmt = select(ProviderApiKey).where(
-                and_(*platform_conditions)
-            ).order_by(
-                ProviderApiKey.usage_count.asc(),
-                ProviderApiKey.created_at.desc()
+            stmt = (
+                select(ProviderApiKey)
+                .where(and_(*platform_conditions))
+                .order_by(
+                    ProviderApiKey.usage_count.asc(), ProviderApiKey.created_at.desc()
+                )
             )
             result = await self.db.execute(stmt)
             return [key for key in result.scalars().all() if key.is_available()]
@@ -141,11 +143,12 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
             conditions = base_conditions + [
                 ProviderApiKey.owner_tenant_id.is_(None),
             ]
-            stmt = select(ProviderApiKey).where(
-                and_(*conditions)
-            ).order_by(
-                ProviderApiKey.usage_count.asc(),
-                ProviderApiKey.created_at.desc()
+            stmt = (
+                select(ProviderApiKey)
+                .where(and_(*conditions))
+                .order_by(
+                    ProviderApiKey.usage_count.asc(), ProviderApiKey.created_at.desc()
+                )
             )
             result = await self.db.execute(stmt)
             return [key for key in result.scalars().all() if key.is_available()]
@@ -154,7 +157,7 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
         self,
         provider_id: int,
         tenant_id: int | None = None,
-        include_deleted: bool = False
+        include_deleted: bool = False,
     ) -> list[ProviderApiKey]:
         """
         获取供应商的所有 API Key / Get all API Keys for provider.
@@ -167,9 +170,7 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
         Returns:
             ProviderApiKey 列表
         """
-        conditions = [
-            ProviderApiKey.provider_id == provider_id
-        ]
+        conditions = [ProviderApiKey.provider_id == provider_id]
 
         if not include_deleted:
             conditions.append(ProviderApiKey.is_deleted.is_(False))
@@ -177,10 +178,10 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
         if tenant_id is not None:
             conditions.append(ProviderApiKey.owner_tenant_id == tenant_id)
 
-        stmt = select(ProviderApiKey).where(
-            and_(*conditions)
-        ).order_by(
-            ProviderApiKey.created_at.desc()
+        stmt = (
+            select(ProviderApiKey)
+            .where(and_(*conditions))
+            .order_by(ProviderApiKey.created_at.desc())
         )
 
         result = await self.db.execute(stmt)
@@ -204,27 +205,35 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
             ProviderApiKey 对象或 None
         """
         if tenant_id:
-            stmt = select(ProviderApiKey).where(
-                ProviderApiKey.provider_id == provider_id,
-                ProviderApiKey.id != exclude_key_id,
-                ProviderApiKey.is_active.is_(True),
-                ProviderApiKey.is_deleted.is_(False),
-                (
-                    (ProviderApiKey.owner_tenant_id == tenant_id)
-                    | (
-                        ProviderApiKey.owner_tenant_id.is_(None)
-                        & ProviderApiKey.scope.in_(_TENANT_PLATFORM_KEY_SCOPES)
-                    )
-                ),
-            ).order_by(ProviderApiKey.created_at.desc())
+            stmt = (
+                select(ProviderApiKey)
+                .where(
+                    ProviderApiKey.provider_id == provider_id,
+                    ProviderApiKey.id != exclude_key_id,
+                    ProviderApiKey.is_active.is_(True),
+                    ProviderApiKey.is_deleted.is_(False),
+                    (
+                        (ProviderApiKey.owner_tenant_id == tenant_id)
+                        | (
+                            ProviderApiKey.owner_tenant_id.is_(None)
+                            & ProviderApiKey.scope.in_(_TENANT_PLATFORM_KEY_SCOPES)
+                        )
+                    ),
+                )
+                .order_by(ProviderApiKey.created_at.desc())
+            )
         else:
-            stmt = select(ProviderApiKey).where(
-                ProviderApiKey.provider_id == provider_id,
-                ProviderApiKey.id != exclude_key_id,
-                ProviderApiKey.owner_tenant_id.is_(None),
-                ProviderApiKey.is_active.is_(True),
-                ProviderApiKey.is_deleted.is_(False),
-            ).order_by(ProviderApiKey.created_at.desc())
+            stmt = (
+                select(ProviderApiKey)
+                .where(
+                    ProviderApiKey.provider_id == provider_id,
+                    ProviderApiKey.id != exclude_key_id,
+                    ProviderApiKey.owner_tenant_id.is_(None),
+                    ProviderApiKey.is_active.is_(True),
+                    ProviderApiKey.is_deleted.is_(False),
+                )
+                .order_by(ProviderApiKey.created_at.desc())
+            )
 
         result = await self.db.execute(stmt)
         next_key = result.scalar_one_or_none()
@@ -234,11 +243,7 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
 
         return None
 
-    async def update_usage_count(
-        self,
-        key_id: int,
-        increment: int = 1
-    ) -> None:
+    async def update_usage_count(self, key_id: int, increment: int = 1) -> None:
         """
         更新 API Key 使用次数 / Update API Key usage count.
 

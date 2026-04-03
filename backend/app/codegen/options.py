@@ -32,26 +32,62 @@ SYSTEM_MODULES: list[str] = [
 FIELD_TEMPLATES: dict[str, list[dict[str, Any]]] = {
     "name_code": [
         {"name": "name", "type": "String(100)", "required": True, "comment": "名称"},
-        {"name": "code", "type": "String(50)", "required": True, "unique": True, "comment": "编码"},
+        {
+            "name": "code",
+            "type": "String(50)",
+            "required": True,
+            "unique": True,
+            "comment": "编码",
+        },
     ],
     "status_sort": [
-        {"name": "status", "type": "String(20)", "default": "active", "comment": "状态"},
+        {
+            "name": "status",
+            "type": "String(20)",
+            "default": "active",
+            "comment": "状态",
+        },
         {"name": "sort_order", "type": "Integer", "default": 0, "comment": "排序"},
     ],
-    "description": [{"name": "description", "type": "Text", "nullable": True, "comment": "描述"}],
+    "description": [
+        {"name": "description", "type": "Text", "nullable": True, "comment": "描述"}
+    ],
     "audit": [
-        {"name": "created_by", "type": "Integer", "nullable": True, "comment": "创建人"},
-        {"name": "updated_by", "type": "Integer", "nullable": True, "comment": "更新人"},
+        {
+            "name": "created_by",
+            "type": "Integer",
+            "nullable": True,
+            "comment": "创建人",
+        },
+        {
+            "name": "updated_by",
+            "type": "Integer",
+            "nullable": True,
+            "comment": "更新人",
+        },
     ],
     "status_active": [
-        {"name": "status", "type": "String(20)", "default": "active", "comment": "状态"},
+        {
+            "name": "status",
+            "type": "String(20)",
+            "default": "active",
+            "comment": "状态",
+        },
         {"name": "is_active", "type": "Boolean", "default": True, "comment": "启用"},
     ],
     # sort_order: 仅当 base_class 未定义该字段时使用 / use only when base_class lacks it
-    "sort_order": [{"name": "sort_order", "type": "Integer", "default": 0, "comment": "排序"}],
+    "sort_order": [
+        {"name": "sort_order", "type": "Integer", "default": 0, "comment": "排序"}
+    ],
     "name_code_desc_remark": [
         {"name": "name", "type": "String(100)", "required": True, "comment": "名称"},
-        {"name": "code", "type": "String(50)", "required": True, "unique": True, "comment": "编码"},
+        {
+            "name": "code",
+            "type": "String(50)",
+            "required": True,
+            "unique": True,
+            "comment": "编码",
+        },
         {"name": "description", "type": "Text", "nullable": True, "comment": "描述"},
         # remark: 仅当 base_class 未定义该字段时使用 / use only when base_class lacks it
         {"name": "remark", "type": "Text", "nullable": True, "comment": "备注"},
@@ -59,7 +95,12 @@ FIELD_TEMPLATES: dict[str, list[dict[str, Any]]] = {
     "file_fields": [
         {"name": "avatar", "type": "ImageUpload", "nullable": True, "comment": "头像"},
         {"name": "cover", "type": "ImageUpload", "nullable": True, "comment": "封面"},
-        {"name": "attachment", "type": "FilePicker", "nullable": True, "comment": "附件"},
+        {
+            "name": "attachment",
+            "type": "FilePicker",
+            "nullable": True,
+            "comment": "附件",
+        },
     ],
 }
 

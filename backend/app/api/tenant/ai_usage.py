@@ -56,7 +56,9 @@ class TenantAIUsageController(TenantController):
             request: Request,
             db: DbSession,
             tenant_admin: ActiveTenantAdmin,
-            start_date: date | None = Query(None, description=_("api.param.start_date")),
+            start_date: date | None = Query(
+                None, description=_("api.param.start_date")
+            ),
             end_date: date | None = Query(None, description=_("api.param.end_date")),
         ):
             _request = request

@@ -37,7 +37,9 @@ def resolve_plugin_icon_file(
 
     plugin_root = (plugins_root / plugin_name).resolve()
     icon_file = (plugin_root / normalized).resolve()
-    if (plugin_root in icon_file.parents or plugin_root == icon_file.parent) and icon_file.is_file():
+    if (
+        plugin_root in icon_file.parents or plugin_root == icon_file.parent
+    ) and icon_file.is_file():
         return icon_file
     return None
 

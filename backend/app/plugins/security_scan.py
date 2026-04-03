@@ -23,8 +23,13 @@ logger = get_logger(__name__)
 
 # Dangerous function calls / 危险函数调用
 _DANGEROUS_CALLS: set[str] = {
-    "eval", "exec", "compile", "__import__",
-    "breakpoint", "exit", "quit",
+    "eval",
+    "exec",
+    "compile",
+    "__import__",
+    "breakpoint",
+    "exit",
+    "quit",
 }
 
 # Dangerous modules / 危险模块
@@ -32,9 +37,15 @@ _DANGEROUS_CALLS: set[str] = {
 # Common modules like sys/io/pathlib/tempfile/gc are widely used in legitimate plugin code and not blacklisted.
 # / 注：只列入能实际实现系统入侵的模块。
 _DANGEROUS_MODULES: set[str] = {
-    "subprocess", "os", "shutil", "ctypes",
-    "pickle", "marshal", "socket",
-    "multiprocessing", "threading",
+    "subprocess",
+    "os",
+    "shutil",
+    "ctypes",
+    "pickle",
+    "marshal",
+    "socket",
+    "multiprocessing",
+    "threading",
     # importlib can bypass import blacklist to dynamically load dangerous modules
     # / importlib 能绕过 import 黑名单动态加载危险模块
     "importlib",
@@ -52,18 +63,31 @@ _DANGEROUS_MODULES: set[str] = {
 # importlib.abc       — Abstract base classes, no execution capability
 # importlib.resources — Read-only resource file access
 # importlib.machinery — Finder/loader interfaces, cannot directly import_module
-_IMPORTLIB_SAFE_SUBMODULES: frozenset[str] = frozenset({
-    "importlib.util",
-    "importlib.metadata",
-    "importlib.abc",
-    "importlib.resources",
-    "importlib.machinery",
-})
+_IMPORTLIB_SAFE_SUBMODULES: frozenset[str] = frozenset(
+    {
+        "importlib.util",
+        "importlib.metadata",
+        "importlib.abc",
+        "importlib.resources",
+        "importlib.machinery",
+    }
+)
 
 # Dangerous attribute access / 危险属性访问
 _DANGEROUS_ATTRS: dict[str, set[str]] = {
-    "os": {"system", "popen", "remove", "rmdir", "unlink", "rename", "chmod",
-           "chown", "listdir", "walk", "environ"},
+    "os": {
+        "system",
+        "popen",
+        "remove",
+        "rmdir",
+        "unlink",
+        "rename",
+        "chmod",
+        "chown",
+        "listdir",
+        "walk",
+        "environ",
+    },
     "shutil": {"rmtree", "move", "copy", "copytree"},
     "subprocess": {"run", "Popen", "call", "check_output", "check_call"},
 }

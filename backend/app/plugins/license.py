@@ -130,7 +130,9 @@ def verify_license_key(
         from app.core.config import settings
 
         if settings.DEBUG:
-            logger.warning("License verification skipped: no public key configured (DEBUG mode)")
+            logger.warning(
+                "License verification skipped: no public key configured (DEBUG mode)"
+            )
             payload = _parse_payload_without_verify(license_key)
             if payload and payload.get("plugin") == plugin_name:
                 return payload
@@ -292,9 +294,7 @@ def _build_license_status(record: Any | None, *, now: datetime) -> dict[str, Any
 
     if state == "expired":
         payload["message"] = (
-            "Trial period expired"
-            if license_type == _TRIAL
-            else "License expired"
+            "Trial period expired" if license_type == _TRIAL else "License expired"
         )
         return payload
 
@@ -480,7 +480,10 @@ async def activate_license(
         return {"success": False, "message": _("plugin.error.not_found")}
 
     if plugin.pricing_type != PluginPricingTypeEnum.PAID.value:
-        return {"success": False, "message": "Free plugins do not accept paid license activation"}
+        return {
+            "success": False,
+            "message": "Free plugins do not accept paid license activation",
+        }
 
     license_info = verify_license_key(license_key, plugin.name)
     if not license_info:
@@ -504,10 +507,12 @@ async def activate_license(
         return {"success": False, "message": _("plugin.error.license_expired")}
 
     await db.execute(
-        update(PluginLicense).where(
+        update(PluginLicense)
+        .where(
             PluginLicense.plugin_id == plugin_id,
             PluginLicense.is_valid.is_(True),
-        ).values(is_valid=False)
+        )
+        .values(is_valid=False)
     )
 
     license_record = PluginLicense(
@@ -566,7 +571,9 @@ async def create_trial_license(
         raise PluginLicenseError(message="Free plugins cannot start a trial")
 
     manifest_data = plugin.manifest or {}
-    pricing = manifest_data.get("pricing", {}) if isinstance(manifest_data, dict) else {}
+    pricing = (
+        manifest_data.get("pricing", {}) if isinstance(manifest_data, dict) else {}
+    )
     trial_cfg = pricing.get("trial", {}) if isinstance(pricing, dict) else {}
     trial_enabled = bool(trial_cfg.get("enabled"))
     trial_days = int(trial_cfg.get("days") or 0)
@@ -576,9 +583,13 @@ async def create_trial_license(
 
     records = await _load_plugin_license_records(plugin_id, db)
     if any(getattr(record, "license_type", None) == _TRIAL for record in records):
-        raise PluginLicenseError(message="Trial has already been issued for this plugin")
+        raise PluginLicenseError(
+            message="Trial has already been issued for this plugin"
+        )
     if any(getattr(record, "license_type", None) != _TRIAL for record in records):
-        raise PluginLicenseError(message="Paid license already exists, trial is not allowed")
+        raise PluginLicenseError(
+            message="Paid license already exists, trial is not allowed"
+        )
 
     now = utc_now()
     trial_expires = now + timedelta(days=trial_days)
@@ -613,10 +624,12 @@ async def revoke_license(
     from app.models.system.plugin_license import PluginLicense
 
     await db.execute(
-        update(PluginLicense).where(
+        update(PluginLicense)
+        .where(
             PluginLicense.plugin_id == plugin_id,
             PluginLicense.is_valid.is_(True),
-        ).values(is_valid=False)
+        )
+        .values(is_valid=False)
     )
     await db.flush()
     logger.info("All licenses revoked for plugin {}", plugin_id)
@@ -640,9 +653,12 @@ async def check_plugin_license_expirations(db: AsyncSession) -> list[dict[str, A
     warn_threshold = now + timedelta(days=3)
 
     result = await db.execute(
-        select(PluginLicense, Plugin.name, Plugin.status).join(
-            Plugin, Plugin.id == PluginLicense.plugin_id,
-        ).where(
+        select(PluginLicense, Plugin.name, Plugin.status)
+        .join(
+            Plugin,
+            Plugin.id == PluginLicense.plugin_id,
+        )
+        .where(
             PluginLicense.is_valid.is_(True),
             PluginLicense.is_deleted.is_(False),
             Plugin.is_deleted.is_(False),
@@ -663,12 +679,14 @@ async def check_plugin_license_expirations(db: AsyncSession) -> list[dict[str, A
                 lifecycle = PluginLifecycle(db)
                 try:
                     await lifecycle.disable(license_rec.plugin_id)
-                    actions.append({
-                        "plugin": plugin_name,
-                        "action": "disabled",
-                        "reason": "license_expired",
-                        "license_type": getattr(license_rec, "license_type", None),
-                    })
+                    actions.append(
+                        {
+                            "plugin": plugin_name,
+                            "action": "disabled",
+                            "reason": "license_expired",
+                            "license_type": getattr(license_rec, "license_type", None),
+                        }
+                    )
                 except Exception as exc:
                     logger.warning(
                         "Failed to disable expired plugin {}: {}",
@@ -680,11 +698,13 @@ async def check_plugin_license_expirations(db: AsyncSession) -> list[dict[str, A
             continue
 
         if expires_at <= warn_threshold:
-            actions.append({
-                "plugin": plugin_name,
-                "action": "warning",
-                "license_type": getattr(license_rec, "license_type", None),
-                "days_left": max(0, (expires_at - now).days),
-            })
+            actions.append(
+                {
+                    "plugin": plugin_name,
+                    "action": "warning",
+                    "license_type": getattr(license_rec, "license_type", None),
+                    "days_left": max(0, (expires_at - now).days),
+                }
+            )
 
     return actions

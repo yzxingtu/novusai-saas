@@ -129,11 +129,14 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
 
         from app.models.tenant.tenant import Tenant
         from app.services.tenant.quota_service import QuotaService
-        tenant_obj = (await self.db.execute(
-            select(Tenant)
-            .options(selectinload(Tenant.tenant_plan))
-            .where(Tenant.id == self.tenant_id)
-        )).scalar_one_or_none()
+
+        tenant_obj = (
+            await self.db.execute(
+                select(Tenant)
+                .options(selectinload(Tenant.tenant_plan))
+                .where(Tenant.id == self.tenant_id)
+            )
+        ).scalar_one_or_none()
         if tenant_obj:
             quota_svc = QuotaService(self.db, tenant_obj)
             quota_check = await quota_svc.check_admin_quota()
@@ -275,9 +278,12 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
             )
 
         # 更新密码 / Update password
-        await self.update(admin_id, {
-            "password_hash": get_password_hash(new_password),
-        })
+        await self.update(
+            admin_id,
+            {
+                "password_hash": get_password_hash(new_password),
+            },
+        )
 
         return True
 
@@ -306,9 +312,12 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
             )
 
         # 更新密码 / Update password
-        await self.update(admin_id, {
-            "password_hash": get_password_hash(new_password),
-        })
+        await self.update(
+            admin_id,
+            {
+                "password_hash": get_password_hash(new_password),
+            },
+        )
 
         return True
 

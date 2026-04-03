@@ -62,7 +62,9 @@ class TenantAIConfigController(TenantController):
             request: Request,
             db: DbSession,
             tenant_admin: ActiveTenantAdmin,
-            provider_id: int | None = Query(None, description=_("api.param.provider_id")),
+            provider_id: int | None = Query(
+                None, description=_("api.param.provider_id")
+            ),
         ):
             """
             获取企业可用的 AI 模型列表 / Get tenant available AI model list
@@ -82,7 +84,10 @@ class TenantAIConfigController(TenantController):
                     models.extend(provider_models)
 
             return success(
-                data=[AIModelResponse.model_validate(m, from_attributes=True) for m in models],
+                data=[
+                    AIModelResponse.model_validate(m, from_attributes=True)
+                    for m in models
+                ],
                 message=_("common.success"),
             )
 
@@ -105,7 +110,10 @@ class TenantAIConfigController(TenantController):
             )
 
             return success(
-                data=[ProviderApiKeyResponse.model_validate(k, from_attributes=True) for k in keys],
+                data=[
+                    ProviderApiKeyResponse.model_validate(k, from_attributes=True)
+                    for k in keys
+                ],
                 message=_("common.success"),
             )
 
@@ -123,7 +131,7 @@ class TenantAIConfigController(TenantController):
             权限 / Permission: ai_config:create_key
             """
             # 强制设置 scope 和 tenant_id，忽略前端传入值 / Force scope and tenant_id, ignore frontend values
-            data.scope = 'all_tenants'
+            data.scope = "all_tenants"
             data.tenant_id = tenant_admin.tenant_id
 
             service = ProviderApiKeyService(db)

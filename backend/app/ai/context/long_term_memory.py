@@ -23,8 +23,7 @@ class LongTermMemoryProvider(ABC):
         source_kind: str,
         source_ref: str | None,
         items_by_type: dict[str, list[str]],
-    ) -> list[MemoryRecord]:
-        ...
+    ) -> list[MemoryRecord]: ...
 
     @abstractmethod
     async def recall(
@@ -34,8 +33,7 @@ class LongTermMemoryProvider(ABC):
         user_id: int,
         query_text: str,
         limit: int = 5,
-    ) -> list[MemoryRecord]:
-        ...
+    ) -> list[MemoryRecord]: ...
 
     @abstractmethod
     async def profile(
@@ -44,8 +42,7 @@ class LongTermMemoryProvider(ABC):
         agent_id: int,
         user_id: int,
         limit: int = 10,
-    ) -> dict[str, Any] | None:
-        ...
+    ) -> dict[str, Any] | None: ...
 
     @abstractmethod
     async def search(
@@ -55,8 +52,7 @@ class LongTermMemoryProvider(ABC):
         user_id: int,
         query_text: str,
         limit: int = 10,
-    ) -> list[MemoryRecord]:
-        ...
+    ) -> list[MemoryRecord]: ...
 
 
 class DatabaseLongTermMemoryProvider(LongTermMemoryProvider):

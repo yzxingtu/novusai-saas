@@ -28,8 +28,18 @@ from app.core.deletion import DeletionDep, DeletionStrategy
 tenant_plan_permissions = Table(
     "tenant_plan_permissions",
     Base.metadata,
-    Column("plan_id", Integer, ForeignKey("tenant_plans.id", ondelete="CASCADE"), primary_key=True),
-    Column("permission_id", Integer, ForeignKey("permissions.id", ondelete="CASCADE"), primary_key=True),
+    Column(
+        "plan_id",
+        Integer,
+        ForeignKey("tenant_plans.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "permission_id",
+        Integer,
+        ForeignKey("permissions.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
 )
 
 
@@ -51,8 +61,13 @@ class TenantPlan(BaseModel):
     }
 
     __delete_deps__ = [
-        DeletionDep("Tenant", "plan_id", DeletionStrategy.BLOCK,
-                    label_field="name", i18n_key="tenant"),
+        DeletionDep(
+            "Tenant",
+            "plan_id",
+            DeletionStrategy.BLOCK,
+            label_field="name",
+            i18n_key="tenant",
+        ),
     ]
 
     # 允许前端筛选的字段 / Fields exposed for list filtering
@@ -80,9 +95,9 @@ class TenantPlan(BaseModel):
 
     # 排序配置（用于自动计算 sort_order） / Sort config for next sort_order
     __sortable__ = {
-        "field": "sort_order",      # 排序字段名 / Sort field name
-        "step": 1000,               # 排序步长 / Sort step
-        "scope_fields": [],         # 全局排序（套餐无作用域） / Global sort (no scope)
+        "field": "sort_order",  # 排序字段名 / Sort field name
+        "step": 1000,  # 排序步长 / Sort step
+        "scope_fields": [],  # 全局排序（套餐无作用域） / Global sort (no scope)
     }
 
     # 下拉选项配置 / Select dropdown config
@@ -97,30 +112,39 @@ class TenantPlan(BaseModel):
 
     # 套餐代码（唯一标识） / Plan code (unique)
     code: Mapped[str] = mapped_column(
-        String(50), unique=True, index=True,
+        String(50),
+        unique=True,
+        index=True,
         comment="套餐代码（如 free/pro/enterprise） / Plan code",
     )
 
     # 套餐名称 / Display name
     name: Mapped[str] = mapped_column(
-        String(100), comment="套餐名称 / Plan name",
+        String(100),
+        comment="套餐名称 / Plan name",
     )
 
     # 套餐描述 / Description
     description: Mapped[str | None] = mapped_column(
-        Text, nullable=True, comment="套餐描述 / Description",
+        Text,
+        nullable=True,
+        comment="套餐描述 / Description",
     )
 
     # ==================== 计费信息 ==================== / Billing
 
     # 价格（支持小数） / Price
     price: Mapped[Decimal | None] = mapped_column(
-        Numeric(10, 2), nullable=True, comment="价格 / Price",
+        Numeric(10, 2),
+        nullable=True,
+        comment="价格 / Price",
     )
 
     # 计费周期 / Billing cycle
     billing_cycle: Mapped[str] = mapped_column(
-        String(20), default="monthly", index=True,
+        String(20),
+        default="monthly",
+        index=True,
         comment="计费周期: monthly/yearly/lifetime/custom / Billing cycle",
     )
 
@@ -128,12 +152,17 @@ class TenantPlan(BaseModel):
 
     # 是否启用 / Active flag
     is_active: Mapped[bool] = mapped_column(
-        Boolean, default=True, index=True, comment="是否启用 / Active",
+        Boolean,
+        default=True,
+        index=True,
+        comment="是否启用 / Active",
     )
 
     # 排序顺序 / Sort order
     sort_order: Mapped[int] = mapped_column(
-        Integer, default=0, comment="排序顺序 / Sort order",
+        Integer,
+        default=0,
+        comment="排序顺序 / Sort order",
     )
 
     # ==================== 配额与特性 ==================== / Quotas and features
@@ -150,7 +179,9 @@ class TenantPlan(BaseModel):
     #     "max_file_size_mb": 100
     # }
     quota: Mapped[dict | None] = mapped_column(
-        JSON, nullable=True, comment="配额配置 / Quota JSON",
+        JSON,
+        nullable=True,
+        comment="配额配置 / Quota JSON",
     )
 
     # 特性标记（JSON，可选） / Feature flags JSON
@@ -162,7 +193,9 @@ class TenantPlan(BaseModel):
     #     "white_label": false
     # }
     features: Mapped[dict | None] = mapped_column(
-        JSON, nullable=True, comment="特性标记 / Feature flags",
+        JSON,
+        nullable=True,
+        comment="特性标记 / Feature flags",
     )
 
     # ==================== 关联关系 ==================== / Relationships
@@ -250,6 +283,7 @@ class TenantPlan(BaseModel):
 
     def __repr__(self) -> str:
         return f"<TenantPlan(id={self.id}, code={self.code}, name={self.name})>"
+
 
 if TYPE_CHECKING:
     from app.models.auth.permission import Permission

@@ -28,16 +28,28 @@ class AICallLogResponse(TenantResponseSchema):
     model_id: int = Field(..., description=_("enum.ai_call_log.model_id"))
     request_type: str = Field(..., description=_("enum.ai_call_log.request_type"))
     call_type: str = Field(..., description="Call type")
-    input_tokens: int | None = Field(None, description=_("enum.ai_call_log.input_tokens"))
-    output_tokens: int | None = Field(None, description=_("enum.ai_call_log.output_tokens"))
-    total_tokens: int | None = Field(None, description=_("enum.ai_call_log.total_tokens"))
+    input_tokens: int | None = Field(
+        None, description=_("enum.ai_call_log.input_tokens")
+    )
+    output_tokens: int | None = Field(
+        None, description=_("enum.ai_call_log.output_tokens")
+    )
+    total_tokens: int | None = Field(
+        None, description=_("enum.ai_call_log.total_tokens")
+    )
     cost: Decimal | None = Field(None, description=_("enum.ai_call_log.cost"))
     latency_ms: int | None = Field(None, description=_("enum.ai_call_log.latency_ms"))
     status: str = Field(..., description=_("enum.ai_call_log.status"))
-    error_message: str | None = Field(None, description=_("enum.ai_call_log.error_message"))
-    request_hash: str | None = Field(None, description=_("enum.ai_call_log.request_hash"))
+    error_message: str | None = Field(
+        None, description=_("enum.ai_call_log.error_message")
+    )
+    request_hash: str | None = Field(
+        None, description=_("enum.ai_call_log.request_hash")
+    )
     metadata: dict | None = Field(None, description=_("enum.ai_call_log.metadata"))
-    provider_name: str | None = Field(None, description=_("enum.ai_call_log.provider_name"))
+    provider_name: str | None = Field(
+        None, description=_("enum.ai_call_log.provider_name")
+    )
     model_name: str | None = Field(None, description=_("enum.ai_call_log.model_name"))
     agent_owner_type: str | None = Field(None, description="Agent owner type")
     agent_owner_tenant_id: int | None = Field(None, description="Agent owner tenant ID")
@@ -46,8 +58,12 @@ class AICallLogResponse(TenantResponseSchema):
         description="Agent resource scope snapshot (ResourceScopeEnum)",
     )
     tenant_publication_id: int | None = Field(None, description="Tenant publication ID")
-    publication_enabled_snapshot: bool | None = Field(None, description="Publication enabled snapshot")
-    publication_access_type_snapshot: str | None = Field(None, description="Publication access type snapshot")
+    publication_enabled_snapshot: bool | None = Field(
+        None, description="Publication enabled snapshot"
+    )
+    publication_access_type_snapshot: str | None = Field(
+        None, description="Publication access type snapshot"
+    )
 
 
 class AICallLogSummary(BaseResponseSchema):
@@ -56,7 +72,9 @@ class AICallLogSummary(BaseResponseSchema):
     total_calls: int = Field(..., description=_("enum.ai_call_summary.total_calls"))
     total_tokens: int = Field(..., description=_("enum.ai_call_summary.total_tokens"))
     total_cost: Decimal = Field(..., description=_("enum.ai_call_summary.total_cost"))
-    avg_latency_ms: int | None = Field(None, description=_("enum.ai_call_summary.avg_latency_ms"))
+    avg_latency_ms: int | None = Field(
+        None, description=_("enum.ai_call_summary.avg_latency_ms")
+    )
     success_rate: float = Field(..., description=_("enum.ai_call_summary.success_rate"))
 
 

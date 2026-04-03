@@ -138,6 +138,7 @@ class CacheManagementService:
         """Get in-memory captcha service cache entry count / 获取验证码服务内存缓存条目数"""
         try:
             from app.captcha.service import captcha_service
+
             count = (
                 len(captcha_service._store)
                 + len(captcha_service._used)
@@ -153,6 +154,7 @@ class CacheManagementService:
         """Get in-memory plugin update check cache entry count / 获取插件更新检查缓存条目数"""
         try:
             from app.plugins.update_checker import _update_cache
+
             return _CategoryStats(key_count=len(_update_cache), size_bytes=0)
         except Exception:
             return _CategoryStats()
@@ -181,9 +183,7 @@ class CacheManagementService:
 
         for member in CacheCategoryEnum:
             if member.value in _REDIS_PATTERNS:
-                stats = await cls._scan_redis_category(
-                    _REDIS_PATTERNS[member.value]
-                )
+                stats = await cls._scan_redis_category(_REDIS_PATTERNS[member.value])
             elif member == CacheCategoryEnum.IMAGE_CACHE:
                 stats = cls._scan_local_image_cache()
             elif member == CacheCategoryEnum.CONFIG_MEMORY:
@@ -275,6 +275,7 @@ class CacheManagementService:
         """Clear in-memory captcha service caches / 清空验证码服务内存缓存"""
         try:
             from app.captcha.service import captcha_service
+
             count = (
                 len(captcha_service._store)
                 + len(captcha_service._used)
@@ -295,6 +296,7 @@ class CacheManagementService:
         """Clear in-memory plugin update check cache / 清空插件更新检查缓存"""
         try:
             from app.plugins.update_checker import _update_cache, clear_update_cache
+
             count = len(_update_cache)
             clear_update_cache()
             return _CategoryStats(key_count=count, size_bytes=0)
@@ -321,9 +323,7 @@ class CacheManagementService:
 
         for category in categories:
             if category.value in _REDIS_PATTERNS:
-                stats = await cls._clear_redis_pattern(
-                    _REDIS_PATTERNS[category.value]
-                )
+                stats = await cls._clear_redis_pattern(_REDIS_PATTERNS[category.value])
             elif category == CacheCategoryEnum.IMAGE_CACHE:
                 stats = cls._clear_local_image_cache()
             elif category == CacheCategoryEnum.CONFIG_MEMORY:

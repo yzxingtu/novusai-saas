@@ -134,9 +134,7 @@ class UsageTracker:
 
     @staticmethod
     async def get_daily_usage(
-        tenant_id: int,
-        model_id: int,
-        stat_date: date | None = None
+        tenant_id: int, model_id: int, stat_date: date | None = None
     ) -> int:
         """
         Get daily token usage.
@@ -152,17 +150,16 @@ class UsageTracker:
         """
         redis = await get_redis()
         stat_date = stat_date or date.today()
-        key = UsageTracker._get_key(UsageTracker.PREFIX_DAILY, tenant_id, model_id, stat_date.isoformat())
+        key = UsageTracker._get_key(
+            UsageTracker.PREFIX_DAILY, tenant_id, model_id, stat_date.isoformat()
+        )
 
         value = await redis.get(key)
         return int(value) if value else 0
 
     @staticmethod
     async def get_monthly_usage(
-        tenant_id: int,
-        model_id: int,
-        year: int | None = None,
-        month: int | None = None
+        tenant_id: int, model_id: int, year: int | None = None, month: int | None = None
     ) -> int:
         """
         Get monthly token usage.
@@ -183,10 +180,7 @@ class UsageTracker:
         month = month or today.month
 
         key = UsageTracker._get_key(
-            UsageTracker.PREFIX_MONTHLY,
-            tenant_id,
-            model_id,
-            f"{year}-{month:02d}"
+            UsageTracker.PREFIX_MONTHLY, tenant_id, model_id, f"{year}-{month:02d}"
         )
 
         value = await redis.get(key)
@@ -239,10 +233,7 @@ class UsageTracker:
 
     @staticmethod
     async def record_usage(
-        tenant_id: int,
-        model_id: int,
-        tokens: int,
-        stat_date: date | None = None
+        tenant_id: int, model_id: int, tokens: int, stat_date: date | None = None
     ):
         """
         Record token usage.
@@ -502,11 +493,7 @@ class QuotaManager:
         return QuotaCheckResult(items=tuple(metering_items))
 
     async def record_usage(
-        self,
-        tenant_id: int,
-        model_id: int,
-        tokens: int,
-        stat_date: date | None = None
+        self, tenant_id: int, model_id: int, tokens: int, stat_date: date | None = None
     ):
         """
         Record usage (for soft limit or no-quota scenarios).
@@ -539,6 +526,7 @@ class QuotaManager:
             estimated_tokens: Estimated tokens (pre-deducted) / 预估 Token 数量（已预扣）
             actual_tokens: Actual token count / 实际 Token 数量
         """
+        _ = model_id
         quota_result = quota_result or QuotaCheckResult()
         stat_date = stat_date or date.today()
         if not quota_result.items:

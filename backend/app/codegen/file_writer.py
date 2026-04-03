@@ -50,7 +50,9 @@ class SmartAppender:
     """
 
     @staticmethod
-    def append_python_import(file_path: Path, import_line: str, all_export: str | None = None) -> bool:
+    def append_python_import(
+        file_path: Path, import_line: str, all_export: str | None = None
+    ) -> bool:
         """
         幂等追加 Python import / Idempotent append Python import.
 
@@ -92,7 +94,7 @@ class SmartAppender:
         if all_export and "__all__" in text:
             # 精确解析 __all__ 列表，检查是否已包含 all_export
             _all_match = re.search(
-                r'__all__\s*=\s*\[(.*?)\]',
+                r"__all__\s*=\s*\[(.*?)\]",
                 text,
                 re.DOTALL,
             )
@@ -105,14 +107,18 @@ class SmartAppender:
                         if "__all__" in line and "=" in line:
                             for j in range(i + 1, len(lines)):
                                 if "]" in lines[j]:
-                                    lines[j] = lines[j].replace("]", f'    "{all_export}",\n]', 1)
+                                    lines[j] = lines[j].replace(
+                                        "]", f'    "{all_export}",\n]', 1
+                                    )
                                     break
                             break
         file_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         return True
 
     @staticmethod
-    def append_to_import_block(file_path: Path, import_prefix: str, symbol: str) -> bool:
+    def append_to_import_block(
+        file_path: Path, import_prefix: str, symbol: str
+    ) -> bool:
         """
         幂等追加到多行 import 块 / Idempotent append to multi-line import block.
 
@@ -136,7 +142,11 @@ class SmartAppender:
                 if stripped.startswith(")"):
                     insert_idx = i
                     break
-                if stripped and not stripped.startswith("#") and not stripped.startswith(")"):
+                if (
+                    stripped
+                    and not stripped.startswith("#")
+                    and not stripped.startswith(")")
+                ):
                     indent = line[: len(line) - len(line.lstrip())]
         if insert_idx < 0:
             return False
@@ -145,7 +155,9 @@ class SmartAppender:
         return True
 
     @staticmethod
-    def append_to_tenant_import_block(file_path: Path, symbol: str, all_export: str | None = None) -> bool:
+    def append_to_tenant_import_block(
+        file_path: Path, symbol: str, all_export: str | None = None
+    ) -> bool:
         """
         幂等追加到 app.models.tenant import 块 / Idempotent append to tenant import block.
 
@@ -211,7 +223,9 @@ class SmartAppender:
         if f'"{controller_name}"' in text or f"'{controller_name}'" in text:
             return False
         lines = text.splitlines()
-        import_lines = [ln.strip() for ln in import_line.strip().split("\n") if ln.strip()]
+        import_lines = [
+            ln.strip() for ln in import_line.strip().split("\n") if ln.strip()
+        ]
         if not import_lines:
             return False
 
@@ -221,15 +235,21 @@ class SmartAppender:
             stripped = line.strip()
             if stripped.startswith("from app.api.") and (" import " in stripped):
                 last_scope_import_idx = i
-        insert_import_at = last_scope_import_idx + 1 if last_scope_import_idx >= 0 else 0
+        insert_import_at = (
+            last_scope_import_idx + 1 if last_scope_import_idx >= 0 else 0
+        )
 
         # 2. 找到最后一个 include_router 行后插入
-        router_var = "tenant_router" if "tenant_router" in include_line else "admin_router"
+        router_var = (
+            "tenant_router" if "tenant_router" in include_line else "admin_router"
+        )
         last_include_idx = -1
         for i, line in enumerate(lines):
             if f"{router_var}.include_router(" in line:
                 last_include_idx = i
-        insert_include_at = last_include_idx + 1 if last_include_idx >= 0 else len(lines)
+        insert_include_at = (
+            last_include_idx + 1 if last_include_idx >= 0 else len(lines)
+        )
 
         # 3. 找到 __all__ 中 ] 前插入 controller_name
         all_insert_idx = -1
@@ -245,13 +265,16 @@ class SmartAppender:
                             else:
                                 break
                         all_indent = indent or "    "
-                        if f'"{controller_name}"' not in lines[j] and f"'{controller_name}'" not in lines[j]:
+                        if (
+                            f'"{controller_name}"' not in lines[j]
+                            and f"'{controller_name}'" not in lines[j]
+                        ):
                             all_insert_idx = j
                         break
                 break
 
         # 插入 import
-        for idx, imp in enumerate(reversed(import_lines)):
+        for _idx, imp in enumerate(reversed(import_lines)):
             lines.insert(insert_import_at, imp)
         insert_include_at += len(import_lines)
         if all_insert_idx >= 0:
@@ -260,7 +283,7 @@ class SmartAppender:
         # 插入 include_router（在注释后）
         include_block = [comment] if comment else []
         include_block.append(include_line)
-        for idx, inc in enumerate(reversed(include_block)):
+        for _idx, inc in enumerate(reversed(include_block)):
             if inc.strip():
                 lines.insert(insert_include_at, inc)
         if all_insert_idx >= 0:
@@ -299,7 +322,9 @@ class SmartAppender:
             if k not in existing or existing[k] != merged.get(k):
                 added.append(k)
         file_path.parent.mkdir(parents=True, exist_ok=True)
-        file_path.write_text(json.dumps(merged, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        file_path.write_text(
+            json.dumps(merged, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
         return added
 
     @staticmethod
@@ -319,7 +344,9 @@ class SmartAppender:
         text = file_path.read_text(encoding="utf-8", errors="replace")
         if export_line.strip() in text:
             return False
-        file_path.write_text(text.rstrip() + "\n" + export_line + "\n", encoding="utf-8")
+        file_path.write_text(
+            text.rstrip() + "\n" + export_line + "\n", encoding="utf-8"
+        )
         return True
 
     @staticmethod
@@ -397,7 +424,11 @@ class FileWriter:
             if not dest.exists() or dest in original_backups or not dest.is_file():
                 return
             backup_dir.mkdir(parents=True, exist_ok=True)
-            backup_rel = rel_for_backup if isinstance(rel_for_backup, Path) else Path(rel_for_backup)
+            backup_rel = (
+                rel_for_backup
+                if isinstance(rel_for_backup, Path)
+                else Path(rel_for_backup)
+            )
             backup_path = backup_dir / backup_rel
             backup_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(dest, backup_path)
@@ -408,7 +439,9 @@ class FileWriter:
                 if backup_path.exists():
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(backup_path, dest)
-            for created_path in sorted(created_paths, key=lambda p: len(p.parts), reverse=True):
+            for created_path in sorted(
+                created_paths, key=lambda p: len(p.parts), reverse=True
+            ):
                 try:
                     if created_path.exists():
                         created_path.unlink()
@@ -431,30 +464,50 @@ class FileWriter:
 
                 if f.action == "create_if_missing":
                     if not dest.exists():
-                        tmp_file.write_text(f.content or "# Codegen module init\n", encoding="utf-8")
+                        tmp_file.write_text(
+                            f.content or "# Codegen module init\n", encoding="utf-8"
+                        )
                         dest.parent.mkdir(parents=True, exist_ok=True)
                         shutil.copy2(tmp_file, dest)
                         created_paths.add(dest)
-                        rel_str = str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path
+                        rel_str = (
+                            str(rel).replace("\\", "/")
+                            if isinstance(rel, Path)
+                            else f.path
+                        )
                         created.append(rel_str)
                 elif f.action == "create":
                     existed_before = dest.exists()
                     if dest.exists():
-                        rel_path = str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path
-                        result.conflicts.append({"path": rel_path, "reason": "file_exists"})
+                        rel_path = (
+                            str(rel).replace("\\", "/")
+                            if isinstance(rel, Path)
+                            else f.path
+                        )
+                        result.conflicts.append(
+                            {"path": rel_path, "reason": "file_exists"}
+                        )
                         if not force:
                             continue
                         _remember_backup(dest, rel)
-                        modified.append(str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path)
+                        modified.append(
+                            str(rel).replace("\\", "/")
+                            if isinstance(rel, Path)
+                            else f.path
+                        )
                     tmp_file.write_text(f.content, encoding="utf-8")
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(tmp_file, dest)
-                    rel_str = str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path
+                    rel_str = (
+                        str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path
+                    )
                     if not existed_before:
                         created.append(rel_str)
                         created_paths.add(dest)
                 elif f.action == "register_model" and f.model_meta:
-                    rel_str = str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path
+                    rel_str = (
+                        str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path
+                    )
                     meta = f.model_meta
                     module = meta.get("module", "")
                     resource = meta.get("resource", "")
@@ -468,24 +521,36 @@ class FileWriter:
                             )
                         elif target == "module":
                             _remember_backup(dest, rel)
-                            import_line = f"from app.models.{module}.{resource} import {pascal}"
-                            if SmartAppender.append_python_import(dest, import_line, all_export=pascal):
+                            import_line = (
+                                f"from app.models.{module}.{resource} import {pascal}"
+                            )
+                            if SmartAppender.append_python_import(
+                                dest, import_line, all_export=pascal
+                            ):
                                 modified.append(rel_str)
                         elif target == "root":
                             _remember_backup(dest, rel)
                             if module == "tenant":
-                                if SmartAppender.append_to_tenant_import_block(dest, pascal, all_export=pascal):
+                                if SmartAppender.append_to_tenant_import_block(
+                                    dest, pascal, all_export=pascal
+                                ):
                                     modified.append(rel_str)
                             else:
                                 import_line = f"from app.models.{module}.{resource} import {pascal}"
-                                if SmartAppender.append_python_import(dest, import_line, all_export=pascal):
+                                if SmartAppender.append_python_import(
+                                    dest, import_line, all_export=pascal
+                                ):
                                     modified.append(rel_str)
                         elif target == "env":
                             _remember_backup(dest, rel)
-                            if SmartAppender.append_to_import_block(dest, "from app.models import", pascal):
+                            if SmartAppender.append_to_import_block(
+                                dest, "from app.models import", pascal
+                            ):
                                 modified.append(rel_str)
                 elif f.action == "register_route" and f.route_meta:
-                    rel_str = str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path
+                    rel_str = (
+                        str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path
+                    )
                     scope = f.route_meta.get("scope", "")
                     resource = f.route_meta.get("resource", "")
                     if scope and resource:
@@ -496,7 +561,8 @@ class FileWriter:
                             )
                         else:
                             pascal = "".join(
-                                w.capitalize() for w in str(resource).replace("-", "_").split("_")
+                                w.capitalize()
+                                for w in str(resource).replace("-", "_").split("_")
                             )
                             prefix = "Admin" if scope == "admin" else "Tenant"
                             controller_name = f"{prefix}{pascal}Controller"
@@ -505,26 +571,39 @@ class FileWriter:
                                 f"from app.api.{scope}.{resource} import {controller_name}\n"
                                 f"from app.api.{scope}.{resource} import router as {resource}_router"
                             )
-                            include_line = f"{router_var}.include_router({resource}_router)"
+                            include_line = (
+                                f"{router_var}.include_router({resource}_router)"
+                            )
                             comment = f"# Codegen auto-registered: {resource}"
                             _remember_backup(dest, rel)
                             if SmartAppender.append_router_registration(
-                                dest, import_line, include_line, controller_name, comment
+                                dest,
+                                import_line,
+                                include_line,
+                                controller_name,
+                                comment,
                             ):
                                 modified.append(rel_str)
                 elif f.action == "append" and f.appended_content:
-                    rel_str = str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path
+                    rel_str = (
+                        str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path
+                    )
                     if dest.exists():
                         content = dest.read_text(encoding="utf-8", errors="replace")
                         if f.appended_content.strip() not in content:
                             _remember_backup(dest, rel)
                             if f.insert_before_last_marker:
                                 if SmartAppender.insert_before_last(
-                                    dest, f.insert_before_last_marker, f.appended_content
+                                    dest,
+                                    f.insert_before_last_marker,
+                                    f.appended_content,
                                 ):
                                     modified.append(rel_str)
                             else:
-                                dest.write_text(content.rstrip() + "\n" + f.appended_content + "\n", encoding="utf-8")
+                                dest.write_text(
+                                    content.rstrip() + "\n" + f.appended_content + "\n",
+                                    encoding="utf-8",
+                                )
                                 modified.append(rel_str)
                     else:
                         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -532,7 +611,9 @@ class FileWriter:
                         created_paths.add(dest)
                         created.append(rel_str)
                 elif f.action == "merge_json" and f.merged_keys:
-                    rel_str = str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path
+                    rel_str = (
+                        str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path
+                    )
                     try:
                         data = json.loads(f.content) if f.content else {}
                     except (json.JSONDecodeError, TypeError):

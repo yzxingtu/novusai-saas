@@ -30,7 +30,9 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 # Default index repository URLs / 默认索引仓库 URL
-_DEFAULT_GITHUB_URL = "https://raw.githubusercontent.com/novusai/plugin-marketplace/main"
+_DEFAULT_GITHUB_URL = (
+    "https://raw.githubusercontent.com/novusai/plugin-marketplace/main"
+)
 _DEFAULT_CACHE_TTL = 3600
 
 # Redis cache key prefix (shared across workers) / Redis 缓存 key 前缀（多 worker 共享）
@@ -55,10 +57,14 @@ class MarketplaceClient:
 
             svc = ConfigService(self._db)
             self._github_url = (
-                await svc.get_platform_config("marketplace_github_url", default=_DEFAULT_GITHUB_URL)
+                await svc.get_platform_config(
+                    "marketplace_github_url", default=_DEFAULT_GITHUB_URL
+                )
                 or _DEFAULT_GITHUB_URL
             )
-            ttl = await svc.get_platform_config("marketplace_cache_ttl", default=_DEFAULT_CACHE_TTL)
+            ttl = await svc.get_platform_config(
+                "marketplace_cache_ttl", default=_DEFAULT_CACHE_TTL
+            )
             if ttl:
                 self._cache_ttl = int(ttl)
         except Exception as exc:
@@ -79,6 +85,7 @@ class MarketplaceClient:
         """Read from Redis cache (shared across workers) / 从 Redis 缓存读取（多 worker 共享）"""
         try:
             from app.core.redis import cache_get
+
             return await cache_get(f"{_CACHE_PREFIX}{key}")
         except Exception:
             return None
@@ -87,6 +94,7 @@ class MarketplaceClient:
         """Write to Redis cache (shared across workers) / 写入 Redis 缓存（多 worker 共享）"""
         try:
             from app.core.redis import cache_set
+
             await cache_set(f"{_CACHE_PREFIX}{key}", value, ttl=self._cache_ttl)
         except Exception as exc:
             logger.debug("Marketplace cache_set failed for {}: {}", key, exc)
@@ -187,7 +195,8 @@ class MarketplaceClient:
         if search:
             kw = search.lower()
             items = [
-                p for p in items
+                p
+                for p in items
                 if kw in (p.get("display_name") or "").lower()
                 or kw in (p.get("name") or "").lower()
                 or kw in (p.get("description") or "").lower()
@@ -197,9 +206,9 @@ class MarketplaceClient:
         # Category filter / 分类筛选
         if category:
             items = [
-                p for p in items
-                if p.get("category") == category
-                or category in (p.get("tags") or [])
+                p
+                for p in items
+                if p.get("category") == category or category in (p.get("tags") or [])
             ]
 
         # Sort / 排序
@@ -214,7 +223,7 @@ class MarketplaceClient:
 
         # Pagination / 分页
         start = (page_number - 1) * page_size
-        items = items[start:start + page_size]
+        items = items[start : start + page_size]
 
         # Mark installed status / 标记已安装状态
         for item in items:
@@ -369,7 +378,9 @@ class MarketplaceClient:
 
                 logger.info(
                     "Downloaded plugin {} v{} ({} bytes)",
-                    slug, version, zip_path.stat().st_size,
+                    slug,
+                    version,
+                    zip_path.stat().st_size,
                 )
                 return zip_path
 
@@ -386,7 +397,9 @@ class MarketplaceClient:
                 if attempt < 2:
                     logger.warning(
                         "Download attempt {} failed for {}: {}, retrying...",
-                        attempt + 1, slug, exc,
+                        attempt + 1,
+                        slug,
+                        exc,
                     )
                     continue
 
@@ -394,6 +407,7 @@ class MarketplaceClient:
                 # ensuring local regression can cover the marketplace install flow.
                 # / DEBUG 回退：当远程包不存在时生成最小桩包
                 from app.core.config import settings
+
                 if settings.DEBUG:
                     try:
                         stub_zip = self._build_debug_stub_package(
@@ -449,9 +463,7 @@ class MarketplaceClient:
         )
 
         class_base = "".join(
-            part.capitalize()
-            for part in re.split(r"[^0-9a-zA-Z]+", slug)
-            if part
+            part.capitalize() for part in re.split(r"[^0-9a-zA-Z]+", slug) if part
         )
         if not class_base:
             class_base = "MarketplaceStub"
@@ -459,7 +471,7 @@ class MarketplaceClient:
 
         plugin_yaml = (
             f"name: {slug}\n"
-            f"version: \"{version}\"\n"
+            f'version: "{version}"\n'
             "display_name:\n"
             f"  en: {_yaml_quote(display_name)}\n"
             f"  zh-CN: {_yaml_quote(display_name)}\n"
@@ -507,7 +519,8 @@ class MarketplaceClient:
         return stub_zip
 
     async def check_for_updates(
-        self, installed_plugins: list[dict],
+        self,
+        installed_plugins: list[dict],
     ) -> list[dict]:
         """
         Check for available updates on installed plugins.
@@ -539,11 +552,13 @@ class MarketplaceClient:
                 continue
             market_ver = market_versions.get(slug)
             if market_ver and market_ver != installed.get("version"):
-                updates.append({
-                    "name": installed.get("name"),
-                    "current_version": installed.get("version"),
-                    "latest_version": market_ver,
-                    "slug": slug,
-                })
+                updates.append(
+                    {
+                        "name": installed.get("name"),
+                        "current_version": installed.get("version"),
+                        "latest_version": market_ver,
+                        "slug": slug,
+                    }
+                )
 
         return updates

@@ -2192,6 +2192,8 @@
       "invalid_icon_type": "Only PNG/SVG/JPG/WebP icons are allowed",
       "icon_too_large": "Icon file too large ({size} bytes). Maximum size is 2MB.",
       "activation_failed": "Activation failed",
+      "source_agent_scope_locked": "Plugin-managed agents must follow the scope of source plugin {plugin}",
+      "scope_disallows_tenant_assignment": "Plugin scope {scope} does not allow explicit tenant assignment",
       "invalid_backup_name": "Invalid backup name",
       "backup_not_found": "Backup not found",
       "raw_session_forbidden": "Access to the raw database session is forbidden in plugin sandbox",

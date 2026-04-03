@@ -125,18 +125,22 @@ async def get_stats(plugin_name: str, days: int = 30) -> dict:
             error_calls += day_errors
             total_duration_ms += day_duration
 
-            daily.append({
-                "date": date_str,
-                "calls": day_calls,
-                "errors": day_errors,
-            })
+            daily.append(
+                {
+                    "date": date_str,
+                    "calls": day_calls,
+                    "errors": day_errors,
+                }
+            )
 
             # Aggregate by_type — from type:{ext}:calls / type:{ext}:errors / type:{ext}:duration_ms
             # / 聚合 by_type
             seen_types: set[str] = set()
             for field_name in fields:
                 if field_name.startswith("type:") and field_name.endswith(":calls"):
-                    ext = field_name[5:-6]  # strip "type:" and ":calls" / 去掉 type: 与 :calls 缀
+                    ext = field_name[
+                        5:-6
+                    ]  # strip "type:" and ":calls" / 去掉 type: 与 :calls 缀
                     seen_types.add(ext)
 
             for ext in seen_types:
@@ -144,7 +148,9 @@ async def get_stats(plugin_name: str, days: int = 30) -> dict:
                     by_type_agg[ext] = {"calls": 0, "errors": 0, "duration_ms": 0}
                 by_type_agg[ext]["calls"] += fields.get(f"type:{ext}:calls", 0)
                 by_type_agg[ext]["errors"] += fields.get(f"type:{ext}:errors", 0)
-                by_type_agg[ext]["duration_ms"] += fields.get(f"type:{ext}:duration_ms", 0)
+                by_type_agg[ext]["duration_ms"] += fields.get(
+                    f"type:{ext}:duration_ms", 0
+                )
 
         avg_ms = round(total_duration_ms / total_calls) if total_calls > 0 else 0
 
@@ -153,7 +159,9 @@ async def get_stats(plugin_name: str, days: int = 30) -> dict:
             "success_calls": success_calls,
             "error_calls": error_calls,
             "avg_duration_ms": avg_ms,
-            "error_rate": round(error_calls / total_calls * 100, 1) if total_calls > 0 else 0,
+            "error_rate": round(error_calls / total_calls * 100, 1)
+            if total_calls > 0
+            else 0,
             "by_type": by_type_agg,
             "daily": list(reversed(daily)),  # Chronological order / 按时间正序
         }
@@ -161,6 +169,11 @@ async def get_stats(plugin_name: str, days: int = 30) -> dict:
     except Exception as exc:
         logger.debug("Telemetry get_stats failed for {}: {}", plugin_name, exc)
         return {
-            "total_calls": 0, "success_calls": 0, "error_calls": 0,
-            "avg_duration_ms": 0, "error_rate": 0, "by_type": {}, "daily": [],
+            "total_calls": 0,
+            "success_calls": 0,
+            "error_calls": 0,
+            "avg_duration_ms": 0,
+            "error_rate": 0,
+            "by_type": {},
+            "daily": [],
         }

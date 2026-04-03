@@ -17,15 +17,15 @@ from app.core.response import error
 
 # Exempt paths: still accessible during maintenance / 豁免路径：维护模式下仍可访问
 _EXEMPT_PREFIXES = (
-    "/admin",          # Admin panel / 管理端
-    "/api/public",     # Public API / 公开 API
-    "/docs",           # API docs / API 文档
+    "/admin",  # Admin panel / 管理端
+    "/api/public",  # Public API / 公开 API
+    "/docs",  # API docs / API 文档
     "/redoc",
     "/openapi.json",
-    "/health",         # Health check / 健康检查
-    "/ready",          # Readiness (DB) / 就绪探针
-    "/sio",            # Socket.IO (admin connections) / Socket.IO（管理员连接）
-    "/files",          # Static files / 静态文件
+    "/health",  # Health check / 健康检查
+    "/ready",  # Readiness (DB) / 就绪探针
+    "/sio",  # Socket.IO (admin connections) / Socket.IO（管理员连接）
+    "/files",  # Static files / 静态文件
 )
 
 
@@ -75,6 +75,7 @@ class MaintenanceMiddleware:
         """Read maintenance mode toggle from Redis cache or DB / 从 Redis 缓存或 DB 读取维护模式开关"""
         try:
             from app.core.redis import get_redis_client
+
             redis = get_redis_client()
             cached = await redis.get("maintenance:mode")
             if cached is not None:
@@ -110,6 +111,7 @@ class MaintenanceMiddleware:
         """Get maintenance message / 获取维护提示信息"""
         try:
             from app.core.redis import get_redis_client
+
             redis = get_redis_client()
             cached = await redis.get("maintenance:message")
             if cached:
@@ -125,7 +127,11 @@ class MaintenanceMiddleware:
                 service = ConfigService(db)
                 message = await service.get_platform_config("maintenance_message")
 
-            result = str(message) if message else "System is under maintenance. Please try again later."
+            result = (
+                str(message)
+                if message
+                else "System is under maintenance. Please try again later."
+            )
 
             try:
                 redis = get_redis_client()

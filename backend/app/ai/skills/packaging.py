@@ -41,7 +41,9 @@ ALLOWED_SKILL_EXTENSIONS = {".zip"}
 
 # ZIP upload security limits / ZIP 上传安全限制
 MAX_ZIP_FILE_SIZE = int(os.environ.get("SKILL_MAX_ZIP_SIZE_MB", "50")) * 1024 * 1024
-MAX_ZIP_UNCOMPRESSED_SIZE = int(os.environ.get("SKILL_MAX_UNCOMPRESSED_SIZE_MB", "200")) * 1024 * 1024
+MAX_ZIP_UNCOMPRESSED_SIZE = (
+    int(os.environ.get("SKILL_MAX_UNCOMPRESSED_SIZE_MB", "200")) * 1024 * 1024
+)
 MAX_ZIP_FILE_COUNT = int(os.environ.get("SKILL_MAX_FILE_COUNT", "500"))
 MAX_ZIP_RATIO = float(os.environ.get("SKILL_MAX_COMPRESSION_RATIO", "100"))
 
@@ -55,7 +57,9 @@ SEMVER_RE = re.compile(
 
 # Skill package storage root directory (relative to backend/)
 # 技能包存储根目录（相对于 backend/）
-SKILLS_STORAGE_DIR = Path(__file__).resolve().parent.parent.parent / "storage" / "skills"
+SKILLS_STORAGE_DIR = (
+    Path(__file__).resolve().parent.parent.parent / "storage" / "skills"
+)
 
 
 class SkillPackageError(Exception):
@@ -85,14 +89,13 @@ def parse_skill_md(content: str) -> dict[str, Any]:
     # Find the second --- / 找到第二个 ---
     end_idx = content.find("---", 3)
     if end_idx == -1:
-        raise SkillPackageError(
-            "SKILL.md frontmatter missing closing '---'"
-        )
+        raise SkillPackageError("SKILL.md frontmatter missing closing '---'")
 
     yaml_block = content[3:end_idx].strip()
 
     try:
         import yaml
+
         metadata = yaml.safe_load(yaml_block)
     except Exception as exc:
         raise SkillPackageError(
@@ -131,9 +134,7 @@ def validate_skill_metadata(metadata: dict[str, Any]) -> list[str]:
     if isinstance(version, (int, float)):
         version = str(version)
     if not SEMVER_RE.match(version):
-        errors.append(
-            f"Invalid version: '{version}'. Must follow semver (e.g. 1.0.0)."
-        )
+        errors.append(f"Invalid version: '{version}'. Must follow semver (e.g. 1.0.0).")
 
     return errors
 
@@ -152,10 +153,7 @@ def _find_skill_md_in_zip(zf: zipfile.ZipFile) -> str | None:
     if "SKILL.md" in names:
         return "SKILL.md"
 
-    candidates = [
-        n for n in names
-        if n.endswith("/SKILL.md") and n.count("/") == 1
-    ]
+    candidates = [n for n in names if n.endswith("/SKILL.md") and n.count("/") == 1]
     if len(candidates) == 1:
         return candidates[0]
 
@@ -186,9 +184,7 @@ def validate_skill_package(zip_path: str | Path) -> list[str]:
         return [f"File not found: {zip_path}"]
 
     if zip_path.suffix.lower() not in ALLOWED_SKILL_EXTENSIONS:
-        errors.append(
-            f"File extension must be .zip, got '{zip_path.suffix}'"
-        )
+        errors.append(f"File extension must be .zip, got '{zip_path.suffix}'")
 
     try:
         with zipfile.ZipFile(zip_path, "r") as zf:
@@ -220,8 +216,7 @@ def validate_skill_package(zip_path: str | Path) -> list[str]:
             # Check if server/ directory exists / 检查 server/ 目录是否存在
             prefix = _get_zip_prefix(skill_md_path)
             server_entries = [
-                n for n in zf.namelist()
-                if n.startswith(f"{prefix}server/")
+                n for n in zf.namelist() if n.startswith(f"{prefix}server/")
             ]
             if not server_entries:
                 errors.append("Missing 'server/' directory in skill package")
@@ -267,8 +262,7 @@ def extract_skill_package(
     errors = validate_skill_package(zip_path)
     if errors:
         raise SkillPackageError(
-            "Skill package validation failed:\n"
-            + "\n".join(f"  - {e}" for e in errors)
+            "Skill package validation failed:\n" + "\n".join(f"  - {e}" for e in errors)
         )
 
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -281,15 +275,13 @@ def extract_skill_package(
             if prefix and not member.filename.startswith(prefix):
                 continue
 
-            relative = member.filename[len(prefix):]
+            relative = member.filename[len(prefix) :]
             if not relative:
                 continue
 
             out_path = (target_dir / relative).resolve()
             if not str(out_path).startswith(str(target_dir.resolve())):
-                raise SkillPackageError(
-                    f"Unsafe path in archive: {member.filename}"
-                )
+                raise SkillPackageError(f"Unsafe path in archive: {member.filename}")
 
             if member.is_dir():
                 out_path.mkdir(parents=True, exist_ok=True)
@@ -304,8 +296,10 @@ def extract_skill_package(
 
     logger.info(
         "Skill package extracted: {} -> {} ({} v{})",
-        zip_path, target_dir,
-        metadata.get("name"), metadata.get("version"),
+        zip_path,
+        target_dir,
+        metadata.get("name"),
+        metadata.get("version"),
     )
     return metadata
 
@@ -393,9 +387,7 @@ def validate_zip_safety(
     if file_size > MAX_ZIP_FILE_SIZE:
         size_mb = file_size / (1024 * 1024)
         limit_mb = MAX_ZIP_FILE_SIZE / (1024 * 1024)
-        errors.append(
-            f"ZIP file too large: {size_mb:.1f}MB (limit: {limit_mb:.0f}MB)"
-        )
+        errors.append(f"ZIP file too large: {size_mb:.1f}MB (limit: {limit_mb:.0f}MB)")
         return errors
 
     # 2. Uncompressed size + file count + compression ratio check

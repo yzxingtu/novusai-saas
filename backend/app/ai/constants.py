@@ -14,7 +14,7 @@ Centralized Redis key prefixes, TTLs, default limits, and other constants.
 # Limits per-tenant call frequency for a specific Action
 # 用于限制单个企业对某个 Action 的调用频率
 ACTION_RATE_KEY_PREFIX = "ai:action_rate:"
-ACTION_RATE_LIMIT_TTL = 60          # Action rate limit window / Action 频率限制窗口
+ACTION_RATE_LIMIT_TTL = 60  # Action rate limit window / Action 频率限制窗口
 
 
 def action_rate_key(tenant_id: int, action_name: str) -> str:
@@ -30,7 +30,7 @@ def action_rate_key(tenant_id: int, action_name: str) -> str:
 # Caches tenant DB schema info for Text-to-SQL
 # 缓存企业的数据库 Schema 信息，供 Text-to-SQL 使用
 SCHEMA_CACHE_KEY_PREFIX = "ai:schema:"
-SCHEMA_CACHE_TTL = 3600             # Schema cache 1 hour / Schema 缓存 1 小时缓存
+SCHEMA_CACHE_TTL = 3600  # Schema cache 1 hour / Schema 缓存 1 小时缓存
 
 
 def schema_cache_key(tenant_id: int) -> str:
@@ -46,7 +46,7 @@ def schema_cache_key(tenant_id: int) -> str:
 # Caches identical query results to avoid re-execution
 # 缓存相同查询的结果，避免重复执行
 SQL_RESULT_CACHE_KEY_PREFIX = "ai:sql_result:"
-SQL_RESULT_CACHE_TTL = 300           # SQL result cache 5 min / SQL 结果缓存 5 分钟缓存
+SQL_RESULT_CACHE_TTL = 300  # SQL result cache 5 min / SQL 结果缓存 5 分钟缓存
 
 
 def sql_result_cache_key(tenant_id: int, query_hash: str) -> str:
@@ -99,7 +99,7 @@ MEMORY_CHANNEL_SYSTEM = "system"
 SESSION_MEMORY_KEY_PREFIX = "mem:sess:"
 
 # Session memory TTL (seconds), for fallback cleanup / 会话记忆 TTL（秒），用于兜底清理
-SESSION_MEMORY_TTL_SECONDS = 86400   # Session memory 24 hours / 会话记忆 24 小时
+SESSION_MEMORY_TTL_SECONDS = 86400  # Session memory 24 hours / 会话记忆 24 小时
 
 
 def session_memory_key(
@@ -126,6 +126,7 @@ def session_memory_conversation_pattern(tenant_id: int, conversation_id: int) ->
 def session_memory_tenant_pattern(tenant_id: int) -> str:
     """Match all session memory keys by tenant / 按 tenant 维度匹配全部会话记忆 key。"""
     return f"{SESSION_MEMORY_KEY_PREFIX}{tenant_id}:*"
+
 
 __all__ = [
     # Rate limiting / 频率限制

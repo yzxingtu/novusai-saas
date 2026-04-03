@@ -5,7 +5,6 @@ AI 供应商相关 Schema / AI Provider Schema
 Defines AI provider request and response data structures.
 """
 
-
 from pydantic import Field
 
 from app.core.base_schema import (
@@ -20,11 +19,17 @@ class AIProviderCreate(BaseCreateSchema):
     """创建 AI 供应商请求 / Create AI provider request."""
 
     name: str = Field(..., max_length=100, description=_("enum.ai_provider.name"))
-    code: str | None = Field(None, max_length=50, description=_("enum.ai_provider.code"))
+    code: str | None = Field(
+        None, max_length=50, description=_("enum.ai_provider.code")
+    )
     type: str = Field(..., max_length=50, description=_("enum.ai_provider.type"))
-    base_url: str | None = Field(None, max_length=500, description=_("enum.ai_provider.base_url"))
+    base_url: str | None = Field(
+        None, max_length=500, description=_("enum.ai_provider.base_url")
+    )
     description: str | None = Field(None, description=_("enum.ai_provider.description"))
-    icon: str | None = Field(None, max_length=255, description=_("enum.ai_provider.icon"))
+    icon: str | None = Field(
+        None, max_length=255, description=_("enum.ai_provider.icon")
+    )
     is_active: bool = Field(True, description=_("enum.ai_provider.is_active"))
     sort_order: int = Field(0, description=_("enum.ai_provider.sort_order"))
     config: dict | None = Field(None, description=_("enum.ai_provider.config"))
@@ -33,12 +38,22 @@ class AIProviderCreate(BaseCreateSchema):
 class AIProviderUpdate(BaseUpdateSchema):
     """更新 AI 供应商请求 / Update AI provider request."""
 
-    name: str | None = Field(None, max_length=100, description=_("enum.ai_provider.name"))
-    code: str | None = Field(None, max_length=50, description=_("enum.ai_provider.code"))
-    type: str | None = Field(None, max_length=50, description=_("enum.ai_provider.type"))
-    base_url: str | None = Field(None, max_length=500, description=_("enum.ai_provider.base_url"))
+    name: str | None = Field(
+        None, max_length=100, description=_("enum.ai_provider.name")
+    )
+    code: str | None = Field(
+        None, max_length=50, description=_("enum.ai_provider.code")
+    )
+    type: str | None = Field(
+        None, max_length=50, description=_("enum.ai_provider.type")
+    )
+    base_url: str | None = Field(
+        None, max_length=500, description=_("enum.ai_provider.base_url")
+    )
     description: str | None = Field(None, description=_("enum.ai_provider.description"))
-    icon: str | None = Field(None, max_length=255, description=_("enum.ai_provider.icon"))
+    icon: str | None = Field(
+        None, max_length=255, description=_("enum.ai_provider.icon")
+    )
     is_active: bool | None = Field(None, description=_("enum.ai_provider.is_active"))
     sort_order: int | None = Field(None, description=_("enum.ai_provider.sort_order"))
     config: dict | None = Field(None, description=_("enum.ai_provider.config"))

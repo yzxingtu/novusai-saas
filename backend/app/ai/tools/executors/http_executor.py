@@ -32,9 +32,11 @@ _MAX_RESPONSE_SIZE = 50_000  # 50KB  # 补充说明 / note
 
 def _substitute_template(template: str, variables: dict[str, Any]) -> str:
     """Substitute {{variable}} placeholders / 替换 {{variable}} 占位符"""
+
     def replacer(match: re.Match) -> str:
         key = match.group(1)
         return str(variables.get(key, match.group(0)))
+
     return re.sub(r"\{\{(\w+)\}\}", replacer, template)
 
 
@@ -134,7 +136,9 @@ class HttpToolExecutor(BaseToolExecutor):
             # Redirects are disabled here so every outbound target must pass the / 上文为英文说明 / English above
             # shared UrlValidator check explicitly instead of silently hopping
             # to another host after the first validated URL.
-            async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+            async with httpx.AsyncClient(
+                timeout=timeout, follow_redirects=False
+            ) as client:
                 resp = await client.request(
                     method=method,
                     url=url,
@@ -154,7 +158,9 @@ class HttpToolExecutor(BaseToolExecutor):
                     resp_json = resp.json()
                     extracted = _extract_json_path(resp_json, response_path)
                     if extracted is not None:
-                        resp_text = json.dumps(extracted, ensure_ascii=False, default=str)
+                        resp_text = json.dumps(
+                            extracted, ensure_ascii=False, default=str
+                        )
                 except Exception as json_exc:
                     logger.debug("HTTP tool JSONPath extract failed: {}", json_exc)
 
@@ -281,6 +287,7 @@ class HttpToolExecutor(BaseToolExecutor):
                 headers[key_name] = key_value
         elif auth_type == "basic":
             import base64
+
             username = auth_config.get("username", "")
             password = auth_config.get("password", "")
             if username:

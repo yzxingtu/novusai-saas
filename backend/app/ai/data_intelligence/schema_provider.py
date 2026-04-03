@@ -35,13 +35,14 @@ logger = LogManager.get_logger("ai.data_intelligence")
 # Data Structure Definitions / 数据结构定义
 # ============================================
 
+
 @dataclass
 class ColumnSchema:
     """Column schema description / 列结构描述"""
 
     name: str
-    type: str              # Simplified type: int/str/float/bool/datetime/json / 简化类型
-    description: str       # Column description (from Model.comment) / 列描述
+    type: str  # Simplified type: int/str/float/bool/datetime/json / 简化类型
+    description: str  # Column description (from Model.comment) / 列描述
     nullable: bool = True
     is_primary: bool = False
     is_foreign_key: bool = False
@@ -66,16 +67,16 @@ class TableSchema:
     """Table schema description / 表结构描述"""
 
     table_name: str
-    description: str           # Table description / 表描述
+    description: str  # Table description / 表描述
     columns: list[ColumnSchema] = field(default_factory=list)
     tenant_column: str = "tenant_id"  # Tenant isolation column / 企业隔离列名
     row_count_approx: int = 0  # Approx row count (from pg_stat, no COUNT) / 近似行数
-    max_rows: int = 200        # Max rows per query / 单次查询最大行数
+    max_rows: int = 200  # Max rows per query / 单次查询最大行数
     allow_read: bool = True
     allow_create: bool = False
     allow_update: bool = False
     allow_delete: bool = False
-    permission_code: str = "*"   # RBAC permission code / RBAC 权限码
+    permission_code: str = "*"  # RBAC permission code / RBAC 权限码
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -156,6 +157,7 @@ def _simplify_type(pg_type: str) -> str:
 # SchemaProvider
 # ============================================
 
+
 class SchemaProvider:
     """
     Provides database schema awareness for AI.
@@ -170,9 +172,16 @@ class SchemaProvider:
 
     # ===== Global sensitive column names (fallback, not exposed even if policy misconfigured) / 全局敏感列名（兜底，即使策略配置错误也不暴露） =====
     _GLOBAL_BLOCKED_COLUMNS: set[str] = {
-        "password", "password_hash", "hashed_password",
-        "secret", "secret_key", "api_key", "access_token",
-        "refresh_token", "encrypted_key", "salt",
+        "password",
+        "password_hash",
+        "hashed_password",
+        "secret",
+        "secret_key",
+        "api_key",
+        "access_token",
+        "refresh_token",
+        "encrypted_key",
+        "salt",
     }
 
     async def get_schema(
@@ -246,10 +255,14 @@ class SchemaProvider:
             策略字典列表，每项包含表名、CRUD 开关、blocked_columns 等。
         """
         # Load global policies / 加载全局策略
-        stmt = select(AITablePolicy).where(
-            AITablePolicy.is_active == True,  # noqa: E712
-            AITablePolicy.is_deleted == False,  # noqa: E712
-        ).order_by(AITablePolicy.sort_order, AITablePolicy.table_name)
+        stmt = (
+            select(AITablePolicy)
+            .where(
+                AITablePolicy.is_active == True,  # noqa: E712
+                AITablePolicy.is_deleted == False,  # noqa: E712
+            )
+            .order_by(AITablePolicy.sort_order, AITablePolicy.table_name)
+        )
         result = await db.execute(stmt)
         global_policies = result.scalars().all()
 
@@ -293,7 +306,8 @@ class SchemaProvider:
             except Exception as exc:
                 logger.warning(
                     "Failed to load schema for table {}: {}",
-                    policy["table_name"], str(exc),
+                    policy["table_name"],
+                    str(exc),
                 )
 
         return tables
@@ -368,15 +382,17 @@ class SchemaProvider:
             # Prefer policy column description, fallback to DB comment / 优先使用策略中的列描述
             desc = col_descriptions.get(col_name, column_comment)
 
-            columns.append(ColumnSchema(
-                name=col_name,
-                type=_simplify_type(data_type),
-                description=desc,
-                nullable=is_nullable,
-                is_primary=is_pk,
-                is_foreign_key=is_fk,
-                fk_table=fk_table if is_fk else None,
-            ))
+            columns.append(
+                ColumnSchema(
+                    name=col_name,
+                    type=_simplify_type(data_type),
+                    description=desc,
+                    nullable=is_nullable,
+                    is_primary=is_pk,
+                    is_foreign_key=is_fk,
+                    fk_table=fk_table if is_fk else None,
+                )
+            )
 
         # Get approximate row count / 获取近似行数
         row_count = await self._get_approx_row_count(db, table_name)
@@ -524,7 +540,7 @@ class SchemaProvider:
                     # Chinese sliding window: extract 2~4 char segments to match question / 中文滑动窗口
                     for win in range(2, 5):
                         for i in range(len(desc) - win + 1):
-                            seg = desc[i:i + win]
+                            seg = desc[i : i + win]
                             if seg.isascii():
                                 continue
                             if seg in question_lower:
@@ -553,6 +569,7 @@ class SchemaProvider:
         """Get cached schema from Redis / 从 Redis 获取缓存的 schema"""
         try:
             from app.core.redis import get_redis
+
             redis = await get_redis()
             key = schema_cache_key(tenant_id)
             data = await redis.get(key)
@@ -569,6 +586,7 @@ class SchemaProvider:
         """Cache schema to Redis / 将 schema 缓存到 Redis"""
         try:
             from app.core.redis import get_redis
+
             redis = await get_redis()
             key = schema_cache_key(tenant_id)
             data = json.dumps([t.to_dict() for t in tables], ensure_ascii=False)
@@ -581,6 +599,7 @@ class SchemaProvider:
         """Clear tenant schema cache / 清除企业 schema 缓存"""
         try:
             from app.core.redis import get_redis
+
             redis = await get_redis()
             key = schema_cache_key(tenant_id)
             await redis.delete(key)
@@ -597,6 +616,7 @@ class SchemaProvider:
         """
         try:
             from app.core.redis import get_redis
+
             redis = await get_redis()
             pattern = f"{SCHEMA_CACHE_KEY_PREFIX}*"
             count = 0
@@ -604,7 +624,9 @@ class SchemaProvider:
                 await redis.delete(key)
                 count += 1
             if count > 0:
-                logger.info("Invalidated {} schema cache(s) for pattern {}", count, pattern)
+                logger.info(
+                    "Invalidated {} schema cache(s) for pattern {}", count, pattern
+                )
         except Exception as exc:
             logger.warning("Failed to invalidate all schema caches: {}", str(exc))
 
@@ -624,9 +646,12 @@ class SchemaProvider:
             tenant_id: When set, applies ai_table_policy_overrides for that tenant.
         """
         if tenant_id is not None and tenant_id > PLATFORM_TENANT_ID:
-            policies = await SchemaProvider._load_active_policies_with_ids(db, tenant_id)
+            policies = await SchemaProvider._load_active_policies_with_ids(
+                db, tenant_id
+            )
             filtered = [
-                p for p in policies
+                p
+                for p in policies
                 if (table_policy_ids is None or p["id"] in table_policy_ids)
                 and p.get("allow_read", True)
             ]
@@ -651,10 +676,14 @@ class SchemaProvider:
         tenant_id: int = PLATFORM_TENANT_ID,
     ) -> list[dict[str, Any]]:
         """Load policies with id included for filtering by table_policy_ids."""
-        stmt = select(AITablePolicy).where(
-            AITablePolicy.is_active == True,  # noqa: E712
-            AITablePolicy.is_deleted == False,  # noqa: E712
-        ).order_by(AITablePolicy.sort_order, AITablePolicy.table_name)
+        stmt = (
+            select(AITablePolicy)
+            .where(
+                AITablePolicy.is_active == True,  # noqa: E712
+                AITablePolicy.is_deleted == False,  # noqa: E712
+            )
+            .order_by(AITablePolicy.sort_order, AITablePolicy.table_name)
+        )
         result = await db.execute(stmt)
         global_policies = result.scalars().all()
 
@@ -696,13 +725,18 @@ class SchemaProvider:
             {"create": [(name, label), ...], "update": [...], "delete": [...]}
         """
         if tenant_id is not None and tenant_id > PLATFORM_TENANT_ID:
-            policies = await SchemaProvider._load_active_policies_with_ids(db, tenant_id)
+            policies = await SchemaProvider._load_active_policies_with_ids(
+                db, tenant_id
+            )
             filtered = [
-                p for p in policies
+                p
+                for p in policies
                 if table_policy_ids is None or p["id"] in table_policy_ids
             ]
             crud_tables: dict[str, list[tuple[str, str]]] = {
-                "create": [], "update": [], "delete": [],
+                "create": [],
+                "update": [],
+                "delete": [],
             }
             for p in filtered:
                 tname, label = p["table_name"], p["label"]
@@ -729,7 +763,9 @@ class SchemaProvider:
         result = await db.execute(stmt)
 
         crud_tables: dict[str, list[tuple[str, str]]] = {
-            "create": [], "update": [], "delete": [],
+            "create": [],
+            "update": [],
+            "delete": [],
         }
         for row in result.all():
             tname, label = row[0], row[1]
@@ -753,16 +789,24 @@ class SchemaProvider:
             {table_name: [{"name": str, "type": str, "desc": str, "required": bool, "fk_table": str|None}, ...]}
         """
         # System-managed columns: never writable in data_create / 上文为英文说明 / English above
-        _SYSTEM_MANAGED = frozenset({
-            "id", "created_at", "updated_at", "is_deleted", "deleted_at", "tenant_id",
-        })
+        _SYSTEM_MANAGED = frozenset(
+            {
+                "id",
+                "created_at",
+                "updated_at",
+                "is_deleted",
+                "deleted_at",
+                "tenant_id",
+            }
+        )
 
         policies = await SchemaProvider._load_active_policies_with_ids(
             db,
             tenant_id=PLATFORM_TENANT_ID,
         )
         filtered = [
-            p for p in policies
+            p
+            for p in policies
             if (table_policy_ids is None or p["id"] in table_policy_ids)
             and (p.get("allow_create") or p.get("allow_update"))
         ]
@@ -776,7 +820,8 @@ class SchemaProvider:
             except Exception as exc:
                 logger.warning(
                     "Failed to load schema for table {}: {}",
-                    policy["table_name"], str(exc),
+                    policy["table_name"],
+                    str(exc),
                 )
                 continue
 
@@ -789,13 +834,15 @@ class SchemaProvider:
                     continue
                 # required = NOT NULL and not auto-generated (PK) / 上文为英文说明 / English above
                 required = not c.nullable and not c.is_primary
-                hints.append({
-                    "name": c.name,
-                    "type": c.type,
-                    "desc": c.description or "",
-                    "required": required,
-                    "fk_table": c.fk_table,
-                })
+                hints.append(
+                    {
+                        "name": c.name,
+                        "type": c.type,
+                        "desc": c.description or "",
+                        "required": required,
+                        "fk_table": c.fk_table,
+                    }
+                )
             result[table_schema.table_name] = hints
 
         return result
@@ -804,6 +851,7 @@ class SchemaProvider:
 # ============================================
 # Policy Merge Helper / 策略合并辅助函数
 # ============================================
+
 
 def _merge_policy_with_override(
     gp: AITablePolicy,
@@ -858,6 +906,7 @@ def _merge_policy_with_override(
 # Helper Functions / 辅助函数
 # ============================================
 
+
 def _dict_to_table_schema(data: dict[str, Any]) -> TableSchema:
     """Restore TableSchema from dict / 从字典恢复 TableSchema"""
     columns = [
@@ -891,4 +940,3 @@ __all__ = [
     "TableSchema",
     "SchemaProvider",
 ]
-

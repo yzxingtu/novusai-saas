@@ -90,7 +90,13 @@ class AdminAIGatewayController(GlobalController):
                     user_type="admin",
                 )
                 return success(data=response.__dict__)
-            except (AIGatewayError, RateLimitExceeded, QuotaExceeded, NotFoundException, BusinessException):
+            except (
+                AIGatewayError,
+                RateLimitExceeded,
+                QuotaExceeded,
+                NotFoundException,
+                BusinessException,
+            ):
                 raise
             except Exception as e:
                 raise ExternalServiceException(
@@ -133,7 +139,13 @@ class AdminAIGatewayController(GlobalController):
                     user_type="admin",
                 )
                 return response
-            except (AIGatewayError, RateLimitExceeded, QuotaExceeded, NotFoundException, BusinessException):
+            except (
+                AIGatewayError,
+                RateLimitExceeded,
+                QuotaExceeded,
+                NotFoundException,
+                BusinessException,
+            ):
                 raise
             except Exception as e:
                 raise ExternalServiceException(
@@ -167,7 +179,13 @@ class AdminAIGatewayController(GlobalController):
                     user_type="admin",
                 )
                 return success(data=response.__dict__)
-            except (AIGatewayError, RateLimitExceeded, QuotaExceeded, NotFoundException, BusinessException):
+            except (
+                AIGatewayError,
+                RateLimitExceeded,
+                QuotaExceeded,
+                NotFoundException,
+                BusinessException,
+            ):
                 raise
             except Exception as e:
                 raise ExternalServiceException(
@@ -202,7 +220,13 @@ class AdminAIGatewayController(GlobalController):
                     max_tokens=body.max_tokens,
                 )
                 return success(data=result)
-            except (AIGatewayError, RateLimitExceeded, QuotaExceeded, NotFoundException, BusinessException):
+            except (
+                AIGatewayError,
+                RateLimitExceeded,
+                QuotaExceeded,
+                NotFoundException,
+                BusinessException,
+            ):
                 raise
             except Exception as e:
                 raise ExternalServiceException(

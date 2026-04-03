@@ -27,8 +27,12 @@ class AgentAccessResponse(BaseModel):
     """智能体访问权限响应 / Agent access response schema."""
 
     agent_id: int = Field(..., description=_("agent_access.agent_id"))
-    admin_role_ids: list[int] | None = Field(None, description=_("agent_access.admin_role_ids"))
-    tenant_role_ids: list[int] | None = Field(None, description=_("agent_access.tenant_role_ids"))
+    admin_role_ids: list[int] | None = Field(
+        None, description=_("agent_access.admin_role_ids")
+    )
+    tenant_role_ids: list[int] | None = Field(
+        None, description=_("agent_access.tenant_role_ids")
+    )
 
 
 __all__ = ["AgentAccessUpdate", "AgentAccessResponse"]

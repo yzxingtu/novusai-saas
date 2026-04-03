@@ -55,7 +55,7 @@ class TenantQuota(TenantModel):
         ForeignKey("ai_models.id", ondelete="CASCADE"),
         nullable=True,
         index=True,
-        comment=_("enum.tenant_quota.model_id")
+        comment=_("enum.tenant_quota.model_id"),
     )
 
     # 配额周期：daily/monthly
@@ -64,14 +64,12 @@ class TenantQuota(TenantModel):
         nullable=False,
         default=QuotaPeriodEnum.MONTHLY.value,
         index=True,
-        comment=_("enum.tenant_quota.period")
+        comment=_("enum.tenant_quota.period"),
     )
 
     # 配额限制（Token 数量）
     limit: Mapped[int] = mapped_column(
-        Integer,
-        nullable=False,
-        comment=_("enum.tenant_quota.limit")
+        Integer, nullable=False, comment=_("enum.tenant_quota.limit")
     )
 
     # 配额类型：soft（软限制，允许超额）或 hard（硬限制，直接拒绝）
@@ -80,7 +78,7 @@ class TenantQuota(TenantModel):
         nullable=False,
         default=QuotaTypeEnum.SOFT.value,
         index=True,
-        comment=_("enum.tenant_quota.quota_type")
+        comment=_("enum.tenant_quota.quota_type"),
     )
 
     # 预警阈值（百分比，如 80 表示 80%） / Warning threshold (percent; e.g. 80 = 80%)
@@ -88,22 +86,17 @@ class TenantQuota(TenantModel):
         Integer,
         nullable=True,
         default=80,
-        comment=_("enum.tenant_quota.warning_threshold")
+        comment=_("enum.tenant_quota.warning_threshold"),
     )
 
     # 是否启用 / Enabled flag
     is_active: Mapped[bool] = mapped_column(
-        Boolean,
-        default=True,
-        index=True,
-        comment=_("enum.tenant_quota.is_active")
+        Boolean, default=True, index=True, comment=_("enum.tenant_quota.is_active")
     )
 
     # 备注说明 / Notes
     description: Mapped[str | None] = mapped_column(
-        String(500),
-        nullable=True,
-        comment=_("enum.tenant_quota.description")
+        String(500), nullable=True, comment=_("enum.tenant_quota.description")
     )
 
     # ==================== 关系 ==================== / Relationships

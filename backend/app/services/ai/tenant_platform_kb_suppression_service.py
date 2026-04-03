@@ -35,11 +35,15 @@ class TenantPlatformKbSuppressionService:
             raise NotFoundException(message=_("agent.error.not_found"))
         if agent.owner_tenant_id is not None:
             raise BusinessException(
-                message=_("agent_kb_binding.error.platform_suppress_platform_agent_only")
+                message=_(
+                    "agent_kb_binding.error.platform_suppress_platform_agent_only"
+                )
             )
         if agent.scope == ResourceScopeEnum.ADMIN_ONLY.value:
             raise BusinessException(
-                message=_("agent_kb_binding.error.platform_suppress_platform_agent_only")
+                message=_(
+                    "agent_kb_binding.error.platform_suppress_platform_agent_only"
+                )
             )
         return agent
 
@@ -64,18 +68,24 @@ class TenantPlatformKbSuppressionService:
             await self.db.refresh(existing)
             logger.info(
                 "Restored platform KB suppression tenant={} agent={} kb={}",
-                self.tenant_id, agent_id, knowledge_base_id,
+                self.tenant_id,
+                agent_id,
+                knowledge_base_id,
             )
             return {"id": existing.id, "knowledge_base_id": knowledge_base_id}
 
-        row = await self.repo.create({
-            "agent_id": agent_id,
-            "knowledge_base_id": knowledge_base_id,
-        })
+        row = await self.repo.create(
+            {
+                "agent_id": agent_id,
+                "knowledge_base_id": knowledge_base_id,
+            }
+        )
         await self.db.flush()
         logger.info(
             "Platform KB suppressed tenant={} agent={} kb={}",
-            self.tenant_id, agent_id, knowledge_base_id,
+            self.tenant_id,
+            agent_id,
+            knowledge_base_id,
         )
         return {"id": row.id, "knowledge_base_id": knowledge_base_id}
 
@@ -91,7 +101,9 @@ class TenantPlatformKbSuppressionService:
         await self.db.flush()
         logger.info(
             "Platform KB unsuppressed tenant={} agent={} kb={}",
-            self.tenant_id, agent_id, knowledge_base_id,
+            self.tenant_id,
+            agent_id,
+            knowledge_base_id,
         )
 
 

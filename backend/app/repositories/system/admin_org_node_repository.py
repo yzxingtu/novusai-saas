@@ -23,9 +23,17 @@ class AdminOrgNodeRepository(BaseRepository[AdminOrgNode]):
 
     _scope_fields = {
         "admin": {
-            "id", "name", "code", "is_system", "is_active",
-            "parent_id", "level", "type", "leader_id",
-            "created_at", "updated_at",
+            "id",
+            "name",
+            "code",
+            "is_system",
+            "is_active",
+            "parent_id",
+            "level",
+            "type",
+            "leader_id",
+            "created_at",
+            "updated_at",
         },
     }
 
@@ -59,7 +67,9 @@ class AdminOrgNodeRepository(BaseRepository[AdminOrgNode]):
         include_deleted: bool = False,
     ) -> list[AdminOrgNode]:
         query = select(self.model).where(
-            self.model.parent_id == parent_id if parent_id is not None else self.model.parent_id.is_(None)
+            self.model.parent_id == parent_id
+            if parent_id is not None
+            else self.model.parent_id.is_(None)
         )
         if not include_deleted:
             query = query.where(self.model.is_deleted.is_(False))
@@ -104,7 +114,9 @@ class AdminOrgNodeRepository(BaseRepository[AdminOrgNode]):
         )
         if not include_deleted:
             query = query.where(self.model.is_deleted.is_(False))
-        query = query.order_by(self.model.level.asc(), self.model.sort_order.asc(), self.model.id.asc())
+        query = query.order_by(
+            self.model.level.asc(), self.model.sort_order.asc(), self.model.id.asc()
+        )
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
@@ -113,7 +125,9 @@ class AdminOrgNodeRepository(BaseRepository[AdminOrgNode]):
         org_node_id: int,
         include_deleted: bool = False,
     ) -> list[int]:
-        descendants = await self.get_descendants(org_node_id, include_deleted=include_deleted)
+        descendants = await self.get_descendants(
+            org_node_id, include_deleted=include_deleted
+        )
         return [item.id for item in descendants]
 
     async def get_tree(
@@ -135,11 +149,15 @@ class AdminOrgNodeRepository(BaseRepository[AdminOrgNode]):
         for option in self._detail_options():
             query = query.options(option)
         query = query.execution_options(populate_existing=True)
-        query = query.order_by(self.model.level.asc(), self.model.sort_order.asc(), self.model.id.asc())
+        query = query.order_by(
+            self.model.level.asc(), self.model.sort_order.asc(), self.model.id.asc()
+        )
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
-    async def get_organization_root_nodes(self, include_deleted: bool = False) -> list[AdminOrgNode]:
+    async def get_organization_root_nodes(
+        self, include_deleted: bool = False
+    ) -> list[AdminOrgNode]:
         query = select(self.model).where(self.model.parent_id.is_(None))
         if not include_deleted:
             query = query.where(self.model.is_deleted.is_(False))
@@ -175,7 +193,9 @@ class AdminOrgNodeRepository(BaseRepository[AdminOrgNode]):
         include_deleted: bool = False,
     ) -> tuple[list[Admin], int]:
         if include_descendants:
-            org_node = await self.get_by_id(org_node_id, include_deleted=include_deleted)
+            org_node = await self.get_by_id(
+                org_node_id, include_deleted=include_deleted
+            )
             if not org_node:
                 return [], 0
 

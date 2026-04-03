@@ -11,4 +11,3 @@ import warnings
 warnings.filterwarnings("ignore", category=Warning, module=r"requests\.__init__")
 
 __version__ = "0.1.0"
-

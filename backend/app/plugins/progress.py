@@ -73,7 +73,9 @@ UNINSTALL_STEPS = [
 ]
 
 
-def _calc_progress(steps_config: list[tuple[str, int]], current_step: str, status: str) -> int:
+def _calc_progress(
+    steps_config: list[tuple[str, int]], current_step: str, status: str
+) -> int:
     """Calculate overall progress percentage (0-100) based on current step and status / 根据当前步骤和状态计算总进度百分比"""
     total_weight = sum(w for _, w in steps_config)
     if total_weight == 0:
@@ -111,11 +113,15 @@ class PluginProgressEmitter:
         self._plugin_name = plugin_name
         self._action = action
         self._steps_config = (
-            INSTALL_STEPS if action == "install" else
-            ENABLE_STEPS if action == "enable" else
-            UNINSTALL_STEPS if action == "uninstall" else
-            DISABLE_STEPS if action == "disable" else
-            []
+            INSTALL_STEPS
+            if action == "install"
+            else ENABLE_STEPS
+            if action == "enable"
+            else UNINSTALL_STEPS
+            if action == "uninstall"
+            else DISABLE_STEPS
+            if action == "disable"
+            else []
         )
 
     @property
@@ -141,15 +147,17 @@ class PluginProgressEmitter:
 
         progress = _calc_progress(self._steps_config, step, status)
 
-        await self._emit({
-            "plugin_name": self._plugin_name,
-            "action": self._action,
-            "step": step,
-            "status": status,
-            "message": message,
-            "progress": progress,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        })
+        await self._emit(
+            {
+                "plugin_name": self._plugin_name,
+                "action": self._action,
+                "step": step,
+                "status": status,
+                "message": message,
+                "progress": progress,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        )
 
     async def emit_log(self, step: str, line: str) -> None:
         """Push subprocess output log line (pip/alembic stdout/stderr)
@@ -162,15 +170,17 @@ class PluginProgressEmitter:
         if not self.active:
             return
 
-        await self._emit({
-            "plugin_name": self._plugin_name,
-            "action": self._action,
-            "step": step,
-            "status": "log",
-            "message": line.rstrip(),
-            "progress": _calc_progress(self._steps_config, step, "running"),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        })
+        await self._emit(
+            {
+                "plugin_name": self._plugin_name,
+                "action": self._action,
+                "step": step,
+                "status": "log",
+                "message": line.rstrip(),
+                "progress": _calc_progress(self._steps_config, step, "running"),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        )
 
     async def emit_done(self, message: str = "") -> None:
         """Push operation completed / 推送操作完成"""
@@ -197,10 +207,14 @@ class PluginProgressEmitter:
         step = data.get("step")
         logger.debug(
             "Emitting plugin_progress for {} step={} status={} room={}",
-            self._plugin_name, step, data.get("status"), room,
+            self._plugin_name,
+            step,
+            data.get("status"),
+            room,
         )
         try:
             from app.core.socketio_server import sio
+
             await asyncio.wait_for(
                 sio.emit(
                     EVENT_PLUGIN_PROGRESS,
@@ -210,15 +224,20 @@ class PluginProgressEmitter:
                 ),
                 timeout=1.0,
             )
-            logger.debug("Emitted plugin_progress for {} step={} OK", self._plugin_name, step)
+            logger.debug(
+                "Emitted plugin_progress for {} step={} OK", self._plugin_name, step
+            )
         except asyncio.TimeoutError:
             logger.warning(
                 "Timeout emitting plugin progress for {} (step={}) — "
                 "Redis pub/sub may be unavailable; SIO events lost but enable continues",
-                self._plugin_name, step,
+                self._plugin_name,
+                step,
             )
         except Exception as exc:
             logger.error(
                 "Failed to emit plugin progress for {} (step={}): {}",
-                self._plugin_name, step, exc,
+                self._plugin_name,
+                step,
+                exc,
             )

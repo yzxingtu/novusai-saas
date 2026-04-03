@@ -29,39 +29,47 @@ logger = LogManager.get_logger("ai.tool.security")
 # Exception Definitions / 异常定义
 # ============================================
 
+
 class ToolSecurityError(Exception):
     """Tool security base exception / 工具安全基础异常"""
+
     pass
 
 
 class ToolInputValidationError(ToolSecurityError):
     """Input parameter validation failed / 输入参数校验失败"""
+
     pass
 
 
 class ToolExecutionLimitExceeded(ToolSecurityError):
     """Tool call count exceeded / 工具调用次数超限"""
+
     pass
 
 
 class SSRFBlockedError(ToolSecurityError):
     """SSRF attack blocked / SSRF 攻击被阻止"""
+
     pass
 
 
 class SqlInjectionBlockedError(ToolSecurityError):
     """SQL injection blocked / SQL 注入被阻止"""
+
     pass
 
 
 class EmailRateLimitError(ToolSecurityError):
     """Email rate limit exceeded / 邮件频率超限"""
+
     pass
 
 
 # ============================================
 # Input Parameter Validation / 输入参数校验
 # ============================================
+
 
 class InputValidator:
     """
@@ -104,12 +112,18 @@ class InputValidator:
 
             prop = properties[name]
             expected_type = prop.get("type")
-            if expected_type and value is not None and not InputValidator._check_type(value, expected_type):
+            if (
+                expected_type
+                and value is not None
+                and not InputValidator._check_type(value, expected_type)
+            ):
                 raise ToolInputValidationError(
-                    _("tool.error.param_type_mismatch",
-                      name=name,
-                      expected_type=expected_type,
-                      actual_type=type(value).__name__)
+                    _(
+                        "tool.error.param_type_mismatch",
+                        name=name,
+                        expected_type=expected_type,
+                        actual_type=type(value).__name__,
+                    )
                 )
 
     @staticmethod
@@ -136,11 +150,16 @@ class InputValidator:
 # Sensitive data regex patterns / 敏感数据正则模式
 _SENSITIVE_PATTERNS = [
     # API Key / Token patterns / 上文为英文说明 / English above
-    (re.compile(r'(?i)(api[_-]?key|token|secret|password|passwd|authorization)\s*[:=]\s*["\']?([a-zA-Z0-9_\-/.]{8,})["\']?'), r'\1=***MASKED***'),
+    (
+        re.compile(
+            r'(?i)(api[_-]?key|token|secret|password|passwd|authorization)\s*[:=]\s*["\']?([a-zA-Z0-9_\-/.]{8,})["\']?'
+        ),
+        r"\1=***MASKED***",
+    ),
     # Bearer Token pattern / 上文为英文说明 / English above
-    (re.compile(r'(?i)bearer\s+[a-zA-Z0-9_\-/.]{8,}'), 'Bearer ***MASKED***'),
+    (re.compile(r"(?i)bearer\s+[a-zA-Z0-9_\-/.]{8,}"), "Bearer ***MASKED***"),
     # Common key formats (sk-xxx, pk-xxx) / 常见 Key 格式
-    (re.compile(r'\b(sk|pk|ak)[_-][a-zA-Z0-9]{16,}\b'), '***MASKED_KEY***'),
+    (re.compile(r"\b(sk|pk|ak)[_-][a-zA-Z0-9]{16,}\b"), "***MASKED_KEY***"),
 ]
 
 
@@ -182,6 +201,7 @@ class OutputSanitizer:
 # Tool Call Count Limiting / 工具调用次数限制
 # ============================================
 
+
 class ExecutionLimiter:
     """
     Per-conversation Tool Call Count Limiter / 单次对话工具调用次数限制器
@@ -217,6 +237,7 @@ class ExecutionLimiter:
 
         try:
             from app.core.redis import get_redis
+
             redis = await get_redis()
             key = f"{ExecutionLimiter.PREFIX}{conversation_id}"
             current = await redis.incr(key)
@@ -225,7 +246,9 @@ class ExecutionLimiter:
             if current > max_calls:
                 logger.warning(
                     "Tool execution limit exceeded: conversation={} count={} max={}",
-                    conversation_id, current, max_calls,
+                    conversation_id,
+                    current,
+                    max_calls,
                 )
                 raise ToolExecutionLimitExceeded(
                     _("tool.error.call_limit_exceeded", max_calls=max_calls)
@@ -309,9 +332,7 @@ class UrlValidator:
 
         # 3. Blacklist domain check / 黑名单域名检查
         if blocked_domains and hostname in blocked_domains:
-            raise SSRFBlockedError(
-                _("tool.error.domain_blocked", hostname=hostname)
-            )
+            raise SSRFBlockedError(_("tool.error.domain_blocked", hostname=hostname))
 
         # 4. IP address check (prevent SSRF access to internal network) / IP 地址检查
         try:
@@ -329,10 +350,14 @@ class UrlValidator:
         except SSRFBlockedError:
             raise
         except socket.gaierror as exc:
-            raise SSRFBlockedError(_("tool.error.dns_resolve_failed", hostname=hostname)) from exc
+            raise SSRFBlockedError(
+                _("tool.error.dns_resolve_failed", hostname=hostname)
+            ) from exc
         except Exception as exc:
             logger.error("URL validation error: {}", str(exc))
-            raise SSRFBlockedError(_("tool.error.url_validation_failed", detail=str(exc))) from exc
+            raise SSRFBlockedError(
+                _("tool.error.url_validation_failed", detail=str(exc))
+            ) from exc
 
     @staticmethod
     def sanitize_headers_for_log(headers: dict[str, str]) -> dict[str, str]:
@@ -347,8 +372,11 @@ class UrlValidator:
             Sanitized request headers / 脱敏后的请求头
         """
         sensitive_keys = {
-            "authorization", "cookie", "x-api-key",
-            "x-auth-token", "proxy-authorization",
+            "authorization",
+            "cookie",
+            "x-api-key",
+            "x-auth-token",
+            "proxy-authorization",
         }
         sanitized = {}
         for key, value in headers.items():
@@ -404,21 +432,15 @@ class SqlValidator:
 
         # Check if starts with SELECT or WITH / 检查是否以 SELECT 或 WITH 开头
         if not re.match(r"^\s*(SELECT|WITH)\b", stripped, re.IGNORECASE):
-            raise SqlInjectionBlockedError(
-                _("tool.error.sql_only_select")
-            )
+            raise SqlInjectionBlockedError(_("tool.error.sql_only_select"))
 
         # Check blocked keywords (prevent write operations in subqueries) / 检查禁止关键字
         if _SQL_BLOCKED_PATTERN.search(stripped):
-            raise SqlInjectionBlockedError(
-                _("tool.error.sql_write_blocked")
-            )
+            raise SqlInjectionBlockedError(_("tool.error.sql_write_blocked"))
 
         # Check system table access / 检查系统表访问
         if _SYSTEM_TABLE_PATTERN.search(stripped):
-            raise SqlInjectionBlockedError(
-                _("tool.error.sql_system_table_blocked")
-            )
+            raise SqlInjectionBlockedError(_("tool.error.sql_system_table_blocked"))
 
     @staticmethod
     def inject_limit(sql: str, max_rows: int = 100) -> str:
@@ -441,6 +463,7 @@ class SqlValidator:
 # ============================================
 # Email Tool Rate Limiting / 邮件工具频率限制
 # ============================================
+
 
 class EmailRateLimiter:
     """
@@ -473,6 +496,7 @@ class EmailRateLimiter:
         """
         try:
             from app.core.redis import get_redis
+
             redis = await get_redis()
             key = f"{EmailRateLimiter.PREFIX}{tenant_id}"
             current = await redis.incr(key)
@@ -500,9 +524,11 @@ class EmailRateLimiter:
         """
         if len(recipients) > EmailRateLimiter.MAX_RECIPIENTS:
             raise ToolInputValidationError(
-                _("tool.error.too_many_recipients",
-                  max=EmailRateLimiter.MAX_RECIPIENTS,
-                  got=len(recipients))
+                _(
+                    "tool.error.too_many_recipients",
+                    max=EmailRateLimiter.MAX_RECIPIENTS,
+                    got=len(recipients),
+                )
             )
 
     @staticmethod

@@ -136,7 +136,6 @@ class TenantPlanRepository(BaseRepository[TenantPlan]):
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
-
     async def get_tenant_counts_batch(self, plan_ids: list[int]) -> dict[int, int]:
         """
         批量获取套餐的企业数量 / Batch get tenant count per plan.

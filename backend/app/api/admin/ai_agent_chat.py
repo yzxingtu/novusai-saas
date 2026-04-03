@@ -121,19 +121,29 @@ class AdminAgentChatController(GlobalController):
                 user_role_id=admin.org_node_id,
                 permissions=user_perms,
                 consented_actions=data.consented_actions,
-                attachments=[a.model_dump() for a in data.attachments] if data.attachments else None,
+                attachments=[a.model_dump() for a in data.attachments]
+                if data.attachments
+                else None,
                 memory_scene=MemorySceneEnum.ADMIN_CHAT.value,
                 memory_channel=MemoryChannelEnum.ADMIN_CHAT.value,
                 memory_source=MemorySceneEnum.ADMIN_CHAT.value,
                 page_session_id=data.page_session_id,
                 route_source=data.route_source,
-                interaction_updates=[item.model_dump() for item in data.interaction_updates] if data.interaction_updates else None,
-                trust_policy_ref=data.trust_policy_ref.model_dump() if data.trust_policy_ref else None,
+                interaction_updates=[
+                    item.model_dump() for item in data.interaction_updates
+                ]
+                if data.interaction_updates
+                else None,
+                trust_policy_ref=data.trust_policy_ref.model_dump()
+                if data.trust_policy_ref
+                else None,
                 interaction_mode=data.interaction_mode,
             )
             return success(data=result.model_dump())
 
-        @router.post("/{agent_id}/chat/stream", summary="Send chat message (SSE streaming)")
+        @router.post(
+            "/{agent_id}/chat/stream", summary="Send chat message (SSE streaming)"
+        )
         @action_create("action.admin_agent_chat.stream")
         async def stream_chat(
             request: Request,
@@ -170,15 +180,25 @@ class AdminAgentChatController(GlobalController):
                 user_role_id=admin.org_node_id,
                 permissions=user_perms,
                 consented_actions=data.consented_actions,
-                attachments=[a.model_dump() for a in data.attachments] if data.attachments else None,
-                image_params=data.image_params.model_dump() if data.image_params else None,
+                attachments=[a.model_dump() for a in data.attachments]
+                if data.attachments
+                else None,
+                image_params=data.image_params.model_dump()
+                if data.image_params
+                else None,
                 memory_scene=MemorySceneEnum.ADMIN_CHAT.value,
                 memory_channel=MemoryChannelEnum.ADMIN_CHAT.value,
                 memory_source=MemorySceneEnum.ADMIN_CHAT.value,
                 page_session_id=data.page_session_id,
                 route_source=data.route_source,
-                interaction_updates=[item.model_dump() for item in data.interaction_updates] if data.interaction_updates else None,
-                trust_policy_ref=data.trust_policy_ref.model_dump() if data.trust_policy_ref else None,
+                interaction_updates=[
+                    item.model_dump() for item in data.interaction_updates
+                ]
+                if data.interaction_updates
+                else None,
+                trust_policy_ref=data.trust_policy_ref.model_dump()
+                if data.trust_policy_ref
+                else None,
                 interaction_mode=data.interaction_mode,
             )
 
@@ -211,7 +231,9 @@ class AdminAgentChatController(GlobalController):
                 conversation_id=data.conversation_id,
                 user_role=UserRoleEnum.PLATFORM_ADMIN.value,
                 user_role_id=admin.org_node_id,
-                page_context=data.page_context.model_dump() if data.page_context else None,
+                page_context=data.page_context.model_dump()
+                if data.page_context
+                else None,
                 pinned_agent_id=data.pinned_agent_id,
                 user_id=admin.id,
                 force_reroute=data.force_reroute,
@@ -270,7 +292,10 @@ class AdminAgentChatController(GlobalController):
 
             权限 / Permission: admin_agent_chat:conversation_detail
             """
-            service, _ = await ConversationService.get_platform_admin_chat_service_for_user(
+            (
+                service,
+                _,
+            ) = await ConversationService.get_platform_admin_chat_service_for_user(
                 db,
                 conversation_id,
                 admin.id,
@@ -298,7 +323,10 @@ class AdminAgentChatController(GlobalController):
 
             权限 / Permission: admin_agent_chat:delete_conversation
             """
-            service, _ = await ConversationService.get_platform_admin_chat_service_for_user(
+            (
+                service,
+                _,
+            ) = await ConversationService.get_platform_admin_chat_service_for_user(
                 db,
                 conversation_id,
                 admin.id,
@@ -324,7 +352,10 @@ class AdminAgentChatController(GlobalController):
             admin: ActiveAdmin,
         ):
             """更新对话标题 / Update conversation title"""
-            service, _ = await ConversationService.get_platform_admin_chat_service_for_user(
+            (
+                service,
+                _,
+            ) = await ConversationService.get_platform_admin_chat_service_for_user(
                 db,
                 conversation_id,
                 admin.id,
@@ -352,7 +383,10 @@ class AdminAgentChatController(GlobalController):
             """
             获取指定对话的记忆状态 / Get memory state for a specific conversation.
             """
-            service, _ = await ConversationService.get_platform_admin_chat_service_for_user(
+            (
+                service,
+                _,
+            ) = await ConversationService.get_platform_admin_chat_service_for_user(
                 db,
                 conversation_id,
                 admin.id,
@@ -378,7 +412,10 @@ class AdminAgentChatController(GlobalController):
             """
             清除指定对话的记忆状态 / Clear memory state for a specific conversation.
             """
-            service, _ = await ConversationService.get_platform_admin_chat_service_for_user(
+            (
+                service,
+                _,
+            ) = await ConversationService.get_platform_admin_chat_service_for_user(
                 db,
                 conversation_id,
                 admin.id,
@@ -401,7 +438,10 @@ class AdminAgentChatController(GlobalController):
             conversation_id: int,
             admin: ActiveAdmin,
         ):
-            service, _ = await ConversationService.get_platform_admin_chat_service_for_user(
+            (
+                service,
+                _,
+            ) = await ConversationService.get_platform_admin_chat_service_for_user(
                 db,
                 conversation_id,
                 admin.id,
@@ -425,7 +465,10 @@ class AdminAgentChatController(GlobalController):
             conversation_id: int,
             admin: ActiveAdmin,
         ):
-            service, _ = await ConversationService.get_platform_admin_chat_service_for_user(
+            (
+                service,
+                _,
+            ) = await ConversationService.get_platform_admin_chat_service_for_user(
                 db,
                 conversation_id,
                 admin.id,
@@ -442,4 +485,3 @@ class AdminAgentChatController(GlobalController):
 router = AdminAgentChatController.get_router()
 
 __all__ = ["router", "AdminAgentChatController"]
-

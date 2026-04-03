@@ -141,7 +141,10 @@ class AdminAIProviderController(GlobalController):
 
             return success(
                 data=PageResponse.create(
-                    items=[AIProviderResponse.model_validate(item, from_attributes=True) for item in items],
+                    items=[
+                        AIProviderResponse.model_validate(item, from_attributes=True)
+                        for item in items
+                    ],
                     total=total,
                     page=spec.page,
                     page_size=spec.size,
@@ -202,6 +205,7 @@ class AdminAIProviderController(GlobalController):
 
             if not provider:
                 from app.exceptions import NotFoundException
+
                 raise NotFoundException(message=_("ai.error.provider_not_found"))
 
             return success(

@@ -37,10 +37,20 @@ class AdminOrgNode(BaseModel):
     __tablename__ = "admin_org_nodes"
 
     __delete_deps__ = [
-        DeletionDep("AdminOrgNode", "parent_id", DeletionStrategy.BLOCK,
-                    label_field="name", i18n_key="admin_org_node"),
-        DeletionDep("Admin", "org_node_id", DeletionStrategy.BLOCK,
-                    label_field="username", i18n_key="admin"),
+        DeletionDep(
+            "AdminOrgNode",
+            "parent_id",
+            DeletionStrategy.BLOCK,
+            label_field="name",
+            i18n_key="admin_org_node",
+        ),
+        DeletionDep(
+            "Admin",
+            "org_node_id",
+            DeletionStrategy.BLOCK,
+            label_field="username",
+            i18n_key="admin",
+        ),
     ]
 
     __filterable__ = {
@@ -78,8 +88,12 @@ class AdminOrgNode(BaseModel):
 
     name: Mapped[str] = mapped_column(String(50), comment="节点名称")
     code: Mapped[str] = mapped_column(String(50), index=True, comment="节点编码")
-    description: Mapped[str | None] = mapped_column(Text, nullable=True, comment="节点描述")
-    is_system: Mapped[bool] = mapped_column(Boolean, default=False, comment="是否系统节点")
+    description: Mapped[str | None] = mapped_column(
+        Text, nullable=True, comment="节点描述"
+    )
+    is_system: Mapped[bool] = mapped_column(
+        Boolean, default=False, comment="是否系统节点"
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, comment="是否启用")
     sort_order: Mapped[int] = mapped_column(Integer, default=0, comment="排序")
     parent_id: Mapped[int | None] = mapped_column(
@@ -115,36 +129,36 @@ class AdminOrgNode(BaseModel):
         comment="负责人 ID",
     )
 
-    parent: Mapped["AdminOrgNode | None"] = relationship(
+    parent: Mapped[AdminOrgNode | None] = relationship(
         "AdminOrgNode",
         remote_side="AdminOrgNode.id",
         back_populates="children",
         lazy="selectin",
     )
-    children: Mapped[list["AdminOrgNode"]] = relationship(
+    children: Mapped[list[AdminOrgNode]] = relationship(
         "AdminOrgNode",
         back_populates="parent",
         lazy="selectin",
     )
-    leader: Mapped["Admin | None"] = relationship(
+    leader: Mapped[Admin | None] = relationship(
         "Admin",
         foreign_keys=[leader_id],
         lazy="selectin",
     )
-    admins: Mapped[list["Admin"]] = relationship(
+    admins: Mapped[list[Admin]] = relationship(
         "Admin",
         back_populates="org_node",
         lazy="selectin",
         foreign_keys="Admin.org_node_id",
     )
-    scope_policy: Mapped["AdminOrgScopePolicy | None"] = relationship(
+    scope_policy: Mapped[AdminOrgScopePolicy | None] = relationship(
         "AdminOrgScopePolicy",
         back_populates="org_node",
         uselist=False,
         lazy="selectin",
         cascade="all, delete-orphan",
     )
-    permissions: Mapped[list["Permission"]] = relationship(
+    permissions: Mapped[list[Permission]] = relationship(
         "Permission",
         secondary=admin_org_node_permissions,
         lazy="selectin",
@@ -256,12 +270,12 @@ class AdminOrgScopePolicy(BaseModel):
         comment="范围模式",
     )
 
-    org_node: Mapped["AdminOrgNode"] = relationship(
+    org_node: Mapped[AdminOrgNode] = relationship(
         "AdminOrgNode",
         back_populates="scope_policy",
         lazy="selectin",
     )
-    targets: Mapped[list["AdminOrgScopeTarget"]] = relationship(
+    targets: Mapped[list[AdminOrgScopeTarget]] = relationship(
         "AdminOrgScopeTarget",
         back_populates="policy",
         lazy="selectin",
@@ -287,12 +301,12 @@ class AdminOrgScopeTarget(BaseModel):
         comment="目标组织节点 ID",
     )
 
-    policy: Mapped["AdminOrgScopePolicy"] = relationship(
+    policy: Mapped[AdminOrgScopePolicy] = relationship(
         "AdminOrgScopePolicy",
         back_populates="targets",
         lazy="selectin",
     )
-    target_org_node: Mapped["AdminOrgNode"] = relationship(
+    target_org_node: Mapped[AdminOrgNode] = relationship(
         "AdminOrgNode",
         lazy="selectin",
     )

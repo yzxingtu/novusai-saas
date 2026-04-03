@@ -20,6 +20,10 @@ export interface AIAgentInfo {
   avatar: null | string;
   /** 统一资源作用域 ResourceScopeEnum */
   scope: string;
+  source_plugin?: null | string;
+  source_plugin_display_name?: null | string;
+  source_plugin_enabled?: boolean;
+  source_plugin_scope?: null | string;
   /**
    * 展示用：由 owner_tenant_id 派生（有值 tenant / 无值 platform），非历史 DB 列 owner_type。
    * Display-only: derived from owner_tenant_id; not the legacy agents.owner_type column.

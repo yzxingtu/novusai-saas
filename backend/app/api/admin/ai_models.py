@@ -73,11 +73,19 @@ class AdminAIModelController(GlobalController):
             admin: ActiveAdmin,
             search: str = Query("", description=_("api.param.search")),
             page: int = Query(0, ge=0, description=_("api.param.page")),
-            page_size: int = Query(20, ge=1, le=100, description=_("api.param.page_size")),
+            page_size: int = Query(
+                20, ge=1, le=100, description=_("api.param.page_size")
+            ),
             type: str = Query("", description=_("api.param.type")),
-            supports_vision: str = Query("", description=_("enum.ai_model.filter_supports_vision")),
-            supports_audio: str = Query("", description=_("enum.ai_model.filter_supports_audio")),
-            supports_video: str = Query("", description=_("enum.ai_model.filter_supports_video")),
+            supports_vision: str = Query(
+                "", description=_("enum.ai_model.filter_supports_vision")
+            ),
+            supports_audio: str = Query(
+                "", description=_("enum.ai_model.filter_supports_audio")
+            ),
+            supports_video: str = Query(
+                "", description=_("enum.ai_model.filter_supports_video")
+            ),
         ):
             service = AIModelService(db)
             extra_filters: dict = {"is_active": True}
@@ -119,7 +127,10 @@ class AdminAIModelController(GlobalController):
 
             return success(
                 data=PageResponse.create(
-                    items=[AIModelResponse.model_validate(item, from_attributes=True) for item in items],
+                    items=[
+                        AIModelResponse.model_validate(item, from_attributes=True)
+                        for item in items
+                    ],
                     total=total,
                     page=spec.page,
                     page_size=spec.size,
@@ -144,11 +155,16 @@ class AdminAIModelController(GlobalController):
             models = await service.get_by_provider(provider_id)
 
             return success(
-                data=[AIModelResponse.model_validate(m, from_attributes=True) for m in models],
+                data=[
+                    AIModelResponse.model_validate(m, from_attributes=True)
+                    for m in models
+                ],
                 message=_("common.success"),
             )
 
-        @router.get("/fetch-remote/{provider_id}", summary="从供应商远程拉取可用模型列表")
+        @router.get(
+            "/fetch-remote/{provider_id}", summary="从供应商远程拉取可用模型列表"
+        )
         @action_read("action.ai_model.list")
         async def fetch_remote_models(
             request: Request,
@@ -192,6 +208,7 @@ class AdminAIModelController(GlobalController):
 
             if not model:
                 from app.exceptions import NotFoundException
+
                 raise NotFoundException(message=_("ai.error.model_not_found"))
 
             return success(
@@ -215,7 +232,7 @@ class AdminAIModelController(GlobalController):
             service = AIModelService(db)
             model = await service.create_model(data)
             await db.commit()
-            await db.refresh(model, ['provider', 'fallback_model'])
+            await db.refresh(model, ["provider", "fallback_model"])
 
             return success(
                 data=AIModelResponse.model_validate(model, from_attributes=True),
@@ -239,7 +256,7 @@ class AdminAIModelController(GlobalController):
             service = AIModelService(db)
             model = await service.update_model(model_id, data)
             await db.commit()
-            await db.refresh(model, ['provider', 'fallback_model'])
+            await db.refresh(model, ["provider", "fallback_model"])
 
             return success(
                 data=AIModelResponse.model_validate(model, from_attributes=True),

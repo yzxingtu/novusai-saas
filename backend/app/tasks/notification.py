@@ -70,7 +70,9 @@ def send_notification_email(
         if result.success:
             logger.info(
                 "Notification email sent: to={} subject={} triggered_by={}",
-                ", ".join(to), subject, triggered_by,
+                ", ".join(to),
+                subject,
+                triggered_by,
             )
             return {
                 "status": "sent",
@@ -80,11 +82,14 @@ def send_notification_email(
 
         # Config issues do not retry / 配置问题不重试
         if result.message in (
-            "email_disabled", "config_incomplete", "no_recipients",
+            "email_disabled",
+            "config_incomplete",
+            "no_recipients",
         ):
             logger.warning(
                 "Notification email skipped: reason={} to={}",
-                result.message, ", ".join(to),
+                result.message,
+                ", ".join(to),
             )
             return {
                 "status": result.message,

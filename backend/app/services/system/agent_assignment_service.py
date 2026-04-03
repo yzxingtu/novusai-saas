@@ -29,7 +29,9 @@ from app.repositories.system.agent_assignment_repository import (
 logger = LogManager.get_logger("app")
 
 
-class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmentRepository]):
+class AgentAssignmentService(
+    GlobalService[SystemAgentAssignment, AgentAssignmentRepository]
+):
     """
     系统智能体绑定服务 / System agent assignment service.
     """
@@ -83,14 +85,18 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
         if for_platform_feature_binding:
             if agent.owner_tenant_id is not None:
                 raise ValidationException(
-                    message=_("system_agent_assignment.error.agent_must_be_platform_global"),
+                    message=_(
+                        "system_agent_assignment.error.agent_must_be_platform_global"
+                    ),
                 )
             if agent.scope not in (
                 ResourceScopeEnum.GLOBAL_SHARED.value,
                 ResourceScopeEnum.ALL_TENANTS.value,
             ):
                 raise ValidationException(
-                    message=_("system_agent_assignment.error.agent_must_be_global_shared_scope"),
+                    message=_(
+                        "system_agent_assignment.error.agent_must_be_global_shared_scope"
+                    ),
                 )
             return
 
@@ -167,7 +173,11 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
         return await self.repo.get_by_feature_code(feature_code)
 
     async def set_tenant_override(
-        self, feature_code: str, tenant_id: int, agent_id: int | None, config: dict | None = None
+        self,
+        feature_code: str,
+        tenant_id: int,
+        agent_id: int | None,
+        config: dict | None = None,
     ) -> SystemAgentAssignment:
         """
         创建或更新企业覆盖绑定 / Create or update tenant override binding.
@@ -194,15 +204,17 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
             )
 
         try:
-            return await self.create({
-                "feature_code": feature_code,
-                "feature_name": global_default.feature_name,
-                "description": global_default.description,
-                "tenant_id": tenant_id,
-                "agent_id": agent_id,
-                "config": config,
-                "is_active": True,
-            })
+            return await self.create(
+                {
+                    "feature_code": feature_code,
+                    "feature_name": global_default.feature_name,
+                    "description": global_default.description,
+                    "tenant_id": tenant_id,
+                    "agent_id": agent_id,
+                    "config": config,
+                    "is_active": True,
+                }
+            )
         except IntegrityError:
             # 并发竞态：另一个请求已创建覆盖，回退后重试更新路径 / Concurrency: another request created override; retry update path
             await self.repo.db.rollback()

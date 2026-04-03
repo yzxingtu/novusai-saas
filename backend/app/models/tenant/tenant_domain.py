@@ -27,8 +27,13 @@ class TenantDomain(BaseModel):
     __tablename__ = "tenant_domains"
 
     __delete_deps__ = [
-        DeletionDep("DomainSslCertificate", "domain_id", DeletionStrategy.CASCADE_DELETE,
-                    label_field="id", i18n_key="domain_ssl_certificate"),
+        DeletionDep(
+            "DomainSslCertificate",
+            "domain_id",
+            DeletionStrategy.CASCADE_DELETE,
+            label_field="id",
+            i18n_key="domain_ssl_certificate",
+        ),
     ]
 
     # 允许前端筛选的字段 / Fields exposed for list filtering
@@ -45,8 +50,13 @@ class TenantDomain(BaseModel):
 
     # 允许前端排序的字段 / Sortable columns for UI
     __sortable__ = [
-        "id", "domain", "is_verified", "is_primary",
-        "ssl_status", "created_at", "updated_at",
+        "id",
+        "domain",
+        "is_verified",
+        "is_primary",
+        "ssl_status",
+        "created_at",
+        "updated_at",
     ]
 
     # 下拉选项配置 / Select dropdown config
@@ -154,6 +164,7 @@ class TenantDomain(BaseModel):
     def domain_type(self) -> str:
         """域名类型：default（平台默认）或 custom（自定义） / Domain type: default or custom."""
         from app.core.config import settings
+
         suffix = settings.TENANT_DOMAIN_SUFFIX.lstrip(".")
         if self.domain and self.domain.endswith(suffix):
             return DomainType.DEFAULT
@@ -173,6 +184,7 @@ class TenantDomain(BaseModel):
         """
         if self.tenant:
             from app.core.config import settings
+
             return f"{self.tenant.code}{settings.TENANT_DOMAIN_SUFFIX}"
         return None
 

@@ -20,9 +20,7 @@ class BatchRunService(TenantService[BatchRun, BatchRunRepository]):
     model = BatchRun
     repository_class = BatchRunRepository
 
-    async def get_agent_batch_run(
-        self, agent_id: int, run_id: int
-    ) -> BatchRun | None:
+    async def get_agent_batch_run(self, agent_id: int, run_id: int) -> BatchRun | None:
         """
         获取指定智能体的批量运行记录 / Get batch run for agent.
 
@@ -38,9 +36,7 @@ class BatchRunService(TenantService[BatchRun, BatchRunRepository]):
             return None
         return batch_run
 
-    async def cancel_batch_run(
-        self, agent_id: int, run_id: int
-    ) -> BatchRun:
+    async def cancel_batch_run(self, agent_id: int, run_id: int) -> BatchRun:
         """
         取消批量运行 / Cancel batch run.
 
@@ -79,8 +75,10 @@ class BatchRunService(TenantService[BatchRun, BatchRunRepository]):
         if batch_run.celery_task_id:
             try:
                 from app.celery_app import celery_app
+
                 celery_app.control.revoke(
-                    batch_run.celery_task_id, terminate=False,
+                    batch_run.celery_task_id,
+                    terminate=False,
                 )
                 logger.info(
                     "Celery task {} revoked for batch_run {}",

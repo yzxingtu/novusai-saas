@@ -7,8 +7,8 @@ Provides context engine abstractions and transient prompt pruning helpers.
 
 from app.ai.context.engine import (
     ContextAssembly,
-    ConversationContextEngine,
     ContextEngine,
+    ConversationContextEngine,
     get_context_engine,
 )
 from app.ai.context.pruning import PruneStats, TransientPruner

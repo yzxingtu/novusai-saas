@@ -24,11 +24,17 @@ PROGRESS_TTL = 3600
 
 # Image file types requiring Vision description (must be described when explicitly uploaded, not controlled by extract_images)
 # 需要 Vision 描述的图片文件类型（用户显式上传时必须描述，不受 extract_images 控制）
-_IMAGE_DOC_TYPES: frozenset[str] = frozenset({"image", "jpg", "jpeg", "png", "webp", "gif"})
+_IMAGE_DOC_TYPES: frozenset[str] = frozenset(
+    {"image", "jpg", "jpeg", "png", "webp", "gif"}
+)
 # Audio file types requiring AudioDescriber for RAG / 需要 AudioDescriber 转写的音频类型
-_AUDIO_DOC_TYPES: frozenset[str] = frozenset({"audio", "mp3", "wav", "m4a", "flac", "aac"})
+_AUDIO_DOC_TYPES: frozenset[str] = frozenset(
+    {"audio", "mp3", "wav", "m4a", "flac", "aac"}
+)
 # Video file types requiring VideoDescriber for RAG / 需要 VideoDescriber 描述的视频类型
-_VIDEO_DOC_TYPES: frozenset[str] = frozenset({"video", "mp4", "webm", "mov", "avi", "mkv"})
+_VIDEO_DOC_TYPES: frozenset[str] = frozenset(
+    {"video", "mp4", "webm", "mov", "avi", "mkv"}
+)
 
 
 async def _report_progress(
@@ -50,6 +56,7 @@ async def _report_progress(
     }
     try:
         from app.core.redis import cache_set
+
         key = PROGRESS_KEY_TEMPLATE.format(document_id=document_id)
         await cache_set(key, progress_data, ttl=PROGRESS_TTL)
     except Exception:
@@ -59,6 +66,7 @@ async def _report_progress(
     # WS 实时推送（Celery 同步环境通过 Redis Pub/Sub 转发）
     try:
         from app.core.sio_bridge import notify_admins_sync, notify_tenant_sync
+
         ws_payload = {
             "type": "ai.kb_doc_progress",
             "data": {
@@ -79,6 +87,7 @@ async def _clear_progress(document_id: int) -> None:
     """Clear Redis progress data / 清除 Redis 进度数据"""
     try:
         from app.core.redis import cache_delete
+
         key = PROGRESS_KEY_TEMPLATE.format(document_id=document_id)
         await cache_delete(key)
     except Exception:
@@ -109,6 +118,7 @@ async def _load_and_parse_document(db, doc, tenant_id, kb=None) -> list:
 
     if doc.file_type == DocumentTypeEnum.QA.value:
         import json
+
         qa_data = json.loads(doc.metadata_extra or "{}")
         qa_parser = QaPairParser()
         return await qa_parser.parse_qa(
@@ -132,22 +142,26 @@ async def _load_and_parse_document(db, doc, tenant_id, kb=None) -> list:
     vision_describer = None
     if _needs_vision:
         from app.ai.rag.vision_describer import VisionDescriber
+
         vision_describer = VisionDescriber(db, tenant_id)
 
     audio_describer = None
     if _needs_audio:
         from app.ai.rag.audio_describer import AudioDescriber
+
         audio_describer = AudioDescriber(db, tenant_id)
 
     video_describer = None
     if _needs_video:
         from app.ai.rag.video_describer import VideoDescriber
+
         video_describer = VideoDescriber(db, tenant_id)
 
     # Direct text input: content stored in metadata_extra, no attachment
     # 直接文本输入：content 存储在 metadata_extra 中，无 attachment
     if not doc.attachment_id and doc.metadata_extra:
         import io
+
         parser = get_parser(
             doc.file_type,
             vision_describer=vision_describer,
@@ -180,6 +194,7 @@ async def _load_and_parse_document(db, doc, tenant_id, kb=None) -> list:
     )
     if str(driver_name) == "local":
         from app.storage import LOCAL_STORAGE_ROOT
+
         root_path = str(LOCAL_STORAGE_ROOT)
     else:
         root_path = await config_service.get_platform_config(
@@ -192,6 +207,7 @@ async def _load_and_parse_document(db, doc, tenant_id, kb=None) -> list:
         "platform_storage_options", default={}
     )
     from app.storage.base import StorageConfig
+
     storage_config = StorageConfig(
         driver=str(driver_name),
         root_path=str(root_path),
@@ -228,6 +244,7 @@ async def get_document_progress(document_id: int) -> dict | None:
     优先读 Redis，如果无数据返回 None
     """
     from app.core.redis import cache_get
+
     key = PROGRESS_KEY_TEMPLATE.format(document_id=document_id)
     return await cache_get(key)
 
@@ -268,13 +285,16 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
         # Clean up DB connections left from previous event loop (required for Windows --pool=solo)
         # 清理上一次 event loop 残留的 DB 连接（Windows --pool=solo 必需）
         from app.core.database import async_engine
+
         await async_engine.dispose()
 
         # Ensure AI adapters are registered (Celery worker may not have loaded registrations from celery_app.py)
         # 确保 AI 适配器已注册（Celery worker 可能未加载 celery_app.py 中的注册）
         from app.ai.adapters import AdapterRegistry
+
         if not AdapterRegistry.list_adapters():
             from app.ai.adapters.openai_adapter import OpenAIAdapter
+
             AdapterRegistry.register("openai_compatible", OpenAIAdapter)
             logger.info("Registered AI adapters in task context")
 
@@ -312,7 +332,10 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
 
                 logger.info(
                     "Processing document {} (type={}, kb={}, resume={})",
-                    document_id, doc.file_type, kb.id, resume_stage or "full",
+                    document_id,
+                    doc.file_type,
+                    kb.id,
+                    resume_stage or "full",
                 )
 
                 # Reset error information / 重置错误信息
@@ -329,11 +352,15 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                 if not skip_parsing:
                     doc.status = DocumentStatusEnum.PARSING.value
                     await db.commit()
-                    await _report_progress(document_id, "parsing", 0, tenant_id=tenant_id, kb_id=kb.id)
+                    await _report_progress(
+                        document_id, "parsing", 0, tenant_id=tenant_id, kb_id=kb.id
+                    )
 
                     pages = await _load_and_parse_document(db, doc, tenant_id, kb=kb)
 
-                    await _report_progress(document_id, "parsing", 100, tenant_id=tenant_id, kb_id=kb.id)
+                    await _report_progress(
+                        document_id, "parsing", 100, tenant_id=tenant_id, kb_id=kb.id
+                    )
 
                     if not pages:
                         logger.warning("Document {} parsed with 0 pages", document_id)
@@ -342,12 +369,16 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                 if not skip_chunking:
                     doc.status = DocumentStatusEnum.CHUNKING.value
                     await db.commit()
-                    await _report_progress(document_id, "chunking", 0, tenant_id=tenant_id, kb_id=kb.id)
+                    await _report_progress(
+                        document_id, "chunking", 0, tenant_id=tenant_id, kb_id=kb.id
+                    )
 
                     # If parsing was skipped (resuming from chunking), re-parse is needed
                     # 如果跳过了解析（从 chunking 恢复），需要重新解析
                     if pages is None:
-                        pages = await _load_and_parse_document(db, doc, tenant_id, kb=kb)
+                        pages = await _load_and_parse_document(
+                            db, doc, tenant_id, kb=kb
+                        )
 
                     chunker = get_chunker(
                         strategy=kb.chunk_strategy,
@@ -355,7 +386,9 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                         chunk_overlap=kb.chunk_overlap,
                     )
                     chunk_data_list = chunker.chunk(pages or [])
-                    await _report_progress(document_id, "chunking", 100, tenant_id=tenant_id, kb_id=kb.id)
+                    await _report_progress(
+                        document_id, "chunking", 100, tenant_id=tenant_id, kb_id=kb.id
+                    )
 
                 # ===== 4. Embedding stage (supports checkpoint resume) / Embedding 阶段（支持断点续传） =====
                 doc.status = DocumentStatusEnum.EMBEDDING.value
@@ -378,7 +411,9 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                     if chunk_data_list is None:
                         # Re-parse + chunk (skip already completed embedding parts)
                         # 重新解析+分块（跳过 embedding 阶段已完成的部分）
-                        pages = await _load_and_parse_document(db, doc, tenant_id, kb=kb)
+                        pages = await _load_and_parse_document(
+                            db, doc, tenant_id, kb=kb
+                        )
 
                         chunker = get_chunker(
                             strategy=kb.chunk_strategy,
@@ -389,20 +424,19 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
 
                     # Query successfully written chunk count (for checkpoint resume)
                     # 查询已成功写入的分块数（用于断点续传）
-                    count_stmt = (
-                        select(func.count(DocumentChunk.id))
-                        .where(
-                            DocumentChunk.document_id == document_id,
-                            DocumentChunk.knowledge_base_id == kb.id,
-                            DocumentChunk.is_deleted.is_(False),
-                            DocumentChunk.embedding.isnot(None),
-                        )
+                    count_stmt = select(func.count(DocumentChunk.id)).where(
+                        DocumentChunk.document_id == document_id,
+                        DocumentChunk.knowledge_base_id == kb.id,
+                        DocumentChunk.is_deleted.is_(False),
+                        DocumentChunk.embedding.isnot(None),
                     )
                     count_result = await db.execute(count_stmt)
                     existing_chunk_count = count_result.scalar() or 0
                     logger.info(
                         "Resuming embedding from chunk {}/{} for doc {}",
-                        existing_chunk_count, len(chunk_data_list), document_id,
+                        existing_chunk_count,
+                        len(chunk_data_list),
+                        document_id,
                     )
 
                 if chunk_data_list is None:
@@ -417,23 +451,28 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                 # 从供应商配置读取 embedding_batch_size，默认 10（DashScope 限制）
                 embedding_batch_size = 10
                 if provider.config and isinstance(provider.config, dict):
-                    embedding_batch_size = provider.config.get("embedding_batch_size", 10)
+                    embedding_batch_size = provider.config.get(
+                        "embedding_batch_size", 10
+                    )
                 batch_size = min(embedding_batch_size, len(chunks_to_embed) or 1)
                 all_embeddings: list[list[float]] = []
                 total_token_count = 0
                 processed_so_far = existing_chunk_count
 
                 await _report_progress(
-                    document_id, "embedding",
+                    document_id,
+                    "embedding",
                     int(processed_so_far / max(total_chunks, 1) * 100),
-                    total_chunks, processed_so_far,
-                    tenant_id=tenant_id, kb_id=kb.id,
+                    total_chunks,
+                    processed_so_far,
+                    tenant_id=tenant_id,
+                    kb_id=kb.id,
                 )
 
                 from app.ai.rag.text_cleaner import clean_for_embedding
 
                 for i in range(0, len(chunks_to_embed), batch_size):
-                    batch = chunks_to_embed[i:i + batch_size]
+                    batch = chunks_to_embed[i : i + batch_size]
                     texts = [clean_for_embedding(c.content) for c in batch]
 
                     response = await gateway.embedding(
@@ -449,15 +488,20 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
 
                     # Report progress / 上报进度
                     await _report_progress(
-                        document_id, "embedding",
+                        document_id,
+                        "embedding",
                         int(processed_so_far / max(total_chunks, 1) * 100),
-                        total_chunks, processed_so_far,
-                        tenant_id=tenant_id, kb_id=kb.id,
+                        total_chunks,
+                        processed_so_far,
+                        tenant_id=tenant_id,
+                        kb_id=kb.id,
                     )
 
                     logger.info(
                         "Embedding {}/{} for doc {}",
-                        processed_so_far, total_chunks, document_id,
+                        processed_so_far,
+                        total_chunks,
+                        document_id,
                     )
 
                 # ===== 5. Batch write document_chunks / 批量写入 document_chunks =====
@@ -470,26 +514,30 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                 # Only write newly generated chunks / 只写入新生成的分块
                 write_batch_size = 500
                 for i in range(0, len(chunks_to_embed), write_batch_size):
-                    batch = chunks_to_embed[i:i + write_batch_size]
+                    batch = chunks_to_embed[i : i + write_batch_size]
                     batch_data = []
                     for idx, cd in enumerate(batch):
                         embedding_vec = (
-                            all_embeddings[idx + i]  # all_embeddings indexed from 0 corresponding to chunks_to_embed  # 补充说明 / note
+                            all_embeddings[
+                                idx + i
+                            ]  # all_embeddings indexed from 0 corresponding to chunks_to_embed  # 补充说明 / note
                             if (idx + i) < len(all_embeddings)
                             else None
                         )
-                        batch_data.append({
-                            "document_id": document_id,
-                            "knowledge_base_id": kb.id,
-                            "chunk_index": cd.chunk_index,
-                            "content": cd.content,
-                            "content_hash": cd.content_hash,
-                            "char_count": cd.char_count,
-                            "token_count": 0,
-                            "embedding": embedding_vec,
-                            "metadata_": cd.metadata,
-                            "tenant_id": tenant_id,
-                        })
+                        batch_data.append(
+                            {
+                                "document_id": document_id,
+                                "knowledge_base_id": kb.id,
+                                "chunk_index": cd.chunk_index,
+                                "content": cd.content,
+                                "content_hash": cd.content_hash,
+                                "char_count": cd.char_count,
+                                "token_count": 0,
+                                "embedding": embedding_vec,
+                                "metadata_": cd.metadata,
+                                "tenant_id": tenant_id,
+                            }
+                        )
                     await chunk_repo.create_many(batch_data)
 
                 # ===== 6. Update document statistics / 更新文档统计 =====
@@ -513,6 +561,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                 # 清除该知识库的检索缓存（避免返回过时结果）
                 try:
                     from app.ai.rag.retriever import HybridRetriever
+
                     await HybridRetriever.invalidate_kb_cache(kb.id)
                 except Exception:
                     pass
@@ -533,16 +582,20 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                     }
                     if tenant_id is not None:
                         from app.core.sio_bridge import notify_tenant_sync
+
                         notify_tenant_sync(tenant_id, notification)
                     else:
                         from app.core.sio_bridge import notify_admins_sync
+
                         notify_admins_sync(notification)
                 except Exception:
                     pass
 
                 logger.info(
                     "Document {} processed: {} chunks, {} tokens",
-                    document_id, total_chunks, total_token_count,
+                    document_id,
+                    total_chunks,
+                    total_token_count,
                 )
 
                 return {
@@ -555,7 +608,8 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
             except Exception as exc:
                 logger.error(
                     "Document {} processing failed: {}",
-                    document_id, str(exc),
+                    document_id,
+                    str(exc),
                     exc_info=True,
                 )
                 try:
@@ -575,8 +629,11 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
 
                     # Report error progress / 上报错误进度
                     await _report_progress(
-                        document_id, "error", 0,
-                        tenant_id=tenant_id, kb_id=kb.id if kb else None,
+                        document_id,
+                        "error",
+                        0,
+                        tenant_id=tenant_id,
+                        kb_id=kb.id if kb else None,
                     )
 
                     # Socket.IO indexing failed notification / Socket.IO 索引失败通知
@@ -594,9 +651,11 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                         }
                         if tenant_id is not None:
                             from app.core.sio_bridge import notify_tenant_sync
+
                             notify_tenant_sync(tenant_id, fail_notification)
                         else:
                             from app.core.sio_bridge import notify_admins_sync
+
                             notify_admins_sync(fail_notification)
                     except Exception:
                         pass

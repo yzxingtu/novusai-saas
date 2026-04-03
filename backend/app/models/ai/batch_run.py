@@ -157,7 +157,9 @@ class BatchRun(TenantModel):
     )
 
     def __repr__(self) -> str:
-        return f"<BatchRun(id={self.id}, agent_id={self.agent_id}, status={self.status})>"
+        return (
+            f"<BatchRun(id={self.id}, agent_id={self.agent_id}, status={self.status})>"
+        )
 
 
 if TYPE_CHECKING:

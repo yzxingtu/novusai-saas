@@ -24,6 +24,7 @@ from app.services.ai.skill_registry_service import SkillRegistryService
 )
 class AdminSkillRegistryController(GlobalController):
     """Skill catalog API lives under plugin marketplace (same RBAC resource)."""
+
     prefix = "/plugins/skill-registry"
     tags = ["Skill Registry (Platform)"]
 

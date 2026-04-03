@@ -43,16 +43,12 @@ class ContextAssemblerState:
             "requested_knowledge_base_ids": list(
                 self.requested_knowledge_base_ids or []
             ),
-            "dropped_knowledge_base_ids": list(
-                self.dropped_knowledge_base_ids or []
-            ),
+            "dropped_knowledge_base_ids": list(self.dropped_knowledge_base_ids or []),
             "rag_sources": list(self.rag_sources or []),
             "rag_source_kinds": list(self.rag_source_kinds or []),
             "memory_recalled": bool(self.memory_recalled),
             "memory_recall_slice": dict(self.memory_recall_slice or {}),
-            "runtime_model_capabilities": dict(
-                self.runtime_model_capabilities or {}
-            ),
+            "runtime_model_capabilities": dict(self.runtime_model_capabilities or {}),
         }
 
 
@@ -114,12 +110,8 @@ class ContextAssembler:
             return CapabilityFragment()
 
         tools = list(getattr(skill_result, "tools", []) or [])
-        tool_consent_modes = dict(
-            getattr(skill_result, "tool_consent_modes", {}) or {}
-        )
-        descriptors = list(
-            getattr(skill_result, "capability_descriptors", []) or []
-        )
+        tool_consent_modes = dict(getattr(skill_result, "tool_consent_modes", {}) or {})
+        descriptors = list(getattr(skill_result, "capability_descriptors", []) or [])
         if not descriptors:
             descriptors = ContextAssembler._build_skill_descriptors_from_tools(tools)
 
@@ -246,9 +238,7 @@ class ContextAssembler:
             "knowledge_base_count": len(kb_ids),
             "requested_knowledge_base_ids": requested_kb_ids,
             "dropped_knowledge_base_ids": dropped_kb_ids,
-            "binding_restriction_applied": bool(
-                requested_kb_ids and dropped_kb_ids
-            ),
+            "binding_restriction_applied": bool(requested_kb_ids and dropped_kb_ids),
             "rag_source_count": len(rag_sources),
             "rag_source_kinds": rag_source_kinds,
         }

@@ -2,7 +2,6 @@
 批量运行 Repository / Batch Run Repository
 """
 
-
 from sqlalchemy import and_, select, update
 
 from app.core.base_repository import TenantRepository
@@ -30,9 +29,9 @@ class BatchRunRepository(TenantRepository[BatchRun]):
         return await super().create(self._sanitize_create_data(data))
 
     async def create_many(self, data_list: list[dict]) -> list[BatchRun]:
-        return await super().create_many([
-            self._sanitize_create_data(data) for data in data_list
-        ])
+        return await super().create_many(
+            [self._sanitize_create_data(data) for data in data_list]
+        )
 
     async def get_by_agent(
         self,
@@ -115,10 +114,12 @@ class BatchRunRepository(TenantRepository[BatchRun]):
                 and_(
                     BatchRun.tenant_id == self.tenant_id,
                     BatchRun.agent_id == agent_id,
-                    BatchRun.status.in_([
-                        BatchRunStatusEnum.PENDING.value,
-                        BatchRunStatusEnum.RUNNING.value,
-                    ]),
+                    BatchRun.status.in_(
+                        [
+                            BatchRunStatusEnum.PENDING.value,
+                            BatchRunStatusEnum.RUNNING.value,
+                        ]
+                    ),
                     BatchRun.is_deleted.is_(False),
                 )
             )

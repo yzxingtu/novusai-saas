@@ -22,8 +22,6 @@ from dataclasses import dataclass
 
 from app.ai.tools.semantic_defaults import (
     FAMILY_EXPLICIT_REQUEST_HINTS,
-    FAMILY_HINT_TAGS,
-    tool_family_from_name,
     tool_semantic_family,
     tool_semantic_tags,
 )
@@ -44,10 +42,13 @@ MAX_TOOLS_WITHOUT_OPTIMIZATION = 6
 MAX_TOOLS_AFTER_OPTIMIZATION = 8
 
 # Infrastructure tool whitelist: always kept, not subject to optimization / 基础设施工具白名单
-PROTECTED_TOOL_NAMES: frozenset[str] = frozenset({
-    "get_page_context",
-    "invoke_page_operation",
-})
+PROTECTED_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        "get_page_context",
+        "invoke_page_operation",
+    }
+)
+
 
 def _tool_semantic_family(tool: ToolDefinition) -> str:
     return tool_semantic_family(tool)
@@ -108,9 +109,7 @@ def _is_protected_tool(
         return False
     if tool.name in PROTECTED_TOOL_NAMES:
         return True
-    if family in {"page_ops", "data_ops"}:
-        return True
-    return False
+    return family in {"page_ops", "data_ops"}
 
 
 def _is_explicitly_requested_tool(
@@ -137,30 +136,156 @@ def _is_explicitly_requested_tool(
     ]
     return any(tag in query_text for tag in semantic_phrases)
 
+
 # Chinese stopwords (high-frequency meaningless words) / 中文停用词
-_STOPWORDS_ZH = frozenset({
-    "的", "了", "在", "是", "我", "有", "和", "就", "不", "人",
-    "都", "一", "个", "上", "也", "很", "到", "说", "要", "去",
-    "你", "会", "着", "没有", "看", "好", "自己", "这", "他", "她",
-    "它", "们", "那", "些", "什么", "怎么", "哪", "为什么", "能",
-    "请", "帮", "帮我", "一下", "吗", "呢", "吧", "啊", "嗯",
-    "可以", "需要", "想", "能不能", "麻烦",
-})
+_STOPWORDS_ZH = frozenset(
+    {
+        "的",
+        "了",
+        "在",
+        "是",
+        "我",
+        "有",
+        "和",
+        "就",
+        "不",
+        "人",
+        "都",
+        "一",
+        "个",
+        "上",
+        "也",
+        "很",
+        "到",
+        "说",
+        "要",
+        "去",
+        "你",
+        "会",
+        "着",
+        "没有",
+        "看",
+        "好",
+        "自己",
+        "这",
+        "他",
+        "她",
+        "它",
+        "们",
+        "那",
+        "些",
+        "什么",
+        "怎么",
+        "哪",
+        "为什么",
+        "能",
+        "请",
+        "帮",
+        "帮我",
+        "一下",
+        "吗",
+        "呢",
+        "吧",
+        "啊",
+        "嗯",
+        "可以",
+        "需要",
+        "想",
+        "能不能",
+        "麻烦",
+    }
+)
 
 # English stopwords / 英文停用词
-_STOPWORDS_EN = frozenset({
-    "the", "a", "an", "is", "are", "was", "were", "be", "been",
-    "being", "have", "has", "had", "do", "does", "did", "will",
-    "would", "could", "should", "may", "might", "can", "shall",
-    "i", "you", "he", "she", "it", "we", "they", "me", "him",
-    "her", "us", "them", "my", "your", "his", "its", "our",
-    "their", "this", "that", "these", "those", "what", "which",
-    "who", "whom", "how", "why", "where", "when", "and", "or",
-    "but", "if", "then", "so", "than", "too", "very", "just",
-    "about", "for", "with", "from", "into", "to", "of", "in",
-    "on", "at", "by", "not", "no", "all", "some", "any", "each",
-    "please", "help", "want", "need",
-})
+_STOPWORDS_EN = frozenset(
+    {
+        "the",
+        "a",
+        "an",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "have",
+        "has",
+        "had",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "could",
+        "should",
+        "may",
+        "might",
+        "can",
+        "shall",
+        "i",
+        "you",
+        "he",
+        "she",
+        "it",
+        "we",
+        "they",
+        "me",
+        "him",
+        "her",
+        "us",
+        "them",
+        "my",
+        "your",
+        "his",
+        "its",
+        "our",
+        "their",
+        "this",
+        "that",
+        "these",
+        "those",
+        "what",
+        "which",
+        "who",
+        "whom",
+        "how",
+        "why",
+        "where",
+        "when",
+        "and",
+        "or",
+        "but",
+        "if",
+        "then",
+        "so",
+        "than",
+        "too",
+        "very",
+        "just",
+        "about",
+        "for",
+        "with",
+        "from",
+        "into",
+        "to",
+        "of",
+        "in",
+        "on",
+        "at",
+        "by",
+        "not",
+        "no",
+        "all",
+        "some",
+        "any",
+        "each",
+        "please",
+        "help",
+        "want",
+        "need",
+    }
+)
 
 _STOPWORDS = _STOPWORDS_ZH | _STOPWORDS_EN
 
@@ -192,7 +317,7 @@ def _tokenize(text: str) -> set[str]:
             if char not in _STOPWORDS:
                 tokens.add(char)
             if i < len(chars) - 1:
-                bigram = chars[i:i + 2]
+                bigram = chars[i : i + 2]
                 if bigram not in _STOPWORDS:
                     tokens.add(bigram)
 
@@ -230,7 +355,9 @@ def _score_tool(
     family_hints = FAMILY_EXPLICIT_REQUEST_HINTS.get(tool_family, ())
 
     # 1. Keyword overlap between tool name/description and query / 工具名描述与查询的关键词重叠
-    tool_text = " ".join([tool.name, tool.description or "", *_tool_semantic_tags(tool)])
+    tool_text = " ".join(
+        [tool.name, tool.description or "", *_tool_semantic_tags(tool)]
+    )
     tool_tokens = _tokenize(tool_text)
     overlap = query_tokens & tool_tokens
     if overlap:
@@ -251,13 +378,12 @@ def _score_tool(
 
     # 3. Data tool boost / 数据类工具加权
     if (
-        (tool_family == "data_ops" or tool.tool_type in ("text_to_sql", "crud"))
-        and _query_mentions_family(
-            query_text,
-            query_tokens,
-            semantic_query_tokens,
-            family_hints,
-        )
+        tool_family == "data_ops" or tool.tool_type in ("text_to_sql", "crud")
+    ) and _query_mentions_family(
+        query_text,
+        query_tokens,
+        semantic_query_tokens,
+        family_hints,
     ):
         score += 5.0
 
@@ -410,9 +536,7 @@ def optimize_tools(
                 query_tokens,
                 _family_query_tokens(tools, "weather"),
                 FAMILY_EXPLICIT_REQUEST_HINTS.get("weather", ()),
-            ) and any(
-                _tool_semantic_family(tool) == "weather" for tool in tools
-            )
+            ) and any(_tool_semantic_family(tool) == "weather" for tool in tools)
             scored = []
             for idx, tool in enumerate(optimizable):
                 score = _score_tool(
@@ -429,7 +553,9 @@ def optimize_tools(
             return OptimizeResult(
                 tools=protected + explicitly_requested + sorted_optimizable,
                 total=total,
-                selected=len(protected) + len(explicitly_requested) + len(sorted_optimizable),
+                selected=len(protected)
+                + len(explicitly_requested)
+                + len(sorted_optimizable),
                 skipped=False,
             )
         return OptimizeResult(
@@ -453,9 +579,7 @@ def optimize_tools(
         query_tokens,
         _family_query_tokens(tools, "weather"),
         FAMILY_EXPLICIT_REQUEST_HINTS.get("weather", ()),
-    ) and any(
-        _tool_semantic_family(tool) == "weather" for tool in tools
-    )
+    ) and any(_tool_semantic_family(tool) == "weather" for tool in tools)
     scored: list[tuple[float, int, ToolDefinition]] = []
     for idx, tool in enumerate(optimizable):
         s = _score_tool(

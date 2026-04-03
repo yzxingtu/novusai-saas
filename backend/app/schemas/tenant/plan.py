@@ -18,6 +18,7 @@ from app.enums import BillingCycle
 
 # ==================== 配额结构 / Quota Structure ====================
 
+
 class QuotaSchema(BaseSchema):
     """配额结构定义 / Quota structure definition"""
 
@@ -41,7 +42,9 @@ class FeaturesSchema(BaseSchema):
     advanced_analytics: bool | None = Field(None, description="是否启用高级分析")
     white_label: bool | None = Field(None, description="是否支持白标")
     priority_support: bool | None = Field(None, description="是否优先支持")
-    storage_billing_enabled: bool | None = Field(None, description="是否启用对象存储账单对账收费")
+    storage_billing_enabled: bool | None = Field(
+        None, description="是否启用对象存储账单对账收费"
+    )
 
     def to_dict(self) -> dict[str, Any]:
         """转换为字典，仅包含非空值 / Convert to dict, non-null values only"""
@@ -49,6 +52,7 @@ class FeaturesSchema(BaseSchema):
 
 
 # ==================== 响应 Schema / Response Schemas ====================
+
 
 class TenantPlanResponse(BaseSchema):
     """套餐响应 / Plan response"""
@@ -137,9 +141,7 @@ class TenantPlanDetailResponse(TenantPlanResponse):
             plan: TenantPlan ORM 对象 / TenantPlan ORM instance
             translate_fn: 可选的权限名称翻译函数 / Optional permission name translator
         """
-        active_permissions = [
-            p for p in plan.permissions if p.is_enabled
-        ]
+        active_permissions = [p for p in plan.permissions if p.is_enabled]
         return cls(
             id=plan.id,
             code=plan.code,
@@ -170,6 +172,7 @@ class TenantPlanDetailResponse(TenantPlanResponse):
 
 # ==================== 请求 Schema ====================
 
+
 class TenantPlanCreateRequest(BaseSchema):
     """创建套餐请求 / Create plan request"""
 
@@ -177,8 +180,7 @@ class TenantPlanCreateRequest(BaseSchema):
     description: str | None = Field(None, max_length=500, description="套餐描述")
     price: Decimal | None = Field(None, ge=0, description="价格")
     billing_cycle: str = Field(
-        default=BillingCycle.MONTHLY.value,
-        description="计费周期"
+        default=BillingCycle.MONTHLY.value, description="计费周期"
     )
     is_active: bool = Field(True, description="是否启用")
     sort_order: int = Field(0, ge=0, description="排序顺序")
@@ -219,8 +221,7 @@ class TenantPlanPermissionsRequest(BaseSchema):
     """设置套餐权限请求 / Set plan permissions request"""
 
     permission_ids: list[int] = Field(
-        default_factory=list,
-        description="权限ID列表（仅支持菜单类型权限）"
+        default_factory=list, description="权限ID列表（仅支持菜单类型权限）"
     )
 
 

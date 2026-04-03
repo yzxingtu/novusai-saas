@@ -155,7 +155,9 @@ class SessionMemoryService:
         )
 
     @staticmethod
-    def _merge_list(original: list[str], incoming: list[str], limit: int = 20) -> list[str]:
+    def _merge_list(
+        original: list[str], incoming: list[str], limit: int = 20
+    ) -> list[str]:
         """
         合并字符串列表，去重并截断 / Merge string lists, dedup and truncate.
         """
@@ -184,7 +186,7 @@ class SessionMemoryService:
         """Delete Redis keys in bounded batches / 按批次删除 Redis key，避免单次参数过大。"""
         total_deleted = 0
         for start in range(0, len(keys), _REDIS_DELETE_BATCH_SIZE):
-            chunk = keys[start:start + _REDIS_DELETE_BATCH_SIZE]
+            chunk = keys[start : start + _REDIS_DELETE_BATCH_SIZE]
             if chunk:
                 total_deleted += await redis.delete(*chunk)
         return total_deleted
@@ -322,13 +324,17 @@ class SessionMemoryService:
                     with suppress(Exception):
                         await pipe.reset()
                     latest_raw = await redis.get(key)
-                    latest = json.loads(latest_raw) if latest_raw else self._empty_state(
-                        tenant_id=self.tenant_id,
-                        channel=channel,
-                        source=source,
-                        agent_id=agent_id,
-                        user_id=user_id,
-                        conversation_id=conversation_id,
+                    latest = (
+                        json.loads(latest_raw)
+                        if latest_raw
+                        else self._empty_state(
+                            tenant_id=self.tenant_id,
+                            channel=channel,
+                            source=source,
+                            agent_id=agent_id,
+                            user_id=user_id,
+                            conversation_id=conversation_id,
+                        )
                     )
                     logger.warning(
                         "Session memory CAS retry required: tenant={} agent={} user={} conversation={}",
@@ -392,7 +398,8 @@ class SessionMemoryService:
         return final_state
 
     async def get_conversation_memory_state(
-        self, conversation_id: int,
+        self,
+        conversation_id: int,
     ) -> dict[str, Any]:
         """
         读取会话下全部记忆状态（跨渠道/来源）/ Read all memory state for a conversation (across all channels/sources).
@@ -431,15 +438,23 @@ class SessionMemoryService:
                     state = json.loads(raw)
                     if not isinstance(state, dict):
                         continue
-                    for field in ("preferences", "constraints", "task_states", "verified_facts"):
+                    for field in (
+                        "preferences",
+                        "constraints",
+                        "task_states",
+                        "verified_facts",
+                    ):
                         merged[field] = self._merge_list(
-                            merged[field], state.get(field, []),
+                            merged[field],
+                            state.get(field, []),
                         )
                     merged["version"] = max(
-                        merged["version"], int(state.get("version", 0)),
+                        merged["version"],
+                        int(state.get("version", 0)),
                     )
                     merged["updated_at"] = max(
-                        merged["updated_at"], int(state.get("updated_at", 0)),
+                        merged["updated_at"],
+                        int(state.get("updated_at", 0)),
                     )
                 except (json.JSONDecodeError, ValueError):
                     logger.warning("Invalid session memory payload, skip: key={}", key)

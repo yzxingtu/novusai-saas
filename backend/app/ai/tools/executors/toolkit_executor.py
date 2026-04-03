@@ -59,47 +59,85 @@ _CACHE_MAX_SIZE = 128
 
 # permissive: only block the most dangerous modules (suitable for trusted environments)
 # permissive: 仅禁止最危险的模块（适合可信环境）
-_BLOCKED_MODULES_PERMISSIVE: frozenset[str] = frozenset({
-    "os", "subprocess", "ctypes",
-    "builtins", "__builtin__",
-})
+_BLOCKED_MODULES_PERMISSIVE: frozenset[str] = frozenset(
+    {
+        "os",
+        "subprocess",
+        "ctypes",
+        "builtins",
+        "__builtin__",
+    }
+)
 
 # normal (default): block system/process/file/deserialization modules, allow network libs
 # normal (默认): 禁止系统/进程/文件/反序列化模块，允许网络库
-_BLOCKED_MODULES_NORMAL: frozenset[str] = frozenset({
-    # Process / OS / 进程 / OS
-    "os", "subprocess", "shutil", "signal",
-    "multiprocessing", "threading",
-    # System internals / 系统内部
-    "sys", "ctypes", "importlib",
-    # Deserialization attacks / 反序列化攻击
-    "pickle", "marshal",
-    # Database / 数据库
-    "sqlite3",
-    # Raw network / 原始网络
-    "socket",
-    # Filesystem / 文件系统
-    "pathlib", "io", "tempfile", "glob", "fnmatch",
-    # Code generation / 代码生成
-    "code", "codeop", "compileall", "py_compile",
-    # Miscellaneous / 杂项
-    "webbrowser", "antigravity",
-    "builtins", "__builtin__",
-})
+_BLOCKED_MODULES_NORMAL: frozenset[str] = frozenset(
+    {
+        # Process / OS / 进程 / OS
+        "os",
+        "subprocess",
+        "shutil",
+        "signal",
+        "multiprocessing",
+        "threading",
+        # System internals / 系统内部
+        "sys",
+        "ctypes",
+        "importlib",
+        # Deserialization attacks / 反序列化攻击
+        "pickle",
+        "marshal",
+        # Database / 数据库
+        "sqlite3",
+        # Raw network / 原始网络
+        "socket",
+        # Filesystem / 文件系统
+        "pathlib",
+        "io",
+        "tempfile",
+        "glob",
+        "fnmatch",
+        # Code generation / 代码生成
+        "code",
+        "codeop",
+        "compileall",
+        "py_compile",
+        # Miscellaneous / 杂项
+        "webbrowser",
+        "antigravity",
+        "builtins",
+        "__builtin__",
+    }
+)
 
 # strict: only allow safe computation/data processing modules
 # strict: 仅允许安全的计算/数据处理模块
-_BLOCKED_MODULES_STRICT: frozenset[str] = _BLOCKED_MODULES_NORMAL | frozenset({
-    # Network / 网络
-    "requests", "httpx", "urllib", "urllib3", "aiohttp",
-    "http", "xmlrpc", "ftplib", "smtplib", "poplib", "imaplib",
-    # External processes / 外部进程
-    "asyncio",
-    # Serialization / 序列化
-    "shelve", "dbm",
-    # Debugging / 调试
-    "pdb", "traceback", "dis", "inspect",
-})
+_BLOCKED_MODULES_STRICT: frozenset[str] = _BLOCKED_MODULES_NORMAL | frozenset(
+    {
+        # Network / 网络
+        "requests",
+        "httpx",
+        "urllib",
+        "urllib3",
+        "aiohttp",
+        "http",
+        "xmlrpc",
+        "ftplib",
+        "smtplib",
+        "poplib",
+        "imaplib",
+        # External processes / 外部进程
+        "asyncio",
+        # Serialization / 序列化
+        "shelve",
+        "dbm",
+        # Debugging / 调试
+        "pdb",
+        "traceback",
+        "dis",
+        "inspect",
+    }
+)
 
 _SECURITY_LEVEL_MAP: dict[str, frozenset[str]] = {
     "strict": _BLOCKED_MODULES_STRICT,
@@ -108,14 +146,22 @@ _SECURITY_LEVEL_MAP: dict[str, frozenset[str]] = {
 }
 
 _BLOCKED_MODULE_PREFIXES: tuple[str, ...] = (
-    "app.",       # Application internal modules / 应用内部模块
-    "config.",    # Configuration modules / 配置模块
+    "app.",  # Application internal modules / 应用内部模块
+    "config.",  # Configuration modules / 配置模块
 )
 
-_BLOCKED_BUILTINS: frozenset[str] = frozenset({
-    "eval", "exec", "compile", "__import__",
-    "open", "breakpoint", "exit", "quit",
-})
+_BLOCKED_BUILTINS: frozenset[str] = frozenset(
+    {
+        "eval",
+        "exec",
+        "compile",
+        "__import__",
+        "open",
+        "breakpoint",
+        "exit",
+        "quit",
+    }
+)
 
 
 def get_blocked_modules(security_level: str | None = None) -> frozenset[str]:
@@ -184,13 +230,15 @@ class ToolkitExecutor(BaseToolExecutor):
             # 0. Security scan (untrusted toolkits) / 安全扫描（非信任工具包）
             if not trusted:
                 violations = _scan_toolkit_security(
-                    toolkit_content, self._security_level,
+                    toolkit_content,
+                    self._security_level,
                 )
                 if violations:
                     detail = "; ".join(violations[:5])
                     logger.warning(
                         "Toolkit security violation in {}: {}",
-                        definition.name, detail,
+                        definition.name,
+                        detail,
                     )
                     return ToolResult(
                         tool_call_id=tool_call_id,
@@ -202,11 +250,17 @@ class ToolkitExecutor(BaseToolExecutor):
             # Choose execution mode based on sandbox mode / 根据沙箱模式选择执行方式
             if self._sandbox_mode == "subprocess":
                 output = await self._execute_in_subprocess(
-                    toolkit_content, method_name, arguments, valves_config,
+                    toolkit_content,
+                    method_name,
+                    arguments,
+                    valves_config,
                 )
             else:
                 output = await self._execute_inprocess(
-                    toolkit_content, method_name, arguments, valves_config,
+                    toolkit_content,
+                    method_name,
+                    arguments,
+                    valves_config,
                 )
 
             # Truncate / 截断
@@ -237,7 +291,9 @@ class ToolkitExecutor(BaseToolExecutor):
             duration_ms = int((time.perf_counter() - start) * 1000)
             logger.warning(
                 "Toolkit execution timeout: {}.{} ({}s)",
-                definition.name, method_name, self._timeout,
+                definition.name,
+                method_name,
+                self._timeout,
             )
             result = ToolResult(
                 tool_call_id=tool_call_id,
@@ -390,17 +446,21 @@ class ToolkitExecutor(BaseToolExecutor):
         source_path.write_text(toolkit_content, encoding="utf-8")
 
         # Build stdin arguments / 构建 stdin 参数
-        stdin_data = json.dumps({
-            "source_path": str(source_path),
-            "method": method_name,
-            "args": arguments,
-            "valves_config": valves_config,
-            "memory_limit_mb": self._memory_limit_mb,
-        }, ensure_ascii=False)
+        stdin_data = json.dumps(
+            {
+                "source_path": str(source_path),
+                "method": method_name,
+                "args": arguments,
+                "valves_config": valves_config,
+                "memory_limit_mb": self._memory_limit_mb,
+            },
+            ensure_ascii=False,
+        )
 
         # Start child process / 启动子进程
         proc = await asyncio.create_subprocess_exec(
-            sys.executable, _SANDBOX_RUNNER_PATH,
+            sys.executable,
+            _SANDBOX_RUNNER_PATH,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -430,9 +490,7 @@ class ToolkitExecutor(BaseToolExecutor):
         try:
             result = json.loads(stdout.decode("utf-8"))
         except json.JSONDecodeError as exc:
-            raise RuntimeError(
-                f"Invalid sandbox output: {exc}"
-            ) from exc
+            raise RuntimeError(f"Invalid sandbox output: {exc}") from exc
 
         if not result.get("success"):
             raise RuntimeError(result.get("error", "Unknown sandbox error"))
@@ -570,16 +628,12 @@ def _check_module(
     """Check if module name is in the blacklist / 检查模块名是否在黑名单中"""
     top_level = module_name.split(".")[0]
     if top_level in blocked_modules:
-        violations.append(
-            f"Blocked import '{module_name}' at line {lineno}"
-        )
+        violations.append(f"Blocked import '{module_name}' at line {lineno}")
         return
 
     for prefix in _BLOCKED_MODULE_PREFIXES:
         if module_name.startswith(prefix):
-            violations.append(
-                f"Blocked import '{module_name}' at line {lineno}"
-            )
+            violations.append(f"Blocked import '{module_name}' at line {lineno}")
             return
 
 

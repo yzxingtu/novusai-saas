@@ -144,7 +144,8 @@ class DocumentChunk(TenantModel):
 
     __table_args__ = (
         UniqueConstraint(
-            "document_id", "chunk_index",
+            "document_id",
+            "chunk_index",
             name="uq_doc_chunk_index",
         ),
         Index("ix_chunk_kb", "knowledge_base_id"),

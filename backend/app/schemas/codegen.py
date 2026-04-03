@@ -126,7 +126,9 @@ class CodegenConfigCreate(BaseCreateSchema):
     name: str = Field(..., min_length=1, max_length=100, description="配置名称")
     resource: str = Field(..., min_length=1, max_length=100, description="资源名")
     module: str = Field(..., min_length=1, max_length=50, description="模块")
-    display_name: str = Field(..., min_length=1, max_length=100, description="中文显示名")
+    display_name: str = Field(
+        ..., min_length=1, max_length=100, description="中文显示名"
+    )
     display_name_en: str = Field(
         ..., min_length=1, max_length=100, description="英文显示名"
     )
@@ -145,7 +147,9 @@ class CodegenConfigUpdate(BaseUpdateSchema):
     """更新代码生成配置请求 / Update codegen config request."""
 
     name: str | None = Field(None, min_length=1, max_length=100, description="配置名称")
-    resource: str | None = Field(None, min_length=1, max_length=100, description="资源名")
+    resource: str | None = Field(
+        None, min_length=1, max_length=100, description="资源名"
+    )
     module: str | None = Field(None, min_length=1, max_length=50, description="模块")
     display_name: str | None = Field(
         None, min_length=1, max_length=100, description="中文显示名"
@@ -157,7 +161,9 @@ class CodegenConfigUpdate(BaseUpdateSchema):
 
     @field_validator("config_json")
     @classmethod
-    def validate_config_json_size(cls, v: dict[str, Any] | None) -> dict[str, Any] | None:
+    def validate_config_json_size(
+        cls, v: dict[str, Any] | None
+    ) -> dict[str, Any] | None:
         if v is None:
             return None
         return _validate_config_json_size(v)
@@ -190,7 +196,9 @@ class CodegenWorkbenchItemSchema(BaseModel):
     name: str = Field(..., description="配置名称 / Config name")
     resource: str = Field(..., description="资源名 / Resource")
     status: str = Field(..., description="状态 / Status")
-    manifest_present: bool = Field(False, description="是否存在 manifest / Manifest exists")
+    manifest_present: bool = Field(
+        False, description="是否存在 manifest / Manifest exists"
+    )
     delete_allowed: bool = Field(True, description="是否允许删除 / Delete allowed")
     delete_reason_message: str | None = Field(
         None,
@@ -217,7 +225,9 @@ class CodegenWorkbenchSectionsSchema(BaseModel):
 class CodegenWorkbenchSummarySchema(BaseModel):
     """代码生成工作台摘要 / Codegen workbench summary."""
 
-    stats: CodegenWorkbenchStatsSchema = Field(default_factory=CodegenWorkbenchStatsSchema)
+    stats: CodegenWorkbenchStatsSchema = Field(
+        default_factory=CodegenWorkbenchStatsSchema
+    )
     sections: CodegenWorkbenchSectionsSchema = Field(
         default_factory=CodegenWorkbenchSectionsSchema
     )
@@ -233,11 +243,17 @@ class PreviewFileSchema(BaseModel):
 
     path: str = Field(..., description="文件路径 / File path")
     type: str = Field(..., description="create | modify | append / Action type")
-    language: str = Field(default="", description="python | typescript | yaml / Language")
+    language: str = Field(
+        default="", description="python | typescript | yaml / Language"
+    )
     content: str = Field(default="", description="文件内容 / File content")
     line_count: int = Field(default=0, description="行数 / Line count")
-    original_content: str | None = Field(None, description="原始内容(modify时) / Original for modify")
-    new_content: str | None = Field(None, description="新内容(modify时) / New for modify")
+    original_content: str | None = Field(
+        None, description="原始内容(modify时) / Original for modify"
+    )
+    new_content: str | None = Field(
+        None, description="新内容(modify时) / New for modify"
+    )
     diff: str | None = Field(None, description="diff 片段 / Diff snippet")
 
 
@@ -255,7 +271,10 @@ class PreviewResultSchema(BaseModel):
     """预览结果 / Preview result."""
 
     success: bool = Field(..., description="是否成功 / Success")
-    error: str | None = Field(None, description="解析/生成失败时的错误信息 / Error when parse or generate fails")
+    error: str | None = Field(
+        None,
+        description="解析/生成失败时的错误信息 / Error when parse or generate fails",
+    )
     files: list[PreviewFileSchema] = Field(default_factory=list)
     summary: PreviewSummarySchema = Field(default_factory=PreviewSummarySchema)
     warnings: list[str] = Field(default_factory=list)
@@ -271,8 +290,13 @@ class GenerateResultSchema(BaseModel):
     conflicts: list[dict[str, str]] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
     backup_dir: str | None = Field(None)
-    migration: dict[str, Any] | None = Field(None, description="auto_migrate 执行结果 / auto_migrate result")
-    config_id: int | None = Field(None, description="配置 ID（未保存直接生成时新创建的）/ Config ID when created from unsaved config")
+    migration: dict[str, Any] | None = Field(
+        None, description="auto_migrate 执行结果 / auto_migrate result"
+    )
+    config_id: int | None = Field(
+        None,
+        description="配置 ID（未保存直接生成时新创建的）/ Config ID when created from unsaved config",
+    )
     resource: str | None = Field(None, description="资源名 / Resource name")
     module: str | None = Field(None, description="模块 / Module")
     table_name: str | None = Field(None, description="表名 / Table name")
@@ -288,7 +312,8 @@ class RollbackResultSchema(BaseModel):
     manual_steps: list[str] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
     migration_cleaned: bool = Field(
-        False, description="是否已执行迁移回退并删除迁移文件 / Migration downgrade + file delete done"
+        False,
+        description="是否已执行迁移回退并删除迁移文件 / Migration downgrade + file delete done",
     )
 
 
@@ -410,7 +435,9 @@ class ComponentInfoSchema(BaseModel):
 
     name: str = Field(..., description="组件名 / Component name")
     label: str = Field(default="", description="显示名 / Label")
-    category: str = Field(default="", description="input | select | advanced / Category")
+    category: str = Field(
+        default="", description="input | select | advanced / Category"
+    )
 
 
 class PresetInfoSchema(BaseModel):
@@ -419,11 +446,17 @@ class PresetInfoSchema(BaseModel):
     name: str = Field(..., description="预设名 / Preset name")
     label_zh: str = Field(default="", description="中文名称 / Chinese label")
     label_en: str = Field(default="", description="英文名称 / English label")
-    description_zh: str = Field(default="", description="中文描述 / Chinese description")
-    description_en: str = Field(default="", description="英文描述 / English description")
+    description_zh: str = Field(
+        default="", description="中文描述 / Chinese description"
+    )
+    description_en: str = Field(
+        default="", description="英文描述 / English description"
+    )
     category: str = Field(default="", description="分类 / Category")
     tags: list[str] = Field(default_factory=list, description="标签 / Tags")
-    recommended_for: list[str] = Field(default_factory=list, description="推荐场景 / Recommended use cases")
+    recommended_for: list[str] = Field(
+        default_factory=list, description="推荐场景 / Recommended use cases"
+    )
     sort_order: int = Field(default=999, description="排序 / Sort order")
 
 

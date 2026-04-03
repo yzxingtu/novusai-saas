@@ -13,15 +13,23 @@ class TenantDomainTenantRepository(TenantRepository[TenantDomain]):
 
     _scope_fields: dict[str, set[str]] = {
         "tenant": {
-            "id", "domain", "is_verified", "is_primary",
-            "ssl_status", "created_at", "updated_at", "remark",
+            "id",
+            "domain",
+            "is_verified",
+            "is_primary",
+            "ssl_status",
+            "created_at",
+            "updated_at",
+            "remark",
         },
     }
 
     async def get_by_domain(self, domain: str) -> TenantDomain | None:
         return await self.get_one_by(domain=domain)
 
-    async def get_primary_domain(self, tenant_id: int | None = None) -> TenantDomain | None:
+    async def get_primary_domain(
+        self, tenant_id: int | None = None
+    ) -> TenantDomain | None:
         """tenant_id is ignored — uses self.tenant_id from TenantRepository / tenant_id 忽略，使用 TenantRepository 的 self.tenant_id。"""
         _ = tenant_id
         query = select(self.model).where(
@@ -32,7 +40,9 @@ class TenantDomainTenantRepository(TenantRepository[TenantDomain]):
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
-    async def get_tenant_domains(self, tenant_id: int | None = None) -> list[TenantDomain]:
+    async def get_tenant_domains(
+        self, tenant_id: int | None = None
+    ) -> list[TenantDomain]:
         _ = tenant_id
         query = (
             select(self.model)

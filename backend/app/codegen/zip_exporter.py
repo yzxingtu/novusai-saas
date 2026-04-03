@@ -33,7 +33,9 @@ def export_zip(files: list[GeneratedFile]) -> bytes:
     return buf.getvalue()
 
 
-def format_code(project_root: Path, files: list[GeneratedFile]) -> tuple[bool, list[str]]:
+def format_code(
+    project_root: Path, files: list[GeneratedFile]
+) -> tuple[bool, list[str]]:
     """
     调用 ruff format + prettier 格式化代码 / Format code with ruff + prettier.
 

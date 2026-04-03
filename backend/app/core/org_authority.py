@@ -63,7 +63,9 @@ class OrgAuthorityResolver:
 
         visible_roots = await self._resolve_tenant_admin_root_ids(admin)
         scope_roots = await self._resolve_tenant_admin_scope_root_ids(admin)
-        return await self._build_tenant_result(admin.tenant_id, visible_roots, scope_roots)
+        return await self._build_tenant_result(
+            admin.tenant_id, visible_roots, scope_roots
+        )
 
     async def resolve_tenant_user(self, user: TenantUser) -> OrgAuthorityResult:
         return OrgAuthorityResult(
@@ -116,7 +118,9 @@ class OrgAuthorityResolver:
         root_ids.extend(list(leader_ids.scalars().all()))
         return list(dict.fromkeys(root_ids))
 
-    async def _resolve_tenant_admin_scope_root_ids(self, admin: TenantAdmin) -> list[int]:
+    async def _resolve_tenant_admin_scope_root_ids(
+        self, admin: TenantAdmin
+    ) -> list[int]:
         leader_ids = await self.db.execute(
             select(TenantOrgNode.id).where(
                 TenantOrgNode.tenant_id == admin.tenant_id,
@@ -135,8 +139,16 @@ class OrgAuthorityResolver:
         scope_roots: list[int],
     ) -> OrgAuthorityResult:
         visible_ids = await self._collect_admin_subtree_ids(visible_roots)
-        scope_mode, effective_scope_org_ids, custom_org_ids = await self._resolve_admin_scope(scope_roots)
-        primary_org_id = scope_roots[0] if scope_roots else (visible_roots[0] if visible_roots else None)
+        (
+            scope_mode,
+            effective_scope_org_ids,
+            custom_org_ids,
+        ) = await self._resolve_admin_scope(scope_roots)
+        primary_org_id = (
+            scope_roots[0]
+            if scope_roots
+            else (visible_roots[0] if visible_roots else None)
+        )
         return OrgAuthorityResult(
             scope_mode=scope_mode,
             visible_org_ids=visible_ids,
@@ -154,11 +166,19 @@ class OrgAuthorityResolver:
         scope_roots: list[int],
     ) -> OrgAuthorityResult:
         visible_ids = await self._collect_tenant_subtree_ids(tenant_id, visible_roots)
-        scope_mode, effective_scope_org_ids, custom_org_ids = await self._resolve_tenant_scope(
+        (
+            scope_mode,
+            effective_scope_org_ids,
+            custom_org_ids,
+        ) = await self._resolve_tenant_scope(
             tenant_id,
             scope_roots,
         )
-        primary_org_id = scope_roots[0] if scope_roots else (visible_roots[0] if visible_roots else None)
+        primary_org_id = (
+            scope_roots[0]
+            if scope_roots
+            else (visible_roots[0] if visible_roots else None)
+        )
         return OrgAuthorityResult(
             scope_mode=scope_mode,
             visible_org_ids=visible_ids,

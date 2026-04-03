@@ -38,7 +38,9 @@ class ResourceTenantAssignment(BaseModel):
 
     __table_args__ = (
         UniqueConstraint(
-            "resource_type", "resource_id", "tenant_id",
+            "resource_type",
+            "resource_id",
+            "tenant_id",
             name="uq_resource_tenant_assignment",
         ),
         Index("ix_rta_type_resource", "resource_type", "resource_id"),

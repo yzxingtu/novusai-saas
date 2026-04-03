@@ -59,7 +59,7 @@ class TenantPlanPreflightRegistry:
     / 阻断式套餐前置校验处理器单例注册表。
     """
 
-    _instance: "TenantPlanPreflightRegistry | None" = None
+    _instance: TenantPlanPreflightRegistry | None = None
     _instance_lock: Lock = Lock()
 
     def __init__(self) -> None:
@@ -67,7 +67,7 @@ class TenantPlanPreflightRegistry:
         self._lock = Lock()
 
     @classmethod
-    def get_instance(cls) -> "TenantPlanPreflightRegistry":
+    def get_instance(cls) -> TenantPlanPreflightRegistry:
         if cls._instance is not None:
             return cls._instance
         with cls._instance_lock:

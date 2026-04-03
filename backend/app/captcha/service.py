@@ -55,7 +55,9 @@ class CaptchaService(CaptchaLoggerMixin):
         action = ctx.get("action") or ""
         return f"{ip}|{endpoint}|{action}"
 
-    async def generate_challenge(self, provider_code: str | None, ctx: dict[str, Any]) -> CaptchaChallenge:
+    async def generate_challenge(
+        self, provider_code: str | None, ctx: dict[str, Any]
+    ) -> CaptchaChallenge:
         """Generate a captcha challenge using specified provider / 使用指定提供者生成验证码挑战"""
         provider: ICaptchaProvider | None = registry.get(provider_code or "image")
         if provider is None:
@@ -70,7 +72,13 @@ class CaptchaService(CaptchaLoggerMixin):
         )
         return challenge
 
-    async def verify(self, provider_code: str | None, challenge_id: str, solution: str, ctx: dict[str, Any]) -> CaptchaVerificationResult:
+    async def verify(
+        self,
+        provider_code: str | None,
+        challenge_id: str,
+        solution: str,
+        ctx: dict[str, Any],
+    ) -> CaptchaVerificationResult:
         """Verify captcha solution with replay and failure tracking / 验证验证码答案，含重放和失败跟踪"""
         now = self._now()
         used_expires_at = self._used.get(challenge_id)
@@ -80,12 +88,17 @@ class CaptchaService(CaptchaLoggerMixin):
             self._used.pop(challenge_id, None)
         provider: ICaptchaProvider | None = registry.get(provider_code or "image")
         if provider is None:
-            return CaptchaVerificationResult(ok=False, reason="provider_not_found", score=None)
+            return CaptchaVerificationResult(
+                ok=False, reason="provider_not_found", score=None
+            )
         result = await provider.verify(challenge_id, solution, ctx)
         key = self._key(ctx)
         if result.ok:
             self._used[challenge_id] = now + timedelta(seconds=self._used_ttl_seconds)
-            self._fail_counts[key] = (0, now + timedelta(seconds=self._fail_window_seconds))
+            self._fail_counts[key] = (
+                0,
+                now + timedelta(seconds=self._fail_window_seconds),
+            )
         else:
             count, reset_at = self._fail_counts.get(
                 key, (0, now + timedelta(seconds=self._fail_window_seconds))
@@ -116,7 +129,9 @@ class CaptchaService(CaptchaLoggerMixin):
         limit, window_seconds = self._limit_map.get(kind, (60, 60))
         now = self._now()
         key = f"{kind}|{self._key(ctx)}"
-        count, reset_at = self._rate_limits.get(key, (0, now + timedelta(seconds=window_seconds)))
+        count, reset_at = self._rate_limits.get(
+            key, (0, now + timedelta(seconds=window_seconds))
+        )
         if reset_at <= now:
             count = 0
             reset_at = now + timedelta(seconds=window_seconds)

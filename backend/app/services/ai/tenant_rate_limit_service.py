@@ -2,7 +2,6 @@
 企业 AI 模型速率限制配置 Service / Tenant AI Rate Limit Service
 """
 
-
 from app.core.base_service import TenantService
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -16,7 +15,9 @@ from app.repositories.ai.tenant_rate_limit_repository import (
 logger = LogManager.get_logger("ai.rate_limit_service")
 
 
-class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRateLimitRepository]):
+class TenantRateLimitService(
+    TenantService[TenantModelRateLimit, TenantModelRateLimitRepository]
+):
     """
     企业 AI 模型速率限制配置 Service / Tenant model rate limit service.
     """
@@ -24,10 +25,7 @@ class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRate
     model = TenantModelRateLimit
     repository_class = TenantModelRateLimitRepository
 
-    async def get_rate_limit(
-        self,
-        model_id: int
-    ) -> TenantModelRateLimit | None:
+    async def get_rate_limit(self, model_id: int) -> TenantModelRateLimit | None:
         """
         获取企业对指定模型的速率限制配置 / Get rate limit config for tenant and model.
 
@@ -39,10 +37,7 @@ class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRate
         """
         return await self.repo.get_latest_active_limit(self.tenant_id, model_id)
 
-    async def get_effective_rate_limits(
-        self,
-        model_id: int
-    ) -> dict:
+    async def get_effective_rate_limits(self, model_id: int) -> dict:
         """
         获取有效的速率限制（优先使用企业配置，否则使用模型默认值）/ Get effective rate limits (tenant first, then model default).
 
@@ -144,7 +139,7 @@ class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRate
         model_id: int,
         rpm_limit: int | None = None,
         tpm_limit: int | None = None,
-        description: str | None = None
+        description: str | None = None,
     ) -> TenantModelRateLimit:
         """
         创建速率限制配置 / Create rate limit config.
@@ -169,7 +164,10 @@ class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRate
 
         logger.info(
             "Rate limit created: tenant_id={} model_id={} rpm_limit={} tpm_limit={}",
-            self.tenant_id, model_id, rpm_limit, tpm_limit,
+            self.tenant_id,
+            model_id,
+            rpm_limit,
+            tpm_limit,
         )
 
         return rate_limit

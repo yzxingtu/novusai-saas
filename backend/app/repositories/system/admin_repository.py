@@ -23,9 +23,16 @@ class AdminRepository(BaseRepository[Admin]):
     # 按 scope 限制可过滤字段
     _scope_fields = {
         "admin": {
-            "id", "username", "email", "phone",
-            "is_active", "is_super", "nickname", "role_id",
-            "created_at", "updated_at",
+            "id",
+            "username",
+            "email",
+            "phone",
+            "is_active",
+            "is_super",
+            "nickname",
+            "role_id",
+            "created_at",
+            "updated_at",
         },
     }
 
@@ -83,12 +90,14 @@ class AdminRepository(BaseRepository[Admin]):
             or_(
                 self.model.username == username_or_email,
                 self.model.email == username_or_email,
-            )
+            ),
         )
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
-    async def username_exists(self, username: str, exclude_id: int | None = None) -> bool:
+    async def username_exists(
+        self, username: str, exclude_id: int | None = None
+    ) -> bool:
         """
         检查用户名是否已存在 / Check if username already exists.
 

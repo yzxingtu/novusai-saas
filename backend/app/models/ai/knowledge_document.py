@@ -48,8 +48,13 @@ class KnowledgeDocument(TenantModel):
     }
 
     __delete_deps__ = [
-        DeletionDep("DocumentChunk", "document_id", DeletionStrategy.CASCADE_DELETE,
-                    label_field="id", i18n_key="document_chunk"),
+        DeletionDep(
+            "DocumentChunk",
+            "document_id",
+            DeletionStrategy.CASCADE_DELETE,
+            label_field="id",
+            i18n_key="document_chunk",
+        ),
     ]
 
     # 覆盖 TenantModel 的 tenant_id：允许 NULL（全局/管理端 KB 文档无企业归属）
@@ -196,7 +201,8 @@ class KnowledgeDocument(TenantModel):
     __table_args__ = (
         Index("ix_doc_kb_status", "knowledge_base_id", "status"),
         UniqueConstraint(
-            "knowledge_base_id", "file_hash",
+            "knowledge_base_id",
+            "file_hash",
             name="uq_doc_kb_hash",
         ),
     )

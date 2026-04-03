@@ -65,9 +65,12 @@ class ImageProcessService:
             "cache_ttl_days": await self.config_service.get_platform_config(
                 "platform_image_cache_ttl_days", default=7
             ),
-            "cache_ttl": int(await self.config_service.get_platform_config(
-                "platform_image_cache_ttl_days", default=7
-            )) * 86400,  # 转换为秒 / policy guard
+            "cache_ttl": int(
+                await self.config_service.get_platform_config(
+                    "platform_image_cache_ttl_days", default=7
+                )
+            )
+            * 86400,  # 转换为秒 / policy guard
             "max_width": await self.config_service.get_platform_config(
                 "platform_image_max_width", default=4096
             ),
@@ -250,7 +253,9 @@ class ImageProcessService:
         if result is None:
             # 无需处理，返回原始 URL
             visibility = StorageVisibility(attachment.visibility)
-            return await driver.get_url(attachment.path, expires=expires, visibility=visibility)
+            return await driver.get_url(
+                attachment.path, expires=expires, visibility=visibility
+            )
 
         return result
 
@@ -281,9 +286,7 @@ class ImageProcessService:
             "attachment_id": attachment.id,
             "url": url,
             "driver": storage_config.driver,
-            "native_processing": driver.supports_native_image_processing(
-                visibility
-            ),
+            "native_processing": driver.supports_native_image_processing(visibility),
             "params": {
                 "width": params.width,
                 "height": params.height,
@@ -304,7 +307,9 @@ class ImageProcessService:
         storage_config = await self._resolve_storage_config(attachment)
         driver = storage_manager.get_driver(storage_config)
         visibility = StorageVisibility(attachment.visibility)
-        return await driver.get_url(attachment.path, expires=expires, visibility=visibility)
+        return await driver.get_url(
+            attachment.path, expires=expires, visibility=visibility
+        )
 
     async def _resolve_storage_config(
         self,
@@ -342,6 +347,7 @@ class ImageProcessService:
         获取图片缓存路径（本地存储硬编码）/ Get image cache path (local storage).
         """
         from app.storage import LOCAL_IMAGE_CACHE_ROOT
+
         return LOCAL_IMAGE_CACHE_ROOT
 
 

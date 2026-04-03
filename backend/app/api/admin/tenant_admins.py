@@ -30,8 +30,10 @@ from app.services.tenant import TenantAdminService
 # 请求/响应 Schema / Request/Response Schema
 # ==========================================
 
+
 class TenantAdminCreateRequest(BaseModel):
     """创建企业管理员请求 / Create tenant admin request"""
+
     username: str = Field(..., min_length=2, max_length=50)
     email: str = Field(..., max_length=255)
     password: str = Field(..., min_length=6, max_length=100)
@@ -42,6 +44,7 @@ class TenantAdminCreateRequest(BaseModel):
 
 class TenantAdminUpdateRequest(BaseModel):
     """更新企业管理员请求（平台端重置密码等） / Update tenant admin request (platform-side password reset etc.)"""
+
     password: str | None = Field(None, min_length=6, max_length=100)
     nickname: str | None = Field(None, max_length=100)
     role_id: int | None = Field(None)
@@ -51,6 +54,7 @@ class TenantAdminUpdateRequest(BaseModel):
 
 class TenantAdminStatusRequest(BaseModel):
     """切换管理员状态请求 / Toggle admin status request"""
+
     is_active: bool
 
 
@@ -85,15 +89,20 @@ def _serialize_tenant_admin(tenant_admin) -> dict:
         "permission_role_id": tenant_admin.role_id,
         "org_node_name": org_node.name if org_node else None,
         "org_node_id": tenant_admin.org_node_id,
-        "last_login_at": tenant_admin.last_login_at.isoformat() if tenant_admin.last_login_at else None,
+        "last_login_at": tenant_admin.last_login_at.isoformat()
+        if tenant_admin.last_login_at
+        else None,
         "last_login_ip": tenant_admin.last_login_ip,
-        "created_at": tenant_admin.created_at.isoformat() if tenant_admin.created_at else None,
+        "created_at": tenant_admin.created_at.isoformat()
+        if tenant_admin.created_at
+        else None,
     }
 
 
 # ==========================================
 # Controller / 控制器
 # ==========================================
+
 
 @permission_resource(
     resource="tenant_admin",
@@ -238,7 +247,11 @@ class AdminTenantAdminController(GlobalController):
                     detail=_("tenant_admin.not_found"),
                 )
 
-            if data.is_active is not None and tenant_admin.is_owner and not data.is_active:
+            if (
+                data.is_active is not None
+                and tenant_admin.is_owner
+                and not data.is_active
+            ):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=_("tenant_admin.cannot_disable_owner"),
@@ -325,10 +338,12 @@ class AdminTenantAdminController(GlobalController):
             tenant_admin.is_active = data.is_active
             await db.flush()
 
-            return success(data={
-                "id": tenant_admin.id,
-                "is_active": tenant_admin.is_active,
-            })
+            return success(
+                data={
+                    "id": tenant_admin.id,
+                    "is_active": tenant_admin.is_active,
+                }
+            )
 
         @router.post("/{admin_id}/force-logout", summary="强制下线企业管理员")
         @action_create("action.tenant_admin.force_logout")

@@ -45,7 +45,9 @@ class TenantDomainResponse(BaseSchema):
     ssl_status: str = Field(..., description="SSL 状态")
     ssl_expires_at: datetime | None = Field(None, description="SSL 到期时间")
     verification_token: str | None = Field(None, description="验证 Token")
-    verification_info: TenantDomainVerificationInfo | None = Field(None, description="DNS 验证记录信息")
+    verification_info: TenantDomainVerificationInfo | None = Field(
+        None, description="DNS 验证记录信息"
+    )
     remark: str | None = Field(None, description="备注")
     cname_target: str | None = Field(None, description="CNAME 解析目标")
     created_at: datetime = Field(..., description="创建时间")
@@ -70,7 +72,10 @@ class DevHostDomainStatus(BaseSchema):
     domain_id: int = Field(..., description="域名 ID")
     domain: str = Field(..., description="域名")
     eligible: bool = Field(..., description="当前域名是否应参与 Dev Hosts 管理")
-    status: str = Field(..., description="hosts 状态：managed_present/manual_present/missing/not_required/unsupported")
+    status: str = Field(
+        ...,
+        description="hosts 状态：managed_present/manual_present/missing/not_required/unsupported",
+    )
     managed: bool = Field(..., description="是否为系统托管条目")
     matched_ip: str | None = Field(None, description="匹配到的 IP")
     reason: str | None = Field(None, description="状态原因")
@@ -80,7 +85,9 @@ class DevHostsStatusResponse(BaseSchema):
     """企业全部域名的 Dev Hosts 状态总览 / Dev Hosts overview for all tenant domains"""
 
     runtime: DevHostsRuntimeInfo = Field(..., description="运行时信息")
-    domains: list[DevHostDomainStatus] = Field(default_factory=list, description="域名状态列表")
+    domains: list[DevHostDomainStatus] = Field(
+        default_factory=list, description="域名状态列表"
+    )
 
 
 class DevHostMutationResponse(BaseSchema):
@@ -94,7 +101,9 @@ class DevHostsSyncAllResponse(BaseSchema):
     """批量同步 Dev Hosts 响应 / Batch Dev Hosts sync response"""
 
     runtime: DevHostsRuntimeInfo = Field(..., description="运行时信息")
-    domains: list[DevHostDomainStatus] = Field(default_factory=list, description="域名状态列表")
+    domains: list[DevHostDomainStatus] = Field(
+        default_factory=list, description="域名状态列表"
+    )
     synced: int = Field(..., description="本次同步的域名数量")
     skipped: int = Field(..., description="本次跳过的域名数量")
 
@@ -126,9 +135,12 @@ class TenantDomainCreateRequest(BaseSchema):
 
         # 禁止使用平台域名 / Forbid platform-reserved suffix
         from app.core.config import settings
+
         suffix = settings.TENANT_DOMAIN_SUFFIX.lstrip(".")
         if v.endswith(suffix):
-            raise ValueError(_("tenant_domain.platform_suffix_forbidden", suffix=suffix))
+            raise ValueError(
+                _("tenant_domain.platform_suffix_forbidden", suffix=suffix)
+            )
 
         return v
 

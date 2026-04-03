@@ -128,20 +128,24 @@ class AgentSkillGrantService:
                 message=_("agent_skill_grant.error.already_bound"),
             )
 
-        grant = await self.grant_repo.create({
-            "agent_id": agent_id,
-            "skill_id": skill_id,
-            "tenant_id": getattr(agent, "owner_tenant_id", None),
-            "enabled": True,
-            "config_override": config_override,
-            "sort_order": sort_order,
-            "default_consent_mode": default_consent_mode,
-            "capability_consent_overrides": capability_consent_overrides,
-        })
+        grant = await self.grant_repo.create(
+            {
+                "agent_id": agent_id,
+                "skill_id": skill_id,
+                "tenant_id": getattr(agent, "owner_tenant_id", None),
+                "enabled": True,
+                "config_override": config_override,
+                "sort_order": sort_order,
+                "default_consent_mode": default_consent_mode,
+                "capability_consent_overrides": capability_consent_overrides,
+            }
+        )
 
         logger.info(
             "Skill {} granted to agent {} (tenant={})",
-            skill_id, agent_id, getattr(agent, "owner_tenant_id", None),
+            skill_id,
+            agent_id,
+            getattr(agent, "owner_tenant_id", None),
         )
 
         return grant
@@ -160,7 +164,9 @@ class AgentSkillGrantService:
 
         logger.info(
             "Skill {} unbound from agent {} (tenant={})",
-            skill_id, agent_id, self.tenant_id,
+            skill_id,
+            agent_id,
+            self.tenant_id,
         )
 
     async def batch_bind(
@@ -208,7 +214,9 @@ class AgentSkillGrantService:
 
         logger.info(
             "Batch granted {} skills to agent {} (tenant={})",
-            len(deduped_skill_ids), agent_id, getattr(agent, "owner_tenant_id", None),
+            len(deduped_skill_ids),
+            agent_id,
+            getattr(agent, "owner_tenant_id", None),
         )
 
         return grants

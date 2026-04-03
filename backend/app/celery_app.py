@@ -203,6 +203,7 @@ def _log_worker_runtime_identity(*_args, **_kwargs) -> None:
 def _log_beat_runtime_identity(*_args, **_kwargs) -> None:
     logger.info("Celery beat runtime identity: {}", get_runtime_identity_tag())
 
+
 # ========================================
 # Result Configuration / 结果配置
 # ========================================

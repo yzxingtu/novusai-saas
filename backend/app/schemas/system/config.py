@@ -15,6 +15,7 @@ from app.core.base_schema import BaseSchema
 # 配置选项 / Config options
 # ==========================================
 
+
 class ConfigOptionSchema(BaseSchema):
     """配置选项 / Config option schema."""
 
@@ -48,14 +49,22 @@ class ConfigItemResponse(BaseSchema):
     value_type: str = Field(..., description="值类型")
     value: Any = Field(None, description="当前值")
     default_value: Any = Field(None, description="默认值")
-    options: list[ConfigOptionSchema] = Field(default_factory=list, description="选项列表")
-    validation_rules: list[ValidationRuleSchema] = Field(default_factory=list, description="验证规则")
+    options: list[ConfigOptionSchema] = Field(
+        default_factory=list, description="选项列表"
+    )
+    validation_rules: list[ValidationRuleSchema] = Field(
+        default_factory=list, description="验证规则"
+    )
     is_required: bool = Field(False, description="是否必填")
     is_encrypted: bool = Field(False, description="是否加密")
     sort_order: int = Field(0, description="排序顺序")
-    display_rules: list[DisplayRuleSchema] = Field(default_factory=list, description="显示/隐藏规则")
+    display_rules: list[DisplayRuleSchema] = Field(
+        default_factory=list, description="显示/隐藏规则"
+    )
     value_path: str = Field("", description="子字段映射到父 JSON 的路径")
-    children: list["ConfigItemResponse"] = Field(default_factory=list, description="子字段配置")
+    children: list["ConfigItemResponse"] = Field(
+        default_factory=list, description="子字段配置"
+    )
     tag_separator: str = Field(",", description="标签分隔符（TAG 类型专用）")
     file_accept: str = Field("", description="文件接受类型（FILE 类型专用）")
 
@@ -63,6 +72,7 @@ class ConfigItemResponse(BaseSchema):
 # ==========================================
 # 配置分组响应 / Config group response
 # ==========================================
+
 
 class ConfigGroupResponse(BaseSchema):
     """配置分组响应 / Config group response."""
@@ -72,7 +82,9 @@ class ConfigGroupResponse(BaseSchema):
     description: str | None = Field(None, description="分组描述")
     icon: str | None = Field(None, description="分组图标")
     sort_order: int = Field(0, description="排序顺序")
-    configs: list[ConfigItemResponse] = Field(default_factory=list, description="配置项列表")
+    configs: list[ConfigItemResponse] = Field(
+        default_factory=list, description="配置项列表"
+    )
 
 
 class ConfigGroupListResponse(BaseSchema):
@@ -90,6 +102,7 @@ class ConfigGroupListResponse(BaseSchema):
 # 配置更新请求 / Config update request
 # ==========================================
 
+
 class ConfigUpdateRequest(BaseSchema):
     """配置更新请求 / Config update request"""
 
@@ -106,6 +119,7 @@ class ConfigUpdateItem(BaseSchema):
 # ==========================================
 # 批量配置更新请求 / Batch config update
 # ==========================================
+
 
 class BatchConfigUpdateRequest(BaseSchema):
     """批量配置更新请求 / Batch config update request."""

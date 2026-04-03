@@ -265,7 +265,9 @@ class AgentRouterService:
                     )
                 logger.warning(
                     "Pinned agent {} not accessible for tenant={} user_role={}",
-                    pinned_agent_id, tenant_id, user_role,
+                    pinned_agent_id,
+                    tenant_id,
+                    user_role,
                 )
 
         # P2: Build candidate pool / 构建候选列表
@@ -292,8 +294,7 @@ class AgentRouterService:
 
         if has_image_attachments:
             vision_candidates = [
-                a for a in candidates
-                if await self._agent_can_handle_images(a)
+                a for a in candidates if await self._agent_can_handle_images(a)
             ]
             if not vision_candidates:
                 raise BusinessException(
@@ -307,7 +308,8 @@ class AgentRouterService:
 
         if page_operation_routing_required:
             page_operation_candidates = [
-                agent for agent in candidates
+                agent
+                for agent in candidates
                 if self._agent_supports_page_operations(agent)
             ]
             if page_operation_candidates:
@@ -437,9 +439,7 @@ class AgentRouterService:
             )
 
         # Resolve agent name from current candidates / 从当前候选集中解析名称
-        agent_name = next(
-            (a.name for a in candidates if a.id == routed_id), ""
-        )
+        agent_name = next((a.name for a in candidates if a.id == routed_id), "")
 
         return RouteResult(
             agent_id=routed_id,
@@ -510,13 +510,16 @@ class AgentRouterService:
     async def _get_router_agent(self) -> Agent | None:
         """获取 execution_mode=router 的系统智能体 / Get system agent with execution_mode=router."""
         result = await self.db.execute(
-            select(Agent).where(
+            select(Agent)
+            .where(
                 Agent.execution_mode == AgentExecutionModeEnum.ROUTER.value,
                 Agent.is_system.is_(True),
                 Agent.owner_tenant_id.is_(None),
                 Agent.status == AgentStatusEnum.PUBLISHED.value,
                 Agent.is_deleted.is_(False),
-            ).order_by(Agent.id.asc()).limit(1)
+            )
+            .order_by(Agent.id.asc())
+            .limit(1)
         )
         return result.scalar_one_or_none()
 
@@ -598,12 +601,18 @@ class AgentRouterService:
                 f"{', '.join(attachment_notes)}.\n\n"
             )
 
-        routing_prompt = vision_preamble + attachment_preamble + (
-            "Based on the user's message and context, select the most appropriate agent.\n\n"
-            f"Available agents:\n{json.dumps(agent_list, ensure_ascii=False)}\n\n"
+        routing_prompt = (
+            vision_preamble
+            + attachment_preamble
+            + (
+                "Based on the user's message and context, select the most appropriate agent.\n\n"
+                f"Available agents:\n{json.dumps(agent_list, ensure_ascii=False)}\n\n"
+            )
         )
         if page_context:
-            routing_prompt += f"Page context:\n{json.dumps(page_context, ensure_ascii=False)}\n\n"
+            routing_prompt += (
+                f"Page context:\n{json.dumps(page_context, ensure_ascii=False)}\n\n"
+            )
 
         routing_prompt += (
             f"User message: {message}\n\n"
@@ -661,7 +670,7 @@ class AgentRouterService:
             pass
 
         # 尝试提取 JSON 代码块
-        json_match = re.search(r'```(?:json)?\s*(\{[^`]+\})\s*```', output, re.DOTALL)
+        json_match = re.search(r"```(?:json)?\s*(\{[^`]+\})\s*```", output, re.DOTALL)
         if json_match:
             try:
                 data = json.loads(json_match.group(1))
@@ -714,9 +723,7 @@ class AgentRouterService:
         企业端优先检查企业覆盖，再回退到全局默认。
         """
         feature_code = "default_chat"
-        preferred_candidate_ids = {
-            agent.id for agent in (preferred_candidates or [])
-        }
+        preferred_candidate_ids = {agent.id for agent in (preferred_candidates or [])}
 
         assignment: SystemAgentAssignment | None = None
 
@@ -753,10 +760,7 @@ class AgentRouterService:
                 user_id=user_id,
                 user_role_id=user_role_id,
             ):
-                if (
-                    preferred_candidate_ids
-                    and agent.id not in preferred_candidate_ids
-                ):
+                if preferred_candidate_ids and agent.id not in preferred_candidate_ids:
                     logger.warning(
                         "Default agent {} is outside preferred fallback pool; using preferred fallback instead",
                         agent.id,
@@ -827,10 +831,12 @@ class AgentRouterService:
     async def _get_published_agent(self, agent_id: int) -> Agent | None:
         """获取已发布的智能体 / Get published agent."""
         result = await self.db.execute(
-            select(Agent).options(
+            select(Agent)
+            .options(
                 selectinload(Agent.model),
                 selectinload(Agent.skill_grants).selectinload(AgentSkillGrant.skill),
-            ).where(
+            )
+            .where(
                 Agent.id == agent_id,
                 Agent.status == AgentStatusEnum.PUBLISHED.value,
                 Agent.is_deleted.is_(False),
@@ -854,12 +860,14 @@ class AgentRouterService:
         if user_role == UserRoleEnum.PLATFORM_ADMIN.value:
             stmt = stmt.where(
                 AgentConversation.tenant_id == PLATFORM_TENANT_ID,
-                AgentConversation.owner_type == ConversationOwnerTypeEnum.PLATFORM_ADMIN.value,
+                AgentConversation.owner_type
+                == ConversationOwnerTypeEnum.PLATFORM_ADMIN.value,
             )
         elif tenant_id:
             stmt = stmt.where(
                 AgentConversation.tenant_id == tenant_id,
-                AgentConversation.owner_type == ConversationOwnerTypeEnum.from_user_role(
+                AgentConversation.owner_type
+                == ConversationOwnerTypeEnum.from_user_role(
                     user_role,
                 ),
             )
@@ -965,29 +973,25 @@ class AgentRouterService:
             return False
 
         has_strong_intent = any(
-            token in normalized_message
-            for token in PAGE_OPERATION_STRONG_INTENT_TOKENS
+            token in normalized_message for token in PAGE_OPERATION_STRONG_INTENT_TOKENS
         )
         if has_strong_intent:
             return True
 
         has_action_token = any(
-            token in normalized_message
-            for token in PAGE_OPERATION_ACTION_TOKENS
+            token in normalized_message for token in PAGE_OPERATION_ACTION_TOKENS
         )
         if not has_action_token:
             return False
 
         has_reference_token = any(
-            token in normalized_message
-            for token in PAGE_OPERATION_REFERENCE_TOKENS
+            token in normalized_message for token in PAGE_OPERATION_REFERENCE_TOKENS
         )
         if has_reference_token:
             return True
 
         return any(
-            token in normalized_message
-            for token in PAGE_OPERATION_TARGET_TOKENS
+            token in normalized_message for token in PAGE_OPERATION_TARGET_TOKENS
         )
 
     async def _agent_can_handle_images(self, agent: Agent | None) -> bool:
@@ -1031,7 +1035,9 @@ class AgentRouterService:
         user_role: str,
     ) -> dict[str, Any]:
         billing_tenant_id = (
-            tenant_id if tenant_id is not None and tenant_id > PLATFORM_TENANT_ID else None
+            tenant_id
+            if tenant_id is not None and tenant_id > PLATFORM_TENANT_ID
+            else None
         )
         if user_role == UserRoleEnum.PLATFORM_ADMIN.value:
             access_channel = CallAccessChannelEnum.ADMIN_INTERNAL.value

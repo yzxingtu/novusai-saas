@@ -16,7 +16,9 @@ class _SkillPackageCascadeMixin:
     """技能包级联操作 Mixin（admin/tenant 共用） / Skill package cascade mixin (admin/tenant)."""
 
     async def cascade_soft_delete_skills(
-        self, package_id: int, delete_level: str,
+        self,
+        package_id: int,
+        delete_level: str,
     ) -> None:
         """级联软删除技能包下的技能 / Cascade soft-delete skills in package."""
         now = utc_now()
@@ -282,7 +284,9 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
         return list(result.scalars().all())
 
 
-class AdminSkillPackageRepository(_SkillPackageCascadeMixin, BaseRepository[SkillPackage]):
+class AdminSkillPackageRepository(
+    _SkillPackageCascadeMixin, BaseRepository[SkillPackage]
+):
     """
     管理端技能包 Repository / Admin skill package repository.
 
@@ -292,7 +296,9 @@ class AdminSkillPackageRepository(_SkillPackageCascadeMixin, BaseRepository[Skil
     model = SkillPackage
 
     async def cascade_update_skill_tenant_id(
-        self, package_id: int, new_tenant_id: int | None,
+        self,
+        package_id: int,
+        new_tenant_id: int | None,
     ) -> None:
         """级联更新技能包下所有技能的 tenant_id / Cascade update skills' tenant_id."""
         now = utc_now()

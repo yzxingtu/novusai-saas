@@ -67,9 +67,13 @@ class AdminAIHealthController(GlobalController):
             pid_set = {s.get("provider_id") for s in statuses if s.get("provider_id")}
             icon_map: dict[int, str | None] = {}
             if pid_set:
-                rows = (await db.execute(
-                    select(AIProvider.id, AIProvider.icon).where(AIProvider.id.in_(pid_set))
-                )).all()
+                rows = (
+                    await db.execute(
+                        select(AIProvider.id, AIProvider.icon).where(
+                            AIProvider.id.in_(pid_set)
+                        )
+                    )
+                ).all()
                 icon_map = {r.id: r.icon for r in rows}
             for s in statuses:
                 s["provider_icon"] = icon_map.get(s.get("provider_id"))

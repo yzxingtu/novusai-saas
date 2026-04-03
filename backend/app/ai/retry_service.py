@@ -105,7 +105,9 @@ class RetryService:
                 if attempt > 0:
                     logger.info(
                         "Retry succeeded: provider={} model={} attempt={}",
-                        provider.code, model, attempt,
+                        provider.code,
+                        model,
+                        attempt,
                     )
 
                 return response, attempt, current_key
@@ -116,24 +118,35 @@ class RetryService:
                 if not is_retryable(e):
                     logger.error(
                         "Non-retryable error: provider={} model={} code={} error={}",
-                        provider.code, model, e.error_code, str(e),
+                        provider.code,
+                        model,
+                        e.error_code,
+                        str(e),
                     )
                     raise
 
                 if attempt >= MAX_RETRIES:
                     logger.error(
                         "Max retries exhausted: provider={} model={} attempts={} error={}",
-                        provider.code, model, attempt + 1, str(e),
+                        provider.code,
+                        model,
+                        attempt + 1,
+                        str(e),
                     )
                     raise
 
-                delay = RETRY_BASE_DELAY * (RETRY_MULTIPLIER ** attempt)
+                delay = RETRY_BASE_DELAY * (RETRY_MULTIPLIER**attempt)
                 if e.retry_after and e.retry_after > delay:
                     delay = float(e.retry_after)
 
                 logger.warning(
                     "Retrying after error: provider={} model={} attempt={} delay={}s code={} error={}",
-                    provider.code, model, attempt, delay, e.error_code, str(e),
+                    provider.code,
+                    model,
+                    attempt,
+                    delay,
+                    e.error_code,
+                    str(e),
                 )
 
                 next_key = await self.get_next_api_key(
@@ -144,7 +157,9 @@ class RetryService:
                 if next_key:
                     logger.info(
                         "Switching API key: provider={} old_key={} new_key={}",
-                        provider.code, current_key.id, next_key.id,
+                        provider.code,
+                        current_key.id,
+                        next_key.id,
                     )
                     current_key = next_key
 
@@ -153,7 +168,9 @@ class RetryService:
             except Exception as e:
                 logger.error(
                     "Unexpected error: provider={} model={} error={}",
-                    provider.code, model, str(e),
+                    provider.code,
+                    model,
+                    str(e),
                 )
                 raise ProviderError(
                     message=_("ai.request_failed"),

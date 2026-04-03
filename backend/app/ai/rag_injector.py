@@ -165,7 +165,8 @@ async def inject_rag_context(
             else:
                 logger.warning(
                     "KB {} not accessible for tenant {}, skipped",
-                    kid, tenant_id,
+                    kid,
+                    tenant_id,
                 )
 
         if not validated_kbs or not validated_kb_ids:
@@ -230,7 +231,9 @@ async def inject_rag_context(
         )
 
         # Build RAG context / 构建 RAG 上下文
-        rag_context = builder.build_rag_context(chunks, rag_budget, kb_names=kb_name_map)
+        rag_context = builder.build_rag_context(
+            chunks, rag_budget, kb_names=kb_name_map
+        )
 
         if not rag_context.rag_text:
             return messages, None
@@ -247,7 +250,9 @@ async def inject_rag_context(
 
         logger.info(
             "RAG injected: agent={}, chunks={}, tokens={}",
-            agent.id, rag_context.chunk_count, rag_context.token_count,
+            agent.id,
+            rag_context.chunk_count,
+            rag_context.token_count,
         )
 
         return messages, sources
@@ -255,7 +260,8 @@ async def inject_rag_context(
     except Exception as exc:
         logger.warning(
             "RAG injection failed for agent {}: {}",
-            agent.id, str(exc),
+            agent.id,
+            str(exc),
         )
         return messages, None
 

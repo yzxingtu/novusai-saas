@@ -23,8 +23,13 @@ class Attachment(TenantModel):
     }
 
     __delete_deps__ = [
-        DeletionDep("KnowledgeDocument", "attachment_id", DeletionStrategy.BLOCK,
-                    label_field="file_name", i18n_key="knowledge_document"),
+        DeletionDep(
+            "KnowledgeDocument",
+            "attachment_id",
+            DeletionStrategy.BLOCK,
+            label_field="file_name",
+            i18n_key="knowledge_document",
+        ),
     ]
 
     # 覆盖 TenantModel 的 tenant_id：允许 NULL（全局/管理端 KB 附件无企业归属） /
@@ -53,12 +58,23 @@ class Attachment(TenantModel):
         "updated_at": "updated_at",
     }
 
-    __sortable__ = ["id", "name", "original_name", "mime_type", "extension", "status", "driver", "source", "created_at", "updated_at"]
+    __sortable__ = [
+        "id",
+        "name",
+        "original_name",
+        "mime_type",
+        "extension",
+        "status",
+        "driver",
+        "source",
+        "created_at",
+        "updated_at",
+    ]
 
     # 支持远程下拉配置 / Remote select config
     __selectable__ = {
-        "label": "original_name",      # 显示名称：原始文件名 / Label: original file name
-        "value": "id",                 # 值：ID / Value: primary key
+        "label": "original_name",  # 显示名称：原始文件名 / Label: original file name
+        "value": "id",  # 值：ID / Value: primary key
         "search": ["name", "original_name"],  # 搜索字段 / Search fields
         "extra": ["mime_type", "extension", "size"],  # 额外信息 / Extra fields
     }

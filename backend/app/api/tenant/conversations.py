@@ -27,6 +27,7 @@ from app.services.ai.monitoring_service import MonitoringService
 # Controller / 控制器
 # ============================================
 
+
 @permission_resource(
     resource="agent_conversation",
     name="menu.tenant.agent_conversation",

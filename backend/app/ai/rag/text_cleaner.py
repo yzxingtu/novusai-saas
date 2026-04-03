@@ -31,12 +31,53 @@ _URL_PATTERN = re.compile(
 # IM platform bracket emoji whitelist (PDD/WeChat/Taobao common emoji tags)
 # IM 平台中括号表情白名单（拼多多/微信/淘宝常见表情标签）
 _KNOWN_BRACKET_EMOJIS = {
-    "玫瑰", "大爱", "微笑", "偷笑", "大笑", "害羞", "流泪", "难过",
-    "惊讶", "抓狂", "发怒", "得意", "调皮", "呲牙", "色色", "亲亲",
-    "白眼", "奋斗", "鼓掌", "拥抱", "强壮", "胜利", "抱拳", "握手",
-    "啤酒", "咖啡", "蛋糕", "礼物", "爱心", "心碎", "太阳", "月亮",
-    "彩虹", "闪电", "火焰", "雪花", "星星", "庆祝", "红包", "发财",
-    "福到", "恭喜", "比心", "OK", "加油", "赞", "踩",
+    "玫瑰",
+    "大爱",
+    "微笑",
+    "偷笑",
+    "大笑",
+    "害羞",
+    "流泪",
+    "难过",
+    "惊讶",
+    "抓狂",
+    "发怒",
+    "得意",
+    "调皮",
+    "呲牙",
+    "色色",
+    "亲亲",
+    "白眼",
+    "奋斗",
+    "鼓掌",
+    "拥抱",
+    "强壮",
+    "胜利",
+    "抱拳",
+    "握手",
+    "啤酒",
+    "咖啡",
+    "蛋糕",
+    "礼物",
+    "爱心",
+    "心碎",
+    "太阳",
+    "月亮",
+    "彩虹",
+    "闪电",
+    "火焰",
+    "雪花",
+    "星星",
+    "庆祝",
+    "红包",
+    "发财",
+    "福到",
+    "恭喜",
+    "比心",
+    "OK",
+    "加油",
+    "赞",
+    "踩",
 }
 
 # System operation tag patterns / 系统操作标签模式
@@ -56,22 +97,23 @@ def _strip_bracket_emojis(text: str) -> str:
         text = text.replace(f"[{emoji}]", "")
     return text
 
+
 # Unicode emoji ranges (Emoji_Presentation + Emoji_Modifier + common symbols)
 # Unicode emoji 范围（Emoji_Presentation + Emoji_Modifier + 常见符号）
 _EMOJI_PATTERN = re.compile(
     "["
-    "\U0001F600-\U0001F64F"  # Emoticons / 表情
-    "\U0001F300-\U0001F5FF"  # Misc Symbols and Pictographs / 杂项符号与图形
-    "\U0001F680-\U0001F6FF"  # Transport and Map / 交通与地图
-    "\U0001F1E0-\U0001F1FF"  # Flags / 旗帜
-    "\U00002702-\U000027B0"  # Dingbats / 装饰符号
-    "\U0000FE00-\U0000FE0F"  # Variation Selectors / 变体选择符
-    "\U0001F900-\U0001F9FF"  # Supplemental Symbols / 补充符号
-    "\U0001FA00-\U0001FA6F"  # Chess Symbols / 国际象棋符号
-    "\U0001FA70-\U0001FAFF"  # Symbols Extended-A / 扩展符号 A
-    "\U00002600-\U000026FF"  # Misc Symbols / 杂项符号
-    "\U0000200D"             # Zero Width Joiner / 零宽连接符
-    "\U0000203C-\U00002FFF"  # Misc symbols (exclude CJK brackets 【】) / 杂项（排除【】）
+    "\U0001f600-\U0001f64f"  # Emoticons / 表情
+    "\U0001f300-\U0001f5ff"  # Misc Symbols and Pictographs / 杂项符号与图形
+    "\U0001f680-\U0001f6ff"  # Transport and Map / 交通与地图
+    "\U0001f1e0-\U0001f1ff"  # Flags / 旗帜
+    "\U00002702-\U000027b0"  # Dingbats / 装饰符号
+    "\U0000fe00-\U0000fe0f"  # Variation Selectors / 变体选择符
+    "\U0001f900-\U0001f9ff"  # Supplemental Symbols / 补充符号
+    "\U0001fa00-\U0001fa6f"  # Chess Symbols / 国际象棋符号
+    "\U0001fa70-\U0001faff"  # Symbols Extended-A / 扩展符号 A
+    "\U00002600-\U000026ff"  # Misc Symbols / 杂项符号
+    "\U0000200d"  # Zero Width Joiner / 零宽连接符
+    "\U0000203c-\U00002fff"  # Misc symbols (exclude CJK brackets 【】) / 杂项（排除【】）
     "]+",
     re.UNICODE,
 )

@@ -35,7 +35,11 @@ async def build_plugin_feature_i18n_map(db: AsyncSession) -> dict[str, dict]:
             if not isinstance(feat, dict):
                 continue
             code = feat.get("feature_code", "")
-            full_code = f"plugin.{plugin_name}.{code}" if not code.startswith("plugin.") else code
+            full_code = (
+                f"plugin.{plugin_name}.{code}"
+                if not code.startswith("plugin.")
+                else code
+            )
             i18n_map[full_code] = {
                 "display_name": feat.get("display_name", {}),
                 "description": feat.get("description", {}),
@@ -75,7 +79,9 @@ def build_assignment_item(
         gd_agent_id = global_default.agent_id
         try:
             gd_agent_obj = getattr(global_default, "agent", None)
-            if gd_agent_obj is not None and not getattr(gd_agent_obj, "is_deleted", False):
+            if gd_agent_obj is not None and not getattr(
+                gd_agent_obj, "is_deleted", False
+            ):
                 gd_agent_name = gd_agent_obj.name
         except AttributeError:
             pass

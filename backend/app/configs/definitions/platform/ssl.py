@@ -104,7 +104,9 @@ SSL_ALLOW_CUSTOM_CERT = ConfigMeta(
 
 # DNS provider type / DNS 提供商类型
 _DNS_PROVIDER_OPTIONS = [
-    ConfigOption(value="cloudflare", label_key="config.platform.dns_provider.cloudflare"),
+    ConfigOption(
+        value="cloudflare", label_key="config.platform.dns_provider.cloudflare"
+    ),
 ]
 
 if settings.DEBUG:

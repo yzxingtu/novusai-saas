@@ -113,6 +113,7 @@ class AdminKnowledgeBaseController(GlobalController):
 
         # 回收站路由必须在 /{kb_id} 之前注册，避免路径冲突 / Recycle bin routes must be registered before /{kb_id} to avoid path conflicts
         from app.core.recycle_bin import register_admin_recycle_bin_routes
+
         register_admin_recycle_bin_routes(
             router=router,
             service_class=AdminKnowledgeBaseService,
@@ -334,20 +335,28 @@ class AdminKnowledgeBaseController(GlobalController):
 
             stmt = select(
                 func.count(KnowledgeBase.id).label("total_knowledge_bases"),
-                func.coalesce(func.sum(KnowledgeBase.document_count), 0).label("total_documents"),
-                func.coalesce(func.sum(KnowledgeBase.total_chunks), 0).label("total_chunks"),
-                func.coalesce(func.sum(KnowledgeBase.total_size_bytes), 0).label("total_size_bytes"),
+                func.coalesce(func.sum(KnowledgeBase.document_count), 0).label(
+                    "total_documents"
+                ),
+                func.coalesce(func.sum(KnowledgeBase.total_chunks), 0).label(
+                    "total_chunks"
+                ),
+                func.coalesce(func.sum(KnowledgeBase.total_size_bytes), 0).label(
+                    "total_size_bytes"
+                ),
             ).where(KnowledgeBase.is_deleted.is_(False))
 
             result = await db.execute(stmt)
             row = result.one()
 
-            return success(data={
-                "total_knowledge_bases": row.total_knowledge_bases,
-                "total_documents": row.total_documents,
-                "total_chunks": row.total_chunks,
-                "total_size_bytes": row.total_size_bytes,
-            })
+            return success(
+                data={
+                    "total_knowledge_bases": row.total_knowledge_bases,
+                    "total_documents": row.total_documents,
+                    "total_chunks": row.total_chunks,
+                    "total_size_bytes": row.total_size_bytes,
+                }
+            )
 
         @router.get("/{kb_id}", summary="获取知识库详情")
         @action_read("action.ai_knowledge_base.detail")
@@ -406,9 +415,9 @@ class AdminKnowledgeBaseController(GlobalController):
                 raise NotFoundException(message=_("knowledge_base.error.not_found"))
 
             doc_service = KnowledgeDocumentService(db, kb.tenant_id)
-            query.filters.append(FilterRule(
-                field="knowledge_base_id", op=FilterOp.eq, value=str(kb_id)
-            ))
+            query.filters.append(
+                FilterRule(field="knowledge_base_id", op=FilterOp.eq, value=str(kb_id))
+            )
             items, total = await doc_service.query_list(spec=query)
 
             return paginated(
@@ -444,6 +453,7 @@ class AdminKnowledgeBaseController(GlobalController):
 
             # 配额检查（per-KB 文档数量限制） / Quota check (per-KB document count limit)
             from app.services.ai.knowledge_base_service import KnowledgeBaseService
+
             kb_service = KnowledgeBaseService(db, tenant_id)
             await kb_service.check_document_quota(kb_id)
 
@@ -496,11 +506,14 @@ class AdminKnowledgeBaseController(GlobalController):
                 )
                 if str(driver_name) == "local":
                     from app.storage import LOCAL_STORAGE_ROOT
+
                     root_path = str(LOCAL_STORAGE_ROOT)
                 else:
-                    root_path = str(await config_service.get_platform_config(
-                        "platform_storage_root_path", default=""
-                    ))
+                    root_path = str(
+                        await config_service.get_platform_config(
+                            "platform_storage_root_path", default=""
+                        )
+                    )
                 base_url = await config_service.get_platform_config(
                     "platform_storage_base_url", default=None
                 )
@@ -515,7 +528,10 @@ class AdminKnowledgeBaseController(GlobalController):
                 )
 
                 import uuid
-                storage_path = f"knowledge-bases/admin/{kb_id}/{uuid.uuid4().hex}_{filename}"
+
+                storage_path = (
+                    f"knowledge-bases/admin/{kb_id}/{uuid.uuid4().hex}_{filename}"
+                )
                 driver = storage_manager.get_driver(storage_config)
                 await driver.put(storage_path, io.BytesIO(file_bytes))
 
@@ -539,18 +555,21 @@ class AdminKnowledgeBaseController(GlobalController):
                 db.add(attachment)
                 await db.flush()
 
-            doc = await doc_service.create({
-                "knowledge_base_id": kb_id,
-                "attachment_id": attachment.id,
-                "file_name": filename,
-                "file_type": file_type,
-                "file_size": file_size,
-                "file_hash": file_hash,
-                "status": DocumentStatusEnum.PENDING.value,
-            })
+            doc = await doc_service.create(
+                {
+                    "knowledge_base_id": kb_id,
+                    "attachment_id": attachment.id,
+                    "file_name": filename,
+                    "file_type": file_type,
+                    "file_size": file_size,
+                    "file_hash": file_hash,
+                    "status": DocumentStatusEnum.PENDING.value,
+                }
+            )
             await db.commit()
 
             from app.ai.rag.processor import process_document
+
             process_document.delay(
                 tenant_id=tenant_id,
                 document_id=doc.id,
@@ -585,6 +604,7 @@ class AdminKnowledgeBaseController(GlobalController):
             tenant_id = kb.tenant_id
 
             from app.services.ai.knowledge_base_service import KnowledgeBaseService
+
             kb_service = KnowledgeBaseService(db, tenant_id)
             await kb_service.check_document_quota(kb_id)
 
@@ -599,18 +619,21 @@ class AdminKnowledgeBaseController(GlobalController):
                 )
 
             safe_title = data.title.replace("/", "_").replace("\\", "_")
-            doc = await doc_service.create({
-                "knowledge_base_id": kb_id,
-                "file_name": f"{safe_title}.txt",
-                "file_type": DocumentTypeEnum.TXT.value,
-                "file_size": len(content_bytes),
-                "file_hash": content_hash,
-                "status": DocumentStatusEnum.PENDING.value,
-                "metadata_extra": data.content,
-            })
+            doc = await doc_service.create(
+                {
+                    "knowledge_base_id": kb_id,
+                    "file_name": f"{safe_title}.txt",
+                    "file_type": DocumentTypeEnum.TXT.value,
+                    "file_size": len(content_bytes),
+                    "file_hash": content_hash,
+                    "status": DocumentStatusEnum.PENDING.value,
+                    "metadata_extra": data.content,
+                }
+            )
             await db.commit()
 
             from app.ai.rag.processor import process_document
+
             process_document.delay(
                 tenant_id=tenant_id,
                 document_id=doc.id,
@@ -621,7 +644,9 @@ class AdminKnowledgeBaseController(GlobalController):
                 message=_("knowledge_base.document.uploaded"),
             )
 
-        @router.get("/{kb_id}/documents/{doc_id}/chunks", summary="文档分块预览（管理端）")
+        @router.get(
+            "/{kb_id}/documents/{doc_id}/chunks", summary="文档分块预览（管理端）"
+        )
         @action_read("action.ai_knowledge_base.document_chunks")
         async def get_document_chunks(
             request: Request,
@@ -657,20 +682,22 @@ class AdminKnowledgeBaseController(GlobalController):
                 page_size=page_size,
             )
 
-            return success(data={
-                "chunks": [
-                    {
-                        "id": c.id,
-                        "chunk_index": c.chunk_index,
-                        "content": c.content,
-                        "char_count": c.char_count,
-                        "token_count": c.token_count,
-                        "metadata": c.metadata_,
-                    }
-                    for c in chunks
-                ],
-                "total": doc.chunk_count or 0,
-            })
+            return success(
+                data={
+                    "chunks": [
+                        {
+                            "id": c.id,
+                            "chunk_index": c.chunk_index,
+                            "content": c.content,
+                            "char_count": c.char_count,
+                            "token_count": c.token_count,
+                            "metadata": c.metadata_,
+                        }
+                        for c in chunks
+                    ],
+                    "total": doc.chunk_count or 0,
+                }
+            )
 
         @router.delete("/{kb_id}/documents/{doc_id}", summary="删除文档（管理端）")
         @action_delete("action.ai_knowledge_base.document_delete")
@@ -705,11 +732,13 @@ class AdminKnowledgeBaseController(GlobalController):
             await doc_service.delete(doc_id)
 
             from app.services.ai.knowledge_base_service import KnowledgeBaseService
+
             kb_service = KnowledgeBaseService(db, tenant_id)
             await kb_service.update_statistics(kb_id)
             await db.commit()
 
             from app.ai.rag.retriever import HybridRetriever
+
             await HybridRetriever.invalidate_kb_cache(kb_id)
 
             return deleted(message=_("knowledge_base.document.deleted"))
@@ -754,6 +783,7 @@ class AdminKnowledgeBaseController(GlobalController):
             await db.commit()
 
             from app.ai.rag.processor import process_document
+
             process_document.delay(
                 tenant_id=tenant_id,
                 document_id=doc.id,
@@ -803,7 +833,9 @@ class AdminKnowledgeBaseController(GlobalController):
                     "stage": doc.status,
                     "progress": 100 if doc.status == "completed" else 0,
                     "total_chunks": doc.chunk_count,
-                    "processed_chunks": doc.chunk_count if doc.status == "completed" else 0,
+                    "processed_chunks": doc.chunk_count
+                    if doc.status == "completed"
+                    else 0,
                 }
 
             return success(data=progress)
@@ -831,10 +863,12 @@ class AdminKnowledgeBaseController(GlobalController):
                 raise NotFoundException(message=_("knowledge_base.error.not_found"))
 
             from app.services.ai.knowledge_base_service import KnowledgeBaseService
+
             kb_service = KnowledgeBaseService(db, kb.tenant_id)
             count = await kb_service.reindex_knowledge_base(kb_id)
 
             from app.ai.rag.retriever import HybridRetriever
+
             await HybridRetriever.invalidate_kb_cache(kb_id)
 
             return success(
@@ -874,18 +908,20 @@ class AdminKnowledgeBaseController(GlobalController):
                 search_mode=data.search_mode,
             )
 
-            return success(data=[
-                {
-                    "chunk_id": r.chunk_id,
-                    "content": r.content,
-                    "score": r.score,
-                    "metadata": r.metadata,
-                    "document_name": r.document_name,
-                    "document_id": r.document_id,
-                    "highlight": r.highlight,
-                }
-                for r in results
-            ])
+            return success(
+                data=[
+                    {
+                        "chunk_id": r.chunk_id,
+                        "content": r.content,
+                        "score": r.score,
+                        "metadata": r.metadata,
+                        "document_name": r.document_name,
+                        "document_id": r.document_id,
+                        "highlight": r.highlight,
+                    }
+                    for r in results
+                ]
+            )
 
         # ========================================
         # Q&A 问答对 / Q&A Pairs
@@ -916,6 +952,7 @@ class AdminKnowledgeBaseController(GlobalController):
 
             # 配额检查 / Quota check
             from app.services.ai.knowledge_base_service import KnowledgeBaseService
+
             kb_service = KnowledgeBaseService(db, tenant_id)
             await kb_service.check_document_quota(kb_id)
 
@@ -933,17 +970,22 @@ class AdminKnowledgeBaseController(GlobalController):
 
             # 创建文档记录（metadata_extra 存储原始 Q&A JSON，供 reindex 使用） / Create document record (metadata_extra stores original Q&A JSON for reindex)
             import json as _json
-            doc = await doc_service.create({
-                "knowledge_base_id": kb_id,
-                "file_name": f"qa_{content_hash[:8]}.txt",
-                "file_type": DocumentTypeEnum.QA.value,
-                "file_size": len(qa_content.encode("utf-8")),
-                "file_hash": content_hash,
-                "status": DocumentStatusEnum.COMPLETED.value,
-                "chunk_count": 1,
-                "char_count": len(qa_content),
-                "metadata_extra": _json.dumps({"question": data.question, "answer": data.answer}),
-            })
+
+            doc = await doc_service.create(
+                {
+                    "knowledge_base_id": kb_id,
+                    "file_name": f"qa_{content_hash[:8]}.txt",
+                    "file_type": DocumentTypeEnum.QA.value,
+                    "file_size": len(qa_content.encode("utf-8")),
+                    "file_hash": content_hash,
+                    "status": DocumentStatusEnum.COMPLETED.value,
+                    "chunk_count": 1,
+                    "char_count": len(qa_content),
+                    "metadata_extra": _json.dumps(
+                        {"question": data.question, "answer": data.answer}
+                    ),
+                }
+            )
 
             # 直接创建 chunk（无需 Celery 异步） / Directly create chunk (no Celery async needed)
             from app.ai.rag.embedding import EmbeddingService
@@ -955,27 +997,30 @@ class AdminKnowledgeBaseController(GlobalController):
             embeddings = await embedding_service.generate_embedding(qa_content, kb)
             token_count = estimate_tokens(qa_content)
 
-            await chunk_service.create({
-                "document_id": doc.id,
-                "knowledge_base_id": kb_id,
-                "chunk_index": 0,
-                "content": qa_content,
-                "content_hash": content_hash,
-                "embedding": embeddings,
-                "char_count": len(qa_content),
-                "token_count": token_count,
-                "metadata_": {
-                    "type": "qa",
-                    "question": data.question,
-                    "answer": data.answer,
-                },
-            })
+            await chunk_service.create(
+                {
+                    "document_id": doc.id,
+                    "knowledge_base_id": kb_id,
+                    "chunk_index": 0,
+                    "content": qa_content,
+                    "content_hash": content_hash,
+                    "embedding": embeddings,
+                    "char_count": len(qa_content),
+                    "token_count": token_count,
+                    "metadata_": {
+                        "type": "qa",
+                        "question": data.question,
+                        "answer": data.answer,
+                    },
+                }
+            )
 
             doc.token_count = token_count
             await kb_service.update_statistics(kb_id)
             await db.commit()
 
             from app.ai.rag.retriever import HybridRetriever
+
             await HybridRetriever.invalidate_kb_cache(kb_id)
 
             return created(
@@ -1035,6 +1080,7 @@ class AdminKnowledgeBaseController(GlobalController):
             embedding_service = EmbeddingService(db, tenant_id)
 
             from app.services.ai.knowledge_base_service import KnowledgeBaseService
+
             kb_service = KnowledgeBaseService(db, tenant_id)
 
             imported = 0
@@ -1058,32 +1104,39 @@ class AdminKnowledgeBaseController(GlobalController):
 
                 try:
                     import json as _json
-                    doc = await doc_service.create({
-                        "knowledge_base_id": kb_id,
-                        "file_name": f"qa_{content_hash[:8]}.txt",
-                        "file_type": DocumentTypeEnum.QA.value,
-                        "file_size": len(qa_content.encode("utf-8")),
-                        "file_hash": content_hash,
-                        "status": DocumentStatusEnum.COMPLETED.value,
-                        "chunk_count": 1,
-                        "char_count": len(qa_content),
-                        "metadata_extra": _json.dumps({"question": q, "answer": a}),
-                    })
 
-                    embeddings = await embedding_service.generate_embedding(qa_content, kb)
+                    doc = await doc_service.create(
+                        {
+                            "knowledge_base_id": kb_id,
+                            "file_name": f"qa_{content_hash[:8]}.txt",
+                            "file_type": DocumentTypeEnum.QA.value,
+                            "file_size": len(qa_content.encode("utf-8")),
+                            "file_hash": content_hash,
+                            "status": DocumentStatusEnum.COMPLETED.value,
+                            "chunk_count": 1,
+                            "char_count": len(qa_content),
+                            "metadata_extra": _json.dumps({"question": q, "answer": a}),
+                        }
+                    )
+
+                    embeddings = await embedding_service.generate_embedding(
+                        qa_content, kb
+                    )
                     token_count = estimate_tokens(qa_content)
 
-                    await chunk_service.create({
-                        "document_id": doc.id,
-                        "knowledge_base_id": kb_id,
-                        "chunk_index": 0,
-                        "content": qa_content,
-                        "content_hash": content_hash,
-                        "embedding": embeddings,
-                        "char_count": len(qa_content),
-                        "token_count": token_count,
-                        "metadata_": {"type": "qa", "question": q, "answer": a},
-                    })
+                    await chunk_service.create(
+                        {
+                            "document_id": doc.id,
+                            "knowledge_base_id": kb_id,
+                            "chunk_index": 0,
+                            "content": qa_content,
+                            "content_hash": content_hash,
+                            "embedding": embeddings,
+                            "char_count": len(qa_content),
+                            "token_count": token_count,
+                            "metadata_": {"type": "qa", "question": q, "answer": a},
+                        }
+                    )
                     doc.token_count = token_count
                     imported += 1
                 except Exception as exc:
@@ -1096,13 +1149,16 @@ class AdminKnowledgeBaseController(GlobalController):
             await db.commit()
 
             from app.ai.rag.retriever import HybridRetriever
+
             await HybridRetriever.invalidate_kb_cache(kb_id)
 
-            return success(data={
-                "imported": imported,
-                "skipped": skipped,
-                "errors": errors[:20],
-            })
+            return success(
+                data={
+                    "imported": imported,
+                    "skipped": skipped,
+                    "errors": errors[:20],
+                }
+            )
 
         # ========================================
         # URL 网页导入 / URL Web Import
@@ -1143,31 +1199,36 @@ class AdminKnowledgeBaseController(GlobalController):
                 if existing:
                     continue
 
-                doc = await doc_service.create({
-                    "knowledge_base_id": kb_id,
-                    "file_name": url[:200],
-                    "file_type": DocumentTypeEnum.URL.value,
-                    "file_size": len(url.encode("utf-8")),
-                    "file_hash": url_hash,
-                    "source_url": url,
-                    "status": DocumentStatusEnum.PENDING.value,
-                    "metadata_extra": url,
-                })
+                doc = await doc_service.create(
+                    {
+                        "knowledge_base_id": kb_id,
+                        "file_name": url[:200],
+                        "file_type": DocumentTypeEnum.URL.value,
+                        "file_size": len(url.encode("utf-8")),
+                        "file_hash": url_hash,
+                        "source_url": url,
+                        "status": DocumentStatusEnum.PENDING.value,
+                        "metadata_extra": url,
+                    }
+                )
                 created_docs.append(doc.to_dict())
 
             await db.commit()
 
             from app.ai.rag.processor import process_document
+
             for doc_dict in created_docs:
                 process_document.delay(
                     tenant_id=tenant_id,
                     document_id=doc_dict["id"],
                 )
 
-            return success(data={
-                "created": len(created_docs),
-                "documents": created_docs,
-            })
+            return success(
+                data={
+                    "created": len(created_docs),
+                    "documents": created_docs,
+                }
+            )
 
         # ========================================
         # 删除 / Delete

@@ -84,9 +84,7 @@ class MemoryExtractionService:
                     max_tokens=500,
                     call_type=CallTypeEnum.INTERNAL_MEMORY.value,
                     tenant_id=(
-                        self.tenant_id
-                        if self.tenant_id > PLATFORM_TENANT_ID
-                        else None
+                        self.tenant_id if self.tenant_id > PLATFORM_TENANT_ID else None
                     ),
                 )
 
@@ -175,7 +173,7 @@ class MemoryExtractionService:
             "3. If nothing worth remembering, return all empty arrays\n"
             "4. Do NOT extract trivial greetings, acknowledgments, or filler\n"
             "5. Do NOT repeat what the assistant said unless the user confirmed it as a preference\n\n"
-            'Respond ONLY with valid JSON (no markdown, no explanation):\n'
+            "Respond ONLY with valid JSON (no markdown, no explanation):\n"
             '{"preferences": [], "constraints": [], "task_states": [], "verified_facts": []}'
         )
 

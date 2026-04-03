@@ -2201,6 +2201,8 @@
       "invalid_icon_type": "仅支持 PNG/SVG/JPG/WebP 图标",
       "icon_too_large": "图标文件过大（{size} 字节），最大 2MB",
       "activation_failed": "激活失败",
+      "source_agent_scope_locked": "插件托管智能体的作用域必须跟随来源插件 {plugin}",
+      "scope_disallows_tenant_assignment": "当前插件作用域 {scope} 不支持指定企业分配",
       "invalid_backup_name": "无效的备份名称",
       "backup_not_found": "备份不存在",
       "raw_session_forbidden": "插件沙箱中禁止访问原始数据库会话",

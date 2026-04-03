@@ -10,7 +10,9 @@ class TenantAgentPublicationUpdate(BaseModel):
 
     enabled_for_users: bool = Field(..., description="Enabled for tenant users")
     access_type: str = Field(..., description="Publication access type")
-    tenant_user_role_ids: list[int] | None = Field(None, description="Tenant user role IDs")
+    tenant_user_role_ids: list[int] | None = Field(
+        None, description="Tenant user role IDs"
+    )
     tenant_user_ids: list[int] | None = Field(None, description="Tenant user IDs")
     org_node_ids: list[int] | None = Field(None, description="Organization node IDs")
 
@@ -21,7 +23,9 @@ class TenantAgentPublicationResponse(BaseModel):
     agent_id: int = Field(..., description="Agent ID")
     enabled_for_users: bool = Field(..., description="Enabled for tenant users")
     access_type: str = Field(..., description="Publication access type")
-    tenant_user_role_ids: list[int] | None = Field(None, description="Tenant user role IDs")
+    tenant_user_role_ids: list[int] | None = Field(
+        None, description="Tenant user role IDs"
+    )
     tenant_user_ids: list[int] | None = Field(None, description="Tenant user IDs")
     org_node_ids: list[int] | None = Field(None, description="Organization node IDs")
     publication_id: int | None = Field(None, description="Publication ID")

@@ -61,7 +61,9 @@ class TraceLookupService:
     )
     _SENSITIVE_VALUE_PATTERNS = [
         re.compile(r"(?i)\b(bearer)\s+[a-z0-9\-\._~\+/]+=*"),
-        re.compile(r"(?i)\b(password|passwd|token|api_key|apikey|secret)\s*[:=]\s*['\"]?[^'\"\s,;]+"),
+        re.compile(
+            r"(?i)\b(password|passwd|token|api_key|apikey|secret)\s*[:=]\s*['\"]?[^'\"\s,;]+"
+        ),
         re.compile(r"(?i)\b(cookie|set-cookie)\s*[:=]\s*[^;,\n]+"),
         re.compile(r"(?i)\b(postgresql(?:\+asyncpg)?://)[^\s]+"),
     ]
@@ -99,7 +101,9 @@ class TraceLookupService:
         need_logs = source in {"auto", "logs", "all"}
 
         if need_db and self.db is not None:
-            operation_logs = await self._query_operation_logs(trace_id=trace_id, redact=redact)
+            operation_logs = await self._query_operation_logs(
+                trace_id=trace_id, redact=redact
+            )
 
         if need_logs:
             log_matches = self._scan_log_files(
@@ -146,7 +150,9 @@ class TraceLookupService:
         rows = result.scalars().all()
         return [self._serialize_operation_log(item, redact=redact) for item in rows]
 
-    def _serialize_operation_log(self, item: OperationLog, *, redact: bool) -> dict[str, Any]:
+    def _serialize_operation_log(
+        self, item: OperationLog, *, redact: bool
+    ) -> dict[str, Any]:
         payload = {
             "id": item.id,
             "created_at": item.created_at.isoformat() if item.created_at else None,
@@ -209,7 +215,11 @@ class TraceLookupService:
         if since_hours is None:
             return files
         cutoff = datetime.now(timezone.utc) - timedelta(hours=since_hours)
-        return [f for f in files if datetime.fromtimestamp(f.stat().st_mtime, tz=timezone.utc) >= cutoff]
+        return [
+            f
+            for f in files
+            if datetime.fromtimestamp(f.stat().st_mtime, tz=timezone.utc) >= cutoff
+        ]
 
     def _collect_file_matches(
         self,
@@ -248,7 +258,9 @@ class TraceLookupService:
             )
         return rows
 
-    def _pick_primary_error(self, matches: list[dict[str, Any]]) -> dict[str, Any] | None:
+    def _pick_primary_error(
+        self, matches: list[dict[str, Any]]
+    ) -> dict[str, Any] | None:
         for item in matches:
             joined = "\n".join(item["block"])
             if "Traceback" in joined:
@@ -276,7 +288,12 @@ class TraceLookupService:
     def _redact_line(self, line: str) -> str:
         redacted = line
         for pattern in self._SENSITIVE_VALUE_PATTERNS:
-            redacted = pattern.sub(lambda m: f"{m.group(1)} ***REDACTED***" if m.lastindex else "***REDACTED***", redacted)
+            redacted = pattern.sub(
+                lambda m: (
+                    f"{m.group(1)} ***REDACTED***" if m.lastindex else "***REDACTED***"
+                ),
+                redacted,
+            )
         return redacted
 
 

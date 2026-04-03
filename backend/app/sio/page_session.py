@@ -142,7 +142,9 @@ def _user_role_to_scope(user_role: str) -> str:
     return "/tenant"  # default / 缺省走企业端命名空间
 
 
-def get_active_session_id(user_id: int | None, page_key: str, user_role: str = "tenant_admin") -> str | None:
+def get_active_session_id(
+    user_id: int | None, page_key: str, user_role: str = "tenant_admin"
+) -> str | None:
     """
     Get the active page_session_id for (user_id, page_key) from active session tracking.
     Fallback is intentionally conservative: only returns a session when there is
@@ -200,7 +202,8 @@ def _track_sid_active_session(
     tracked_pairs = _sid_active_sessions.setdefault(sid_key, set())
 
     stale_pairs = {
-        pair for pair in tracked_pairs
+        pair
+        for pair in tracked_pairs
         if pair[0] == active_key and pair[1] != page_session_id
     }
     for stale_active_key, stale_session_id in stale_pairs:
@@ -221,7 +224,8 @@ def _remove_sid_active_sessions(
         return
 
     pairs_to_remove = {
-        pair for pair in tracked_pairs
+        pair
+        for pair in tracked_pairs
         if page_session_id is None or pair[1] == page_session_id
     }
     for active_key, tracked_session_id in pairs_to_remove:
@@ -345,14 +349,25 @@ class PageSessionMixin:
                         _track_sid_active_session(scope, sid, key, page_session_id)
                         logger.debug(
                             "SIO {} active_session stored scope={} user_id={} page_key={} session={} active_count={}",
-                            self.namespace, scope, user_id, page_key, page_session_id, len(session_map),
+                            self.namespace,
+                            scope,
+                            user_id,
+                            page_key,
+                            page_session_id,
+                            len(session_map),
                         )
                 except Exception as e:
-                    logger.debug("SIO {} get_session for active_session failed: {}", self.namespace, e)
+                    logger.debug(
+                        "SIO {} get_session for active_session failed: {}",
+                        self.namespace,
+                        e,
+                    )
 
             logger.debug(
                 "SIO {} sid={} joined room {}",
-                self.namespace, sid, room,
+                self.namespace,
+                sid,
+                room,
             )
             return None
         except Exception as exc:
@@ -385,7 +400,9 @@ class PageSessionMixin:
 
             logger.debug(
                 "SIO {} sid={} left room {}",
-                self.namespace, sid, room,
+                self.namespace,
+                sid,
+                room,
             )
             return None
         except Exception as exc:
@@ -430,7 +447,9 @@ class PageSessionMixin:
                 future.set_result(result_payload)
                 logger.debug(
                     "SIO {} page_operation:result received invoke_id={} success={}",
-                    self.namespace, invoke_id, data.get("success"),
+                    self.namespace,
+                    invoke_id,
+                    data.get("success"),
                 )
             return None
         except Exception as exc:
@@ -510,7 +529,9 @@ async def invoke_page_operation(
     # Construct invoke event data / 构造 invoke 事件数据
     invoke_data: dict[str, Any] = {
         "invoke_id": invoke_id,
-        "trace_id": normalize_trace_id(trace_id_var.get() or invoke_id, default=invoke_id),
+        "trace_id": normalize_trace_id(
+            trace_id_var.get() or invoke_id, default=invoke_id
+        ),
         "page_key": page_key,
         "operation_name": operation_name,
         "params": params or {},
@@ -533,7 +554,10 @@ async def invoke_page_operation(
 
         logger.debug(
             "page_operation:invoke sent invoke_id={} page_key={} op={} room={}",
-            invoke_id, page_key, operation_name, room,
+            invoke_id,
+            page_key,
+            operation_name,
+            room,
         )
 
         # Wait for frontend result callback / 等待前端回传结果
@@ -543,19 +567,25 @@ async def invoke_page_operation(
     except asyncio.TimeoutError:
         logger.warning(
             "page_operation:invoke timed out invoke_id={} page_key={} op={} timeout={}s",
-            invoke_id, page_key, operation_name, timeout,
+            invoke_id,
+            page_key,
+            operation_name,
+            timeout,
         )
         return _page_operation_error_result(
             invoke_id=invoke_id,
             error_type="timeout",
-            message=_("page_operation.error.timeout", op=operation_name, timeout=int(timeout)),
+            message=_(
+                "page_operation.error.timeout", op=operation_name, timeout=int(timeout)
+            ),
             code="PAGE_OPERATION_TIMEOUT",
         )
 
     except Exception as e:
         logger.error(
             "page_operation:invoke failed invoke_id={} error={}",
-            invoke_id, e,
+            invoke_id,
+            e,
         )
         return _page_operation_error_result(
             invoke_id=invoke_id,

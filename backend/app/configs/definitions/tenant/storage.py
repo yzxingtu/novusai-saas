@@ -126,7 +126,7 @@ TENANT_STORAGE_OPTIONS = ConfigMeta(
                     field="tenant_storage_mode",
                     operator="in",
                     value=["custom", "admin_override"],
-                )
+                ),
             ],
             sort_order=10,
         ),
@@ -147,7 +147,7 @@ TENANT_STORAGE_OPTIONS = ConfigMeta(
                     field="tenant_storage_mode",
                     operator="in",
                     value=["custom", "admin_override"],
-                )
+                ),
             ],
             sort_order=20,
         ),
@@ -168,7 +168,7 @@ TENANT_STORAGE_OPTIONS = ConfigMeta(
                     field="tenant_storage_mode",
                     operator="in",
                     value=["custom", "admin_override"],
-                )
+                ),
             ],
             sort_order=30,
         ),
@@ -189,7 +189,7 @@ TENANT_STORAGE_OPTIONS = ConfigMeta(
                     field="tenant_storage_mode",
                     operator="in",
                     value=["custom", "admin_override"],
-                )
+                ),
             ],
             sort_order=40,
         ),
@@ -210,7 +210,7 @@ TENANT_STORAGE_OPTIONS = ConfigMeta(
                     field="tenant_storage_mode",
                     operator="in",
                     value=["custom", "admin_override"],
-                )
+                ),
             ],
             sort_order=50,
         ),
@@ -231,7 +231,7 @@ TENANT_STORAGE_OPTIONS = ConfigMeta(
                     field="tenant_storage_mode",
                     operator="in",
                     value=["custom", "admin_override"],
-                )
+                ),
             ],
             sort_order=60,
         ),
@@ -252,7 +252,7 @@ TENANT_STORAGE_OPTIONS = ConfigMeta(
                     field="tenant_storage_mode",
                     operator="in",
                     value=["custom", "admin_override"],
-                )
+                ),
             ],
             sort_order=70,
         ),
@@ -273,7 +273,7 @@ TENANT_STORAGE_OPTIONS = ConfigMeta(
                     field="tenant_storage_mode",
                     operator="in",
                     value=["custom", "admin_override"],
-                )
+                ),
             ],
             sort_order=80,
         ),
@@ -294,7 +294,7 @@ TENANT_STORAGE_OPTIONS = ConfigMeta(
                     field="tenant_storage_mode",
                     operator="in",
                     value=["custom", "admin_override"],
-                )
+                ),
             ],
             sort_order=90,
         ),
@@ -315,7 +315,7 @@ TENANT_STORAGE_OPTIONS = ConfigMeta(
                     field="tenant_storage_mode",
                     operator="in",
                     value=["custom", "admin_override"],
-                )
+                ),
             ],
             sort_order=100,
         ),
@@ -336,7 +336,7 @@ TENANT_STORAGE_OPTIONS = ConfigMeta(
                     field="tenant_storage_mode",
                     operator="in",
                     value=["custom", "admin_override"],
-                )
+                ),
             ],
             sort_order=110,
         ),
@@ -357,7 +357,7 @@ TENANT_STORAGE_OPTIONS = ConfigMeta(
                     field="tenant_storage_mode",
                     operator="in",
                     value=["custom", "admin_override"],
-                )
+                ),
             ],
             sort_order=120,
         ),

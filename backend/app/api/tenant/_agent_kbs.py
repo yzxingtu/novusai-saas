@@ -63,6 +63,7 @@ async def bind_kb(
     绑定单个知识库到智能体 / Bind a single knowledge base to agent
     """
     from app.api.tenant.agents import _ensure_agent_kb_mutations_allowed
+
     await _ensure_agent_kb_mutations_allowed(db, tenant_admin.tenant_id, agent_id)
 
     kb_service = AgentKBBindingService(db, tenant_admin.tenant_id)
@@ -90,6 +91,7 @@ async def batch_bind_kbs(
     批量绑定知识库（替换模式：先清空再批量插入）/ Batch bind knowledge bases (replace mode).
     """
     from app.api.tenant.agents import _ensure_agent_kb_mutations_allowed
+
     await _ensure_agent_kb_mutations_allowed(db, tenant_admin.tenant_id, agent_id)
 
     kb_service = AgentKBBindingService(db, tenant_admin.tenant_id)
@@ -98,9 +100,7 @@ async def batch_bind_kbs(
         knowledge_base_ids=data.knowledge_base_ids,
     )
     await db.commit()
-    return success(
-        data=[kb_service.serialize_binding_public(b) for b in bindings]
-    )
+    return success(data=[kb_service.serialize_binding_public(b) for b in bindings])
 
 
 @router.put("/{agent_id}/knowledge-bases/{binding_id}", summary="更新知识库绑定配置")
@@ -118,6 +118,7 @@ async def update_kb_binding(
     Update knowledge base binding (weight / enabled / sort_order)
     """
     from app.api.tenant.agents import _ensure_agent_kb_mutations_allowed
+
     await _ensure_agent_kb_mutations_allowed(db, tenant_admin.tenant_id, agent_id)
 
     kb_service = AgentKBBindingService(db, tenant_admin.tenant_id)
@@ -147,6 +148,7 @@ async def unbind_kb(
     解绑指定知识库 / Unbind specified knowledge base
     """
     from app.api.tenant.agents import _ensure_agent_kb_mutations_allowed
+
     await _ensure_agent_kb_mutations_allowed(db, tenant_admin.tenant_id, agent_id)
 
     kb_service = AgentKBBindingService(db, tenant_admin.tenant_id)

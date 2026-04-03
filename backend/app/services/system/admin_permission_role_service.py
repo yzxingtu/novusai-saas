@@ -20,7 +20,9 @@ from app.repositories.system.admin_permission_role_repository import (
 )
 
 
-class AdminPermissionRoleService(GlobalService[AdminRole, AdminPermissionRoleRepository]):
+class AdminPermissionRoleService(
+    GlobalService[AdminRole, AdminPermissionRoleRepository]
+):
     """Service for admin permission roles / 管理后台权限角色服务"""
 
     model = AdminRole
@@ -68,7 +70,9 @@ class AdminPermissionRoleService(GlobalService[AdminRole, AdminPermissionRoleRep
             data["type"] = RoleType.ROLE.value
         return await self.repo.create(data)
 
-    async def update_permission_role(self, role_id: int, data: dict[str, Any]) -> AdminRole:
+    async def update_permission_role(
+        self, role_id: int, data: dict[str, Any]
+    ) -> AdminRole:
         role = await self.repo.get_by_id(role_id)
         if not role:
             raise NotFoundException(message=_("role.not_found"))
@@ -99,7 +103,9 @@ class AdminPermissionRoleService(GlobalService[AdminRole, AdminPermissionRoleRep
             )
         return await self.delete(role_id)
 
-    async def assign_permissions(self, role_id: int, permission_ids: list[int]) -> AdminRole:
+    async def assign_permissions(
+        self, role_id: int, permission_ids: list[int]
+    ) -> AdminRole:
         role = await self.repo.get_by_id(role_id)
         if not role:
             raise NotFoundException(message=_("role.not_found"))

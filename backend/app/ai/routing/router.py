@@ -170,21 +170,21 @@ class ModelRouter:
         # Detect if request contains image attachments (request-level + message-level)
         # 检测是否包含图片附件（request 级 + message 级）
         has_image_attachments = self._detect_image_attachments(
-            getattr(request, "attachments", None), messages,
+            getattr(request, "attachments", None),
+            messages,
         )
 
         # Ensure agent's model is loaded / 确保 agent 的 model 已加载
         agent_model: AIModel | None = getattr(agent, "model", None)
-        agent_provider_id: int | None = (
-            agent_model.provider_id if agent_model else None
-        )
+        agent_provider_id: int | None = agent_model.provider_id if agent_model else None
 
         from app.repositories.ai.model_repository import AIModelRepository
 
         model_repo = AIModelRepository(self.db)
 
         has_audio, has_video = self._detect_audio_video_attachments(
-            getattr(request, "attachments", None), messages,
+            getattr(request, "attachments", None),
+            messages,
         )
         needs_fc = bool(tools)
 
@@ -204,11 +204,13 @@ class ModelRouter:
             if multimodal_result:
                 return multimodal_result
             raise BusinessException(
-                message=_(self._get_multimodal_error_key(
-                    has_image=has_image_attachments,
-                    has_audio=has_audio,
-                    has_video=has_video,
-                )),
+                message=_(
+                    self._get_multimodal_error_key(
+                        has_image=has_image_attachments,
+                        has_audio=has_audio,
+                        has_video=has_video,
+                    )
+                ),
             )
 
         # ── 3. Long context → Requires large context_window ──
@@ -233,7 +235,10 @@ class ModelRouter:
         complexity = self._classifier.classify(
             messages,
             tools,
-            has_attachments=has_attachments or has_image_attachments or has_audio or has_video,
+            has_attachments=has_attachments
+            or has_image_attachments
+            or has_audio
+            or has_video,
         )
         target_tiers = _TIER_CANDIDATES.get(complexity.value, [])
 
@@ -308,9 +313,7 @@ class ModelRouter:
 
         routing_config: dict = getattr(agent, "routing_config", None) or {}
         agent_model: AIModel | None = getattr(agent, "model", None)
-        agent_provider_id: int | None = (
-            agent_model.provider_id if agent_model else None
-        )
+        agent_provider_id: int | None = agent_model.provider_id if agent_model else None
         model_repo = AIModelRepository(self.db)
         result = await self._route_for_multimodal(
             routing_config=routing_config,
@@ -347,7 +350,9 @@ class ModelRouter:
             needs_audio=has_audio,
             needs_video=has_video,
             needs_fc=needs_fc,
-        ) and await self._is_provider_healthy(getattr(agent_model, "provider_id", None)):
+        ) and await self._is_provider_healthy(
+            getattr(agent_model, "provider_id", None)
+        ):
             return self._fallback(
                 agent,
                 reason=self._build_multimodal_reason(
@@ -447,7 +452,9 @@ class ModelRouter:
             agent_model,
             min_context_window=estimated_tokens,
             needs_fc=needs_fc,
-        ) and await self._is_provider_healthy(getattr(agent_model, "provider_id", None)):
+        ) and await self._is_provider_healthy(
+            getattr(agent_model, "provider_id", None)
+        ):
             return self._fallback(agent, reason="long_context:agent_model")
 
         lc_model_id: int | None = routing_config.get("long_context_model_id")

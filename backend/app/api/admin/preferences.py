@@ -29,6 +29,7 @@ router = APIRouter(prefix="/preferences", tags=["偏好设置 / Preferences"])
 
 class PreferenceUpdateSchema(PydanticBase):
     """偏好更新请求体 / Preference update request body"""
+
     preferences: dict
 
 
@@ -43,7 +44,9 @@ async def get_global_preferences(
 ):
     """获取平台全局偏好设置（含系统默认补全） / Get platform global preferences with system defaults"""
     service = UserPreferenceService(db)
-    data = await service.get_global_with_defaults(SCOPE_PLATFORM_GLOBAL, PLATFORM_TENANT_ID)
+    data = await service.get_global_with_defaults(
+        SCOPE_PLATFORM_GLOBAL, PLATFORM_TENANT_ID
+    )
     return success(data=data)
 
 
@@ -58,7 +61,9 @@ async def update_global_preferences(
     更新平台全局偏好，变更的 key 会从所有管理员个人覆盖中清除 / Update platform global preferences; changed keys cleared from admin overrides.
     """
     service = UserPreferenceService(db)
-    data, changed = await service.update_global(SCOPE_PLATFORM_GLOBAL, PLATFORM_TENANT_ID, body.preferences)
+    data, changed = await service.update_global(
+        SCOPE_PLATFORM_GLOBAL, PLATFORM_TENANT_ID, body.preferences
+    )
     await db.commit()
 
     if changed:
@@ -68,7 +73,9 @@ async def update_global_preferences(
             room="admins",
             namespace="/admin",
         )
-        logger.info("Emitted preference:global_updated to room=admins ({} keys)", len(changed))
+        logger.info(
+            "Emitted preference:global_updated to room=admins ({} keys)", len(changed)
+        )
 
     return success(data=data, message=_("common.success"))
 
@@ -76,7 +83,9 @@ async def update_global_preferences(
 # ── 个人偏好 / Individual preferences ──
 
 
-@router.get("/me", summary="获取当前管理员生效偏好 / Get current admin effective preferences")
+@router.get(
+    "/me", summary="获取当前管理员生效偏好 / Get current admin effective preferences"
+)
 @auth_only
 async def get_my_preferences(
     db: DbSession,
@@ -88,7 +97,10 @@ async def get_my_preferences(
     return success(data=data)
 
 
-@router.put("/me", summary="更新当前管理员个人偏好 / Update current admin individual preferences")
+@router.put(
+    "/me",
+    summary="更新当前管理员个人偏好 / Update current admin individual preferences",
+)
 @auth_only
 async def update_my_preferences(
     db: DbSession,
@@ -97,7 +109,9 @@ async def update_my_preferences(
 ):
     """更新当前管理员的个人偏好覆盖 / Update current admin's individual preference overrides"""
     service = UserPreferenceService(db)
-    data = await service.update_individual(SCOPE_ADMIN, PLATFORM_TENANT_ID, admin.id, body.preferences)
+    data = await service.update_individual(
+        SCOPE_ADMIN, PLATFORM_TENANT_ID, admin.id, body.preferences
+    )
     await db.commit()
     return success(data=data, message=_("common.success"))
 

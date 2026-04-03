@@ -37,9 +37,7 @@ PLATFORM_SCHEDULE_SCOPES = (
     ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
 )
 
-ALL_TENANTS_DYNAMIC_SCHEDULE_SCOPES = (
-    ResourceScopeEnum.ALL_TENANTS.value,
-)
+ALL_TENANTS_DYNAMIC_SCHEDULE_SCOPES = (ResourceScopeEnum.ALL_TENANTS.value,)
 
 EXPLICIT_BINDING_SCHEDULE_SCOPES = (
     ResourceScopeEnum.SELECTED_TENANTS.value,
@@ -179,7 +177,9 @@ def _build_all_tenants_task_definition_schedule(
                 definition.code,
             )
             continue
-        schedule[f"all_tenants_task_definition:{definition.id}:{definition.code}"] = entry
+        schedule[f"all_tenants_task_definition:{definition.id}:{definition.code}"] = (
+            entry
+        )
     return schedule
 
 

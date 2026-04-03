@@ -64,12 +64,13 @@ class CodegenConfig(BaseModel):
     ]
 
     # 配置名称 / Config name
-    name: Mapped[str] = mapped_column(
-        String(100), comment="配置名称 / Config name"
-    )
+    name: Mapped[str] = mapped_column(String(100), comment="配置名称 / Config name")
     # 资源名 snake_case / Resource name (snake_case)
     resource: Mapped[str] = mapped_column(
-        String(100), index=True, unique=True, comment="资源名 / Resource name (snake_case)"
+        String(100),
+        index=True,
+        unique=True,
+        comment="资源名 / Resource name (snake_case)",
     )
     # 模块归属 / Module affiliation
     module: Mapped[str] = mapped_column(
@@ -95,28 +96,25 @@ class CodegenConfig(BaseModel):
     )
     # 上次生成时间 / Last generated at
     last_generated_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
-        comment="上次生成时间 / Last generated at"
+        DateTime(timezone=True),
+        nullable=True,
+        comment="上次生成时间 / Last generated at",
     )
     # 生成次数 / Generation count
     generation_count: Mapped[int] = mapped_column(
-        Integer, default=0,
-        comment="生成次数 / Generation count"
+        Integer, default=0, comment="生成次数 / Generation count"
     )
     # 上次生成文件清单 / Last generated files manifest
     generated_files: Mapped[dict | None] = mapped_column(
-        JSONB, nullable=True,
-        comment="上次生成文件清单 / Last generated files manifest"
+        JSONB, nullable=True, comment="上次生成文件清单 / Last generated files manifest"
     )
     # 配置哈希（用于检测变更）/ Config hash (for change detection)
     config_hash: Mapped[str | None] = mapped_column(
-        String(64), nullable=True,
-        comment="配置哈希 / Config hash"
+        String(64), nullable=True, comment="配置哈希 / Config hash"
     )
     # 上次生成错误信息 / Last generation error
     last_error: Mapped[str | None] = mapped_column(
-        Text, nullable=True,
-        comment="上次生成错误 / Last generation error"
+        Text, nullable=True, comment="上次生成错误 / Last generation error"
     )
 
     versions = relationship(

@@ -171,27 +171,33 @@ class AICallLogRepository(BaseRepository[AICallLog]):
 
         model_map: dict[int, str] = {}
         if model_ids:
-            rows = (await self.db.execute(
-                select(AIModel.id, AIModel.name).where(AIModel.id.in_(model_ids))
-            )).all()
+            rows = (
+                await self.db.execute(
+                    select(AIModel.id, AIModel.name).where(AIModel.id.in_(model_ids))
+                )
+            ).all()
             model_map = {r.id: r.name for r in rows}
 
         provider_map: dict[int, str] = {}
         provider_icon_map: dict[int, str | None] = {}
         if provider_ids:
-            rows = (await self.db.execute(
-                select(AIProvider.id, AIProvider.name, AIProvider.icon).where(
-                    AIProvider.id.in_(provider_ids)
+            rows = (
+                await self.db.execute(
+                    select(AIProvider.id, AIProvider.name, AIProvider.icon).where(
+                        AIProvider.id.in_(provider_ids)
+                    )
                 )
-            )).all()
+            ).all()
             provider_map = {r.id: r.name for r in rows}
             provider_icon_map = {r.id: r.icon for r in rows}
 
         tenant_map: dict[int, str] = {}
         if include_tenant_names and tenant_ids:
-            rows = (await self.db.execute(
-                select(Tenant.id, Tenant.name).where(Tenant.id.in_(tenant_ids))
-            )).all()
+            rows = (
+                await self.db.execute(
+                    select(Tenant.id, Tenant.name).where(Tenant.id.in_(tenant_ids))
+                )
+            ).all()
             tenant_map = {r.id: r.name for r in rows}
 
         tenant_admin_ids: set[int] = set()
@@ -212,23 +218,32 @@ class AICallLogRepository(BaseRepository[AICallLog]):
 
         tenant_admin_display: dict[int, str] = {}
         if tenant_admin_ids:
-            rows = (await self.db.execute(
-                select(TenantAdmin.id, TenantAdmin.username, TenantAdmin.nickname).where(
-                    TenantAdmin.id.in_(tenant_admin_ids)
+            rows = (
+                await self.db.execute(
+                    select(
+                        TenantAdmin.id, TenantAdmin.username, TenantAdmin.nickname
+                    ).where(TenantAdmin.id.in_(tenant_admin_ids))
                 )
-            )).all()
+            ).all()
             for r in rows:
                 tenant_admin_display[r.id] = _display_name(
-                    r.nickname, r.username, f"#{r.id}",
+                    r.nickname,
+                    r.username,
+                    f"#{r.id}",
                 )
 
         tenant_user_display: dict[int, str] = {}
         if tenant_user_ids:
-            rows = (await self.db.execute(
-                select(TenantUser.id, TenantUser.username, TenantUser.nickname, TenantUser.email).where(
-                    TenantUser.id.in_(tenant_user_ids)
+            rows = (
+                await self.db.execute(
+                    select(
+                        TenantUser.id,
+                        TenantUser.username,
+                        TenantUser.nickname,
+                        TenantUser.email,
+                    ).where(TenantUser.id.in_(tenant_user_ids))
                 )
-            )).all()
+            ).all()
             for r in rows:
                 tenant_user_display[r.id] = _display_name(
                     r.nickname,
@@ -238,46 +253,58 @@ class AICallLogRepository(BaseRepository[AICallLog]):
 
         platform_admin_display: dict[int, str] = {}
         if platform_admin_ids:
-            rows = (await self.db.execute(
-                select(Admin.id, Admin.username, Admin.nickname).where(
-                    Admin.id.in_(platform_admin_ids)
+            rows = (
+                await self.db.execute(
+                    select(Admin.id, Admin.username, Admin.nickname).where(
+                        Admin.id.in_(platform_admin_ids)
+                    )
                 )
-            )).all()
+            ).all()
             for r in rows:
                 platform_admin_display[r.id] = _display_name(
-                    r.nickname, r.username, f"#{r.id}",
+                    r.nickname,
+                    r.username,
+                    f"#{r.id}",
                 )
 
         result: list[dict] = []
         for item in items:
-            d = item.to_dict() if hasattr(item, "to_dict") else {
-                "id": item.id,
-                "tenant_id": item.tenant_id,
-                "model_id": item.model_id,
-                "provider_id": item.provider_id,
-                "request_type": item.request_type,
-                "input_tokens": item.input_tokens,
-                "output_tokens": item.output_tokens,
-                "total_tokens": item.total_tokens,
-                "cost": float(item.cost or 0),
-                "latency_ms": item.latency_ms,
-                "status": item.status,
-                "error_message": item.error_message,
-                "user_id": item.user_id,
-                "user_type": item.user_type,
-                "created_at": item.created_at,
-            }
+            d = (
+                item.to_dict()
+                if hasattr(item, "to_dict")
+                else {
+                    "id": item.id,
+                    "tenant_id": item.tenant_id,
+                    "model_id": item.model_id,
+                    "provider_id": item.provider_id,
+                    "request_type": item.request_type,
+                    "input_tokens": item.input_tokens,
+                    "output_tokens": item.output_tokens,
+                    "total_tokens": item.total_tokens,
+                    "cost": float(item.cost or 0),
+                    "latency_ms": item.latency_ms,
+                    "status": item.status,
+                    "error_message": item.error_message,
+                    "user_id": item.user_id,
+                    "user_type": item.user_type,
+                    "created_at": item.created_at,
+                }
+            )
             snap_model = getattr(item, "model_name_snapshot", None)
             snap_provider = getattr(item, "provider_name_snapshot", None)
             snap_agent = getattr(item, "agent_name_snapshot", None)
             d["model_name"] = snap_model or model_map.get(item.model_id, "-")
-            d["provider_name"] = snap_provider or provider_map.get(item.provider_id, "-")
+            d["provider_name"] = snap_provider or provider_map.get(
+                item.provider_id, "-"
+            )
             d["provider_icon"] = provider_icon_map.get(item.provider_id)
             d["routed_model_name"] = model_map.get(item.routed_model_id, "-")
             d["agent_name"] = snap_agent or "-"
             d["agent_id_snapshot"] = getattr(item, "agent_id_snapshot", None)
             d["billing_tenant_name_snapshot"] = getattr(
-                item, "billing_tenant_name_snapshot", None,
+                item,
+                "billing_tenant_name_snapshot",
+                None,
             )
             if include_tenant_names:
                 effective_tenant_id = item.billing_tenant_id
@@ -305,9 +332,7 @@ class AICallLogRepository(BaseRepository[AICallLog]):
             d["caller_name"] = caller
 
             metadata = (
-                item.request_metadata
-                if isinstance(item.request_metadata, dict)
-                else {}
+                item.request_metadata if isinstance(item.request_metadata, dict) else {}
             )
             d.pop("request_metadata", None)
             if not d.get("routed_model_id"):
@@ -470,27 +495,29 @@ class AICallLogRepository(BaseRepository[AICallLog]):
 
         items = []
         for row in rows:
-            items.append({
-                "tenant_id": row["tenant_id"],
-                "tenant_name": row["tenant_name"] or "-",
-                "model_id": row["model_id"],
-                "model_name": row["model_name"] or "-",
-                "request_type": row["request_type"],
-                "stat_date": str(row["stat_date"]),
-                "input_tokens": int(row["input_tokens"] or 0),
-                "output_tokens": int(row["output_tokens"] or 0),
-                "total_tokens": int(row["total_tokens"] or 0),
-                "call_count": int(row["call_count"] or 0),
-                "success_count": int(row["success_count"] or 0),
-                "failed_count": int(row["failed_count"] or 0),
-                "total_cost": float(row["total_cost"] or 0),
-                "avg_latency_ms": (
-                    float(row["avg_latency_ms"])
-                    if row["avg_latency_ms"] is not None
-                    else None
-                ),
-                "max_latency_ms": row["max_latency_ms"],
-            })
+            items.append(
+                {
+                    "tenant_id": row["tenant_id"],
+                    "tenant_name": row["tenant_name"] or "-",
+                    "model_id": row["model_id"],
+                    "model_name": row["model_name"] or "-",
+                    "request_type": row["request_type"],
+                    "stat_date": str(row["stat_date"]),
+                    "input_tokens": int(row["input_tokens"] or 0),
+                    "output_tokens": int(row["output_tokens"] or 0),
+                    "total_tokens": int(row["total_tokens"] or 0),
+                    "call_count": int(row["call_count"] or 0),
+                    "success_count": int(row["success_count"] or 0),
+                    "failed_count": int(row["failed_count"] or 0),
+                    "total_cost": float(row["total_cost"] or 0),
+                    "avg_latency_ms": (
+                        float(row["avg_latency_ms"])
+                        if row["avg_latency_ms"] is not None
+                        else None
+                    ),
+                    "max_latency_ms": row["max_latency_ms"],
+                }
+            )
 
         return items, total
 
@@ -520,12 +547,12 @@ class AICallLogRepository(BaseRepository[AICallLog]):
             func.sum(AICallLog.output_tokens).label("output_tokens"),
             func.sum(AICallLog.cost).label("total_cost"),
             func.avg(AICallLog.latency_ms).label("avg_latency"),
-            func.sum(case(
-                (AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0
-            )).label("success_count"),
-            func.sum(case(
-                (AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0
-            )).label("failed_count"),
+            func.sum(
+                case((AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0)
+            ).label("success_count"),
+            func.sum(
+                case((AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0)
+            ).label("failed_count"),
         ]
 
         if group_by == "model":
@@ -557,7 +584,9 @@ class AICallLogRepository(BaseRepository[AICallLog]):
         elif group_by == "user":
             stmt = stmt.order_by(AICallLog.user_id)
         else:
-            stmt = stmt.order_by(func.date(AICallLog.created_at).desc(), AICallLog.model_id)
+            stmt = stmt.order_by(
+                func.date(AICallLog.created_at).desc(), AICallLog.model_id
+            )
 
         rows = (await self.db.execute(stmt)).all()
         return [
@@ -655,12 +684,12 @@ class AICallLogRepository(BaseRepository[AICallLog]):
             func.sum(AICallLog.output_tokens).label("output_tokens"),
             func.sum(AICallLog.cost).label("total_cost"),
             func.avg(AICallLog.latency_ms).label("avg_latency"),
-            func.sum(case(
-                (AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0
-            )).label("success_calls"),
-            func.sum(case(
-                (AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0
-            )).label("failed_calls"),
+            func.sum(
+                case((AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0)
+            ).label("success_calls"),
+            func.sum(
+                case((AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0)
+            ).label("failed_calls"),
         ).where(AICallLog.is_deleted.is_(False))
 
         if tenant_id is not None:
@@ -702,12 +731,12 @@ class AICallLogRepository(BaseRepository[AICallLog]):
             func.coalesce(func.sum(AICallLog.output_tokens), 0).label("output_tokens"),
             func.count(AICallLog.id).label("call_count"),
             func.coalesce(func.sum(AICallLog.cost), 0).label("total_cost"),
-            func.sum(case(
-                (AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0
-            )).label("success_count"),
-            func.sum(case(
-                (AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0
-            )).label("failed_count"),
+            func.sum(
+                case((AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0)
+            ).label("success_count"),
+            func.sum(
+                case((AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0)
+            ).label("failed_count"),
         ).where(*filters)
 
         row = (await self.db.execute(stmt)).one()
@@ -722,12 +751,16 @@ class AICallLogRepository(BaseRepository[AICallLog]):
             "failed_calls": int(row.failed_count or 0),
         }
 
-        ch_stmt = select(
-            AICallLog.access_channel,
-            func.count(AICallLog.id).label("ch_calls"),
-            func.coalesce(func.sum(AICallLog.total_tokens), 0).label("ch_tokens"),
-            func.coalesce(func.sum(AICallLog.cost), 0).label("ch_cost"),
-        ).where(*filters).group_by(AICallLog.access_channel)
+        ch_stmt = (
+            select(
+                AICallLog.access_channel,
+                func.count(AICallLog.id).label("ch_calls"),
+                func.coalesce(func.sum(AICallLog.total_tokens), 0).label("ch_tokens"),
+                func.coalesce(func.sum(AICallLog.cost), 0).label("ch_cost"),
+            )
+            .where(*filters)
+            .group_by(AICallLog.access_channel)
+        )
         ch_rows = (await self.db.execute(ch_stmt)).all()
         summary["access_channel_stats"] = [
             {
@@ -763,22 +796,24 @@ class AICallLogRepository(BaseRepository[AICallLog]):
         从计费事实获取企业用户用量汇总。
         """
         filters = self._date_filters(start_date, end_date)
-        filters.extend([
-            self._effective_usage_tenant_expr() == tenant_id,
-            AICallLog.actor_user_id == user_id,
-            AICallLog.actor_user_type == UserTypeEnum.TENANT_USER.value,
-        ])
+        filters.extend(
+            [
+                self._effective_usage_tenant_expr() == tenant_id,
+                AICallLog.actor_user_id == user_id,
+                AICallLog.actor_user_type == UserTypeEnum.TENANT_USER.value,
+            ]
+        )
 
         stmt = select(
             func.coalesce(func.sum(AICallLog.total_tokens), 0).label("total_tokens"),
             func.count(AICallLog.id).label("call_count"),
             func.coalesce(func.sum(AICallLog.cost), 0).label("total_cost"),
-            func.sum(case(
-                (AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0
-            )).label("success_count"),
-            func.sum(case(
-                (AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0
-            )).label("failed_count"),
+            func.sum(
+                case((AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0)
+            ).label("success_count"),
+            func.sum(
+                case((AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0)
+            ).label("failed_count"),
         ).where(*filters)
 
         row = (await self.db.execute(stmt)).one()
@@ -803,22 +838,26 @@ class AICallLogRepository(BaseRepository[AICallLog]):
         从计费事实获取模型用量汇总。
         """
         filters = self._date_filters(start_date, end_date)
-        filters.extend([
-            AICallLog.model_id == model_id,
-            self._effective_usage_tenant_expr().is_not(None),
-        ])
+        filters.extend(
+            [
+                AICallLog.model_id == model_id,
+                self._effective_usage_tenant_expr().is_not(None),
+            ]
+        )
 
         stmt = select(
             func.coalesce(func.sum(AICallLog.total_tokens), 0).label("total_tokens"),
             func.count(AICallLog.id).label("call_count"),
             func.coalesce(func.sum(AICallLog.cost), 0).label("total_cost"),
-            func.count(func.distinct(self._effective_usage_tenant_expr())).label("tenant_count"),
-            func.sum(case(
-                (AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0
-            )).label("success_count"),
-            func.sum(case(
-                (AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0
-            )).label("failed_count"),
+            func.count(func.distinct(self._effective_usage_tenant_expr())).label(
+                "tenant_count"
+            ),
+            func.sum(
+                case((AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0)
+            ).label("success_count"),
+            func.sum(
+                case((AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0)
+            ).label("failed_count"),
         ).where(*filters)
 
         row = (await self.db.execute(stmt)).one()
@@ -849,14 +888,25 @@ class AICallLogRepository(BaseRepository[AICallLog]):
         filters = self._date_filters(start_date, end_date)
         filters.append(self._effective_usage_tenant_expr() == tenant_id)
 
-        stmt = select(
-            stat_date_col.label("stat_date"),
-            func.coalesce(func.sum(AICallLog.input_tokens), 0).label("input_tokens"),
-            func.coalesce(func.sum(AICallLog.output_tokens), 0).label("output_tokens"),
-            func.coalesce(func.sum(AICallLog.total_tokens), 0).label("total_tokens"),
-            func.coalesce(func.sum(AICallLog.cost), 0).label("cost"),
-            func.count(AICallLog.id).label("calls"),
-        ).where(*filters).group_by(stat_date_col).order_by(stat_date_col)
+        stmt = (
+            select(
+                stat_date_col.label("stat_date"),
+                func.coalesce(func.sum(AICallLog.input_tokens), 0).label(
+                    "input_tokens"
+                ),
+                func.coalesce(func.sum(AICallLog.output_tokens), 0).label(
+                    "output_tokens"
+                ),
+                func.coalesce(func.sum(AICallLog.total_tokens), 0).label(
+                    "total_tokens"
+                ),
+                func.coalesce(func.sum(AICallLog.cost), 0).label("cost"),
+                func.count(AICallLog.id).label("calls"),
+            )
+            .where(*filters)
+            .group_by(stat_date_col)
+            .order_by(stat_date_col)
+        )
 
         rows = (await self.db.execute(stmt)).all()
         return [
@@ -881,23 +931,29 @@ class AICallLogRepository(BaseRepository[AICallLog]):
         filters = self._date_filters(start_date, end_date)
         filters.append(self._effective_usage_tenant_expr() == tenant_id)
 
-        stmt = select(
-            AICallLog.model_id,
-            AIModel.name.label("model_name"),
-            func.coalesce(func.sum(AICallLog.total_tokens), 0).label("total_tokens"),
-            func.coalesce(func.sum(AICallLog.cost), 0).label("cost"),
-            func.count(AICallLog.id).label("calls"),
-        ).join(
-            AIModel,
-            AIModel.id == AICallLog.model_id,
-            isouter=True,
-        ).where(
-            *filters
-        ).group_by(
-            AICallLog.model_id,
-            AIModel.name,
-        ).order_by(
-            func.coalesce(func.sum(AICallLog.total_tokens), 0).desc(),
+        stmt = (
+            select(
+                AICallLog.model_id,
+                AIModel.name.label("model_name"),
+                func.coalesce(func.sum(AICallLog.total_tokens), 0).label(
+                    "total_tokens"
+                ),
+                func.coalesce(func.sum(AICallLog.cost), 0).label("cost"),
+                func.count(AICallLog.id).label("calls"),
+            )
+            .join(
+                AIModel,
+                AIModel.id == AICallLog.model_id,
+                isouter=True,
+            )
+            .where(*filters)
+            .group_by(
+                AICallLog.model_id,
+                AIModel.name,
+            )
+            .order_by(
+                func.coalesce(func.sum(AICallLog.total_tokens), 0).desc(),
+            )
         )
 
         rows = (await self.db.execute(stmt)).all()

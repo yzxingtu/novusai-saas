@@ -48,6 +48,7 @@ MAX_CONVERSATION_ROUNDS = 3
 # Data Structures / 数据结构
 # ============================================
 
+
 @dataclass
 class GeneratedSQL:
     """LLM-generated SQL result / LLM 生成的 SQL 结果"""
@@ -126,6 +127,7 @@ Please fix the SQL to comply with all rules. Return the corrected JSON output.""
 # TextToSQLGenerator
 # ============================================
 
+
 class TextToSQLGenerator:
     """
     Natural Language to SQL Generator / 自然语言转 SQL 生成器
@@ -172,7 +174,9 @@ class TextToSQLGenerator:
         """
         # 1. Get schema (filter by RBAC permissions + question keywords) / 获取 schema
         schema = await self._schema_provider.get_schema(
-            self.db, tenant_id, question,
+            self.db,
+            tenant_id,
+            question,
             permissions=permissions,
             user_role=user_role,
         )
@@ -180,9 +184,7 @@ class TextToSQLGenerator:
         if not schema:
             return GeneratedSQL(
                 success=False,
-                error=_(
-                    "data_intelligence.generator.no_relevant_tables"
-                ),
+                error=_("data_intelligence.generator.no_relevant_tables"),
             )
 
         # 2. Get allowed table name set (after RBAC filtering, for subsequent safety validation) / 获取允许的表名集合
@@ -213,7 +215,8 @@ class TextToSQLGenerator:
 
                 # Safety validation / 安全校验
                 validation = SQLSafetyValidator.validate(
-                    generated.sql, allowed_tables,
+                    generated.sql,
+                    allowed_tables,
                 )
 
                 if validation.passed:
@@ -222,9 +225,7 @@ class TextToSQLGenerator:
                 # Validation failed: build retry feedback / 校验失败：构建重试反馈
                 if attempt < MAX_GENERATE_ATTEMPTS - 1:
                     retry_msg = _RETRY_USER_TEMPLATE.format(
-                        violations="\n".join(
-                            f"- {v}" for v in validation.violations
-                        ),
+                        violations="\n".join(f"- {v}" for v in validation.violations),
                     )
                     messages.append(
                         ChatMessage(role="assistant", content=content),
@@ -247,9 +248,7 @@ class TextToSQLGenerator:
                     )
                     return GeneratedSQL(
                         success=False,
-                        error=_(
-                            "data_intelligence.generator.validation_failed"
-                        ),
+                        error=_("data_intelligence.generator.validation_failed"),
                         explanation=validation.error_message,
                     )
 
@@ -264,9 +263,7 @@ class TextToSQLGenerator:
                 if attempt >= MAX_GENERATE_ATTEMPTS - 1:
                     return GeneratedSQL(
                         success=False,
-                        error=_(
-                            "data_intelligence.generator.generation_error"
-                        ),
+                        error=_("data_intelligence.generator.generation_error"),
                     )
 
         # Should not reach here / 不应到达这里
@@ -324,9 +321,7 @@ class TextToSQLGenerator:
         """Call LLM / 调用 LLM"""
         model_obj = agent.model
         provider_code = (
-            model_obj.provider.code
-            if model_obj and model_obj.provider
-            else ""
+            model_obj.provider.code if model_obj and model_obj.provider else ""
         )
         model_code = model_obj.code if model_obj else ""
 
@@ -352,10 +347,16 @@ class TextToSQLGenerator:
         # Strip markdown code fence / 去除 markdown code fence
         cleaned = content.strip()
         cleaned = re.sub(
-            r"^```(?:json)?\s*\n?", "", cleaned, flags=re.MULTILINE,
+            r"^```(?:json)?\s*\n?",
+            "",
+            cleaned,
+            flags=re.MULTILINE,
         )
         cleaned = re.sub(
-            r"\n?```\s*$", "", cleaned, flags=re.MULTILINE,
+            r"\n?```\s*$",
+            "",
+            cleaned,
+            flags=re.MULTILINE,
         )
         cleaned = cleaned.strip()
 
@@ -376,16 +377,12 @@ class TextToSQLGenerator:
                 except json.JSONDecodeError:
                     return GeneratedSQL(
                         success=False,
-                        error=_(
-                            "data_intelligence.generator.parse_error"
-                        ),
+                        error=_("data_intelligence.generator.parse_error"),
                     )
             else:
                 return GeneratedSQL(
                     success=False,
-                    error=_(
-                        "data_intelligence.generator.parse_error"
-                    ),
+                    error=_("data_intelligence.generator.parse_error"),
                 )
 
         sql = data.get("sql", "").strip()
@@ -401,9 +398,7 @@ class TextToSQLGenerator:
                 visualization_suggestion="text",
                 confidence=0.0,
                 success=False,
-                error=explanation or _(
-                    "data_intelligence.generator.cannot_generate"
-                ),
+                error=explanation or _("data_intelligence.generator.cannot_generate"),
             )
 
         return GeneratedSQL(

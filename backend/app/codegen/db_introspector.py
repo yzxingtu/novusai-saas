@@ -111,7 +111,9 @@ class DbIntrospector:
 
             with self.engine.connect() as conn:
                 row = conn.execute(
-                    text("SELECT reltuples::bigint FROM pg_class WHERE relname = :name"),
+                    text(
+                        "SELECT reltuples::bigint FROM pg_class WHERE relname = :name"
+                    ),
                     {"name": table_name},
                 ).fetchone()
                 if row and row[0] is not None:
@@ -138,7 +140,7 @@ class DbIntrospector:
 
         raw_columns = inspector.get_columns(table_name)
         pk_constraint = inspector.get_pk_constraint(table_name) or {}
-        pk_cols = {c for c in (pk_constraint.get("constrained_columns") or [])}
+        pk_cols = set(pk_constraint.get("constrained_columns") or [])
         unique_cols: set[str] = set()
         for uq in inspector.get_unique_constraints(table_name):
             cols = uq.get("column_names") or []
@@ -162,8 +164,17 @@ class DbIntrospector:
                 continue
             sa_type = col.get("type")
             col_wrapper = SimpleNamespace(type=sa_type) if sa_type else None
-            yaml_type = (type_registry.reverse_map(col_wrapper) or "String") if col_wrapper else "String"
-            if yaml_type == "String" and sa_type and hasattr(sa_type, "length") and getattr(sa_type, "length", None):
+            yaml_type = (
+                (type_registry.reverse_map(col_wrapper) or "String")
+                if col_wrapper
+                else "String"
+            )
+            if (
+                yaml_type == "String"
+                and sa_type
+                and hasattr(sa_type, "length")
+                and getattr(sa_type, "length", None)
+            ):
                 yaml_type = f"String({sa_type.length})"
             elif not yaml_type:
                 yaml_type = "String"

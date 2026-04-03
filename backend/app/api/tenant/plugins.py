@@ -58,9 +58,7 @@ async def list_available_plugins(
     registry = ExtensionRegistry.get_instance()
     grouped = registry.get_frontend_slots_grouped(scope="tenant")
     grouped = {
-        slot_key: [
-            slot for slot in slots if slot.get("plugin_name") in visible_names
-        ]
+        slot_key: [slot for slot in slots if slot.get("plugin_name") in visible_names]
         for slot_key, slots in grouped.items()
     }
     grouped = filter_grouped_plugin_slots_by_permission_codes(
@@ -92,16 +90,19 @@ async def list_available_plugins(
         config_schema = manifest_data.get("config_schema")
         if config_schema and data.get("config"):
             from app.plugins.crypto import mask_plugin_config
+
             data["config"] = mask_plugin_config(data["config"], config_schema)
         items.append(data)
 
-    return success(data={
-        "items": items,
-        "total": len(items),
-        "page": 1,
-        "page_size": len(items),
-        "pages": 1,
-    })
+    return success(
+        data={
+            "items": items,
+            "total": len(items),
+            "page": 1,
+            "page_size": len(items),
+            "pages": 1,
+        }
+    )
 
 
 @router.get("/slots")
@@ -146,9 +147,7 @@ async def get_plugin_slots(
 
     # 按可见插件名过滤各插槽 / Filter slots by visible plugin names
     filtered = {
-        slot_key: [
-            s for s in slots if s.get("plugin_name") in visible_names
-        ]
+        slot_key: [s for s in slots if s.get("plugin_name") in visible_names]
         for slot_key, slots in grouped.items()
     }
     filtered = filter_grouped_plugin_slots_by_permission_codes(

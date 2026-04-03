@@ -20,6 +20,7 @@ from pydantic import BaseModel
 
 class CaptchaChallenge(BaseModel):
     """Captcha challenge data returned to client / 返回给客户端的验证码挑战数据"""
+
     challenge_id: str
     type: str
     payload: dict[str, Any]
@@ -29,6 +30,7 @@ class CaptchaChallenge(BaseModel):
 
 class CaptchaVerificationResult(BaseModel):
     """Captcha verification result / 验证码验证结果"""
+
     ok: bool
     reason: str | None = None
     score: float | None = None
@@ -51,7 +53,9 @@ class ICaptchaProvider(Protocol):
         """Generate a captcha challenge / 生成验证码挑战"""
         ...
 
-    async def verify(self, challenge_id: str, solution: str, ctx: dict[str, Any]) -> CaptchaVerificationResult:
+    async def verify(
+        self, challenge_id: str, solution: str, ctx: dict[str, Any]
+    ) -> CaptchaVerificationResult:
         """Verify user's solution / 验证用户的答案"""
         ...
 
@@ -70,7 +74,9 @@ class StubImageCaptchaProvider:
             token=None,
         )
 
-    async def verify(self, challenge_id: str, solution: str, ctx: dict[str, Any]) -> CaptchaVerificationResult:
+    async def verify(
+        self, challenge_id: str, solution: str, ctx: dict[str, Any]
+    ) -> CaptchaVerificationResult:
         """Stub verify (always returns failure) / 存根验证（始终返回失败）"""
         _ = (challenge_id, solution, ctx)
         return CaptchaVerificationResult(ok=False, reason="not_implemented", score=None)

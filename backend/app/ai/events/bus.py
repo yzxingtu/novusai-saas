@@ -52,7 +52,9 @@ class EventBus:
 
     def __init__(self) -> None:
         # event_type -> sorted list of _Subscription / 事件类型 -> 排序后的订阅列表
-        self._subscribers: dict[type[BaseEvent], list[_Subscription]] = defaultdict(list)
+        self._subscribers: dict[type[BaseEvent], list[_Subscription]] = defaultdict(
+            list
+        )
         # Keep fire-and-forget task references to prevent GC from interrupting execution / 保持 fire-and-forget task 引用，防止 GC 中断执行
         self._background_tasks: set[asyncio.Task] = set()
 
@@ -120,9 +122,7 @@ class EventBus:
         """
         subs = self._subscribers.get(event_type, [])
         before = len(subs)
-        self._subscribers[event_type] = [
-            s for s in subs if s.handler is not handler
-        ]
+        self._subscribers[event_type] = [s for s in subs if s.handler is not handler]
         removed = before - len(self._subscribers[event_type])
 
         if removed > 0:

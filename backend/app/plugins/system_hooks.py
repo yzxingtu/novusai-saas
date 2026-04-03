@@ -96,7 +96,8 @@ class SystemHookPoint:
     def all_points(cls) -> list[str]:
         """Return list of all defined hook point names / 返回所有已定义的钩子点名称列表"""
         return [
-            v for k, v in vars(cls).items()
+            v
+            for k, v in vars(cls).items()
             if not k.startswith("_") and isinstance(v, str)
         ]
 
@@ -112,11 +113,13 @@ async def trigger_hook(point: str, **context) -> dict:
     """
     try:
         from app.ai.events.hooks import HookRegistry
+
         registry = HookRegistry.get_instance()
         if registry.has_hooks(point):
             return await registry.trigger(point, **context)
     except Exception as exc:
         from app.core.logging import get_logger
+
         get_logger(__name__).warning(
             "system_hook trigger failed for '%s': %s", point, exc
         )

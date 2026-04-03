@@ -31,15 +31,38 @@ class OperationLogRepository(BaseRepository[OperationLog]):
     _scope_fields = {
         # 平台管理员可过滤的字段 / Admin filterable fields
         "admin": {
-            "id", "trace_id", "tenant_id", "user_type", "user_id", "username",
-            "module", "action", "resource", "method", "path",
-            "status_code", "response_code", "ip", "created_at",
+            "id",
+            "trace_id",
+            "tenant_id",
+            "user_type",
+            "user_id",
+            "username",
+            "module",
+            "action",
+            "resource",
+            "method",
+            "path",
+            "status_code",
+            "response_code",
+            "ip",
+            "created_at",
         },
         # 企业管理员可过滤的字段（不包含 tenant_id）
         "tenant": {
-            "id", "trace_id", "user_type", "user_id", "username",
-            "module", "action", "resource", "method", "path",
-            "status_code", "response_code", "ip", "created_at",
+            "id",
+            "trace_id",
+            "user_type",
+            "user_id",
+            "username",
+            "module",
+            "action",
+            "resource",
+            "method",
+            "path",
+            "status_code",
+            "response_code",
+            "ip",
+            "created_at",
         },
     }
 
@@ -118,13 +141,12 @@ class OperationLogRepository(BaseRepository[OperationLog]):
             删除的记录数
         """
         if hard_delete:
-            stmt = delete(self.model).where(
-                self.model.created_at < before_date
-            )
+            stmt = delete(self.model).where(self.model.created_at < before_date)
             if tenant_id is not None:
                 stmt = stmt.where(self.model.tenant_id == tenant_id)
         else:
             from sqlalchemy import update
+
             stmt = (
                 update(self.model)
                 .where(
@@ -157,10 +179,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
             统计结果列表 [{"module": "auth", "count": 100}, ...]
         """
         query = (
-            select(
-                self.model.module,
-                func.count(self.model.id).label("count")
-            )
+            select(self.model.module, func.count(self.model.id).label("count"))
             .where(self.model.is_deleted.is_(False))
             .group_by(self.model.module)
         )
@@ -197,10 +216,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
             统计结果列表 [{"action": "create", "count": 50}, ...]
         """
         query = (
-            select(
-                self.model.action,
-                func.count(self.model.id).label("count")
-            )
+            select(self.model.action, func.count(self.model.id).label("count"))
             .where(self.model.is_deleted.is_(False))
             .group_by(self.model.action)
         )

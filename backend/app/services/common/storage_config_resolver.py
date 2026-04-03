@@ -76,7 +76,9 @@ def infer_attachment_storage_scope(
     tenant_id: int | None,
 ) -> str | None:
     """Infer whether an attachment originally used platform or tenant storage."""
-    snapshot = meta.get(ATTACHMENT_STORAGE_SNAPSHOT_KEY) if isinstance(meta, dict) else None
+    snapshot = (
+        meta.get(ATTACHMENT_STORAGE_SNAPSHOT_KEY) if isinstance(meta, dict) else None
+    )
     if isinstance(snapshot, dict):
         scope = snapshot.get("scope")
         if scope in {"platform", "tenant"}:
@@ -171,6 +173,7 @@ class StorageConfigResolver:
         )
         if str(driver) == "local":
             from app.storage import LOCAL_STORAGE_ROOT
+
             root_path = str(LOCAL_STORAGE_ROOT)
         else:
             root_path = await self._config_service.get_platform_config(
@@ -246,12 +249,10 @@ class StorageConfigResolver:
 
         if not storage_manager.has_driver(config.driver):
             raise BusinessException(
-                message=_(
-                    "storage.error.driver_error"
-                ),
+                message=_("storage.error.driver_error"),
                 code=ErrorCode.INVALID_PARAMETER,
                 detail=f"Storage driver '{config.driver}' is not available. "
-                       f"The corresponding plugin may not be installed or enabled.",
+                f"The corresponding plugin may not be installed or enabled.",
             )
 
     async def resolve_config(
@@ -274,9 +275,7 @@ class StorageConfigResolver:
         self._check_driver_available(config)
         return config
 
-    async def resolve_context(
-        self, tenant_id: int
-    ) -> tuple[str, StorageConfig, bool]:
+    async def resolve_context(self, tenant_id: int) -> tuple[str, StorageConfig, bool]:
         """
         解析企业完整存储上下文 / Resolve full storage context for a tenant.
 
@@ -319,6 +318,7 @@ class StorageConfigResolver:
         # Local files always live on local disk, regardless of current config / 本地文件恒在本地盘 / local files stay on disk
         if driver == "local":
             from app.storage import LOCAL_STORAGE_ROOT
+
             return StorageConfig(
                 driver="local",
                 root_path=str(LOCAL_STORAGE_ROOT),
@@ -349,17 +349,20 @@ class StorageConfigResolver:
         # Still try to use platform config if it was the original source.
         # As last resort, check if the driver is at least registered. / 最后回退 API 代理 / last-resort API proxy
         from app.storage.manager import storage_manager
+
         if storage_manager.has_driver(driver):
             # Driver is available (plugin enabled) but no matching config.
             # Return platform config — the caller will get a driver instance
             # but it won't have the right credentials for this driver.
             # Log a warning so admins are aware of the config gap. / 驱动可用但缺配置 / driver enabled missing config
             from app.core.logging import LogManager
+
             logger = LogManager.get_logger("storage")
             logger.warning(
                 "Attachment driver '{}' does not match current config driver '{}'. "
                 "File may not be accessible. Consider migrating old attachments.",
-                driver, config.driver,
+                driver,
+                config.driver,
             )
         self._check_driver_available(config)
         return config

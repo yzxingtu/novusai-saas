@@ -55,8 +55,7 @@ def _walk_schema_value(
         if not isinstance(item_schema, dict):
             return list(value)
         return [
-            _walk_schema_value(item, item_schema, transform=transform)
-            for item in value
+            _walk_schema_value(item, item_schema, transform=transform) for item in value
         ]
 
     return value
@@ -113,6 +112,7 @@ def mask_plugin_config(config: dict, schema: dict) -> dict:
     Used for response processing when viewing plugin config in admin panel.
     / 用于管理端查看插件配置时的响应处理。
     """
+
     def _mask_leaf(val):
         if val and isinstance(val, str):
             if len(val) > 6:

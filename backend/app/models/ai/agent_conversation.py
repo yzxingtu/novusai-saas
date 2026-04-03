@@ -36,8 +36,13 @@ class AgentConversation(TenantModel):
     }
 
     __delete_deps__ = [
-        DeletionDep("ConversationMessage", "conversation_id", DeletionStrategy.CASCADE_DELETE,
-                    label_field="id", i18n_key="conversation_message"),
+        DeletionDep(
+            "ConversationMessage",
+            "conversation_id",
+            DeletionStrategy.CASCADE_DELETE,
+            label_field="id",
+            i18n_key="conversation_message",
+        ),
     ]
 
     # 允许前端筛选的字段 / Fields exposed for list filtering

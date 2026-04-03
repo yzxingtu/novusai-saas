@@ -45,27 +45,29 @@ async def list_notifications(
         page_size=page_size,
     )
 
-    return success(data={
-        "items": [
-            {
-                "id": n.id,
-                "template_code": n.template_code,
-                "category": n.category,
-                "title": n.title,
-                "body": n.body,
-                "data": n.data,
-                "link": n.link,
-                "priority": n.priority,
-                "is_read": n.is_read,
-                "read_at": n.read_at.isoformat() if n.read_at else None,
-                "created_at": n.created_at.isoformat() if n.created_at else None,
-            }
-            for n in items
-        ],
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-    })
+    return success(
+        data={
+            "items": [
+                {
+                    "id": n.id,
+                    "template_code": n.template_code,
+                    "category": n.category,
+                    "title": n.title,
+                    "body": n.body,
+                    "data": n.data,
+                    "link": n.link,
+                    "priority": n.priority,
+                    "is_read": n.is_read,
+                    "read_at": n.read_at.isoformat() if n.read_at else None,
+                    "created_at": n.created_at.isoformat() if n.created_at else None,
+                }
+                for n in items
+            ],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
+    )
 
 
 @router.get("/unread-count", summary="未读通知数量")

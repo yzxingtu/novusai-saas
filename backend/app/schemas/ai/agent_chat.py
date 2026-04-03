@@ -32,16 +32,20 @@ class ChatAttachment(BaseModel):
         description="Attachment ID for refreshing signed URLs / 用于刷新签名 URL 的附件 ID",
     )
     type: Literal["image", "file", "audio", "video"] = Field(
-        ..., description=_("agent_chat.field.attachment_type"),
+        ...,
+        description=_("agent_chat.field.attachment_type"),
     )
     url: str = Field(
-        ..., description=_("agent_chat.field.attachment_url"),
+        ...,
+        description=_("agent_chat.field.attachment_url"),
     )
     name: str | None = Field(
-        None, description=_("agent_chat.field.attachment_name"),
+        None,
+        description=_("agent_chat.field.attachment_name"),
     )
     mime_type: str | None = Field(
-        None, description=_("agent_chat.field.attachment_mime_type"),
+        None,
+        description=_("agent_chat.field.attachment_mime_type"),
     )
 
 
@@ -168,19 +172,24 @@ class AgentChatResponse(BaseModel):
     """对话响应（非流式） / Agent chat response (non-streaming)."""
 
     conversation_id: int = Field(
-        ..., description=_("agent_chat.field.conversation_id"),
+        ...,
+        description=_("agent_chat.field.conversation_id"),
     )
     message: str = Field(
-        ..., description=_("agent_chat.field.reply_message"),
+        ...,
+        description=_("agent_chat.field.reply_message"),
     )
     tool_calls: list[dict[str, Any]] | None = Field(
-        None, description=_("agent_chat.field.tool_calls"),
+        None,
+        description=_("agent_chat.field.tool_calls"),
     )
     total_tokens: int = Field(
-        0, description=_("agent_chat.field.total_tokens"),
+        0,
+        description=_("agent_chat.field.total_tokens"),
     )
     duration_ms: int = Field(
-        0, description=_("agent_chat.field.duration_ms"),
+        0,
+        description=_("agent_chat.field.duration_ms"),
     )
     effective_knowledge_base_ids: list[int] | None = Field(
         None,
@@ -298,7 +307,9 @@ class AgentRouteRequest(BaseModel):
     """智能路由请求 / Agent route request."""
 
     message: str = Field(
-        ..., min_length=1, max_length=32000,
+        ...,
+        min_length=1,
+        max_length=32000,
         description=_("agent_chat.field.message"),
     )
     conversation_id: int | None = Field(
@@ -339,16 +350,20 @@ class AgentRouteResponse(BaseModel):
     """智能路由响应 / Agent route response."""
 
     agent_id: int = Field(
-        ..., description=_("agent_chat.field.routed_agent_id"),
+        ...,
+        description=_("agent_chat.field.routed_agent_id"),
     )
     agent_name: str = Field(
-        ..., description=_("agent_chat.field.routed_agent_name"),
+        ...,
+        description=_("agent_chat.field.routed_agent_name"),
     )
     confidence: float = Field(
-        1.0, description=_("agent_chat.field.route_confidence"),
+        1.0,
+        description=_("agent_chat.field.route_confidence"),
     )
     routed_by: str = Field(
-        ..., description=_("agent_chat.field.routed_by"),
+        ...,
+        description=_("agent_chat.field.routed_by"),
     )
 
 

@@ -124,7 +124,14 @@ RECYCLABLE_MODULES: dict[str, dict[str, Any]] = {
         "model": "app.models.tenant.tenant_plan.TenantPlan",
         "label_field": "name",
         "i18n_key": "deletion.model.tenant_plan",
-        "columns": ["name", "code", "price", "billing_cycle", "is_active", "created_at"],
+        "columns": [
+            "name",
+            "code",
+            "price",
+            "billing_cycle",
+            "is_active",
+            "created_at",
+        ],
         "services": {
             "admin": "app.services.tenant.tenant_plan_service.TenantPlanService",
         },
@@ -232,7 +239,9 @@ def get_module_config(
 
 def get_model(module_code: str) -> type:
     if module_code not in _model_cache:
-        _model_cache[module_code] = _import_class(RECYCLABLE_MODULES[module_code]["model"])
+        _model_cache[module_code] = _import_class(
+            RECYCLABLE_MODULES[module_code]["model"]
+        )
     return _model_cache[module_code]
 
 
@@ -257,9 +266,7 @@ def get_service(
 
 def get_delete_scope(side: RecycleBinSide) -> str:
     return (
-        DeleteLevelEnum.ADMIN.value
-        if side == "admin"
-        else DeleteLevelEnum.TENANT.value
+        DeleteLevelEnum.ADMIN.value if side == "admin" else DeleteLevelEnum.TENANT.value
     )
 
 
@@ -278,7 +285,9 @@ def build_module_metadata(side: RecycleBinSide) -> dict[str, dict[str, Any]]:
         model_cls = get_model(module_code)
         tenant_field = get_tenant_field_name(model_cls)
 
-        filterable_keys = _normalize_field_keys(getattr(model_cls, "__filterable__", {}))
+        filterable_keys = _normalize_field_keys(
+            getattr(model_cls, "__filterable__", {})
+        )
         if side == "admin" and tenant_field and tenant_field not in filterable_keys:
             filterable_keys.append(tenant_field)
 
@@ -336,9 +345,7 @@ async def serialize_deleted_items(
 ) -> list[dict[str, Any]]:
     result = [serialize_deleted_item(module_code, item) for item in items]
     tenant_ids = {
-        int(row["tenant_id"])
-        for row in result
-        if row.get("tenant_id") is not None
+        int(row["tenant_id"]) for row in result if row.get("tenant_id") is not None
     }
     if not tenant_ids:
         return result

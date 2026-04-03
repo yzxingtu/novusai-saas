@@ -37,7 +37,9 @@ class TenantAnalyticsService:
         end_date: date | None = None,
     ) -> list[dict[str, Any]]:
         """按天聚合调用趋势（自动注入 tenant_id） / Daily call trend (tenant_id auto-injected)."""
-        return await self._admin_svc.get_call_trend(start_date, end_date, self.tenant_id)
+        return await self._admin_svc.get_call_trend(
+            start_date, end_date, self.tenant_id
+        )
 
     async def get_model_distribution(
         self,
@@ -45,7 +47,9 @@ class TenantAnalyticsService:
         end_date: date | None = None,
     ) -> list[dict[str, Any]]:
         """模型调用分布（自动注入 tenant_id） / Model call distribution (tenant_id auto-injected)."""
-        return await self._admin_svc.get_model_distribution(start_date, end_date, self.tenant_id)
+        return await self._admin_svc.get_model_distribution(
+            start_date, end_date, self.tenant_id
+        )
 
     async def get_cost_trend(
         self,
@@ -88,18 +92,24 @@ class TenantAnalyticsService:
         if not end_date:
             end_date = utc_now().date()
 
-        stmt = select(
-            AIActionLog.agent_id,
-            func.count(AIActionLog.id).label("calls"),
-        ).where(
-            AIActionLog.tenant_id == self.tenant_id,
-            AIActionLog.created_at >= start_date,
-            AIActionLog.created_at <= end_date + timedelta(days=1),
-        ).group_by(
-            AIActionLog.agent_id,
-        ).order_by(
-            func.count(AIActionLog.id).desc(),
-        ).limit(top_n)
+        stmt = (
+            select(
+                AIActionLog.agent_id,
+                func.count(AIActionLog.id).label("calls"),
+            )
+            .where(
+                AIActionLog.tenant_id == self.tenant_id,
+                AIActionLog.created_at >= start_date,
+                AIActionLog.created_at <= end_date + timedelta(days=1),
+            )
+            .group_by(
+                AIActionLog.agent_id,
+            )
+            .order_by(
+                func.count(AIActionLog.id).desc(),
+            )
+            .limit(top_n)
+        )
 
         result = await self.db.execute(stmt)
         rows = result.all()
@@ -116,7 +126,9 @@ class TenantAnalyticsService:
         return [
             {
                 "agent_id": r.agent_id,
-                "agent_name": agent_names.get(r.agent_id, f"Agent #{r.agent_id}") if r.agent_id else "Unknown",
+                "agent_name": agent_names.get(r.agent_id, f"Agent #{r.agent_id}")
+                if r.agent_id
+                else "Unknown",
                 "calls": r.calls,
                 "tokens": 0,
                 "cost": 0.0,

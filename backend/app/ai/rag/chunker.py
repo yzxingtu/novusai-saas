@@ -22,6 +22,7 @@ logger = LogManager.get_logger("ai.rag.chunker")
 @dataclass
 class ChunkData:
     """Chunk result / 分块结果"""
+
     content: str
     chunk_index: int
     char_count: int
@@ -110,10 +111,12 @@ class BaseChunker(ABC):
             if len(text) >= self.chunk_size:
                 # Flush buffer first / 先输出缓冲区
                 if buf_parts:
-                    merged.append(ParsedPage(
-                        content=separator.join(buf_parts),
-                        metadata=buf_metadata,
-                    ))
+                    merged.append(
+                        ParsedPage(
+                            content=separator.join(buf_parts),
+                            metadata=buf_metadata,
+                        )
+                    )
                     buf_parts = []
                     buf_len = 0
                     buf_metadata = {}
@@ -131,25 +134,31 @@ class BaseChunker(ABC):
             else:
                 # Exceeded: output buffer, start new round / 超出：输出缓冲区，开始新一轮
                 if buf_parts:
-                    merged.append(ParsedPage(
-                        content=separator.join(buf_parts),
-                        metadata=buf_metadata,
-                    ))
+                    merged.append(
+                        ParsedPage(
+                            content=separator.join(buf_parts),
+                            metadata=buf_metadata,
+                        )
+                    )
                 buf_parts = [text]
                 buf_len = len(text)
                 buf_metadata = page.metadata.copy()
 
         # Output remaining / 输出剩余
         if buf_parts:
-            merged.append(ParsedPage(
-                content=separator.join(buf_parts),
-                metadata=buf_metadata,
-            ))
+            merged.append(
+                ParsedPage(
+                    content=separator.join(buf_parts),
+                    metadata=buf_metadata,
+                )
+            )
 
         if len(merged) != len(pages):
             logger.info(
                 "Merged small pages: {} → {} (chunk_size={})",
-                len(pages), len(merged), self.chunk_size,
+                len(pages),
+                len(merged),
+                self.chunk_size,
             )
 
         return merged
@@ -188,7 +197,9 @@ class RecursiveChunker(BaseChunker):
 
             # Detect code block, do not split / 检测是否为代码块，不分割
             if text.startswith("```") and text.endswith("```"):
-                chunks.append(self._build_chunk(text, chunk_index, page.metadata.copy()))
+                chunks.append(
+                    self._build_chunk(text, chunk_index, page.metadata.copy())
+                )
                 chunk_index += 1
                 continue
 
@@ -234,7 +245,7 @@ class RecursiveChunker(BaseChunker):
                     result.append(current)
                     # Keep overlap / 保留重叠
                     if self.chunk_overlap > 0 and len(current) > self.chunk_overlap:
-                        overlap_text = current[-self.chunk_overlap:]
+                        overlap_text = current[-self.chunk_overlap :]
                         current = overlap_text + separator + part
                     else:
                         current = part
@@ -300,13 +311,19 @@ class ParagraphChunker(BaseChunker):
                     current = candidate
                 else:
                     if current:
-                        chunks.append(self._build_chunk(current, chunk_index, page.metadata.copy()))
+                        chunks.append(
+                            self._build_chunk(
+                                current, chunk_index, page.metadata.copy()
+                            )
+                        )
                         chunk_index += 1
                         current = ""
 
                     if len(para) > self.chunk_size:
                         # Large paragraph, recursively split / 大段落递归分割
-                        sub_pages = [ParsedPage(content=para, metadata=page.metadata.copy())]
+                        sub_pages = [
+                            ParsedPage(content=para, metadata=page.metadata.copy())
+                        ]
                         sub_chunks = recursive.chunk(sub_pages)
                         for sc in sub_chunks:
                             sc.chunk_index = chunk_index
@@ -316,7 +333,9 @@ class ParagraphChunker(BaseChunker):
                         current = para
 
             if current:
-                chunks.append(self._build_chunk(current, chunk_index, page.metadata.copy()))
+                chunks.append(
+                    self._build_chunk(current, chunk_index, page.metadata.copy())
+                )
                 chunk_index += 1
 
         logger.info("ParagraphChunker: {} pages → {} chunks", len(pages), len(chunks))
@@ -359,11 +378,15 @@ class SentenceChunker(BaseChunker):
                     current = candidate
                 else:
                     if current:
-                        chunks.append(self._build_chunk(current, chunk_index, page.metadata.copy()))
+                        chunks.append(
+                            self._build_chunk(
+                                current, chunk_index, page.metadata.copy()
+                            )
+                        )
                         chunk_index += 1
                         # Overlap / 重叠
                         if self.chunk_overlap > 0 and len(current) > self.chunk_overlap:
-                            current = current[-self.chunk_overlap:] + " " + sentence
+                            current = current[-self.chunk_overlap :] + " " + sentence
                         else:
                             current = sentence
                     else:
@@ -372,17 +395,27 @@ class SentenceChunker(BaseChunker):
                             start = 0
                             while start < len(sentence):
                                 end = min(start + self.chunk_size, len(sentence))
-                                chunks.append(self._build_chunk(
-                                    sentence[start:end], chunk_index, page.metadata.copy(),
-                                ))
+                                chunks.append(
+                                    self._build_chunk(
+                                        sentence[start:end],
+                                        chunk_index,
+                                        page.metadata.copy(),
+                                    )
+                                )
                                 chunk_index += 1
-                                start = end - self.chunk_overlap if self.chunk_overlap > 0 else end
+                                start = (
+                                    end - self.chunk_overlap
+                                    if self.chunk_overlap > 0
+                                    else end
+                                )
                             current = ""
                         else:
                             current = sentence
 
             if current:
-                chunks.append(self._build_chunk(current, chunk_index, page.metadata.copy()))
+                chunks.append(
+                    self._build_chunk(current, chunk_index, page.metadata.copy())
+                )
                 chunk_index += 1
 
         logger.info("SentenceChunker: {} pages → {} chunks", len(pages), len(chunks))
@@ -427,11 +460,15 @@ class SemanticChunker(BaseChunker):
                     continue
 
                 if current:
-                    chunks.append(self._build_chunk(current, chunk_index, page.metadata.copy()))
+                    chunks.append(
+                        self._build_chunk(current, chunk_index, page.metadata.copy())
+                    )
                     chunk_index += 1
 
                 if len(unit) > self.chunk_size:
-                    sub_pages = [ParsedPage(content=unit, metadata=page.metadata.copy())]
+                    sub_pages = [
+                        ParsedPage(content=unit, metadata=page.metadata.copy())
+                    ]
                     splitter = (
                         sentence_chunker
                         if self._prefers_sentence_split(unit)
@@ -448,14 +485,18 @@ class SemanticChunker(BaseChunker):
                 current = self._with_overlap_seed(current, unit)
 
             if current:
-                chunks.append(self._build_chunk(current, chunk_index, page.metadata.copy()))
+                chunks.append(
+                    self._build_chunk(current, chunk_index, page.metadata.copy())
+                )
                 chunk_index += 1
 
         logger.info("SemanticChunker: {} pages → {} chunks", len(pages), len(chunks))
         return chunks
 
     def _split_semantic_units(self, text: str) -> list[str]:
-        blocks = [block.strip() for block in self._BLOCK_SPLITTER.split(text) if block.strip()]
+        blocks = [
+            block.strip() for block in self._BLOCK_SPLITTER.split(text) if block.strip()
+        ]
         if not blocks:
             return []
 
@@ -479,7 +520,9 @@ class SemanticChunker(BaseChunker):
                 continue
 
             sentences = SentenceChunker.SENTENCE_SEPARATORS.split(block)
-            normalized = [sentence.strip() for sentence in sentences if sentence.strip()]
+            normalized = [
+                sentence.strip() for sentence in sentences if sentence.strip()
+            ]
             if normalized:
                 units.extend(normalized)
             else:
@@ -492,8 +535,10 @@ class SemanticChunker(BaseChunker):
 
     def _is_heading_block(self, block: str) -> bool:
         single_line = "\n" not in block
-        return single_line and len(block) <= max(120, self.chunk_size // 3) and bool(
-            self._HEADING_RE.match(block)
+        return (
+            single_line
+            and len(block) <= max(120, self.chunk_size // 3)
+            and bool(self._HEADING_RE.match(block))
         )
 
     def _is_structured_block(self, block: str) -> bool:
@@ -510,11 +555,13 @@ class SemanticChunker(BaseChunker):
     def _with_overlap_seed(self, current: str, next_unit: str) -> str:
         if not current or self.chunk_overlap <= 0:
             return next_unit
-        tail = current[-self.chunk_overlap:]
+        tail = current[-self.chunk_overlap :]
         return f"{tail}\n{next_unit}"
 
 
-def get_chunker(strategy: str, chunk_size: int = 512, chunk_overlap: int = 50) -> BaseChunker:
+def get_chunker(
+    strategy: str, chunk_size: int = 512, chunk_overlap: int = 50
+) -> BaseChunker:
     """
     Factory method: get chunker by strategy / 工厂方法：根据策略获取分块器
 

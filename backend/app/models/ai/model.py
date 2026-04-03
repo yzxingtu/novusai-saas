@@ -32,22 +32,62 @@ class AIModel(BaseModel):
     }
 
     __delete_deps__ = [
-        DeletionDep("Agent", "model_id", DeletionStrategy.BLOCK,
-                    label_field="name", i18n_key="agent"),
-        DeletionDep("KnowledgeBase", "embedding_model_id", DeletionStrategy.BLOCK,
-                    label_field="name", i18n_key="knowledge_base"),
-        DeletionDep("TenantQuota", "model_id", DeletionStrategy.CASCADE_SOFT,
-                    label_field="id", i18n_key="tenant_quota"),
-        DeletionDep("TenantModelRateLimit", "model_id", DeletionStrategy.CASCADE_SOFT,
-                    label_field="id", i18n_key="tenant_rate_limit"),
-        DeletionDep("AIModel", "fallback_model_id", DeletionStrategy.NULLIFY,
-                    label_field="name", i18n_key="ai_model"),
-        DeletionDep("KnowledgeBase", "vision_model_id", DeletionStrategy.NULLIFY,
-                    label_field="name", i18n_key="knowledge_base_vision"),
-        DeletionDep("KnowledgeBase", "audio_model_id", DeletionStrategy.NULLIFY,
-                    label_field="name", i18n_key="knowledge_base_audio"),
-        DeletionDep("KnowledgeBase", "video_model_id", DeletionStrategy.NULLIFY,
-                    label_field="name", i18n_key="knowledge_base_video"),
+        DeletionDep(
+            "Agent",
+            "model_id",
+            DeletionStrategy.BLOCK,
+            label_field="name",
+            i18n_key="agent",
+        ),
+        DeletionDep(
+            "KnowledgeBase",
+            "embedding_model_id",
+            DeletionStrategy.BLOCK,
+            label_field="name",
+            i18n_key="knowledge_base",
+        ),
+        DeletionDep(
+            "TenantQuota",
+            "model_id",
+            DeletionStrategy.CASCADE_SOFT,
+            label_field="id",
+            i18n_key="tenant_quota",
+        ),
+        DeletionDep(
+            "TenantModelRateLimit",
+            "model_id",
+            DeletionStrategy.CASCADE_SOFT,
+            label_field="id",
+            i18n_key="tenant_rate_limit",
+        ),
+        DeletionDep(
+            "AIModel",
+            "fallback_model_id",
+            DeletionStrategy.NULLIFY,
+            label_field="name",
+            i18n_key="ai_model",
+        ),
+        DeletionDep(
+            "KnowledgeBase",
+            "vision_model_id",
+            DeletionStrategy.NULLIFY,
+            label_field="name",
+            i18n_key="knowledge_base_vision",
+        ),
+        DeletionDep(
+            "KnowledgeBase",
+            "audio_model_id",
+            DeletionStrategy.NULLIFY,
+            label_field="name",
+            i18n_key="knowledge_base_audio",
+        ),
+        DeletionDep(
+            "KnowledgeBase",
+            "video_model_id",
+            DeletionStrategy.NULLIFY,
+            label_field="name",
+            i18n_key="knowledge_base_video",
+        ),
     ]
 
     __selectable__ = {
@@ -89,20 +129,15 @@ class AIModel(BaseModel):
         ForeignKey("ai_providers.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
-        comment=_("enum.ai_model.provider_id")
+        comment=_("enum.ai_model.provider_id"),
     )
 
     # 基本信息 / Basic info
     name: Mapped[str] = mapped_column(
-        String(100),
-        index=True,
-        comment=_("enum.ai_model.name")
+        String(100), index=True, comment=_("enum.ai_model.name")
     )
     code: Mapped[str] = mapped_column(
-        String(100),
-        unique=True,
-        index=True,
-        comment=_("enum.ai_model.code")
+        String(100), unique=True, index=True, comment=_("enum.ai_model.code")
     )
 
     # 模型类型 / Model kind
@@ -110,102 +145,69 @@ class AIModel(BaseModel):
         String(50),
         nullable=False,
         default=ModelTypeEnum.CHAT.value,
-        comment=_("enum.ai_model.type")
+        comment=_("enum.ai_model.type"),
     )
 
     # 上下文窗口大小（tokens） / Context window (tokens)
     context_window: Mapped[int | None] = mapped_column(
-        Integer,
-        nullable=True,
-        comment=_("enum.ai_model.context_window")
+        Integer, nullable=True, comment=_("enum.ai_model.context_window")
     )
 
     # 最大输出 tokens / Max output tokens
     max_output_tokens: Mapped[int | None] = mapped_column(
-        Integer,
-        nullable=True,
-        comment=_("enum.ai_model.max_output_tokens")
+        Integer, nullable=True, comment=_("enum.ai_model.max_output_tokens")
     )
 
     # 价格信息（每 1k tokens，单位：美元） / Price per 1k tokens (USD)
     input_price_per_1k: Mapped[float | None] = mapped_column(
-        Numeric(10, 6),
-        nullable=True,
-        comment=_("enum.ai_model.input_price_per_1k")
+        Numeric(10, 6), nullable=True, comment=_("enum.ai_model.input_price_per_1k")
     )
     output_price_per_1k: Mapped[float | None] = mapped_column(
-        Numeric(10, 6),
-        nullable=True,
-        comment=_("enum.ai_model.output_price_per_1k")
+        Numeric(10, 6), nullable=True, comment=_("enum.ai_model.output_price_per_1k")
     )
 
     # 速率限制 (每分钟请求数/Token 数) / Rate limits (RPM/TPM)
     rpm_limit: Mapped[int | None] = mapped_column(
-        Integer,
-        nullable=True,
-        comment=_("enum.ai_model.rpm_limit")
+        Integer, nullable=True, comment=_("enum.ai_model.rpm_limit")
     )
     tpm_limit: Mapped[int | None] = mapped_column(
-        Integer,
-        nullable=True,
-        comment=_("enum.ai_model.tpm_limit")
+        Integer, nullable=True, comment=_("enum.ai_model.tpm_limit")
     )
 
     # 能力标记 / Capability flags
     supports_function_calling: Mapped[bool] = mapped_column(
-        Boolean,
-        default=False,
-        comment=_("enum.ai_model.supports_function_calling")
+        Boolean, default=False, comment=_("enum.ai_model.supports_function_calling")
     )
     supports_vision: Mapped[bool] = mapped_column(
-        Boolean,
-        default=False,
-        comment=_("enum.ai_model.supports_vision")
+        Boolean, default=False, comment=_("enum.ai_model.supports_vision")
     )
     supports_audio: Mapped[bool] = mapped_column(
-        Boolean,
-        default=False,
-        comment=_("enum.ai_model.supports_audio")
+        Boolean, default=False, comment=_("enum.ai_model.supports_audio")
     )
     supports_video: Mapped[bool] = mapped_column(
-        Boolean,
-        default=False,
-        comment=_("enum.ai_model.supports_video")
+        Boolean, default=False, comment=_("enum.ai_model.supports_video")
     )
     supports_streaming: Mapped[bool] = mapped_column(
-        Boolean,
-        default=True,
-        comment=_("enum.ai_model.supports_streaming")
+        Boolean, default=True, comment=_("enum.ai_model.supports_streaming")
     )
 
     # 图片限制（仅 supports_vision=True 时有效） / Image limits (vision models)
     max_image_count: Mapped[int | None] = mapped_column(
-        Integer,
-        nullable=True,
-        default=5,
-        comment=_("enum.ai_model.max_image_count")
+        Integer, nullable=True, default=5, comment=_("enum.ai_model.max_image_count")
     )
     max_image_size_mb: Mapped[int | None] = mapped_column(
-        Integer,
-        nullable=True,
-        default=10,
-        comment=_("enum.ai_model.max_image_size_mb")
+        Integer, nullable=True, default=10, comment=_("enum.ai_model.max_image_size_mb")
     )
 
     # 是否启用 / Active flag
     is_active: Mapped[bool] = mapped_column(
-        Boolean,
-        default=True,
-        index=True,
-        comment=_("enum.ai_model.is_active")
+        Boolean, default=True, index=True, comment=_("enum.ai_model.is_active")
     )
 
     # 模型特定配置（JSON 格式） / Model-specific JSON
     # 例如：默认参数、特殊能力标记等 / e.g. defaults, capability flags
     config: Mapped[dict | None] = mapped_column(
-        JSON,
-        nullable=True,
-        comment=_("enum.ai_model.config")
+        JSON, nullable=True, comment=_("enum.ai_model.config")
     )
 
     # 模型级别（用于多模型路由策略） / Tier for routing policy
@@ -222,7 +224,7 @@ class AIModel(BaseModel):
         ForeignKey("ai_models.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
-        comment=_("enum.ai_model.fallback_model_id")
+        comment=_("enum.ai_model.fallback_model_id"),
     )
 
     # ==================== 关系 ==================== / Relationships

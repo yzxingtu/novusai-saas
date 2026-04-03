@@ -212,10 +212,14 @@ class PluginDbProxy:
         # / 检查常见的表操作关键字后的表名（含 CTE 内部通过 FROM/JOIN 引用的表）
         # _TABLE_KEYWORD_RE 定义在模块级，处理 \t/\n 等任意空白分隔符
         for match in _TABLE_KEYWORD_RE.finditer(sql_lower):
-            table_name = match.group(1).strip('"\'')
+            table_name = match.group(1).strip("\"'")
             # Allowed tables: plugin-owned tables (limited by allowed_prefixes) + allow list
             # / 允许的表：插件自有表（由 allowed_prefixes 限定）+ 允许名单
-            if table_name and not self._is_allowed_table(table_name) and table_name not in _ALLOW_LIST:
+            if (
+                table_name
+                and not self._is_allowed_table(table_name)
+                and table_name not in _ALLOW_LIST
+            ):
                 raise PluginSecurityError(
                     message=_("plugin.error.table_access_forbidden").format(
                         prefixes=", ".join(self._allowed_prefixes),
@@ -308,9 +312,9 @@ class PluginContext:
         )
 
         result = await self._db.execute(
-            select(ResourceTenantAssignment.config).join(
-                Plugin, Plugin.id == ResourceTenantAssignment.resource_id
-            ).where(
+            select(ResourceTenantAssignment.config)
+            .join(Plugin, Plugin.id == ResourceTenantAssignment.resource_id)
+            .where(
                 ResourceTenantAssignment.resource_type == "plugin",
                 Plugin.name == self.plugin_name,
                 ResourceTenantAssignment.tenant_id == tenant_id,
@@ -343,10 +347,12 @@ class PluginContext:
             config = encrypt_plugin_config(config, config_schema)
 
         await self._db.execute(
-            update(Plugin).where(
+            update(Plugin)
+            .where(
                 Plugin.name == self.plugin_name,
                 Plugin.is_deleted.is_(False),
-            ).values(config=config)
+            )
+            .values(config=config)
         )
         await self._db.flush()
 
@@ -412,7 +418,9 @@ class PluginContext:
         Requires storage:read or storage:write capability.
         / 需要 storage:read 或 storage:write 能力。
         """
-        if not (self.has_capability("storage:read") or self.has_capability("storage:write")):
+        if not (
+            self.has_capability("storage:read") or self.has_capability("storage:write")
+        ):
             raise PluginSecurityError(
                 message=_("plugin.error.storage_capability_required").format(
                     plugin_name=self.plugin_name,
@@ -491,7 +499,9 @@ class PluginContext:
 
         host = parsed.hostname or ""
         if not host:
-            raise PluginSecurityError(message=_("plugin.error.invalid_url_missing_host"))
+            raise PluginSecurityError(
+                message=_("plugin.error.invalid_url_missing_host")
+            )
 
         try:
             addr = ipaddress.ip_address(host)
@@ -523,7 +533,8 @@ class PluginContext:
     # ── AI / AI 功能 ──
 
     async def _resolve_ai_assignment(
-        self, feature_code: str,
+        self,
+        feature_code: str,
     ) -> tuple[int, int]:
         """
         Resolve AI feature binding: find agent_id and effective_tenant_id.
@@ -545,15 +556,19 @@ class PluginContext:
         full_code = f"plugin.{self.plugin_name}.{feature_code}"
 
         tenant_id = self.get_current_tenant_id()
-        query = select(
-            SystemAgentAssignment.agent_id,
-            SystemAgentAssignment.tenant_id,
-        ).where(
-            SystemAgentAssignment.feature_code == full_code,
-            SystemAgentAssignment.is_active.is_(True),
-            SystemAgentAssignment.is_deleted.is_(False),
-        ).order_by(
-            SystemAgentAssignment.tenant_id.is_(None).asc(),
+        query = (
+            select(
+                SystemAgentAssignment.agent_id,
+                SystemAgentAssignment.tenant_id,
+            )
+            .where(
+                SystemAgentAssignment.feature_code == full_code,
+                SystemAgentAssignment.is_active.is_(True),
+                SystemAgentAssignment.is_deleted.is_(False),
+            )
+            .order_by(
+                SystemAgentAssignment.tenant_id.is_(None).asc(),
+            )
         )
         result = await self._db.execute(query)
         rows = result.all()
@@ -616,7 +631,9 @@ class PluginContext:
         return ""
 
     @staticmethod
-    def _filter_callable_kwargs(callable_obj: Any, kwargs: dict[str, Any]) -> dict[str, Any]:
+    def _filter_callable_kwargs(
+        callable_obj: Any, kwargs: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Filter kwargs based on callable signature, compatible with new params unsupported by old implementations.
         / 根据可调用对象签名过滤 kwargs，兼容旧实现不支持的新参数。
@@ -633,9 +650,7 @@ class PluginContext:
         accepted = set(sig.parameters.keys())
         return {k: v for k, v in kwargs.items() if k in accepted}
 
-    async def call_ai_feature(
-        self, feature_code: str, messages: list[dict]
-    ) -> str:
+    async def call_ai_feature(self, feature_code: str, messages: list[dict]) -> str:
         """
         Call AI feature (non-streaming), requires ai:call capability.
         / 调用 AI 功能（非流式），需 ai:call 能力。
@@ -726,11 +741,17 @@ class PluginContext:
                 "memory_channel": MemoryChannelEnum.PLUGIN.value,
                 "memory_source": f"plugin.{self.plugin_name}",
             }
-            stream_kwargs = self._filter_callable_kwargs(chat_service.stream_chat, stream_kwargs)
+            stream_kwargs = self._filter_callable_kwargs(
+                chat_service.stream_chat, stream_kwargs
+            )
             sse_response = await chat_service.stream_chat(**stream_kwargs)
 
             async for raw_chunk in sse_response.body_iterator:
-                text = raw_chunk if isinstance(raw_chunk, str) else raw_chunk.decode("utf-8")
+                text = (
+                    raw_chunk
+                    if isinstance(raw_chunk, str)
+                    else raw_chunk.decode("utf-8")
+                )
                 for line in text.split("\n"):
                     line = line.strip()
                     if not line.startswith("data: "):
@@ -745,6 +766,7 @@ class PluginContext:
 
                     if event.get("error"):
                         from app.plugins.exceptions import PluginError
+
                         raise PluginError(
                             message=event.get("message", "AI execution error"),
                         )
@@ -763,7 +785,8 @@ class PluginContext:
 
             logger.warning(
                 "Plugin {} AI stream failed: {}",
-                self.plugin_name, exc,
+                self.plugin_name,
+                exc,
             )
             is_fallback = True
             try:
@@ -772,7 +795,11 @@ class PluginContext:
                     chunk_count = 1
                     yield full_text
             except Exception as fallback_exc:
-                logger.error("Plugin {} AI fallback also failed: {}", self.plugin_name, fallback_exc)
+                logger.error(
+                    "Plugin {} AI fallback also failed: {}",
+                    self.plugin_name,
+                    fallback_exc,
+                )
                 raise PluginError(
                     message=resolve_public_error_message(
                         exc,
@@ -863,12 +890,16 @@ class PluginContext:
         bus = get_plugin_event_bus()
         if bus.has_subscribers(full_event):
             bus_result = await bus.publish(
-                full_event, context, source_plugin=self.plugin_name,
+                full_event,
+                context,
+                source_plugin=self.plugin_name,
             )
             logger.info(
                 "Plugin {} event '{}': bus delivered={} failed={}",
-                self.plugin_name, event_name,
-                bus_result["delivered"], bus_result["failed"],
+                self.plugin_name,
+                event_name,
+                bus_result["delivered"],
+                bus_result["failed"],
             )
 
         # 2. HookRegistry — sync interception (can modify context)
@@ -880,7 +911,8 @@ class PluginContext:
             context = await hook_registry.trigger(full_event, **context)
             logger.info(
                 "Plugin {} event '{}': {} hooks triggered",
-                self.plugin_name, event_name,
+                self.plugin_name,
+                event_name,
                 len(hook_registry._hooks.get(full_event, [])),
             )
 
@@ -905,7 +937,8 @@ class PluginContext:
 
         bus = get_plugin_event_bus()
         bus.subscribe(
-            event_name, handler,
+            event_name,
+            handler,
             plugin_name=self.plugin_name,
             priority=priority,
         )
@@ -974,17 +1007,24 @@ class PluginContext:
         payload = {**(data or {}), "plugin": self.plugin_name, "event": event}
         try:
             from app.core.socketio_server import get_sio
+
             sio = get_sio()
             await sio.emit(full_event, payload, room=room, namespace=namespace)
             logger.debug(
                 "Plugin {}: pushed event '{}' to user {} ({})",
-                self.plugin_name, event, user_id, side,
+                self.plugin_name,
+                event,
+                user_id,
+                side,
             )
             return True
         except Exception as exc:
             logger.warning(
                 "Plugin {}: push_to_user failed (user={} event={}): {}",
-                self.plugin_name, user_id, event, exc,
+                self.plugin_name,
+                user_id,
+                event,
+                exc,
             )
             return False
 
@@ -1051,6 +1091,7 @@ class _NamespacedStorageProxy:
         normalized = posixpath.normpath(stripped)
         if normalized.startswith("..") or normalized == ".":
             from app.plugins.exceptions import PluginSecurityError
+
             raise PluginSecurityError(
                 message=_("plugin.error.path_traversal_detected").format(path=path),
             )
@@ -1063,7 +1104,9 @@ class _NamespacedStorageProxy:
         mime_type: str | None = None,
         **kwargs: Any,
     ) -> Any:
-        return await self._driver.put(self._ns_path(path), content, mime_type=mime_type, **kwargs)
+        return await self._driver.put(
+            self._ns_path(path), content, mime_type=mime_type, **kwargs
+        )
 
     async def get(self, path: str) -> Any:
         return await self._driver.get(self._ns_path(path))
@@ -1075,7 +1118,9 @@ class _NamespacedStorageProxy:
         return await self._driver.exists(self._ns_path(path))
 
     async def get_url(self, path: str, expires: int = 3600, **kwargs: Any) -> str:
-        return await self._driver.get_url(self._ns_path(path), expires=expires, **kwargs)
+        return await self._driver.get_url(
+            self._ns_path(path), expires=expires, **kwargs
+        )
 
     async def get_info(self, path: str) -> Any:
         return await self._driver.get_info(self._ns_path(path))

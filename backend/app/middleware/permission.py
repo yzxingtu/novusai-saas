@@ -178,7 +178,9 @@ class PermissionMiddleware:
 
             if tenant_admin.is_owner:
                 request.state.user_permissions = {"*"}
-                authority = await OrgAuthorityResolver(db).resolve_tenant_admin(tenant_admin)
+                authority = await OrgAuthorityResolver(db).resolve_tenant_admin(
+                    tenant_admin
+                )
                 await self._set_data_permission_ctx(
                     request,
                     current_user_id=tenant_admin_id,
@@ -189,7 +191,9 @@ class PermissionMiddleware:
                 return
 
             if tenant_admin.role_id is None:
-                authority = await OrgAuthorityResolver(db).resolve_tenant_admin(tenant_admin)
+                authority = await OrgAuthorityResolver(db).resolve_tenant_admin(
+                    tenant_admin
+                )
                 await self._set_data_permission_ctx(
                     request,
                     current_user_id=tenant_admin_id,
@@ -214,7 +218,9 @@ class PermissionMiddleware:
 
             request.state.user_permissions = permissions
 
-            authority = await OrgAuthorityResolver(db).resolve_tenant_admin(tenant_admin)
+            authority = await OrgAuthorityResolver(db).resolve_tenant_admin(
+                tenant_admin
+            )
             await self._set_data_permission_ctx(
                 request,
                 current_user_id=tenant_admin_id,
@@ -241,7 +247,9 @@ class PermissionMiddleware:
             request.state.user = tenant_user
 
             if tenant_user.role_id is None:
-                authority = await OrgAuthorityResolver(db).resolve_tenant_user(tenant_user)
+                authority = await OrgAuthorityResolver(db).resolve_tenant_user(
+                    tenant_user
+                )
                 await self._set_data_permission_ctx(
                     request,
                     current_user_id=tenant_user_id,

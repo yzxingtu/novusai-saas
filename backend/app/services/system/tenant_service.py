@@ -122,7 +122,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
 
         for _attempt in range(max_attempts):
             # 生成 t + 8位随机字符 / Generate t + 8 random chars
-            random_part = ''.join(secrets.choice(charset) for _ in range(8))
+            random_part = "".join(secrets.choice(charset) for _ in range(8))
             code = f"t{random_part}"
 
             # 检查是否已存在 / Check exists
@@ -130,7 +130,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
                 return code
 
         # 极端情况：多次尝试后仍重复，加长随机部分 / Rare: still duplicate after retries; lengthen random part
-        random_part = ''.join(secrets.choice(charset) for _ in range(12))
+        random_part = "".join(secrets.choice(charset) for _ in range(12))
         return f"t{random_part}"
 
     async def create_tenant(
@@ -267,7 +267,9 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         except Exception as e:
             logger.warning("Failed to send welcome notification: {}", str(e))
 
-    async def _create_tenant_root_node(self, tenant_id: int, tenant_name: str) -> TenantOrgNode:
+    async def _create_tenant_root_node(
+        self, tenant_id: int, tenant_name: str
+    ) -> TenantOrgNode:
         """
         为企业创建组织架构根节点 / Create org root node for tenant.
 
@@ -373,11 +375,13 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
 
         logger.info(
             "Created default user role (id={}) for tenant {}",
-            default_role.id, tenant_id,
+            default_role.id,
+            tenant_id,
         )
 
         # 将默认角色 ID 写入企业配置
         from app.configs.service import ConfigService
+
         config_service = ConfigService(self.db)
         await config_service.set_tenant_config(
             tenant_id,
@@ -522,8 +526,14 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             )
 
         new_plan_id = data.get("plan_id")
-        if "plan_id" in data and new_plan_id != tenant.plan_id and new_plan_id is not None:
-            plan_features, plan_quota = await self._get_plan_preflight_snapshot(new_plan_id)
+        if (
+            "plan_id" in data
+            and new_plan_id != tenant.plan_id
+            and new_plan_id is not None
+        ):
+            plan_features, plan_quota = await self._get_plan_preflight_snapshot(
+                new_plan_id
+            )
             await self._run_plan_preflight(
                 operation="tenant_plan_switch",
                 plan_id=new_plan_id,

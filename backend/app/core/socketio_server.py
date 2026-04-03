@@ -63,7 +63,9 @@ async def apply_ws_config() -> None:
         from app.sio.ws_config import get_ws_configs
 
         cfg = await get_ws_configs(
-            "ws_enabled", "ws_ping_interval", "ws_ping_timeout",
+            "ws_enabled",
+            "ws_ping_interval",
+            "ws_ping_timeout",
         )
 
         ping_interval = cfg.get("ws_ping_interval", 25)
@@ -77,7 +79,9 @@ async def apply_ws_config() -> None:
         ws_enabled = cfg.get("ws_enabled", True)
         logger.info(
             "Socket.IO config applied: enabled={} ping_interval={} ping_timeout={}",
-            ws_enabled, ping_interval, ping_timeout,
+            ws_enabled,
+            ping_interval,
+            ping_timeout,
         )
     except Exception as e:
         logger.warning("Failed to apply WS config: {}", e)

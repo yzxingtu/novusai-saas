@@ -150,7 +150,9 @@ class CodegenRollback:
                     result.files_deleted.append(path_str)
                     continue
                 if not dest.exists():
-                    result.files_skipped.append({"path": path_str, "reason": "file_not_found"})
+                    result.files_skipped.append(
+                        {"path": path_str, "reason": "file_not_found"}
+                    )
                     continue
                 stored_hash = f.get("content_hash")
                 if stored_hash and not force:
@@ -168,7 +170,9 @@ class CodegenRollback:
                 if not appended:
                     continue
                 if not dest.exists():
-                    result.files_skipped.append({"path": path_str, "reason": "file_not_found"})
+                    result.files_skipped.append(
+                        {"path": path_str, "reason": "file_not_found"}
+                    )
                     continue
                 content = dest.read_text(encoding="utf-8", errors="replace")
                 appended_stripped = appended.strip()
@@ -184,7 +188,9 @@ class CodegenRollback:
                 backup_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(dest, backup_path)
                 # 使用与检查相同的字符串进行替换 / Use same string for replace as for check
-                new_content = content.replace(appended_stripped, "", 1).replace("\n\n\n", "\n\n")
+                new_content = content.replace(appended_stripped, "", 1).replace(
+                    "\n\n\n", "\n\n"
+                )
                 dest.write_text(new_content.strip() + "\n", encoding="utf-8")
                 result.files_modified.append(path_str)
 
@@ -193,13 +199,17 @@ class CodegenRollback:
                 if not merged_keys:
                     continue
                 if not dest.exists():
-                    result.files_skipped.append({"path": path_str, "reason": "file_not_found"})
+                    result.files_skipped.append(
+                        {"path": path_str, "reason": "file_not_found"}
+                    )
                     continue
                 if dry_run:
                     result.files_modified.append(path_str)
                     continue
                 try:
-                    data = json.loads(dest.read_text(encoding="utf-8", errors="replace"))
+                    data = json.loads(
+                        dest.read_text(encoding="utf-8", errors="replace")
+                    )
                     merged_data = f.get("merged_data") or {}
                     if not force and isinstance(merged_data, dict):
                         modified_keys: list[str] = []
@@ -232,7 +242,10 @@ class CodegenRollback:
                     backup_path = backup_dir / path_str
                     backup_path.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(dest, backup_path)
-                    dest.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+                    dest.write_text(
+                        json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+                        encoding="utf-8",
+                    )
                     result.files_modified.append(path_str)
                 except (json.JSONDecodeError, OSError) as e:
                     result.files_skipped.append({"path": path_str, "reason": str(e)})
@@ -244,7 +257,9 @@ class CodegenRollback:
                 if not scope or not resource:
                     continue
                 if not dest.exists():
-                    result.files_skipped.append({"path": path_str, "reason": "file_not_found"})
+                    result.files_skipped.append(
+                        {"path": path_str, "reason": "file_not_found"}
+                    )
                     continue
                 pascal = "".join(
                     w.capitalize() for w in str(resource).replace("-", "_").split("_")
@@ -253,7 +268,9 @@ class CodegenRollback:
                 controller_name = f"{prefix}{pascal}Controller"
                 router_var = f"{scope}_router"
                 include_line = f"{router_var}.include_router({resource}_router)"
-                import_controller = f"from app.api.{scope}.{resource} import {controller_name}"
+                import_controller = (
+                    f"from app.api.{scope}.{resource} import {controller_name}"
+                )
                 import_router = f"from app.api.{scope}.{resource} import router as {resource}_router"
                 comment = f"# Codegen auto-registered: {resource}"
                 if dry_run:
@@ -272,9 +289,9 @@ class CodegenRollback:
                 new_lines = []
                 for line in lines:
                     stripped = line.strip()
-                    if stripped == import_controller or stripped == import_router:
+                    if stripped in (import_controller, import_router):
                         continue
-                    if stripped == include_line or stripped == comment:
+                    if stripped in (include_line, comment):
                         continue
                     if re.search(
                         rf'^\s*["\']{re.escape(controller_name)}["\']\s*,?\s*$',
@@ -295,7 +312,9 @@ class CodegenRollback:
                 if not module or not resource or not pascal:
                     continue
                 if not dest.exists():
-                    result.files_skipped.append({"path": path_str, "reason": "file_not_found"})
+                    result.files_skipped.append(
+                        {"path": path_str, "reason": "file_not_found"}
+                    )
                     continue
                 if dry_run:
                     result.files_modified.append(path_str)
@@ -303,8 +322,7 @@ class CodegenRollback:
                 content = dest.read_text(encoding="utf-8", errors="replace")
                 # 检查是否存在可回滚的内容 / Check if rollback content exists
                 is_multiline_block = target in ("root", "env") and (
-                    (target == "root" and module == "tenant")
-                    or target == "env"
+                    (target == "root" and module == "tenant") or target == "env"
                 )
                 if is_multiline_block:
                     # 多行块内应有 symbol 行如 "    Article," / Multiline block should have symbol line
@@ -337,10 +355,17 @@ class CodegenRollback:
                         if sym_in_line:
                             continue
                     else:
-                        if stripped == f"from app.models.{module}.{resource} import {pascal}":
+                        if (
+                            stripped
+                            == f"from app.models.{module}.{resource} import {pascal}"
+                        ):
                             continue
-                    if target != "env" and "__all__" in content and re.search(
-                        rf'^\s*["\']{re.escape(pascal)}["\']\s*,?\s*(#.*)?$', line
+                    if (
+                        target != "env"
+                        and "__all__" in content
+                        and re.search(
+                            rf'^\s*["\']{re.escape(pascal)}["\']\s*,?\s*(#.*)?$', line
+                        )
                     ):
                         continue
                     new_lines.append(line)
@@ -351,21 +376,24 @@ class CodegenRollback:
         if not dry_run:
             if result.files_skipped:
                 result.errors.append(
-                    "Partial rollback: {} file(s) skipped. "
-                    "Manifest entry preserved for retry. Use --force for create-only overrides.".format(
-                        len(result.files_skipped)
-                    )
+                    f"Partial rollback: {len(result.files_skipped)} file(s) skipped. "
+                    "Manifest entry preserved for retry. Use --force for create-only overrides."
                 )
                 if result.manual_steps:
                     result.errors.append(
-                        "Manual steps required: " + "; ".join(result.manual_steps[:3])
+                        "Manual steps required: "
+                        + "; ".join(result.manual_steps[:3])
                         + (" ..." if len(result.manual_steps) > 3 else "")
                     )
             else:
                 self.manifest.mark_file_rollback_completed(entry.resource, True)
 
             # 清理空目录 / Clean up empty directories
-            deleted_paths = {self.project_root / f.get("path", "") for f in entry.files if f.get("action") == "create"}
+            deleted_paths = {
+                self.project_root / f.get("path", "")
+                for f in entry.files
+                if f.get("action") == "create"
+            }
             for p in deleted_paths:
                 parent = p.parent if p.suffix else p
                 while parent != self.project_root and parent.exists():

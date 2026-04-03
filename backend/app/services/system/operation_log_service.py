@@ -23,7 +23,9 @@ from app.schemas.common.query import QuerySpec
 # 日志辅助类（用于模块级函数中的日志记录） / Log helper for module-level logging
 class _ModuleLogger(LoggerMixin):
     """operation_log_service 模块日志器 / operation_log_service module logger."""
+
     pass
+
 
 _module_logger = _ModuleLogger()
 
@@ -336,13 +338,15 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
 
         operators = []
         for user_id, user_type, username, nickname in rows:
-            operators.append({
-                "user_id": user_id,
-                "user_type": user_type,
-                "username": username or "",
-                "nickname": nickname,
-                "avatar": avatar_map.get(user_id),
-            })
+            operators.append(
+                {
+                    "user_id": user_id,
+                    "user_type": user_type,
+                    "username": username or "",
+                    "nickname": nickname,
+                    "avatar": avatar_map.get(user_id),
+                }
+            )
         return operators
 
     async def get_tenant_operators(self, tenant_id: int) -> list[dict]:
@@ -394,13 +398,15 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
 
         operators = []
         for user_id, user_type, username, nickname in rows:
-            operators.append({
-                "user_id": user_id,
-                "user_type": user_type,
-                "username": username or "",
-                "nickname": nickname,
-                "avatar": avatar_map.get(user_id),
-            })
+            operators.append(
+                {
+                    "user_id": user_id,
+                    "user_type": user_type,
+                    "username": username or "",
+                    "nickname": nickname,
+                    "avatar": avatar_map.get(user_id),
+                }
+            )
         return operators
 
     async def get_tenant_operators_select(
@@ -476,13 +482,17 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
 
         # 构建 label/value 格式
         items = []
-        for user_id, ut, username, nickname in rows:
+        for _user_id, ut, username, nickname in rows:
             display_name = nickname or username or ""
             user_type_label = _("enum.user_type." + ut) if ut else ""
-            items.append({
-                "label": f"{display_name} ({user_type_label})" if user_type_label else display_name,
-                "value": username or "",
-            })
+            items.append(
+                {
+                    "label": f"{display_name} ({user_type_label})"
+                    if user_type_label
+                    else display_name,
+                    "value": username or "",
+                }
+            )
 
         return items, total
 
@@ -508,7 +518,9 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         # 总是包含自己 / Always include self
         user_ids = [admin.id]
 
-        visible_org_ids = await AdminOrgAuthorityService(self.db, admin).get_visible_org_node_ids()
+        visible_org_ids = await AdminOrgAuthorityService(
+            self.db, admin
+        ).get_visible_org_node_ids()
         if not visible_org_ids:
             return user_ids
 
@@ -548,7 +560,9 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         # 总是包含自己 / Always include self
         user_ids = [tenant_admin.id]
 
-        visible_org_ids = await TenantOrgAuthorityService(self.db, tenant_admin).get_visible_org_node_ids()
+        visible_org_ids = await TenantOrgAuthorityService(
+            self.db, tenant_admin
+        ).get_visible_org_node_ids()
         if not visible_org_ids:
             return user_ids
 
@@ -567,6 +581,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
 
 # ==================== 异步写入工具函数 ==================== / ==================== Async write helpers ====================
 
+
 async def _write_log_async(log_data: dict[str, Any]) -> None:
     """
     异步写入日志的内部实现 / Async write log (internal).
@@ -579,7 +594,9 @@ async def _write_log_async(log_data: dict[str, Any]) -> None:
     try:
         async with async_session_factory() as db:
             # 如果 username/nickname 为空但 user_id 存在，查询用户信息
-            if (not log_data.get("username") or not log_data.get("nickname")) and log_data.get("user_id"):
+            if (
+                not log_data.get("username") or not log_data.get("nickname")
+            ) and log_data.get("user_id"):
                 user_info = await _fetch_user_info(
                     db,
                     user_type=log_data.get("user_type"),
@@ -626,6 +643,7 @@ async def _fetch_user_info(
     try:
         if user_type == UserTypeEnum.ADMIN.value:
             from app.models import Admin
+
             result = await db.execute(
                 select(Admin.username, Admin.nickname).where(Admin.id == user_id)
             )
@@ -635,8 +653,11 @@ async def _fetch_user_info(
 
         elif user_type == UserTypeEnum.TENANT_ADMIN.value:
             from app.models import TenantAdmin
+
             result = await db.execute(
-                select(TenantAdmin.username, TenantAdmin.nickname).where(TenantAdmin.id == user_id)
+                select(TenantAdmin.username, TenantAdmin.nickname).where(
+                    TenantAdmin.id == user_id
+                )
             )
             row = result.first()
             if row:
@@ -644,15 +665,20 @@ async def _fetch_user_info(
 
         elif user_type == UserTypeEnum.TENANT_USER.value:
             from app.models import TenantUser
+
             result = await db.execute(
-                select(TenantUser.username, TenantUser.nickname).where(TenantUser.id == user_id)
+                select(TenantUser.username, TenantUser.nickname).where(
+                    TenantUser.id == user_id
+                )
             )
             row = result.first()
             if row:
                 return {"username": row[0], "nickname": row[1]}
 
     except Exception:
-        _module_logger.logger.debug("Failed to resolve user info for {}:{}", user_type, user_id)
+        _module_logger.logger.debug(
+            "Failed to resolve user info for {}:{}", user_type, user_id
+        )
 
     return None
 

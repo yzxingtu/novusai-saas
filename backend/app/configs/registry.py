@@ -100,7 +100,9 @@ class ConfigRegistry:
             child.parent_code = group.code
             self.register_group(child)
 
-        logger.debug(f"Registered config group: {group.code} with {len(group.configs)} configs")
+        logger.debug(
+            f"Registered config group: {group.code} with {len(group.configs)} configs"
+        )
 
     def register_groups(self, groups: list[ConfigGroupMeta]) -> None:
         """Batch register config groups / 批量注册配置分组"""
@@ -154,7 +156,9 @@ class ConfigRegistry:
         # 避免重复添加 / Avoid duplicate options
         existing_values = {opt.value for opt in config.options}
         if option.value in existing_values:
-            logger.debug(f"add_option: option '{option.value}' already exists in '{config_key}'")
+            logger.debug(
+                f"add_option: option '{option.value}' already exists in '{config_key}'"
+            )
             return True
 
         config.options.append(option)
@@ -181,10 +185,14 @@ class ConfigRegistry:
         config.options = [opt for opt in config.options if opt.value != option_value]
 
         if len(config.options) < original_len:
-            logger.info(f"remove_option: removed '{option_value}' from config '{config_key}'")
+            logger.info(
+                f"remove_option: removed '{option_value}' from config '{config_key}'"
+            )
             return True
 
-        logger.debug(f"remove_option: option '{option_value}' not found in '{config_key}'")
+        logger.debug(
+            f"remove_option: option '{option_value}' not found in '{config_key}'"
+        )
         return False
 
     def get_group(self, group_code: str) -> ConfigGroupMeta | None:
@@ -266,10 +274,7 @@ class ConfigRegistry:
 
     def has_config(self, group_code: str, config_key: str) -> bool:
         """Check if config item exists / 检查配置项是否存在"""
-        return (
-            group_code in self._configs
-            and config_key in self._configs[group_code]
-        )
+        return group_code in self._configs and config_key in self._configs[group_code]
 
     def clear(self) -> None:
         """Clear all registrations (for testing only) / 清空所有注册（仅用于测试）"""

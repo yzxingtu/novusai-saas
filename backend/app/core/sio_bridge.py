@@ -67,7 +67,9 @@ def sio_emit_sync(
         mgr.emit(event, data, room=room, namespace=namespace)
         logger.debug(
             "SIO sync emit: event={} room={} namespace={}",
-            event, room, namespace,
+            event,
+            room,
+            namespace,
         )
     except Exception as e:
         logger.warning("SIO sync emit failed: {}", str(e))
@@ -139,13 +141,16 @@ async def emit_force_logout(user_id: int, user_type: str) -> None:
     """
     try:
         from app.core.socketio_server import sio
+
         room = f"user:{user_id}"
         payload = {"reason": "admin_force_logout"}
         ns = NS_MAP.get(user_type)
         if ns:
             await sio.emit("force_logout", payload, room=room, namespace=ns)
     except Exception as exc:
-        logger.debug("Force logout Socket.IO emit failed: {}", exc)  # 静默失败，不影响主流程 / Fail silently
+        logger.debug(
+            "Force logout Socket.IO emit failed: {}", exc
+        )  # 静默失败，不影响主流程 / Fail silently
 
 
 def notify_tenant_sync(

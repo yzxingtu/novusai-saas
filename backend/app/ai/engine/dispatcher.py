@@ -108,6 +108,7 @@ class ExecutionDispatcher:
                     from app.repositories.ai.agent_repository import (
                         AdminAgentRepository,
                     )
+
                     agent_repo = AdminAgentRepository(self.db)
                 else:
                     agent_repo = AgentRepository(self.db, request.tenant_id)
@@ -116,15 +117,16 @@ class ExecutionDispatcher:
                     raise NotFoundException(message=_("agent.error.not_found"))
 
                 if agent.status != AgentStatusEnum.PUBLISHED.value:
-                    raise BusinessException(
-                        message=_("agent.error.not_published")
-                    )
+                    raise BusinessException(message=_("agent.error.not_published"))
 
             # Load quota config from agent / 从 agent 加载配额配置
             quota_config = AgentQuotaConfig.from_dict(agent.quota_config)
 
             # 2. Concurrency control / 并发控制
-            if quota_config.max_concurrent > 0 or quota_config.tenant_max_concurrent > 0:
+            if (
+                quota_config.max_concurrent > 0
+                or quota_config.tenant_max_concurrent > 0
+            ):
                 lock_token = await AgentConcurrencyLimiter.acquire(
                     tenant_id=request.tenant_id,
                     agent_id=agent.id,
@@ -139,8 +141,7 @@ class ExecutionDispatcher:
                 estimated = 0
                 if request.messages:
                     estimated = sum(
-                        estimate_tokens(m.content or "")
-                        for m in request.messages
+                        estimate_tokens(m.content or "") for m in request.messages
                     )
                 # At least 100 tokens estimate (system prompt + generation overhead) / 至少预估 100 tokens（system prompt + 生成开销）
                 estimated = max(estimated, 100)
@@ -165,6 +166,7 @@ class ExecutionDispatcher:
                 if request.tenant_id:
                     from app.enums import ErrorCode
                     from app.services.tenant.quota_service import QuotaService
+
                     api_check = await QuotaService.check_api_quota_for_tenant_id(
                         self.db, request.tenant_id
                     )
@@ -186,7 +188,9 @@ class ExecutionDispatcher:
 
             # Hook can block execution / 钩子可阻止执行
             if hook_context.get("blocked"):
-                reason = hook_context.get("block_reason", _("agent.error.blocked_by_hook"))
+                reason = hook_context.get(
+                    "block_reason", _("agent.error.blocked_by_hook")
+                )
                 return ExecutionResult(success=False, error=reason)
 
             # 4.5 Publish ExecutionStarted event / 发布 ExecutionStarted 事件
@@ -194,24 +198,33 @@ class ExecutionDispatcher:
 
             # 5. Resolve Skills (done at Dispatcher layer, not inside Engine DB queries) / 解析 Skill（在 Dispatcher 层完成，不在 Engine 内部查 DB）
             skill_result = await resolve_for_agent(
-                self.db, agent,
+                self.db,
+                agent,
                 tenant_id=request.tenant_id,
                 user_role=request.user_role,
             )
 
             # 5.5 Load platform Toolkit security config (consistent with stream_chat path) / 读取平台 Toolkit 安全配置（与 stream_chat 路径保持一致）
             from app.configs.service import ConfigService
+
             _cfg = ConfigService(self.db)
-            _toolkit_security_level = str(await _cfg.get_platform_config(
-                "toolkit_security_level", default="normal",
-            ))
-            _toolkit_memory_limit_mb = int(await _cfg.get_platform_config(
-                "toolkit_memory_limit_mb", default=256,
-            ))
+            _toolkit_security_level = str(
+                await _cfg.get_platform_config(
+                    "toolkit_security_level",
+                    default="normal",
+                )
+            )
+            _toolkit_memory_limit_mb = int(
+                await _cfg.get_platform_config(
+                    "toolkit_memory_limit_mb",
+                    default=256,
+                )
+            )
 
             # 6. Create Engine and execute / 创建 Engine 并执行
             engine = self._create_engine(
-                agent, request,
+                agent,
+                request,
                 toolkit_security_level=_toolkit_security_level,
                 toolkit_memory_limit_mb=_toolkit_memory_limit_mb,
             )
@@ -249,7 +262,9 @@ class ExecutionDispatcher:
                 await BaseEngine._publish_execution_completed(request, agent, result)
             else:
                 await BaseEngine._publish_execution_failed(
-                    request, agent, result.error,
+                    request,
+                    agent,
+                    result.error,
                 )
 
             return result
@@ -282,7 +297,8 @@ class ExecutionDispatcher:
                 except Exception as rollback_exc:
                     logger.warning(
                         "Quota rollback failed: agent={} error={}",
-                        request.agent_id, rollback_exc,
+                        request.agent_id,
+                        rollback_exc,
                     )
 
             if agent:
@@ -291,7 +307,10 @@ class ExecutionDispatcher:
                     exc=exc,
                 )
                 await BaseEngine._publish_execution_failed(
-                    request, agent, public_error, type(exc).__name__,
+                    request,
+                    agent,
+                    public_error,
+                    type(exc).__name__,
                 )
 
             return ExecutionResult(
@@ -354,8 +373,7 @@ class ExecutionDispatcher:
             raise NotFoundException(message=_("agent.error.not_found"))
 
         if agent.status != AgentStatusEnum.PUBLISHED.value:
-            raise BusinessException(
-                message=_("agent.error.not_published"))
+            raise BusinessException(message=_("agent.error.not_published"))
 
         # 2. Quota check (checked once at batch submission) / 配额检查（批处理提交时检查一次）
         quota_config = AgentQuotaConfig.from_dict(agent.quota_config)
@@ -371,33 +389,42 @@ class ExecutionDispatcher:
             {"item_id": item.item_id, "input_variables": item.input_variables}
             for item in items
         ]
-        batch_run = await batch_repo.create({
-            "agent_id": agent.id,
-            "status": BatchRunStatusEnum.PENDING.value,
-            "total_items": len(items),
-            "completed_items": 0,
-            "failed_items": 0,
-            "max_workers": max_workers,
-            "input_items": input_snapshot,
-            "created_by": created_by,
-        })
+        batch_run = await batch_repo.create(
+            {
+                "agent_id": agent.id,
+                "status": BatchRunStatusEnum.PENDING.value,
+                "total_items": len(items),
+                "completed_items": 0,
+                "failed_items": 0,
+                "max_workers": max_workers,
+                "input_items": input_snapshot,
+                "created_by": created_by,
+            }
+        )
 
         # 4. Submit Celery async task / 提交 Celery 异步任务
         from app.tasks.agent_batch import execute_batch_run
+
         celery_result = execute_batch_run.delay(
             batch_run_id=batch_run.id,
             tenant_id=request.tenant_id,
         )
 
         # Save celery_task_id via Repository / 通过 Repository 保存 celery_task_id
-        await batch_repo.update(batch_run.id, {
-            "celery_task_id": celery_result.id,
-        })
+        await batch_repo.update(
+            batch_run.id,
+            {
+                "celery_task_id": celery_result.id,
+            },
+        )
         await self.db.commit()
 
         logger.info(
             "Batch submitted: batch_run_id={} agent={} items={} celery_task={}",
-            batch_run.id, agent.id, len(items), celery_result.id,
+            batch_run.id,
+            agent.id,
+            len(items),
+            celery_result.id,
         )
 
         # 5. Return immediately (non-blocking) / 立即返回（非阻塞）

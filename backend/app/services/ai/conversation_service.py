@@ -383,12 +383,15 @@ class ConversationService(
 
         last_assistant_message = next(
             (
-                msg for msg in reversed(message_list)
+                msg
+                for msg in reversed(message_list)
                 if msg.get("role") == MessageRoleEnum.ASSISTANT.value
             ),
             None,
         )
-        compaction_snapshot = await self.get_context_compaction_snapshot(conversation.id)
+        compaction_snapshot = await self.get_context_compaction_snapshot(
+            conversation.id
+        )
         interaction_mode_effective = str(
             (conversation.metadata_ or {}).get("interaction_mode") or "confirm"
         )
@@ -548,7 +551,9 @@ class ConversationService(
         ) -> bool:
             pending = metadata.get("pending_consent")
             if isinstance(pending, dict):
-                return not (tool_name and pending.get("tool_name") not in (None, tool_name))
+                return not (
+                    tool_name and pending.get("tool_name") not in (None, tool_name)
+                )
             if isinstance(tool_calls, list):
                 for tc in tool_calls:
                     if not isinstance(tc, dict):
@@ -589,7 +594,9 @@ class ConversationService(
                 continue
             for msg in assistant_messages:
                 metadata = dict(msg.metadata_ or {})
-                tool_calls = [dict(tc) for tc in (msg.tool_calls or []) if isinstance(tc, dict)]
+                tool_calls = [
+                    dict(tc) for tc in (msg.tool_calls or []) if isinstance(tc, dict)
+                ]
                 decision_payload: dict[str, Any] | None = None
 
                 matched = False
@@ -598,11 +605,13 @@ class ConversationService(
                     if matched:
                         metadata["action_buttons_used"] = True
                 elif kind == "pending_confirmation":
-                    pending_evidence, matched_tool_call = _find_pending_confirmation_evidence(
-                        metadata,
-                        tool_calls,
-                        raw_update.get("action"),
-                        raw_update.get("table"),
+                    pending_evidence, matched_tool_call = (
+                        _find_pending_confirmation_evidence(
+                            metadata,
+                            tool_calls,
+                            raw_update.get("action"),
+                            raw_update.get("table"),
+                        )
                     )
                     matched = _match_pending_confirmation(
                         metadata,
@@ -620,13 +629,27 @@ class ConversationService(
                             if isinstance(nested, dict):
                                 next_nested = dict(nested)
                                 next_nested["resolved"] = True
-                                next_nested["rejected"] = bool(raw_update.get("rejected"))
+                                next_nested["rejected"] = bool(
+                                    raw_update.get("rejected")
+                                )
                                 tc["pending_confirmation"] = next_nested
-                        action_name = str(raw_update.get("action") or pending.get("action") or "").strip()
-                        table_name = str(raw_update.get("table") or pending.get("table") or "").strip()
-                        tool_call_id = str((matched_tool_call or {}).get("id") or "").strip() or None
+                        action_name = str(
+                            raw_update.get("action") or pending.get("action") or ""
+                        ).strip()
+                        table_name = str(
+                            raw_update.get("table") or pending.get("table") or ""
+                        ).strip()
+                        tool_call_id = (
+                            str((matched_tool_call or {}).get("id") or "").strip()
+                            or None
+                        )
                         tool_name = (
-                            str(((matched_tool_call or {}).get("function") or {}).get("name") or "").strip()
+                            str(
+                                ((matched_tool_call or {}).get("function") or {}).get(
+                                    "name"
+                                )
+                                or ""
+                            ).strip()
                             or None
                         )
                         rejected = bool(raw_update.get("rejected"))
@@ -678,10 +701,12 @@ class ConversationService(
                             },
                         }
                 elif kind == "pending_consent":
-                    pending_evidence, matched_tool_call = _find_pending_consent_evidence(
-                        metadata,
-                        tool_calls,
-                        raw_update.get("tool_name"),
+                    pending_evidence, matched_tool_call = (
+                        _find_pending_consent_evidence(
+                            metadata,
+                            tool_calls,
+                            raw_update.get("tool_name"),
+                        )
                     )
                     matched = _match_pending_consent(
                         metadata,
@@ -699,16 +724,27 @@ class ConversationService(
                             if isinstance(nested, dict):
                                 next_nested = dict(nested)
                                 next_nested["resolved"] = True
-                                next_nested["rejected"] = bool(raw_update.get("rejected"))
-                                next_nested["auto_approved"] = bool(raw_update.get("auto_approved"))
+                                next_nested["rejected"] = bool(
+                                    raw_update.get("rejected")
+                                )
+                                next_nested["auto_approved"] = bool(
+                                    raw_update.get("auto_approved")
+                                )
                                 tc["pending_consent"] = next_nested
                         tool_name = str(
                             raw_update.get("tool_name")
                             or pending.get("tool_name")
-                            or (((matched_tool_call or {}).get("function") or {}).get("name"))
+                            or (
+                                ((matched_tool_call or {}).get("function") or {}).get(
+                                    "name"
+                                )
+                            )
                             or ""
                         ).strip()
-                        tool_call_id = str((matched_tool_call or {}).get("id") or "").strip() or None
+                        tool_call_id = (
+                            str((matched_tool_call or {}).get("id") or "").strip()
+                            or None
+                        )
                         auto_approved = bool(raw_update.get("auto_approved"))
                         rejected = bool(raw_update.get("rejected"))
                         extra_evidence = {
@@ -795,7 +831,9 @@ class ConversationService(
                             planner_context = dict(
                                 context_diagnostics.get("tool_planner") or {}
                             )
-                        elif isinstance(metadata.get("last_run_summary"), dict) and isinstance(
+                        elif isinstance(
+                            metadata.get("last_run_summary"), dict
+                        ) and isinstance(
                             metadata.get("last_run_summary", {}).get("tool_planner"),
                             dict,
                         ):
@@ -804,15 +842,23 @@ class ConversationService(
                                 or {}
                             )
                         if interaction_mode_requested:
-                            interaction_context["interaction_mode_requested"] = interaction_mode_requested
+                            interaction_context["interaction_mode_requested"] = (
+                                interaction_mode_requested
+                            )
                         if interaction_mode_effective:
-                            interaction_context["interaction_mode_effective"] = interaction_mode_effective
+                            interaction_context["interaction_mode_effective"] = (
+                                interaction_mode_effective
+                            )
                         if interaction_mode_downgrade_reason:
-                            interaction_context["interaction_mode_downgrade_reason"] = interaction_mode_downgrade_reason
+                            interaction_context["interaction_mode_downgrade_reason"] = (
+                                interaction_mode_downgrade_reason
+                            )
                         if planner_context:
                             interaction_context["tool_planner"] = planner_context
                         if interaction_context:
-                            evidence_payload = dict(decision_payload.get("evidence") or {})
+                            evidence_payload = dict(
+                                decision_payload.get("evidence") or {}
+                            )
                             evidence_payload.update(interaction_context)
                             decision_payload["evidence"] = evidence_payload
                         mode_tag = f"interaction_mode={interaction_mode_effective or 'confirm'}"
@@ -820,7 +866,9 @@ class ConversationService(
                         decision_payload["reason"] = (
                             f"{reason}|{mode_tag}" if reason else mode_tag
                         )
-                        decision = await decision_service.record_decision(decision_payload)
+                        decision = await decision_service.record_decision(
+                            decision_payload
+                        )
                         await write_ai_action_log(
                             self.db,
                             tenant_id=self._get_memory_tenant_id(),
@@ -836,16 +884,20 @@ class ConversationService(
                                 or kind
                             ),
                             action_type="confirm",
-                            action_level=decision_payload.get("risk_level") or ActionLevelEnum.SAFE_WRITE.value,
+                            action_level=decision_payload.get("risk_level")
+                            or ActionLevelEnum.SAFE_WRITE.value,
                             status=(
                                 "rejected"
-                                if decision_payload.get("status") == ExecutionDecisionStatusEnum.REJECTED.value
+                                if decision_payload.get("status")
+                                == ExecutionDecisionStatusEnum.REJECTED.value
                                 else "success"
                             ),
                             request_data={
                                 "decision_id": getattr(decision, "id", None),
                                 "decision_type": decision_payload.get("decision_type"),
-                                "decision_scope": decision_payload.get("decision_scope"),
+                                "decision_scope": decision_payload.get(
+                                    "decision_scope"
+                                ),
                                 "subject_type": decision_payload.get("subject_type"),
                                 "tool_call_id": decision_payload.get("tool_call_id"),
                                 "tool_name": decision_payload.get("tool_name"),
@@ -855,8 +907,12 @@ class ConversationService(
                             },
                             response_data={
                                 "decision_status": decision_payload.get("status"),
-                                "auto_approved": bool(decision_payload.get("auto_approved")),
-                                "correlation_key": decision_payload.get("correlation_key"),
+                                "auto_approved": bool(
+                                    decision_payload.get("auto_approved")
+                                ),
+                                "correlation_key": decision_payload.get(
+                                    "correlation_key"
+                                ),
                             },
                         )
                     except Exception as exc:
@@ -887,7 +943,9 @@ class ConversationService(
             if isinstance(last_assistant_message, dict)
             else {}
         )
-        turn_meta = ConversationService._extract_turn_diagnostics_from_metadata(metadata)
+        turn_meta = ConversationService._extract_turn_diagnostics_from_metadata(
+            metadata
+        )
         rag_sources = metadata.get("rag_sources")
         rag_sources = rag_sources if isinstance(rag_sources, list) else []
         last_interrupted = bool(metadata.get("interrupted")) or (
@@ -900,9 +958,7 @@ class ConversationService(
                 else None
             ),
             "context_compacted": bool(metadata.get("context_compacted")),
-            "compact_summary_present": bool(
-                (compaction_snapshot or {}).get("summary")
-            ),
+            "compact_summary_present": bool((compaction_snapshot or {}).get("summary")),
             "memory_recalled": bool(metadata.get("memory_recalled")),
             "memory_flush_triggered": bool(metadata.get("memory_flush_triggered")),
             "prune_stats": metadata.get("prune_stats"),
@@ -934,9 +990,11 @@ class ConversationService(
             if isinstance(last_assistant_message, dict)
             else {}
         )
-        turn_meta = ConversationService._extract_turn_diagnostics_from_metadata(metadata)
-        completion_reason = (
-            turn_meta.get("termination_reason") or metadata.get("completion_reason")
+        turn_meta = ConversationService._extract_turn_diagnostics_from_metadata(
+            metadata
+        )
+        completion_reason = turn_meta.get("termination_reason") or metadata.get(
+            "completion_reason"
         )
         interrupted = bool(metadata.get("interrupted")) or (
             completion_reason == "interrupted"
@@ -986,7 +1044,9 @@ class ConversationService(
             user_id=user_id,
             owner_type=owner_type,
         )
-        context_config = getattr(getattr(conversation, "agent", None), "context_config", None) or {}
+        context_config = (
+            getattr(getattr(conversation, "agent", None), "context_config", None) or {}
+        )
         max_chars = int(context_config.get("compact_max_summary_chars", 1600) or 1600)
         total_messages = await self.message_repo.count_by_conversation(conversation_id)
         messages = await self.load_chat_history(
@@ -1063,14 +1123,20 @@ class ConversationService(
             )
 
         decisions = (
-            await self.db.execute(
-                select(ExecutionDecision).where(
-                    ExecutionDecision.tenant_id == self._get_memory_tenant_id(),
-                    ExecutionDecision.conversation_id == conversation_id,
-                    ExecutionDecision.is_deleted.is_(False),
-                ).order_by(ExecutionDecision.created_at.asc())
+            (
+                await self.db.execute(
+                    select(ExecutionDecision)
+                    .where(
+                        ExecutionDecision.tenant_id == self._get_memory_tenant_id(),
+                        ExecutionDecision.conversation_id == conversation_id,
+                        ExecutionDecision.is_deleted.is_(False),
+                    )
+                    .order_by(ExecutionDecision.created_at.asc())
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         for decision in decisions:
             evidence = dict(decision.evidence or {})
             items.append(
@@ -1094,14 +1160,20 @@ class ConversationService(
             )
 
         action_logs = (
-            await self.db.execute(
-                select(AIActionLog).where(
-                    AIActionLog.tenant_id == self._get_memory_tenant_id(),
-                    AIActionLog.conversation_id == conversation_id,
-                    AIActionLog.is_deleted.is_(False),
-                ).order_by(AIActionLog.created_at.asc())
+            (
+                await self.db.execute(
+                    select(AIActionLog)
+                    .where(
+                        AIActionLog.tenant_id == self._get_memory_tenant_id(),
+                        AIActionLog.conversation_id == conversation_id,
+                        AIActionLog.is_deleted.is_(False),
+                    )
+                    .order_by(AIActionLog.created_at.asc())
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         for action_log in action_logs:
             items.append(
                 {
@@ -1121,14 +1193,20 @@ class ConversationService(
             )
 
         call_logs = (
-            await self.db.execute(
-                select(AICallLog).where(
-                    AICallLog.tenant_id == self._get_memory_tenant_id(),
-                    AICallLog.conversation_id == conversation_id,
-                    AICallLog.is_deleted.is_(False),
-                ).order_by(AICallLog.created_at.asc())
+            (
+                await self.db.execute(
+                    select(AICallLog)
+                    .where(
+                        AICallLog.tenant_id == self._get_memory_tenant_id(),
+                        AICallLog.conversation_id == conversation_id,
+                        AICallLog.is_deleted.is_(False),
+                    )
+                    .order_by(AICallLog.created_at.asc())
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         for call_log in call_logs:
             items.append(
                 {
@@ -1152,7 +1230,8 @@ class ConversationService(
             items.append(
                 {
                     "type": "call_log_summary",
-                    "occurred_at": self._format_dt(call_log_summary.get("last_call_at")) or "",
+                    "occurred_at": self._format_dt(call_log_summary.get("last_call_at"))
+                    or "",
                     "status": "summary",
                     "title": "call_log_summary",
                     "summary": f"{call_log_summary['call_count']} calls, {call_log_summary['total_tokens']} tokens",
@@ -1176,18 +1255,15 @@ class ConversationService(
         """
         聚合 per-conversation call log stats / Aggregate per-conversation call log stats.
         """
-        stmt = (
-            select(
-                func.count(AICallLog.id).label("call_count"),
-                func.coalesce(func.sum(AICallLog.total_tokens), 0).label("total_tokens"),
-                func.coalesce(func.sum(AICallLog.cost), 0).label("total_cost"),
-                func.max(AICallLog.created_at).label("last_call_at"),
-            )
-            .where(
-                AICallLog.tenant_id == self._get_memory_tenant_id(),
-                AICallLog.conversation_id == conversation_id,
-                AICallLog.is_deleted.is_(False),
-            )
+        stmt = select(
+            func.count(AICallLog.id).label("call_count"),
+            func.coalesce(func.sum(AICallLog.total_tokens), 0).label("total_tokens"),
+            func.coalesce(func.sum(AICallLog.cost), 0).label("total_cost"),
+            func.max(AICallLog.created_at).label("last_call_at"),
+        ).where(
+            AICallLog.tenant_id == self._get_memory_tenant_id(),
+            AICallLog.conversation_id == conversation_id,
+            AICallLog.is_deleted.is_(False),
         )
         row = (await self.db.execute(stmt)).one_or_none()
         if not row or (row.call_count or 0) == 0:
@@ -1454,6 +1530,7 @@ class ConversationService(
         messages: list,
     ) -> str:
         """将对话转换为 JSON 字符串 / Convert conversation to JSON string."""
+
         def _msg_get(message: Any, key: str, default: Any = None) -> Any:
             if isinstance(message, dict):
                 return message.get(key, default)
@@ -1519,6 +1596,7 @@ class ConversationService(
         messages: list,
     ) -> str:
         """将对话转换为 Markdown 字符串 / Convert conversation to Markdown string."""
+
         def _msg_get(message: Any, key: str, default: Any = None) -> Any:
             if isinstance(message, dict):
                 return message.get(key, default)
@@ -1577,9 +1655,7 @@ class ConversationService(
 
             metadata = _msg_get(msg, "metadata", _msg_get(msg, "metadata_"))
             attachments = (
-                metadata.get("attachments")
-                if isinstance(metadata, dict)
-                else None
+                metadata.get("attachments") if isinstance(metadata, dict) else None
             )
             if isinstance(attachments, list) and attachments:
                 lines.append("**Attachments:**")
@@ -1885,8 +1961,7 @@ class ConversationService(
             else {}
         )
         turn_outcome = cls._to_non_empty_str(
-            (turn_record or {}).get("turn_outcome")
-            or metadata.get("turn_outcome")
+            (turn_record or {}).get("turn_outcome") or metadata.get("turn_outcome")
         )
         termination_reason = cls._to_non_empty_str(
             (turn_record or {}).get("termination_reason")
@@ -1908,8 +1983,7 @@ class ConversationService(
             }:
                 turn_outcome = "failed"
         protocol_path = cls._to_non_empty_str(
-            (turn_record or {}).get("protocol_path")
-            or metadata.get("protocol_path")
+            (turn_record or {}).get("protocol_path") or metadata.get("protocol_path")
         )
         selected_tool_names = cls._normalize_string_list(
             (turn_record or {}).get("selected_tool_names")
@@ -2005,7 +2079,9 @@ class ConversationService(
             return True
         if cls._has_pending_state(tool_calls=tool_calls, metadata=metadata):
             return True
-        if isinstance(metadata, dict) and isinstance(metadata.get("action_buttons"), list):
+        if isinstance(metadata, dict) and isinstance(
+            metadata.get("action_buttons"), list
+        ):
             return len(metadata.get("action_buttons") or []) > 0
         return False
 
@@ -2158,14 +2234,14 @@ class ConversationService(
         turn_context_sources = turn_meta.get("context_sources") or []
 
         effective_context_diagnostics = (
-            dict(context_diagnostics)
-            if isinstance(context_diagnostics, dict)
-            else {}
+            dict(context_diagnostics) if isinstance(context_diagnostics, dict) else {}
         )
         if turn_outcome:
             effective_context_diagnostics["turn_outcome"] = turn_outcome
         if turn_termination_reason:
-            effective_context_diagnostics["termination_reason"] = turn_termination_reason
+            effective_context_diagnostics["termination_reason"] = (
+                turn_termination_reason
+            )
         if turn_protocol_path:
             effective_context_diagnostics["protocol_path"] = turn_protocol_path
         if turn_selected_tools:
@@ -2181,15 +2257,15 @@ class ConversationService(
         )
 
         effective_last_run_summary = (
-            dict(last_run_summary)
-            if isinstance(last_run_summary, dict)
-            else {}
+            dict(last_run_summary) if isinstance(last_run_summary, dict) else {}
         )
         if turn_outcome:
             effective_last_run_summary["turn_outcome"] = turn_outcome
         if turn_termination_reason:
             effective_last_run_summary["termination_reason"] = turn_termination_reason
-            effective_last_run_summary.setdefault("completion_reason", turn_termination_reason)
+            effective_last_run_summary.setdefault(
+                "completion_reason", turn_termination_reason
+            )
         if turn_protocol_path:
             effective_last_run_summary["protocol_path"] = turn_protocol_path
         if turn_selected_tools:
@@ -2198,7 +2274,10 @@ class ConversationService(
             effective_last_run_summary["selected_skill_names"] = turn_selected_skills
         if turn_context_sources:
             effective_last_run_summary["context_sources"] = turn_context_sources
-        if bool(getattr(result, "interrupted", False)) or turn_termination_reason == "interrupted":
+        if (
+            bool(getattr(result, "interrupted", False))
+            or turn_termination_reason == "interrupted"
+        ):
             effective_last_run_summary["interrupted"] = True
 
         last_assistant_idx: int | None = None
@@ -2253,7 +2332,9 @@ class ConversationService(
                     tool_calls=tool_calls,
                     metadata=persisted_metadata,
                 )
-                and not isinstance((persisted_metadata or {}).get("action_buttons"), list)
+                and not isinstance(
+                    (persisted_metadata or {}).get("action_buttons"), list
+                )
             )
             if should_skip_empty_assistant_success:
                 continue
@@ -2453,7 +2534,9 @@ class ConversationService(
         conversation = await self.repo.get_by_id(conversation_id)
         if not conversation:
             return None
-        metadata = conversation.metadata_ if isinstance(conversation.metadata_, dict) else {}
+        metadata = (
+            conversation.metadata_ if isinstance(conversation.metadata_, dict) else {}
+        )
         snapshot = metadata.get(_CONTEXT_COMPACTION_METADATA_KEY)
         return snapshot if isinstance(snapshot, dict) else None
 

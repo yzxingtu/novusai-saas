@@ -10,7 +10,7 @@ from app.core.i18n import _
 from app.core.response import paginated, success
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
-from app.rbac.decorators import action_read, permission_resource, MenuConfig
+from app.rbac.decorators import MenuConfig, action_read, permission_resource
 from app.services.ai.long_term_memory_debug_service import (
     AdminMemoryRecordDebugService,
     AdminProfileSnapshotDebugService,

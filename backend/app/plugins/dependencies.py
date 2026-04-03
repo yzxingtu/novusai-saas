@@ -155,7 +155,7 @@ def normalize_plugin_dependencies(
     compatibility_block: Any = {}
 
     if hasattr(manifest_or_data, "dependencies"):
-        dependencies_block = getattr(manifest_or_data, "dependencies")
+        dependencies_block = manifest_or_data.dependencies
         compatibility_block = getattr(manifest_or_data, "compatibility", None)
     elif isinstance(manifest_or_data, dict):
         dependencies_block = manifest_or_data.get("dependencies") or {}

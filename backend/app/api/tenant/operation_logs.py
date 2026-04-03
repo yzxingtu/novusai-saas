@@ -30,7 +30,7 @@ from app.services.system import OperationLogService
         component="tenant/system/operation-logs/index",
         parent="logs",
         sort_order=10,
-    )
+    ),
 )
 class TenantOperationLogController(TenantController):
     """

@@ -35,15 +35,20 @@ class SkillPackage(TenantModel):
     }
 
     __delete_deps__ = [
-        DeletionDep("Skill", "package_id", DeletionStrategy.CASCADE_SOFT,
-                    label_field="name", i18n_key="skill"),
+        DeletionDep(
+            "Skill",
+            "package_id",
+            DeletionStrategy.CASCADE_SOFT,
+            label_field="name",
+            i18n_key="skill",
+        ),
     ]
 
     tenant_id = Column(
         Integer,
         nullable=True,
         index=True,
-        comment="企业ID（平台级包为 NULL，企业自有包为企业 ID）/ Tenant ID (NULL for platform packages, tenant ID for tenant-owned)"
+        comment="企业ID（平台级包为 NULL，企业自有包为企业 ID）/ Tenant ID (NULL for platform packages, tenant ID for tenant-owned)",
     )
 
     # 允许前端筛选的字段 / Fields exposed for list filtering

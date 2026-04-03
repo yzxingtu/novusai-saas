@@ -165,7 +165,10 @@ def _extract_managed_domains(line: str) -> list[str]:
 
 def _has_entry(lines: list[str], domain: str) -> bool:
     """检查域名是否已存在于任意 hosts 条目中（大小写不敏感） / Check whether the domain exists in any hosts entry, case-insensitively"""
-    return _inspect_entry(lines, domain)["status"] in {"managed_present", "manual_present"}
+    return _inspect_entry(lines, domain)["status"] in {
+        "managed_present",
+        "manual_present",
+    }
 
 
 def _inspect_entry(lines: list[str], domain: str) -> HostEntryStatus:
@@ -466,7 +469,9 @@ async def async_get_domain_entry_status(domain: str) -> HostEntryStatus:
 # ──────────────────────────────────────────────
 
 
-def _print_permission_warning(action: str, target: str, hosts_path: Path | None) -> None:
+def _print_permission_warning(
+    action: str, target: str, hosts_path: Path | None
+) -> None:
     """打印权限不足的详细操作指引（不抛出异常） / Print permission-denied instructions (no exception)."""
     path_str = str(hosts_path) if hosts_path else "hosts"
     system = platform.system()
@@ -493,7 +498,7 @@ def _print_permission_warning(action: str, target: str, hosts_path: Path | None)
         _instructions = (
             f"\n"
             f"  Run with sudo:\n"
-            f'  $ sudo sh -c \'echo "{entry_line}" >> {path_str}\'\n'
+            f"  $ sudo sh -c 'echo \"{entry_line}\" >> {path_str}'\n"
             f"\n"
             f"  Or re-run backend with sudo:\n"
             f"  $ sudo uvicorn app.main:app --reload --reload-dir app\n"

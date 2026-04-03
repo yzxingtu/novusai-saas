@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 def _get_table_name(resource: str) -> str:
     """从 resource 推断表名，与 model 模板一致。Infer table name from resource."""
     from app.codegen.config_parser import _infer_plural
+
     return _infer_plural(resource.replace("-", "_")) if resource else ""
 
 
@@ -43,7 +44,9 @@ def _get_current_heads(backend_dir: Path) -> tuple[list[str], str | None]:
     """
     proc = subprocess.run(
         [sys.executable, "-m", "alembic", "current"],
-        cwd=str(backend_dir), capture_output=True, text=True,
+        cwd=str(backend_dir),
+        capture_output=True,
+        text=True,
     )
     if proc.returncode != 0:
         return [], proc.stderr or "alembic current failed"
@@ -62,8 +65,10 @@ def _has_fk_references(table: str) -> list[tuple[str, str]]:
         from sqlalchemy import text
 
         from app.core.database import sync_session_factory
+
         with sync_session_factory() as session:
-            result = session.execute(text("""
+            result = session.execute(
+                text("""
                 SELECT tc.table_name, tc.constraint_name
                 FROM information_schema.table_constraints tc
                 JOIN information_schema.constraint_column_usage ccu
@@ -72,7 +77,9 @@ def _has_fk_references(table: str) -> list[tuple[str, str]]:
                 WHERE ccu.table_name = :tbl
                     AND tc.constraint_type = 'FOREIGN KEY'
                     AND tc.table_name != :tbl
-            """), {"tbl": table})
+            """),
+                {"tbl": table},
+            )
             return [(r[0], r[1]) for r in result.fetchall()]
     except Exception as e:
         logger.warning("Cannot check FK references for table %s: %s", table, e)
@@ -99,7 +106,8 @@ def _drop_table_if_exists(resource: str, force_cascade: bool = False) -> bool:
                 "Table %s is referenced by FK constraints: %s. "
                 "Dropping without CASCADE to preserve referential integrity. "
                 "You may need to manually clean up FK constraints.",
-                table, ref_info,
+                table,
+                ref_info,
             )
 
         cascade = " CASCADE" if (force_cascade or not fk_refs) else ""
@@ -139,6 +147,7 @@ def run_rollback_migration_cleanup(
     _mp = _locate_migration_file(migration_file, resource, _backend)
 
     from app.core.database import purge_orphaned_alembic_stamps
+
     purge_orphaned_alembic_stamps(_backend)
 
     if not _mp or not _mp.exists():
@@ -187,7 +196,8 @@ def run_rollback_migration_cleanup(
             "Codegen migration %s is NOT the current head (head=%s). "
             "Later migrations depend on it — refusing to downgrade. "
             "Please manually roll back later migrations first.",
-            target_rev, heads[0],
+            target_rev,
+            heads[0],
         )
         if force_drop and resource:
             _drop_table_if_exists(resource)
@@ -203,12 +213,16 @@ def run_rollback_migration_cleanup(
     if _down_rev:
         _proc = subprocess.run(
             [sys.executable, "-m", "alembic", "downgrade", _down_rev],
-            cwd=str(_backend), capture_output=True, text=True,
+            cwd=str(_backend),
+            capture_output=True,
+            text=True,
         )
     else:
         _proc = subprocess.run(
             [sys.executable, "-m", "alembic", "downgrade", "-1"],
-            cwd=str(_backend), capture_output=True, text=True,
+            cwd=str(_backend),
+            capture_output=True,
+            text=True,
         )
 
     migration_cleaned = False
@@ -236,7 +250,9 @@ def _locate_migration_file(
     if migration_file:
         _mp = Path(migration_file)
         if not _mp.is_absolute():
-            _mp = backend_dir / migration_file.replace("backend/", "").replace("backend\\", "")
+            _mp = backend_dir / migration_file.replace("backend/", "").replace(
+                "backend\\", ""
+            )
         if not _mp.exists():
             _mp = backend_dir / "migrations" / "versions" / Path(migration_file).name
 
@@ -249,7 +265,9 @@ def _locate_migration_file(
                 continue
             try:
                 _t = _f.read_text(encoding="utf-8", errors="replace")
-                if (f"'{_table}'" in _t or f'"{_table}"' in _t) and "codegen_resource" in _t:
+                if (
+                    f"'{_table}'" in _t or f'"{_table}"' in _t
+                ) and "codegen_resource" in _t:
                     _mp = _f
                     break
             except Exception:
@@ -260,9 +278,13 @@ def _locate_migration_file(
                     continue
                 try:
                     _t = _f.read_text(encoding="utf-8", errors="replace")
-                    if (f"'{_table}'" in _t or f'"{_table}"' in _t):
+                    if f"'{_table}'" in _t or f'"{_table}"' in _t:
                         _mp = _f
-                        logger.info("Located legacy codegen migration (no metadata) for %s: %s", resource, _f.name)
+                        logger.info(
+                            "Located legacy codegen migration (no metadata) for %s: %s",
+                            resource,
+                            _f.name,
+                        )
                         break
                 except Exception:
                     pass

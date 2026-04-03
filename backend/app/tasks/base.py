@@ -196,25 +196,25 @@ class BaseTask(Task):
     def on_success(self, retval: Any, task_id: str, args: tuple, kwargs: dict) -> None:
         _ = (args, kwargs)
         elapsed = self._get_elapsed()
-        logger.info(
-            f"Task succeeded: {self.name} [{task_id}] "
-            f"elapsed={elapsed:.2f}s"
-        )
+        logger.info(f"Task succeeded: {self.name} [{task_id}] elapsed={elapsed:.2f}s")
         self._record_task_run_success(task_id, retval, elapsed)
         self._update_periodic_task_timestamps()
 
-    def on_failure(self, exc: Exception, task_id: str, args: tuple, kwargs: dict, einfo: Any) -> None:
+    def on_failure(
+        self, exc: Exception, task_id: str, args: tuple, kwargs: dict, einfo: Any
+    ) -> None:
         _ = (args, kwargs)
         elapsed = self._get_elapsed()
         logger.error(
-            f"Task failed: {self.name} [{task_id}] "
-            f"elapsed={elapsed:.2f}s error={exc!r}"
+            f"Task failed: {self.name} [{task_id}] elapsed={elapsed:.2f}s error={exc!r}"
         )
         self._record_task_run_failure(task_id, exc, einfo, elapsed)
         self._update_periodic_task_timestamps()
         self._notify_failure(task_id, exc)
 
-    def on_retry(self, exc: Exception, task_id: str, args: tuple, kwargs: dict, einfo: Any) -> None:
+    def on_retry(
+        self, exc: Exception, task_id: str, args: tuple, kwargs: dict, einfo: Any
+    ) -> None:
         _ = (args, kwargs, einfo)
         logger.warning(
             f"Task retrying: {self.name} [{task_id}] "
@@ -239,22 +239,29 @@ class BaseTask(Task):
 
         logger.warning(
             "Task failure notification: task={} task_id={} error={} emails={}",
-            task_name, task_id, str(exc)[:200], notify_emails or "(none)",
+            task_name,
+            task_id,
+            str(exc)[:200],
+            notify_emails or "(none)",
         )
 
         try:
             from app.core.sio_bridge import notify_admins_sync
 
-            notify_admins_sync({
-                "type": "task.failed",
-                "category": "task",
-                "title": f"Task failed: {task_name}",
-                "body": str(exc)[:500],
-                "data": {"task_name": task_name, "task_id": task_id},
-                "priority": "high",
-            })
+            notify_admins_sync(
+                {
+                    "type": "task.failed",
+                    "category": "task",
+                    "title": f"Task failed: {task_name}",
+                    "body": str(exc)[:500],
+                    "data": {"task_name": task_name, "task_id": task_id},
+                    "priority": "high",
+                }
+            )
         except Exception as ws_err:
-            logger.warning("Failed to send WS task failure notification: {}", str(ws_err))
+            logger.warning(
+                "Failed to send WS task failure notification: {}", str(ws_err)
+            )
 
         if notify_emails:
             try:
@@ -271,14 +278,19 @@ class BaseTask(Task):
                 notify_sync(
                     template_code="system.task_failure",
                     recipients=[("admin", 1)],
-                    data={"task_name": task_name, "task_id": task_id, "error": str(exc)[:500]},
+                    data={
+                        "task_name": task_name,
+                        "task_id": task_id,
+                        "error": str(exc)[:500],
+                    },
                     email_html=html_body,
                     email_subject=subject,
                     email_text=text_body,
                 )
             except Exception as mail_err:
                 logger.warning(
-                    "Failed to send task failure notification: {}", str(mail_err),
+                    "Failed to send task failure notification: {}",
+                    str(mail_err),
                 )
 
     def _get_elapsed(self) -> float:
@@ -313,15 +325,11 @@ class BaseTask(Task):
             "task_definition_id": _to_int(headers.get("task_definition_id")),
             "binding_id": _to_int(headers.get("binding_id")),
             "task_code_snapshot": str(task_code),
-            "task_name_snapshot": str(
-                headers.get("task_name_snapshot") or self.name
-            ),
+            "task_name_snapshot": str(headers.get("task_name_snapshot") or self.name),
             "handler_path_snapshot": str(
                 headers.get("handler_path_snapshot") or self.name
             ),
-            "trigger_source": str(
-                headers.get("trigger_source") or "scheduler"
-            ),
+            "trigger_source": str(headers.get("trigger_source") or "scheduler"),
             "run_kind": str(headers.get("run_kind") or "platform"),
             "owner_tenant_id": _to_int(headers.get("owner_tenant_id")),
             "effective_tenant_id": _to_int(headers.get("effective_tenant_id")),
@@ -340,7 +348,10 @@ class BaseTask(Task):
         return text[:500] if text else None
 
     def _record_task_run_start(
-        self, task_id: str, args: tuple, kwargs: dict,
+        self,
+        task_id: str,
+        args: tuple,
+        kwargs: dict,
     ) -> None:
         """Insert a TaskRun row when the actual task starts. / 真实任务启动时插入 TaskRun。"""
         context = self._get_task_run_context()
@@ -387,7 +398,10 @@ class BaseTask(Task):
                 session.close()
 
     def _record_task_run_success(
-        self, task_id: str, retval: Any, elapsed: float,
+        self,
+        task_id: str,
+        retval: Any,
+        elapsed: float,
     ) -> None:
         """Update TaskRun to SUCCESS. / 更新 TaskRun 为成功状态。"""
         context = self._get_task_run_context()
@@ -400,9 +414,7 @@ class BaseTask(Task):
 
             session = sync_session_factory()
             run = (
-                session.query(TaskRun)
-                .filter(TaskRun.celery_task_id == task_id)
-                .first()
+                session.query(TaskRun).filter(TaskRun.celery_task_id == task_id).first()
             )
             if run:
                 run.status = "success"
@@ -421,7 +433,11 @@ class BaseTask(Task):
                 session.close()
 
     def _record_task_run_failure(
-        self, task_id: str, exc: Exception, einfo: Any, elapsed: float,
+        self,
+        task_id: str,
+        exc: Exception,
+        einfo: Any,
+        elapsed: float,
     ) -> None:
         """Update or create failed TaskRun. / 更新或创建失败 TaskRun。"""
         context = self._get_task_run_context()
@@ -434,9 +450,7 @@ class BaseTask(Task):
 
             session = sync_session_factory()
             run = (
-                session.query(TaskRun)
-                .filter(TaskRun.celery_task_id == task_id)
-                .first()
+                session.query(TaskRun).filter(TaskRun.celery_task_id == task_id).first()
             )
             now = utc_now()
             if run:
@@ -493,9 +507,7 @@ class BaseTask(Task):
 
             session = sync_session_factory()
             run = (
-                session.query(TaskRun)
-                .filter(TaskRun.celery_task_id == task_id)
-                .first()
+                session.query(TaskRun).filter(TaskRun.celery_task_id == task_id).first()
             )
             if run:
                 run.status = "retrying"

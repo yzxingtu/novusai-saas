@@ -250,6 +250,7 @@ def permission_action(
         async def list_users(...):
             ...
     """
+
     def decorator(func: F) -> F:
         # Save operation metadata to function attributes (for permission registration) / 保存操作元信息到函数属性（用于权限注册）
         func._permission_action = {  # type: ignore  # RBAC 动态属性 / dynamic attach
@@ -288,7 +289,9 @@ def permission_action(
                 permission_code = f"{resource}:{action}"
 
                 # Get user permission info from request.state / 从 request.state 获取用户权限信息
-                user_permissions: set[str] = getattr(request.state, "user_permissions", set())
+                user_permissions: set[str] = getattr(
+                    request.state, "user_permissions", set()
+                )
 
                 # Check permission / 检查权限
                 has_permission = _check_permission(user_permissions, permission_code)
@@ -333,6 +336,7 @@ def _check_permission(user_perms: set[str], required: str) -> bool:
 
 
 # ==================== Shortcut Decorators / 快捷装饰器 ====================
+
 
 def _extract_action_from_name(name: str, default_action: str) -> str:
     """
@@ -439,6 +443,7 @@ def register_action_permissions(controller_cls: type, router: Any) -> None:
 
     # Build parent menu permission code (mount operation permissions under corresponding menu) / 构造父菜单权限 code（操作权限挂载到对应菜单下）
     from app.enums.rbac import PermissionScope
+
     if scope == PermissionScope.ADMIN:
         scope_prefix = "admin"
     elif scope == PermissionScope.USER:
@@ -454,7 +459,9 @@ def register_action_permissions(controller_cls: type, router: Any) -> None:
         parent_code = own_menu_code
     elif parent_resource:
         parent_menu_code = f"menu:{scope_prefix}.{parent_resource}"
-        parent_code = parent_menu_code if parent_menu_code in permission_registry else None
+        parent_code = (
+            parent_menu_code if parent_menu_code in permission_registry else None
+        )
     else:
         parent_code = None
 

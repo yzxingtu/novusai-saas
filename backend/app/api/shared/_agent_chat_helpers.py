@@ -59,12 +59,14 @@ async def handle_route(
         has_video_attachments=has_video_attachments,
         has_file_attachments=has_file_attachments,
     )
-    return success(data=AgentRouteResponse(
-        agent_id=result.agent_id,
-        agent_name=result.agent_name,
-        confidence=result.confidence,
-        routed_by=result.routed_by,
-    ).model_dump())
+    return success(
+        data=AgentRouteResponse(
+            agent_id=result.agent_id,
+            agent_name=result.agent_name,
+            confidence=result.confidence,
+            routed_by=result.routed_by,
+        ).model_dump()
+    )
 
 
 def enrich_conversations_with_agent(

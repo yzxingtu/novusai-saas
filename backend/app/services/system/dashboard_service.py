@@ -106,12 +106,10 @@ def _visible_kb_condition(tenant_id: int):
 
 def _meaningful_activity_condition():
     exact_path_clauses = [
-        OperationLog.path == path
-        for path in _LOW_SIGNAL_ACTIVITY_EXACT_PATHS
+        OperationLog.path == path for path in _LOW_SIGNAL_ACTIVITY_EXACT_PATHS
     ]
     prefix_clauses = [
-        OperationLog.path.like(f"{prefix}%")
-        for prefix in _LOW_SIGNAL_ACTIVITY_PREFIXES
+        OperationLog.path.like(f"{prefix}%") for prefix in _LOW_SIGNAL_ACTIVITY_PREFIXES
     ]
     return not_(or_(*(exact_path_clauses + prefix_clauses)))
 
@@ -204,6 +202,7 @@ class AdminDashboardService:
         uptime_seconds = 0
         try:
             import psutil
+
             process = psutil.Process(os.getpid())
             memory_mb = round(process.memory_info().rss / 1024 / 1024, 1)
             uptime_seconds = int(time.time() - process.create_time())
@@ -222,6 +221,7 @@ class AdminDashboardService:
     async def _check_redis(self) -> bool:
         try:
             from app.core.redis import RedisManager
+
             return await RedisManager.health_check()
         except Exception:
             return False
@@ -239,6 +239,7 @@ class AdminDashboardService:
 
             def _sync_ping() -> bool:
                 from app.celery_app import celery_app
+
                 insp = celery_app.control.inspect(timeout=2.0)
                 return bool(insp.ping())
 
@@ -262,12 +263,16 @@ class AdminDashboardService:
         total_row = await self.db.execute(
             select(
                 func.count(AICallLog.id).label("total_calls"),
-                func.coalesce(func.sum(AICallLog.total_tokens), 0).label("total_tokens"),
+                func.coalesce(func.sum(AICallLog.total_tokens), 0).label(
+                    "total_tokens"
+                ),
                 func.coalesce(func.sum(AICallLog.cost), 0).label("total_cost"),
-                func.count(func.distinct(AICallLog.provider_id)).label("active_providers"),
-                func.sum(case(
-                    (AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0
-                )).label("success_calls"),
+                func.count(func.distinct(AICallLog.provider_id)).label(
+                    "active_providers"
+                ),
+                func.sum(
+                    case((AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0)
+                ).label("success_calls"),
             )
         )
         row = total_row.one()
@@ -277,14 +282,18 @@ class AdminDashboardService:
         today_row = await self.db.execute(
             select(
                 func.count(AICallLog.id).label("today_calls"),
-                func.coalesce(func.sum(AICallLog.total_tokens), 0).label("today_tokens"),
+                func.coalesce(func.sum(AICallLog.total_tokens), 0).label(
+                    "today_tokens"
+                ),
             ).where(AICallLog.created_at >= today_start)
         )
         today = today_row.one()
 
         total_calls = row.total_calls or 0
         success_calls = row.success_calls or 0
-        success_rate = round(success_calls / total_calls * 100, 1) if total_calls > 0 else 100.0
+        success_rate = (
+            round(success_calls / total_calls * 100, 1) if total_calls > 0 else 100.0
+        )
 
         return {
             "total_calls": total_calls,
@@ -321,9 +330,11 @@ class AdminDashboardService:
                 Attachment.driver,
                 func.count(Attachment.id).label("file_count"),
                 func.coalesce(func.sum(Attachment.size), 0).label("size"),
-            ).where(
+            )
+            .where(
                 Attachment.is_deleted.is_(False),
-            ).group_by(Attachment.driver)
+            )
+            .group_by(Attachment.driver)
         )
         driver_distribution = [
             {"driver": r.driver, "file_count": r.file_count, "size_bytes": int(r.size)}
@@ -351,15 +362,15 @@ class AdminDashboardService:
         row = await self.db.execute(
             select(
                 func.count(Plugin.id).label("total"),
-                func.sum(case(
-                    (Plugin.status == PluginStatusEnum.ENABLED.value, 1), else_=0
-                )).label("enabled"),
-                func.sum(case(
-                    (Plugin.status == PluginStatusEnum.DISABLED.value, 1), else_=0
-                )).label("disabled"),
-                func.sum(case(
-                    (Plugin.error_count > 0, 1), else_=0
-                )).label("with_errors"),
+                func.sum(
+                    case((Plugin.status == PluginStatusEnum.ENABLED.value, 1), else_=0)
+                ).label("enabled"),
+                func.sum(
+                    case((Plugin.status == PluginStatusEnum.DISABLED.value, 1), else_=0)
+                ).label("disabled"),
+                func.sum(case((Plugin.error_count > 0, 1), else_=0)).label(
+                    "with_errors"
+                ),
             ).where(Plugin.is_deleted.is_(False))
         )
         r = row.one()
@@ -385,17 +396,16 @@ class AdminDashboardService:
             select(
                 func.date(Tenant.created_at).label("date"),
                 func.count(Tenant.id).label("count"),
-            ).where(
+            )
+            .where(
                 Tenant.created_at >= cutoff,
                 Tenant.deleted_at.is_(None),
-            ).group_by(func.date(Tenant.created_at))
+            )
+            .group_by(func.date(Tenant.created_at))
             .order_by(func.date(Tenant.created_at))
         )
 
-        return [
-            {"date": str(r.date), "count": r.count}
-            for r in rows.all()
-        ]
+        return [{"date": str(r.date), "count": r.count} for r in rows.all()]
 
     # ── A6: 近期活动时间线 / Recent activity timeline ──
 
@@ -446,18 +456,26 @@ class AdminDashboardService:
 
     async def _count(self, model, *extra_filters) -> int:
         """通用计数查询（自动排除软删除）/ Generic count query (excludes soft-deleted)"""
-        query = select(func.count()).select_from(model).where(
-            model.deleted_at.is_(None),
-            *extra_filters,
+        query = (
+            select(func.count())
+            .select_from(model)
+            .where(
+                model.deleted_at.is_(None),
+                *extra_filters,
+            )
         )
         return (await self.db.execute(query)).scalar() or 0
 
     async def _today_login_count(self) -> int:
         """今日登录数 / Today's login count"""
         today_start = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
-        query = select(func.count()).select_from(TenantAdmin).where(
-            TenantAdmin.deleted_at.is_(None),
-            TenantAdmin.last_login_at >= today_start,
+        query = (
+            select(func.count())
+            .select_from(TenantAdmin)
+            .where(
+                TenantAdmin.deleted_at.is_(None),
+                TenantAdmin.last_login_at >= today_start,
+            )
         )
         return (await self.db.execute(query)).scalar() or 0
 
@@ -532,7 +550,9 @@ class TenantDashboardService:
             "total_tokens": ai_stats["total_tokens"],
             "total_cost": ai_stats["total_cost"],
             "storage_used_bytes": storage_used,
-            "storage_used_mb": round(storage_used / 1024 / 1024, 2) if storage_used else 0,
+            "storage_used_mb": round(storage_used / 1024 / 1024, 2)
+            if storage_used
+            else 0,
             "total_agents": total_agents,
             "total_knowledge_bases": total_knowledge_bases,
             "total_kb_documents": total_kb_documents,
@@ -546,7 +566,9 @@ class TenantDashboardService:
         row = await self.db.execute(
             select(
                 func.count(AICallLog.id).label("total_calls"),
-                func.coalesce(func.sum(AICallLog.total_tokens), 0).label("total_tokens"),
+                func.coalesce(func.sum(AICallLog.total_tokens), 0).label(
+                    "total_tokens"
+                ),
                 func.coalesce(func.sum(AICallLog.cost), 0).label("total_cost"),
             ).where(AICallLog.tenant_id == self.tenant_id)
         )
@@ -572,10 +594,12 @@ class TenantDashboardService:
                 func.date(AICallLog.created_at).label("date"),
                 func.count(AICallLog.id).label("calls"),
                 func.coalesce(func.sum(AICallLog.total_tokens), 0).label("tokens"),
-            ).where(
+            )
+            .where(
                 AICallLog.tenant_id == self.tenant_id,
                 AICallLog.created_at >= cutoff,
-            ).group_by(func.date(AICallLog.created_at))
+            )
+            .group_by(func.date(AICallLog.created_at))
             .order_by(func.date(AICallLog.created_at))
         )
 
@@ -612,10 +636,12 @@ class TenantDashboardService:
                 Attachment.mime_type,
                 func.count(Attachment.id).label("count"),
                 func.coalesce(func.sum(Attachment.size), 0).label("size"),
-            ).where(
+            )
+            .where(
                 Attachment.tenant_id == self.tenant_id,
                 Attachment.is_deleted.is_(False),
-            ).group_by(Attachment.mime_type)
+            )
+            .group_by(Attachment.mime_type)
             .order_by(func.sum(Attachment.size).desc())
             .limit(10)
         )
@@ -625,7 +651,11 @@ class TenantDashboardService:
             "total_size_bytes": total_size,
             "total_size_mb": round(total_size / 1024 / 1024, 2),
             "type_distribution": [
-                {"mime_type": r.mime_type or "unknown", "count": r.count, "size_bytes": int(r.size)}
+                {
+                    "mime_type": r.mime_type or "unknown",
+                    "count": r.count,
+                    "size_bytes": int(r.size),
+                }
                 for r in type_rows.all()
             ],
         }
@@ -673,26 +703,38 @@ class TenantDashboardService:
 
     async def _count_admins(self, *extra_filters) -> int:
         """企业下管理员计数 / Tenant admin count"""
-        query = select(func.count()).select_from(TenantAdmin).where(
-            TenantAdmin.deleted_at.is_(None),
-            TenantAdmin.tenant_id == self.tenant_id,
-            *extra_filters,
+        query = (
+            select(func.count())
+            .select_from(TenantAdmin)
+            .where(
+                TenantAdmin.deleted_at.is_(None),
+                TenantAdmin.tenant_id == self.tenant_id,
+                *extra_filters,
+            )
         )
         return (await self.db.execute(query)).scalar() or 0
 
     async def _count_visible_agents(self) -> int:
         """统计当前企业可见智能体数 / Count agents visible to current tenant."""
-        query = select(func.count()).select_from(Agent).where(
-            Agent.is_deleted.is_(False),
-            _visible_agent_condition(self.tenant_id),
+        query = (
+            select(func.count())
+            .select_from(Agent)
+            .where(
+                Agent.is_deleted.is_(False),
+                _visible_agent_condition(self.tenant_id),
+            )
         )
         return int((await self.db.execute(query)).scalar() or 0)
 
     async def _count_visible_knowledge_bases(self) -> int:
         """统计当前企业可见知识库数 / Count KBs visible to current tenant."""
-        query = select(func.count()).select_from(KnowledgeBase).where(
-            KnowledgeBase.is_deleted.is_(False),
-            _visible_kb_condition(self.tenant_id),
+        query = (
+            select(func.count())
+            .select_from(KnowledgeBase)
+            .where(
+                KnowledgeBase.is_deleted.is_(False),
+                _visible_kb_condition(self.tenant_id),
+            )
         )
         return int((await self.db.execute(query)).scalar() or 0)
 
@@ -715,10 +757,14 @@ class TenantDashboardService:
 
     async def _count_tenant_model(self, model, *extra_filters) -> int:
         """统计 tenant_id 隔离模型 / Count tenant-backed models with tenant_id."""
-        query = select(func.count()).select_from(model).where(
-            model.deleted_at.is_(None),
-            model.tenant_id == self.tenant_id,
-            *extra_filters,
+        query = (
+            select(func.count())
+            .select_from(model)
+            .where(
+                model.deleted_at.is_(None),
+                model.tenant_id == self.tenant_id,
+                *extra_filters,
+            )
         )
         return (await self.db.execute(query)).scalar() or 0
 

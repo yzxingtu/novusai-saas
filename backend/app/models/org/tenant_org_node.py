@@ -20,12 +20,27 @@ class TenantOrgNode(TenantModel):
     __tablename__ = "tenant_org_nodes"
 
     __delete_deps__ = [
-        DeletionDep("TenantOrgNode", "parent_id", DeletionStrategy.BLOCK,
-                    label_field="name", i18n_key="tenant_org_node"),
-        DeletionDep("TenantAdmin", "org_node_id", DeletionStrategy.BLOCK,
-                    label_field="username", i18n_key="tenant_admin"),
-        DeletionDep("TenantUser", "org_node_id", DeletionStrategy.BLOCK,
-                    label_field="username", i18n_key="tenant_user"),
+        DeletionDep(
+            "TenantOrgNode",
+            "parent_id",
+            DeletionStrategy.BLOCK,
+            label_field="name",
+            i18n_key="tenant_org_node",
+        ),
+        DeletionDep(
+            "TenantAdmin",
+            "org_node_id",
+            DeletionStrategy.BLOCK,
+            label_field="username",
+            i18n_key="tenant_admin",
+        ),
+        DeletionDep(
+            "TenantUser",
+            "org_node_id",
+            DeletionStrategy.BLOCK,
+            label_field="username",
+            i18n_key="tenant_user",
+        ),
     ]
 
     __filterable__ = {
@@ -64,8 +79,12 @@ class TenantOrgNode(TenantModel):
 
     name: Mapped[str] = mapped_column(String(50), comment="节点名称")
     code: Mapped[str] = mapped_column(String(50), index=True, comment="节点编码")
-    description: Mapped[str | None] = mapped_column(Text, nullable=True, comment="节点描述")
-    is_system: Mapped[bool] = mapped_column(Boolean, default=False, comment="是否系统节点")
+    description: Mapped[str | None] = mapped_column(
+        Text, nullable=True, comment="节点描述"
+    )
+    is_system: Mapped[bool] = mapped_column(
+        Boolean, default=False, comment="是否系统节点"
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, comment="是否启用")
     sort_order: Mapped[int] = mapped_column(Integer, default=0, comment="排序")
     parent_id: Mapped[int | None] = mapped_column(
@@ -101,35 +120,35 @@ class TenantOrgNode(TenantModel):
         comment="负责人 ID",
     )
 
-    parent: Mapped["TenantOrgNode | None"] = relationship(
+    parent: Mapped[TenantOrgNode | None] = relationship(
         "TenantOrgNode",
         remote_side="TenantOrgNode.id",
         back_populates="children",
         lazy="selectin",
     )
-    children: Mapped[list["TenantOrgNode"]] = relationship(
+    children: Mapped[list[TenantOrgNode]] = relationship(
         "TenantOrgNode",
         back_populates="parent",
         lazy="selectin",
     )
-    leader: Mapped["TenantAdmin | None"] = relationship(
+    leader: Mapped[TenantAdmin | None] = relationship(
         "TenantAdmin",
         foreign_keys=[leader_id],
         lazy="selectin",
     )
-    admins: Mapped[list["TenantAdmin"]] = relationship(
+    admins: Mapped[list[TenantAdmin]] = relationship(
         "TenantAdmin",
         back_populates="org_node",
         lazy="selectin",
         foreign_keys="TenantAdmin.org_node_id",
     )
-    users: Mapped[list["TenantUser"]] = relationship(
+    users: Mapped[list[TenantUser]] = relationship(
         "TenantUser",
         back_populates="org_node",
         lazy="selectin",
         foreign_keys="TenantUser.org_node_id",
     )
-    scope_policy: Mapped["TenantOrgScopePolicy | None"] = relationship(
+    scope_policy: Mapped[TenantOrgScopePolicy | None] = relationship(
         "TenantOrgScopePolicy",
         back_populates="org_node",
         uselist=False,
@@ -237,12 +256,12 @@ class TenantOrgScopePolicy(TenantModel):
         comment="范围模式",
     )
 
-    org_node: Mapped["TenantOrgNode"] = relationship(
+    org_node: Mapped[TenantOrgNode] = relationship(
         "TenantOrgNode",
         back_populates="scope_policy",
         lazy="selectin",
     )
-    targets: Mapped[list["TenantOrgScopeTarget"]] = relationship(
+    targets: Mapped[list[TenantOrgScopeTarget]] = relationship(
         "TenantOrgScopeTarget",
         back_populates="policy",
         lazy="selectin",
@@ -268,12 +287,12 @@ class TenantOrgScopeTarget(TenantModel):
         comment="目标组织节点 ID",
     )
 
-    policy: Mapped["TenantOrgScopePolicy"] = relationship(
+    policy: Mapped[TenantOrgScopePolicy] = relationship(
         "TenantOrgScopePolicy",
         back_populates="targets",
         lazy="selectin",
     )
-    target_org_node: Mapped["TenantOrgNode"] = relationship(
+    target_org_node: Mapped[TenantOrgNode] = relationship(
         "TenantOrgNode",
         lazy="selectin",
     )

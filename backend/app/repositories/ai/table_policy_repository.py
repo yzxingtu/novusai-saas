@@ -32,10 +32,14 @@ class AITablePolicyRepository(BaseRepository[AITablePolicy]):
 
     async def get_all_active(self) -> list[AITablePolicy]:
         """获取所有激活的全局策略 / Get all active global policies."""
-        stmt = select(AITablePolicy).where(
-            AITablePolicy.is_active == True,  # noqa: E712
-            AITablePolicy.is_deleted == False,  # noqa: E712
-        ).order_by(AITablePolicy.sort_order)
+        stmt = (
+            select(AITablePolicy)
+            .where(
+                AITablePolicy.is_active == True,  # noqa: E712
+                AITablePolicy.is_deleted == False,  # noqa: E712
+            )
+            .order_by(AITablePolicy.sort_order)
+        )
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 

@@ -33,8 +33,12 @@ class ExecutionDecisionService(
 
     async def serialize_decision(self, decision: ExecutionDecision) -> dict:
         payload = decision.to_dict()
-        evidence = payload.get("evidence") if isinstance(payload.get("evidence"), dict) else {}
-        payload["interaction_mode_effective"] = evidence.get("interaction_mode_effective")
+        evidence = (
+            payload.get("evidence") if isinstance(payload.get("evidence"), dict) else {}
+        )
+        payload["interaction_mode_effective"] = evidence.get(
+            "interaction_mode_effective"
+        )
         payload["downgraded_from"] = evidence.get("downgraded_from")
         payload["downgrade_reason"] = evidence.get("downgrade_reason")
         payload["auto_approve_source"] = evidence.get("auto_approve_source")
@@ -55,8 +59,12 @@ class AdminExecutionDecisionService(
 
     async def serialize_decision(self, decision: ExecutionDecision) -> dict:
         payload = decision.to_dict()
-        evidence = payload.get("evidence") if isinstance(payload.get("evidence"), dict) else {}
-        payload["interaction_mode_effective"] = evidence.get("interaction_mode_effective")
+        evidence = (
+            payload.get("evidence") if isinstance(payload.get("evidence"), dict) else {}
+        )
+        payload["interaction_mode_effective"] = evidence.get(
+            "interaction_mode_effective"
+        )
         payload["downgraded_from"] = evidence.get("downgraded_from")
         payload["downgrade_reason"] = evidence.get("downgrade_reason")
         payload["auto_approve_source"] = evidence.get("auto_approve_source")

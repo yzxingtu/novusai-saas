@@ -23,7 +23,9 @@ def register_channel(channel_cls: type[NotificationChannel]) -> None:
     instance = channel_cls()
     code = instance.channel_code
     if code in CHANNEL_REGISTRY:
-        logger.warning("Notification channel '{}' already registered, overwriting", code)
+        logger.warning(
+            "Notification channel '{}' already registered, overwriting", code
+        )
     CHANNEL_REGISTRY[code] = channel_cls
     logger.info("Notification channel registered: {}", code)
 
@@ -44,10 +46,12 @@ def get_registered_channels_info() -> list[dict[str, str]]:
     result = []
     for _code, cls in CHANNEL_REGISTRY.items():
         instance = cls()
-        result.append({
-            "code": instance.channel_code,
-            "name": instance.channel_name,
-        })
+        result.append(
+            {
+                "code": instance.channel_code,
+                "name": instance.channel_name,
+            }
+        )
     return result
 
 

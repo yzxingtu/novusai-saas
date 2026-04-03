@@ -13,10 +13,10 @@ from typing import Any
 from app.celery_app import celery_app
 from app.core.database import sync_session_factory
 from app.core.logging import LogManager
-from app.models.tenant.tenant import Tenant
 from app.enums.task import TaskRunKindEnum, TaskTriggerSourceEnum
 from app.models.system.task_definition import TaskDefinition
 from app.models.system.tenant_task_binding import TenantTaskBinding
+from app.models.tenant.tenant import Tenant
 from app.tasks.base import BaseTask, get_task_registry, register_task
 
 logger = LogManager.get_logger("queue")
@@ -98,7 +98,7 @@ def _resolve_all_tenant_ids(session) -> list[int]:
         .order_by(Tenant.id.asc())
         .all()
     )
-    return [tenant_id for tenant_id, in rows]
+    return [tenant_id for (tenant_id,) in rows]
 
 
 @register_task(

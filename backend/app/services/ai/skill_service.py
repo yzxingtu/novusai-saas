@@ -28,14 +28,17 @@ class SkillService(TenantService[Skill, SkillRepository]):
     async def _get_toolkit_security_level(self) -> str | None:
         """读取平台 Toolkit 安全等级配置（扫描开启时返回等级，否则 None） / Get platform toolkit security level (None if scan disabled)."""
         from app.configs.service import ConfigService
+
         cfg = ConfigService(self.repo.db)
         scan_enabled = await cfg.get_platform_config(
-            "toolkit_scan_on_upload", default=True,
+            "toolkit_scan_on_upload",
+            default=True,
         )
         if not scan_enabled:
             return None
         level = await cfg.get_platform_config(
-            "toolkit_security_level", default="normal",
+            "toolkit_security_level",
+            default="normal",
         )
         return str(level)
 
@@ -44,6 +47,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
         await super()._before_create(data)
 
         from app.ai.events.hooks import HookPoint, get_hook_registry
+
         hook_registry = get_hook_registry()
         if hook_registry.has_hooks(HookPoint.BEFORE_SKILL_CREATE):
             ctx = await hook_registry.trigger(
@@ -52,7 +56,9 @@ class SkillService(TenantService[Skill, SkillRepository]):
                 skill_data=data,
             )
             if ctx.get("blocked"):
-                raise BusinessException(message=ctx.get("block_reason", _("skill.error.blocked_by_hook")))
+                raise BusinessException(
+                    message=ctx.get("block_reason", _("skill.error.blocked_by_hook"))
+                )
             data.update(ctx.get("skill_data", data))
 
         name = data.get("name")
@@ -73,6 +79,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
         """创建后：触发插件钩子 / After create: trigger plugin hooks."""
         await super()._after_create(instance)
         from app.ai.events.hooks import HookPoint, get_hook_registry
+
         hook_registry = get_hook_registry()
         if hook_registry.has_hooks(HookPoint.AFTER_SKILL_CREATE):
             await hook_registry.trigger(
@@ -87,6 +94,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
         await super()._before_update(id, data)
 
         from app.ai.events.hooks import HookPoint, get_hook_registry
+
         hook_registry = get_hook_registry()
         if hook_registry.has_hooks(HookPoint.BEFORE_SKILL_UPDATE):
             ctx = await hook_registry.trigger(
@@ -96,7 +104,9 @@ class SkillService(TenantService[Skill, SkillRepository]):
                 updates=data,
             )
             if ctx.get("blocked"):
-                raise BusinessException(message=ctx.get("block_reason", _("skill.error.blocked_by_hook")))
+                raise BusinessException(
+                    message=ctx.get("block_reason", _("skill.error.blocked_by_hook"))
+                )
             data.update(ctx.get("updates", data))
 
         skill = await self.repo.get_by_id(id)
@@ -105,6 +115,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
 
         # 企业端只能修改自有包（tenant_id 与当前企业匹配）中的技能
         from app.models.ai.skill_package import SkillPackage
+
         pkg = await self.repo.db.get(SkillPackage, skill.package_id)
         if pkg and pkg.tenant_id != self.repo.tenant_id:
             raise BusinessException(message=_("skill.error.system_protected"))
@@ -129,6 +140,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
         """更新后：触发插件钩子 / After update: trigger plugin hooks."""
         await super()._after_update(instance)
         from app.ai.events.hooks import HookPoint, get_hook_registry
+
         hook_registry = get_hook_registry()
         if hook_registry.has_hooks(HookPoint.AFTER_SKILL_UPDATE):
             await hook_registry.trigger(
@@ -143,6 +155,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
         await super()._before_delete(id)
 
         from app.ai.events.hooks import HookPoint, get_hook_registry
+
         hook_registry = get_hook_registry()
         if hook_registry.has_hooks(HookPoint.BEFORE_SKILL_DELETE):
             ctx = await hook_registry.trigger(
@@ -151,7 +164,9 @@ class SkillService(TenantService[Skill, SkillRepository]):
                 skill_id=id,
             )
             if ctx.get("blocked"):
-                raise BusinessException(message=ctx.get("block_reason", _("skill.error.blocked_by_hook")))
+                raise BusinessException(
+                    message=ctx.get("block_reason", _("skill.error.blocked_by_hook"))
+                )
 
         skill = await self.repo.get_by_id(id)
         if not skill:
@@ -159,6 +174,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
 
         # 企业端只能删除自有包（tenant_id 与当前企业匹配）中的技能
         from app.models.ai.skill_package import SkillPackage
+
         pkg = await self.repo.db.get(SkillPackage, skill.package_id)
         if pkg and pkg.tenant_id != self.repo.tenant_id:
             raise BusinessException(message=_("skill.error.system_protected"))
@@ -170,6 +186,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
         """删除后：触发插件钩子 / After delete: trigger plugin hooks."""
         await super()._after_delete(instance)
         from app.ai.events.hooks import HookPoint, get_hook_registry
+
         hook_registry = get_hook_registry()
         if hook_registry.has_hooks(HookPoint.AFTER_SKILL_DELETE):
             await hook_registry.trigger(
@@ -204,6 +221,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
             from app.ai.tools.executors.toolkit_executor import (
                 _scan_toolkit_security,
             )
+
             violations = _scan_toolkit_security(toolkit_content, security_level)
             if violations:
                 detail = "; ".join(violations[:5])
@@ -213,6 +231,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
 
         try:
             from app.ai.skills.toolkit_parser import parse_toolkit
+
             meta = parse_toolkit(toolkit_content)
             data["toolkit_meta"] = meta.to_dict()
         except Exception as exc:
@@ -250,14 +269,17 @@ class AdminSkillService(GlobalService[Skill, AdminSkillRepository]):
     async def _get_toolkit_security_level(self) -> str | None:
         """读取平台 Toolkit 安全等级配置 / Get platform toolkit security level."""
         from app.configs.service import ConfigService
+
         cfg = ConfigService(self.repo.db)
         scan_enabled = await cfg.get_platform_config(
-            "toolkit_scan_on_upload", default=True,
+            "toolkit_scan_on_upload",
+            default=True,
         )
         if not scan_enabled:
             return None
         level = await cfg.get_platform_config(
-            "toolkit_security_level", default="normal",
+            "toolkit_security_level",
+            default="normal",
         )
         return str(level)
 
