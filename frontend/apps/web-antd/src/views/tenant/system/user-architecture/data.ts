@@ -4,6 +4,7 @@
  */
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
+import type { TenantOrgNodeInfo } from '#/api/tenant/organization';
 import type { TenantUserInfo } from '#/api/tenant/tenant-users';
 
 import {
@@ -17,6 +18,42 @@ import {
 import { checkboxColumn } from '#/adapter/vxe-table';
 import { $t } from '#/locales';
 import { usePresenceStore } from '#/store';
+
+export interface OrganizationTreeSelectOption {
+  children?: OrganizationTreeSelectOption[];
+  label: string;
+  value: number;
+}
+
+export function toOrganizationTreeSelectOptions(
+  nodes: TenantOrgNodeInfo[],
+): OrganizationTreeSelectOption[] {
+  return nodes.map((node) => ({
+    label: node.name,
+    value: node.id,
+    children: node.children?.length
+      ? toOrganizationTreeSelectOptions(node.children)
+      : undefined,
+  }));
+}
+
+export function buildOrganizationOptionLabelMap(
+  options: OrganizationTreeSelectOption[],
+): Map<number, string> {
+  const labels = new Map<number, string>();
+
+  function visit(nodes: OrganizationTreeSelectOption[]) {
+    for (const node of nodes) {
+      labels.set(node.value, node.label);
+      if (node.children?.length) {
+        visit(node.children);
+      }
+    }
+  }
+
+  visit(options);
+  return labels;
+}
 
 function getStatusOptions() {
   return [
@@ -185,6 +222,20 @@ export function useMemberSearchSchema(): VbenFormSchema[] {
     searchInput('email', $t('tenant.system.user.email'), {
       placeholder: $t('tenant.system.user.placeholder.searchEmail'),
     }),
+    {
+      component: 'TreeSelect',
+      componentProps: {
+        allowClear: true,
+        class: 'w-full',
+        placeholder: $t('tenant.system.userArchitecture.selectOrgPlaceholder'),
+        showSearch: true,
+        treeData: [],
+        treeDefaultExpandAll: true,
+        treeNodeFilterProp: 'label',
+      },
+      fieldName: 'filter[org_node_id][eq]',
+      label: $t('tenant.system.userArchitecture.orgFilterTitle'),
+    },
     select('filter[is_active][eq]', $t('tenant.system.user.status'), {
       options: getStatusOptions(),
       placeholder: $t('tenant.system.user.placeholder.allStatus'),

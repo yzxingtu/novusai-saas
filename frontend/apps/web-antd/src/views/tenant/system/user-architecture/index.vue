@@ -1,7 +1,8 @@
 <script lang="ts" setup>
+import type { OrganizationTreeSelectOption } from './data';
+
 import type { TenantUserRoleInfo } from '#/api/tenant/tenant-user-roles';
 import type { TenantUserInfo } from '#/api/tenant/tenant-users';
-import type { OrgTreeNodeData } from '#/components/business/org-tree';
 
 import { computed, h, nextTick, onMounted, ref, watch } from 'vue';
 
@@ -27,6 +28,7 @@ import {
   getSelectedIds,
   useCrudPage,
 } from '#/adapter/vxe-table';
+import { getTenantOrganizationTreeApi } from '#/api/tenant/organization';
 import {
   deleteTenantUserRoleApi,
   getTenantUserRoleListApi,
@@ -42,7 +44,6 @@ import {
   resetTenantUserPasswordApi,
   toggleTenantUserStatusApi,
 } from '#/api/tenant/tenant-users';
-import { OrgTreeNode, useOrgTree } from '#/components/business/org-tree';
 import {
   buildPageAIFormExtraData,
   createKeywordSearchPageOperation,
@@ -59,8 +60,10 @@ import { formatDate, formatRelativeTime } from '#/utils/common';
 import { showRequestError } from '#/utils/error-helpers';
 
 import {
+  buildOrganizationOptionLabelMap,
   getRoleFormDefaults,
   getUserFormDefaults,
+  toOrganizationTreeSelectOptions,
   useMemberColumns,
   useMemberSearchSchema,
   useUserFormSchema,
@@ -73,23 +76,14 @@ defineOptions({ name: 'TenantUserArchitecture' });
 
 const AI_PAGE_KEY = 'tenant.system.userArchitecture';
 
-const {
-  treeData,
-  loading: orgTreeLoading,
-  expandedIds,
-  loadRootNodes,
-  toggleExpand,
-  expandAll,
-  collapseAll,
-  isExpanded,
-  refresh: refreshOrgTree,
-} = useOrgTree({ apiPrefix: 'tenant', immediate: false });
-
-const selectedOrgNode = ref<null | OrgTreeNodeData>(null);
 const roles = ref<TenantUserRoleInfo[]>([]);
 const rolesLoading = ref(false);
 const roleSearchKeyword = ref('');
 const selectedRole = ref<null | TenantUserRoleInfo>(null);
+const organizationOptions = ref<OrganizationTreeSelectOption[]>([]);
+const organizationLabelMap = ref<Map<number, string>>(new Map());
+const currentOrgFilterId = ref<null | number>(null);
+const currentOrgFilterName = ref<null | string>(null);
 const sidebarCollapsed = ref(false);
 const permissionDrawerVisible = ref(false);
 const currentPermissionRole = ref<null | TenantUserRoleInfo>(null);
@@ -110,7 +104,7 @@ const filteredRoles = computed(() => {
 
 const orgFilterLabel = computed(
   () =>
-    selectedOrgNode.value?.name ||
+    currentOrgFilterName.value ||
     $t('tenant.system.userArchitecture.allOrganizations'),
 );
 
@@ -119,6 +113,30 @@ const roleFilterLabel = computed(
     selectedRole.value?.name ||
     $t('tenant.system.userArchitecture.allPermissionRoles'),
 );
+
+function normalizeNumericFilterValue(value: unknown): null | number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function syncOrgFilterState(values: Record<string, unknown> = {}) {
+  const nextOrgId = normalizeNumericFilterValue(
+    values['filter[org_node_id][eq]'],
+  );
+  currentOrgFilterId.value = nextOrgId;
+  currentOrgFilterName.value =
+    nextOrgId === null
+      ? null
+      : (organizationLabelMap.value.get(nextOrgId) ?? null);
+}
 
 const [RoleFormDrawer, roleFormApi] = useVbenDrawer({
   connectedComponent: UserRoleFormComponent,
@@ -144,12 +162,37 @@ async function loadRoles() {
   }
 }
 
-function handleSelectOrgNode(node: OrgTreeNodeData) {
-  selectedOrgNode.value = node;
+async function loadOrganizationOptions() {
+  try {
+    const orgTree = await getTenantOrganizationTreeApi();
+    const options = toOrganizationTreeSelectOptions(orgTree);
+    organizationOptions.value = options;
+    organizationLabelMap.value = buildOrganizationOptionLabelMap(options);
+  } catch {
+    organizationOptions.value = [];
+    organizationLabelMap.value = new Map();
+  }
+
+  await nextTick();
+  if (memberGridApi.formApi) {
+    memberGridApi.formApi.updateSchema([
+      {
+        componentProps: {
+          treeData: organizationOptions.value,
+        },
+        fieldName: 'filter[org_node_id][eq]',
+      },
+    ]);
+    syncOrgFilterState(
+      ((await memberGridApi.formApi.getValues()) as Record<string, unknown>) ??
+        {},
+    );
+  }
 }
 
-function clearOrgFilter() {
-  selectedOrgNode.value = null;
+async function refreshFilters() {
+  await Promise.all([loadOrganizationOptions(), loadRoles()]);
+  onMemberRefresh();
 }
 
 function handleSelectRole(role: TenantUserRoleInfo) {
@@ -230,10 +273,8 @@ async function toggleUserStatus(id: number, data: Record<string, boolean>) {
 }
 
 function getUserListForFilters(params: Record<string, unknown>) {
+  syncOrgFilterState(params);
   const nextParams: Record<string, unknown> = { ...params };
-  if (selectedOrgNode.value?.id) {
-    nextParams['filter[org_node_id][eq]'] = selectedOrgNode.value.id;
-  }
   if (selectedRole.value?.id) {
     nextParams['filter[role_id][eq]'] = selectedRole.value.id;
   }
@@ -381,7 +422,7 @@ const {
 function onMemberFormSuccess() {
   onMemberRefresh();
   loadRoles();
-  refreshOrgTree();
+  loadOrganizationOptions();
 }
 
 function onRoleFormSuccess() {
@@ -389,7 +430,7 @@ function onRoleFormSuccess() {
 }
 
 watch(
-  [() => selectedOrgNode.value?.id, () => selectedRole.value?.id],
+  () => selectedRole.value?.id,
   async () => {
     await nextTick();
     onMemberRefresh();
@@ -397,7 +438,7 @@ watch(
 );
 
 onMounted(async () => {
-  await Promise.all([loadRoles(), loadRootNodes()]);
+  await Promise.all([loadRoles(), loadOrganizationOptions()]);
   presenceStore.loadTenantUserPresence();
 });
 
@@ -405,8 +446,8 @@ usePageAIContext({
   pageKey: AI_PAGE_KEY,
   contextStrategy: 'extras',
   data: () => ({
-    org_filter_id: selectedOrgNode.value?.id ?? null,
-    org_filter_name: selectedOrgNode.value?.name ?? null,
+    org_filter_id: currentOrgFilterId.value,
+    org_filter_name: currentOrgFilterName.value,
     permission_role_filter_id: selectedRole.value?.id ?? null,
     permission_role_filter_name: selectedRole.value?.name ?? null,
     permission_roles_total: roles.value.length,
@@ -420,8 +461,7 @@ usePageAIOperations({
     createRefreshPageOperation({
       name: 'refresh_filters',
       action: async () => {
-        await Promise.all([refreshOrgTree(), loadRoles()]);
-        onMemberRefresh();
+        await refreshFilters();
       },
       description: $t(
         'tenant.system.userArchitecture.aiOperations.refreshFiltersDesc',
@@ -549,8 +589,8 @@ usePageAIOperations({
         },
       },
       normalizeParams: (params) => {
-        const fallbackOrgNodeId = selectedOrgNode.value?.id
-          ? { org_node_id: selectedOrgNode.value.id }
+        const fallbackOrgNodeId = currentOrgFilterId.value
+          ? { org_node_id: currentOrgFilterId.value }
           : {};
         const fallbackRoleId = selectedRole.value?.id
           ? { role_id: selectedRole.value.id }
@@ -608,11 +648,11 @@ usePageAIOperations({
             class="flex min-w-0 items-center gap-2"
           >
             <IconifyIcon
-              icon="lucide:git-merge"
+              icon="lucide:shield"
               class="h-4 w-4 flex-shrink-0 text-primary lg:h-5 lg:w-5"
             />
             <span class="truncate text-sm font-medium lg:text-base">
-              {{ $t('tenant.system.userArchitecture.filterSidebarTitle') }}
+              {{ $t('tenant.system.userArchitecture.roleSidebarTitle') }}
             </span>
           </div>
           <div class="flex items-center gap-1">
@@ -621,30 +661,11 @@ usePageAIOperations({
                 <Button
                   type="text"
                   size="small"
-                  :loading="rolesLoading || orgTreeLoading"
-                  @click="
-                    () => {
-                      refreshOrgTree();
-                      loadRoles();
-                    }
-                  "
+                  :loading="rolesLoading"
+                  @click="refreshFilters"
                 >
                   <template #icon>
                     <IconifyIcon icon="lucide:refresh-cw" />
-                  </template>
-                </Button>
-              </Tooltip>
-              <Tooltip :title="$t('tenant.system.organization.expandAll')">
-                <Button type="text" size="small" @click="expandAll">
-                  <template #icon>
-                    <IconifyIcon icon="lucide:unfold-vertical" />
-                  </template>
-                </Button>
-              </Tooltip>
-              <Tooltip :title="$t('tenant.system.organization.collapseAll')">
-                <Button type="text" size="small" @click="collapseAll">
-                  <template #icon>
-                    <IconifyIcon icon="lucide:fold-vertical" />
                   </template>
                 </Button>
               </Tooltip>
@@ -676,69 +697,7 @@ usePageAIOperations({
         </div>
 
         <div v-show="!sidebarCollapsed" class="flex-1 overflow-y-auto p-3">
-          <Card
-            :title="$t('tenant.system.userArchitecture.orgFilterTitle')"
-            size="small"
-          >
-            <template #extra>
-              <Button type="link" size="small" @click="clearOrgFilter">
-                {{ $t('tenant.system.userArchitecture.clearOrgFilter') }}
-              </Button>
-            </template>
-            <div
-              class="mb-3 cursor-pointer rounded-lg border px-3 py-2 transition"
-              :class="
-                !selectedOrgNode
-                  ? 'border-primary bg-primary/5'
-                  : 'border-border/60 hover:border-primary/20'
-              "
-              @click="clearOrgFilter"
-            >
-              <div class="flex items-center gap-2">
-                <IconifyIcon
-                  icon="lucide:building-2"
-                  class="size-4 text-primary"
-                />
-                <span class="font-medium">
-                  {{ $t('tenant.system.userArchitecture.allOrganizations') }}
-                </span>
-              </div>
-              <div class="mt-1 text-xs text-muted-foreground">
-                {{ $t('tenant.system.userArchitecture.allOrganizationsDesc') }}
-              </div>
-            </div>
-            <Spin :spinning="orgTreeLoading">
-              <div v-if="treeData.length > 0" class="space-y-0.5">
-                <OrgTreeNode
-                  v-for="node in treeData"
-                  :key="node.id"
-                  :node="node"
-                  :level="0"
-                  :expanded-ids="expandedIds"
-                  :selected-id="selectedOrgNode?.id"
-                  :is-expanded="isExpanded"
-                  i18n-prefix="tenant"
-                  :show-actions="false"
-                  :show-permission-count="false"
-                  @toggle="toggleExpand"
-                  @select="handleSelectOrgNode"
-                />
-              </div>
-              <Empty
-                v-else
-                :description="$t('tenant.system.organization.empty')"
-                class="py-6"
-              />
-            </Spin>
-          </Card>
-
-          <Card
-            class="mt-4"
-            :title="
-              $t('tenant.system.userArchitecture.permissionRoleListTitle')
-            "
-            size="small"
-          >
+          <Card size="small">
             <template #extra>
               <Button
                 v-access:code="['tenant_user_role:create']"
@@ -838,10 +797,10 @@ usePageAIOperations({
           class="flex flex-1 flex-col items-center gap-2 py-4"
         >
           <Tooltip
-            :title="$t('tenant.system.userArchitecture.filterSidebarTitle')"
+            :title="$t('tenant.system.userArchitecture.roleSidebarTitle')"
             placement="right"
           >
-            <IconifyIcon icon="lucide:git-merge" class="h-5 w-5 text-primary" />
+            <IconifyIcon icon="lucide:shield" class="h-5 w-5 text-primary" />
           </Tooltip>
         </div>
       </div>
@@ -867,10 +826,7 @@ usePageAIOperations({
                       {{ orgFilterLabel }}
                     </div>
                     <div class="mt-1 text-xs text-muted-foreground">
-                      {{
-                        selectedOrgNode?.description ||
-                        $t('tenant.system.userArchitecture.orgFilterHint')
-                      }}
+                      {{ $t('tenant.system.userArchitecture.orgFilterHint') }}
                     </div>
                   </div>
                 </div>

@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-import type { TenantOrgNodeInfo } from '#/api/tenant/organization';
 import type { TenantUserInfo } from '#/api/tenant/tenant-users';
 
 import { computed } from 'vue';
@@ -11,30 +10,20 @@ import { getTenantUserDetailApi } from '#/api/tenant/tenant-users';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
-import { getUserFormDefaults, useUserFormSchema } from '../data';
+import {
+  getUserFormDefaults,
+  toOrganizationTreeSelectOptions,
+  useUserFormSchema,
+} from '../data';
 
 defineOptions({ name: 'UserArchitectureUserForm' });
 
 const emits = defineEmits<{ success: [] }>();
 
-type TreeOption = {
-  children?: TreeOption[];
-  label: string;
-  value: number;
-};
-
 const [Form, formApi] = useVbenForm({
   schema: useUserFormSchema(false),
   showDefaultActions: false,
 });
-
-function toTreeOptions(nodes: TenantOrgNodeInfo[]): TreeOption[] {
-  return nodes.map((node) => ({
-    label: node.name,
-    value: node.id,
-    children: node.children?.length ? toTreeOptions(node.children) : undefined,
-  }));
-}
 
 const { Drawer, isEdit } = useCrudDrawer<TenantUserInfo>({
   formApi,
@@ -70,7 +59,7 @@ const { Drawer, isEdit } = useCrudDrawer<TenantUserInfo>({
         label: role.name,
         value: role.id,
       }));
-      const orgOptions = toTreeOptions(orgTree);
+      const orgOptions = toOrganizationTreeSelectOptions(orgTree);
 
       const updatedSchema = useUserFormSchema(isEdit.value).map((item) => {
         if (item.fieldName === 'role_id' && item.componentProps) {
