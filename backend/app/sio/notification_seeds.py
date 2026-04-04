@@ -21,31 +21,7 @@ logger = LogManager.get_logger("app")
 # title_template / body_template support {variable} placeholders, rendered by NotificationService._render_template
 # title_template / body_template 支持 {variable} 占位符，由 NotificationService._render_template 渲染
 SEED_TEMPLATES: list[dict] = [
-    # ===== system (7) / 系统类 7 条 =====
-    {
-        "code": "system.announcement",
-        "category": "system",
-        "title_template": "系统公告",
-        "body_template": "{content}",
-        "channels": ["ws", "inbox"],
-        "priority": "normal",
-    },
-    {
-        "code": "system.maintenance",
-        "category": "system",
-        "title_template": "系统维护通知",
-        "body_template": "系统将于 {start_time} 开始维护，预计持续 {duration}，维护期间服务可能不可用。",
-        "channels": ["ws", "inbox"],
-        "priority": "high",
-    },
-    {
-        "code": "system.security_alert",
-        "category": "system",
-        "title_template": "安全警告",
-        "body_template": "{message}",
-        "channels": ["ws", "inbox", "email"],
-        "priority": "urgent",
-    },
+    # ===== system (4) / 系统类 4 条 =====
     {
         "code": "system.password_reset",
         "category": "system",
@@ -78,7 +54,7 @@ SEED_TEMPLATES: list[dict] = [
         "channels": ["inbox", "email"],
         "priority": "high",
     },
-    # ===== ai (5) / AI 类 5 条 =====
+    # ===== ai (6) / AI 类 6 条 =====
     {
         "code": "ai.batch_progress",
         "category": "ai",

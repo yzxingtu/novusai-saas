@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from tests.services.conftest import make_mock_model
+from tests.services.conftest import make_mock_model, make_scalar_result
 
 
 def _make_notification(**overrides):
@@ -27,7 +27,6 @@ def _make_notification(**overrides):
 
 
 class TestNotificationCreate:
-
     @pytest.mark.asyncio
     async def test_create_notification(self, mock_db):
         from app.services.common.notification_service import NotificationService
@@ -38,18 +37,19 @@ class TestNotificationCreate:
         service.repo = AsyncMock()
         service.repo.create = AsyncMock(return_value=notif)
 
-        result = await service.repo.create({
-            "tenant_id": 1,
-            "user_id": 1,
-            "title": "Test",
-            "content": "Content",
-            "type": "info",
-        })
+        result = await service.repo.create(
+            {
+                "tenant_id": 1,
+                "user_id": 1,
+                "title": "Test",
+                "content": "Content",
+                "type": "info",
+            }
+        )
         assert result.title == "Test Notification"
 
 
 class TestNotificationQuery:
-
     @pytest.mark.asyncio
     async def test_get_unread_count(self, mock_db):
         from app.services.common.notification_service import NotificationService
@@ -76,7 +76,6 @@ class TestNotificationQuery:
 
 
 class TestNotificationMarkRead:
-
     @pytest.mark.asyncio
     async def test_mark_read_exists(self, mock_db):
         from app.services.common.notification_service import NotificationService
@@ -85,8 +84,8 @@ class TestNotificationMarkRead:
         service.db = mock_db
         service.repo = AsyncMock()
 
-        assert hasattr(service, 'mark_read')
-        assert hasattr(service, 'mark_all_read')
+        assert hasattr(service, "mark_read")
+        assert hasattr(service, "mark_all_read")
 
     @pytest.mark.asyncio
     async def test_mark_all_read(self, mock_db):
@@ -102,7 +101,6 @@ class TestNotificationMarkRead:
 
 
 class TestNotificationDelete:
-
     @pytest.mark.asyncio
     async def test_delete_notification(self, mock_db):
         from app.services.common.notification_service import NotificationService
@@ -126,3 +124,129 @@ class TestNotificationDelete:
 
         result = await service.repo.get_by_id(999)
         assert result is None
+
+
+class TestNotificationWsPayload:
+    @pytest.mark.asyncio
+    async def test_build_ws_payload_renders_template(self, mock_db):
+        from app.services.common.notification_service import NotificationService
+
+        template = make_mock_model(
+            code="task.failed",
+            category="task",
+            title_template="任务执行失败：{task_name}",
+            body_template="任务 {task_name} 执行失败，错误信息：{error}",
+            priority="high",
+            channels=["ws", "inbox"],
+        )
+        mock_db.execute.return_value = make_scalar_result(template)
+
+        service = NotificationService(mock_db)
+        service._notifications_enabled = AsyncMock(return_value=True)
+
+        payload = await service.build_ws_payload(
+            template_code="task.failed",
+            data={"task_name": "nightly-sync", "error": "timeout"},
+            link="/admin/system/tasks",
+            fallback_title="fallback title",
+        )
+
+        assert payload == {
+            "type": "task.failed",
+            "category": "task",
+            "title": "任务执行失败：nightly-sync",
+            "body": "任务 nightly-sync 执行失败，错误信息：timeout",
+            "data": {"task_name": "nightly-sync", "error": "timeout"},
+            "link": "/admin/system/tasks",
+            "priority": "high",
+        }
+
+    @pytest.mark.asyncio
+    async def test_build_ws_payload_returns_none_when_ws_channel_disabled(
+        self,
+        mock_db,
+    ):
+        from app.services.common.notification_service import NotificationService
+
+        template = make_mock_model(
+            code="ai.batch_complete",
+            category="ai",
+            title_template="批处理已完成",
+            body_template="批处理任务已完成，共处理 {total} 条数据。",
+            priority="normal",
+            channels=["inbox"],
+        )
+        mock_db.execute.return_value = make_scalar_result(template)
+
+        service = NotificationService(mock_db)
+        service._notifications_enabled = AsyncMock(return_value=True)
+
+        payload = await service.build_ws_payload(
+            template_code="ai.batch_complete",
+            data={"total": 3},
+        )
+
+        assert payload is None
+
+    @pytest.mark.asyncio
+    async def test_build_ws_payload_falls_back_when_template_missing(self, mock_db):
+        from app.services.common.notification_service import NotificationService
+
+        mock_db.execute.return_value = make_scalar_result(None)
+
+        service = NotificationService(mock_db)
+        service._notifications_enabled = AsyncMock(return_value=True)
+
+        payload = await service.build_ws_payload(
+            template_code="ai.batch_failed",
+            data={"error": "worker crashed"},
+            fallback_category="ai",
+            fallback_title="Batch failed",
+            fallback_body="worker crashed",
+            fallback_priority="high",
+        )
+
+        assert payload == {
+            "type": "ai.batch_failed",
+            "category": "ai",
+            "title": "Batch failed",
+            "body": "worker crashed",
+            "data": {"error": "worker crashed"},
+            "link": None,
+            "priority": "high",
+        }
+
+    def test_build_ws_payload_sync_wraps_async_service(self, monkeypatch):
+        from app.services.common import notification_service as notification_module
+
+        expected = {"type": "task.failed", "title": "Task failed"}
+
+        class _DummyAsyncContext:
+            async def __aenter__(self):
+                return object()
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+        async def _fake_build_ws_payload(self, **kwargs):
+            assert kwargs["template_code"] == "task.failed"
+            assert kwargs["data"]["task_name"] == "nightly-sync"
+            return expected
+
+        monkeypatch.setattr(
+            "app.core.database.async_session_factory",
+            lambda: _DummyAsyncContext(),
+        )
+        monkeypatch.setattr(
+            notification_module.NotificationService,
+            "build_ws_payload",
+            _fake_build_ws_payload,
+        )
+
+        payload = notification_module.build_ws_payload_sync(
+            template_code="task.failed",
+            data={"task_name": "nightly-sync", "error": "timeout"},
+            fallback_title="Task failed",
+        )
+
+        assert payload == expected

@@ -232,27 +232,37 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                     # Socket.IO real-time progress push / Socket.IO 实时进度推送
                     try:
                         from app.core.sio_bridge import notify_user_sync
+                        from app.services.common.notification_service import (
+                            NotificationService,
+                        )
 
                         if batch_run.created_by:
                             percent = int((idx + 1) / len(items) * 100)
-                            notify_user_sync(
-                                "tenant_admin",
-                                batch_run.created_by,
-                                {
-                                    "type": "ai.batch_progress",
-                                    "category": "ai",
-                                    "title": f"Batch {batch_run_id}: {idx + 1}/{len(items)}",
-                                    "data": {
-                                        "batch_id": batch_run_id,
-                                        "current": idx + 1,
-                                        "total": len(items),
-                                        "percent": percent,
-                                        "succeeded": succeeded,
-                                        "failed": failed,
-                                    },
-                                    "priority": "normal",
-                                },
+                            progress_data = {
+                                "batch_id": batch_run_id,
+                                "current": idx + 1,
+                                "completed": idx + 1,
+                                "total": len(items),
+                                "progress": percent,
+                                "percent": percent,
+                                "succeeded": succeeded,
+                                "failed": failed,
+                            }
+                            payload = await NotificationService(db).build_ws_payload(
+                                template_code="ai.batch_progress",
+                                data=progress_data,
+                                fallback_category="ai",
+                                fallback_title=(
+                                    f"Batch {batch_run_id}: {idx + 1}/{len(items)}"
+                                ),
+                                fallback_priority="normal",
                             )
+                            if payload:
+                                notify_user_sync(
+                                    "tenant_admin",
+                                    batch_run.created_by,
+                                    payload,
+                                )
                     except Exception:
                         pass
 
@@ -275,29 +285,52 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                 # Socket.IO completion/failure notification / Socket.IO 完成/失败通知
                 try:
                     from app.core.sio_bridge import notify_user_sync
+                    from app.services.common.notification_service import (
+                        NotificationService,
+                    )
 
                     if batch_run.created_by:
                         event_type = (
                             "ai.batch_complete" if failed == 0 else "ai.batch_failed"
                         )
                         priority = "normal" if failed == 0 else "high"
-                        notify_user_sync(
-                            "tenant_admin",
-                            batch_run.created_by,
-                            {
-                                "type": event_type,
-                                "category": "ai",
-                                "title": f"Batch {batch_run_id}: {succeeded}/{len(items)} succeeded",
-                                "data": {
-                                    "batch_id": batch_run_id,
-                                    "total": len(items),
-                                    "succeeded": succeeded,
-                                    "failed": failed,
-                                    "status": batch_run.status,
-                                },
-                                "priority": priority,
-                            },
+                        first_error = next(
+                            (
+                                str(item.get("error"))
+                                for item in all_errors
+                                if item.get("error")
+                            ),
+                            None,
                         )
+                        payload_data = {
+                            "batch_id": batch_run_id,
+                            "completed": succeeded + failed,
+                            "total": len(items),
+                            "progress": 100,
+                            "succeeded": succeeded,
+                            "failed": failed,
+                            "status": batch_run.status,
+                            "error": (
+                                first_error
+                                if first_error
+                                else f"{failed}/{len(items)} items failed"
+                            ),
+                        }
+                        payload = await NotificationService(db).build_ws_payload(
+                            template_code=event_type,
+                            data=payload_data,
+                            fallback_category="ai",
+                            fallback_title=(
+                                f"Batch {batch_run_id}: {succeeded}/{len(items)} succeeded"
+                            ),
+                            fallback_priority=priority,
+                        )
+                        if payload:
+                            notify_user_sync(
+                                "tenant_admin",
+                                batch_run.created_by,
+                                payload,
+                            )
                 except Exception:
                     pass
 

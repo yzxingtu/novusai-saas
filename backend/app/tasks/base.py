@@ -247,17 +247,22 @@ class BaseTask(Task):
 
         try:
             from app.core.sio_bridge import notify_admins_sync
+            from app.services.common.notification_service import build_ws_payload_sync
 
-            notify_admins_sync(
-                {
-                    "type": "task.failed",
-                    "category": "task",
-                    "title": f"Task failed: {task_name}",
-                    "body": str(exc)[:500],
-                    "data": {"task_name": task_name, "task_id": task_id},
-                    "priority": "high",
-                }
+            payload = build_ws_payload_sync(
+                template_code="task.failed",
+                data={
+                    "task_name": task_name,
+                    "task_id": task_id,
+                    "error": str(exc)[:500],
+                },
+                fallback_category="task",
+                fallback_title=f"Task failed: {task_name}",
+                fallback_body=str(exc)[:500],
+                fallback_priority="high",
             )
+            if payload:
+                notify_admins_sync(payload)
         except Exception as ws_err:
             logger.warning(
                 "Failed to send WS task failure notification: {}", str(ws_err)

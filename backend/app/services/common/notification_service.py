@@ -31,9 +31,9 @@ class NotificationService:
     使用方式：
         service = NotificationService(db)
         await service.send(
-            template_code="ai.batch_complete",
+            template_code="ai.soft_quota_exceeded",
             recipients=[("tenant_admin", 5)],
-            data={"batch_id": 123, "total": 500},
+            data={"current": 120000, "limit": 100000, "period": "monthly"},
         )
     """
 
@@ -61,7 +61,7 @@ class NotificationService:
         WS 和邮件渠道不受此影响（WS 直接推送，邮件通过 Celery 异步发送）。
 
         Args:
-            template_code: 通知模板编码（如 'ai.batch_complete'）
+            template_code: 通知模板编码（如 'ai.soft_quota_exceeded'）
             recipients: 接收人列表 [(user_type, user_id), ...]
             data: 业务数据（用于模板渲染和前端展示）
             link: 点击跳转链接
@@ -77,16 +77,8 @@ class NotificationService:
         from app.services.common.channels import get_channel
 
         # 检查通知系统总开关 / Check notification master switch
-        try:
-            from app.sio.ws_config import get_ws_config
-
-            notification_enabled = await get_ws_config("notification_enabled")
-            if not notification_enabled:
-                return 0
-        except Exception:
-            logger.debug(
-                "Failed to check notification master switch, proceeding anyway"
-            )
+        if not await self._notifications_enabled():
+            return 0
 
         # 查询模板 / Query template
         template = await self._get_template(template_code)
@@ -95,12 +87,7 @@ class NotificationService:
             return 0
 
         # 渲染标题和正文 / Render title and body
-        title = self._render_template(template.title_template, data)
-        body = (
-            self._render_template(template.body_template, data)
-            if template.body_template
-            else None
-        )
+        title, body = self._render_template_content(template, data)
         template_channels = template.channels or ["ws", "inbox"]
 
         # force_all_channels 模式：绕过偏好和渠道开关（用于测试发送）
@@ -174,6 +161,55 @@ class NotificationService:
             sent,
         )
         return sent
+
+    async def build_ws_payload(
+        self,
+        template_code: str,
+        data: dict[str, Any] | None = None,
+        link: str | None = None,
+        *,
+        fallback_category: str | None = None,
+        fallback_title: str | None = None,
+        fallback_body: str | None = None,
+        fallback_priority: str = "normal",
+    ) -> dict[str, Any] | None:
+        """
+        构建实时 WS payload，优先使用通知模板渲染。
+        Build a WS payload using notification template rendering when available.
+
+        Returns None when notifications are globally disabled or the template
+        explicitly disables the WS channel.
+        """
+        if not await self._notifications_enabled():
+            return None
+
+        template = await self._get_template(template_code)
+        if template:
+            template_channels = template.channels or ["ws", "inbox"]
+            if "ws" not in template_channels:
+                return None
+
+            title, body = self._render_template_content(template, data)
+            category = template.category
+            priority = template.priority
+        else:
+            logger.warning(
+                "Notification template not found for WS payload: {}", template_code
+            )
+            category = fallback_category or self._derive_category(template_code)
+            title = fallback_title or template_code
+            body = fallback_body
+            priority = fallback_priority
+
+        return {
+            "type": template_code,
+            "category": category,
+            "title": title,
+            "body": body,
+            "data": data,
+            "link": link,
+            "priority": priority,
+        }
 
     # ========================================
     # 查询 / Query
@@ -314,6 +350,18 @@ class NotificationService:
         )
         return result.scalar_one_or_none()
 
+    async def _notifications_enabled(self) -> bool:
+        """检查通知系统总开关 / Check notification master switch."""
+        try:
+            from app.sio.ws_config import get_ws_config
+
+            return bool(await get_ws_config("notification_enabled"))
+        except Exception:
+            logger.debug(
+                "Failed to check notification master switch, proceeding anyway"
+            )
+            return True
+
     async def _get_preference(
         self,
         user_type: str,
@@ -430,6 +478,23 @@ class NotificationService:
         except (KeyError, ValueError):
             return template
 
+    @classmethod
+    def _render_template_content(
+        cls,
+        template: NotificationTemplate,
+        data: dict[str, Any] | None,
+    ) -> tuple[str, str | None]:
+        """渲染模板标题和正文 / Render template title and body."""
+        title = cls._render_template(template.title_template, data)
+        body = cls._render_template(template.body_template, data)
+        return title, body or None
+
+    @staticmethod
+    def _derive_category(template_code: str) -> str:
+        if "." in template_code:
+            return template_code.split(".", 1)[0]
+        return "system"
+
 
 # ============================================
 # 便捷函数 / Convenience functions
@@ -453,7 +518,12 @@ async def notify(
 
     示例::
 
-        await notify(db, "ai.batch_complete", [("tenant_admin", 5)], {"total": 500})
+        await notify(
+            db,
+            "ai.soft_quota_exceeded",
+            [("tenant_admin", 5)],
+            {"current": 120000, "limit": 100000, "period": "monthly"},
+        )
     """
     service = NotificationService(db)
     return await service.send(
@@ -520,4 +590,59 @@ def notify_sync(
         return asyncio.run(_run())
 
 
-__all__ = ["NotificationService", "notify", "notify_sync"]
+def build_ws_payload_sync(
+    template_code: str,
+    data: dict[str, Any] | None = None,
+    link: str | None = None,
+    *,
+    fallback_category: str | None = None,
+    fallback_title: str | None = None,
+    fallback_body: str | None = None,
+    fallback_priority: str = "normal",
+) -> dict[str, Any] | None:
+    """
+    同步便捷函数 — 用于 Celery 等同步上下文构建 WS payload。
+    Sync helper for building WS payloads from synchronous contexts.
+    """
+    import asyncio
+    import contextvars
+
+    from app.core.database import async_session_factory
+
+    async def _run() -> dict[str, Any] | None:
+        async with async_session_factory() as db:
+            service = NotificationService(db)
+            return await service.build_ws_payload(
+                template_code=template_code,
+                data=data,
+                link=link,
+                fallback_category=fallback_category,
+                fallback_title=fallback_title,
+                fallback_body=fallback_body,
+                fallback_priority=fallback_priority,
+            )
+
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            import concurrent.futures
+
+            ctx = contextvars.copy_context()
+
+            def _run_in_thread() -> dict[str, Any] | None:
+                return ctx.run(lambda: asyncio.run(_run()))
+
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                future = pool.submit(_run_in_thread)
+                return future.result(timeout=30)
+        return loop.run_until_complete(_run())
+    except RuntimeError:
+        return asyncio.run(_run())
+
+
+__all__ = [
+    "NotificationService",
+    "notify",
+    "notify_sync",
+    "build_ws_payload_sync",
+]

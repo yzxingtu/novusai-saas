@@ -568,26 +568,34 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
 
                 # Socket.IO indexing complete notification / Socket.IO 索引完成通知
                 try:
-                    notification = {
-                        "type": "ai.kb_index_complete",
-                        "category": "ai",
-                        "title": f"Document indexed: {doc.name}",
-                        "data": {
-                            "document_id": document_id,
-                            "kb_id": kb.id,
-                            "chunks": total_chunks,
-                            "tokens": total_token_count,
-                        },
-                        "priority": "normal",
+                    from app.services.common.notification_service import (
+                        NotificationService,
+                    )
+
+                    notification_data = {
+                        "document_id": document_id,
+                        "kb_id": kb.id,
+                        "kb_name": kb.name,
+                        "doc_count": 1,
+                        "document_name": doc.name,
+                        "chunks": total_chunks,
+                        "tokens": total_token_count,
                     }
-                    if tenant_id is not None:
+                    payload = await NotificationService(db).build_ws_payload(
+                        template_code="ai.kb_index_complete",
+                        data=notification_data,
+                        fallback_category="ai",
+                        fallback_title=f"Document indexed: {doc.name}",
+                        fallback_priority="normal",
+                    )
+                    if payload and tenant_id is not None:
                         from app.core.sio_bridge import notify_tenant_sync
 
-                        notify_tenant_sync(tenant_id, notification)
-                    else:
+                        notify_tenant_sync(tenant_id, payload)
+                    elif payload:
                         from app.core.sio_bridge import notify_admins_sync
 
-                        notify_admins_sync(notification)
+                        notify_admins_sync(payload)
                 except Exception:
                     pass
 
@@ -638,25 +646,33 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
 
                     # Socket.IO indexing failed notification / Socket.IO 索引失败通知
                     try:
-                        fail_notification = {
-                            "type": "ai.kb_index_failed",
-                            "category": "ai",
-                            "title": f"Document indexing failed: {doc.name}",
-                            "data": {
-                                "document_id": document_id,
-                                "kb_id": kb.id,
-                                "error": str(exc)[:200],
-                            },
-                            "priority": "high",
+                        from app.services.common.notification_service import (
+                            NotificationService,
+                        )
+
+                        fail_data = {
+                            "document_id": document_id,
+                            "kb_id": kb.id,
+                            "kb_name": kb.name,
+                            "doc_count": 1,
+                            "document_name": doc.name,
+                            "error": str(exc)[:200],
                         }
-                        if tenant_id is not None:
+                        payload = await NotificationService(db).build_ws_payload(
+                            template_code="ai.kb_index_failed",
+                            data=fail_data,
+                            fallback_category="ai",
+                            fallback_title=f"Document indexing failed: {doc.name}",
+                            fallback_priority="high",
+                        )
+                        if payload and tenant_id is not None:
                             from app.core.sio_bridge import notify_tenant_sync
 
-                            notify_tenant_sync(tenant_id, fail_notification)
-                        else:
+                            notify_tenant_sync(tenant_id, payload)
+                        elif payload:
                             from app.core.sio_bridge import notify_admins_sync
 
-                            notify_admins_sync(fail_notification)
+                            notify_admins_sync(payload)
                     except Exception:
                         pass
                 except Exception:
