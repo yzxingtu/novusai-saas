@@ -192,11 +192,11 @@ class OpenAIAdapter(BaseAdapter):
             if not isinstance(responses_overrides, dict):
                 return (None, ignored_overrides, ignore_reasons)
             reasoning = responses_overrides.get("reasoning")
-            raw_effort = reasoning.get("effort") if isinstance(reasoning, dict) else None
+            raw_effort = (
+                reasoning.get("effort") if isinstance(reasoning, dict) else None
+            )
         else:
-            path = _OPENAI_RUNTIME_OVERRIDE_PATHS[
-                "chat_completions_reasoning_effort"
-            ]
+            path = _OPENAI_RUNTIME_OVERRIDE_PATHS["chat_completions_reasoning_effort"]
             chat_overrides = openai_overrides.get("chat_completions")
             if not isinstance(chat_overrides, dict):
                 return (None, ignored_overrides, ignore_reasons)
@@ -228,8 +228,7 @@ class OpenAIAdapter(BaseAdapter):
                 return effort
 
         return cls._normalize_reasoning_effort(
-            model_config.get("reasoning_effort")
-            or model_config.get("reasoningEffort"),
+            model_config.get("reasoning_effort") or model_config.get("reasoningEffort"),
         )
 
     @classmethod
@@ -353,8 +352,8 @@ class OpenAIAdapter(BaseAdapter):
                 effective_request["applied_overrides"].append(config_path)
 
         if effective_request["reasoning_effort"] is None:
-            legacy_config_effort = cls._extract_legacy_reasoning_effort_from_model_config(
-                model_config
+            legacy_config_effort = (
+                cls._extract_legacy_reasoning_effort_from_model_config(model_config)
             )
             if legacy_config_effort is not None:
                 legacy_path = "config.reasoning.effort"
@@ -405,8 +404,12 @@ class OpenAIAdapter(BaseAdapter):
             effective_request.get("reasoning_effort", "") or "",
             wire_api,
             effective_request.get("override_source", ""),
-            json.dumps(effective_request.get("applied_overrides", []), ensure_ascii=False),
-            json.dumps(effective_request.get("ignored_overrides", []), ensure_ascii=False),
+            json.dumps(
+                effective_request.get("applied_overrides", []), ensure_ascii=False
+            ),
+            json.dumps(
+                effective_request.get("ignored_overrides", []), ensure_ascii=False
+            ),
             json.dumps(effective_request.get("ignore_reasons", {}), ensure_ascii=False),
         )
 
@@ -755,9 +758,10 @@ class OpenAIAdapter(BaseAdapter):
         if tools:
             request_params["tools"] = tools
             request_params["tool_choice"] = tool_choice or "auto"
-        if (
-            kwargs.get("reasoning_effort") is None
-            and "reasoning_effort" in effective_request.get("effective_params", {})
+        if kwargs.get(
+            "reasoning_effort"
+        ) is None and "reasoning_effort" in effective_request.get(
+            "effective_params", {}
         ):
             request_params["reasoning_effort"] = effective_request["effective_params"][
                 "reasoning_effort"
@@ -781,7 +785,9 @@ class OpenAIAdapter(BaseAdapter):
             stream=False,
             wire_api="chat_completions",
         )
-        logger.info("Chat request: model={} messages={}", effective_model, len(messages))
+        logger.info(
+            "Chat request: model={} messages={}", effective_model, len(messages)
+        )
         response = await self.client.chat.completions.create(**request_params)
         response = await self._retry_chat_completions_with_v1_if_needed(
             payload=response,
@@ -1022,7 +1028,9 @@ class OpenAIAdapter(BaseAdapter):
                 effective_request=effective_request,
                 wire_api=active_wire_api,
             )
-            effective_error_model = str(effective_request.get("upstream_model") or model)
+            effective_error_model = str(
+                effective_request.get("upstream_model") or model
+            )
 
             # Pop adapter-only flags before building request params / 提取适配器专用标志，避免传入 API
             vision_flag = kwargs.pop("supports_vision", True)
@@ -1173,7 +1181,9 @@ class OpenAIAdapter(BaseAdapter):
                 effective_request=effective_request,
                 wire_api=active_wire_api,
             )
-            effective_error_model = str(effective_request.get("upstream_model") or model)
+            effective_error_model = str(
+                effective_request.get("upstream_model") or model
+            )
 
             # Pop adapter-only flags before building request params / 提取适配器专用标志，避免传入 API
             vision_flag = kwargs.pop("supports_vision", True)
@@ -1599,6 +1609,18 @@ class OpenAIAdapter(BaseAdapter):
                         yield ChatChunk(delta="", reasoning_delta=delta)
                     continue
 
+                if event_type in {
+                    "response.reasoning.delta",
+                    "response.thinking.delta",
+                }:
+                    delta = (
+                        getattr(event, "delta", "") or getattr(event, "text", "") or ""
+                    )
+                    if delta:
+                        emitted_reasoning = True
+                        yield ChatChunk(delta="", reasoning_delta=delta)
+                    continue
+
                 if event_type == "response.output_item.added":
                     item = getattr(event, "item", None)
                     if getattr(item, "type", None) == "function_call":
@@ -1663,6 +1685,30 @@ class OpenAIAdapter(BaseAdapter):
                             yield ChatChunk(
                                 delta="",
                                 reasoning_delta=final_reasoning,
+                            )
+                        else:
+                            response_output = (
+                                response.get("output", [])
+                                if isinstance(response, dict)
+                                else getattr(response, "output", [])
+                            )
+                            output_types = [
+                                (
+                                    item.get("type", "unknown")
+                                    if isinstance(item, dict)
+                                    else getattr(item, "type", "unknown")
+                                )
+                                for item in (response_output or [])
+                            ]
+                            reasoning_content = (
+                                response.get("reasoning_content")
+                                if isinstance(response, dict)
+                                else getattr(response, "reasoning_content", None)
+                            )
+                            logger.debug(
+                                "Responses stream completed without reasoning: output_types={} has_reasoning_content={}",
+                                output_types,
+                                bool(reasoning_content),
                             )
                     if response is not None and not emitted_text:
                         final_text = self._extract_responses_text(response)
@@ -1757,9 +1803,8 @@ class OpenAIAdapter(BaseAdapter):
                 ),
                 wire_api="responses",
             )
-        if (
-            explicit_reasoning is None
-            and "reasoning" in effective_request.get("effective_params", {})
+        if explicit_reasoning is None and "reasoning" in effective_request.get(
+            "effective_params", {}
         ):
             explicit_reasoning = effective_request["effective_params"]["reasoning"]
         request_params: dict[str, Any] = {
@@ -2086,19 +2131,83 @@ class OpenAIAdapter(BaseAdapter):
     def _extract_responses_reasoning_text(self, response: Any) -> str | None:
         parts: list[str] = []
 
-        for item in getattr(response, "output", []) or []:
-            if getattr(item, "type", None) != "reasoning":
+        def _field(value: Any, name: str) -> Any:
+            if isinstance(value, dict):
+                return value.get(name)
+            return getattr(value, name, None)
+
+        def _append_text(value: Any) -> None:
+            if not isinstance(value, str):
+                return
+            text = value.strip()
+            if text and text not in parts:
+                parts.append(text)
+
+        def _append_candidates(value: Any, *field_names: str) -> None:
+            if value is None:
+                return
+            if isinstance(value, list):
+                for item in value:
+                    _append_candidates(item, *field_names)
+                return
+
+            if isinstance(value, str):
+                _append_text(value)
+                return
+
+            for field_name in field_names:
+                _append_text(_field(value, field_name))
+
+        for item in _field(response, "output") or []:
+            if _field(item, "type") != "reasoning":
                 continue
 
-            for summary_item in getattr(item, "summary", []) or []:
-                text = getattr(summary_item, "text", None)
-                if isinstance(text, str) and text.strip():
-                    parts.append(text.strip())
-                    continue
+            item_content = _field(item, "content")
+            if isinstance(item_content, str):
+                _append_text(item_content)
+                continue
 
-                nested_text = getattr(summary_item, "summary_text", None)
-                if isinstance(nested_text, str) and nested_text.strip():
-                    parts.append(nested_text.strip())
+            if isinstance(item_content, list):
+                _append_candidates(
+                    item_content,
+                    "text",
+                    "thinking",
+                    "summary_text",
+                    "reasoning_content",
+                )
+
+            for summary_item in _field(item, "summary") or []:
+                _append_candidates(summary_item, "text", "summary_text")
+
+        if not parts:
+            _append_candidates(
+                _field(response, "reasoning_content"),
+                "text",
+                "summary_text",
+                "thinking",
+            )
+
+        if not parts:
+            _append_candidates(
+                _field(response, "reasoning"),
+                "text",
+                "summary_text",
+                "thinking",
+            )
+
+        if not parts:
+            for item in _field(response, "output") or []:
+                if _field(item, "type") != "message":
+                    continue
+                for content_item in _field(item, "content") or []:
+                    if _field(content_item, "type") not in {"thinking", "reasoning"}:
+                        continue
+                    _append_candidates(
+                        content_item,
+                        "thinking",
+                        "text",
+                        "reasoning_content",
+                    )
 
         if not parts:
             return None

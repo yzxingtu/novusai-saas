@@ -103,8 +103,8 @@ class StreamExecutionHandler:
         self._completion_tokens_used = 0
 
     def _register_tool_failures(self, tool_results: list[ToolResult]) -> None:
-        tool_failure_kind, tool_failure_events = FailureClassifier.classify_tool_results(
-            tool_results
+        tool_failure_kind, tool_failure_events = (
+            FailureClassifier.classify_tool_results(tool_results)
         )
         if tool_failure_kind != "none":
             for event in tool_failure_events:
@@ -279,7 +279,9 @@ class StreamExecutionHandler:
             )
             if isinstance(current_page_context, dict):
                 self._update_turn_progress(
-                    last_page_key=str(current_page_context.get("page_key") or "").strip()
+                    last_page_key=str(
+                        current_page_context.get("page_key") or ""
+                    ).strip()
                     or None
                 )
             kb_feedback = getattr(self.request, "knowledge_base_feedback", None)
@@ -466,7 +468,9 @@ class StreamExecutionHandler:
             if partial:
                 self._state.transition("partial_exit")
                 completion_reason = decision.reason or "return_partial"
-                visible_assistant_output = self._last_visible_assistant_content(messages)
+                visible_assistant_output = self._last_visible_assistant_content(
+                    messages
+                )
                 streamed_output = str(self._output or "").strip()
                 if visible_assistant_output:
                     output = visible_assistant_output
@@ -496,9 +500,10 @@ class StreamExecutionHandler:
                     messages,
                     RecoveryManager.pending_consent_payload_from_decision(decision),
                 )
-                output = self._last_visible_assistant_content(messages) or str(
-                    self._output or ""
-                ).strip()
+                output = (
+                    self._last_visible_assistant_content(messages)
+                    or str(self._output or "").strip()
+                )
                 self._output = output
             else:
                 self._state.transition("completed")
@@ -834,7 +839,9 @@ class StreamExecutionHandler:
         ordered_requested_families: list[str] = []
         if not self._state.intent_plan:
             inferred_intents = IntentPlanner.plan_turn(
-                messages=list(getattr(self.request, "messages", None) or messages or []),
+                messages=list(
+                    getattr(self.request, "messages", None) or messages or []
+                ),
                 tools=getattr(self.prep, "all_tools", None) or tools_full,
                 input_variables=getattr(self.request, "input_variables", None),
                 continuation_context=continuation_context,
@@ -858,10 +865,7 @@ class StreamExecutionHandler:
                     fallback_family = "weather"
                 elif "get_current_time" in allowed_tool_names:
                     fallback_family = "time_ops"
-            if (
-                not actionable_inferred_intents
-                and fallback_family != "none"
-            ):
+            if not actionable_inferred_intents and fallback_family != "none":
                 fallback_allowed_tools = list(round_tool_policy.allowed_tool_names)
                 inferred_intents = [
                     IntentPlan(
@@ -1006,7 +1010,6 @@ class StreamExecutionHandler:
             round_tool_results: list[ToolResult] = []
             round_total_tokens = 0
             round_output_tokens = 0
-            round_message_events: list[str] = []
             self._output = ""
             self._reasoning_output = ""
 
@@ -1087,13 +1090,11 @@ class StreamExecutionHandler:
                     round_output += chunk.delta
                     round_visible_thinking += chunk.delta
                     self._output = round_output
-                    round_message_events.append(
-                        SSEChunkEncoder.encode(
-                            {
-                                "event": "message",
-                                "delta": chunk.delta,
-                            }
-                        )
+                    yield SSEChunkEncoder.encode(
+                        {
+                            "event": "message",
+                            "delta": chunk.delta,
+                        }
                     )
 
                 if chunk.tool_calls:
@@ -1110,7 +1111,9 @@ class StreamExecutionHandler:
             next_runtime_context = None
 
             self._total_tokens += round_total_tokens
-            self._completion_tokens_used += int(round_output_tokens or round_total_tokens)
+            self._completion_tokens_used += int(
+                round_output_tokens or round_total_tokens
+            )
             completion_reason = BudgetGuard.completion_reason(
                 self._state.budget,
                 completion_tokens=self._completion_tokens_used,
@@ -1123,8 +1126,6 @@ class StreamExecutionHandler:
             if completion_reason:
                 self._state.register_completion_tokens(self._completion_tokens_used)
                 self._register_budget_exit(completion_reason)
-                for event in round_message_events:
-                    yield event
                 self._output = round_output
                 self._reasoning_output = round_reasoning_output
                 break
@@ -1132,7 +1133,11 @@ class StreamExecutionHandler:
                 logger.info(
                     "Truncated streamed assistant tool call batch after navigation op to avoid stale page follow-up calls: {}",
                     [
-                        str((tc.get("function") or {}).get("name") or tc.get("name") or "")
+                        str(
+                            (tc.get("function") or {}).get("name")
+                            or tc.get("name")
+                            or ""
+                        )
                         for tc in tc_list
                     ],
                 )
@@ -1150,18 +1155,20 @@ class StreamExecutionHandler:
                     provider_failure_kind=self._state.provider_failure_kind,
                 )
                 if decision is not None and decision.action == "retry_intent":
-                    analyzed_breach_type, analyzed_retry_policy, _analyzed_diagnostics = (
-                        self.engine._analyze_post_tool_contract_breach(
-                            messages=messages,
-                            response=denial_response,
-                            current_policy=round_tool_policy,
-                            tools=getattr(self.prep, "all_tools", None) or tools_full,
-                            input_variables=getattr(
-                                self.request,
-                                "input_variables",
-                                None,
-                            ),
-                        )
+                    (
+                        analyzed_breach_type,
+                        analyzed_retry_policy,
+                        _analyzed_diagnostics,
+                    ) = self.engine._analyze_post_tool_contract_breach(
+                        messages=messages,
+                        response=denial_response,
+                        current_policy=round_tool_policy,
+                        tools=getattr(self.prep, "all_tools", None) or tools_full,
+                        input_variables=getattr(
+                            self.request,
+                            "input_variables",
+                            None,
+                        ),
                     )
                     del analyzed_breach_type, _analyzed_diagnostics
                     retry_reason = (
@@ -1171,14 +1178,18 @@ class StreamExecutionHandler:
                             "web_research_summary_without_fetch"
                             if (
                                 decision.retry_family == "web_research"
-                                and self.engine._needs_fetch_url_before_summary(messages)
+                                and self.engine._needs_fetch_url_before_summary(
+                                    messages
+                                )
                             )
                             else decision.reason
                         )
                     )
                     retry_policy = ToolUsePolicy(
                         family=decision.retry_family
-                        or getattr(self.prep, "tool_use_policy", ToolUsePolicy()).family,
+                        or getattr(
+                            self.prep, "tool_use_policy", ToolUsePolicy()
+                        ).family,
                         mode="required",
                         allowed_tool_names=decision.allowed_tool_names
                         or [tool.name for tool in tools_full],
@@ -1220,9 +1231,16 @@ class StreamExecutionHandler:
                             "retry_allowed_tools": list(decision.allowed_tool_names),
                         }
                     )
+                    # 告知前端丢弃本轮已流出的 message 内容 / Tell frontend to discard the current round message content
+                    if round_output:
+                        yield SSEChunkEncoder.encode({"event": "clear_content"})
+                        self._output = ""
                     next_runtime_context = None
                     continue
-                if round_tool_policy.mode == "required" and self._state.recovery_history:
+                if (
+                    round_tool_policy.mode == "required"
+                    and self._state.recovery_history
+                ):
                     self.engine._log_tool_contract_diagnostics(
                         agent=self.agent,
                         messages=messages,
@@ -1235,14 +1253,10 @@ class StreamExecutionHandler:
                         continuation=continuation_context,
                     )
 
-                for event in round_message_events:
-                    yield event
                 self._output = round_output
                 self._reasoning_output = round_reasoning_output
                 break
 
-            for event in round_message_events:
-                yield event
             tool_round_reason = BudgetGuard.tool_round_reason(
                 self._state.budget,
                 next_rounds_used=(
@@ -1527,7 +1541,10 @@ class StreamExecutionHandler:
                     },
                 )
 
-                if _page_op_aborted or self._state.provider_failure_kind == "budget_exit":
+                if (
+                    _page_op_aborted
+                    or self._state.provider_failure_kind == "budget_exit"
+                ):
                     break
 
             if (
@@ -1554,7 +1571,7 @@ class StreamExecutionHandler:
                     tool_loop_progress={
                         "page_recovery_reason": recovery_diagnostics.get("reason"),
                         "forced_tool_names": recovery_tool_names,
-                    }
+                    },
                 )
                 logger.info(
                     "Injected streamed page-flow recovery hint after no-progress page round: conversation_id={} diagnostics={}",

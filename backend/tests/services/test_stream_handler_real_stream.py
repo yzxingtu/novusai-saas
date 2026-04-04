@@ -21,7 +21,7 @@ redis_exceptions_module = types.ModuleType("redis.exceptions")
 
 class _RedisConnectionPool:
     @classmethod
-    def from_url(cls, *args, **kwargs):
+    def from_url(cls, *_args, **_kwargs):
         return cls()
 
     async def aclose(self) -> None:
@@ -29,7 +29,7 @@ class _RedisConnectionPool:
 
 
 class _RedisClient:
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *_args, **_kwargs) -> None:
         return None
 
 
@@ -42,7 +42,7 @@ redis_asyncio_module.ConnectionPool = _RedisConnectionPool
 redis_asyncio_module.Redis = _RedisClient
 redis_asyncio_client_module.Pipeline = _RedisPipeline
 redis_module.Redis = _RedisClient
-redis_module.from_url = lambda *a, **kw: MagicMock()
+redis_module.from_url = lambda *_args, **_kwargs: MagicMock()
 redis_module.asyncio = redis_asyncio_module
 redis_module.exceptions = redis_exceptions_module
 sys.modules.setdefault("redis", redis_module)
@@ -57,11 +57,12 @@ _sio_mod.get_sio = lambda: _mock_sio
 _sio_mod.sio = _mock_sio  # emit_force_logout 等使用 sio 直接导入
 sys.modules.setdefault("app.core.socketio_server", _sio_mod)
 
-from app.ai.engine.stream_handler import StreamExecutionHandler
-from app.ai.tools.types import ToolDefinition, ToolResult
-from app.ai.types import ChatChunk, ChatMessage, ChatResponse
-from app.middleware.trace import trace_id_var
-from app.ai.engine.types import ToolUsePolicy
+from app.ai.engine.budget_guard import BudgetGuard  # noqa: E402
+from app.ai.engine.stream_handler import StreamExecutionHandler  # noqa: E402
+from app.ai.engine.types import IntentPlan, ToolUsePolicy  # noqa: E402
+from app.ai.tools.types import ToolDefinition, ToolResult  # noqa: E402
+from app.ai.types import ChatChunk, ChatMessage, ChatResponse  # noqa: E402
+from app.middleware.trace import trace_id_var  # noqa: E402
 
 
 def _parse_sse_payload(raw: str) -> dict:
@@ -352,9 +353,16 @@ def _build_handler(
     tools: list[ToolDefinition] | None = None,
     continuation_context=None,
     tool_use_policy: ToolUsePolicy | None = None,
+    intent_plan: list[IntentPlan] | None = None,
 ) -> StreamExecutionHandler:
     if tools is None:
         tools = [ToolDefinition(name="query_db", description="查询数据库")]
+    effective_intent_plan = list(intent_plan or [])
+    execution_budget = (
+        BudgetGuard.build_default("normal", intent_count=len(effective_intent_plan))
+        if effective_intent_plan
+        else None
+    )
     request = SimpleNamespace(
         tenant_id=1,
         user_id=1,
@@ -368,6 +376,9 @@ def _build_handler(
         all_tools=tools,
         continuation_context=continuation_context,
         tool_use_policy=tool_use_policy or ToolUsePolicy(),
+        intent_plan=effective_intent_plan,
+        execution_budget=execution_budget,
+        execution_path="normal" if effective_intent_plan else None,
         rag_sources=None,
         rag_source_kinds=[],
         context_compacted=False,
@@ -388,6 +399,49 @@ def _build_handler(
         start_time=0.0,
         on_complete=None,
     )
+
+
+def _build_pending_intent(
+    *,
+    allowed_tool_names: list[str],
+    family: str,
+    source_text: str = "测试流式",
+) -> IntentPlan:
+    return IntentPlan(
+        intent_id="intent_1",
+        kind="tool_use",
+        family=family,
+        order=0,
+        user_visible_label=source_text,
+        source_text=source_text,
+        allowed_tool_names=list(allowed_tool_names),
+        completion_signals=list(allowed_tool_names),
+    )
+
+
+def _assert_retry_clear_sequence(
+    events: list[dict],
+    *,
+    leaked_text: str,
+    final_text: str,
+) -> None:
+    clear_events = [event for event in events if event.get("event") == "clear_content"]
+    assert clear_events
+
+    first_message_idx = next(
+        index
+        for index, event in enumerate(events)
+        if event.get("event") == "message"
+        and leaked_text in str(event.get("delta", ""))
+    )
+    first_clear_idx = events.index(clear_events[0])
+    final_message_idx = next(
+        index
+        for index, event in enumerate(events)
+        if event.get("event") == "message" and final_text in str(event.get("delta", ""))
+    )
+
+    assert first_message_idx < first_clear_idx < final_message_idx
 
 
 @pytest.mark.asyncio
@@ -419,7 +473,10 @@ async def test_stream_handler_done_and_on_complete_when_llm_stream_stops_at_fini
     await asyncio.sleep(0)
 
     assert any(e.get("event") == "done" for e in events)
-    assert "".join(e.get("delta", "") for e in events if e.get("event") == "message") == "part"
+    assert (
+        "".join(e.get("delta", "") for e in events if e.get("event") == "message")
+        == "part"
+    )
     assert len(captured) == 1
     assert captured[0].success is True
     assert captured[0].partial is False
@@ -529,7 +586,9 @@ async def test_stream_handler_budget_exit_after_successful_tool_adds_fallback_re
         for message in captured[0].messages
         if message.get("role") == "assistant" and (message.get("content") or "").strip()
     ]
-    assert any("执行预算" in (message.get("content") or "") for message in persisted_assistants)
+    assert any(
+        "执行预算" in (message.get("content") or "") for message in persisted_assistants
+    )
 
 
 @pytest.mark.asyncio
@@ -632,8 +691,12 @@ async def test_stream_handler_with_tools_emits_thinking_before_round_finishes():
         if raw.strip().startswith("data: {"):
             events.append(_parse_sse_payload(raw))
 
-    assert any(e.get("event") == "tool_start" and e.get("name") == "query_db" for e in events)
-    assert any(e.get("event") == "tool_call" and e.get("success") is True for e in events)
+    assert any(
+        e.get("event") == "tool_start" and e.get("name") == "query_db" for e in events
+    )
+    assert any(
+        e.get("event") == "tool_call" and e.get("success") is True for e in events
+    )
     assert any(e.get("event") == "done" for e in events)
 
 
@@ -671,9 +734,7 @@ async def test_stream_handler_emits_knowledge_base_feedback_event():
             events.append(_parse_sse_payload(raw))
 
     kb_event = next(
-        event
-        for event in events
-        if event.get("event") == "knowledge_base_feedback"
+        event for event in events if event.get("event") == "knowledge_base_feedback"
     )
     assert kb_event["dropped_knowledge_base_ids"] == [12, 18]
     assert kb_event["effective_knowledge_base_ids"] == [5]
@@ -719,8 +780,12 @@ async def test_stream_handler_tool_rounds_keep_real_stream_and_final_answer():
             events.append(_parse_sse_payload(raw))
 
     assert any(e.get("event") == "thinking" for e in events)
-    assert any(e.get("event") == "tool_start" and e.get("name") == "query_db" for e in events)
-    assert any(e.get("event") == "tool_call" and e.get("success") is True for e in events)
+    assert any(
+        e.get("event") == "tool_start" and e.get("name") == "query_db" for e in events
+    )
+    assert any(
+        e.get("event") == "tool_call" and e.get("success") is True for e in events
+    )
     msg_deltas = [e["delta"] for e in events if e.get("event") == "message"]
     assert "查询完成" in "".join(msg_deltas) and "。" in "".join(msg_deltas)
 
@@ -813,11 +878,11 @@ async def test_stream_handler_retries_summary_without_fetch_before_emitting_mess
         if raw.strip().startswith("data: {"):
             events.append(_parse_sse_payload(raw))
 
-    message_text = "".join(
-        event.get("delta", "") for event in events if event.get("event") == "message"
+    _assert_retry_clear_sequence(
+        events,
+        leaked_text="Here is a summary based only on the search snippets",
+        final_text="Based on the fetched page body.",
     )
-    assert "Here is a summary based only on the search snippets" not in message_text
-    assert "Based on the fetched page body." in message_text
     assert any(
         event.get("event") == "tool_start" and event.get("name") == "fetch_url"
         for event in events
@@ -926,12 +991,16 @@ async def test_stream_handler_retries_leaked_textual_tool_output_after_partial_r
         if raw.strip().startswith("data: {"):
             events.append(_parse_sse_payload(raw))
 
-    message_text = "".join(
-        event.get("delta", "") for event in events if event.get("event") == "message"
+    _assert_retry_clear_sequence(
+        events,
+        leaked_text="Search results for: 12306",
+        final_text="今天天气可参考中国气象局页面",
     )
-    assert "Search results for: 12306" not in message_text
-    assert "今天天气可参考中国气象局页面" in message_text
-    assert "admin.dashboard" in message_text
+    assert any(
+        event.get("event") == "message"
+        and "admin.dashboard" in str(event.get("delta", ""))
+        for event in events
+    )
     assert any(
         event.get("event") == "tool_start" and event.get("name") == "fetch_url"
         for event in events
@@ -1053,12 +1122,16 @@ async def test_stream_handler_forces_retry_for_unfinished_multi_intent_after_pag
         if raw.strip().startswith("data: {"):
             events.append(_parse_sse_payload(raw))
 
-    message_text = "".join(
-        event.get("delta", "") for event in events if event.get("event") == "message"
+    _assert_retry_clear_sequence(
+        events,
+        leaked_text="我先给你一个当前可用信息的汇总",
+        final_text="高铁网等可读候选来源",
     )
-    assert "我先给你一个当前可用信息的汇总" not in message_text
-    assert "高铁网等可读候选来源" in message_text
-    assert "admin.ai.agents" in message_text
+    assert any(
+        event.get("event") == "message"
+        and "admin.ai.agents" in str(event.get("delta", ""))
+        for event in events
+    )
     assert any(
         event.get("event") == "tool_start" and event.get("name") == "fetch_url"
         for event in events
@@ -1176,11 +1249,11 @@ async def test_stream_handler_retries_summary_without_fetch_for_page_first_web_r
         if raw.strip().startswith("data: {"):
             events.append(_parse_sse_payload(raw))
 
-    message_text = "".join(
-        event.get("delta", "") for event in events if event.get("event") == "message"
+    _assert_retry_clear_sequence(
+        events,
+        leaked_text="我先给你整理目前能确认的三部分信息",
+        final_text="真实候选页面",
     )
-    assert "我先给你整理目前能确认的三部分信息" not in message_text
-    assert "真实候选页面" in message_text
     assert any(
         event.get("event") == "tool_start" and event.get("name") == "fetch_url"
         for event in events
@@ -1188,7 +1261,9 @@ async def test_stream_handler_retries_summary_without_fetch_for_page_first_web_r
 
 
 @pytest.mark.asyncio
-async def test_stream_handler_retries_capability_denial_before_emitting_message() -> None:
+async def test_stream_handler_retry_emits_clear_content_before_follow_up_message() -> (
+    None
+):
     engine = _FakeEngine(
         rounds=[
             [
@@ -1216,7 +1291,11 @@ async def test_stream_handler_retries_capability_denial_before_emitting_message(
                 ),
             ],
             [
-                ChatChunk(delta="GPT 是生成式预训练 Transformer。", finish_reason="stop", total_tokens=18),
+                ChatChunk(
+                    delta="GPT 是生成式预训练 Transformer。",
+                    finish_reason="stop",
+                    total_tokens=18,
+                ),
             ],
         ],
     )
@@ -1235,6 +1314,13 @@ async def test_stream_handler_retries_capability_denial_before_emitting_message(
             retry_on_contract_breach=True,
             reason="default_auto",
         ),
+        intent_plan=[
+            _build_pending_intent(
+                allowed_tool_names=["web_search", "fetch_url"],
+                family="web_research",
+                source_text="GPT 是什么",
+            )
+        ],
     )
 
     events: list[dict] = []
@@ -1242,13 +1328,99 @@ async def test_stream_handler_retries_capability_denial_before_emitting_message(
         if raw.strip().startswith("data: {"):
             events.append(_parse_sse_payload(raw))
 
-    message_text = "".join(
-        event.get("delta", "") for event in events if event.get("event") == "message"
+    message_events = [event for event in events if event.get("event") == "message"]
+    clear_events = [event for event in events if event.get("event") == "clear_content"]
+    assert (
+        message_events[0]["delta"]
+        == "我现在没有外部互联网搜索工具，只能基于已有知识回答。"
     )
-    assert "没有外部互联网搜索工具" not in message_text
-    assert "GPT 是生成式预训练 Transformer。" in message_text
+    assert clear_events
+    first_clear_idx = events.index(clear_events[0])
+    first_message_idx = events.index(message_events[0])
+    final_message_idx = next(
+        index
+        for index, event in enumerate(events)
+        if event.get("event") == "message"
+        and event.get("delta") == "GPT 是生成式预训练 Transformer。"
+    )
+    assert first_message_idx < first_clear_idx < final_message_idx
     assert any(
         event.get("event") == "tool_start" and event.get("name") == "web_search"
+        for event in events
+    )
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_emits_clear_content_on_retry() -> None:
+    """retry 时先发 clear_content，再进入下一轮 tool retry。"""
+
+    class _RetryEngine(_FakeEngine):
+        def __init__(self) -> None:
+            super().__init__(rounds=[])
+            self._round = 0
+
+        async def _stream_llm_chunks(self, **kwargs):
+            _ = kwargs
+            if self._round == 0:
+                self._round += 1
+                yield ChatChunk(delta="我不会", finish_reason="stop", total_tokens=10)
+                return
+            if self._round == 1:
+                self._round += 1
+                yield ChatChunk(
+                    delta="",
+                    tool_calls=[
+                        {
+                            "id": "call_retry",
+                            "type": "function",
+                            "function": {"name": "query_db", "arguments": "{}"},
+                        }
+                    ],
+                    finish_reason="tool_calls",
+                    total_tokens=15,
+                )
+                return
+
+            self._round += 1
+            yield ChatChunk(delta="已补救", finish_reason="stop", total_tokens=18)
+
+    engine = _RetryEngine()
+    handler = _build_handler(
+        engine,
+        tool_use_policy=ToolUsePolicy(
+            mode="required",
+            family="data_ops",
+            allowed_tool_names=["query_db"],
+            retry_on_contract_breach=True,
+            reason="test_retry",
+        ),
+        intent_plan=[
+            _build_pending_intent(
+                allowed_tool_names=["query_db"],
+                family="data_ops",
+                source_text="测试 query_db",
+            )
+        ],
+    )
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    message_events = [event for event in events if event.get("event") == "message"]
+    clear_events = [event for event in events if event.get("event") == "clear_content"]
+
+    assert len(message_events) >= 2
+    assert message_events[0]["delta"] == "我不会"
+    assert clear_events
+
+    first_message_idx = events.index(message_events[0])
+    first_clear_idx = events.index(clear_events[0])
+
+    assert first_clear_idx > first_message_idx
+    assert any(
+        event.get("event") == "tool_start" and event.get("name") == "query_db"
         for event in events
     )
 
@@ -1316,6 +1488,13 @@ async def test_stream_handler_retry_fallback_keeps_non_empty_final_assistant() -
             retry_on_contract_breach=True,
             reason="default_auto",
         ),
+        intent_plan=[
+            _build_pending_intent(
+                allowed_tool_names=["web_search", "fetch_url"],
+                family="web_research",
+                source_text="runtime v2 rollout",
+            )
+        ],
     )
     handler.on_complete = on_complete
 
@@ -1326,11 +1505,7 @@ async def test_stream_handler_retry_fallback_keeps_non_empty_final_assistant() -
 
     await asyncio.wait_for(completed.wait(), timeout=1)
 
-    message_text = "".join(
-        event.get("delta", "") for event in events if event.get("event") == "message"
-    )
-    assert "没有外部互联网搜索工具" not in message_text
-    assert "这是补救后的最终答复。" in message_text
+    assert any(event.get("event") == "clear_content" for event in events)
     assert len(captured) == 1
     assistant_plain_messages = [
         message
@@ -1338,11 +1513,20 @@ async def test_stream_handler_retry_fallback_keeps_non_empty_final_assistant() -
         if message.get("role") == "assistant" and not message.get("tool_calls")
     ]
     assert assistant_plain_messages
-    assert assistant_plain_messages[-1].get("content", "").strip() == "这是补救后的最终答复。"
+    assert all(
+        "没有外部互联网搜索工具" not in (message.get("content", "") or "")
+        for message in assistant_plain_messages
+    )
+    assert (
+        assistant_plain_messages[-1].get("content", "").strip()
+        == "这是补救后的最终答复。"
+    )
 
 
 @pytest.mark.asyncio
-async def test_stream_handler_logs_failed_retry_when_required_policy_still_returns_text() -> None:
+async def test_stream_handler_logs_failed_retry_when_required_policy_still_returns_text() -> (
+    None
+):
     engine = _FakeEngine(
         rounds=[
             [
@@ -1375,6 +1559,13 @@ async def test_stream_handler_logs_failed_retry_when_required_policy_still_retur
             retry_on_contract_breach=True,
             reason="default_auto",
         ),
+        intent_plan=[
+            _build_pending_intent(
+                allowed_tool_names=["web_search", "fetch_url"],
+                family="web_research",
+                source_text="没有联网能力",
+            )
+        ],
     )
 
     events: list[dict] = []
@@ -1389,7 +1580,8 @@ async def test_stream_handler_logs_failed_retry_when_required_policy_still_retur
     assert "仍然没有联网能力。" in message_text
     assert diag_mock.call_count >= 2
     retry_results = [call.kwargs["retry_result"] for call in diag_mock.call_args_list]
-    assert retry_results == ["retrying", "failed"]
+    assert retry_results[0] == "retrying"
+    assert retry_results[-1] == "failed"
 
 
 @pytest.mark.asyncio
@@ -1434,7 +1626,9 @@ async def test_stream_handler_tool_round_persists_reasoning_content():
 
     assert len(captured) == 1
     assistant_tool_message = next(
-        m for m in captured[0].messages if m.get("role") == "assistant" and m.get("tool_calls")
+        m
+        for m in captured[0].messages
+        if m.get("role") == "assistant" and m.get("tool_calls")
     )
     assert assistant_tool_message.get("content") == "先查询数据库。"
     assert assistant_tool_message.get("reasoning_content") == "先查询数据库。"
@@ -1482,9 +1676,10 @@ async def test_stream_handler_consent_round_does_not_append_duplicate_assistant(
 
     await asyncio.sleep(0)
 
-    assert "".join(
-        e.get("delta", "") for e in events if e.get("event") == "message"
-    ) == "请先确认后再执行。"
+    assert (
+        "".join(e.get("delta", "") for e in events if e.get("event") == "message")
+        == "请先确认后再执行。"
+    )
     assert len(captured) == 1
     assistant_messages = [
         m for m in captured[0].messages if m.get("role") == "assistant"
@@ -1500,6 +1695,7 @@ async def test_tool_call_name_matches_tool_start_when_sandbox_redirects():
     must use original func_name (name_override) so frontend matches correctly.
     pageop_* 重定向后 tool_call 事件的 name 必须与 tool_start 一致（原始 func_name）。
     """
+
     class _RedirectSandbox:
         async def execute(
             self,
@@ -1511,7 +1707,9 @@ async def test_tool_call_name_matches_tool_start_when_sandbox_redirects():
         ):
             _ = tool_call_id, arguments, definitions, conversation_id
             # Simulate sandbox redirect: pageop_* -> invoke_page_operation
-            result_name = "invoke_page_operation" if name.startswith("pageop_") else name
+            result_name = (
+                "invoke_page_operation" if name.startswith("pageop_") else name
+            )
             return ToolResult(
                 tool_call_id="call_1",
                 name=result_name,
@@ -1554,7 +1752,9 @@ async def test_tool_call_name_matches_tool_start_when_sandbox_redirects():
             events.append(_parse_sse_payload(raw))
 
     tool_starts = [e for e in events if e.get("event") == "tool_start"]
-    tool_calls = [e for e in events if e.get("event") == "tool_call" and e.get("success")]
+    tool_calls = [
+        e for e in events if e.get("event") == "tool_call" and e.get("success")
+    ]
     assert len(tool_starts) >= 1
     assert len(tool_calls) >= 1
     assert tool_starts[0].get("name") == "pageop_get_editor_html"
@@ -1647,15 +1847,38 @@ async def test_parse_error_abort_after_consecutive_page_op_failures():
             ChatResponse(
                 message=ChatMessage(role="assistant", content=""),
                 tool_calls=[
-                    {"id": "c1", "type": "function", "function": {"name": "invoke_page_operation", "arguments": "{bad json 1"}},
-                    {"id": "c2", "type": "function", "function": {"name": "invoke_page_operation", "arguments": "{bad json 2"}},
-                    {"id": "c3", "type": "function", "function": {"name": "invoke_page_operation", "arguments": "{bad json 3"}},
+                    {
+                        "id": "c1",
+                        "type": "function",
+                        "function": {
+                            "name": "invoke_page_operation",
+                            "arguments": "{bad json 1",
+                        },
+                    },
+                    {
+                        "id": "c2",
+                        "type": "function",
+                        "function": {
+                            "name": "invoke_page_operation",
+                            "arguments": "{bad json 2",
+                        },
+                    },
+                    {
+                        "id": "c3",
+                        "type": "function",
+                        "function": {
+                            "name": "invoke_page_operation",
+                            "arguments": "{bad json 3",
+                        },
+                    },
                 ],
                 total_tokens=100,
             ),
         ],
     )
-    tools = [ToolDefinition(name="invoke_page_operation", description="Execute page op")]
+    tools = [
+        ToolDefinition(name="invoke_page_operation", description="Execute page op")
+    ]
     handler = _build_handler(engine, tools=tools)
 
     events: list[dict] = []
@@ -1664,7 +1887,9 @@ async def test_parse_error_abort_after_consecutive_page_op_failures():
             events.append(_parse_sse_payload(raw))
 
     # 应有 3 个 tool_call 失败事件
-    failed_calls = [e for e in events if e.get("event") == "tool_call" and e.get("success") is False]
+    failed_calls = [
+        e for e in events if e.get("event") == "tool_call" and e.get("success") is False
+    ]
     assert len(failed_calls) >= 3
 
     # 熔断后 output 应包含恢复提示（兼容 i18n key 或翻译结果）

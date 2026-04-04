@@ -52,13 +52,16 @@ import {
   updateChatConversationTitleApi,
   uploadChatFileApi,
 } from '#/api/shared/ai-chat';
-import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
+import {
+  normalizePageKey,
+  resolveRoutePageKey,
+} from '#/components/business/ai-slide-panel/page-key-utils';
 import { useFileUpload } from '#/composables/use-file-upload';
+import { waitForPageSessionJoin } from '#/composables/use-page-operation-channel';
 import { CHAT_ACCEPT_ATTRIBUTE } from '#/constants/upload';
 import { $t } from '#/locales';
 import { useSocketIOStore } from '#/store';
 import { useAIPanelStore } from '#/store/shared/ai-panel';
-import { waitForPageSessionJoin } from '#/composables/use-page-operation-channel';
 import {
   addConsent,
   clearConsents,
@@ -70,7 +73,6 @@ import {
   normalizeSseEventError,
   normalizeSseTransportError,
 } from '#/utils/request';
-import { resolveRoutePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
 
 import {
   extractLeadingAgentMentionDraft,
@@ -2147,6 +2149,11 @@ export function useAIChat(options: UseAIChatOptions) {
               startedAt: Date.now(),
             });
             scrollToBottom();
+
+            break;
+          }
+          case 'clear_content': {
+            msg.content = '';
 
             break;
           }
