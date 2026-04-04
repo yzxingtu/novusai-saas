@@ -765,6 +765,9 @@ importers:
         specifier: ^0.18.5
         version: 0.18.5
     devDependencies:
+      '@iconify-json/lucide':
+        specifier: ^1.2.89
+        version: 1.2.89
       '@types/dompurify':
         specifier: ^3.0.5
         version: 3.2.0

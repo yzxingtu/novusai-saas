@@ -89,10 +89,11 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "@vue/test-utils": "catalog:",
+    "@iconify-json/lucide": "^1.2.89",
     "@types/dompurify": "^3.0.5",
     "@types/js-yaml": "^4.0.9",
     "@types/markdown-it": "^14.1.2",
-    "@types/qs": "catalog:"
+    "@types/qs": "catalog:",
+    "@vue/test-utils": "catalog:"
   }
 }

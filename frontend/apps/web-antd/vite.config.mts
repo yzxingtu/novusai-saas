@@ -67,6 +67,9 @@ export default defineConfig(async () => {
           ...sharedSourceAliases,
         },
       },
+      optimizeDeps: {
+        include: ['html2canvas'],
+      },
       server: {
         allowedHosts: true,
         proxy: {
